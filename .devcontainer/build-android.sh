@@ -3,6 +3,8 @@ set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
+bash ./gen.sh
+
 flutter build apk \
   --debug \
   --flavor dev

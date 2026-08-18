@@ -3,6 +3,8 @@ set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
+bash ./gen.sh
+
 if ! adb devices | grep -q $'\tdevice$'; then
   printf 'No Android device is available through the Windows ADB server.\n' >&2
   printf 'Run .devcontainer\\start-host-adb.ps1 on Windows and authorize the device.\n' >&2
