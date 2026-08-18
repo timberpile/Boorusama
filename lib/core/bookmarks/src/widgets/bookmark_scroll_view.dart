@@ -25,12 +25,15 @@ import '../../../widgets/widgets.dart';
 import '../../types.dart';
 import '../data/bookmark_convert.dart';
 import '../data/providers.dart';
+import '../providers/bookmark_group_providers.dart';
 import '../providers/bookmark_provider.dart';
 import '../providers/bookmark_shuffle_provider.dart';
 import '../providers/local_providers.dart';
 import '../routes/route_utils.dart';
 import 'bookmark_appbar.dart';
 import 'bookmark_booru_type_selector.dart';
+import 'bookmark_group_selector.dart';
+import 'bookmark_group_actions.dart';
 import 'bookmark_search_bar.dart';
 import 'bookmark_shuffle_button.dart';
 import 'bookmark_sort_button.dart';
@@ -81,7 +84,13 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
           final searchTags = _parseTagsFromText(widget.searchController.text);
           final sortType = ref.read(selectedBookmarkSortTypeProvider);
           final selectedBooruUrl = ref.read(selectedBooruUrlProvider);
+          final selectedBookmarkGroupId = ref.read(
+            selectedBookmarkGroupIdProvider,
+          );
           final shuffleState = ref.read(bookmarkShuffleProvider);
+          final membershipsByBookmark = await (await ref.read(
+            bookmarkGroupRepoProvider.future,
+          )).getMembershipsByBookmark();
           final bookmarks = filterBookmarks(
             selectedTags: searchTags,
             bookmarks: await (await ref.read(bookmarkRepoProvider.future))
@@ -90,6 +99,8 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                       ref.read(bookmarkUrlResolverProvider(booruId)),
                 ),
             sortType: sortType,
+            membershipsByBookmark: membershipsByBookmark,
+            selectedBookmarkGroupId: selectedBookmarkGroupId,
             selectedBooruUrl: selectedBooruUrl,
             shuffleState: shuffleState,
           );
@@ -106,6 +117,11 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
       builder: (context, controller) => Consumer(
         builder: (context, ref, child) {
           ref
+            ..listen(selectedBookmarkGroupIdProvider, (_, _) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                controller.refresh();
+              });
+            })
             ..listen(selectedBooruUrlProvider, (_, _) {
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 controller.refresh();
@@ -216,6 +232,9 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                 ),
               ),
               const SliverPinnedHeader(
+                child: BookmarkGroupSelector(),
+              ),
+              const SliverPinnedHeader(
                 child: BookmarkBooruSourceUrlSelector(),
               ),
               const SliverSizedBox(height: 8),
@@ -248,6 +267,7 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
   ) {
     final edit = ref.watch(bookmarkEditProvider);
     final auth = ref.watchConfigAuth;
+    final selectedGroupId = ref.watch(selectedBookmarkGroupIdProvider);
 
     return ValueListenableBuilder(
       valueListenable: controller.itemsNotifier,
@@ -303,12 +323,25 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                 child: KurumiCircularIconButton(
                   padding: const EdgeInsets.all(4),
                   icon: const Icon(Symbols.close),
-                  onPressed: () => ref.bookmarks.removeBookmark(
-                    post.bookmark,
-                    onSuccess: () {
-                      controller.remove([post.id], (e) => e.id);
-                    },
-                  ),
+                  onPressed: () {
+                    if (selectedGroupId != null &&
+                        selectedGroupId != kUngroupedBookmarkGroupId) {
+                      ref.bookmarks.removeBookmarkFromGroup(
+                        post.bookmark.uniqueId,
+                        selectedGroupId,
+                        onSuccess: () {
+                          controller.remove([post.id], (e) => e.id);
+                        },
+                      );
+                    } else {
+                      ref.bookmarks.removeBookmark(
+                        post.bookmark,
+                        onSuccess: () {
+                          controller.remove([post.id], (e) => e.id);
+                        },
+                      );
+                    }
+                  },
                 ),
               ),
           ],
@@ -349,14 +382,13 @@ class BookmarkContextMenu extends ConsumerWidget {
             [post.bookmark],
           ),
         ),
-        KurumiContextMenuTile(
-          title: context.t.post.detail.remove_from_bookmark,
-          onTap: () => ref.bookmarks.removeBookmark(
-            post.bookmark,
-            onSuccess: () {
-              controller.remove([post.id], (e) => e.id);
-            },
-          ),
+        BookmarkContextMenuSection(
+          post: post,
+          config: auth,
+          bookmark: post.bookmark,
+          onBookmarkDeleted: () {
+            controller.remove([post.id], (e) => e.id);
+          },
         ),
         if (!loginDetails.hasStrictSFW)
           KurumiContextMenuTile(
