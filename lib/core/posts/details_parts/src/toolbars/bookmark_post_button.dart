@@ -1,9 +1,11 @@
+// Flutter imports:
+import 'package:flutter/material.dart';
+
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
-import 'package:like_button/like_button.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 // Project imports:
@@ -14,7 +16,7 @@ import '../../../../configs/config/types.dart';
 import '../../../../themes/theme/types.dart';
 import '../../../post/types.dart';
 
-class BookmarkPostButton extends ConsumerWidget {
+class BookmarkPostButton extends StatelessWidget {
   const BookmarkPostButton({
     required this.post,
     required this.config,
@@ -25,53 +27,10 @@ class BookmarkPostButton extends ConsumerWidget {
   final BooruConfigAuth config;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final bookmarkStateAsync = ref.watch(bookmarkProvider);
-    final isBookmarked =
-        bookmarkStateAsync.valueOrNull?.isBookmarked(
-          post,
-          config.booruIdHint,
-        ) ??
-        false;
-    final isLoading = bookmarkStateAsync.isLoading;
-
-    return KurumiTooltip(
-      message: isBookmarked
-          ? context.t.post.detail.remove_from_bookmark
-          : context.t.post.detail.add_to_bookmark,
-      padding: const EdgeInsets.all(8),
-      child: isBookmarked
-          ? IconButton(
-              splashRadius: 16,
-              onPressed: isLoading
-                  ? null
-                  : () {
-                      ref.bookmarks.removeBookmarkWithToast(
-                        BookmarkUniqueId.fromPost(post, config.booruIdHint),
-                      );
-                    },
-              icon: Icon(
-                Symbols.bookmark,
-                fill: 1,
-                color: context.colors.upvoteColor,
-              ),
-            )
-          : IconButton(
-              splashRadius: 16,
-              onPressed: isLoading
-                  ? null
-                  : () {
-                      ref.bookmarks.addBookmarkWithToast(
-                        config,
-                        post,
-                      );
-                    },
-              icon: const Icon(
-                Symbols.bookmark,
-              ),
-            ),
-    );
-  }
+  Widget build(BuildContext context) => BookmarkGroupToggleButton(
+    post: post,
+    config: config,
+  );
 }
 
 class BookmarkPostLikeButtonButton extends ConsumerWidget {
@@ -84,43 +43,345 @@ class BookmarkPostLikeButtonButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final booruConfig = ref.watchConfigAuth;
+    return BookmarkGroupToggleButton(
+      post: post,
+      config: ref.watchConfigAuth,
+      small: true,
+    );
+  }
+}
+
+class BookmarkGroupToggleButton extends ConsumerWidget {
+  const BookmarkGroupToggleButton({
+    required this.post,
+    required this.config,
+    super.key,
+    this.small = false,
+  });
+
+  final Post post;
+  final BooruConfigAuth config;
+  final bool small;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
     final bookmarkStateAsync = ref.watch(bookmarkProvider);
-    final isBookmarked =
-        bookmarkStateAsync.valueOrNull?.isBookmarked(
+    final state = bookmarkStateAsync.valueOrNull;
+    final groups = ref.watch(bookmarkGroupsProvider).valueOrNull ?? const [];
+    final target = ref.watch(effectiveActiveBookmarkGroupIdProvider);
+    final bookmarkId = BookmarkUniqueId.fromPost(post, config.booruIdHint);
+    final isBookmarked = state?.bookmarks.contains(bookmarkId) ?? false;
+    final groupIds = state?.memberships[bookmarkId] ?? const <int>{};
+    final inTarget = target == kUngroupedBookmarkGroupId
+        ? isBookmarked && groupIds.isEmpty
+        : groupIds.contains(target);
+    final namedGroupCount = groupIds.length;
+    final showCount =
+        namedGroupCount > 0 &&
+        (target == kUngroupedBookmarkGroupId ||
+            !groupIds.contains(target) ||
+            namedGroupCount > 1);
+    final targetName = _targetName(target, groups);
+    final tooltip = inTarget
+        ? 'Remove from $targetName'.hc
+        : 'Add to $targetName'.hc;
+
+    Future<void> onTap() async {
+      if (bookmarkStateAsync.isLoading) return;
+
+      if (target == kUngroupedBookmarkGroupId) {
+        if (!isBookmarked) {
+          await ref.bookmarks.addBookmarkWithToast(config, post);
+        } else if (groupIds.isEmpty) {
+          await ref.bookmarks.removeBookmarkWithToast(bookmarkId);
+        } else {
+          Kurumi.showErrorToast(
+            context,
+            'Select a named group to remove this grouped bookmark.'.hc,
+          );
+        }
+        return;
+      }
+
+      if (inTarget) {
+        await ref.bookmarks.removeBookmarkFromGroup(
+          bookmarkId,
+          target,
+          onError: () => Kurumi.showErrorToast(
+            context,
+            'Failed to remove from group'.hc,
+          ),
+        );
+      } else if (isBookmarked) {
+        await ref.bookmarks.addBookmarkIdToGroup(
+          bookmarkId,
+          target,
+          onError: () => Kurumi.showErrorToast(
+            context,
+            'Failed to add to group'.hc,
+          ),
+        );
+      } else {
+        await ref.bookmarks.addBookmarkToGroup(
+          config,
           post,
-          booruConfig.booruIdHint,
-        ) ??
-        false;
-    final isLoading = bookmarkStateAsync.isLoading;
+          target,
+          onError: () => Kurumi.showErrorToast(
+            context,
+            'Failed to add to group'.hc,
+          ),
+        );
+      }
+    }
 
-    return LikeButton(
-      isLiked: isBookmarked,
-      onTap: isLoading
-          ? null
-          : (isLiked) {
-              if (isLiked) {
-                ref.bookmarks.removeBookmarkWithToast(
-                  BookmarkUniqueId.fromPost(post, booruConfig.booruIdHint),
-                );
-              } else {
-                ref.bookmarks.addBookmarkWithToast(
-                  booruConfig,
-                  post,
-                );
-              }
+    Future<void> onLongPress() => _showGroupPicker(
+      context,
+      ref,
+      target: target,
+      groups: groups,
+      isBookmarked: isBookmarked,
+      groupIds: groupIds,
+    );
 
-              return Future.value(!isLiked);
-            },
-      likeBuilder: (isLiked) {
-        return Icon(
-          isLiked ? Symbols.bookmark : Symbols.bookmark,
-          color: isLiked
+    final icon = Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Icon(
+          Symbols.bookmark,
+          fill: inTarget ? 1 : 0,
+          color: inTarget
               ? context.colors.upvoteColor
               : context.extendedColorScheme.onSurfaceContainerOverlay,
-          fill: isLiked ? 1 : 0,
+        ),
+        if (showCount)
+          Positioned(
+            right: -8,
+            bottom: -6,
+            child: _GroupCountBadge(count: namedGroupCount),
+          ),
+      ],
+    );
+
+    final button = small
+        ? Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: onTap,
+              onLongPress: onLongPress,
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: icon,
+              ),
+            ),
+          )
+        : InkWell(
+            borderRadius: BorderRadius.circular(20),
+            onTap: onTap,
+            onLongPress: onLongPress,
+            child: Padding(
+              padding: const EdgeInsets.all(8),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: Center(child: icon),
+                  ),
+                  Text(
+                    targetName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.labelSmall,
+                  ),
+                ],
+              ),
+            ),
+          );
+
+    return KurumiTooltip(
+      message: tooltip,
+      padding: const EdgeInsets.all(8),
+      child: button,
+    );
+  }
+
+  Future<void> _showGroupPicker(
+    BuildContext context,
+    WidgetRef ref, {
+    required int target,
+    required List<BookmarkGroup> groups,
+    required bool isBookmarked,
+    required Set<int> groupIds,
+  }) async {
+    final availableGroups = groups.isNotEmpty
+        ? groups
+        : await ref.read(bookmarkGroupsProvider.future);
+    if (!context.mounted) return;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            ListTile(
+              leading: const Icon(Symbols.bookmark),
+              title: Text('Ungrouped'.hc),
+              selected: target == kUngroupedBookmarkGroupId,
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _applyTarget(
+                  context,
+                  ref,
+                  kUngroupedBookmarkGroupId,
+                  isBookmarked: isBookmarked,
+                  groupIds: groupIds,
+                );
+              },
+            ),
+            ...availableGroups.map(
+              (group) => ListTile(
+                leading: const Icon(Symbols.bookmarks),
+                title: Text(group.name),
+                selected: group.id == target,
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _applyTarget(
+                    context,
+                    ref,
+                    group.id,
+                    isBookmarked: isBookmarked,
+                    groupIds: groupIds,
+                  );
+                },
+              ),
+            ),
+            const Divider(),
+            ListTile(
+              leading: const Icon(Symbols.create_new_folder),
+              title: Text('Create new group'.hc),
+              onTap: () async {
+                Navigator.pop(sheetContext);
+                await _createGroupAndAdd(context, ref);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _applyTarget(
+    BuildContext context,
+    WidgetRef ref,
+    int groupId, {
+    required bool isBookmarked,
+    required Set<int> groupIds,
+  }) async {
+    await setActiveBookmarkGroupId(ref, groupId);
+    final bookmarkId = BookmarkUniqueId.fromPost(post, config.booruIdHint);
+
+    if (groupId == kUngroupedBookmarkGroupId) {
+      if (!isBookmarked) {
+        await ref.bookmarks.addBookmarkWithToast(config, post);
+      } else if (groupIds.isEmpty) {
+        await ref.bookmarks.removeBookmarkWithToast(bookmarkId);
+      } else {
+        if (!context.mounted) return;
+        Kurumi.showErrorToast(
+          context,
+          'Select a named group to remove this grouped bookmark.'.hc,
         );
-      },
+      }
+      return;
+    }
+
+    if (groupIds.contains(groupId)) {
+      await ref.bookmarks.removeBookmarkFromGroup(bookmarkId, groupId);
+    } else if (isBookmarked) {
+      await ref.bookmarks.addBookmarkIdToGroup(bookmarkId, groupId);
+    } else {
+      await ref.bookmarks.addBookmarkToGroup(config, post, groupId);
+    }
+  }
+
+  Future<void> _createGroupAndAdd(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    final controller = TextEditingController();
+    final name = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('Create group'.hc),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: InputDecoration(hintText: 'Group name'.hc),
+          onSubmitted: (value) => Navigator.pop(dialogContext, value.trim()),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text('Cancel'.hc),
+          ),
+          FilledButton(
+            onPressed: () =>
+                Navigator.pop(dialogContext, controller.text.trim()),
+            child: Text('Create'.hc),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (name == null || name.isEmpty) return;
+
+    try {
+      final group = await (await ref.read(
+        bookmarkGroupRepoProvider.future,
+      )).createGroup(name);
+      await setActiveBookmarkGroupId(ref, group.id);
+      await ref.bookmarks.addBookmarkToGroup(config, post, group.id);
+      refreshBookmarkGroupProviders(ref);
+    } catch (error) {
+      if (context.mounted) Kurumi.showErrorToast(context, error.toString());
+    }
+  }
+
+  String _targetName(int target, List<BookmarkGroup> groups) {
+    if (target == kUngroupedBookmarkGroupId) return 'Ungrouped'.hc;
+    for (final group in groups) {
+      if (group.id == target) return group.name;
+    }
+    return 'Ungrouped'.hc;
+  }
+}
+
+class _GroupCountBadge extends StatelessWidget {
+  const _GroupCountBadge({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 3),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.primary,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        '$count',
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          color: Theme.of(context).colorScheme.onPrimary,
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
     );
   }
 }
@@ -130,20 +391,32 @@ extension BookmarkPostX on WidgetRef {
     final booruConfig = readConfigAuth;
     read(bookmarkProvider).whenOrNull(
       data: (bookmarkState) {
+        final bookmarkId = BookmarkUniqueId.fromPost(
+          post,
+          booruConfig.booruIdHint,
+        );
+        final target = read(effectiveActiveBookmarkGroupIdProvider);
+        final groupIds = bookmarkState.groupIdsFor(
+          post,
+          booruConfig.booruIdHint,
+        );
         final isBookmarked = bookmarkState.isBookmarked(
           post,
           booruConfig.booruIdHint,
         );
 
-        if (isBookmarked) {
-          bookmarks.removeBookmarkWithToast(
-            BookmarkUniqueId.fromPost(post, booruConfig.booruIdHint),
-          );
+        if (target == kUngroupedBookmarkGroupId) {
+          if (!isBookmarked) {
+            bookmarks.addBookmarkWithToast(booruConfig, post);
+          } else if (groupIds.isEmpty) {
+            bookmarks.removeBookmarkWithToast(bookmarkId);
+          }
+        } else if (groupIds.contains(target)) {
+          bookmarks.removeBookmarkFromGroup(bookmarkId, target);
+        } else if (isBookmarked) {
+          bookmarks.addBookmarkIdToGroup(bookmarkId, target);
         } else {
-          bookmarks.addBookmarkWithToast(
-            booruConfig,
-            post,
-          );
+          bookmarks.addBookmarkToGroup(booruConfig, post, target);
         }
       },
     );
