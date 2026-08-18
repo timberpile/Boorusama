@@ -24,7 +24,7 @@ val hasValidKeystore = keystorePropertiesFile.exists() &&
 val splitPerAbi = project.findProperty("split-per-abi") == "true"
 
 android {
-    namespace = "com.degenk.boorusama"
+    namespace = "com.timberpile.boorusama"
     compileSdk = 36
     ndkVersion = "28.2.13676358"
 
@@ -39,7 +39,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.degenk.boorusama"
+        applicationId = "com.timberpile.boorusama"
         minSdk = 24
         targetSdk = 36
         versionCode = flutter.versionCode

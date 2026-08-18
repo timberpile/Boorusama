@@ -16,7 +16,7 @@ final packageInfoProvider = Provider<PackageInfo>(
 final dummyPackageInfoProvider = Provider<PackageInfo>((ref) {
   return PackageInfo(
     appName: 'Boorusama',
-    packageName: 'com.degenk.boorusama',
+    packageName: 'com.timberpile.boorusama',
     version: '1.0.0',
     buildNumber: '1',
   );
