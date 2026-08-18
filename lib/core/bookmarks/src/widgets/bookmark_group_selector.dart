@@ -217,35 +217,39 @@ class BookmarkGroupManagementButton extends ConsumerWidget {
     final preview = await repository.previewDeleteGroup(group.id);
     if (!context.mounted) return;
 
-    final deleteOrphans = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(
-          context.t.bookmark.groups.delete_group_title(name: group.name),
+    var deleteOrphans = false;
+    if (preview.orphanBookmarkIds.isNotEmpty) {
+      final result = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(
+            context.t.bookmark.groups.delete_group_title(name: group.name),
+          ),
+          content: Text(
+            context.t.bookmark.groups.delete_group_summary(
+              memberships: preview.membershipCount,
+              orphans: preview.orphanBookmarkIds.length,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(context.t.generic.action.cancel),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text(context.t.bookmark.groups.keep_as_ungrouped),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: Text(context.t.bookmark.groups.delete_bookmarks),
+            ),
+          ],
         ),
-        content: Text(
-          context.t.bookmark.groups.delete_group_summary(
-            memberships: preview.membershipCount,
-            orphans: preview.orphanBookmarkIds.length,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(context.t.generic.action.cancel),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(context.t.bookmark.groups.keep_as_ungrouped),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text(context.t.bookmark.groups.delete_bookmarks),
-          ),
-        ],
-      ),
-    );
-    if (deleteOrphans == null) return;
+      );
+      if (result == null) return;
+      deleteOrphans = result;
+    }
 
     try {
       final orphanIds = await repository.deleteGroup(group.id);

@@ -1065,8 +1065,8 @@
     "failed_to_remove": "Failed to remove bookmark",
     "shuffle_tooltip": "Shuffle bookmarks",
     "groups": {
-      "all": "All Bookmarks",
-      "ungrouped": "Ungrouped",
+      "all": "All",
+      "ungrouped": "No group",
       "selector": "Bookmark groups",
       "create": "Create group",
       "create_new": "Create new group",
@@ -1074,6 +1074,7 @@
       "rename": "Rename group",
       "delete": "Delete group",
       "name": "Group name",
+      "add_bookmark": "Add bookmark",
       "add_to": "Add to...",
       "add_to_target": "Add to $target",
       "remove_from": "Remove from...",

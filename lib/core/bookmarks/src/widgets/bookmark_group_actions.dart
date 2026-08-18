@@ -73,7 +73,9 @@ class BookmarkContextMenuSection extends ConsumerWidget {
         ),
         if (addActive)
           KurumiContextMenuTile(
-            title: context.t.bookmark.groups.add_to_target(target: activeName),
+            title: activeTarget == kUngroupedBookmarkGroupId
+                ? context.t.bookmark.groups.add_bookmark
+                : context.t.bookmark.groups.add_to_target(target: activeName),
             onTap: () => _addToTarget(
               context,
               ref,
