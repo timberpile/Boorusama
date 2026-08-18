@@ -11,6 +11,7 @@ import 'package:material_symbols_icons/symbols.dart';
 // Project imports:
 import '../../../../bookmarks/providers.dart';
 import '../../../../bookmarks/types.dart';
+import '../../../../bookmarks/src/widgets/bookmark_group_name_dialog.dart';
 import '../../../../configs/config/providers.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../themes/theme/types.dart';
@@ -75,6 +76,9 @@ class BookmarkGroupToggleButton extends ConsumerWidget {
     final inTarget = target == kUngroupedBookmarkGroupId
         ? isBookmarked && groupIds.isEmpty
         : groupIds.contains(target);
+    final isGroupedBookmark = isBookmarked && groupIds.isNotEmpty;
+    final targetUnavailable =
+        target == kUngroupedBookmarkGroupId && isGroupedBookmark;
     final namedGroupCount = groupIds.length;
     final showCount =
         namedGroupCount > 0 &&
@@ -82,12 +86,26 @@ class BookmarkGroupToggleButton extends ConsumerWidget {
             !groupIds.contains(target) ||
             namedGroupCount > 1);
     final targetName = _targetName(context, target, groups);
-    final tooltip = inTarget
+    final tooltip = targetUnavailable
+        ? context.t.bookmark.groups.selector
+        : inTarget
         ? context.t.bookmark.groups.remove_from_target(target: targetName)
         : context.t.bookmark.groups.add_to_target(target: targetName);
 
     Future<void> onTap() async {
       if (bookmarkStateAsync.isLoading) return;
+
+      if (targetUnavailable) {
+        await _showGroupPicker(
+          context,
+          ref,
+          target: target,
+          groups: groups,
+          isBookmarked: isBookmarked,
+          groupIds: groupIds,
+        );
+        return;
+      }
 
       if (target == kUngroupedBookmarkGroupId) {
         if (!isBookmarked) {
@@ -234,6 +252,7 @@ class BookmarkGroupToggleButton extends ConsumerWidget {
     required bool isBookmarked,
     required Set<int> groupIds,
   }) async {
+    final isGroupedBookmark = isBookmarked && groupIds.isNotEmpty;
     final availableGroups = groups.isNotEmpty
         ? groups
         : await ref.read(bookmarkGroupsProvider.future);
@@ -246,26 +265,35 @@ class BookmarkGroupToggleButton extends ConsumerWidget {
         child: ListView(
           shrinkWrap: true,
           children: [
-            ListTile(
-              leading: const Icon(Symbols.bookmark),
-              title: Text(context.t.bookmark.groups.ungrouped),
-              selected: target == kUngroupedBookmarkGroupId,
-              onTap: () {
-                Navigator.pop(sheetContext);
-                _applyTarget(
-                  context,
-                  ref,
-                  kUngroupedBookmarkGroupId,
-                  isBookmarked: isBookmarked,
-                  groupIds: groupIds,
-                );
-              },
-            ),
+            if (!isGroupedBookmark)
+              ListTile(
+                leading: Icon(
+                  Symbols.bookmark,
+                  fill: isBookmarked && groupIds.isEmpty ? 1 : 0,
+                ),
+                title: Text(context.t.bookmark.groups.ungrouped),
+                trailing: target == kUngroupedBookmarkGroupId
+                    ? const Icon(Symbols.check)
+                    : null,
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _applyTarget(
+                    context,
+                    ref,
+                    kUngroupedBookmarkGroupId,
+                    isBookmarked: isBookmarked,
+                    groupIds: groupIds,
+                  );
+                },
+              ),
             ...availableGroups.map(
               (group) => ListTile(
-                leading: const Icon(Symbols.bookmarks),
+                leading: Icon(
+                  Symbols.bookmarks,
+                  fill: groupIds.contains(group.id) ? 1 : 0,
+                ),
                 title: Text(group.name),
-                selected: group.id == target,
+                trailing: group.id == target ? const Icon(Symbols.check) : null,
                 onTap: () {
                   Navigator.pop(sheetContext);
                   _applyTarget(
@@ -304,6 +332,8 @@ class BookmarkGroupToggleButton extends ConsumerWidget {
     final bookmarkId = BookmarkUniqueId.fromPost(post, config.booruIdHint);
 
     if (groupId == kUngroupedBookmarkGroupId) {
+      if (isBookmarked && groupIds.isNotEmpty) return;
+
       if (!isBookmarked) {
         await ref.bookmarks.addBookmarkWithToast(config, post);
       } else if (groupIds.isEmpty) {
@@ -331,34 +361,14 @@ class BookmarkGroupToggleButton extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
   ) async {
-    final controller = TextEditingController();
-    final name = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(context.t.bookmark.groups.create),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: InputDecoration(
-            hintText: context.t.bookmark.groups.name,
-          ),
-          onSubmitted: (value) => Navigator.pop(dialogContext, value.trim()),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: Text(context.t.generic.action.cancel),
-          ),
-          FilledButton(
-            onPressed: () =>
-                Navigator.pop(dialogContext, controller.text.trim()),
-            child: Text(context.t.generic.action.create),
-          ),
-        ],
-      ),
+    final name = await showBookmarkGroupNameDialog(
+      context,
+      title: context.t.bookmark.groups.create,
+      saveLabel: context.t.generic.action.create,
+      cancelLabel: context.t.generic.action.cancel,
+      hintText: context.t.bookmark.groups.name,
     );
-    controller.dispose();
-    if (name == null || name.isEmpty) return;
+    if (name == null) return;
 
     try {
       final group = await (await ref.read(
