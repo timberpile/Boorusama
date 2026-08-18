@@ -45,6 +45,7 @@ class Settings extends Equatable {
     required this.clearImageCacheOnStartup,
     required this.appLockType,
     required this.bookmarkFilterType,
+    required this.activeBookmarkGroupId,
     required this.booruConfigSelectorPosition,
     required this.booruConfigSelectorScrollDirection,
     required this.swipeAreaToOpenSidebarPercentage,
@@ -89,6 +90,7 @@ class Settings extends Equatable {
       clearImageCacheOnStartup = json['clearImageCacheOnStartup'] ?? false,
       appLockType = AppLockType.parse(json['appLockType']),
       bookmarkFilterType = BookmarkFilterType.parse(json['bookmarkFilterType']),
+      activeBookmarkGroupId = json['activeBookmarkGroupId'] ?? -1,
       booruConfigSelectorPosition = BooruConfigSelectorPosition.parse(
         json['booruConfigSelectorPosition'],
       ),
@@ -172,6 +174,7 @@ class Settings extends Equatable {
     clearImageCacheOnStartup: false,
     appLockType: AppLockType.defaultValue,
     bookmarkFilterType: BookmarkFilterType.defaultValue,
+    activeBookmarkGroupId: -1,
     booruConfigSelectorPosition: BooruConfigSelectorPosition.defaultValue,
     booruConfigSelectorScrollDirection: BooruConfigScrollDirection.defaultValue,
     swipeAreaToOpenSidebarPercentage: 5,
@@ -219,6 +222,9 @@ class Settings extends Equatable {
 
   final BookmarkFilterType bookmarkFilterType;
 
+  /// -1 represents the special Ungrouped target.
+  final int activeBookmarkGroupId;
+
   final BooruConfigSelectorPosition booruConfigSelectorPosition;
 
   final BooruConfigScrollDirection booruConfigSelectorScrollDirection;
@@ -264,6 +270,7 @@ class Settings extends Equatable {
     bool? clearImageCacheOnStartup,
     AppLockType? appLockType,
     BookmarkFilterType? bookmarkFilterType,
+    int? activeBookmarkGroupId,
     PostGestureConfig? postGestures,
     BooruConfigSelectorPosition? booruConfigSelectorPosition,
     BooruConfigScrollDirection? booruConfigSelectorScrollDirection,
@@ -303,6 +310,7 @@ class Settings extends Equatable {
         clearImageCacheOnStartup ?? this.clearImageCacheOnStartup,
     appLockType: appLockType ?? this.appLockType,
     bookmarkFilterType: bookmarkFilterType ?? this.bookmarkFilterType,
+    activeBookmarkGroupId: activeBookmarkGroupId ?? this.activeBookmarkGroupId,
     booruConfigSelectorPosition:
         booruConfigSelectorPosition ?? this.booruConfigSelectorPosition,
     booruConfigSelectorScrollDirection:
@@ -352,6 +360,7 @@ class Settings extends Equatable {
       'clearImageCacheOnStartup': clearImageCacheOnStartup,
       'appLockType': appLockType.toData(),
       'bookmarkFilterType': bookmarkFilterType.toData(),
+      'activeBookmarkGroupId': activeBookmarkGroupId,
       'booruConfigSelectorPosition': booruConfigSelectorPosition.toData(),
       'booruConfigSelectorScrollDirection': booruConfigSelectorScrollDirection
           .toData(),
@@ -390,6 +399,7 @@ class Settings extends Equatable {
     clearImageCacheOnStartup,
     appLockType,
     bookmarkFilterType,
+    activeBookmarkGroupId,
     booruConfigSelectorPosition,
     booruConfigSelectorScrollDirection,
     swipeAreaToOpenSidebarPercentage,

@@ -26,6 +26,7 @@ import '../../../settings/providers.dart';
 import '../data/bookmark_convert.dart';
 import '../data/providers.dart';
 import '../types/bookmark.dart';
+import '../types/bookmark_group_repository.dart';
 import '../types/bookmark_repository.dart';
 
 final bookmarkProvider = AsyncNotifierProvider<BookmarkNotifier, BookmarkState>(
@@ -51,7 +52,11 @@ class BookmarkNotifier extends AsyncNotifier<BookmarkState> {
       ref.read(bookmarkImageCacheManagerProvider);
 
   @override
-  FutureOr<BookmarkState> build() async {
+  FutureOr<BookmarkState> build() {
+    return _loadState();
+  }
+
+  Future<BookmarkState> _loadState() async {
     final bookmarks = await (await bookmarkRepository)
         .getAllBookmarks(
           imageUrlResolver: (booruId) =>
@@ -59,18 +64,39 @@ class BookmarkNotifier extends AsyncNotifier<BookmarkState> {
         )
         .run();
 
-    return bookmarks.fold(
-      (error) => const BookmarkState(bookmarks: ISet.empty()),
-      (bookmarks) => BookmarkState(
-        bookmarks: {
-          for (final bookmark in bookmarks) bookmark.uniqueId,
-        }.toISet(),
-      ),
+    return bookmarks.fold<Future<BookmarkState>>(
+      (error) => Future.value(const BookmarkState(bookmarks: ISet.empty())),
+      (bookmarks) async {
+        final groupRepo = await bookmarkGroupRepository;
+        final bookmarkIds = bookmarks.map((bookmark) => bookmark.id).toSet();
+
+        await groupRepo.pruneStaleMemberships(bookmarkIds: bookmarkIds);
+        final memberships = await groupRepo.getMembershipsByBookmark();
+
+        return BookmarkState(
+          bookmarks: {
+            for (final bookmark in bookmarks) bookmark.uniqueId,
+          }.toISet(),
+          memberships: {
+            for (final bookmark in bookmarks)
+              bookmark.uniqueId: Set.unmodifiable(
+                memberships[bookmark.id] ?? const <int>{},
+              ),
+          },
+        );
+      },
     );
   }
 
   Future<BookmarkRepository> get bookmarkRepository =>
       ref.read(bookmarkRepoProvider.future);
+
+  Future<BookmarkGroupRepository> get bookmarkGroupRepository =>
+      ref.read(bookmarkGroupRepoProvider.future);
+
+  Future<void> _refreshState() async {
+    state = AsyncValue.data(await _loadState());
+  }
 
   Future<void> addBookmarks(
     BooruConfigAuth config,
@@ -83,9 +109,11 @@ class BookmarkNotifier extends AsyncNotifier<BookmarkState> {
       final currentState = await future;
 
       // filter out already bookmarked posts
-      final filtered = posts.where(
-        (post) => !currentState.isBookmarked(post, booruId),
-      );
+      final filtered = posts
+          .where(
+            (post) => !currentState.isBookmarked(post, booruId),
+          )
+          .toList();
 
       await (await bookmarkRepository).addBookmarks(
         booruId,
@@ -97,15 +125,7 @@ class BookmarkNotifier extends AsyncNotifier<BookmarkState> {
       );
       onSuccess?.call(filtered.length);
 
-      final ids = filtered
-          .map((p) => BookmarkUniqueId.fromPost(p, booruId))
-          .toISet();
-
-      state = AsyncValue.data(
-        currentState.copyWith(
-          bookmarks: currentState.bookmarks.addAll(ids),
-        ),
-      );
+      await _refreshState();
     } catch (e) {
       onError?.call();
     }
@@ -126,7 +146,7 @@ class BookmarkNotifier extends AsyncNotifier<BookmarkState> {
         return;
       }
 
-      final bookmark = await (await bookmarkRepository).addBookmark(
+      await (await bookmarkRepository).addBookmark(
         booruId,
         post,
         imageUrlResolver: (booruId) =>
@@ -135,11 +155,136 @@ class BookmarkNotifier extends AsyncNotifier<BookmarkState> {
             ref.read(postLinkGeneratorProvider(config)),
       );
       onSuccess?.call();
-      state = AsyncValue.data(
-        currentState.copyWith(
-          bookmarks: currentState.bookmarks.add(bookmark.uniqueId),
-        ),
+      await _refreshState();
+    } catch (e) {
+      onError?.call();
+    }
+  }
+
+  Future<void> addBookmarkToGroup(
+    BooruConfigAuth config,
+    Post post,
+    int groupId, {
+    void Function()? onSuccess,
+    void Function()? onError,
+  }) async {
+    Bookmark? createdBookmark;
+
+    try {
+      final bookmarks = await (await bookmarkRepository).getAllBookmarksOrEmpty(
+        imageUrlResolver: (booruId) =>
+            ref.read(bookmarkUrlResolverProvider(booruId)),
       );
+      var bookmark = bookmarks.firstWhereOrNull(
+        (bookmark) =>
+            bookmark.uniqueId ==
+            BookmarkUniqueId.fromPost(post, config.booruIdHint),
+      );
+
+      if (bookmark == null) {
+        bookmark = await (await bookmarkRepository).addBookmark(
+          config.booruIdHint,
+          post,
+          imageUrlResolver: (booruId) =>
+              ref.read(bookmarkUrlResolverProvider(booruId)),
+          postLinkGenerator: (booruId) =>
+              ref.read(postLinkGeneratorProvider(config)),
+        );
+        createdBookmark = bookmark;
+      }
+
+      await (await bookmarkGroupRepository).addBookmarkToGroup(
+        bookmarkId: bookmark.id,
+        groupId: groupId,
+      );
+      await _refreshState();
+      onSuccess?.call();
+    } catch (e) {
+      if (createdBookmark != null) {
+        try {
+          await (await bookmarkRepository).removeBookmark(createdBookmark);
+        } catch (_) {
+          // Preserve the original error for the caller.
+        }
+      }
+      onError?.call();
+    }
+  }
+
+  Future<void> addExistingBookmarkToGroup(
+    Bookmark bookmark,
+    int groupId, {
+    void Function()? onSuccess,
+    void Function()? onError,
+  }) async {
+    try {
+      await (await bookmarkGroupRepository).addBookmarkToGroup(
+        bookmarkId: bookmark.id,
+        groupId: groupId,
+      );
+      await _refreshState();
+      onSuccess?.call();
+    } catch (e) {
+      onError?.call();
+    }
+  }
+
+  Future<void> addBookmarkIdToGroup(
+    BookmarkUniqueId bookmarkId,
+    int groupId, {
+    void Function()? onSuccess,
+    void Function()? onError,
+  }) async {
+    try {
+      final bookmarks = await (await bookmarkRepository).getAllBookmarksOrEmpty(
+        imageUrlResolver: (booruId) =>
+            ref.read(bookmarkUrlResolverProvider(booruId)),
+      );
+      final bookmark = bookmarks.firstWhereOrNull(
+        (bookmark) => bookmark.uniqueId == bookmarkId,
+      );
+      if (bookmark == null) {
+        onError?.call();
+        return;
+      }
+
+      await (await bookmarkGroupRepository).addBookmarkToGroup(
+        bookmarkId: bookmark.id,
+        groupId: groupId,
+      );
+      await _refreshState();
+      onSuccess?.call();
+    } catch (e) {
+      onError?.call();
+    }
+  }
+
+  Future<void> removeBookmarkFromGroup(
+    BookmarkUniqueId bookmarkId,
+    int groupId, {
+    void Function()? onSuccess,
+    void Function()? onError,
+  }) async {
+    try {
+      final bookmarks = await (await bookmarkRepository).getAllBookmarksOrEmpty(
+        imageUrlResolver: (booruId) =>
+            ref.read(bookmarkUrlResolverProvider(booruId)),
+      );
+      final bookmark = bookmarks.firstWhereOrNull(
+        (bookmark) => bookmark.uniqueId == bookmarkId,
+      );
+
+      if (bookmark == null) {
+        onError?.call();
+        return;
+      }
+
+      await (await bookmarkGroupRepository).removeBookmarkFromGroup(
+        bookmarkId: bookmark.id,
+        groupId: groupId,
+      );
+      await _refreshState();
+      onSuccess?.call();
     } catch (e) {
       onError?.call();
     }
@@ -177,30 +322,43 @@ class BookmarkNotifier extends AsyncNotifier<BookmarkState> {
     void Function()? onError,
   }) async {
     try {
-      await (await bookmarkRepository).removeBookmark(bookmark);
-      if (_cacheManager case final cache?) {
-        // Clear all image variants
-        await Future.wait([
-          cache.clearCache(
-            cache.generateCacheKey(bookmark.originalUrl),
-          ),
-          cache.clearCache(
-            cache.generateCacheKey(bookmark.sampleUrl),
-          ),
-          cache.clearCache(
-            cache.generateCacheKey(bookmark.thumbnailUrl),
-          ),
-        ]);
-      }
+      await _removeBookmarksInternal([bookmark]);
       onSuccess?.call();
-      final currentState = await future;
-      state = AsyncValue.data(
-        currentState.copyWith(
-          bookmarks: currentState.bookmarks.remove(bookmark.uniqueId),
-        ),
-      );
+      await _refreshState();
     } catch (e) {
       onError?.call();
+    }
+  }
+
+  Future<void> _removeBookmarksInternal(
+    Iterable<Bookmark> bookmarks,
+  ) async {
+    final bookmarkList = bookmarks.toList();
+    final groupRepo = await bookmarkGroupRepository;
+    await Future.wait(
+      bookmarkList.map(
+        (bookmark) => groupRepo.removeBookmarkFromAllGroups(bookmark.id),
+      ),
+    );
+    await (await bookmarkRepository).removeBookmarks(bookmarkList);
+
+    // Clear all image variants for each bookmark.
+    if (_cacheManager case final cache?) {
+      await Future.wait(
+        bookmarkList.expand(
+          (b) => [
+            cache.clearCache(
+              cache.generateCacheKey(b.originalUrl),
+            ),
+            cache.clearCache(
+              cache.generateCacheKey(b.sampleUrl),
+            ),
+            cache.clearCache(
+              cache.generateCacheKey(b.thumbnailUrl),
+            ),
+          ],
+        ),
+      );
     }
   }
 
@@ -210,38 +368,25 @@ class BookmarkNotifier extends AsyncNotifier<BookmarkState> {
     void Function()? onError,
   }) async {
     try {
-      await (await bookmarkRepository).removeBookmarks(bookmarks);
-      // Clear all image variants for each bookmark
-      if (_cacheManager case final cache?) {
-        await Future.wait(
-          bookmarks.expand(
-            (b) => [
-              cache.clearCache(
-                cache.generateCacheKey(b.originalUrl),
-              ),
-              cache.clearCache(
-                cache.generateCacheKey(b.sampleUrl),
-              ),
-              cache.clearCache(
-                cache.generateCacheKey(b.thumbnailUrl),
-              ),
-            ],
-          ),
-        );
-      }
-
+      await _removeBookmarksInternal(bookmarks);
       onSuccess?.call();
-      final currentState = await future;
-      state = AsyncValue.data(
-        currentState.copyWith(
-          bookmarks: currentState.bookmarks.difference(
-            bookmarks.map((b) => b.uniqueId).toISet(),
-          ),
-        ),
-      );
+      await _refreshState();
     } catch (e) {
       onError?.call();
     }
+  }
+
+  Future<void> removeBookmarksByIds(
+    Set<int> bookmarkIds,
+  ) async {
+    final bookmarks = await (await bookmarkRepository).getAllBookmarksOrEmpty(
+      imageUrlResolver: (booruId) =>
+          ref.read(bookmarkUrlResolverProvider(booruId)),
+    );
+    await _removeBookmarksInternal(
+      bookmarks.where((bookmark) => bookmarkIds.contains(bookmark.id)),
+    );
+    await _refreshState();
   }
 
   Future<void> downloadBookmarks(
@@ -393,28 +538,49 @@ extension BookmarkCubitToastX on BookmarkNotifier {
 class BookmarkState extends Equatable {
   const BookmarkState({
     required this.bookmarks,
+    this.memberships = const {},
     this.error = '',
   });
   final ISet<BookmarkUniqueId> bookmarks;
+  final Map<BookmarkUniqueId, Set<int>> memberships;
   final String error;
 
   BookmarkState copyWith({
     ISet<BookmarkUniqueId>? bookmarks,
+    Map<BookmarkUniqueId, Set<int>>? memberships,
     String? error,
   }) {
     return BookmarkState(
       bookmarks: bookmarks ?? this.bookmarks,
+      memberships: memberships ?? this.memberships,
       error: error ?? this.error,
     );
   }
 
   @override
-  List<Object?> get props => [bookmarks, error];
+  List<Object?> get props => [bookmarks, memberships, error];
 }
 
 extension BookmarkStateX on BookmarkState {
   bool isBookmarked(Post post, int booruId) {
     return bookmarks.contains(BookmarkUniqueId.fromPost(post, booruId));
+  }
+
+  Set<int> groupIdsFor(Post post, int booruId) {
+    return memberships[BookmarkUniqueId.fromPost(post, booruId)] ??
+        const <int>{};
+  }
+
+  bool isInGroup(Post post, int booruId, int groupId) {
+    return groupIdsFor(post, booruId).contains(groupId);
+  }
+
+  bool isUngrouped(Post post, int booruId) {
+    return isBookmarked(post, booruId) && groupIdsFor(post, booruId).isEmpty;
+  }
+
+  int groupCountFor(Post post, int booruId) {
+    return groupIdsFor(post, booruId).length;
   }
 }
 

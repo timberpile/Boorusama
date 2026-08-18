@@ -2,15 +2,14 @@
 // Do not modify
 // Check in to version control
 
-// Package imports:
-import 'package:hive_ce/hive.dart';
-
-// Project imports:
+import 'package:hive_ce/hive_ce.dart';
 import 'package:boorusama/core/hive/hive_adapters.dart';
 
 extension HiveRegistrar on HiveInterface {
   void registerAdapters() {
     registerAdapter(BlacklistedTagHiveObjectAdapter());
+    registerAdapter(BookmarkGroupHiveObjectAdapter());
+    registerAdapter(BookmarkGroupMembershipHiveObjectAdapter());
     registerAdapter(BookmarkHiveObjectAdapter());
     registerAdapter(FavoriteTagHiveObjectAdapter());
   }
@@ -19,6 +18,8 @@ extension HiveRegistrar on HiveInterface {
 extension IsolatedHiveRegistrar on IsolatedHiveInterface {
   void registerAdapters() {
     registerAdapter(BlacklistedTagHiveObjectAdapter());
+    registerAdapter(BookmarkGroupHiveObjectAdapter());
+    registerAdapter(BookmarkGroupMembershipHiveObjectAdapter());
     registerAdapter(BookmarkHiveObjectAdapter());
     registerAdapter(FavoriteTagHiveObjectAdapter());
   }
