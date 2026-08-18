@@ -44,7 +44,7 @@ class BookmarkContextMenuSection extends ConsumerWidget {
         bookmark != null || (state?.bookmarks.contains(bookmarkId) ?? false);
     final memberships = state?.memberships[bookmarkId] ?? const <int>{};
     final activeTarget = ref.watch(effectiveActiveBookmarkGroupIdProvider);
-    final activeName = _targetName(activeTarget, groups);
+    final activeName = _targetName(context, activeTarget, groups);
     final activeMembership = activeTarget == kUngroupedBookmarkGroupId
         ? isBookmarked && memberships.isEmpty
         : memberships.contains(activeTarget);
@@ -60,7 +60,7 @@ class BookmarkContextMenuSection extends ConsumerWidget {
       children: [
         const KurumiContextMenuDivider(),
         KurumiContextMenuTile(
-          title: 'Add to...'.hc,
+          title: context.t.bookmark.groups.add_to,
           onTap: () => _showGroupPicker(
             context,
             ref,
@@ -72,7 +72,7 @@ class BookmarkContextMenuSection extends ConsumerWidget {
         ),
         if (addActive)
           KurumiContextMenuTile(
-            title: 'Add to $activeName'.hc,
+            title: context.t.bookmark.groups.add_to_target(target: activeName),
             onTap: () => _addToTarget(
               context,
               ref,
@@ -81,7 +81,7 @@ class BookmarkContextMenuSection extends ConsumerWidget {
           ),
         if (memberships.isNotEmpty)
           KurumiContextMenuTile(
-            title: 'Remove from...'.hc,
+            title: context.t.bookmark.groups.remove_from,
             onTap: () => _showGroupPicker(
               context,
               ref,
@@ -93,7 +93,9 @@ class BookmarkContextMenuSection extends ConsumerWidget {
           ),
         if (removeActive)
           KurumiContextMenuTile(
-            title: 'Remove from $activeName'.hc,
+            title: context.t.bookmark.groups.remove_from_target(
+              target: activeName,
+            ),
             onTap: () => _removeFromGroup(
               context,
               ref,
@@ -103,7 +105,7 @@ class BookmarkContextMenuSection extends ConsumerWidget {
         if (isBookmarked) ...[
           const KurumiContextMenuDivider(),
           KurumiContextMenuTile(
-            title: 'Delete bookmark completely'.hc,
+            title: context.t.bookmark.groups.delete_completely,
             onTap: () => _deleteBookmark(context, ref, bookmarkId),
           ),
         ],
@@ -141,7 +143,7 @@ class BookmarkContextMenuSection extends ConsumerWidget {
             if (add)
               ListTile(
                 leading: const Icon(Symbols.create_new_folder),
-                title: Text('Create new group'.hc),
+                title: Text(context.t.bookmark.groups.create_new),
                 onTap: () async {
                   Navigator.pop(sheetContext);
                   await _createGroupAndAdd(context, ref);
@@ -150,7 +152,7 @@ class BookmarkContextMenuSection extends ConsumerWidget {
             if (add && !isBookmarked)
               ListTile(
                 leading: const Icon(Symbols.bookmark_add),
-                title: Text('Ungrouped'.hc),
+                title: Text(context.t.bookmark.groups.ungrouped),
                 onTap: () {
                   Navigator.pop(sheetContext);
                   _addToTarget(context, ref, kUngroupedBookmarkGroupId);
@@ -173,7 +175,7 @@ class BookmarkContextMenuSection extends ConsumerWidget {
             if (choices.isEmpty && !(add && !isBookmarked))
               ListTile(
                 enabled: false,
-                title: Text('No applicable groups'.hc),
+                title: Text(context.t.bookmark.groups.no_applicable),
               ),
           ],
         ),
@@ -192,12 +194,14 @@ class BookmarkContextMenuSection extends ConsumerWidget {
       await ref.bookmarks.addBookmark(
         config,
         post,
-        onError: () => _showError(context, 'Failed to add bookmark'.hc),
+        onError: () =>
+            _showError(context, context.t.bookmark.groups.failed_to_add),
       );
       return;
     }
 
-    void onError() => _showError(context, 'Failed to add to group'.hc);
+    void onError() =>
+        _showError(context, context.t.bookmark.groups.failed_to_add_to_group);
     if (bookmark case final existing?) {
       await ref.bookmarks.addExistingBookmarkToGroup(
         existing,
@@ -225,7 +229,10 @@ class BookmarkContextMenuSection extends ConsumerWidget {
     await ref.bookmarks.removeBookmarkFromGroup(
       id,
       groupId,
-      onError: () => _showError(context, 'Failed to remove from group'.hc),
+      onError: () => _showError(
+        context,
+        context.t.bookmark.groups.failed_to_remove_from_group,
+      ),
     );
   }
 
@@ -261,18 +268,18 @@ class BookmarkContextMenuSection extends ConsumerWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: Text('Delete bookmark completely?'.hc),
+        title: Text(context.t.bookmark.groups.delete_completely_title),
         content: Text(
-          'This removes the bookmark and all of its group memberships.'.hc,
+          context.t.bookmark.groups.delete_completely_message,
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
-            child: Text('Cancel'.hc),
+            child: Text(context.t.generic.action.cancel),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: Text('Delete'.hc),
+            child: Text(context.t.generic.action.delete),
           ),
         ],
       ),
@@ -290,22 +297,24 @@ class BookmarkContextMenuSection extends ConsumerWidget {
     final result = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: Text('Create group'.hc),
+        title: Text(context.t.bookmark.groups.create),
         content: TextField(
           controller: controller,
           autofocus: true,
-          decoration: InputDecoration(hintText: 'Group name'.hc),
+          decoration: InputDecoration(
+            hintText: context.t.bookmark.groups.name,
+          ),
           onSubmitted: (value) => Navigator.pop(dialogContext, value.trim()),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: Text('Cancel'.hc),
+            child: Text(context.t.generic.action.cancel),
           ),
           FilledButton(
             onPressed: () =>
                 Navigator.pop(dialogContext, controller.text.trim()),
-            child: Text('Create'.hc),
+            child: Text(context.t.generic.action.create),
           ),
         ],
       ),
@@ -318,12 +327,18 @@ class BookmarkContextMenuSection extends ConsumerWidget {
     if (context.mounted) Kurumi.showErrorToast(context, message);
   }
 
-  String _targetName(int target, List<BookmarkGroup> groups) {
-    if (target == kUngroupedBookmarkGroupId) return 'Ungrouped'.hc;
+  String _targetName(
+    BuildContext context,
+    int target,
+    List<BookmarkGroup> groups,
+  ) {
+    if (target == kUngroupedBookmarkGroupId) {
+      return context.t.bookmark.groups.ungrouped;
+    }
     return groups
             .where((group) => group.id == target)
             .map((group) => group.name)
             .firstOrNull ??
-        'Ungrouped'.hc;
+        context.t.bookmark.groups.ungrouped;
   }
 }

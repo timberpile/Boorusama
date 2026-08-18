@@ -31,46 +31,64 @@ class BookmarkGroupSelector extends ConsumerWidget {
       color: Kurumi.themeOf(context).colorScheme.surface,
       padding: const EdgeInsets.only(bottom: 4),
       child: groups.when(
-        data: (groups) => Row(
-          children: [
-            Expanded(
-              child: ChoiceOptionSelectorList<int>(
-                options: [
-                  kUngroupedBookmarkGroupId,
-                  ...groups.map((group) => group.id),
-                ],
-                selectedOption: selected,
-                optionLabelBuilder: (value) => switch (value) {
-                  null => 'All Bookmarks'.hc,
-                  kUngroupedBookmarkGroupId => 'Ungrouped'.hc,
-                  final id =>
-                    groups
-                        .firstWhere(
-                          (group) => group.id == id,
-                          orElse: () => const BookmarkGroup(
-                            id: -2,
-                            name: 'Missing group',
-                          ),
-                        )
-                        .name,
-                },
-                onSelected: (value) {
-                  ref.read(selectedBookmarkGroupIdProvider.notifier).state =
-                      value;
-                  if (value != null) {
-                    unawaited(setActiveBookmarkGroupId(ref, value));
-                  }
-                },
-                sheetTitle: 'Bookmark groups'.hc,
-                icon: const Icon(Symbols.bookmarks),
+        data: (groups) {
+          final activeTarget = ref.watch(activeBookmarkGroupIdProvider);
+          if (activeTarget != kUngroupedBookmarkGroupId &&
+              !groups.any((group) => group.id == activeTarget)) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (context.mounted) {
+                unawaited(
+                  setActiveBookmarkGroupId(
+                    ref,
+                    kUngroupedBookmarkGroupId,
+                  ),
+                );
+              }
+            });
+          }
+
+          return Row(
+            children: [
+              Expanded(
+                child: ChoiceOptionSelectorList<int>(
+                  options: [
+                    kUngroupedBookmarkGroupId,
+                    ...groups.map((group) => group.id),
+                  ],
+                  selectedOption: selected,
+                  optionLabelBuilder: (value) => switch (value) {
+                    null => context.t.bookmark.groups.all,
+                    kUngroupedBookmarkGroupId =>
+                      context.t.bookmark.groups.ungrouped,
+                    final id =>
+                      groups
+                          .firstWhere(
+                            (group) => group.id == id,
+                            orElse: () => const BookmarkGroup(
+                              id: -2,
+                              name: 'Missing group',
+                            ),
+                          )
+                          .name,
+                  },
+                  onSelected: (value) {
+                    ref.read(selectedBookmarkGroupIdProvider.notifier).state =
+                        value;
+                    if (value != null) {
+                      unawaited(setActiveBookmarkGroupId(ref, value));
+                    }
+                  },
+                  sheetTitle: context.t.bookmark.groups.selector,
+                  icon: const Icon(Symbols.bookmarks),
+                ),
               ),
-            ),
-            BookmarkGroupManagementButton(
-              groups: groups,
-              selectedGroupId: selected,
-            ),
-          ],
-        ),
+              BookmarkGroupManagementButton(
+                groups: groups,
+                selectedGroupId: selected,
+              ),
+            ],
+          );
+        },
         error: (error, _) => Text(error.toString()),
         loading: () => const Center(child: CircularProgressIndicator()),
       ),
@@ -94,20 +112,20 @@ class BookmarkGroupManagementButton extends ConsumerWidget {
       icon: const Icon(Symbols.more_vert),
       items: [
         KurumiPopupMenuItem(
-          title: Text('Create group'.hc),
+          title: Text(context.t.bookmark.groups.create),
           onTap: () => _createGroup(context, ref),
         ),
         if (_selectedGroup != null) ...[
           KurumiPopupMenuItem(
-            title: Text('Duplicate group'.hc),
+            title: Text(context.t.bookmark.groups.duplicate),
             onTap: () => _duplicateGroup(context, ref),
           ),
           KurumiPopupMenuItem(
-            title: Text('Rename group'.hc),
+            title: Text(context.t.bookmark.groups.rename),
             onTap: () => _renameGroup(context, ref),
           ),
           KurumiPopupMenuItem(
-            title: Text('Delete group'.hc),
+            title: Text(context.t.bookmark.groups.delete),
             onTap: () => _deleteGroup(context, ref),
           ),
         ],
@@ -125,7 +143,10 @@ class BookmarkGroupManagementButton extends ConsumerWidget {
   }
 
   Future<void> _createGroup(BuildContext context, WidgetRef ref) async {
-    final name = await _showGroupNameDialog(context, title: 'Create group'.hc);
+    final name = await _showGroupNameDialog(
+      context,
+      title: context.t.bookmark.groups.create,
+    );
     if (name == null) return;
 
     try {
@@ -164,7 +185,7 @@ class BookmarkGroupManagementButton extends ConsumerWidget {
 
     final name = await _showGroupNameDialog(
       context,
-      title: 'Rename group'.hc,
+      title: context.t.bookmark.groups.rename,
       initialName: group.name,
     );
     if (name == null) return;
@@ -192,25 +213,27 @@ class BookmarkGroupManagementButton extends ConsumerWidget {
     final deleteOrphans = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Delete ${group.name}?'.hc),
+        title: Text(
+          context.t.bookmark.groups.delete_group_title(name: group.name),
+        ),
         content: Text(
-          '${preview.membershipCount} memberships will be removed. '
-                  '${preview.orphanBookmarkIds.length} bookmarks belong only to this '
-                  'group.'
-              .hc,
+          context.t.bookmark.groups.delete_group_summary(
+            memberships: preview.membershipCount,
+            orphans: preview.orphanBookmarkIds.length,
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Cancel'.hc),
+            child: Text(context.t.generic.action.cancel),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text('Keep as ungrouped'.hc),
+            child: Text(context.t.bookmark.groups.keep_as_ungrouped),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: Text('Delete bookmarks'.hc),
+            child: Text(context.t.bookmark.groups.delete_bookmarks),
           ),
         ],
       ),
@@ -251,16 +274,18 @@ class BookmarkGroupManagementButton extends ConsumerWidget {
           autofocus: true,
           textCapitalization: TextCapitalization.sentences,
           onSubmitted: (value) => Navigator.pop(context, value.trim()),
-          decoration: InputDecoration(hintText: 'Group name'.hc),
+          decoration: InputDecoration(
+            hintText: context.t.bookmark.groups.name,
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Cancel'.hc),
+            child: Text(context.t.generic.action.cancel),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, controller.text.trim()),
-            child: Text('Save'.hc),
+            child: Text(context.t.generic.action.save),
           ),
         ],
       ),

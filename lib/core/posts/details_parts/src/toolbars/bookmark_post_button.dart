@@ -81,10 +81,10 @@ class BookmarkGroupToggleButton extends ConsumerWidget {
         (target == kUngroupedBookmarkGroupId ||
             !groupIds.contains(target) ||
             namedGroupCount > 1);
-    final targetName = _targetName(target, groups);
+    final targetName = _targetName(context, target, groups);
     final tooltip = inTarget
-        ? 'Remove from $targetName'.hc
-        : 'Add to $targetName'.hc;
+        ? context.t.bookmark.groups.remove_from_target(target: targetName)
+        : context.t.bookmark.groups.add_to_target(target: targetName);
 
     Future<void> onTap() async {
       if (bookmarkStateAsync.isLoading) return;
@@ -97,7 +97,7 @@ class BookmarkGroupToggleButton extends ConsumerWidget {
         } else {
           Kurumi.showErrorToast(
             context,
-            'Select a named group to remove this grouped bookmark.'.hc,
+            context.t.bookmark.groups.grouped_remove_warning,
           );
         }
         return;
@@ -109,7 +109,7 @@ class BookmarkGroupToggleButton extends ConsumerWidget {
           target,
           onError: () => Kurumi.showErrorToast(
             context,
-            'Failed to remove from group'.hc,
+            context.t.bookmark.groups.failed_to_remove_from_group,
           ),
         );
       } else if (isBookmarked) {
@@ -118,7 +118,7 @@ class BookmarkGroupToggleButton extends ConsumerWidget {
           target,
           onError: () => Kurumi.showErrorToast(
             context,
-            'Failed to add to group'.hc,
+            context.t.bookmark.groups.failed_to_add_to_group,
           ),
         );
       } else {
@@ -128,7 +128,7 @@ class BookmarkGroupToggleButton extends ConsumerWidget {
           target,
           onError: () => Kurumi.showErrorToast(
             context,
-            'Failed to add to group'.hc,
+            context.t.bookmark.groups.failed_to_add_to_group,
           ),
         );
       }
@@ -228,7 +228,7 @@ class BookmarkGroupToggleButton extends ConsumerWidget {
           children: [
             ListTile(
               leading: const Icon(Symbols.bookmark),
-              title: Text('Ungrouped'.hc),
+              title: Text(context.t.bookmark.groups.ungrouped),
               selected: target == kUngroupedBookmarkGroupId,
               onTap: () {
                 Navigator.pop(sheetContext);
@@ -261,7 +261,7 @@ class BookmarkGroupToggleButton extends ConsumerWidget {
             const Divider(),
             ListTile(
               leading: const Icon(Symbols.create_new_folder),
-              title: Text('Create new group'.hc),
+              title: Text(context.t.bookmark.groups.create_new),
               onTap: () async {
                 Navigator.pop(sheetContext);
                 await _createGroupAndAdd(context, ref);
@@ -292,7 +292,7 @@ class BookmarkGroupToggleButton extends ConsumerWidget {
         if (!context.mounted) return;
         Kurumi.showErrorToast(
           context,
-          'Select a named group to remove this grouped bookmark.'.hc,
+          context.t.bookmark.groups.grouped_remove_warning,
         );
       }
       return;
@@ -315,22 +315,24 @@ class BookmarkGroupToggleButton extends ConsumerWidget {
     final name = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: Text('Create group'.hc),
+        title: Text(context.t.bookmark.groups.create),
         content: TextField(
           controller: controller,
           autofocus: true,
-          decoration: InputDecoration(hintText: 'Group name'.hc),
+          decoration: InputDecoration(
+            hintText: context.t.bookmark.groups.name,
+          ),
           onSubmitted: (value) => Navigator.pop(dialogContext, value.trim()),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: Text('Cancel'.hc),
+            child: Text(context.t.generic.action.cancel),
           ),
           FilledButton(
             onPressed: () =>
                 Navigator.pop(dialogContext, controller.text.trim()),
-            child: Text('Create'.hc),
+            child: Text(context.t.generic.action.create),
           ),
         ],
       ),
@@ -350,12 +352,18 @@ class BookmarkGroupToggleButton extends ConsumerWidget {
     }
   }
 
-  String _targetName(int target, List<BookmarkGroup> groups) {
-    if (target == kUngroupedBookmarkGroupId) return 'Ungrouped'.hc;
+  String _targetName(
+    BuildContext context,
+    int target,
+    List<BookmarkGroup> groups,
+  ) {
+    if (target == kUngroupedBookmarkGroupId) {
+      return context.t.bookmark.groups.ungrouped;
+    }
     for (final group in groups) {
       if (group.id == target) return group.name;
     }
-    return 'Ungrouped'.hc;
+    return context.t.bookmark.groups.ungrouped;
   }
 }
 
