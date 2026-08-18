@@ -6,6 +6,12 @@ analyzer:
     - "**/*.g.dart"
     - "**/generated_plugin_registrant.dart"
     - "**/firebase_options.dart"
+    - android/**
+    - ios/**
+    - web/**
+    - windows/**
+    - macos/**
+    - linux/**
   errors:
     # Otherwise cause the import of all_lint_rules to warn because of some rules conflicts.
     # We explicitly enabled even conflicting rules and are fixing the conflict
