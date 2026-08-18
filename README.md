@@ -61,6 +61,36 @@ Or build an APK and install it manually:
 ./build.sh apk --flavor prod
 ```
 
+### Dev container
+
+The included dev container provides the toolchain required to build and debug
+the Android app. Open the repository in the container, then build an APK with:
+
+```bash
+bash .devcontainer/build-android.sh
+```
+
+To debug on an emulator or USB-connected device managed by a Windows host,
+start the host ADB bridge before opening the container:
+
+```powershell
+.\.devcontainer\start-host-adb.ps1
+```
+
+Then run inside the container, optionally passing a device ID:
+
+```bash
+bash .devcontainer/run-android.sh [device-id]
+```
+
+Stop the host ADB bridge when debugging is finished:
+
+```powershell
+.\.devcontainer\stop-host-adb.ps1
+```
+
+There are also `release` versions available for `build-android.sh` and `run-android.sh`.
+
 ## Translation
 
 Translations are managed via [Weblate](https://weblate.org/en/).
