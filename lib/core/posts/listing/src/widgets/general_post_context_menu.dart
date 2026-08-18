@@ -13,6 +13,7 @@ import '../../../../downloads/downloader/providers.dart';
 import '../../../../router.dart';
 import '../../../../bookmarks/src/widgets/bookmark_group_actions.dart';
 import '../../../../tags/show/routes.dart';
+import '../../../favorites/providers.dart';
 import '../../../favorites/widgets.dart';
 import '../../../post/providers.dart';
 import '../../../post/types.dart';
@@ -35,6 +36,8 @@ class GeneralPostContextMenu extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final booruConfig = ref.watchConfigAuth;
     final loginDetails = ref.watch(booruLoginDetailsProvider(booruConfig));
+    final hasFavoriteActions =
+        loginDetails.hasLogin() && ref.watch(canFavoriteProvider(booruConfig));
     final commentPageBuilder = ref
         .watch(booruBuilderProvider(booruConfig))
         ?.commentPageBuilder;
@@ -73,11 +76,13 @@ class GeneralPostContextMenu extends ConsumerWidget {
               },
             ),
             const KurumiContextMenuDivider(),
-            FavoriteContextMenuTile(
-              post: post,
-              feedbackContext: feedbackContext,
-            ),
-            const KurumiContextMenuDivider(),
+            if (hasFavoriteActions) ...[
+              FavoriteContextMenuTile(
+                post: post,
+                feedbackContext: feedbackContext,
+              ),
+              const KurumiContextMenuDivider(),
+            ],
             if (commentPageBuilder != null && post.hasComment)
               KurumiContextMenuTile(
                 title: context.t.post.action.view_comments,

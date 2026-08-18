@@ -64,7 +64,7 @@ class DanbooruPostContextMenu extends ConsumerWidget {
           post: post,
           config: booruConfig,
         ),
-        const KurumiContextMenuDivider(),
+        if (hasAccount) const KurumiContextMenuDivider(),
         if (hasAccount)
           FavoriteContextMenuTile(
             post: post,
