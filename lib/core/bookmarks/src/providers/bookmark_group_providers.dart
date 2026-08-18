@@ -46,6 +46,17 @@ Future<void> setActiveBookmarkGroupId(WidgetRef ref, int groupId) {
       );
 }
 
+Future<void> setActiveBookmarkGroupIdInContainer(
+  ProviderContainer container,
+  int groupId,
+) {
+  return container
+      .read(settingsNotifierProvider.notifier)
+      .updateWith(
+        (settings) => settings.copyWith(activeBookmarkGroupId: groupId),
+      );
+}
+
 void refreshBookmarkGroupProviders(WidgetRef ref) {
   ref
     ..invalidate(bookmarkGroupsProvider)

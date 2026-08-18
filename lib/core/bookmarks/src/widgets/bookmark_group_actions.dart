@@ -45,6 +45,7 @@ class BookmarkContextMenuSection extends ConsumerWidget {
         bookmark != null || (state?.bookmarks.contains(bookmarkId) ?? false);
     final memberships = state?.memberships[bookmarkId] ?? const <int>{};
     final activeTarget = ref.watch(effectiveActiveBookmarkGroupIdProvider);
+    final container = ProviderScope.containerOf(context, listen: false);
     final activeName = _targetName(context, activeTarget, groups);
     final activeMembership = activeTarget == kUngroupedBookmarkGroupId
         ? isBookmarked && memberships.isEmpty
@@ -64,7 +65,7 @@ class BookmarkContextMenuSection extends ConsumerWidget {
           title: context.t.bookmark.groups.add_to,
           onTap: () => _showGroupPicker(
             context,
-            ref,
+            container,
             groups: groups,
             memberships: memberships,
             isBookmarked: isBookmarked,
@@ -78,7 +79,7 @@ class BookmarkContextMenuSection extends ConsumerWidget {
                 : context.t.bookmark.groups.add_to_target(target: activeName),
             onTap: () => _addToTarget(
               context,
-              ref,
+              container,
               activeTarget,
             ),
           ),
@@ -87,7 +88,7 @@ class BookmarkContextMenuSection extends ConsumerWidget {
             title: context.t.bookmark.groups.remove_from,
             onTap: () => _showGroupPicker(
               context,
-              ref,
+              container,
               groups: groups,
               memberships: memberships,
               isBookmarked: isBookmarked,
@@ -101,7 +102,7 @@ class BookmarkContextMenuSection extends ConsumerWidget {
             ),
             onTap: () => _removeFromGroup(
               context,
-              ref,
+              container,
               activeTarget,
             ),
           ),
@@ -118,7 +119,7 @@ class BookmarkContextMenuSection extends ConsumerWidget {
 
   Future<void> _showGroupPicker(
     BuildContext context,
-    WidgetRef ref, {
+    ProviderContainer container, {
     required List<BookmarkGroup> groups,
     required Set<int> memberships,
     required bool isBookmarked,
@@ -126,7 +127,7 @@ class BookmarkContextMenuSection extends ConsumerWidget {
   }) async {
     final availableGroups = groups.isNotEmpty
         ? groups
-        : await ref.read(bookmarkGroupsProvider.future);
+        : await container.read(bookmarkGroupsProvider.future);
     if (!context.mounted) return;
     final choices = add
         ? availableGroups
@@ -149,7 +150,7 @@ class BookmarkContextMenuSection extends ConsumerWidget {
                 title: Text(context.t.bookmark.groups.create_new),
                 onTap: () async {
                   Navigator.pop(sheetContext);
-                  await _createGroupAndAdd(context, ref);
+                  await _createGroupAndAdd(context, container);
                 },
               ),
             if (add && !isBookmarked)
@@ -158,7 +159,7 @@ class BookmarkContextMenuSection extends ConsumerWidget {
                 title: Text(context.t.bookmark.groups.ungrouped),
                 onTap: () {
                   Navigator.pop(sheetContext);
-                  _addToTarget(context, ref, kUngroupedBookmarkGroupId);
+                  _addToTarget(context, container, kUngroupedBookmarkGroupId);
                 },
               ),
             ...choices.map(
@@ -168,9 +169,9 @@ class BookmarkContextMenuSection extends ConsumerWidget {
                 onTap: () {
                   Navigator.pop(sheetContext);
                   if (add) {
-                    _addToTarget(context, ref, group.id);
+                    _addToTarget(context, container, group.id);
                   } else {
-                    _removeFromGroup(context, ref, group.id);
+                    _removeFromGroup(context, container, group.id);
                   }
                 },
               ),
@@ -188,13 +189,14 @@ class BookmarkContextMenuSection extends ConsumerWidget {
 
   Future<void> _addToTarget(
     BuildContext context,
-    WidgetRef ref,
+    ProviderContainer container,
     int groupId,
   ) async {
-    await setActiveBookmarkGroupId(ref, groupId);
+    final bookmarks = container.read(bookmarkProvider.notifier);
+    await setActiveBookmarkGroupIdInContainer(container, groupId);
 
     if (groupId == kUngroupedBookmarkGroupId) {
-      await ref.bookmarks.addBookmark(
+      await bookmarks.addBookmark(
         config,
         post,
         onError: () =>
@@ -206,13 +208,13 @@ class BookmarkContextMenuSection extends ConsumerWidget {
     void onError() =>
         _showError(context, context.t.bookmark.groups.failed_to_add_to_group);
     if (bookmark case final existing?) {
-      await ref.bookmarks.addExistingBookmarkToGroup(
+      await bookmarks.addExistingBookmarkToGroup(
         existing,
         groupId,
         onError: onError,
       );
     } else {
-      await ref.bookmarks.addBookmarkToGroup(
+      await bookmarks.addBookmarkToGroup(
         config,
         post,
         groupId,
@@ -223,41 +225,48 @@ class BookmarkContextMenuSection extends ConsumerWidget {
 
   Future<void> _removeFromGroup(
     BuildContext context,
-    WidgetRef ref,
+    ProviderContainer container,
     int groupId,
   ) async {
     final id =
         bookmark?.uniqueId ??
         BookmarkUniqueId.fromPost(post, config.booruIdHint);
-    await ref.bookmarks.removeBookmarkFromGroup(
-      id,
-      groupId,
-      onError: () => _showError(
-        context,
-        context.t.bookmark.groups.failed_to_remove_from_group,
-      ),
-    );
+    await container
+        .read(bookmarkProvider.notifier)
+        .removeBookmarkFromGroup(
+          id,
+          groupId,
+          onError: () => _showError(
+            context,
+            context.t.bookmark.groups.failed_to_remove_from_group,
+          ),
+        );
   }
 
   Future<void> _createGroupAndAdd(
     BuildContext context,
-    WidgetRef ref,
+    ProviderContainer container,
   ) async {
     final name = await _showGroupNameDialog(context);
     if (name == null) return;
 
     try {
-      final group = await (await ref.read(
+      final group = await (await container.read(
         bookmarkGroupRepoProvider.future,
       )).createGroup(name);
-      await setActiveBookmarkGroupId(ref, group.id);
+      await setActiveBookmarkGroupIdInContainer(container, group.id);
 
       if (bookmark case final existing?) {
-        await ref.bookmarks.addExistingBookmarkToGroup(existing, group.id);
+        await container
+            .read(bookmarkProvider.notifier)
+            .addExistingBookmarkToGroup(existing, group.id);
       } else {
-        await ref.bookmarks.addBookmarkToGroup(config, post, group.id);
+        await container
+            .read(bookmarkProvider.notifier)
+            .addBookmarkToGroup(config, post, group.id);
       }
-      refreshBookmarkGroupProviders(ref);
+      container.invalidate(bookmarkGroupsProvider);
+      container.invalidate(bookmarkProvider);
     } catch (error) {
       if (context.mounted) _showError(context, error.toString());
     }
