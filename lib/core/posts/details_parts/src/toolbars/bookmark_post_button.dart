@@ -174,29 +174,49 @@ class BookmarkGroupToggleButton extends ConsumerWidget {
               ),
             ),
           )
-        : InkWell(
-            borderRadius: BorderRadius.circular(20),
-            onTap: onTap,
-            onLongPress: onLongPress,
-            child: Padding(
-              padding: const EdgeInsets.all(8),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: Center(child: icon),
-                  ),
-                  Text(
-                    targetName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.labelSmall,
-                  ),
-                ],
-              ),
-            ),
+        : LayoutBuilder(
+            builder: (context, constraints) {
+              const labelWidth = 56.0;
+              const labelHeight = 28.0;
+              final showLabel =
+                  !constraints.hasBoundedWidth || constraints.maxWidth >= 72;
+
+              return InkWell(
+                borderRadius: BorderRadius.circular(20),
+                onTap: onTap,
+                onLongPress: onLongPress,
+                child: Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: showLabel
+                      ? Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: Center(child: icon),
+                            ),
+                            SizedBox(
+                              width: labelWidth,
+                              height: labelHeight,
+                              child: Text(
+                                targetName,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
+                                style: Theme.of(context).textTheme.labelSmall,
+                              ),
+                            ),
+                          ],
+                        )
+                      : SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: Center(child: icon),
+                        ),
+                ),
+              );
+            },
           );
 
     return KurumiTooltip(
