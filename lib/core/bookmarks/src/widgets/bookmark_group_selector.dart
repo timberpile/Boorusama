@@ -18,6 +18,7 @@ import '../data/providers.dart';
 import '../providers/bookmark_group_providers.dart';
 import '../providers/bookmark_provider.dart';
 import '../types/bookmark_group.dart';
+import 'bookmark_group_name_dialog.dart';
 
 class BookmarkGroupSelector extends ConsumerWidget {
   const BookmarkGroupSelector({super.key});
@@ -143,9 +144,12 @@ class BookmarkGroupManagementButton extends ConsumerWidget {
   }
 
   Future<void> _createGroup(BuildContext context, WidgetRef ref) async {
-    final name = await _showGroupNameDialog(
+    final name = await showBookmarkGroupNameDialog(
       context,
       title: context.t.bookmark.groups.create,
+      saveLabel: context.t.generic.action.save,
+      cancelLabel: context.t.generic.action.cancel,
+      hintText: context.t.bookmark.groups.name,
     );
     if (name == null) return;
 
@@ -183,9 +187,12 @@ class BookmarkGroupManagementButton extends ConsumerWidget {
     final group = _selectedGroup;
     if (group == null) return;
 
-    final name = await _showGroupNameDialog(
+    final name = await showBookmarkGroupNameDialog(
       context,
       title: context.t.bookmark.groups.rename,
+      saveLabel: context.t.generic.action.save,
+      cancelLabel: context.t.generic.action.cancel,
+      hintText: context.t.bookmark.groups.name,
       initialName: group.name,
     );
     if (name == null) return;
@@ -256,42 +263,6 @@ class BookmarkGroupManagementButton extends ConsumerWidget {
       if (!context.mounted) return;
       _showError(context, error);
     }
-  }
-
-  Future<String?> _showGroupNameDialog(
-    BuildContext context, {
-    required String title,
-    String? initialName,
-  }) async {
-    final controller = TextEditingController(text: initialName);
-
-    final result = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(title),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          textCapitalization: TextCapitalization.sentences,
-          onSubmitted: (value) => Navigator.pop(context, value.trim()),
-          decoration: InputDecoration(
-            hintText: context.t.bookmark.groups.name,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(context.t.generic.action.cancel),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, controller.text.trim()),
-            child: Text(context.t.generic.action.save),
-          ),
-        ],
-      ),
-    );
-    controller.dispose();
-    return result?.isNotEmpty ?? false ? result : null;
   }
 
   void _showError(BuildContext context, Object error) {

@@ -17,6 +17,7 @@ import '../providers/bookmark_group_providers.dart';
 import '../providers/bookmark_provider.dart';
 import '../types/bookmark.dart';
 import '../types/bookmark_group.dart';
+import 'bookmark_group_name_dialog.dart';
 
 /// The local bookmark actions shared by post-thumbnail context menus.
 class BookmarkContextMenuSection extends ConsumerWidget {
@@ -292,35 +293,14 @@ class BookmarkContextMenuSection extends ConsumerWidget {
     );
   }
 
-  Future<String?> _showGroupNameDialog(BuildContext context) async {
-    final controller = TextEditingController();
-    final result = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(context.t.bookmark.groups.create),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: InputDecoration(
-            hintText: context.t.bookmark.groups.name,
-          ),
-          onSubmitted: (value) => Navigator.pop(dialogContext, value.trim()),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: Text(context.t.generic.action.cancel),
-          ),
-          FilledButton(
-            onPressed: () =>
-                Navigator.pop(dialogContext, controller.text.trim()),
-            child: Text(context.t.generic.action.create),
-          ),
-        ],
-      ),
+  Future<String?> _showGroupNameDialog(BuildContext context) {
+    return showBookmarkGroupNameDialog(
+      context,
+      title: context.t.bookmark.groups.create,
+      saveLabel: context.t.generic.action.create,
+      cancelLabel: context.t.generic.action.cancel,
+      hintText: context.t.bookmark.groups.name,
     );
-    controller.dispose();
-    return result?.isNotEmpty ?? false ? result : null;
   }
 
   void _showError(BuildContext context, String message) {
