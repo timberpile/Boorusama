@@ -6,12 +6,13 @@ Boorusama currently stores local bookmarks in one ungrouped collection, while Da
 
 - Add global local bookmark groups that can contain bookmarks from any booru type or configuration.
 - Allow a bookmark to belong to multiple groups, or to remain ungrouped.
-- Add `All Bookmarks` and `Ungrouped` system views to the existing bookmarks page.
+- Add `All` and `No Group` system views to the existing bookmarks page.
 - Add group selection and management to the bookmarks page, including create, duplicate, rename, and delete operations.
 - Replace the current single-action bookmark context-menu entry with group-aware add, remove, and complete-delete actions.
 - Make the bookmark button target the active/last-selected group, with long-press group selection and a visible target label.
 - Show an indicator and count when a bookmark belongs to groups other than the active target group.
-- Protect users from accidental data loss when deleting groups or removing the final group membership.
+- Protect users from accidental data loss when deleting groups or removing the final group membership, with confirmation behavior based on whether a non-empty group has orphaned bookmarks.
+- Use title case for important nouns in user-facing bookmark-group labels and actions.
 
 ## Capabilities
 

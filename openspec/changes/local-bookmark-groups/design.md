@@ -32,8 +32,8 @@ Store named groups and bookmark-to-group memberships separately from the existin
 
 - A group record contains its local identifier and display name.
 - A membership record contains a group identifier and the Hive key of a bookmark record.
-- The absence of membership records means that a bookmark is `Ungrouped`.
-- `All Bookmarks` and `Ungrouped` are virtual views rather than deletable group records.
+- The absence of membership records means that a bookmark is shown by the `No Group` view.
+- `All` and `No Group` are virtual views rather than deletable group records.
 
 This is preferred over adding group IDs directly to `BookmarkHiveObject`. It avoids rewriting the existing bookmark schema, lets older application versions ignore the new boxes, and makes group deletion a membership operation rather than a mutation of every post snapshot. The bookmark Hive key is used for the relation because it is already the stable local identifier exposed as `Bookmark.id`; booru post IDs are not globally unique.
 
@@ -47,15 +47,15 @@ The bookmark repository remains responsible for creating, updating, and deleting
 2. Add or remove the requested membership.
 3. Refresh the in-memory bookmark and membership state.
 
-If a new bookmark cannot be assigned to the requested group, the operation should remove the newly created bookmark so a failed add does not leave an unexpected orphan. Removing the final named membership does not delete the bookmark; it becomes visible in `Ungrouped`. Complete deletion is a separate explicit operation that removes the bookmark and every membership.
+If a new bookmark cannot be assigned to the requested group, the operation should remove the newly created bookmark so a failed add does not leave an unexpected orphan. Removing the final named membership does not delete the bookmark; it becomes visible in `No Group`. Complete deletion is a separate explicit operation that removes the bookmark and every membership.
 
 ### Represent the active target separately from the displayed view
 
-The bookmarks page needs a selected view (`All Bookmarks`, `Ungrouped`, or a named group) and the application needs a persisted active add/remove target. Selecting a named group updates both. Selecting `All Bookmarks` changes only the displayed view and leaves the target unchanged. Selecting `Ungrouped` sets the target to the special ungrouped state.
+The bookmarks page needs a selected view (`All`, `No Group`, or a named group) and the application needs a persisted active add/remove target. Selecting a named group updates both. Selecting `All` changes only the displayed view and leaves the target unchanged. Selecting `No Group` sets the target to the special ungrouped state.
 
-The active target is stored in the existing local settings mechanism. If a saved group no longer exists, the target falls back to `Ungrouped`. The target label is rendered below the bookmark button so a single tap is understandable even when the user is viewing `All Bookmarks`.
+The active target is stored in the existing local settings mechanism. If a saved group no longer exists, the target falls back to `No Group`. The target label is rendered below the bookmark button so a single tap is understandable even when the user is viewing `All`. The label may wrap to two lines and use ellipsis, and the narrowest layouts may show only the icon and badge, so it is never clipped after only a few characters.
 
-`Ungrouped` is a creation/default state, not a named membership that can coexist with named memberships. A post with named memberships must not have those memberships silently cleared by an action targeting `Ungrouped`; the user must remove memberships explicitly or delete the bookmark completely.
+`No Group` is a creation/default state, not a named membership that can coexist with named memberships. A post with named memberships must not have those memberships silently cleared by an action targeting `No Group`; the user must remove memberships explicitly or delete the bookmark completely.
 
 ### Make bookmark controls membership-aware
 
@@ -67,19 +67,19 @@ The bookmark state exposed to widgets will include, or provide access to, the se
 
 The main icon is filled when the bookmark belongs to the active target. A small count badge shows the total number of named groups whenever the bookmark belongs to at least one named group other than the active target. Long press opens the group picker and updates the persisted target; selecting a newly created group also adds the current post to it.
 
-When the active target is `Ungrouped`, a new post can be saved without memberships. Existing grouped posts are not converted to ungrouped by a single tap.
+When the active target is `No Group`, a new post can be saved without memberships. Existing grouped posts are not converted to ungrouped by a single tap.
 
 ### Replace the thumbnail bookmark action with a dedicated section
 
-The general post and Danbooru thumbnail context menus will retain unrelated actions and separate bookmark actions with a horizontal divider. The local bookmark section will expose:
+The general post and Danbooru thumbnail context menus will retain unrelated actions and separate bookmark actions with a horizontal divider. The local bookmark section will expose the title-cased labels:
 
-- `Add to...`, including named groups and `Create new group...`;
-- `Add to <active target>` when the target is a named group and the post is not a member;
-- `Remove from...`, listing applicable named memberships;
-- `Remove from <active target>` when the target is a named group and the post is a member; and
-- `Delete bookmark completely`, with confirmation.
+- `Add To...`, including named groups and `Create New Group...`;
+- `Add To <active target>` when the target is a named group and the post is not a member;
+- `Remove From...`, listing applicable named memberships;
+- `Remove From <active target>` when the target is a named group and the post is a member; and
+- `Delete Bookmark Completely`, with confirmation.
 
-The existing local `Add to bookmark` item is removed. Danbooru's server-side `Add to favorite group` action remains a separate server feature and is not replaced by the local bookmark section.
+When the active target is `No Group`, the direct add action is labeled `Add Bookmark`. The existing local `Add To Bookmark` item is removed. Danbooru's server-side `Add To Favorite Group` action remains a separate server feature and is not replaced by the local bookmark section. Choosing a group from `Add To...` must complete the add operation after the transient context menu has closed; it must not depend on the dismissed menu widget's lifecycle.
 
 ### Make group deletion explicit about orphaned bookmarks
 
@@ -88,7 +88,9 @@ Deleting a group first calculates:
 - memberships that will be removed; and
 - bookmarks whose only named membership is the group being deleted.
 
-The confirmation presents the affected counts and offers two explicit outcomes: keep those bookmarks as `Ungrouped`, or delete them. Keeping orphaned bookmarks is the safer default. Bookmarks belonging to another group are retained in that group regardless of the selected outcome.
+An empty group is deleted without a confirmation because no memberships or bookmarks are affected. A non-empty group always requires confirmation. If it has no orphaned bookmarks, the confirmation is a simple confirmation that memberships will be removed; if it has orphaned bookmarks, the confirmation presents the affected counts and offers two explicit outcomes: keep those bookmarks in `No Group`, or delete them. Keeping orphaned bookmarks is the safer default. Bookmarks belonging to another group are retained in that group regardless of the selected outcome.
+
+In the group picker, a filled bookmark icon indicates that the post belongs to a group, while a checkmark indicates the current active target. The picker SHALL not use active-target selection color as a membership indicator. When a post already belongs to one or more named groups, `No Group` is not shown as a removal target.
 
 ### Integrate group filtering into the existing bookmarks page
 
@@ -99,14 +101,14 @@ The existing bookmark-page fetch/filter flow will load the local groups and memb
 - **Risk:** Membership and bookmark records can become inconsistent after an interrupted multi-step write. → **Mitigation:** centralize coordinated mutations in a repository/service, make new-bookmark assignment compensating, and prune stale memberships during load.
 - **Risk:** A large group deletion may require many membership or bookmark writes. → **Mitigation:** batch Hive operations where supported, show progress for large destructive operations, and refresh state only after the operation completes.
 - **Risk:** Older app versions do not understand local group boxes. → **Mitigation:** keep group data in separate boxes and avoid changing existing bookmark fields; document that using an older version during an active migration is unsupported if it can remove local data.
-- **Risk:** The active target can become confusing when the user views `All Bookmarks`. → **Mitigation:** persist the target intentionally, leave it unchanged when selecting `All Bookmarks`, and display its label below the bookmark button.
+- **Risk:** The active target can become confusing when the user views `All`. → **Mitigation:** persist the target intentionally, leave it unchanged when selecting `All`, and display its responsive label below the bookmark button.
 - **Risk:** A count badge can be misread as the number of groups other than the active group. → **Mitigation:** define and test it as the total number of named groups containing the bookmark.
 
 ## Migration Plan
 
 1. Register the new local group and membership persistence types without modifying existing bookmark records.
-2. Treat every existing bookmark with no membership record as `Ungrouped`.
-3. Initialize the active target to `Ungrouped` when no valid saved target exists.
+2. Treat every existing bookmark with no membership record as visible in `No Group`.
+3. Initialize the active target to `No Group` when no valid saved target exists.
 4. Deploy the group selector, group-management UI, membership-aware bookmark controls, and context-menu actions.
 5. During normal reads, remove membership records that reference deleted bookmark keys or missing groups.
 6. If the feature is rolled back, existing bookmarks remain readable because their storage format is unchanged; newly created group data is ignored by older code and can be removed by a later cleanup.
