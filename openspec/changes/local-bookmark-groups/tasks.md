@@ -17,6 +17,10 @@
 - [x] 3.2 Add create, duplicate, and rename flows with group-name validation and active-target updates.
 - [x] 3.3 Delete empty groups without prompting; always confirm non-empty groups, using a simple confirmation when there are no orphan bookmarks and separate keep-in-`No Group` and delete-orphans outcomes when there are.
 - [x] 3.4 Refresh the bookmarks page, group selector, and membership state after every group or membership mutation, including when the currently displayed group is deleted.
+- [x] 3.5 Add a full-screen masonry group browser as the initial bookmarks route while preserving the existing bookmarks content view and horizontal selector.
+- [x] 3.6 Build `All`, `No Group`, and named-group preview cards using the first bookmark from each group's current sorted order, with overlaid names and empty-group placeholders.
+- [x] 3.7 Add the compact top-right `+` group-creation action and preserve group management actions for named cards.
+- [x] 3.8 Open the existing bookmarks content view when a browser card is selected and synchronize the selected group and active bookmark target.
 
 ## 4. Post bookmark controls
 

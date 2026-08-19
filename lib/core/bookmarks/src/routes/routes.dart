@@ -7,15 +7,30 @@ import '../../../posts/listing/providers.dart';
 import '../../../router.dart';
 import '../data/bookmark_convert.dart';
 import '../pages/bookmark_details_page.dart';
+import '../pages/bookmark_group_browser_page.dart';
 import '../pages/bookmark_page.dart';
 
 final bookmarkRoutes = GoRoute(
   path: 'bookmarks',
   name: '/bookmarks',
   pageBuilder: genericMobilePageBuilder(
-    builder: (context, state) => const BookmarkPage(),
+    builder: (context, state) => const BookmarkGroupBrowserPage(),
   ),
   routes: [
+    GoRoute(
+      path: 'view',
+      name: '/bookmarks/view',
+      pageBuilder: genericMobilePageBuilder(
+        builder: (context, state) {
+          final groupId = switch (state.uri.queryParameters['groupId']) {
+            null || 'all' => null,
+            final value => int.parse(value),
+          };
+
+          return BookmarkContentPage(selectedGroupId: groupId);
+        },
+      ),
+    ),
     GoRoute(
       path: 'details',
       name: '/bookmarks/details',

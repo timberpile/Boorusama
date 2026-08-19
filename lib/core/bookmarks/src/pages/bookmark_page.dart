@@ -5,20 +5,44 @@ import 'package:scroll_to_index/scroll_to_index.dart';
 
 // Project imports:
 import '../../../widgets/widgets.dart';
+import '../providers/bookmark_group_providers.dart';
 import '../widgets/bookmark_scroll_view.dart';
+import 'bookmark_group_browser_page.dart';
 
-class BookmarkPage extends ConsumerStatefulWidget {
-  const BookmarkPage({
-    super.key,
-  });
+class BookmarkPage extends StatelessWidget {
+  const BookmarkPage({super.key});
 
   @override
-  ConsumerState<BookmarkPage> createState() => _BookmarkPageState();
+  Widget build(BuildContext context) {
+    return const BookmarkGroupBrowserPage();
+  }
 }
 
-class _BookmarkPageState extends ConsumerState<BookmarkPage> {
+class BookmarkContentPage extends ConsumerStatefulWidget {
+  const BookmarkContentPage({required this.selectedGroupId, super.key});
+
+  final int? selectedGroupId;
+
+  @override
+  ConsumerState<BookmarkContentPage> createState() =>
+      _BookmarkContentPageState();
+}
+
+class _BookmarkContentPageState extends ConsumerState<BookmarkContentPage> {
   final _searchController = TextEditingController();
   final _scrollController = AutoScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        ref.read(selectedBookmarkGroupIdProvider.notifier).state =
+            widget.selectedGroupId;
+      }
+    });
+  }
 
   @override
   void dispose() {

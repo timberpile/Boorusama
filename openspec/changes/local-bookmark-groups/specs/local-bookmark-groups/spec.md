@@ -46,6 +46,39 @@ The bookmarks page SHALL provide a group selector containing the `All` and `No G
 - **WHEN** the user selects a named group
 - **THEN** the page SHALL show only bookmarks belonging to that group
 
+### Requirement: Full-screen bookmark group browser
+
+Opening the bookmarks route SHALL first show a separate full-screen group browser before the existing bookmarks content view.
+
+The browser SHALL display `All`, `No Group`, and every named group as masonry cards. Each card SHALL use the first bookmark that its corresponding bookmarks view would display under the currently selected bookmark sorting mode. The card's group name SHALL be overlaid near the top of the preview image. A group without matching bookmarks SHALL show an empty-state placeholder.
+
+The browser SHALL provide a compact `+` icon in the top-right corner for creating a group. The existing horizontal group selector SHALL remain available in the bookmarks content view after a group has been opened.
+
+#### Scenario: Open the bookmarks route
+
+- **WHEN** the user opens Bookmarks
+- **THEN** the system SHALL show the full-screen group browser instead of immediately showing the post grid
+
+#### Scenario: Preview a named group
+
+- **WHEN** a named group contains bookmarks
+- **THEN** its browser card SHALL use the first bookmark from that group's current sorted order as the preview image
+
+#### Scenario: Preview an empty group
+
+- **WHEN** a named group contains no bookmarks
+- **THEN** its browser card SHALL show an empty-state placeholder instead of a bookmark image
+
+#### Scenario: Open a group from the browser
+
+- **WHEN** the user taps a group card
+- **THEN** the system SHALL open the existing bookmarks content view filtered to that group and make the named group the active bookmark target
+
+#### Scenario: Create a group from the browser
+
+- **WHEN** the user taps the `+` icon, enters a valid name, and confirms
+- **THEN** the system SHALL create the group, select it in the browser, and open its existing bookmarks content view
+
 ### Requirement: Group management
 
 The bookmarks page SHALL allow users to create, duplicate, rename, and delete named groups.

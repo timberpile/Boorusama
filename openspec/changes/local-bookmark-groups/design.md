@@ -57,6 +57,16 @@ The active target is stored in the existing local settings mechanism. If a saved
 
 `No Group` is a creation/default state, not a named membership that can coexist with named memberships. A post with named memberships must not have those memberships silently cleared by an action targeting `No Group`; the user must remove memberships explicitly or delete the bookmark completely.
 
+### Use a dedicated full-screen group browser as the bookmarks entry screen
+
+Opening the bookmarks route first shows a full-screen group browser. This browser is separate from the existing bookmarks content view and does not replace the horizontal selector inside that view. Selecting a card opens the existing bookmarks view filtered to that group; the selected named group also becomes the active bookmark target. Selecting `All` or `No Group` opens the corresponding existing system view.
+
+The browser displays `All`, `No Group`, and named groups as masonry cards. Each card uses the first bookmark that the corresponding group view would display under the currently selected bookmark sorting mode. It reuses the existing sorting and shuffle behavior, including the current shuffle state when the mode is `Random`. The card uses that bookmark's preview image as its background. Groups without matching bookmarks show a themed empty-state placeholder instead.
+
+The group name is overlaid near the top of the card image with sufficient contrast, constrained to a readable number of lines. Cards may expose their existing duplicate, rename, and delete actions through a card context menu or overflow action; system cards do not expose destructive group actions. A compact `+` icon in the top-right of the browser creates a new group. The new group is added to the browser and selected after creation, then its existing bookmarks view opens.
+
+The existing bookmarks content view remains responsible for search, source filtering, sorting, shuffle, post display, and the horizontal group selector. The browser is an entry and navigation layer, not a second implementation of the bookmark grid.
+
 ### Make bookmark controls membership-aware
 
 The bookmark state exposed to widgets will include, or provide access to, the set of named group IDs for each local bookmark. The existing `isBookmarked` behavior remains available for general bookmark-page and deletion checks, while the post controls additionally derive:
