@@ -2,7 +2,7 @@
 import 'package:flutter/material.dart';
 
 // Package imports:
-import 'package:collection/collection.dart';
+import 'package:anchor_ui/anchor_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
@@ -26,13 +26,11 @@ class BookmarkContextMenuSection extends ConsumerWidget {
     required this.config,
     super.key,
     this.bookmark,
-    this.onBookmarkDeleted,
   });
 
   final Post post;
   final BooruConfigAuth config;
   final Bookmark? bookmark;
-  final VoidCallback? onBookmarkDeleted;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -44,173 +42,208 @@ class BookmarkContextMenuSection extends ConsumerWidget {
     final isBookmarked =
         bookmark != null || (state?.bookmarks.contains(bookmarkId) ?? false);
     final memberships = state?.memberships[bookmarkId] ?? const <int>{};
-    final activeTarget = ref.watch(effectiveActiveBookmarkGroupIdProvider);
     final container = ProviderScope.containerOf(context, listen: false);
-    final activeName = _targetName(context, activeTarget, groups);
-    final activeMembership = activeTarget == kUngroupedBookmarkGroupId
-        ? isBookmarked && memberships.isEmpty
-        : memberships.contains(activeTarget);
-    final addActive =
-        !activeMembership &&
-        (activeTarget != kUngroupedBookmarkGroupId || !isBookmarked);
-    final removeActive =
-        activeTarget != kUngroupedBookmarkGroupId &&
-        memberships.contains(activeTarget);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         const KurumiContextMenuDivider(),
         KurumiContextMenuTile(
-          title: context.t.bookmark.groups.add_to,
-          onTap: () => _showGroupPicker(
-            context,
-            container,
-            groups: groups,
-            memberships: memberships,
-            isBookmarked: isBookmarked,
-            add: true,
-          ),
+          title: context.t.post.action.bookmark,
+          hideOnTap: false,
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () {
+            final pageController = KurumiContextMenuPageController.maybeOf(
+              context,
+            );
+            if (pageController == null) return;
+
+            final navigator = Navigator.of(context, rootNavigator: true);
+            pageController.show(
+              (pageContext) => _buildGroupPickerPage(
+                pageContext,
+                container,
+                navigator: navigator,
+                groups: groups,
+                memberships: memberships,
+                isBookmarked: isBookmarked,
+              ),
+            );
+          },
         ),
-        if (addActive)
-          KurumiContextMenuTile(
-            title: activeTarget == kUngroupedBookmarkGroupId
-                ? context.t.bookmark.groups.add_bookmark
-                : context.t.bookmark.groups.add_to_target(target: activeName),
-            onTap: () => _addToTarget(
-              context,
-              container,
-              activeTarget,
-            ),
-          ),
-        if (memberships.isNotEmpty)
-          KurumiContextMenuTile(
-            title: context.t.bookmark.groups.remove_from,
-            onTap: () => _showGroupPicker(
-              context,
-              container,
-              groups: groups,
-              memberships: memberships,
-              isBookmarked: isBookmarked,
-              add: false,
-            ),
-          ),
-        if (removeActive)
-          KurumiContextMenuTile(
-            title: context.t.bookmark.groups.remove_from_target(
-              target: activeName,
-            ),
-            onTap: () => _removeFromGroup(
-              context,
-              container,
-              activeTarget,
-            ),
-          ),
-        if (isBookmarked) ...[
-          const KurumiContextMenuDivider(),
-          KurumiContextMenuTile(
-            title: context.t.bookmark.groups.delete_completely,
-            onTap: () => _deleteBookmark(context, ref, bookmarkId),
-          ),
-        ],
       ],
     );
   }
 
-  Future<void> _showGroupPicker(
+  Widget _buildGroupPickerPage(
     BuildContext context,
     ProviderContainer container, {
+    required NavigatorState navigator,
     required List<BookmarkGroup> groups,
     required Set<int> memberships,
     required bool isBookmarked,
-    required bool add,
-  }) async {
-    final availableGroups = groups.isNotEmpty
-        ? groups
-        : await container.read(bookmarkGroupsProvider.future);
-    if (!context.mounted) return;
-    final choices = add
-        ? availableGroups
-              .where((group) => !memberships.contains(group.id))
-              .toList()
-        : availableGroups
-              .where((group) => memberships.contains(group.id))
-              .toList();
+  }) {
+    final isGroupedBookmark = isBookmarked && memberships.isNotEmpty;
+    final pageController = KurumiContextMenuPageController.maybeOf(context);
+    final items = <Widget>[];
 
-    await showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (sheetContext) => SafeArea(
-        child: ListView(
-          shrinkWrap: true,
-          children: [
-            if (add)
-              ListTile(
-                leading: const Icon(Symbols.create_new_folder),
-                title: Text(context.t.bookmark.groups.create_new),
-                onTap: () async {
-                  Navigator.pop(sheetContext);
-                  await _createGroupAndAdd(context, container);
-                },
-              ),
-            if (add && !isBookmarked)
-              ListTile(
-                leading: const Icon(Symbols.bookmark_add),
-                title: Text(context.t.bookmark.groups.ungrouped),
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  _addToTarget(context, container, kUngroupedBookmarkGroupId);
-                },
-              ),
-            ...choices.map(
-              (group) => ListTile(
-                leading: const Icon(Symbols.bookmarks),
-                title: Text(group.name),
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  if (add) {
-                    _addToTarget(context, container, group.id);
-                  } else {
-                    _removeFromGroup(context, container, group.id);
-                  }
-                },
-              ),
-            ),
-            if (choices.isEmpty && !(add && !isBookmarked))
-              ListTile(
-                enabled: false,
-                title: Text(context.t.bookmark.groups.no_applicable),
-              ),
-          ],
+    items.add(
+      KurumiPopupMenuItem(
+        icon: const Icon(Icons.arrow_back),
+        title: Text(context.t.generic.action.back),
+        hideOnTap: false,
+        onTap: pageController?.reset ?? () {},
+      ),
+    );
+    items.add(const Divider());
+
+    if (!isGroupedBookmark) {
+      items.add(
+        KurumiPopupMenuItem(
+          icon: Icon(
+            Symbols.bookmark,
+            fill: isBookmarked && memberships.isEmpty ? 1 : 0,
+          ),
+          title: Text(context.t.bookmark.groups.ungrouped),
+          onTap: () {
+            context.hideMenu();
+            _toggleGroupAfterDismissal(
+              navigator,
+              container,
+              kUngroupedBookmarkGroupId,
+              isBookmarked: isBookmarked,
+              memberships: memberships,
+            );
+          },
         ),
+      );
+    }
+
+    items.addAll(
+      groups.map(
+        (group) => KurumiPopupMenuItem(
+          icon: Icon(
+            Symbols.bookmarks,
+            fill: memberships.contains(group.id) ? 1 : 0,
+          ),
+          title: Text(
+            group.name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          onTap: () {
+            context.hideMenu();
+            _toggleGroupAfterDismissal(
+              navigator,
+              container,
+              group.id,
+              isBookmarked: isBookmarked,
+              memberships: memberships,
+            );
+          },
+        ),
+      ),
+    );
+
+    items.add(const Divider());
+    items.add(
+      KurumiPopupMenuItem(
+        icon: const Icon(Symbols.create_new_folder),
+        title: Text(context.t.bookmark.groups.create_new),
+        onTap: () {
+          context.hideMenu();
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (navigator.mounted) {
+              _createGroupAndAdd(navigator.context, container);
+            }
+          });
+        },
+      ),
+    );
+
+    return ConstrainedBox(
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.heightOf(context) * 0.6,
+      ),
+      child: ListView(
+        padding: EdgeInsets.zero,
+        shrinkWrap: true,
+        children: items,
       ),
     );
   }
 
-  Future<void> _addToTarget(
+  void _toggleGroupAfterDismissal(
+    NavigatorState navigator,
+    ProviderContainer container,
+    int groupId, {
+    required bool isBookmarked,
+    required Set<int> memberships,
+  }) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (navigator.mounted) {
+        _toggleGroup(
+          navigator.context,
+          container,
+          groupId,
+          isBookmarked: isBookmarked,
+          memberships: memberships,
+        );
+      }
+    });
+  }
+
+  Future<void> _toggleGroup(
     BuildContext context,
     ProviderContainer container,
-    int groupId,
-  ) async {
+    int groupId, {
+    required bool isBookmarked,
+    required Set<int> memberships,
+  }) async {
     final bookmarks = container.read(bookmarkProvider.notifier);
     await setActiveBookmarkGroupIdInContainer(container, groupId);
 
     if (groupId == kUngroupedBookmarkGroupId) {
-      await bookmarks.addBookmark(
-        config,
-        post,
-        onError: () =>
-            _showError(context, context.t.bookmark.groups.failed_to_add),
-      );
+      if (isBookmarked && memberships.isNotEmpty) return;
+
+      if (!isBookmarked) {
+        await bookmarks.addBookmark(
+          config,
+          post,
+          onSuccess: () => _showSuccess(context, context.t.bookmark.added),
+          onError: () =>
+              _showError(context, context.t.bookmark.groups.failed_to_add),
+        );
+      } else if (memberships.isEmpty) {
+        await bookmarks.removeBookmarkWithToast(
+          bookmark?.uniqueId ??
+              BookmarkUniqueId.fromPost(post, config.booruIdHint),
+        );
+      }
       return;
     }
 
     void onError() =>
         _showError(context, context.t.bookmark.groups.failed_to_add_to_group);
-    if (bookmark case final existing?) {
+
+    final bookmarkId =
+        bookmark?.uniqueId ??
+        BookmarkUniqueId.fromPost(post, config.booruIdHint);
+    if (memberships.contains(groupId)) {
+      await bookmarks.removeBookmarkFromGroup(
+        bookmarkId,
+        groupId,
+        onSuccess: () => _showSuccess(context, context.t.bookmark.removed),
+        onError: () => _showError(
+          context,
+          context.t.bookmark.groups.failed_to_remove_from_group,
+        ),
+      );
+    } else if (bookmark case final existing?) {
       await bookmarks.addExistingBookmarkToGroup(
         existing,
         groupId,
+        onSuccess: () => _showSuccess(context, context.t.bookmark.added),
         onError: onError,
       );
     } else {
@@ -218,29 +251,10 @@ class BookmarkContextMenuSection extends ConsumerWidget {
         config,
         post,
         groupId,
+        onSuccess: () => _showSuccess(context, context.t.bookmark.added),
         onError: onError,
       );
     }
-  }
-
-  Future<void> _removeFromGroup(
-    BuildContext context,
-    ProviderContainer container,
-    int groupId,
-  ) async {
-    final id =
-        bookmark?.uniqueId ??
-        BookmarkUniqueId.fromPost(post, config.booruIdHint);
-    await container
-        .read(bookmarkProvider.notifier)
-        .removeBookmarkFromGroup(
-          id,
-          groupId,
-          onError: () => _showError(
-            context,
-            context.t.bookmark.groups.failed_to_remove_from_group,
-          ),
-        );
   }
 
   Future<void> _createGroupAndAdd(
@@ -259,49 +273,26 @@ class BookmarkContextMenuSection extends ConsumerWidget {
       if (bookmark case final existing?) {
         await container
             .read(bookmarkProvider.notifier)
-            .addExistingBookmarkToGroup(existing, group.id);
+            .addExistingBookmarkToGroup(
+              existing,
+              group.id,
+              onSuccess: () => _showSuccess(context, context.t.bookmark.added),
+            );
       } else {
         await container
             .read(bookmarkProvider.notifier)
-            .addBookmarkToGroup(config, post, group.id);
+            .addBookmarkToGroup(
+              config,
+              post,
+              group.id,
+              onSuccess: () => _showSuccess(context, context.t.bookmark.added),
+            );
       }
       container.invalidate(bookmarkGroupsProvider);
       container.invalidate(bookmarkProvider);
     } catch (error) {
       if (context.mounted) _showError(context, error.toString());
     }
-  }
-
-  Future<void> _deleteBookmark(
-    BuildContext context,
-    WidgetRef ref,
-    BookmarkUniqueId bookmarkId,
-  ) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(context.t.bookmark.groups.delete_completely_title),
-        content: Text(
-          context.t.bookmark.groups.delete_completely_message,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: Text(context.t.generic.action.cancel),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: Text(context.t.generic.action.delete),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
-
-    await ref.bookmarks.removeBookmarkWithToast(
-      bookmarkId,
-      onSuccess: onBookmarkDeleted,
-    );
   }
 
   Future<String?> _showGroupNameDialog(BuildContext context) {
@@ -318,18 +309,7 @@ class BookmarkContextMenuSection extends ConsumerWidget {
     if (context.mounted) Kurumi.showErrorToast(context, message);
   }
 
-  String _targetName(
-    BuildContext context,
-    int target,
-    List<BookmarkGroup> groups,
-  ) {
-    if (target == kUngroupedBookmarkGroupId) {
-      return context.t.bookmark.groups.ungrouped;
-    }
-    return groups
-            .where((group) => group.id == target)
-            .map((group) => group.name)
-            .firstOrNull ??
-        context.t.bookmark.groups.ungrouped;
+  void _showSuccess(BuildContext context, String message) {
+    if (context.mounted) Kurumi.showSuccessToast(context, message);
   }
 }

@@ -27,14 +27,14 @@ class BookmarkGroup extends Equatable {
 class BookmarkGroupDeletionPreview extends Equatable {
   const BookmarkGroupDeletionPreview({
     required this.groupId,
-    required this.membershipCount,
+    required this.bookmarkCount,
     required this.orphanBookmarkIds,
   });
 
   final int groupId;
-  final int membershipCount;
+  final int bookmarkCount;
   final Set<int> orphanBookmarkIds;
 
   @override
-  List<Object?> get props => [groupId, membershipCount, orphanBookmarkIds];
+  List<Object?> get props => [groupId, bookmarkCount, orphanBookmarkIds];
 }

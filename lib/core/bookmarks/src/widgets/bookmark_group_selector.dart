@@ -112,10 +112,6 @@ class BookmarkGroupManagementButton extends ConsumerWidget {
     return KurumiPopupMenuButton(
       icon: const Icon(Symbols.more_vert),
       items: [
-        KurumiPopupMenuItem(
-          title: Text(context.t.bookmark.groups.create),
-          onTap: () => _createGroup(context, ref),
-        ),
         if (_selectedGroup != null) ...[
           KurumiPopupMenuItem(
             title: Text(context.t.bookmark.groups.duplicate),
@@ -141,29 +137,6 @@ class BookmarkGroupManagementButton extends ConsumerWidget {
     }
 
     return groups.firstWhereOrNull((group) => group.id == selectedGroupId);
-  }
-
-  Future<void> _createGroup(BuildContext context, WidgetRef ref) async {
-    final name = await showBookmarkGroupNameDialog(
-      context,
-      title: context.t.bookmark.groups.create,
-      saveLabel: context.t.generic.action.save,
-      cancelLabel: context.t.generic.action.cancel,
-      hintText: context.t.bookmark.groups.name,
-    );
-    if (name == null) return;
-
-    try {
-      final group = await (await ref.read(
-        bookmarkGroupRepoProvider.future,
-      )).createGroup(name);
-      ref.read(selectedBookmarkGroupIdProvider.notifier).state = group.id;
-      await setActiveBookmarkGroupId(ref, group.id);
-      refreshBookmarkGroupProviders(ref);
-    } catch (error) {
-      if (!context.mounted) return;
-      _showError(context, error);
-    }
   }
 
   Future<void> _duplicateGroup(BuildContext context, WidgetRef ref) async {
@@ -217,53 +190,36 @@ class BookmarkGroupManagementButton extends ConsumerWidget {
     final preview = await repository.previewDeleteGroup(group.id);
     if (!context.mounted) return;
 
-    var deleteOrphans = false;
-    if (preview.membershipCount > 0) {
-      final result = await showDialog<bool>(
+    if (preview.bookmarkCount > 0) {
+      final confirmed = await showDialog<bool>(
         context: context,
-        builder: (context) {
-          final hasOrphans = preview.orphanBookmarkIds.isNotEmpty;
-          return AlertDialog(
-            title: Text(
-              context.t.bookmark.groups.delete_group_title(name: group.name),
+        builder: (context) => AlertDialog(
+          title: Text(
+            context.t.bookmark.groups.delete_group_title(name: group.name),
+          ),
+          content: Text(
+            context.t.bookmark.groups.delete_group_message(
+              bookmarks: preview.bookmarkCount,
             ),
-            content: Text(
-              hasOrphans
-                  ? context.t.bookmark.groups.delete_group_summary(
-                      memberships: preview.membershipCount,
-                      orphans: preview.orphanBookmarkIds.length,
-                    )
-                  : context.t.bookmark.groups.delete_group_message,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text(context.t.generic.action.cancel),
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text(context.t.generic.action.cancel),
-              ),
-              if (hasOrphans)
-                TextButton(
-                  onPressed: () => Navigator.pop(context, false),
-                  child: Text(context.t.bookmark.groups.keep_as_ungrouped),
-                ),
-              FilledButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: Text(
-                  hasOrphans
-                      ? context.t.bookmark.groups.delete_bookmarks
-                      : context.t.bookmark.groups.delete,
-                ),
-              ),
-            ],
-          );
-        },
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: Text(context.t.bookmark.groups.delete),
+            ),
+          ],
+        ),
       );
-      if (result == null) return;
-      deleteOrphans = result;
+      if (confirmed != true) return;
     }
 
     try {
       final orphanIds = await repository.deleteGroup(group.id);
-      if (deleteOrphans && orphanIds.isNotEmpty) {
+      if (orphanIds.isNotEmpty) {
         await ref
             .read(bookmarkProvider.notifier)
             .removeBookmarksByIds(

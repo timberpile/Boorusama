@@ -32,7 +32,6 @@ import '../providers/local_providers.dart';
 import '../routes/route_utils.dart';
 import 'bookmark_appbar.dart';
 import 'bookmark_booru_type_selector.dart';
-import 'bookmark_group_selector.dart';
 import 'bookmark_group_actions.dart';
 import 'bookmark_search_bar.dart';
 import 'bookmark_shuffle_button.dart';
@@ -232,9 +231,6 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                 ),
               ),
               const SliverPinnedHeader(
-                child: BookmarkGroupSelector(),
-              ),
-              const SliverPinnedHeader(
                 child: BookmarkBooruSourceUrlSelector(),
               ),
               const SliverSizedBox(height: 8),
@@ -386,9 +382,6 @@ class BookmarkContextMenu extends ConsumerWidget {
           post: post,
           config: auth,
           bookmark: post.bookmark,
-          onBookmarkDeleted: () {
-            controller.remove([post.id], (e) => e.id);
-          },
         ),
         if (!loginDetails.hasStrictSFW)
           KurumiContextMenuTile(

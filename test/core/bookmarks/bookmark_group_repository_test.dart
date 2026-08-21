@@ -9,6 +9,7 @@ import 'package:test/test.dart';
 import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_group_hive_object.dart';
 import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_group_membership_hive_object.dart';
 import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_group_repository_hive.dart';
+import 'package:boorusama/core/bookmarks/src/providers/bookmark_group_browser_provider.dart';
 import 'package:boorusama/core/bookmarks/src/providers/local_providers.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_group.dart';
@@ -88,10 +89,9 @@ void main() {
       final group = await repository.createGroup('Only group');
       await repository.addBookmarkToGroup(bookmarkId: 20, groupId: group.id);
 
-      expect(
-        await repository.previewDeleteGroup(group.id),
-        isA<BookmarkGroupDeletionPreview>(),
-      );
+      final preview = await repository.previewDeleteGroup(group.id);
+      expect(preview, isA<BookmarkGroupDeletionPreview>());
+      expect(preview.bookmarkCount, 1);
       expect(await repository.deleteGroup(group.id), {20});
       expect(await repository.getMembershipsByBookmark(), isEmpty);
     },
@@ -171,4 +171,33 @@ void main() {
       [3],
     );
   });
+
+  test(
+    'uses the first four bookmarks from a sorted group view as previews',
+    () {
+      final bookmarks = List.generate(
+        6,
+        (index) => Bookmark.empty.copyWith(
+          id: index + 1,
+          createdAt: DateTime(2026, 1, index + 1),
+        ),
+      );
+
+      expect(
+        getBookmarkGroupPreviews(
+          bookmarks: bookmarks,
+          sortType: BookmarkSortType.oldest,
+          membershipsByBookmark: const {
+            1: {7},
+            2: {7},
+            3: {7},
+            4: {7},
+            5: {7},
+          },
+          selectedBookmarkGroupId: 7,
+        ).map((bookmark) => bookmark.id),
+        [1, 2, 3, 4],
+      );
+    },
+  );
 }

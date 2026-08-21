@@ -97,10 +97,14 @@ class KurumiPopupMenuItem extends StatelessWidget {
     required this.onTap,
     super.key,
     this.icon,
+    this.trailing,
+    this.hideOnTap = true,
   });
 
   final Widget title;
   final Widget? icon;
+  final Widget? trailing;
+  final bool hideOnTap;
   final VoidCallback onTap;
 
   @override
@@ -109,7 +113,9 @@ class KurumiPopupMenuItem extends StatelessWidget {
     final controller = AnchorData.maybeOf(context)?.controller;
 
     void handleTap() {
-      controller?.hide();
+      if (hideOnTap) {
+        controller?.hide();
+      }
       onTap();
     }
 
@@ -141,7 +147,12 @@ class KurumiPopupMenuItem extends StatelessWidget {
                       child: icon,
                     ),
                   ),
-                Flexible(child: title),
+                Expanded(child: title),
+                if (trailing case final trailing?)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 8),
+                    child: IgnorePointer(child: trailing),
+                  ),
               ],
             ),
           ),

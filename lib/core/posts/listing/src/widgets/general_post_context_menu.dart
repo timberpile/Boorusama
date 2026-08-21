@@ -71,9 +71,6 @@ class GeneralPostContextMenu extends ConsumerWidget {
             BookmarkContextMenuSection(
               post: post,
               config: booruConfig,
-              onBookmarkDeleted: () {
-                controller.remove([post.id], (e) => e.id);
-              },
             ),
             const KurumiContextMenuDivider(),
             if (hasFavoriteActions) ...[

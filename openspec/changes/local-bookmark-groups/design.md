@@ -12,7 +12,7 @@ See `proposal.md` for motivation and `specs/local-bookmark-groups/spec.md` for t
 
 - Add global local group membership without changing the meaning of server favorites.
 - Preserve all existing bookmarks as ungrouped bookmarks after upgrading.
-- Support multiple memberships, group-specific removal, and explicit complete deletion.
+- Support multiple memberships, group-specific removal, and safe final-membership removal.
 - Keep group selection and management within the existing bookmarks experience.
 - Make the active bookmark target available to post buttons and thumbnail context menus.
 - Preserve enough membership state to render the active-group icon and total-group count without requiring network access.
@@ -47,25 +47,25 @@ The bookmark repository remains responsible for creating, updating, and deleting
 2. Add or remove the requested membership.
 3. Refresh the in-memory bookmark and membership state.
 
-If a new bookmark cannot be assigned to the requested group, the operation should remove the newly created bookmark so a failed add does not leave an unexpected orphan. Removing the final named membership does not delete the bookmark; it becomes visible in `No Group`. Complete deletion is a separate explicit operation that removes the bookmark and every membership.
+If a new bookmark cannot be assigned to the requested group, the operation should remove the newly created bookmark so a failed add does not leave an unexpected orphan. Removing one membership preserves the bookmark when another named membership remains. Removing the final named membership deletes the bookmark and every membership, so it does not move into `No Group`. Bookmarks only appear in `No Group` when they have no named memberships without having been removed from a final group.
 
 ### Represent the active target separately from the displayed view
 
 The bookmarks page needs a selected view (`All`, `No Group`, or a named group) and the application needs a persisted active add/remove target. Selecting a named group updates both. Selecting `All` changes only the displayed view and leaves the target unchanged. Selecting `No Group` sets the target to the special ungrouped state.
 
-The active target is stored in the existing local settings mechanism. If a saved group no longer exists, the target falls back to `No Group`. The target label is rendered below the bookmark button so a single tap is understandable even when the user is viewing `All`. The label may wrap to two lines and use ellipsis, and the narrowest layouts may show only the icon and badge, so it is never clipped after only a few characters.
+The active target is stored in the existing local settings mechanism. If a saved group no longer exists, the target falls back to `No Group`. The normal bookmark button uses the same fixed toolbar slot and vertical icon center as neighboring action buttons. Its target label is a single line positioned below the bookmark anchor, centered on the bookmark glyph's center while ignoring the dropdown affordance and count badge. The label is about 30% smaller than the normal compact label style and uses ellipsis. The normal control uses the same standard icon-button press feedback and full hit target as the download control; the hit target includes the bookmark glyph, dropdown affordance, and count badge so long press works across the composite icon. The compact bookmark button used in dense layouts may show only the icon, dropdown affordance, and count badge.
 
 `No Group` is a creation/default state, not a named membership that can coexist with named memberships. A post with named memberships must not have those memberships silently cleared by an action targeting `No Group`; the user must remove memberships explicitly or delete the bookmark completely.
 
 ### Use a dedicated full-screen group browser as the bookmarks entry screen
 
-Opening the bookmarks route first shows a full-screen group browser. This browser is separate from the existing bookmarks content view and does not replace the horizontal selector inside that view. Selecting a card opens the existing bookmarks view filtered to that group; the selected named group also becomes the active bookmark target. Selecting `All` or `No Group` opens the corresponding existing system view.
+Opening the bookmarks route first shows a full-screen group browser. This browser is separate from the existing bookmarks content view and replaces the horizontal group selector as the way to choose a group. Selecting a card opens the existing bookmarks view filtered to that group; the selected named group also becomes the active bookmark target. Selecting `All` or `No Group` opens the corresponding existing system view.
 
-The browser displays `All`, `No Group`, and named groups as masonry cards. Each card uses the first bookmark that the corresponding group view would display under the currently selected bookmark sorting mode. It reuses the existing sorting and shuffle behavior, including the current shuffle state when the mode is `Random`. The card uses that bookmark's preview image as its background. Groups without matching bookmarks show a themed empty-state placeholder instead.
+The browser displays `All`, `No Group`, and named groups as square cards. Each card shows up to the first four bookmarks that the corresponding group view would display under the currently selected bookmark sorting mode, arranged in a 2x2 grid in sorted order. It reuses the existing sorting and shuffle behavior, including the current shuffle state when the mode is `Random`. Still images use the same sample-quality preview as the bookmark grid; videos use their thumbnail image. If fewer than four bookmarks are available, missing cells remain transparent rather than showing placeholders, populated cells have a small gap between them, and the card uses a subtle outline rather than a gray preview background to show its extent. An empty group therefore has a transparent preview area with only its outline and overlaid name visible.
 
-The group name is overlaid near the top of the card image with sufficient contrast, constrained to a readable number of lines. Cards may expose their existing duplicate, rename, and delete actions through a card context menu or overflow action; system cards do not expose destructive group actions. A compact `+` icon in the top-right of the browser creates a new group. The new group is added to the browser and selected after creation, then its existing bookmarks view opens.
+The group name is overlaid near the top of the card image with sufficient contrast, constrained to a readable number of lines. Named cards expose `Duplicate`, `Rename`, and `Delete` through an overflow action; they do not expose a `Create` action because creation belongs to the browser's top-right `+` button. System cards do not expose destructive group actions. The new group is added to the browser and remains in the browser after creation. It does not become the displayed group or open its empty bookmarks view; the previously active bookmark target remains unchanged.
 
-The existing bookmarks content view remains responsible for search, source filtering, sorting, shuffle, post display, and the horizontal group selector. The browser is an entry and navigation layer, not a second implementation of the bookmark grid.
+The existing bookmarks content view remains responsible for search, source filtering, sorting, shuffle, post display, and displaying the selected group's name in its app bar. The browser is an entry and navigation layer, not a second implementation of the bookmark grid.
 
 ### Make bookmark controls membership-aware
 
@@ -79,32 +79,27 @@ The main icon is filled when the bookmark belongs to the active target. A small 
 
 When the active target is `No Group`, a new post can be saved without memberships. Existing grouped posts are not converted to ungrouped by a single tap.
 
+Successful bookmark creation, named-group addition, and named-group removal use the existing localized `Bookmark added` or `Bookmark removed` success toasts. Failure paths continue to use the existing error toasts.
+
 ### Replace the thumbnail bookmark action with a dedicated section
 
-The general post and Danbooru thumbnail context menus will retain unrelated actions and separate bookmark actions with a horizontal divider. The local bookmark section will expose the title-cased labels:
+The general post and Danbooru thumbnail context menus will retain unrelated actions and place one local `Bookmark` action between two horizontal dividers. The existing standalone local bookmark action is removed, and the thumbnail context menu does not provide a complete-delete action. Danbooru's server-side favorite-group action remains a separate server feature and is not replaced by the local bookmark action.
 
-- `Add To...`, including named groups and `Create New Group...`;
-- `Add To <active target>` when the target is a named group and the post is not a member;
-- `Remove From...`, listing applicable named memberships;
-- `Remove From <active target>` when the target is a named group and the post is a member; and
-- `Delete Bookmark Completely`, with confirmation.
+Selecting `Bookmark` replaces the contents of the anchored context menu in the same position with the same group list and toggle semantics used by the post bookmark button. The replacement view lists the permitted `No Group` row, all named groups, and a final `Create New Group` row separated by a divider. Membership icons are placed to the left of the group names; filled icons indicate existing membership and outline icons indicate that the post is not in that group. Selecting a group toggles its membership and makes it the active bookmark target. The thumbnail-context group list does not show the gray `Active` badge; the post bookmark popup continues to show it.
 
-When the active target is `No Group`, the direct add action is labeled `Add Bookmark`. The existing local `Add To Bookmark` item is removed. Danbooru's server-side `Add To Favorite Group` action remains a separate server feature and is not replaced by the local bookmark section. Choosing a group from `Add To...` must complete the add operation after the transient context menu has closed; it must not depend on the dismissed menu widget's lifecycle.
+The `Bookmark` entry shows a right chevron to communicate that it opens another menu view. The replacement view starts with a `Back` row using a leading return arrow and a divider immediately below it. Back restores the original context-menu contents without dismissing the anchored popup. The replacement view removes the extra outer vertical padding and list padding so its first and last rows align with the normal context-menu surface.
 
-### Make group deletion explicit about orphaned bookmarks
+When a post has named memberships, `No Group` is omitted because it cannot be used as a removal target. Creating a group captures a stable root navigator context, replaces the menu safely, and opens the create dialog after dismissal. The new group is added to the post and becomes the active target.
 
-Deleting a group first calculates:
+### Make group deletion explicit and final
 
-- memberships that will be removed; and
-- bookmarks whose only named membership is the group being deleted.
+Deleting a group first calculates the memberships in that group and the bookmarks whose only named membership is the group being deleted. An empty group is deleted without confirmation because no memberships or bookmarks are affected. A non-empty group always shows one standard confirmation containing the total number of bookmarks in the group. After confirmation, the group and its memberships are deleted; bookmarks that belong to no other named group are deleted as well, while bookmarks belonging to another group remain in those groups. There is no option to migrate deleted-group bookmarks into `No Group`.
 
-An empty group is deleted without a confirmation because no memberships or bookmarks are affected. A non-empty group always requires confirmation. If it has no orphaned bookmarks, the confirmation is a simple confirmation that memberships will be removed; if it has orphaned bookmarks, the confirmation presents the affected counts and offers two explicit outcomes: keep those bookmarks in `No Group`, or delete them. Keeping orphaned bookmarks is the safer default. Bookmarks belonging to another group are retained in that group regardless of the selected outcome.
-
-In the group picker, a filled bookmark icon indicates that the post belongs to a group, while a checkmark indicates the current active target. The picker SHALL not use active-target selection color as a membership indicator. When a post already belongs to one or more named groups, `No Group` is not shown as a removal target.
+In the post bookmark group picker, a filled bookmark icon indicates that the post belongs to a group, while a small gray `Active` text label indicates the current active target. The label has no border or background. The picker SHALL not use active-target selection color as a membership indicator or use a checkmark that could be confused with membership. When a post already belongs to one or more named groups, `No Group` is not shown as a removal target. The post picker is presented as an anchored `KurumiAnchor` popup using the same menu container and item styling as Downloads and hamburger menus. Its popup rows use a trailing slot for the `Active` badge, while the entire row remains one tap target. The thumbnail-context picker uses the same group rows without the trailing badge. Dialogs launched from a dismissed overlay use a stable navigator context captured before dismissal.
 
 ### Integrate group filtering into the existing bookmarks page
 
-The existing bookmark-page fetch/filter flow will load the local groups and memberships, then apply the selected group filter before the existing tag, source, and sort behavior. The group selector and group-management actions belong near the current bookmarks app bar and source selector. Group operations invalidate the bookmark page and membership state so counts and visible results update immediately.
+The existing bookmark-page fetch/filter flow will load the local groups and memberships, then apply the selected group filter before the existing tag, source, and sort behavior. Group management belongs in the full-screen group browser, while the content view shows the selected group name in its app bar. Group operations invalidate the bookmark page and membership state so counts and visible results update immediately.
 
 ## Risks / Trade-offs
 

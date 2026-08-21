@@ -9,15 +9,15 @@ class BookmarkGroupBrowserItem extends Equatable {
   const BookmarkGroupBrowserItem({
     required this.groupId,
     required this.group,
-    required this.preview,
+    required this.previews,
   });
 
   final int? groupId;
   final BookmarkGroup? group;
-  final Bookmark? preview;
+  final List<Bookmark> previews;
 
   bool get isAll => groupId == null;
 
   @override
-  List<Object?> get props => [groupId, group, preview];
+  List<Object?> get props => [groupId, group, previews];
 }

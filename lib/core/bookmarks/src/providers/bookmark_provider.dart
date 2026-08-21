@@ -279,10 +279,20 @@ class BookmarkNotifier extends AsyncNotifier<BookmarkState> {
         return;
       }
 
-      await (await bookmarkGroupRepository).removeBookmarkFromGroup(
-        bookmarkId: bookmark.id,
-        groupId: groupId,
-      );
+      final groupRepo = await bookmarkGroupRepository;
+      final memberships = await groupRepo.getMembershipsByBookmark();
+      final bookmarkMemberships = memberships[bookmark.id] ?? const <int>{};
+
+      if (bookmarkMemberships.length == 1 &&
+          bookmarkMemberships.contains(groupId)) {
+        await _removeBookmarksInternal([bookmark]);
+      } else {
+        await groupRepo.removeBookmarkFromGroup(
+          bookmarkId: bookmark.id,
+          groupId: groupId,
+        );
+      }
+
       await _refreshState();
       onSuccess?.call();
     } catch (e) {

@@ -64,7 +64,7 @@ class DanbooruPostContextMenu extends ConsumerWidget {
           post: post,
           config: booruConfig,
         ),
-        if (hasAccount) const KurumiContextMenuDivider(),
+        const KurumiContextMenuDivider(),
         if (hasAccount)
           FavoriteContextMenuTile(
             post: post,
@@ -80,7 +80,7 @@ class DanbooruPostContextMenu extends ConsumerWidget {
               );
             },
           ),
-        const KurumiContextMenuDivider(),
+        if (hasAccount) const KurumiContextMenuDivider(),
         if (post.hasComment)
           KurumiContextMenuTile(
             title: context.t.post.action.view_comments,

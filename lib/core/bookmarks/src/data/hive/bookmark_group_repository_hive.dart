@@ -74,6 +74,7 @@ class BookmarkGroupRepositoryHive implements BookmarkGroupRepository {
     final memberships = membershipsBox.values
         .where((membership) => membership.groupId == groupId)
         .toList();
+    final bookmarkIds = memberships.map((membership) => membership.bookmarkId);
     final orphanBookmarkIds = <int>{};
 
     for (final membership in memberships) {
@@ -87,7 +88,7 @@ class BookmarkGroupRepositoryHive implements BookmarkGroupRepository {
 
     return BookmarkGroupDeletionPreview(
       groupId: groupId,
-      membershipCount: memberships.length,
+      bookmarkCount: bookmarkIds.toSet().length,
       orphanBookmarkIds: orphanBookmarkIds,
     );
   }

@@ -1,5 +1,4 @@
 // Package imports:
-import 'package:collection/collection.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Project imports:
@@ -11,6 +10,23 @@ import 'bookmark_group_providers.dart';
 import 'bookmark_provider.dart';
 import 'bookmark_shuffle_provider.dart';
 import 'local_providers.dart';
+
+List<Bookmark> getBookmarkGroupPreviews({
+  required List<Bookmark> bookmarks,
+  required BookmarkSortType sortType,
+  required Map<int, Set<int>> membershipsByBookmark,
+  required int? selectedBookmarkGroupId,
+  BookmarkShuffleState? shuffleState,
+}) {
+  return filterBookmarks(
+    bookmarks: bookmarks,
+    selectedTags: const [],
+    sortType: sortType,
+    membershipsByBookmark: membershipsByBookmark,
+    selectedBookmarkGroupId: selectedBookmarkGroupId,
+    shuffleState: shuffleState,
+  ).take(4).toList();
+}
 
 final bookmarkGroupBrowserItemsProvider = FutureProvider.autoDispose
     .family<List<BookmarkGroupBrowserItem>, BookmarkSortType>((
@@ -29,33 +45,40 @@ final bookmarkGroupBrowserItemsProvider = FutureProvider.autoDispose
         bookmarkGroupRepoProvider.future,
       )).getMembershipsByBookmark();
 
-      Bookmark? previewFor(int? groupId) {
-        return filterBookmarks(
-          bookmarks: bookmarks,
-          selectedTags: const [],
-          sortType: sortType,
-          membershipsByBookmark: membershipsByBookmark,
-          selectedBookmarkGroupId: groupId,
-          shuffleState: shuffleState,
-        ).firstOrNull;
-      }
-
       return [
         BookmarkGroupBrowserItem(
           groupId: null,
           group: null,
-          preview: previewFor(null),
+          previews: getBookmarkGroupPreviews(
+            bookmarks: bookmarks,
+            sortType: sortType,
+            membershipsByBookmark: membershipsByBookmark,
+            selectedBookmarkGroupId: null,
+            shuffleState: shuffleState,
+          ),
         ),
         BookmarkGroupBrowserItem(
           groupId: kUngroupedBookmarkGroupId,
           group: null,
-          preview: previewFor(kUngroupedBookmarkGroupId),
+          previews: getBookmarkGroupPreviews(
+            bookmarks: bookmarks,
+            sortType: sortType,
+            membershipsByBookmark: membershipsByBookmark,
+            selectedBookmarkGroupId: kUngroupedBookmarkGroupId,
+            shuffleState: shuffleState,
+          ),
         ),
         ...groups.map(
           (group) => BookmarkGroupBrowserItem(
             groupId: group.id,
             group: group,
-            preview: previewFor(group.id),
+            previews: getBookmarkGroupPreviews(
+              bookmarks: bookmarks,
+              sortType: sortType,
+              membershipsByBookmark: membershipsByBookmark,
+              selectedBookmarkGroupId: group.id,
+              shuffleState: shuffleState,
+            ),
           ),
         ),
       ];
