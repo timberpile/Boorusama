@@ -40,7 +40,7 @@ class BookmarkContextMenuSection extends ConsumerWidget {
         bookmark?.uniqueId ??
         BookmarkUniqueId.fromPost(post, config.booruIdHint);
     final isBookmarked =
-        bookmark != null || (state?.bookmarks.contains(bookmarkId) ?? false);
+        state?.bookmarks.contains(bookmarkId) ?? bookmark != null;
     final memberships = state?.memberships[bookmarkId] ?? const <int>{};
     final container = ProviderScope.containerOf(context, listen: false);
 
