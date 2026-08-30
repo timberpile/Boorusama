@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+
+flutter build apk \
+  --no-pub \
+  --release \
+  --flavor prod
+
+printf '\nAPK: %s\n' "$PWD/build/app/outputs/flutter-apk/app.apk"

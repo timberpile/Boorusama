@@ -61,6 +61,77 @@ Or build an APK and install it manually:
 ./build.sh apk --flavor prod
 ```
 
+### Dev container
+
+The included dev container provides the toolchain required to build and debug
+the Android app. Select the **Standard** configuration for the main checkout,
+then build an APK with:
+
+```bash
+bash .devcontainer/build-android.sh
+```
+
+To debug on an emulator or USB-connected device managed by a Windows host,
+start the host ADB bridge before opening the container:
+
+```powershell
+.\.devcontainer\start-host-adb.ps1
+```
+
+Then run inside the container, optionally passing a device ID:
+
+```bash
+bash .devcontainer/run-android.sh [device-id]
+```
+
+Stop the host ADB bridge when debugging is finished:
+
+```powershell
+.\.devcontainer\stop-host-adb.ps1
+```
+
+There are also `release` versions available for `build-android.sh` and `run-android.sh`.
+
+#### Git worktrees
+
+On Windows, run **Tasks: Run Task** in VS Code and choose a **Worktrees** task
+to create, reopen, or remove a worktree. Removal retains its branch and shared
+dependency caches, and refuses worktrees with uncommitted files. Creating or
+reopening a worktree also initializes its dependencies and generated code. New
+worktrees use the next available short name (`w1`, `w2`, and so on) to keep
+Windows native build paths manageable; explicit names remain supported when
+running the script directly.
+
+Use a Git version that supports `git worktree add --relative-paths`. Keep linked
+worktrees under `.worktrees/` so their Git metadata resolves on both the host and
+inside the container:
+
+```bash
+git config worktree.useRelativePaths true
+git worktree add .worktrees/my-feature -b feature/my-feature
+```
+
+Open `.worktrees/my-feature` and select the **Worktree** dev container
+configuration. Each checkout has isolated build output while dependency downloads
+are shared.
+
+Repair an existing worktree before opening it in the container:
+
+```bash
+git worktree repair --relative-paths .worktrees/my-feature
+```
+
+Remove it through Git when finished:
+
+```bash
+git worktree remove .worktrees/my-feature
+```
+
+Manual Git removal retains generated Docker volumes. The Windows removal task
+also removes private volumes when their ownership can be verified from the dev
+container. Avoid broad forced cleanup commands such as `git clean -fdx` around
+`.worktrees/`.
+
 ## Translation
 
 Translations are managed via [Weblate](https://weblate.org/en/).

@@ -1,0 +1,39 @@
+{
+  "name": "Boorusama Android - Worktree",
+  "build": {
+    "dockerfile": "../Dockerfile",
+    "context": "../.."
+  },
+  "workspaceFolder": "/workspace/Boorusama/.worktrees/${localWorkspaceFolderBasename}",
+  "workspaceMount": "source=${localWorkspaceFolder}/../..,target=/workspace/Boorusama,type=bind,consistency=cached",
+  "containerEnv": {
+    "ADB_SERVER_SOCKET": "tcp:host.docker.internal:5037",
+    "BOORUSAMA_USE_FVM": "false",
+    "BOORUSAMA_WORKSPACE_MODE": "worktree",
+    "BOORUSAMA_WORKSPACE": "/workspace/Boorusama/.worktrees/${localWorkspaceFolderBasename}",
+    "PUB_CACHE": "/root/.pub-cache",
+    "CARGO_HOME": "/root/.cargo"
+  },
+  "runArgs": [
+    "--add-host=host.docker.internal:host-gateway"
+  ],
+  "mounts": [
+    "source=boorusama-pub-cache,target=/root/.pub-cache,type=volume",
+    "source=boorusama-gradle-cache,target=/root/.gradle,type=volume",
+    "source=boorusama-cargo-cache,target=/root/.cargo,type=volume",
+    "source=boorusama-${devcontainerId}-dart-tool,target=/workspace/Boorusama/.worktrees/${localWorkspaceFolderBasename}/.dart_tool,type=volume",
+    "source=boorusama-${devcontainerId}-build,target=/workspace/Boorusama/.worktrees/${localWorkspaceFolderBasename}/build,type=volume",
+    "source=boorusama-${devcontainerId}-android-gradle,target=/workspace/Boorusama/.worktrees/${localWorkspaceFolderBasename}/android/.gradle,type=volume",
+    "source=${localEnv:USERPROFILE}/.android,target=/root/.android,type=bind"
+  ],
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "Dart-Code.dart-code",
+        "Dart-Code.flutter",
+        "mhutchie.git-graph"
+      ]
+    }
+  }
+}

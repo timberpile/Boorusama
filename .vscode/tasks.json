@@ -1,0 +1,99 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Worktrees: Create or Open",
+      "type": "process",
+      "command": "powershell",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/.vscode/create-worktree.ps1"
+      ],
+      "options": {
+        "env": {
+          "BOORUSAMA_WORKTREE_BRANCH": "${input:branchName}"
+        }
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Worktrees: Choose Existing Branch",
+      "type": "process",
+      "command": "powershell",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/.vscode/create-worktree.ps1",
+        "-ChooseBranch"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Worktrees: Remove",
+      "type": "process",
+      "command": "powershell",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/.vscode/remove-worktree.ps1"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Windows: Build",
+      "type": "process",
+      "command": "flutter",
+      "args": [
+        "build",
+        "windows",
+        "--debug",
+        "--dart-define-from-file=env/dev.json"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Windows: Run",
+      "type": "process",
+      "command": "flutter",
+      "args": [
+        "run",
+        "-d",
+        "windows",
+        "--debug",
+        "--dart-define-from-file=env/dev.json"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Windows: Clean",
+      "type": "process",
+      "command": "flutter",
+      "args": ["clean"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    }
+  ],
+  "inputs": [
+    {
+      "id": "branchName",
+      "type": "promptString",
+      "description": "Branch name (leave empty to use the worktree name)",
+      "default": ""
+    }
+  ]
+}
