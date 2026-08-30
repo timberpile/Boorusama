@@ -9,6 +9,7 @@ environment:
   flutter: ^3.44.0
 
 workspace:
+  - packages/libavif
   - packages/kurumi
   - packages/foundation
   - packages/booru_clients

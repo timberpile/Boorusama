@@ -56,6 +56,12 @@ add_subdirectory("runner")
 
 # Generated plugin build rules, which manage building the plugins and adding
 # them to the application.
+# media_kit_libs_windows_video 1.0.11 omits POST_BUILD from two TARGET-form
+# add_custom_command calls. Its own cmake_minimum_required(VERSION 3.14) leaves
+# CMP0175 unset, so provide the pre-CMake 3.31 behavior as the default for
+# generated plugin subprojects. Remove this after the package publishes its fix.
+# this just suppresses some warnings when building
+set(CMAKE_POLICY_DEFAULT_CMP0175 OLD)
 include(flutter/generated_plugins.cmake)
 
 
