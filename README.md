@@ -42,7 +42,8 @@ Supported imageboards:
 - [Flutter SDK](https://docs.flutter.dev/get-started/install)
 - [Git](https://git-scm.com/downloads)
 
-### Steps
+### Android development
+
 1. Clone the repository:
 ```bash
 git clone https://github.com/khoadng/Boorusama.git
@@ -52,14 +53,85 @@ cd Boorusama
 ```bash
 ./init.sh
 ```
-3. Connect to an Android device or emulator and run the app:
+3. Connect an Android device or emulator and list the available devices:
 ```bash
-flutter run --release
+flutter devices
+```
+4. Run the app on the selected Android device:
+```bash
+flutter run -d <android-device-id>
 ```
 Or build an APK and install it manually:
 ```bash
 ./build.sh apk --flavor prod
 ```
+
+### Native Windows desktop builds
+
+The Windows target is a native desktop application. In addition to Flutter,
+install the following on Windows:
+
+- Git and a Bash environment such as Git Bash, because the setup and code
+  generation scripts are Bash scripts.
+- Visual Studio or Visual Studio Build Tools with **Desktop development with
+  C++**, an MSVC toolset, a Windows 10/11 SDK, and **C++ ATL**. ATL provides
+  `atlbase.h`, which is required by the Windows implementation of
+  `flutter_local_notifications`.
+- CMake, Rust/Cargo, Meson, Ninja, and NASM. The vendored `libavif` package
+  builds its native `dav1d` and `libyuv` dependencies locally.
+- Network access for Dart packages and the native media dependencies. The
+  media-kit Windows plugin may bootstrap NuGet on its first build.
+
+The repository contains an `.fvmrc`. If FVM is not installed, disable it for
+this checkout and initialize the project from PowerShell:
+
+```powershell
+$env:BOORUSAMA_USE_FVM = "false"
+bash ./init.sh
+```
+
+Use the Windows workflow wrapper for development and hot reload:
+
+```powershell
+.\scripts\windows.ps1 run
+```
+
+Build a Windows application without launching it with:
+
+```powershell
+.\scripts\windows.ps1 build
+```
+
+For release mode, append `-Configuration release`:
+
+```powershell
+.\scripts\windows.ps1 run -Configuration release
+.\scripts\windows.ps1 build -Configuration release
+```
+
+The executable is written under `build/windows/x64/runner/`.
+
+The same commands are available through **Terminal → Run Task** in VS Code:
+
+- `Windows: Run`
+- `Windows: Build`
+- `Windows: Clean`
+
+If this checkout was previously initialized in a Linux dev container, run
+`flutter pub get` on Windows before building. Flutter's generated plugin links
+are platform-specific and should not be reused between Linux and Windows.
+
+The wrapper temporarily maps the repository's parent directory to a short
+drive letter while Flutter runs to avoid Windows native-build path limits. If
+the default `B:` drive is already in use, choose another drive:
+
+```powershell
+.\scripts\windows.ps1 run -DriveLetter Z
+```
+
+The wrapper detects CMake caches created under a different path and cleans
+generated Flutter state before continuing. You can also run
+`.\scripts\windows.ps1 clean` explicitly.
 
 ### Dev container
 

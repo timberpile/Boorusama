@@ -22,11 +22,12 @@ class FavoriteTagsBackupSource extends JsonBackupSource<List<FavoriteTag>> {
         priority: 1,
         version: kFavoriteTagsBackupVersion,
         appVersion: ref.read(appVersionProvider),
-        dataGetter: () async => ref.read(favoriteTagsProvider),
+        dataGetter: (_) async => ref.read(favoriteTagsProvider),
         executor: (tags, _) async {
           final repo = await ref.read(favoriteTagRepoProvider.future);
           await repo.createFrom(tags);
           ref.invalidate(favoriteTagsProvider);
+          return null;
         },
         handler: ListHandler<FavoriteTag>(
           parser: FavoriteTag.fromJson,

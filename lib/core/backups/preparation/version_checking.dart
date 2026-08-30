@@ -34,7 +34,7 @@ class ImportPreparation {
   });
 
   final VersionCheckInfo versionCheck;
-  final Future<void> Function() executeImport;
+  final Future<BackupOperationResult?> Function() executeImport;
 }
 
 class ImportPreparationBuilder<T> {
@@ -55,7 +55,11 @@ class ImportPreparationBuilder<T> {
   Future<ImportPreparation> prepare(
     String data,
     T Function(ExportDataPayload payload) parser,
-    Future<void> Function(T data, BuildContext? uiContext) executor,
+    Future<BackupOperationResult?> Function(
+      T data,
+      BuildContext? uiContext,
+    )
+    executor,
     BuildContext? uiContext,
   ) async {
     final metadata = converter.decode(data: data);

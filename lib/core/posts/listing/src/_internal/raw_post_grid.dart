@@ -164,7 +164,8 @@ class _RawPostGridState<T extends Post> extends State<RawPostGrid<T>>
       refreshing.value = true;
 
       // reset multi select if something is selected
-      if (_selectionModeController.selection.isNotEmpty) {
+      if (!controller.preserveSelectionOnRefresh &&
+          _selectionModeController.selection.isNotEmpty) {
         _selectionModeController.deselectAll();
       }
 
@@ -183,6 +184,23 @@ class _RawPostGridState<T extends Post> extends State<RawPostGrid<T>>
       loading.value = controller.loading;
       refreshing.value = controller.refreshing;
       pageMode = controller.pageMode;
+    });
+
+    _disableSelectionIfEmpty();
+  }
+
+  void _disableSelectionIfEmpty() {
+    if (!_selectionModeController.isActive) return;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_selectionModeController.isActive) return;
+
+      final hasSelectedPost = _selectionModeController
+          .selectedFrom(controller.items.toList())
+          .hasAny;
+      if (!hasSelectedPost) {
+        _selectionModeController.disable();
+      }
     });
   }
 

@@ -171,3 +171,74 @@ class BookmarkHiveObjectAdapter extends TypeAdapter<BookmarkHiveObject> {
           runtimeType == other.runtimeType &&
           typeId == other.typeId;
 }
+
+class BookmarkGroupHiveObjectAdapter
+    extends TypeAdapter<BookmarkGroupHiveObject> {
+  @override
+  final typeId = 5;
+
+  @override
+  BookmarkGroupHiveObject read(BinaryReader reader) {
+    final numOfFields = reader.readByte();
+    final fields = <int, dynamic>{
+      for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
+    };
+    return BookmarkGroupHiveObject(name: fields[0] as String);
+  }
+
+  @override
+  void write(BinaryWriter writer, BookmarkGroupHiveObject obj) {
+    writer
+      ..writeByte(1)
+      ..writeByte(0)
+      ..write(obj.name);
+  }
+
+  @override
+  int get hashCode => typeId.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is BookmarkGroupHiveObjectAdapter &&
+          runtimeType == other.runtimeType &&
+          typeId == other.typeId;
+}
+
+class BookmarkGroupMembershipHiveObjectAdapter
+    extends TypeAdapter<BookmarkGroupMembershipHiveObject> {
+  @override
+  final typeId = 6;
+
+  @override
+  BookmarkGroupMembershipHiveObject read(BinaryReader reader) {
+    final numOfFields = reader.readByte();
+    final fields = <int, dynamic>{
+      for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
+    };
+    return BookmarkGroupMembershipHiveObject(
+      groupId: (fields[0] as num).toInt(),
+      bookmarkId: (fields[1] as num).toInt(),
+    );
+  }
+
+  @override
+  void write(BinaryWriter writer, BookmarkGroupMembershipHiveObject obj) {
+    writer
+      ..writeByte(2)
+      ..writeByte(0)
+      ..write(obj.groupId)
+      ..writeByte(1)
+      ..write(obj.bookmarkId);
+  }
+
+  @override
+  int get hashCode => typeId.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is BookmarkGroupMembershipHiveObjectAdapter &&
+          runtimeType == other.runtimeType &&
+          typeId == other.typeId;
+}

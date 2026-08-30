@@ -20,10 +20,13 @@ class SettingsBackupSource extends JsonBackupSource<Settings> {
         priority: 0,
         version: kSettingsBackupVersion,
         appVersion: ref.read(appVersionProvider),
-        dataGetter: () async => ref.read(settingsProvider),
-        executor: (settings, _) => ref
-            .read(settingsNotifierProvider.notifier)
-            .updateSettings(settings),
+        dataGetter: (_) async => ref.read(settingsProvider),
+        executor: (settings, _) async {
+          await ref
+              .read(settingsNotifierProvider.notifier)
+              .updateSettings(settings);
+          return null;
+        },
         handler: SingleHandler<Settings>(
           parser: Settings.fromJson,
           encoder: (settings) => settings.toJson(),

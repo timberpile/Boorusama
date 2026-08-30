@@ -1,3 +1,6 @@
+// Dart imports:
+import 'dart:async';
+
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
@@ -10,7 +13,26 @@ import '../../../foundation/picker.dart';
 import '../preparation/preparation_pipeline.dart';
 import '../types/backup_data_source.dart';
 import '../types/types.dart';
+import '../utils/backup_error_logging.dart';
 import '../utils/backup_file_picker.dart';
+
+const _clipboardTooLargeBackupErrorMessage =
+    'This backup is too large for Android clipboard transfer. '
+    'Use file export/import instead.';
+
+const _unexpectedBackupErrorMessage =
+    'The backup operation failed. Check the debug log for details.';
+
+typedef BackupSuccessMessageBuilder =
+    String Function(
+      BackupOperationResult result,
+    );
+
+String formatBackupSuccessMessage({
+  required String genericMessage,
+  required BackupOperationResult? result,
+  required BackupSuccessMessageBuilder? builder,
+}) => result == null || builder == null ? genericMessage : builder(result);
 
 class DefaultBackupTile extends ConsumerWidget {
   const DefaultBackupTile({
@@ -23,6 +45,9 @@ class DefaultBackupTile extends ConsumerWidget {
     this.forceAnyFileType = false,
     this.customActions = const {},
     this.onCustomAction,
+    this.onPrepareExport,
+    this.exportSuccessMessageBuilder,
+    this.importSuccessMessageBuilder,
     this.extra,
     this.isSelectionMode = false,
     this.isSelected = false,
@@ -39,6 +64,9 @@ class DefaultBackupTile extends ConsumerWidget {
   final bool forceAnyFileType;
   final Map<String, Widget> customActions;
   final void Function(BuildContext, WidgetRef, String)? onCustomAction;
+  final Future<BackupExportOptions?> Function(BuildContext)? onPrepareExport;
+  final BackupSuccessMessageBuilder? exportSuccessMessageBuilder;
+  final BackupSuccessMessageBuilder? importSuccessMessageBuilder;
   final List<Widget>? extra;
   final bool isSelectionMode;
   final bool isSelected;
@@ -158,32 +186,59 @@ class DefaultBackupTile extends ConsumerWidget {
     final fileCapability = source.capabilities.file;
     if (fileCapability == null) return;
 
-    pickDirectoryPathToastOnError(
-      context: context,
-      onPick: (path) async {
-        try {
-          await fileCapability.export(path);
-          if (context.mounted) {
-            Kurumi.showSuccessToast(
-              context,
-              context.t.settings.backup_and_restore.export_success.replaceAll(
-                '{source}',
-                source.displayName,
-              ),
+    Future<void> startExport() async {
+      final options = onPrepareExport == null
+          ? null
+          : await onPrepareExport!(context);
+      if (onPrepareExport != null && options == null) return;
+      if (!context.mounted) return;
+
+      await pickDirectoryPathToastOnError(
+        context: context,
+        onPick: (path) async {
+          try {
+            final result = await fileCapability.export(
+              path,
+              options: options,
             );
-          }
-        } catch (error) {
-          if (context.mounted) {
-            Kurumi.showErrorToast(
-              context,
-              context.t.settings.backup_and_restore.export_failed
-                  .replaceAll('{source}', source.displayName.toLowerCase())
-                  .replaceAll('{error}', error.toString()),
+            if (context.mounted) {
+              Kurumi.showSuccessToast(
+                context,
+                formatBackupSuccessMessage(
+                  genericMessage: context
+                      .t
+                      .settings
+                      .backup_and_restore
+                      .export_success
+                      .replaceAll('{source}', source.displayName),
+                  result: result,
+                  builder: exportSuccessMessageBuilder,
+                ),
+              );
+            }
+          } catch (error, stackTrace) {
+            logBackupError(
+              operation: '${source.displayName} file export',
+              error: error,
+              stackTrace: stackTrace,
             );
+            if (context.mounted) {
+              Kurumi.showErrorToast(
+                context,
+                context.t.settings.backup_and_restore.export_failed
+                    .replaceAll('{source}', source.displayName.toLowerCase())
+                    .replaceAll(
+                      '{error}',
+                      _formatBackupError(error, context),
+                    ),
+              );
+            }
           }
-        }
-      },
-    );
+        },
+      );
+    }
+
+    unawaited(startExport());
   }
 
   void _handleFileImport(BuildContext context, WidgetRef ref) {
@@ -198,25 +253,39 @@ class DefaultBackupTile extends ConsumerWidget {
       onPick: (path) async {
         try {
           final preparation = await fileCapability.prepareImport(path, context);
-          await preparation.executeImport();
+          final result = await preparation.executeImport();
           if (context.mounted) {
             Kurumi.showSuccessToast(
               context,
-              context.t.settings.backup_and_restore.import_success.replaceAll(
-                '{source}',
-                source.displayName,
+              formatBackupSuccessMessage(
+                genericMessage: context
+                    .t
+                    .settings
+                    .backup_and_restore
+                    .import_success
+                    .replaceAll('{source}', source.displayName),
+                result: result,
+                builder: importSuccessMessageBuilder,
               ),
             );
           }
         } on ImportCancelledException {
           // User cancelled, no error message needed
-        } catch (error) {
+        } catch (error, stackTrace) {
+          logBackupError(
+            operation: '${source.displayName} file import',
+            error: error,
+            stackTrace: stackTrace,
+          );
           if (context.mounted) {
             Kurumi.showErrorToast(
               context,
               context.t.settings.backup_and_restore.import_failed
                   .replaceAll('{source}', source.displayName.toLowerCase())
-                  .replaceAll('{error}', _formatImportError(error, context)),
+                  .replaceAll(
+                    '{error}',
+                    _formatBackupError(error, context),
+                  ),
             );
           }
         }
@@ -228,24 +297,39 @@ class DefaultBackupTile extends ConsumerWidget {
     final clipboardCapability = source.capabilities.clipboard;
     if (clipboardCapability == null) return;
 
+    final options = onPrepareExport == null
+        ? null
+        : await onPrepareExport!(context);
+    if (onPrepareExport != null && options == null) return;
+
     try {
-      await clipboardCapability.export();
+      final result = await clipboardCapability.export(options: options);
       if (context.mounted) {
         Kurumi.showSuccessToast(
           context,
-          context.t.settings.backup_and_restore.export_success.replaceAll(
-            '{source}',
-            source.displayName,
+          formatBackupSuccessMessage(
+            genericMessage: context.t.settings.backup_and_restore.export_success
+                .replaceAll('{source}', source.displayName),
+            result: result,
+            builder: exportSuccessMessageBuilder,
           ),
         );
       }
-    } catch (error) {
+    } catch (error, stackTrace) {
+      logBackupError(
+        operation: '${source.displayName} clipboard export',
+        error: error,
+        stackTrace: stackTrace,
+      );
       if (context.mounted) {
         Kurumi.showErrorToast(
           context,
           context.t.settings.backup_and_restore.export_failed
               .replaceAll('{source}', source.displayName.toLowerCase())
-              .replaceAll('{error}', error.toString()),
+              .replaceAll(
+                '{error}',
+                _formatBackupError(error, context),
+              ),
         );
       }
     }
@@ -257,34 +341,53 @@ class DefaultBackupTile extends ConsumerWidget {
 
     try {
       final preparation = await clipboardCapability.prepareImport(context);
-      await preparation.executeImport();
+      final result = await preparation.executeImport();
       if (context.mounted) {
         Kurumi.showSuccessToast(
           context,
-          context.t.settings.backup_and_restore.import_success.replaceAll(
-            '{source}',
-            source.displayName,
+          formatBackupSuccessMessage(
+            genericMessage: context.t.settings.backup_and_restore.import_success
+                .replaceAll('{source}', source.displayName),
+            result: result,
+            builder: importSuccessMessageBuilder,
           ),
         );
       }
     } on ImportCancelledException {
       // User cancelled, no error message needed
-    } catch (error) {
+    } catch (error, stackTrace) {
+      logBackupError(
+        operation: '${source.displayName} clipboard import',
+        error: error,
+        stackTrace: stackTrace,
+      );
       if (context.mounted) {
         Kurumi.showErrorToast(
           context,
           context.t.settings.backup_and_restore.import_failed
               .replaceAll('{source}', source.displayName.toLowerCase())
-              .replaceAll('{error}', _formatImportError(error, context)),
+              .replaceAll(
+                '{error}',
+                _formatBackupError(error, context),
+              ),
         );
       }
     }
   }
 }
 
-String _formatImportError(Object error, BuildContext context) =>
-    switch (error) {
-      InvalidBackupFormatException() =>
-        context.t.settings.backup_and_restore.invalid_backup_format_error,
-      _ => error.toString(),
-    };
+String _formatBackupError(
+  Object error,
+  BuildContext context,
+) {
+  if (isClipboardTransactionTooLarge(error)) {
+    return _clipboardTooLargeBackupErrorMessage;
+  }
+
+  return switch (error) {
+    ClipboardBackupTooLargeException() => _clipboardTooLargeBackupErrorMessage,
+    InvalidBackupFormatException() =>
+      context.t.settings.backup_and_restore.invalid_backup_format_error,
+    _ => _unexpectedBackupErrorMessage,
+  };
+}

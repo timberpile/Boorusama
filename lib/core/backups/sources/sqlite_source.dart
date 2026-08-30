@@ -10,6 +10,7 @@ import 'package:shelf/shelf.dart' as shelf;
 import '../../../foundation/filesystem.dart';
 import '../preparation/version_checking.dart';
 import '../types/backup_data_source.dart';
+import '../types/types.dart';
 import '../utils/backup_utils.dart';
 import '../utils/db_transfer.dart';
 
@@ -71,7 +72,7 @@ abstract class SqliteBackupSource implements BackupDataSource {
     );
   }
 
-  Future<void> _executeServerImport(String serverUrl) async {
+  Future<BackupOperationResult?> _executeServerImport(String serverUrl) async {
     final dio = Dio(BaseOptions(baseUrl: serverUrl));
     final dbPath = await dbPathGetter();
     final fs = ref.read(appFileSystemProvider);
@@ -84,16 +85,20 @@ abstract class SqliteBackupSource implements BackupDataSource {
     );
 
     onImportComplete();
+    return null;
   }
 
-  Future<void> _exportToFile(String directoryPath) async {
+  Future<BackupOperationResult?> _exportToFile(
+    String directoryPath, {
+    BackupExportOptions? options,
+  }) async {
     await BackupUtils.ensureStoragePermissions(ref);
 
     final dbPath = await dbPathGetter();
     final fs = ref.read(appFileSystemProvider);
 
     if (!fs.fileExistsSync(dbPath)) {
-      return;
+      return null;
     }
 
     final timestamp = DateFormat('yyyy.MM.dd.HH.mm.ss').format(DateTime.now());
@@ -101,6 +106,7 @@ abstract class SqliteBackupSource implements BackupDataSource {
     final destinationPath = p.join(directoryPath, fileName);
 
     await fs.copyFile(dbPath, destinationPath);
+    return null;
   }
 
   Future<ImportPreparation> _prepareFileImport(
@@ -128,7 +134,7 @@ abstract class SqliteBackupSource implements BackupDataSource {
     );
   }
 
-  Future<void> _executeFileImport(String sourcePath) async {
+  Future<BackupOperationResult?> _executeFileImport(String sourcePath) async {
     await BackupUtils.ensureStoragePermissions(ref);
 
     final dbPath = await dbPathGetter();
@@ -136,6 +142,7 @@ abstract class SqliteBackupSource implements BackupDataSource {
     final fs = ref.read(appFileSystemProvider);
     await BackupUtils.replaceFile(fs, sourcePath, dbPath);
     onImportComplete();
+    return null;
   }
 
   // SQLite files start with "SQLite format 3\0"

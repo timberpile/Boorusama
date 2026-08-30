@@ -25,7 +25,7 @@ class BlacklistedTagsBackupSource
         priority: 2,
         version: kBlacklistedTagsBackupVersion,
         appVersion: ref.read(appVersionProvider),
-        dataGetter: () async {
+        dataGetter: (_) async {
           final tags = await ref.read(globalBlacklistedTagsProvider.future);
           return tags.unlock;
         },
@@ -33,6 +33,7 @@ class BlacklistedTagsBackupSource
           final repo = await ref.read(globalBlacklistedTagRepoProvider.future);
           await repo.addTags(tags);
           ref.invalidate(globalBlacklistedTagsProvider);
+          return null;
         },
         handler: ListHandler<BlacklistedTag>(
           parser: BlacklistedTag.fromJson,

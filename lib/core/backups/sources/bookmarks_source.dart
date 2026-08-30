@@ -8,61 +8,76 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../../../foundation/info/package_info.dart';
 import '../../bookmarks/providers.dart';
 import '../../bookmarks/types.dart';
-import '../utils/json_handler.dart';
+import '../types/backup_data_source.dart';
+import 'bookmark_backup_data.dart';
+import 'bookmark_backup_importer.dart';
+import 'bookmark_backup_messages.dart';
 import '../widgets/backup_restore_tile.dart';
+import '../widgets/bookmark_export_scope_dialog.dart';
 import 'json_source.dart';
 
 const kBookmarksBackupVersion = 1;
 
-class BookmarksBackupSource extends JsonBackupSource<List<Bookmark>> {
+class BookmarksBackupSource extends JsonBackupSource<BookmarkBackupData> {
   BookmarksBackupSource(Ref ref)
     : super(
         id: 'bookmarks',
         priority: 2,
         version: kBookmarksBackupVersion,
         appVersion: ref.read(appVersionProvider),
-        dataGetter: () async {
+        dataGetter: (options) async {
           final bookmarks = await (await ref.read(bookmarkRepoProvider.future))
               .getAllBookmarksOrEmpty(
                 imageUrlResolver: (booruId) =>
                     ref.read(bookmarkUrlResolverProvider(booruId)),
               );
-          return bookmarks;
+          final groupRepository = await ref.read(
+            bookmarkGroupRepoProvider.future,
+          );
+          final groups = await groupRepository.getGroups();
+          final membershipsByBookmark = await groupRepository
+              .getMembershipsByBookmark();
+
+          final scope = switch (options?.scope) {
+            null => const BookmarkExportScope.all(),
+            final BookmarkExportScope scope => scope,
+            _ => throw ArgumentError('Unsupported bookmark export scope'),
+          };
+
+          return buildBookmarkBackupData(
+            bookmarks: bookmarks,
+            groups: groups,
+            membershipsByBookmark: membershipsByBookmark,
+            scope: scope,
+          );
         },
-        executor: (bookmarks, _) async {
+        exportResultBuilder: buildBookmarkExportResult,
+        executor: (data, _) async {
           final bookmarkRepository = await ref.read(
             bookmarkRepoProvider.future,
           );
-          final currentBookmarks = await bookmarkRepository
-              .getAllBookmarksOrEmpty(
-                imageUrlResolver: (booruId) =>
-                    ref.read(bookmarkUrlResolverProvider(booruId)),
-              );
-          final currentBookmarkIds = currentBookmarks
-              .map((bookmark) => bookmark.uniqueId)
-              .toSet();
-
-          final filteredBookmarks = bookmarks
-              .where(
-                (bookmark) => !currentBookmarkIds.contains(bookmark.uniqueId),
-              )
-              .toList();
-
-          if (filteredBookmarks.isNotEmpty) {
-            await bookmarkRepository.addBookmarkWithBookmarks(
-              filteredBookmarks,
-            );
-            ref.invalidate(bookmarkProvider);
-          }
+          final groupRepository = await ref.read(
+            bookmarkGroupRepoProvider.future,
+          );
+          final result = await importBookmarkBackup(
+            data: data,
+            bookmarkRepository: bookmarkRepository,
+            bookmarkGroupRepository: groupRepository,
+            imageUrlResolver: (booruId) =>
+                ref.read(bookmarkUrlResolverProvider(booruId)),
+          );
+          ref.invalidate(bookmarkGroupsProvider);
+          ref.invalidate(bookmarkProvider);
+          return result;
         },
-        handler: ListHandler<Bookmark>(
+        handler: BookmarkBackupHandler(
           parser: (json) {
             final booruId = json['booruId'] as int?;
             final resolver = ref.read(bookmarkUrlResolverProvider(booruId));
             return Bookmark.fromJson(json, imageUrlResolver: resolver);
           },
-          encoder: (bookmark) => bookmark.toJson(),
         ),
+        extraPayloadEncoder: (data) => data.extraFields,
         ref: ref,
       );
 
@@ -86,6 +101,35 @@ class BookmarksBackupSource extends JsonBackupSource<List<Bookmark>> {
                 loading: () => 'Loading...',
                 error: (_, _) => 'Error loading bookmarks',
               ),
+          onPrepareExport: (context) async {
+            final groupRepository = await ref.read(
+              bookmarkGroupRepoProvider.future,
+            );
+            if (!context.mounted) return null;
+            final groups = await groupRepository.getGroups();
+            if (!context.mounted) return null;
+            final scope = await showBookmarkExportScopeDialog(
+              context,
+              groups: groups,
+            );
+
+            return scope == null ? null : BackupExportOptions(scope: scope);
+          },
+          exportSuccessMessageBuilder: (result) => formatBookmarkExportSuccess(
+            result: result,
+            template:
+                context.t.settings.backup_and_restore.bookmarks_export_success,
+          ),
+          importSuccessMessageBuilder: (result) => formatBookmarkImportSuccess(
+            result: result,
+            template:
+                context.t.settings.backup_and_restore.bookmarks_import_success,
+            existingTemplate: context
+                .t
+                .settings
+                .backup_and_restore
+                .bookmarks_import_success_existing,
+          ),
         );
       },
     );

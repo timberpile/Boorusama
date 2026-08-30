@@ -5,6 +5,16 @@ import 'package:shelf/shelf.dart';
 // Project imports:
 import '../../../foundation/loggers/logger.dart';
 
+class BackupOperationResult {
+  const BackupOperationResult({
+    required this.totalCount,
+    this.alreadyExistedCount = 0,
+  });
+
+  final int totalCount;
+  final int alreadyExistedCount;
+}
+
 class ServerConfig {
   const ServerConfig({
     required this.serverName,
@@ -97,20 +107,24 @@ class ExportDataPayload {
     required this.exportDate,
     required this.data,
     required this.exportVersion,
+    this.extraFields = const {},
   });
 
   const ExportDataPayload.legacy({
     required this.data,
   }) : version = 1,
        exportDate = null,
-       exportVersion = null;
+       exportVersion = null,
+       extraFields = const {};
 
   final int version;
   final DateTime? exportDate;
   final Version? exportVersion;
   final List<dynamic> data;
+  final Map<String, dynamic> extraFields;
 
   Map<String, dynamic> toJson() => {
+    ...extraFields,
     'version': version,
     'exportVersion': ?exportVersion?.toString(),
     'date': ?exportDate?.toIso8601String(),
@@ -119,7 +133,21 @@ class ExportDataPayload {
 }
 
 class InvalidBackupFormatException implements Exception {
-  const InvalidBackupFormatException();
+  const InvalidBackupFormatException([this.details]);
+
+  final String? details;
+
+  @override
+  String toString() => details == null
+      ? 'Invalid backup format'
+      : 'Invalid backup format: $details';
+}
+
+class ClipboardBackupTooLargeException implements Exception {
+  const ClipboardBackupTooLargeException();
+
+  @override
+  String toString() => 'Backup is too large for clipboard transfer';
 }
 
 class ExportCategory {

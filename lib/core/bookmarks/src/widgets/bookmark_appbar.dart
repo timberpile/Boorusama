@@ -1,5 +1,6 @@
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:collection/collection.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
@@ -10,6 +11,7 @@ import '../../../configs/config/providers.dart';
 import '../../../posts/listing/providers.dart';
 import '../data/bookmark_convert.dart';
 import '../providers/bookmark_provider.dart';
+import '../providers/bookmark_group_providers.dart';
 import '../providers/local_providers.dart';
 
 class BookmarkAppBar extends ConsumerWidget {
@@ -23,11 +25,21 @@ class BookmarkAppBar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final edit = ref.watch(bookmarkEditProvider);
+    final selectedGroupId = ref.watch(selectedBookmarkGroupIdProvider);
+    final groups = ref.watch(bookmarkGroupsProvider).valueOrNull;
     final auth = ref.watchConfigAuth;
     final download = ref.watchConfigDownload;
 
     return AppBar(
-      title: Text(context.t.bookmark.title),
+      title: Text(
+        switch (selectedGroupId) {
+          null => context.t.bookmark.groups.all,
+          kUngroupedBookmarkGroupId => context.t.bookmark.groups.ungrouped,
+          final id =>
+            groups?.firstWhereOrNull((group) => group.id == id)?.name ??
+                context.t.bookmark.groups.all,
+        },
+      ),
       automaticallyImplyLeading: !edit,
       leading: edit
           ? IconButton(

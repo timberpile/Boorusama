@@ -5,7 +5,44 @@ import '../accessibility/behavior.dart';
 import '../foundation/platform.dart';
 import '../theme/theme.dart';
 
-class KurumiContextMenu extends StatelessWidget {
+class KurumiContextMenuPageController extends ChangeNotifier {
+  WidgetBuilder? _pageBuilder;
+
+  WidgetBuilder? get pageBuilder => _pageBuilder;
+
+  static KurumiContextMenuPageController? maybeOf(BuildContext context) {
+    return context
+        .dependOnInheritedWidgetOfExactType<_KurumiContextMenuPageScope>()
+        ?.controller;
+  }
+
+  void show(WidgetBuilder pageBuilder) {
+    _pageBuilder = pageBuilder;
+    notifyListeners();
+  }
+
+  void reset() {
+    if (_pageBuilder == null) return;
+    _pageBuilder = null;
+    notifyListeners();
+  }
+}
+
+class _KurumiContextMenuPageScope extends InheritedWidget {
+  const _KurumiContextMenuPageScope({
+    required this.controller,
+    required super.child,
+  });
+
+  final KurumiContextMenuPageController controller;
+
+  @override
+  bool updateShouldNotify(_KurumiContextMenuPageScope oldWidget) {
+    return controller != oldWidget.controller;
+  }
+}
+
+class KurumiContextMenu extends StatefulWidget {
   const KurumiContextMenu({
     required this.child,
     required this.menuItemsBuilder,
@@ -14,6 +51,19 @@ class KurumiContextMenu extends StatelessWidget {
 
   final Widget child;
   final List<Widget> Function(BuildContext context) menuItemsBuilder;
+
+  @override
+  State<KurumiContextMenu> createState() => _KurumiContextMenuState();
+}
+
+class _KurumiContextMenuState extends State<KurumiContextMenu> {
+  final _pageController = KurumiContextMenuPageController();
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -29,31 +79,48 @@ class KurumiContextMenu extends StatelessWidget {
               color: Colors.transparent,
             ),
       onShow: behavior.contextMenuShowFeedback,
+      onDismiss: _pageController.reset,
       menuBuilder: (context) {
-        return Container(
-          padding: const EdgeInsets.symmetric(
-            vertical: 8,
-            horizontal: 4,
-          ),
-          decoration: BoxDecoration(
-            color: colorScheme.surfaceContainerLow,
-            borderRadius: BorderRadius.circular(8),
-            boxShadow: kElevationToShadow[4],
-            border: Border.all(
-              color: colorScheme.outlineVariant,
-            ),
-          ),
-          constraints: const BoxConstraints(
-            maxWidth: 200,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: menuItemsBuilder(context),
+        return _KurumiContextMenuPageScope(
+          controller: _pageController,
+          child: ListenableBuilder(
+            listenable: _pageController,
+            builder: (context, _) {
+              final pageBuilder = _pageController.pageBuilder;
+              final content =
+                  pageBuilder?.call(context) ??
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: widget.menuItemsBuilder(context),
+                  );
+              final contentPadding = pageBuilder == null
+                  ? const EdgeInsets.symmetric(
+                      vertical: 8,
+                      horizontal: 4,
+                    )
+                  : const EdgeInsets.symmetric(horizontal: 4);
+
+              return Container(
+                padding: contentPadding,
+                decoration: BoxDecoration(
+                  color: colorScheme.surfaceContainerLow,
+                  borderRadius: BorderRadius.circular(8),
+                  boxShadow: kElevationToShadow[4],
+                  border: Border.all(
+                    color: colorScheme.outlineVariant,
+                  ),
+                ),
+                constraints: const BoxConstraints(
+                  maxWidth: 200,
+                ),
+                child: content,
+              );
+            },
           ),
         );
       },
       childBuilder: (context) => KurumiAdaptiveContextMenuGestureTrigger(
-        child: child,
+        child: widget.child,
       ),
     );
   }
@@ -105,12 +172,14 @@ class KurumiContextMenuTile extends StatelessWidget {
     this.onTap,
     this.enabled = true,
     this.hideOnTap = true,
+    this.trailing,
   });
 
   final String title;
   final VoidCallback? onTap;
   final bool enabled;
   final bool hideOnTap;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -156,13 +225,24 @@ class KurumiContextMenuTile extends StatelessWidget {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(4),
               ),
-              child: Text(
-                title,
-                style: TextStyle(
-                  color: enabled
-                      ? colorScheme.onSurface
-                      : colorScheme.onSurface.withValues(alpha: 0.38),
-                ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: TextStyle(
+                        color: enabled
+                            ? colorScheme.onSurface
+                            : colorScheme.onSurface.withValues(alpha: 0.38),
+                      ),
+                    ),
+                  ),
+                  if (trailing case final trailing?)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 8),
+                      child: IgnorePointer(child: trailing),
+                    ),
+                ],
               ),
             ),
           ),

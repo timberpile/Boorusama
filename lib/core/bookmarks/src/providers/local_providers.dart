@@ -29,15 +29,28 @@ List<Bookmark> filterBookmarks({
   required List<Bookmark> bookmarks,
   required List<String> selectedTags,
   required BookmarkSortType sortType,
+  Map<int, Set<int>> membershipsByBookmark = const {},
+  int? selectedBookmarkGroupId,
   String? selectedBooruUrl,
   BookmarkShuffleState? shuffleState,
 }) {
   final tagsList = selectedTags;
 
+  final groupFiltered = selectedBookmarkGroupId == null
+      ? bookmarks
+      : bookmarks.where((bookmark) {
+          final memberships =
+              membershipsByBookmark[bookmark.id] ?? const <int>{};
+
+          return selectedBookmarkGroupId == kUngroupedBookmarkGroupId
+              ? memberships.isEmpty
+              : memberships.contains(selectedBookmarkGroupId);
+        });
+
   // Filter bookmarks based on URL and tags.
   final filtered = selectedBooruUrl == null && tagsList.isEmpty
-      ? bookmarks
-      : bookmarks.where(
+      ? groupFiltered
+      : groupFiltered.where(
           (bookmark) =>
               (selectedBooruUrl == null ||
                   bookmark.sourceUrl.contains(selectedBooruUrl)) &&

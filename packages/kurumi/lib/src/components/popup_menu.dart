@@ -16,6 +16,8 @@ class KurumiPopupMenuButton extends StatefulWidget {
     this.semanticLabel,
     this.icon,
     this.iconPadding = const EdgeInsets.all(6),
+    this.child,
+    this.enabled = true,
   });
 
   final List<Widget> items;
@@ -25,6 +27,8 @@ class KurumiPopupMenuButton extends StatefulWidget {
   final String? semanticLabel;
   final Widget? icon;
   final EdgeInsetsGeometry iconPadding;
+  final Widget? child;
+  final bool enabled;
 
   @override
   State<KurumiPopupMenuButton> createState() => _KurumiPopupMenuButtonState();
@@ -44,9 +48,31 @@ class _KurumiPopupMenuButtonState extends State<KurumiPopupMenuButton> {
     final menuFeedback = KurumiTheme.maybeBehaviorOf(context)?.menuFeedback;
 
     void toggleMenu() {
+      if (!widget.enabled) return;
       menuFeedback?.call();
       _controller.toggle();
     }
+
+    final button =
+        widget.child ??
+        Material(
+          color: widget.iconBackgroundColor ?? Colors.transparent,
+          shape: const CircleBorder(),
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: widget.enabled ? toggleMenu : null,
+            child: Padding(
+              padding: widget.iconPadding,
+              child:
+                  widget.icon ??
+                  Icon(
+                    Icons.more_vert,
+                    color: widget.iconColor,
+                    semanticLabel: widget.semanticLabel,
+                  ),
+            ),
+          ),
+        );
 
     return KurumiAnchor(
       controller: _controller,
@@ -65,27 +91,19 @@ class _KurumiPopupMenuButtonState extends State<KurumiPopupMenuButton> {
       ),
       child: Semantics(
         button: true,
-        enabled: true,
+        enabled: widget.enabled,
         label: widget.semanticLabel,
-        onTap: toggleMenu,
-        child: Material(
-          color: widget.iconBackgroundColor ?? Colors.transparent,
-          shape: const CircleBorder(),
-          child: InkWell(
-            customBorder: const CircleBorder(),
-            onTap: toggleMenu,
-            child: Padding(
-              padding: widget.iconPadding,
-              child:
-                  widget.icon ??
-                  Icon(
-                    Icons.more_vert,
-                    color: widget.iconColor,
-                    semanticLabel: widget.semanticLabel,
-                  ),
-            ),
-          ),
-        ),
+        onTap: widget.enabled ? toggleMenu : null,
+        excludeSemantics: widget.child != null,
+        child: widget.child != null
+            ? Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: widget.enabled ? toggleMenu : null,
+                  child: IgnorePointer(child: button),
+                ),
+              )
+            : button,
       ),
     );
   }
@@ -97,10 +115,14 @@ class KurumiPopupMenuItem extends StatelessWidget {
     required this.onTap,
     super.key,
     this.icon,
+    this.trailing,
+    this.hideOnTap = true,
   });
 
   final Widget title;
   final Widget? icon;
+  final Widget? trailing;
+  final bool hideOnTap;
   final VoidCallback onTap;
 
   @override
@@ -109,7 +131,9 @@ class KurumiPopupMenuItem extends StatelessWidget {
     final controller = AnchorData.maybeOf(context)?.controller;
 
     void handleTap() {
-      controller?.hide();
+      if (hideOnTap) {
+        controller?.hide();
+      }
       onTap();
     }
 
@@ -141,7 +165,12 @@ class KurumiPopupMenuItem extends StatelessWidget {
                       child: icon,
                     ),
                   ),
-                Flexible(child: title),
+                Expanded(child: title),
+                if (trailing case final trailing?)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 8),
+                    child: IgnorePointer(child: trailing),
+                  ),
               ],
             ),
           ),

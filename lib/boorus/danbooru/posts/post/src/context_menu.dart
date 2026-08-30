@@ -6,8 +6,7 @@ import 'package:kurumi/material.dart';
 import 'package:selection_mode/selection_mode.dart';
 
 // Project imports:
-import '../../../../../core/bookmarks/providers.dart';
-import '../../../../../core/bookmarks/types.dart';
+import '../../../../../core/bookmarks/src/widgets/bookmark_group_actions.dart';
 import '../../../../../core/configs/config/providers.dart';
 import '../../../../../core/downloads/downloader/providers.dart';
 import '../../../../../core/posts/favorites/widgets.dart';
@@ -37,14 +36,6 @@ class DanbooruPostContextMenu extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final booruConfig = ref.watchConfigAuth;
     final loginDetails = ref.watch(danbooruLoginDetailsProvider(booruConfig));
-    final bookmarkStateAsync = ref.watch(bookmarkProvider);
-    final isBookmarked =
-        bookmarkStateAsync.valueOrNull?.isBookmarked(
-          post,
-          booruConfig.booruIdHint,
-        ) ??
-        false;
-    final isBookmarkLoading = bookmarkStateAsync.isLoading;
     final hasAccount = loginDetails.hasLogin();
     final postLinkGenerator = ref.watch(postLinkGeneratorProvider(booruConfig));
     final selectionModeController = SelectionMode.maybeOf(context);
@@ -69,34 +60,11 @@ class DanbooruPostContextMenu extends ConsumerWidget {
                 .download(post);
           },
         ),
-        if (!isBookmarked)
-          KurumiContextMenuTile(
-            title: context.t.post.detail.add_to_bookmark,
-            enabled: !isBookmarkLoading,
-            onTap: isBookmarkLoading
-                ? null
-                : () {
-                    ref.bookmarks.addBookmarkWithToast(
-                      booruConfig,
-                      post,
-                    );
-                  },
-          )
-        else
-          KurumiContextMenuTile(
-            title: context.t.post.detail.remove_from_bookmark,
-            enabled: !isBookmarkLoading,
-            onTap: isBookmarkLoading
-                ? null
-                : () {
-                    ref.bookmarks.removeBookmarkWithToast(
-                      BookmarkUniqueId.fromPost(
-                        post,
-                        booruConfig.booruIdHint,
-                      ),
-                    );
-                  },
-          ),
+        BookmarkContextMenuSection(
+          post: post,
+          config: booruConfig,
+        ),
+        const KurumiContextMenuDivider(),
         if (hasAccount)
           FavoriteContextMenuTile(
             post: post,
@@ -112,7 +80,7 @@ class DanbooruPostContextMenu extends ConsumerWidget {
               );
             },
           ),
-        const KurumiContextMenuDivider(),
+        if (hasAccount) const KurumiContextMenuDivider(),
         if (post.hasComment)
           KurumiContextMenuTile(
             title: context.t.post.action.view_comments,

@@ -83,3 +83,33 @@ class _ShrinkButton extends MultiSelectButton {
   @override
   Widget build(BuildContext context) => const SizedBox.shrink();
 }
+
+/// A multi-selection action with a standard popup menu.
+class MultiSelectPopupButton extends StatelessWidget {
+  const MultiSelectPopupButton({
+    required this.icon,
+    required this.name,
+    required this.menuBuilder,
+    super.key,
+    this.enabled = true,
+  });
+
+  final Widget icon;
+  final String name;
+  final WidgetBuilder menuBuilder;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    return KurumiPopupMenuButton(
+      enabled: enabled,
+      semanticLabel: name,
+      items: [Builder(builder: menuBuilder)],
+      child: MultiSelectButton(
+        icon: icon,
+        name: name,
+        onPressed: enabled ? () {} : null,
+      ),
+    );
+  }
+}

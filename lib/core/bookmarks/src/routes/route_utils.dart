@@ -16,6 +16,20 @@ Future<void> goToBookmarkPage(
   );
 }
 
+Future<void> goToBookmarkGroupViewPage(
+  WidgetRef ref,
+  int? groupId,
+) {
+  return ref.router.push(
+    Uri(
+      path: '/bookmarks/view',
+      queryParameters: {
+        'groupId': groupId?.toString() ?? 'all',
+      },
+    ).toString(),
+  );
+}
+
 Future<void> goToBookmarkDetailsPage(
   WidgetRef ref,
   int index, {

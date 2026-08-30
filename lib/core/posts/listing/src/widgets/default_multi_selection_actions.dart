@@ -1,6 +1,3 @@
-// Dart imports:
-import 'dart:async';
-
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
@@ -10,7 +7,7 @@ import 'package:selection_mode/selection_mode.dart';
 
 // Project imports:
 import '../../../../../../core/widgets/widgets.dart';
-import '../../../../bookmarks/providers.dart';
+import '../../../../bookmarks/widgets.dart';
 import '../../../../configs/config/providers.dart';
 import '../../../../downloads/downloader/providers.dart';
 import '../../../post/types.dart';
@@ -22,12 +19,14 @@ class DefaultMultiSelectionActions<T extends Post> extends ConsumerWidget {
     super.key,
     this.extraActions,
     this.onBulkDownload,
+    this.onBookmarkOperationCompleted,
     this.bookmark = true,
   });
 
   final PostGridController<T> postController;
   final bool bookmark;
   final void Function(List<T> selectedPosts)? onBulkDownload;
+  final Future<void> Function()? onBookmarkOperationCompleted;
   final List<Widget> Function(List<T> selectedPosts)? extraActions;
 
   @override
@@ -70,20 +69,14 @@ class DefaultMultiSelectionActions<T extends Post> extends ConsumerWidget {
               name: context.t.download.download,
             ),
             if (bookmark)
-              MultiSelectButton(
-                name: context.t.post.action.bookmark,
-                onPressed: selectedPosts.isNotEmpty
-                    ? () {
-                        unawaited(
-                          ref.bookmarks.addBookmarksWithToast(
-                            booruConfig,
-                            booruConfig.url,
-                            selectedPosts,
-                          ),
-                        );
-                        controller.disable();
-                      }
-                    : null,
+              MultiSelectPopupButton(
+                name: context.t.bookmark.bulk.title,
+                enabled: selectedPosts.isNotEmpty,
+                menuBuilder: (_) => BookmarkMultiSelectionMenu(
+                  posts: selectedPosts.cast<Post>(),
+                  config: booruConfig,
+                  onCompleted: onBookmarkOperationCompleted,
+                ),
                 icon: const Icon(Symbols.bookmark_add),
               ),
             if (extraActions != null) ...extraActions!(selectedPosts),

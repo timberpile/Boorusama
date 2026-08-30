@@ -13,7 +13,9 @@ import '../../../foundation/filesystem.dart';
 import '../preparation/preparation_pipeline.dart';
 import '../preparation/version_checking.dart';
 import '../types/backup_data_source.dart';
+import '../types/types.dart';
 import '../utils/backup_utils.dart';
+import '../utils/backup_error_logging.dart';
 import '../utils/data_converter.dart';
 import '../utils/json_handler.dart';
 
@@ -29,6 +31,8 @@ abstract class JsonBackupSource<T> implements BackupDataSource {
     required this.ref,
     this.extraSteps = const [],
     this.validator,
+    this.extraPayloadEncoder,
+    this.exportResultBuilder,
   }) {
     converter = DataBackupConverter(
       version: version,
@@ -51,11 +55,17 @@ abstract class JsonBackupSource<T> implements BackupDataSource {
 
   final int version;
   final Version? appVersion;
-  final Future<T> Function() dataGetter;
-  final Future<void> Function(T data, BuildContext? uiContext) executor;
+  final Future<T> Function(BackupExportOptions? options) dataGetter;
+  final Future<BackupOperationResult?> Function(
+    T data,
+    BuildContext? uiContext,
+  )
+  executor;
   final JsonHandler<T> handler;
   final List<PreparationStep<T>> extraSteps;
   final bool Function(T data)? validator;
+  final Map<String, dynamic> Function(T data)? extraPayloadEncoder;
+  final BackupOperationResult? Function(T data)? exportResultBuilder;
   final Ref ref;
 
   late final DataBackupConverter converter;
@@ -78,9 +88,12 @@ abstract class JsonBackupSource<T> implements BackupDataSource {
   );
 
   Future<shelf.Response> _serveData(shelf.Request request) async {
-    final data = await dataGetter();
+    final data = await dataGetter(null);
     final payload = handler.encode(data);
-    final json = converter.encode(payload: payload);
+    final json = converter.encode(
+      payload: payload,
+      extraFields: extraPayloadEncoder?.call(data) ?? const {},
+    );
     return shelf.Response.ok(
       json,
       headers: {'Content-Type': 'application/json'},
@@ -110,17 +123,24 @@ abstract class JsonBackupSource<T> implements BackupDataSource {
     BuildContext? uiContext,
   ) => _noContextPrepare(data);
 
-  Future<void> _exportToFile(String directoryPath) async {
+  Future<BackupOperationResult?> _exportToFile(
+    String directoryPath, {
+    BackupExportOptions? options,
+  }) async {
     await BackupUtils.ensureStoragePermissions(ref);
 
-    final data = await dataGetter();
+    final data = await dataGetter(options);
     final payload = handler.encode(data);
-    final json = converter.encode(payload: payload);
+    final json = converter.encode(
+      payload: payload,
+      extraFields: extraPayloadEncoder?.call(data) ?? const {},
+    );
 
     final timestamp = DateFormat('yyyy.MM.dd.HH.mm.ss').format(DateTime.now());
     final fileName = 'boorusama_${id}_$timestamp.json';
 
     await writeFileToDirectory(directoryPath, fileName, json);
+    return exportResultBuilder?.call(data);
   }
 
   Future<ImportPreparation> _prepareFileImport(
@@ -141,11 +161,21 @@ abstract class JsonBackupSource<T> implements BackupDataSource {
     );
   }
 
-  Future<void> _exportToClipboard() async {
-    final data = await dataGetter();
+  Future<BackupOperationResult?> _exportToClipboard({
+    BackupExportOptions? options,
+  }) async {
+    final data = await dataGetter(options);
     final payload = handler.encode(data);
-    final json = converter.encode(payload: payload);
+    final json = converter.encode(
+      payload: payload,
+      extraFields: extraPayloadEncoder?.call(data) ?? const {},
+    );
+    if (isClipboardBackupTooLarge(json)) {
+      throw const ClipboardBackupTooLargeException();
+    }
+
     await AppClipboard.copy(json);
+    return exportResultBuilder?.call(data);
   }
 
   Future<ImportPreparation> _prepareClipboardImport(
@@ -154,6 +184,9 @@ abstract class JsonBackupSource<T> implements BackupDataSource {
     final content = await AppClipboard.paste('text/plain');
     if (content == null || content.isEmpty) {
       throw Exception('Clipboard is empty or invalid');
+    }
+    if (isClipboardBackupTooLarge(content)) {
+      throw const ClipboardBackupTooLargeException();
     }
 
     if (uiContext == null || !uiContext.mounted) {

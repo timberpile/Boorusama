@@ -4,6 +4,15 @@ import 'package:shelf/shelf.dart' as shelf;
 
 // Project imports:
 import '../preparation/version_checking.dart';
+import 'types.dart';
+
+abstract interface class BackupExportScope {}
+
+class BackupExportOptions {
+  const BackupExportOptions({this.scope});
+
+  final BackupExportScope? scope;
+}
 
 class ServerCapability {
   const ServerCapability({
@@ -25,7 +34,11 @@ class FileCapability {
     required this.prepareImport,
   });
 
-  final Future<void> Function(String path) export;
+  final Future<BackupOperationResult?> Function(
+    String path, {
+    BackupExportOptions? options,
+  })
+  export;
   final Future<ImportPreparation> Function(String path, BuildContext? uiContext)
   prepareImport;
 }
@@ -36,7 +49,10 @@ class ClipboardCapability {
     required this.prepareImport,
   });
 
-  final Future<void> Function() export;
+  final Future<BackupOperationResult?> Function({
+    BackupExportOptions? options,
+  })
+  export;
   final Future<ImportPreparation> Function(BuildContext? uiContext)
   prepareImport;
 }

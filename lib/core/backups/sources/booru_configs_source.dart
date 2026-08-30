@@ -52,7 +52,7 @@ class BooruConfigsBackupSource extends JsonBackupSource<List<BooruConfig>> {
         priority: 99999, // Lowest priority - show last
         version: kBooruConfigsExporterImporterVersion,
         appVersion: ref.read(appVersionProvider),
-        dataGetter: () async => ref.read(booruConfigProvider),
+        dataGetter: (_) async => ref.read(booruConfigProvider),
         executor: (configs, uiContext) async {
           final configRepo = ref.read(booruConfigRepoProvider);
           await configRepo.clear();
@@ -70,6 +70,8 @@ class BooruConfigsBackupSource extends JsonBackupSource<List<BooruConfig>> {
               ),
             );
           }
+
+          return null;
         },
         handler: ListHandler<BooruConfig>(
           parser: BooruConfig.fromJson,
