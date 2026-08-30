@@ -139,7 +139,7 @@ class RawSolver implements ProtectionSolver {
       if (!context.mounted) {
         _solving = false;
         completer.complete(false);
-        return completer.future;
+        return await completer.future;
       }
 
       _monitorCompletion(
@@ -537,7 +537,7 @@ String _javaScriptResultAsString(Object? result) {
 
 Future<String?> _safeCurrentUrl(WebViewController controller) async {
   try {
-    return controller.currentUrl();
+    return await controller.currentUrl();
   } catch (_) {
     return null;
   }

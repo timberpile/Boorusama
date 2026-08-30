@@ -44,12 +44,10 @@ void main() {
 
     test('should skip individual files that already exist', () async {
       // Arrange
-      when(() => existChecker.exists(any(), any())).thenAnswer((i) {
-        final filename = i.positionalArguments[0] as String;
-        return filename.contains(
-          'test-original-url-1',
-        ); // Only first file exists
-      });
+      var checkedFiles = 0;
+      when(
+        () => existChecker.exists(any(), any()),
+      ).thenAnswer((_) => checkedFiles++ == 0);
 
       final task = await repository.createTask(_options);
       final notifier = container.read(bulkDownloadProvider.notifier);

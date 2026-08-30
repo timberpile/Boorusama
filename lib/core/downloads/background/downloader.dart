@@ -140,7 +140,7 @@ class BackgroundDownloader implements DownloadService {
         'Starting download: ${options.url} to $targetDir/${options.filename}',
       );
 
-      return FileDownloader().enqueueIfNeeded(
+      return await FileDownloader().enqueueIfNeeded(
         task,
         skipIfExists: options.skipIfExists,
         fs: fs,

@@ -63,8 +63,7 @@ class UserUploadDailyDeltaChart extends ConsumerWidget {
         final firstMonth = data.first.date.month;
 
         final showMonths = {
-          for (var i = 0; i < 4; i++)
-            (firstMonth + i * 3) % 12 == 0 ? 12 : (firstMonth + i * 3) % 12,
+          for (var i = 0; i < 4; i++) (firstMonth + i * 3 - 1) % 12 + 1,
 
           // always include today's month
           DateTime.now().month,

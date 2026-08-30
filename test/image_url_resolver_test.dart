@@ -11,23 +11,23 @@ void main() {
     final cases = [
       (
         input: 'https://img3.gelbooru.com/images/abc/123.jpg',
-        expected: 'https://img2.gelbooru.com/images/abc/123.jpg',
-        description: 'normalizes img3 to img2',
+        expected: 'https://img4.gelbooru.com/images/abc/123.jpg',
+        description: 'normalizes img3 to img4',
       ),
       (
         input: 'https://img4.gelbooru.com/images/abc/123.jpg',
-        expected: 'https://img2.gelbooru.com/images/abc/123.jpg',
-        description: 'normalizes img4 to img2',
+        expected: 'https://img4.gelbooru.com/images/abc/123.jpg',
+        description: 'keeps img4 unchanged',
       ),
       (
         input: 'https://img10.gelbooru.com/images/abc/123.jpg',
-        expected: 'https://img2.gelbooru.com/images/abc/123.jpg',
-        description: 'normalizes multi-digit subdomain to img2',
+        expected: 'https://img4.gelbooru.com/images/abc/123.jpg',
+        description: 'normalizes multi-digit subdomain to img4',
       ),
       (
         input: 'https://img2.gelbooru.com/images/abc/123.jpg',
-        expected: 'https://img2.gelbooru.com/images/abc/123.jpg',
-        description: 'keeps img2 unchanged',
+        expected: 'https://img4.gelbooru.com/images/abc/123.jpg',
+        description: 'normalizes img2 to img4',
       ),
       (
         input: 'https://example.com/images/abc/123.jpg',

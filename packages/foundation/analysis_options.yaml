@@ -8,6 +8,14 @@ analyzer:
     missing_return: error
     todo: ignore
     parameter_assignments: error
+  exclude:
+    - build/**
+    - android/**
+    - ios/**
+    - web/**
+    - windows/**
+    - macos/**
+    - linux/**
 
 formatter:
   trailing_commas: preserve

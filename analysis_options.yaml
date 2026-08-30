@@ -6,6 +6,12 @@ analyzer:
     - "**/*.g.dart"
     - "**/generated_plugin_registrant.dart"
     - "**/firebase_options.dart"
+    - android/**
+    - ios/**
+    - web/**
+    - windows/**
+    - macos/**
+    - linux/**
   errors:
     # Otherwise cause the import of all_lint_rules to warn because of some rules conflicts.
     # We explicitly enabled even conflicting rules and are fixing the conflict
@@ -75,12 +81,6 @@ linter:
 
     # Conflicts with unused variables
     no_leading_underscores_for_local_identifiers: false
-
-    # false positive
-    one_member_abstracts: false
-
-    # too verbose
-    prefer_final_parameters: false
 
     # Too verbose with little value, and this is taken care of by the Flutter devtool anyway.
     diagnostic_describe_all_properties: false
