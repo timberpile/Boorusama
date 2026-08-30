@@ -1,4 +1,4 @@
-package com.degenk.boorusama
+package com.timberpile.boorusama
 
 import android.content.Intent
 import android.media.MediaScannerConnection

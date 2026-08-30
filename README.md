@@ -132,6 +132,103 @@ also removes private volumes when their ownership can be verified from the dev
 container. Avoid broad forced cleanup commands such as `git clean -fdx` around
 `.worktrees/`.
 
+## Releasing
+
+Releases are built and packaged using the manual **GitHub release** workflow in `.github/workflows/github-release.yml`.
+
+The workflow builds release artifacts for all supported platforms:
+
+- Android APKs
+- Linux `.tar.gz`
+- Linux AppImage
+- Windows `.zip`
+- iOS `.ipa`
+- macOS `.dmg`
+
+It then creates a **draft GitHub Release** containing all generated artifacts and `boorusama-update.json`.
+
+### Versioning
+
+Fork releases use the upstream version as their base with a fork-specific prerelease suffix.
+
+Example:
+
+```text
+4.5.0-timberpile.1+186
+```
+
+The corresponding Git tag is:
+
+```text
+v4.5.0-timberpile.1
+```
+
+The build number after `+` must increase with every release.
+
+For multiple releases based on the same upstream version:
+
+```text
+4.5.0-timberpile.1+186
+4.5.0-timberpile.2+187
+4.5.0-timberpile.3+188
+```
+
+After updating to a new upstream version, reset the fork release number while continuing to increment the build number:
+
+```text
+4.6.0-timberpile.1+189
+```
+
+### Creating a release
+
+1. Update the version in `pubspec.yaml`:
+
+   ```yaml
+   version: 4.5.0-timberpile.1+186
+   ```
+
+2. Add a matching section to `CHANGELOG.md` describing the changes in the release.
+
+3. Commit the release preparation changes.
+
+4. Create and push the release tag:
+
+   ```bash
+   git tag v4.5.0-timberpile.1
+   git push origin develop
+   git push origin v4.5.0-timberpile.1
+   ```
+
+5. On GitHub, open:
+
+   **Actions → GitHub release → Run workflow**
+
+   Set:
+
+   ```text
+   release_tag: v4.5.0-timberpile.1
+   prerelease: false
+   recreate_release: false
+   ```
+
+   Enable `prerelease` when publishing an experimental or preview build.
+
+   `recreate_release` should normally remain disabled. It can be enabled when intentionally rebuilding an existing release and tag.
+
+6. Wait for all platform builds to succeed.
+
+   The workflow checks out the specified tag, so every artifact is built from the exact same commit.
+
+7. Open the newly created **draft release** under GitHub Releases.
+
+   Verify the release notes and attached artifacts, then publish the release manually.
+
+### iOS
+
+The GitHub workflow builds the iOS IPA with `--no-codesign`.
+
+The resulting IPA is therefore unsigned and is primarily suitable for sideloading workflows that perform their own signing. Normal App Store or signed iOS distribution requires a separate Apple signing setup.
+
 ## Translation
 
 Translations are managed via [Weblate](https://weblate.org/en/).
