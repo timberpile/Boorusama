@@ -3,6 +3,7 @@ import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -10,7 +11,13 @@ import 'package:material_symbols_icons/symbols.dart';
 // Project imports:
 import '../../../../../core/posts/details_parts/widgets.dart';
 import '../../../../../core/search/search/routes.dart';
+import '../../../../../core/tags/details/widgets.dart';
 import '../../../../../core/widgets/widgets.dart';
+import '../../../artists/artist/providers.dart';
+import '../../../artists/artist/types.dart';
+import '../../../artists/urls/widgets.dart';
+import '../../../tags/details/widgets.dart';
+import '../routes/route_utils.dart';
 import '../types/wiki.dart';
 import '../widgets/danbooru_wiki_dtext_body.dart';
 import '../wiki_providers.dart';
@@ -27,6 +34,11 @@ class DanbooruWikiPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final wiki = ref.watch(danbooruWikiProvider(wikiPageName));
     final wikiValue = wiki.valueOrNull;
+    final artistState =
+        wiki.hasValue && (wikiValue == null || wikiValue.type is TagWiki)
+        ? ref.watch(danbooruArtistProvider(wikiPageName))
+        : null;
+    final artist = artistState?.valueOrNull;
     final theme = Kurumi.themeOf(context);
     final textTheme = theme.textTheme;
     final colorScheme = theme.colorScheme;
@@ -39,6 +51,14 @@ class DanbooruWikiPage extends ConsumerWidget {
               onPressed: () => goToSearchPage(ref, tag: tag),
               icon: const Icon(Symbols.search),
             ),
+          IconButton(
+            tooltip: context.t.post.action.view_in_browser,
+            onPressed: () => openDanbooruWikiPageInBrowser(
+              ref,
+              wikiPageName,
+            ),
+            icon: const Icon(Icons.open_in_browser),
+          ),
         ],
       ),
       body: RefreshIndicator.adaptive(
@@ -47,6 +67,22 @@ class DanbooruWikiPage extends ConsumerWidget {
         child: wiki.when(
           data: (wiki) {
             if (wiki == null) {
+              if (artistState?.isLoading ?? false) {
+                return const _WikiPageFill(
+                  child: CircularProgressIndicator.adaptive(),
+                );
+              }
+
+              if (artist != null && !artist.isEmpty) {
+                return CustomScrollView(
+                  slivers: [
+                    _ArtistDetailsSliver(
+                      artist: artist,
+                    ),
+                  ],
+                );
+              }
+
               return const _WikiPageFill(
                 child: NoDataBox(),
               );
@@ -97,6 +133,8 @@ class DanbooruWikiPage extends ConsumerWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   sliver: DanbooruWikiDTextSliverBody(data: wiki.body),
                 ),
+                if (artist != null && !artist.isEmpty)
+                  _ArtistDetailsSliver(artist: artist),
                 const SliverPadding(
                   padding: EdgeInsets.only(bottom: 24),
                   sliver: SliverToBoxAdapter(
@@ -115,6 +153,40 @@ class DanbooruWikiPage extends ConsumerWidget {
               child: Text(error.toString()),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ArtistDetailsSliver extends StatelessWidget {
+  const _ArtistDetailsSliver({
+    required this.artist,
+  });
+
+  final DanbooruArtist artist;
+
+  @override
+  Widget build(BuildContext context) {
+    return SliverPadding(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      sliver: SliverToBoxAdapter(
+        child: Column(
+          children: [
+            TagOtherNames(otherNames: artist.otherNames),
+            const SizedBox(height: 8),
+            DanbooruArtistUrlChips(
+              artistUrls: artist.activeUrls.map((e) => e.url).toList(),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(
+                left: 12,
+                right: 12,
+                top: 16,
+              ),
+              child: ArtistTagCloud(tagName: artist.name),
+            ),
+          ],
         ),
       ),
     );
