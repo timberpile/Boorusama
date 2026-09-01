@@ -75,8 +75,7 @@ final kHydrusPostDetailsUIBuilder = PostDetailsUIBuilder(
   },
   full: {
     DetailsPart.toolbar: (context) => const HydrusPostActionToolbar(),
-    DetailsPart.tags: (context) =>
-        const DefaultInheritedBasicTagsTile<HydrusPost>(),
+    DetailsPart.tags: (context) => const DefaultInheritedTagsTile<HydrusPost>(),
     DetailsPart.fileDetails: (context) =>
         const DefaultInheritedFileDetailsSection<HydrusPost>(
           initialExpanded: true,
