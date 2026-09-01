@@ -550,10 +550,10 @@ packages:
     dependency: transitive
     description:
       name: flutter_libavif
-      sha256: a802b1625e5e8a3604fce87e4073d2703bb9d77fdc1fff460e9c6d617910e1eb
+      sha256: "94954d197390dda27afced5a6c4d6e8e38f5e23bc1aeca19003237d32d40a757"
       url: "https://pub.dev"
     source: hosted
-    version: "0.1.0"
+    version: "0.1.1"
   flutter_lints:
     dependency: "direct dev"
     description:
@@ -876,7 +876,7 @@ packages:
     source: hosted
     version: "1.11.2"
   hooks:
-    dependency: "direct overridden"
+    dependency: transitive
     description:
       name: hooks
       sha256: "9a62a50b50b769a737bc0a8ff381f333529df3ab746b2f6b02e83760231455ba"
@@ -1055,10 +1055,10 @@ packages:
     dependency: transitive
     description:
       name: libavif
-      sha256: ceb45b6477027d41a420a193b0b91588383a00ecf315521437a815d1ee156edd
+      sha256: e96c31379cd472786133085ec18b977c79d3965a1a339bf283447e7b85955268
       url: "https://pub.dev"
     source: hosted
-    version: "0.1.0"
+    version: "0.1.1"
   like_button:
     dependency: "direct main"
     description:
@@ -1303,10 +1303,10 @@ packages:
     dependency: transitive
     description:
       name: native_toolchain_rust
-      sha256: "26d4dcae954328af4ebfa8fc56cca0bf74b9ae8b4a6132de5da2071ac3d237b3"
+      sha256: faa57d2258a3b0fd2a634054f54e4496c9fcbd971977e7d2b7e6916d56892857
       url: "https://pub.dev"
     source: hosted
-    version: "1.0.4"
+    version: "1.0.4+0"
   nm:
     dependency: transitive
     description:

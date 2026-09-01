@@ -19,7 +19,7 @@ dependencies:
       ref: fork
   flutter:
     sdk: flutter
-  flutter_libavif: ^0.1.0
+  flutter_libavif: ^0.1.1
   path: ^1.8.3
   path_provider: ^2.1.2
   retriable:
@@ -29,8 +29,3 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
-
-dependency_overrides:
-  # libavif 0.1.0 still declares hooks 1.x, but its build hook is compatible
-  # with hooks 2.x. Keep the workspace's other native-asset packages current.
-  hooks: ^2.0.0
