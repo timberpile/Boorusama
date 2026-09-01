@@ -10,6 +10,8 @@ import 'package:kurumi/material.dart';
 // Project imports:
 import '../../foundation/info/device_info.dart';
 import '../configs/config/types.dart';
+import '../developer_options/blocked_media_placeholder.dart';
+import '../developer_options/providers.dart';
 import '../http/client/providers.dart';
 import '../settings/providers.dart';
 import 'image_quality.dart';
@@ -60,6 +62,17 @@ class BooruImage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final automaticMediaLoadingEnabled = ref.watch(
+      automaticMediaLoadingEnabledProvider,
+    );
+
+    if (!automaticMediaLoadingEnabled) {
+      return BlockedMediaPlaceholder(
+        aspectRatio: forceCover || fit == BoxFit.contain ? null : aspectRatio,
+        borderRadius: borderRadius ?? _defaultRadius,
+      );
+    }
+
     final dio = ref.watch(dioForWidgetProvider(config));
     final imageQualitySettings = ref.watch(
       imageListingSettingsProvider.select((value) => value.imageQuality),

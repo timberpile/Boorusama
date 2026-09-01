@@ -10,6 +10,8 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../../../../foundation/info/app_info.dart';
 import '../../../../foundation/url_launcher.dart';
 import '../../../configs/config/providers.dart';
+import '../../../developer_options/blocked_media_placeholder.dart';
+import '../../../developer_options/providers.dart';
 import '../../../http/client/providers.dart';
 import '../../../images/providers.dart';
 
@@ -23,6 +25,9 @@ class HelpUseTranslatePage extends ConsumerWidget {
     final appInfo = ref.watch(appInfoProvider);
     final config = ref.watchConfigAuth;
     final dio = ref.watch(dioForWidgetProvider(config));
+    final automaticMediaLoadingEnabled = ref.watch(
+      automaticMediaLoadingEnabledProvider,
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -59,21 +64,32 @@ class HelpUseTranslatePage extends ConsumerWidget {
                       ],
                     ),
                     const SizedBox(height: 24),
-                    ExtendedImage.network(
-                      dio: dio,
-                      appInfo.translationBadgeUrl,
-                      height: 66,
-                      width: 287,
-                      cacheManager: ref.watch(defaultImageCacheManagerProvider),
-                    ),
-                    const SizedBox(height: 24),
-                    SvgPicture.network(
-                      appInfo.translationStatusUrl,
-                      height: 300,
-                      placeholderBuilder: (context) => const Center(
-                        child: CircularProgressIndicator(),
+                    if (automaticMediaLoadingEnabled)
+                      ExtendedImage.network(
+                        dio: dio,
+                        appInfo.translationBadgeUrl,
+                        height: 66,
+                        width: 287,
+                        cacheManager: ref.watch(
+                          defaultImageCacheManagerProvider,
+                        ),
+                      )
+                    else
+                      const BlockedMediaPlaceholder(
+                        height: 66,
+                        width: 287,
                       ),
-                    ),
+                    const SizedBox(height: 24),
+                    if (automaticMediaLoadingEnabled)
+                      SvgPicture.network(
+                        appInfo.translationStatusUrl,
+                        height: 300,
+                        placeholderBuilder: (context) => const Center(
+                          child: CircularProgressIndicator(),
+                        ),
+                      )
+                    else
+                      const BlockedMediaPlaceholder(height: 300),
                   ],
                 ),
               ),

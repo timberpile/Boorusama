@@ -21,11 +21,14 @@ class PreloadManager {
   PreloadManager({
     required Preloader preloader,
     DownloadConfiguration? downloadConfiguration,
+    bool Function()? isEnabled,
   }) : _preloader = preloader,
+       _isEnabled = isEnabled ?? _alwaysEnabled,
        _downloadConfiguration =
            downloadConfiguration ?? const DownloadConfiguration();
 
   final Preloader _preloader;
+  final bool Function() _isEnabled;
   final DownloadConfiguration _downloadConfiguration;
 
   void _log(String message) {
@@ -41,6 +44,11 @@ class PreloadManager {
   Set<String> _currentSkipUrls = {};
 
   void preloadMedias(PreloadResult result) {
+    if (!_isEnabled()) {
+      cancelAll();
+      return;
+    }
+
     final skipUrls = result.skipUrls;
     final cancelUrls = result.cancelUrls;
 
@@ -148,6 +156,11 @@ class PreloadManager {
   );
 
   void _startNextDownloads() {
+    if (!_isEnabled()) {
+      cancelAll();
+      return;
+    }
+
     while (_activeDownloads.length <
             _downloadConfiguration.maxConcurrentDownloads &&
         _pendingQueue.isNotEmpty) {
@@ -243,6 +256,8 @@ class PreloadManager {
     debugPrint(parts.join(' '));
   }
 }
+
+bool _alwaysEnabled() => true;
 
 class PreloadManagerState extends Equatable {
   const PreloadManagerState({

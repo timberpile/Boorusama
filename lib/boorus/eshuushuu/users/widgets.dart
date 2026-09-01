@@ -9,6 +9,8 @@ import 'package:url_launcher/url_launcher.dart';
 
 // Project imports:
 import '../../../core/configs/config/providers.dart';
+import '../../../core/developer_options/blocked_media_placeholder.dart';
+import '../../../core/developer_options/providers.dart';
 import '../../../core/posts/listing/widgets.dart';
 import '../../../core/posts/post/types.dart';
 import '../../../core/users/widgets.dart';
@@ -159,16 +161,19 @@ class _EshuushuuUserDetailsBody extends StatelessWidget {
   }
 }
 
-class _EshuushuuUserOverview extends StatelessWidget {
+class _EshuushuuUserOverview extends ConsumerWidget {
   const _EshuushuuUserOverview({required this.user});
 
   final EshuushuuUser user;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colorScheme = Kurumi.themeOf(context).colorScheme;
     final locale = Localizations.localeOf(context).toString();
     final dateFormat = DateFormat.yMd(locale);
+    final automaticMediaLoadingEnabled = ref.watch(
+      automaticMediaLoadingEnabledProvider,
+    );
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -179,25 +184,30 @@ class _EshuushuuUserOverview extends StatelessWidget {
           decoration: BoxDecoration(
             color: colorScheme.surfaceContainerHighest,
             borderRadius: BorderRadius.circular(8),
-            image: switch (user.avatarUrl) {
-              final String url => DecorationImage(
+            image: switch ((
+              automaticMediaLoadingEnabled,
+              user.avatarUrl,
+            )) {
+              (true, final String url) => DecorationImage(
                 image: NetworkImage(url),
                 fit: BoxFit.cover,
               ),
               _ => null,
             },
           ),
-          child: user.avatarUrl == null
-              ? Center(
-                  child: Text(
-                    user.name.isNotEmpty ? user.name[0].toUpperCase() : '?',
-                    style: TextStyle(
-                      fontSize: 24,
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                )
-              : null,
+          child: switch ((automaticMediaLoadingEnabled, user.avatarUrl)) {
+            (false, final String _) => const BlockedMediaPlaceholder(),
+            (_, null) => Center(
+              child: Text(
+                user.name.isNotEmpty ? user.name[0].toUpperCase() : '?',
+                style: TextStyle(
+                  fontSize: 24,
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+            _ => null,
+          },
         ),
         const SizedBox(width: 12),
         Expanded(

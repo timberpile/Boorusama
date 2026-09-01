@@ -20,6 +20,8 @@ import '../../../changelogs/routes.dart';
 import '../../../configs/config/providers.dart';
 import '../../../configs/create/routes.dart';
 import '../../../debug/routes.dart';
+import '../../../developer_options/l10n.dart';
+import '../../../developer_options/widgets.dart';
 import '../../../premiums/providers.dart';
 import '../../../premiums/routes.dart';
 import '../../../premiums/types.dart';
@@ -37,7 +39,10 @@ import 'language_page.dart';
 import 'privacy_page.dart';
 import 'search_settings_page.dart';
 
-List<SettingEntry> _entries(BuildContext context) => [
+List<SettingEntry> _entries(
+  BuildContext context, {
+  required bool showDeveloperOptions,
+}) => [
   SettingEntry(
     id: 'appearance',
     name: '/settings/appearance',
@@ -101,11 +106,19 @@ List<SettingEntry> _entries(BuildContext context) => [
     icon: FontAwesomeIcons.shieldHalved,
     content: const PrivacyPage(),
   ),
+  if (showDeveloperOptions)
+    SettingEntry(
+      id: 'developer_options',
+      name: '/settings/developer_options',
+      title: context.t.developerOptions.title,
+      icon: FontAwesomeIcons.code,
+      content: const DeveloperOptionsPage(),
+    ),
 ];
 
 const double _kThresholdWidth = 650;
 
-class SettingsPage extends StatefulWidget {
+class SettingsPage extends ConsumerStatefulWidget {
   const SettingsPage({
     super.key,
     this.scrollTo,
@@ -116,15 +129,18 @@ class SettingsPage extends StatefulWidget {
   final String? initial;
 
   @override
-  State<SettingsPage> createState() => _SettingsPageState();
+  ConsumerState<SettingsPage> createState() => _SettingsPageState();
 }
 
-class _SettingsPageState extends State<SettingsPage> {
+class _SettingsPageState extends ConsumerState<SettingsPage> {
   final _selected = ValueNotifier<String?>(null);
 
   @override
   Widget build(BuildContext context) {
-    final entries = _entries(context);
+    final entries = _entries(
+      context,
+      showDeveloperOptions: ref.watch(isDevEnvironmentProvider),
+    );
 
     return Theme(
       data: Kurumi.themeOf(context).copyWith(
