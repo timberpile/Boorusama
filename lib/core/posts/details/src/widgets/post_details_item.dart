@@ -162,21 +162,32 @@ class _PostDetailsItemState<T extends Post>
                     builder: (_, currentSettledPage, _) {
                       final isPageSettled = currentSettledPage == widget.index;
 
-                      return PostMedia<T>(
-                        post: post,
-                        config: widget.authConfig,
-                        viewer: widget.viewerConfig,
-                        imageUrlBuilder: widget.imageUrlBuilder,
-                        mediaAspectRatioBuilder: widget.mediaAspectRatioBuilder,
-                        videoAspectRatioBuilder: widget.videoAspectRatioBuilder,
-                        imageCacheManager: widget.imageCacheManager,
-                        // This is used to make sure we have a thumbnail to show instead of a black placeholder
-                        placeholderMediaBuilder:
-                            isInitPage && initialThumbnailUrl != null
-                            ? (_) => initialPlaceholderMedia!
-                            : null,
-                        controller: pageViewController,
-                        isPageSettled: isPageSettled,
+                      return ValueListenableBuilder<Set<int>>(
+                        valueListenable: widget.detailsController.originalImagePostIds,
+                        builder: (_, originalImagePostIds, _) {
+                          final useOriginal = originalImagePostIds.contains(post.id);
+
+                          return PostMedia<T>(
+                            post: post,
+                            config: widget.authConfig,
+                            viewer: widget.viewerConfig,
+                            imageUrlBuilder: useOriginal
+                              ? (post) => post.originalImageUrl
+                              : widget.imageUrlBuilder,
+                            mediaAspectRatioBuilder: useOriginal
+                              ? (post) => post.effectiveOriginalAspectRatio
+                              : widget.mediaAspectRatioBuilder,
+                            videoAspectRatioBuilder: widget.videoAspectRatioBuilder,
+                            imageCacheManager: widget.imageCacheManager,
+                            // This is used to make sure we have a thumbnail to show instead of a black placeholder
+                            placeholderMediaBuilder:
+                                isInitPage && initialThumbnailUrl != null
+                                ? (_) => initialPlaceholderMedia!
+                                : null,
+                            controller: pageViewController,
+                            isPageSettled: isPageSettled,
+                          );
+                        },
                       );
                     },
                   );

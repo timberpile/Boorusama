@@ -29,11 +29,13 @@ class HydrusPostActionToolbar extends ConsumerWidget {
           orElse: () => false,
         );
     final controller = PostDetailsPageViewScope.of(context);
+    final detailsController = PostDetails.of<HydrusPost>(context).controller;
     final config = ref.watchConfigAuth;
 
     return CommonPostButtonsBuilder(
       post: post,
       onStartSlideshow: controller.startSlideshow,
+      onLoadOriginal: () => detailsController.loadOriginalImage(post.id),
       config: config,
       configViewer: ref.watchConfigViewer,
       builder: (context, buttons) {
