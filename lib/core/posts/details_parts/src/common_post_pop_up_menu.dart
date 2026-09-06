@@ -12,6 +12,7 @@ class CommonPostPopupMenu extends ConsumerWidget {
   const CommonPostPopupMenu({
     required this.post,
     required this.onStartSlideshow,
+    required this.onLoadOriginal,
     required this.config,
     required this.configViewer,
     super.key,
@@ -20,6 +21,7 @@ class CommonPostPopupMenu extends ConsumerWidget {
 
   final Post post;
   final VoidCallback onStartSlideshow;
+  final VoidCallback? onLoadOriginal;
   final BooruConfigAuth? config;
   final BooruConfigViewer? configViewer;
   final bool copy;
@@ -29,6 +31,7 @@ class CommonPostPopupMenu extends ConsumerWidget {
     return CommonPostButtonsBuilder(
       post: post,
       onStartSlideshow: onStartSlideshow,
+      onLoadOriginal: onLoadOriginal,
       config: config,
       configViewer: configViewer,
       copy: copy,

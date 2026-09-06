@@ -196,6 +196,7 @@ class BookmarkPostActionToolbar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final post = InheritedPost.of<BookmarkPost>(context);
     final controller = PostDetailsPageViewScope.of(context);
+    final detailsController = PostDetails.of(context).controller;
     final config = ref.watch(
       firstMatchingConfigBySourceUrlProvider((
         post.bookmark.booruId,
@@ -208,6 +209,7 @@ class BookmarkPostActionToolbar extends ConsumerWidget {
       child: CommonPostButtonsBuilder(
         post: originalPost,
         onStartSlideshow: controller.startSlideshow,
+        onLoadOriginal: () => detailsController.loadOriginalImage(post.id),
         config: config?.auth,
         configViewer: config?.viewer,
         copy: false,

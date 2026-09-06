@@ -22,6 +22,7 @@ class CommonPostButtonsBuilder extends ConsumerWidget {
     required this.builder,
     required this.post,
     required this.onStartSlideshow,
+    required this.onLoadOriginal,
     required this.config,
     required this.configViewer,
     super.key,
@@ -34,6 +35,7 @@ class CommonPostButtonsBuilder extends ConsumerWidget {
   builder;
   final Post post;
   final VoidCallback onStartSlideshow;
+  final VoidCallback? onLoadOriginal;
   final bool copy;
 
   @override
@@ -91,6 +93,12 @@ class CommonPostButtonsBuilder extends ConsumerWidget {
           icon: Icons.fullscreen,
           title: context.t.post.action.view_original,
           onPressed: () => goToOriginalImagePage(ref, post),
+        ),
+      if (post.hasFullView && onLoadOriginal != null)
+        SimpleButtonData(
+          icon: Icons.fullscreen,
+          title: context.t.post.action.load_original,
+          onPressed: () => onLoadOriginal!(),
         ),
       SimpleButtonData(
         icon: Icons.slideshow,

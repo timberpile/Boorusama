@@ -59,6 +59,7 @@ class DefaultFallbackBackupMoreButton<T extends Post> extends ConsumerWidget {
             child: CommonPostPopupMenu(
               post: post,
               onStartSlideshow: () => pageViewController.startSlideshow(),
+              onLoadOriginal: () => controller.loadOriginalImage(post.id),
               config: authConfig,
               configViewer: viewerConfig,
             ),

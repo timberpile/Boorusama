@@ -2,6 +2,7 @@
 import 'dart:async';
 
 // Package imports:
+import 'package:flutter/foundation.dart';
 import 'package:foundation/foundation.dart';
 import 'package:kurumi/material.dart';
 import 'package:scroll_to_index/scroll_to_index.dart';
@@ -83,6 +84,23 @@ class PostDetailsController<T extends Post> extends ChangeNotifier {
     final page = currentPage.value;
 
     scrollController?.scrollToIndex(page);
+  }
+
+  final _originalImagePostIds = ValueNotifier<Set<int>>(<int>{});
+
+  ValueListenable<Set<int>> get originalImagePostIds =>
+    _originalImagePostIds;
+
+  bool usesOriginalImage(int postId) =>
+    _originalImagePostIds.value.contains(postId);
+
+  void loadOriginalImage(int postId) {
+    if(usesOriginalImage(postId)) return;
+
+    _originalImagePostIds.value = {
+      ..._originalImagePostIds.value,
+      postId,
+    };
   }
 
   final _seekDirection = ValueNotifier<SeekDirection?>(null);
@@ -219,6 +237,8 @@ class PostDetailsController<T extends Post> extends ChangeNotifier {
     currentPage.dispose();
     currentPost.dispose();
     currentSettledPage.dispose();
+
+    _originalImagePostIds.dispose();
 
     super.dispose();
   }
