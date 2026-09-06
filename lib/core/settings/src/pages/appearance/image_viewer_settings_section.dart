@@ -79,6 +79,16 @@ class ImageViewerSettingsSection extends ConsumerWidget {
             ),
           ],
         ),
+        KurumiSwitchListTile(
+          title: Text(context.t.settings.image_viewer.load_original_on_zoom),
+          subtitle: Text(context.t.settings.image_viewer.load_original_on_zoom_description),
+          value: viewer.loadOriginalOnZoom,
+          onChanged: (value) => onUpdate(
+            viewer.copyWith(
+              loadOriginalOnZoom: value,
+            ),
+          ),
+        ),
         const Divider(thickness: 1),
         KurumiSettingsHeader(label: context.t.settings.image_viewer.slideshow),
         KurumiSettingsTile(

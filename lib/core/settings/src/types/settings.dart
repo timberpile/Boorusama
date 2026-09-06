@@ -146,6 +146,7 @@ class Settings extends Equatable {
     ),
     viewer: ImageViewerSettings(
       swipeMode: PostDetailsSwipeMode.defaultValue,
+      loadOriginalOnZoom: false,
       postDetailsOverlayInitialState:
           PostDetailsOverlayInitialState.defaultValue,
       slideshowDirection: SlideshowDirection.defaultValue,
@@ -528,6 +529,7 @@ class ViewerConfigs extends Equatable {
 class ImageViewerSettings extends Equatable {
   const ImageViewerSettings({
     required this.swipeMode,
+    required this.loadOriginalOnZoom,
     required this.postDetailsOverlayInitialState,
     required this.slideshowDirection,
     required this.slideshowInterval,
@@ -541,6 +543,7 @@ class ImageViewerSettings extends Equatable {
 
   ImageViewerSettings.fromJson(Map<String, dynamic> json)
     : swipeMode = PostDetailsSwipeMode.parse(json['swipeMode']),
+      loadOriginalOnZoom = json['loadOriginalOnZoom'] ?? false,
       postDetailsOverlayInitialState = PostDetailsOverlayInitialState.parse(
         json['postDetailsOverlayInitialState'],
       ),
@@ -562,6 +565,7 @@ class ImageViewerSettings extends Equatable {
       doubleTapSeekDuration = json['doubleTapSeekDuration'] ?? 10;
 
   final PostDetailsSwipeMode swipeMode;
+  final bool loadOriginalOnZoom;
   final PostDetailsOverlayInitialState postDetailsOverlayInitialState;
   final SlideshowDirection slideshowDirection;
   final double slideshowInterval;
@@ -574,6 +578,7 @@ class ImageViewerSettings extends Equatable {
 
   ImageViewerSettings copyWith({
     PostDetailsSwipeMode? swipeMode,
+    bool? loadOriginalOnZoom,
     PostDetailsOverlayInitialState? postDetailsOverlayInitialState,
     SlideshowDirection? slideshowDirection,
     double? slideshowInterval,
@@ -586,6 +591,7 @@ class ImageViewerSettings extends Equatable {
   }) {
     return ImageViewerSettings(
       swipeMode: swipeMode ?? this.swipeMode,
+      loadOriginalOnZoom: loadOriginalOnZoom ?? this.loadOriginalOnZoom,
       postDetailsOverlayInitialState:
           postDetailsOverlayInitialState ?? this.postDetailsOverlayInitialState,
       slideshowDirection: slideshowDirection ?? this.slideshowDirection,
@@ -605,6 +611,7 @@ class ImageViewerSettings extends Equatable {
 
   Map<String, dynamic> toJson() => {
     'swipeMode': swipeMode.toData(),
+    'loadOriginalOnZoom': loadOriginalOnZoom,
     'postDetailsOverlayInitialState': postDetailsOverlayInitialState.toData(),
     'slideshowDirection': slideshowDirection.toData(),
     'slideshowInterval': slideshowInterval,
@@ -619,6 +626,7 @@ class ImageViewerSettings extends Equatable {
   @override
   List<Object> get props => [
     swipeMode,
+    loadOriginalOnZoom,
     postDetailsOverlayInitialState,
     slideshowDirection,
     slideshowInterval,
