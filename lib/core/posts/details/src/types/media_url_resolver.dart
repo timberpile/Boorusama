@@ -41,7 +41,7 @@ class DefaultMediaUrlResolver implements MediaUrlResolver {
     BooruConfigViewer config,
   ) => post.isGif
       ? post.sampleImageUrl
-      : config.imageDetaisQuality.toOption().fold(
+      : config.imageDetailsQuality.toOption().fold(
               () => switch (imageQuality) {
                 ImageQuality.low => post.thumbnailImageUrl,
                 ImageQuality.original =>
@@ -70,7 +70,7 @@ class DefaultMediaUrlResolver implements MediaUrlResolver {
     BooruConfigViewer config,
   ) => post.isGif
       ? post.effectiveSampleAspectRatio
-      : config.imageDetaisQuality.toOption().fold(
+      : config.imageDetailsQuality.toOption().fold(
               () => switch (imageQuality) {
                 ImageQuality.low => post.effectiveThumbnailAspectRatio,
                 ImageQuality.original =>

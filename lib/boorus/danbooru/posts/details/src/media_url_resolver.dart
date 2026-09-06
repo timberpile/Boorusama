@@ -23,7 +23,7 @@ class DanbooruMediaUrlResolver implements MediaUrlResolver {
     () => rawPost.sampleImageUrl,
     (post) => post.isGif
         ? post.sampleImageUrl
-        : config.imageDetaisQuality.toOption().fold(
+        : config.imageDetailsQuality.toOption().fold(
             () => switch (imageQuality) {
               ImageQuality.highest ||
               ImageQuality.original => post.sampleImageUrl,

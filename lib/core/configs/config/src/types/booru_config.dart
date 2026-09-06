@@ -530,7 +530,7 @@ class BooruConfigFilter extends Equatable {
 
 class BooruConfigViewer extends Equatable {
   const BooruConfigViewer({
-    required this.imageDetaisQuality,
+    required this.imageDetailsQuality,
     required this.videoQuality,
     required this.viewerNotesFetchBehavior,
     required this.settings,
@@ -538,7 +538,7 @@ class BooruConfigViewer extends Equatable {
 
   factory BooruConfigViewer.fromConfig(BooruConfig config) {
     return BooruConfigViewer(
-      imageDetaisQuality: config.imageDetaisQuality,
+      imageDetailsQuality: config.imageDetaisQuality,
       videoQuality: config.videoQuality,
       viewerNotesFetchBehavior: config.viewerNotesFetchBehavior,
       settings: (config.viewerConfigs?.enable ?? false)
@@ -547,7 +547,7 @@ class BooruConfigViewer extends Equatable {
     );
   }
 
-  final String? imageDetaisQuality;
+  final String? imageDetailsQuality;
   final String? videoQuality;
   final BooruConfigViewerNotesFetchBehavior? viewerNotesFetchBehavior;
   final ImageViewerSettings? settings;
@@ -556,7 +556,7 @@ class BooruConfigViewer extends Equatable {
 
   @override
   List<Object?> get props => [
-    imageDetaisQuality,
+    imageDetailsQuality,
     videoQuality,
     viewerNotesFetchBehavior,
     settings,

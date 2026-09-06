@@ -216,7 +216,7 @@ class PhilomenaMediaUrlResolver implements MediaUrlResolver {
     BooruConfigViewer config,
   ) => castOrNull<PhilomenaPost>(rawPost).toOption().fold(
     () => rawPost.sampleImageUrl,
-    (post) => config.imageDetaisQuality.toOption().fold(
+    (post) => config.imageDetailsQuality.toOption().fold(
       () => post.sampleImageUrl,
       (quality) => switch (stringToPhilomenaPostQualityType(quality)) {
         PhilomenaPostQualityType.full => post.representation.full,
