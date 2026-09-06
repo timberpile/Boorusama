@@ -406,6 +406,8 @@
         "fixed_interval": "Fixed interval",
         "fixed_interval_description": "Advance after fixed interval, even if video is still playing"
       },
+      "load_original_on_zoom": "Load original when zooming",
+      "load_original_on_zoom_description": "Automatically loads the full-resolution image when you zoom in.",
       "slideshow_mode": "Slideshow mode",
       "slideshow_modes": {
         "random": "Random",

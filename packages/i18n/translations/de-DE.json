@@ -373,6 +373,8 @@
         "fixed_interval": "Festes Intervall",
         "fixed_interval_description": "Führe fort nach festen Intervall, auch wenn das Video noch abspielt"
       },
+      "load_original_on_zoom": "Originalbild beim Zoomen laden",
+      "load_original_on_zoom_description": "Lädt beim Hineinzoomen automatisch das Bild in voller Auflösung.",
       "slideshow_mode": "Diashow Modus",
       "slideshow_modes": {
         "random": "Zufällig",
