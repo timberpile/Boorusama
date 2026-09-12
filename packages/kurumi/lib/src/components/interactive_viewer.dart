@@ -20,6 +20,8 @@ const _kDoubleTapScale = 3.0;
 /// Factor to determine when content is much larger than the container.
 const _kImageExceedsContainerThreshold = 3.0;
 
+const _kContentConstraintTolerance = 0.5;
+
 class KurumiTransformationDetails {
   const KurumiTransformationDetails({
     required this.scale,
@@ -106,6 +108,7 @@ class KurumiInteractiveViewer extends StatelessWidget {
     this.enableHapticFeedback = false,
     this.panEnabled = true,
     this.scaleEnabled = true,
+    this.constrainPanToContent = false,
   });
 
   final Widget child;
@@ -121,6 +124,8 @@ class KurumiInteractiveViewer extends StatelessWidget {
   final bool panEnabled;
   final bool scaleEnabled;
 
+  final bool constrainPanToContent;
+
   @override
   Widget build(BuildContext context) {
     return KurumiRawInteractiveViewer(
@@ -134,6 +139,7 @@ class KurumiInteractiveViewer extends StatelessWidget {
       enableHapticFeedback: enableHapticFeedback,
       panEnabled: panEnabled,
       scaleEnabled: scaleEnabled,
+      constrainPanToContent: constrainPanToContent,
       child: child,
     );
   }
@@ -153,6 +159,7 @@ class KurumiRawInteractiveViewer extends StatefulWidget {
     this.enableHapticFeedback = false,
     this.panEnabled = true,
     this.scaleEnabled = true,
+    this.constrainPanToContent = false,
   });
 
   final Widget child;
@@ -178,6 +185,8 @@ class KurumiRawInteractiveViewer extends StatefulWidget {
   // Enable/disable scaling
   final bool scaleEnabled;
 
+  final bool constrainPanToContent;
+
   @override
   State<KurumiRawInteractiveViewer> createState() =>
       _KurumiRawInteractiveViewerState();
@@ -198,8 +207,12 @@ class _KurumiRawInteractiveViewerState extends State<KurumiRawInteractiveViewer>
   // Store the latest layout constraints.
   Size? _containerSize;
 
+  var _contentConstraintScheduled = false;
+
   // Track if max zoom haptic feedback has been triggered
   var _hasTriggeredMaxZoomHaptic = false;
+
+  var _applyingContentConstraint = false;
 
   @override
   void initState() {
@@ -238,11 +251,19 @@ class _KurumiRawInteractiveViewerState extends State<KurumiRawInteractiveViewer>
       _enableHapticFeedback = widget.enableHapticFeedback;
       _hasTriggeredMaxZoomHaptic = false;
     }
+
+    if (oldWidget.controller != widget.controller ||
+        oldWidget.contentSize != widget.contentSize ||
+        oldWidget.constrainPanToContent != widget.constrainPanToContent) {
+      _scheduleContentConstraint();
+    }
   }
 
   void _onAnimationChanged() => _controller.value = _animation.value;
 
   void _onChanged() {
+    if (_applyContentConstraint()) return;
+
     final currentScale = _controller.value.getMaxScaleOnAxis();
     final translationVector = _controller.value.getTranslation();
     final containerSize = _containerSize;
@@ -277,6 +298,39 @@ class _KurumiRawInteractiveViewerState extends State<KurumiRawInteractiveViewer>
     widget.onTransformationChanged?.call(details);
   }
 
+  bool _applyContentConstraint() {
+    if (!widget.constrainPanToContent || _applyingContentConstraint) {
+      return false;
+    }
+
+    final constrainedMatrix = _constrainPanToContent(
+      matrix: _controller.value,
+      contentSize: widget.contentSize,
+      containerSize: _containerSize,
+    );
+    if (constrainedMatrix == null) return false;
+
+    _applyingContentConstraint = true;
+    try {
+      _controller.value = constrainedMatrix;
+    } finally {
+      _applyingContentConstraint = false;
+    }
+    return true;
+  }
+
+  void _scheduleContentConstraint() {
+    if (!widget.constrainPanToContent || _contentConstraintScheduled) return;
+
+    _contentConstraintScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _contentConstraintScheduled = false;
+      if (!mounted) return;
+
+      _applyContentConstraint();
+    });
+  }
+
   @override
   void dispose() {
     _animationController
@@ -300,7 +354,10 @@ class _KurumiRawInteractiveViewerState extends State<KurumiRawInteractiveViewer>
           constraints.maxHeight,
         );
 
-        _containerSize = containerSize;
+        if (_containerSize != containerSize) {
+          _containerSize = containerSize;
+          _scheduleContentConstraint();
+        }
 
         final interactiveChild = GestureDetector(
           onDoubleTapDown: enable
@@ -464,4 +521,75 @@ double _calcMaxScale(Size? contentSize, Size? containerSize) {
 }
 
 bool _isValidSize(Size? size) =>
-    size != null && size.width != 0 && size.height != 0;
+    size != null &&
+    size.width.isFinite &&
+    size.height.isFinite &&
+    size.width > 0 &&
+    size.height > 0;
+
+Matrix4? _constrainPanToContent({
+  required Matrix4 matrix,
+  required Size? contentSize,
+  required Size? containerSize,
+}) {
+  if (!_isValidSize(contentSize) || !_isValidSize(containerSize)) return null;
+
+  final content = contentSize!;
+  final container = containerSize!;
+  final scale = matrix.getMaxScaleOnAxis();
+  if (!scale.isFinite || scale <= 0) return null;
+
+  final containScale = min(
+    container.width / content.width,
+    container.height / content.height,
+  );
+  final fittedSize = Size(
+    content.width * containScale,
+    content.height * containScale,
+  );
+  final fittedOffset = Offset(
+    (container.width - fittedSize.width) / 2,
+    (container.height - fittedSize.height) / 2,
+  );
+  final translation = matrix.getTranslation();
+  final constrainedX = _constrainContentAxis(
+    viewportLength: container.width,
+    fittedLength: fittedSize.width,
+    fittedOffset: fittedOffset.dx,
+    scale: scale,
+    translation: translation.x,
+  );
+  final constrainedY = _constrainContentAxis(
+    viewportLength: container.height,
+    fittedLength: fittedSize.height,
+    fittedOffset: fittedOffset.dy,
+    scale: scale,
+    translation: translation.y,
+  );
+
+  if ((constrainedX - translation.x).abs() <= _kContentConstraintTolerance &&
+      (constrainedY - translation.y).abs() <= _kContentConstraintTolerance) {
+    return null;
+  }
+
+  return matrix.clone()
+    ..setTranslationRaw(constrainedX, constrainedY, translation.z);
+}
+
+double _constrainContentAxis({
+  required double viewportLength,
+  required double fittedLength,
+  required double fittedOffset,
+  required double scale,
+  required double translation,
+}) {
+  final transformedLength = fittedLength * scale;
+
+  if (transformedLength <= viewportLength + _kContentConstraintTolerance) {
+    return viewportLength / 2 - scale * (fittedOffset + fittedLength / 2);
+  }
+
+  final minimum = viewportLength - scale * (fittedOffset + fittedLength);
+  final maximum = -scale * fittedOffset;
+  return translation.clamp(minimum, maximum);
+}
