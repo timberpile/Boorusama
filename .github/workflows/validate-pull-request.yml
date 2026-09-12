@@ -25,6 +25,13 @@ jobs:
           ref: ${{ github.event.pull_request.base.sha }}
           persist-credentials: false
 
+      - name: Bootstrap policy from this pull request
+        if: ${{ hashFiles('.github/scripts/validate-pull-request-policy.sh') == '' }}
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
       - name: Validate pull request
         env:
           BASE_BRANCH: ${{ github.base_ref }}
