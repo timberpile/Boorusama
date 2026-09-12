@@ -8,18 +8,28 @@ on:
         required: true
         default: ""
       prerelease:
-        description: "Mark the draft release as a prerelease"
+        description: "Mark the release as a prerelease"
+        required: true
+        type: boolean
+        default: false
+      draft:
+        description: "Create a draft release"
+        required: true
+        type: boolean
+        default: true
+      verify_upgrade:
+        description: "Verify an in-place update on an Android emulator"
         required: true
         type: boolean
         default: false
       recreate_release:
-        description: "Delete an existing release and tag before publishing"
+        description: "Delete an existing release before publishing"
         required: true
         type: boolean
         default: false
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -27,94 +37,66 @@ concurrency:
 
 jobs:
   build:
-    if: github.actor == 'khoadng'
-    name: Build ${{ matrix.target }}
-    runs-on: ${{ matrix.os }}
+    if: github.actor == github.repository_owner
+    runs-on: ubuntu-latest
     timeout-minutes: 120
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - target: apk
-            os: ubuntu-latest
-            artifact_name: boorusama-apk
-          - target: linux-tar.gz
-            os: ubuntu-latest
-            artifact_name: boorusama-linux-tar-gz
-          - target: appimage
-            os: ubuntu-latest
-            artifact_name: boorusama-appimage
-          - target: windows-zip
-            os: windows-latest
-            artifact_name: boorusama-windows-zip
-          - target: ipa
-            os: macos-latest
-            artifact_name: boorusama-ipa
-          - target: dmg
-            os: macos-latest
-            artifact_name: boorusama-dmg
-
     env:
       BOORUSAMA_USE_FVM: "false"
-      OUTPUT_DIR: release-artifacts/${{ matrix.target }}
-
+      OUTPUT_DIR: release-artifacts/apk
+      UPLOAD_DIR: release-upload/apk
     steps:
+      - name: Validate workflow inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ inputs.verify_upgrade }}" == "true" && "${{ inputs.draft }}" == "true" ]]; then
+            echo "::error::Upgrade verification requires a published release; set draft=false."
+            exit 1
+          fi
+
       - name: Check out Boorusama
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ inputs.release_tag }}
+          persist-credentials: false
 
       - name: Set up Flutter
-        uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
-          flutter-version: 3.41.9
+          flutter-version: 3.47.2
           cache: true
 
-      - name: Set up Xcode
-        if: runner.os == 'macOS'
-        uses: maxim-lobanov/setup-xcode@v1
-        with:
-          xcode-version: latest-stable
-
       - name: Set up Android SDK
-        if: matrix.target == 'apk'
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
 
-      - name: Install Android SDK packages
-        if: matrix.target == 'apk'
+      - name: Install Android and native build packages
         shell: bash
         run: |
           set -euo pipefail
           sdkmanager --install "platforms;android-36" "build-tools;36.0.0" "ndk;28.2.13676358"
-
-      - name: Install Linux desktop dependencies
-        if: matrix.target == 'linux-tar.gz' || matrix.target == 'appimage'
-        shell: bash
-        run: |
-          set -euo pipefail
+          echo "$ANDROID_SDK_ROOT/build-tools/36.0.0" >> "$GITHUB_PATH"
           sudo apt-get update
-          sudo apt-get install -y \
-            clang \
-            cmake \
-            libgtk-3-dev \
-            liblzma-dev \
-            libmpv-dev \
-            ninja-build \
-            pkg-config
+          sudo apt-get install -y meson nasm
 
-      - name: Install Windows packaging dependencies
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          Get-Command Compress-Archive
+      - name: Cache Gradle
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('android/**/*.gradle*', 'android/gradle.properties', 'android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
 
-      - name: Install Apple packaging dependencies
-        if: runner.os == 'macOS'
-        shell: bash
-        run: |
-          set -euo pipefail
-          brew install create-dmg
-          sudo gem install cocoapods
+      - name: Cache Cargo
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: cargo-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
+          restore-keys: |
+            cargo-${{ runner.os }}-
 
       - name: Initialize workspace
         shell: bash
@@ -122,91 +104,288 @@ jobs:
           set -euo pipefail
           ./init.sh
 
-      - name: Build GitHub release artifact
+      - name: Read application version
+        id: version
         shell: bash
         run: |
           set -euo pipefail
-
-          args=(
-            release
-            github
-            build
-            "${{ matrix.target }}"
-            --ci
-            --allow-dirty
-            --output-dir
-            "$OUTPUT_DIR"
-          )
-
-          if [[ "${{ matrix.target }}" == "ipa" ]]; then
-            args+=(--no-codesign)
+          full_version=$(awk '$1 == "version:" { print $2; exit }' pubspec.yaml)
+          if [[ ! "$full_version" =~ ^([^+]+)\+([0-9]+)$ ]]; then
+            echo "::error::Expected pubspec version in name+numericCode form, got: $full_version"
+            exit 1
           fi
+          echo "name=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
+          echo "code=${BASH_REMATCH[2]}" >> "$GITHUB_OUTPUT"
 
-          ./build.sh "${args[@]}"
+      - name: Set up Android signing key
+        id: signing
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          .github/scripts/setup-android-signing.sh "$PWD/android/release.jks" "$PWD/android/key.properties"
 
-      - name: Upload release artifact
-        uses: actions/upload-artifact@v7
+      - name: Build split APKs
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./build.sh release github build apk --ci --allow-dirty --output-dir "$OUTPUT_DIR"
+
+      - name: Stage canonical release artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          .github/scripts/stage-android-release.sh "$OUTPUT_DIR" "$UPLOAD_DIR"
+
+      - name: Verify release APKs before upload
+        shell: bash
+        run: |
+          set -euo pipefail
+          .github/scripts/verify-android-apks.sh "$UPLOAD_DIR" \
+            "${{ steps.signing.outputs.certificate_sha256 }}" \
+            com.degenk.boorusama \
+            "${{ steps.version.outputs.name }}" \
+            "${{ steps.version.outputs.code }}"
+
+      - name: Remove signing material
+        if: always()
+        shell: bash
+        run: rm -f android/release.jks android/key.properties
+
+      - name: Upload APK release artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: ${{ matrix.artifact_name }}
-          path: ${{ env.OUTPUT_DIR }}/**
+          name: boorusama-apk
+          path: ${{ env.UPLOAD_DIR }}/**
           if-no-files-found: error
 
   publish:
-    if: github.actor == 'khoadng'
+    if: github.actor == github.repository_owner
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      actions: read
+      contents: write
     env:
-      GH_TOKEN: ${{ github.token }}
       BOORUSAMA_USE_FVM: "false"
     steps:
       - name: Check out Boorusama
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ inputs.release_tag }}
+          persist-credentials: false
 
       - name: Set up Flutter
-        uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
-          flutter-version: 3.41.9
+          flutter-version: 3.47.2
           cache: true
 
-      - name: Download build artifacts
-        uses: actions/download-artifact@v8
+      - name: Download APK release artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
+          name: boorusama-apk
           path: release-assets
+
+      - name: Validate release provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          checkout_commit=$(git rev-parse HEAD)
+          receipt_commit=$(jq -r '.commit' release-assets/release/github/apk.json)
+          remote_tag_commit=$(git ls-remote origin "refs/tags/${{ inputs.release_tag }}^{}" | awk 'NR == 1 { print $1 }')
+          if [[ -z "$remote_tag_commit" ]]; then
+            remote_tag_commit=$(git ls-remote origin "refs/tags/${{ inputs.release_tag }}" | awk 'NR == 1 { print $1 }')
+          fi
+          [[ -n "$remote_tag_commit" ]] || { echo '::error::Release tag does not exist on origin.'; exit 1; }
+          [[ "$receipt_commit" == "$checkout_commit" ]] || { echo '::error::Artifact receipt commit does not match the checked-out tag.'; exit 1; }
+          [[ "$remote_tag_commit" == "$checkout_commit" ]] || { echo '::error::Remote tag does not resolve to the checked-out commit.'; exit 1; }
 
       - name: Delete existing release
         if: inputs.recreate_release
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          gh release delete "${{ inputs.release_tag }}" \
-            --repo "${{ github.repository }}" \
-            --cleanup-tag \
-            --yes || true
+          gh release delete "${{ inputs.release_tag }}" --repo "${{ github.repository }}" --yes || true
 
-      - name: Publish draft GitHub release
+      - name: Create GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          args=(
+            release github publish --ci
+            --repo "${{ github.repository }}"
+            --artifacts-dir release-assets
+            --target apk
+            --tag "${{ inputs.release_tag }}"
+            --title "Boorusama ${{ inputs.release_tag }}"
+          )
+          [[ "${{ inputs.draft }}" == "true" ]] || args+=(--no-draft)
+          [[ "${{ inputs.prerelease }}" == "false" ]] || args+=(--prerelease)
+          ./build.sh "${args[@]}"
+
+  verify_published:
+    if: github.actor == github.repository_owner && !inputs.draft
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+    env:
+      BOORUSAMA_USE_FVM: "false"
+    steps:
+      - name: Check out Boorusama
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ inputs.release_tag }}
+          persist-credentials: false
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version: 3.47.2
+          cache: true
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
+
+      - name: Install Android and native build packages
         shell: bash
         run: |
           set -euo pipefail
-
-          args=(
-            release
-            github
-            publish
-            --ci
-            --repo
-            "${{ github.repository }}"
-            --artifacts-dir
-            release-assets
-          )
-
-          args+=(--tag "${{ inputs.release_tag }}")
-          args+=(--title "Boorusama ${{ inputs.release_tag }}")
-
-          if [[ "${{ inputs.prerelease }}" == "true" ]]; then
-            args+=(--prerelease)
+          sdkmanager --install "platforms;android-36" "build-tools;36.0.0" "ndk;28.2.13676358"
+          echo "$ANDROID_SDK_ROOT/build-tools/36.0.0" >> "$GITHUB_PATH"
+          if [[ "${{ inputs.verify_upgrade }}" == "true" ]]; then
+            sudo apt-get update
+            sudo apt-get install -y meson nasm
           fi
 
-          ./build.sh "${args[@]}"
+      - name: Cache Gradle
+        if: inputs.verify_upgrade
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('android/**/*.gradle*', 'android/gradle.properties', 'android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
+      - name: Cache Cargo
+        if: inputs.verify_upgrade
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: cargo-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
+          restore-keys: |
+            cargo-${{ runner.os }}-
+
+      - name: Initialize workspace for upgrade build
+        if: inputs.verify_upgrade
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./init.sh
+
+      - name: Read application version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          full_version=$(awk '$1 == "version:" { print $2; exit }' pubspec.yaml)
+          if [[ ! "$full_version" =~ ^([^+]+)\+([0-9]+)$ ]]; then
+            echo "::error::Expected pubspec version in name+numericCode form, got: $full_version"
+            exit 1
+          fi
+          echo "name=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
+          echo "code=${BASH_REMATCH[2]}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Android signing key
+        id: signing
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          .github/scripts/setup-android-signing.sh "$PWD/android/release.jks" "$PWD/android/key.properties"
+
+      - name: Download published APKs
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release download "${{ inputs.release_tag }}" \
+            --repo "${{ github.repository }}" \
+            --pattern '*.apk' \
+            --dir published-apks
+
+      - name: Verify published APKs
+        shell: bash
+        run: |
+          set -euo pipefail
+          .github/scripts/verify-android-apks.sh published-apks \
+            "${{ steps.signing.outputs.certificate_sha256 }}" \
+            com.degenk.boorusama \
+            "${{ steps.version.outputs.name }}" \
+            "${{ steps.version.outputs.code }}"
+
+      - name: Build lower-version verification APK
+        if: inputs.verify_upgrade
+        id: lower_apk
+        shell: bash
+        run: |
+          set -euo pipefail
+          final_code=${{ steps.version.outputs.code }}
+          if ((final_code <= 1)); then
+            echo "::error::Upgrade verification requires a versionCode greater than 1."
+            exit 1
+          fi
+          lower_code=$((final_code - 1))
+          output_dir="$RUNNER_TEMP/lower-version-apk"
+          ./build.sh apk \
+            --flavor prod \
+            --foss \
+            --release \
+            --ci \
+            --release-channel github \
+            --output-dir "$output_dir" \
+            --target-platform android-x64 \
+            --build-number "$lower_code"
+          lower_apk=$(find "$output_dir" -maxdepth 1 -type f -name '*.apk' -print -quit)
+          [[ -n "$lower_apk" ]] || { echo '::error::Lower-version APK was not produced.'; exit 1; }
+          echo "path=$lower_apk" >> "$GITHUB_OUTPUT"
+
+      - name: Remove signing material
+        if: always()
+        shell: bash
+        run: rm -f android/release.jks android/key.properties
+
+      - name: Verify in-place update with published APK
+        if: inputs.verify_upgrade
+        uses: reactivecircus/android-emulator-runner@4c44018e59b437e86cdfc41da381398f93ed8808 # v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_6
+          script: >-
+            .github/scripts/verify-android-upgrade.sh
+            "${{ steps.lower_apk.outputs.path }}"
+            "$(find published-apks -type f -name '*-android-x64.apk' -print -quit)"
+            com.degenk.boorusama
+            "${{ steps.version.outputs.name }}"
+            "${{ steps.version.outputs.code }}"

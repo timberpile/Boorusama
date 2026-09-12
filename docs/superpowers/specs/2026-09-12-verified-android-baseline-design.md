@@ -75,9 +75,11 @@ Gradle wrapper/dependency/build-cache data and Cargo registry/git data, with
 keys derived from the files that affect those dependency graphs.
 `org.gradle.caching=true` enables Gradle task-output reuse.
 
-Only APK artifacts and the APK receipt are uploaded and passed to publishing.
-Desktop and Apple matrix entries, setup steps, receipts, and publish
-requirements are removed from this workflow.
+CI stages only the three APKs declared by the APK receipt plus that receipt in
+a dedicated upload directory. Raw intermediate APKs remain in the build output
+and are neither treated as release assets nor uploaded. Desktop and Apple
+matrix entries, setup steps, receipts, and publish requirements are removed
+from this workflow.
 
 The dispatch interface includes independent `draft` and `verify_upgrade`
 Boolean inputs. `draft` defaults to true, preserving a safe routine-release
@@ -131,6 +133,12 @@ Verification starts from a clean checkout and uses Flutter 3.47.2 to run:
 7. Artifact inspection proving all three ABI APKs exist and report the expected
    application ID, version name, and version code.
 
+Flutter's split-per-ABI Gradle integration encodes the ABI in the manifest
+version code. Verification therefore compares the tagged base version code plus
+Flutter's canonical offset: `1000` for `armeabi-v7a`, `2000` for `arm64-v8a`,
+and `4000` for `x86_64`. The release receipt and file names continue to use the
+unmodified product version.
+
 Local signing may use an isolated verification keystore, but it cannot satisfy
 the permanent-key gate. Permanent-key verification happens in GitHub Actions.
 
@@ -154,6 +162,13 @@ certificate digest and checks:
 - identical SHA-256 signer certificate digests across all assets;
 - equality between that digest and the configured permanent keystore digest.
 
+Every third-party action is pinned to a full reviewed commit SHA. Build and
+verification jobs receive read-only repository permissions, checkout
+credentials are not persisted, and the write-capable GitHub token is exposed
+only to the individual release publication steps. Before publication, the
+workflow requires the checked-out commit, remote tag target, and build receipt
+commit to be identical. Recreating a release never deletes its source tag.
+
 The successful prerelease and tag are retained.
 
 ### In-place update gate
@@ -176,6 +191,9 @@ fails with an explicit diagnostic instead of weakening the check.
 
 No signing-related fallback is accepted for GitHub releases. Pre-publication
 signing, artifact, ABI, and metadata failures fail before publication.
+Gradle release tasks also fail during configuration when `key.properties`, any
+required signing property, or the configured keystore file is missing; they
+never fall back to the Android debug signing configuration.
 Post-publication asset-integrity and in-place-update failures fail the workflow
 after publication and leave the prerelease and tag intact for inspection.
 

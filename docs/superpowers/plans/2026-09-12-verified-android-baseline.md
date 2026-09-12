@@ -271,8 +271,8 @@ git commit -m "fix(release): package built Android split APKs"
 
 **Interfaces:**
 - `setup-android-signing.sh <keystore-path> <properties-path>` consumes the four signing environment variables, validates the alias, writes absolute Gradle properties, and emits normalized `certificate_sha256=<hex>` to `$GITHUB_OUTPUT` when set.
-- `verify-android-apks.sh <apk-directory> <expected-certificate-sha256> <application-id> <version-name> <version-code>` requires exactly the three release ABI assets and validates signer plus metadata.
-- `verify-android-upgrade.sh <lower-apk> <published-apk> <application-id> <final-version-code>` performs `adb install`, `adb install -r`, and final package-manager validation.
+- `verify-android-apks.sh <apk-directory> <expected-certificate-sha256> <application-id> <version-name> <base-version-code>` requires exactly the three release ABI assets and validates signer plus metadata. It derives Flutter's split-APK manifest version codes by adding `1000` for `armeabi-v7a`, `2000` for `arm64-v8a`, and `4000` for `x86_64` to the tagged base version code.
+- `verify-android-upgrade.sh <lower-apk> <published-apk> <application-id> <final-version-name> <final-base-version-code>` performs `adb install`, `adb install -r`, and final package-manager validation.
 
 - [ ] **Step 1: Write the failing shell contract tests**
 
