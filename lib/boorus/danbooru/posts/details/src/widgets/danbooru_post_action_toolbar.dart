@@ -59,6 +59,7 @@ class DanbooruPostActionToolbar extends ConsumerWidget {
     final voteState = postVote?.voteState ?? VoteState.unvote;
     final notifier = ref.watch(favoritesProvider(config).notifier);
     final loginDetails = ref.watch(danbooruLoginDetailsProvider(config));
+    final detailsController = PostDetails.of<DanbooruPost>(context).controller;
     final hasLogin = loginDetails.hasLogin();
     final voteId = postVote?.voteId;
 
@@ -66,6 +67,7 @@ class DanbooruPostActionToolbar extends ConsumerWidget {
       child: CommonPostButtonsBuilder(
         post: post,
         onStartSlideshow: onStartSlideshow,
+        onLoadOriginal: () => detailsController.loadOriginalImage(post.id),
         config: config,
         configViewer: configViewer,
         builder: (context, buttons) {

@@ -30,6 +30,9 @@ class SzurubooruPostActionToolbar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final post = InheritedPost.of<SzurubooruPost>(context);
     final controller = PostDetailsPageViewScope.of(context);
+    final detailsController = PostDetails.of<SzurubooruPost>(
+      context,
+    ).controller;
 
     final config = ref.watchConfigAuth;
     final configViewer = ref.watchConfigViewer;
@@ -42,6 +45,7 @@ class SzurubooruPostActionToolbar extends ConsumerWidget {
       child: CommonPostButtonsBuilder(
         post: post,
         onStartSlideshow: controller.startSlideshow,
+        onLoadOriginal: () => detailsController.loadOriginalImage(post.id),
         config: config,
         configViewer: configViewer,
         builder: (context, buttons) {

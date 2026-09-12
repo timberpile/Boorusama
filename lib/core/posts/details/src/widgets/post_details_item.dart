@@ -4,10 +4,10 @@ import 'package:flutter/foundation.dart';
 // Package imports:
 import 'package:cache_manager/cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 
 // Project imports:
-import '../../../../../foundation/display.dart';
 import '../../../../../foundation/platform.dart';
 import '../../../../boorus/engine/providers.dart';
 import '../../../../configs/config/types.dart';
@@ -19,6 +19,7 @@ import '../../../listing/providers.dart';
 import '../../../listing/types.dart';
 import '../../../post/types.dart';
 import '../providers/note_overlay_provider.dart';
+import '../../../../settings/providers.dart';
 import 'play_pause_animation_overlay.dart';
 import 'post_details_controller.dart';
 import 'post_details_page_view_scope.dart';
@@ -68,6 +69,12 @@ class _PostDetailsItemState<T extends Post>
     final pageViewController = PostDetailsPageViewScope.of(context);
     final post = widget.posts[widget.index];
 
+    final loadOriginalOnZoom = ref.watch(
+      imageViewerSettingsProvider.select(
+        (settings) => settings.loadOriginalOnZoom,
+      ),
+    );
+
     final booruRepo = ref.watch(booruRepoProvider(widget.authConfig));
     final gestures = widget.gestureConfig?.fullview;
 
@@ -104,6 +111,16 @@ class _PostDetailsItemState<T extends Post>
       );
     }
 
+    void onTransformationChanged(KurumiTransformationDetails details) {
+      final startedZooming = !pageViewController.zoom.value && details.isZoomed;
+
+      pageViewController.onTransformationChanged(details);
+
+      if (startedZooming && loadOriginalOnZoom && post.hasFullView) {
+        widget.detailsController.loadOriginalImage(post.id);
+      }
+    }
+
     final initialThumbnailUrl = widget.detailsController.initialThumbnailUrl;
     final initialPlaceholderMedia = initialThumbnailUrl != null
         ? _initialPlaceholderMedia(post, initialThumbnailUrl)
@@ -128,7 +145,7 @@ class _PostDetailsItemState<T extends Post>
               false => true,
             },
           },
-          onTransformationChanged: pageViewController.onTransformationChanged,
+          onTransformationChanged: onTransformationChanged,
           onTap: onItemTap,
           onDoubleTap: switch ((
             doubleTap: gestures.canDoubleTap,
@@ -162,21 +179,36 @@ class _PostDetailsItemState<T extends Post>
                     builder: (_, currentSettledPage, _) {
                       final isPageSettled = currentSettledPage == widget.index;
 
-                      return PostMedia<T>(
-                        post: post,
-                        config: widget.authConfig,
-                        viewer: widget.viewerConfig,
-                        imageUrlBuilder: widget.imageUrlBuilder,
-                        mediaAspectRatioBuilder: widget.mediaAspectRatioBuilder,
-                        videoAspectRatioBuilder: widget.videoAspectRatioBuilder,
-                        imageCacheManager: widget.imageCacheManager,
-                        // This is used to make sure we have a thumbnail to show instead of a black placeholder
-                        placeholderMediaBuilder:
-                            isInitPage && initialThumbnailUrl != null
-                            ? (_) => initialPlaceholderMedia!
-                            : null,
-                        controller: pageViewController,
-                        isPageSettled: isPageSettled,
+                      return ValueListenableBuilder<Set<int>>(
+                        valueListenable:
+                            widget.detailsController.originalImagePostIds,
+                        builder: (_, originalImagePostIds, _) {
+                          final useOriginal = originalImagePostIds.contains(
+                            post.id,
+                          );
+
+                          return PostMedia<T>(
+                            post: post,
+                            config: widget.authConfig,
+                            viewer: widget.viewerConfig,
+                            imageUrlBuilder: useOriginal
+                                ? (post) => post.originalImageUrl
+                                : widget.imageUrlBuilder,
+                            mediaAspectRatioBuilder: useOriginal
+                                ? (post) => post.effectiveOriginalAspectRatio
+                                : widget.mediaAspectRatioBuilder,
+                            videoAspectRatioBuilder:
+                                widget.videoAspectRatioBuilder,
+                            imageCacheManager: widget.imageCacheManager,
+                            // This is used to make sure we have a thumbnail to show instead of a black placeholder
+                            placeholderMediaBuilder:
+                                isInitPage && initialThumbnailUrl != null
+                                ? (_) => initialPlaceholderMedia!
+                                : null,
+                            controller: pageViewController,
+                            isPageSettled: isPageSettled,
+                          );
+                        },
                       );
                     },
                   );

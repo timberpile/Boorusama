@@ -19,7 +19,7 @@ import 'bookmark_post_button.dart';
 import 'comment_post_button.dart';
 import 'download_post_button.dart';
 
-class SimplePostActionToolbar extends ConsumerWidget {
+class SimplePostActionToolbar<T extends Post> extends ConsumerWidget {
   const SimplePostActionToolbar({
     required this.post,
     required this.onStartSlideshow,
@@ -29,7 +29,7 @@ class SimplePostActionToolbar extends ConsumerWidget {
     this.maxVisibleButtons,
   });
 
-  final Post post;
+  final T post;
   final int? maxVisibleButtons;
   final void Function(Post post)? onDownload;
   final void Function() onStartSlideshow;
@@ -39,6 +39,7 @@ class SimplePostActionToolbar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final booruBuilder = ref.watch(booruBuilderProvider(ref.watchConfigAuth));
     final commentPageBuilder = booruBuilder?.commentPageBuilder;
+    final detailsController = PostDetails.of<T>(context).controller;
     final auth = ref.watchConfigAuth;
     final viewer = ref.watchConfigViewer;
     final download = ref.watchConfigDownload;
@@ -46,6 +47,7 @@ class SimplePostActionToolbar extends ConsumerWidget {
     return CommonPostButtonsBuilder(
       post: post,
       onStartSlideshow: onStartSlideshow,
+      onLoadOriginal: () => detailsController.loadOriginalImage(post.id),
       config: auth,
       configViewer: viewer,
       builder: (context, buttons) {
@@ -117,7 +119,7 @@ class DefaultPostActionToolbar<T extends Post> extends ConsumerWidget {
     this.forceHideFav = false,
   });
 
-  final Post post;
+  final T post;
   final bool forceHideFav;
 
   @override
@@ -131,7 +133,7 @@ class DefaultPostActionToolbar<T extends Post> extends ConsumerWidget {
     final addFavorite = canFavorite ? () => notifier.add(post.id) : null;
     final removeFavorite = canFavorite ? () => notifier.remove(post.id) : null;
 
-    return SimplePostActionToolbar(
+    return SimplePostActionToolbar<T>(
       post: post,
       maxVisibleButtons: 5,
       onStartSlideshow: PostDetailsPageViewScope.of(context).startSlideshow,

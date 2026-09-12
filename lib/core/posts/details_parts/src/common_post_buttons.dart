@@ -9,11 +9,11 @@ import '../../../configs/config/providers.dart';
 import '../../../configs/config/types.dart';
 import '../../../premiums/providers.dart';
 import '../../../settings/routes.dart';
+import '../../../settings/src/providers/viewer_providers.dart';
 import '../../../tags/show/routes.dart';
 import '../../../widgets/adaptive_button_row.dart';
 import '../../details_manager/routes.dart';
 import '../../post/providers.dart';
-import '../../post/routes.dart';
 import '../../post/types.dart';
 import 'toolbars/copy_post_button.dart';
 
@@ -22,6 +22,7 @@ class CommonPostButtonsBuilder extends ConsumerWidget {
     required this.builder,
     required this.post,
     required this.onStartSlideshow,
+    required this.onLoadOriginal,
     required this.config,
     required this.configViewer,
     super.key,
@@ -34,6 +35,7 @@ class CommonPostButtonsBuilder extends ConsumerWidget {
   builder;
   final Post post;
   final VoidCallback onStartSlideshow;
+  final VoidCallback? onLoadOriginal;
   final bool copy;
 
   @override
@@ -49,6 +51,11 @@ class CommonPostButtonsBuilder extends ConsumerWidget {
         ? ref.watch(booruLoginDetailsProvider(config))
         : null;
     final hasStrictSFW = loginDetails?.hasStrictSFW ?? true;
+    final loadOriginalOnZoom = ref.watch(
+      imageViewerSettingsProvider.select(
+        (settings) => settings.loadOriginalOnZoom,
+      ),
+    );
 
     final commonButtons = [
       if (copy)
@@ -86,11 +93,11 @@ class CommonPostButtonsBuilder extends ConsumerWidget {
               auth: config,
             ),
           ),
-      if (post.hasFullView)
+      if (!loadOriginalOnZoom && post.hasFullView && onLoadOriginal != null)
         SimpleButtonData(
           icon: Icons.fullscreen,
-          title: context.t.post.action.view_original,
-          onPressed: () => goToOriginalImagePage(ref, post),
+          title: context.t.post.action.load_original,
+          onPressed: () => onLoadOriginal!(),
         ),
       SimpleButtonData(
         icon: Icons.slideshow,
