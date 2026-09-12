@@ -38,6 +38,19 @@ for (final c in cases) {
 - Use the GitHub CLI (`gh`) for all GitHub-related tasks.
 - When committing, use conventional commits format, e.g. `fix(posts): handle null tags` and only write commit summaries, no descriptions.
 
+## GitHub development process
+
+- Read `docs/development_workflow.md` before starting repository changes.
+- Create a GitHub issue before implementing every feature or bug fix.
+- Create the work branch from the latest `origin/develop`:
+  - `feature/<issue-id>-<short-description>` for features and additive changes.
+  - `fix/<issue-id>-<short-description>` for bug fixes and corrective changes.
+- Never commit or push directly to `develop` or `master`. Both branches change only through GitHub pull requests.
+- Pull requests for features and fixes target `develop`. Only `develop` may open a release/promotion pull request to `master`.
+- Set the pull request title to exactly `Merge branch '<branch-name>'` and include `Closes #<issue-id>` in its body.
+- Do not enable GitHub auto-merge. Wait for explicit user approval, then merge manually with squash merging.
+- Do not edit the generated squash commit title. Delete the local branch after GitHub has merged the pull request and deleted its remote branch.
+
 ## Persistent project knowledge
 
 Project knowledge is stored under `docs/`.

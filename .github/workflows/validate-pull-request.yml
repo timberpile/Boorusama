@@ -1,0 +1,39 @@
+name: Validate pull request
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - master
+    types:
+      - opened
+      - edited
+      - reopened
+      - synchronize
+
+permissions:
+  contents: read
+
+jobs:
+  policy:
+    name: Pull request policy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out policy from the base branch
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+
+      - name: Validate pull request
+        env:
+          BASE_BRANCH: ${{ github.base_ref }}
+          HEAD_BRANCH: ${{ github.head_ref }}
+          PULL_REQUEST_BODY: ${{ github.event.pull_request.body }}
+          PULL_REQUEST_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          .github/scripts/validate-pull-request-policy.sh \
+            "$BASE_BRANCH" \
+            "$HEAD_BRANCH" \
+            "$PULL_REQUEST_TITLE" \
+            "$PULL_REQUEST_BODY"
