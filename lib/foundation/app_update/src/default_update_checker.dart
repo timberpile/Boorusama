@@ -12,7 +12,7 @@ const _kReleaseChannelGithub = 'github';
 const _kReleaseChannelPlay = 'play';
 
 const kGitHubUpdateManifestUrl =
-    'https://github.com/khoadng/Boorusama/releases/latest/download/boorusama-update.json';
+    'https://github.com/timberpile/Boorusama/releases/latest/download/boorusama-update.json';
 
 AppUpdateChecker createDefaultAppUpdateChecker(PackageInfo packageInfo) {
   return switch (_kReleaseChannel) {

@@ -156,7 +156,7 @@ store. It decodes the same protected keystore long enough to derive the expected
 certificate digest and checks:
 
 - exactly one asset for each expected ABI;
-- application ID `com.degenk.boorusama`;
+- application ID `com.timberpile.boorusama`;
 - version name and version code against the tagged source;
 - cryptographic APK validity;
 - identical SHA-256 signer certificate digests across all assets;

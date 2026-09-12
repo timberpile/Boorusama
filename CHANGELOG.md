@@ -1,3 +1,6 @@
+# 4.5.0-timberpile.1
+- Establish the Boorusama Timber app identity and Timberpile release/update channel for this fork.
+
 # 4.5.0
 - Add support for Nozomi
 - [Sankaku] Add favorite support

@@ -1,4 +1,4 @@
-package com.degenk.boorusama
+package com.timberpile.boorusama
 
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine

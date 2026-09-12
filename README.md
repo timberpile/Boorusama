@@ -13,6 +13,10 @@
 
 ## Overview
 
+**Boorusama Timber** is a private-use fork of Boorusama by Nguyen Duc Khoa. It
+retains the original project's authorship and identifies Timberpile's changes
+separately.
+
 Boorusama is an unofficial, cross-platform client for major booru imageboards. It covers all core functionality and gives you total control over your experience with extra features like bulk downloads, favorite tags, advanced blacklisting, and more.
 
 ![Banner_1](./images/banner_2.png)  

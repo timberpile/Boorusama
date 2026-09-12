@@ -285,13 +285,13 @@ run_expect_failure env KEYTOOL_FAIL=1 PATH="$fake_path" \
   "$setup_script" "$tmp/release.jks" "$tmp/key.properties"
 run_expect_failure env APKSIGNER_MODE=debug PATH="$fake_path" \
   "$verify_script" "$tmp/apks" "$expected_digest" \
-  com.degenk.boorusama 4.5.0 185
+  com.timberpile.boorusama 4.5.0-timberpile.1 185
 run_expect_failure env APKSIGNER_MODE=mismatch PATH="$fake_path" \
   "$verify_script" "$tmp/apks" "$expected_digest" \
-  com.degenk.boorusama 4.5.0 185
+  com.timberpile.boorusama 4.5.0-timberpile.1 185
 run_expect_success env PATH="$fake_path" \
   "$verify_script" "$tmp/apks" "$expected_digest" \
-  com.degenk.boorusama 4.5.0 185
+  com.timberpile.boorusama 4.5.0-timberpile.1 185
 ```
 
 Fake `keytool`, `apksigner`, `apkanalyzer`, and `adb` executables must return deterministic output matching the real tools. Cover missing secrets, invalid alias, missing ABI, unsigned/debug APK, cross-APK digest disagreement, permanent-key mismatch, metadata mismatch, failed replace install, and the success path. The test creates only files below `mktemp -d` and removes them with a trap.
@@ -456,7 +456,7 @@ Run the existing CLI Android release build:
 
 Read version name/code from the tagged `pubspec.yaml`, then run
 `verify-android-apks.sh` with the setup step's fingerprint and
-`com.degenk.boorusama`. Upload only `$OUTPUT_DIR/**` as `boorusama-apk`.
+`com.timberpile.boorusama`. Upload only `$OUTPUT_DIR/**` as `boorusama-apk`.
 
 - [ ] **Step 6: Publish only the APK receipt with explicit draft behavior**
 
@@ -484,7 +484,7 @@ gh release download "${{ inputs.release_tag }}" \
   --dir published-apks
 .github/scripts/verify-android-apks.sh published-apks \
   "${{ steps.signing.outputs.certificate_sha256 }}" \
-  com.degenk.boorusama "$expected_version_name" "$expected_version_code"
+  com.timberpile.boorusama "$expected_version_name" "$expected_version_code"
 ```
 
 This job must fail if `inputs.draft` is true because draft assets are not a
@@ -503,7 +503,7 @@ same key and production application ID. Use
 .github/scripts/verify-android-upgrade.sh \
   verification-lower.apk \
   published-apks/*-android-x64.apk \
-  com.degenk.boorusama \
+  com.timberpile.boorusama \
   "$expected_version_code"
 ```
 

@@ -24,7 +24,9 @@ final class ReleaseVersion {
   }
 
   void validate() {
-    final semver = RegExp(r'^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$');
+    final semver = RegExp(
+      r'^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$',
+    );
     if (!semver.hasMatch(full)) {
       throw StateError('Invalid pubspec version: $full');
     }

@@ -46,8 +46,8 @@ GooglePlayPreparePlan googlePlayPreparePlan({
     serviceAccountJson: '.secret/play.json',
     serviceAccountJsonExists: true,
     serviceAccountJsonValid: true,
-    packageName: 'com.degenk.boorusama',
-    androidApplicationId: 'com.degenk.boorusama',
+    packageName: 'com.timberpile.boorusama',
+    androidApplicationId: 'com.timberpile.boorusama',
     api: GooglePlayApiPreparePlan(
       checked: true,
       succeeded: true,

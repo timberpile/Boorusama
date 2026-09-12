@@ -43,7 +43,7 @@ fun invalidSigningReason(): String {
 val splitPerAbi = project.findProperty("split-per-abi") == "true"
 
 android {
-    namespace = "com.degenk.boorusama"
+    namespace = "com.timberpile.boorusama"
     compileSdk = 36
     ndkVersion = "28.2.13676358"
 
@@ -58,7 +58,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.degenk.boorusama"
+        applicationId = "com.timberpile.boorusama"
         minSdk = 24
         targetSdk = 36
         versionCode = flutter.versionCode
@@ -96,14 +96,14 @@ android {
     productFlavors {
         create("dev") {
             dimension = "boorusama"
-            resValue("string", "app_name", "Boorusama Dev")
+            resValue("string", "app_name", "Boorusama Timber Dev")
             applicationIdSuffix = ".dev"
             versionNameSuffix = "-dev"
         }
 
         create("prod") {
             dimension = "boorusama"
-            resValue("string", "app_name", "Boorusama")
+            resValue("string", "app_name", "Boorusama Timber")
         }
     }
 }

@@ -147,7 +147,7 @@ jobs:
           set -euo pipefail
           .github/scripts/verify-android-apks.sh "$UPLOAD_DIR" \
             "${{ steps.signing.outputs.certificate_sha256 }}" \
-            com.degenk.boorusama \
+            com.timberpile.boorusama \
             "${{ steps.version.outputs.name }}" \
             "${{ steps.version.outputs.code }}"
 
@@ -227,7 +227,7 @@ jobs:
             --artifacts-dir release-assets
             --target apk
             --tag "${{ inputs.release_tag }}"
-            --title "Boorusama ${{ inputs.release_tag }}"
+            --title "Boorusama Timber ${{ inputs.release_tag }}"
           )
           [[ "${{ inputs.draft }}" == "true" ]] || args+=(--no-draft)
           [[ "${{ inputs.prerelease }}" == "false" ]] || args+=(--prerelease)
@@ -340,7 +340,7 @@ jobs:
           set -euo pipefail
           .github/scripts/verify-android-apks.sh published-apks \
             "${{ steps.signing.outputs.certificate_sha256 }}" \
-            com.degenk.boorusama \
+            com.timberpile.boorusama \
             "${{ steps.version.outputs.name }}" \
             "${{ steps.version.outputs.code }}"
 
@@ -386,6 +386,6 @@ jobs:
             .github/scripts/verify-android-upgrade.sh
             "${{ steps.lower_apk.outputs.path }}"
             "$(find published-apks -type f -name '*-android-x64.apk' -print -quit)"
-            com.degenk.boorusama
+            com.timberpile.boorusama
             "${{ steps.version.outputs.name }}"
             "${{ steps.version.outputs.code }}"

@@ -55,8 +55,8 @@ cat > "$fake_bin/apkanalyzer" <<'EOF'
 set -euo pipefail
 field=$2
 case "$field" in
-  application-id) [[ "${METADATA_MODE:-valid}" == wrong-app ]] && echo wrong.app || echo com.degenk.boorusama ;;
-  version-name) echo 4.5.0 ;;
+  application-id) [[ "${METADATA_MODE:-valid}" == wrong-app ]] && echo wrong.app || echo com.timberpile.boorusama ;;
+  version-name) echo 4.5.0-timberpile.1 ;;
   version-code)
     if [[ "${METADATA_MODE:-valid}" == wrong-version ]]; then
       echo 999
@@ -81,10 +81,10 @@ set -euo pipefail
 case " $* " in
   *" install -r "*) [[ "${ADB_REPLACE_FAIL:-false}" == false ]] ;;
   *" install "*) exit 0 ;;
-  *" pm list packages "*) echo 'package:com.degenk.boorusama' ;;
+  *" pm list packages "*) echo 'package:com.timberpile.boorusama' ;;
   *" dumpsys package "*)
     echo 'versionCode=4185 minSdk=24 targetSdk=36'
-    echo "versionName=${ADB_VERSION_NAME:-4.5.0}"
+    echo "versionName=${ADB_VERSION_NAME:-4.5.0-timberpile.1}"
     ;;
   *) exit 2 ;;
 esac
@@ -163,16 +163,16 @@ staged_dir="$test_root/staged-output"
 mkdir -p "$build_dir/release/github"
 touch "$build_dir/raw-arm64.apk"
 for name in \
-  boorusama-4.5.0+185-android-arm64.apk \
-  boorusama-4.5.0+185-android-armv7.apk \
-  boorusama-4.5.0+185-android-x64.apk; do
+  boorusama-4.5.0-timberpile.1+185-android-arm64.apk \
+  boorusama-4.5.0-timberpile.1+185-android-armv7.apk \
+  boorusama-4.5.0-timberpile.1+185-android-x64.apk; do
   touch "$build_dir/$name"
 done
 cat > "$build_dir/release/github/apk.json" <<'EOF'
 {"artifacts":[
-  {"relativePath":"boorusama-4.5.0+185-android-arm64.apk"},
-  {"relativePath":"boorusama-4.5.0+185-android-armv7.apk"},
-  {"relativePath":"boorusama-4.5.0+185-android-x64.apk"}
+  {"relativePath":"boorusama-4.5.0-timberpile.1+185-android-arm64.apk"},
+  {"relativePath":"boorusama-4.5.0-timberpile.1+185-android-armv7.apk"},
+  {"relativePath":"boorusama-4.5.0-timberpile.1+185-android-x64.apk"}
 ]}
 EOF
 run_success 'only receipt-declared APKs are staged for release' \
@@ -188,16 +188,16 @@ fi
 
 apk_dir="$test_root/apks"
 mkdir -p "$apk_dir"
-touch "$apk_dir/boorusama-4.5.0+185-android-arm64.apk"
-touch "$apk_dir/boorusama-4.5.0+185-android-armv7.apk"
-touch "$apk_dir/boorusama-4.5.0+185-android-x64.apk"
+touch "$apk_dir/boorusama-4.5.0-timberpile.1+185-android-arm64.apk"
+touch "$apk_dir/boorusama-4.5.0-timberpile.1+185-android-armv7.apk"
+touch "$apk_dir/boorusama-4.5.0-timberpile.1+185-android-x64.apk"
 expected_digest=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
 
 verify_args=(
   "$apk_dir"
   "$expected_digest"
-  com.degenk.boorusama
-  4.5.0
+  com.timberpile.boorusama
+  4.5.0-timberpile.1
   185
 )
 run_success 'three release APKs with matching signers and metadata are accepted' \
@@ -213,16 +213,16 @@ run_failure 'different APK certificate digests are rejected' \
 run_failure 'a digest different from the permanent key is rejected' \
   "$verify_script" "$apk_dir" \
   BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB \
-  com.degenk.boorusama 4.5.0 185
+  com.timberpile.boorusama 4.5.0-timberpile.1 185
 run_failure 'incorrect package metadata is rejected' \
   env METADATA_MODE=wrong-app "$verify_script" "${verify_args[@]}"
 run_failure 'incorrect version metadata is rejected' \
   env METADATA_MODE=wrong-version "$verify_script" "${verify_args[@]}"
 
-rm "$apk_dir/boorusama-4.5.0+185-android-armv7.apk"
+rm "$apk_dir/boorusama-4.5.0-timberpile.1+185-android-armv7.apk"
 run_failure 'a missing release ABI is rejected' \
   "$verify_script" "${verify_args[@]}"
-touch "$apk_dir/boorusama-4.5.0+185-android-armv7.apk"
+touch "$apk_dir/boorusama-4.5.0-timberpile.1+185-android-armv7.apk"
 
 touch "$apk_dir/universal.apk"
 run_failure 'an additional noncanonical APK is rejected' \
@@ -232,16 +232,16 @@ rm "$apk_dir/universal.apk"
 touch "$test_root/lower.apk"
 run_success 'a same-package higher-version replacement is accepted' \
   "$upgrade_script" "$test_root/lower.apk" \
-  "$apk_dir/boorusama-4.5.0+185-android-x64.apk" \
-  com.degenk.boorusama 4.5.0 185
+  "$apk_dir/boorusama-4.5.0-timberpile.1+185-android-x64.apk" \
+  com.timberpile.boorusama 4.5.0-timberpile.1 185
 run_failure 'a failed in-place replacement is rejected' \
   env ADB_REPLACE_FAIL=true "$upgrade_script" "$test_root/lower.apk" \
-  "$apk_dir/boorusama-4.5.0+185-android-x64.apk" \
-  com.degenk.boorusama 4.5.0 185
+  "$apk_dir/boorusama-4.5.0-timberpile.1+185-android-x64.apk" \
+  com.timberpile.boorusama 4.5.0-timberpile.1 185
 run_failure 'an installed version name mismatch is rejected' \
   env ADB_VERSION_NAME=wrong "$upgrade_script" "$test_root/lower.apk" \
-  "$apk_dir/boorusama-4.5.0+185-android-x64.apk" \
-  com.degenk.boorusama 4.5.0 185
+  "$apk_dir/boorusama-4.5.0-timberpile.1+185-android-x64.apk" \
+  com.timberpile.boorusama 4.5.0-timberpile.1 185
 
 if ((failures > 0)); then
   echo "$failures test(s) failed"

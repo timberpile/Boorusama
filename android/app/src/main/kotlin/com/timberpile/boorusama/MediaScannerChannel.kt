@@ -1,4 +1,4 @@
-package com.degenk.boorusama
+package com.timberpile.boorusama
 
 import android.content.Context
 import android.content.Intent
