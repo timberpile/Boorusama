@@ -130,9 +130,11 @@ and assert the observable corrected matrix translation. They cover:
 - disabled constraints preserving the current behavior;
 - invalid or absent content dimensions falling back without exceptions.
 
-The Boorusama integration test confirms that the post viewer opts into the new
-constraint while unrelated `InteractiveViewerExtended` callers retain the
-default.
+The Boorusama wrapper test confirms that the opt-in value reaches Kurumi and
+that the default leaves existing callers unchanged. The post viewer's explicit
+one-line opt-in is verified by analyzer coverage and the phase scope audit;
+constructing the complete post-details provider graph solely to inspect a
+forwarded boolean would test implementation structure rather than behavior.
 
 Verification runs:
 
