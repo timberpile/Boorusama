@@ -25,7 +25,7 @@ class BackupFilePicker {
       final androidVersion = androidDeviceInfo?.version.sdkInt;
       // Android 9 or lower will need to use any file type
       if (androidVersion != null &&
-          androidVersion <= AndroidVersions.android9) {
+          androidVersion <= AndroidVersions.android9.apiLevel) {
         return _pickFileManualExtensionCheck(
           context,
           allowedExtensions,

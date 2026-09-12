@@ -36,7 +36,7 @@ Future<PermissionStatus> checkMediaPermissions(
 }
 
 Future<PermissionStatus> _requestMediaPermissionsAndroid(
-  AndroidVersion? androidVersion,
+  AndroidApiLevel? androidVersion,
 ) async {
   if (hasScopedStorage(androidVersion) ?? false) {
     return PermissionStatus.granted;
@@ -74,7 +74,7 @@ Future<PermissionStatus> _checkMediaPermissionsIos() async {
 }
 
 Future<PermissionStatus> _checkMediaPermissionsAndroid(
-  AndroidVersion? androidVersion,
+  AndroidApiLevel? androidVersion,
 ) async {
   if (hasScopedStorage(androidVersion) ?? false) {
     return PermissionStatus.granted;

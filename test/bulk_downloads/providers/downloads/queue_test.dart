@@ -27,7 +27,7 @@ void main() {
     container = createBulkDownloadContainer(
       downloadRepository: repository,
       booruBuilder: MockBooruBuilder(),
-      deviceInfo: _androidDeviceInfo(AndroidVersions.android9),
+      deviceInfo: _androidDeviceInfo(AndroidVersions.android9.apiLevel),
     )..read(bulkDownloadProvider); // Initialize provider
   });
 
@@ -45,7 +45,7 @@ void main() {
     );
     final downloadConfigs = DownloadTestConstants.defaultConfigs.copyWith(
       // Test platform is Android so we can set this to make sure it's passed the options check
-      androidSdkVersion: AndroidVersions.android15,
+      androidSdkVersion: AndroidVersions.android15.apiLevel,
     );
 
     test('should create pending session when queueing download', () async {
