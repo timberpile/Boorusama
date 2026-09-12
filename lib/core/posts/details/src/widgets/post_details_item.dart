@@ -135,6 +135,7 @@ class _PostDetailsItemState<T extends Post>
           key: _videoKey,
           contentSize: Size(post.width, post.height),
           controller: widget.transformController,
+          constrainPanToContent: true,
           enable: switch (ref.watch(
             noteOverlayProvider((widget.authConfig, post)),
           )) {
