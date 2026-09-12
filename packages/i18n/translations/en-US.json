@@ -1434,5 +1434,54 @@
       "joined": "Joined",
       "last_active": "Last active"
     }
+  },
+  "pixiv": {
+    "auth": {
+      "login_title": "Log in to Pixiv",
+      "login_failed": "Could not finish logging in to Pixiv. Please try again.",
+      "try_again": "Try again",
+      "webview_unsupported": "In-app Pixiv login is only available on Android and iOS. On this platform, paste a refresh token below instead.",
+      "refresh_token_label": "Refresh token",
+      "paste_token_hint": "*Only paste a refresh token you generated yourself. Anyone holding it has full access to your Pixiv account.",
+      "premium_account": "Pixiv Premium",
+      "credential_export_warning": "Your Pixiv refresh token is a long-lived, full-account credential. It is stored unencrypted and is included in profile backups and in the local network profile transfer."
+    },
+    "explore": {
+      "title": "Explore",
+      "x_restrict_warning": "Your Pixiv account has R-18 works hidden. Enable it in your pixiv.net account settings — this feed will stay empty until you do.",
+      "feed": {
+        "ranking": "Ranking",
+        "following": "Following",
+        "recommended": "Recommended"
+      },
+      "follow_restrict": {
+        "all": "All",
+        "public": "Public",
+        "private": "Private"
+      },
+      "ranking_mode": {
+        "day": "Daily",
+        "week": "Weekly",
+        "month": "Monthly",
+        "day_male": "Male",
+        "day_female": "Female",
+        "week_original": "Original",
+        "week_rookie": "Rookie",
+        "day_manga": "Daily Manga",
+        "week_manga": "Weekly Manga",
+        "month_manga": "Monthly Manga",
+        "week_rookie_manga": "Rookie Manga",
+        "day_ai": "Daily AI",
+        "day_r18": "R-18 Daily",
+        "day_r18_ai": "R-18 Daily AI",
+        "day_male_r18": "R-18 Male",
+        "day_female_r18": "R-18 Female",
+        "day_r18_manga": "R-18 Daily Manga",
+        "week_r18": "R-18 Weekly",
+        "week_r18_manga": "R-18 Weekly Manga",
+        "week_r18g": "R-18G",
+        "week_r18g_manga": "R-18G Manga"
+      }
+    }
   }
 }

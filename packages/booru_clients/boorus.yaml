@@ -271,3 +271,12 @@
     protocol: https_2
     sites:
       - https://nozomi.la/
+
+- pixiv:
+    metadata:
+      id: 37
+      display-name: Pixiv
+      single-site: true
+    protocol: https_2
+    sites:
+      - https://pixiv.net/
