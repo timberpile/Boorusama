@@ -81,7 +81,9 @@ class ImageViewerSettingsSection extends ConsumerWidget {
         ),
         KurumiSwitchListTile(
           title: Text(context.t.settings.image_viewer.load_original_on_zoom),
-          subtitle: Text(context.t.settings.image_viewer.load_original_on_zoom_description),
+          subtitle: Text(
+            context.t.settings.image_viewer.load_original_on_zoom_description,
+          ),
           value: viewer.loadOriginalOnZoom,
           onChanged: (value) => onUpdate(
             viewer.copyWith(

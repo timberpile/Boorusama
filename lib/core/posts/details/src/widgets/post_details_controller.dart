@@ -88,14 +88,13 @@ class PostDetailsController<T extends Post> extends ChangeNotifier {
 
   final _originalImagePostIds = ValueNotifier<Set<int>>(<int>{});
 
-  ValueListenable<Set<int>> get originalImagePostIds =>
-    _originalImagePostIds;
+  ValueListenable<Set<int>> get originalImagePostIds => _originalImagePostIds;
 
   bool usesOriginalImage(int postId) =>
-    _originalImagePostIds.value.contains(postId);
+      _originalImagePostIds.value.contains(postId);
 
   void loadOriginalImage(int postId) {
-    if(usesOriginalImage(postId)) return;
+    if (usesOriginalImage(postId)) return;
 
     _originalImagePostIds.value = {
       ..._originalImagePostIds.value,

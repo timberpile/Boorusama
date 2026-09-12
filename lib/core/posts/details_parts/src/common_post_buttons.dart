@@ -14,7 +14,6 @@ import '../../../tags/show/routes.dart';
 import '../../../widgets/adaptive_button_row.dart';
 import '../../details_manager/routes.dart';
 import '../../post/providers.dart';
-import '../../post/routes.dart';
 import '../../post/types.dart';
 import 'toolbars/copy_post_button.dart';
 
@@ -94,12 +93,6 @@ class CommonPostButtonsBuilder extends ConsumerWidget {
               auth: config,
             ),
           ),
-      if (post.hasFullView)
-        SimpleButtonData(
-          icon: Icons.fullscreen,
-          title: context.t.post.action.view_original,
-          onPressed: () => goToOriginalImagePage(ref, post),
-        ),
       if (!loadOriginalOnZoom && post.hasFullView && onLoadOriginal != null)
         SimpleButtonData(
           icon: Icons.fullscreen,

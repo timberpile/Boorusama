@@ -72,7 +72,7 @@ class _PostDetailsItemState<T extends Post>
     final loadOriginalOnZoom = ref.watch(
       imageViewerSettingsProvider.select(
         (settings) => settings.loadOriginalOnZoom,
-      )
+      ),
     );
 
     final booruRepo = ref.watch(booruRepoProvider(widget.authConfig));
@@ -116,9 +116,7 @@ class _PostDetailsItemState<T extends Post>
 
       pageViewController.onTransformationChanged(details);
 
-      if (startedZooming &&
-          loadOriginalOnZoom &&
-          post.hasFullView) {
+      if (startedZooming && loadOriginalOnZoom && post.hasFullView) {
         widget.detailsController.loadOriginalImage(post.id);
       }
     }
@@ -182,21 +180,25 @@ class _PostDetailsItemState<T extends Post>
                       final isPageSettled = currentSettledPage == widget.index;
 
                       return ValueListenableBuilder<Set<int>>(
-                        valueListenable: widget.detailsController.originalImagePostIds,
+                        valueListenable:
+                            widget.detailsController.originalImagePostIds,
                         builder: (_, originalImagePostIds, _) {
-                          final useOriginal = originalImagePostIds.contains(post.id);
+                          final useOriginal = originalImagePostIds.contains(
+                            post.id,
+                          );
 
                           return PostMedia<T>(
                             post: post,
                             config: widget.authConfig,
                             viewer: widget.viewerConfig,
                             imageUrlBuilder: useOriginal
-                              ? (post) => post.originalImageUrl
-                              : widget.imageUrlBuilder,
+                                ? (post) => post.originalImageUrl
+                                : widget.imageUrlBuilder,
                             mediaAspectRatioBuilder: useOriginal
-                              ? (post) => post.effectiveOriginalAspectRatio
-                              : widget.mediaAspectRatioBuilder,
-                            videoAspectRatioBuilder: widget.videoAspectRatioBuilder,
+                                ? (post) => post.effectiveOriginalAspectRatio
+                                : widget.mediaAspectRatioBuilder,
+                            videoAspectRatioBuilder:
+                                widget.videoAspectRatioBuilder,
                             imageCacheManager: widget.imageCacheManager,
                             // This is used to make sure we have a thumbnail to show instead of a black placeholder
                             placeholderMediaBuilder:
