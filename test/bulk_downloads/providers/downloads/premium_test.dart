@@ -88,7 +88,7 @@ void main() {
         await notifier.queueDownloadLater(
           DownloadTestConstants.defaultOptions,
           downloadConfigs: _defaultConfigs.copyWith(
-            androidSdkVersion: AndroidVersions.android15,
+            androidSdkVersion: AndroidVersions.android15.apiLevel,
           ),
         );
 
@@ -100,7 +100,7 @@ void main() {
         await notifier.startPendingSession(
           pendingSession.first.id,
           downloadConfigs: _defaultConfigs.copyWith(
-            androidSdkVersion: AndroidVersions.android15,
+            androidSdkVersion: AndroidVersions.android15.apiLevel,
           ),
         );
 

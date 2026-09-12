@@ -18,13 +18,32 @@ if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(keystorePropertiesFile.inputStream())
 }
 
-val hasValidKeystore = keystorePropertiesFile.exists() && 
-    keystoreProperties["storeFile"] != null && 
-    file(keystoreProperties["storeFile"] as String).exists()
+val requiredSigningProperties = listOf(
+    "storeFile",
+    "storePassword",
+    "keyAlias",
+    "keyPassword",
+)
+val missingSigningProperties = requiredSigningProperties.filter {
+    keystoreProperties.getProperty(it).isNullOrBlank()
+}
+val configuredKeystoreFile = keystoreProperties.getProperty("storeFile")?.let(::file)
+val hasValidKeystore = keystorePropertiesFile.exists() &&
+    missingSigningProperties.isEmpty() &&
+    configuredKeystoreFile?.isFile == true
+fun invalidSigningReason(): String {
+    val reason = when {
+        !keystorePropertiesFile.exists() -> "android/key.properties is missing"
+        missingSigningProperties.isNotEmpty() ->
+            "missing properties: ${missingSigningProperties.joinToString()}"
+        else -> "configured storeFile does not exist"
+    }
+    return reason
+}
 val splitPerAbi = project.findProperty("split-per-abi") == "true"
 
 android {
-    namespace = "com.degenk.boorusama"
+    namespace = "com.timberpile.boorusama"
     compileSdk = 36
     ndkVersion = "28.2.13676358"
 
@@ -39,7 +58,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.degenk.boorusama"
+        applicationId = "com.timberpile.boorusama"
         minSdk = 24
         targetSdk = 36
         versionCode = flutter.versionCode
@@ -50,17 +69,19 @@ android {
     signingConfigs {
         create("release") {
             if (hasValidKeystore) {
-                keyAlias = keystoreProperties["keyAlias"] as String
-                keyPassword = keystoreProperties["keyPassword"] as String
-                storeFile = file(keystoreProperties["storeFile"] as String)
-                storePassword = keystoreProperties["storePassword"] as String
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+                storeFile = configuredKeystoreFile
+                storePassword = keystoreProperties.getProperty("storePassword")
             }
         }
     }
    
     buildTypes {
         release {
-            signingConfig = if (hasValidKeystore) signingConfigs.getByName("release") else signingConfigs.getByName("debug")
+            if (hasValidKeystore) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             ndk {
                 debugSymbolLevel = "SYMBOL_TABLE"
                 if (!splitPerAbi) {
@@ -75,14 +96,14 @@ android {
     productFlavors {
         create("dev") {
             dimension = "boorusama"
-            resValue("string", "app_name", "Boorusama Dev")
+            resValue("string", "app_name", "Boorusama Timber Dev")
             applicationIdSuffix = ".dev"
             versionNameSuffix = "-dev"
         }
 
         create("prod") {
             dimension = "boorusama"
-            resValue("string", "app_name", "Boorusama")
+            resValue("string", "app_name", "Boorusama Timber")
         }
     }
 }
@@ -93,4 +114,15 @@ flutter {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+}
+
+gradle.taskGraph.whenReady {
+    val appReleaseTaskSelected = allTasks.any {
+        it.project == project && it.name.contains("release", ignoreCase = true)
+    }
+    if (appReleaseTaskSelected && !hasValidKeystore) {
+        throw GradleException(
+            "Release signing configuration is invalid: ${invalidSigningReason()}",
+        )
+    }
 }

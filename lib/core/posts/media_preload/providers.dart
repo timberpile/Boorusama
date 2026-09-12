@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Project imports:
 import '../../configs/config/types.dart';
+import '../../developer_options/providers.dart';
 import '../../http/client/providers.dart';
 import '../../images/providers.dart';
 import 'types.dart';
@@ -26,7 +27,12 @@ final preloadManagerProvider =
             cancelToken: cancelToken,
           ),
           downloadConfiguration: const DownloadConfiguration(),
+          isEnabled: () => ref.read(automaticMediaLoadingEnabledProvider),
         );
+
+        ref.listen(automaticMediaLoadingEnabledProvider, (_, enabled) {
+          if (!enabled) manager.cancelAll();
+        });
 
         ref.onDispose(() {
           manager.dispose();

@@ -20,6 +20,10 @@ final class NetworkDisconnectedState extends NetworkState {}
 extension ConnectivityResultX on List<ConnectivityResult> {
   bool get isMobile => length == 1 && contains(ConnectivityResult.mobile);
 
+  bool get usesMobileDataWithoutWifi =>
+      contains(ConnectivityResult.mobile) &&
+      !contains(ConnectivityResult.wifi);
+
   String get prettyString {
     if (isEmpty) return 'none';
 

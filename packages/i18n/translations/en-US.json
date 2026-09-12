@@ -28,6 +28,11 @@
       "search": "Search",
       "view_all": "View all"
     },
+    "requirement": {
+      "android": {
+        "version_or_later": "Requires Android $version or later"
+      }
+    },
     "warning": "Warning",
     "default": "Default",
     "copied": "Copied",
@@ -468,7 +473,53 @@
       "enable_incognito_keyboard": "Enable incognito keyboard",
       "enable_incognito_keyboard_notice": "Only affects Android.",
       "enable_biometric_lock": "Enable biometric lock",
-      "enable_biometric_lock_notice": "Only works on devices with biometrics support and has been set up."
+      "enable_biometric_lock_notice": "Only works on devices with biometrics support and has been set up.",
+      "app_lock": {
+        "title": "App lock",
+        "description": "Require authentication before opening the app.",
+        "off": "Off",
+        "pin": "PIN",
+        "biometrics": "Biometrics",
+        "device_authentication": "Device authentication",
+        "summary": "$type, $timeout",
+        "change_pin": "Change PIN",
+        "change_pin_description": "Update the app lock PIN.",
+        "lock_after": "Lock after",
+        "lock_after_description": "Lock when the app has been in the background.",
+        "timeout_immediately": "Immediately",
+        "timeout_seconds": "$seconds seconds",
+        "timeout_one_minute": "1 minute",
+        "timeout_minutes": "$minutes minutes",
+        "hide_app_preview": "Hide app preview",
+        "hide_app_preview_description": "Blur app content when leaving the app.",
+        "set_pin": "Set app PIN",
+        "create_pin_title": "Create PIN",
+        "confirm_pin_title": "Confirm PIN",
+        "choose_four_digit_pin": "Choose a 4-digit PIN to protect the app.",
+        "enter_pin_again": "Enter the PIN again.",
+        "enter_your_pin": "Enter your PIN",
+        "use_device_unlock": "Use device unlock",
+        "enter_current_pin": "Enter current PIN",
+        "pin_label": "PIN",
+        "confirm_pin_label": "Confirm PIN",
+        "pin_too_short": "PIN must be at least $length digits.",
+        "pin_mismatch": "PINs do not match.",
+        "unlock": "Unlock",
+        "unlock_app": "Unlock Boorusama",
+        "incorrect_pin": "Incorrect PIN",
+        "try_again_in": "Try again in $seconds seconds.",
+        "incorrect_pin_try_again_in": "Incorrect PIN. Try again in $seconds seconds.",
+        "pin_updated": "PIN updated.",
+        "biometric_unavailable": "Device authentication is unavailable",
+        "biometric_unavailable_description": "Set up or restore device authentication in system settings.",
+        "biometric_failed": "Device authentication failed",
+        "biometric_failed_description": "Try again after restoring device authentication in system settings.",
+        "biometric_not_available": "Device authentication is not available.",
+        "authenticate_to_use_app": "Please authenticate to use the app",
+        "authenticate_reason": "Please authenticate",
+        "locked_title": "Boorusama is locked",
+        "locked_description": "Authenticate to continue."
+      }
     },
     "performance": {
       "performance": "Performance",
@@ -488,6 +539,13 @@
       "quality": "Download image quality",
       "skip_existing_files": "Skip existing files",
       "skip_existing_files_explanation": "This will prevent downloading files that already exist in the folder. This is useful when you don't want to download the same file multiple times.",
+      "network": {
+        "title": "Download network",
+        "description": "Choose whether downloads can use mobile data.",
+        "any_network": "Any network",
+        "wifi_only": "Wi-Fi only",
+        "ask_on_mobile_data": "Ask on mobile data"
+      },
       "qualities": {
         "original": "Original",
         "sample": "Sample",
@@ -695,7 +753,15 @@
       "completed": "Completed",
       "failed": "Failed",
       "canceled": "Canceled",
-      "unknown": "Unknown"
+      "unknown": "Unknown",
+      "waiting_for_wifi": "Waiting for Wi-Fi"
+    },
+    "network_prompt": {
+      "title": "Download using mobile data?",
+      "description": "Wi-Fi is unavailable. You can download now using mobile data or queue the download until Wi-Fi is available.",
+      "remember_for_session": "Remember for this session",
+      "wait_for_wifi": "Wait for Wi-Fi",
+      "use_mobile_data": "Use mobile data"
     },
     "empty_states": {
       "no_pending_downloads": "No pending downloads",

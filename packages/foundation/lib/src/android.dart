@@ -1,29 +1,39 @@
-typedef AndroidVersion = int;
+typedef AndroidApiLevel = int;
+
+final class AndroidVersion {
+  const AndroidVersion({
+    required this.release,
+    required this.apiLevel,
+  });
+
+  final String release;
+  final AndroidApiLevel apiLevel;
+}
 
 abstract class AndroidVersions {
-  static const int android6 = 23; // Marshmallow
-  static const int android7_0 = 24; // Nougat
-  static const int android7_1 = 25; // Nougat 1
-  static const int android8_0 = 26; // Oreo
-  static const int android8_1 = 27; // Oreo 1
-  static const int android9 = 28; // Pie
-  static const int android10 = 29; // Android 10
-  static const int android11 = 30; // Android 11
-  static const int android12 = 31; // Android 12
-  static const int android12L = 32; // Android 12L
-  static const int android13 = 33; // Android 13
-  static const int android14 = 34; // Android 14
-  static const int android15 = 35; // Android 15
+  static const android6 = AndroidVersion(release: '6', apiLevel: 23);
+  static const android7_0 = AndroidVersion(release: '7.0', apiLevel: 24);
+  static const android7_1 = AndroidVersion(release: '7.1', apiLevel: 25);
+  static const android8_0 = AndroidVersion(release: '8.0', apiLevel: 26);
+  static const android8_1 = AndroidVersion(release: '8.1', apiLevel: 27);
+  static const android9 = AndroidVersion(release: '9', apiLevel: 28);
+  static const android10 = AndroidVersion(release: '10', apiLevel: 29);
+  static const android11 = AndroidVersion(release: '11', apiLevel: 30);
+  static const android12 = AndroidVersion(release: '12', apiLevel: 31);
+  static const android12L = AndroidVersion(release: '12L', apiLevel: 32);
+  static const android13 = AndroidVersion(release: '13', apiLevel: 33);
+  static const android14 = AndroidVersion(release: '14', apiLevel: 34);
+  static const android15 = AndroidVersion(release: '15', apiLevel: 35);
 }
 
-bool? hasScopedStorage(AndroidVersion? version) {
-  if (version == null) return null;
+bool? hasScopedStorage(AndroidApiLevel? apiLevel) {
+  if (apiLevel == null) return null;
 
-  return version >= AndroidVersions.android11;
+  return apiLevel >= AndroidVersions.android11.apiLevel;
 }
 
-bool? hasGranularMediaPermissions(AndroidVersion? version) {
-  if (version == null) return null;
+bool? hasGranularMediaPermissions(AndroidApiLevel? apiLevel) {
+  if (apiLevel == null) return null;
 
-  return version >= AndroidVersions.android13;
+  return apiLevel >= AndroidVersions.android13.apiLevel;
 }

@@ -6,6 +6,7 @@ import 'package:path/path.dart' show join;
 import '../../../../configs/config/types.dart';
 import '../../../../settings/types.dart';
 import 'metadata.dart';
+import 'download_network_policy.dart';
 
 class DownloadOptions extends Equatable {
   const DownloadOptions({
@@ -16,6 +17,7 @@ class DownloadOptions extends Equatable {
     this.headers,
     this.path,
     this.folderName,
+    this.networkConstraint = DownloadNetworkConstraint.unrestricted,
   });
 
   factory DownloadOptions.fromSettings(
@@ -27,6 +29,8 @@ class DownloadOptions extends Equatable {
     DownloaderMetadata? metadata,
     String? folderName,
     String? customPath,
+    DownloadNetworkConstraint networkConstraint =
+        DownloadNetworkConstraint.unrestricted,
   }) {
     final path = switch (customPath) {
       // User provided a custom path
@@ -51,6 +55,7 @@ class DownloadOptions extends Equatable {
         _ => null,
       },
       folderName: folderName,
+      networkConstraint: networkConstraint,
     );
   }
 
@@ -61,6 +66,7 @@ class DownloadOptions extends Equatable {
   final Map<String, String>? headers;
   final String? path;
   final String? folderName;
+  final DownloadNetworkConstraint networkConstraint;
 
   @override
   List<Object?> get props => [
@@ -71,5 +77,6 @@ class DownloadOptions extends Equatable {
     headers,
     path,
     folderName,
+    networkConstraint,
   ];
 }

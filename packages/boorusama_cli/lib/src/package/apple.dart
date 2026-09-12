@@ -27,8 +27,8 @@ final class ApplePackager implements Packager {
 
   Future<Artifact> _packageIpa(Project project, BuildPlan plan) async {
     final appPath = plan.flavor == 'dev'
-        ? '${project.root.path}/build/ios/Release-dev-iphoneos/Boorusama-DEV.app'
-        : '${project.root.path}/build/ios/Release-prod-iphoneos/Boorusama.app';
+        ? '${project.root.path}/build/ios/Release-dev-iphoneos/Boorusama Timber Dev.app'
+        : '${project.root.path}/build/ios/Release-prod-iphoneos/Boorusama Timber.app';
     final app = Directory(appPath);
     if (!app.existsSync()) {
       throw ProcessFailure('iOS app not found at: $appPath');
@@ -96,8 +96,8 @@ final class ApplePackager implements Packager {
   String _macosAppPath(Project project, BuildPlan plan) {
     final configuration = _appleBuildConfiguration(plan);
     final appName = plan.flavor == 'dev'
-        ? 'Boorusama-DEV.app'
-        : 'Boorusama.app';
+        ? 'Boorusama Timber Dev.app'
+        : 'Boorusama Timber.app';
     return '${project.root.path}/build/macos/Build/Products/$configuration/$appName';
   }
 

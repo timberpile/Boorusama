@@ -38,6 +38,9 @@ import 'cache/providers.dart';
 import 'configs/config/data.dart';
 import 'configs/config/types.dart';
 import 'configs/manage/providers.dart';
+import 'developer_options/providers.dart';
+import 'developer_options/src/developer_options_repository.dart';
+import 'developer_options/types.dart';
 import 'hive/hive_registrar.g.dart';
 import 'http/client/types.dart';
 import 'images/providers.dart';
@@ -147,6 +150,12 @@ class _BoorusamaAppState extends State<BoorusamaApp> {
         ),
       );
 
+      logger.debugBoot('Initialize developer options repository');
+      final developerOptionsRepository = createDeveloperOptionsRepository();
+      final developerOptions = kEnvironment == 'dev'
+          ? await developerOptionsRepository.load()
+          : DeveloperOptions.defaults;
+
       logger.debugBoot('Load current booru config');
       final initialConfig = await booruUserRepo.getCurrentBooruConfigFrom(
         settings,
@@ -207,6 +216,8 @@ class _BoorusamaAppState extends State<BoorusamaApp> {
         boorus: boorus,
         booruRegistry: booruRegistry,
         settingRepository: settingRepository,
+        developerOptionsRepository: developerOptionsRepository,
+        developerOptions: developerOptions,
         booruUserRepo: booruUserRepo,
         packageInfo: packageInfo,
         tagInfoOverride: tagInfoOverride,
@@ -299,6 +310,12 @@ class _BoorusamaAppState extends State<BoorusamaApp> {
             booruDbProvider.overrideWithValue(result.boorus),
             result.tagInfoOverride,
             settingsRepoProvider.overrideWithValue(result.settingRepository),
+            developerOptionsRepositoryProvider.overrideWithValue(
+              result.developerOptionsRepository,
+            ),
+            developerOptionsNotifierProvider.overrideWith(
+              () => DeveloperOptionsNotifier(result.developerOptions),
+            ),
             settingsNotifierProvider.overrideWith(
               () => SettingsNotifier(data.settings),
             ),
@@ -342,6 +359,8 @@ class _InitResult {
     required this.boorus,
     required this.booruRegistry,
     required this.settingRepository,
+    required this.developerOptionsRepository,
+    required this.developerOptions,
     required this.booruUserRepo,
     required this.packageInfo,
     required this.tagInfoOverride,
@@ -358,6 +377,8 @@ class _InitResult {
   final BooruDb boorus;
   final BooruRegistry booruRegistry;
   final SettingsRepository settingRepository;
+  final DeveloperOptionsRepository developerOptionsRepository;
+  final DeveloperOptions developerOptions;
   final BooruConfigRepository booruUserRepo;
   final PackageInfo packageInfo;
   final Override tagInfoOverride;

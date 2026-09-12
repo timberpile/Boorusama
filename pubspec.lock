@@ -85,11 +85,11 @@ packages:
     dependency: "direct main"
     description:
       path: "."
-      ref: "12d081cbcad43fe8c70af38565e5cbc91ae50fb7"
-      resolved-ref: "12d081cbcad43fe8c70af38565e5cbc91ae50fb7"
+      ref: e8ad9f9
+      resolved-ref: e8ad9f9cce98cf2bd22d37a3b068e848b384716e
       url: "https://github.com/khoadng/background_downloader.git"
     source: git
-    version: "9.5.6"
+    version: "9.6.1"
   bonsoir:
     dependency: "direct main"
     description:
@@ -550,10 +550,10 @@ packages:
     dependency: transitive
     description:
       name: flutter_libavif
-      sha256: a802b1625e5e8a3604fce87e4073d2703bb9d77fdc1fff460e9c6d617910e1eb
+      sha256: "94954d197390dda27afced5a6c4d6e8e38f5e23bc1aeca19003237d32d40a757"
       url: "https://pub.dev"
     source: hosted
-    version: "0.1.0"
+    version: "0.1.1"
   flutter_lints:
     dependency: "direct dev"
     description:
@@ -876,7 +876,7 @@ packages:
     source: hosted
     version: "1.11.2"
   hooks:
-    dependency: "direct overridden"
+    dependency: transitive
     description:
       name: hooks
       sha256: "9a62a50b50b769a737bc0a8ff381f333529df3ab746b2f6b02e83760231455ba"
@@ -967,10 +967,10 @@ packages:
     dependency: "direct main"
     description:
       name: intl
-      sha256: "3df61194eb431efc39c4ceba583b95633a403f46c9fd341e550ce0bfa50e9aa5"
+      sha256: "1ca20c894b1717686a2319b8548763d812bc0aabdac580420a44c5178c57a867"
       url: "https://pub.dev"
     source: hosted
-    version: "0.20.2"
+    version: "0.20.3"
   io:
     dependency: transitive
     description:
@@ -1052,13 +1052,14 @@ packages:
     source: hosted
     version: "3.0.2"
   libavif:
-    dependency: transitive
+    dependency: "direct overridden"
     description:
-      name: libavif
-      sha256: ceb45b6477027d41a420a193b0b91588383a00ecf315521437a815d1ee156edd
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.1.0"
+      path: "packages/libavif"
+      ref: "0f286d670be82c32272b4c51cc3fc1672127cb9a"
+      resolved-ref: "0f286d670be82c32272b4c51cc3fc1672127cb9a"
+      url: "https://github.com/dartgfx/libavif.git"
+    source: git
+    version: "0.1.1"
   like_button:
     dependency: "direct main"
     description:
@@ -1151,10 +1152,10 @@ packages:
     dependency: transitive
     description:
       name: matcher
-      sha256: dc0b7dc7651697ea4ff3e69ef44b0407ea32c487a39fff6a4004fa585e901861
+      sha256: "31bd099b47c10cd1aeb55146a2d46ce0277630ecef3f7dae54ad7873f36696cd"
       url: "https://pub.dev"
     source: hosted
-    version: "0.12.19"
+    version: "0.12.20"
   material_color_utilities:
     dependency: transitive
     description:
@@ -1239,10 +1240,10 @@ packages:
     dependency: "direct main"
     description:
       name: meta
-      sha256: "1741988757a65eb6b36abe716829688cf01910bbf91c34354ff7ec1c3de2b349"
+      sha256: "307249ce4ff29d58a18e97f6345f539382eb9c9c29ecda628900f31de0443dd9"
       url: "https://pub.dev"
     source: hosted
-    version: "1.18.0"
+    version: "1.19.0"
   mime:
     dependency: transitive
     description:
@@ -1300,13 +1301,14 @@ packages:
     source: hosted
     version: "0.19.2"
   native_toolchain_rust:
-    dependency: transitive
+    dependency: "direct overridden"
     description:
-      name: native_toolchain_rust
-      sha256: "26d4dcae954328af4ebfa8fc56cca0bf74b9ae8b4a6132de5da2071ac3d237b3"
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.0.4"
+      path: native_toolchain_rust
+      ref: fca16906b7f3ea0668a650387f367153d35f896f
+      resolved-ref: fca16906b7f3ea0668a650387f367153d35f896f
+      url: "https://github.com/khoadng/native_toolchain_rust.git"
+    source: git
+    version: "1.0.4+0"
   nm:
     dependency: transitive
     description:
@@ -1998,26 +2000,26 @@ packages:
     dependency: "direct dev"
     description:
       name: test
-      sha256: "8d9ceddbab833f180fbefed08afa76d7c03513dfdba87ffcec2718b02bbcbf20"
+      sha256: ca578dc12bb8b2f40b67b7d3bd2fac4f31c01a6ff7130a14e2597b919934507f
       url: "https://pub.dev"
     source: hosted
-    version: "1.31.0"
+    version: "1.31.1"
   test_api:
     dependency: transitive
     description:
       name: test_api
-      sha256: "949a932224383300f01be9221c39180316445ecb8e7547f70a41a35bf421fb9e"
+      sha256: "2a122cbe059f8b610d3a5415f42e255b6c17b1f21eee1d960f31080237fb4f11"
       url: "https://pub.dev"
     source: hosted
-    version: "0.7.11"
+    version: "0.7.12"
   test_core:
     dependency: transitive
     description:
       name: test_core
-      sha256: "1991d4cfe85d5043241acac92962c3977c8d2f2add1ee73130c7b286417d1d34"
+      sha256: d2e98ec12998368dc59ddd47ab709f2cd55acd6b66dc7db764455a44082f4bc5
       url: "https://pub.dev"
     source: hosted
-    version: "0.6.17"
+    version: "0.6.18"
   timeago:
     dependency: "direct main"
     description:
@@ -2182,10 +2184,10 @@ packages:
     dependency: transitive
     description:
       name: vector_math
-      sha256: d530bd74fea330e6e364cda7a85019c434070188383e1cd8d9777ee586914c5b
+      sha256: f36f9f3be64c6198714492bb455c11056e33e2f85d9a0b676a48301e44fdcf47
       url: "https://pub.dev"
     source: hosted
-    version: "2.2.0"
+    version: "2.4.2"
   video_player:
     dependency: "direct main"
     description:

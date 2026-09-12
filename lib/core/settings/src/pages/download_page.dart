@@ -2,6 +2,7 @@
 import 'package:flutter/gestures.dart';
 
 // Package imports:
+import 'package:foundation/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
@@ -9,11 +10,13 @@ import 'package:kurumi/material.dart';
 
 // Project imports:
 import '../../../../foundation/info/device_info.dart';
+import '../../../../foundation/platform.dart';
 import '../../../configs/config/providers.dart';
 import '../../../configs/config/widgets.dart';
 import '../../../configs/create/routes.dart';
 import '../../../configs/manage/providers.dart';
 import '../../../downloads/configs/widgets.dart';
+import '../../../downloads/downloader/providers.dart';
 import '../../../downloads/downloader/types.dart';
 import '../../widgets.dart';
 import '../providers/settings_notifier.dart';
@@ -34,6 +37,9 @@ class _DownloadPageState extends ConsumerState<DownloadPage> {
   Widget build(BuildContext context) {
     final settings = ref.watch(settingsProvider);
     final notifer = ref.watch(settingsNotifierProvider.notifier);
+    final wifiDownloadConstraintSupported = ref.watch(
+      wifiDownloadConstraintSupportedProvider,
+    );
 
     return SettingsPageScaffold(
       title: Text(context.t.settings.download.title),
@@ -66,6 +72,61 @@ class _DownloadPageState extends ConsumerState<DownloadPage> {
           },
         ),
         const SizedBox(height: 4),
+        if (isAndroid() || isIOS()) ...[
+          KurumiSettingsTile(
+            title: Text(context.t.settings.download.network.title),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(context.t.settings.download.network.description),
+                if (!wifiDownloadConstraintSupported)
+                  Text(
+                    context.t.generic.requirement.android.version_or_later(
+                      version: AndroidVersions.android9.release,
+                    ),
+                  ),
+              ],
+            ),
+            selectedOption: settings.downloadNetworkPolicy,
+            items: DownloadNetworkPolicy.values,
+            onChanged: (value) => notifer.updateSettings(
+              settings.copyWith(downloadNetworkPolicy: value),
+            ),
+            isOptionEnabled: (value) =>
+                value != DownloadNetworkPolicy.wifiOnly ||
+                wifiDownloadConstraintSupported,
+            optionBuilder: (value) {
+              final label = switch (value) {
+                DownloadNetworkPolicy.anyNetwork =>
+                  context.t.settings.download.network.any_network,
+                DownloadNetworkPolicy.wifiOnly =>
+                  context.t.settings.download.network.wifi_only,
+                DownloadNetworkPolicy.askOnMobileData =>
+                  context.t.settings.download.network.ask_on_mobile_data,
+              };
+
+              if (value != DownloadNetworkPolicy.wifiOnly ||
+                  wifiDownloadConstraintSupported) {
+                return Text(label);
+              }
+
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label),
+                  Text(
+                    context.t.generic.requirement.android.version_or_later(
+                      version: AndroidVersions.android9.release,
+                    ),
+                    style: Theme.of(context).textTheme.labelSmall,
+                  ),
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 4),
+        ],
         KurumiSwitchListTile(
           title: Text(context.t.bulk_downloads.options.enable_notification),
           value: settings.downloadNotificationsEnabled,

@@ -6,6 +6,12 @@ analyzer:
     - "**/*.g.dart"
     - "**/generated_plugin_registrant.dart"
     - "**/firebase_options.dart"
+    - android/**
+    - ios/**
+    - web/**
+    - windows/**
+    - macos/**
+    - linux/**
   errors:
     # Otherwise cause the import of all_lint_rules to warn because of some rules conflicts.
     # We explicitly enabled even conflicting rules and are fixing the conflict
@@ -16,6 +22,7 @@ analyzer:
     missing_return: error
     todo: ignore
     parameter_assignments: error
+    unawaited_return_in_try_block: ignore
 
 linter:
   rules:
@@ -79,9 +86,6 @@ linter:
     # false positive
     one_member_abstracts: false
 
-    # too verbose
-    prefer_final_parameters: false
-
     # Too verbose with little value, and this is taken care of by the Flutter devtool anyway.
     diagnostic_describe_all_properties: false
 
@@ -108,6 +112,9 @@ linter:
 
     # Named constructor parameters should not have to expose private field names.
     prefer_initializing_formals: false
+
+    # Conditional collection elements are not always more readable.
+    prefer_if_elements_to_conditional_expressions: false
 
     # Not quite suitable for Flutter, which may have a `build` method with a single
     # return, but that return is still complex enough that a "body" is worth it.

@@ -14,6 +14,7 @@ import '../../core/posts/favorites/types.dart';
 import '../../core/posts/post/providers.dart';
 import '../../core/posts/post/types.dart';
 import '../../core/tags/autocompletes/types.dart';
+import '../../core/tags/tag/types.dart';
 import 'client_provider.dart';
 import 'favorites/providers.dart';
 import 'posts/providers.dart';
@@ -33,6 +34,11 @@ class HydrusRepository extends BooruRepositoryDefault {
   @override
   AutocompleteRepository autocomplete(BooruConfigAuth config) {
     return ref.read(hydrusAutocompleteRepoProvider(config));
+  }
+
+  @override
+  TagExtractor tagExtractor(BooruConfigAuth config) {
+    return ref.watch(hydrusTagExtractorProvider(config));
   }
 
   @override

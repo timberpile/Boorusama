@@ -17,6 +17,7 @@ import '../../../downloads/downloader/providers.dart';
 import '../../../downloads/downloader/types.dart' as d;
 import '../../../posts/sources/types.dart';
 import '../../../premiums/providers.dart';
+import '../../../settings/providers.dart';
 import '../data/filesystem.dart';
 import '../data/providers.dart';
 import '../types/bulk_download_error.dart';
@@ -74,6 +75,11 @@ extension SessionActionX on BulkDownloadSession {
 }
 
 class BulkDownloadNotifier extends Notifier<BulkDownloadState> {
+  Future<d.DownloadNetworkConstraint?> _resolveNetworkConstraint() {
+    final policy = ref.read(settingsProvider).downloadNetworkPolicy;
+    return resolveDownloadNetworkConstraint(ref, policy);
+  }
+
   CancelToken _createSessionToken(String sessionId) {
     return ref
         .read(sessionCancellationProvider.notifier)
@@ -98,7 +104,6 @@ class BulkDownloadNotifier extends Notifier<BulkDownloadState> {
 
   @override
   BulkDownloadState build() {
-    final completionTimers = <String, Timer>{};
     final progressUpdateTimers = <String, Timer>{};
 
     final progressNotifier = ref.watch(bulkDownloadProgressProvider.notifier);
@@ -132,18 +137,6 @@ class BulkDownloadNotifier extends Notifier<BulkDownloadState> {
       );
     }
 
-    void scheduleCompletionCheck(String sessionId) {
-      completionTimers[sessionId]?.cancel();
-
-      completionTimers[sessionId] = Timer(
-        const Duration(milliseconds: 100),
-        () {
-          tryCompleteSession(sessionId);
-          completionTimers.remove(sessionId);
-        },
-      );
-    }
-
     ref
       ..listen(
         downloadTaskStreamProvider,
@@ -155,38 +148,7 @@ class BulkDownloadNotifier extends Notifier<BulkDownloadState> {
               }
 
               if (event is TaskStatusUpdate) {
-                if (event.status == TaskStatus.complete) {
-                  ref
-                      .read(taskFileSizeResolverProvider(event.task).future)
-                      .then(
-                        (fileSize) {
-                          updateRecordFromTaskStream(
-                            event.task.group,
-                            event.task.taskId,
-                            DownloadRecordStatus.completed,
-                            fileSize: fileSize,
-                          );
-                        },
-                      );
-
-                  scheduleCompletionCheck(event.task.group);
-                }
-
-                updateRecordFromTaskStream(
-                  event.task.group,
-                  event.task.taskId,
-                  switch (event.status) {
-                    TaskStatus.enqueued => DownloadRecordStatus.pending,
-                    TaskStatus.running => DownloadRecordStatus.downloading,
-                    TaskStatus.complete => DownloadRecordStatus.completed,
-                    TaskStatus.notFound => DownloadRecordStatus.failed,
-                    TaskStatus.failed => DownloadRecordStatus.failed,
-                    TaskStatus.canceled => DownloadRecordStatus.cancelled,
-                    TaskStatus.waitingToRetry =>
-                      DownloadRecordStatus.downloading,
-                    TaskStatus.paused => DownloadRecordStatus.paused,
-                  },
-                );
+                unawaited(_applyTaskStatusUpdate(event));
               } else if (event is TaskProgressUpdate) {
                 scheduleProgressUpdate(event.task.group);
               }
@@ -195,10 +157,6 @@ class BulkDownloadNotifier extends Notifier<BulkDownloadState> {
         },
       )
       ..onDispose(() {
-        for (final timer in completionTimers.values) {
-          timer.cancel();
-        }
-
         for (final timer in progressUpdateTimers.values) {
           timer.cancel();
         }
@@ -208,6 +166,41 @@ class BulkDownloadNotifier extends Notifier<BulkDownloadState> {
 
     _loadTasks(init: true);
     return const BulkDownloadState();
+  }
+
+  Future<void> _applyTaskStatusUpdate(TaskStatusUpdate event) async {
+    final group = event.task.group;
+    final taskId = event.task.taskId;
+
+    if (event.status == TaskStatus.complete) {
+      final fileSize = await ref.read(
+        taskFileSizeResolverProvider(event.task).future,
+      );
+      await updateRecordFromTaskStream(
+        group,
+        taskId,
+        DownloadRecordStatus.completed,
+        fileSize: fileSize,
+      );
+      await tryCompleteSession(group);
+      return;
+    }
+
+    await updateRecordFromTaskStream(
+      group,
+      taskId,
+      switch (event.status) {
+        TaskStatus.enqueued => DownloadRecordStatus.pending,
+        TaskStatus.running => DownloadRecordStatus.downloading,
+        TaskStatus.notFound || TaskStatus.failed => DownloadRecordStatus.failed,
+        TaskStatus.canceled => DownloadRecordStatus.cancelled,
+        TaskStatus.waitingToRetry => DownloadRecordStatus.downloading,
+        TaskStatus.paused => DownloadRecordStatus.paused,
+        TaskStatus.complete => throw StateError(
+          'Completed task updates must use the completion path.',
+        ),
+      },
+    );
   }
 
   Future<void> ensureIntegrity() async {
@@ -419,6 +412,9 @@ class BulkDownloadNotifier extends Notifier<BulkDownloadState> {
       }
     }
 
+    final networkConstraint = await _resolveNetworkConstraint();
+    if (networkConstraint == null) return;
+
     ref.read(analyticsProvider).whenData((analytics) {
       analytics?.logEvent(
         'bulk_download_start',
@@ -531,6 +527,7 @@ class BulkDownloadNotifier extends Notifier<BulkDownloadState> {
         startPage: 1,
         endPage: dryRunState.totalPages,
         downloadConfigs: downloadConfigs,
+        networkConstraint: networkConstraint,
       );
     } catch (e) {
       _cancelSessionToken(sessionId);
@@ -691,6 +688,9 @@ class BulkDownloadNotifier extends Notifier<BulkDownloadState> {
         return;
       }
 
+      final networkConstraint = await _resolveNetworkConstraint();
+      if (networkConstraint == null) return;
+
       await _updateSession(
         sessionId,
         status: DownloadSessionStatus.running,
@@ -702,6 +702,7 @@ class BulkDownloadNotifier extends Notifier<BulkDownloadState> {
         startPage: page,
         endPage: totalPages,
         downloadConfigs: downloadConfigs,
+        networkConstraint: networkConstraint,
       );
     } catch (e) {
       state = state.copyWith(error: () => e);
@@ -783,6 +784,9 @@ class BulkDownloadNotifier extends Notifier<BulkDownloadState> {
         return;
       }
 
+      final networkConstraint = await _resolveNetworkConstraint();
+      if (networkConstraint == null) return;
+
       // Handle data race that causes page equal to totalPages but not all records are completed
       if (totalPages == page && completedCount < totalRecords) {
         await _updateSession(
@@ -805,6 +809,7 @@ class BulkDownloadNotifier extends Notifier<BulkDownloadState> {
         startPage: page,
         endPage: totalPages,
         downloadConfigs: downloadConfigs,
+        networkConstraint: networkConstraint,
       );
     } catch (e) {
       state = state.copyWith(error: () => e);
@@ -1247,6 +1252,7 @@ class BulkDownloadNotifier extends Notifier<BulkDownloadState> {
     required int startPage,
     required int endPage,
     required DownloadConfigs? downloadConfigs,
+    required d.DownloadNetworkConstraint networkConstraint,
   }) async {
     final fallbackDownloader = ref.read(downloadServiceProvider);
     final downloader = downloadConfigs?.downloader ?? fallbackDownloader;
@@ -1274,6 +1280,7 @@ class BulkDownloadNotifier extends Notifier<BulkDownloadState> {
         currentPage,
         downloader,
         downloadConfigs,
+        networkConstraint,
       );
 
       final delay = downloadConfigs?.delayBetweenRequests;
@@ -1291,6 +1298,7 @@ class BulkDownloadNotifier extends Notifier<BulkDownloadState> {
     int currentPage,
     d.DownloadService downloader,
     DownloadConfigs? downloadConfigs,
+    d.DownloadNetworkConstraint networkConstraint,
   ) async {
     final records = await _withRepo(
       (repo) => repo.getRecordsBySessionId(
@@ -1325,6 +1333,7 @@ class BulkDownloadNotifier extends Notifier<BulkDownloadState> {
             siteUrl: PostSource.from(record.thumbnailImageUrl).url,
             group: sessionId,
           ),
+          networkConstraint: networkConstraint,
         ),
       );
 

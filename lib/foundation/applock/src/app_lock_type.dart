@@ -13,7 +13,8 @@ enum AppLockType {
   static const AppLockType defaultValue = none;
 
   bool get isBiometric => this == biometrics;
-  bool get appLockEnabled => isBiometric;
+  bool get isPin => this == pin;
+  bool get appLockEnabled => this != none;
 
   dynamic toData() => index;
 }

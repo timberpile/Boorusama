@@ -9,7 +9,7 @@ import 'artifact.dart';
 import 'linux_bundle.dart';
 import 'packager.dart';
 
-const kFlatpakAppId = 'com.degenk.Boorusama';
+const kFlatpakAppId = 'com.timberpile.boorusama';
 
 final class FlatpakPackager implements Packager {
   const FlatpakPackager(this._tools);
@@ -101,7 +101,7 @@ final class FlatpakPackager implements Packager {
     File('${source.path}/$kFlatpakAppId.desktop').writeAsStringSync('''
 [Desktop Entry]
 Type=Application
-Name=Boorusama
+Name=Boorusama Timber
 Exec=boorusama
 Icon=$kFlatpakAppId
 Terminal=false

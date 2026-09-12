@@ -13,6 +13,33 @@ import 'package:boorusama/foundation/app_update/src/types/update_status.dart';
 
 void main() {
   group('GitHubReleaseUpdateChecker', () {
+    test('returns UpdateAvailable for a newer Timberpile prerelease', () async {
+      final checker = GitHubReleaseUpdateChecker(
+        packageInfo: _packageInfo(version: '4.5.0-timberpile.1'),
+        manifestUrl: 'https://example.com/boorusama-update.json',
+        client: MockClient(
+          (_) async => Response(
+            jsonEncode({
+              'schemaVersion': 1,
+              'version': '4.5.0-timberpile.2',
+              'releaseUrl':
+                  'https://github.com/timberpile/Boorusama/releases/tag/v4.5.0-timberpile.2',
+              'notes': 'Changes',
+            }),
+            200,
+          ),
+        ),
+      );
+
+      final status = await checker.checkForUpdate();
+
+      expect(status, isA<UpdateAvailable>());
+      expect(
+        kGitHubUpdateManifestUrl,
+        'https://github.com/timberpile/Boorusama/releases/latest/download/boorusama-update.json',
+      );
+    });
+
     test('returns UpdateAvailable when manifest version is newer', () async {
       final checker = GitHubReleaseUpdateChecker(
         packageInfo: _packageInfo(version: '4.4.0'),
@@ -23,7 +50,7 @@ void main() {
               'schemaVersion': 1,
               'version': '4.5.0',
               'releaseUrl':
-                  'https://github.com/khoadng/Boorusama/releases/tag/v4.5.0',
+                  'https://github.com/timberpile/Boorusama/releases/tag/v4.5.0',
               'notes': 'Changes',
             }),
             200,
@@ -40,7 +67,7 @@ void main() {
       expect(update.releaseNotes, 'Changes');
       expect(
         update.storeUrl,
-        'https://github.com/khoadng/Boorusama/releases/tag/v4.5.0',
+        'https://github.com/timberpile/Boorusama/releases/tag/v4.5.0',
       );
     });
 
@@ -56,7 +83,7 @@ void main() {
                 'schemaVersion': 1,
                 'version': '4.5.0',
                 'releaseUrl':
-                    'https://github.com/khoadng/Boorusama/releases/tag/v4.5.0',
+                    'https://github.com/timberpile/Boorusama/releases/tag/v4.5.0',
                 'notes': 'Changes',
               }),
               200,
@@ -105,7 +132,7 @@ PackageInfo _packageInfo({
 }) {
   return PackageInfo(
     appName: 'Boorusama',
-    packageName: 'com.degenk.boorusama',
+    packageName: 'com.timberpile.boorusama',
     version: version,
     buildNumber: '1',
   );

@@ -26,7 +26,6 @@ class DanbooruWikiDTextSliverBody extends ConsumerWidget {
       config: config,
       onLinkTap: (url, _, _) => openDanbooruWikiLink(ref, url),
       style: _wikiDTextStyle(context),
-      selectable: false,
     );
   }
 }

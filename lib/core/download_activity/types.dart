@@ -9,6 +9,7 @@ enum DownloadActivityKind { single, bulk }
 enum DownloadActivityPhase {
   preparing,
   queued,
+  waitingForWifi,
   running,
   waitingToRetry,
   paused,

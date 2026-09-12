@@ -63,6 +63,18 @@ void main() {
       expect(activity.phase, DownloadActivityPhase.running);
       expect(activity.progress, 0.625);
     });
+
+    test('keeps a Wi-Fi task waiting while Wi-Fi is unavailable', () {
+      final activity = downloadActivityFromTaskUpdate(
+        TaskStatusUpdate(
+          task.copyWith(requiresWiFi: true),
+          TaskStatus.enqueued,
+        ),
+        connectedToWifi: false,
+      );
+
+      expect(activity.phase, DownloadActivityPhase.waitingForWifi);
+    });
   });
 
   group('bulk download activity', () {
@@ -89,11 +101,27 @@ void main() {
         expect(activity.kind, DownloadActivityKind.bulk);
         expect(activity.phase, entry.value);
         expect(activity.label, 'cat dog');
-        expect(activity.progress, 0.4);
-        expect(activity.completedItems, 4);
+        final isFinished =
+            entry.key == DownloadSessionStatus.completed ||
+            entry.key == DownloadSessionStatus.allSkipped;
+        expect(activity.progress, isFinished ? 1 : 0.4);
+        expect(activity.completedItems, isFinished ? 10 : 4);
         expect(activity.totalItems, 10);
       });
     }
+
+    test('uses the task path when tags have no display label', () {
+      final value = _bulkSession(DownloadSessionStatus.running);
+      final activity = downloadActivityFromBulkSession(
+        BulkDownloadSession(
+          task: value.task.copyWith(tags: ''),
+          session: value.session,
+          stats: value.stats,
+        ),
+      );
+
+      expect(activity.label, '/downloads');
+    });
   });
 
   test('records immediate completion and failure outcomes', () {

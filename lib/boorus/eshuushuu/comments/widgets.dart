@@ -1,5 +1,6 @@
 // Package imports:
 import 'package:foundation/foundation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
@@ -7,6 +8,8 @@ import 'package:kurumi/material.dart';
 // Project imports:
 import '../../../core/comments/types.dart';
 import '../../../core/comments/widgets.dart';
+import '../../../core/developer_options/blocked_media_placeholder.dart';
+import '../../../core/developer_options/providers.dart';
 import '../../../foundation/html.dart';
 import 'types.dart';
 
@@ -68,14 +71,17 @@ List<Comment> _buildThreadedComments(List<Comment> comments) {
   return result;
 }
 
-class _EshuushuuCommentItem extends StatelessWidget {
+class _EshuushuuCommentItem extends ConsumerWidget {
   const _EshuushuuCommentItem({required this.comment});
 
   final EshuushuuComment comment;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colorScheme = Kurumi.themeOf(context).colorScheme;
+    final automaticMediaLoadingEnabled = ref.watch(
+      automaticMediaLoadingEnabledProvider,
+    );
 
     return Padding(
       padding: EdgeInsets.only(left: comment.isReply ? 16 : 0),
@@ -101,27 +107,36 @@ class _EshuushuuCommentItem extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: colorScheme.surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(6),
-                      image: switch (comment.creatorAvatarUrl) {
-                        final String url => DecorationImage(
+                      image: switch ((
+                        automaticMediaLoadingEnabled,
+                        comment.creatorAvatarUrl,
+                      )) {
+                        (true, final String url) => DecorationImage(
                           image: NetworkImage(url),
                           fit: BoxFit.cover,
                         ),
                         _ => null,
                       },
                     ),
-                    child: comment.creatorAvatarUrl == null
-                        ? Center(
-                            child: Text(
-                              (comment.creatorName ?? '?').isNotEmpty
-                                  ? comment.creatorName![0].toUpperCase()
-                                  : '?',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: colorScheme.onSurfaceVariant,
-                              ),
-                            ),
-                          )
-                        : null,
+                    child: switch ((
+                      automaticMediaLoadingEnabled,
+                      comment.creatorAvatarUrl,
+                    )) {
+                      (false, final String _) =>
+                        const BlockedMediaPlaceholder(),
+                      (_, null) => Center(
+                        child: Text(
+                          (comment.creatorName ?? '?').isNotEmpty
+                              ? comment.creatorName![0].toUpperCase()
+                              : '?',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+                      _ => null,
+                    },
                   ),
                   const SizedBox(width: 8),
                   Expanded(

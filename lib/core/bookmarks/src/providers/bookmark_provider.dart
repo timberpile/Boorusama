@@ -250,6 +250,12 @@ class BookmarkNotifier extends AsyncNotifier<BookmarkState> {
     List<Bookmark> bookmarks,
   ) async {
     final settings = ref.read(settingsProvider);
+    final networkConstraint = await resolveDownloadNetworkConstraint(
+      ref,
+      settings.downloadNetworkPolicy,
+    );
+    if (networkConstraint == null) return;
+
     final downloader = ref.read(downloadServiceProvider);
     final headers = ref.read(httpHeadersProvider(auth));
 
@@ -277,6 +283,7 @@ class BookmarkNotifier extends AsyncNotifier<BookmarkState> {
             ),
             filename: fileName,
             headers: headers,
+            networkConstraint: networkConstraint,
           ),
         );
         return (

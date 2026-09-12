@@ -2,8 +2,13 @@
 import 'package:cache_manager/cache_manager.dart';
 import 'package:dio/dio.dart';
 import 'package:extended_image/extended_image.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:kurumi/material.dart';
+
+// Project imports:
+import '../developer_options/blocked_media_placeholder.dart';
+import '../developer_options/providers.dart';
 
 const _unknownSize = 26.0;
 const kFaviconSize = 32.0;
@@ -18,7 +23,7 @@ double? _calcFailedIconSize(
   return size * ratio;
 }
 
-class WebsiteLogo extends StatelessWidget {
+class WebsiteLogo extends ConsumerWidget {
   const WebsiteLogo({
     required this.url,
     required this.dio,
@@ -33,8 +38,11 @@ class WebsiteLogo extends StatelessWidget {
   final ImageCacheManager? cacheManager;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final url = this.url;
+    final automaticMediaLoadingEnabled = ref.watch(
+      automaticMediaLoadingEnabledProvider,
+    );
 
     return ConstrainedBox(
       constraints: BoxConstraints(
@@ -43,28 +51,33 @@ class WebsiteLogo extends StatelessWidget {
         minWidth: size,
         minHeight: size,
       ),
-      child: url != null
-          ? ExtendedImage.network(
-              url,
-              dio: dio,
-              clearMemoryCacheIfFailed: false,
-              fit: BoxFit.cover,
-              fetchStrategy: const FetchStrategyBuilder(
-                maxAttempts: 1,
-                timeout: Duration(seconds: 5),
-                initialPauseBetweenRetries: Duration(milliseconds: 100),
-                silent: true,
-              ),
-              placeholderWidget: Container(
-                padding: const EdgeInsets.all(8),
-                child: const CircularProgressIndicator(
-                  strokeWidth: 1.5,
-                ),
-              ),
-              cacheManager: cacheManager,
-              errorWidget: _buildFallback(),
-            )
-          : _buildFallback(),
+      child: switch ((url, automaticMediaLoadingEnabled)) {
+        (final url?, true) => ExtendedImage.network(
+          url,
+          dio: dio,
+          clearMemoryCacheIfFailed: false,
+          fit: BoxFit.cover,
+          fetchStrategy: const FetchStrategyBuilder(
+            maxAttempts: 1,
+            timeout: Duration(seconds: 5),
+            initialPauseBetweenRetries: Duration(milliseconds: 100),
+            silent: true,
+          ),
+          placeholderWidget: Container(
+            padding: const EdgeInsets.all(8),
+            child: const CircularProgressIndicator(
+              strokeWidth: 1.5,
+            ),
+          ),
+          cacheManager: cacheManager,
+          errorWidget: _buildFallback(),
+        ),
+        (final String _, false) => BlockedMediaPlaceholder(
+          width: size,
+          height: size,
+        ),
+        _ => _buildFallback(),
+      },
     );
   }
 
