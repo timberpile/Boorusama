@@ -15,6 +15,7 @@ class KurumiSettingsTile<T> extends StatelessWidget {
     this.padding,
     this.visualDensity,
     this.selectedOptionBuilder,
+    this.isOptionEnabled,
     this.optionAlignment = AlignmentDirectional.centerEnd,
   });
 
@@ -26,6 +27,7 @@ class KurumiSettingsTile<T> extends StatelessWidget {
   final List<T> items;
   final Widget Function(T item) optionBuilder;
   final Widget Function(T item)? selectedOptionBuilder;
+  final bool Function(T item)? isOptionEnabled;
   final EdgeInsetsGeometry? padding;
   final VisualDensity? visualDensity;
   final AlignmentDirectional optionAlignment;
@@ -50,6 +52,7 @@ class KurumiSettingsTile<T> extends StatelessWidget {
             .map(
               (value) => DropdownMenuItem<T>(
                 value: value,
+                enabled: isOptionEnabled?.call(value) ?? true,
                 child: optionBuilder(value),
               ),
             )

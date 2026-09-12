@@ -63,6 +63,18 @@ void main() {
       expect(activity.phase, DownloadActivityPhase.running);
       expect(activity.progress, 0.625);
     });
+
+    test('keeps a Wi-Fi task waiting while Wi-Fi is unavailable', () {
+      final activity = downloadActivityFromTaskUpdate(
+        TaskStatusUpdate(
+          task.copyWith(requiresWiFi: true),
+          TaskStatus.enqueued,
+        ),
+        connectedToWifi: false,
+      );
+
+      expect(activity.phase, DownloadActivityPhase.waitingForWifi);
+    });
   });
 
   group('bulk download activity', () {

@@ -16,6 +16,15 @@ final connectivityProvider = StreamProvider<List<ConnectivityResult>>((ref) {
   return Connectivity().onConnectivityChanged;
 });
 
+final currentConnectivityProvider = FutureProvider<List<ConnectivityResult>>((
+  ref,
+) {
+  final streamedResult = ref.watch(connectivityProvider).valueOrNull;
+  if (streamedResult != null) return streamedResult;
+
+  return Connectivity().checkConnectivity();
+});
+
 final networkStateProvider = Provider<NetworkState>((ref) {
   return ref
       .watch(connectivityProvider)

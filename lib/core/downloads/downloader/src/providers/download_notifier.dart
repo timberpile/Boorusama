@@ -20,7 +20,9 @@ import '../../../filename/types.dart';
 import '../../../urls/types.dart';
 import '../types/download.dart';
 import '../types/metadata.dart';
+import '../types/download_network_policy.dart';
 import '../types/observer.dart';
+import 'download_network_policy_provider.dart';
 
 final downloadNotifierProvider =
     NotifierProvider.family<DownloadNotifier, void, DownloadNotifierParams>(
@@ -89,6 +91,11 @@ class DownloadNotifier extends FamilyNotifier<void, DownloadNotifierParams> {
     }
 
     final perm = await _getPermissionStatus();
+    final networkConstraint = await resolveDownloadNetworkConstraint(
+      ref,
+      arg.settings.downloadNetworkPolicy,
+    );
+    if (networkConstraint == null) return;
 
     arg.observer?.onBulkDownloadStart(
       total: posts.length,
@@ -107,6 +114,7 @@ class DownloadNotifier extends FamilyNotifier<void, DownloadNotifierParams> {
           'total': posts.length.toString(),
           'index': i.toString(),
         },
+        networkConstraint: networkConstraint,
       );
     }
   }
@@ -123,6 +131,7 @@ Future<DownloadTaskInfo?> _download(
   void Function()? onStarted,
   //FIXME: bad solution, need better design
   String? overrideUrl,
+  DownloadNetworkConstraint? networkConstraint,
 }) async {
   final downloadConfig = params.download;
   final service = params.downloader;
@@ -163,6 +172,14 @@ Future<DownloadTaskInfo?> _download(
     // }
     return null;
   }
+
+  final resolvedNetworkConstraint =
+      networkConstraint ??
+      await resolveDownloadNetworkConstraint(
+        ref,
+        params.settings.downloadNetworkPolicy,
+      );
+  if (resolvedNetworkConstraint == null) return null;
 
   Future<DownloadTaskInfo?> download() async {
     final fileNameFuture = bulkMetadata != null
@@ -207,6 +224,7 @@ Future<DownloadTaskInfo?> _download(
             AppHttpHeaders.cookieHeader: urlData.cookie!,
         },
         customPath: downloadPath,
+        networkConstraint: resolvedNetworkConstraint,
       ),
     );
 

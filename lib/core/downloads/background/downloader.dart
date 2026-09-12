@@ -134,6 +134,7 @@ class BackgroundDownloader implements DownloadService {
         metaData: options.metadata?.toJsonString() ?? '',
         headers: options.headers,
         group: options.metadata?.group ?? FileDownloader.defaultGroup,
+        requiresWiFi: options.networkConstraint.requiresWiFi,
       );
 
       _log(

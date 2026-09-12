@@ -28,6 +28,11 @@
       "search": "Search",
       "view_all": "View all"
     },
+    "requirement": {
+      "android": {
+        "version_or_later": "Requires Android $version or later"
+      }
+    },
     "warning": "Warning",
     "default": "Default",
     "copied": "Copied",
@@ -488,6 +493,13 @@
       "quality": "Download image quality",
       "skip_existing_files": "Skip existing files",
       "skip_existing_files_explanation": "This will prevent downloading files that already exist in the folder. This is useful when you don't want to download the same file multiple times.",
+      "network": {
+        "title": "Download network",
+        "description": "Choose whether downloads can use mobile data.",
+        "any_network": "Any network",
+        "wifi_only": "Wi-Fi only",
+        "ask_on_mobile_data": "Ask on mobile data"
+      },
       "qualities": {
         "original": "Original",
         "sample": "Sample",
@@ -695,7 +707,15 @@
       "completed": "Completed",
       "failed": "Failed",
       "canceled": "Canceled",
-      "unknown": "Unknown"
+      "unknown": "Unknown",
+      "waiting_for_wifi": "Waiting for Wi-Fi"
+    },
+    "network_prompt": {
+      "title": "Download using mobile data?",
+      "description": "Wi-Fi is unavailable. You can download now using mobile data or queue the download until Wi-Fi is available.",
+      "remember_for_session": "Remember for this session",
+      "wait_for_wifi": "Wait for Wi-Fi",
+      "use_mobile_data": "Use mobile data"
     },
     "empty_states": {
       "no_pending_downloads": "No pending downloads",

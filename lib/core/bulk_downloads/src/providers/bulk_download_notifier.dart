@@ -17,6 +17,7 @@ import '../../../downloads/downloader/providers.dart';
 import '../../../downloads/downloader/types.dart' as d;
 import '../../../posts/sources/types.dart';
 import '../../../premiums/providers.dart';
+import '../../../settings/providers.dart';
 import '../data/filesystem.dart';
 import '../data/providers.dart';
 import '../types/bulk_download_error.dart';
@@ -74,6 +75,11 @@ extension SessionActionX on BulkDownloadSession {
 }
 
 class BulkDownloadNotifier extends Notifier<BulkDownloadState> {
+  Future<d.DownloadNetworkConstraint?> _resolveNetworkConstraint() {
+    final policy = ref.read(settingsProvider).downloadNetworkPolicy;
+    return resolveDownloadNetworkConstraint(ref, policy);
+  }
+
   CancelToken _createSessionToken(String sessionId) {
     return ref
         .read(sessionCancellationProvider.notifier)
@@ -406,6 +412,9 @@ class BulkDownloadNotifier extends Notifier<BulkDownloadState> {
       }
     }
 
+    final networkConstraint = await _resolveNetworkConstraint();
+    if (networkConstraint == null) return;
+
     ref.read(analyticsProvider).whenData((analytics) {
       analytics?.logEvent(
         'bulk_download_start',
@@ -518,6 +527,7 @@ class BulkDownloadNotifier extends Notifier<BulkDownloadState> {
         startPage: 1,
         endPage: dryRunState.totalPages,
         downloadConfigs: downloadConfigs,
+        networkConstraint: networkConstraint,
       );
     } catch (e) {
       _cancelSessionToken(sessionId);
@@ -678,6 +688,9 @@ class BulkDownloadNotifier extends Notifier<BulkDownloadState> {
         return;
       }
 
+      final networkConstraint = await _resolveNetworkConstraint();
+      if (networkConstraint == null) return;
+
       await _updateSession(
         sessionId,
         status: DownloadSessionStatus.running,
@@ -689,6 +702,7 @@ class BulkDownloadNotifier extends Notifier<BulkDownloadState> {
         startPage: page,
         endPage: totalPages,
         downloadConfigs: downloadConfigs,
+        networkConstraint: networkConstraint,
       );
     } catch (e) {
       state = state.copyWith(error: () => e);
@@ -770,6 +784,9 @@ class BulkDownloadNotifier extends Notifier<BulkDownloadState> {
         return;
       }
 
+      final networkConstraint = await _resolveNetworkConstraint();
+      if (networkConstraint == null) return;
+
       // Handle data race that causes page equal to totalPages but not all records are completed
       if (totalPages == page && completedCount < totalRecords) {
         await _updateSession(
@@ -792,6 +809,7 @@ class BulkDownloadNotifier extends Notifier<BulkDownloadState> {
         startPage: page,
         endPage: totalPages,
         downloadConfigs: downloadConfigs,
+        networkConstraint: networkConstraint,
       );
     } catch (e) {
       state = state.copyWith(error: () => e);
@@ -1234,6 +1252,7 @@ class BulkDownloadNotifier extends Notifier<BulkDownloadState> {
     required int startPage,
     required int endPage,
     required DownloadConfigs? downloadConfigs,
+    required d.DownloadNetworkConstraint networkConstraint,
   }) async {
     final fallbackDownloader = ref.read(downloadServiceProvider);
     final downloader = downloadConfigs?.downloader ?? fallbackDownloader;
@@ -1261,6 +1280,7 @@ class BulkDownloadNotifier extends Notifier<BulkDownloadState> {
         currentPage,
         downloader,
         downloadConfigs,
+        networkConstraint,
       );
 
       final delay = downloadConfigs?.delayBetweenRequests;
@@ -1278,6 +1298,7 @@ class BulkDownloadNotifier extends Notifier<BulkDownloadState> {
     int currentPage,
     d.DownloadService downloader,
     DownloadConfigs? downloadConfigs,
+    d.DownloadNetworkConstraint networkConstraint,
   ) async {
     final records = await _withRepo(
       (repo) => repo.getRecordsBySessionId(
@@ -1312,6 +1333,7 @@ class BulkDownloadNotifier extends Notifier<BulkDownloadState> {
             siteUrl: PostSource.from(record.thumbnailImageUrl).url,
             group: sessionId,
           ),
+          networkConstraint: networkConstraint,
         ),
       );
 

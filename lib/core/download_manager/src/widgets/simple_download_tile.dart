@@ -11,6 +11,7 @@ import 'package:share_plus/share_plus.dart';
 
 // Project imports:
 import '../../../../foundation/platform.dart';
+import '../../../../foundation/networking/network_provider.dart';
 import '../../../../foundation/url_launcher.dart';
 import '../../../downloads/background/types.dart';
 import '../../../downloads/configs/widgets.dart';
@@ -188,19 +189,25 @@ class _TaskSubtitle extends ConsumerWidget {
     final status = task.status;
     final exception = task.exception;
     final theme = Kurumi.themeOf(context);
+    final waitingForWifi =
+        task.task.requiresWiFi &&
+        !ref.watch(connectedToWifiProvider) &&
+        status == TaskStatus.enqueued;
 
     return ReadMoreText(
       exception == null
-          ? switch (status) {
-              TaskStatus.complete =>
-                ref
-                    .watch(_filePathProvider(task.task))
-                    .maybeWhen(
-                      data: (data) => _prettifyFilePathIfNeeded(data),
-                      orElse: () => '...',
-                    ),
-              _ => status.name.sentenceCase,
-            }
+          ? waitingForWifi
+                ? context.t.download.status.waiting_for_wifi
+                : switch (status) {
+                    TaskStatus.complete =>
+                      ref
+                          .watch(_filePathProvider(task.task))
+                          .maybeWhen(
+                            data: (data) => _prettifyFilePathIfNeeded(data),
+                            orElse: () => '...',
+                          ),
+                    _ => status.name.sentenceCase,
+                  }
           : '${exception.getErrorDescription()} ',
       trimLines: 1,
       trimMode: TrimMode.Line,

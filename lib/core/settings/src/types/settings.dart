@@ -52,6 +52,7 @@ class Settings extends Equatable {
     required this.reduceAnimations,
     required this.downloadFileExistedBehavior,
     required this.downloadNotificationsEnabled,
+    required this.downloadNetworkPolicy,
     required this.colors,
     required this.volumeKeyViewerNavigation,
     required this.searchBarScrollBehavior,
@@ -103,6 +104,9 @@ class Settings extends Equatable {
       ),
       downloadNotificationsEnabled =
           json['downloadNotificationsEnabled'] as bool? ?? true,
+      downloadNetworkPolicy = DownloadNetworkPolicy.parse(
+        json['downloadNetworkPolicy'],
+      ),
       colors = json['colors'] != null
           ? ColorSettings.fromJson(json['colors'])
           : null,
@@ -179,6 +183,7 @@ class Settings extends Equatable {
     reduceAnimations: false,
     downloadFileExistedBehavior: DownloadFileExistedBehavior.defaultValue,
     downloadNotificationsEnabled: true,
+    downloadNetworkPolicy: DownloadNetworkPolicy.defaultValue,
     volumeKeyViewerNavigation: false,
     searchBarScrollBehavior: SearchBarScrollBehavior.defaultValue,
     searchBarPosition: SearchBarPosition.defaultValue,
@@ -233,6 +238,8 @@ class Settings extends Equatable {
 
   final bool downloadNotificationsEnabled;
 
+  final DownloadNetworkPolicy downloadNetworkPolicy;
+
   final ColorSettings? colors;
 
   final bool volumeKeyViewerNavigation;
@@ -272,6 +279,7 @@ class Settings extends Equatable {
     bool? reduceAnimations,
     DownloadFileExistedBehavior? downloadFileExistedBehavior,
     bool? downloadNotificationsEnabled,
+    DownloadNetworkPolicy? downloadNetworkPolicy,
     ImageListingSettings? listing,
     ImageViewerSettings? viewer,
     ColorSettings? colors,
@@ -318,6 +326,7 @@ class Settings extends Equatable {
         downloadFileExistedBehavior ?? this.downloadFileExistedBehavior,
     downloadNotificationsEnabled:
         downloadNotificationsEnabled ?? this.downloadNotificationsEnabled,
+    downloadNetworkPolicy: downloadNetworkPolicy ?? this.downloadNetworkPolicy,
     colors: colors ?? this.colors,
     volumeKeyViewerNavigation:
         volumeKeyViewerNavigation ?? this.volumeKeyViewerNavigation,
@@ -360,6 +369,7 @@ class Settings extends Equatable {
       'reduceAnimations': reduceAnimations,
       'downloadFileExistedBehavior': downloadFileExistedBehavior.toData(),
       'downloadNotificationsEnabled': downloadNotificationsEnabled,
+      'downloadNetworkPolicy': downloadNetworkPolicy.toData(),
       'colors': colors?.toJson(),
       'volumeKeyViewerNavigation': volumeKeyViewerNavigation,
       'searchBarScrollBehavior': searchBarScrollBehavior.toData(),
@@ -397,6 +407,7 @@ class Settings extends Equatable {
     reduceAnimations,
     downloadFileExistedBehavior,
     downloadNotificationsEnabled,
+    downloadNetworkPolicy,
     colors,
     volumeKeyViewerNavigation,
     searchBarScrollBehavior,

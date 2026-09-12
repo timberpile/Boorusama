@@ -2,7 +2,7 @@ dependency_overrides:
   background_downloader:
     git:
       url: https://github.com/khoadng/background_downloader.git
-      ref: 12d081cbcad43fe8c70af38565e5cbc91ae50fb7
+      ref: e8ad9f9
   cronet_http: ^1.7.0
   flutter_riverpod:
     git:

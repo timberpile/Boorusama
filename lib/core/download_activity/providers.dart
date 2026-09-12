@@ -2,6 +2,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Project imports:
+import '../../foundation/networking/network_provider.dart';
 import '../bulk_downloads/src/providers/bulk_download_notifier.dart';
 import '../bulk_downloads/src/providers/bulk_progress.dart';
 import '../bulk_downloads/src/types/bulk_download_session.dart';
@@ -79,10 +80,16 @@ final downloadActivitiesProvider = Provider<List<DownloadActivity>>((ref) {
   final bulkProgress =
       ref.watch(bulkDownloadProgressProvider).valueOrNull ?? {};
   final immediate = ref.watch(immediateDownloadActivitiesProvider);
+  final connectedToWifi = ref.watch(connectedToWifiProvider);
 
   final normal =
       taskUpdates.tasks[FileDownloader.defaultGroup]
-          ?.map(downloadActivityFromTaskUpdate)
+          ?.map(
+            (update) => downloadActivityFromTaskUpdate(
+              update,
+              connectedToWifi: connectedToWifi,
+            ),
+          )
           .toList() ??
       const <DownloadActivity>[];
   final bulk = bulkSessions
@@ -103,11 +110,16 @@ final downloadActivitiesProvider = Provider<List<DownloadActivity>>((ref) {
   ];
 });
 
-DownloadActivity downloadActivityFromTaskUpdate(TaskUpdate update) {
+DownloadActivity downloadActivityFromTaskUpdate(
+  TaskUpdate update, {
+  bool connectedToWifi = true,
+}) {
   final metadata = DownloaderMetadata.fromJsonString(update.task.metaData);
   final phase = switch (update) {
     TaskProgressUpdate() => DownloadActivityPhase.running,
     TaskStatusUpdate(:final status) => switch (status) {
+      TaskStatus.enqueued when update.task.requiresWiFi && !connectedToWifi =>
+        DownloadActivityPhase.waitingForWifi,
       TaskStatus.enqueued => DownloadActivityPhase.queued,
       TaskStatus.running => DownloadActivityPhase.running,
       TaskStatus.complete => DownloadActivityPhase.completed,

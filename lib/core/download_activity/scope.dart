@@ -3,6 +3,7 @@ import 'dart:async';
 
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
 
 // Project imports:
@@ -65,8 +66,13 @@ class _DownloadActivityScopeState extends ConsumerState<DownloadActivityScope> {
           final old = previousById[activity.id];
           if (old == activity) continue;
 
-          if (old == null && _startsSingleDownload(activity)) {
-            showDownloadStartToast(context);
+          if (_startsSingleDownload(old, activity)) {
+            showDownloadStartToast(
+              context,
+              message: activity.phase == DownloadActivityPhase.waitingForWifi
+                  ? context.t.download.status.waiting_for_wifi
+                  : null,
+            );
           }
 
           if (activity.kind == DownloadActivityKind.single &&
@@ -126,15 +132,21 @@ class _DownloadActivityScopeState extends ConsumerState<DownloadActivityScope> {
     return widget.child;
   }
 
-  bool _startsSingleDownload(DownloadActivity activity) {
+  bool _startsSingleDownload(
+    DownloadActivity? previous,
+    DownloadActivity activity,
+  ) {
     if (activity.kind != DownloadActivityKind.single) return false;
 
     return switch (activity.phase) {
-      DownloadActivityPhase.queued || DownloadActivityPhase.running => true,
+      DownloadActivityPhase.waitingForWifi => previous == null,
+      DownloadActivityPhase.running =>
+        previous == null || previous.phase == DownloadActivityPhase.queued,
       DownloadActivityPhase.completed || DownloadActivityPhase.skipped =>
-        activity.completionSource == DownloadCompletionSource.cache ||
-            activity.completionSource ==
-                DownloadCompletionSource.alreadyPresent,
+        previous == null &&
+            (activity.completionSource == DownloadCompletionSource.cache ||
+                activity.completionSource ==
+                    DownloadCompletionSource.alreadyPresent),
       _ => false,
     };
   }
@@ -212,6 +224,7 @@ class _DownloadActivityScopeState extends ConsumerState<DownloadActivityScope> {
           DownloadActivityPhase.suspended:
         await notifications.cancelBulk(activity.id);
       case DownloadActivityPhase.queued ||
+          DownloadActivityPhase.waitingForWifi ||
           DownloadActivityPhase.waitingToRetry ||
           DownloadActivityPhase.paused:
         break;
