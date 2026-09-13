@@ -28,7 +28,7 @@ All repository development happens through GitHub issues and pull requests. The 
    Merge branch '<branch-name>'
    ```
 
-   Include `Closes #<issue-id>` in the pull request body so the issue closes when the pull request merges.
+   Include `Closes #<issue-id>` in the pull request body so the issue closes when the pull request merges. Keep the rest of the description to a few concise bullets describing only the meaningful end-state changes introduced when merged. Do not include implementation details, test history, development phases, temporary steps, or exhaustive file-level summaries unless they are essential to understanding the result.
 6. Wait for required checks and explicit user approval. GitHub auto-merge must remain disabled.
 7. Manually squash-merge the pull request. Keep the generated squash commit title unchanged.
 8. GitHub deletes the remote source branch automatically. Synchronize `develop`, then delete the local source branch.

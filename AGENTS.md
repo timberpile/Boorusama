@@ -49,6 +49,7 @@ for (final c in cases) {
 - Never commit or push directly to `develop` or `master`. Both branches change only through GitHub pull requests.
 - Pull requests for features and fixes target `develop`. Only `develop` may open a release/promotion pull request to `master`.
 - Set the pull request title to exactly `Merge branch '<branch-name>'` and include `Closes #<issue-id>` in its body.
+- Keep pull request descriptions brief. After the closing issue reference, use a few concise bullets describing only the meaningful end-state changes introduced when merged. Exclude implementation details, test history, development phases, temporary steps, and exhaustive file-level summaries unless they are essential to understanding the result.
 - Do not enable GitHub auto-merge. Wait for explicit user approval, then merge manually with squash merging.
 - Do not edit the generated squash commit title. Delete the local branch after GitHub has merged the pull request and deleted its remote branch.
 
