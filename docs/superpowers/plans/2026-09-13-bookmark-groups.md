@@ -44,27 +44,27 @@
 - Produces: `BookmarkGroup(id, name, bookmarkIds)`, `BookmarkTarget`, `BookmarkGroupRepository`, and `bookmarkGroupRepoProvider`.
 - `BookmarkGroupRepository` exposes `getGroups`, `createGroup`, `duplicateGroup`, `renameGroup`, `previewDeleteGroup`, `deleteGroup`, `replaceMemberships`, `addBookmarks`, `removeBookmarks`, `removeBookmarkFromAllGroups`, and `repair`.
 
-- [ ] **Step 1: Write failing repository tests**
+- [x] **Step 1: Write failing repository tests**
 
 Cover generated canonical UUIDs, accepted explicit UUIDs, duplicate names, trimmed non-empty names, membership deduplication, duplicate-group membership copying, rename identity preservation, deletion previews, and stale bookmark-key repair. Use real temporary Hive boxes and one test per parameterized case.
 
-- [ ] **Step 2: Verify the repository tests fail**
+- [x] **Step 2: Verify the repository tests fail**
 
 Run: `fvm flutter test test/core/bookmarks/bookmark_group_repository_test.dart`
 
 Expected: compilation fails because the group types and repository do not exist.
 
-- [ ] **Step 3: Implement the group domain and repository**
+- [x] **Step 3: Implement the group domain and repository**
 
 Use `String` canonical UUIDs, immutable `Set<int>` membership values, Equatable value equality, and a `BookmarkGroupHiveObject` with `id`, `name`, and `List<int> bookmarkIds`. Normalize on every read/write and validate supplied IDs with `Uuid.isValidUUID` before mutation.
 
-- [ ] **Step 4: Generate adapters and format**
+- [x] **Step 4: Generate adapters and format**
 
 Run: `./gen.sh`
 
 Run: `fvm dart format lib/core/bookmarks/src/types lib/core/bookmarks/src/data lib/core/bookmarks/types.dart lib/core/hive test/core/bookmarks/bookmark_group_repository_test.dart`
 
-- [ ] **Step 5: Verify the repository tests pass**
+- [x] **Step 5: Verify the repository tests pass**
 
 Run: `fvm flutter test test/core/bookmarks/bookmark_group_repository_test.dart`
 
