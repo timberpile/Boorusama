@@ -142,56 +142,21 @@ class _BookmarkContextGroupPage extends StatelessWidget {
   Future<void> _toggle(String? groupId) async {
     final notifier = container.read(bookmarkProvider.notifier);
     try {
-      final activated = await notifier.setActiveTarget(
-        groupId == null
+      final outcome = await notifier.togglePostTarget(
+        config,
+        post,
+        target: groupId == null
             ? const BookmarkTarget.ungrouped()
             : BookmarkTarget.group(groupId),
+        activateTarget: true,
       );
-      if (!activated) {
-        _error();
-        return;
-      }
-      if (groupId == null) {
-        if (bookmark == null) {
-          await notifier.addBookmark(
-            config,
-            post,
-            onSuccess: _added,
-            onError: _error,
-          );
-        }
-        if (bookmark != null && memberships.isEmpty) {
-          await notifier.removeBookmark(
-            bookmark!,
-            onSuccess: _removed,
-            onError: _error,
-          );
-        }
-        return;
-      }
-      if (bookmark == null) {
-        await notifier.addBookmarkToGroup(
-          config,
-          post,
-          groupId,
-          onSuccess: _added,
-          onError: _error,
-        );
-      } else if (memberships.contains(groupId)) {
-        await notifier.removeFromGroup(
-          [bookmark!],
-          groupId,
-          deleteWhenMembershipBecomesEmpty: true,
-          onSuccess: _removed,
-          onError: _error,
-        );
-      } else {
-        await notifier.addExistingBookmarkToGroup(
-          bookmark!,
-          groupId,
-          onSuccess: _added,
-          onError: _error,
-        );
+      switch (outcome) {
+        case BookmarkToggleOutcome.added:
+          _added();
+        case BookmarkToggleOutcome.removed:
+          _removed();
+        case BookmarkToggleOutcome.unavailable || BookmarkToggleOutcome.failed:
+          _error();
       }
     } catch (_) {
       _error();

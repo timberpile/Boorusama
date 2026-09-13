@@ -276,14 +276,21 @@ class PostGridController<T extends Post> extends ChangeNotifier {
     bool preserveSelection = false,
   }) async {
     if (_refreshing) {
+      final alreadyPending = _refreshPending;
       _refreshPending = true;
-      _pendingMaintainPage = _pendingMaintainPage || maintainPage;
+      _pendingMaintainPage = alreadyPending
+          ? _pendingMaintainPage && maintainPage
+          : maintainPage;
       _pendingPreserveSelection =
           _pendingPreserveSelection || preserveSelection;
       final waiter = Completer<void>();
       _queuedRefreshWaiters.add(waiter);
       return waiter.future;
     }
+    Object? firstError;
+    StackTrace? firstStackTrace;
+    Object? lastPassError;
+    StackTrace? lastPassStackTrace;
     try {
       var nextMaintainPage = maintainPage;
       var nextPreserveSelection = preserveSelection;
@@ -291,21 +298,32 @@ class PostGridController<T extends Post> extends ChangeNotifier {
         _refreshPending = false;
         _pendingMaintainPage = false;
         _pendingPreserveSelection = false;
-        await _performRefresh(
-          maintainPage: nextMaintainPage,
-          preserveSelection: nextPreserveSelection,
-        );
+        try {
+          await _performRefresh(
+            maintainPage: nextMaintainPage,
+            preserveSelection: nextPreserveSelection,
+          );
+          lastPassError = null;
+          lastPassStackTrace = null;
+        } catch (error, stackTrace) {
+          firstError ??= error;
+          firstStackTrace ??= stackTrace;
+          lastPassError = error;
+          lastPassStackTrace = stackTrace;
+        }
         nextMaintainPage = _pendingMaintainPage;
         nextPreserveSelection = _pendingPreserveSelection;
       } while (_refreshPending);
       for (final waiter in _queuedRefreshWaiters) {
-        waiter.complete();
+        if (lastPassError == null) {
+          waiter.complete();
+        } else {
+          waiter.completeError(lastPassError, lastPassStackTrace);
+        }
       }
-    } catch (error, stackTrace) {
-      for (final waiter in _queuedRefreshWaiters) {
-        waiter.completeError(error, stackTrace);
+      if (firstError != null) {
+        Error.throwWithStackTrace(firstError, firstStackTrace!);
       }
-      rethrow;
     } finally {
       _queuedRefreshWaiters.clear();
       if (_refreshing) {

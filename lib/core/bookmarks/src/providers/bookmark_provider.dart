@@ -61,9 +61,21 @@ class BookmarkGroupDeletionRollbackException implements Exception {
 }
 
 class BookmarkGroupChangedException implements Exception {
-  const BookmarkGroupChangedException(this.group);
+  const BookmarkGroupChangedException(this.preview);
 
-  final BookmarkGroup group;
+  final BookmarkGroupDeletionPreview preview;
+}
+
+class BookmarkPostBatchRollbackException implements Exception {
+  const BookmarkPostBatchRollbackException({
+    required this.operationError,
+    required this.rollbackErrors,
+    required this.createdBookmarks,
+  });
+
+  final Object operationError;
+  final List<Object> rollbackErrors;
+  final List<Bookmark> createdBookmarks;
 }
 
 enum BookmarkToggleOutcome { added, removed, unavailable, failed }
@@ -277,14 +289,33 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
 
   Future<BookmarkToggleOutcome> togglePostTarget(
     BooruConfigAuth config,
-    Post post,
-  ) => _serialize(() async {
+    Post post, {
+    BookmarkTarget? target,
+    bool activateTarget = false,
+  }) => _serialize(() async {
     try {
       final current = await future;
+      final selectedTarget = target ?? current.activeTarget;
+      if (activateTarget) {
+        if (selectedTarget.groupId case final groupId?) {
+          final group = await (await ref.read(
+            bookmarkGroupRepoProvider.future,
+          )).getGroup(groupId);
+          if (group == null) return BookmarkToggleOutcome.failed;
+        }
+        final saved = await ref
+            .read(settingsNotifierProvider.notifier)
+            .updateWith(
+              (settings) => settings.copyWith(
+                activeBookmarkGroupId: selectedTarget.groupId,
+              ),
+            );
+        if (!saved) return BookmarkToggleOutcome.failed;
+      }
       final uniqueId = bookmarkIdentityForPost(post, config.booruIdHint);
       final bookmark = current.bookmarksByUniqueId[uniqueId];
       final memberships = current.membershipsFor(uniqueId);
-      if (current.activeTarget.groupId case final groupId?) {
+      if (selectedTarget.groupId case final groupId?) {
         if (bookmark != null && memberships.contains(groupId)) {
           await (await _service).removeBookmarksFromGroup(
             [bookmark],
@@ -375,17 +406,12 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
 
   Future<BookmarkGroupDeletionPreview> deleteGroup(
     String groupId, {
-    Set<int>? expectedBookmarkIds,
+    BookmarkGroupDeletionPreview? expectedPreview,
   }) => _serialize(() async {
     final repository = await ref.read(bookmarkGroupRepoProvider.future);
-    final currentGroup = await repository.getGroup(groupId);
-    if (currentGroup == null) {
-      throw StateError('Bookmark group $groupId does not exist.');
-    }
-    if (expectedBookmarkIds != null &&
-        (currentGroup.bookmarkIds.length != expectedBookmarkIds.length ||
-            !currentGroup.bookmarkIds.containsAll(expectedBookmarkIds))) {
-      throw BookmarkGroupChangedException(currentGroup);
+    final currentPreview = await repository.previewDeleteGroup(groupId);
+    if (expectedPreview != null && currentPreview != expectedPreview) {
+      throw BookmarkGroupChangedException(currentPreview);
     }
     final active = (await future).activeTarget.groupId;
     if (active == groupId) {
@@ -645,6 +671,11 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       result = await _addPostsToGroup(config, posts, group.id);
       createdBookmarks = result.createdBookmarks;
     } catch (error, stackTrace) {
+      if (error case BookmarkPostBatchRollbackException(
+        createdBookmarks: final leakedBookmarks,
+      )) {
+        createdBookmarks = leakedBookmarks;
+      }
       final rollbackErrors = <Object>[];
       if (createdBookmarks.isNotEmpty) {
         try {
@@ -719,9 +750,16 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
             ),
           );
         }
-      } catch (_) {
-        if (created.isNotEmpty) await (await _service).deleteBookmarks(created);
-        rethrow;
+      } catch (error, stackTrace) {
+        final rollbackErrors = await _deleteCreatedBookmarks(created);
+        if (rollbackErrors.isNotEmpty) {
+          throw BookmarkPostBatchRollbackException(
+            operationError: error,
+            rollbackErrors: List.unmodifiable(rollbackErrors),
+            createdBookmarks: List.unmodifiable(created),
+          );
+        }
+        Error.throwWithStackTrace(error, stackTrace);
       }
       return (changedCount: missing.length, createdBookmarks: created);
     }
@@ -748,9 +786,28 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
         members.map((bookmark) => bookmark.id).toSet(),
       );
       return (changedCount: changed, createdBookmarks: created);
-    } catch (_) {
-      if (created.isNotEmpty) await (await _service).deleteBookmarks(created);
-      rethrow;
+    } catch (error, stackTrace) {
+      final rollbackErrors = await _deleteCreatedBookmarks(created);
+      if (rollbackErrors.isNotEmpty) {
+        throw BookmarkPostBatchRollbackException(
+          operationError: error,
+          rollbackErrors: List.unmodifiable(rollbackErrors),
+          createdBookmarks: List.unmodifiable(created),
+        );
+      }
+      Error.throwWithStackTrace(error, stackTrace);
+    }
+  }
+
+  Future<List<Object>> _deleteCreatedBookmarks(
+    List<Bookmark> bookmarks,
+  ) async {
+    if (bookmarks.isEmpty) return const [];
+    try {
+      await (await _service).deleteBookmarks(bookmarks);
+      return const [];
+    } catch (error) {
+      return [error];
     }
   }
 

@@ -218,7 +218,18 @@ class BookmarkLibraryService {
 
   Future<BookmarkGroupDeletionPreview> deleteGroup(String groupId) async {
     final state = await load(const BookmarkTarget.ungrouped());
-    final preview = await groupRepository.deleteGroup(groupId);
+    final preview = await groupRepository.previewDeleteGroup(groupId);
+    try {
+      await groupRepository.deleteGroup(groupId);
+    } catch (error, stackTrace) {
+      BookmarkGroup? remaining;
+      try {
+        remaining = await groupRepository.getGroup(groupId);
+      } catch (_) {
+        Error.throwWithStackTrace(error, stackTrace);
+      }
+      if (remaining != null) Error.throwWithStackTrace(error, stackTrace);
+    }
     final orphanBookmarks = preview.orphanBookmarkIds
         .map((id) => state.bookmarksById[id])
         .nonNulls

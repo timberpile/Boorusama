@@ -169,9 +169,10 @@ class BookmarkGroupBrowserPage extends ConsumerWidget {
     WidgetRef ref,
     BookmarkGroup group,
   ) async {
-    var current = group;
+    final groups = ref.read(bookmarkProvider).valueOrNull?.groups ?? [group];
+    var current = _deletionPreview(group, groups);
     while (true) {
-      if (current.bookmarkIds.isNotEmpty) {
+      if (current.group.bookmarkIds.isNotEmpty) {
         if (!context.mounted) return;
         final confirmed = await showDialog<bool>(
           context: context,
@@ -179,13 +180,13 @@ class BookmarkGroupBrowserPage extends ConsumerWidget {
             title: Text(
               context.t.bookmark.groups.delete_group_title.replaceAll(
                 '{name}',
-                current.name,
+                current.group.name,
               ),
             ),
             content: Text(
               context.t.bookmark.groups.delete_group_message.replaceAll(
                 '{bookmarks}',
-                '${current.bookmarkIds.length}',
+                '${current.group.bookmarkIds.length}',
               ),
             ),
             actions: [
@@ -206,12 +207,12 @@ class BookmarkGroupBrowserPage extends ConsumerWidget {
         await ref
             .read(bookmarkProvider.notifier)
             .deleteGroup(
-              current.id,
-              expectedBookmarkIds: current.bookmarkIds,
+              current.group.id,
+              expectedPreview: current,
             );
         return;
       } on BookmarkGroupChangedException catch (error) {
-        current = error.group;
+        current = error.preview;
       } catch (_) {
         if (context.mounted) {
           Kurumi.showErrorToast(
@@ -222,6 +223,20 @@ class BookmarkGroupBrowserPage extends ConsumerWidget {
         return;
       }
     }
+  }
+
+  BookmarkGroupDeletionPreview _deletionPreview(
+    BookmarkGroup group,
+    Iterable<BookmarkGroup> groups,
+  ) {
+    final otherBookmarkIds = groups
+        .where((other) => other.id != group.id)
+        .expand((other) => other.bookmarkIds)
+        .toSet();
+    return BookmarkGroupDeletionPreview(
+      group: group,
+      orphanBookmarkIds: group.bookmarkIds.difference(otherBookmarkIds),
+    );
   }
 
   Future<void> _runGroupAction(

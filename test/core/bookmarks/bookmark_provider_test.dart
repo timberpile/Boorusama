@@ -490,6 +490,48 @@ void main() {
   });
 
   test(
+    'a stale No Group action never deletes a newly grouped bookmark',
+    () async {
+      final source = Bookmark.empty.copyWith(
+        originalUrl: 'https://example.com/stale-picker.jpg',
+      );
+      await bookmarkRepository.addBookmarkWithBookmarks([source]);
+      final stored = (await bookmarkRepository.getAllBookmarksOrThrow(
+        imageUrlResolver: (_) => const DefaultImageUrlResolver(),
+      )).single;
+      final group = await groupRepository.createGroup('New membership');
+      final container = createContainer(
+        bookmarkRepositoryOverride: _FailingSecondReadBookmarkRepository(
+          bookmarkBox,
+        ),
+      );
+      final notifier = container.read(bookmarkProvider.notifier);
+      await notifier.future;
+      await notifier.addExistingBookmarkToGroup(stored, group.id);
+
+      final outcome = await notifier.togglePostTarget(
+        BooruConfigAuth.fromConfig(
+          BooruConfig.empty.copyWith(booruIdHint: stored.booruId),
+        ),
+        stored.toPost(),
+        target: const BookmarkTarget.ungrouped(),
+        activateTarget: true,
+      );
+
+      expect(outcome, BookmarkToggleOutcome.unavailable);
+      expect((await groupRepository.getGroup(group.id))?.bookmarkIds, {
+        stored.id,
+      });
+      expect(
+        await bookmarkRepository.getAllBookmarksOrEmpty(
+          imageUrlResolver: (_) => const DefaultImageUrlResolver(),
+        ),
+        hasLength(1),
+      );
+    },
+  );
+
+  test(
     'bulk creation rolls back earlier bookmarks after a later failure',
     () async {
       final failingRepository = _FailsSecondAddBookmarkRepository(bookmarkBox);
@@ -519,6 +561,45 @@ void main() {
         ),
         isEmpty,
       );
+    },
+  );
+
+  test(
+    'bulk group creation retries cleanup exposed by an inner failure',
+    () async {
+      final container = createContainer(
+        bookmarkRepositoryOverride: _FailsSecondAddAndFirstCleanupRepository(
+          bookmarkBox,
+        ),
+      );
+      final notifier = container.read(bookmarkProvider.notifier);
+      await notifier.future;
+      final posts = [
+        Bookmark.empty
+            .copyWith(originalUrl: 'https://example.com/retry-first.jpg')
+            .toPost(),
+        Bookmark.empty
+            .copyWith(originalUrl: 'https://example.com/retry-second.jpg')
+            .toPost(),
+      ];
+
+      await expectLater(
+        notifier.createGroupWithPosts(
+          'Retry cleanup',
+          BooruConfigAuth.fromConfig(BooruConfig.empty),
+          posts,
+        ),
+        throwsA(isA<BookmarkPostBatchRollbackException>()),
+      );
+
+      expect(await groupRepository.getGroups(), isEmpty);
+      expect(
+        await bookmarkRepository.getAllBookmarksOrEmpty(
+          imageUrlResolver: (_) => const DefaultImageUrlResolver(),
+        ),
+        isEmpty,
+      );
+      expect(container.read(settingsProvider).activeBookmarkGroupId, isNull);
     },
   );
 
@@ -570,6 +651,27 @@ void main() {
       );
     },
   );
+
+  test('a committed group delete error is reconciled as success', () async {
+    final group = await groupRepository.createGroup('Committed delete');
+    final settings = Settings.defaultSettings.copyWith(
+      activeBookmarkGroupId: group.id,
+    );
+    final container = createContainer(
+      settingsNotifier: _TestSettingsNotifier(settings),
+      groupRepositoryOverride: _CommitsThenThrowsDeleteGroupRepository(
+        groupBox,
+      ),
+    );
+    final notifier = container.read(bookmarkProvider.notifier);
+    await notifier.future;
+
+    final preview = await notifier.deleteGroup(group.id);
+
+    expect(preview.group.id, group.id);
+    expect(await groupRepository.getGroup(group.id), isNull);
+    expect(container.read(settingsProvider).activeBookmarkGroupId, isNull);
+  });
 
   test(
     'a committed group creation returns its group when publishing fails',
@@ -669,7 +771,13 @@ void main() {
     await notifier.future;
 
     await expectLater(
-      notifier.deleteGroup(group.id, expectedBookmarkIds: const {}),
+      notifier.deleteGroup(
+        group.id,
+        expectedPreview: BookmarkGroupDeletionPreview(
+          group: group.copyWith(bookmarkIds: const {}),
+          orphanBookmarkIds: const {},
+        ),
+      ),
       throwsA(isA<BookmarkGroupChangedException>()),
     );
 
@@ -677,6 +785,44 @@ void main() {
       stored.id,
     });
   });
+
+  test(
+    'a stale orphan preview cannot delete a newly orphaned bookmark',
+    () async {
+      final bookmark = Bookmark.empty.copyWith(
+        originalUrl: 'https://example.com/topology.jpg',
+      );
+      await bookmarkRepository.addBookmarkWithBookmarks([bookmark]);
+      final stored = (await bookmarkRepository.getAllBookmarksOrThrow(
+        imageUrlResolver: (_) => const DefaultImageUrlResolver(),
+      )).single;
+      final first = await groupRepository.createGroup('First');
+      final second = await groupRepository.createGroup('Second');
+      await groupRepository.addBookmarks(first.id, {stored.id});
+      await groupRepository.addBookmarks(second.id, {stored.id});
+      final expected = BookmarkGroupDeletionPreview(
+        group: (await groupRepository.getGroup(first.id))!,
+        orphanBookmarkIds: const {},
+      );
+      final container = createContainer();
+      final notifier = container.read(bookmarkProvider.notifier);
+      await notifier.future;
+      await groupRepository.removeBookmarks(second.id, {stored.id});
+
+      await expectLater(
+        notifier.deleteGroup(first.id, expectedPreview: expected),
+        throwsA(isA<BookmarkGroupChangedException>()),
+      );
+
+      expect(await groupRepository.getGroup(first.id), isNotNull);
+      expect(
+        await bookmarkRepository.getAllBookmarksOrEmpty(
+          imageUrlResolver: (_) => const DefaultImageUrlResolver(),
+        ),
+        hasLength(1),
+      );
+    },
+  );
 
   test(
     'a committed serialized mutation is returned when publishing fails',
@@ -797,6 +943,17 @@ class _FailingMembershipGroupRepository extends BookmarkGroupRepositoryHive {
       throw StateError('membership write failed');
 }
 
+class _CommitsThenThrowsDeleteGroupRepository
+    extends BookmarkGroupRepositoryHive {
+  _CommitsThenThrowsDeleteGroupRepository(super._box);
+
+  @override
+  Future<BookmarkGroupDeletionPreview> deleteGroup(String id) async {
+    await super.deleteGroup(id);
+    throw StateError('group delete reported failure after committing');
+  }
+}
+
 class _FailingSecondReadBookmarkRepository extends BookmarkHiveRepository {
   _FailingSecondReadBookmarkRepository(super._box);
 
@@ -866,6 +1023,20 @@ class _FailsSecondAddBookmarkRepository extends BookmarkHiveRepository {
       _ => throw StateError('Expected a stored bookmark post.'),
     };
     return (await addBookmarkWithBookmarks([bookmark])).single;
+  }
+}
+
+class _FailsSecondAddAndFirstCleanupRepository
+    extends _FailsSecondAddBookmarkRepository {
+  _FailsSecondAddAndFirstCleanupRepository(super._box);
+
+  var _removeCount = 0;
+
+  @override
+  Future<void> removeBookmarks(Iterable<Bookmark> favorites) {
+    _removeCount++;
+    if (_removeCount == 1) throw StateError('first cleanup failed');
+    return super.removeBookmarks(favorites);
   }
 }
 
