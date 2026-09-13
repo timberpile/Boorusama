@@ -12,7 +12,6 @@ import 'package:material_symbols_icons/symbols.dart';
 // Project imports:
 import '../../../../bookmarks/providers.dart';
 import '../../../../bookmarks/src/data/bookmark_convert.dart';
-import '../../../../bookmarks/types.dart';
 import '../../../../bookmarks/widgets.dart';
 import '../../../../configs/config/providers.dart';
 import '../../../../configs/config/types.dart';
@@ -34,7 +33,7 @@ class BookmarkPostButton extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final bookmarkStateAsync = ref.watch(bookmarkProvider);
     final library = bookmarkStateAsync.valueOrNull;
-    final uniqueId = BookmarkUniqueId.fromPost(post, config.booruIdHint);
+    final uniqueId = bookmarkIdentityForPost(post, config.booruIdHint);
     final presentation = library == null
         ? null
         : selectBookmarkMembershipPresentation(library, uniqueId);
@@ -122,7 +121,7 @@ class BookmarkPostLikeButtonButton extends ConsumerWidget {
     final booruConfig = ref.watchConfigAuth;
     final bookmarkStateAsync = ref.watch(bookmarkProvider);
     final library = bookmarkStateAsync.valueOrNull;
-    final uniqueId = BookmarkUniqueId.fromPost(post, booruConfig.booruIdHint);
+    final uniqueId = bookmarkIdentityForPost(post, booruConfig.booruIdHint);
     final bookmark = library?.bookmarksByUniqueId[uniqueId];
     final groupId = library?.activeTarget.groupId;
     final memberships = library?.membershipsFor(uniqueId) ?? const <String>{};
@@ -168,10 +167,7 @@ extension BookmarkPostX on WidgetRef {
   ) async {
     final library = read(bookmarkProvider).valueOrNull;
     if (library == null) return;
-    final uniqueId = switch (post) {
-      BookmarkPost(:final bookmark) => bookmark.uniqueId,
-      _ => BookmarkUniqueId.fromPost(post, config.booruIdHint),
-    };
+    final uniqueId = bookmarkIdentityForPost(post, config.booruIdHint);
     final bookmark = library.bookmarksByUniqueId[uniqueId];
     final groupId = library.activeTarget.groupId;
     void added() {

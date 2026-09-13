@@ -40,6 +40,16 @@ final bookmarkProvider = bookmarkLibraryProvider;
 
 typedef BookmarkNotifier = BookmarkLibraryNotifier;
 
+class BookmarkGroupCreationRollbackException implements Exception {
+  const BookmarkGroupCreationRollbackException({
+    required this.creationError,
+    required this.rollbackErrors,
+  });
+
+  final Object creationError;
+  final List<Object> rollbackErrors;
+}
+
 final bookmarkUrlResolverProvider = Provider.autoDispose
     .family<ImageUrlResolver, int?>((ref, booruId) {
       final booruType = intToBooruType(booruId);
@@ -90,6 +100,10 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     }
     return result as T;
   });
+
+  Future<BookmarkLibraryState> snapshotForExport() => _serialize(() => future);
+
+  Future<void> syncActiveTargetFromSettings() => _serialize(_reload);
 
   Future<bool> setActiveTarget(BookmarkTarget target) => _serialize(() async {
     final saved = await ref
@@ -442,7 +456,10 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     BooruConfigAuth config,
     Iterable<Post> posts,
     String? groupId,
-  ) => _serialize(() => _addPostsToGroup(config, posts, groupId));
+  ) => _serialize(() async {
+    final result = await _addPostsToGroup(config, posts, groupId);
+    return result.changedCount;
+  });
 
   Future<({BookmarkGroup group, int addedCount})> createGroupWithPosts(
     String name,
@@ -461,30 +478,62 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       await repository.deleteGroup(group.id);
       throw StateError('Failed to activate bookmark group ${group.id}.');
     }
+    var createdBookmarks = const <Bookmark>[];
     try {
-      final addedCount = await _addPostsToGroup(
+      final result = await _addPostsToGroup(
         config,
         posts,
         group.id,
         reload: false,
       );
+      createdBookmarks = result.createdBookmarks;
       await _reload(BookmarkTarget.group(group.id));
-      return (group: group, addedCount: addedCount);
+      return (group: group, addedCount: result.changedCount);
     } catch (error, stackTrace) {
-      await ref
-          .read(settingsNotifierProvider.notifier)
-          .updateWith(
-            (settings) => settings.copyWith(
-              activeBookmarkGroupId: previousTarget.groupId,
-            ),
-          );
-      await repository.deleteGroup(group.id);
-      await _reload(previousTarget);
+      final rollbackErrors = <Object>[];
+      if (createdBookmarks.isNotEmpty) {
+        try {
+          await (await _service).deleteBookmarks(createdBookmarks);
+        } catch (rollbackError) {
+          rollbackErrors.add(rollbackError);
+        }
+      }
+      try {
+        final restored = await ref
+            .read(settingsNotifierProvider.notifier)
+            .updateWith(
+              (settings) => settings.copyWith(
+                activeBookmarkGroupId: previousTarget.groupId,
+              ),
+            );
+        if (!restored) {
+          throw StateError('Failed to restore the active bookmark group.');
+        }
+      } catch (rollbackError) {
+        rollbackErrors.add(rollbackError);
+      }
+      try {
+        await repository.deleteGroup(group.id);
+      } catch (rollbackError) {
+        rollbackErrors.add(rollbackError);
+      }
+      try {
+        await _reload(previousTarget);
+      } catch (rollbackError) {
+        rollbackErrors.add(rollbackError);
+      }
+      if (rollbackErrors.isNotEmpty) {
+        throw BookmarkGroupCreationRollbackException(
+          creationError: error,
+          rollbackErrors: List.unmodifiable(rollbackErrors),
+        );
+      }
       Error.throwWithStackTrace(error, stackTrace);
     }
   });
 
-  Future<int> _addPostsToGroup(
+  Future<({int changedCount, List<Bookmark> createdBookmarks})>
+  _addPostsToGroup(
     BooruConfigAuth config,
     Iterable<Post> posts,
     String? groupId, {
@@ -504,8 +553,9 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       }
     }
     if (groupId == null) {
+      var created = const <Bookmark>[];
       if (missing.isNotEmpty) {
-        await (await bookmarkRepository).addBookmarks(
+        created = await (await bookmarkRepository).addBookmarks(
           config.booruIdHint,
           missing,
           imageUrlResolver: (booruId) =>
@@ -514,7 +564,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
         );
       }
       if (reload) await _reload();
-      return missing.length;
+      return (changedCount: missing.length, createdBookmarks: created);
     }
 
     final created = <Bookmark>[];
@@ -539,7 +589,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
         members.map((bookmark) => bookmark.id).toSet(),
       );
       if (reload) await _reload();
-      return changed;
+      return (changedCount: changed, createdBookmarks: created);
     } catch (_) {
       if (created.isNotEmpty) await (await _service).deleteBookmarks(created);
       rethrow;
@@ -664,10 +714,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
   }
 
   BookmarkUniqueId _bookmarkIdentity(Post post, BooruConfigAuth config) =>
-      switch (post) {
-        BookmarkPost(:final bookmark) => bookmark.uniqueId,
-        _ => BookmarkUniqueId.fromPost(post, config.booruIdHint),
-      };
+      bookmarkIdentityForPost(post, config.booruIdHint);
 }
 
 extension BookmarkCubitToastX on BookmarkNotifier {

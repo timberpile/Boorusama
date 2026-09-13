@@ -30,7 +30,9 @@ class BookmarksBackupSource extends JsonBackupSource<BookmarkBackupData> {
         version: kBookmarksBackupVersion,
         appVersion: ref.read(appVersionProvider),
         dataGetter: () async {
-          final state = await ref.read(bookmarkProvider.future);
+          final state = await ref
+              .read(bookmarkProvider.notifier)
+              .snapshotForExport();
           return buildBookmarkBackupData(
             bookmarks: state.items,
             groups: state.groups,

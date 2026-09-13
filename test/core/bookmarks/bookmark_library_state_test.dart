@@ -192,4 +192,13 @@ void main() {
     expect(summary.ungroupedBookmarks, 1);
     expect(summary.membershipCounts, {firstGroupId: 2, secondGroupId: 1});
   });
+
+  test('stored bookmark identity ignores the currently configured booru', () {
+    final bookmark = bookmarks.first;
+
+    expect(
+      bookmarkIdentityForPost(bookmark.toPost(), bookmark.booruId + 100),
+      bookmark.uniqueId,
+    );
+  });
 }

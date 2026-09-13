@@ -128,7 +128,7 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
             })
             ..listen(bookmarkProvider, (_, _) {
               WidgetsBinding.instance.addPostFrameCallback((_) {
-                controller.refresh();
+                controller.refresh(preserveSelection: true);
               });
             });
 

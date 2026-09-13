@@ -77,6 +77,7 @@ class PostGridController<T extends Post> extends ChangeNotifier {
   var _hasMore = true;
   var _loading = false;
   var _refreshing = false;
+  var _preserveSelectionOnRefresh = false;
 
   var _total = 0;
 
@@ -86,6 +87,7 @@ class PostGridController<T extends Post> extends ChangeNotifier {
   bool get hasMore => _hasMore;
   bool get loading => _loading;
   bool get refreshing => _refreshing;
+  bool get preserveSelectionOnRefresh => _preserveSelectionOnRefresh;
   int get page => pageNotifier.value;
   int get total => _total;
 
@@ -267,36 +269,42 @@ class PostGridController<T extends Post> extends ChangeNotifier {
   // Refreshes the list
   Future<void> refresh({
     bool maintainPage = false,
+    bool preserveSelection = false,
   }) async {
     if (_refreshing) return;
-    _setRefreshing(true);
-    _eventController.add(const PostControllerRefreshStarted());
-    _page = switch (_pageMode) {
-      PageMode.infinite => _kFirstPage,
-      PageMode.paginated =>
-        (maintainPage || forcedPageMode) ? _page : _kFirstPage,
-    };
-    count.value = null;
-    maxPage.value = null;
-    notifyListeners();
+    _preserveSelectionOnRefresh = preserveSelection;
+    try {
+      _setRefreshing(true);
+      _eventController.add(const PostControllerRefreshStarted());
+      _page = switch (_pageMode) {
+        PageMode.infinite => _kFirstPage,
+        PageMode.paginated =>
+          (maintainPage || forcedPageMode) ? _page : _kFirstPage,
+      };
+      count.value = null;
+      maxPage.value = null;
+      notifyListeners();
 
-    final newItems = await (_pageMode == PageMode.infinite
-        ? _refreshPosts()
-        : _fetchPosts(_page));
+      final newItems = await (_pageMode == PageMode.infinite
+          ? _refreshPosts()
+          : _fetchPosts(_page));
 
-    if (!mountedChecker()) return;
+      if (!mountedChecker()) return;
 
-    _clear();
-    await _addAll(newItems.posts);
+      _clear();
+      await _addAll(newItems.posts);
 
-    if (!mountedChecker()) return;
+      if (!mountedChecker()) return;
 
-    _hasMore = newItems.posts.isNotEmpty;
-    count.value = newItems.total;
-    maxPage.value = newItems.maxPage;
-    _setRefreshing(false);
-    _eventController.add(const PostControllerRefreshCompleted());
-    notifyListeners();
+      _hasMore = newItems.posts.isNotEmpty;
+      count.value = newItems.total;
+      maxPage.value = newItems.maxPage;
+      _setRefreshing(false);
+      _eventController.add(const PostControllerRefreshCompleted());
+      notifyListeners();
+    } finally {
+      _preserveSelectionOnRefresh = false;
+    }
   }
 
   // Loads more items

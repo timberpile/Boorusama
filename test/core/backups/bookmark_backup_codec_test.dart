@@ -154,4 +154,19 @@ void main() {
 
     expect(codec.parse(payload).bookmarks.single.tags, {'one', 'two'});
   });
+
+  test('rejects an explicit null groups field', () {
+    final payload = decodeData(
+      data: jsonEncode({
+        'version': 1,
+        'data': [bookmark.toJson()],
+        'groups': null,
+      }),
+    );
+
+    expect(
+      () => codec.parse(payload),
+      throwsA(isA<InvalidBackupFormatException>()),
+    );
+  });
 }

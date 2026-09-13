@@ -164,7 +164,8 @@ class _RawPostGridState<T extends Post> extends State<RawPostGrid<T>>
       refreshing.value = true;
 
       // reset multi select if something is selected
-      if (_selectionModeController.selection.isNotEmpty) {
+      if (_selectionModeController.selection.isNotEmpty &&
+          !controller.preserveSelectionOnRefresh) {
         _selectionModeController.deselectAll();
       }
 

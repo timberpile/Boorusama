@@ -45,10 +45,10 @@ class BookmarkBackupCodec extends JsonHandler<BookmarkBackupData> {
       }
     }
 
-    final rawGroups = metadata.extraFields['groups'];
-    if (rawGroups == null) {
+    if (!metadata.extraFields.containsKey('groups')) {
       return BookmarkBackupData(bookmarks: bookmarks, groups: const []);
     }
+    final rawGroups = metadata.extraFields['groups'];
     if (rawGroups is! List<dynamic>) {
       throw const InvalidBackupFormatException('groups must be a list');
     }

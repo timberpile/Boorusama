@@ -31,10 +31,7 @@ class BookmarkContextMenuSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final library = ref.watch(bookmarkProvider).valueOrNull;
-    final id = switch (post) {
-      BookmarkPost(:final bookmark) => bookmark.uniqueId,
-      _ => BookmarkUniqueId.fromPost(post, config.booruIdHint),
-    };
+    final id = bookmarkIdentityForPost(post, config.booruIdHint);
     final bookmark = library?.bookmarksByUniqueId[id];
     final memberships = library?.membershipsFor(id) ?? const <String>{};
     final container = ProviderScope.containerOf(context, listen: false);

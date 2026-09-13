@@ -145,6 +145,12 @@ class BookmarkPost extends SimplePost {
   };
 }
 
+BookmarkUniqueId bookmarkIdentityForPost(Post post, int booruId) =>
+    switch (post) {
+      BookmarkPost(:final bookmark) => bookmark.uniqueId,
+      _ => BookmarkUniqueId.fromPost(post, booruId),
+    };
+
 extension BookmarkToPost on Bookmark {
   BookmarkPost toPost({
     int? overridePostId,

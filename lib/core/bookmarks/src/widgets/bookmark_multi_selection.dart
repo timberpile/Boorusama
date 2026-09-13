@@ -168,9 +168,7 @@ class BookmarkGroupSelectionSummary {
     var ungrouped = 0;
     final counts = <String, int>{};
     for (final post in posts) {
-      final id = post is BookmarkPost
-          ? post.bookmark.uniqueId
-          : BookmarkUniqueId.fromPost(post, booruId);
+      final id = bookmarkIdentityForPost(post, booruId);
       if (state?.bookmarksByUniqueId[id] == null) continue;
       bookmarked++;
       final memberships = state?.membershipsFor(id) ?? const <String>{};

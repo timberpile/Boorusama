@@ -1,9 +1,11 @@
 // Dart imports:
+import 'dart:async';
 import 'dart:io';
 
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:foundation/foundation.dart';
 import 'package:hive_ce/hive.dart';
 
 // Project imports:
@@ -203,6 +205,51 @@ void main() {
     },
   );
 
+  test('an export snapshot waits for preceding bookmark mutations', () async {
+    final container = createContainer();
+    final notifier = container.read(bookmarkProvider.notifier);
+    await notifier.future;
+    final blocker = Completer<void>();
+    final bookmark = Bookmark.empty.copyWith(
+      originalUrl: 'https://example.com/queued.jpg',
+    );
+
+    final mutation = notifier.runSerializedMutation(() async {
+      await blocker.future;
+      await bookmarkRepository.addBookmarkWithBookmarks([bookmark]);
+    });
+    var snapshotCompleted = false;
+    final snapshot = notifier.snapshotForExport().then((value) {
+      snapshotCompleted = true;
+      return value;
+    });
+    await Future<void>.delayed(Duration.zero);
+
+    expect(snapshotCompleted, isFalse);
+    blocker.complete();
+    await mutation;
+    expect((await snapshot).items.single.originalUrl, bookmark.originalUrl);
+  });
+
+  test(
+    'settings synchronization publishes the persisted active group',
+    () async {
+      await groupRepository.createGroup('Imported target', id: groupId);
+      final container = createContainer();
+      final notifier = container.read(bookmarkProvider.notifier);
+      await notifier.future;
+      await container
+          .read(settingsNotifierProvider.notifier)
+          .updateWith(
+            (settings) => settings.copyWith(activeBookmarkGroupId: groupId),
+          );
+
+      await notifier.syncActiveTargetFromSettings();
+
+      expect((await notifier.future).activeTarget.groupId, groupId);
+    },
+  );
+
   test(
     'a group is removed when its requested activation cannot be saved',
     () async {
@@ -279,6 +326,78 @@ void main() {
       );
     },
   );
+
+  test(
+    'creating a group removes a new bookmark when publishing fails',
+    () async {
+      final container = createContainer(
+        bookmarkRepositoryOverride: _FailingSecondReadBookmarkRepository(
+          bookmarkBox,
+        ),
+      );
+      final notifier = container.read(bookmarkProvider.notifier);
+      await notifier.future;
+      final post = Bookmark.empty
+          .copyWith(originalUrl: 'https://example.com/rollback.jpg')
+          .toPost();
+      final config = BooruConfigAuth.fromConfig(
+        BooruConfig.empty.copyWith(booruIdHint: post.bookmark.booruId),
+      );
+
+      await expectLater(
+        notifier.createGroupWithPosts('Atomic', config, [post]),
+        throwsA(isA<BookmarkRepositoryReadException>()),
+      );
+
+      expect(await groupRepository.getGroups(), isEmpty);
+      expect(
+        await bookmarkRepository.getAllBookmarksOrThrow(
+          imageUrlResolver: (_) => const DefaultImageUrlResolver(),
+        ),
+        isEmpty,
+      );
+      expect(container.read(settingsProvider).activeBookmarkGroupId, isNull);
+    },
+  );
+
+  test(
+    'creating a group reports a failed active target rollback',
+    () async {
+      final container = createContainer(
+        settingsNotifier: _FailsSecondSettingsUpdateNotifier(
+          Settings.defaultSettings,
+        ),
+        groupRepositoryOverride: _FailingMembershipGroupRepository(groupBox),
+      );
+      final notifier = container.read(bookmarkProvider.notifier);
+      await notifier.future;
+      final post = Bookmark.empty
+          .copyWith(originalUrl: 'https://example.com/settings-rollback.jpg')
+          .toPost();
+      final config = BooruConfigAuth.fromConfig(
+        BooruConfig.empty.copyWith(booruIdHint: post.bookmark.booruId),
+      );
+
+      await expectLater(
+        notifier.createGroupWithPosts('Atomic', config, [post]),
+        throwsA(
+          isA<BookmarkGroupCreationRollbackException>().having(
+            (error) => error.rollbackErrors,
+            'rollback errors',
+            hasLength(1),
+          ),
+        ),
+      );
+
+      expect(await groupRepository.getGroups(), isEmpty);
+      expect(
+        await bookmarkRepository.getAllBookmarksOrThrow(
+          imageUrlResolver: (_) => const DefaultImageUrlResolver(),
+        ),
+        isEmpty,
+      );
+    },
+  );
 }
 
 class _TestSettingsNotifier extends SettingsNotifier {
@@ -296,6 +415,20 @@ class _FailingSettingsNotifier extends SettingsNotifier {
 
   @override
   Future<bool> updateWith(Settings Function(Settings) selector) async => false;
+}
+
+class _FailsSecondSettingsUpdateNotifier extends SettingsNotifier {
+  _FailsSecondSettingsUpdateNotifier(super.initialSettings);
+
+  var _updateCount = 0;
+
+  @override
+  Future<bool> updateWith(Settings Function(Settings) selector) async {
+    _updateCount++;
+    if (_updateCount == 2) return false;
+    state = selector(state);
+    return true;
+  }
 }
 
 class _FailingAddBookmarkRepository extends BookmarkHiveRepository {
@@ -316,4 +449,35 @@ class _FailingMembershipGroupRepository extends BookmarkGroupRepositoryHive {
   @override
   Future<BookmarkGroup> addBookmarks(String groupId, Set<int> bookmarkIds) =>
       throw StateError('membership write failed');
+}
+
+class _FailingSecondReadBookmarkRepository extends BookmarkHiveRepository {
+  _FailingSecondReadBookmarkRepository(super._box);
+
+  var _readCount = 0;
+
+  @override
+  Future<Bookmark> addBookmark(
+    int booruId,
+    Post post, {
+    required ImageUrlResolver Function(int? booruId) imageUrlResolver,
+    required PostLinkGenerator Function(int? booruId) postLinkGenerator,
+  }) async {
+    final bookmark = switch (post) {
+      BookmarkPost(:final bookmark) => bookmark,
+      _ => throw StateError('Expected a stored bookmark post.'),
+    };
+    return (await addBookmarkWithBookmarks([bookmark])).single;
+  }
+
+  @override
+  BookmarksOrError getAllBookmarks({
+    required ImageUrlResolver Function(int? booruId) imageUrlResolver,
+  }) {
+    _readCount++;
+    if (_readCount == 2) {
+      return TaskEither.left(BookmarkGetError.unknown);
+    }
+    return super.getAllBookmarks(imageUrlResolver: imageUrlResolver);
+  }
 }

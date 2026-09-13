@@ -35,10 +35,7 @@ Future<void> showAnchoredBookmarkGroupPicker(
   final navigator = Navigator.of(context, rootNavigator: true);
   final library = container.read(bookmarkProvider).valueOrNull;
   if (library == null) return;
-  final uniqueId = switch (post) {
-    BookmarkPost(:final bookmark) => bookmark.uniqueId,
-    _ => BookmarkUniqueId.fromPost(post, config.booruIdHint),
-  };
+  final uniqueId = bookmarkIdentityForPost(post, config.booruIdHint);
   final bookmark = library.bookmarksByUniqueId[uniqueId];
   final memberships = library.membershipsFor(uniqueId);
   final overlay = Overlay.of(context).context.findRenderObject()! as RenderBox;
@@ -166,10 +163,7 @@ class BookmarkGroupPicker extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final library = ref.watch(bookmarkProvider).valueOrNull;
-    final uniqueId = switch (post) {
-      BookmarkPost(:final bookmark) => bookmark.uniqueId,
-      _ => BookmarkUniqueId.fromPost(post, config.booruIdHint),
-    };
+    final uniqueId = bookmarkIdentityForPost(post, config.booruIdHint);
     final bookmark = library?.bookmarksByUniqueId[uniqueId];
     final memberships = library?.membershipsFor(uniqueId) ?? const <String>{};
     return AlertDialog(
