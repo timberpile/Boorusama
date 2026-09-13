@@ -20,12 +20,16 @@ class DataBackupConverter {
   final int version;
   final Version? exportVersion;
 
-  String encode({required List<dynamic> payload}) {
+  String encode({
+    required List<dynamic> payload,
+    Map<String, dynamic> extraFields = const {},
+  }) {
     return encodeData(
       version: version,
       exportDate: DateTime.now(),
       exportVersion: exportVersion,
       payload: payload,
+      extraFields: extraFields,
     );
   }
 
@@ -47,12 +51,14 @@ String encodeData({
   required DateTime exportDate,
   required Version? exportVersion,
   required List<dynamic> payload,
+  Map<String, dynamic> extraFields = const {},
 }) {
   final data = ExportDataPayload(
     version: version,
     exportDate: exportDate,
     exportVersion: exportVersion,
     data: payload,
+    extraFields: extraFields,
   ).toJson();
 
   return jsonEncode(data);
@@ -74,6 +80,15 @@ ExportDataPayload decodeData({required String data, BuildContext? uiContext}) =>
             },
             exportVersion: Version.tryParse(json['exportVersion']),
             data: payload,
+            extraFields: Map<String, dynamic>.from(json)
+              ..removeWhere(
+                (key, _) => const {
+                  'version',
+                  'exportVersion',
+                  'date',
+                  'data',
+                }.contains(key),
+              ),
           ),
         final List<dynamic> legacyList => ExportDataPayload.legacy(
           data: legacyList,

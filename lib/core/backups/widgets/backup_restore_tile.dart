@@ -1,3 +1,6 @@
+// Dart imports:
+import 'dart:async';
+
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
@@ -12,6 +15,15 @@ import '../types/backup_data_source.dart';
 import '../types/types.dart';
 import '../utils/backup_file_picker.dart';
 
+typedef BackupSuccessMessageBuilder =
+    String Function(BackupOperationResult result);
+
+String _successMessage(
+  String fallback,
+  BackupOperationResult? result,
+  BackupSuccessMessageBuilder? builder,
+) => result == null || builder == null ? fallback : builder(result);
+
 class DefaultBackupTile extends ConsumerWidget {
   const DefaultBackupTile({
     required this.source,
@@ -23,6 +35,9 @@ class DefaultBackupTile extends ConsumerWidget {
     this.forceAnyFileType = false,
     this.customActions = const {},
     this.onCustomAction,
+    this.onPrepareExport,
+    this.exportSuccessMessageBuilder,
+    this.importSuccessMessageBuilder,
     this.extra,
     this.isSelectionMode = false,
     this.isSelected = false,
@@ -39,6 +54,9 @@ class DefaultBackupTile extends ConsumerWidget {
   final bool forceAnyFileType;
   final Map<String, Widget> customActions;
   final void Function(BuildContext, WidgetRef, String)? onCustomAction;
+  final Future<BackupExportOptions?> Function(BuildContext)? onPrepareExport;
+  final BackupSuccessMessageBuilder? exportSuccessMessageBuilder;
+  final BackupSuccessMessageBuilder? importSuccessMessageBuilder;
   final List<Widget>? extra;
   final bool isSelectionMode;
   final bool isSelected;
@@ -158,32 +176,46 @@ class DefaultBackupTile extends ConsumerWidget {
     final fileCapability = source.capabilities.file;
     if (fileCapability == null) return;
 
-    pickDirectoryPathToastOnError(
-      context: context,
-      onPick: (path) async {
-        try {
-          await fileCapability.export(path);
-          if (context.mounted) {
-            Kurumi.showSuccessToast(
-              context,
-              context.t.settings.backup_and_restore.export_success.replaceAll(
-                '{source}',
-                source.displayName,
-              ),
-            );
+    Future<void> startExport() async {
+      final options = onPrepareExport == null
+          ? null
+          : await onPrepareExport!(context);
+      if (onPrepareExport != null && options == null) return;
+      if (!context.mounted) return;
+      await pickDirectoryPathToastOnError(
+        context: context,
+        onPick: (path) async {
+          try {
+            final result = await fileCapability.export(path, options: options);
+            if (context.mounted) {
+              Kurumi.showSuccessToast(
+                context,
+                _successMessage(
+                  context.t.settings.backup_and_restore.export_success
+                      .replaceAll(
+                        '{source}',
+                        source.displayName,
+                      ),
+                  result,
+                  exportSuccessMessageBuilder,
+                ),
+              );
+            }
+          } catch (error) {
+            if (context.mounted) {
+              Kurumi.showErrorToast(
+                context,
+                context.t.settings.backup_and_restore.export_failed
+                    .replaceAll('{source}', source.displayName.toLowerCase())
+                    .replaceAll('{error}', error.toString()),
+              );
+            }
           }
-        } catch (error) {
-          if (context.mounted) {
-            Kurumi.showErrorToast(
-              context,
-              context.t.settings.backup_and_restore.export_failed
-                  .replaceAll('{source}', source.displayName.toLowerCase())
-                  .replaceAll('{error}', error.toString()),
-            );
-          }
-        }
-      },
-    );
+        },
+      );
+    }
+
+    unawaited(startExport());
   }
 
   void _handleFileImport(BuildContext context, WidgetRef ref) {
@@ -202,9 +234,15 @@ class DefaultBackupTile extends ConsumerWidget {
           if (context.mounted) {
             Kurumi.showSuccessToast(
               context,
-              context.t.settings.backup_and_restore.import_success.replaceAll(
-                '{source}',
-                source.displayName,
+              _successMessage(
+                context.t.settings.backup_and_restore.import_success.replaceAll(
+                  '{source}',
+                  source.displayName,
+                ),
+                source is BackupResultSource
+                    ? (source as BackupResultSource).lastImportResult
+                    : null,
+                importSuccessMessageBuilder,
               ),
             );
           }
@@ -228,14 +266,22 @@ class DefaultBackupTile extends ConsumerWidget {
     final clipboardCapability = source.capabilities.clipboard;
     if (clipboardCapability == null) return;
 
+    final options = onPrepareExport == null
+        ? null
+        : await onPrepareExport!(context);
+    if (onPrepareExport != null && options == null) return;
     try {
-      await clipboardCapability.export();
+      final result = await clipboardCapability.export(options: options);
       if (context.mounted) {
         Kurumi.showSuccessToast(
           context,
-          context.t.settings.backup_and_restore.export_success.replaceAll(
-            '{source}',
-            source.displayName,
+          _successMessage(
+            context.t.settings.backup_and_restore.export_success.replaceAll(
+              '{source}',
+              source.displayName,
+            ),
+            result,
+            exportSuccessMessageBuilder,
           ),
         );
       }
@@ -261,9 +307,15 @@ class DefaultBackupTile extends ConsumerWidget {
       if (context.mounted) {
         Kurumi.showSuccessToast(
           context,
-          context.t.settings.backup_and_restore.import_success.replaceAll(
-            '{source}',
-            source.displayName,
+          _successMessage(
+            context.t.settings.backup_and_restore.import_success.replaceAll(
+              '{source}',
+              source.displayName,
+            ),
+            source is BackupResultSource
+                ? (source as BackupResultSource).lastImportResult
+                : null,
+            importSuccessMessageBuilder,
           ),
         );
       }

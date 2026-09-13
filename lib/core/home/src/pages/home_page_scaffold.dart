@@ -259,7 +259,7 @@ List<Widget> coreDesktopViewBuilder({
   final views = [
     for (int i = 0; i < totalPlaceholder; i++) const SizedBox.shrink(),
     if (viewKey != null && viewKey.isAlt) const SearchPage(),
-    const BookmarkPage(),
+    const BookmarkGroupBrowserPage(),
     const BlacklistedTagPage(),
     const FavoriteTagsPage(),
     const BulkDownloadPage(),

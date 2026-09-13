@@ -73,12 +73,12 @@ void main() {
 
   final invalidNames = ['', '   '];
   for (final name in invalidNames) {
-    test('rejects the empty display name ${name.length}', () async {
+    test('rejects the empty display name ${name.length}', () {
       expect(() => repository.createGroup(name), throwsFormatException);
     });
   }
 
-  test('rejects malformed supplied IDs', () async {
+  test('rejects malformed supplied IDs', () {
     expect(
       () => repository.createGroup('Shared', id: 'not-a-guid'),
       throwsFormatException,
@@ -88,7 +88,7 @@ void main() {
   test('adds each bookmark membership at most once', () async {
     final group = await repository.createGroup('Saved');
 
-    await repository.addBookmarks(group.id, {10, 10, 11});
+    await repository.addBookmarks(group.id, {10, 11});
     await repository.addBookmarks(group.id, {10});
 
     expect((await repository.getGroup(group.id))?.bookmarkIds, {10, 11});

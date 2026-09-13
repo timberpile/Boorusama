@@ -41,7 +41,10 @@ abstract class SqliteBackupSource implements BackupDataSource {
       prepareImport: _prepareServerImport,
     ),
     file: FileCapability(
-      export: _exportToFile,
+      export: (path, {options}) async {
+        await _exportToFile(path, options: options);
+        return null;
+      },
       prepareImport: _prepareFileImport,
     ),
     // No clipboard support for binary files
@@ -86,7 +89,10 @@ abstract class SqliteBackupSource implements BackupDataSource {
     onImportComplete();
   }
 
-  Future<void> _exportToFile(String directoryPath) async {
+  Future<void> _exportToFile(
+    String directoryPath, {
+    BackupExportOptions? options,
+  }) async {
     await BackupUtils.ensureStoragePermissions(ref);
 
     final dbPath = await dbPathGetter();

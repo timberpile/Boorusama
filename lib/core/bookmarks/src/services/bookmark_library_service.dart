@@ -79,6 +79,9 @@ class BookmarkLibraryService {
     }
   }
 
+  Future<void> moveBookmarkToUngrouped(Bookmark bookmark) =>
+      groupRepository.removeBookmarkFromAllGroups(bookmark.id);
+
   Future<BookmarkGroupRemovalResult> removeBookmarksFromGroup(
     Iterable<Bookmark> bookmarks,
     String groupId, {
@@ -115,12 +118,12 @@ class BookmarkLibraryService {
     try {
       if (toDelete.isNotEmpty) {
         await bookmarkRepository.removeBookmarks(toDelete);
-        await _clearCaches(toDelete);
       }
     } catch (_) {
       await groupRepository.addBookmarks(groupId, affectedIds);
       rethrow;
     }
+    await _clearCaches(toDelete);
 
     return BookmarkGroupRemovalResult(
       removedCount: affectedIds.length,
@@ -145,13 +148,13 @@ class BookmarkLibraryService {
     }
     try {
       await bookmarkRepository.removeBookmarks(bookmarkList);
-      await _clearCaches(bookmarkList);
     } catch (_) {
       for (final entry in affectedGroups.entries) {
         await groupRepository.replaceMemberships(entry.key, entry.value);
       }
       rethrow;
     }
+    await _clearCaches(bookmarkList);
   }
 
   Future<BookmarkGroupDeletionPreview> deleteGroup(String groupId) async {
@@ -164,9 +167,7 @@ class BookmarkLibraryService {
     try {
       if (orphanBookmarks.isNotEmpty) {
         await bookmarkRepository.removeBookmarks(orphanBookmarks);
-        await _clearCaches(orphanBookmarks);
       }
-      return preview;
     } catch (_) {
       await groupRepository.createGroup(
         preview.group.name,
@@ -178,6 +179,8 @@ class BookmarkLibraryService {
       );
       rethrow;
     }
+    await _clearCaches(orphanBookmarks);
+    return preview;
   }
 
   Future<void> _clearCaches(Iterable<Bookmark> bookmarks) async {

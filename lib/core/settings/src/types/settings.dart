@@ -25,6 +25,8 @@ import '../../../themes/configs/types.dart';
 import '../../../videos/engines/types.dart';
 import '../../../videos/player/types.dart';
 
+const _settingNotProvided = Object();
+
 class Settings extends Equatable {
   const Settings({
     required this.listing,
@@ -47,6 +49,7 @@ class Settings extends Equatable {
     required this.appLockTimeoutSeconds,
     required this.hideAppPreviewWhenBackgrounded,
     required this.bookmarkFilterType,
+    required this.activeBookmarkGroupId,
     required this.booruConfigSelectorPosition,
     required this.booruConfigSelectorScrollDirection,
     required this.swipeAreaToOpenSidebarPercentage,
@@ -95,6 +98,10 @@ class Settings extends Equatable {
       hideAppPreviewWhenBackgrounded =
           json['hideAppPreviewWhenBackgrounded'] ?? true,
       bookmarkFilterType = BookmarkFilterType.parse(json['bookmarkFilterType']),
+      activeBookmarkGroupId = switch (json['activeBookmarkGroupId']) {
+        final String value => value,
+        _ => null,
+      },
       booruConfigSelectorPosition = BooruConfigSelectorPosition.parse(
         json['booruConfigSelectorPosition'],
       ),
@@ -185,6 +192,7 @@ class Settings extends Equatable {
     appLockTimeoutSeconds: 0,
     hideAppPreviewWhenBackgrounded: true,
     bookmarkFilterType: BookmarkFilterType.defaultValue,
+    activeBookmarkGroupId: null,
     booruConfigSelectorPosition: BooruConfigSelectorPosition.defaultValue,
     booruConfigSelectorScrollDirection: BooruConfigScrollDirection.defaultValue,
     swipeAreaToOpenSidebarPercentage: 5,
@@ -237,6 +245,8 @@ class Settings extends Equatable {
 
   final BookmarkFilterType bookmarkFilterType;
 
+  final String? activeBookmarkGroupId;
+
   final BooruConfigSelectorPosition booruConfigSelectorPosition;
 
   final BooruConfigScrollDirection booruConfigSelectorScrollDirection;
@@ -286,6 +296,7 @@ class Settings extends Equatable {
     int? appLockTimeoutSeconds,
     bool? hideAppPreviewWhenBackgrounded,
     BookmarkFilterType? bookmarkFilterType,
+    Object? activeBookmarkGroupId = _settingNotProvided,
     PostGestureConfig? postGestures,
     BooruConfigSelectorPosition? booruConfigSelectorPosition,
     BooruConfigScrollDirection? booruConfigSelectorScrollDirection,
@@ -329,6 +340,13 @@ class Settings extends Equatable {
     hideAppPreviewWhenBackgrounded:
         hideAppPreviewWhenBackgrounded ?? this.hideAppPreviewWhenBackgrounded,
     bookmarkFilterType: bookmarkFilterType ?? this.bookmarkFilterType,
+    activeBookmarkGroupId:
+        identical(
+          activeBookmarkGroupId,
+          _settingNotProvided,
+        )
+        ? this.activeBookmarkGroupId
+        : activeBookmarkGroupId as String?,
     booruConfigSelectorPosition:
         booruConfigSelectorPosition ?? this.booruConfigSelectorPosition,
     booruConfigSelectorScrollDirection:
@@ -381,6 +399,7 @@ class Settings extends Equatable {
       'appLockTimeoutSeconds': appLockTimeoutSeconds,
       'hideAppPreviewWhenBackgrounded': hideAppPreviewWhenBackgrounded,
       'bookmarkFilterType': bookmarkFilterType.toData(),
+      'activeBookmarkGroupId': activeBookmarkGroupId,
       'booruConfigSelectorPosition': booruConfigSelectorPosition.toData(),
       'booruConfigSelectorScrollDirection': booruConfigSelectorScrollDirection
           .toData(),
@@ -422,6 +441,7 @@ class Settings extends Equatable {
     appLockTimeoutSeconds,
     hideAppPreviewWhenBackgrounded,
     bookmarkFilterType,
+    activeBookmarkGroupId,
     booruConfigSelectorPosition,
     booruConfigSelectorScrollDirection,
     swipeAreaToOpenSidebarPercentage,

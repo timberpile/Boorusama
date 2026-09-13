@@ -6,11 +6,17 @@ import 'package:scroll_to_index/scroll_to_index.dart';
 // Project imports:
 import '../../../widgets/widgets.dart';
 import '../widgets/bookmark_scroll_view.dart';
+import '../types/bookmark_view.dart';
 
 class BookmarkPage extends ConsumerStatefulWidget {
   const BookmarkPage({
+    this.view = const BookmarkView.all(),
+    this.title,
     super.key,
   });
+
+  final BookmarkView view;
+  final String? title;
 
   @override
   ConsumerState<BookmarkPage> createState() => _BookmarkPageState();
@@ -35,6 +41,8 @@ class _BookmarkPageState extends ConsumerState<BookmarkPage> {
         body: BookmarkScrollView(
           scrollController: _scrollController,
           searchController: _searchController,
+          view: widget.view,
+          title: widget.title,
         ),
       ),
     );

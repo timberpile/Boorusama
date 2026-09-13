@@ -92,7 +92,7 @@ void main() {
     final changed = await service.addBookmarkToGroup(
       groupId: firstGroupId,
       existingBookmark: bookmark,
-      createBookmark: () async {
+      createBookmark: () {
         createCalls++;
         return storeBookmark('duplicate');
       },
@@ -106,6 +106,18 @@ void main() {
     expect((await service.load(const BookmarkTarget.ungrouped())).items, [
       bookmark,
     ]);
+  });
+
+  test('moves a grouped bookmark into No Group without deleting it', () async {
+    final bookmark = await storeBookmark('move-to-no-group');
+    await groupRepository.createGroup('First', id: firstGroupId);
+    await groupRepository.addBookmarks(firstGroupId, {bookmark.id});
+
+    await service.moveBookmarkToUngrouped(bookmark);
+
+    final state = await service.load(const BookmarkTarget.ungrouped());
+    expect(state.items, [bookmark]);
+    expect(state.membershipsFor(bookmark.uniqueId), isEmpty);
   });
 
   test(
@@ -194,6 +206,35 @@ void main() {
       expect(clearedBookmarkIds, [orphan.id]);
     },
   );
+
+  test(
+    'cache cleanup failure does not restore membership to a deleted bookmark',
+    () async {
+      final bookmark = await storeBookmark('cache-failure');
+      await groupRepository.createGroup('First', id: firstGroupId);
+      await groupRepository.addBookmarks(firstGroupId, {bookmark.id});
+      service = BookmarkLibraryService(
+        bookmarkRepository: bookmarkRepository,
+        groupRepository: groupRepository,
+        imageUrlResolver: resolver,
+        clearBookmarkCache: (_) => throw StateError('cache cleanup failed'),
+      );
+
+      await expectLater(
+        service.deleteBookmarks([bookmark]),
+        throwsStateError,
+      );
+
+      expect(
+        (await service.load(const BookmarkTarget.ungrouped())).items,
+        isEmpty,
+      );
+      expect(
+        (await groupRepository.getGroup(firstGroupId))?.bookmarkIds,
+        isEmpty,
+      );
+    },
+  );
 }
 
 class _FailingAddGroupRepository implements BookmarkGroupRepository {
@@ -215,8 +256,8 @@ class _FailingAddGroupRepository implements BookmarkGroupRepository {
       delegate.deleteGroup(id);
 
   @override
-  Future<BookmarkGroup> duplicateGroup(String id) =>
-      delegate.duplicateGroup(id);
+  Future<BookmarkGroup> duplicateGroup(String id, {String? name}) =>
+      delegate.duplicateGroup(id, name: name);
 
   @override
   Future<BookmarkGroup?> getGroup(String id) => delegate.getGroup(id);

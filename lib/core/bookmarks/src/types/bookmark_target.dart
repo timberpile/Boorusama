@@ -13,6 +13,13 @@ class BookmarkTarget extends Equatable {
     return BookmarkTarget._(normalized);
   }
 
+  factory BookmarkTarget.fromGroupId(String? groupId) {
+    if (groupId == null || !Uuid.isValidUUID(fromString: groupId)) {
+      return const BookmarkTarget.ungrouped();
+    }
+    return BookmarkTarget.group(groupId);
+  }
+
   const BookmarkTarget._(this.groupId);
 
   final String? groupId;

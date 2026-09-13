@@ -54,14 +54,14 @@ class BookmarkGroupRepositoryHive implements BookmarkGroupRepository {
   }
 
   @override
-  Future<BookmarkGroup> duplicateGroup(String id) async {
+  Future<BookmarkGroup> duplicateGroup(String id, {String? name}) async {
     final source = _requireGroup(id);
-    final duplicate = await createGroup(source.name);
+    final duplicate = await createGroup(name ?? source.name);
     return replaceMemberships(duplicate.id, source.bookmarkIds);
   }
 
   @override
-  Future<BookmarkGroup> renameGroup(String id, String name) async {
+  Future<BookmarkGroup> renameGroup(String id, String name) {
     final group = _requireGroup(id);
     return _write(group.copyWith(name: _normalizeName(name)));
   }

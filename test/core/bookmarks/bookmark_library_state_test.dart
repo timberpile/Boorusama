@@ -17,27 +17,35 @@ void main() {
       id: 1,
       originalUrl: 'https://example.com/1.jpg',
       sourceUrl: 'https://one.example/posts/1',
-      createdAt: DateTime.utc(2026, 1, 1),
-      tags: {'red'},
+      createdAt: DateTime.utc(2026),
+      tags: const {'red'},
     ),
     Bookmark.empty.copyWith(
       id: 2,
       originalUrl: 'https://example.com/2.jpg',
       sourceUrl: 'https://two.example/posts/2',
       createdAt: DateTime.utc(2026, 1, 2),
-      tags: {'blue'},
+      tags: const {'blue'},
     ),
     Bookmark.empty.copyWith(
       id: 3,
       originalUrl: 'https://example.com/3.jpg',
       sourceUrl: 'https://one.example/posts/3',
       createdAt: DateTime.utc(2026, 1, 3),
-      tags: {'red', 'blue'},
+      tags: const {'red', 'blue'},
     ),
   ];
   final groups = [
-    BookmarkGroup(id: firstGroupId, name: 'First', bookmarkIds: {1, 3}),
-    BookmarkGroup(id: secondGroupId, name: 'Second', bookmarkIds: {3}),
+    BookmarkGroup(
+      id: firstGroupId,
+      name: 'First',
+      bookmarkIds: const {1, 3},
+    ),
+    BookmarkGroup(
+      id: secondGroupId,
+      name: 'Second',
+      bookmarkIds: const {3},
+    ),
   ];
 
   BookmarkLibraryState createState({BookmarkTarget? activeTarget}) {
@@ -93,7 +101,7 @@ void main() {
         BookmarkGroup(
           id: firstGroupId,
           name: 'First',
-          bookmarkIds: {1, 2, 3, 4, 5, 6},
+          bookmarkIds: const {1, 2, 3, 4, 5, 6},
         ),
       ],
       activeTarget: BookmarkTarget.group(firstGroupId),

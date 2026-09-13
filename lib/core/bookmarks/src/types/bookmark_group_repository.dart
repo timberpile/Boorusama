@@ -7,7 +7,7 @@ abstract interface class BookmarkGroupRepository {
 
   Future<BookmarkGroup> createGroup(String name, {String? id});
 
-  Future<BookmarkGroup> duplicateGroup(String id);
+  Future<BookmarkGroup> duplicateGroup(String id, {String? name});
 
   Future<BookmarkGroup> renameGroup(String id, String name);
 
