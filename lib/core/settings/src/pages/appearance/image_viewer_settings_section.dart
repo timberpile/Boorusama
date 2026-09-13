@@ -93,14 +93,14 @@ class ImageViewerSettingsSection extends ConsumerWidget {
         ),
         KurumiSwitchListTile(
           title: Text(
-            context.t.settings.image_viewer.auto_start_comic_strip_mode,
+            context.t.settings.image_viewer.auto_adjust_comic_strips,
           ),
           subtitle: Text(
             context
                 .t
                 .settings
                 .image_viewer
-                .auto_start_comic_strip_mode_description,
+                .auto_adjust_comic_strips_description,
           ),
           value: viewer.autoStartComicStripMode,
           onChanged: (value) => onUpdate(
