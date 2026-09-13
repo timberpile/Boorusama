@@ -56,7 +56,8 @@ The merge commit has the previous `develop` tip and the incorporated `upstream/m
 2. Update the local remote references and fast-forward `develop` to its remote tip:
 
    ```bash
-   git fetch origin upstream --prune
+   git fetch origin --prune
+   git fetch upstream --prune
    git switch develop
    git merge --ff-only origin/develop
    ```
