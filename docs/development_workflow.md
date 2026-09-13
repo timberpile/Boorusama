@@ -1,6 +1,13 @@
 # Development workflow
 
-All repository development happens through GitHub issues and pull requests. The workflow keeps `develop` and `master` protected while retaining design, review, and test context in GitHub.
+The standard development workflow uses GitHub issues and pull requests to retain design, review, and test context. Direct commits to `develop` are permitted only when the user explicitly authorizes one for the current change.
+
+## Direct commits to develop
+
+- Direct commits to `develop` require explicit user authorization for the current change. Authorization does not carry over to later changes.
+- An authorized direct commit may omit the GitHub issue, work branch, and pull request.
+- Keep each authorized direct change in a focused conventional commit.
+- Direct commits to `master` remain prohibited.
 
 ## Features and fixes
 
@@ -35,7 +42,9 @@ All repository development happens through GitHub issues and pull requests. The 
 
 ## Protected branches
 
-Direct pushes, force pushes, and deletion are prohibited for `develop` and `master`, including for repository administrators.
+Direct pushes to `develop` are permitted only under the explicit-authorization rule above. Force pushes and deletion remain prohibited for `develop`.
+
+Direct pushes, force pushes, and deletion are prohibited for `master`, including for repository administrators.
 
 - Feature and fix pull requests target `develop`.
 - Only `develop` may be promoted to `master`.

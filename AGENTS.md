@@ -41,12 +41,14 @@ for (final c in cases) {
 
 ## GitHub development process
 
+- NEVER perform GitHub actions on any repository other than `timberpile/Boorusama`. Always target `timberpile/Boorusama` explicitly in GitHub CLI commands. For every other repository, provide manual instructions instead of taking action.
 - Read `docs/development_workflow.md` before starting repository changes.
-- Create a GitHub issue before implementing every feature or bug fix.
+- Direct commits to `develop` are allowed only when the user explicitly authorizes them for the current change. This authorization does not carry over to later changes.
+- Without explicit authorization for a direct `develop` commit, create a GitHub issue before implementing every feature or bug fix and use the standard branch and pull-request workflow.
 - Create the work branch from the latest `origin/develop`:
   - `feature/<issue-id>-<short-description>` for features and additive changes.
   - `fix/<issue-id>-<short-description>` for bug fixes and corrective changes.
-- Never commit or push directly to `develop` or `master`. Both branches change only through GitHub pull requests.
+- Never commit or push directly to `master`.
 - Pull requests for features and fixes target `develop`. Only `develop` may open a release/promotion pull request to `master`.
 - Set the pull request title to exactly `Merge branch '<branch-name>'` and include `Closes #<issue-id>` in its body.
 - Keep pull request descriptions brief. After the closing issue reference, use a few concise bullets describing only the meaningful end-state changes introduced when merged. Exclude implementation details, test history, development phases, temporary steps, and exhaustive file-level summaries unless they are essential to understanding the result.
