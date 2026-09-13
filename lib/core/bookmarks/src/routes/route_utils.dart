@@ -1,5 +1,7 @@
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:i18n/i18n.dart';
+import 'package:kurumi/kurumi.dart';
 
 // Project imports:
 import '../../../posts/listing/providers.dart';
@@ -25,13 +27,22 @@ Future<void> goToBookmarkGroupPage(
   required String title,
 }) async {
   if (view.kind != BookmarkViewKind.all) {
-    await ref
+    final activated = await ref
         .read(bookmarkProvider.notifier)
         .setActiveTarget(
           view.kind == BookmarkViewKind.ungrouped
               ? const BookmarkTarget.ungrouped()
               : BookmarkTarget.group(view.groupId!),
         );
+    if (!activated) {
+      if (ref.context.mounted) {
+        Kurumi.showErrorToast(
+          ref.context,
+          ref.context.t.bookmark.groups.operation_failed,
+        );
+      }
+      return;
+    }
   }
   await ref.router.push(
     Uri(

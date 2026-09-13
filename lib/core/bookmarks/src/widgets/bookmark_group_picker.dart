@@ -14,6 +14,7 @@ import '../data/bookmark_convert.dart';
 import '../providers/bookmark_provider.dart';
 import '../types/bookmark.dart';
 import '../types/bookmark_target.dart';
+import 'bookmark_group_label.dart';
 import 'bookmark_group_name_dialog.dart';
 
 Future<void> showBookmarkGroupPicker(
@@ -38,6 +39,7 @@ Future<void> showAnchoredBookmarkGroupPicker(
   final uniqueId = bookmarkIdentityForPost(post, config.booruIdHint);
   final bookmark = library.bookmarksByUniqueId[uniqueId];
   final memberships = library.membershipsFor(uniqueId);
+  final labels = bookmarkGroupLabels(library.groups);
   final overlay = Overlay.of(context).context.findRenderObject()! as RenderBox;
   final selected = await showMenu<String>(
     context: context,
@@ -55,7 +57,7 @@ Future<void> showAnchoredBookmarkGroupPicker(
         CheckedPopupMenuItem(
           value: group.id,
           checked: memberships.contains(group.id),
-          child: Text(group.name),
+          child: Text(labels[group.id]!),
         ),
       PopupMenuItem(
         value: 'create',
@@ -166,6 +168,7 @@ class BookmarkGroupPicker extends ConsumerWidget {
     final uniqueId = bookmarkIdentityForPost(post, config.booruIdHint);
     final bookmark = library?.bookmarksByUniqueId[uniqueId];
     final memberships = library?.membershipsFor(uniqueId) ?? const <String>{};
+    final labels = bookmarkGroupLabels(library?.groups ?? const []);
     return AlertDialog(
       title: Text(context.t.bookmark.groups.selector),
       content: SizedBox(
@@ -182,7 +185,7 @@ class BookmarkGroupPicker extends ConsumerWidget {
             for (final group in library?.groups ?? const [])
               CheckboxListTile(
                 value: memberships.contains(group.id),
-                title: Text(group.name),
+                title: Text(labels[group.id]!),
                 secondary: library?.activeTarget.groupId == group.id
                     ? const Icon(Symbols.check_circle)
                     : null,

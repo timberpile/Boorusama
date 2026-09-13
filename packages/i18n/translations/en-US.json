@@ -1178,31 +1178,21 @@
       "remove": "Remove from group",
       "delete": "Delete",
       "delete_title": "Delete bookmarks?",
-      "delete_message": "This will delete all {count} selected bookmarks."
-      ,"add_title": "Add bookmarks to group"
-      ,"remove_title": "Remove bookmarks from group"
-      ,"selection_summary": "{0} of {1} selected posts are bookmarked"
-      ,"membership_count": "{0} of {1} selected"
-      ,"create_group": "Create new group"
-      ,"no_applicable": "None of the selected bookmarks belong to a group."
-      ,"add_success": "Added {0} bookmarks to {1}"
-      ,"remove_success": "Removed {0} bookmarks from {1}"
-      ,"remove_success_ungrouped": "Removed {0} bookmarks from {1}; {2} are now in No Group"
-      ,"delete_success": "Deleted {0} bookmarks"
-      ,"add_title": "Add bookmarks to group"
-      ,"remove_title": "Remove bookmarks from group"
-      ,"selection_summary": "{0} of {1} selected posts are bookmarked"
-      ,"ungrouped_summary": "{0} selected bookmarks are in No Group"
-      ,"membership_count": "{0} of {1} selected"
-      ,"create_group": "Create new group"
-      ,"no_applicable": "None of the selected bookmarks belong to a group."
-      ,"add_success": "Added {0} bookmarks to {1}"
-      ,"remove_success": "Removed {0} bookmarks from {1}"
-      ,"remove_success_ungrouped": "Removed {0} bookmarks from {1}; {2} are now in No Group"
-      ,"delete_success": "Deleted {0} bookmarks"
-      ,"failed_to_add": "Failed to add bookmarks to group"
-      ,"failed_to_remove": "Failed to remove bookmarks from group"
-      ,"failed_to_delete": "Failed to delete bookmarks"
+      "delete_message": "This will delete all {count} selected bookmarks.",
+      "add_title": "Add bookmarks to group",
+      "remove_title": "Remove bookmarks from group",
+      "selection_summary": "{0} of {1} selected posts are bookmarked",
+      "ungrouped_summary": "{0} selected bookmarks are in No Group",
+      "membership_count": "{0} of {1} selected",
+      "create_group": "Create new group",
+      "no_applicable": "None of the selected bookmarks belong to a group.",
+      "add_success": "Added {0} bookmarks to {1}",
+      "remove_success": "Removed {0} bookmarks from {1}",
+      "remove_success_ungrouped": "Removed {0} bookmarks from {1}; {2} are now in No Group",
+      "delete_success": "Deleted {0} bookmarks",
+      "failed_to_add": "Failed to add bookmarks to group",
+      "failed_to_remove": "Failed to remove bookmarks from group",
+      "failed_to_delete": "Failed to delete bookmarks"
     },
     "counter": {
       "one": "$n bookmark",

@@ -24,6 +24,7 @@ import '../../../posts/post/types.dart';
 import '../../../widgets/widgets.dart';
 import '../../types.dart';
 import '../data/bookmark_convert.dart';
+import '../data/bookmark_selection.dart';
 import '../data/providers.dart';
 import '../providers/bookmark_provider.dart';
 import '../providers/bookmark_group_selectors.dart';
@@ -127,8 +128,26 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
               });
             })
             ..listen(bookmarkProvider, (_, _) {
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                controller.refresh(preserveSelection: true);
+              final selected = selectedBookmarkIdentities(
+                controller.items.toList(),
+                _selectionModeController.selection,
+              );
+              WidgetsBinding.instance.addPostFrameCallback((_) async {
+                await controller.refresh(preserveSelection: true);
+                if (!mounted || selected.isEmpty) return;
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (!mounted) return;
+                  final indices = bookmarkSelectionIndices(
+                    controller.items.toList(),
+                    selected,
+                  );
+                  _selectionModeController.deselectAll();
+                  if (indices.isEmpty) {
+                    _selectionModeController.disable();
+                  } else {
+                    _selectionModeController.enable(initialSelected: indices);
+                  }
+                });
               });
             });
 

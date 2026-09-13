@@ -50,6 +50,8 @@ class BookmarkGroupCreationRollbackException implements Exception {
   final List<Object> rollbackErrors;
 }
 
+enum BookmarkToggleOutcome { added, removed, unavailable, failed }
+
 final bookmarkUrlResolverProvider = Provider.autoDispose
     .family<ImageUrlResolver, int?>((ref, booruId) {
       final booruType = intToBooruType(booruId);
@@ -225,6 +227,65 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       onSuccess?.call();
     } catch (_) {
       onError?.call();
+    }
+  });
+
+  Future<BookmarkToggleOutcome> togglePostTarget(
+    BooruConfigAuth config,
+    Post post,
+  ) => _serialize(() async {
+    try {
+      final current = await future;
+      final uniqueId = bookmarkIdentityForPost(post, config.booruIdHint);
+      final bookmark = current.bookmarksByUniqueId[uniqueId];
+      final memberships = current.membershipsFor(uniqueId);
+      if (current.activeTarget.groupId case final groupId?) {
+        if (bookmark != null && memberships.contains(groupId)) {
+          await (await _service).removeBookmarksFromGroup(
+            [bookmark],
+            groupId,
+            deleteWhenMembershipBecomesEmpty: true,
+          );
+          await _reload();
+          return BookmarkToggleOutcome.removed;
+        }
+        await (await _service).addBookmarkToGroup(
+          groupId: groupId,
+          existingBookmark: bookmark,
+          createBookmark: bookmark == null
+              ? () async => (await bookmarkRepository).addBookmark(
+                  config.booruIdHint,
+                  post,
+                  imageUrlResolver: (booruId) =>
+                      ref.read(bookmarkUrlResolverProvider(booruId)),
+                  postLinkGenerator: (_) =>
+                      ref.read(postLinkGeneratorProvider(config)),
+                )
+              : null,
+        );
+        await _reload();
+        return BookmarkToggleOutcome.added;
+      }
+      if (bookmark != null) {
+        if (memberships.isNotEmpty) return BookmarkToggleOutcome.unavailable;
+        await (await _service).deleteBookmarks([bookmark]);
+        await _reload();
+        return BookmarkToggleOutcome.removed;
+      }
+      await (await bookmarkRepository).addBookmark(
+        config.booruIdHint,
+        post,
+        imageUrlResolver: (booruId) =>
+            ref.read(bookmarkUrlResolverProvider(booruId)),
+        postLinkGenerator: (_) => ref.read(postLinkGeneratorProvider(config)),
+      );
+      await _reload();
+      return BookmarkToggleOutcome.added;
+    } catch (_) {
+      try {
+        await _reload();
+      } catch (_) {}
+      return BookmarkToggleOutcome.failed;
     }
   });
 
@@ -553,15 +614,24 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       }
     }
     if (groupId == null) {
-      var created = const <Bookmark>[];
-      if (missing.isNotEmpty) {
-        created = await (await bookmarkRepository).addBookmarks(
-          config.booruIdHint,
-          missing,
-          imageUrlResolver: (booruId) =>
-              ref.read(bookmarkUrlResolverProvider(booruId)),
-          postLinkGenerator: (_) => ref.read(postLinkGeneratorProvider(config)),
-        );
+      final created = <Bookmark>[];
+      try {
+        for (final post in missing) {
+          created.add(
+            await (await bookmarkRepository).addBookmark(
+              config.booruIdHint,
+              post,
+              imageUrlResolver: (booruId) =>
+                  ref.read(bookmarkUrlResolverProvider(booruId)),
+              postLinkGenerator: (_) =>
+                  ref.read(postLinkGeneratorProvider(config)),
+            ),
+          );
+        }
+      } catch (_) {
+        if (created.isNotEmpty) await (await _service).deleteBookmarks(created);
+        if (reload) await _reload();
+        rethrow;
       }
       if (reload) await _reload();
       return (changedCount: missing.length, createdBookmarks: created);

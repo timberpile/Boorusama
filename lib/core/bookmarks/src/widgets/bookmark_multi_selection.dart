@@ -16,6 +16,7 @@ import '../../../configs/config/types.dart';
 import '../../../posts/post/types.dart';
 import '../types/bookmark.dart';
 import 'bookmark_group_name_dialog.dart';
+import 'bookmark_group_label.dart';
 
 Future<bool> showBookmarkMultiSelectionActions(
   BuildContext context, {
@@ -401,6 +402,7 @@ class _BookmarkGroupSelectionDialog extends ConsumerWidget {
     final visibleGroups = groups
         .where((group) => add || summary.countFor(group.id) > 0)
         .toList();
+    final labels = bookmarkGroupLabels(groups);
     return AlertDialog(
       title: Text(
         add
@@ -432,7 +434,7 @@ class _BookmarkGroupSelectionDialog extends ConsumerWidget {
             for (final group in visibleGroups)
               _tile(
                 context,
-                BookmarkGroupSelectionTarget(group.id, group.name),
+                BookmarkGroupSelectionTarget(group.id, labels[group.id]!),
                 summary.countFor(group.id),
               ),
             if (!add && visibleGroups.isEmpty)

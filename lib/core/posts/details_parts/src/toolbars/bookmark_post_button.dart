@@ -135,8 +135,16 @@ class BookmarkPostLikeButtonButton extends ConsumerWidget {
       onTap: isLoading
           ? null
           : (isLiked) async {
-              await ref.toggleBookmarkTarget(post, booruConfig, context);
-              return Future.value(!isLiked);
+              final outcome = await ref.toggleBookmarkTarget(
+                post,
+                booruConfig,
+                context,
+              );
+              return switch (outcome) {
+                BookmarkToggleOutcome.added => true,
+                BookmarkToggleOutcome.removed => false,
+                _ => isLiked,
+              };
             },
       likeBuilder: (isLiked) {
         return Icon(
@@ -160,98 +168,27 @@ extension BookmarkPostX on WidgetRef {
     }
   }
 
-  Future<void> toggleBookmarkTarget(
+  Future<BookmarkToggleOutcome> toggleBookmarkTarget(
     Post post,
     BooruConfigAuth config,
     BuildContext context,
   ) async {
-    final library = read(bookmarkProvider).valueOrNull;
-    if (library == null) return;
-    final uniqueId = bookmarkIdentityForPost(post, config.booruIdHint);
-    final bookmark = library.bookmarksByUniqueId[uniqueId];
-    final groupId = library.activeTarget.groupId;
-    void added() {
-      if (context.mounted) {
-        Kurumi.showSuccessToast(context, context.t.bookmark.added);
-      }
-    }
-
-    void removed() {
-      if (context.mounted) {
-        Kurumi.showSuccessToast(context, context.t.bookmark.removed);
-      }
-    }
-
-    void addFailed() {
-      if (context.mounted) {
-        Kurumi.showErrorToast(context, context.t.bookmark.failed_to_add);
-      }
-    }
-
-    void removeFailed() {
-      if (context.mounted) {
-        Kurumi.showErrorToast(context, context.t.bookmark.failed_to_remove);
-      }
-    }
-
-    void groupAddFailed() {
-      if (context.mounted) {
-        Kurumi.showErrorToast(
-          context,
-          context.t.bookmark.groups.failed_to_add_to_group,
-        );
-      }
-    }
-
-    void groupRemoveFailed() {
-      if (context.mounted) {
-        Kurumi.showErrorToast(
-          context,
-          context.t.bookmark.groups.failed_to_remove_from_group,
-        );
-      }
-    }
-
-    if (groupId == null) {
-      if (bookmark != null && library.membershipsFor(uniqueId).isEmpty) {
-        return bookmarks.removeBookmark(
-          bookmark,
-          onSuccess: removed,
-          onError: removeFailed,
-        );
-      }
-      return bookmarks.addBookmark(
-        config,
-        post,
-        onSuccess: added,
-        onError: addFailed,
-      );
-    }
-    if (bookmark != null &&
-        library.membershipsFor(uniqueId).contains(groupId)) {
-      return bookmarks.removeFromGroup(
-        [bookmark],
-        groupId,
-        deleteWhenMembershipBecomesEmpty: true,
-        onSuccess: removed,
-        onError: groupRemoveFailed,
-      );
-    }
-    if (bookmark != null) {
-      return bookmarks.addExistingBookmarkToGroup(
-        bookmark,
-        groupId,
-        onSuccess: added,
-        onError: groupAddFailed,
-      );
-    }
-    return bookmarks.addBookmarkToGroup(
+    final outcome = await read(bookmarkProvider.notifier).togglePostTarget(
       config,
       post,
-      groupId,
-      onSuccess: added,
-      onError: groupAddFailed,
     );
+    if (!context.mounted) return outcome;
+    switch (outcome) {
+      case BookmarkToggleOutcome.added:
+        Kurumi.showSuccessToast(context, context.t.bookmark.added);
+      case BookmarkToggleOutcome.removed:
+        Kurumi.showSuccessToast(context, context.t.bookmark.removed);
+      case BookmarkToggleOutcome.unavailable:
+        await showBookmarkGroupPicker(context, config: config, post: post);
+      case BookmarkToggleOutcome.failed:
+        Kurumi.showErrorToast(context, context.t.bookmark.failed_to_add);
+    }
+    return outcome;
   }
 }
 

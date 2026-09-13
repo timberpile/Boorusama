@@ -40,7 +40,9 @@ class BookmarksBackupSource extends JsonBackupSource<BookmarkBackupData> {
           );
         },
         scopedDataGetter: (options) async {
-          final state = await ref.read(bookmarkProvider.future);
+          final state = await ref
+              .read(bookmarkProvider.notifier)
+              .snapshotForExport();
           final scope = switch (options?.scope) {
             final BookmarkExportScope scope => scope,
             _ => const BookmarkExportScope.all(),

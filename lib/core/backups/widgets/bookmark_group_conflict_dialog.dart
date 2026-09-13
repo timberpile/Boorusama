@@ -6,6 +6,7 @@ import 'package:i18n/i18n.dart';
 
 // Project imports:
 import '../sources/bookmark_import_plan.dart';
+import '../../bookmarks/src/widgets/bookmark_group_label.dart';
 
 class BookmarkGroupConflictDecision {
   const BookmarkGroupConflictDecision({
@@ -76,7 +77,10 @@ class _BookmarkGroupConflictDialogState
           Text(
             context.t.bookmark.groups.import_conflict_message.replaceAll(
               '{name}',
-              widget.conflict.name,
+              bookmarkGroupConflictLabel(
+                widget.conflict.name,
+                widget.conflict.id,
+              ),
             ),
           ),
           CheckboxListTile(

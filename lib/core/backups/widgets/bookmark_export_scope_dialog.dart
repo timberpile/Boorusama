@@ -6,6 +6,7 @@ import 'package:i18n/i18n.dart';
 
 // Project imports:
 import '../../bookmarks/types.dart';
+import '../../bookmarks/src/widgets/bookmark_group_label.dart';
 import '../sources/bookmark_backup_data.dart';
 
 Future<BookmarkExportScope?> showBookmarkExportScopeDialog(
@@ -35,6 +36,7 @@ class _BookmarkExportScopeDialogState extends State<BookmarkExportScopeDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final labels = bookmarkGroupLabels(widget.groups);
     return AlertDialog(
       title: Text(context.t.settings.backup_and_restore.export_scope.title),
       content: SingleChildScrollView(
@@ -72,7 +74,7 @@ class _BookmarkExportScopeDialogState extends State<BookmarkExportScopeDialog> {
               for (final group in widget.groups)
                 CheckboxListTile(
                   value: _groupIds.contains(group.id),
-                  title: Text(group.name),
+                  title: Text(labels[group.id]!),
                   onChanged: (selected) => setState(() {
                     if (selected ?? false) {
                       _groupIds.add(group.id);

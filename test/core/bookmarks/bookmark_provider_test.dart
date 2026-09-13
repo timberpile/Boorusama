@@ -398,6 +398,102 @@ void main() {
       );
     },
   );
+
+  test('two queued toggles apply both intents in order', () async {
+    final source = Bookmark.empty.copyWith(
+      originalUrl: 'https://example.com/toggle.jpg',
+    );
+    await bookmarkRepository.addBookmarkWithBookmarks([source]);
+    final stored = (await bookmarkRepository.getAllBookmarksOrThrow(
+      imageUrlResolver: (_) => const DefaultImageUrlResolver(),
+    )).single;
+    final active = await groupRepository.createGroup('Active');
+    final other = await groupRepository.createGroup('Other');
+    await groupRepository.addBookmarks(other.id, {stored.id});
+    final settings = Settings.defaultSettings.copyWith(
+      activeBookmarkGroupId: active.id,
+    );
+    final container = createContainer(
+      settingsNotifier: _TestSettingsNotifier(settings),
+    );
+    final notifier = container.read(bookmarkProvider.notifier);
+    await notifier.future;
+    final config = BooruConfigAuth.fromConfig(
+      BooruConfig.empty.copyWith(booruIdHint: stored.booruId),
+    );
+
+    final outcomes = await Future.wait([
+      notifier.togglePostTarget(config, stored.toPost()),
+      notifier.togglePostTarget(config, stored.toPost()),
+    ]);
+
+    expect(outcomes, [
+      BookmarkToggleOutcome.added,
+      BookmarkToggleOutcome.removed,
+    ]);
+    expect((await groupRepository.getGroup(active.id))?.bookmarkIds, isEmpty);
+    expect((await groupRepository.getGroup(other.id))?.bookmarkIds, {
+      stored.id,
+    });
+  });
+
+  test('No Group reports unavailable for a grouped bookmark', () async {
+    final source = Bookmark.empty.copyWith(
+      originalUrl: 'https://example.com/unavailable.jpg',
+    );
+    await bookmarkRepository.addBookmarkWithBookmarks([source]);
+    final stored = (await bookmarkRepository.getAllBookmarksOrThrow(
+      imageUrlResolver: (_) => const DefaultImageUrlResolver(),
+    )).single;
+    final group = await groupRepository.createGroup('Named');
+    await groupRepository.addBookmarks(group.id, {stored.id});
+    final container = createContainer();
+    final notifier = container.read(bookmarkProvider.notifier);
+    await notifier.future;
+    final config = BooruConfigAuth.fromConfig(
+      BooruConfig.empty.copyWith(booruIdHint: stored.booruId),
+    );
+
+    final outcome = await notifier.togglePostTarget(config, stored.toPost());
+
+    expect(outcome, BookmarkToggleOutcome.unavailable);
+    expect((await groupRepository.getGroup(group.id))?.bookmarkIds, {
+      stored.id,
+    });
+  });
+
+  test(
+    'bulk creation rolls back earlier bookmarks after a later failure',
+    () async {
+      final failingRepository = _FailsSecondAddBookmarkRepository(bookmarkBox);
+      final container = createContainer(
+        bookmarkRepositoryOverride: failingRepository,
+      );
+      final notifier = container.read(bookmarkProvider.notifier);
+      await notifier.future;
+      final posts = [
+        Bookmark.empty
+            .copyWith(originalUrl: 'https://example.com/one.jpg')
+            .toPost(),
+        Bookmark.empty
+            .copyWith(originalUrl: 'https://example.com/two.jpg')
+            .toPost(),
+      ];
+      final config = BooruConfigAuth.fromConfig(BooruConfig.empty);
+
+      await expectLater(
+        notifier.addPostsToGroup(config, posts, null),
+        throwsStateError,
+      );
+
+      expect(
+        await bookmarkRepository.getAllBookmarksOrThrow(
+          imageUrlResolver: (_) => const DefaultImageUrlResolver(),
+        ),
+        isEmpty,
+      );
+    },
+  );
 }
 
 class _TestSettingsNotifier extends SettingsNotifier {
@@ -479,5 +575,27 @@ class _FailingSecondReadBookmarkRepository extends BookmarkHiveRepository {
       return TaskEither.left(BookmarkGetError.unknown);
     }
     return super.getAllBookmarks(imageUrlResolver: imageUrlResolver);
+  }
+}
+
+class _FailsSecondAddBookmarkRepository extends BookmarkHiveRepository {
+  _FailsSecondAddBookmarkRepository(super._box);
+
+  var _addCount = 0;
+
+  @override
+  Future<Bookmark> addBookmark(
+    int booruId,
+    Post post, {
+    required ImageUrlResolver Function(int? booruId) imageUrlResolver,
+    required PostLinkGenerator Function(int? booruId) postLinkGenerator,
+  }) async {
+    _addCount++;
+    if (_addCount == 2) throw StateError('second bookmark write failed');
+    final bookmark = switch (post) {
+      BookmarkPost(:final bookmark) => bookmark,
+      _ => throw StateError('Expected a stored bookmark post.'),
+    };
+    return (await addBookmarkWithBookmarks([bookmark])).single;
   }
 }
