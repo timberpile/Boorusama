@@ -154,7 +154,7 @@ class Settings extends Equatable {
     viewer: ImageViewerSettings(
       swipeMode: PostDetailsSwipeMode.defaultValue,
       loadOriginalOnZoom: false,
-      autoStartComicStripMode: true,
+      autoAdjustComicStrips: true,
       postDetailsOverlayInitialState:
           PostDetailsOverlayInitialState.defaultValue,
       slideshowDirection: SlideshowDirection.defaultValue,
@@ -552,7 +552,7 @@ class ImageViewerSettings extends Equatable {
   const ImageViewerSettings({
     required this.swipeMode,
     required this.loadOriginalOnZoom,
-    required this.autoStartComicStripMode,
+    required this.autoAdjustComicStrips,
     required this.postDetailsOverlayInitialState,
     required this.slideshowDirection,
     required this.slideshowInterval,
@@ -567,7 +567,7 @@ class ImageViewerSettings extends Equatable {
   ImageViewerSettings.fromJson(Map<String, dynamic> json)
     : swipeMode = PostDetailsSwipeMode.parse(json['swipeMode']),
       loadOriginalOnZoom = json['loadOriginalOnZoom'] ?? false,
-      autoStartComicStripMode = json['autoStartComicStripMode'] ?? true,
+      autoAdjustComicStrips = json['autoAdjustComicStrips'] ?? true,
       postDetailsOverlayInitialState = PostDetailsOverlayInitialState.parse(
         json['postDetailsOverlayInitialState'],
       ),
@@ -590,7 +590,7 @@ class ImageViewerSettings extends Equatable {
 
   final PostDetailsSwipeMode swipeMode;
   final bool loadOriginalOnZoom;
-  final bool autoStartComicStripMode;
+  final bool autoAdjustComicStrips;
   final PostDetailsOverlayInitialState postDetailsOverlayInitialState;
   final SlideshowDirection slideshowDirection;
   final double slideshowInterval;
@@ -604,7 +604,7 @@ class ImageViewerSettings extends Equatable {
   ImageViewerSettings copyWith({
     PostDetailsSwipeMode? swipeMode,
     bool? loadOriginalOnZoom,
-    bool? autoStartComicStripMode,
+    bool? autoAdjustComicStrips,
     PostDetailsOverlayInitialState? postDetailsOverlayInitialState,
     SlideshowDirection? slideshowDirection,
     double? slideshowInterval,
@@ -618,8 +618,8 @@ class ImageViewerSettings extends Equatable {
     return ImageViewerSettings(
       swipeMode: swipeMode ?? this.swipeMode,
       loadOriginalOnZoom: loadOriginalOnZoom ?? this.loadOriginalOnZoom,
-      autoStartComicStripMode:
-          autoStartComicStripMode ?? this.autoStartComicStripMode,
+      autoAdjustComicStrips:
+          autoAdjustComicStrips ?? this.autoAdjustComicStrips,
       postDetailsOverlayInitialState:
           postDetailsOverlayInitialState ?? this.postDetailsOverlayInitialState,
       slideshowDirection: slideshowDirection ?? this.slideshowDirection,
@@ -640,7 +640,7 @@ class ImageViewerSettings extends Equatable {
   Map<String, dynamic> toJson() => {
     'swipeMode': swipeMode.toData(),
     'loadOriginalOnZoom': loadOriginalOnZoom,
-    'autoStartComicStripMode': autoStartComicStripMode,
+    'autoAdjustComicStrips': autoAdjustComicStrips,
     'postDetailsOverlayInitialState': postDetailsOverlayInitialState.toData(),
     'slideshowDirection': slideshowDirection.toData(),
     'slideshowInterval': slideshowInterval,
@@ -656,7 +656,7 @@ class ImageViewerSettings extends Equatable {
   List<Object> get props => [
     swipeMode,
     loadOriginalOnZoom,
-    autoStartComicStripMode,
+    autoAdjustComicStrips,
     postDetailsOverlayInitialState,
     slideshowDirection,
     slideshowInterval,

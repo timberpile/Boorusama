@@ -9,23 +9,23 @@ void main() {
     'automatic comic-strip mode defaults to enabled for existing settings',
     () {
       final json = Settings.defaultSettings.toJson()
-        ..remove('autoStartComicStripMode');
+        ..remove('autoAdjustComicStrips');
 
       final settings = Settings.fromJson(json);
 
-      expect(settings.viewer.autoStartComicStripMode, isTrue);
+      expect(settings.viewer.autoAdjustComicStrips, isTrue);
     },
   );
 
   test('automatic comic-strip mode setting round trips when disabled', () {
     final disabled = Settings.defaultSettings.copyWith(
       viewer: Settings.defaultSettings.viewer.copyWith(
-        autoStartComicStripMode: false,
+        autoAdjustComicStrips: false,
       ),
     );
 
     final restored = Settings.fromJson(disabled.toJson());
 
-    expect(restored.viewer.autoStartComicStripMode, isFalse);
+    expect(restored.viewer.autoAdjustComicStrips, isFalse);
   });
 }

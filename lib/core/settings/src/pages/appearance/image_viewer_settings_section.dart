@@ -102,9 +102,9 @@ class ImageViewerSettingsSection extends ConsumerWidget {
                 .image_viewer
                 .auto_adjust_comic_strips_description,
           ),
-          value: viewer.autoStartComicStripMode,
+          value: viewer.autoAdjustComicStrips,
           onChanged: (value) => onUpdate(
-            viewer.copyWith(autoStartComicStripMode: value),
+            viewer.copyWith(autoAdjustComicStrips: value),
           ),
         ),
         const Divider(thickness: 1),

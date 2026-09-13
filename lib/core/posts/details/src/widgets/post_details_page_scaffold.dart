@@ -297,9 +297,9 @@ class _PostDetailPageScaffoldState<T extends Post>
     final swipeMode = ref.watch(
       imageViewerSettingsProvider.select((value) => value.swipeMode),
     );
-    final autoStartComicStripMode = ref.watch(
+    final autoAdjustComicStrips = ref.watch(
       imageViewerSettingsProvider.select(
-        (value) => value.autoStartComicStripMode,
+        (value) => value.autoAdjustComicStrips,
       ),
     );
 
@@ -431,7 +431,7 @@ class _PostDetailPageScaffoldState<T extends Post>
               postId: post.id,
               contentSize: Size(post.width, post.height),
               currentSettledPage: widget.controller.currentSettledPage,
-              enabled: autoStartComicStripMode && !post.isVideo,
+              enabled: autoAdjustComicStrips && !post.isVideo,
               child: child,
             ),
           );
