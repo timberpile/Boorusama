@@ -608,20 +608,46 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     BookmarkView view, {
     void Function()? onSuccess,
     void Function()? onError,
-  }) => switch (view.groupId) {
-    final groupId? => removeFromGroup(
+  }) => switch (view.kind) {
+    BookmarkViewKind.group => removeFromGroup(
       [bookmark],
-      groupId,
+      view.groupId!,
       deleteWhenMembershipBecomesEmpty: true,
       onSuccess: onSuccess,
       onError: onError,
     ),
-    null => removeBookmark(
+    BookmarkViewKind.all => removeBookmark(
       bookmark,
       onSuccess: onSuccess,
       onError: onError,
     ),
+    BookmarkViewKind.ungrouped => _removeBookmarkFromUngrouped(
+      bookmark.uniqueId,
+      onSuccess: onSuccess,
+      onError: onError,
+    ),
   };
+
+  Future<void> _removeBookmarkFromUngrouped(
+    BookmarkUniqueId bookmarkId, {
+    void Function()? onSuccess,
+    void Function()? onError,
+  }) => _serialize(() async {
+    final current = await future;
+    final bookmark = current.bookmarksByUniqueId[bookmarkId];
+    if (bookmark == null || current.membershipsFor(bookmarkId).isNotEmpty) {
+      onError?.call();
+      return;
+    }
+    try {
+      await (await _service).deleteBookmarks([bookmark]);
+      await _publishCommittedMutation();
+      onSuccess?.call();
+    } catch (_) {
+      await _publishCommittedMutation();
+      onError?.call();
+    }
+  });
 
   Future<void> removeBookmarks(
     Iterable<Bookmark> bookmarks, {

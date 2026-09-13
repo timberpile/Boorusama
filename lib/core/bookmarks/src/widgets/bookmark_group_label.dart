@@ -28,5 +28,4 @@ String _uniqueIdPrefix(BookmarkGroup group, List<BookmarkGroup> groups) {
   return group.id.substring(0, length);
 }
 
-String bookmarkGroupConflictLabel(String name, String id) =>
-    '$name · ${id.substring(0, 8)}';
+String bookmarkGroupConflictLabel(String name, String id) => '$name · $id';

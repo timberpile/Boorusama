@@ -12,6 +12,7 @@ import 'package:material_symbols_icons/symbols.dart';
 // Project imports:
 import '../../../../bookmarks/providers.dart';
 import '../../../../bookmarks/src/data/bookmark_convert.dart';
+import '../../../../bookmarks/src/widgets/bookmark_group_label.dart';
 import '../../../../bookmarks/widgets.dart';
 import '../../../../configs/config/providers.dart';
 import '../../../../configs/config/types.dart';
@@ -39,16 +40,19 @@ class BookmarkPostButton extends ConsumerWidget {
         : selectBookmarkMembershipPresentation(library, uniqueId);
     final activeGroupId = library?.activeTarget.groupId;
     final isBookmarked = presentation?.isInActiveTarget ?? false;
+    final groupLabels = library == null
+        ? const <String, String>{}
+        : bookmarkGroupLabels(library.groups);
     final activeLabel = activeGroupId == null
         ? context.t.bookmark.groups.ungrouped
-        : library?.groupsById[activeGroupId]?.name ??
-              context.t.bookmark.groups.ungrouped;
+        : groupLabels[activeGroupId] ?? context.t.bookmark.groups.ungrouped;
     final isLoading = bookmarkStateAsync.isLoading;
+    final actionLabel = isBookmarked
+        ? context.t.post.detail.remove_from_bookmark
+        : context.t.post.detail.add_to_bookmark;
 
     return KurumiTooltip(
-      message: isBookmarked
-          ? context.t.post.detail.remove_from_bookmark
-          : context.t.post.detail.add_to_bookmark,
+      message: '$actionLabel · $activeLabel',
       padding: const EdgeInsets.all(8),
       child: GestureDetector(
         onLongPressStart: isLoading

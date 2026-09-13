@@ -165,18 +165,22 @@ class BookmarkLibraryService {
         ? finalMembershipIds.map((id) => selectedById[id]!).toList()
         : const <Bookmark>[];
 
-    await groupRepository.removeBookmarks(groupId, affectedIds);
+    try {
+      await groupRepository.removeBookmarks(groupId, affectedIds);
+    } catch (error, stackTrace) {
+      _throwWithRollback(
+        error,
+        stackTrace,
+        await _restoreMemberships([target]),
+      );
+    }
     try {
       if (toDelete.isNotEmpty) {
         await bookmarkRepository.removeBookmarks(toDelete);
       }
     } catch (error, stackTrace) {
-      final rollbackErrors = <Object>[];
-      try {
-        await groupRepository.addBookmarks(groupId, affectedIds);
-      } catch (rollbackError) {
-        rollbackErrors.add(rollbackError);
-      }
+      final rollbackErrors = await _restoreBookmarks(toDelete);
+      rollbackErrors.addAll(await _restoreMemberships([target]));
       _throwWithRollback(error, stackTrace, rollbackErrors);
     }
     await _clearCaches(toDelete);
@@ -205,12 +209,16 @@ class BookmarkLibraryService {
       }
       await bookmarkRepository.removeBookmarks(bookmarkList);
     } catch (error, stackTrace) {
-      _throwWithRollback(
-        error,
-        stackTrace,
+      final rollbackErrors = await _restoreBookmarks(bookmarkList);
+      rollbackErrors.addAll(
         await _restoreMemberships(
           groups.where((group) => affectedGroups.containsKey(group.id)),
         ),
+      );
+      _throwWithRollback(
+        error,
+        stackTrace,
+        rollbackErrors,
       );
     }
     await _clearCaches(bookmarkList);
@@ -239,7 +247,7 @@ class BookmarkLibraryService {
         await bookmarkRepository.removeBookmarks(orphanBookmarks);
       }
     } catch (error, stackTrace) {
-      final rollbackErrors = <Object>[];
+      final rollbackErrors = await _restoreBookmarks(orphanBookmarks);
       try {
         await groupRepository.createGroup(
           preview.group.name,
@@ -279,6 +287,20 @@ class BookmarkLibraryService {
     for (final group in groups) {
       try {
         await groupRepository.replaceMemberships(group.id, group.bookmarkIds);
+      } catch (error) {
+        errors.add(error);
+      }
+    }
+    return errors;
+  }
+
+  Future<List<Object>> _restoreBookmarks(
+    Iterable<Bookmark> bookmarks,
+  ) async {
+    final errors = <Object>[];
+    for (final bookmark in bookmarks) {
+      try {
+        await bookmarkRepository.updateBookmark(bookmark);
       } catch (error) {
         errors.add(error);
       }

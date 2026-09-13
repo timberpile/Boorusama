@@ -532,6 +532,49 @@ void main() {
   );
 
   test(
+    'a stale No Group edit removal preserves a newly grouped bookmark',
+    () async {
+      final source = Bookmark.empty.copyWith(
+        originalUrl: 'https://example.com/stale-edit.jpg',
+      );
+      await bookmarkRepository.addBookmarkWithBookmarks([source]);
+      final stored = (await bookmarkRepository.getAllBookmarksOrThrow(
+        imageUrlResolver: (_) => const DefaultImageUrlResolver(),
+      )).single;
+      final group = await groupRepository.createGroup('New membership');
+      final container = createContainer(
+        bookmarkRepositoryOverride: _FailingSecondReadBookmarkRepository(
+          bookmarkBox,
+        ),
+      );
+      final notifier = container.read(bookmarkProvider.notifier);
+      await notifier.future;
+      await notifier.addExistingBookmarkToGroup(stored, group.id);
+      var succeeded = false;
+      var failed = false;
+
+      await notifier.removeBookmarkFromView(
+        stored,
+        const BookmarkView.ungrouped(),
+        onSuccess: () => succeeded = true,
+        onError: () => failed = true,
+      );
+
+      expect(succeeded, isFalse);
+      expect(failed, isTrue);
+      expect((await groupRepository.getGroup(group.id))?.bookmarkIds, {
+        stored.id,
+      });
+      expect(
+        await bookmarkRepository.getAllBookmarksOrEmpty(
+          imageUrlResolver: (_) => const DefaultImageUrlResolver(),
+        ),
+        hasLength(1),
+      );
+    },
+  );
+
+  test(
     'bulk creation rolls back earlier bookmarks after a later failure',
     () async {
       final failingRepository = _FailsSecondAddBookmarkRepository(bookmarkBox);

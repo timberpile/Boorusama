@@ -364,7 +364,6 @@ class PostGridController<T extends Post> extends ChangeNotifier {
       _hasMore = newItems.posts.isNotEmpty;
       count.value = newItems.total;
       maxPage.value = newItems.maxPage;
-      _setRefreshing(false);
       _eventController.add(const PostControllerRefreshCompleted());
       notifyListeners();
     } finally {
