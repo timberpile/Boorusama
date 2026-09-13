@@ -152,17 +152,24 @@ class BookmarksBackupSource extends JsonBackupSource<BookmarkBackupData> {
               .bookmarks_export_success
               .replaceAll('{bookmarks}', '${result.bookmarkCount}')
               .replaceAll('{groups}', '${result.groupCount}'),
-          importSuccessMessageBuilder: (result) => context
-              .t
-              .settings
-              .backup_and_restore
-              .bookmarks_import_success
-              .replaceAll('{bookmarks}', '${result.bookmarkCount}')
-              .replaceAll('{groups}', '${result.groupCount}')
-              .replaceAll(
-                '{existing}',
-                '${result.alreadyExistedCount}',
-              ),
+          importSuccessMessageBuilder: (result) =>
+              (result.alreadyExistedCount > 0
+                      ? context
+                            .t
+                            .settings
+                            .backup_and_restore
+                            .bookmarks_import_success
+                      : context
+                            .t
+                            .settings
+                            .backup_and_restore
+                            .bookmarks_import_success_new)
+                  .replaceAll('{bookmarks}', '${result.bookmarkCount}')
+                  .replaceAll('{groups}', '${result.groupCount}')
+                  .replaceAll(
+                    '{existing}',
+                    '${result.alreadyExistedCount}',
+                  ),
         );
       },
     );

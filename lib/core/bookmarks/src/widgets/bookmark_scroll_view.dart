@@ -152,28 +152,20 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                     );
               },
               extraActions: (selectedPosts) => [
-                MultiSelectButton(
-                  onPressed: selectedPosts.isNotEmpty
-                      ? () async {
-                          final deleted =
-                              await showBookmarkMultiSelectionActions(
-                                context,
-                                ref: ref,
-                                bookmarks: selectedPosts
-                                    .map((post) => post.bookmark)
-                                    .toList(),
-                              );
-                          if (deleted && context.mounted) {
-                            controller.remove(
-                              selectedPosts.map((post) => post.id).toList(),
-                              (post) => post.id,
-                            );
-                            _selectionModeController.disable();
-                          }
-                        }
-                      : null,
+                MultiSelectPopupButton(
+                  enabled: selectedPosts.isNotEmpty,
                   icon: const Icon(Symbols.bookmarks),
                   name: context.t.bookmark.bulk.title,
+                  items: [
+                    BookmarkMultiSelectionMenu(
+                      posts: selectedPosts,
+                      config: auth,
+                      onCompleted: () async {
+                        _selectionModeController.disable();
+                        await controller.refresh();
+                      },
+                    ),
+                  ],
                 ),
               ],
             ),

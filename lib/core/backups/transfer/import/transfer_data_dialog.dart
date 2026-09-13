@@ -350,7 +350,7 @@ class SelectDataStep extends ConsumerWidget {
     ref.listen(serverCheckProvider(url), (prev, next) {
       if (prev == ServerCheckStatus.checking &&
           next == ServerCheckStatus.available) {
-        notifier.startImport();
+        notifier.startImport(context);
       }
     });
 
@@ -403,7 +403,7 @@ class SelectDataStep extends ConsumerWidget {
                     serverCheckNotifier.check();
                   },
                   ServerCheckStatus.available => () {
-                    notifier.startImport();
+                    notifier.startImport(context);
                   },
                   ServerCheckStatus.unavailable => () {
                     serverCheckNotifier.check();

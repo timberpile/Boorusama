@@ -4,9 +4,15 @@ import 'package:flutter/material.dart';
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
+import 'package:kurumi/kurumi.dart';
+import 'package:kurumi/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 // Project imports:
+import '../../../configs/config/providers.dart';
+import '../../../configs/config/types.dart';
+import '../../../images/booru_image.dart';
+import '../data/providers.dart';
 import '../providers/bookmark_group_selectors.dart';
 import '../providers/bookmark_provider.dart';
 import '../providers/local_providers.dart';
@@ -24,7 +30,7 @@ class BookmarkGroupBrowserPage extends ConsumerWidget {
     final library = ref.watch(bookmarkProvider);
     return Scaffold(
       appBar: AppBar(
-        title: Text(context.t.bookmark.title),
+        title: Text(context.t.bookmark.groups.selector),
         actions: [
           IconButton(
             tooltip: context.t.bookmark.groups.create,
@@ -57,42 +63,47 @@ class BookmarkGroupBrowserPage extends ConsumerWidget {
                     group: group,
                   ),
               ];
-          return GridView.builder(
-            padding: const EdgeInsets.all(16),
-            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-              maxCrossAxisExtent: 220,
-              childAspectRatio: 0.82,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-            ),
-            itemCount: entries.length,
-            itemBuilder: (context, index) {
-              final entry = entries[index];
-              final previews = selectBookmarkPreviews(
-                state: state,
-                view: entry.view,
-                sortType: sort,
-              );
-              return _GroupCard(
-                title: entry.title,
-                previews: previews,
-                group: entry.group,
-                onTap: () => goToBookmarkGroupPage(
-                  ref,
-                  entry.view,
+          return LayoutBuilder(
+            builder: (context, constraints) => GridView.builder(
+              padding: const EdgeInsets.all(12),
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: switch (constraints.maxWidth) {
+                  < 500 => 2,
+                  < 850 => 3,
+                  _ => 4,
+                },
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+              ),
+              itemCount: entries.length,
+              itemBuilder: (context, index) {
+                final entry = entries[index];
+                final previews = selectBookmarkPreviews(
+                  state: state,
+                  view: entry.view,
+                  sortType: sort,
+                );
+                return _GroupCard(
                   title: entry.title,
-                ),
-                onRename: entry.group == null
-                    ? null
-                    : () => _rename(context, ref, entry.group!),
-                onDuplicate: entry.group == null
-                    ? null
-                    : () => _duplicate(context, ref, entry.group!),
-                onDelete: entry.group == null
-                    ? null
-                    : () => _delete(context, ref, entry.group!),
-              );
-            },
+                  previews: previews,
+                  group: entry.group,
+                  onTap: () => goToBookmarkGroupPage(
+                    ref,
+                    entry.view,
+                    title: entry.title,
+                  ),
+                  onRename: entry.group == null
+                      ? null
+                      : () => _rename(context, ref, entry.group!),
+                  onDuplicate: entry.group == null
+                      ? null
+                      : () => _duplicate(context, ref, entry.group!),
+                  onDelete: entry.group == null
+                      ? null
+                      : () => _delete(context, ref, entry.group!),
+                );
+              },
+            ),
           );
         },
       ),
@@ -104,9 +115,12 @@ class BookmarkGroupBrowserPage extends ConsumerWidget {
       context,
       title: context.t.bookmark.groups.create,
     );
-    if (name != null) {
-      await ref.read(bookmarkProvider.notifier).createGroup(name);
-    }
+    if (name == null) return;
+    if (!context.mounted) return;
+    await _runGroupAction(
+      context,
+      () => ref.read(bookmarkProvider.notifier).createGroup(name),
+    );
   }
 
   Future<void> _rename(
@@ -119,9 +133,12 @@ class BookmarkGroupBrowserPage extends ConsumerWidget {
       title: context.t.bookmark.groups.rename,
       initialName: group.name,
     );
-    if (name != null) {
-      await ref.read(bookmarkProvider.notifier).renameGroup(group.id, name);
-    }
+    if (name == null) return;
+    if (!context.mounted) return;
+    await _runGroupAction(
+      context,
+      () => ref.read(bookmarkProvider.notifier).renameGroup(group.id, name),
+    );
   }
 
   Future<void> _duplicate(
@@ -134,9 +151,12 @@ class BookmarkGroupBrowserPage extends ConsumerWidget {
       title: context.t.bookmark.groups.duplicate,
       initialName: group.name,
     );
-    if (name != null) {
-      await ref.read(bookmarkProvider.notifier).duplicateGroup(group.id, name);
-    }
+    if (name == null) return;
+    if (!context.mounted) return;
+    await _runGroupAction(
+      context,
+      () => ref.read(bookmarkProvider.notifier).duplicateGroup(group.id, name),
+    );
   }
 
   Future<void> _delete(
@@ -173,8 +193,28 @@ class BookmarkGroupBrowserPage extends ConsumerWidget {
         ),
       );
       if (confirmed != true) return;
+      if (!context.mounted) return;
     }
-    await ref.read(bookmarkProvider.notifier).deleteGroup(group.id);
+    await _runGroupAction(
+      context,
+      () => ref.read(bookmarkProvider.notifier).deleteGroup(group.id),
+    );
+  }
+
+  Future<void> _runGroupAction(
+    BuildContext context,
+    Future<Object?> Function() action,
+  ) async {
+    try {
+      await action();
+    } catch (_) {
+      if (context.mounted) {
+        Kurumi.showErrorToast(
+          context,
+          context.t.bookmark.groups.operation_failed,
+        );
+      }
+    }
   }
 }
 
@@ -199,34 +239,63 @@ class _GroupCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Column(
-          children: [
-            Expanded(
-              child: GridView.builder(
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
+    final borderRadius = BorderRadius.circular(12);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border.all(
+          color: Kurumi.themeOf(context).colorScheme.outlineVariant,
+        ),
+        borderRadius: borderRadius,
+      ),
+      child: ClipRRect(
+        borderRadius: borderRadius,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                BookmarkGroupPreviewGrid(
+                  previews: previews,
+                  itemBuilder: (_, bookmark) =>
+                      _BookmarkGroupPreviewImage(bookmark: bookmark),
                 ),
-                itemCount: 4,
-                itemBuilder: (_, index) => index < previews.length
-                    ? Image.network(
-                        previews[index].thumbnailUrl,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, _, _) => const SizedBox.shrink(),
-                      )
-                    : const SizedBox.shrink(),
-              ),
-            ),
-            ListTile(
-              dense: true,
-              title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
-              trailing: group == null
-                  ? null
-                  : PopupMenuButton<String>(
+                const DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Color(0x99000000),
+                        Color(0x00000000),
+                        Color(0x66000000),
+                      ],
+                      stops: [0, 0.45, 1],
+                    ),
+                  ),
+                ),
+                Positioned(
+                  top: 12,
+                  left: 12,
+                  right: group == null ? 12 : 52,
+                  child: Text(
+                    title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Kurumi.themeOf(context).textTheme.titleMedium
+                        ?.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          shadows: const [Shadow(blurRadius: 4)],
+                        ),
+                  ),
+                ),
+                if (group != null)
+                  Positioned(
+                    top: 4,
+                    right: 4,
+                    child: PopupMenuButton<String>(
                       onSelected: (action) => switch (action) {
                         'rename' => onRename?.call(),
                         'duplicate' => onDuplicate?.call(),
@@ -248,10 +317,62 @@ class _GroupCard extends StatelessWidget {
                         ),
                       ],
                     ),
+                  ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
+    );
+  }
+}
+
+class BookmarkGroupPreviewGrid extends StatelessWidget {
+  const BookmarkGroupPreviewGrid({
+    required this.previews,
+    required this.itemBuilder,
+    super.key,
+  });
+
+  final List<Bookmark> previews;
+  final Widget Function(BuildContext context, Bookmark bookmark) itemBuilder;
+
+  @override
+  Widget build(BuildContext context) => GridView.builder(
+    physics: const NeverScrollableScrollPhysics(),
+    padding: const EdgeInsets.all(2),
+    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+      crossAxisCount: 2,
+      crossAxisSpacing: 2,
+      mainAxisSpacing: 2,
+    ),
+    itemCount: 4,
+    itemBuilder: (context, index) => index < previews.length
+        ? itemBuilder(context, previews[index])
+        : const SizedBox.shrink(),
+  );
+}
+
+String bookmarkGroupPreviewUrl(Bookmark bookmark) =>
+    bookmark.isVideo ? bookmark.thumbnailUrl : bookmark.sampleUrl;
+
+class _BookmarkGroupPreviewImage extends ConsumerWidget {
+  const _BookmarkGroupPreviewImage({required this.bookmark});
+
+  final Bookmark bookmark;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final host = Uri.tryParse(bookmark.sourceUrl)?.host ?? '';
+    final imageConfig = ref.watch(
+      firstMatchingConfigByBooruTypeProvider((bookmark.booruId, host)),
+    );
+    return BooruImage(
+      imageUrl: bookmarkGroupPreviewUrl(bookmark),
+      config: imageConfig?.auth ?? ref.watchConfigAuth,
+      imageCacheManager: ref.watch(bookmarkImageCacheManagerProvider),
+      fit: BoxFit.cover,
+      placeholderWidget: const SizedBox.expand(),
     );
   }
 }

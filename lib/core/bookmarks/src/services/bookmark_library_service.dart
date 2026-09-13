@@ -79,8 +79,34 @@ class BookmarkLibraryService {
     }
   }
 
-  Future<void> moveBookmarkToUngrouped(Bookmark bookmark) =>
-      groupRepository.removeBookmarkFromAllGroups(bookmark.id);
+  Future<BookmarkGroup> duplicateGroup(String groupId, String name) async {
+    final source = await groupRepository.getGroup(groupId);
+    if (source == null) {
+      throw StateError('Bookmark group $groupId does not exist.');
+    }
+    final duplicate = await groupRepository.createGroup(name);
+    try {
+      return await groupRepository.replaceMemberships(
+        duplicate.id,
+        source.bookmarkIds,
+      );
+    } catch (_) {
+      await groupRepository.deleteGroup(duplicate.id);
+      rethrow;
+    }
+  }
+
+  Future<void> moveBookmarkToUngrouped(Bookmark bookmark) async {
+    final affectedGroups = (await groupRepository.getGroups())
+        .where((group) => group.bookmarkIds.contains(bookmark.id))
+        .toList();
+    try {
+      await groupRepository.removeBookmarkFromAllGroups(bookmark.id);
+    } catch (_) {
+      await _restoreMemberships(affectedGroups);
+      rethrow;
+    }
+  }
 
   Future<BookmarkGroupRemovalResult> removeBookmarksFromGroup(
     Iterable<Bookmark> bookmarks,
@@ -143,15 +169,15 @@ class BookmarkLibraryService {
         if (group.bookmarkIds.any(ids.contains)) group.id: group.bookmarkIds,
     };
 
-    for (final groupId in affectedGroups.keys) {
-      await groupRepository.removeBookmarks(groupId, ids);
-    }
     try {
+      for (final groupId in affectedGroups.keys) {
+        await groupRepository.removeBookmarks(groupId, ids);
+      }
       await bookmarkRepository.removeBookmarks(bookmarkList);
     } catch (_) {
-      for (final entry in affectedGroups.entries) {
-        await groupRepository.replaceMemberships(entry.key, entry.value);
-      }
+      await _restoreMemberships(
+        groups.where((group) => affectedGroups.containsKey(group.id)),
+      );
       rethrow;
     }
     await _clearCaches(bookmarkList);
@@ -186,8 +212,16 @@ class BookmarkLibraryService {
   Future<void> _clearCaches(Iterable<Bookmark> bookmarks) async {
     if (clearBookmarkCache case final cleaner?) {
       for (final bookmark in bookmarks) {
-        await cleaner(bookmark);
+        try {
+          await cleaner(bookmark);
+        } catch (_) {}
       }
+    }
+  }
+
+  Future<void> _restoreMemberships(Iterable<BookmarkGroup> groups) async {
+    for (final group in groups) {
+      await groupRepository.replaceMemberships(group.id, group.bookmarkIds);
     }
   }
 }

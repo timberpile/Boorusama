@@ -39,7 +39,6 @@ class DanbooruPostContextMenu extends ConsumerWidget {
     final hasAccount = loginDetails.hasLogin();
     final postLinkGenerator = ref.watch(postLinkGeneratorProvider(booruConfig));
     final selectionModeController = SelectionMode.maybeOf(context);
-    final feedbackContext = context;
 
     return KurumiContextMenu(
       menuItemsBuilder: (context) => [
@@ -60,19 +59,14 @@ class DanbooruPostContextMenu extends ConsumerWidget {
                 .download(post);
           },
         ),
-        KurumiContextMenuTile(
-          title: context.t.bookmark.groups.selector,
-          onTap: () => showBookmarkGroupPicker(
-            feedbackContext,
-            ref: ref,
-            config: booruConfig,
-            post: post,
-          ),
+        BookmarkContextMenuSection(
+          post: post,
+          config: booruConfig,
         ),
         if (hasAccount)
           FavoriteContextMenuTile(
             post: post,
-            feedbackContext: feedbackContext,
+            feedbackContext: context,
           ),
         if (hasAccount)
           KurumiContextMenuTile(

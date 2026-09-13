@@ -40,7 +40,6 @@ class GeneralPostContextMenu extends ConsumerWidget {
         ?.commentPageBuilder;
     final postLinkGenerator = ref.watch(postLinkGeneratorProvider(booruConfig));
     final selectionModeController = SelectionMode.maybeOf(context);
-    final feedbackContext = context;
 
     final downloadNotifier = ref.watch(
       downloadNotifierProvider(
@@ -65,18 +64,13 @@ class GeneralPostContextMenu extends ConsumerWidget {
                 downloadNotifier.download(post);
               },
             ),
-            KurumiContextMenuTile(
-              title: context.t.bookmark.groups.selector,
-              onTap: () => showBookmarkGroupPicker(
-                feedbackContext,
-                ref: ref,
-                config: booruConfig,
-                post: post,
-              ),
+            BookmarkContextMenuSection(
+              post: post,
+              config: booruConfig,
             ),
             FavoriteContextMenuTile(
               post: post,
-              feedbackContext: feedbackContext,
+              feedbackContext: context,
             ),
             const KurumiContextMenuDivider(),
             if (commentPageBuilder != null && post.hasComment)

@@ -15,12 +15,27 @@ class BookmarkBackupCodec extends JsonHandler<BookmarkBackupData> {
   @override
   BookmarkBackupData parse(ExportDataPayload metadata) {
     final bookmarks = <Bookmark>[];
+    final bookmarkIds = <int>{};
+    final bookmarkIdentities = <BookmarkUniqueId>{};
     for (final (index, value) in metadata.data.indexed) {
       if (value is! Map<String, dynamic>) {
         throw InvalidBackupFormatException('data[$index] must be an object');
       }
       try {
-        bookmarks.add(bookmarkParser(value));
+        final bookmark = bookmarkParser(value);
+        if (!bookmarkIds.add(bookmark.id)) {
+          throw InvalidBackupFormatException(
+            'data[$index].id is repeated',
+          );
+        }
+        if (!bookmarkIdentities.add(bookmark.uniqueId)) {
+          throw InvalidBackupFormatException(
+            'data[$index] repeats a bookmark identity',
+          );
+        }
+        bookmarks.add(bookmark);
+      } on InvalidBackupFormatException {
+        rethrow;
       } catch (_) {
         throw InvalidBackupFormatException('data[$index] is invalid');
       }

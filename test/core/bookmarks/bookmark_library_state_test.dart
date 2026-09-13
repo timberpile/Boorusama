@@ -3,11 +3,13 @@ import 'package:flutter_test/flutter_test.dart';
 
 // Project imports:
 import 'package:boorusama/core/bookmarks/src/providers/bookmark_group_selectors.dart';
+import 'package:boorusama/core/bookmarks/src/data/bookmark_convert.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_group.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_library_state.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_target.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_view.dart';
+import 'package:boorusama/core/bookmarks/src/widgets/bookmark_multi_selection.dart';
 
 void main() {
   const firstGroupId = '550e8400-e29b-41d4-a716-446655440000';
@@ -138,6 +140,29 @@ void main() {
     expect(presentation.isBookmarked, isTrue);
     expect(presentation.isInActiveTarget, isTrue);
     expect(presentation.namedGroupCount, 2);
+    expect(presentation.activeTargetUnavailable, isFalse);
+    expect(presentation.showNamedGroupCount, isTrue);
+  });
+
+  test('marks No Group unavailable without hiding named memberships', () {
+    final presentation = selectBookmarkMembershipPresentation(
+      createState(activeTarget: const BookmarkTarget.ungrouped()),
+      bookmarks[0].uniqueId,
+    );
+
+    expect(presentation.isInActiveTarget, isFalse);
+    expect(presentation.activeTargetUnavailable, isTrue);
+    expect(presentation.showNamedGroupCount, isTrue);
+  });
+
+  test('hides a redundant count for one membership in the active group', () {
+    final presentation = selectBookmarkMembershipPresentation(
+      createState(),
+      bookmarks[0].uniqueId,
+    );
+
+    expect(presentation.namedGroupCount, 1);
+    expect(presentation.showNamedGroupCount, isFalse);
   });
 
   test('reports mixed aggregate membership counts from unique selections', () {
@@ -153,5 +178,18 @@ void main() {
     expect(counts.selectedCount, 2);
     expect(counts.byGroupId, {firstGroupId: 2, secondGroupId: 1});
     expect(counts.ungroupedCount, 0);
+  });
+
+  test('summarizes bookmarked, ungrouped, and per-group selected posts', () {
+    final summary = BookmarkGroupSelectionSummary.fromPosts(
+      posts: bookmarks.map((bookmark) => bookmark.toPost()),
+      state: createState(),
+      booruId: -1,
+    );
+
+    expect(summary.totalPosts, 3);
+    expect(summary.bookmarkedPosts, 3);
+    expect(summary.ungroupedBookmarks, 1);
+    expect(summary.membershipCounts, {firstGroupId: 2, secondGroupId: 1});
   });
 }

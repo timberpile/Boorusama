@@ -92,4 +92,33 @@ void main() {
       );
     });
   }
+
+  final duplicateBookmarkCases = [
+    (
+      description: 'file-local bookmark IDs',
+      bookmarks: [
+        bookmark,
+        bookmark.copyWith(originalUrl: 'https://example.com/other.jpg'),
+      ],
+    ),
+    (
+      description: 'bookmark identities',
+      bookmarks: [bookmark, bookmark.copyWith(id: 13)],
+    ),
+  ];
+  for (final testCase in duplicateBookmarkCases) {
+    test('rejects duplicate ${testCase.description}', () {
+      final payload = decodeData(
+        data: jsonEncode({
+          'version': 1,
+          'data': testCase.bookmarks.map((item) => item.toJson()).toList(),
+        }),
+      );
+
+      expect(
+        () => codec.parse(payload),
+        throwsA(isA<InvalidBackupFormatException>()),
+      );
+    });
+  }
 }

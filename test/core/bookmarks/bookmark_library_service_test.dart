@@ -208,7 +208,7 @@ void main() {
   );
 
   test(
-    'cache cleanup failure does not restore membership to a deleted bookmark',
+    'cache cleanup failure does not turn a committed deletion into failure',
     () async {
       final bookmark = await storeBookmark('cache-failure');
       await groupRepository.createGroup('First', id: firstGroupId);
@@ -220,10 +220,7 @@ void main() {
         clearBookmarkCache: (_) => throw StateError('cache cleanup failed'),
       );
 
-      await expectLater(
-        service.deleteBookmarks([bookmark]),
-        throwsStateError,
-      );
+      await service.deleteBookmarks([bookmark]);
 
       expect(
         (await service.load(const BookmarkTarget.ungrouped())).items,
@@ -235,6 +232,90 @@ void main() {
       );
     },
   );
+
+  test(
+    'complete deletion restores every membership after a partial failure',
+    () async {
+      final bookmark = await storeBookmark('partial-delete');
+      await groupRepository.createGroup('First', id: firstGroupId);
+      final second = await groupRepository.createGroup('Second');
+      await groupRepository.addBookmarks(firstGroupId, {bookmark.id});
+      await groupRepository.addBookmarks(second.id, {bookmark.id});
+      service = BookmarkLibraryService(
+        bookmarkRepository: bookmarkRepository,
+        groupRepository: _FailingRemoveGroupRepository(
+          groupRepository,
+          failOnCall: 2,
+        ),
+        imageUrlResolver: resolver,
+      );
+
+      await expectLater(service.deleteBookmarks([bookmark]), throwsStateError);
+
+      expect((await groupRepository.getGroup(firstGroupId))?.bookmarkIds, {
+        bookmark.id,
+      });
+      expect((await groupRepository.getGroup(second.id))?.bookmarkIds, {
+        bookmark.id,
+      });
+      expect(
+        (await service.load(const BookmarkTarget.ungrouped())).items,
+        [bookmark],
+      );
+    },
+  );
+
+  test(
+    'moving to No Group restores every membership after a partial failure',
+    () async {
+      final bookmark = await storeBookmark('partial-move');
+      await groupRepository.createGroup('First', id: firstGroupId);
+      final second = await groupRepository.createGroup('Second');
+      await groupRepository.addBookmarks(firstGroupId, {bookmark.id});
+      await groupRepository.addBookmarks(second.id, {bookmark.id});
+      service = BookmarkLibraryService(
+        bookmarkRepository: bookmarkRepository,
+        groupRepository: _FailingRemoveGroupRepository(
+          groupRepository,
+          failOnCall: 2,
+        ),
+        imageUrlResolver: resolver,
+      );
+
+      await expectLater(
+        service.moveBookmarkToUngrouped(bookmark),
+        throwsStateError,
+      );
+
+      expect((await groupRepository.getGroup(firstGroupId))?.bookmarkIds, {
+        bookmark.id,
+      });
+      expect((await groupRepository.getGroup(second.id))?.bookmarkIds, {
+        bookmark.id,
+      });
+    },
+  );
+
+  test('failed duplication removes the partially created group', () async {
+    final bookmark = await storeBookmark('duplicate-rollback');
+    await groupRepository.createGroup('First', id: firstGroupId);
+    await groupRepository.addBookmarks(firstGroupId, {bookmark.id});
+    service = BookmarkLibraryService(
+      bookmarkRepository: bookmarkRepository,
+      groupRepository: _FailingReplaceGroupRepository(groupRepository),
+      imageUrlResolver: resolver,
+    );
+
+    await expectLater(
+      service.duplicateGroup(firstGroupId, 'Copy'),
+      throwsStateError,
+    );
+
+    expect(await groupRepository.getGroups(), hasLength(1));
+    expect((await groupRepository.getGroup(firstGroupId))?.bookmarkIds, {
+      bookmark.id,
+    });
+  });
 }
 
 class _FailingAddGroupRepository implements BookmarkGroupRepository {
@@ -288,4 +369,121 @@ class _FailingAddGroupRepository implements BookmarkGroupRepository {
   @override
   Future<BookmarkGroup> replaceMemberships(String id, Set<int> bookmarkIds) =>
       delegate.replaceMemberships(id, bookmarkIds);
+}
+
+class _FailingRemoveGroupRepository implements BookmarkGroupRepository {
+  _FailingRemoveGroupRepository(this.delegate, {required this.failOnCall});
+
+  final BookmarkGroupRepository delegate;
+  final int failOnCall;
+  var _removeCalls = 0;
+
+  @override
+  Future<BookmarkGroup> removeBookmarks(String id, Set<int> bookmarkIds) {
+    _removeCalls++;
+    if (_removeCalls == failOnCall) {
+      throw StateError('membership removal failed');
+    }
+    return delegate.removeBookmarks(id, bookmarkIds);
+  }
+
+  @override
+  Future<BookmarkGroup> addBookmarks(String id, Set<int> bookmarkIds) =>
+      delegate.addBookmarks(id, bookmarkIds);
+
+  @override
+  Future<BookmarkGroup> createGroup(String name, {String? id}) =>
+      delegate.createGroup(name, id: id);
+
+  @override
+  Future<BookmarkGroupDeletionPreview> deleteGroup(String id) =>
+      delegate.deleteGroup(id);
+
+  @override
+  Future<BookmarkGroup> duplicateGroup(String id, {String? name}) =>
+      delegate.duplicateGroup(id, name: name);
+
+  @override
+  Future<BookmarkGroup?> getGroup(String id) => delegate.getGroup(id);
+
+  @override
+  Future<List<BookmarkGroup>> getGroups() => delegate.getGroups();
+
+  @override
+  Future<BookmarkGroupDeletionPreview> previewDeleteGroup(String id) =>
+      delegate.previewDeleteGroup(id);
+
+  @override
+  Future<bool> repair({required Set<int> validBookmarkIds}) =>
+      delegate.repair(validBookmarkIds: validBookmarkIds);
+
+  @override
+  Future<void> removeBookmarkFromAllGroups(int bookmarkId) async {
+    final first = (await delegate.getGroups()).firstWhere(
+      (group) => group.bookmarkIds.contains(bookmarkId),
+    );
+    await delegate.removeBookmarks(first.id, {bookmarkId});
+    throw StateError('remove from all groups failed');
+  }
+
+  @override
+  Future<BookmarkGroup> renameGroup(String id, String name) =>
+      delegate.renameGroup(id, name);
+
+  @override
+  Future<BookmarkGroup> replaceMemberships(String id, Set<int> bookmarkIds) =>
+      delegate.replaceMemberships(id, bookmarkIds);
+}
+
+class _FailingReplaceGroupRepository implements BookmarkGroupRepository {
+  const _FailingReplaceGroupRepository(this.delegate);
+
+  final BookmarkGroupRepository delegate;
+
+  @override
+  Future<BookmarkGroup> replaceMemberships(String id, Set<int> bookmarkIds) {
+    throw StateError('membership replacement failed');
+  }
+
+  @override
+  Future<BookmarkGroup> addBookmarks(String id, Set<int> bookmarkIds) =>
+      delegate.addBookmarks(id, bookmarkIds);
+
+  @override
+  Future<BookmarkGroup> createGroup(String name, {String? id}) =>
+      delegate.createGroup(name, id: id);
+
+  @override
+  Future<BookmarkGroupDeletionPreview> deleteGroup(String id) =>
+      delegate.deleteGroup(id);
+
+  @override
+  Future<BookmarkGroup> duplicateGroup(String id, {String? name}) =>
+      delegate.duplicateGroup(id, name: name);
+
+  @override
+  Future<BookmarkGroup?> getGroup(String id) => delegate.getGroup(id);
+
+  @override
+  Future<List<BookmarkGroup>> getGroups() => delegate.getGroups();
+
+  @override
+  Future<BookmarkGroupDeletionPreview> previewDeleteGroup(String id) =>
+      delegate.previewDeleteGroup(id);
+
+  @override
+  Future<bool> repair({required Set<int> validBookmarkIds}) =>
+      delegate.repair(validBookmarkIds: validBookmarkIds);
+
+  @override
+  Future<void> removeBookmarkFromAllGroups(int bookmarkId) =>
+      delegate.removeBookmarkFromAllGroups(bookmarkId);
+
+  @override
+  Future<BookmarkGroup> removeBookmarks(String id, Set<int> bookmarkIds) =>
+      delegate.removeBookmarks(id, bookmarkIds);
+
+  @override
+  Future<BookmarkGroup> renameGroup(String id, String name) =>
+      delegate.renameGroup(id, name);
 }

@@ -30,12 +30,11 @@ class BookmarkPostButton extends ConsumerWidget {
     final bookmarkStateAsync = ref.watch(bookmarkProvider);
     final library = bookmarkStateAsync.valueOrNull;
     final uniqueId = BookmarkUniqueId.fromPost(post, config.booruIdHint);
-    final bookmark = library?.bookmarksByUniqueId[uniqueId];
-    final memberships = library?.membershipsFor(uniqueId) ?? const <String>{};
+    final presentation = library == null
+        ? null
+        : selectBookmarkMembershipPresentation(library, uniqueId);
     final activeGroupId = library?.activeTarget.groupId;
-    final isBookmarked = activeGroupId == null
-        ? bookmark != null && memberships.isEmpty
-        : memberships.contains(activeGroupId);
+    final isBookmarked = presentation?.isInActiveTarget ?? false;
     final activeLabel = activeGroupId == null
         ? context.t.bookmark.groups.ungrouped
         : library?.groupsById[activeGroupId]?.name ??
@@ -64,26 +63,40 @@ class BookmarkPostButton extends ConsumerWidget {
               splashRadius: 16,
               onPressed: isLoading
                   ? null
-                  : () => ref.toggleBookmarkTarget(post, config),
+                  : () async {
+                      if (presentation?.activeTargetUnavailable ?? false) {
+                        await showBookmarkGroupPicker(
+                          context,
+                          ref: ref,
+                          config: config,
+                          post: post,
+                        );
+                        return;
+                      }
+                      await ref.toggleBookmarkTarget(post, config, context);
+                    },
               icon: Badge(
-                isLabelVisible: memberships.isNotEmpty,
-                label: Text('${memberships.length}'),
-                child: Icon(
-                  Symbols.bookmark,
-                  fill: isBookmarked ? 1 : 0,
-                  color: isBookmarked ? context.colors.upvoteColor : null,
+                isLabelVisible: presentation?.showNamedGroupCount ?? false,
+                label: Text('${presentation?.namedGroupCount ?? 0}'),
+                child: CustomPaint(
+                  size: const Size(32, 24),
+                  painter: BookmarkWithDropdownIconPainter(
+                    color: isBookmarked
+                        ? context.colors.upvoteColor
+                        : IconTheme.of(context).color ?? Colors.grey,
+                    fill: isBookmarked,
+                  ),
                 ),
               ),
             ),
-            if (activeGroupId != null)
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 100),
-                child: Text(
-                  activeLabel,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 100),
+              child: Text(
+                activeLabel,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
+            ),
           ],
         ),
       ),
@@ -118,7 +131,7 @@ class BookmarkPostLikeButtonButton extends ConsumerWidget {
       onTap: isLoading
           ? null
           : (isLiked) async {
-              await ref.toggleBookmarkTarget(post, booruConfig);
+              await ref.toggleBookmarkTarget(post, booruConfig, context);
               return Future.value(!isLiked);
             },
       likeBuilder: (isLiked) {
@@ -161,6 +174,7 @@ extension BookmarkPostX on WidgetRef {
   Future<void> toggleBookmarkTarget(
     Post post,
     BooruConfigAuth config,
+    BuildContext context,
   ) async {
     final library = read(bookmarkProvider).valueOrNull;
     if (library == null) return;
@@ -169,9 +183,19 @@ extension BookmarkPostX on WidgetRef {
     final groupId = library.activeTarget.groupId;
     if (groupId == null) {
       if (bookmark != null && library.membershipsFor(uniqueId).isEmpty) {
-        return bookmarks.removeBookmark(bookmark);
+        return bookmarks.removeBookmark(
+          bookmark,
+          onSuccess: () => Kurumi.showSuccessToast(
+            context,
+            context.t.bookmark.removed,
+          ),
+          onError: () => Kurumi.showErrorToast(
+            context,
+            context.t.bookmark.failed_to_remove,
+          ),
+        );
       }
-      return bookmarks.addBookmark(config, post);
+      return bookmarks.addBookmarkWithToast(config, post);
     }
     if (bookmark != null &&
         library.membershipsFor(uniqueId).contains(groupId)) {
@@ -179,11 +203,83 @@ extension BookmarkPostX on WidgetRef {
         [bookmark],
         groupId,
         deleteWhenMembershipBecomesEmpty: true,
+        onSuccess: () => Kurumi.showSuccessToast(
+          context,
+          context.t.bookmark.removed,
+        ),
+        onError: () => Kurumi.showErrorToast(
+          context,
+          context.t.bookmark.groups.failed_to_remove_from_group,
+        ),
       );
     }
     if (bookmark != null) {
-      return bookmarks.addExistingBookmarkToGroup(bookmark, groupId);
+      return bookmarks.addExistingBookmarkToGroup(
+        bookmark,
+        groupId,
+        onSuccess: () => Kurumi.showSuccessToast(
+          context,
+          context.t.bookmark.added,
+        ),
+        onError: () => Kurumi.showErrorToast(
+          context,
+          context.t.bookmark.groups.failed_to_add_to_group,
+        ),
+      );
     }
-    return bookmarks.addBookmarkToGroup(config, post, groupId);
+    return bookmarks.addBookmarkToGroup(
+      config,
+      post,
+      groupId,
+      onSuccess: () => Kurumi.showSuccessToast(
+        context,
+        context.t.bookmark.added,
+      ),
+      onError: () => Kurumi.showErrorToast(
+        context,
+        context.t.bookmark.groups.failed_to_add_to_group,
+      ),
+    );
   }
+}
+
+class BookmarkWithDropdownIconPainter extends CustomPainter {
+  const BookmarkWithDropdownIconPainter({
+    required this.color,
+    required this.fill,
+  });
+
+  final Color color;
+  final bool fill;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final centerY = size.height / 2;
+    const centerX = 9.0;
+    final bookmarkPaint = Paint()
+      ..color = color
+      ..style = fill ? PaintingStyle.fill : PaintingStyle.stroke
+      ..strokeWidth = 1.5
+      ..strokeJoin = StrokeJoin.round;
+    final path = Path()
+      ..moveTo(centerX - 6.5, centerY - 9)
+      ..lineTo(centerX + 6.5, centerY - 9)
+      ..lineTo(centerX + 6.5, centerY + 9)
+      ..lineTo(centerX, centerY + 5)
+      ..lineTo(centerX - 6.5, centerY + 9)
+      ..close();
+    canvas.drawPath(path, bookmarkPaint);
+    final arrowPaint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1
+      ..strokeCap = StrokeCap.round;
+    canvas
+      ..drawLine(const Offset(22, 10), const Offset(26, 14), arrowPaint)
+      ..drawLine(const Offset(30, 10), const Offset(26, 14), arrowPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant BookmarkWithDropdownIconPainter oldDelegate) =>
+      oldDelegate.color != color || oldDelegate.fill != fill;
 }

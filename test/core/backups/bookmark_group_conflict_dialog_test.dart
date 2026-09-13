@@ -44,4 +44,81 @@ void main() {
     expect(result?.choice, BookmarkGroupConflictChoice.merge);
     expect(result?.applyToRemaining, isTrue);
   });
+
+  testWidgets('cancelling any conflict cancels the entire import', (
+    tester,
+  ) async {
+    BookmarkImportPlan? result;
+    const plan = BookmarkImportPlan(
+      bookmarks: [],
+      missingBookmarks: [],
+      groups: [conflict],
+    );
+    await tester.pumpWidget(
+      BooruLocalization(
+        child: MaterialApp(
+          home: Builder(
+            builder: (context) => ElevatedButton(
+              onPressed: () async {
+                result = await resolveBookmarkGroupConflicts(context, plan);
+              },
+              child: const Text('Open'),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+
+    expect(result, isNull);
+  });
+
+  testWidgets('apply to remaining resolves later conflicts without prompting', (
+    tester,
+  ) async {
+    BookmarkImportPlan? result;
+    const plan = BookmarkImportPlan(
+      bookmarks: [],
+      missingBookmarks: [],
+      groups: [
+        conflict,
+        BookmarkGroupImport(
+          id: '5f1d7f5e-3114-4dc7-a347-18f95852fc31',
+          name: 'Second',
+          bookmarkIds: {},
+          conflicts: true,
+        ),
+      ],
+    );
+    await tester.pumpWidget(
+      BooruLocalization(
+        child: MaterialApp(
+          home: Builder(
+            builder: (context) => ElevatedButton(
+              onPressed: () async {
+                result = await resolveBookmarkGroupConflicts(context, plan);
+              },
+              child: const Text('Open'),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(CheckboxListTile));
+    await tester.tap(find.text('Replace'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Second'), findsNothing);
+    expect(
+      result?.groups.map((group) => group.choice),
+      everyElement(BookmarkGroupConflictChoice.replace),
+    );
+  });
 }

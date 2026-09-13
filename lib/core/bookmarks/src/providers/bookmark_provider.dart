@@ -72,7 +72,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     return (await _service).load(BookmarkTarget.fromGroupId(activeGroupId));
   }
 
-  Future<bool> setActiveTarget(BookmarkTarget target) async {
+  Future<bool> setActiveTarget(BookmarkTarget target) => _serialize(() async {
     final saved = await ref
         .read(settingsNotifierProvider.notifier)
         .updateWith(
@@ -80,9 +80,9 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
             activeBookmarkGroupId: target.groupId,
           ),
         );
-    if (saved) await _reload();
+    if (saved) await _reload(target);
     return saved;
-  }
+  });
 
   Future<T> _serialize<T>(Future<T> Function() operation) {
     final completer = Completer<T>();
@@ -96,9 +96,12 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     return completer.future;
   }
 
-  Future<void> _reload() async {
+  Future<void> _reload([BookmarkTarget? requestedTarget]) async {
     final current = state.valueOrNull;
-    final target = current?.activeTarget ?? const BookmarkTarget.ungrouped();
+    final target =
+        requestedTarget ??
+        current?.activeTarget ??
+        const BookmarkTarget.ungrouped();
     state = AsyncValue.data(await (await _service).load(target));
   }
 
@@ -169,9 +172,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
               : null,
         );
       } else {
-        if (existing != null) {
-          await (await _service).moveBookmarkToUngrouped(existing);
-        } else {
+        if (existing == null) {
           await (await bookmarkRepository).addBookmark(
             booruId,
             post,
@@ -194,8 +195,9 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
         final group = await (await ref.read(
           bookmarkGroupRepoProvider.future,
         )).createGroup(name);
+        var activated = false;
         if (activate) {
-          await ref
+          activated = await ref
               .read(settingsNotifierProvider.notifier)
               .updateWith(
                 (settings) => settings.copyWith(
@@ -203,15 +205,13 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
                 ),
               );
         }
-        await _reload();
+        await _reload(activated ? BookmarkTarget.group(group.id) : null);
         return group;
       });
 
   Future<BookmarkGroup> duplicateGroup(String groupId, String name) =>
       _serialize(() async {
-        final group = await (await ref.read(
-          bookmarkGroupRepoProvider.future,
-        )).duplicateGroup(groupId, name: name);
+        final group = await (await _service).duplicateGroup(groupId, name);
         await _reload();
         return group;
       });
@@ -234,7 +234,9 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
                 (settings) => settings.copyWith(activeBookmarkGroupId: null),
               );
         }
-        await _reload();
+        await _reload(
+          active == groupId ? const BookmarkTarget.ungrouped() : null,
+        );
         return preview;
       });
 
@@ -384,6 +386,119 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     } catch (_) {
       onError?.call();
     }
+  });
+
+  Future<int> addPostsToGroup(
+    BooruConfigAuth config,
+    Iterable<Post> posts,
+    String? groupId,
+  ) => _serialize(() async {
+    final current = await future;
+    final selected = posts.toList();
+    final existing = <Bookmark>[];
+    final missing = <Post>[];
+    for (final post in selected) {
+      final bookmark =
+          current.bookmarksByUniqueId[BookmarkUniqueId.fromPost(
+            post,
+            config.booruIdHint,
+          )];
+      if (bookmark == null) {
+        missing.add(post);
+      } else {
+        existing.add(bookmark);
+      }
+    }
+    if (groupId == null) {
+      if (missing.isNotEmpty) {
+        await (await bookmarkRepository).addBookmarks(
+          config.booruIdHint,
+          missing,
+          imageUrlResolver: (booruId) =>
+              ref.read(bookmarkUrlResolverProvider(booruId)),
+          postLinkGenerator: (_) => ref.read(postLinkGeneratorProvider(config)),
+        );
+      }
+      await _reload();
+      return missing.length;
+    }
+
+    final created = <Bookmark>[];
+    try {
+      for (final post in missing) {
+        created.add(
+          await (await bookmarkRepository).addBookmark(
+            config.booruIdHint,
+            post,
+            imageUrlResolver: (booruId) =>
+                ref.read(bookmarkUrlResolverProvider(booruId)),
+            postLinkGenerator: (_) =>
+                ref.read(postLinkGeneratorProvider(config)),
+          ),
+        );
+      }
+      final members = [...existing, ...created];
+      final before = current.groupsById[groupId]?.bookmarkIds ?? const <int>{};
+      final changed = members.where((b) => !before.contains(b.id)).length;
+      await (await ref.read(bookmarkGroupRepoProvider.future)).addBookmarks(
+        groupId,
+        members.map((bookmark) => bookmark.id).toSet(),
+      );
+      await _reload();
+      return changed;
+    } catch (_) {
+      if (created.isNotEmpty) await (await _service).deleteBookmarks(created);
+      rethrow;
+    }
+  });
+
+  Future<BookmarkGroupRemovalResult> removePostsFromGroup(
+    BooruConfigAuth config,
+    Iterable<Post> posts,
+    String groupId,
+  ) => _serialize(() async {
+    final current = await future;
+    final bookmarks = posts
+        .map(
+          (post) =>
+              current.bookmarksByUniqueId[BookmarkUniqueId.fromPost(
+                post,
+                config.booruIdHint,
+              )],
+        )
+        .whereType<Bookmark>()
+        .where(
+          (bookmark) =>
+              current.membershipsFor(bookmark.uniqueId).contains(groupId),
+        )
+        .toList();
+    final result = await (await _service).removeBookmarksFromGroup(
+      bookmarks,
+      groupId,
+    );
+    await _reload();
+    return result;
+  });
+
+  Future<int> deleteBookmarksForPosts(
+    BooruConfigAuth config,
+    Iterable<Post> posts,
+  ) => _serialize(() async {
+    final current = await future;
+    final bookmarks = posts
+        .map(
+          (post) =>
+              current.bookmarksByUniqueId[BookmarkUniqueId.fromPost(
+                post,
+                config.booruIdHint,
+              )],
+        )
+        .whereType<Bookmark>()
+        .toSet()
+        .toList();
+    await (await _service).deleteBookmarks(bookmarks);
+    await _reload();
+    return bookmarks.length;
   });
 
   Future<void> downloadBookmarks(

@@ -93,14 +93,24 @@ class BookmarkMembershipPresentation extends Equatable {
     required this.isBookmarked,
     required this.isInActiveTarget,
     required this.namedGroupCount,
+    required this.activeTargetUnavailable,
+    required this.showNamedGroupCount,
   });
 
   final bool isBookmarked;
   final bool isInActiveTarget;
   final int namedGroupCount;
+  final bool activeTargetUnavailable;
+  final bool showNamedGroupCount;
 
   @override
-  List<Object?> get props => [isBookmarked, isInActiveTarget, namedGroupCount];
+  List<Object?> get props => [
+    isBookmarked,
+    isInActiveTarget,
+    namedGroupCount,
+    activeTargetUnavailable,
+    showNamedGroupCount,
+  ];
 }
 
 BookmarkMembershipPresentation selectBookmarkMembershipPresentation(
@@ -116,6 +126,13 @@ BookmarkMembershipPresentation selectBookmarkMembershipPresentation(
         ? isBookmarked && memberships.isEmpty
         : memberships.contains(activeGroupId),
     namedGroupCount: memberships.length,
+    activeTargetUnavailable:
+        activeGroupId == null && isBookmarked && memberships.isNotEmpty,
+    showNamedGroupCount:
+        memberships.isNotEmpty &&
+        (activeGroupId == null ||
+            !memberships.contains(activeGroupId) ||
+            memberships.length > 1),
   );
 }
 
