@@ -19,6 +19,7 @@ class InteractiveViewerExtended extends ConsumerWidget {
     this.contentSize,
     this.panEnabled = true,
     this.scaleEnabled = true,
+    this.constrainPanToContent = false,
   });
 
   final Widget child;
@@ -32,6 +33,7 @@ class InteractiveViewerExtended extends ConsumerWidget {
   final Size? contentSize;
   final bool panEnabled;
   final bool scaleEnabled;
+  final bool constrainPanToContent;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -50,6 +52,7 @@ class InteractiveViewerExtended extends ConsumerWidget {
       enableHapticFeedback: enableHapticFeedback,
       panEnabled: panEnabled,
       scaleEnabled: scaleEnabled,
+      constrainPanToContent: constrainPanToContent,
       child: child,
     );
   }

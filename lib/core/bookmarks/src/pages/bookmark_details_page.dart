@@ -101,6 +101,7 @@ class _BookmarkDetailsPageState
     final booruRepo = ref.watch(booruRepoProvider(auth));
 
     return PostDetailsPageScaffold(
+      enableViewerTransformations: false,
       isInitPage: _isInitPage,
       transformController: _transformController,
       controller: controller,

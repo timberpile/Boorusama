@@ -65,6 +65,31 @@ class _PostDetailsItemState<T extends Post>
   final _videoKey = GlobalKey();
 
   @override
+  void initState() {
+    super.initState();
+    widget.detailsController.currentSettledPage.addListener(_onPageSettled);
+  }
+
+  @override
+  void didUpdateWidget(covariant PostDetailsItem<T> oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.detailsController != widget.detailsController) {
+      oldWidget.detailsController.currentSettledPage.removeListener(
+        _onPageSettled,
+      );
+      widget.detailsController.currentSettledPage.addListener(_onPageSettled);
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.detailsController.currentSettledPage.removeListener(_onPageSettled);
+    super.dispose();
+  }
+
+  void _onPageSettled() => setState(() {});
+
+  @override
   Widget build(BuildContext context) {
     final pageViewController = PostDetailsPageViewScope.of(context);
     final post = widget.posts[widget.index];
@@ -135,6 +160,8 @@ class _PostDetailsItemState<T extends Post>
           key: _videoKey,
           contentSize: Size(post.width, post.height),
           controller: widget.transformController,
+          constrainPanToContent:
+              widget.detailsController.currentSettledPage.value == widget.index,
           enable: switch (ref.watch(
             noteOverlayProvider((widget.authConfig, post)),
           )) {

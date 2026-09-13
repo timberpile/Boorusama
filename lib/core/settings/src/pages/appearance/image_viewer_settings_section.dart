@@ -91,6 +91,22 @@ class ImageViewerSettingsSection extends ConsumerWidget {
             ),
           ),
         ),
+        KurumiSwitchListTile(
+          title: Text(
+            context.t.settings.image_viewer.auto_adjust_comic_strips,
+          ),
+          subtitle: Text(
+            context
+                .t
+                .settings
+                .image_viewer
+                .auto_adjust_comic_strips_description,
+          ),
+          value: viewer.autoAdjustComicStrips,
+          onChanged: (value) => onUpdate(
+            viewer.copyWith(autoAdjustComicStrips: value),
+          ),
+        ),
         const Divider(thickness: 1),
         KurumiSettingsHeader(label: context.t.settings.image_viewer.slideshow),
         KurumiSettingsTile(

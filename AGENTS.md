@@ -7,6 +7,7 @@ Always use `fvm` for `flutter` and `dart` commands.
 - For Riverpod, always use Notifier/AsyncNotifier. Manually declare providers, no codegen.
 - Prefer using factory methods/constructors for creating instances with complex setup, move all constructor to the top of the class.
 - Always put business logic into state classes or a dedicated file.
+- Never hardcode user-facing text. Add it to the i18n resources and access it through `BuildContext` with `context.t`.
 - Use `equatable` for value equality when necessary.
 - Always use pattern matching to make code more readable, only use traditional if/else when it improves readability.
 - When parsing data from external sources, always assume data is nullable and handle null cases explicitly in the code.
@@ -48,6 +49,7 @@ for (final c in cases) {
 - Never commit or push directly to `develop` or `master`. Both branches change only through GitHub pull requests.
 - Pull requests for features and fixes target `develop`. Only `develop` may open a release/promotion pull request to `master`.
 - Set the pull request title to exactly `Merge branch '<branch-name>'` and include `Closes #<issue-id>` in its body.
+- Keep pull request descriptions brief. After the closing issue reference, use a few concise bullets describing only the meaningful end-state changes introduced when merged. Exclude implementation details, test history, development phases, temporary steps, and exhaustive file-level summaries unless they are essential to understanding the result.
 - Do not enable GitHub auto-merge. Wait for explicit user approval, then merge manually with squash merging.
 - Do not edit the generated squash commit title. Delete the local branch after GitHub has merged the pull request and deleted its remote branch.
 
