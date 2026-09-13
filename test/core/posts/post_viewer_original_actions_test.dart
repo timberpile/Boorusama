@@ -58,7 +58,7 @@ void main() {
   );
 
   testWidgets(
-    'offers temporary viewer transformations only in the overflow menu',
+    'omits temporary viewer transformations after behavior verification',
     (tester) async {
       final buttons = await _buildButtons(
         tester,
@@ -72,8 +72,7 @@ void main() {
         'Comic-strip start',
       ];
       for (final title in expectedTitles) {
-        final button = buttons.singleWhere((button) => button.title == title);
-        expect(button.placement, ButtonPlacement.menuOnly);
+        expect(buttons.map((button) => button.title), isNot(contains(title)));
       }
     },
   );

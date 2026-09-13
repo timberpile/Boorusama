@@ -9,72 +9,109 @@ import 'package:boorusama/core/posts/details/src/types/post_viewer_transformatio
 
 void main() {
   const viewportSize = Size(400, 800);
-  const tallContentSize = Size(1000, 4000);
 
-  test('fitting to width preserves the visible vertical center', () {
-    final transformationController = _transformationController(
-      Matrix4.identity()
-        ..translateByDouble(-20, -100, 0, 1)
-        ..scaleByDouble(1.5, 1.5, 1.5, 1),
-    );
+  test('automatically starts only above the comic-strip aspect threshold', () {
+    final transformationController = _transformationController();
     final controller = PostViewerTransformationController(
       transformationController,
     )..viewportSize = viewportSize;
-    final center = viewportSize.center(Offset.zero);
-    final visibleCenterBefore = transformationController.toScene(center);
 
-    controller.fitToWidth(tallContentSize);
+    final boundaryStarted = controller.tryAutoStartComicStrip(
+      postId: 1,
+      contentSize: const Size(1000, 4000),
+      enabled: true,
+    );
+    final tallerStarted = controller.tryAutoStartComicStrip(
+      postId: 2,
+      contentSize: const Size(1000, 4001),
+      enabled: true,
+    );
 
-    final visibleCenterAfter = transformationController.toScene(center);
-    expect(
-      transformationController.value.getMaxScaleOnAxis(),
-      closeTo(2, 0.001),
-    );
-    expect(visibleCenterAfter.dy, closeTo(visibleCenterBefore.dy, 0.001));
-    expect(
-      transformationController.value.getTranslation().x,
-      closeTo(-200, 0.001),
-    );
+    expect(boundaryStarted, isFalse);
+    expect(tallerStarted, isTrue);
   });
 
-  test('scrolling to top preserves zoom and horizontal position', () {
-    final transformationController = _transformationController(
-      Matrix4.identity()
-        ..translateByDouble(-350, -500, 0, 1)
-        ..scaleByDouble(3, 3, 3, 1),
-    );
+  test('automatically starts a detected comic strip only once per post', () {
+    final transformationController = _transformationController();
     final controller = PostViewerTransformationController(
       transformationController,
     )..viewportSize = viewportSize;
 
-    controller.scrollToTop(tallContentSize);
+    final firstStarted = controller.tryAutoStartComicStrip(
+      postId: 1,
+      contentSize: const Size(1000, 4001),
+      enabled: true,
+    );
+    transformationController.value = Matrix4.identity();
+    final secondStarted = controller.tryAutoStartComicStrip(
+      postId: 1,
+      contentSize: const Size(1000, 4001),
+      enabled: true,
+    );
 
-    final matrix = transformationController.value;
-    expect(matrix.getMaxScaleOnAxis(), closeTo(3, 0.001));
-    expect(matrix.getTranslation().x, closeTo(-350, 0.001));
-    expect(matrix.getTranslation().y, closeTo(0, 0.001));
+    expect(firstStarted, isTrue);
+    expect(secondStarted, isFalse);
+    expect(transformationController.value, Matrix4.identity());
   });
 
-  test('comic-strip start fits the image width and shows its top', () {
-    final transformationController = _transformationController(
-      Matrix4.identity()
-        ..translateByDouble(-50, -300, 0, 1)
-        ..scaleByDouble(1.25, 1.25, 1.25, 1),
-    );
+  test('settling a different page resets zoom without repeating a post', () {
+    final transformationController = _transformationController();
     final controller = PostViewerTransformationController(
       transformationController,
     )..viewportSize = viewportSize;
 
-    controller.startComicStrip(tallContentSize);
+    controller.onPageSettled(0);
+    expect(
+      controller.tryAutoStartComicStrip(
+        postId: 1,
+        contentSize: const Size(1000, 4001),
+        enabled: true,
+      ),
+      isTrue,
+    );
 
-    final matrix = transformationController.value;
-    expect(matrix.getMaxScaleOnAxis(), closeTo(2, 0.001));
-    expect(matrix.getTranslation().x, closeTo(-200, 0.001));
-    expect(matrix.getTranslation().y, closeTo(0, 0.001));
+    controller.onPageSettled(1);
+    expect(transformationController.value, Matrix4.identity());
+
+    controller.onPageSettled(0);
+    expect(
+      controller.tryAutoStartComicStrip(
+        postId: 1,
+        contentSize: const Size(1000, 4001),
+        enabled: true,
+      ),
+      isFalse,
+    );
+    expect(transformationController.value, Matrix4.identity());
   });
 
   test(
-    'commands leave the transformation unchanged without a valid viewport',
+    'disabled automatic mode consumes the post load without repositioning',
+    () {
+      final transformationController = _transformationController();
+      final controller = PostViewerTransformationController(
+        transformationController,
+      )..viewportSize = viewportSize;
+
+      final disabledStarted = controller.tryAutoStartComicStrip(
+        postId: 1,
+        contentSize: const Size(1000, 4001),
+        enabled: false,
+      );
+      final laterStarted = controller.tryAutoStartComicStrip(
+        postId: 1,
+        contentSize: const Size(1000, 4001),
+        enabled: true,
+      );
+
+      expect(disabledStarted, isFalse);
+      expect(laterStarted, isFalse);
+      expect(transformationController.value, Matrix4.identity());
+    },
+  );
+
+  test(
+    'automatic mode waits for valid viewer geometry before handling a post',
     () {
       final initialMatrix = Matrix4.identity()
         ..translateByDouble(-20, -100, 0, 1)
@@ -84,11 +121,13 @@ void main() {
         transformationController,
       );
 
-      controller
-        ..fitToWidth(tallContentSize)
-        ..scrollToTop(tallContentSize)
-        ..startComicStrip(tallContentSize);
+      final started = controller.tryAutoStartComicStrip(
+        postId: 1,
+        contentSize: const Size(1000, 4001),
+        enabled: true,
+      );
 
+      expect(started, isFalse);
       expect(transformationController.value, initialMatrix);
     },
   );

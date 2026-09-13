@@ -32,6 +32,7 @@ import '../types/post_viewer_transformation_controller.dart';
 import 'post_details_controller.dart';
 import 'post_details_full_info_sheet.dart';
 import 'post_details_page_view_scope.dart';
+import 'post_viewer_auto_comic_strip.dart';
 import 'post_viewer_transformation_scope.dart';
 import 'video_controls.dart';
 import 'volume_key_page_navigator.dart';
@@ -54,7 +55,7 @@ class PostDetailsPageScaffold<T extends Post> extends ConsumerStatefulWidget {
     this.onExpanded,
     this.preferredParts,
     this.preferredPreviewParts,
-    this.enableViewerTransformationActions = true,
+    this.enableViewerTransformations = true,
   });
 
   final List<T> posts;
@@ -70,7 +71,7 @@ class PostDetailsPageScaffold<T extends Post> extends ConsumerStatefulWidget {
   final ValueNotifier<bool> isInitPage;
   final List<Widget> actions;
   final PostGestureHandlerBuilder? postGestureHandlerBuilder;
-  final bool enableViewerTransformationActions;
+  final bool enableViewerTransformations;
 
   @override
   ConsumerState<PostDetailsPageScaffold<T>> createState() =>
@@ -103,9 +104,7 @@ class _PostDetailPageScaffoldState<T extends Post>
       widget.controller.setPage(
         widget.controller.initialPage,
       );
-      widget.controller.onPageSettled(
-        widget.controller.initialPage,
-      );
+      _onPageSettled(widget.controller.initialPage);
     });
 
     widget.controller.isVideoPlaying.addListener(_isVideoPlayingChanged);
@@ -187,9 +186,14 @@ class _PostDetailPageScaffoldState<T extends Post>
       }
 
       if (distance == 0) {
-        widget.controller.onPageSettled(page);
+        _onPageSettled(page);
       }
     }
+  }
+
+  void _onPageSettled(int page) {
+    _viewerTransformationController.onPageSettled(page);
+    widget.controller.onPageSettled(page);
   }
 
   void _onHover({
@@ -275,7 +279,7 @@ class _PostDetailPageScaffoldState<T extends Post>
       ),
     );
 
-    return widget.enableViewerTransformationActions
+    return widget.enableViewerTransformations
         ? PostViewerTransformationScope(
             controller: _viewerTransformationController,
             child: child,
@@ -292,6 +296,11 @@ class _PostDetailPageScaffoldState<T extends Post>
     );
     final swipeMode = ref.watch(
       imageViewerSettingsProvider.select((value) => value.swipeMode),
+    );
+    final autoStartComicStripMode = ref.watch(
+      imageViewerSettingsProvider.select(
+        (value) => value.autoStartComicStripMode,
+      ),
     );
 
     return Scaffold(
@@ -411,9 +420,22 @@ class _PostDetailPageScaffoldState<T extends Post>
             ],
           ),
         ),
-        itemBuilder: (context, index) => PostViewerTransformationViewport(
-          child: widget.itemBuilder(context, index),
-        ),
+        itemBuilder: (context, index) {
+          final child = widget.itemBuilder(context, index);
+          if (!widget.enableViewerTransformations) return child;
+
+          final post = posts[index];
+          return PostViewerTransformationViewport(
+            child: PostViewerAutoComicStrip(
+              index: index,
+              postId: post.id,
+              contentSize: Size(post.width, post.height),
+              currentSettledPage: widget.controller.currentSettledPage,
+              enabled: autoStartComicStripMode && !post.isVideo,
+              child: child,
+            ),
+          );
+        },
         bottomSheet: Consumer(
           builder: (_, ref, _) {
             return switch (widget.uiBuilder) {

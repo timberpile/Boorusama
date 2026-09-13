@@ -8,48 +8,35 @@ class PostViewerTransformationController {
   PostViewerTransformationController(this.transformationController);
 
   final TransformationController transformationController;
+  final _autoStartHandledPostIds = <int>{};
+  int? _settledPage;
 
   Size? viewportSize;
 
-  void fitToWidth(Size contentSize) {
-    final geometry = _geometry(contentSize);
-    if (geometry == null) return;
+  void onPageSettled(int page) {
+    if (_settledPage == page) return;
 
-    final viewportCenter = geometry.viewport.center(Offset.zero);
-    final visibleCenter = transformationController.toScene(viewportCenter);
-    final targetScale = geometry.viewport.width / geometry.fitted.width;
-    final translation = viewportCenter - visibleCenter * targetScale;
-
-    transformationController.value = _constrain(
-      geometry: geometry,
-      scale: targetScale,
-      translation: translation,
-    );
+    if (_settledPage != null) {
+      transformationController.value = Matrix4.identity();
+    }
+    _settledPage = page;
   }
 
-  void scrollToTop(Size contentSize) {
+  bool tryAutoStartComicStrip({
+    required int postId,
+    required Size contentSize,
+    required bool enabled,
+  }) {
     final geometry = _geometry(contentSize);
-    if (geometry == null) return;
+    if (geometry == null || !_autoStartHandledPostIds.add(postId)) return false;
 
-    final matrix = transformationController.value;
-    final scale = matrix.getMaxScaleOnAxis();
-    if (!scale.isFinite || scale <= 0) return;
+    if (!enabled || contentSize.height <= contentSize.width * 4) return false;
 
-    final currentTranslation = matrix.getTranslation();
-    transformationController.value = _constrain(
-      geometry: geometry,
-      scale: scale,
-      translation: Offset(
-        currentTranslation.x,
-        -scale * geometry.fittedOffset.dy,
-      ),
-    );
+    _startComicStrip(geometry);
+    return true;
   }
 
-  void startComicStrip(Size contentSize) {
-    final geometry = _geometry(contentSize);
-    if (geometry == null) return;
-
+  void _startComicStrip(_ViewerGeometry geometry) {
     final targetScale = geometry.viewport.width / geometry.fitted.width;
     transformationController.value = _constrain(
       geometry: geometry,

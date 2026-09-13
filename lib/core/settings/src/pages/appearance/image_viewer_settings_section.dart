@@ -91,6 +91,16 @@ class ImageViewerSettingsSection extends ConsumerWidget {
             ),
           ),
         ),
+        KurumiSwitchListTile(
+          title: Text('Auto-start comic strip mode'.hc),
+          subtitle: Text(
+            'Fit very tall images to width and start at the top.'.hc,
+          ),
+          value: viewer.autoStartComicStripMode,
+          onChanged: (value) => onUpdate(
+            viewer.copyWith(autoStartComicStripMode: value),
+          ),
+        ),
         const Divider(thickness: 1),
         KurumiSettingsHeader(label: context.t.settings.image_viewer.slideshow),
         KurumiSettingsTile(
