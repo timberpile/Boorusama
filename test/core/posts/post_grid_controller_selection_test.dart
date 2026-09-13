@@ -100,4 +100,36 @@ void main() {
       expect(fetchCount, 2);
     },
   );
+
+  test('a failed refresh does not block the next refresh', () async {
+    var fetchCount = 0;
+    var blacklistCount = 0;
+    final controller = PostGridController<BookmarkPost>(
+      fetcher: (_) {
+        fetchCount++;
+        return TaskEither.right(
+          PostResult(posts: [Bookmark.empty.toPost()], total: 1),
+        );
+      },
+      blacklistedTagsFetcher: () async => const {},
+      blacklistedUrlsFetcher: () async {
+        blacklistCount++;
+        if (blacklistCount == 1) throw StateError('blacklist read failed');
+        return const {};
+      },
+      mountedChecker: () => true,
+      duplicateTracker: PostDuplicateTracker(),
+      onError: (_) {},
+      debounceDuration: Duration.zero,
+    );
+    addTearDown(controller.dispose);
+
+    await expectLater(controller.refresh(), throwsStateError);
+    expect(controller.refreshing, isFalse);
+
+    await controller.refresh().timeout(const Duration(seconds: 1));
+
+    expect(fetchCount, 2);
+    expect(controller.refreshing, isFalse);
+  });
 }

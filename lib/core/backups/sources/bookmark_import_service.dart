@@ -96,6 +96,7 @@ class BookmarkImportService {
       final rollbackErrors = await _rollback(
         oldGroups: oldGroups,
         oldGroupIds: oldGroupIds,
+        oldBookmarks: oldBookmarks,
         addedBookmarks: addedBookmarks,
       );
       if (rollbackErrors.isNotEmpty) {
@@ -117,6 +118,7 @@ class BookmarkImportService {
   Future<List<Object>> _rollback({
     required List<BookmarkGroup> oldGroups,
     required Set<String> oldGroupIds,
+    required List<Bookmark> oldBookmarks,
     required List<Bookmark> addedBookmarks,
   }) async {
     final errors = <Object>[];
@@ -147,9 +149,27 @@ class BookmarkImportService {
         errors.add(error);
       }
     }
-    if (addedBookmarks.isNotEmpty) {
+    final bookmarksToRemove = {
+      for (final bookmark in addedBookmarks) bookmark.id: bookmark,
+    };
+    try {
+      final oldIdentities = oldBookmarks
+          .map((bookmark) => bookmark.uniqueId)
+          .toSet();
+      final currentBookmarks = await bookmarkRepository.getAllBookmarksOrThrow(
+        imageUrlResolver: imageUrlResolver,
+      );
+      for (final bookmark in currentBookmarks.where(
+        (bookmark) => !oldIdentities.contains(bookmark.uniqueId),
+      )) {
+        bookmarksToRemove[bookmark.id] = bookmark;
+      }
+    } catch (error) {
+      errors.add(error);
+    }
+    if (bookmarksToRemove.isNotEmpty) {
       try {
-        await bookmarkRepository.removeBookmarks(addedBookmarks);
+        await bookmarkRepository.removeBookmarks(bookmarksToRemove.values);
       } catch (error) {
         errors.add(error);
       }

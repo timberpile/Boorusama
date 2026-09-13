@@ -352,6 +352,39 @@ void main() {
       bookmark.id,
     });
   });
+
+  test('a group deletion reports failed membership restoration', () async {
+    final bookmark = await storeBookmark('failed-group-restore');
+    await groupRepository.createGroup('First', id: firstGroupId);
+    await groupRepository.addBookmarks(firstGroupId, {bookmark.id});
+    service = BookmarkLibraryService(
+      bookmarkRepository: _FailingBookmarkRemovalRepository(bookmarkBox),
+      groupRepository: _FailingReplaceGroupRepository(groupRepository),
+      imageUrlResolver: resolver,
+    );
+
+    await expectLater(
+      service.deleteGroup(firstGroupId),
+      throwsA(
+        isA<BookmarkLibraryRollbackException>()
+            .having(
+              (error) => error.operationError,
+              'operation error',
+              isA<StateError>(),
+            )
+            .having(
+              (error) => error.rollbackErrors,
+              'rollback errors',
+              hasLength(1),
+            ),
+      ),
+    );
+
+    expect(
+      (await groupRepository.getGroup(firstGroupId))?.bookmarkIds,
+      isEmpty,
+    );
+  });
 }
 
 class _FailingReadBookmarkRepository extends BookmarkHiveRepository {
@@ -361,6 +394,14 @@ class _FailingReadBookmarkRepository extends BookmarkHiveRepository {
   BookmarksOrError getAllBookmarks({
     required ImageUrlResolver Function(int? booruId) imageUrlResolver,
   }) => TaskEither.fromEither(Either.left(BookmarkGetError.unknown));
+}
+
+class _FailingBookmarkRemovalRepository extends BookmarkHiveRepository {
+  const _FailingBookmarkRemovalRepository(super._box);
+
+  @override
+  Future<void> removeBookmarks(Iterable<Bookmark> favorites) =>
+      throw StateError('bookmark removal failed');
 }
 
 class _FailingAddGroupRepository implements BookmarkGroupRepository {

@@ -25,6 +25,16 @@ class BookmarkGroupRemovalResult extends Equatable {
   List<Object?> get props => [removedCount, movedToNoGroupCount];
 }
 
+class BookmarkLibraryRollbackException implements Exception {
+  const BookmarkLibraryRollbackException({
+    required this.operationError,
+    required this.rollbackErrors,
+  });
+
+  final Object operationError;
+  final List<Object> rollbackErrors;
+}
+
 class BookmarkLibraryService {
   const BookmarkLibraryService({
     required this.bookmarkRepository,
@@ -73,9 +83,16 @@ class BookmarkLibraryService {
     try {
       await groupRepository.addBookmarks(groupId, {bookmark.id});
       return true;
-    } catch (_) {
-      if (created) await bookmarkRepository.removeBookmark(bookmark);
-      rethrow;
+    } catch (error, stackTrace) {
+      final rollbackErrors = <Object>[];
+      if (created) {
+        try {
+          await bookmarkRepository.removeBookmark(bookmark);
+        } catch (rollbackError) {
+          rollbackErrors.add(rollbackError);
+        }
+      }
+      _throwWithRollback(error, stackTrace, rollbackErrors);
     }
   }
 
@@ -90,9 +107,14 @@ class BookmarkLibraryService {
         duplicate.id,
         source.bookmarkIds,
       );
-    } catch (_) {
-      await groupRepository.deleteGroup(duplicate.id);
-      rethrow;
+    } catch (error, stackTrace) {
+      final rollbackErrors = <Object>[];
+      try {
+        await groupRepository.deleteGroup(duplicate.id);
+      } catch (rollbackError) {
+        rollbackErrors.add(rollbackError);
+      }
+      _throwWithRollback(error, stackTrace, rollbackErrors);
     }
   }
 
@@ -102,9 +124,12 @@ class BookmarkLibraryService {
         .toList();
     try {
       await groupRepository.removeBookmarkFromAllGroups(bookmark.id);
-    } catch (_) {
-      await _restoreMemberships(affectedGroups);
-      rethrow;
+    } catch (error, stackTrace) {
+      _throwWithRollback(
+        error,
+        stackTrace,
+        await _restoreMemberships(affectedGroups),
+      );
     }
   }
 
@@ -145,9 +170,14 @@ class BookmarkLibraryService {
       if (toDelete.isNotEmpty) {
         await bookmarkRepository.removeBookmarks(toDelete);
       }
-    } catch (_) {
-      await groupRepository.addBookmarks(groupId, affectedIds);
-      rethrow;
+    } catch (error, stackTrace) {
+      final rollbackErrors = <Object>[];
+      try {
+        await groupRepository.addBookmarks(groupId, affectedIds);
+      } catch (rollbackError) {
+        rollbackErrors.add(rollbackError);
+      }
+      _throwWithRollback(error, stackTrace, rollbackErrors);
     }
     await _clearCaches(toDelete);
 
@@ -174,11 +204,14 @@ class BookmarkLibraryService {
         await groupRepository.removeBookmarks(groupId, ids);
       }
       await bookmarkRepository.removeBookmarks(bookmarkList);
-    } catch (_) {
-      await _restoreMemberships(
-        groups.where((group) => affectedGroups.containsKey(group.id)),
+    } catch (error, stackTrace) {
+      _throwWithRollback(
+        error,
+        stackTrace,
+        await _restoreMemberships(
+          groups.where((group) => affectedGroups.containsKey(group.id)),
+        ),
       );
-      rethrow;
     }
     await _clearCaches(bookmarkList);
   }
@@ -194,16 +227,25 @@ class BookmarkLibraryService {
       if (orphanBookmarks.isNotEmpty) {
         await bookmarkRepository.removeBookmarks(orphanBookmarks);
       }
-    } catch (_) {
-      await groupRepository.createGroup(
-        preview.group.name,
-        id: preview.group.id,
-      );
-      await groupRepository.replaceMemberships(
-        preview.group.id,
-        preview.group.bookmarkIds,
-      );
-      rethrow;
+    } catch (error, stackTrace) {
+      final rollbackErrors = <Object>[];
+      try {
+        await groupRepository.createGroup(
+          preview.group.name,
+          id: preview.group.id,
+        );
+      } catch (rollbackError) {
+        rollbackErrors.add(rollbackError);
+      }
+      try {
+        await groupRepository.replaceMemberships(
+          preview.group.id,
+          preview.group.bookmarkIds,
+        );
+      } catch (rollbackError) {
+        rollbackErrors.add(rollbackError);
+      }
+      _throwWithRollback(error, stackTrace, rollbackErrors);
     }
     await _clearCaches(orphanBookmarks);
     return preview;
@@ -219,21 +261,33 @@ class BookmarkLibraryService {
     }
   }
 
-  Future<void> _restoreMemberships(Iterable<BookmarkGroup> groups) async {
-    Object? firstError;
-    StackTrace? firstStackTrace;
+  Future<List<Object>> _restoreMemberships(
+    Iterable<BookmarkGroup> groups,
+  ) async {
+    final errors = <Object>[];
     for (final group in groups) {
       try {
         await groupRepository.replaceMemberships(group.id, group.bookmarkIds);
-      } catch (error, stackTrace) {
-        firstError ??= error;
-        firstStackTrace ??= stackTrace;
+      } catch (error) {
+        errors.add(error);
       }
     }
-    if (firstError != null) {
-      Error.throwWithStackTrace(firstError, firstStackTrace!);
-    }
+    return errors;
   }
+}
+
+Never _throwWithRollback(
+  Object operationError,
+  StackTrace operationStackTrace,
+  List<Object> rollbackErrors,
+) {
+  if (rollbackErrors.isNotEmpty) {
+    throw BookmarkLibraryRollbackException(
+      operationError: operationError,
+      rollbackErrors: List.unmodifiable(rollbackErrors),
+    );
+  }
+  Error.throwWithStackTrace(operationError, operationStackTrace);
 }
 
 extension<T> on Iterable<T> {

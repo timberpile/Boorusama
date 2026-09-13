@@ -251,6 +251,23 @@ void main() {
     },
   );
 
+  test('a missing group cannot become the active target', () async {
+    final container = createContainer();
+    final notifier = container.read(bookmarkProvider.notifier);
+    await notifier.future;
+
+    final saved = await notifier.setActiveTarget(
+      BookmarkTarget.group('550e8400-e29b-41d4-a716-446655440999'),
+    );
+
+    expect(saved, isFalse);
+    expect(container.read(settingsProvider).activeBookmarkGroupId, isNull);
+    expect(
+      container.read(bookmarkProvider).requireValue.activeTarget.groupId,
+      isNull,
+    );
+  });
+
   test(
     'a group is removed when its requested activation cannot be saved',
     () async {

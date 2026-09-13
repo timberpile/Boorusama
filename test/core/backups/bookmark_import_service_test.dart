@@ -125,6 +125,35 @@ void main() {
 
     expect((await groups.getGroup(groupId))?.name, 'Existing');
   });
+
+  test('a partially throwing bookmark write is fully rolled back', () async {
+    final imported = [
+      Bookmark.empty.copyWith(
+        id: 100,
+        originalUrl: 'https://example.com/first.jpg',
+      ),
+      Bookmark.empty.copyWith(
+        id: 101,
+        originalUrl: 'https://example.com/second.jpg',
+      ),
+    ];
+    final plan = BookmarkImportPlan(
+      bookmarks: imported,
+      missingBookmarks: imported,
+      groups: const [],
+    );
+
+    await expectLater(
+      BookmarkImportService(
+        bookmarkRepository: _PartiallyThrowingBookmarkRepository(bookmarkBox),
+        groupRepository: groups,
+        imageUrlResolver: (_) => const DefaultImageUrlResolver(),
+      ).apply(plan),
+      throwsStateError,
+    );
+
+    expect(await _load(bookmarks), isEmpty);
+  });
 }
 
 Future<List<Bookmark>> _load(BookmarkHiveRepository repository) =>
@@ -139,4 +168,16 @@ class _FailingReadBookmarkRepository extends BookmarkHiveRepository {
   BookmarksOrError getAllBookmarks({
     required ImageUrlResolver Function(int? booruId) imageUrlResolver,
   }) => TaskEither.fromEither(Either.left(BookmarkGetError.unknown));
+}
+
+class _PartiallyThrowingBookmarkRepository extends BookmarkHiveRepository {
+  const _PartiallyThrowingBookmarkRepository(super._box);
+
+  @override
+  Future<List<Bookmark>> addBookmarkWithBookmarks(
+    List<Bookmark> bookmarks,
+  ) async {
+    await super.addBookmarkWithBookmarks([bookmarks.first]);
+    throw StateError('bookmark batch failed after a partial write');
+  }
 }

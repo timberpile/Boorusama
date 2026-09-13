@@ -130,6 +130,12 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
   Future<void> syncActiveTargetFromSettings() => _serialize(_reload);
 
   Future<bool> setActiveTarget(BookmarkTarget target) => _serialize(() async {
+    if (target.groupId case final groupId?) {
+      final group = await (await ref.read(
+        bookmarkGroupRepoProvider.future,
+      )).getGroup(groupId);
+      if (group == null) return false;
+    }
     final saved = await ref
         .read(settingsNotifierProvider.notifier)
         .updateWith(

@@ -308,6 +308,10 @@ class PostGridController<T extends Post> extends ChangeNotifier {
       rethrow;
     } finally {
       _queuedRefreshWaiters.clear();
+      if (_refreshing) {
+        _setRefreshing(false);
+        notifyListeners();
+      }
     }
   }
 
