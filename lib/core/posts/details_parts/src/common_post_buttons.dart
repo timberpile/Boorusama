@@ -13,6 +13,7 @@ import '../../../settings/src/providers/viewer_providers.dart';
 import '../../../tags/show/routes.dart';
 import '../../../widgets/adaptive_button_row.dart';
 import '../../details_manager/routes.dart';
+import '../../details/src/widgets/post_viewer_transformation_scope.dart';
 import '../../post/providers.dart';
 import '../../post/types.dart';
 import 'toolbars/copy_post_button.dart';
@@ -56,6 +57,9 @@ class CommonPostButtonsBuilder extends ConsumerWidget {
         (settings) => settings.loadOriginalOnZoom,
       ),
     );
+    final viewerTransformationController =
+        PostViewerTransformationScope.maybeOf(context);
+    final contentSize = Size(post.width, post.height);
 
     final commonButtons = [
       if (copy)
@@ -104,6 +108,32 @@ class CommonPostButtonsBuilder extends ConsumerWidget {
         title: context.t.post.action.slideshow,
         onPressed: onStartSlideshow,
       ),
+      if (viewerTransformationController != null && !post.isVideo) ...[
+        SimpleButtonData(
+          icon: Icons.fit_screen,
+          title: 'Fit to width'.hc,
+          placement: ButtonPlacement.menuOnly,
+          onPressed: () => viewerTransformationController.fitToWidth(
+            contentSize,
+          ),
+        ),
+        SimpleButtonData(
+          icon: Icons.vertical_align_top,
+          title: 'Scroll to top'.hc,
+          placement: ButtonPlacement.menuOnly,
+          onPressed: () => viewerTransformationController.scrollToTop(
+            contentSize,
+          ),
+        ),
+        SimpleButtonData(
+          icon: Icons.menu_book,
+          title: 'Comic-strip start'.hc,
+          placement: ButtonPlacement.menuOnly,
+          onPressed: () => viewerTransformationController.startComicStrip(
+            contentSize,
+          ),
+        ),
+      ],
       if (ref.watch(showPremiumFeatsProvider))
         SimpleButtonData(
           icon: Icons.brush,

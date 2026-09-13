@@ -28,9 +28,11 @@ import '../../../post/routes.dart';
 import '../../../post/types.dart';
 import '../types/post_details.dart';
 import '../types/post_details_swipe_mode.dart';
+import '../types/post_viewer_transformation_controller.dart';
 import 'post_details_controller.dart';
 import 'post_details_full_info_sheet.dart';
 import 'post_details_page_view_scope.dart';
+import 'post_viewer_transformation_scope.dart';
 import 'video_controls.dart';
 import 'volume_key_page_navigator.dart';
 
@@ -52,6 +54,7 @@ class PostDetailsPageScaffold<T extends Post> extends ConsumerStatefulWidget {
     this.onExpanded,
     this.preferredParts,
     this.preferredPreviewParts,
+    this.enableViewerTransformationActions = true,
   });
 
   final List<T> posts;
@@ -67,6 +70,7 @@ class PostDetailsPageScaffold<T extends Post> extends ConsumerStatefulWidget {
   final ValueNotifier<bool> isInitPage;
   final List<Widget> actions;
   final PostGestureHandlerBuilder? postGestureHandlerBuilder;
+  final bool enableViewerTransformationActions;
 
   @override
   ConsumerState<PostDetailsPageScaffold<T>> createState() =>
@@ -76,6 +80,8 @@ class PostDetailsPageScaffold<T extends Post> extends ConsumerStatefulWidget {
 class _PostDetailPageScaffoldState<T extends Post>
     extends ConsumerState<PostDetailsPageScaffold<T>> {
   late final _posts = widget.posts;
+  late final _viewerTransformationController =
+      PostViewerTransformationController(widget.transformController);
 
   PostDetailsPageViewController? _pageViewController;
   PostDetailsPageViewController get _controller {
@@ -223,7 +229,7 @@ class _PostDetailPageScaffoldState<T extends Post>
       },
     );
 
-    return CallbackShortcuts(
+    final child = CallbackShortcuts(
       bindings: {
         const SingleActivator(
           LogicalKeyboardKey.keyF,
@@ -268,6 +274,13 @@ class _PostDetailPageScaffoldState<T extends Post>
         ),
       ),
     );
+
+    return widget.enableViewerTransformationActions
+        ? PostViewerTransformationScope(
+            controller: _viewerTransformationController,
+            child: child,
+          )
+        : child;
   }
 
   Widget _build() {
@@ -398,7 +411,9 @@ class _PostDetailPageScaffoldState<T extends Post>
             ],
           ),
         ),
-        itemBuilder: widget.itemBuilder,
+        itemBuilder: (context, index) => PostViewerTransformationViewport(
+          child: widget.itemBuilder(context, index),
+        ),
         bottomSheet: Consumer(
           builder: (_, ref, _) {
             return switch (widget.uiBuilder) {
