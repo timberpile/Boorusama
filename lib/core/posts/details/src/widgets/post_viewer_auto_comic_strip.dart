@@ -81,12 +81,12 @@ void _showComicStripToast(BuildContext context) {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              'Comic Strip'.hc,
+              context.t.settings.image_viewer.comic_strip,
               textAlign: TextAlign.center,
               style: TextStyle(color: colorScheme.onSurface),
             ),
             Text(
-              'Scroll ↓'.hc,
+              context.t.settings.image_viewer.scroll_down,
               textAlign: TextAlign.center,
               style: TextStyle(color: colorScheme.onSurface),
             ),

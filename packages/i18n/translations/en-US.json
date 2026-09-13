@@ -409,6 +409,10 @@
       },
       "load_original_on_zoom": "Load original when zooming",
       "load_original_on_zoom_description": "Automatically loads the full-resolution image when you zoom in.",
+      "auto_start_comic_strip_mode": "Auto-start comic strip mode",
+      "auto_start_comic_strip_mode_description": "Fit very tall images to width and start at the top.",
+      "comic_strip": "Comic Strip",
+      "scroll_down": "Scroll ↓",
       "slideshow_mode": "Slideshow mode",
       "slideshow_modes": {
         "random": "Random",

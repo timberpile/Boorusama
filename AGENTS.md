@@ -7,6 +7,7 @@ Always use `fvm` for `flutter` and `dart` commands.
 - For Riverpod, always use Notifier/AsyncNotifier. Manually declare providers, no codegen.
 - Prefer using factory methods/constructors for creating instances with complex setup, move all constructor to the top of the class.
 - Always put business logic into state classes or a dedicated file.
+- Never hardcode user-facing text. Add it to the i18n resources and access it through `BuildContext` with `context.t`.
 - Use `equatable` for value equality when necessary.
 - Always use pattern matching to make code more readable, only use traditional if/else when it improves readability.
 - When parsing data from external sources, always assume data is nullable and handle null cases explicitly in the code.

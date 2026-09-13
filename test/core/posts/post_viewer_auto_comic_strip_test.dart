@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 // Package imports:
+import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:oktoast/oktoast.dart';
 
@@ -15,6 +16,10 @@ import 'package:boorusama/core/posts/details/src/widgets/post_viewer_auto_comic_
 import 'package:boorusama/core/posts/details/src/widgets/post_viewer_transformation_scope.dart';
 
 void main() {
+  setUpAll(() async {
+    await ensureI18nInitialized('de-DE');
+  });
+
   testWidgets(
     'positions a detected comic strip only on its first settled load',
     (
@@ -75,12 +80,12 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    final title = tester.widget<Text>(find.text('Comic Strip'));
-    final hint = tester.widget<Text>(find.text('Scroll ↓'));
+    final title = tester.widget<Text>(find.text('Comic-Strip'));
+    final hint = tester.widget<Text>(find.text('Nach unten ↓'));
     expect(title.textAlign, TextAlign.center);
     expect(hint.textAlign, TextAlign.center);
     expect(
-      tester.getCenter(find.text('Comic Strip')).dy,
+      tester.getCenter(find.text('Comic-Strip')).dy,
       greaterThan(400),
     );
 
@@ -221,24 +226,26 @@ Future<void> _pumpAutoStarter(
   );
 
   return tester.pumpWidget(
-    OKToast(
-      child: MaterialApp(
-        home: Align(
-          alignment: Alignment.topLeft,
-          child: SizedBox(
-            width: 400,
-            height: 500,
-            child: PostViewerTransformationScope(
-              controller: controller,
-              child: PostViewerTransformationViewport(
-                child: PostViewerAutoComicStrip(
-                  index: 0,
-                  postId: 42,
-                  contentSize: const Size(1000, 4000.25),
-                  currentSettledPage: settledPage,
-                  enabled: true,
-                  onStarted: onStarted,
-                  child: const SizedBox.expand(),
+    BooruLocalization(
+      child: OKToast(
+        child: MaterialApp(
+          home: Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox(
+              width: 400,
+              height: 500,
+              child: PostViewerTransformationScope(
+                controller: controller,
+                child: PostViewerTransformationViewport(
+                  child: PostViewerAutoComicStrip(
+                    index: 0,
+                    postId: 42,
+                    contentSize: const Size(1000, 4000.25),
+                    currentSettledPage: settledPage,
+                    enabled: true,
+                    onStarted: onStarted,
+                    child: const SizedBox.expand(),
+                  ),
                 ),
               ),
             ),
