@@ -19,6 +19,7 @@ import 'package:boorusama/core/bookmarks/src/providers/bookmark_provider.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_group.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_group_repository.dart';
+import 'package:boorusama/core/bookmarks/src/types/bookmark_library_state.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_repository.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_target.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_view.dart';
@@ -361,7 +362,11 @@ void main() {
         container.read(settingsProvider).activeBookmarkGroupId,
         result.group.id,
       );
-      expect(container.read(bookmarkProvider).hasError, isTrue);
+      expect(container.read(bookmarkProvider).hasValue, isTrue);
+      expect(
+        (await notifier.snapshotForExport()).groupsById,
+        contains(result.group.id),
+      );
     },
   );
 
@@ -541,7 +546,11 @@ void main() {
       expect(preview.group.id, group.id);
       expect(await groupRepository.getGroup(group.id), isNull);
       expect(container.read(settingsProvider).activeBookmarkGroupId, isNull);
-      expect(container.read(bookmarkProvider).hasError, isTrue);
+      expect(container.read(bookmarkProvider).hasValue, isTrue);
+      expect(
+        (await notifier.snapshotForExport()).groupsById,
+        isNot(contains(group.id)),
+      );
     },
   );
 
@@ -563,7 +572,11 @@ void main() {
         'Created once',
       );
       expect(await groupRepository.getGroups(), hasLength(1));
-      expect(container.read(bookmarkProvider).hasError, isTrue);
+      expect(container.read(bookmarkProvider).hasValue, isTrue);
+      expect(
+        (await notifier.snapshotForExport()).groupsById,
+        contains(created.id),
+      );
     },
   );
 
@@ -583,7 +596,11 @@ void main() {
 
       expect((await groupRepository.getGroup(duplicate.id))?.name, 'Copy');
       expect(await groupRepository.getGroups(), hasLength(2));
-      expect(container.read(bookmarkProvider).hasError, isTrue);
+      expect(container.read(bookmarkProvider).hasValue, isTrue);
+      expect(
+        (await notifier.snapshotForExport()).groupsById,
+        contains(duplicate.id),
+      );
     },
   );
 
@@ -658,9 +675,38 @@ void main() {
       final result = await notifier.runSerializedMutation(() async => 42);
 
       expect(result, 42);
-      expect(container.read(bookmarkProvider).hasError, isTrue);
+      expect(container.read(bookmarkProvider).hasValue, isTrue);
+      expect(await notifier.snapshotForExport(), isA<BookmarkLibraryState>());
     },
   );
+
+  test('a failed mutation reconciles state with a partial commit', () async {
+    final container = createContainer(
+      bookmarkRepositoryOverride: _CommitsThenThrowsAddBookmarkRepository(
+        bookmarkBox,
+      ),
+    );
+    final notifier = container.read(bookmarkProvider.notifier);
+    await notifier.future;
+    var failed = false;
+
+    await notifier.addBookmark(
+      BooruConfigAuth.fromConfig(BooruConfig.empty),
+      Bookmark.empty
+          .copyWith(originalUrl: 'https://example.com/partial.jpg')
+          .toPost(),
+      onError: () => failed = true,
+    );
+
+    expect(failed, isTrue);
+    expect(
+      await bookmarkRepository.getAllBookmarksOrEmpty(
+        imageUrlResolver: (_) => const DefaultImageUrlResolver(),
+      ),
+      hasLength(1),
+    );
+    expect(container.read(bookmarkProvider).requireValue.items, hasLength(1));
+  });
 
   test(
     'an operation error is preserved when recovery publishing also fails',
@@ -762,6 +808,25 @@ class _FailingSecondReadBookmarkRepository extends BookmarkHiveRepository {
       return TaskEither.left(BookmarkGetError.unknown);
     }
     return super.getAllBookmarks(imageUrlResolver: imageUrlResolver);
+  }
+}
+
+class _CommitsThenThrowsAddBookmarkRepository extends BookmarkHiveRepository {
+  const _CommitsThenThrowsAddBookmarkRepository(super._box);
+
+  @override
+  Future<Bookmark> addBookmark(
+    int booruId,
+    Post post, {
+    required ImageUrlResolver Function(int? booruId) imageUrlResolver,
+    required PostLinkGenerator Function(int? booruId) postLinkGenerator,
+  }) async {
+    final bookmark = switch (post) {
+      BookmarkPost(:final bookmark) => bookmark,
+      _ => throw StateError('Expected a stored bookmark post.'),
+    };
+    await addBookmarkWithBookmarks([bookmark]);
+    throw StateError('bookmark write reported failure after committing');
   }
 }
 

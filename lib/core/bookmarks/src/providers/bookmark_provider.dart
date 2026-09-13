@@ -78,6 +78,7 @@ final bookmarkUrlResolverProvider = Provider.autoDispose
 
 class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
   Future<void> _mutationTail = Future.value();
+  var _requiresRefresh = false;
 
   ImageCacheManager? get _cacheManager =>
       ref.read(bookmarkImageCacheManagerProvider);
@@ -144,8 +145,10 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     final completer = Completer<T>();
     _mutationTail = _mutationTail.catchError((_) {}).then((_) async {
       try {
+        if (_requiresRefresh) await _reload();
         completer.complete(await operation());
       } catch (error, stackTrace) {
+        await _publishCommittedMutation();
         completer.completeError(error, stackTrace);
       }
     });
@@ -160,6 +163,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
         );
     try {
       state = AsyncValue.data(await (await _service).load(target));
+      _requiresRefresh = false;
     } catch (error, stackTrace) {
       state = AsyncValue.error(error, stackTrace);
       rethrow;
@@ -169,9 +173,13 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
   Future<void> _publishCommittedMutation([
     BookmarkTarget? requestedTarget,
   ]) async {
+    final previousState = state;
     try {
       await _reload(requestedTarget);
-    } catch (_) {}
+    } catch (_) {
+      state = previousState;
+      _requiresRefresh = true;
+    }
   }
 
   Future<void> _clearBookmarkCache(Bookmark bookmark) async {
@@ -208,6 +216,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       await _publishCommittedMutation();
       onSuccess?.call(filtered.length);
     } catch (_) {
+      await _publishCommittedMutation();
       onError?.call();
     }
   });
@@ -255,6 +264,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       await _publishCommittedMutation();
       onSuccess?.call();
     } catch (_) {
+      await _publishCommittedMutation();
       onError?.call();
     }
   });
@@ -311,9 +321,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       await _publishCommittedMutation();
       return BookmarkToggleOutcome.added;
     } catch (_) {
-      try {
-        await _reload();
-      } catch (_) {}
+      await _publishCommittedMutation();
       return BookmarkToggleOutcome.failed;
     }
   });
@@ -437,6 +445,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       await _publishCommittedMutation();
       onSuccess?.call();
     } catch (_) {
+      await _publishCommittedMutation();
       onError?.call();
     }
   });
@@ -457,6 +466,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       await _publishCommittedMutation();
       onSuccess?.call();
     } catch (_) {
+      await _publishCommittedMutation();
       onError?.call();
     }
   });
@@ -490,6 +500,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       await _publishCommittedMutation();
       onSuccess?.call();
     } catch (_) {
+      await _publishCommittedMutation();
       onError?.call();
     }
   });
@@ -510,6 +521,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       await _publishCommittedMutation();
       onSuccess?.call();
     } catch (_) {
+      await _publishCommittedMutation();
       onError?.call();
     }
   });
@@ -520,7 +532,8 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     void Function()? onSuccess,
     void Function()? onError,
   }) async {
-    final bookmark = (await future).bookmarksByUniqueId[bookmarkId];
+    final bookmark =
+        (await snapshotForExport()).bookmarksByUniqueId[bookmarkId];
     if (bookmark == null) {
       onError?.call();
       return;
@@ -539,7 +552,8 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     void Function()? onSuccess,
     void Function()? onError,
   }) async {
-    final bookmark = (await future).bookmarksByUniqueId[bookmarkId];
+    final bookmark =
+        (await snapshotForExport()).bookmarksByUniqueId[bookmarkId];
     if (bookmark == null) {
       onError?.call();
       return;
@@ -587,6 +601,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       await _publishCommittedMutation();
       onSuccess?.call();
     } catch (_) {
+      await _publishCommittedMutation();
       onError?.call();
     }
   });
