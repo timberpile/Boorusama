@@ -514,6 +514,94 @@ void main() {
       expect(container.read(settingsProvider).activeBookmarkGroupId, group.id);
     },
   );
+
+  test(
+    'a committed deletion keeps its cleared target when publishing fails',
+    () async {
+      final group = await groupRepository.createGroup('Committed');
+      final settings = Settings.defaultSettings.copyWith(
+        activeBookmarkGroupId: group.id,
+      );
+      final container = createContainer(
+        settingsNotifier: _TestSettingsNotifier(settings),
+        bookmarkRepositoryOverride: _FailingThirdReadBookmarkRepository(
+          bookmarkBox,
+        ),
+      );
+      final notifier = container.read(bookmarkProvider.notifier);
+      await notifier.future;
+
+      await expectLater(
+        notifier.deleteGroup(group.id),
+        throwsA(isA<BookmarkRepositoryReadException>()),
+      );
+
+      expect(await groupRepository.getGroup(group.id), isNull);
+      expect(container.read(settingsProvider).activeBookmarkGroupId, isNull);
+    },
+  );
+
+  test('a stale deletion preview cannot delete changed memberships', () async {
+    final bookmark = Bookmark.empty.copyWith(
+      originalUrl: 'https://example.com/changed.jpg',
+    );
+    await bookmarkRepository.addBookmarkWithBookmarks([bookmark]);
+    final stored = (await bookmarkRepository.getAllBookmarksOrThrow(
+      imageUrlResolver: (_) => const DefaultImageUrlResolver(),
+    )).single;
+    final group = await groupRepository.createGroup('Changed');
+    await groupRepository.addBookmarks(group.id, {stored.id});
+    final container = createContainer();
+    final notifier = container.read(bookmarkProvider.notifier);
+    await notifier.future;
+
+    await expectLater(
+      notifier.deleteGroup(group.id, expectedBookmarkIds: const {}),
+      throwsA(isA<BookmarkGroupChangedException>()),
+    );
+
+    expect((await groupRepository.getGroup(group.id))?.bookmarkIds, {
+      stored.id,
+    });
+  });
+
+  test(
+    'a committed serialized mutation is returned when publishing fails',
+    () async {
+      final container = createContainer(
+        bookmarkRepositoryOverride: _FailingSecondReadBookmarkRepository(
+          bookmarkBox,
+        ),
+      );
+      final notifier = container.read(bookmarkProvider.notifier);
+      await notifier.future;
+
+      final result = await notifier.runSerializedMutation(() async => 42);
+
+      expect(result, 42);
+      expect(container.read(bookmarkProvider).hasError, isTrue);
+    },
+  );
+
+  test(
+    'an operation error is preserved when recovery publishing also fails',
+    () async {
+      final container = createContainer(
+        bookmarkRepositoryOverride: _FailingSecondReadBookmarkRepository(
+          bookmarkBox,
+        ),
+      );
+      final notifier = container.read(bookmarkProvider.notifier);
+      await notifier.future;
+
+      await expectLater(
+        notifier.runSerializedMutation<void>(
+          () async => throw StateError('operation failed'),
+        ),
+        throwsStateError,
+      );
+    },
+  );
 }
 
 class _TestSettingsNotifier extends SettingsNotifier {
@@ -617,5 +705,20 @@ class _FailsSecondAddBookmarkRepository extends BookmarkHiveRepository {
       _ => throw StateError('Expected a stored bookmark post.'),
     };
     return (await addBookmarkWithBookmarks([bookmark])).single;
+  }
+}
+
+class _FailingThirdReadBookmarkRepository extends BookmarkHiveRepository {
+  _FailingThirdReadBookmarkRepository(super._box);
+
+  var _readCount = 0;
+
+  @override
+  BookmarksOrError getAllBookmarks({
+    required ImageUrlResolver Function(int? booruId) imageUrlResolver,
+  }) {
+    _readCount++;
+    if (_readCount == 3) return TaskEither.left(BookmarkGetError.unknown);
+    return super.getAllBookmarks(imageUrlResolver: imageUrlResolver);
   }
 }

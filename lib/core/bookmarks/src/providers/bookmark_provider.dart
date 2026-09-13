@@ -60,6 +60,12 @@ class BookmarkGroupDeletionRollbackException implements Exception {
   final List<Object> rollbackErrors;
 }
 
+class BookmarkGroupChangedException implements Exception {
+  const BookmarkGroupChangedException(this.group);
+
+  final BookmarkGroup group;
+}
+
 enum BookmarkToggleOutcome { added, removed, unavailable, failed }
 
 final bookmarkUrlResolverProvider = Provider.autoDispose
@@ -106,9 +112,18 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       operationError = error;
       operationStackTrace = stackTrace;
     }
-    if (reload) await _reload();
     if (operationError != null) {
+      if (reload) {
+        try {
+          await _reload();
+        } catch (_) {}
+      }
       Error.throwWithStackTrace(operationError, operationStackTrace!);
+    }
+    if (reload) {
+      try {
+        await _reload();
+      } catch (_) {}
     }
     return result as T;
   });
@@ -338,56 +353,69 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     await _reload();
   });
 
-  Future<BookmarkGroupDeletionPreview> deleteGroup(String groupId) =>
-      _serialize(() async {
-        final active = (await future).activeTarget.groupId;
-        if (active == groupId) {
-          final cleared = await ref
-              .read(settingsNotifierProvider.notifier)
-              .updateWith(
-                (settings) => settings.copyWith(activeBookmarkGroupId: null),
-              );
-          if (!cleared) {
-            throw StateError('Failed to clear the active bookmark group.');
-          }
-        }
-        try {
-          final preview = await (await _service).deleteGroup(groupId);
-          await _reload(
-            active == groupId ? const BookmarkTarget.ungrouped() : null,
+  Future<BookmarkGroupDeletionPreview> deleteGroup(
+    String groupId, {
+    Set<int>? expectedBookmarkIds,
+  }) => _serialize(() async {
+    final repository = await ref.read(bookmarkGroupRepoProvider.future);
+    final currentGroup = await repository.getGroup(groupId);
+    if (currentGroup == null) {
+      throw StateError('Bookmark group $groupId does not exist.');
+    }
+    if (expectedBookmarkIds != null &&
+        (currentGroup.bookmarkIds.length != expectedBookmarkIds.length ||
+            !currentGroup.bookmarkIds.containsAll(expectedBookmarkIds))) {
+      throw BookmarkGroupChangedException(currentGroup);
+    }
+    final active = (await future).activeTarget.groupId;
+    if (active == groupId) {
+      final cleared = await ref
+          .read(settingsNotifierProvider.notifier)
+          .updateWith(
+            (settings) => settings.copyWith(activeBookmarkGroupId: null),
           );
-          return preview;
-        } catch (error, stackTrace) {
-          if (active != groupId) rethrow;
-          final rollbackErrors = <Object>[];
-          try {
-            final restored = await ref
-                .read(settingsNotifierProvider.notifier)
-                .updateWith(
-                  (settings) => settings.copyWith(
-                    activeBookmarkGroupId: groupId,
-                  ),
-                );
-            if (!restored) {
-              throw StateError('Failed to restore the active bookmark group.');
-            }
-          } catch (rollbackError) {
-            rollbackErrors.add(rollbackError);
-          }
-          try {
-            await _reload(BookmarkTarget.group(groupId));
-          } catch (rollbackError) {
-            rollbackErrors.add(rollbackError);
-          }
-          if (rollbackErrors.isNotEmpty) {
-            throw BookmarkGroupDeletionRollbackException(
-              deletionError: error,
-              rollbackErrors: List.unmodifiable(rollbackErrors),
+      if (!cleared) {
+        throw StateError('Failed to clear the active bookmark group.');
+      }
+    }
+    late final BookmarkGroupDeletionPreview preview;
+    try {
+      preview = await (await _service).deleteGroup(groupId);
+    } catch (error, stackTrace) {
+      if (active != groupId) rethrow;
+      final rollbackErrors = <Object>[];
+      try {
+        final restored = await ref
+            .read(settingsNotifierProvider.notifier)
+            .updateWith(
+              (settings) => settings.copyWith(
+                activeBookmarkGroupId: groupId,
+              ),
             );
-          }
-          Error.throwWithStackTrace(error, stackTrace);
+        if (!restored) {
+          throw StateError('Failed to restore the active bookmark group.');
         }
-      });
+      } catch (rollbackError) {
+        rollbackErrors.add(rollbackError);
+      }
+      try {
+        await _reload(BookmarkTarget.group(groupId));
+      } catch (rollbackError) {
+        rollbackErrors.add(rollbackError);
+      }
+      if (rollbackErrors.isNotEmpty) {
+        throw BookmarkGroupDeletionRollbackException(
+          deletionError: error,
+          rollbackErrors: List.unmodifiable(rollbackErrors),
+        );
+      }
+      Error.throwWithStackTrace(error, stackTrace);
+    }
+    await _reload(
+      active == groupId ? const BookmarkTarget.ungrouped() : null,
+    );
+    return preview;
+  });
 
   Future<void> addExistingBookmarkToGroup(
     Bookmark bookmark,

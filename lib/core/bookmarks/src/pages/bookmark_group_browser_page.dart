@@ -15,6 +15,7 @@ import '../../../images/booru_image.dart';
 import '../data/providers.dart';
 import '../providers/bookmark_group_selectors.dart';
 import '../providers/bookmark_provider.dart';
+import '../providers/bookmark_shuffle_provider.dart';
 import '../providers/local_providers.dart';
 import '../routes/route_utils.dart';
 import '../types/bookmark.dart';
@@ -45,6 +46,7 @@ class BookmarkGroupBrowserPage extends ConsumerWidget {
         error: (_, _) => const Center(child: Icon(Icons.error_outline)),
         data: (state) {
           final sort = ref.watch(selectedBookmarkSortTypeProvider);
+          final shuffle = ref.watch(bookmarkShuffleProvider);
           final labels = bookmarkGroupLabels(state.groups);
           final entries =
               <({String title, BookmarkView view, BookmarkGroup? group})>[
@@ -84,6 +86,7 @@ class BookmarkGroupBrowserPage extends ConsumerWidget {
                   state: state,
                   view: entry.view,
                   sortType: sort,
+                  shuffleState: shuffle,
                 );
                 return _GroupCard(
                   title: entry.title,
@@ -166,41 +169,59 @@ class BookmarkGroupBrowserPage extends ConsumerWidget {
     WidgetRef ref,
     BookmarkGroup group,
   ) async {
-    if (group.bookmarkIds.isNotEmpty) {
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: Text(
-            context.t.bookmark.groups.delete_group_title.replaceAll(
-              '{name}',
-              group.name,
+    var current = group;
+    while (true) {
+      if (current.bookmarkIds.isNotEmpty) {
+        if (!context.mounted) return;
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text(
+              context.t.bookmark.groups.delete_group_title.replaceAll(
+                '{name}',
+                current.name,
+              ),
             ),
+            content: Text(
+              context.t.bookmark.groups.delete_group_message.replaceAll(
+                '{bookmarks}',
+                '${current.bookmarkIds.length}',
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: Text(context.t.generic.action.cancel),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: Text(context.t.generic.action.delete),
+              ),
+            ],
           ),
-          content: Text(
-            context.t.bookmark.groups.delete_group_message.replaceAll(
-              '{bookmarks}',
-              '${group.bookmarkIds.length}',
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: Text(context.t.generic.action.cancel),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: Text(context.t.generic.action.delete),
-            ),
-          ],
-        ),
-      );
-      if (confirmed != true) return;
-      if (!context.mounted) return;
+        );
+        if (confirmed != true || !context.mounted) return;
+      }
+      try {
+        await ref
+            .read(bookmarkProvider.notifier)
+            .deleteGroup(
+              current.id,
+              expectedBookmarkIds: current.bookmarkIds,
+            );
+        return;
+      } on BookmarkGroupChangedException catch (error) {
+        current = error.group;
+      } catch (_) {
+        if (context.mounted) {
+          Kurumi.showErrorToast(
+            context,
+            context.t.bookmark.groups.operation_failed,
+          );
+        }
+        return;
+      }
     }
-    await _runGroupAction(
-      context,
-      () => ref.read(bookmarkProvider.notifier).deleteGroup(group.id),
-    );
   }
 
   Future<void> _runGroupAction(
