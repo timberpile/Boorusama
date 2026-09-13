@@ -169,6 +169,9 @@ void main() {
       await expectLater(
         service.addBookmarkToGroup(
           groupId: firstGroupId,
+          createBookmarkIdentity: Bookmark.empty
+              .copyWith(originalUrl: 'https://example.com/new.jpg')
+              .uniqueId,
           createBookmark: () => storeBookmark('new'),
         ),
         throwsStateError,
@@ -204,6 +207,53 @@ void main() {
         (await groupRepository.getGroup(firstGroupId))?.bookmarkIds,
         isEmpty,
       );
+    },
+  );
+
+  test(
+    'single addition recovers a bookmark whose creation committed before failure',
+    () async {
+      final source = Bookmark.empty.copyWith(
+        originalUrl: 'https://example.com/committed-bookmark-create.jpg',
+      );
+      await groupRepository.createGroup('First', id: firstGroupId);
+
+      final changed = await service.addBookmarkToGroup(
+        groupId: firstGroupId,
+        createBookmarkIdentity: source.uniqueId,
+        createBookmark: () async {
+          await bookmarkRepository.addBookmarkWithBookmarks([source]);
+          throw StateError('bookmark creation failed after committing');
+        },
+      );
+
+      final bookmark = (await bookmarkRepository.getAllBookmarksOrThrow(
+        imageUrlResolver: (_) => const DefaultImageUrlResolver(),
+      )).single;
+      expect(changed, isTrue);
+      expect((await groupRepository.getGroup(firstGroupId))?.bookmarkIds, {
+        bookmark.id,
+      });
+    },
+  );
+
+  test(
+    'duplication recovers a group whose creation committed before failure',
+    () async {
+      final bookmark = await storeBookmark('committed-duplicate-create');
+      await groupRepository.createGroup('First', id: firstGroupId);
+      await groupRepository.addBookmarks(firstGroupId, {bookmark.id});
+      service = BookmarkLibraryService(
+        bookmarkRepository: bookmarkRepository,
+        groupRepository: _CommitsThenThrowsCreateGroupRepository(groupBox),
+        imageUrlResolver: resolver,
+      );
+
+      final duplicate = await service.duplicateGroup(firstGroupId, 'Copy');
+
+      expect(duplicate.name, 'Copy');
+      expect(duplicate.bookmarkIds, {bookmark.id});
+      expect(await groupRepository.getGroups(), hasLength(2));
     },
   );
 
@@ -560,6 +610,17 @@ class _CommitsThenThrowsBookmarkRemovalRepository
   Future<void> removeBookmarks(Iterable<Bookmark> favorites) async {
     await super.removeBookmarks(favorites);
     throw StateError('bookmark removal reported failure after committing');
+  }
+}
+
+class _CommitsThenThrowsCreateGroupRepository
+    extends BookmarkGroupRepositoryHive {
+  _CommitsThenThrowsCreateGroupRepository(super._box);
+
+  @override
+  Future<BookmarkGroup> createGroup(String name, {String? id}) async {
+    await super.createGroup(name, id: id);
+    throw StateError('group creation reported failure after committing');
   }
 }
 

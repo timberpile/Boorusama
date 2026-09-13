@@ -81,6 +81,7 @@ class PostGridController<T extends Post> extends ChangeNotifier {
   var _refreshPending = false;
   var _pendingMaintainPage = false;
   var _pendingPreserveSelection = false;
+  var _disposed = false;
   final _queuedRefreshWaiters = <Completer<void>>[];
 
   var _total = 0;
@@ -223,13 +224,15 @@ class PostGridController<T extends Post> extends ChangeNotifier {
   }
 
   Future<void> _filter() async {
+    final blacklistedUrls = blacklistedUrlsFetcher != null
+        ? await blacklistedUrlsFetcher!()
+        : const <String>{};
+    if (_disposed || !mountedChecker()) return;
     final filteredItems = _filterPosts(
       _items,
       tagCounts.value,
       activeFilters.value,
-      blacklistedUrlsFetcher != null
-          ? await blacklistedUrlsFetcher!()
-          : const {},
+      blacklistedUrls,
     );
 
     _setFilteringItems(filteredItems);
@@ -275,6 +278,7 @@ class PostGridController<T extends Post> extends ChangeNotifier {
     bool maintainPage = false,
     bool preserveSelection = false,
   }) async {
+    if (_disposed) return;
     if (_refreshing) {
       final alreadyPending = _refreshPending;
       _refreshPending = true;
@@ -313,7 +317,7 @@ class PostGridController<T extends Post> extends ChangeNotifier {
         }
         nextMaintainPage = _pendingMaintainPage;
         nextPreserveSelection = _pendingPreserveSelection;
-      } while (_refreshPending);
+      } while (_refreshPending && !_disposed);
       for (final waiter in _queuedRefreshWaiters) {
         if (lastPassError == null) {
           waiter.complete();
@@ -326,9 +330,11 @@ class PostGridController<T extends Post> extends ChangeNotifier {
       }
     } finally {
       _queuedRefreshWaiters.clear();
-      if (_refreshing) {
+      if (_refreshing && !_disposed) {
         _setRefreshing(false);
         notifyListeners();
+      } else {
+        _refreshing = false;
       }
     }
   }
@@ -337,6 +343,7 @@ class PostGridController<T extends Post> extends ChangeNotifier {
     required bool maintainPage,
     required bool preserveSelection,
   }) async {
+    if (_disposed || !mountedChecker()) return;
     _preserveSelectionOnRefresh = preserveSelection;
     try {
       _setRefreshing(true);
@@ -486,8 +493,11 @@ class PostGridController<T extends Post> extends ChangeNotifier {
     _total = _items.length;
 
     final bt = await _getBlacklistedTags();
+    if (_disposed || !mountedChecker()) return;
 
-    tagCounts.value = await _count(_items, bt);
+    final counts = await _count(_items, bt);
+    if (_disposed || !mountedChecker()) return;
+    tagCounts.value = counts;
     hasBlacklist.value = tagCounts.value.values.any((e) => e.isNotEmpty);
 
     // add unseen tags to activeFilters
@@ -531,6 +541,8 @@ class PostGridController<T extends Post> extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true;
+    _refreshing = false;
     _eventController.close();
     _debounceTimer?.cancel();
 

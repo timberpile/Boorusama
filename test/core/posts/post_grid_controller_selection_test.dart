@@ -205,4 +205,32 @@ void main() {
 
     expect(fetchedPages, [5, 1]);
   });
+
+  test(
+    'a refresh completes quietly after its controller is disposed',
+    () async {
+      final fetch = Completer<PostResult<BookmarkPost>>();
+      var mounted = true;
+      final controller = PostGridController<BookmarkPost>(
+        fetcher: (_) => TaskEither.tryCatch(
+          () => fetch.future,
+          (error, _) => UnknownError(error: error, message: 'failed'),
+        ),
+        blacklistedTagsFetcher: () async => const {},
+        mountedChecker: () => mounted,
+        duplicateTracker: PostDuplicateTracker(),
+        onError: (_) {},
+        debounceDuration: Duration.zero,
+      );
+
+      final active = controller.refresh();
+      await Future<void>.delayed(Duration.zero);
+      final queued = controller.refresh();
+      mounted = false;
+      controller.dispose();
+      fetch.complete(PostResult.empty());
+
+      await Future.wait([active, queued]);
+    },
+  );
 }

@@ -1,5 +1,6 @@
 // Package imports:
 import 'package:equatable/equatable.dart';
+import 'package:uuid/uuid.dart';
 
 // Project imports:
 import '../../../posts/post/types.dart';
@@ -65,19 +66,25 @@ class BookmarkLibraryService {
   Future<bool> addBookmarkToGroup({
     required String groupId,
     Bookmark? existingBookmark,
+    BookmarkUniqueId? createBookmarkIdentity,
     Future<Bookmark> Function()? createBookmark,
   }) async {
-    final bookmark = switch (existingBookmark) {
-      final bookmark? => bookmark,
-      null when createBookmark != null => await createBookmark(),
-      _ => throw ArgumentError('A bookmark or creator is required.'),
-    };
-    final created = existingBookmark == null;
     final group = await groupRepository.getGroup(groupId);
     if (group == null) {
-      if (created) await bookmarkRepository.removeBookmark(bookmark);
       throw StateError('Bookmark group $groupId does not exist.');
     }
+    final (:bookmark, :created) = switch ((
+      existingBookmark,
+      createBookmarkIdentity,
+      createBookmark,
+    )) {
+      (final bookmark?, _, _) => (bookmark: bookmark, created: false),
+      (null, final identity?, final creator?) => await _createBookmark(
+        identity,
+        creator,
+      ),
+      _ => throw ArgumentError('A bookmark or creator identity is required.'),
+    };
     if (group.bookmarkIds.contains(bookmark.id)) return false;
 
     try {
@@ -101,7 +108,7 @@ class BookmarkLibraryService {
     if (source == null) {
       throw StateError('Bookmark group $groupId does not exist.');
     }
-    final duplicate = await groupRepository.createGroup(name);
+    final duplicate = await createGroup(name);
     try {
       return await groupRepository.replaceMemberships(
         duplicate.id,
@@ -115,6 +122,43 @@ class BookmarkLibraryService {
         rollbackErrors.add(rollbackError);
       }
       _throwWithRollback(error, stackTrace, rollbackErrors);
+    }
+  }
+
+  Future<int> addBookmarksToGroup(
+    Iterable<Bookmark> bookmarks,
+    String groupId,
+  ) async {
+    final group = await groupRepository.getGroup(groupId);
+    if (group == null) {
+      throw StateError('Bookmark group $groupId does not exist.');
+    }
+    final ids = bookmarks.map((bookmark) => bookmark.id).toSet();
+    final addedIds = ids.difference(group.bookmarkIds);
+    if (addedIds.isEmpty) return 0;
+    try {
+      await groupRepository.addBookmarks(groupId, addedIds);
+      return addedIds.length;
+    } catch (error, stackTrace) {
+      _throwWithRollback(
+        error,
+        stackTrace,
+        await _restoreMemberships([group]),
+      );
+    }
+  }
+
+  Future<BookmarkGroup> createGroup(String name) async {
+    final id = const Uuid().v4().toLowerCase();
+    try {
+      return await groupRepository.createGroup(name, id: id);
+    } catch (error, stackTrace) {
+      try {
+        if (await groupRepository.getGroup(id) case final committed?) {
+          return committed;
+        }
+      } catch (_) {}
+      Error.throwWithStackTrace(error, stackTrace);
     }
   }
 
@@ -307,6 +351,27 @@ class BookmarkLibraryService {
     }
     return errors;
   }
+
+  Future<({Bookmark bookmark, bool created})> _createBookmark(
+    BookmarkUniqueId identity,
+    Future<Bookmark> Function() creator,
+  ) async {
+    try {
+      return (bookmark: await creator(), created: true);
+    } catch (error, stackTrace) {
+      try {
+        if (await _findBookmark(identity) case final committed?) {
+          return (bookmark: committed, created: true);
+        }
+      } catch (_) {}
+      Error.throwWithStackTrace(error, stackTrace);
+    }
+  }
+
+  Future<Bookmark?> _findBookmark(BookmarkUniqueId identity) async =>
+      (await bookmarkRepository.getAllBookmarksOrThrow(
+        imageUrlResolver: imageUrlResolver,
+      )).where((bookmark) => bookmark.uniqueId == identity).firstOrNull;
 }
 
 Never _throwWithRollback(

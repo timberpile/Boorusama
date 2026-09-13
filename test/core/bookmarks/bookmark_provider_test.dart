@@ -692,6 +692,37 @@ void main() {
   );
 
   test(
+    'existing bookmark addition restores memberships after a committed write reports failure',
+    () async {
+      final source = Bookmark.empty.copyWith(
+        originalUrl: 'https://example.com/existing-committed-add.jpg',
+      );
+      await bookmarkRepository.addBookmarkWithBookmarks([source]);
+      final stored = (await bookmarkRepository.getAllBookmarksOrThrow(
+        imageUrlResolver: (_) => const DefaultImageUrlResolver(),
+      )).single;
+      final group = await groupRepository.createGroup('Target');
+      final container = createContainer(
+        groupRepositoryOverride: _CommitsThenThrowsAddGroupRepository(
+          groupBox,
+        ),
+      );
+      final notifier = container.read(bookmarkProvider.notifier);
+      await notifier.future;
+      var failed = false;
+
+      await notifier.addExistingBookmarksToGroup(
+        [stored],
+        group.id,
+        onError: () => failed = true,
+      );
+
+      expect(failed, isTrue);
+      expect((await groupRepository.getGroup(group.id))?.bookmarkIds, isEmpty);
+    },
+  );
+
+  test(
     'an active group is not deleted when clearing its target fails',
     () async {
       final group = await groupRepository.createGroup('Protected');
@@ -784,6 +815,54 @@ void main() {
         (await notifier.snapshotForExport()).groupsById,
         contains(created.id),
       );
+    },
+  );
+
+  test('a committed group creation is reconciled as success', () async {
+    final container = createContainer(
+      groupRepositoryOverride: _CommitsThenThrowsCreateGroupRepository(
+        groupBox,
+      ),
+    );
+    final notifier = container.read(bookmarkProvider.notifier);
+    await notifier.future;
+
+    final created = await notifier.createGroup('Committed create');
+
+    expect(created.name, 'Committed create');
+    expect(await groupRepository.getGroups(), [created]);
+  });
+
+  test(
+    'group creation recovers committed group and bookmark writes',
+    () async {
+      final container = createContainer(
+        bookmarkRepositoryOverride: _CommitsThenThrowsAddBookmarkRepository(
+          bookmarkBox,
+        ),
+        groupRepositoryOverride: _CommitsThenThrowsCreateGroupRepository(
+          groupBox,
+        ),
+      );
+      final notifier = container.read(bookmarkProvider.notifier);
+      await notifier.future;
+      final post = Bookmark.empty
+          .copyWith(originalUrl: 'https://example.com/committed-both.jpg')
+          .toPost();
+
+      final result = await notifier.createGroupWithPosts(
+        'Committed writes',
+        BooruConfigAuth.fromConfig(BooruConfig.empty),
+        [post],
+      );
+
+      final bookmark = (await bookmarkRepository.getAllBookmarksOrThrow(
+        imageUrlResolver: (_) => const DefaultImageUrlResolver(),
+      )).single;
+      expect(result.addedCount, 1);
+      expect((await groupRepository.getGroup(result.group.id))?.bookmarkIds, {
+        bookmark.id,
+      });
     },
   );
 
@@ -931,7 +1010,7 @@ void main() {
     },
   );
 
-  test('a failed mutation reconciles state with a partial commit', () async {
+  test('a committed bookmark creation is reconciled as success', () async {
     final container = createContainer(
       bookmarkRepositoryOverride: _CommitsThenThrowsAddBookmarkRepository(
         bookmarkBox,
@@ -939,6 +1018,7 @@ void main() {
     );
     final notifier = container.read(bookmarkProvider.notifier);
     await notifier.future;
+    var succeeded = false;
     var failed = false;
 
     await notifier.addBookmark(
@@ -946,10 +1026,12 @@ void main() {
       Bookmark.empty
           .copyWith(originalUrl: 'https://example.com/partial.jpg')
           .toPost(),
+      onSuccess: () => succeeded = true,
       onError: () => failed = true,
     );
 
-    expect(failed, isTrue);
+    expect(succeeded, isTrue);
+    expect(failed, isFalse);
     expect(
       await bookmarkRepository.getAllBookmarksOrEmpty(
         imageUrlResolver: (_) => const DefaultImageUrlResolver(),
@@ -1039,6 +1121,17 @@ class _CommitsThenThrowsDeleteGroupRepository
   Future<BookmarkGroupDeletionPreview> deleteGroup(String id) async {
     await super.deleteGroup(id);
     throw StateError('group delete reported failure after committing');
+  }
+}
+
+class _CommitsThenThrowsCreateGroupRepository
+    extends BookmarkGroupRepositoryHive {
+  _CommitsThenThrowsCreateGroupRepository(super._box);
+
+  @override
+  Future<BookmarkGroup> createGroup(String name, {String? id}) async {
+    await super.createGroup(name, id: id);
+    throw StateError('group creation reported failure after committing');
   }
 }
 

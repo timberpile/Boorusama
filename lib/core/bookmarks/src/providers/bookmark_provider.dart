@@ -223,14 +223,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
           .where((post) => !currentState.isBookmarked(post, booruId))
           .toList();
 
-      await (await bookmarkRepository).addBookmarks(
-        booruId,
-        filtered,
-        imageUrlResolver: (booruId) =>
-            ref.read(bookmarkUrlResolverProvider(booruId)),
-        postLinkGenerator: (booruId) =>
-            ref.read(postLinkGeneratorProvider(config)),
-      );
+      await _addPostsToGroup(config, filtered, null);
       await _publishCommittedMutation();
       onSuccess?.call(filtered.length);
     } catch (_) {
@@ -254,29 +247,14 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
         await (await _service).addBookmarkToGroup(
           groupId: groupId,
           existingBookmark: existing,
+          createBookmarkIdentity: BookmarkUniqueId.fromPost(post, booruId),
           createBookmark: existing == null
-              ? () => bookmarkRepository.then(
-                  (repository) => repository.addBookmark(
-                    booruId,
-                    post,
-                    imageUrlResolver: (booruId) =>
-                        ref.read(bookmarkUrlResolverProvider(booruId)),
-                    postLinkGenerator: (booruId) =>
-                        ref.read(postLinkGeneratorProvider(config)),
-                  ),
-                )
+              ? () => _createBookmark(config, post)
               : null,
         );
       } else {
         if (existing == null) {
-          await (await bookmarkRepository).addBookmark(
-            booruId,
-            post,
-            imageUrlResolver: (booruId) =>
-                ref.read(bookmarkUrlResolverProvider(booruId)),
-            postLinkGenerator: (booruId) =>
-                ref.read(postLinkGeneratorProvider(config)),
-          );
+          await _createBookmark(config, post);
         }
       }
       await _publishCommittedMutation();
@@ -328,15 +306,9 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
         await (await _service).addBookmarkToGroup(
           groupId: groupId,
           existingBookmark: bookmark,
+          createBookmarkIdentity: uniqueId,
           createBookmark: bookmark == null
-              ? () async => (await bookmarkRepository).addBookmark(
-                  config.booruIdHint,
-                  post,
-                  imageUrlResolver: (booruId) =>
-                      ref.read(bookmarkUrlResolverProvider(booruId)),
-                  postLinkGenerator: (_) =>
-                      ref.read(postLinkGeneratorProvider(config)),
-                )
+              ? () => _createBookmark(config, post)
               : null,
         );
         await _publishCommittedMutation();
@@ -348,13 +320,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
         await _publishCommittedMutation();
         return BookmarkToggleOutcome.removed;
       }
-      await (await bookmarkRepository).addBookmark(
-        config.booruIdHint,
-        post,
-        imageUrlResolver: (booruId) =>
-            ref.read(bookmarkUrlResolverProvider(booruId)),
-        postLinkGenerator: (_) => ref.read(postLinkGeneratorProvider(config)),
-      );
+      await _createBookmark(config, post);
       await _publishCommittedMutation();
       return BookmarkToggleOutcome.added;
     } catch (_) {
@@ -365,9 +331,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
 
   Future<BookmarkGroup> createGroup(String name, {bool activate = false}) =>
       _serialize(() async {
-        final group = await (await ref.read(
-          bookmarkGroupRepoProvider.future,
-        )).createGroup(name);
+        final group = await (await _service).createGroup(name);
         var activated = false;
         if (activate) {
           activated = await ref
@@ -489,12 +453,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     void Function()? onError,
   }) => _serialize(() async {
     try {
-      await (await ref.read(
-        bookmarkGroupRepoProvider.future,
-      )).addBookmarks(
-        groupId,
-        bookmarks.map((bookmark) => bookmark.id).toSet(),
-      );
+      await (await _service).addBookmarksToGroup(bookmarks, groupId);
       await _publishCommittedMutation();
       onSuccess?.call();
     } catch (_) {
@@ -518,15 +477,9 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       await (await _service).addBookmarkToGroup(
         groupId: groupId,
         existingBookmark: existing,
+        createBookmarkIdentity: BookmarkUniqueId.fromPost(post, booruId),
         createBookmark: existing == null
-            ? () async => (await bookmarkRepository).addBookmark(
-                booruId,
-                post,
-                imageUrlResolver: (booruId) =>
-                    ref.read(bookmarkUrlResolverProvider(booruId)),
-                postLinkGenerator: (booruId) =>
-                    ref.read(postLinkGeneratorProvider(config)),
-              )
+            ? () => _createBookmark(config, post)
             : null,
       );
       await _publishCommittedMutation();
@@ -681,7 +634,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
   ) => _serialize(() async {
     final previousTarget = (await future).activeTarget;
     final repository = await ref.read(bookmarkGroupRepoProvider.future);
-    final group = await repository.createGroup(name);
+    final group = await (await _service).createGroup(name);
     final activated = await ref
         .read(settingsNotifierProvider.notifier)
         .updateWith(
@@ -765,16 +718,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       final created = <Bookmark>[];
       try {
         for (final post in missing) {
-          created.add(
-            await (await bookmarkRepository).addBookmark(
-              config.booruIdHint,
-              post,
-              imageUrlResolver: (booruId) =>
-                  ref.read(bookmarkUrlResolverProvider(booruId)),
-              postLinkGenerator: (_) =>
-                  ref.read(postLinkGeneratorProvider(config)),
-            ),
-          );
+          created.add(await _createBookmark(config, post));
         }
       } catch (error, stackTrace) {
         final rollbackErrors = await _deleteCreatedBookmarks(created);
@@ -799,16 +743,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     final created = <Bookmark>[];
     try {
       for (final post in missing) {
-        created.add(
-          await (await bookmarkRepository).addBookmark(
-            config.booruIdHint,
-            post,
-            imageUrlResolver: (booruId) =>
-                ref.read(bookmarkUrlResolverProvider(booruId)),
-            postLinkGenerator: (_) =>
-                ref.read(postLinkGeneratorProvider(config)),
-          ),
-        );
+        created.add(await _createBookmark(config, post));
       }
       final members = [...existing, ...created];
       final changed = members.where((b) => !before.contains(b.id)).length;
@@ -962,6 +897,40 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
         'Download failed:\n$uniqueErrors',
         duration: const Duration(seconds: 5),
       );
+    }
+  }
+
+  Future<Bookmark> _createBookmark(
+    BooruConfigAuth config,
+    Post post,
+  ) async {
+    final repository = await bookmarkRepository;
+    final identity = _bookmarkIdentity(post, config);
+
+    Future<Bookmark?> findStored() async {
+      final bookmarks = await repository.getAllBookmarksOrThrow(
+        imageUrlResolver: (booruId) =>
+            ref.read(bookmarkUrlResolverProvider(booruId)),
+      );
+      for (final bookmark in bookmarks) {
+        if (bookmark.uniqueId == identity) return bookmark;
+      }
+      return null;
+    }
+
+    try {
+      return await repository.addBookmark(
+        config.booruIdHint,
+        post,
+        imageUrlResolver: (booruId) =>
+            ref.read(bookmarkUrlResolverProvider(booruId)),
+        postLinkGenerator: (_) => ref.read(postLinkGeneratorProvider(config)),
+      );
+    } catch (error, stackTrace) {
+      try {
+        if (await findStored() case final committed?) return committed;
+      } catch (_) {}
+      Error.throwWithStackTrace(error, stackTrace);
     }
   }
 
