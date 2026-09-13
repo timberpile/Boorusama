@@ -328,7 +328,7 @@ void main() {
   );
 
   test(
-    'creating a group removes a new bookmark when publishing fails',
+    'creating a group with posts stays committed when publishing fails',
     () async {
       final container = createContainer(
         bookmarkRepositoryOverride: _FailingSecondReadBookmarkRepository(
@@ -344,19 +344,24 @@ void main() {
         BooruConfig.empty.copyWith(booruIdHint: post.bookmark.booruId),
       );
 
-      await expectLater(
-        notifier.createGroupWithPosts('Atomic', config, [post]),
-        throwsA(isA<BookmarkRepositoryReadException>()),
-      );
+      final result = await notifier.createGroupWithPosts('Atomic', config, [
+        post,
+      ]);
 
-      expect(await groupRepository.getGroups(), isEmpty);
-      expect(
-        await bookmarkRepository.getAllBookmarksOrThrow(
-          imageUrlResolver: (_) => const DefaultImageUrlResolver(),
-        ),
-        isEmpty,
+      final bookmarks = await bookmarkRepository.getAllBookmarksOrThrow(
+        imageUrlResolver: (_) => const DefaultImageUrlResolver(),
       );
-      expect(container.read(settingsProvider).activeBookmarkGroupId, isNull);
+      expect(result.addedCount, 1);
+      expect(bookmarks, hasLength(1));
+      expect(
+        (await groupRepository.getGroup(result.group.id))?.bookmarkIds,
+        {bookmarks.single.id},
+      );
+      expect(
+        container.read(settingsProvider).activeBookmarkGroupId,
+        result.group.id,
+      );
+      expect(container.read(bookmarkProvider).hasError, isTrue);
     },
   );
 
@@ -516,7 +521,7 @@ void main() {
   );
 
   test(
-    'a committed deletion keeps its cleared target when publishing fails',
+    'a committed deletion succeeds and keeps its cleared target when publishing fails',
     () async {
       final group = await groupRepository.createGroup('Committed');
       final settings = Settings.defaultSettings.copyWith(
@@ -531,13 +536,87 @@ void main() {
       final notifier = container.read(bookmarkProvider.notifier);
       await notifier.future;
 
-      await expectLater(
-        notifier.deleteGroup(group.id),
-        throwsA(isA<BookmarkRepositoryReadException>()),
-      );
+      final preview = await notifier.deleteGroup(group.id);
 
+      expect(preview.group.id, group.id);
       expect(await groupRepository.getGroup(group.id), isNull);
       expect(container.read(settingsProvider).activeBookmarkGroupId, isNull);
+      expect(container.read(bookmarkProvider).hasError, isTrue);
+    },
+  );
+
+  test(
+    'a committed group creation returns its group when publishing fails',
+    () async {
+      final container = createContainer(
+        bookmarkRepositoryOverride: _FailingSecondReadBookmarkRepository(
+          bookmarkBox,
+        ),
+      );
+      final notifier = container.read(bookmarkProvider.notifier);
+      await notifier.future;
+
+      final created = await notifier.createGroup('Created once');
+
+      expect(
+        (await groupRepository.getGroup(created.id))?.name,
+        'Created once',
+      );
+      expect(await groupRepository.getGroups(), hasLength(1));
+      expect(container.read(bookmarkProvider).hasError, isTrue);
+    },
+  );
+
+  test(
+    'a committed group duplication returns its group when publishing fails',
+    () async {
+      final source = await groupRepository.createGroup('Source');
+      final container = createContainer(
+        bookmarkRepositoryOverride: _FailingSecondReadBookmarkRepository(
+          bookmarkBox,
+        ),
+      );
+      final notifier = container.read(bookmarkProvider.notifier);
+      await notifier.future;
+
+      final duplicate = await notifier.duplicateGroup(source.id, 'Copy');
+
+      expect((await groupRepository.getGroup(duplicate.id))?.name, 'Copy');
+      expect(await groupRepository.getGroups(), hasLength(2));
+      expect(container.read(bookmarkProvider).hasError, isTrue);
+    },
+  );
+
+  test(
+    'a committed bookmark add reports success when publishing fails',
+    () async {
+      final container = createContainer(
+        bookmarkRepositoryOverride: _FailingSecondReadBookmarkRepository(
+          bookmarkBox,
+        ),
+      );
+      final notifier = container.read(bookmarkProvider.notifier);
+      await notifier.future;
+      var succeeded = false;
+      var failed = false;
+
+      await notifier.addBookmark(
+        BooruConfigAuth.fromConfig(BooruConfig.empty),
+        Bookmark.empty
+            .copyWith(originalUrl: 'https://example.com/committed.jpg')
+            .toPost(),
+        onSuccess: () => succeeded = true,
+        onError: () => failed = true,
+      );
+
+      expect(succeeded, isTrue);
+      expect(failed, isFalse);
+      expect(
+        await bookmarkRepository.getAllBookmarksOrEmpty(
+          imageUrlResolver: (_) => const DefaultImageUrlResolver(),
+        ),
+        hasLength(1),
+      );
     },
   );
 
