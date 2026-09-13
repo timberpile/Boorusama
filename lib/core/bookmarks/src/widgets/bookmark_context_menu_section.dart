@@ -11,6 +11,7 @@ import 'package:material_symbols_icons/symbols.dart';
 // Project imports:
 import '../../../configs/config/types.dart';
 import '../../../posts/post/types.dart';
+import '../data/bookmark_convert.dart';
 import '../providers/bookmark_provider.dart';
 import '../types/bookmark.dart';
 import '../types/bookmark_target.dart';
@@ -30,7 +31,10 @@ class BookmarkContextMenuSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final library = ref.watch(bookmarkProvider).valueOrNull;
-    final id = BookmarkUniqueId.fromPost(post, config.booruIdHint);
+    final id = switch (post) {
+      BookmarkPost(:final bookmark) => bookmark.uniqueId,
+      _ => BookmarkUniqueId.fromPost(post, config.booruIdHint),
+    };
     final bookmark = library?.bookmarksByUniqueId[id];
     final memberships = library?.membershipsFor(id) ?? const <String>{};
     final container = ProviderScope.containerOf(context, listen: false);
@@ -147,24 +151,28 @@ class _BookmarkContextGroupPage extends StatelessWidget {
   Future<void> _toggle(String? groupId) async {
     final notifier = container.read(bookmarkProvider.notifier);
     try {
-      await notifier.setActiveTarget(
+      final activated = await notifier.setActiveTarget(
         groupId == null
             ? const BookmarkTarget.ungrouped()
             : BookmarkTarget.group(groupId),
       );
+      if (!activated) {
+        _error();
+        return;
+      }
       if (groupId == null) {
         if (bookmark == null) {
           await notifier.addBookmark(
             config,
             post,
-            onSuccess: _success,
+            onSuccess: _added,
             onError: _error,
           );
         }
         if (bookmark != null && memberships.isEmpty) {
           await notifier.removeBookmark(
             bookmark!,
-            onSuccess: _success,
+            onSuccess: _removed,
             onError: _error,
           );
         }
@@ -175,7 +183,7 @@ class _BookmarkContextGroupPage extends StatelessWidget {
           config,
           post,
           groupId,
-          onSuccess: _success,
+          onSuccess: _added,
           onError: _error,
         );
       } else if (memberships.contains(groupId)) {
@@ -183,14 +191,14 @@ class _BookmarkContextGroupPage extends StatelessWidget {
           [bookmark!],
           groupId,
           deleteWhenMembershipBecomesEmpty: true,
-          onSuccess: _success,
+          onSuccess: _removed,
           onError: _error,
         );
       } else {
         await notifier.addExistingBookmarkToGroup(
           bookmark!,
           groupId,
-          onSuccess: _success,
+          onSuccess: _added,
           onError: _error,
         );
       }
@@ -207,33 +215,27 @@ class _BookmarkContextGroupPage extends StatelessWidget {
     if (name == null) return;
     try {
       final notifier = container.read(bookmarkProvider.notifier);
-      final group = await notifier.createGroup(name, activate: true);
-      if (bookmark == null) {
-        await notifier.addBookmarkToGroup(
-          config,
-          post,
-          group.id,
-          onSuccess: _success,
-          onError: _error,
-        );
-      } else {
-        await notifier.addExistingBookmarkToGroup(
-          bookmark!,
-          group.id,
-          onSuccess: _success,
-          onError: _error,
-        );
-      }
+      await notifier.createGroupWithPosts(name, config, [post]);
+      _added();
     } catch (_) {
       _error();
     }
   }
 
-  void _success() {
+  void _added() {
     if (navigator.mounted) {
       Kurumi.showSuccessToast(
         navigator.context,
         navigator.context.t.bookmark.added,
+      );
+    }
+  }
+
+  void _removed() {
+    if (navigator.mounted) {
+      Kurumi.showSuccessToast(
+        navigator.context,
+        navigator.context.t.bookmark.removed,
       );
     }
   }

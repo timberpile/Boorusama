@@ -4,6 +4,7 @@ import 'dart:io';
 // Package imports:
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
+import 'package:foundation/foundation.dart';
 
 // Project imports:
 import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_group_hive_object.dart';
@@ -14,6 +15,7 @@ import 'package:boorusama/core/bookmarks/src/services/bookmark_library_service.d
 import 'package:boorusama/core/bookmarks/src/types/bookmark.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_group.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_group_repository.dart';
+import 'package:boorusama/core/bookmarks/src/types/bookmark_repository.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_target.dart';
 import 'package:boorusama/core/hive/hive_adapters.dart';
 import 'package:boorusama/core/posts/post/types.dart';
@@ -83,6 +85,40 @@ void main() {
       expect(state.activeTarget.groupId, firstGroupId);
     },
   );
+
+  test('a bookmark read failure never repairs memberships as empty', () async {
+    await groupRepository.createGroup('First', id: firstGroupId);
+    await groupRepository.addBookmarks(firstGroupId, {99});
+    service = BookmarkLibraryService(
+      bookmarkRepository: _FailingReadBookmarkRepository(bookmarkBox),
+      groupRepository: groupRepository,
+      imageUrlResolver: resolver,
+    );
+
+    await expectLater(
+      service.load(const BookmarkTarget.ungrouped()),
+      throwsA(isA<BookmarkRepositoryReadException>()),
+    );
+
+    expect((await groupRepository.getGroup(firstGroupId))?.bookmarkIds, {99});
+  });
+
+  test('group deletion performs authoritative reads before mutation', () async {
+    await groupRepository.createGroup('First', id: firstGroupId);
+    await groupRepository.addBookmarks(firstGroupId, {99});
+    service = BookmarkLibraryService(
+      bookmarkRepository: _FailingReadBookmarkRepository(bookmarkBox),
+      groupRepository: groupRepository,
+      imageUrlResolver: resolver,
+    );
+
+    await expectLater(
+      service.deleteGroup(firstGroupId),
+      throwsA(isA<BookmarkRepositoryReadException>()),
+    );
+
+    expect(await groupRepository.getGroup(firstGroupId), isNotNull);
+  });
 
   test('adds an existing bookmark without creating a duplicate', () async {
     final bookmark = await storeBookmark('existing');
@@ -316,6 +352,15 @@ void main() {
       bookmark.id,
     });
   });
+}
+
+class _FailingReadBookmarkRepository extends BookmarkHiveRepository {
+  const _FailingReadBookmarkRepository(super._box);
+
+  @override
+  BookmarksOrError getAllBookmarks({
+    required ImageUrlResolver Function(int? booruId) imageUrlResolver,
+  }) => TaskEither.fromEither(Either.left(BookmarkGetError.unknown));
 }
 
 class _FailingAddGroupRepository implements BookmarkGroupRepository {

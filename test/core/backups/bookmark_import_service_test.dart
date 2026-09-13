@@ -3,6 +3,7 @@ import 'dart:io';
 
 // Package imports:
 import 'package:flutter_test/flutter_test.dart';
+import 'package:foundation/foundation.dart';
 import 'package:hive_ce/hive.dart';
 
 // Project imports:
@@ -96,9 +97,46 @@ void main() {
       },
     );
   }
+
+  test('a bookmark read failure leaves every group unchanged', () async {
+    await groups.createGroup('Existing', id: groupId);
+    const plan = BookmarkImportPlan(
+      bookmarks: [],
+      missingBookmarks: [],
+      groups: [
+        BookmarkGroupImport(
+          id: groupId,
+          name: 'Imported',
+          bookmarkIds: {},
+          conflicts: true,
+          choice: BookmarkGroupConflictChoice.replace,
+        ),
+      ],
+    );
+
+    await expectLater(
+      BookmarkImportService(
+        bookmarkRepository: _FailingReadBookmarkRepository(bookmarkBox),
+        groupRepository: groups,
+        imageUrlResolver: (_) => const DefaultImageUrlResolver(),
+      ).apply(plan),
+      throwsA(isA<BookmarkRepositoryReadException>()),
+    );
+
+    expect((await groups.getGroup(groupId))?.name, 'Existing');
+  });
 }
 
 Future<List<Bookmark>> _load(BookmarkHiveRepository repository) =>
     repository.getAllBookmarksOrEmpty(
       imageUrlResolver: (_) => const DefaultImageUrlResolver(),
     );
+
+class _FailingReadBookmarkRepository extends BookmarkHiveRepository {
+  const _FailingReadBookmarkRepository(super._box);
+
+  @override
+  BookmarksOrError getAllBookmarks({
+    required ImageUrlResolver Function(int? booruId) imageUrlResolver,
+  }) => TaskEither.fromEither(Either.left(BookmarkGetError.unknown));
+}

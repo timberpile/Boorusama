@@ -40,6 +40,7 @@ class GeneralPostContextMenu extends ConsumerWidget {
         ?.commentPageBuilder;
     final postLinkGenerator = ref.watch(postLinkGeneratorProvider(booruConfig));
     final selectionModeController = SelectionMode.maybeOf(context);
+    final feedbackContext = Navigator.of(context, rootNavigator: true).context;
 
     final downloadNotifier = ref.watch(
       downloadNotifierProvider(
@@ -70,7 +71,7 @@ class GeneralPostContextMenu extends ConsumerWidget {
             ),
             FavoriteContextMenuTile(
               post: post,
-              feedbackContext: context,
+              feedbackContext: feedbackContext,
             ),
             const KurumiContextMenuDivider(),
             if (commentPageBuilder != null && post.hasComment)

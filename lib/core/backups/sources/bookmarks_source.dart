@@ -30,17 +30,10 @@ class BookmarksBackupSource extends JsonBackupSource<BookmarkBackupData> {
         version: kBookmarksBackupVersion,
         appVersion: ref.read(appVersionProvider),
         dataGetter: () async {
-          final bookmarks = await (await ref.read(bookmarkRepoProvider.future))
-              .getAllBookmarksOrEmpty(
-                imageUrlResolver: (booruId) =>
-                    ref.read(bookmarkUrlResolverProvider(booruId)),
-              );
-          final groups = await (await ref.read(
-            bookmarkGroupRepoProvider.future,
-          )).getGroups();
+          final state = await ref.read(bookmarkProvider.future);
           return buildBookmarkBackupData(
-            bookmarks: bookmarks,
-            groups: groups,
+            bookmarks: state.items,
+            groups: state.groups,
             scope: const BookmarkExportScope.all(),
           );
         },
@@ -64,39 +57,42 @@ class BookmarksBackupSource extends JsonBackupSource<BookmarkBackupData> {
           final groupRepository = await ref.read(
             bookmarkGroupRepoProvider.future,
           );
-          final currentBookmarks = await bookmarkRepository
-              .getAllBookmarksOrEmpty(
+          return ref.read(bookmarkProvider.notifier).runSerializedMutation(
+            () async {
+              final currentBookmarks = await bookmarkRepository
+                  .getAllBookmarksOrThrow(
+                    imageUrlResolver: (booruId) =>
+                        ref.read(bookmarkUrlResolverProvider(booruId)),
+                  );
+              final plan = const BookmarkImportPlanner().plan(
+                data: data,
+                currentBookmarks: currentBookmarks,
+                currentGroups: await groupRepository.getGroups(),
+              );
+              if (uiContext != null && !uiContext.mounted) {
+                throw const ImportCancelledException();
+              }
+              final resolvedPlan = switch ((plan.conflicts, uiContext)) {
+                ([], _) => plan,
+                (_, final BuildContext context) =>
+                  await resolveBookmarkGroupConflicts(context, plan),
+                _ => null,
+              };
+              if (resolvedPlan == null) {
+                throw const ImportCancelledException();
+              }
+              final result = await BookmarkImportService(
+                bookmarkRepository: bookmarkRepository,
+                groupRepository: groupRepository,
                 imageUrlResolver: (booruId) =>
                     ref.read(bookmarkUrlResolverProvider(booruId)),
+              ).apply(resolvedPlan);
+              return BackupOperationResult(
+                bookmarkCount: result.totalCount,
+                groupCount: result.groupCount,
+                alreadyExistedCount: result.alreadyExistedCount,
               );
-          final plan = const BookmarkImportPlanner().plan(
-            data: data,
-            currentBookmarks: currentBookmarks,
-            currentGroups: await groupRepository.getGroups(),
-          );
-          if (uiContext != null && !uiContext.mounted) {
-            throw const ImportCancelledException();
-          }
-          final resolvedPlan = switch ((plan.conflicts, uiContext)) {
-            ([], _) => plan,
-            (_, final BuildContext context) =>
-              await resolveBookmarkGroupConflicts(context, plan),
-            _ => null,
-          };
-          if (resolvedPlan == null) {
-            throw const ImportCancelledException();
-          }
-          final result = await BookmarkImportService(
-            bookmarkRepository: bookmarkRepository,
-            groupRepository: groupRepository,
-            imageUrlResolver: (booruId) =>
-                ref.read(bookmarkUrlResolverProvider(booruId)),
-          ).apply(resolvedPlan);
-          ref.invalidate(bookmarkProvider);
-          return BackupOperationResult(
-            bookmarkCount: result.totalCount,
-            groupCount: result.groupCount,
-            alreadyExistedCount: result.alreadyExistedCount,
+            },
           );
         },
         handler: BookmarkBackupCodec(

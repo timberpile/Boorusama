@@ -39,7 +39,7 @@ class BookmarkLibraryService {
   final BookmarkCacheCleaner? clearBookmarkCache;
 
   Future<BookmarkLibraryState> load(BookmarkTarget activeTarget) async {
-    final bookmarks = await bookmarkRepository.getAllBookmarksOrEmpty(
+    final bookmarks = await bookmarkRepository.getAllBookmarksOrThrow(
       imageUrlResolver: imageUrlResolver,
     );
     await groupRepository.repair(
@@ -184,8 +184,8 @@ class BookmarkLibraryService {
   }
 
   Future<BookmarkGroupDeletionPreview> deleteGroup(String groupId) async {
-    final preview = await groupRepository.deleteGroup(groupId);
     final state = await load(const BookmarkTarget.ungrouped());
+    final preview = await groupRepository.deleteGroup(groupId);
     final orphanBookmarks = preview.orphanBookmarkIds
         .map((id) => state.bookmarksById[id])
         .nonNulls
@@ -220,8 +220,18 @@ class BookmarkLibraryService {
   }
 
   Future<void> _restoreMemberships(Iterable<BookmarkGroup> groups) async {
+    Object? firstError;
+    StackTrace? firstStackTrace;
     for (final group in groups) {
-      await groupRepository.replaceMemberships(group.id, group.bookmarkIds);
+      try {
+        await groupRepository.replaceMemberships(group.id, group.bookmarkIds);
+      } catch (error, stackTrace) {
+        firstError ??= error;
+        firstStackTrace ??= stackTrace;
+      }
+    }
+    if (firstError != null) {
+      Error.throwWithStackTrace(firstError, firstStackTrace!);
     }
   }
 }

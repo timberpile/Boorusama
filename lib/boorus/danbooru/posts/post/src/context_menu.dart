@@ -39,6 +39,7 @@ class DanbooruPostContextMenu extends ConsumerWidget {
     final hasAccount = loginDetails.hasLogin();
     final postLinkGenerator = ref.watch(postLinkGeneratorProvider(booruConfig));
     final selectionModeController = SelectionMode.maybeOf(context);
+    final feedbackContext = Navigator.of(context, rootNavigator: true).context;
 
     return KurumiContextMenu(
       menuItemsBuilder: (context) => [
@@ -66,7 +67,7 @@ class DanbooruPostContextMenu extends ConsumerWidget {
         if (hasAccount)
           FavoriteContextMenuTile(
             post: post,
-            feedbackContext: context,
+            feedbackContext: feedbackContext,
           ),
         if (hasAccount)
           KurumiContextMenuTile(

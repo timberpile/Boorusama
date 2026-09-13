@@ -1,3 +1,6 @@
+// Dart imports:
+import 'dart:convert';
+
 // Package imports:
 import 'package:uuid/uuid.dart';
 
@@ -22,6 +25,7 @@ class BookmarkBackupCodec extends JsonHandler<BookmarkBackupData> {
         throw InvalidBackupFormatException('data[$index] must be an object');
       }
       try {
+        _validateBookmark(value, index);
         final bookmark = bookmarkParser(value);
         if (!bookmarkIds.add(bookmark.id)) {
           throw InvalidBackupFormatException(
@@ -90,4 +94,65 @@ class BookmarkBackupCodec extends JsonHandler<BookmarkBackupData> {
   @override
   List<dynamic> encode(BookmarkBackupData data) =>
       data.bookmarks.map((bookmark) => bookmark.toJson()).toList();
+}
+
+void _validateBookmark(Map<String, dynamic> value, int index) {
+  final requiredInts = ['id', 'booruId'];
+  final requiredStrings = [
+    'createdAt',
+    'updatedAt',
+    'thumbnailUrl',
+    'sampleUrl',
+    'originalUrl',
+    'sourceUrl',
+    'md5',
+  ];
+  for (final field in requiredInts) {
+    if (value[field] is! int) {
+      throw InvalidBackupFormatException('data[$index].$field is invalid');
+    }
+  }
+  for (final field in requiredStrings) {
+    if (value[field] is! String) {
+      throw InvalidBackupFormatException('data[$index].$field is invalid');
+    }
+  }
+  for (final field in ['width', 'height']) {
+    if (value[field] is! num) {
+      throw InvalidBackupFormatException('data[$index].$field is invalid');
+    }
+  }
+  final tags = switch (value['tags']) {
+    final List<dynamic> tags => tags,
+    final String encoded => switch (jsonDecode(encoded)) {
+      final List<dynamic> tags => tags,
+      _ => throw InvalidBackupFormatException(
+        'data[$index].tags is invalid',
+      ),
+    },
+    _ => throw InvalidBackupFormatException('data[$index].tags is invalid'),
+  };
+  if (tags.any((tag) => tag is! String)) {
+    throw InvalidBackupFormatException('data[$index].tags is invalid');
+  }
+  if (value['realSourceUrl'] case final realSourceUrl?
+      when realSourceUrl is! String) {
+    throw InvalidBackupFormatException(
+      'data[$index].realSourceUrl is invalid',
+    );
+  }
+  if (value['format'] case final format? when format is! String) {
+    throw InvalidBackupFormatException('data[$index].format is invalid');
+  }
+  if (value['postId'] case final postId? when postId is! int) {
+    throw InvalidBackupFormatException('data[$index].postId is invalid');
+  }
+  if (value['metadata'] case final metadata?) {
+    if (metadata is! Map<String, dynamic> ||
+        metadata.values.any(
+          (entry) => entry is! String && entry is! num && entry is! bool,
+        )) {
+      throw InvalidBackupFormatException('data[$index].metadata is invalid');
+    }
+  }
 }

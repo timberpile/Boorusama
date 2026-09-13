@@ -35,7 +35,10 @@ class TransferDataDialog extends ConsumerWidget {
           ),
         ),
         child: switch (step) {
-          ImportStep.selection => SelectDataStep(url: url),
+          ImportStep.selection => SelectDataStep(
+            url: url,
+            importContext: context,
+          ),
           _ => ImportingStep(
             url: url,
           ),
@@ -334,10 +337,12 @@ class ImportingStep extends ConsumerWidget {
 class SelectDataStep extends ConsumerWidget {
   const SelectDataStep({
     required this.url,
+    required this.importContext,
     super.key,
   });
 
   final String url;
+  final BuildContext importContext;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -350,7 +355,7 @@ class SelectDataStep extends ConsumerWidget {
     ref.listen(serverCheckProvider(url), (prev, next) {
       if (prev == ServerCheckStatus.checking &&
           next == ServerCheckStatus.available) {
-        notifier.startImport(context);
+        notifier.startImport(importContext);
       }
     });
 
@@ -403,7 +408,7 @@ class SelectDataStep extends ConsumerWidget {
                     serverCheckNotifier.check();
                   },
                   ServerCheckStatus.available => () {
-                    notifier.startImport(context);
+                    notifier.startImport(importContext);
                   },
                   ServerCheckStatus.unavailable => () {
                     serverCheckNotifier.check();

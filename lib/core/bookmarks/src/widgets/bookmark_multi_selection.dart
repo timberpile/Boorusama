@@ -22,6 +22,7 @@ Future<bool> showBookmarkMultiSelectionActions(
   required WidgetRef ref,
   required List<Bookmark> bookmarks,
 }) async {
+  final container = ProviderScope.containerOf(context, listen: false);
   final action = await showModalBottomSheet<String>(
     context: context,
     builder: (context) => SafeArea(
@@ -46,21 +47,21 @@ Future<bool> showBookmarkMultiSelectionActions(
   );
   if (!context.mounted) return false;
   return switch (action) {
-    'add' => _add(context, ref, bookmarks),
-    'remove' => _remove(context, ref, bookmarks),
-    'delete' => _delete(context, ref, bookmarks),
+    'add' => _add(context, container, bookmarks),
+    'remove' => _remove(context, container, bookmarks),
+    'delete' => _delete(context, container, bookmarks),
     _ => false,
   };
 }
 
 Future<bool> _add(
   BuildContext context,
-  WidgetRef ref,
+  ProviderContainer container,
   List<Bookmark> bookmarks,
 ) async {
-  final groupId = await _selectGroup(context, ref, allowCreate: true);
+  final groupId = await _selectGroup(context, container, allowCreate: true);
   if (groupId == null) return false;
-  await ref
+  await container
       .read(bookmarkProvider.notifier)
       .addExistingBookmarksToGroup(bookmarks, groupId);
   return false;
@@ -68,18 +69,20 @@ Future<bool> _add(
 
 Future<bool> _remove(
   BuildContext context,
-  WidgetRef ref,
+  ProviderContainer container,
   List<Bookmark> bookmarks,
 ) async {
-  final groupId = await _selectGroup(context, ref);
+  final groupId = await _selectGroup(context, container);
   if (groupId == null) return false;
-  await ref.read(bookmarkProvider.notifier).removeFromGroup(bookmarks, groupId);
+  await container
+      .read(bookmarkProvider.notifier)
+      .removeFromGroup(bookmarks, groupId);
   return false;
 }
 
 Future<bool> _delete(
   BuildContext context,
-  WidgetRef ref,
+  ProviderContainer container,
   List<Bookmark> bookmarks,
 ) async {
   final confirmed = await showDialog<bool>(
@@ -105,16 +108,17 @@ Future<bool> _delete(
     ),
   );
   if (confirmed != true) return false;
-  await ref.read(bookmarkProvider.notifier).removeBookmarks(bookmarks);
+  await container.read(bookmarkProvider.notifier).removeBookmarks(bookmarks);
   return true;
 }
 
 Future<String?> _selectGroup(
   BuildContext context,
-  WidgetRef ref, {
+  ProviderContainer container, {
   bool allowCreate = false,
 }) {
-  final groups = ref.read(bookmarkProvider).valueOrNull?.groups ?? const [];
+  final groups =
+      container.read(bookmarkProvider).valueOrNull?.groups ?? const [];
   return showDialog<String>(
     context: context,
     builder: (dialogContext) => SimpleDialog(
@@ -133,7 +137,7 @@ Future<String?> _selectGroup(
                 title: context.t.bookmark.groups.create,
               );
               if (name == null || !dialogContext.mounted) return;
-              final group = await ref
+              final group = await container
                   .read(bookmarkProvider.notifier)
                   .createGroup(name, activate: true);
               if (dialogContext.mounted) {
@@ -194,10 +198,15 @@ class BookmarkGroupSelectionSummary {
 enum BookmarkMultiSelectionOperation { add, remove }
 
 class BookmarkGroupSelectionTarget {
-  const BookmarkGroupSelectionTarget(this.id, this.name);
+  const BookmarkGroupSelectionTarget(
+    this.id,
+    this.name, {
+    this.appliedCount,
+  });
 
   final String? id;
   final String name;
+  final int? appliedCount;
 }
 
 class BookmarkMultiSelectionMenu extends ConsumerWidget {
@@ -254,6 +263,7 @@ class BookmarkMultiSelectionMenu extends ConsumerWidget {
     BookmarkMultiSelectionOperation operation,
   ) async {
     final navigator = Navigator.of(context, rootNavigator: true);
+    final notifier = ref.read(bookmarkProvider.notifier);
     final target = await showBookmarkGroupSelectionDialog(
       navigator.context,
       operation: operation,
@@ -263,9 +273,9 @@ class BookmarkMultiSelectionMenu extends ConsumerWidget {
     if (target == null || !navigator.mounted) return;
     try {
       if (operation == BookmarkMultiSelectionOperation.add) {
-        final changed = await ref
-            .read(bookmarkProvider.notifier)
-            .addPostsToGroup(config, posts, target.id);
+        final changed =
+            target.appliedCount ??
+            await notifier.addPostsToGroup(config, posts, target.id);
         if (!navigator.mounted) return;
         Kurumi.showSuccessToast(
           navigator.context,
@@ -274,9 +284,11 @@ class BookmarkMultiSelectionMenu extends ConsumerWidget {
               .replaceAll('{1}', target.name),
         );
       } else {
-        final result = await ref
-            .read(bookmarkProvider.notifier)
-            .removePostsFromGroup(config, posts, target.id!);
+        final result = await notifier.removePostsFromGroup(
+          config,
+          posts,
+          target.id!,
+        );
         if (!navigator.mounted) return;
         final template = result.movedToNoGroupCount > 0
             ? navigator.context.t.bookmark.bulk.remove_success_ungrouped
@@ -307,6 +319,7 @@ class BookmarkMultiSelectionMenu extends ConsumerWidget {
     int count,
   ) async {
     final navigator = Navigator.of(context, rootNavigator: true);
+    final notifier = ref.read(bookmarkProvider.notifier);
     final confirmed = await showDialog<bool>(
       context: navigator.context,
       builder: (context) => AlertDialog(
@@ -331,9 +344,7 @@ class BookmarkMultiSelectionMenu extends ConsumerWidget {
     );
     if (confirmed != true) return;
     try {
-      final changed = await ref
-          .read(bookmarkProvider.notifier)
-          .deleteBookmarksForPosts(config, posts);
+      final changed = await notifier.deleteBookmarksForPosts(config, posts);
       if (!navigator.mounted) return;
       Kurumi.showSuccessToast(
         navigator.context,
@@ -467,13 +478,17 @@ class _BookmarkGroupSelectionDialog extends ConsumerWidget {
     );
     if (name == null || !context.mounted) return;
     try {
-      final group = await ref
+      final result = await ref
           .read(bookmarkProvider.notifier)
-          .createGroup(name, activate: true);
+          .createGroupWithPosts(name, config, posts);
       if (context.mounted) {
         Navigator.pop(
           context,
-          BookmarkGroupSelectionTarget(group.id, group.name),
+          BookmarkGroupSelectionTarget(
+            result.group.id,
+            result.group.name,
+            appliedCount: result.addedCount,
+          ),
         );
       }
     } catch (_) {

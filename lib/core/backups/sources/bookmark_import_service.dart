@@ -21,6 +21,16 @@ class BookmarkImportResult extends Equatable {
   List<Object?> get props => [totalCount, alreadyExistedCount, groupCount];
 }
 
+class BookmarkImportRollbackException implements Exception {
+  const BookmarkImportRollbackException({
+    required this.importError,
+    required this.rollbackErrors,
+  });
+
+  final Object importError;
+  final List<Object> rollbackErrors;
+}
+
 class BookmarkImportService {
   const BookmarkImportService({
     required this.bookmarkRepository,
@@ -42,17 +52,19 @@ class BookmarkImportService {
 
     final oldGroups = await groupRepository.getGroups();
     final oldGroupIds = oldGroups.map((group) => group.id).toSet();
+    final oldBookmarks = await bookmarkRepository.getAllBookmarksOrThrow(
+      imageUrlResolver: imageUrlResolver,
+    );
+    var addedBookmarks = const <Bookmark>[];
     try {
       if (plan.missingBookmarks.isNotEmpty) {
-        await bookmarkRepository.addBookmarkWithBookmarks(
+        addedBookmarks = await bookmarkRepository.addBookmarkWithBookmarks(
           plan.missingBookmarks,
         );
       }
-      final localBookmarks = await bookmarkRepository.getAllBookmarksOrEmpty(
-        imageUrlResolver: imageUrlResolver,
-      );
       final localIds = {
-        for (final bookmark in localBookmarks) bookmark.uniqueId: bookmark.id,
+        for (final bookmark in [...oldBookmarks, ...addedBookmarks])
+          bookmark.uniqueId: bookmark.id,
       };
 
       for (final imported in plan.groups) {
@@ -80,33 +92,19 @@ class BookmarkImportService {
           resolvedMemberships,
         );
       }
-    } catch (_) {
-      final currentGroups = await groupRepository.getGroups();
-      for (final group in currentGroups) {
-        if (!oldGroupIds.contains(group.id)) {
-          await groupRepository.deleteGroup(group.id);
-        }
-      }
-      for (final group in oldGroups) {
-        if (await groupRepository.getGroup(group.id) == null) {
-          await groupRepository.createGroup(group.name, id: group.id);
-        } else {
-          await groupRepository.renameGroup(group.id, group.name);
-        }
-        await groupRepository.replaceMemberships(group.id, group.bookmarkIds);
-      }
-      if (plan.missingBookmarks.isNotEmpty) {
-        final addedIds = plan.missingBookmarks
-            .map((bookmark) => bookmark.uniqueId)
-            .toSet();
-        final current = await bookmarkRepository.getAllBookmarksOrEmpty(
-          imageUrlResolver: imageUrlResolver,
-        );
-        await bookmarkRepository.removeBookmarks(
-          current.where((bookmark) => addedIds.contains(bookmark.uniqueId)),
+    } catch (error, stackTrace) {
+      final rollbackErrors = await _rollback(
+        oldGroups: oldGroups,
+        oldGroupIds: oldGroupIds,
+        addedBookmarks: addedBookmarks,
+      );
+      if (rollbackErrors.isNotEmpty) {
+        throw BookmarkImportRollbackException(
+          importError: error,
+          rollbackErrors: List.unmodifiable(rollbackErrors),
         );
       }
-      rethrow;
+      Error.throwWithStackTrace(error, stackTrace);
     }
 
     return BookmarkImportResult(
@@ -114,5 +112,48 @@ class BookmarkImportService {
       alreadyExistedCount: plan.bookmarks.length - plan.missingBookmarks.length,
       groupCount: plan.groups.length,
     );
+  }
+
+  Future<List<Object>> _rollback({
+    required List<BookmarkGroup> oldGroups,
+    required Set<String> oldGroupIds,
+    required List<Bookmark> addedBookmarks,
+  }) async {
+    final errors = <Object>[];
+    try {
+      final currentGroups = await groupRepository.getGroups();
+      for (final group in currentGroups) {
+        if (!oldGroupIds.contains(group.id)) {
+          try {
+            await groupRepository.deleteGroup(group.id);
+          } catch (error) {
+            errors.add(error);
+          }
+        }
+      }
+    } catch (error) {
+      errors.add(error);
+    }
+
+    for (final group in oldGroups) {
+      try {
+        if (await groupRepository.getGroup(group.id) == null) {
+          await groupRepository.createGroup(group.name, id: group.id);
+        } else {
+          await groupRepository.renameGroup(group.id, group.name);
+        }
+        await groupRepository.replaceMemberships(group.id, group.bookmarkIds);
+      } catch (error) {
+        errors.add(error);
+      }
+    }
+    if (addedBookmarks.isNotEmpty) {
+      try {
+        await bookmarkRepository.removeBookmarks(addedBookmarks);
+      } catch (error) {
+        errors.add(error);
+      }
+    }
+    return errors;
   }
 }

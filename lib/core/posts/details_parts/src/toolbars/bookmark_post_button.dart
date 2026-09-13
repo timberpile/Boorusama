@@ -1,3 +1,6 @@
+// Dart imports:
+import 'dart:async';
+
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
@@ -8,10 +11,12 @@ import 'package:material_symbols_icons/symbols.dart';
 
 // Project imports:
 import '../../../../bookmarks/providers.dart';
+import '../../../../bookmarks/src/data/bookmark_convert.dart';
 import '../../../../bookmarks/types.dart';
 import '../../../../bookmarks/widgets.dart';
 import '../../../../configs/config/providers.dart';
 import '../../../../configs/config/types.dart';
+import '../../../../router.dart';
 import '../../../../themes/theme/types.dart';
 import '../../../post/types.dart';
 
@@ -51,12 +56,11 @@ class BookmarkPostButton extends ConsumerWidget {
             ? null
             : (details) => showAnchoredBookmarkGroupPicker(
                 context,
-                ref: ref,
                 config: config,
                 post: post,
                 position: details.globalPosition,
               ),
-        child: Row(
+        child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             IconButton(
@@ -67,7 +71,6 @@ class BookmarkPostButton extends ConsumerWidget {
                       if (presentation?.activeTargetUnavailable ?? false) {
                         await showBookmarkGroupPicker(
                           context,
-                          ref: ref,
                           config: config,
                           post: post,
                         );
@@ -89,12 +92,14 @@ class BookmarkPostButton extends ConsumerWidget {
                 ),
               ),
             ),
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 100),
+            SizedBox(
+              width: 72,
               child: Text(
                 activeLabel,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: Kurumi.themeOf(context).textTheme.labelSmall,
               ),
             ),
           ],
@@ -150,25 +155,10 @@ class BookmarkPostLikeButtonButton extends ConsumerWidget {
 extension BookmarkPostX on WidgetRef {
   void toggleBookmark(Post post) {
     final booruConfig = readConfigAuth;
-    read(bookmarkProvider).whenOrNull(
-      data: (bookmarkState) {
-        final isBookmarked = bookmarkState.isBookmarked(
-          post,
-          booruConfig.booruIdHint,
-        );
-
-        if (isBookmarked) {
-          bookmarks.removeBookmarkWithToast(
-            BookmarkUniqueId.fromPost(post, booruConfig.booruIdHint),
-          );
-        } else {
-          bookmarks.addBookmarkWithToast(
-            booruConfig,
-            post,
-          );
-        }
-      },
-    );
+    final context = navigatorKey.currentContext;
+    if (context != null && context.mounted) {
+      unawaited(toggleBookmarkTarget(post, booruConfig, context));
+    }
   }
 
   Future<void> toggleBookmarkTarget(
@@ -178,24 +168,68 @@ extension BookmarkPostX on WidgetRef {
   ) async {
     final library = read(bookmarkProvider).valueOrNull;
     if (library == null) return;
-    final uniqueId = BookmarkUniqueId.fromPost(post, config.booruIdHint);
+    final uniqueId = switch (post) {
+      BookmarkPost(:final bookmark) => bookmark.uniqueId,
+      _ => BookmarkUniqueId.fromPost(post, config.booruIdHint),
+    };
     final bookmark = library.bookmarksByUniqueId[uniqueId];
     final groupId = library.activeTarget.groupId;
+    void added() {
+      if (context.mounted) {
+        Kurumi.showSuccessToast(context, context.t.bookmark.added);
+      }
+    }
+
+    void removed() {
+      if (context.mounted) {
+        Kurumi.showSuccessToast(context, context.t.bookmark.removed);
+      }
+    }
+
+    void addFailed() {
+      if (context.mounted) {
+        Kurumi.showErrorToast(context, context.t.bookmark.failed_to_add);
+      }
+    }
+
+    void removeFailed() {
+      if (context.mounted) {
+        Kurumi.showErrorToast(context, context.t.bookmark.failed_to_remove);
+      }
+    }
+
+    void groupAddFailed() {
+      if (context.mounted) {
+        Kurumi.showErrorToast(
+          context,
+          context.t.bookmark.groups.failed_to_add_to_group,
+        );
+      }
+    }
+
+    void groupRemoveFailed() {
+      if (context.mounted) {
+        Kurumi.showErrorToast(
+          context,
+          context.t.bookmark.groups.failed_to_remove_from_group,
+        );
+      }
+    }
+
     if (groupId == null) {
       if (bookmark != null && library.membershipsFor(uniqueId).isEmpty) {
         return bookmarks.removeBookmark(
           bookmark,
-          onSuccess: () => Kurumi.showSuccessToast(
-            context,
-            context.t.bookmark.removed,
-          ),
-          onError: () => Kurumi.showErrorToast(
-            context,
-            context.t.bookmark.failed_to_remove,
-          ),
+          onSuccess: removed,
+          onError: removeFailed,
         );
       }
-      return bookmarks.addBookmarkWithToast(config, post);
+      return bookmarks.addBookmark(
+        config,
+        post,
+        onSuccess: added,
+        onError: addFailed,
+      );
     }
     if (bookmark != null &&
         library.membershipsFor(uniqueId).contains(groupId)) {
@@ -203,42 +237,24 @@ extension BookmarkPostX on WidgetRef {
         [bookmark],
         groupId,
         deleteWhenMembershipBecomesEmpty: true,
-        onSuccess: () => Kurumi.showSuccessToast(
-          context,
-          context.t.bookmark.removed,
-        ),
-        onError: () => Kurumi.showErrorToast(
-          context,
-          context.t.bookmark.groups.failed_to_remove_from_group,
-        ),
+        onSuccess: removed,
+        onError: groupRemoveFailed,
       );
     }
     if (bookmark != null) {
       return bookmarks.addExistingBookmarkToGroup(
         bookmark,
         groupId,
-        onSuccess: () => Kurumi.showSuccessToast(
-          context,
-          context.t.bookmark.added,
-        ),
-        onError: () => Kurumi.showErrorToast(
-          context,
-          context.t.bookmark.groups.failed_to_add_to_group,
-        ),
+        onSuccess: added,
+        onError: groupAddFailed,
       );
     }
     return bookmarks.addBookmarkToGroup(
       config,
       post,
       groupId,
-      onSuccess: () => Kurumi.showSuccessToast(
-        context,
-        context.t.bookmark.added,
-      ),
-      onError: () => Kurumi.showErrorToast(
-        context,
-        context.t.bookmark.groups.failed_to_add_to_group,
-      ),
+      onSuccess: added,
+      onError: groupAddFailed,
     );
   }
 }

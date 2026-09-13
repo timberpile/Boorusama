@@ -32,6 +32,7 @@ import '../providers/local_providers.dart';
 import '../routes/route_utils.dart';
 import 'bookmark_appbar.dart';
 import 'bookmark_booru_type_selector.dart';
+import 'bookmark_context_menu_section.dart';
 import 'bookmark_search_bar.dart';
 import 'bookmark_shuffle_button.dart';
 import 'bookmark_sort_button.dart';
@@ -160,10 +161,7 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                     BookmarkMultiSelectionMenu(
                       posts: selectedPosts,
                       config: auth,
-                      onCompleted: () async {
-                        _selectionModeController.disable();
-                        await controller.refresh();
-                      },
+                      onCompleted: () async {},
                     ),
                   ],
                 ),
@@ -303,8 +301,9 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                 child: KurumiCircularIconButton(
                   padding: const EdgeInsets.all(4),
                   icon: const Icon(Symbols.close),
-                  onPressed: () => ref.bookmarks.removeBookmark(
+                  onPressed: () => ref.bookmarks.removeBookmarkFromView(
                     post.bookmark,
+                    widget.view,
                     onSuccess: () {
                       controller.remove([post.id], (e) => e.id);
                     },
@@ -349,15 +348,7 @@ class BookmarkContextMenu extends ConsumerWidget {
             [post.bookmark],
           ),
         ),
-        KurumiContextMenuTile(
-          title: context.t.post.detail.remove_from_bookmark,
-          onTap: () => ref.bookmarks.removeBookmark(
-            post.bookmark,
-            onSuccess: () {
-              controller.remove([post.id], (e) => e.id);
-            },
-          ),
-        ),
+        BookmarkContextMenuSection(post: post, config: auth),
         if (!loginDetails.hasStrictSFW)
           KurumiContextMenuTile(
             title: 'Open source in browser',

@@ -121,4 +121,37 @@ void main() {
       );
     });
   }
+
+  for (final tags in [
+    123,
+    [1, 'tag'],
+    '{"tag": true}',
+  ]) {
+    test('rejects malformed bookmark tags represented by $tags', () {
+      final malformed = bookmark.toJson()..['tags'] = tags;
+      final payload = decodeData(
+        data: jsonEncode({
+          'version': 1,
+          'data': [malformed],
+        }),
+      );
+
+      expect(
+        () => codec.parse(payload),
+        throwsA(isA<InvalidBackupFormatException>()),
+      );
+    });
+  }
+
+  test('accepts the legacy JSON-string tag representation', () {
+    final legacy = bookmark.toJson()..['tags'] = '["one", "two"]';
+    final payload = decodeData(
+      data: jsonEncode({
+        'version': 1,
+        'data': [legacy],
+      }),
+    );
+
+    expect(codec.parse(payload).bookmarks.single.tags, {'one', 'two'});
+  });
 }

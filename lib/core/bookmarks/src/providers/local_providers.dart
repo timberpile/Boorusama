@@ -14,7 +14,6 @@ import '../../../tags/tag/providers.dart';
 import '../../../tags/tag/types.dart';
 import '../../providers.dart';
 import '../data/bookmark_convert.dart';
-import '../types/bookmark_repository.dart';
 
 export 'bookmark_group_selectors.dart' show BookmarkSortType, filterBookmarks;
 
@@ -33,11 +32,7 @@ final tagMapProvider = FutureProvider.autoDispose<Map<String, int>>((
   ref,
 ) async {
   ref.cacheFor(const Duration(seconds: 3));
-  final bookmarks = await (await ref.watch(bookmarkRepoProvider.future))
-      .getAllBookmarksOrEmpty(
-        imageUrlResolver: (booruId) =>
-            ref.read(bookmarkUrlResolverProvider(booruId)),
-      );
+  final bookmarks = (await ref.watch(bookmarkProvider.future)).items;
 
   return bookmarks.fold<Map<String, int>>(
     {},
@@ -62,11 +57,7 @@ final selectedBookmarkSortTypeProvider =
 final availableBooruUrlsProvider = FutureProvider.autoDispose<List<String>>((
   ref,
 ) async {
-  final bookmarks = await (await ref.watch(bookmarkRepoProvider.future))
-      .getAllBookmarksOrEmpty(
-        imageUrlResolver: (booruId) =>
-            ref.read(bookmarkUrlResolverProvider(booruId)),
-      );
+  final bookmarks = (await ref.watch(bookmarkProvider.future)).items;
 
   return bookmarks.fold(
     <String>{},

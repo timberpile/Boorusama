@@ -75,10 +75,7 @@ class DefaultMultiSelectionActions<T extends Post> extends ConsumerWidget {
                   BookmarkMultiSelectionMenu(
                     posts: selectedPosts,
                     config: booruConfig,
-                    onCompleted: () async {
-                      controller.disable();
-                      await postController.refresh();
-                    },
+                    onCompleted: () async {},
                   ),
                 ],
               ),

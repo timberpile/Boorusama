@@ -124,7 +124,12 @@ abstract class JsonBackupSource<T>
   Future<ImportPreparation> _prepareImport(
     String data,
     BuildContext? uiContext,
-  ) => _noContextPrepare(data);
+  ) => importBuilder.prepare(
+    data,
+    handler.parse,
+    _executeImport,
+    uiContext,
+  );
 
   Future<BackupOperationResult?> _exportToFile(
     String directoryPath, {

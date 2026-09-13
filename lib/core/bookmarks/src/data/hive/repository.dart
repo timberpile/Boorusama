@@ -96,8 +96,14 @@ class BookmarkHiveRepository implements BookmarkRepository {
   }
 
   @override
-  Future<void> addBookmarkWithBookmarks(List<Bookmark> bookmarks) {
+  Future<List<Bookmark>> addBookmarkWithBookmarks(
+    List<Bookmark> bookmarks,
+  ) async {
     final hiveObjects = bookmarks.map(favoriteToHiveObject).toList();
-    return _box.addAll(hiveObjects);
+    final ids = (await _box.addAll(hiveObjects)).toList();
+    return [
+      for (var index = 0; index < bookmarks.length; index++)
+        bookmarks[index].copyWith(id: ids[index]),
+    ];
   }
 }

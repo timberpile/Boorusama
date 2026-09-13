@@ -4,11 +4,13 @@ import 'package:flutter/material.dart';
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
+import 'package:kurumi/kurumi.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 // Project imports:
 import '../../../configs/config/types.dart';
 import '../../../posts/post/types.dart';
+import '../data/bookmark_convert.dart';
 import '../providers/bookmark_provider.dart';
 import '../types/bookmark.dart';
 import '../types/bookmark_target.dart';
@@ -16,7 +18,6 @@ import 'bookmark_group_name_dialog.dart';
 
 Future<void> showBookmarkGroupPicker(
   BuildContext context, {
-  required WidgetRef ref,
   required BooruConfigAuth config,
   required Post post,
 }) => showDialog<void>(
@@ -26,14 +27,18 @@ Future<void> showBookmarkGroupPicker(
 
 Future<void> showAnchoredBookmarkGroupPicker(
   BuildContext context, {
-  required WidgetRef ref,
   required BooruConfigAuth config,
   required Post post,
   required Offset position,
 }) async {
-  final library = ref.read(bookmarkProvider).valueOrNull;
+  final container = ProviderScope.containerOf(context, listen: false);
+  final navigator = Navigator.of(context, rootNavigator: true);
+  final library = container.read(bookmarkProvider).valueOrNull;
   if (library == null) return;
-  final uniqueId = BookmarkUniqueId.fromPost(post, config.booruIdHint);
+  final uniqueId = switch (post) {
+    BookmarkPost(:final bookmark) => bookmark.uniqueId,
+    _ => BookmarkUniqueId.fromPost(post, config.booruIdHint),
+  };
   final bookmark = library.bookmarksByUniqueId[uniqueId];
   final memberships = library.membershipsFor(uniqueId);
   final overlay = Overlay.of(context).context.findRenderObject()! as RenderBox;
@@ -61,38 +66,91 @@ Future<void> showAnchoredBookmarkGroupPicker(
       ),
     ],
   );
-  if (selected == null || !context.mounted) return;
-  final notifier = ref.read(bookmarkProvider.notifier);
-  if (selected == 'create') {
-    final name = await showBookmarkGroupNameDialog(
-      context,
-      title: context.t.bookmark.groups.create,
-    );
-    if (name == null) return;
-    final group = await notifier.createGroup(name, activate: true);
-    return bookmark == null
-        ? notifier.addBookmarkToGroup(config, post, group.id)
-        : notifier.addExistingBookmarkToGroup(bookmark, group.id);
+  if (selected == null || !navigator.mounted) return;
+  final notifier = container.read(bookmarkProvider.notifier);
+  void added() => _showPickerSuccess(navigator, added: true);
+  void removed() => _showPickerSuccess(navigator, added: false);
+  void failed() => _showPickerError(navigator);
+  try {
+    if (selected == 'create') {
+      final name = await showBookmarkGroupNameDialog(
+        navigator.context,
+        title: navigator.context.t.bookmark.groups.create,
+      );
+      if (name == null) return;
+      await notifier.createGroupWithPosts(name, config, [post]);
+      added();
+      return;
+    }
+    final target = selected == 'ungrouped'
+        ? const BookmarkTarget.ungrouped()
+        : BookmarkTarget.group(selected);
+    if (!await notifier.setActiveTarget(target)) {
+      failed();
+      return;
+    }
+    if (selected == 'ungrouped') {
+      if (bookmark == null) {
+        await notifier.addBookmark(
+          config,
+          post,
+          onSuccess: added,
+          onError: failed,
+        );
+      } else {
+        await notifier.removeBookmark(
+          bookmark,
+          onSuccess: removed,
+          onError: failed,
+        );
+      }
+      return;
+    }
+    if (bookmark == null) {
+      await notifier.addBookmarkToGroup(
+        config,
+        post,
+        selected,
+        onSuccess: added,
+        onError: failed,
+      );
+    } else if (memberships.contains(selected)) {
+      await notifier.removeFromGroup(
+        [bookmark],
+        selected,
+        deleteWhenMembershipBecomesEmpty: true,
+        onSuccess: removed,
+        onError: failed,
+      );
+    } else {
+      await notifier.addExistingBookmarkToGroup(
+        bookmark,
+        selected,
+        onSuccess: added,
+        onError: failed,
+      );
+    }
+  } catch (_) {
+    failed();
   }
-  if (selected == 'ungrouped') {
-    await notifier.setActiveTarget(const BookmarkTarget.ungrouped());
-    return bookmark == null
-        ? notifier.addBookmark(config, post)
-        : notifier.removeBookmark(bookmark);
-  }
-  await notifier.setActiveTarget(BookmarkTarget.group(selected));
-  return switch ((bookmark, memberships.contains(selected))) {
-    (final Bookmark bookmark, true) => notifier.removeFromGroup(
-      [bookmark],
-      selected,
-      deleteWhenMembershipBecomesEmpty: true,
-    ),
-    (final Bookmark bookmark, false) => notifier.addExistingBookmarkToGroup(
-      bookmark,
-      selected,
-    ),
-    _ => notifier.addBookmarkToGroup(config, post, selected),
-  };
+}
+
+void _showPickerSuccess(NavigatorState navigator, {required bool added}) {
+  if (!navigator.mounted) return;
+  Kurumi.showSuccessToast(
+    navigator.context,
+    added
+        ? navigator.context.t.bookmark.added
+        : navigator.context.t.bookmark.removed,
+  );
+}
+
+void _showPickerError(NavigatorState navigator) {
+  if (!navigator.mounted) return;
+  Kurumi.showErrorToast(
+    navigator.context,
+    navigator.context.t.bookmark.groups.operation_failed,
+  );
 }
 
 class BookmarkGroupPicker extends ConsumerWidget {
@@ -108,7 +166,10 @@ class BookmarkGroupPicker extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final library = ref.watch(bookmarkProvider).valueOrNull;
-    final uniqueId = BookmarkUniqueId.fromPost(post, config.booruIdHint);
+    final uniqueId = switch (post) {
+      BookmarkPost(:final bookmark) => bookmark.uniqueId,
+      _ => BookmarkUniqueId.fromPost(post, config.booruIdHint),
+    };
     final bookmark = library?.bookmarksByUniqueId[uniqueId];
     final memberships = library?.membershipsFor(uniqueId) ?? const <String>{};
     return AlertDialog(
@@ -142,7 +203,7 @@ class BookmarkGroupPicker extends ConsumerWidget {
             ListTile(
               leading: const Icon(Symbols.create_new_folder),
               title: Text(context.t.bookmark.groups.create_new),
-              onTap: () => _createAndAdd(context, ref, bookmark),
+              onTap: () => _createAndAdd(context, ref),
             ),
           ],
         ),
@@ -161,14 +222,34 @@ class BookmarkGroupPicker extends ConsumerWidget {
     WidgetRef ref,
     Bookmark? bookmark,
   ) async {
+    final navigator = Navigator.of(context, rootNavigator: true);
     final notifier = ref.read(bookmarkProvider.notifier);
-    await notifier.setActiveTarget(const BookmarkTarget.ungrouped());
-    if (bookmark == null) {
-      await notifier.addBookmark(config, post);
-    } else {
-      await notifier.removeBookmark(bookmark);
+    if (!await notifier.setActiveTarget(const BookmarkTarget.ungrouped())) {
+      _showPickerError(navigator);
+      return;
     }
-    if (context.mounted) Navigator.pop(context);
+    var completed = false;
+    if (bookmark == null) {
+      await notifier.addBookmark(
+        config,
+        post,
+        onSuccess: () {
+          completed = true;
+          _showPickerSuccess(navigator, added: true);
+        },
+        onError: () => _showPickerError(navigator),
+      );
+    } else {
+      await notifier.removeBookmark(
+        bookmark,
+        onSuccess: () {
+          completed = true;
+          _showPickerSuccess(navigator, added: false);
+        },
+        onError: () => _showPickerError(navigator),
+      );
+    }
+    if (completed && navigator.mounted) navigator.pop();
   }
 
   Future<void> _toggleGroup(
@@ -178,39 +259,75 @@ class BookmarkGroupPicker extends ConsumerWidget {
     String groupId,
     bool contains,
   ) async {
+    final navigator = Navigator.of(context, rootNavigator: true);
     final notifier = ref.read(bookmarkProvider.notifier);
-    await notifier.setActiveTarget(BookmarkTarget.group(groupId));
+    if (!await notifier.setActiveTarget(BookmarkTarget.group(groupId))) {
+      _showPickerError(navigator);
+      return;
+    }
+    var completed = false;
+    void added() {
+      completed = true;
+      _showPickerSuccess(navigator, added: true);
+    }
+
+    void removed() {
+      completed = true;
+      _showPickerSuccess(navigator, added: false);
+    }
+
+    void failed() => _showPickerError(navigator);
     if (contains && bookmark != null) {
       await notifier.removeFromGroup(
         [bookmark],
         groupId,
         deleteWhenMembershipBecomesEmpty: true,
+        onSuccess: removed,
+        onError: failed,
       );
     } else if (bookmark != null) {
-      await notifier.addExistingBookmarkToGroup(bookmark, groupId);
+      await notifier.addExistingBookmarkToGroup(
+        bookmark,
+        groupId,
+        onSuccess: added,
+        onError: failed,
+      );
     } else {
-      await notifier.addBookmarkToGroup(config, post, groupId);
+      await notifier.addBookmarkToGroup(
+        config,
+        post,
+        groupId,
+        onSuccess: added,
+        onError: failed,
+      );
     }
-    if (context.mounted) Navigator.pop(context);
+    if (completed && navigator.mounted) navigator.pop();
   }
 
   Future<void> _createAndAdd(
     BuildContext context,
     WidgetRef ref,
-    Bookmark? bookmark,
   ) async {
+    final navigator = Navigator.of(context, rootNavigator: true);
     final name = await showBookmarkGroupNameDialog(
       context,
       title: context.t.bookmark.groups.create,
     );
     if (name == null || !context.mounted) return;
     final notifier = ref.read(bookmarkProvider.notifier);
-    final group = await notifier.createGroup(name, activate: true);
-    if (bookmark != null) {
-      await notifier.addExistingBookmarkToGroup(bookmark, group.id);
-    } else {
-      await notifier.addBookmarkToGroup(config, post, group.id);
+    var completed = false;
+    void added() {
+      completed = true;
+      _showPickerSuccess(navigator, added: true);
     }
-    if (context.mounted) Navigator.pop(context);
+
+    void failed() => _showPickerError(navigator);
+    try {
+      await notifier.createGroupWithPosts(name, config, [post]);
+      added();
+    } catch (_) {
+      failed();
+    }
+    if (completed && navigator.mounted) navigator.pop();
   }
 }
