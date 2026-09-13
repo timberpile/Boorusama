@@ -72,7 +72,7 @@ void _showComicStripToast(BuildContext context) {
   showToastWidget(
     DecoratedBox(
       decoration: BoxDecoration(
-        color: colorScheme.inverseSurface,
+        color: colorScheme.surface,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Padding(
@@ -83,12 +83,12 @@ void _showComicStripToast(BuildContext context) {
             Text(
               'Comic Strip'.hc,
               textAlign: TextAlign.center,
-              style: TextStyle(color: colorScheme.onInverseSurface),
+              style: TextStyle(color: colorScheme.onSurface),
             ),
             Text(
               'Scroll ↓'.hc,
               textAlign: TextAlign.center,
-              style: TextStyle(color: colorScheme.onInverseSurface),
+              style: TextStyle(color: colorScheme.onSurface),
             ),
           ],
         ),
