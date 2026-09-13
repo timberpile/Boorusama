@@ -1,6 +1,6 @@
-## Linked issue
+## Linked issue (optional)
 
-Closes #
+<!-- Add `Closes #123` when applicable. -->
 
 ## Summary
 

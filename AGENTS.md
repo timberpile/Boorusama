@@ -43,16 +43,17 @@ for (final c in cases) {
 
 - NEVER perform GitHub actions on any repository other than `timberpile/Boorusama`. Always target `timberpile/Boorusama` explicitly in GitHub CLI commands. For every other repository, provide manual instructions instead of taking action.
 - Read `docs/development_workflow.md` before starting repository changes.
-- Direct commits to `develop` are allowed only when the user explicitly authorizes them for the current change. This authorization does not carry over to later changes.
-- Without explicit authorization for a direct `develop` commit, create a GitHub issue before implementing every feature or bug fix and use the standard branch and pull-request workflow.
+- Direct commits to `develop`, including upstream synchronization merge commits, are allowed only when the user explicitly authorizes them for the current change. This authorization does not carry over to later changes.
+- Without explicit authorization for a direct `develop` commit, use the standard branch and pull-request workflow. Creating a GitHub issue is recommended.
+- Synchronize `upstream/master` by merging it locally into `develop` and pushing the resulting merge commit directly, following `docs/development_workflow.md`. Do not create a synchronization branch or pull request.
 - Create the work branch from the latest `origin/develop`:
-  - `feature/<issue-id>-<short-description>` for features and additive changes.
-  - `fix/<issue-id>-<short-description>` for bug fixes and corrective changes.
+  - `feature/<issue-id>-<short-description>` or `feature/<short-description>` for features and additive changes.
+  - `fix/<issue-id>-<short-description>` or `fix/<short-description>` for bug fixes and corrective changes.
 - Never commit or push directly to `master`.
 - Pull requests for features and fixes target `develop`. Only `develop` may open a release/promotion pull request to `master`.
-- Set the pull request title to exactly `Merge branch '<branch-name>'` and include `Closes #<issue-id>` in its body.
-- Keep pull request descriptions brief. After the closing issue reference, use a few concise bullets describing only the meaningful end-state changes introduced when merged. Exclude implementation details, test history, development phases, temporary steps, and exhaustive file-level summaries unless they are essential to understanding the result.
-- Do not enable GitHub auto-merge. Wait for explicit user approval, then merge manually with squash merging.
+- Set the pull request title to exactly `Merge branch '<branch-name>'`. When an issue exists, include `Closes #<issue-id>` in the body.
+- Keep pull request descriptions brief. Use a few concise bullets describing only the meaningful end-state changes introduced when merged. Exclude implementation details, test history, development phases, temporary steps, and exhaustive file-level summaries unless they are essential to understanding the result.
+- Do not enable GitHub auto-merge. Wait for explicit user approval, then squash-merge feature and fix pull requests manually.
 - Do not edit the generated squash commit title. Delete the local branch after GitHub has merged the pull request and deleted its remote branch.
 
 ## Persistent project knowledge

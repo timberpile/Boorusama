@@ -45,13 +45,21 @@ expect_success \
   "Merge branch 'fix/51-handle-empty-tags'" \
   'Fixes #51'
 
-expect_failure \
-  'develop rejects branches without an issue identifier' \
+expect_success \
+  'feature branches without an issue can target develop' \
   "$validator" \
   develop \
   feature/load-original-on-zoom \
   "Merge branch 'feature/load-original-on-zoom'" \
-  'Closes #42'
+  'Implements the requested behavior.'
+
+expect_success \
+  'upstream synchronization can target develop without an issue' \
+  "$validator" \
+  develop \
+  sync/upstream-master \
+  "Merge branch 'sync/upstream-master'" \
+  'Incorporates the latest upstream changes.'
 
 expect_failure \
   'develop rejects titles that do not name the source branch' \
@@ -61,8 +69,8 @@ expect_failure \
   'Load original images on zoom' \
   'Closes #42'
 
-expect_failure \
-  'develop rejects pull requests without a closing issue reference' \
+expect_success \
+  'issue-linked branches do not require a closing reference' \
   "$validator" \
   develop \
   feature/42-load-original-on-zoom \
@@ -70,12 +78,12 @@ expect_failure \
   'Implements the requested behavior.'
 
 expect_success \
-  'develop can be promoted to master' \
+  'develop can be promoted to master without an issue' \
   "$validator" \
   master \
   develop \
   "Merge branch 'develop'" \
-  'Closes #60'
+  'Promotes the current development branch.'
 
 expect_failure \
   'feature branches cannot target master directly' \
