@@ -790,6 +790,12 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       return (changedCount: missing.length, createdBookmarks: created);
     }
 
+    final repository = await ref.read(bookmarkGroupRepoProvider.future);
+    final target = await repository.getGroup(groupId);
+    if (target == null) {
+      throw StateError('Bookmark group $groupId does not exist.');
+    }
+    final before = target.bookmarkIds;
     final created = <Bookmark>[];
     try {
       for (final post in missing) {
@@ -805,15 +811,20 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
         );
       }
       final members = [...existing, ...created];
-      final before = current.groupsById[groupId]?.bookmarkIds ?? const <int>{};
       final changed = members.where((b) => !before.contains(b.id)).length;
-      await (await ref.read(bookmarkGroupRepoProvider.future)).addBookmarks(
+      await repository.addBookmarks(
         groupId,
         members.map((bookmark) => bookmark.id).toSet(),
       );
       return (changedCount: changed, createdBookmarks: created);
     } catch (error, stackTrace) {
-      final rollbackErrors = await _deleteCreatedBookmarks(created);
+      final rollbackErrors = <Object>[];
+      try {
+        await repository.replaceMemberships(groupId, before);
+      } catch (rollbackError) {
+        rollbackErrors.add(rollbackError);
+      }
+      rollbackErrors.addAll(await _deleteCreatedBookmarks(created));
       if (rollbackErrors.isNotEmpty) {
         throw BookmarkPostBatchRollbackException(
           operationError: error,

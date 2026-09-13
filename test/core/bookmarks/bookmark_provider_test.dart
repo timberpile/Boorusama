@@ -647,6 +647,51 @@ void main() {
   );
 
   test(
+    'bulk addition restores exact memberships after a committed write reports failure',
+    () async {
+      final source = Bookmark.empty.copyWith(
+        originalUrl: 'https://example.com/existing-bulk-add.jpg',
+      );
+      await bookmarkRepository.addBookmarkWithBookmarks([source]);
+      final stored = (await bookmarkRepository.getAllBookmarksOrThrow(
+        imageUrlResolver: (_) => const DefaultImageUrlResolver(),
+      )).single;
+      final group = await groupRepository.createGroup('Target');
+      final container = createContainer(
+        bookmarkRepositoryOverride: _BookmarkPostRepository(bookmarkBox),
+        groupRepositoryOverride: _CommitsThenThrowsAddGroupRepository(
+          groupBox,
+        ),
+      );
+      final notifier = container.read(bookmarkProvider.notifier);
+      await notifier.future;
+      final posts = [
+        stored.toPost(),
+        Bookmark.empty
+            .copyWith(originalUrl: 'https://example.com/new-bulk-add.jpg')
+            .toPost(),
+      ];
+
+      await expectLater(
+        notifier.addPostsToGroup(
+          BooruConfigAuth.fromConfig(BooruConfig.empty),
+          posts,
+          group.id,
+        ),
+        throwsStateError,
+      );
+
+      expect((await groupRepository.getGroup(group.id))?.bookmarkIds, isEmpty);
+      expect(
+        await bookmarkRepository.getAllBookmarksOrThrow(
+          imageUrlResolver: (_) => const DefaultImageUrlResolver(),
+        ),
+        [stored],
+      );
+    },
+  );
+
+  test(
     'an active group is not deleted when clearing its target fails',
     () async {
       final group = await groupRepository.createGroup('Protected');
@@ -997,6 +1042,16 @@ class _CommitsThenThrowsDeleteGroupRepository
   }
 }
 
+class _CommitsThenThrowsAddGroupRepository extends BookmarkGroupRepositoryHive {
+  _CommitsThenThrowsAddGroupRepository(super._box);
+
+  @override
+  Future<BookmarkGroup> addBookmarks(String id, Set<int> bookmarkIds) async {
+    await super.addBookmarks(id, bookmarkIds);
+    throw StateError('membership addition reported failure after committing');
+  }
+}
+
 class _FailingSecondReadBookmarkRepository extends BookmarkHiveRepository {
   _FailingSecondReadBookmarkRepository(super._box);
 
@@ -1044,6 +1099,24 @@ class _CommitsThenThrowsAddBookmarkRepository extends BookmarkHiveRepository {
     };
     await addBookmarkWithBookmarks([bookmark]);
     throw StateError('bookmark write reported failure after committing');
+  }
+}
+
+class _BookmarkPostRepository extends BookmarkHiveRepository {
+  const _BookmarkPostRepository(super._box);
+
+  @override
+  Future<Bookmark> addBookmark(
+    int booruId,
+    Post post, {
+    required ImageUrlResolver Function(int? booruId) imageUrlResolver,
+    required PostLinkGenerator Function(int? booruId) postLinkGenerator,
+  }) async {
+    final bookmark = switch (post) {
+      BookmarkPost(:final bookmark) => bookmark,
+      _ => throw StateError('Expected a stored bookmark post.'),
+    };
+    return (await addBookmarkWithBookmarks([bookmark])).single;
   }
 }
 

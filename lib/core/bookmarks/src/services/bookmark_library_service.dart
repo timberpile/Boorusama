@@ -84,7 +84,7 @@ class BookmarkLibraryService {
       await groupRepository.addBookmarks(groupId, {bookmark.id});
       return true;
     } catch (error, stackTrace) {
-      final rollbackErrors = <Object>[];
+      final rollbackErrors = await _restoreMemberships([group]);
       if (created) {
         try {
           await bookmarkRepository.removeBookmark(bookmark);

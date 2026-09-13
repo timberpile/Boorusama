@@ -182,6 +182,32 @@ void main() {
   );
 
   test(
+    'single addition restores memberships after a committed write reports failure',
+    () async {
+      final bookmark = await storeBookmark('committed-single-add');
+      await groupRepository.createGroup('First', id: firstGroupId);
+      service = BookmarkLibraryService(
+        bookmarkRepository: bookmarkRepository,
+        groupRepository: _CommitsThenThrowsAddGroupRepository(groupRepository),
+        imageUrlResolver: resolver,
+      );
+
+      await expectLater(
+        service.addBookmarkToGroup(
+          groupId: firstGroupId,
+          existingBookmark: bookmark,
+        ),
+        throwsStateError,
+      );
+
+      expect(
+        (await groupRepository.getGroup(firstGroupId))?.bookmarkIds,
+        isEmpty,
+      );
+    },
+  );
+
+  test(
     'single-post removal deletes the final membership and bookmark',
     () async {
       final bookmark = await storeBookmark('single');
@@ -545,6 +571,60 @@ class _FailingAddGroupRepository implements BookmarkGroupRepository {
   @override
   Future<BookmarkGroup> addBookmarks(String id, Set<int> bookmarkIds) {
     throw StateError('membership write failed');
+  }
+
+  @override
+  Future<BookmarkGroup> createGroup(String name, {String? id}) =>
+      delegate.createGroup(name, id: id);
+
+  @override
+  Future<BookmarkGroupDeletionPreview> deleteGroup(String id) =>
+      delegate.deleteGroup(id);
+
+  @override
+  Future<BookmarkGroup> duplicateGroup(String id, {String? name}) =>
+      delegate.duplicateGroup(id, name: name);
+
+  @override
+  Future<BookmarkGroup?> getGroup(String id) => delegate.getGroup(id);
+
+  @override
+  Future<List<BookmarkGroup>> getGroups() => delegate.getGroups();
+
+  @override
+  Future<BookmarkGroupDeletionPreview> previewDeleteGroup(String id) =>
+      delegate.previewDeleteGroup(id);
+
+  @override
+  Future<bool> repair({required Set<int> validBookmarkIds}) =>
+      delegate.repair(validBookmarkIds: validBookmarkIds);
+
+  @override
+  Future<void> removeBookmarkFromAllGroups(int bookmarkId) =>
+      delegate.removeBookmarkFromAllGroups(bookmarkId);
+
+  @override
+  Future<BookmarkGroup> removeBookmarks(String id, Set<int> bookmarkIds) =>
+      delegate.removeBookmarks(id, bookmarkIds);
+
+  @override
+  Future<BookmarkGroup> renameGroup(String id, String name) =>
+      delegate.renameGroup(id, name);
+
+  @override
+  Future<BookmarkGroup> replaceMemberships(String id, Set<int> bookmarkIds) =>
+      delegate.replaceMemberships(id, bookmarkIds);
+}
+
+class _CommitsThenThrowsAddGroupRepository implements BookmarkGroupRepository {
+  const _CommitsThenThrowsAddGroupRepository(this.delegate);
+
+  final BookmarkGroupRepository delegate;
+
+  @override
+  Future<BookmarkGroup> addBookmarks(String id, Set<int> bookmarkIds) async {
+    await delegate.addBookmarks(id, bookmarkIds);
+    throw StateError('membership addition reported failure after committing');
   }
 
   @override
