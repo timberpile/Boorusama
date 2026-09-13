@@ -3,8 +3,6 @@ import 'dart:async';
 
 // Package imports:
 import 'package:cache_manager/cache_manager.dart';
-import 'package:collection/collection.dart';
-import 'package:equatable/equatable.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:foundation/foundation.dart';
 import 'package:i18n/i18n.dart';
@@ -25,9 +23,246 @@ import '../../../router.dart';
 import '../../../settings/providers.dart';
 import '../data/bookmark_convert.dart';
 import '../data/providers.dart';
+import '../services/bookmark_library_service.dart';
 import '../types/bookmark.dart';
+import '../types/bookmark_library_state.dart';
 import '../types/bookmark_repository.dart';
+import '../types/bookmark_target.dart';
 
+final bookmarkLibraryProvider =
+    AsyncNotifierProvider<BookmarkLibraryNotifier, BookmarkLibraryState>(
+      BookmarkLibraryNotifier.new,
+      dependencies: [settingsProvider],
+    );
+
+final bookmarkProvider = bookmarkLibraryProvider;
+
+typedef BookmarkNotifier = BookmarkLibraryNotifier;
+
+final bookmarkUrlResolverProvider = Provider.autoDispose
+    .family<ImageUrlResolver, int?>((ref, booruId) {
+      final booruType = intToBooruType(booruId);
+      final registry = ref.watch(booruEngineRegistryProvider);
+      return registry.getRepository(booruType)?.imageUrlResolver() ??
+          const DefaultImageUrlResolver();
+    });
+
+class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
+  Future<void> _mutationTail = Future.value();
+
+  ImageCacheManager? get _cacheManager =>
+      ref.read(bookmarkImageCacheManagerProvider);
+
+  Future<BookmarkRepository> get bookmarkRepository =>
+      ref.read(bookmarkRepoProvider.future);
+
+  Future<BookmarkLibraryService> get _service async => BookmarkLibraryService(
+    bookmarkRepository: await bookmarkRepository,
+    groupRepository: await ref.read(bookmarkGroupRepoProvider.future),
+    imageUrlResolver: (booruId) =>
+        ref.read(bookmarkUrlResolverProvider(booruId)),
+    clearBookmarkCache: _clearBookmarkCache,
+  );
+
+  @override
+  FutureOr<BookmarkLibraryState> build() async =>
+      (await _service).load(const BookmarkTarget.ungrouped());
+
+  Future<T> _serialize<T>(Future<T> Function() operation) {
+    final completer = Completer<T>();
+    _mutationTail = _mutationTail.catchError((_) {}).then((_) async {
+      try {
+        completer.complete(await operation());
+      } catch (error, stackTrace) {
+        completer.completeError(error, stackTrace);
+      }
+    });
+    return completer.future;
+  }
+
+  Future<void> _reload() async {
+    final current = state.valueOrNull;
+    final target = current?.activeTarget ?? const BookmarkTarget.ungrouped();
+    state = AsyncValue.data(await (await _service).load(target));
+  }
+
+  Future<void> _clearBookmarkCache(Bookmark bookmark) async {
+    if (_cacheManager case final cache?) {
+      await Future.wait([
+        cache.clearCache(cache.generateCacheKey(bookmark.originalUrl)),
+        cache.clearCache(cache.generateCacheKey(bookmark.sampleUrl)),
+        cache.clearCache(cache.generateCacheKey(bookmark.thumbnailUrl)),
+      ]);
+    }
+  }
+
+  Future<void> addBookmarks(
+    BooruConfigAuth config,
+    Iterable<Post> posts, {
+    void Function(int count)? onSuccess,
+    void Function()? onError,
+  }) => _serialize(() async {
+    try {
+      final booruId = config.booruIdHint;
+      final currentState = await future;
+      final filtered = posts
+          .where((post) => !currentState.isBookmarked(post, booruId))
+          .toList();
+
+      await (await bookmarkRepository).addBookmarks(
+        booruId,
+        filtered,
+        imageUrlResolver: (booruId) =>
+            ref.read(bookmarkUrlResolverProvider(booruId)),
+        postLinkGenerator: (booruId) =>
+            ref.read(postLinkGeneratorProvider(config)),
+      );
+      await _reload();
+      onSuccess?.call(filtered.length);
+    } catch (_) {
+      onError?.call();
+    }
+  });
+
+  Future<void> addBookmark(
+    BooruConfigAuth config,
+    Post post, {
+    void Function()? onSuccess,
+    void Function()? onError,
+  }) => _serialize(() async {
+    try {
+      final booruId = config.booruIdHint;
+      final currentState = await future;
+      if (currentState.isBookmarked(post, booruId)) return;
+
+      await (await bookmarkRepository).addBookmark(
+        booruId,
+        post,
+        imageUrlResolver: (booruId) =>
+            ref.read(bookmarkUrlResolverProvider(booruId)),
+        postLinkGenerator: (booruId) =>
+            ref.read(postLinkGeneratorProvider(config)),
+      );
+      await _reload();
+      onSuccess?.call();
+    } catch (_) {
+      onError?.call();
+    }
+  });
+
+  Future<void> removeBookmarkFromId(
+    BookmarkUniqueId bookmarkId, {
+    void Function()? onSuccess,
+    void Function()? onError,
+  }) async {
+    final bookmark = (await future).bookmarksByUniqueId[bookmarkId];
+    if (bookmark == null) {
+      onError?.call();
+      return;
+    }
+    return removeBookmark(bookmark, onSuccess: onSuccess, onError: onError);
+  }
+
+  Future<void> removeBookmark(
+    Bookmark bookmark, {
+    void Function()? onSuccess,
+    void Function()? onError,
+  }) => removeBookmarks(
+    [bookmark],
+    onSuccess: onSuccess,
+    onError: onError,
+  );
+
+  Future<void> removeBookmarks(
+    Iterable<Bookmark> bookmarks, {
+    void Function()? onSuccess,
+    void Function()? onError,
+  }) => _serialize(() async {
+    try {
+      await (await _service).deleteBookmarks(bookmarks);
+      await _reload();
+      onSuccess?.call();
+    } catch (_) {
+      onError?.call();
+    }
+  });
+
+  Future<void> downloadBookmarks(
+    BooruConfigAuth auth,
+    BooruConfigDownload download,
+    List<Bookmark> bookmarks,
+  ) async {
+    final settings = ref.read(settingsProvider);
+    final networkConstraint = await resolveDownloadNetworkConstraint(
+      ref,
+      settings.downloadNetworkPolicy,
+    );
+    if (networkConstraint == null) return;
+
+    final downloader = ref.read(downloadServiceProvider);
+    final headers = ref.read(httpHeadersProvider(auth));
+    final tasks = bookmarks.map((bookmark) async {
+      final fileName = await fallbackFileNameBuilder.generate(
+        settings,
+        download,
+        bookmark.toPost(),
+        downloadUrl: bookmark.originalUrl,
+      );
+      final result = await downloader.download(
+        DownloadOptions.fromSettings(
+          settings,
+          config: download,
+          url: bookmark.originalUrl,
+          metadata: DownloaderMetadata(
+            thumbnailUrl: bookmark.thumbnailUrl,
+            fileSize: null,
+            siteUrl: bookmark.sourceUrl,
+            group: null,
+          ),
+          filename: fileName,
+          headers: headers,
+          networkConstraint: networkConstraint,
+        ),
+      );
+      return (
+        result: result,
+        fileName: fileName,
+        thumbnailUrl: bookmark.thumbnailUrl,
+      );
+    }).toList();
+
+    final results = await Future.wait(tasks);
+    for (final outcome in results) {
+      ref
+          .read(immediateDownloadActivitiesProvider.notifier)
+          .recordImmediateOutcome(
+            outcome.result,
+            label: outcome.fileName,
+            thumbnailUrl: outcome.thumbnailUrl,
+          );
+    }
+    final failures = results
+        .map((outcome) => outcome.result)
+        .whereType<DownloadFailure>()
+        .toList();
+    if (failures.isEmpty) return;
+    final context = navigatorKey.currentContext;
+    final uniqueErrors = failures
+        .map((error) => error.error.getErrorMessage())
+        .toSet()
+        .take(3)
+        .join('\n');
+    if (context != null && context.mounted) {
+      Kurumi.showErrorToast(
+        context,
+        'Download failed:\n$uniqueErrors',
+        duration: const Duration(seconds: 5),
+      );
+    }
+  }
+}
+
+/*
 final bookmarkProvider = AsyncNotifierProvider<BookmarkNotifier, BookmarkState>(
   BookmarkNotifier.new,
   dependencies: [
@@ -330,6 +565,7 @@ class BookmarkNotifier extends AsyncNotifier<BookmarkState> {
     }
   }
 }
+*/
 
 extension BookmarkCubitToastX on BookmarkNotifier {
   Future<void> addBookmarkWithToast(
@@ -397,7 +633,7 @@ extension BookmarkCubitToastX on BookmarkNotifier {
   }
 }
 
-class BookmarkState extends Equatable {
+/*class BookmarkState extends Equatable {
   const BookmarkState({
     required this.bookmarks,
     this.error = '',
@@ -424,6 +660,7 @@ extension BookmarkStateX on BookmarkState {
     return bookmarks.contains(BookmarkUniqueId.fromPost(post, booruId));
   }
 }
+*/
 
 extension BookmarkNotifierX on WidgetRef {
   BookmarkNotifier get bookmarks => read(bookmarkProvider.notifier);

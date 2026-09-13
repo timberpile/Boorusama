@@ -1,5 +1,4 @@
 // Package imports:
-import 'package:collection/collection.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Project imports:
@@ -18,52 +17,9 @@ import '../data/bookmark_convert.dart';
 import '../types/bookmark.dart';
 import '../types/bookmark_repository.dart';
 import 'bookmark_shuffle_provider.dart';
+import 'bookmark_group_selectors.dart';
 
-enum BookmarkSortType {
-  newest,
-  oldest,
-  random,
-}
-
-List<Bookmark> filterBookmarks({
-  required List<Bookmark> bookmarks,
-  required List<String> selectedTags,
-  required BookmarkSortType sortType,
-  String? selectedBooruUrl,
-  BookmarkShuffleState? shuffleState,
-}) {
-  final tagsList = selectedTags;
-
-  // Filter bookmarks based on URL and tags.
-  final filtered = selectedBooruUrl == null && tagsList.isEmpty
-      ? bookmarks
-      : bookmarks.where(
-          (bookmark) =>
-              (selectedBooruUrl == null ||
-                  bookmark.sourceUrl.contains(selectedBooruUrl)) &&
-              (tagsList.isEmpty ||
-                  tagsList.every((tag) => bookmark.tags.contains(tag))),
-        );
-
-  final sorted = filtered
-      .sorted(
-        (a, b) => switch (sortType) {
-          BookmarkSortType.newest => b.createdAt.compareTo(a.createdAt),
-          BookmarkSortType.oldest => a.createdAt.compareTo(b.createdAt),
-          BookmarkSortType.random => 0, // No initial sorting for random
-        },
-      )
-      .toList();
-
-  if (sortType == BookmarkSortType.random) {
-    final activeShuffleState = shuffleState?.seed != null
-        ? shuffleState!
-        : const BookmarkShuffleState().withNewShuffle();
-    return activeShuffleState.applyShuffleToList(sorted);
-  }
-
-  return sorted;
-}
+export 'bookmark_group_selectors.dart' show BookmarkSortType, filterBookmarks;
 
 final bookmarkEditProvider = StateProvider.autoDispose<bool>((ref) => false);
 

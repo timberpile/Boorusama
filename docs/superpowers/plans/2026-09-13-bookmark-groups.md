@@ -90,31 +90,31 @@ Run: `git commit -m "feat(bookmarks): add group persistence"`
 - Produces: `BookmarkLibraryState`, pure filter/preview/button/bulk selectors, `BookmarkLibraryService`, and `bookmarkLibraryProvider` as `AsyncNotifierProvider<BookmarkLibraryNotifier, BookmarkLibraryState>`.
 - Preserves existing `bookmarkProvider` consumers through a thin compatibility projection while call sites migrate.
 
-- [ ] **Step 1: Write failing selector tests**
+- [x] **Step 1: Write failing selector tests**
 
 Cover `All`, `No Group`, named GUID filtering, current sort modes, first-four previews, active-target membership, total named membership counts, and mixed bulk aggregate counts.
 
-- [ ] **Step 2: Verify selector tests fail**
+- [x] **Step 2: Verify selector tests fail**
 
 Run: `fvm flutter test test/core/bookmarks/bookmark_library_state_test.dart`
 
-- [ ] **Step 3: Implement immutable state and pure selectors**
+- [x] **Step 3: Implement immutable state and pure selectors**
 
 Build membership indexes once per snapshot. Keep `BookmarkTarget.ungrouped` separate from `BookmarkView.all`, and fall back to ungrouped when the persisted GUID is absent.
 
-- [ ] **Step 4: Write failing mutation-service tests**
+- [x] **Step 4: Write failing mutation-service tests**
 
 Cover creating missing bookmarks before membership, adding existing bookmarks without duplication, single-post final-membership deletion, bulk final-membership preservation, complete deletion and cache cleanup, group deletion orphan rules, serialized concurrent mutations, rollback, and post-failure repair. Stub only repositories, settings persistence, UUID generation, and the external image cache.
 
-- [ ] **Step 5: Verify mutation-service tests fail**
+- [x] **Step 5: Verify mutation-service tests fail**
 
 Run: `fvm flutter test test/core/bookmarks/bookmark_library_service_test.dart`
 
-- [ ] **Step 6: Implement the service and AsyncNotifier**
+- [x] **Step 6: Implement the service and AsyncNotifier**
 
 The service returns typed result values with counts. The notifier queues mutations, awaits the service, reloads one snapshot, and never converts repository failures into silent success callbacks.
 
-- [ ] **Step 7: Format and verify focused tests**
+- [x] **Step 7: Format and verify focused tests**
 
 Run: `fvm dart format lib/core/bookmarks test/core/bookmarks`
 
