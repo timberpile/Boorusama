@@ -21,6 +21,7 @@ import '../types/bookmark.dart';
 import '../types/bookmark_group.dart';
 import '../types/bookmark_view.dart';
 import '../widgets/bookmark_group_name_dialog.dart';
+import '../widgets/bookmark_group_label.dart';
 
 class BookmarkGroupBrowserPage extends ConsumerWidget {
   const BookmarkGroupBrowserPage({super.key});
@@ -44,6 +45,7 @@ class BookmarkGroupBrowserPage extends ConsumerWidget {
         error: (_, _) => const Center(child: Icon(Icons.error_outline)),
         data: (state) {
           final sort = ref.watch(selectedBookmarkSortTypeProvider);
+          final labels = bookmarkGroupLabels(state.groups);
           final entries =
               <({String title, BookmarkView view, BookmarkGroup? group})>[
                 (
@@ -58,7 +60,7 @@ class BookmarkGroupBrowserPage extends ConsumerWidget {
                 ),
                 for (final group in state.groups)
                   (
-                    title: group.name,
+                    title: labels[group.id]!,
                     view: BookmarkView.group(group.id),
                     group: group,
                   ),

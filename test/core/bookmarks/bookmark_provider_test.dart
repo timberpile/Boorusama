@@ -494,6 +494,26 @@ void main() {
       );
     },
   );
+
+  test(
+    'an active group is not deleted when clearing its target fails',
+    () async {
+      final group = await groupRepository.createGroup('Protected');
+      final settings = Settings.defaultSettings.copyWith(
+        activeBookmarkGroupId: group.id,
+      );
+      final container = createContainer(
+        settingsNotifier: _FailingSettingsNotifier(settings),
+      );
+      final notifier = container.read(bookmarkProvider.notifier);
+      await notifier.future;
+
+      await expectLater(notifier.deleteGroup(group.id), throwsStateError);
+
+      expect(await groupRepository.getGroup(group.id), group);
+      expect(container.read(settingsProvider).activeBookmarkGroupId, group.id);
+    },
+  );
 }
 
 class _TestSettingsNotifier extends SettingsNotifier {

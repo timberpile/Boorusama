@@ -14,6 +14,7 @@ import '../data/bookmark_convert.dart';
 import '../providers/bookmark_provider.dart';
 import '../types/bookmark.dart';
 import '../types/bookmark_target.dart';
+import 'bookmark_active_target_badge.dart';
 import 'bookmark_group_label.dart';
 import 'bookmark_group_name_dialog.dart';
 
@@ -51,13 +52,38 @@ Future<void> showAnchoredBookmarkGroupPicker(
       if (bookmark == null || memberships.isEmpty)
         PopupMenuItem(
           value: 'ungrouped',
-          child: Text(context.t.bookmark.groups.ungrouped),
+          child: Row(
+            children: [
+              Icon(
+                Symbols.bookmark,
+                fill: bookmark != null && memberships.isEmpty ? 1 : 0,
+              ),
+              const SizedBox(width: 12),
+              Expanded(child: Text(context.t.bookmark.groups.ungrouped)),
+              if (library.activeTarget.groupId == null)
+                BookmarkActiveTargetBadge(
+                  label: context.t.bookmark.groups.active,
+                ),
+            ],
+          ),
         ),
       for (final group in library.groups)
-        CheckedPopupMenuItem(
+        PopupMenuItem(
           value: group.id,
-          checked: memberships.contains(group.id),
-          child: Text(labels[group.id]!),
+          child: Row(
+            children: [
+              Icon(
+                Symbols.bookmarks,
+                fill: memberships.contains(group.id) ? 1 : 0,
+              ),
+              const SizedBox(width: 12),
+              Expanded(child: Text(labels[group.id]!)),
+              if (library.activeTarget.groupId == group.id)
+                BookmarkActiveTargetBadge(
+                  label: context.t.bookmark.groups.active,
+                ),
+            ],
+          ),
         ),
       PopupMenuItem(
         value: 'create',
@@ -177,19 +203,32 @@ class BookmarkGroupPicker extends ConsumerWidget {
           shrinkWrap: true,
           children: [
             if (bookmark == null || memberships.isEmpty)
-              CheckboxListTile(
-                value: bookmark != null && memberships.isEmpty,
+              ListTile(
+                leading: Icon(
+                  Symbols.bookmark,
+                  fill: bookmark != null && memberships.isEmpty ? 1 : 0,
+                ),
                 title: Text(context.t.bookmark.groups.ungrouped),
-                onChanged: (_) => _toggleUngrouped(context, ref, bookmark),
+                trailing: library?.activeTarget.groupId == null
+                    ? BookmarkActiveTargetBadge(
+                        label: context.t.bookmark.groups.active,
+                      )
+                    : null,
+                onTap: () => _toggleUngrouped(context, ref, bookmark),
               ),
             for (final group in library?.groups ?? const [])
-              CheckboxListTile(
-                value: memberships.contains(group.id),
+              ListTile(
+                leading: Icon(
+                  Symbols.bookmarks,
+                  fill: memberships.contains(group.id) ? 1 : 0,
+                ),
                 title: Text(labels[group.id]!),
-                secondary: library?.activeTarget.groupId == group.id
-                    ? const Icon(Symbols.check_circle)
+                trailing: library?.activeTarget.groupId == group.id
+                    ? BookmarkActiveTargetBadge(
+                        label: context.t.bookmark.groups.active,
+                      )
                     : null,
-                onChanged: (_) => _toggleGroup(
+                onTap: () => _toggleGroup(
                   context,
                   ref,
                   bookmark,

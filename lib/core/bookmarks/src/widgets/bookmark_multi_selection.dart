@@ -237,21 +237,18 @@ class BookmarkMultiSelectionMenu extends ConsumerWidget {
           onTap: () =>
               _select(context, ref, BookmarkMultiSelectionOperation.add),
         ),
-        if (summary.membershipCounts.isNotEmpty)
-          KurumiPopupMenuItem(
-            title: Text(context.t.bookmark.bulk.remove),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () =>
-                _select(context, ref, BookmarkMultiSelectionOperation.remove),
-          ),
-        if (summary.bookmarkedPosts > 0) ...[
-          const Divider(),
-          KurumiPopupMenuItem(
-            icon: const Icon(Symbols.delete),
-            title: Text(context.t.bookmark.bulk.delete),
-            onTap: () => _delete(context, ref, summary.bookmarkedPosts),
-          ),
-        ],
+        KurumiPopupMenuItem(
+          title: Text(context.t.bookmark.bulk.remove),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () =>
+              _select(context, ref, BookmarkMultiSelectionOperation.remove),
+        ),
+        const Divider(),
+        KurumiPopupMenuItem(
+          icon: const Icon(Symbols.delete),
+          title: Text(context.t.bookmark.bulk.delete),
+          onTap: () => _delete(context, ref, summary.bookmarkedPosts),
+        ),
       ],
     );
   }

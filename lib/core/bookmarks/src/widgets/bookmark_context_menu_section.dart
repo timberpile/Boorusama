@@ -15,7 +15,7 @@ import '../data/bookmark_convert.dart';
 import '../providers/bookmark_provider.dart';
 import '../types/bookmark.dart';
 import '../types/bookmark_target.dart';
-import 'bookmark_active_target_badge.dart';
+import 'bookmark_group_label.dart';
 import 'bookmark_group_name_dialog.dart';
 
 class BookmarkContextMenuSection extends ConsumerWidget {
@@ -77,8 +77,8 @@ class _BookmarkContextGroupPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final library = container.read(bookmarkProvider).valueOrNull;
-    final activeGroupId = library?.activeTarget.groupId;
     final isGrouped = bookmark != null && memberships.isNotEmpty;
+    final labels = bookmarkGroupLabels(library?.groups ?? const []);
     return ConstrainedBox(
       constraints: BoxConstraints(maxHeight: MediaQuery.heightOf(context) * .6),
       child: ListView(
@@ -100,15 +100,13 @@ class _BookmarkContextGroupPage extends StatelessWidget {
               groupId: null,
               name: context.t.bookmark.groups.ungrouped,
               selected: bookmark != null,
-              active: activeGroupId == null,
             ),
           for (final group in library?.groups ?? const [])
             _item(
               context,
               groupId: group.id,
-              name: group.name,
+              name: labels[group.id]!,
               selected: memberships.contains(group.id),
-              active: activeGroupId == group.id,
             ),
           const Divider(),
           KurumiPopupMenuItem(
@@ -126,16 +124,12 @@ class _BookmarkContextGroupPage extends StatelessWidget {
     required String? groupId,
     required String name,
     required bool selected,
-    required bool active,
   }) => KurumiPopupMenuItem(
     icon: Icon(
       groupId == null ? Symbols.bookmark : Symbols.bookmarks,
       fill: selected ? 1 : 0,
     ),
     title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
-    trailing: active
-        ? BookmarkActiveTargetBadge(label: context.t.bookmark.groups.active)
-        : null,
     onTap: () => _afterDismiss(() => _toggle(groupId)),
   );
 

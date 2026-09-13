@@ -1,3 +1,6 @@
+// Dart imports:
+import 'dart:async';
+
 // Package imports:
 import 'package:flutter_test/flutter_test.dart';
 import 'package:foundation/foundation.dart';
@@ -6,6 +9,7 @@ import 'package:foundation/foundation.dart';
 import 'package:boorusama/core/bookmarks/src/data/bookmark_convert.dart';
 import 'package:boorusama/core/bookmarks/src/data/bookmark_selection.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark.dart';
+import 'package:boorusama/core/errors/error.dart';
 import 'package:boorusama/core/posts/listing/src/widgets/post_duplicate_checker.dart';
 import 'package:boorusama/core/posts/listing/src/widgets/post_grid_controller.dart';
 import 'package:boorusama/core/posts/post/types.dart';
@@ -63,4 +67,37 @@ void main() {
 
     expect(indices, [0]);
   });
+
+  test(
+    'a refresh requested while loading runs after the active refresh',
+    () async {
+      final firstFetch = Completer<PostResult<BookmarkPost>>();
+      var fetchCount = 0;
+      final controller = PostGridController<BookmarkPost>(
+        fetcher: (_) {
+          fetchCount++;
+          return TaskEither.tryCatch(
+            () => fetchCount == 1
+                ? firstFetch.future
+                : Future.value(PostResult.empty()),
+            (error, _) => UnknownError(error: error, message: 'failed'),
+          );
+        },
+        blacklistedTagsFetcher: () async => const {},
+        mountedChecker: () => true,
+        duplicateTracker: PostDuplicateTracker(),
+        onError: (_) {},
+        debounceDuration: Duration.zero,
+      );
+      addTearDown(controller.dispose);
+
+      final activeRefresh = controller.refresh();
+      await Future<void>.delayed(Duration.zero);
+      final queuedRefresh = controller.refresh();
+      firstFetch.complete(PostResult.empty());
+      await Future.wait([activeRefresh, queuedRefresh]);
+
+      expect(fetchCount, 2);
+    },
+  );
 }

@@ -78,6 +78,10 @@ class PostGridController<T extends Post> extends ChangeNotifier {
   var _loading = false;
   var _refreshing = false;
   var _preserveSelectionOnRefresh = false;
+  var _refreshPending = false;
+  var _pendingMaintainPage = false;
+  var _pendingPreserveSelection = false;
+  final _queuedRefreshWaiters = <Completer<void>>[];
 
   var _total = 0;
 
@@ -271,7 +275,46 @@ class PostGridController<T extends Post> extends ChangeNotifier {
     bool maintainPage = false,
     bool preserveSelection = false,
   }) async {
-    if (_refreshing) return;
+    if (_refreshing) {
+      _refreshPending = true;
+      _pendingMaintainPage = _pendingMaintainPage || maintainPage;
+      _pendingPreserveSelection =
+          _pendingPreserveSelection || preserveSelection;
+      final waiter = Completer<void>();
+      _queuedRefreshWaiters.add(waiter);
+      return waiter.future;
+    }
+    try {
+      var nextMaintainPage = maintainPage;
+      var nextPreserveSelection = preserveSelection;
+      do {
+        _refreshPending = false;
+        _pendingMaintainPage = false;
+        _pendingPreserveSelection = false;
+        await _performRefresh(
+          maintainPage: nextMaintainPage,
+          preserveSelection: nextPreserveSelection,
+        );
+        nextMaintainPage = _pendingMaintainPage;
+        nextPreserveSelection = _pendingPreserveSelection;
+      } while (_refreshPending);
+      for (final waiter in _queuedRefreshWaiters) {
+        waiter.complete();
+      }
+    } catch (error, stackTrace) {
+      for (final waiter in _queuedRefreshWaiters) {
+        waiter.completeError(error, stackTrace);
+      }
+      rethrow;
+    } finally {
+      _queuedRefreshWaiters.clear();
+    }
+  }
+
+  Future<void> _performRefresh({
+    required bool maintainPage,
+    required bool preserveSelection,
+  }) async {
     _preserveSelectionOnRefresh = preserveSelection;
     try {
       _setRefreshing(true);

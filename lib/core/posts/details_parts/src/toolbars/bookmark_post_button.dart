@@ -128,33 +128,50 @@ class BookmarkPostLikeButtonButton extends ConsumerWidget {
     final isBookmarked = groupId == null
         ? bookmark != null && memberships.isEmpty
         : memberships.contains(groupId);
+    final showCount =
+        memberships.isNotEmpty &&
+        (groupId == null ||
+            !memberships.contains(groupId) ||
+            memberships.length > 1);
     final isLoading = bookmarkStateAsync.isLoading;
 
-    return LikeButton(
-      isLiked: isBookmarked,
-      onTap: isLoading
+    return GestureDetector(
+      onLongPressStart: isLoading
           ? null
-          : (isLiked) async {
-              final outcome = await ref.toggleBookmarkTarget(
-                post,
-                booruConfig,
-                context,
-              );
-              return switch (outcome) {
-                BookmarkToggleOutcome.added => true,
-                BookmarkToggleOutcome.removed => false,
-                _ => isLiked,
-              };
-            },
-      likeBuilder: (isLiked) {
-        return Icon(
-          isLiked ? Symbols.bookmark : Symbols.bookmark,
-          color: isLiked
-              ? context.colors.upvoteColor
-              : context.extendedColorScheme.onSurfaceContainerOverlay,
-          fill: isLiked ? 1 : 0,
-        );
-      },
+          : (details) => showAnchoredBookmarkGroupPicker(
+              context,
+              config: booruConfig,
+              post: post,
+              position: details.globalPosition,
+            ),
+      child: LikeButton(
+        isLiked: isBookmarked,
+        onTap: isLoading
+            ? null
+            : (isLiked) async {
+                final outcome = await ref.toggleBookmarkTarget(
+                  post,
+                  booruConfig,
+                  context,
+                );
+                return switch (outcome) {
+                  BookmarkToggleOutcome.added => true,
+                  BookmarkToggleOutcome.removed => false,
+                  _ => isLiked,
+                };
+              },
+        likeBuilder: (isLiked) => Badge(
+          isLabelVisible: showCount,
+          label: Text('${memberships.length}'),
+          child: Icon(
+            Symbols.bookmark,
+            color: isLiked
+                ? context.colors.upvoteColor
+                : context.extendedColorScheme.onSurfaceContainerOverlay,
+            fill: isLiked ? 1 : 0,
+          ),
+        ),
+      ),
     );
   }
 }
