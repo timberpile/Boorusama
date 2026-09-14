@@ -92,7 +92,7 @@ final kDefaultAltHomeView = {
   ),
   const CustomHomeViewKey('bookmark'): CustomHomeDataBuilder(
     displayName: (context) => context.t.sideMenu.your_bookmarks,
-    builder: (context, booruBuilder) => const BookmarkPage(),
+    builder: (context, booruBuilder) => const BookmarkGroupBrowserPage(),
   ),
   const CustomHomeViewKey('bulk_download'): CustomHomeDataBuilder(
     displayName: (context) => context.t.sideMenu.bulk_download,

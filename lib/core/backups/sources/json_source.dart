@@ -13,11 +13,13 @@ import '../../../foundation/filesystem.dart';
 import '../preparation/preparation_pipeline.dart';
 import '../preparation/version_checking.dart';
 import '../types/backup_data_source.dart';
+import '../types/types.dart';
 import '../utils/backup_utils.dart';
 import '../utils/data_converter.dart';
 import '../utils/json_handler.dart';
 
-abstract class JsonBackupSource<T> implements BackupDataSource {
+abstract class JsonBackupSource<T>
+    implements BackupDataSource, BackupResultSource {
   JsonBackupSource({
     required this.id,
     required this.priority,
@@ -29,6 +31,10 @@ abstract class JsonBackupSource<T> implements BackupDataSource {
     required this.ref,
     this.extraSteps = const [],
     this.validator,
+    this.extraPayloadEncoder,
+    this.scopedDataGetter,
+    this.exportResultBuilder,
+    this.resultExecutor,
   }) {
     converter = DataBackupConverter(
       version: version,
@@ -56,6 +62,13 @@ abstract class JsonBackupSource<T> implements BackupDataSource {
   final JsonHandler<T> handler;
   final List<PreparationStep<T>> extraSteps;
   final bool Function(T data)? validator;
+  final Map<String, dynamic> Function(T data)? extraPayloadEncoder;
+  final Future<T> Function(BackupExportOptions? options)? scopedDataGetter;
+  final BackupOperationResult Function(T data)? exportResultBuilder;
+  final Future<BackupOperationResult?> Function(T data, BuildContext? context)?
+  resultExecutor;
+  @override
+  BackupOperationResult? lastImportResult;
   final Ref ref;
 
   late final DataBackupConverter converter;
@@ -80,7 +93,10 @@ abstract class JsonBackupSource<T> implements BackupDataSource {
   Future<shelf.Response> _serveData(shelf.Request request) async {
     final data = await dataGetter();
     final payload = handler.encode(data);
-    final json = converter.encode(payload: payload);
+    final json = converter.encode(
+      payload: payload,
+      extraFields: extraPayloadEncoder?.call(data) ?? const {},
+    );
     return shelf.Response.ok(
       json,
       headers: {'Content-Type': 'application/json'},
@@ -108,19 +124,31 @@ abstract class JsonBackupSource<T> implements BackupDataSource {
   Future<ImportPreparation> _prepareImport(
     String data,
     BuildContext? uiContext,
-  ) => _noContextPrepare(data);
+  ) => importBuilder.prepare(
+    data,
+    handler.parse,
+    _executeImport,
+    uiContext,
+  );
 
-  Future<void> _exportToFile(String directoryPath) async {
+  Future<BackupOperationResult?> _exportToFile(
+    String directoryPath, {
+    BackupExportOptions? options,
+  }) async {
     await BackupUtils.ensureStoragePermissions(ref);
 
-    final data = await dataGetter();
+    final data = await (scopedDataGetter?.call(options) ?? dataGetter());
     final payload = handler.encode(data);
-    final json = converter.encode(payload: payload);
+    final json = converter.encode(
+      payload: payload,
+      extraFields: extraPayloadEncoder?.call(data) ?? const {},
+    );
 
     final timestamp = DateFormat('yyyy.MM.dd.HH.mm.ss').format(DateTime.now());
     final fileName = 'boorusama_${id}_$timestamp.json';
 
     await writeFileToDirectory(directoryPath, fileName, json);
+    return exportResultBuilder?.call(data);
   }
 
   Future<ImportPreparation> _prepareFileImport(
@@ -136,16 +164,22 @@ abstract class JsonBackupSource<T> implements BackupDataSource {
     return importBuilder.prepare(
       content,
       handler.parse,
-      executor,
+      _executeImport,
       uiContext,
     );
   }
 
-  Future<void> _exportToClipboard() async {
-    final data = await dataGetter();
+  Future<BackupOperationResult?> _exportToClipboard({
+    BackupExportOptions? options,
+  }) async {
+    final data = await (scopedDataGetter?.call(options) ?? dataGetter());
     final payload = handler.encode(data);
-    final json = converter.encode(payload: payload);
+    final json = converter.encode(
+      payload: payload,
+      extraFields: extraPayloadEncoder?.call(data) ?? const {},
+    );
     await AppClipboard.copy(json);
+    return exportResultBuilder?.call(data);
   }
 
   Future<ImportPreparation> _prepareClipboardImport(
@@ -163,7 +197,7 @@ abstract class JsonBackupSource<T> implements BackupDataSource {
     return importBuilder.prepare(
       content,
       handler.parse,
-      executor,
+      _executeImport,
       uiContext,
     );
   }
@@ -172,9 +206,18 @@ abstract class JsonBackupSource<T> implements BackupDataSource {
       importBuilder.prepare(
         data,
         handler.parse,
-        executor,
+        _executeImport,
         null,
       );
+
+  Future<void> _executeImport(T parsed, BuildContext? context) async {
+    if (resultExecutor case final execute?) {
+      lastImportResult = await execute(parsed, context);
+    } else {
+      await executor(parsed, context);
+      lastImportResult = null;
+    }
+  }
 
   Future<void> writeFileToDirectory(
     String directoryPath,

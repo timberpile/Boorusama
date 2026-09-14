@@ -1,6 +1,3 @@
-// Dart imports:
-import 'dart:async';
-
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
@@ -10,7 +7,7 @@ import 'package:selection_mode/selection_mode.dart';
 
 // Project imports:
 import '../../../../../../core/widgets/widgets.dart';
-import '../../../../bookmarks/providers.dart';
+import '../../../../bookmarks/widgets.dart';
 import '../../../../configs/config/providers.dart';
 import '../../../../downloads/downloader/providers.dart';
 import '../../../post/types.dart';
@@ -70,21 +67,17 @@ class DefaultMultiSelectionActions<T extends Post> extends ConsumerWidget {
               name: context.t.download.download,
             ),
             if (bookmark)
-              MultiSelectButton(
+              MultiSelectPopupButton(
                 name: context.t.post.action.bookmark,
-                onPressed: selectedPosts.isNotEmpty
-                    ? () {
-                        unawaited(
-                          ref.bookmarks.addBookmarksWithToast(
-                            booruConfig,
-                            booruConfig.url,
-                            selectedPosts,
-                          ),
-                        );
-                        controller.disable();
-                      }
-                    : null,
+                enabled: selectedPosts.isNotEmpty,
                 icon: const Icon(Symbols.bookmark_add),
+                items: [
+                  BookmarkMultiSelectionMenu(
+                    posts: selectedPosts,
+                    config: booruConfig,
+                    onCompleted: () async {},
+                  ),
+                ],
               ),
             if (extraActions != null) ...extraActions!(selectedPosts),
           ],

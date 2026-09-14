@@ -2,6 +2,7 @@
 import 'package:collection/collection.dart';
 import 'package:dio/dio.dart';
 import 'package:equatable/equatable.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Project imports:
@@ -245,7 +246,7 @@ class ImportDataNotifier
     );
   }
 
-  Future<void> startImport() async {
+  Future<void> startImport(BuildContext uiContext) async {
     state = state.copyWith(
       step: ImportStep.importing,
     );
@@ -290,7 +291,8 @@ class ImportDataNotifier
       await Future.delayed(const Duration(milliseconds: 250));
 
       try {
-        await _handleTask(task, arg);
+        if (!uiContext.mounted) return;
+        await _handleTask(task, arg, uiContext);
 
         state = state.copyWith(
           tasks: [
@@ -331,7 +333,11 @@ class ImportDataNotifier
     }
   }
 
-  Future<void> _handleTask(ImportTask task, String serverUrl) async {
+  Future<void> _handleTask(
+    ImportTask task,
+    String serverUrl,
+    BuildContext uiContext,
+  ) async {
     final registry = ref.read(backupRegistryProvider);
     final source = registry.getSource(task.id);
 
@@ -341,7 +347,7 @@ class ImportDataNotifier
 
     final preparation = await source.capabilities.server.prepareImport(
       serverUrl,
-      null, // No UI context for server transfers
+      uiContext,
     );
 
     // For server transfers, we accept all version checks automatically

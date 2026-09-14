@@ -2,6 +2,10 @@
 
 The standard development workflow uses pull requests to retain review and test context. GitHub issues are recommended for work that benefits from tracked requirements or discussion, but they are not required. Direct commits to `develop` are permitted only when the user explicitly authorizes one for the current change.
 
+In a fresh Git worktree, run `fvm dart pub get` from
+`packages/boorusama_cli` before the first `./gen.sh`; the generator imports the
+CLI package configuration from that directory.
+
 ## Direct commits to develop
 
 - Direct commits to `develop` require explicit user authorization for the current change. Authorization does not carry over to later changes.

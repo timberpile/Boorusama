@@ -24,26 +24,34 @@ import '../../../posts/post/types.dart';
 import '../../../widgets/widgets.dart';
 import '../../types.dart';
 import '../data/bookmark_convert.dart';
+import '../data/bookmark_selection.dart';
 import '../data/providers.dart';
 import '../providers/bookmark_provider.dart';
+import '../providers/bookmark_group_selectors.dart';
 import '../providers/bookmark_shuffle_provider.dart';
 import '../providers/local_providers.dart';
 import '../routes/route_utils.dart';
 import 'bookmark_appbar.dart';
 import 'bookmark_booru_type_selector.dart';
+import 'bookmark_context_menu_section.dart';
 import 'bookmark_search_bar.dart';
 import 'bookmark_shuffle_button.dart';
 import 'bookmark_sort_button.dart';
+import 'bookmark_multi_selection.dart';
 
 class BookmarkScrollView extends ConsumerStatefulWidget {
   const BookmarkScrollView({
     required this.scrollController,
     required this.searchController,
+    required this.view,
+    this.title,
     super.key,
   });
 
   final AutoScrollController scrollController;
   final TextEditingController searchController;
+  final BookmarkView view;
+  final String? title;
 
   @override
   ConsumerState<BookmarkScrollView> createState() => _BookmarkScrollViewState();
@@ -82,13 +90,11 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
           final sortType = ref.read(selectedBookmarkSortTypeProvider);
           final selectedBooruUrl = ref.read(selectedBooruUrlProvider);
           final shuffleState = ref.read(bookmarkShuffleProvider);
-          final bookmarks = filterBookmarks(
+          final library = await ref.read(bookmarkProvider.future);
+          final bookmarks = selectBookmarks(
+            state: library,
+            view: widget.view,
             selectedTags: searchTags,
-            bookmarks: await (await ref.read(bookmarkRepoProvider.future))
-                .getAllBookmarksOrEmpty(
-                  imageUrlResolver: (booruId) =>
-                      ref.read(bookmarkUrlResolverProvider(booruId)),
-                ),
             sortType: sortType,
             selectedBooruUrl: selectedBooruUrl,
             shuffleState: shuffleState,
@@ -120,6 +126,29 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 controller.refresh();
               });
+            })
+            ..listen(bookmarkProvider, (_, _) {
+              final selected = selectedBookmarkIdentities(
+                controller.items.toList(),
+                _selectionModeController.selection,
+              );
+              WidgetsBinding.instance.addPostFrameCallback((_) async {
+                await controller.refresh(preserveSelection: true);
+                if (!mounted || selected.isEmpty) return;
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (!mounted) return;
+                  final indices = bookmarkSelectionIndices(
+                    controller.items.toList(),
+                    selected,
+                  );
+                  _selectionModeController.deselectAll();
+                  if (indices.isEmpty) {
+                    _selectionModeController.disable();
+                  } else {
+                    _selectionModeController.enable(initialSelected: indices);
+                  }
+                });
+              });
             });
 
           final auth = ref.watchConfigAuth;
@@ -143,30 +172,17 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                     );
               },
               extraActions: (selectedPosts) => [
-                MultiSelectButton(
-                  onPressed: selectedPosts.isNotEmpty
-                      ? () {
-                          final bookmarks = selectedPosts
-                              .map((e) => e.bookmark)
-                              .toList();
-
-                          ref
-                              .read(bookmarkProvider.notifier)
-                              .removeBookmarks(bookmarks)
-                              .then((_) {
-                                if (context.mounted) {
-                                  controller.remove(
-                                    selectedPosts.map((e) => e.id).toList(),
-                                    (e) => e.id,
-                                  );
-                                }
-                              });
-
-                          _selectionModeController.disable();
-                        }
-                      : null,
-                  icon: const Icon(Symbols.bookmark_remove),
-                  name: 'Remove',
+                MultiSelectPopupButton(
+                  enabled: selectedPosts.isNotEmpty,
+                  icon: const Icon(Symbols.bookmarks),
+                  name: context.t.bookmark.bulk.title,
+                  items: [
+                    BookmarkMultiSelectionMenu(
+                      posts: selectedPosts,
+                      config: auth,
+                      onCompleted: () async {},
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -207,6 +223,7 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                 backgroundColor: Kurumi.themeOf(context).colorScheme.surface,
                 title: BookmarkAppBar(
                   controller: controller,
+                  title: widget.title,
                 ),
               ),
               SliverToBoxAdapter(
@@ -303,8 +320,9 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                 child: KurumiCircularIconButton(
                   padding: const EdgeInsets.all(4),
                   icon: const Icon(Symbols.close),
-                  onPressed: () => ref.bookmarks.removeBookmark(
+                  onPressed: () => ref.bookmarks.removeBookmarkFromView(
                     post.bookmark,
+                    widget.view,
                     onSuccess: () {
                       controller.remove([post.id], (e) => e.id);
                     },
@@ -349,15 +367,7 @@ class BookmarkContextMenu extends ConsumerWidget {
             [post.bookmark],
           ),
         ),
-        KurumiContextMenuTile(
-          title: context.t.post.detail.remove_from_bookmark,
-          onTap: () => ref.bookmarks.removeBookmark(
-            post.bookmark,
-            onSuccess: () {
-              controller.remove([post.id], (e) => e.id);
-            },
-          ),
-        ),
+        BookmarkContextMenuSection(post: post, config: auth),
         if (!loginDetails.hasStrictSFW)
           KurumiContextMenuTile(
             title: 'Open source in browser',

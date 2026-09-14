@@ -7,8 +7,7 @@ import 'package:selection_mode/selection_mode.dart';
 
 // Project imports:
 import '../../../../../foundation/url_launcher.dart';
-import '../../../../bookmarks/providers.dart';
-import '../../../../bookmarks/types.dart';
+import '../../../../bookmarks/widgets.dart';
 import '../../../../boorus/engine/providers.dart';
 import '../../../../configs/config/providers.dart';
 import '../../../../downloads/downloader/providers.dart';
@@ -36,15 +35,13 @@ class GeneralPostContextMenu extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final booruConfig = ref.watchConfigAuth;
     final loginDetails = ref.watch(booruLoginDetailsProvider(booruConfig));
-    final bookmarkStateAsync = ref.watch(bookmarkProvider);
     final commentPageBuilder = ref
         .watch(booruBuilderProvider(booruConfig))
         ?.commentPageBuilder;
     final postLinkGenerator = ref.watch(postLinkGeneratorProvider(booruConfig));
     final selectionModeController = SelectionMode.maybeOf(context);
-    final feedbackContext = context;
+    final feedbackContext = Navigator.of(context, rootNavigator: true).context;
 
-    final isBookmarkLoading = bookmarkStateAsync.isLoading;
     final downloadNotifier = ref.watch(
       downloadNotifierProvider(
         ref.watch(
@@ -60,13 +57,6 @@ class GeneralPostContextMenu extends ConsumerWidget {
       valueListenable: controller.itemsNotifier,
       builder: (context, posts, _) {
         final post = posts[index];
-        final isBookmarked =
-            bookmarkStateAsync.valueOrNull?.isBookmarked(
-              post,
-              booruConfig.booruIdHint,
-            ) ??
-            false;
-
         return KurumiContextMenu(
           menuItemsBuilder: (context) => [
             KurumiContextMenuTile(
@@ -75,34 +65,10 @@ class GeneralPostContextMenu extends ConsumerWidget {
                 downloadNotifier.download(post);
               },
             ),
-            if (!isBookmarked)
-              KurumiContextMenuTile(
-                title: context.t.post.detail.add_to_bookmark,
-                enabled: !isBookmarkLoading,
-                onTap: isBookmarkLoading
-                    ? null
-                    : () {
-                        ref.bookmarks.addBookmarkWithToast(
-                          booruConfig,
-                          post,
-                        );
-                      },
-              )
-            else
-              KurumiContextMenuTile(
-                title: context.t.post.detail.remove_from_bookmark,
-                enabled: !isBookmarkLoading,
-                onTap: isBookmarkLoading
-                    ? null
-                    : () {
-                        ref.bookmarks.removeBookmarkWithToast(
-                          BookmarkUniqueId.fromPost(
-                            post,
-                            booruConfig.booruIdHint,
-                          ),
-                        );
-                      },
-              ),
+            BookmarkContextMenuSection(
+              post: post,
+              config: booruConfig,
+            ),
             FavoriteContextMenuTile(
               post: post,
               feedbackContext: feedbackContext,

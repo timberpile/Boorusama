@@ -34,6 +34,11 @@ class MultiSelectionActionBar extends ConsumerWidget {
                   title: button.name,
                   onTap: button.onPressed,
                 ),
+                MultiSelectPopupButton() => ButtonData(
+                  widget: button,
+                  title: button.name,
+                  required: true,
+                ),
                 _ => ButtonData(
                   widget: button,
                   title: 'Button',

@@ -5,6 +5,7 @@ import 'package:material_symbols_icons/symbols.dart';
 
 // Project imports:
 import '../../../foundation/info/package_info.dart';
+import '../../bookmarks/providers.dart';
 import '../../settings/providers.dart';
 import '../../settings/types.dart';
 import '../utils/json_handler.dart';
@@ -21,9 +22,14 @@ class SettingsBackupSource extends JsonBackupSource<Settings> {
         version: kSettingsBackupVersion,
         appVersion: ref.read(appVersionProvider),
         dataGetter: () async => ref.read(settingsProvider),
-        executor: (settings, _) => ref
-            .read(settingsNotifierProvider.notifier)
-            .updateSettings(settings),
+        executor: (settings, _) async {
+          await ref
+              .read(settingsNotifierProvider.notifier)
+              .updateSettings(settings);
+          await ref
+              .read(bookmarkProvider.notifier)
+              .syncActiveTargetFromSettings();
+        },
         handler: SingleHandler<Settings>(
           parser: Settings.fromJson,
           encoder: (settings) => settings.toJson(),

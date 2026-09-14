@@ -15,10 +15,12 @@ import '../providers/local_providers.dart';
 class BookmarkAppBar extends ConsumerWidget {
   const BookmarkAppBar({
     required this.controller,
+    this.title,
     super.key,
   });
 
   final PostGridController<BookmarkPost> controller;
+  final String? title;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -27,7 +29,7 @@ class BookmarkAppBar extends ConsumerWidget {
     final download = ref.watchConfigDownload;
 
     return AppBar(
-      title: Text(context.t.bookmark.title),
+      title: Text(title ?? context.t.bookmark.title),
       automaticallyImplyLeading: !edit,
       leading: edit
           ? IconButton(

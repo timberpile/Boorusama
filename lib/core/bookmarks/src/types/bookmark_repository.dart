@@ -16,7 +16,7 @@ abstract class BookmarkRepository<T extends Post> {
     required PostLinkGenerator<T> Function(int? booruId) postLinkGenerator,
   });
 
-  Future<void> addBookmarkWithBookmarks(
+  Future<List<Bookmark>> addBookmarkWithBookmarks(
     List<Bookmark> bookmarks,
   );
 
@@ -28,7 +28,25 @@ abstract class BookmarkRepository<T extends Post> {
   });
 }
 
+class BookmarkRepositoryReadException implements Exception {
+  const BookmarkRepositoryReadException(this.error);
+
+  final BookmarkGetError error;
+}
+
 extension BookmarkRepositoryExtensions on BookmarkRepository {
+  Future<List<Bookmark>> getAllBookmarksOrThrow({
+    required ImageUrlResolver Function(int? booruId) imageUrlResolver,
+  }) async {
+    final bookmarks = await getAllBookmarks(
+      imageUrlResolver: imageUrlResolver,
+    ).run();
+    return bookmarks.fold(
+      (error) => throw BookmarkRepositoryReadException(error),
+      (bookmarks) => bookmarks,
+    );
+  }
+
   Future<List<Bookmark>> getAllBookmarksOrEmpty({
     required ImageUrlResolver Function(int? booruId) imageUrlResolver,
   }) async {

@@ -77,6 +77,12 @@ class PostGridController<T extends Post> extends ChangeNotifier {
   var _hasMore = true;
   var _loading = false;
   var _refreshing = false;
+  var _preserveSelectionOnRefresh = false;
+  var _refreshPending = false;
+  var _pendingMaintainPage = false;
+  var _pendingPreserveSelection = false;
+  var _disposed = false;
+  final _queuedRefreshWaiters = <Completer<void>>[];
 
   var _total = 0;
 
@@ -86,6 +92,7 @@ class PostGridController<T extends Post> extends ChangeNotifier {
   bool get hasMore => _hasMore;
   bool get loading => _loading;
   bool get refreshing => _refreshing;
+  bool get preserveSelectionOnRefresh => _preserveSelectionOnRefresh;
   int get page => pageNotifier.value;
   int get total => _total;
 
@@ -217,13 +224,15 @@ class PostGridController<T extends Post> extends ChangeNotifier {
   }
 
   Future<void> _filter() async {
+    final blacklistedUrls = blacklistedUrlsFetcher != null
+        ? await blacklistedUrlsFetcher!()
+        : const <String>{};
+    if (_disposed || !mountedChecker()) return;
     final filteredItems = _filterPosts(
       _items,
       tagCounts.value,
       activeFilters.value,
-      blacklistedUrlsFetcher != null
-          ? await blacklistedUrlsFetcher!()
-          : const {},
+      blacklistedUrls,
     );
 
     _setFilteringItems(filteredItems);
@@ -267,36 +276,106 @@ class PostGridController<T extends Post> extends ChangeNotifier {
   // Refreshes the list
   Future<void> refresh({
     bool maintainPage = false,
+    bool preserveSelection = false,
   }) async {
-    if (_refreshing) return;
-    _setRefreshing(true);
-    _eventController.add(const PostControllerRefreshStarted());
-    _page = switch (_pageMode) {
-      PageMode.infinite => _kFirstPage,
-      PageMode.paginated =>
-        (maintainPage || forcedPageMode) ? _page : _kFirstPage,
-    };
-    count.value = null;
-    maxPage.value = null;
-    notifyListeners();
+    if (_disposed) return;
+    if (_refreshing) {
+      final alreadyPending = _refreshPending;
+      _refreshPending = true;
+      _pendingMaintainPage = alreadyPending
+          ? _pendingMaintainPage && maintainPage
+          : maintainPage;
+      _pendingPreserveSelection =
+          _pendingPreserveSelection || preserveSelection;
+      final waiter = Completer<void>();
+      _queuedRefreshWaiters.add(waiter);
+      return waiter.future;
+    }
+    Object? firstError;
+    StackTrace? firstStackTrace;
+    Object? lastPassError;
+    StackTrace? lastPassStackTrace;
+    try {
+      var nextMaintainPage = maintainPage;
+      var nextPreserveSelection = preserveSelection;
+      do {
+        _refreshPending = false;
+        _pendingMaintainPage = false;
+        _pendingPreserveSelection = false;
+        try {
+          await _performRefresh(
+            maintainPage: nextMaintainPage,
+            preserveSelection: nextPreserveSelection,
+          );
+          lastPassError = null;
+          lastPassStackTrace = null;
+        } catch (error, stackTrace) {
+          firstError ??= error;
+          firstStackTrace ??= stackTrace;
+          lastPassError = error;
+          lastPassStackTrace = stackTrace;
+        }
+        nextMaintainPage = _pendingMaintainPage;
+        nextPreserveSelection = _pendingPreserveSelection;
+      } while (_refreshPending && !_disposed);
+      for (final waiter in _queuedRefreshWaiters) {
+        if (lastPassError == null) {
+          waiter.complete();
+        } else {
+          waiter.completeError(lastPassError, lastPassStackTrace);
+        }
+      }
+      if (firstError != null) {
+        Error.throwWithStackTrace(firstError, firstStackTrace!);
+      }
+    } finally {
+      _queuedRefreshWaiters.clear();
+      if (_refreshing && !_disposed) {
+        _setRefreshing(false);
+        notifyListeners();
+      } else {
+        _refreshing = false;
+      }
+    }
+  }
 
-    final newItems = await (_pageMode == PageMode.infinite
-        ? _refreshPosts()
-        : _fetchPosts(_page));
+  Future<void> _performRefresh({
+    required bool maintainPage,
+    required bool preserveSelection,
+  }) async {
+    if (_disposed || !mountedChecker()) return;
+    _preserveSelectionOnRefresh = preserveSelection;
+    try {
+      _setRefreshing(true);
+      _eventController.add(const PostControllerRefreshStarted());
+      _page = switch (_pageMode) {
+        PageMode.infinite => _kFirstPage,
+        PageMode.paginated =>
+          (maintainPage || forcedPageMode) ? _page : _kFirstPage,
+      };
+      count.value = null;
+      maxPage.value = null;
+      notifyListeners();
 
-    if (!mountedChecker()) return;
+      final newItems = await (_pageMode == PageMode.infinite
+          ? _refreshPosts()
+          : _fetchPosts(_page));
 
-    _clear();
-    await _addAll(newItems.posts);
+      if (!mountedChecker()) return;
 
-    if (!mountedChecker()) return;
+      _clear();
+      await _addAll(newItems.posts);
 
-    _hasMore = newItems.posts.isNotEmpty;
-    count.value = newItems.total;
-    maxPage.value = newItems.maxPage;
-    _setRefreshing(false);
-    _eventController.add(const PostControllerRefreshCompleted());
-    notifyListeners();
+      if (!mountedChecker()) return;
+
+      _hasMore = newItems.posts.isNotEmpty;
+      count.value = newItems.total;
+      maxPage.value = newItems.maxPage;
+      _eventController.add(const PostControllerRefreshCompleted());
+      notifyListeners();
+    } finally {
+      _preserveSelectionOnRefresh = false;
+    }
   }
 
   // Loads more items
@@ -414,8 +493,11 @@ class PostGridController<T extends Post> extends ChangeNotifier {
     _total = _items.length;
 
     final bt = await _getBlacklistedTags();
+    if (_disposed || !mountedChecker()) return;
 
-    tagCounts.value = await _count(_items, bt);
+    final counts = await _count(_items, bt);
+    if (_disposed || !mountedChecker()) return;
+    tagCounts.value = counts;
     hasBlacklist.value = tagCounts.value.values.any((e) => e.isNotEmpty);
 
     // add unseen tags to activeFilters
@@ -459,6 +541,8 @@ class PostGridController<T extends Post> extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true;
+    _refreshing = false;
     _eventController.close();
     _debounceTimer?.cancel();
 
