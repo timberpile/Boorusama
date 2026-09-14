@@ -48,11 +48,11 @@ class BookmarkPostButton extends ConsumerWidget {
         : groupLabels[activeGroupId] ?? context.t.bookmark.groups.ungrouped;
     final isLoading = bookmarkStateAsync.isLoading;
     final actionLabel = isBookmarked
-        ? context.t.post.detail.remove_from_bookmark
-        : context.t.post.detail.add_to_bookmark;
+        ? context.t.bookmark.groups.remove_from(name: activeLabel)
+        : context.t.bookmark.groups.add_to(name: activeLabel);
 
     return KurumiTooltip(
-      message: '$actionLabel · $activeLabel',
+      message: actionLabel,
       padding: const EdgeInsets.all(8),
       child: GestureDetector(
         onLongPressStart: isLoading

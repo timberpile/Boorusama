@@ -197,7 +197,7 @@ class BookmarkPostActionToolbar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final post = InheritedPost.of<BookmarkPost>(context);
     final controller = PostDetailsPageViewScope.of(context);
-    final detailsController = PostDetails.of(context).controller;
+    final detailsController = PostDetails.of<BookmarkPost>(context).controller;
     final config = ref.watch(
       firstMatchingConfigBySourceUrlProvider((
         post.bookmark.booruId,

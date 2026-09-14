@@ -6,7 +6,7 @@ import 'package:boorusama/core/bookmarks/src/types/bookmark_group.dart';
 import 'package:boorusama/core/bookmarks/src/widgets/bookmark_group_label.dart';
 
 void main() {
-  test('duplicate group names include a short identity suffix', () {
+  test('group labels expose names without identities', () {
     final labels = bookmarkGroupLabels([
       BookmarkGroup(
         id: '550e8400-e29b-41d4-a716-446655440000',
@@ -25,15 +25,15 @@ void main() {
       ),
     ]);
 
-    expect(labels['550e8400-e29b-41d4-a716-446655440000'], 'Shared · 550e8400');
-    expect(labels['5f1d7f5e-3114-4dc7-a347-18f95852fc31'], 'Shared · 5f1d7f5e');
+    expect(labels['550e8400-e29b-41d4-a716-446655440000'], 'Shared');
+    expect(labels['5f1d7f5e-3114-4dc7-a347-18f95852fc31'], 'Shared');
     expect(
       labels['70f55ff0-f00f-457a-88b0-f9232a68e733'],
-      'Unique · 70f55ff0',
+      'Unique',
     );
   });
 
-  test('identity suffixes expand until duplicate labels are unique', () {
+  test('duplicate names remain identical display labels', () {
     final labels = bookmarkGroupLabels([
       BookmarkGroup(
         id: '550e8400-e29b-41d4-a716-446655440000',
@@ -49,11 +49,11 @@ void main() {
 
     expect(
       labels['550e8400-e29b-41d4-a716-446655440000'],
-      'Shared · 550e8400-e',
+      'Shared',
     );
     expect(
       labels['550e8400-1111-4111-8111-111111111111'],
-      'Shared · 550e8400-1',
+      'Shared',
     );
   });
 
@@ -67,7 +67,7 @@ void main() {
     );
   });
 
-  test('unique group names still expose their identity', () {
+  test('names matching virtual groups still hide their identity', () {
     final labels = bookmarkGroupLabels([
       BookmarkGroup(
         id: '550e8400-e29b-41d4-a716-446655440000',
@@ -78,7 +78,7 @@ void main() {
 
     expect(
       labels['550e8400-e29b-41d4-a716-446655440000'],
-      'No Group · 550e8400',
+      'No Group',
     );
   });
 }

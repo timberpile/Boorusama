@@ -3,6 +3,8 @@
 Bookmark records remain in the `favorites` Hive box. Named groups are stored in
 the `bookmark_groups` box and contain a GUID, a display name, and a set of local
 bookmark keys. Display names are not identities and do not have to be unique.
+Ordinary bookmark UI shows display names only; GUIDs are reserved for import
+conflict identification and persistence.
 
 `BookmarkLibraryState` is the shared snapshot for bookmark UI. It builds the
 membership indexes used by the group browser, filtered grids, post actions, and

@@ -1169,6 +1169,8 @@
       "delete_group_title": "Delete {name}?",
       "delete_group_message": "This group contains {bookmarks} bookmarks.",
       "operation_failed": "Bookmark group operation failed",
+      "add_to": "Add to $name",
+      "remove_from": "Remove from $name",
       "failed_to_add_to_group": "Failed to add to group",
       "failed_to_remove_from_group": "Failed to remove from group"
     },
