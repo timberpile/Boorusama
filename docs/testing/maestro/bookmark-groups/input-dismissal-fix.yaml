@@ -1,0 +1,24 @@
+appId: com.timberpile.boorusama.dev
+name: Bookmark group name dialog dismissal regression
+---
+- launchApp:
+    stopApp: false
+- runFlow:
+    when:
+      notVisible: "Bookmark Groups"
+    commands:
+      - tapOn:
+          point: "9%, 7%"
+      - tapOn: "Your bookmarks"
+- tapOn: "Create group"
+- inputText: "DismissalProbe"
+- back
+- assertVisible: "Bookmark Groups"
+- assertVisible: "All"
+- assertVisible: "No Group"
+- tapOn: "Create group"
+- inputText: "CancelProbe"
+- tapOn: "Cancel"
+- assertVisible: "Bookmark Groups"
+- assertNotVisible: "CancelProbe"
+- takeScreenshot: "docs/testing/maestro/bookmark-groups/evidence/input-dismissal-fix-back-cancel"
