@@ -43,6 +43,7 @@ class KurumiAdaptiveButtonRow extends StatefulWidget {
     this.scrollController,
     this.runSpacing = _kDefaultSpacing,
     this.alignment,
+    this.crossAxisAlignment = CrossAxisAlignment.center,
     this.maxVisibleButtons,
     this.padding,
     this.onOpened,
@@ -61,6 +62,7 @@ class KurumiAdaptiveButtonRow extends StatefulWidget {
     ValueChanged<int>? onOverflow,
     int? maxVisibleButtons,
     MainAxisAlignment? alignment,
+    CrossAxisAlignment crossAxisAlignment = CrossAxisAlignment.center,
     EdgeInsetsGeometry? padding,
     VoidCallback? onOpened,
     VoidCallback? onClosed,
@@ -77,6 +79,7 @@ class KurumiAdaptiveButtonRow extends StatefulWidget {
     onOverflow: onOverflow,
     maxVisibleButtons: maxVisibleButtons,
     alignment: alignment,
+    crossAxisAlignment: crossAxisAlignment,
     padding: padding,
     onOpened: onOpened,
     onClosed: onClosed,
@@ -137,6 +140,7 @@ class KurumiAdaptiveButtonRow extends StatefulWidget {
   final double spacing;
   final int? maxVisibleButtons;
   final MainAxisAlignment? alignment;
+  final CrossAxisAlignment crossAxisAlignment;
   final EdgeInsetsGeometry? padding;
   final bool? reduceAnimation;
   final Widget? overflowIcon;
@@ -364,6 +368,7 @@ class _KurumiAdaptiveButtonRowState extends State<KurumiAdaptiveButtonRow> {
 
   Widget _buildRow(List<KurumiButtonData> buttons, double width) {
     return Row(
+      crossAxisAlignment: widget.crossAxisAlignment,
       mainAxisSize: MainAxisSize.min,
       mainAxisAlignment: widget.alignment ?? MainAxisAlignment.spaceEvenly,
       children: buttons
@@ -373,7 +378,15 @@ class _KurumiAdaptiveButtonRowState extends State<KurumiAdaptiveButtonRow> {
             (entry) => [
               SizedBox(
                 width: width,
-                child: entry.value.widget,
+                child: widget.crossAxisAlignment == CrossAxisAlignment.start
+                    ? ConstrainedBox(
+                        constraints: const BoxConstraints(minHeight: 48),
+                        child: Center(
+                          heightFactor: 1,
+                          child: entry.value.widget,
+                        ),
+                      )
+                    : entry.value.widget,
               ),
               if (entry.key < buttons.length - 1)
                 SizedBox(width: widget.spacing),

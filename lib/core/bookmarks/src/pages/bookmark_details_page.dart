@@ -216,6 +216,7 @@ class BookmarkPostActionToolbar extends ConsumerWidget {
         copy: false,
         builder: (context, buttons) {
           return BooruMenuButtonRow(
+            crossAxisAlignment: CrossAxisAlignment.start,
             maxVisibleButtons: 4,
             buttons: [
               if (config != null)
