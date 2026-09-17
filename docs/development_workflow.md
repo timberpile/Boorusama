@@ -6,6 +6,17 @@ In a fresh Git worktree, run `fvm dart pub get` from
 `packages/boorusama_cli` before the first `./gen.sh`; the generator imports the
 CLI package configuration from that directory.
 
+## Issue descriptions
+
+Keep issue descriptions short and proportional to the problem. Small issues
+should use a few concise sentences or bullets describing the problem, relevant
+reproduction context, and expected behavior. Include longer explanations or
+implementation details only when necessary to understand the issue.
+
+Do not include validation reports, test counts or results, static-analysis
+results, testing tool logs, or development history in issue descriptions. Keep
+verification details in work reports or review discussions instead.
+
 ## Direct commits to develop
 
 - Direct commits to `develop` require explicit user authorization for the current change. Authorization does not carry over to later changes.
