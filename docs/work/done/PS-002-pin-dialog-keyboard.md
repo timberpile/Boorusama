@@ -16,9 +16,9 @@ to enter a custom name, or pin immediately using the query as the label.
 
 ## Acceptance criteria
 
-- [ ] Opening the pin dialog does not automatically open the keyboard.
-- [ ] Tapping the name field still opens the keyboard and allows editing.
-- [ ] Pinning with a blank or custom name continues to work.
+- [x] Opening the pin dialog does not automatically open the keyboard.
+- [x] Tapping the name field still opens the keyboard and allows editing.
+- [x] Pinning with a blank or custom name continues to work.
 
 ## Relevant context
 
@@ -29,3 +29,10 @@ to enter a custom name, or pin immediately using the query as the label.
 ## Completion evidence
 
 Record verification here when resolved.
+
+## Completion — 2026-09-17
+
+Agent: Codex (/root)
+Branch: `feature/chronological-pinned-search-support`
+
+Focused suite passed 124 tests. Maestro confirmed the dialog opens without the IME and tapping Name exposes input controls.

@@ -52,6 +52,17 @@ void main() {
     );
   });
 
+  testWidgets(
+    'opening leaves the keyboard closed and tapping the name allows editing',
+    (tester) async {
+      await open(tester, onResult: (_) {});
+      expect(tester.testTextInput.isVisible, isFalse);
+      await tester.tap(find.byType(TextField));
+      await tester.pump();
+      expect(tester.testTextInput.isVisible, isTrue);
+    },
+  );
+
   for (final c in [
     (input: '   ', result: ''),
     (input: '  Safe cats  ', result: 'Safe cats'),

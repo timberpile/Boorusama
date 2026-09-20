@@ -63,7 +63,6 @@ class _PinSearchDialogState extends State<PinSearchDialog> {
             const SizedBox(height: 16),
             TextField(
               controller: _nameController,
-              autofocus: true,
               textCapitalization: TextCapitalization.sentences,
               decoration: InputDecoration(
                 labelText: strings.optional_name,
