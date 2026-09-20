@@ -36,11 +36,7 @@ jobs:
         env:
           BASE_BRANCH: ${{ github.base_ref }}
           HEAD_BRANCH: ${{ github.head_ref }}
-          PULL_REQUEST_BODY: ${{ github.event.pull_request.body }}
-          PULL_REQUEST_TITLE: ${{ github.event.pull_request.title }}
         run: |
           .github/scripts/validate-pull-request-policy.sh \
             "$BASE_BRANCH" \
-            "$HEAD_BRANCH" \
-            "$PULL_REQUEST_TITLE" \
-            "$PULL_REQUEST_BODY"
+            "$HEAD_BRANCH"

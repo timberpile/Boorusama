@@ -30,68 +30,40 @@ expect_failure() {
 }
 
 expect_success \
-  'feature branches with a matching title and linked issue can target develop' \
+  'issue-numbered feature branches can target develop' \
   "$validator" \
   develop \
-  feature/42-load-original-on-zoom \
-  "Merge branch 'feature/42-load-original-on-zoom'" \
-  'Closes #42'
+  feature/42-load-original-on-zoom
 
 expect_success \
-  'fix branches with a matching title and linked issue can target develop' \
+  'fix branches can target develop' \
   "$validator" \
   develop \
-  fix/51-handle-empty-tags \
-  "Merge branch 'fix/51-handle-empty-tags'" \
-  'Fixes #51'
+  fix/51-handle-empty-tags
 
 expect_success \
   'feature branches without an issue can target develop' \
   "$validator" \
   develop \
-  feature/load-original-on-zoom \
-  "Merge branch 'feature/load-original-on-zoom'" \
-  'Implements the requested behavior.'
+  feature/load-original-on-zoom
 
 expect_success \
   'upstream synchronization can target develop without an issue' \
   "$validator" \
   develop \
-  sync/upstream-master \
-  "Merge branch 'sync/upstream-master'" \
-  'Incorporates the latest upstream changes.'
-
-expect_failure \
-  'develop rejects titles that do not name the source branch' \
-  "$validator" \
-  develop \
-  feature/42-load-original-on-zoom \
-  'Load original images on zoom' \
-  'Closes #42'
-
-expect_success \
-  'issue-linked branches do not require a closing reference' \
-  "$validator" \
-  develop \
-  feature/42-load-original-on-zoom \
-  "Merge branch 'feature/42-load-original-on-zoom'" \
-  'Implements the requested behavior.'
+  sync/upstream-master
 
 expect_success \
   'develop can be promoted to master without an issue' \
   "$validator" \
   master \
-  develop \
-  "Merge branch 'develop'" \
-  'Promotes the current development branch.'
+  develop
 
 expect_failure \
   'feature branches cannot target master directly' \
   "$validator" \
   master \
-  feature/42-load-original-on-zoom \
-  "Merge branch 'feature/42-load-original-on-zoom'" \
-  'Closes #42'
+  feature/42-load-original-on-zoom
 
 if ((failures > 0)); then
   echo "$failures pull request policy test(s) failed"
