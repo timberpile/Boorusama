@@ -1,9 +1,12 @@
 import 'package:boorusama/core/backups/sources/search_backup_envelope.dart';
 import 'package:boorusama/core/backups/sources/search_backup_profile.dart';
 import 'package:boorusama/core/backups/types.dart';
+import 'package:boorusama/core/backups/widgets/backup_restore_tile.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/material.dart';
+import 'package:i18n/i18n.dart';
 
 void main() {
   test('accepts a version one payload for its selected source', () {
@@ -31,6 +34,58 @@ void main() {
       );
     });
   }
+
+  testWidgets(
+    'wrong source and version errors explain the selected backup format',
+    (tester) async {
+      late BuildContext context;
+      await tester.pumpWidget(
+        BooruLocalization(
+          child: MaterialApp(
+            home: Builder(
+              builder: (value) {
+                context = value;
+                return const SizedBox();
+              },
+            ),
+          ),
+        ),
+      );
+      void wrongSource() => requireSearchBackupEnvelope(
+        _payload(source: 'pinned_searches'),
+        'following_feeds',
+      );
+      void wrongVersion() => requireSearchBackupEnvelope(
+        _payload(source: 'following_feeds', version: 2),
+        'following_feeds',
+      );
+      Object capture(void Function() operation) {
+        try {
+          operation();
+        } catch (error) {
+          return error;
+        }
+        throw StateError('Expected a backup format error');
+      }
+
+      expect(
+        formatBackupImportError(
+          capture(wrongSource),
+          context,
+          'Following Feeds',
+        ),
+        'This file is not a Following Feeds backup.',
+      );
+      expect(
+        formatBackupImportError(
+          capture(wrongVersion),
+          context,
+          'Following Feeds',
+        ),
+        'This Following Feeds backup uses an unsupported format version.',
+      );
+    },
+  );
 
   const reference = BackupProfileReference(
     id: 4,

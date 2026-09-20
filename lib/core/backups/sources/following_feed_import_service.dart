@@ -132,39 +132,52 @@ class FollowingFeedImportService {
 
     var imported = 0;
     var existing = 0;
-    for (final item in accepted) {
-      final record = item.record;
-      final profileId = item.profile!.id;
-      final local = localById[record.id];
-      final previousQueries = [
-        for (final id in local?.sourceIds ?? const <String>[])
-          if (sourcesById[id] case final source?)
-            normalizeSearchIdentity(source.query),
-      ];
-      final desiredPosition = finalOrder[profileId]!.indexOf(record.id);
-      final unchanged =
-          local != null &&
-          local.name == record.name &&
-          _sameQueries(previousQueries, record.queries) &&
-          local.position == desiredPosition;
-      if (unchanged) {
-        existing++;
-        continue;
+    for (final profileId in profileIds) {
+      final previousFeeds = (await repository.getFeeds())
+          .where((feed) => feed.profileId == profileId)
+          .toList();
+      final previousSources = (await repository.getAll())
+          .where((source) => source.profileId == profileId)
+          .toList();
+      try {
+        for (final item in accepted.where(
+          (item) => item.profile!.id == profileId,
+        )) {
+          final record = item.record;
+          final local = localById[record.id];
+          final previousQueries = [
+            for (final id in local?.sourceIds ?? const <String>[])
+              if (sourcesById[id] case final source?)
+                normalizeSearchIdentity(source.query),
+          ];
+          final desiredPosition = finalOrder[profileId]!.indexOf(record.id);
+          final unchanged =
+              local != null &&
+              local.name == record.name &&
+              _sameQueries(previousQueries, record.queries) &&
+              local.position == desiredPosition;
+          if (unchanged) {
+            existing++;
+            continue;
+          }
+          if (local == null ||
+              local.name != record.name ||
+              !_sameQueries(previousQueries, record.queries)) {
+            await repository.saveFeed(
+              id: record.id,
+              profileId: profileId,
+              name: record.name,
+              queries: record.queries,
+            );
+          }
+          imported++;
+        }
+        await repository.setFeedOrder(profileId, finalOrder[profileId]!);
+      } catch (error, stackTrace) {
+        await repository.restoreForProfile(profileId, previousSources);
+        await repository.restoreFeeds(profileId, previousFeeds);
+        Error.throwWithStackTrace(error, stackTrace);
       }
-      if (local == null ||
-          local.name != record.name ||
-          !_sameQueries(previousQueries, record.queries)) {
-        await repository.saveFeed(
-          id: record.id,
-          profileId: profileId,
-          name: record.name,
-          queries: record.queries,
-        );
-      }
-      imported++;
-    }
-    for (final entry in finalOrder.entries) {
-      await repository.setFeedOrder(entry.key, entry.value);
     }
     return FollowingFeedImportResult(
       importedCount: imported,

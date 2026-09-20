@@ -205,6 +205,43 @@ void main() {
     );
     expect(await repository.getFeeds(), before);
   });
+
+  test(
+    'a failed order write restores the replaced feed and member searches',
+    () async {
+      final organizationBox = _FailingOrganizationBox();
+      final repository = HiveSearchSubscriptionRepository(
+        box: MemorySubscriptionBox(),
+        organizationBox: organizationBox,
+      );
+      final saved = await repository.saveFeed(
+        profileId: 4,
+        name: 'Old',
+        queries: ['cat'],
+        id: _id(0),
+      );
+      final old = saved.copyWith(
+        posts: [
+          CachedFeedPost.fromPost(TestSearchPost(42, DateTime.utc(2026))),
+        ],
+      );
+      await repository.restoreFeeds(4, [old]);
+      final beforeSearches = await repository.getAll();
+      organizationBox.failNextPutAll = true;
+
+      await expectLater(
+        FollowingFeedImportService(repository: repository).apply(
+          _data([
+            _record(0, name: 'New', queries: ['bird']),
+          ]),
+          profiles: [_profile(4)],
+        ),
+        throwsStateError,
+      );
+      expect((await repository.getFeeds()).single, old);
+      expect(await repository.getAll(), beforeSearches);
+    },
+  );
 }
 
 class _FailingSubscriptionBox extends MemorySubscriptionBox {

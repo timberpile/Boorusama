@@ -757,6 +757,8 @@
       "failed_count": "{count} failed",
       "invalid_location_error": "Cannot export to this location, try using \"Download\" or \"Documents\" folder. Create one if it does not exist.",
       "invalid_backup_format_error": "Invalid backup format",
+      "wrong_search_backup_source_error": "This file is not a {source} backup.",
+      "unsupported_search_backup_version_error": "This {source} backup uses an unsupported format version.",
       "never": "Never",
       "receive_data": {
         "title": "Receive data",
