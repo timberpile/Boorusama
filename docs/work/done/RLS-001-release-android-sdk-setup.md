@@ -26,4 +26,5 @@ Both release jobs request only the available `platform-tools` package from the s
 - The focused configuration check failed before the change, finding zero corrected steps.
 - Upstream commit `f94243dcc` makes the same `packages: platform-tools` override in its release workflow. The explicit override is required even in setup-android v4.0.1, whose pinned `action.yml` still defaults to `tools platform-tools`.
 - The focused configuration check and YAML parse pass after updating both release jobs; `git diff --check` passes.
-- A new hosted release run is pending after this branch is integrated. The task remains in progress until the Android SDK setup step is observed passing in CI.
+- [Test release run 35512453886](https://github.com/timberpile/Boorusama/actions/runs/35512453886) completed successfully from the fix branch at `1fdf5aeab`. Android SDK setup, split APK build, APK verification, artifact upload, and draft release publishing all passed.
+- The run created a draft prerelease for `v4.5.0-timberpile.2-test` with three APK assets and an update manifest. Published-release verification was skipped because the run used `draft=true`.
