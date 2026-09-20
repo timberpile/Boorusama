@@ -2,6 +2,7 @@
 - `fvm flutter test` - Run tests
 - `./gen.sh` - Generate i18n, language configs, and booru client configs
 Always use `fvm` for `flutter` and `dart` commands.
+When testing/validating ui behavior, use the Maestro MCP server to control the available android emulator.
 
 # Code style
 - For Riverpod, always use Notifier/AsyncNotifier. Manually declare providers, no codegen.
