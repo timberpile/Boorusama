@@ -69,9 +69,9 @@ post processing, and retained identities stay bounded independently of the
 number of matching uploads; server/network latency is outside that guarantee.
 Raw repository fetches avoid enrichment requests for returned posts.
 
-The scanner validates non-increasing UTC upload timestamps within the bounded
-snapshot, allowing equal timestamps and deduplicating IDs. A nullable upload
-time or observed non-chronological response produces an unsupported result.
+The scanner requires an upload timestamp on each post and deduplicates IDs.
+It accepts the site's default post order, including small differences between
+ID order and upload timestamps. A missing upload time produces an unsupported result.
 No timestamp is inferred from the device clock or post ID. A successful
 snapshot replaces previews with its newest four posts; an empty snapshot clears
 previews. Failures preserve the previous checkpoint, previews, and NEW state
@@ -81,9 +81,8 @@ This detects new uploads visible in the newest snapshot, rather than counting
 or enumerating every upload since the old checkpoint. Uploads that leave the
 snapshot before a refresh, delayed indexing with older timestamps, or server
 clock differences may escape detection. Tracking relies on actual upload times,
-stable identities, and newest-first results from the integration. Validation
-can reject observed bad ordering but cannot prove that the server returned the
-newest available posts.
+stable identities, and approximately newest-first results from the integration.
+The scanner cannot prove that the server returned the newest available posts.
 
 The current default query adapter preserves ordinary queries and rejects
 `order`, `order_by`, or `sort` metatags using either `:` or `=`. This includes
@@ -189,8 +188,9 @@ and does not change the active profile. Root Refresh All visits supported
 profiles sequentially. Results remain separate per search.
 
 Supported engines explicitly opt in to timestamp tracking; the repository
-default is unsupported. Danbooru and Szurubooru add canonical chronological
-query terms. Philomena receives created_at descending through raw fetch options.
+default is unsupported. Refreshes use each engine's default post order without
+adding sorting terms or fetch options. The scanner requires upload timestamps
+but tolerates small ordering differences between IDs and timestamps.
 Nozomi remains unsupported because complete index intersection and per-post
 fetches are not a bounded newest-page query. Unsupported profiles keep the tab
 and pin action visible with a localized explanation. Routine check times are

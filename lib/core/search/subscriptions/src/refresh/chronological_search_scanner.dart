@@ -49,20 +49,11 @@ class ChronologicalSearchScanner {
       (page) {
         final posts = <Post>[];
         final seenIds = <int>{};
-        DateTime? previousCreatedAt;
         for (final post in page.posts.take(pageSize)) {
           switch (post.createdAt) {
             case null:
               return const FailedSearchScan(SearchRefreshErrorKind.unsupported);
-            case final DateTime createdAt:
-              final uploadedAt = createdAt.toUtc();
-              if (previousCreatedAt != null &&
-                  uploadedAt.isAfter(previousCreatedAt)) {
-                return const FailedSearchScan(
-                  SearchRefreshErrorKind.unsupported,
-                );
-              }
-              previousCreatedAt = uploadedAt;
+            case DateTime():
               if (seenIds.add(post.id)) posts.add(post);
           }
         }

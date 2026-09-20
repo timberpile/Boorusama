@@ -69,28 +69,28 @@ void main() {
     expect(result, LoadedSearchSnapshot(posts));
   });
 
-  for (final c in [
-    (name: 'an unknown upload time', posts: [TestSearchPost(1, null)]),
-    (
-      name: 'non-chronological results',
-      posts: [
-        TestSearchPost(1, uploadedAt),
-        TestSearchPost(2, uploadedAt.add(const Duration(seconds: 1))),
-      ],
-    ),
-  ]) {
-    test('rejects a snapshot with ${c.name}', () async {
-      final result = await ChronologicalSearchScanner().scanSnapshot(
-        fetchPage: (_, _) async => Either.right(c.posts.toResult()),
-      );
-      expect(
-        result,
-        const FailedSearchScan(SearchRefreshErrorKind.unsupported),
-      );
-    });
-  }
+  test('rejects a snapshot with an unknown upload time', () async {
+    final result = await ChronologicalSearchScanner().scanSnapshot(
+      fetchPage: (_, _) async =>
+          Either.right([TestSearchPost(1, null)].toResult()),
+    );
+    expect(result, const FailedSearchScan(SearchRefreshErrorKind.unsupported));
+  });
 
-  test('normalizes timezone offsets when validating upload order', () async {
+  test('keeps site order when upload timestamps differ slightly', () async {
+    final posts = [
+      TestSearchPost(2, uploadedAt),
+      TestSearchPost(1, uploadedAt.add(const Duration(seconds: 1))),
+    ];
+    expect(
+      await ChronologicalSearchScanner().scanSnapshot(
+        fetchPage: (_, _) async => Either.right(posts.toResult()),
+      ),
+      LoadedSearchSnapshot(posts),
+    );
+  });
+
+  test('keeps posts with upload times in different timezones', () async {
     final posts = [
       TestSearchPost(2, DateTime.parse('2026-09-14T12:00:00+02:00')),
       TestSearchPost(1, DateTime.parse('2026-09-14T11:00:00+02:00')),

@@ -16,6 +16,7 @@ import '../providers/search_subscription_selectors.dart';
 import '../providers/search_subscriptions_notifier.dart';
 import '../types/search_subscription.dart';
 import '../widgets/move_pin_to_folder_dialog.dart';
+import '../widgets/bulk_search_import_dialog.dart';
 import '../widgets/search_refresh_settings_dialog.dart';
 import '../widgets/pin_search_dialog.dart';
 import '../widgets/pinned_search_card.dart';
@@ -53,6 +54,11 @@ class _PinnedSearchesPageState extends ConsumerState<PinnedSearchesPage> {
               strings.title,
         ),
         actions: [
+          IconButton(
+            tooltip: strings.bulk_add,
+            icon: const Icon(Symbols.playlist_add),
+            onPressed: eligibleProfiles.isEmpty ? null : () => _bulkAdd(),
+          ),
           if (widget.folderId == null)
             IconButton(
               tooltip: strings.refresh_settings,
@@ -107,6 +113,43 @@ class _PinnedSearchesPageState extends ConsumerState<PinnedSearchesPage> {
         ],
       ),
       body: _allProfilesBody(),
+    );
+  }
+
+  Future<void> _bulkAdd() async {
+    final configs = ref.read(booruConfigProvider);
+    final profiles = [
+      for (final config in configs)
+        if (ref.read(pinnedSearchTrackingSupportedProvider(config.auth)))
+          config,
+    ];
+    final folder = ref
+        .read(searchSubscriptionsProvider)
+        .valueOrNull
+        ?.organization
+        .folders
+        .where((item) => item.id == widget.folderId)
+        .firstOrNull;
+    final count = await showBulkSearchImportDialog(
+      context,
+      destination: folder?.name ?? context.t.pinned_searches.home,
+      profiles: profiles,
+      initialProfileId: ref.readConfig.id,
+      onAdd: (profileId, queries) => ref
+          .read(searchSubscriptionsProvider.notifier)
+          .bulkPinToFolder(
+            profileId: profileId!,
+            folderId: widget.folderId,
+            rawQueries: queries,
+          ),
+    );
+    if (count == null || !mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          context.t.pinned_searches.bulk_added.replaceAll('{count}', '$count'),
+        ),
+      ),
     );
   }
 

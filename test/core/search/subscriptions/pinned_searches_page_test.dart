@@ -267,6 +267,15 @@ void main() {
       message: 'This query could not be checked.',
     ),
     (
+      kind: SearchRefreshErrorKind.tagLimit,
+      message:
+          "This search exceeds the site's search-term limit.",
+    ),
+    (
+      kind: SearchRefreshErrorKind.rateLimited,
+      message: 'Rate limited by the site. Try again later.',
+    ),
+    (
       kind: SearchRefreshErrorKind.pagination,
       message: 'The check was incomplete. Try refreshing again.',
     ),

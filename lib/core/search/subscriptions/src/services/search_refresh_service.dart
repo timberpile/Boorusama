@@ -61,10 +61,7 @@ class SearchRefreshService {
                       query,
                       page,
                       limit: limit,
-                      options: const PostFetchOptions(
-                        cascadeRequest: false,
-                        chronological: true,
-                      ),
+                      options: PostFetchOptions.raw,
                     )
                     .run())
                 .mapLeft(_mapError);
@@ -156,9 +153,10 @@ class SearchRefreshService {
     AppError() => SearchRefreshErrorKind.network,
     ServerError(httpStatusCode: 401 || 403) =>
       SearchRefreshErrorKind.authentication,
-    ServerError(httpStatusCode: 400 || 422) => SearchRefreshErrorKind.query,
+    ServerError(httpStatusCode: 400) => SearchRefreshErrorKind.query,
+    ServerError(httpStatusCode: 422) => SearchRefreshErrorKind.tagLimit,
     ServerError(httpStatusCode: 410) => SearchRefreshErrorKind.pagination,
-    ServerError(httpStatusCode: 429) => SearchRefreshErrorKind.network,
+    ServerError(httpStatusCode: 429) => SearchRefreshErrorKind.rateLimited,
     ServerError(:final httpStatusCode)
         when httpStatusCode != null && httpStatusCode >= 500 =>
       SearchRefreshErrorKind.network,

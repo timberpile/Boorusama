@@ -72,7 +72,7 @@ class OrderedSearchRefreshQueryAdapter
     this.unsupportedMetatags = const {},
   });
 
-  final String orderingToken;
+  final String? orderingToken;
   final Set<String> acceptedOrderingTokens;
   final Set<String> unsupportedMetatags;
 
@@ -97,7 +97,7 @@ class OrderedSearchRefreshQueryAdapter
       }
     }
     return SupportedSearchRefreshQueryPlan(
-      query: [...filters, orderingToken].join(' '),
+      query: [...filters, ?orderingToken].join(' '),
     );
   }
 }

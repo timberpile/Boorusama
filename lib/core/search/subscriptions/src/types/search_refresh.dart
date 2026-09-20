@@ -14,6 +14,8 @@ enum SearchRefreshErrorKind {
   parsing,
   unsupported,
   other,
+  tagLimit,
+  rateLimited,
 }
 
 class SearchRefreshCommit extends Equatable {

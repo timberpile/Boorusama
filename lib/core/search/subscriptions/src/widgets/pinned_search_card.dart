@@ -6,8 +6,8 @@ import 'package:material_symbols_icons/symbols.dart';
 // Project imports:
 import '../../../../configs/config/types.dart';
 import '../../../../images/booru_image.dart';
-import '../types/search_refresh.dart';
 import '../types/search_subscription.dart';
+import 'search_refresh_error_text.dart';
 
 enum PinnedSearchAction {
   info,
@@ -135,18 +135,7 @@ class PinnedSearchCard extends StatelessWidget {
               if (refreshing) Text(strings.refreshing),
               if (subscription.lastErrorKind case final kind?)
                 Text(
-                  switch (kind) {
-                    SearchRefreshErrorKind.network => strings.error_network,
-                    SearchRefreshErrorKind.authentication =>
-                      strings.error_authentication,
-                    SearchRefreshErrorKind.query => strings.error_query,
-                    SearchRefreshErrorKind.pagination =>
-                      strings.error_pagination,
-                    SearchRefreshErrorKind.parsing => strings.error_parsing,
-                    SearchRefreshErrorKind.unsupported =>
-                      strings.error_unsupported,
-                    SearchRefreshErrorKind.other => strings.error_other,
-                  },
+                  searchRefreshErrorText(context, kind),
                   style: TextStyle(color: Theme.of(context).colorScheme.error),
                 ),
             ],

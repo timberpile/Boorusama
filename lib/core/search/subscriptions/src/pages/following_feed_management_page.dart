@@ -8,6 +8,8 @@ import '../../../search/routes.dart';
 import '../providers/search_subscriptions_notifier.dart';
 import '../types/search_following_feed.dart';
 import '../types/search_subscription.dart';
+import '../widgets/bulk_search_import_dialog.dart';
+import '../widgets/search_refresh_error_text.dart';
 
 class FollowingFeedManagementPage extends ConsumerWidget {
   const FollowingFeedManagementPage({required this.feedId, super.key});
@@ -34,6 +36,12 @@ class FollowingFeedManagementPage extends ConsumerWidget {
         actions: [
           if (feed != null)
             IconButton(
+              tooltip: strings.bulk_add,
+              icon: const Icon(Symbols.playlist_add),
+              onPressed: () => _bulkAdd(context, ref, feed),
+            ),
+          if (feed != null)
+            IconButton(
               tooltip: strings.rename,
               icon: const Icon(Symbols.edit),
               onPressed: () => _rename(context, ref, feed),
@@ -53,7 +61,10 @@ class FollowingFeedManagementPage extends ConsumerWidget {
                                     ?.toLocal()
                                     .toString() ??
                                 strings.never_checked
-                          : strings.error_other,
+                          : searchRefreshErrorText(
+                              context,
+                              source.lastErrorKind!,
+                            ),
                     ),
                     leading: Badge(
                       isLabelVisible: source.hasNewPosts,
@@ -116,6 +127,28 @@ class FollowingFeedManagementPage extends ConsumerWidget {
                   ),
               ],
             ),
+    );
+  }
+
+  Future<void> _bulkAdd(
+    BuildContext context,
+    WidgetRef ref,
+    SearchFollowingFeed feed,
+  ) async {
+    final count = await showBulkSearchImportDialog(
+      context,
+      destination: feed.name,
+      onAdd: (_, queries) => ref
+          .read(searchSubscriptionsProvider.notifier)
+          .bulkAddToFeed(feedId: feed.id, rawQueries: queries),
+    );
+    if (count == null || !context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          context.t.pinned_searches.bulk_added.replaceAll('{count}', '$count'),
+        ),
+      ),
     );
   }
 

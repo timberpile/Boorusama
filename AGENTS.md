@@ -3,6 +3,11 @@
 - `./gen.sh` - Generate i18n, language configs, and booru client configs
 Always use `fvm` for `flutter` and `dart` commands.
 When testing/validating ui behavior, use the Maestro MCP server to control the available android emulator.
+The emulator already has test accounts signed in. Their credentials are in the
+repository-local `.test_credentials` file and may be used for testing. Keep this
+file ignored by Git; never commit its contents, paste them into logs, screenshots,
+issues, or responses, or copy them into test fixtures. Read only the entries
+needed for the current test.
 
 # Code style
 - For Riverpod, always use Notifier/AsyncNotifier. Manually declare providers, no codegen.

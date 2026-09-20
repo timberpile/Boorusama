@@ -30,7 +30,7 @@ class SzurubooruRepository extends BooruRepositoryDefault {
   @override
   SearchRefreshQueryAdapter searchRefreshQueryAdapter(BooruConfigAuth config) =>
       const OrderedSearchRefreshQueryAdapter(
-        orderingToken: 'sort:creation-time',
+        orderingToken: null,
         acceptedOrderingTokens: {
           'sort:creation-time',
           'sort:creation-date',

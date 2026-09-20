@@ -36,8 +36,6 @@ final philomenaPostRepoProvider =
             tags: isEmpty ? ['*'] : tags,
             page: page,
             perPage: limit,
-            sortField: (options?.chronological ?? false) ? 'created_at' : null,
-            sortDirection: (options?.chronological ?? false) ? 'desc' : null,
           );
 
           return posts.images

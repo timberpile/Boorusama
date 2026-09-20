@@ -220,7 +220,12 @@ void main() {
     (
       name: 'query rejection',
       error: ServerError(httpStatusCode: 422, message: 'private'),
-      expected: SearchRefreshErrorKind.query,
+      expected: SearchRefreshErrorKind.tagLimit,
+    ),
+    (
+      name: 'rate limit',
+      error: ServerError(httpStatusCode: 429, message: 'private'),
+      expected: SearchRefreshErrorKind.rateLimited,
     ),
     (
       name: 'pagination limit',

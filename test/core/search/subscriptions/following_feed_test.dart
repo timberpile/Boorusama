@@ -1,3 +1,5 @@
+import 'package:boorusama/core/configs/config/types.dart';
+import 'package:boorusama/core/images/booru_image.dart';
 import 'package:boorusama/core/search/subscriptions/providers.dart';
 import 'package:boorusama/core/search/subscriptions/types.dart';
 import 'package:boorusama/core/search/subscriptions/src/pages/following_feeds_page.dart';
@@ -349,4 +351,70 @@ void main() {
       expect(harness.requests, isEmpty);
     },
   );
+
+  testWidgets('feed overview shows four recent thumbnails with its owner', (
+    tester,
+  ) async {
+    await tester.runAsync(() async {
+      final feed = await harness.repository.saveFeed(
+        profileId: 12,
+        name: 'Animals',
+        queries: ['cat'],
+      );
+      final source = (await harness.repository.getById(feed.sourceIds.single))!;
+      await harness.repository.commitRefresh(
+        SearchRefreshCommit(
+          subscriptionId: source.id,
+          expectedCreatedAt: source.createdAt,
+          expectedCheckpoint: null,
+          startedAt: checkedAt,
+          identityRetentionBoundary: checkedAt,
+          baseline: true,
+          discoveredPosts: const [],
+          feedPosts: [
+            for (var i = 0; i < 6; i++)
+              CachedFeedPost.fromPost(
+                TestSearchPost(i, checkedAt.add(Duration(seconds: i))),
+              ),
+          ],
+        ),
+      );
+      await harness.container.read(searchSubscriptionsProvider.future);
+    });
+    await harness.pump(tester, const FollowingFeedsPage());
+    final images = tester.widgetList<BooruImage>(find.byType(BooruImage));
+    expect(images.map((image) => image.imageUrl), [
+      'https://example.com/5-thumb.jpg',
+      'https://example.com/4-thumb.jpg',
+      'https://example.com/3-thumb.jpg',
+      'https://example.com/2-thumb.jpg',
+    ]);
+    expect(images.every((image) => image.config == testProfile.auth), isTrue);
+    expect(harness.requests, isEmpty);
+  });
+
+  testWidgets('rate limited source is visible on the feed overview', (
+    tester,
+  ) async {
+    await tester.runAsync(() async {
+      final feed = await harness.repository.saveFeed(
+        profileId: 12,
+        name: 'Animals',
+        queries: ['cat'],
+      );
+      final source = (await harness.repository.getById(feed.sourceIds.single))!;
+      await harness.repository.recordRefreshFailure(
+        source.id,
+        expectedCreatedAt: source.createdAt,
+        attemptedAt: checkedAt,
+        kind: SearchRefreshErrorKind.rateLimited,
+      );
+      await harness.container.read(searchSubscriptionsProvider.future);
+    });
+    await harness.pump(tester, const FollowingFeedsPage());
+    expect(
+      find.text('Rate limited by the site. Try again later.'),
+      findsOneWidget,
+    );
+  });
 }

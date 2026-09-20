@@ -21,6 +21,7 @@ import '../services/feed_history_session.dart';
 import '../providers/search_subscriptions_notifier.dart';
 import '../types/search_following_feed.dart';
 import '../types/search_subscription.dart';
+import '../types/search_refresh.dart';
 import 'following_feed_management_page.dart';
 
 class FollowingFeedsPage extends ConsumerWidget {
@@ -69,9 +70,58 @@ class FollowingFeedsPage extends ConsumerWidget {
                         final hasNew = feed.sourceIds.any(
                           newSearchIds.contains,
                         );
+                        final rateLimited = state.subscriptions.any(
+                          (search) =>
+                              feed.sourceIds.contains(search.id) &&
+                              search.lastErrorKind ==
+                                  SearchRefreshErrorKind.rateLimited,
+                        );
                         return ListTile(
                           title: Text(feed.name),
-                          subtitle: Text(caption),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (feed.posts.isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 8,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      for (final post in feed.posts.take(4))
+                                        Expanded(
+                                          child: Padding(
+                                            padding: const EdgeInsets.all(2),
+                                            child: AspectRatio(
+                                              aspectRatio: 1,
+                                              child: BooruImage(
+                                                imageUrl:
+                                                    post.thumbnailImageUrl,
+                                                config: config.auth,
+                                                fit: BoxFit.cover,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      for (
+                                        var i = feed.posts.length;
+                                        i < 4;
+                                        i++
+                                      )
+                                        const Spacer(),
+                                    ],
+                                  ),
+                                ),
+                              Text(caption),
+                              if (rateLimited)
+                                Text(
+                                  strings.error_rate_limited,
+                                  style: TextStyle(
+                                    color: Theme.of(context).colorScheme.error,
+                                  ),
+                                ),
+                            ],
+                          ),
                           leading: Badge(
                             isLabelVisible: hasNew,
                             child: const Icon(Symbols.rss_feed),
@@ -222,6 +272,9 @@ class _FollowingFeedPageState extends ConsumerState<FollowingFeedPage> {
         .where((s) => s.lastSuccessfulCheckAt != null)
         .length;
     final failed = sources.where((s) => s.lastErrorKind != null).length;
+    final rateLimited = sources.any(
+      (s) => s.lastErrorKind == SearchRefreshErrorKind.rateLimited,
+    );
     final lastChecked =
         sources
             .map((s) => s.lastSuccessfulCheckAt)
@@ -255,6 +308,13 @@ class _FollowingFeedPageState extends ConsumerState<FollowingFeedPage> {
                       .replaceAll('{total}', '${sources.length}')
                       .replaceAll('{failed}', '$failed'),
                 ),
+                if (rateLimited)
+                  Text(
+                    strings.error_rate_limited,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
                 if (lastChecked.isNotEmpty)
                   Text(
                     strings.last_checked.replaceAll(
@@ -327,10 +387,7 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
               query,
               page,
               limit: 20,
-              options: const PostFetchOptions(
-                cascadeRequest: false,
-                chronological: true,
-              ),
+              options: PostFetchOptions.raw,
             )
             .run();
         return result.fold(

@@ -124,6 +124,103 @@ class SearchSubscriptionsNotifier
     );
   });
 
+  Future<int> bulkAddToFeed({
+    required String feedId,
+    required String rawQueries,
+  }) => _mutate((repository) async {
+    final feed = (await repository.getFeeds())
+        .where((item) => item.id == feedId)
+        .firstOrNull;
+    if (feed == null) throw StateError('Feed not found');
+    final searches = {
+      for (final item in await repository.getAll()) item.id: item,
+    };
+    final existing = [
+      for (final id in feed.sourceIds)
+        if (searches[id] case final search?) search.query,
+    ];
+    final known = existing.map(normalizeSearchIdentity).toSet();
+    final additions = [
+      for (final query in parseBulkSearchQueries(rawQueries))
+        if (known.add(normalizeSearchIdentity(query))) query,
+    ];
+    if (additions.isEmpty) return 0;
+    _validateFeedQueries(feed.profileId, additions);
+    await repository.saveFeed(
+      profileId: feed.profileId,
+      name: feed.name,
+      queries: [...existing, ...additions],
+      id: feed.id,
+    );
+    return additions.length;
+  });
+
+  Future<int> bulkPinToFolder({
+    required int profileId,
+    required String? folderId,
+    required String rawQueries,
+  }) => _mutate((repository) async {
+    if (!ref.read(booruConfigProvider).any((c) => c.id == profileId)) {
+      throw StateError('Profile not found');
+    }
+    final organization = await repository.getOrganization();
+    if (folderId != null &&
+        !organization.folders.any((folder) => folder.id == folderId)) {
+      throw StateError('Folder not found');
+    }
+    final feedSourceIds = {
+      for (final feed in await repository.getFeeds()) ...feed.sourceIds,
+    };
+    final known = {
+      for (final search in await repository.getAll())
+        if (search.profileId == profileId && !feedSourceIds.contains(search.id))
+          normalizeSearchIdentity(search.query),
+    };
+    final additions = [
+      for (final query in parseBulkSearchQueries(rawQueries))
+        if (known.add(normalizeSearchIdentity(query))) query,
+    ];
+    if (additions.isEmpty) return 0;
+
+    final created = <String>[];
+    try {
+      for (final query in additions) {
+        created.add(
+          (await repository.create(
+            profileId: profileId,
+            query: query,
+            name: null,
+          )).id,
+        );
+      }
+      await repository.replaceOrganization(
+        SearchOrganization(
+          folders: [
+            for (final folder in organization.folders)
+              if (folder.id == folderId)
+                SharedSearchFolder(
+                  id: folder.id,
+                  name: folder.name,
+                  searchIds: [...folder.searchIds, ...created],
+                )
+              else
+                folder,
+          ],
+          homeSearchIds: [
+            ...organization.homeSearchIds,
+            if (folderId == null) ...created,
+          ],
+        ),
+      );
+    } catch (_) {
+      for (final id in created) {
+        await repository.delete(id);
+      }
+      rethrow;
+    }
+    return created.length;
+  });
+
   void _validateFeedQueries(int profileId, List<String> queries) {
     final config = ref
         .read(booruConfigProvider)
@@ -645,4 +742,14 @@ class SearchSubscriptionsNotifier
         batchTotal: _batchTotal,
         batchProfileId: _batchProfileId,
       );
+}
+
+List<String> parseBulkSearchQueries(String raw) {
+  final seen = <String>{};
+  return [
+    for (final line in raw.split(RegExp(r'\r?\n')))
+      if (normalizeSearchIdentity(line) case final identity
+          when identity.isNotEmpty && seen.add(identity))
+        line.trim(),
+  ];
 }

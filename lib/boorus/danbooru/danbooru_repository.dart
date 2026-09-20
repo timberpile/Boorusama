@@ -74,7 +74,7 @@ class DanbooruRepository extends BooruRepositoryDefault {
   @override
   SearchRefreshQueryAdapter searchRefreshQueryAdapter(BooruConfigAuth config) =>
       const OrderedSearchRefreshQueryAdapter(
-        orderingToken: 'order:created_at',
+        orderingToken: null,
         acceptedOrderingTokens: {
           'order:created_at',
           'order:id',
