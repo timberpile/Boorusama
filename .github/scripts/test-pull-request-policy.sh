@@ -38,6 +38,12 @@ expect_success \
   'Closes #42'
 
 expect_success \
+  'valid branches can be checked without title and body arguments' \
+  "$validator" \
+  develop \
+  feature/42-load-original-on-zoom
+
+expect_success \
   'fix branches can target develop' \
   "$validator" \
   develop \
