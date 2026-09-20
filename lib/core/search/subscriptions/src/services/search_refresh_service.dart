@@ -105,6 +105,7 @@ class SearchRefreshService {
             subscriptionId: subscription.id,
             feedPosts: posts.map(CachedFeedPost.fromPost).toList(),
             expectedCreatedAt: subscription.createdAt,
+            expectedRevision: subscription.runtimeRevision,
             expectedCheckpoint: checkpoint,
             startedAt: startedAt,
             identityRetentionBoundary: startedAt.subtract(
@@ -140,6 +141,7 @@ class SearchRefreshService {
     final saved = await repository.recordRefreshFailure(
       subscription.id,
       expectedCreatedAt: subscription.createdAt,
+      expectedRevision: subscription.runtimeRevision,
       attemptedAt: startedAt,
       kind: kind,
     );

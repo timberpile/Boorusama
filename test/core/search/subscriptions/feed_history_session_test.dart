@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:boorusama/core/posts/post/types.dart';
 import 'package:boorusama/core/search/subscriptions/src/services/feed_history_session.dart';
 import 'package:boorusama/core/search/subscriptions/types.dart';
@@ -107,6 +109,82 @@ void main() {
       await expectLater(session.load(2), throwsStateError);
       expect((await session.load(2)).posts.map((post) => post.id), [9]);
       expect(attempts, 2);
+    },
+  );
+
+  test('retry keeps posts gathered before a later source page fails', () async {
+    final now = DateTime.utc(2026, 9, 20);
+    final source = SearchSubscription.create(
+      id: 'artist',
+      profileId: 1,
+      query: 'artist',
+      name: null,
+      position: 0,
+      createdAt: now,
+    );
+    var pageTwoAttempts = 0;
+    final session = FeedHistorySession(
+      sources: [source],
+      recent: [CachedFeedPost.fromPost(TestSearchPost(11, now))],
+      fetchPage: (_, page) async {
+        if (page == 2 && pageTwoAttempts++ == 0) {
+          throw StateError('Offline');
+        }
+        return PostResult<Post>(
+          posts: [
+            for (final id in page == 1 ? [10, 9] : [8])
+              TestSearchPost(id, now.subtract(Duration(seconds: 11 - id))),
+          ],
+          total: null,
+          hasMore: page == 1,
+        );
+      },
+    );
+
+    expect((await session.load(1)).posts.map((post) => post.id), [11]);
+    await expectLater(session.load(2), throwsStateError);
+    expect((await session.load(2)).posts.map((post) => post.id), [10, 9, 8]);
+    expect(pageTwoAttempts, 2);
+  });
+
+  test(
+    'closing history stops scheduling requests for remaining sources',
+    () async {
+      final now = DateTime.utc(2026, 9, 20);
+      final sources = [
+        for (final id in ['a', 'b', 'c', 'd'])
+          SearchSubscription.create(
+            id: id,
+            profileId: 1,
+            query: id,
+            name: null,
+            position: 0,
+            createdAt: now,
+          ),
+      ];
+      final requests = <String>[];
+      final started = Completer<void>();
+      final replies = [
+        for (var i = 0; i < 3; i++) Completer<PostResult<Post>>(),
+      ];
+      final session = FeedHistorySession(
+        sources: sources,
+        recent: [CachedFeedPost.fromPost(TestSearchPost(10, now))],
+        fetchPage: (source, _) {
+          requests.add(source.id);
+          if (requests.length == 3) started.complete();
+          return replies[requests.length - 1].future;
+        },
+      );
+
+      final loading = session.load(2);
+      await started.future;
+      session.dispose();
+      for (final reply in replies) {
+        reply.complete(const PostResult<Post>(posts: [], total: null));
+      }
+      await expectLater(loading, throwsStateError);
+      expect(requests, ['a', 'b', 'c']);
     },
   );
 }

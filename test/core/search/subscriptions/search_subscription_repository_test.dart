@@ -244,6 +244,107 @@ void main() {
   });
 
   test(
+    'site changes clear cached runtime and reject old refresh results',
+    () async {
+      final pin = await repository.create(
+        profileId: 12,
+        query: 'cat',
+        name: null,
+        createdAt: createdAt,
+      );
+      final unrelated = await repository.create(
+        profileId: 99,
+        query: 'dog',
+        name: null,
+        createdAt: createdAt,
+      );
+      final feed = await repository.saveFeed(
+        profileId: 12,
+        name: 'Artists',
+        queries: ['artist'],
+      );
+      final source = (await repository.getAll()).singleWhere(
+        (item) => feed.sourceIds.contains(item.id),
+      );
+      final oldCommit = SearchRefreshCommit(
+        subscriptionId: source.id,
+        expectedCreatedAt: source.createdAt,
+        expectedCheckpoint: null,
+        startedAt: createdAt.add(const Duration(hours: 1)),
+        identityRetentionBoundary: createdAt,
+        baseline: true,
+        discoveredPosts: [preview(5, createdAt)],
+        feedPosts: [CachedFeedPost.fromPost(TestSearchPost(5, createdAt))],
+      );
+      await repository.commitRefresh(oldCommit);
+      await repository.recordRefreshFailure(
+        source.id,
+        expectedCreatedAt: source.createdAt,
+        attemptedAt: createdAt.add(const Duration(hours: 2)),
+        kind: SearchRefreshErrorKind.network,
+      );
+      expect((await repository.getFeeds()).single.posts, hasLength(1));
+      expect((await repository.getById(source.id))!.previews, isNotEmpty);
+
+      await repository.invalidateRuntimeForProfile(12);
+
+      final reset = (await repository.getById(source.id))!;
+      expect(reset.createdAt, source.createdAt);
+      expect(reset.runtimeRevision, source.runtimeRevision + 1);
+      expect(reset.lastSuccessfulCheckAt, isNull);
+      expect(reset.lastAttemptAt, isNull);
+      expect(reset.lastErrorKind, isNull);
+      expect(reset.previews, isEmpty);
+      expect(reset.recentPostIdentities, isEmpty);
+      expect((await repository.getById(pin.id))!.createdAt, createdAt);
+      expect(await repository.getById(unrelated.id), unrelated);
+      expect((await repository.getFeeds()).single.sourceIds, [source.id]);
+      expect((await repository.getFeeds()).single.posts, isEmpty);
+      await box.close();
+      await organizationBox.close();
+      box = await Hive.openBox<SearchSubscriptionHiveObject>(boxName);
+      organizationBox = await Hive.openBox<dynamic>('folder_test');
+      repository = HiveSearchSubscriptionRepository(
+        box: box,
+        organizationBox: organizationBox,
+      );
+      expect((await repository.getById(source.id))!.runtimeRevision, 1);
+      expect(await repository.commitRefresh(oldCommit), isNull);
+      expect(
+        await repository.recordRefreshFailure(
+          source.id,
+          expectedCreatedAt: source.createdAt,
+          attemptedAt: createdAt.add(const Duration(hours: 2)),
+          kind: SearchRefreshErrorKind.network,
+        ),
+        isNull,
+      );
+    },
+  );
+
+  test('site reset preserves the order of unlisted pinned searches', () async {
+    await repository.create(
+      profileId: 12,
+      query: 'first',
+      name: null,
+      id: 'z',
+      createdAt: createdAt,
+    );
+    await repository.create(
+      profileId: 12,
+      query: 'second',
+      name: null,
+      id: 'a',
+      createdAt: createdAt.add(const Duration(minutes: 1)),
+    );
+    final before = (await repository.getOrganization()).homeSearchIds;
+
+    await repository.invalidateRuntimeForProfile(12);
+
+    expect((await repository.getOrganization()).homeSearchIds, before);
+  });
+
+  test(
     'folders survive reopening and deleting a pin removes its membership',
     () async {
       final search = await repository.create(

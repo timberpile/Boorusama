@@ -19,6 +19,7 @@ class SearchSubscription extends Equatable {
     this.lastAttemptAt,
     this.lastSuccessfulCheckAt,
     this.lastErrorKind,
+    this.runtimeRevision = 0,
   }) : unreadCount = unreadCount > 0 ? 1 : 0,
        name = _normalizeSearchSubscriptionName(name),
        previews = List.unmodifiable(previews.take(4)),
@@ -57,6 +58,7 @@ class SearchSubscription extends Equatable {
   final DateTime? lastAttemptAt;
   final DateTime? lastSuccessfulCheckAt;
   final SearchRefreshErrorKind? lastErrorKind;
+  final int runtimeRevision;
 
   String get displayName => name ?? query;
   bool get hasNewPosts => unreadCount > 0;
@@ -76,6 +78,7 @@ class SearchSubscription extends Equatable {
     lastAttemptAt,
     lastSuccessfulCheckAt,
     lastErrorKind,
+    runtimeRevision,
   ];
 }
 

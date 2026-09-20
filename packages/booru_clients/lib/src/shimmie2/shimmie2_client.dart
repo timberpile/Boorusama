@@ -104,6 +104,20 @@ class Shimmie2Client {
     );
   }
 
+  Future<PostDto?> getPost(int id, {bool useGraphQL = false}) async {
+    if (useGraphQL) {
+      final post = await _graphql.getPostById(id);
+      return post?.id == id ? post : null;
+    }
+
+    final response = await _dio.get(
+      '/api/danbooru/find_posts',
+      queryParameters: {'id': id, ..._authParams},
+    );
+    final posts = await _parsePosts(response, baseUrl: _dio.options.baseUrl);
+    return posts.where((post) => post.id == id).firstOrNull;
+  }
+
   Future<List<AutocompleteDto>> getAutocomplete({
     required String query,
   }) async {

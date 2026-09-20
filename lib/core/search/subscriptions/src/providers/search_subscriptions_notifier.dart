@@ -68,6 +68,7 @@ class SearchSubscriptionsNotifier
 
   final SearchRefreshService? _refreshService;
   final Map<String, Future<SearchRefreshOutcome>> _inFlight = {};
+  final Map<int, int> _pausedProfileRefreshes = {};
   final _requestGate = SearchRefreshRequestGate();
   Future<void> _mutationTail = Future.value();
   Future<void> _batchTail = Future.value();
@@ -473,6 +474,9 @@ class SearchSubscriptionsNotifier
       if (_disposed || subscription == null) {
         return const SearchRefreshDiscarded();
       }
+      if (_pausedProfileRefreshes.containsKey(subscription.profileId)) {
+        return const SearchRefreshDiscarded();
+      }
       final config = ref
           .read(booruConfigProvider)
           .firstWhereOrNull((config) => config.id == subscription.profileId);
@@ -583,6 +587,27 @@ class SearchSubscriptionsNotifier
       await _reload(repository);
     }
   });
+
+  Future<T> runWithProfileRefreshPaused<T>(
+    int profileId,
+    Future<T> Function() operation,
+  ) async {
+    _pausedProfileRefreshes.update(
+      profileId,
+      (count) => count + 1,
+      ifAbsent: () => 1,
+    );
+    try {
+      return await operation();
+    } finally {
+      final remaining = _pausedProfileRefreshes[profileId]! - 1;
+      if (remaining == 0) {
+        _pausedProfileRefreshes.remove(profileId);
+      } else {
+        _pausedProfileRefreshes[profileId] = remaining;
+      }
+    }
+  }
 
   Future<T> _serialize<T>(Future<T> Function() operation) {
     final completer = Completer<T>();

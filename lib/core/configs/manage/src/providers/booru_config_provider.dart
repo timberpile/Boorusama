@@ -223,9 +223,58 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
         (element) => element.id == oldConfigId,
       );
 
-      final updatedConfig = await ref
-          .read(booruConfigRepoProvider)
-          .update(oldConfigId, booruConfigData);
+      final proposedConfig = booruConfigData.toBooruConfig(id: oldConfigId);
+      if (proposedConfig == null) {
+        onFailure?.call('Unable to update profile. Failed to save changes');
+        return;
+      }
+      final siteChanged = !_sameBooruSite(existingConfig, proposedConfig);
+      final searches = ref.read(searchSubscriptionsProvider.notifier);
+      Future<BooruConfig?> save() => searches.runSerializedMutation((
+        searchRepository,
+      ) async {
+        final oldSearches = siteChanged
+            ? (await searchRepository.getAll())
+                  .where((search) => search.profileId == oldConfigId)
+                  .toList()
+            : const <SearchSubscription>[];
+        final oldFeeds = siteChanged
+            ? (await searchRepository.getFeeds())
+                  .where((feed) => feed.profileId == oldConfigId)
+                  .toList()
+            : const <SearchFollowingFeed>[];
+        if (siteChanged) {
+          await searchRepository.invalidateRuntimeForProfile(oldConfigId);
+        }
+        final configRepository = ref.read(booruConfigRepoProvider);
+        BooruConfig? updated;
+        try {
+          updated = await configRepository.update(oldConfigId, booruConfigData);
+        } catch (_) {
+          updated = null;
+        }
+        if (updated == null && siteChanged) {
+          final stored = (await configRepository.getAll()).firstWhereOrNull(
+            (config) => config.id == oldConfigId,
+          );
+          if (stored != null && _sameBooruSite(stored, existingConfig)) {
+            await searchRepository.restoreForProfile(oldConfigId, oldSearches);
+            await searchRepository.restoreFeeds(oldConfigId, oldFeeds);
+          } else {
+            updated = stored;
+          }
+        }
+        if (updated != null) {
+          state = [
+            for (final config in state)
+              if (config.id == oldConfigId) updated else config,
+          ];
+        }
+        return updated;
+      });
+      final updatedConfig = siteChanged
+          ? await searches.runWithProfileRefreshPaused(oldConfigId, save)
+          : await save();
 
       if (updatedConfig == null) {
         _logError('Failed to update config: $oldConfigId');
@@ -233,12 +282,7 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
         return;
       }
 
-      final newConfigs = state.map((config) {
-        return config.id == oldConfigId ? updatedConfig : config;
-      }).toList();
-
       _logInfo('Updated config: $oldConfigId');
-      state = newConfigs;
       onSuccess?.call(updatedConfig);
 
       ref
@@ -392,6 +436,10 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
     ref.read(loggerProvider).verbose('Configs', message);
   }
 }
+
+bool _sameBooruSite(BooruConfig left, BooruConfig right) =>
+    left.auth.booruType == right.auth.booruType &&
+    normalizeBooruSiteUrl(left.url) == normalizeBooruSiteUrl(right.url);
 
 extension BooruConfigNotifierX on BooruConfigNotifier {
   void addOrUpdate({

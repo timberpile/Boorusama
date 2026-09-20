@@ -20,6 +20,7 @@ class SearchRefreshCommit extends Equatable {
   SearchRefreshCommit({
     required this.subscriptionId,
     required this.expectedCreatedAt,
+    this.expectedRevision = 0,
     required this.expectedCheckpoint,
     required this.startedAt,
     required this.identityRetentionBoundary,
@@ -31,6 +32,7 @@ class SearchRefreshCommit extends Equatable {
   final List<CachedFeedPost> feedPosts;
   final String subscriptionId;
   final DateTime expectedCreatedAt;
+  final int expectedRevision;
   final DateTime? expectedCheckpoint;
   final DateTime startedAt;
   final DateTime identityRetentionBoundary;
@@ -41,6 +43,7 @@ class SearchRefreshCommit extends Equatable {
   List<Object?> get props => [
     subscriptionId,
     expectedCreatedAt,
+    expectedRevision,
     expectedCheckpoint,
     startedAt,
     identityRetentionBoundary,

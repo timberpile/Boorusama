@@ -241,6 +241,18 @@ new member checks that source directly and does not create NEW before that
 search discovers new posts. Pinned Searches' Refresh All checks independent
 pins only.
 
+Changing a profile's engine or normalized site URL retains its feed definitions
+and search queries but clears post caches, previews, NEW/error state, and refresh
+checkpoints. The persisted runtime revision rejects results from refreshes
+started against the previous site without changing each search's creation time
+or its position in Home. New refreshes for that profile pause while the cache
+is reset and the profile update is saved. The reset is written first, so an
+interrupted update cannot pair the new site with old cached posts. Display-name
+edits and equivalent URLs keep the existing cache. If saving the new profile
+fails, the previous cache is restored only after verifying that the persisted
+site is still the old one. An interrupted update can leave that cache empty;
+the feed rebuilds it through later source refreshes.
+
 Each feed persists a chronological, deduplicated recent snapshot of at most 500
 posts. Successful source snapshots merge into it; failures preserve the cache
 and source status. Opening the feed renders this snapshot without a source
@@ -259,7 +271,11 @@ separate future work.
 
 Clicking a cached thumbnail loads the native engine post for details. Pixiv
 resolves its synthetic page IDs through artwork details and verifies the exact
-page ID before returning a native post. Removing a source clears the recent
+page ID before returning a native post. Shimmie2 looks up the ID through its
+Danbooru XML endpoint or GraphQL, matching the profile's selected API; E-shuushuu
+uses its single-image endpoint. Both verify the returned ID before building a
+native post, and unavailable responses leave the details view in its handled
+invalid-post state. Removing a source clears the recent
 snapshot so posts exclusive to that source do not remain visible. Unchanged
 source checkpoints persist. All refresh entry points share a three-request
 concurrency gate; automatic work remains sequential.

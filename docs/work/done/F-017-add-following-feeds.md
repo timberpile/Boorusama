@@ -56,5 +56,14 @@ See `docs/superpowers/specs/2026-09-19-following-feed-redesign-design.md` and
   `fvm flutter test --no-pub` suite passed (1,149 tests). The prod-flavor APK
   built and installed on the Android emulator. Maestro also opened the feed
   picker from a tag context menu and verified the final build's cached feed.
-- Open engine-detail and profile-site-change defects are recorded in PS-014 and
-  PS-016 and require separate verification before this task can be completed.
+- PS-014 and PS-016 are resolved. Native cached details work on Shimmie2 and
+  E-shuushuu; profile site changes clear incompatible caches and fence stale
+  refresh results. A history retry preserves posts already assembled before a
+  later source page fails, and leaving the feed stops scheduling more history
+  requests.
+- Final integrated verification: `./gen.sh`, 1,165 Flutter tests, full Dart
+  analysis, `git diff --check`, and prod-debug Android APK build passed.
+  Maestro on the final APK confirmed the separate feed entry, owner caption
+  after a profile-name edit, 50 cached posts and native E-shuushuu details.
+  Shimmie2 detail loading and profile URL changes are covered by automated
+  tests; they were not exercised live in the emulator.

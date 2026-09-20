@@ -1,3 +1,6 @@
+// Dart imports:
+import 'dart:async';
+
 // Flutter imports:
 import 'package:flutter/foundation.dart';
 
@@ -25,12 +28,15 @@ import 'package:boorusama/core/tracking/providers.dart';
 import 'package:boorusama/core/tracking/types.dart';
 import 'package:boorusama/foundation/loggers.dart';
 import 'riverpod_test_utils.dart';
+import 'core/search/subscriptions/subscription_test_utils.dart';
 
 class InMemoryBooruConfigRepository implements BooruConfigRepository {
   InMemoryBooruConfigRepository({this.removeFailure});
 
   final List<BooruConfig> _configs = [];
   final Object? removeFailure;
+  var failNextUpdate = false;
+  var returnNullAfterUpdate = false;
 
   @override
   Future<BooruConfig?> add(BooruConfigData booruConfigData) {
@@ -82,6 +88,10 @@ class InMemoryBooruConfigRepository implements BooruConfigRepository {
 
   @override
   Future<BooruConfig?> update(int id, BooruConfigData booruConfigData) {
+    if (failNextUpdate) {
+      failNextUpdate = false;
+      return Future.value();
+    }
     final index = _configs.indexWhere((e) => e.id == id);
     if (index == -1) return Future.value();
 
@@ -89,7 +99,7 @@ class InMemoryBooruConfigRepository implements BooruConfigRepository {
     if (config == null) return Future.value();
 
     _configs[index] = config;
-    return Future.value(config);
+    return Future.value(returnNullAfterUpdate ? null : config);
   }
 }
 
@@ -126,31 +136,48 @@ class RecordingSearchSubscriptionRepository
   RecordingSearchSubscriptionRepository(
     List<SearchSubscription> subscriptions, {
     SearchOrganization? organization,
+    List<SearchFollowingFeed> feeds = const [],
   }) : _subscriptions = subscriptions.toList(),
+       _feeds = feeds.toList(),
        organization =
            organization ??
            SearchOrganization(folders: const [], homeSearchIds: const []);
 
   final List<SearchSubscription> _subscriptions;
+  final List<SearchFollowingFeed> _feeds;
   final deletedProfileIds = <int>[];
   final restoredProfileIds = <int>[];
   List<SearchSubscription>? restoredSubscriptions;
   Error? deleteFailure;
+  Error? invalidateFailure;
+  Completer<void>? invalidationStarted;
+  Completer<void>? releaseInvalidation;
+  Completer<void>? lookupStarted;
   SearchOrganization organization;
   SearchOrganization? restoredOrganization;
 
   List<SearchSubscription> get remaining => _subscriptions.toList();
+  List<SearchFollowingFeed> get remainingFeeds => _feeds.toList();
 
   @override
   Future<List<SearchSubscription>> getAll() async => _subscriptions.toList();
 
   @override
-  Future<List<SearchFollowingFeed>> getFeeds() async => [];
+  Future<SearchSubscription?> getById(String id) async {
+    lookupStarted?.complete();
+    return _subscriptions.where((item) => item.id == id).firstOrNull;
+  }
+
+  @override
+  Future<List<SearchFollowingFeed>> getFeeds() async => _feeds.toList();
   @override
   Future<void> restoreFeeds(
     int profileId,
     List<SearchFollowingFeed> feeds,
-  ) async {}
+  ) async {
+    _feeds.removeWhere((feed) => feed.profileId == profileId);
+    _feeds.addAll(feeds);
+  }
 
   @override
   Future<SearchOrganization> getOrganization() async => organization;
@@ -202,6 +229,34 @@ class RecordingSearchSubscriptionRepository
         (id) => !removedIds.contains(id),
       ),
     );
+  }
+
+  @override
+  Future<void> invalidateRuntimeForProfile(int profileId) async {
+    if (invalidateFailure case final error?) throw error;
+    invalidationStarted?.complete();
+    await releaseInvalidation?.future;
+    for (var index = 0; index < _subscriptions.length; index++) {
+      final source = _subscriptions[index];
+      if (source.profileId != profileId) continue;
+      _subscriptions[index] = SearchSubscription(
+        id: source.id,
+        profileId: source.profileId,
+        query: source.query,
+        name: source.name,
+        position: source.position,
+        createdAt: source.createdAt,
+        runtimeRevision: source.runtimeRevision + 1,
+        previews: const [],
+        recentPostIdentities: const [],
+        unreadCount: 0,
+      );
+    }
+    for (var index = 0; index < _feeds.length; index++) {
+      if (_feeds[index].profileId == profileId) {
+        _feeds[index] = _feeds[index].copyWith(posts: const []);
+      }
+    }
   }
 
   @override
@@ -409,7 +464,240 @@ void main() {
   group(
     'Update a config',
     () {
-      //TODO: Add tests
+      final checkedAt = DateTime.utc(2026, 9, 20, 8);
+      final original = BooruConfig.empty.toBooruConfigData().copyWith(
+        url: 'https://site-a.example',
+      );
+
+      RecordingSearchSubscriptionRepository repository() {
+        final source = SearchSubscription(
+          id: 'source',
+          profileId: 1,
+          query: 'artist',
+          position: 0,
+          createdAt: checkedAt,
+          previews: const [],
+          recentPostIdentities: const [],
+          unreadCount: 1,
+          lastAttemptAt: checkedAt,
+          lastSuccessfulCheckAt: checkedAt,
+          lastErrorKind: SearchRefreshErrorKind.network,
+        );
+        final unrelated = SearchSubscription.create(
+          id: 'unrelated',
+          profileId: 2,
+          query: 'cat',
+          name: null,
+          position: 0,
+          createdAt: checkedAt,
+        );
+        return RecordingSearchSubscriptionRepository(
+          [source, unrelated],
+          feeds: [
+            SearchFollowingFeed(
+              id: 'feed',
+              profileId: 1,
+              name: 'Artists',
+              sourceIds: const ['source'],
+              posts: [
+                CachedFeedPost.fromPost(TestSearchPost(5, checkedAt)),
+              ],
+            ),
+          ],
+        );
+      }
+
+      test(
+        'changing a profile site clears its feed and search runtime',
+        () async {
+          final searches = repository();
+          final container = createBooruConfigContainer(
+            settingsRepository: InMemorySettingsRepository(),
+            searchSubscriptionRepository: searches,
+          );
+          addTearDown(container.dispose);
+          final notifier = container.read(booruConfigProvider.notifier);
+          await notifier.add(data: original);
+
+          await notifier.update(
+            booruConfigData: original.copyWith(url: 'https://site-b.example'),
+            oldConfigId: 1,
+          );
+
+          final source = searches.remaining.singleWhere(
+            (item) => item.id == 'source',
+          );
+          expect(source.query, 'artist');
+          expect(source.createdAt, checkedAt);
+          expect(source.runtimeRevision, 1);
+          expect(source.lastAttemptAt, isNull);
+          expect(source.lastSuccessfulCheckAt, isNull);
+          expect(source.lastErrorKind, isNull);
+          expect(source.hasNewPosts, isFalse);
+          expect(
+            searches.remaining
+                .singleWhere((item) => item.id == 'unrelated')
+                .createdAt,
+            checkedAt,
+          );
+          expect(searches.remainingFeeds.single.sourceIds, ['source']);
+          expect(searches.remainingFeeds.single.posts, isEmpty);
+        },
+      );
+
+      test(
+        'editing the name on an equivalent site preserves feed cache',
+        () async {
+          final searches = repository();
+          final container = createBooruConfigContainer(
+            settingsRepository: InMemorySettingsRepository(),
+            searchSubscriptionRepository: searches,
+          );
+          addTearDown(container.dispose);
+          final notifier = container.read(booruConfigProvider.notifier);
+          await notifier.add(data: original);
+
+          await notifier.update(
+            booruConfigData: original.copyWith(
+              url: 'https://site-a.example/',
+              name: 'Renamed',
+            ),
+            oldConfigId: 1,
+          );
+
+          expect(
+            searches.remaining
+                .singleWhere((item) => item.id == 'source')
+                .lastSuccessfulCheckAt,
+            checkedAt,
+          );
+          expect(searches.remainingFeeds.single.posts, hasLength(1));
+        },
+      );
+
+      test(
+        'a failed reset keeps the old profile site and feed cache',
+        () async {
+          final searches = repository()
+            ..invalidateFailure = StateError('write failed');
+          final container = createBooruConfigContainer(
+            settingsRepository: InMemorySettingsRepository(),
+            searchSubscriptionRepository: searches,
+          );
+          addTearDown(container.dispose);
+          final notifier = container.read(booruConfigProvider.notifier);
+          await notifier.add(data: original);
+          final errors = <String>[];
+
+          await notifier.update(
+            booruConfigData: original.copyWith(url: 'https://site-b.example'),
+            oldConfigId: 1,
+            onFailure: errors.add,
+          );
+
+          expect(errors, isNotEmpty);
+          expect(container.read(booruConfigProvider).single.url, original.url);
+          expect(searches.remainingFeeds.single.posts, hasLength(1));
+        },
+      );
+
+      test('a failed profile save restores the old site cache', () async {
+        final searches = repository();
+        final configs = InMemoryBooruConfigRepository();
+        final container = createBooruConfigContainer(
+          settingsRepository: InMemorySettingsRepository(),
+          booruConfigRepository: configs,
+          searchSubscriptionRepository: searches,
+        );
+        addTearDown(container.dispose);
+        final notifier = container.read(booruConfigProvider.notifier);
+        await notifier.add(data: original);
+        configs.failNextUpdate = true;
+        final errors = <String>[];
+
+        await notifier.update(
+          booruConfigData: original.copyWith(url: 'https://site-b.example'),
+          oldConfigId: 1,
+          onFailure: errors.add,
+        );
+
+        expect(errors, isNotEmpty);
+        expect((await configs.getAll()).single.url, original.url);
+        expect(container.read(booruConfigProvider).single.url, original.url);
+        expect(searches.remainingFeeds.single.posts, hasLength(1));
+        expect(
+          searches.remaining
+              .singleWhere((item) => item.id == 'source')
+              .lastSuccessfulCheckAt,
+          checkedAt,
+        );
+      });
+
+      test(
+        'an ambiguous save keeps a newly persisted site cache empty',
+        () async {
+          final searches = repository();
+          final configs = InMemoryBooruConfigRepository();
+          final container = createBooruConfigContainer(
+            settingsRepository: InMemorySettingsRepository(),
+            booruConfigRepository: configs,
+            searchSubscriptionRepository: searches,
+          );
+          addTearDown(container.dispose);
+          final notifier = container.read(booruConfigProvider.notifier);
+          await notifier.add(data: original);
+          configs.returnNullAfterUpdate = true;
+
+          await notifier.update(
+            booruConfigData: original.copyWith(url: 'https://site-b.example'),
+            oldConfigId: 1,
+          );
+
+          expect((await configs.getAll()).single.url, 'https://site-b.example');
+          expect(
+            container.read(booruConfigProvider).single.url,
+            'https://site-b.example',
+          );
+          expect(searches.remainingFeeds.single.posts, isEmpty);
+        },
+      );
+
+      test('a site edit pauses new refreshes before replacing cache', () async {
+        final searches = repository()
+          ..invalidationStarted = Completer<void>()
+          ..releaseInvalidation = Completer<void>()
+          ..lookupStarted = Completer<void>();
+        final configs = InMemoryBooruConfigRepository();
+        final container = createBooruConfigContainer(
+          settingsRepository: InMemorySettingsRepository(),
+          booruConfigRepository: configs,
+          searchSubscriptionRepository: searches,
+        );
+        addTearDown(container.dispose);
+        final notifier = container.read(booruConfigProvider.notifier);
+        await notifier.add(data: original);
+        final updating = notifier.update(
+          booruConfigData: original.copyWith(url: 'https://site-b.example'),
+          oldConfigId: 1,
+        );
+        await searches.invalidationStarted!.future;
+        Future<SearchRefreshOutcome>? refreshing;
+        try {
+          expect((await configs.getAll()).single.url, original.url);
+          refreshing = container
+              .read(searchSubscriptionsProvider.notifier)
+              .refresh('source');
+          await searches.lookupStarted!.future;
+        } finally {
+          searches.releaseInvalidation!.complete();
+          await updating;
+        }
+        expect(await refreshing, const SearchRefreshDiscarded());
+        expect(
+          container.read(booruConfigProvider).single.url,
+          'https://site-b.example',
+        );
+      });
     },
   );
 

@@ -25,9 +25,18 @@ class FeedHistorySession {
   final Set<int> _knownIds;
   final DateTime? _oldestRecent;
   final Map<int, PostResult<CachedFeedPost>> _loadedPages = {};
+  final List<CachedFeedPost> _pendingPosts = [];
   var _initialized = false;
+  var _disposed = false;
+
+  void dispose() {
+    _disposed = true;
+    _pendingPosts.clear();
+    _loadedPages.clear();
+  }
 
   Future<PostResult<CachedFeedPost>> load(int page) async {
+    if (_disposed) throw StateError('Feed history session closed');
     if (_loadedPages[page] case final result?) return result;
     if (page == 1 && _recent.isNotEmpty) {
       return _loadedPages[page] = PostResult(
@@ -40,7 +49,7 @@ class FeedHistorySession {
       _initialized = true;
       await _fillEmptyCursors();
     }
-    final posts = <CachedFeedPost>[];
+    final posts = _pendingPosts;
     while (posts.length < 50) {
       await _fillEmptyCursors();
       final available = _cursors
@@ -61,16 +70,19 @@ class FeedHistorySession {
         posts.add(post);
       }
     }
-    return _loadedPages[page] = PostResult(
-      posts: posts,
+    final result = PostResult<CachedFeedPost>(
+      posts: List.unmodifiable(posts),
       total: null,
       hasMore: _cursors.any(
         (cursor) => cursor.hasMore || cursor.current != null,
       ),
     );
+    posts.clear();
+    return _loadedPages[page] = result;
   }
 
   Future<void> _fillEmptyCursors() async {
+    if (_disposed) throw StateError('Feed history session closed');
     final pending = _cursors
         .where((cursor) => cursor.hasMore && cursor.current == null)
         .toList();
@@ -78,10 +90,11 @@ class FeedHistorySession {
     Object? failure;
     StackTrace? failureStack;
     Future<void> worker() async {
-      while (next < pending.length) {
+      while (!_disposed && next < pending.length) {
         final cursor = pending[next++];
         try {
           final result = await _fetchPage(cursor.source, cursor.page);
+          if (_disposed) return;
           cursor.page++;
           cursor.posts =
               [
@@ -95,6 +108,7 @@ class FeedHistorySession {
           cursor.hasMore = result.hasMore ?? result.posts.isNotEmpty;
           if (cursor.posts.isEmpty) cursor.hasMore = false;
         } catch (error, stackTrace) {
+          if (_disposed) return;
           failure ??= error;
           failureStack ??= stackTrace;
         }
@@ -105,6 +119,7 @@ class FeedHistorySession {
       for (var index = 0; index < 3 && index < pending.length; index++)
         worker(),
     ]);
+    if (_disposed) throw StateError('Feed history session closed');
     if (failure case final error?) {
       Error.throwWithStackTrace(error, failureStack!);
     }

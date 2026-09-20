@@ -197,6 +197,52 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
       });
 
   @override
+  Future<void> invalidateRuntimeForProfile(int profileId) =>
+      _serialize(() async {
+        final originals = {
+          for (final object in _box.values)
+            if (object.profileId == profileId) object.id: object,
+        };
+        final feeds = _feeds().where((feed) => feed.profileId == profileId);
+        final originalFeeds = {
+          for (final feed in feeds)
+            'feed:${feed.id}': _organizationBox?.get('feed:${feed.id}'),
+        };
+        final resetSearches = {
+          for (final object in originals.values)
+            object.id: _toObject(_resetRuntime(_toSubscription(object))),
+        };
+        try {
+          await _box.putAll(resetSearches);
+          await _organizationBox?.putAll({
+            for (final feed in feeds)
+              'feed:${feed.id}': feed.copyWith(posts: const []).toJson(),
+          });
+        } catch (_) {
+          await _box.putAll(originals);
+          await _organizationBox?.putAll({
+            for (final entry in originalFeeds.entries)
+              if (entry.value != null) entry.key: entry.value,
+          });
+          rethrow;
+        }
+      });
+
+  SearchSubscription _resetRuntime(SearchSubscription source) =>
+      SearchSubscription(
+        id: source.id,
+        profileId: source.profileId,
+        query: source.query,
+        name: source.name,
+        position: source.position,
+        createdAt: source.createdAt,
+        runtimeRevision: source.runtimeRevision + 1,
+        previews: const [],
+        recentPostIdentities: const [],
+        unreadCount: 0,
+      );
+
+  @override
   Future<SearchOrganization> getOrganization() => _read(_organization);
 
   @override
@@ -409,6 +455,7 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
       }
       final current = _toSubscription(currentObject);
       if (current.createdAt != commit.expectedCreatedAt ||
+          current.runtimeRevision != commit.expectedRevision ||
           current.lastSuccessfulCheckAt != commit.expectedCheckpoint) {
         return null;
       }
@@ -455,6 +502,7 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
         name: current.name,
         position: current.position,
         createdAt: current.createdAt,
+        runtimeRevision: current.runtimeRevision,
         previews: previews,
         recentPostIdentities: recentPostIdentities.take(50).toList(),
         unreadCount:
@@ -510,12 +558,15 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
   Future<SearchSubscription?> recordRefreshFailure(
     String id, {
     required DateTime expectedCreatedAt,
+    int expectedRevision = 0,
     required DateTime attemptedAt,
     required SearchRefreshErrorKind kind,
   }) {
     return _serialize(() async {
       final current = _box.get(id.trim());
-      if (current == null || current.createdAt != expectedCreatedAt) {
+      if (current == null ||
+          current.createdAt != expectedCreatedAt ||
+          current.runtimeRevision != expectedRevision) {
         return null;
       }
       final subscription = _toSubscription(current);
@@ -526,6 +577,7 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
         name: subscription.name,
         position: subscription.position,
         createdAt: subscription.createdAt,
+        runtimeRevision: subscription.runtimeRevision,
         previews: subscription.previews,
         recentPostIdentities: subscription.recentPostIdentities,
         unreadCount: subscription.unreadCount,
@@ -804,6 +856,7 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
       name: object.name,
       position: object.position,
       createdAt: object.createdAt,
+      runtimeRevision: object.runtimeRevision,
       previews: object.previews.take(4).map(_toPreview).toList(),
       recentPostIdentities: object.recentPostIdentities.reversed
           .take(50)
@@ -829,6 +882,7 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
       name: subscription.name,
       position: subscription.position,
       createdAt: subscription.createdAt,
+      runtimeRevision: subscription.runtimeRevision,
       lastAttemptAt: subscription.lastAttemptAt,
       lastSuccessfulCheckAt: subscription.lastSuccessfulCheckAt,
       unreadCount: subscription.unreadCount,
@@ -887,6 +941,7 @@ extension on SearchSubscription {
       name: name,
       position: position,
       createdAt: createdAt,
+      runtimeRevision: runtimeRevision,
       previews: previews,
       recentPostIdentities: recentPostIdentities,
       unreadCount: unreadCount,
@@ -904,6 +959,7 @@ extension on SearchSubscription {
       name: name,
       position: value,
       createdAt: createdAt,
+      runtimeRevision: runtimeRevision,
       previews: previews,
       recentPostIdentities: recentPostIdentities,
       unreadCount: unreadCount,
@@ -921,6 +977,7 @@ extension on SearchSubscription {
       name: name,
       position: position,
       createdAt: createdAt,
+      runtimeRevision: runtimeRevision,
       previews: previews,
       recentPostIdentities: recentPostIdentities,
       unreadCount: value,

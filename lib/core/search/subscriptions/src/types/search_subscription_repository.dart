@@ -38,11 +38,13 @@ abstract interface class SearchSubscriptionRepository {
   Future<SearchSubscription?> recordRefreshFailure(
     String id, {
     required DateTime expectedCreatedAt,
+    int expectedRevision = 0,
     required DateTime attemptedAt,
     required SearchRefreshErrorKind kind,
   });
   Future<void> delete(String id);
   Future<void> deleteForProfile(int profileId);
+  Future<void> invalidateRuntimeForProfile(int profileId);
   Future<void> restoreForProfile(
     int profileId,
     List<SearchSubscription> subscriptions,

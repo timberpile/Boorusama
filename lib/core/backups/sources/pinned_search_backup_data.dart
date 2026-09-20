@@ -1,5 +1,6 @@
 // Package imports:
 import 'package:equatable/equatable.dart';
+import '../../configs/config/types.dart';
 
 class PinnedSearchBackupData extends Equatable {
   const PinnedSearchBackupData({
@@ -54,15 +55,8 @@ class PinnedSearchProfileReference extends Equatable {
   List<Object?> get props => [id, booruType, url, name];
 }
 
-String normalizePinnedSearchProfileUrl(String url) {
-  final uri = Uri.parse(url);
-  return Uri(
-    scheme: uri.scheme,
-    host: uri.host.toLowerCase(),
-    port: uri.hasPort ? uri.port : null,
-    path: uri.path.replaceFirst(RegExp(r'/+$'), ''),
-  ).toString();
-}
+String normalizePinnedSearchProfileUrl(String url) =>
+    normalizeBooruSiteUrl(url);
 
 class PinnedSearchFolderBackupRecord extends Equatable {
   const PinnedSearchFolderBackupRecord({

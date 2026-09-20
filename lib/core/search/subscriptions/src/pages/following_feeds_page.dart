@@ -306,6 +306,12 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
     _history = _createHistory();
   }
 
+  @override
+  void dispose() {
+    _history.dispose();
+    super.dispose();
+  }
+
   FeedHistorySession _createHistory() => FeedHistorySession(
     sources: widget.sources,
     recent: widget.feed.posts,
@@ -351,6 +357,7 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
       return;
     }
     if (sourcesChanged || postsChanged) {
+      _history.dispose();
       _history = _createHistory();
       _prefetchedAtLength = -1;
       _historyStarted = false;
@@ -365,6 +372,7 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
   }
 
   void _showLatestPosts() {
+    _history.dispose();
     _history = _createHistory();
     _prefetchedAtLength = -1;
     setState(() {
@@ -401,18 +409,23 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
   @override
   Widget build(BuildContext context) => PostScope<CachedFeedPost>(
     pageMode: PageMode.infinite,
-    fetcher: (page) => TaskEither.tryCatch(
-      () => _history.load(page),
-      (error, _) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) setState(() => _historyError = true);
-        });
-        return AppError(
-          type: AppErrorType.loadDataFromServerFailed,
-          message: '$error',
-        );
-      },
-    ),
+    fetcher: (page) {
+      final history = _history;
+      return TaskEither.tryCatch(
+        () => history.load(page),
+        (error, _) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && identical(history, _history)) {
+              setState(() => _historyError = true);
+            }
+          });
+          return AppError(
+            type: AppErrorType.loadDataFromServerFailed,
+            message: '$error',
+          );
+        },
+      );
+    },
     builder: (context, controller) {
       _controller = controller;
       return Stack(

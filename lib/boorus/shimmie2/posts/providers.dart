@@ -20,8 +20,21 @@ final shimmie2PostRepoProvider =
 
         return PostRepositoryBuilder(
           tagComposer: tagComposer,
-          fetchSingle: (id, {options}) {
-            return Future.value();
+          fetchSingle: (id, {options}) async {
+            final numericId = switch (id) {
+              NumericPostId(:final value) => value,
+              _ => null,
+            };
+            if (numericId == null) return null;
+
+            final useGraphQL = await ref.read(
+              useGraphQLClientProvider(config.auth).future,
+            );
+            final post = await client.getPost(
+              numericId,
+              useGraphQL: useGraphQL,
+            );
+            return post != null ? postDtoToPost(post, null) : null;
           },
           fetch: (tags, page, {limit, options}) async {
             final useGraphQL = await ref.read(

@@ -3,6 +3,8 @@
 Priority: Normal
 Affected feature: Following-feed post details and engine integration
 Review severity: P2
+Agent: `/root/feed_engine_details` (2026-09-20)
+Work branch: `feature/17-following-feeds`
 
 ## Problem and reproduction
 
@@ -22,11 +24,11 @@ offers feeds, using the owning profile's authentication and post identity.
 
 ## Acceptance criteria
 
-- [ ] Cached Shimmie2 and E-shuushuu posts open native post details successfully.
-- [ ] Engine-specific detail widgets receive compatible native post objects.
-- [ ] Deleted, unavailable, or inaccessible posts produce a handled failure.
-- [ ] Opening the feed itself remains a cache read without scanning its sources.
-- [ ] Regression coverage exercises both affected engines; validate the
+- [x] Cached Shimmie2 and E-shuushuu posts open native post details successfully.
+- [x] Engine-specific detail widgets receive compatible native post objects.
+- [x] Deleted, unavailable, or inaccessible posts produce a handled failure.
+- [x] Opening the feed itself remains a cache read without scanning its sources.
+- [x] Regression coverage exercises both affected engines; validate the
   user-facing path with Maestro on Android.
 
 ## Context and review evidence
@@ -42,7 +44,27 @@ the emulator during review; Android checks covered navigation only.
 - [Single-post route](../../../lib/core/posts/details/src/routes/routes.dart)
 - [Subsystem documentation](../../pinned_searches.md)
 
+## Completion evidence (2026-09-20)
+
+- Shimmie2 resolves IDs through the Danbooru XML API or GraphQL according to
+  the active profile and verifies the returned ID. E-shuushuu resolves IDs
+  through `/api/v1/images/{id}` and verifies its returned `image_id`. Both
+  repositories convert the DTO to their native post type.
+- Six focused engine-detail tests passed, covering Shimmie2 REST, GraphQL,
+  mismatched GraphQL ID, E-shuushuu, and unavailable responses for both.
+  Four feed history tests passed, including cache-only initial loading.
+  Existing Shimmie2 client tests passed (five cases); targeted analysis
+  reported no issues.
+- Live read-only API probes confirmed Shimmie2 `find_posts?id=14126` returned
+  matching XML on a public instance and E-shuushuu `/api/v1/images/1`
+  returned a matching image object. The E-shuushuu API returned HTTP 500
+  for an unavailable ID; the details route handles the repository failure.
+- Maestro on Android opened a cached post from a newly created E-shuushuu
+  feed and displayed the native image details with its Comments action.
+  A Shimmie2 emulator profile was not used; its two API modes were exercised
+  with controlled responses in tests.
+
 ## Dependencies
 
 None. Follow the [development workflow](../../development_workflow.md) when
-implementing. This ticket records the finding; no fix has been applied.
+implementing.
