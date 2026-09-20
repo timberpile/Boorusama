@@ -16,6 +16,7 @@ import 'analytics/widgets.dart';
 import 'backups/auto/trigger.dart';
 import 'router.dart';
 import 'settings/providers.dart';
+import 'search/subscriptions/src/widgets/search_refresh_lifecycle.dart';
 import 'themes/theme/widgets.dart';
 import 'widgets/widgets.dart';
 import 'window/widgets.dart';
@@ -29,7 +30,7 @@ class App extends StatelessWidget {
       child: AnalyticsScope(
         child: AutoBackupAppLifecycle(
           child: NetworkListener(
-            child: _App(),
+            child: SearchRefreshLifecycle(child: _App()),
           ),
         ),
       ),
