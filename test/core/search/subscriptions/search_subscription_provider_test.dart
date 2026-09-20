@@ -88,4 +88,49 @@ void main() {
     expect(box.isOpen, isFalse);
     await directory.delete(recursive: true);
   });
+
+  test('keeps the rebuilt repository usable after invalidation', () async {
+    final directory = await initializeHive();
+    final container = ProviderContainer(
+      overrides: [
+        searchSubscriptionRepositoryProvider.overrideWith(
+          () => SearchSubscriptionRepositoryNotifier(
+            openBox: () => Hive.openBox<SearchSubscriptionHiveObject>(boxName),
+          ),
+        ),
+      ],
+    );
+
+    final first = await container.read(
+      searchSubscriptionRepositoryProvider.future,
+    );
+    await first.create(
+      profileId: 4,
+      query: 'first',
+      name: null,
+      id: 'first',
+    );
+    container.invalidate(searchSubscriptionRepositoryProvider);
+    final rebuilt = await container.read(
+      searchSubscriptionRepositoryProvider.future,
+    );
+    final second = await rebuilt.create(
+      profileId: 4,
+      query: 'second',
+      name: null,
+      id: 'second',
+    );
+    expect(second.id, 'second');
+    expect((await rebuilt.getAll()).map((item) => item.id), [
+      'first',
+      'second',
+    ]);
+    final notifier = container.read(
+      searchSubscriptionRepositoryProvider.notifier,
+    );
+    container.dispose();
+    await notifier.closeFuture;
+
+    await directory.delete(recursive: true);
+  });
 }

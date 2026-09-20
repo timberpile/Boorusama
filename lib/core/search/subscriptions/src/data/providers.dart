@@ -23,28 +23,19 @@ class SearchSubscriptionRepositoryNotifier
   }) : _openBox = openBox ?? _openDefaultBox;
 
   final Future<Box<SearchSubscriptionHiveObject>> Function() _openBox;
-  final _closeCompleter = Completer<void>();
-  Box<SearchSubscriptionHiveObject>? _box;
-  var _disposed = false;
+  Future<void> _closeFuture = Future.value();
 
-  Future<void> get closeFuture => _closeCompleter.future;
+  Future<void> get closeFuture => _closeFuture;
 
   @override
   Future<SearchSubscriptionRepository> build() async {
+    final previousClose = _closeFuture;
+    final resource = _SearchSubscriptionRepositoryBuild(_openBox);
     ref.onDispose(() {
-      _disposed = true;
-      final box = _box;
-      if (box != null) {
-        unawaited(_closeBox(box));
-      }
+      _closeFuture = resource.dispose();
     });
-
-    final box = await _openBox();
-    _box = box;
-    if (_disposed) {
-      await _closeBox(box);
-    }
-    return HiveSearchSubscriptionRepository(box: box);
+    await previousClose;
+    return resource.open();
   }
 
   static Future<Box<SearchSubscriptionHiveObject>> _openDefaultBox() {
@@ -52,13 +43,42 @@ class SearchSubscriptionRepositoryNotifier
       'pinned_search_subscriptions',
     );
   }
+}
 
-  Future<void> _closeBox(Box<SearchSubscriptionHiveObject> box) async {
-    try {
-      await box.close();
-      _closeCompleter.complete();
-    } catch (error, stackTrace) {
-      _closeCompleter.completeError(error, stackTrace);
+class _SearchSubscriptionRepositoryBuild {
+  _SearchSubscriptionRepositoryBuild(this._openBox);
+
+  final Future<Box<SearchSubscriptionHiveObject>> Function() _openBox;
+  final _closeCompleter = Completer<void>();
+  Box<SearchSubscriptionHiveObject>? _box;
+  Future<void>? _closing;
+  var _disposed = false;
+
+  Future<SearchSubscriptionRepository> open() async {
+    final box = await _openBox();
+    _box = box;
+    if (_disposed) {
+      await _closeBox();
     }
+    return HiveSearchSubscriptionRepository(box: box);
+  }
+
+  Future<void> dispose() {
+    _disposed = true;
+    if (_box != null) {
+      unawaited(_closeBox());
+    }
+    return _closeCompleter.future;
+  }
+
+  Future<void> _closeBox() {
+    return _closing ??= () async {
+      try {
+        await _box?.close();
+        _closeCompleter.complete();
+      } catch (error, stackTrace) {
+        _closeCompleter.completeError(error, stackTrace);
+      }
+    }();
   }
 }
