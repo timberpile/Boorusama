@@ -484,7 +484,9 @@ Use `SimplePost` records and a page fetch callback. Cover:
 - equal timestamps are not new;
 - duplicate IDs across pages are returned once;
 - empty and short pages complete successfully;
+- explicit `PostResult.hasMore` continuation overrides short-page inference;
 - `maxPage` is honored;
+- an access cap with a total proving unscanned results returns `pagination`;
 - a null timestamp returns `SearchRefreshErrorKind.unsupported`;
 - ascending or otherwise non-monotonic timestamps return `unsupported`;
 - a fetch/pagination failure is returned without a partial success.
@@ -547,7 +549,11 @@ source-compatible and can override it later.
 Inject `pageSize` and `overlap` through the constructor, defaulting to 50 posts
 and five minutes. `scanBaseline` fetches one page. `scanForNewPosts` validates
 descending UTC creation times across page boundaries and stops only after the
-overlap boundary, an empty/short page, or `maxPage`.
+overlap boundary, explicit exhaustion, an empty/short page, or `maxPage`.
+Add nullable `hasMore` continuation metadata to `PostResult`; when present it
+is authoritative over page-length inference. If `maxPage` is reached while the
+reported total proves more results remain than the requested pages could have
+scanned, return a pagination failure rather than a partial success.
 
 Return a sealed `SearchScanResult`:
 

@@ -109,13 +109,25 @@ class ChronologicalSearchScanner {
             final int maxPage => pageNumber >= maxPage,
             null => false,
           };
+          final hasKnownUnscannedResults = switch (page.total) {
+            final int total => total > pageNumber * pageSize,
+            null => false,
+          };
           final isShortPage = page.posts.length < pageSize;
 
-          return switch (reachedOverlapBoundary ||
-              reachedMaxPage ||
-              isShortPage) {
-            true => CompletedSearchScan(posts),
-            false => null,
+          if (reachedMaxPage && hasKnownUnscannedResults) {
+            return const FailedSearchScan(SearchRefreshErrorKind.pagination);
+          }
+
+          return switch (page.hasMore) {
+            false => CompletedSearchScan(posts),
+            true => reachedOverlapBoundary ? CompletedSearchScan(posts) : null,
+            null => switch (reachedOverlapBoundary ||
+                reachedMaxPage ||
+                isShortPage) {
+              true => CompletedSearchScan(posts),
+              false => null,
+            },
           };
         },
       );

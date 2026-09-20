@@ -288,6 +288,8 @@ generic string concatenation in UI or state code. It is responsible for:
   the query as unsupported for refresh;
 - expressing an uploaded-after boundary when supported;
 - paginating newest-first until the old boundary is reached;
+- preserving explicit server continuation metadata when page size alone cannot
+  prove exhaustion;
 - reporting unsupported cases explicitly.
 
 The stored query is never rewritten. Opening a pin always uses the original

@@ -50,7 +50,7 @@ E621Post? postDtoToPost(PostDto dto, PostMetadata? metadata) {
     md5: file.md5 ?? '',
     fileSize: file.size ?? 0,
     score: dto.score?.total ?? 0,
-    createdAt: DateTime.tryParse(dto.createdAt ?? '') ?? DateTime.now(),
+    createdAt: DateTime.tryParse(dto.createdAt ?? ''),
     duration: dto.duration ?? 0,
     characterTags: Set<String>.from(dto.tags?['character'] ?? {}).toSet(),
     copyrightTags: Set<String>.from(dto.tags?['copyright'] ?? {}).toSet(),

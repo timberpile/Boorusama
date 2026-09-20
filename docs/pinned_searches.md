@@ -70,10 +70,14 @@ boundary or emulate query semantics locally.
 `ChronologicalSearchScanner` requests 50 posts per page and uses a five-minute
 overlap before the old checkpoint. It validates non-increasing UTC upload
 timestamps throughout every fetched page and across page boundaries, allowing
-equal timestamps. A later check continues until the overlap boundary, an
-empty/short page, or the reported last page. Duplicate IDs across pages are
-returned once, and only timestamps strictly after the actual checkpoint become
-new-post candidates.
+equal timestamps. Explicit `PostResult.hasMore` continuation metadata is
+authoritative, including for engines whose fixed server page size differs from
+the requested limit. Without it, a later check continues until the overlap
+boundary, an empty/short page, or the reported last page. Reaching an access
+cap while the reported total proves results remain is a pagination failure,
+not successful exhaustion. Duplicate IDs across pages are returned once, and
+only timestamps strictly after the actual checkpoint become new-post
+candidates.
 
 A nullable upload timestamp or an observed non-chronological response produces
 an explicit unsupported result. No timestamp is inferred from the device clock
@@ -105,11 +109,12 @@ timestamp; backup import creates a new timestamp.
 
 Deleting a profile removes its complete subscription aggregates before removing
 the profile. A failed profile operation compensates by restoring the captured
-subscriptions. Profile replacement during restore also removes subscriptions
-for missing profile IDs or IDs reassigned to a different booru type/portable
-URL; equivalent same-ID profiles retain their pins. These cross-repository
-operations use compensation, not a crash-atomic transaction across profile and
-subscription storage.
+subscriptions. Both outcomes reload the subscriptions notifier immediately, so
+lists and badges publish the final deleted or compensated state. Profile
+replacement during restore also removes subscriptions for missing profile IDs
+or IDs reassigned to a different booru type/portable URL; equivalent same-ID
+profiles retain their pins. These cross-repository operations use compensation,
+not a crash-atomic transaction across profile and subscription storage.
 
 The `pinned_searches` backup source runs after profiles. It exports UUIDs,
 optional names, immutable queries, relative ordering, and profile references.

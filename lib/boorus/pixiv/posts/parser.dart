@@ -78,6 +78,15 @@ List<PixivPost> illustDtosToPosts(
   for (final dto in dtos) ...illustDtoToPosts(dto, metadata: metadata),
 ];
 
+PostResult<PixivPost> pixivIllustListResultToPostResult(
+  PixivIllustListResult result, {
+  PostMetadata? metadata,
+}) => PostResult(
+  posts: illustDtosToPosts(result.illusts, metadata: metadata),
+  total: null,
+  hasMore: result.hasMore,
+);
+
 PixivPost _toPost({
   required PixivIllustDto dto,
   required int illustId,

@@ -30,6 +30,7 @@ final booruConfigProvider =
       dependencies: [
         booruConfigRepoProvider,
         searchSubscriptionRepositoryProvider,
+        searchSubscriptionsProvider,
         settingsProvider,
       ],
       name: 'booruConfigProvider',
@@ -91,28 +92,73 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
     };
 
     try {
-      final searchRepository = await ref.read(
-        searchSubscriptionRepositoryProvider.future,
-      );
-      final subscriptions = (await searchRepository.getAll())
-          .where((subscription) => subscription.profileId == config.id)
-          .toList(growable: false);
-      var searchesDeleted = false;
-      var profileRemoved = false;
+      await ref.read(searchSubscriptionsProvider.notifier).runSerializedMutation((
+        searchRepository,
+      ) async {
+        final subscriptions = (await searchRepository.getAll())
+            .where((subscription) => subscription.profileId == config.id)
+            .toList(growable: false);
+        var searchesDeleted = false;
+        var profileRemoved = false;
 
-      try {
-        await searchRepository.deleteForProfile(config.id);
-        searchesDeleted = true;
+        try {
+          await searchRepository.deleteForProfile(config.id);
+          searchesDeleted = true;
 
-        // check if deleting the last config
-        if (state.length == 1) {
+          // check if deleting the last config
+          if (state.length == 1) {
+            await ref.read(booruConfigRepoProvider).remove(config);
+            profileRemoved = true;
+            await ref.read(booruConfigProvider.notifier).fetch();
+            // reset order
+            await updateOrder([]);
+            await ref.read(currentBooruConfigProvider.notifier).setEmpty();
+
+            onSuccess?.call(config);
+
+            analyticsAsync.whenData(
+              (a) => a?.logEvent(
+                eventName,
+                parameters: {
+                  ...baseParams,
+                  'delete_type': 'last',
+                },
+              ),
+            );
+
+            return;
+          }
+
+          // check if deleting current config, if so, set current to the first config
+          final currentConfig = ref.read(currentBooruConfigProvider);
+          var deleteCurrent = false;
+          var deleteFirst = false;
+          if (currentConfig.id == config.id) {
+            final firstConfig = state.first;
+
+            // check if deleting the first config
+            deleteFirst = firstConfig.id == config.id;
+            deleteCurrent = true;
+
+            final targetConfig = deleteFirst
+                ? state.skip(1).first
+                : firstConfig;
+
+            await ref
+                .read(currentBooruConfigProvider.notifier)
+                .update(targetConfig);
+          }
+
           await ref.read(booruConfigRepoProvider).remove(config);
           profileRemoved = true;
-          await ref.read(booruConfigProvider.notifier).fetch();
-          // reset order
-          await updateOrder([]);
-          await ref.read(currentBooruConfigProvider.notifier).setEmpty();
+          final orders = ref.read(settingsProvider).booruConfigIdOrderList;
+          final newOrders = [...orders..remove(config.id)];
 
+          await updateOrder(newOrders);
+
+          final tmp = [...state]..remove(config);
+
+          state = tmp;
           onSuccess?.call(config);
 
           analyticsAsync.whenData(
@@ -120,68 +166,26 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
               eventName,
               parameters: {
                 ...baseParams,
-                'delete_type': 'last',
+                'delete_type': deleteCurrent
+                    ? deleteFirst
+                          ? 'current_first'
+                          : 'current'
+                    : 'normal',
               },
             ),
           );
-
-          return;
+        } catch (error, stackTrace) {
+          if (searchesDeleted && !profileRemoved) {
+            await _restoreProfileSubscriptions(
+              config,
+              searchRepository,
+              subscriptions,
+              error,
+            );
+          }
+          Error.throwWithStackTrace(error, stackTrace);
         }
-
-        // check if deleting current config, if so, set current to the first config
-        final currentConfig = ref.read(currentBooruConfigProvider);
-        var deleteCurrent = false;
-        var deleteFirst = false;
-        if (currentConfig.id == config.id) {
-          final firstConfig = state.first;
-
-          // check if deleting the first config
-          deleteFirst = firstConfig.id == config.id;
-          deleteCurrent = true;
-
-          final targetConfig = deleteFirst ? state.skip(1).first : firstConfig;
-
-          await ref
-              .read(currentBooruConfigProvider.notifier)
-              .update(targetConfig);
-        }
-
-        await ref.read(booruConfigRepoProvider).remove(config);
-        profileRemoved = true;
-        final orders = ref.read(settingsProvider).booruConfigIdOrderList;
-        final newOrders = [...orders..remove(config.id)];
-
-        await updateOrder(newOrders);
-
-        final tmp = [...state]..remove(config);
-
-        state = tmp;
-        onSuccess?.call(config);
-
-        analyticsAsync.whenData(
-          (a) => a?.logEvent(
-            eventName,
-            parameters: {
-              ...baseParams,
-              'delete_type': deleteCurrent
-                  ? deleteFirst
-                        ? 'current_first'
-                        : 'current'
-                  : 'normal',
-            },
-          ),
-        );
-      } catch (error, stackTrace) {
-        if (searchesDeleted && !profileRemoved) {
-          await _restoreProfileSubscriptions(
-            config,
-            searchRepository,
-            subscriptions,
-            error,
-          );
-        }
-        Error.throwWithStackTrace(error, stackTrace);
-      }
+      });
     } catch (e) {
       onFailure?.call(e.toString());
     }

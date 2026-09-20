@@ -17,6 +17,8 @@ import 'package:boorusama/core/settings/src/providers/settings_notifier.dart';
 import 'package:boorusama/core/settings/src/providers/settings_provider.dart';
 import 'package:boorusama/core/settings/src/types/settings.dart';
 import 'package:boorusama/core/settings/src/types/settings_repository.dart';
+import 'package:boorusama/core/search/subscriptions/providers.dart'
+    show searchSubscriptionsProvider;
 import 'package:boorusama/core/search/subscriptions/src/data/providers.dart';
 import 'package:boorusama/core/search/subscriptions/types.dart';
 import 'package:boorusama/core/tracking/providers.dart';
@@ -636,6 +638,38 @@ void main() {
       });
 
       test(
+        'publishes remaining pinned searches after profile deletion',
+        () async {
+          final config1 = BooruConfig.empty.toBooruConfigData();
+          final config2 = BooruConfig.empty.toBooruConfigData();
+          final searchRepository = RecordingSearchSubscriptionRepository([
+            subscriptionFor('deleted', 1),
+            subscriptionFor('remaining', 2),
+          ]);
+          final container = createBooruConfigContainer(
+            settingsRepository: InMemorySettingsRepository(),
+            searchSubscriptionRepository: searchRepository,
+          );
+          addTearDown(container.dispose);
+          final notifier = container.read(booruConfigProvider.notifier);
+          await notifier.add(data: config1);
+          await notifier.add(data: config2);
+          await container.read(searchSubscriptionsProvider.future);
+
+          await notifier.delete(config1.toBooruConfig(id: 1)!);
+
+          expect(
+            container
+                .read(searchSubscriptionsProvider)
+                .requireValue
+                .subscriptions
+                .map((subscription) => subscription.id),
+            ['remaining'],
+          );
+        },
+      );
+
+      test(
         'keeps the profile when pinned-search cleanup fails',
         () async {
           final config = BooruConfig.empty.toBooruConfigData();
@@ -690,6 +724,15 @@ void main() {
           addTearDown(container.dispose);
           final notifier = container.read(booruConfigProvider.notifier);
           await notifier.add(data: config);
+          await container.read(searchSubscriptionsProvider.future);
+          var publishedStates = 0;
+          final subscription = container.listen(
+            searchSubscriptionsProvider,
+            (_, next) {
+              if (next.hasValue) publishedStates++;
+            },
+          );
+          addTearDown(subscription.close);
           final failures = <String>[];
 
           await notifier.delete(
@@ -708,6 +751,14 @@ void main() {
             searchRepository.remaining,
             unorderedEquals([...pinnedSearches, unaffectedSearch]),
           );
+          expect(
+            container
+                .read(searchSubscriptionsProvider)
+                .requireValue
+                .subscriptions,
+            unorderedEquals([...pinnedSearches, unaffectedSearch]),
+          );
+          expect(publishedStates, 1);
           expect(failures, ['Bad state: profile deletion failed']);
         },
       );

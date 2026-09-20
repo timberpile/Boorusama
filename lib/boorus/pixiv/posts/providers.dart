@@ -39,17 +39,17 @@ final pixivPostRepoProvider =
             final userId = query.userId;
             final text = query.text;
 
-            final List<PixivIllustDto> illusts;
+            final PixivIllustListResult result;
             if (userId != null) {
-              illusts = (await client.getUserIllusts(
+              result = await client.getUserIllusts(
                 userId: userId,
                 page: page,
-              )).illusts;
+              );
             } else if (text != null) {
-              illusts = (await client.searchIllust(
+              result = await client.searchIllust(
                 word: text,
                 page: page,
-              )).illusts;
+              );
             } else {
               // Pixiv has no tag-less "recent" browse endpoint, so an empty
               // query would otherwise render as a blank grid, which reads as
@@ -57,16 +57,16 @@ final pixivPostRepoProvider =
               // instead (see ranking/providers.dart for the same call with
               // date clamping/omission; here the date is simply omitted so
               // the API returns whatever it considers newest).
-              illusts = (await client.getRanking(
+              result = await client.getRanking(
                 mode: PixivRankingMode.day,
                 page: page,
-              )).illusts;
+              );
             }
 
-            return illustDtosToPosts(
-              illusts,
+            return pixivIllustListResultToPostResult(
+              result,
               metadata: metadata,
-            ).toResult();
+            );
           },
         );
       },

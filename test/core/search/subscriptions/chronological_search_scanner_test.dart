@@ -14,8 +14,15 @@ void main() {
 
   PostResult<Post> page(
     List<Post> posts, {
+    int? total,
     int? maxPage,
-  }) => PostResult(posts: posts, total: posts.length, maxPage: maxPage);
+    bool? hasMore,
+  }) => PostResult(
+    posts: posts,
+    total: total ?? posts.length,
+    maxPage: maxPage,
+    hasMore: hasMore,
+  );
 
   _TestPost post(int id, DateTime? createdAt) => _TestPost(
     id: id,
@@ -156,6 +163,31 @@ void main() {
     });
   }
 
+  test('follows explicit continuation despite a short page', () async {
+    final fetchedPages = <int>[];
+    final result = await scanner(pageSize: 50).scanForNewPosts(
+      query: 'cat',
+      checkpoint: checkpoint,
+      fetchPage: (pageNumber, limit) async {
+        fetchedPages.add(pageNumber);
+        return Either.of(
+          switch (pageNumber) {
+            1 => page([
+              post(2, checkpoint.add(const Duration(minutes: 2))),
+            ], hasMore: true),
+            _ => page([
+              post(1, checkpoint.subtract(const Duration(minutes: 5))),
+            ], hasMore: false),
+          },
+        );
+      },
+    );
+
+    expect(fetchedPages, [1, 2]);
+    expect(result, isA<CompletedSearchScan>());
+    expect((result as CompletedSearchScan).posts.map((item) => item.id), [2]);
+  });
+
   test('honors the result maximum page', () async {
     final fetchedPages = <int>[];
     final result = await scanner().scanForNewPosts(
@@ -174,6 +206,33 @@ void main() {
 
     expect(fetchedPages, [1]);
     expect(result, isA<CompletedSearchScan>());
+  });
+
+  test('fails when the maximum page leaves known results unscanned', () async {
+    final fetchedPages = <int>[];
+    final result = await scanner().scanForNewPosts(
+      query: 'cat',
+      checkpoint: checkpoint,
+      fetchPage: (pageNumber, limit) async {
+        fetchedPages.add(pageNumber);
+        return Either.of(
+          page(
+            [
+              post(3, checkpoint.add(const Duration(minutes: 3))),
+              post(2, checkpoint.add(const Duration(minutes: 2))),
+            ],
+            total: 3,
+            maxPage: 1,
+          ),
+        );
+      },
+    );
+
+    expect(fetchedPages, [1]);
+    expect(
+      result,
+      const FailedSearchScan(SearchRefreshErrorKind.pagination),
+    );
   });
 
   test('returns unsupported when a post timestamp is null', () async {
