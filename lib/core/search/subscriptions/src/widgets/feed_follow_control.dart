@@ -93,15 +93,8 @@ class _FeedMembershipDialog extends ConsumerStatefulWidget {
 }
 
 class _FeedMembershipDialogState extends ConsumerState<_FeedMembershipDialog> {
-  final _name = TextEditingController();
   var _busy = false;
   String? _error;
-
-  @override
-  void dispose() {
-    _name.dispose();
-    super.dispose();
-  }
 
   Future<void> _setFollowed(SearchFollowingFeed feed, bool following) async {
     setState(() {
@@ -126,36 +119,24 @@ class _FeedMembershipDialogState extends ConsumerState<_FeedMembershipDialog> {
       }
     } catch (_) {
       if (mounted) {
-        setState(() => _error = context.t.pinned_searches.operation_failed);
+        setState(
+          () => _error = context.t.pinned_searches.feed_operation_failed,
+        );
       }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
 
-  Future<void> _create() async {
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    try {
-      final notifier = ref.read(searchSubscriptionsProvider.notifier);
-      final feed = await notifier.saveFeed(
+  Future<void> _openCreate() async {
+    final created = await showDialog<bool>(
+      context: context,
+      builder: (_) => _CreateFeedDialog(
         profileId: widget.profileId,
-        name: _name.text,
-        queries: [widget.query],
-      );
-      _name.clear();
-      for (final id in feed.sourceIds) {
-        unawaited(notifier.refresh(id));
-      }
-    } catch (_) {
-      if (mounted) {
-        setState(() => _error = context.t.pinned_searches.operation_failed);
-      }
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
+        query: widget.query,
+      ),
+    );
+    if ((created ?? false) && mounted) Navigator.of(context).pop();
   }
 
   @override
@@ -178,6 +159,7 @@ class _FeedMembershipDialogState extends ConsumerState<_FeedMembershipDialog> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              if (feeds.isEmpty) Text(strings.feeds_empty),
               for (final feed in feeds)
                 CheckboxListTile(
                   title: Text(feed.name),
@@ -186,11 +168,6 @@ class _FeedMembershipDialogState extends ConsumerState<_FeedMembershipDialog> {
                       ? null
                       : (value) => _setFollowed(feed, value ?? false),
                 ),
-              TextField(
-                controller: _name,
-                decoration: InputDecoration(labelText: strings.feed_name),
-                onChanged: (_) => setState(() {}),
-              ),
               if (_error case final error?)
                 Text(
                   error,
@@ -201,13 +178,117 @@ class _FeedMembershipDialogState extends ConsumerState<_FeedMembershipDialog> {
         ),
       ),
       actions: [
-        TextButton(
-          onPressed: _busy || _name.text.trim().isEmpty ? null : _create,
-          child: Text(strings.create_feed),
+        if (feeds.isEmpty)
+          TextButton(
+            onPressed: _busy ? null : () => Navigator.pop(context),
+            child: Text(context.t.generic.action.cancel),
+          ),
+        if (feeds.isNotEmpty)
+          TextButton(
+            onPressed: _busy ? null : _openCreate,
+            child: Text(strings.create_feed),
+          ),
+        if (feeds.isNotEmpty)
+          TextButton(
+            onPressed: _busy ? null : () => Navigator.pop(context),
+            child: Text(context.t.generic.done),
+          ),
+        if (feeds.isEmpty)
+          FilledButton(
+            onPressed: _busy ? null : _openCreate,
+            child: Text(strings.create_feed),
+          ),
+      ],
+    );
+  }
+}
+
+class _CreateFeedDialog extends ConsumerStatefulWidget {
+  const _CreateFeedDialog({required this.profileId, required this.query});
+
+  final int profileId;
+  final String query;
+
+  @override
+  ConsumerState<_CreateFeedDialog> createState() => _CreateFeedDialogState();
+}
+
+class _CreateFeedDialogState extends ConsumerState<_CreateFeedDialog> {
+  final _name = TextEditingController();
+  var _busy = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _name.dispose();
+    super.dispose();
+  }
+
+  Future<void> _create() async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final notifier = ref.read(searchSubscriptionsProvider.notifier);
+      final feed = await notifier.saveFeed(
+        profileId: widget.profileId,
+        name: _name.text,
+        queries: [widget.query],
+      );
+      for (final id in feed.sourceIds) {
+        unawaited(notifier.refresh(id));
+      }
+      if (mounted) Navigator.of(context).pop(true);
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () => _error = context.t.pinned_searches.feed_operation_failed,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = context.t.pinned_searches;
+    return AlertDialog(
+      title: Text(strings.create_feed),
+      content: SizedBox(
+        width: 420,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(strings.create_feed_source(query: widget.query)),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _name,
+              autofocus: true,
+              decoration: InputDecoration(labelText: strings.feed_name),
+              onChanged: (_) => setState(() {}),
+              onSubmitted: (_) {
+                if (!_busy && _name.text.trim().isNotEmpty) _create();
+              },
+            ),
+            if (_error case final error?)
+              Text(
+                error,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+          ],
         ),
+      ),
+      actions: [
         TextButton(
-          onPressed: _busy ? null : () => Navigator.pop(context),
-          child: Text(context.t.generic.done),
+          onPressed: _busy ? null : () => Navigator.pop(context, false),
+          child: Text(context.t.generic.action.cancel),
+        ),
+        FilledButton(
+          onPressed: _busy || _name.text.trim().isEmpty ? null : _create,
+          child: Text(strings.create_and_follow),
         ),
       ],
     );

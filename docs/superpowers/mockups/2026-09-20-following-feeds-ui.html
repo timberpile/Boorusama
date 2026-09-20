@@ -63,6 +63,7 @@
     .overlay { position: absolute; inset: 31px 0 0; display: none; align-items: center; justify-content: center; padding: 20px; background: #000b; z-index: 2; }
     .overlay.open { display: flex; }
     .dialog { width: 100%; max-height: 85%; overflow: auto; background: #2a2c35; border: 1px solid #515664; border-radius: 20px; padding: 21px; box-shadow: 0 25px 60px #0009; }
+    .dialog[hidden] { display: none; }
     .dialog h2 { margin: 0 0 5px; font-size: 20px; }
     .dialog p { margin: 0 0 18px; color: #b9bdc8; font-size: 12px; }
     .check { display: flex; gap: 10px; align-items: center; margin: 9px 0; font-size: 14px; }
@@ -88,15 +89,19 @@
         <button data-view="artist">Artist page · Follow</button>
         <button data-view="search">Search results · Follow</button>
         <button data-view="tag">Tag context menu · Add to feed</button>
+        <button data-view="first">First feed · empty profile</button>
       </div>
-      <p class="hint">Use the checkboxes to follow or unfollow the current query. Create a new named feed from that same query.</p>
+      <p class="hint">Use the checkboxes to follow or unfollow the current query. Create feed opens a separate name dialog.</p>
     </aside>
     <section class="phone" aria-label="Following Feeds app preview">
       <div class="status"><span>9:41</span><span>▰ ▰ ◕</span></div>
       <div class="appbar"><button class="icon" id="back" aria-label="Back">‹</button><strong id="title">Following Feeds</strong><button class="icon" id="manage" aria-label="Manage feed" hidden>⚙</button></div>
       <div class="screen" id="screen"></div>
       <nav class="bottom"><button id="menu-feeds" class="active">▣<br>Following Feeds</button><button id="menu-pins">⌕<br>Pinned Searches</button><button id="menu-search">⌕<br>Search</button></nav>
-      <div class="overlay" id="overlay"><div class="dialog"><h2>Add to feed</h2><p id="dialog-query"></p><div id="checks"></div><label class="small" for="new-name">New feed name</label><input id="new-name" type="text" placeholder="For example: Favorite artists"><div class="actions"><button id="close">Done</button><button class="primary" id="create" disabled>Create feed</button></div></div></div>
+      <div class="overlay" id="overlay">
+        <div class="dialog" id="selector-dialog"><h2>Add to feed</h2><p id="dialog-query"></p><div id="checks"></div><div class="actions"><button id="close">Done</button><button class="primary" id="open-create">Create feed</button></div></div>
+        <div class="dialog" id="create-dialog" hidden><h2>Create feed</h2><p id="create-query"></p><label class="small" for="new-name">Feed name</label><input id="new-name" type="text" placeholder="For example: Favorite artists"><div class="actions"><button id="cancel-create">Cancel</button><button class="primary" id="create" disabled>Create and follow</button></div></div>
+      </div>
     </section>
     <aside class="copy right">
       <div class="eyebrow">What this demonstrates</div>
@@ -121,11 +126,12 @@
     const title = document.getElementById('title');
     const overlay = document.getElementById('overlay');
     const escape = value => String(value).replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
-    function count() { return feeds.filter(feed => feed.owner.startsWith('Gelbooru') && feed.sources.includes(query)).length; }
+    function currentOwner() { return view === 'first' ? 'New profile · Gelbooru' : 'Gelbooru · gelbooru.com'; }
+    function count() { return feeds.filter(feed => feed.owner === currentOwner() && feed.sources.includes(query)).length; }
     function followButton() { const n = count(); return `<button class="follow" data-follow="1">${n ? 'Following' : 'Follow'} ${n ? `<b>${n}</b>` : ''}</button>`; }
     function grid(n = 18) { return `<div class="grid">${Array.from({length:n}, () => '<div class="tile"></div>').join('')}</div>`; }
     function render() {
-      document.getElementById('back').hidden = view === 'feeds' || ['artist','search','tag'].includes(view);
+      document.getElementById('back').hidden = view === 'feeds' || ['artist','search','tag','first'].includes(view);
       document.getElementById('manage').hidden = view !== 'feed';
       document.querySelectorAll('#scenarios button').forEach(button => button.classList.toggle('active', button.dataset.view === view));
       if (view === 'feeds') {
@@ -140,6 +146,9 @@
       } else if (view === 'tag') {
         query = 'hiten'; title.textContent = 'Posts';
         screen.innerHTML = `${grid(6)}<div class="tag"><span>hiten</span><button data-follow="1">Add to feed</button></div>${grid(9)}`;
+      } else if (view === 'first') {
+        query = 'artist_tag'; title.textContent = 'Artist';
+        screen.innerHTML = `<div class="action-row"><h2>artist_tag</h2>${followButton()}</div><p class="tagline">Artist · New profile</p>${grid()}`;
       } else if (view === 'feed' && selected) {
         title.textContent = selected.name;
         screen.innerHTML = `<div class="fresh">${selected.fresh} of ${selected.sources.length} sources checked recently · updates gradually</div>${grid(45)}<p class="fresh">Older posts load as you scroll</p>`;
@@ -150,8 +159,12 @@
       } else if (view === 'pins') { title.textContent = 'Pinned Searches'; screen.innerHTML = '<p class="intro">Independent pinned searches appear here. Feeds have their own menu entry.</p>'; }
     }
     function picker() {
-      document.getElementById('dialog-query').textContent = `Following “${query}” on Gelbooru`;
-      document.getElementById('checks').innerHTML = feeds.filter(feed => feed.owner.startsWith('Gelbooru')).map(feed => `<label class="check"><input type="checkbox" data-feed="${feed.id}" ${feed.sources.includes(query) ? 'checked' : ''}><span>${escape(feed.name)}</span></label>`).join('');
+      const eligible = feeds.filter(feed => feed.owner === currentOwner());
+      document.getElementById('dialog-query').textContent = `Following “${query}” on ${currentOwner()}`;
+      document.getElementById('checks').innerHTML = eligible.length ? eligible.map(feed => `<label class="check"><input type="checkbox" data-feed="${feed.id}" ${feed.sources.includes(query) ? 'checked' : ''}><span>${escape(feed.name)}</span></label>`).join('') : '<p>No following feeds yet.</p>';
+      document.getElementById('close').textContent = eligible.length ? 'Done' : 'Cancel';
+      document.getElementById('selector-dialog').hidden = false;
+      document.getElementById('create-dialog').hidden = true;
       overlay.classList.add('open');
     }
     screen.addEventListener('click', event => {
@@ -168,12 +181,20 @@
       if (!feed.sources.length) feeds.splice(feeds.indexOf(feed), 1);
       picker();
     });
+    document.getElementById('open-create').addEventListener('click', () => {
+      document.getElementById('create-query').textContent = `This feed will follow: ${query}`;
+      document.getElementById('selector-dialog').hidden = true;
+      document.getElementById('create-dialog').hidden = false;
+      document.getElementById('new-name').focus();
+    });
+    document.getElementById('cancel-create').addEventListener('click', picker);
     document.getElementById('new-name').addEventListener('input', event => document.getElementById('create').disabled = !event.target.value.trim());
     document.getElementById('create').addEventListener('click', () => {
       const input = document.getElementById('new-name');
       if (!input.value.trim()) return;
-      feeds.push({ id: Date.now(), name: input.value.trim(), owner: 'Gelbooru · gelbooru.com', sources: [query], fresh: 0, new: false });
-      input.value = ''; document.getElementById('create').disabled = true; picker();
+      feeds.push({ id: Date.now(), name: input.value.trim(), owner: currentOwner(), sources: [query], fresh: 0, new: false });
+      input.value = ''; document.getElementById('create').disabled = true;
+      overlay.classList.remove('open'); render();
     });
     document.getElementById('close').addEventListener('click', () => { overlay.classList.remove('open'); render(); });
     document.getElementById('back').addEventListener('click', () => { view = view === 'manage' ? 'feed' : 'feeds'; render(); });
