@@ -445,7 +445,7 @@ git commit -m "feat(search): persist pinned searches"
   `DefaultSearchRefreshQueryAdapter`, `ChronologicalSearchScanner`, and
   `SearchScanResult` for Task 4.
 
-- [ ] **Step 1: Write failing query-plan tests**
+- [x] **Step 1: Write failing query-plan tests**
 
 The conservative default accepts ordinary queries unchanged and rejects query
 tokens that request non-chronological ordering:
@@ -468,7 +468,7 @@ do not reject a normal tag merely because its text contains “order”. A futur
 booru override may replace or remove an ordering token and may add a native
 uploaded-after constraint.
 
-- [ ] **Step 2: Write failing scanner behavior tests**
+- [x] **Step 2: Write failing scanner behavior tests**
 
 Use `SimplePost` records and a page fetch callback. Cover:
 
@@ -496,7 +496,7 @@ expect(result, isA<CompletedSearchScan>());
 expect((result as CompletedSearchScan).posts.map((post) => post.id), [3, 2]);
 ```
 
-- [ ] **Step 3: Run both tests and verify they fail**
+- [x] **Step 3: Run both tests and verify they fail**
 
 Run:
 
@@ -507,7 +507,7 @@ fvm flutter test test/core/search/subscriptions/chronological_search_scanner_tes
 
 Expected: FAIL because adapters and scanner do not exist.
 
-- [ ] **Step 4: Implement the query-plan contract**
+- [x] **Step 4: Implement the query-plan contract**
 
 Use sealed results rather than nullable strings:
 
@@ -537,7 +537,7 @@ config)` to `BooruRepository`. Implement it once in `BooruRepositoryDefault`
 with `const DefaultSearchRefreshQueryAdapter()`, so every current engine remains
 source-compatible and can override it later.
 
-- [ ] **Step 5: Implement the scanner**
+- [x] **Step 5: Implement the scanner**
 
 Inject `pageSize` and `overlap` through the constructor, defaulting to 50 posts
 and five minutes. `scanBaseline` fetches one page. `scanForNewPosts` validates
@@ -563,7 +563,7 @@ final class FailedSearchScan extends SearchScanResult {
 
 Do not commit or mutate subscription state in the scanner.
 
-- [ ] **Step 6: Format and run the focused tests**
+- [x] **Step 6: Format and run the focused tests**
 
 Run:
 
@@ -575,7 +575,7 @@ fvm flutter test test/core/search/subscriptions/chronological_search_scanner_tes
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit the refresh capability**
+- [x] **Step 7: Commit the refresh capability**
 
 ```bash
 git add lib/core/search/subscriptions/src/refresh lib/core/boorus/engine/src/booru_repository.dart lib/core/boorus/defaults/src/booru_repository_default.dart test/core/search/subscriptions
