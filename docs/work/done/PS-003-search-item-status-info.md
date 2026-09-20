@@ -17,9 +17,9 @@ details; this is optional, not a requirement to expand the MVP.
 
 ## Acceptance criteria
 
-- [ ] Normal items do not display Last checked directly.
-- [ ] Relevant warnings and errors remain visible on the item.
-- [ ] If an Info action is added, routine check details are available on demand
+- [x] Normal items do not display Last checked directly.
+- [x] Relevant warnings and errors remain visible on the item.
+- [x] If an Info action is added, routine check details are available on demand
   and all new user-facing text uses i18n resources.
 
 ## Relevant context
@@ -36,3 +36,10 @@ Record verification here when resolved.
 ## User decisions — 2026-09-17
 
 Add an Info action for routine check details; remove Last checked from normal cards.
+
+## Completion — 2026-09-17
+
+Agent: Codex (/root)
+Branch: `feature/chronological-pinned-search-support`
+
+Focused suite passed 124 tests. Maestro confirmed normal cards hide Last checked and the Info dialog displays it without refreshing.

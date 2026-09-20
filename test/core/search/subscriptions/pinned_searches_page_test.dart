@@ -89,6 +89,18 @@ void main() {
     await settle(tester);
   }
 
+  testWidgets('routine check details are available through Info only', (
+    tester,
+  ) async {
+    initialize();
+    await harness.seed([pinnedFixture()]);
+    await pump(tester);
+    expect(find.textContaining('Last checked:'), findsNothing);
+    await choose(tester, 'Info');
+    expect(find.textContaining('Last checked:'), findsOneWidget);
+    expect(harness.requests, isEmpty);
+  });
+
   testWidgets('shows loading before cached searches become available', (
     tester,
   ) async {
@@ -140,8 +152,8 @@ void main() {
     expect(find.text('dog'), findsOneWidget);
     expect(find.text('Other profile'), findsNothing);
     expect(find.text('NEW'), findsOneWidget);
-    expect(find.text('Never checked'), findsOneWidget);
-    expect(find.textContaining('Last checked:'), findsOneWidget);
+    expect(find.text('Never checked'), findsNothing);
+    expect(find.textContaining('Last checked:'), findsNothing);
     expect(
       find.text('Could not connect. Try refreshing again.'),
       findsOneWidget,
@@ -196,7 +208,7 @@ void main() {
       await harness.seed([pinnedFixture(error: c.kind)]);
       await pump(tester);
       expect(find.text(c.message), findsOneWidget);
-      expect(find.textContaining('Last checked:'), findsOneWidget);
+      expect(find.textContaining('Last checked:'), findsNothing);
     });
   }
 

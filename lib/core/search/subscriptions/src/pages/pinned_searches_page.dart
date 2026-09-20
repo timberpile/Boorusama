@@ -171,6 +171,51 @@ class _PinnedSearchesPageState extends ConsumerState<PinnedSearchesPage> {
     int index,
   ) async {
     switch (action) {
+      case PinnedSearchAction.info:
+        await showDialog<void>(
+          context: context,
+          builder: (context) {
+            final strings = context.t.pinned_searches;
+            final localizations = MaterialLocalizations.of(context);
+            String date(DateTime value) {
+              final local = value.toLocal();
+              return '${localizations.formatMediumDate(local)} ${localizations.formatTimeOfDay(TimeOfDay.fromDateTime(local))}';
+            }
+
+            return AlertDialog(
+              title: Text(strings.info),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(subscription.displayName),
+                  Text(subscription.query),
+                  const SizedBox(height: 16),
+                  Text(switch (subscription.lastSuccessfulCheckAt) {
+                    null => strings.never_checked,
+                    final checked => strings.last_checked.replaceAll(
+                      '{date}',
+                      date(checked),
+                    ),
+                  }),
+                  if (subscription.lastAttemptAt case final attempted?)
+                    Text(
+                      strings.last_attempt.replaceAll(
+                        '{date}',
+                        date(attempted),
+                      ),
+                    ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text(context.t.generic.action.ok),
+                ),
+              ],
+            );
+          },
+        );
       case PinnedSearchAction.refresh:
         await _runAction(
           () => ref

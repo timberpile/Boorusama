@@ -9,7 +9,7 @@ import '../../../../images/booru_image.dart';
 import '../types/search_refresh.dart';
 import '../types/search_subscription.dart';
 
-enum PinnedSearchAction { refresh, rename, moveUp, moveDown, delete }
+enum PinnedSearchAction { info, refresh, rename, moveUp, moveDown, delete }
 
 class PinnedSearchCard extends StatelessWidget {
   const PinnedSearchCard({
@@ -34,8 +34,6 @@ class PinnedSearchCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final strings = context.t.pinned_searches;
-    final localizations = MaterialLocalizations.of(context);
-    final checkedAt = subscription.lastSuccessfulCheckAt?.toLocal();
 
     return Card(
       clipBehavior: Clip.antiAlias,
@@ -64,6 +62,10 @@ class PinnedSearchCard extends StatelessWidget {
                     icon: const Icon(Symbols.more_vert),
                     onSelected: onAction,
                     itemBuilder: (context) => [
+                      PopupMenuItem(
+                        value: PinnedSearchAction.info,
+                        child: Text(strings.info),
+                      ),
                       PopupMenuItem(
                         value: PinnedSearchAction.refresh,
                         enabled: !refreshing,
@@ -114,13 +116,6 @@ class PinnedSearchCard extends StatelessWidget {
                     ],
                   ),
                 ),
-              Text(switch (checkedAt) {
-                null => strings.never_checked,
-                final date => strings.last_checked.replaceAll(
-                  '{date}',
-                  '${localizations.formatMediumDate(date)} ${localizations.formatTimeOfDay(TimeOfDay.fromDateTime(date))}',
-                ),
-              }),
               if (refreshing) Text(strings.refreshing),
               if (subscription.lastErrorKind case final kind?)
                 Text(
