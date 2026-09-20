@@ -297,6 +297,47 @@ void main() {
     },
   );
 
+  for (final c in [
+    (destination: 'Home', folderId: null),
+    (destination: 'shared folder', folderId: 'shared'),
+  ]) {
+    testWidgets(
+      'saving an existing pin preserves its order in ${c.destination}',
+      (tester) async {
+        await initialize();
+        final saved = await repository.create(
+          profileId: config.id,
+          query: query,
+          name: 'Cats',
+        );
+        final other = await repository.create(
+          profileId: 99,
+          query: 'dog',
+          name: 'Dogs',
+        );
+        final organization = SearchOrganization(
+          folders: [
+            SharedSearchFolder(
+              id: 'shared',
+              name: 'Animals',
+              searchIds: c.folderId == null ? [] : [saved.id, other.id],
+            ),
+          ],
+          homeSearchIds: c.folderId == null ? [saved.id, other.id] : [],
+        );
+        await repository.replaceOrganization(organization);
+        await pump(tester);
+        await load(tester);
+        await submit(tester, 'Cats', existing: true);
+        expect(await repository.getOrganization(), organization);
+        await submit(tester, 'Renamed cats', existing: true);
+        expect((await repository.getById(saved.id))?.name, 'Renamed cats');
+        expect(await repository.getOrganization(), organization);
+        expect(snapshotCalls, 0);
+      },
+    );
+  }
+
   testWidgets('cancelling leaves the query unpinned and results open', (
     tester,
   ) async {

@@ -678,14 +678,46 @@ void main() {
   });
 
   test(
-    'restores profiles and pin history when writing replacement profiles fails',
+    'restores both profiles with their pins feeds and shared order when replacement fails',
     () async {
       final harness = _Harness();
       addTearDown(harness.container.dispose);
-      await harness.profiles.addAll([_profile]);
+      await harness.profiles.addAll([_profile, _replacement(id: 5)]);
       final oldProfiles = await harness.profiles.getAll();
-      final pin = _runtimePin(4);
-      await harness.repository.restoreForProfile(4, [pin]);
+      await harness.repository.restoreForProfile(4, [_runtimePin(4)]);
+      final other = await harness.repository.create(
+        profileId: 5,
+        query: 'dog',
+        name: 'Dogs',
+      );
+      final homePins = <SearchSubscription>[];
+      for (final profileId in [4, 5]) {
+        homePins.add(
+          await harness.repository.create(
+            profileId: profileId,
+            query: 'bird',
+            name: 'Birds',
+          ),
+        );
+        await harness.repository.saveFeed(
+          profileId: profileId,
+          name: 'Following',
+          queries: ['fish'],
+        );
+      }
+      final organization = SearchOrganization(
+        folders: [
+          SharedSearchFolder(
+            id: 'shared',
+            name: 'Animals',
+            searchIds: [other.id, _id],
+          ),
+        ],
+        homeSearchIds: [homePins[1].id, homePins[0].id],
+      );
+      await harness.repository.replaceOrganization(organization);
+      final oldPins = await harness.repository.getAll();
+      final oldFeeds = await harness.repository.getFeeds();
       (harness.profiles.box as _ProfileBox).failNextWrite = true;
       final source =
           harness.container.read(booruConfigsBackupSourceProvider)
@@ -697,12 +729,14 @@ void main() {
       );
 
       expect(await harness.profiles.getAll(), oldProfiles);
-      expect(await harness.repository.getAll(), [pin]);
+      expect(await harness.repository.getAll(), unorderedEquals(oldPins));
+      expect(await harness.repository.getFeeds(), unorderedEquals(oldFeeds));
+      expect(await harness.repository.getOrganization(), organization);
       expect(
         (await harness.container.read(
           searchSubscriptionsProvider.future,
         )).subscriptions,
-        [pin],
+        unorderedEquals(oldPins),
       );
     },
   );

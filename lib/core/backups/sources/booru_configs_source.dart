@@ -175,8 +175,8 @@ Future<void> _replaceProfiles(Ref ref, List<BooruConfig> configs) => ref
             entry.key,
             oldFeeds.where((f) => f.profileId == entry.key).toList(),
           );
-          await searchRepository.replaceOrganization(oldOrganization);
         }
+        await searchRepository.replaceOrganization(oldOrganization);
         Error.throwWithStackTrace(error, stackTrace);
       }
     });

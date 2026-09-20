@@ -206,10 +206,16 @@ class SearchSubscriptionsNotifier
   Future<void> movePinToSharedFolder(String searchId, String? folderId) =>
       _mutate((repository) async {
         await _requireIndependentPin(repository, searchId);
-        final organization = _withoutSharedPin(
-          await repository.getOrganization(),
-          searchId,
-        );
+        final current = await repository.getOrganization();
+        final alreadyInDestination = folderId == null
+            ? current.homeSearchIds.contains(searchId)
+            : current.folders.any(
+                (folder) =>
+                    folder.id == folderId &&
+                    folder.searchIds.contains(searchId),
+              );
+        if (alreadyInDestination) return;
+        final organization = _withoutSharedPin(current, searchId);
         if (folderId != null &&
             !organization.folders.any((folder) => folder.id == folderId)) {
           throw StateError('Shared folder not found');
