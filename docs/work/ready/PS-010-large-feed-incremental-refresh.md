@@ -11,7 +11,7 @@ waiting for a complete refresh before publishing useful results.
 
 ## Dependencies and design
 
-- Depends on [PS-009](../done/PS-009-combined-following-feeds.md).
+- Depends on [PS-009](PS-009-combined-following-feeds.md).
 - Define measurable opening/refresh targets, result-retention limits, and a
   representative large-source fixture before optimizing.
 - Safe server-side OR sharding is conditional: implement only where an engine's

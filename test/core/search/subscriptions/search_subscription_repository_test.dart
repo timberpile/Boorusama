@@ -12,7 +12,6 @@ import 'package:boorusama/core/search/subscriptions/src/data/hive/search_post_pr
 import 'package:boorusama/core/search/subscriptions/src/data/hive/search_subscription_hive_object.dart';
 import 'package:boorusama/core/search/subscriptions/src/data/hive/search_subscription_repository_hive.dart';
 import 'package:boorusama/core/search/subscriptions/types.dart';
-import 'subscription_test_utils.dart';
 
 class FailingOrganizationBox extends MemoryBox<dynamic> {
   var failWrites = false;
@@ -81,50 +80,6 @@ void main() {
       discoveredPosts: discoveredPosts,
     );
   }
-
-  test(
-    'feed ownership and materialized results survive closing both Hive boxes',
-    () async {
-      final pin = await repository.create(
-        profileId: 12,
-        query: 'cat',
-        name: null,
-      );
-      final feed = await repository.saveFeed(
-        profileId: 12,
-        name: 'Animals',
-        queries: ['cat'],
-      );
-      final source = (await repository.getAll()).singleWhere(
-        (s) => s.feedId == feed.id,
-      );
-      await repository.commitRefresh(
-        SearchRefreshCommit(
-          subscriptionId: source.id,
-          expectedCreatedAt: source.createdAt,
-          expectedCheckpoint: null,
-          startedAt: createdAt,
-          identityRetentionBoundary: createdAt,
-          baseline: true,
-          discoveredPosts: const [],
-          feedPosts: [CachedFeedPost.fromPost(TestSearchPost(7, createdAt))],
-        ),
-      );
-      await box.close();
-      await organizationBox.close();
-      box = await Hive.openBox<SearchSubscriptionHiveObject>(boxName);
-      organizationBox = await Hive.openBox<dynamic>('folder_test');
-      repository = HiveSearchSubscriptionRepository(
-        box: box,
-        organizationBox: organizationBox,
-      );
-      expect((await repository.getById(source.id))!.feedId, feed.id);
-      expect((await repository.getFeeds()).single.posts.single.id, 7);
-      expect((await repository.findByQuery(12, 'cat'))!.id, pin.id);
-      await repository.deleteFeed(feed.id);
-      expect((await repository.getAll()).single.id, pin.id);
-    },
-  );
 
   setUp(() async {
     tempDirectory = await Directory.systemTemp.createTemp(

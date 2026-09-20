@@ -16,9 +16,7 @@ final profilePinnedSearchesProvider =
       return ref.watch(searchSubscriptionsProvider).whenData((state) {
         final items =
             state.subscriptions
-                .where(
-                  (item) => item.profileId == profileId && item.feedId == null,
-                )
+                .where((item) => item.profileId == profileId)
                 .toList()
               ..sort((a, b) => a.position.compareTo(b.position));
         return List.unmodifiable(items);

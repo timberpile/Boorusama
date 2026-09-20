@@ -191,35 +191,6 @@ class PinnedSearchImportService {
         ),
       );
     }
-    final feeds = (await repository.getFeeds()).toList();
-    for (final record in data.feeds) {
-      final profile = _resolveProfile(record.profile, profiles);
-      if (profile == null) {
-        skipped++;
-        continue;
-      }
-      if (feeds.any((f) => f.id == record.id && f.profileId != profile.id)) {
-        existing++;
-        continue;
-      }
-      if (feeds.any(
-        (f) =>
-            f.profileId == profile.id &&
-            (f.id == record.id ||
-                f.name.toLowerCase() == record.name.toLowerCase()),
-      )) {
-        existing++;
-        continue;
-      }
-      final feed = await repository.saveFeed(
-        profileId: profile.id,
-        name: record.name,
-        queries: record.queries,
-        id: record.id,
-      );
-      feeds.add(feed);
-      imported++;
-    }
     return PinnedSearchImportResult(
       importedCount: imported,
       alreadyExistedCount: existing,

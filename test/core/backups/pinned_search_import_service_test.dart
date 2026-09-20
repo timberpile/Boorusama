@@ -8,38 +8,6 @@ import 'package:flutter_test/flutter_test.dart';
 import '../search/subscriptions/subscription_test_utils.dart';
 
 void main() {
-  test(
-    'feed backups restore owned hidden queries separately and repeated imports preserve them',
-    () async {
-      final repository = memorySubscriptionRepository();
-      final record = _record(0);
-      final data = PinnedSearchBackupData(
-        records: [record],
-        feeds: [
-          PinnedSearchFeedBackupRecord(
-            id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-            name: 'Animals',
-            position: 0,
-            queries: [record.query, 'dog'],
-            profile: record.profile,
-          ),
-        ],
-      );
-      final service = PinnedSearchImportService(repository: repository);
-      await service.apply(data, profiles: [_profile(9)]);
-      await service.apply(data, profiles: [_profile(9)]);
-      final feed = (await repository.getFeeds()).single;
-      expect(feed.profileId, 9);
-      expect(feed.posts, isEmpty);
-      final subscriptions = await repository.getAll();
-      expect(subscriptions.where((s) => s.feedId == feed.id).length, 2);
-      expect(subscriptions.where((s) => s.feedId == null).length, 1);
-      expect(subscriptions.every((s) => s.lastSuccessfulCheckAt == null), true);
-      await repository.deleteFeed(feed.id);
-      expect((await repository.getAll()).single.feedId, isNull);
-    },
-  );
-
   test('folder imports remap profiles and remain idempotent', () async {
     final repository = memorySubscriptionRepository();
     final record = _record(0);

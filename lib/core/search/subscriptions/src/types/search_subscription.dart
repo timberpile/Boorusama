@@ -19,7 +19,6 @@ class SearchSubscription extends Equatable {
     this.lastAttemptAt,
     this.lastSuccessfulCheckAt,
     this.lastErrorKind,
-    this.feedId,
   }) : unreadCount = unreadCount > 0 ? 1 : 0,
        name = _normalizeSearchSubscriptionName(name),
        previews = List.unmodifiable(previews.take(4)),
@@ -32,11 +31,9 @@ class SearchSubscription extends Equatable {
     required String? name,
     required int position,
     required DateTime createdAt,
-    String? feedId,
   }) {
     return SearchSubscription(
       id: id,
-      feedId: feedId,
       profileId: profileId,
       query: query.trim(),
       position: position,
@@ -48,7 +45,6 @@ class SearchSubscription extends Equatable {
     );
   }
 
-  final String? feedId;
   final String id;
   final int profileId;
   final String query;
@@ -69,7 +65,6 @@ class SearchSubscription extends Equatable {
   @override
   List<Object?> get props => [
     id,
-    feedId,
     profileId,
     query,
     name,
