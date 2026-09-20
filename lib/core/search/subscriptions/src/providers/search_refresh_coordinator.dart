@@ -111,8 +111,9 @@ class SearchRefreshCoordinator extends Notifier<bool> {
               adapter.plan(latest.query, after: null)
                   is SupportedSearchRefreshQueryPlan;
         },
-        refresh: (id) =>
-            ref.read(searchSubscriptionsProvider.notifier).refresh(id),
+        refresh: (id) => ref
+            .read(searchSubscriptionsProvider.notifier)
+            .refresh(id, canStart: () => _canRun),
       );
     } catch (_) {
       return 0;

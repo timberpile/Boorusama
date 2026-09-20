@@ -237,3 +237,28 @@ removes owned feeds; failure compensation restores feeds alongside subscriptions
 and folders. Cross-box writes are compensated during failures, not crash-atomic.
 Running build_runner for the Hive adapter can remove ignored registry output;
 run `./gen.sh` afterward to restore the engine registry and i18n output.
+
+Large-feed limits: at most 1,000 normalized unique sources per feed and 500
+materialized posts. All refresh entry points share a three-request concurrency
+gate; automatic work remains sequential and checks foreground/network permission
+again after waiting for a slot. Cache changes refresh the existing post-grid
+controller, preserving its scroll position rather than replacing the grid.
+Independent newest-page checks remain the fallback; no OR batching is enabled
+because source attribution/query equivalence is not verified across engines.
+
+The real-Hive scaling fixture covers 100 and 1,000 sources, eleven independent
+fifty-post commits, deterministic retention/order, definition rejection above
+1,000 sources, and an already-materialized cache read without source requests.
+On the development Linux machine, measured runs were:
+
+| Sources | Definition creation | Eleven snapshot merges | Cached read | Cache size |
+| --- | --- | --- | --- | --- |
+| 100 | 11.1 ms | 139.9 ms | 5.5 ms | 109,953 bytes |
+| 1,000 | 35.3 ms | 83.9 ms | 2.4 ms | 109,953 bytes |
+
+This minimal metadata fixture measures local persistence/parsing, excludes
+network/image rendering, and is affected by warm-up. It supports a local cached
+read target below 100 ms for this fixture, not a portable device guarantee.
+Cached byte size varies with URLs and tags. Retention and request ceilings are
+behavioral test assertions; wall-clock measurements are evidence, not flaky
+pass/fail thresholds.

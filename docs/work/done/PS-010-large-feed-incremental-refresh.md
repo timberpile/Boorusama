@@ -20,13 +20,13 @@ waiting for a complete refresh before publishing useful results.
 
 ## Acceptance criteria
 
-- [ ] Opening a cached large feed does not issue a request per source or await network completion.
-- [ ] New source snapshots update materialized results incrementally with bounded retention.
-- [ ] Global concurrency and per-run budgets continue to apply and work remains fair across feeds/profiles.
-- [ ] Freshness/progress and partial errors remain visible during incomplete runs.
-- [ ] Each source retains independent checkpoint/error state, including when safely batched.
-- [ ] Unsupported batching falls back to independent bounded checks without local query emulation.
-- [ ] Benchmarks cover hundreds/thousands of sources and document measured limits.
+- [x] Opening a cached large feed does not issue a request per source or await network completion.
+- [x] New source snapshots update materialized results incrementally with bounded retention.
+- [x] Global concurrency and per-run budgets continue to apply and work remains fair across feeds/profiles.
+- [x] Freshness/progress and partial errors remain visible during incomplete runs.
+- [x] Each source retains independent checkpoint/error state, including when safely batched.
+- [x] Unsupported batching falls back to independent bounded checks without local query emulation.
+- [x] Benchmarks cover hundreds/thousands of sources and document measured limits.
 
 ## Constraints and verification
 
@@ -42,7 +42,16 @@ record completion evidence here before moving the task to `done/`.
 
 ## Completion evidence
 
-Not started.
+Agent: Codex (/root). Branch: `feature/chronological-pinned-search-support`.
+
+Implemented a shared three-request gate, queued automatic-work permission
+rechecks, and cache updates through the existing grid controller. Retain
+1,000 sources and 500 cached posts; independent source checks remain the safe
+fallback. Real-Hive benchmarks and their scope are recorded in docs/pinned_searches.md.
+
+Verified 284 related tests and five focused gate/lifecycle checks; analysis clean.
+Maestro verified cached feed opening, refresh, native Safebooru post details,
+and cleanup preserving independent pins. Dev APK built.
 
 ## User decisions — 2026-09-17
 

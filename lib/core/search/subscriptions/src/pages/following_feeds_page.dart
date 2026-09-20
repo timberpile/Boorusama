@@ -9,6 +9,7 @@ import '../../../../configs/manage/providers.dart';
 import '../../../../images/booru_image.dart';
 import '../../../../posts/details/routes.dart';
 import '../../../../posts/listing/widgets.dart';
+import '../../../../posts/listing/providers.dart';
 import '../../../../posts/post/types.dart';
 import '../providers/search_subscription_selectors.dart';
 import '../providers/search_subscriptions_notifier.dart';
@@ -388,38 +389,70 @@ class _FollowingFeedPageState extends ConsumerState<FollowingFeedPage> {
                     ),
                   ),
                 Expanded(
-                  child: PostScope<CachedFeedPost>(
-                    key: ValueKey(feed),
-                    fetcher: (page) => TaskEither.right(
-                      PostResult(
-                        posts: page == 1 ? feed.posts : const [],
-                        total: feed.posts.length,
-                        hasMore: false,
-                      ),
-                    ),
-                    builder: (context, controller) => PostGrid<CachedFeedPost>(
-                      controller: controller,
-                      enablePullToRefresh: false,
-                      itemBuilder: (context, index, scroll, useHero) {
-                        final post = controller.items.elementAt(index);
-                        return InkWell(
-                          onTap: () => goToSinglePostDetailsPage<Post>(
-                            ref: ref,
-                            postId: NumericPostId(post.id),
-                            configSearch: config.search,
-                          ),
-                          child: BooruImage(
-                            imageUrl: post.thumbnailImageUrl,
-                            config: config.auth,
-                            fit: BoxFit.cover,
-                          ),
-                        );
-                      },
-                    ),
+                  child: _CachedFeedGrid(
+                    key: ValueKey(feed.id),
+                    feed: feed,
+                    config: config,
                   ),
                 ),
               ],
             ),
     );
   }
+}
+
+class _CachedFeedGrid extends ConsumerStatefulWidget {
+  const _CachedFeedGrid({required this.feed, required this.config, super.key});
+  final SearchFollowingFeed feed;
+  final BooruConfig config;
+  @override
+  ConsumerState<_CachedFeedGrid> createState() => _CachedFeedGridState();
+}
+
+class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
+  PostGridController<CachedFeedPost>? _controller;
+  @override
+  void didUpdateWidget(covariant _CachedFeedGrid oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.feed != widget.feed) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          unawaited(_controller?.refresh(maintainPage: true) ?? Future.value());
+        }
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => PostScope<CachedFeedPost>(
+    fetcher: (page) => TaskEither.right(
+      PostResult(
+        posts: page == 1 ? widget.feed.posts : const [],
+        total: widget.feed.posts.length,
+        hasMore: false,
+      ),
+    ),
+    builder: (context, controller) {
+      _controller = controller;
+      return PostGrid<CachedFeedPost>(
+        controller: controller,
+        enablePullToRefresh: false,
+        itemBuilder: (context, index, scroll, useHero) {
+          final post = controller.items.elementAt(index);
+          return InkWell(
+            onTap: () => goToSinglePostDetailsPage<Post>(
+              ref: ref,
+              postId: NumericPostId(post.id),
+              configSearch: widget.config.search,
+            ),
+            child: BooruImage(
+              imageUrl: post.thumbnailImageUrl,
+              config: widget.config.auth,
+              fit: BoxFit.cover,
+            ),
+          );
+        },
+      );
+    },
+  );
 }
