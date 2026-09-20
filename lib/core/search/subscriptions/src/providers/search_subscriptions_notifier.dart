@@ -76,7 +76,7 @@ class SearchSubscriptionsNotifier
   int? _batchProfileId;
   var _disposed = false;
   List<SearchFollowingFeed> _feeds = const [];
-  SearchOrganization _organization = SearchOrganization(
+  var _organization = SearchOrganization(
     folders: const [],
     homeSearchIds: const [],
   );

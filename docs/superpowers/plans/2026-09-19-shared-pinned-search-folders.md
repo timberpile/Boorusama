@@ -24,7 +24,7 @@
 - Before restoring a backup with unmatched profile references, obtain confirmation before any selected ZIP or server-transfer source imports. Match against backup profiles when that source is selected, or current profiles otherwise. Cancel aborts the entire restore; headless import with unmatched references aborts.
 - Keep user-facing copy in `packages/i18n/translations/en-US.json` and use `context.t`; run `./gen.sh` after changing translations.
 - Use manually declared Riverpod providers, `Equatable` where value equality matters, and `fvm` for all Flutter/Dart commands.
-- Claim `docs/work/ready/PS-018-rework-pinned-search-folder-navigation.md` before implementation and follow `docs/development_workflow.md` for branch and delivery steps.
+- Claim PS-018 before implementation and follow `docs/development_workflow.md` for branch and delivery steps. The completed task record is `docs/work/done/PS-018-rework-pinned-search-folder-navigation.md`.
 
 ## Review Focus
 
@@ -565,7 +565,7 @@ if (choice.createName case final name?) {
 
 **Files:**
 - Modify: `docs/pinned_searches.md`
-- Modify: `docs/work/in-progress/PS-018-rework-pinned-search-folder-navigation.md` after claiming it
+- Modify: the claimed PS-018 task record (now `docs/work/done/PS-018-rework-pinned-search-folder-navigation.md` after verified completion)
 - Test: focused files listed in Tasks 1–7 plus the full Flutter suite
 
 **Interfaces:**

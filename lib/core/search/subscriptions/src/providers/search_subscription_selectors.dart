@@ -66,8 +66,7 @@ final organizedPinnedSearchesProvider =
                   .singleWhere((folder) => folder.id == folderId)
                   .searchIds;
         return List.unmodifiable([
-          for (final id in ids)
-            if (byId[id] case final search?) search,
+          for (final id in ids) ?byId[id],
         ]);
       }),
     );

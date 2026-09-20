@@ -160,8 +160,9 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
   Future<void> replaceOrganization(SearchOrganization organization) =>
       _serialize(() async {
         final storage = _organizationBox;
-        if (storage == null)
+        if (storage == null) {
           throw StateError('Organization storage unavailable');
+        }
         final folderIds = <String>{};
         final folderNames = <String>{};
         final memberships = <String>{};
@@ -200,8 +201,7 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
           .firstOrNull;
       if (folder == null) return;
       final previousPins = {
-        for (final id in folder.searchIds)
-          if (_box.get(id) case final pin?) id: pin,
+        for (final id in folder.searchIds) id: ?_box.get(id),
       };
       final nextOrganization = SearchOrganization(
         folders: previousOrganization.folders.where(
@@ -534,8 +534,7 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
           .map((object) => object.id)
           .toList();
       final previousPins = {
-        for (final id in keys)
-          if (_box.get(id) case final pin?) id: pin,
+        for (final id in keys) id: ?_box.get(id),
       };
       final previousOrganization = _organization();
       final nextOrganization = _removeOrganizationMemberships(

@@ -1,7 +1,7 @@
 # Pinned searches
 
-Pinned Searches is an app-local, manually refreshed list for the active booru
-profile. It is independent of server-owned saved searches. The list and its
+Pinned Searches is an app-local collection of independent searches from all
+existing booru profiles. It is independent of server-owned saved searches. The list and its
 navigation badge read cached state; opening the list or changing profiles does
 not fetch posts. Cached thumbnail loading uses `BooruImage` with the owning
 profile's authentication and image fallback.
@@ -45,8 +45,8 @@ A later refresh sets NEW when the fetched snapshot contains a matching post
 whose upload timestamp is strictly after the previous successful checkpoint
 and whose ID is not already known. Posts uploaded at the checkpoint, or old
 posts that start matching after metadata edits, do not trigger NEW. A search
-card shows NEW; the active-profile navigation entry shows a dot if any of its
-searches has NEW. Neither reports a total.
+card shows NEW; the navigation entry shows a dot if any independent pin owned
+by an existing profile has NEW. Neither reports a total.
 
 Opening a pin awaits an atomic mark-read mutation before passing the unchanged
 query to the normal search route. A failed mark-read keeps the user on the
@@ -153,23 +153,40 @@ finish. Device transfer retains its final restart prompt. A standalone profile
 import keeps its restart behavior. Restarting inside the profiles source would
 dispose the state needed to map the following pinned-search source.
 
-## Deferred roadmap
+## Organization and navigation
 
-Folders, automatic refresh, and combined feeds are deferred. Their intended
-later behavior is recorded only in the design's [Deferred roadmap](superpowers/specs/2026-09-14-pinned-searches-design.md#deferred-roadmap).
+The [shared-folder design](superpowers/specs/2026-09-19-shared-pinned-search-folders-design.md)
+supersedes the original profile-owned folders and profile-grouped list.
+Named folders appear in manual order above Home's cards. Home has no heading;
+`[Home]` identifies that destination in pin and move dialogs. Folder rows show
+`N items`. Each card, including folder members, has an owning-profile footnote:
+name when unique, URL when unnamed, and name plus URL when names are ambiguous.
+Cached browsing does not activate another profile or fetch posts. Opening a
+pin activates its owner before running the stored query and marks only that
+pin read. Unsupported pins retain their per-search explanation.
 
+Manage folders provides creation, renaming, manual ordering, and deletion.
+Folder names are unique case-insensitively across the collection. Move to folder
+lists Home and all named folders; Create folder creates the destination and
+moves the selected pin only when the operation succeeds. Deleting a folder
+requires confirmation and unpins every member, across profiles. Cancel leaves
+both folder and pins intact. Empty folders also require confirmation.
 
-The ready queue splits the roadmap into independently reviewable steps:
-[folders](work/done/PS-006-search-folders.md),
-[automatic scheduler](work/ready/PS-007-automatic-refresh-scheduler.md),
-[platform background execution](work/ready/PS-008-platform-background-refresh.md),
-[combined feeds](work/ready/PS-009-combined-following-feeds.md), and
-[large-feed scaling](work/ready/PS-010-large-feed-incremental-refresh.md).
-The possible [all-profile list](work/ready/PS-011-all-profile-pinned-search-list-design.md)
-has a separate design task. Existing UI improvements remain PS-002 through
-PS-004, and engine capability support remains PS-005. Task dependencies govern
-eligibility; folders can proceed independently of automatic refresh.
+One JSON Hive value, `search:organization`, stores ordered folders, each
+folder's ordered independent pin IDs, and ordered Home IDs. Subscription
+aggregates still own profile IDs, queries, and refresh state. Missing IDs are
+pruned on read; independent pins absent from organization append to Home in
+`(createdAt, id)` order. Hidden feed sources cannot join Home or folders.
+Old experimental profile-folder rows are ignored; no migration is required.
+Mutations are serialized. Folder deletion and profile compensation restore
+captured organization and pins after ordinary storage failures; cross-box
+operations are not crash-atomic. Removing a profile removes only its pins and
+memberships, preserving shared folders and other owners' pins.
 
+Folder NEW aggregates member pins. Refresh Folder resolves each member's owner
+and query adapter, uses existing refresh priority and the shared request gate,
+and does not change the active profile. Root Refresh All visits supported
+profiles sequentially. Results remain separate per search.
 
 Supported engines explicitly opt in to timestamp tracking; the repository
 default is unsupported. Danbooru and Szurubooru add canonical chronological
@@ -180,15 +197,6 @@ and pin action visible with a localized explanation. Routine check times are
 available through Info; successful pinning is silent and errors remain inline
 in their originating search view.
 
-
-Folders are single-level and profile owned. Each opens a separate search page;
-Unfiled remains on the profile's main page. Folder membership/order is persisted
-as one JSON Hive value per profile, separate from refresh aggregates. Deleting
-a folder preserves searches and their manual order. Backup version 2 contains
-folder definitions and membership, including empty folders; legacy search-only
-backups load into Unfiled. Folder moves and profile compensation are serialized
-with subscription mutations. Cross-box operations use compensation, not a
-crash-atomic transaction.
 
 Widget tests that seed an AsyncNotifier before mounting the first frame should
 use `tester.runAsync`; directly awaiting its future in the fake async zone can
@@ -234,7 +242,7 @@ Backup version 3 stores feed names and source query definitions, excluding
 runtime cache/checkpoints. Restore creates new hidden source subscriptions and
 maps owning profiles through the existing identity rules. Profile removal also
 removes owned feeds; failure compensation restores feeds alongside subscriptions
-and folders. Cross-box writes are compensated during failures, not crash-atomic.
+and shared organization. Cross-box writes are compensated during failures, not crash-atomic.
 Running build_runner for the Hive adapter can remove ignored registry output;
 run `./gen.sh` afterward to restore the engine registry and i18n output.
 
@@ -263,20 +271,19 @@ Cached byte size varies with URLs and tags. Retention and request ceilings are
 behavioral test assertions; wall-clock measurements are evidence, not flaky
 pass/fail thresholds.
 
-Pinned Searches now groups independent searches by owning profile. Groups
-collapse independently; the active profile starts expanded and saved expansion
-state survives navigation. Profile-scoped folders still open separate pages.
-Cached browsing does not switch profiles or scan sources. Opening a search or
-feed activates its owning profile before entering the engine's search/post flow;
-opening a search marks only that search read. Unsupported profiles display their
-explanation inside the group. Deleted profiles and their orphaned definitions
-are excluded from grouping and the navigation badge.
+## Shared-folder backup and restore
 
-Root Refresh All visits supported profiles sequentially; each profile's batch
-uses the shared request gate. Profile/folder pages retain scoped refresh actions.
-The navigation NEW badge covers independent pins across existing profiles,
-excluding hidden feed sources; each group also shows its own badge. Root create
-folder/feed actions use the currently selected profile; Manage profile searches
-opens an explicit profile page for those actions on another group. Side-menu
-section/order and desktop tab placement are unchanged. Results are never merged
-across profiles.
+Backup version 4 stores shared folder definitions and order, folder member
+order, and Home order alongside portable profile references and independent
+pin definitions. Empty folders survive restore. Imported IDs resolve through
+the existing identity rules before memberships are rebuilt. Pin-only backups
+append newly created pins to Home and preserve reused pins' destinations.
+Old experimental profile-folder backups require no folder migration.
+
+Unmatched pin or feed profiles require confirmation before skipping records.
+Standalone restore obtains approval before writing pins, feeds, or folders.
+ZIP and server transfer prepare selected sources and run this preflight before
+any source imports, including profiles. Matching uses the selected backup's
+profiles when present, otherwise current profiles. Cancel or headless import
+with unmatched records aborts before writes. Approval is revalidated against
+the actual profiles before pin execution; changed unmatched records abort.
