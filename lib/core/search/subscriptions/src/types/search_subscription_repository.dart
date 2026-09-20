@@ -2,6 +2,7 @@
 import 'search_refresh.dart';
 import 'search_folder.dart';
 import 'search_following_feed.dart';
+import 'search_organization.dart';
 import 'search_subscription.dart';
 
 abstract interface class SearchSubscriptionRepository {
@@ -17,6 +18,8 @@ abstract interface class SearchSubscriptionRepository {
   Future<void> restoreFeeds(int profileId, List<SearchFollowingFeed> feeds);
   Future<List<SearchFolder>> getFolders();
   Future<void> replaceFolders(int profileId, List<SearchFolder> folders);
+  Future<SearchOrganization> getOrganization();
+  Future<void> replaceOrganization(SearchOrganization organization);
   Future<SearchSubscription?> getById(String id);
   Future<SearchSubscription?> findByQuery(int profileId, String query);
   Future<SearchSubscription> create({

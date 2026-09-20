@@ -10,6 +10,7 @@ import '../../types/search_post_preview.dart';
 import '../../types/search_refresh.dart';
 import '../../types/search_folder.dart';
 import '../../types/search_following_feed.dart';
+import '../../types/search_organization.dart';
 import '../../types/search_subscription.dart';
 import '../../types/search_subscription_repository.dart';
 import 'recent_search_post_hive_object.dart';
@@ -185,6 +186,42 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
           profileId,
           folders.map((folder) => folder.toJson()).toList(),
         );
+      });
+
+  @override
+  Future<SearchOrganization> getOrganization() => _read(_organization);
+
+  @override
+  Future<void> replaceOrganization(SearchOrganization organization) =>
+      _serialize(() async {
+        final storage = _organizationBox;
+        if (storage == null)
+          throw StateError('Organization storage unavailable');
+        final folderIds = <String>{};
+        final folderNames = <String>{};
+        final memberships = <String>{};
+        final subscriptions = {
+          for (final subscription in _subscriptions())
+            subscription.id: subscription,
+        };
+
+        for (final folder in organization.folders) {
+          if (!folderIds.add(folder.id) ||
+              !folderNames.add(folder.name.toLowerCase())) {
+            throw StateError('Duplicate shared search folder');
+          }
+          _validateOrganizationMemberships(
+            folder.searchIds,
+            memberships,
+            subscriptions,
+          );
+        }
+        _validateOrganizationMemberships(
+          organization.homeSearchIds,
+          memberships,
+          subscriptions,
+        );
+        await storage.put('search:organization', organization.toJson());
       });
 
   @override
@@ -560,6 +597,58 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
   Iterable<SearchSubscription> _subscriptions() {
     return _box.values.map(_toSubscription).toList()
       ..sort(_compareSubscriptions);
+  }
+
+  SearchOrganization _organization() {
+    final stored = switch (_organizationBox?.get('search:organization')) {
+      final Map json => SearchOrganization.fromJson(json),
+      _ => SearchOrganization(folders: const [], homeSearchIds: const []),
+    };
+    final subscriptions = {
+      for (final subscription in _subscriptions())
+        if (subscription.feedId == null) subscription.id: subscription,
+    };
+    final memberships = <String>{};
+    final folders = [
+      for (final folder in stored.folders)
+        SharedSearchFolder(
+          id: folder.id,
+          name: folder.name,
+          searchIds: folder.searchIds.where(
+            (id) => subscriptions.containsKey(id) && memberships.add(id),
+          ),
+        ),
+    ];
+    final unlisted =
+        subscriptions.values
+            .where((subscription) => memberships.add(subscription.id))
+            .toList()
+          ..sort((left, right) {
+            final byCreatedAt = left.createdAt.compareTo(right.createdAt);
+            return byCreatedAt != 0 ? byCreatedAt : left.id.compareTo(right.id);
+          });
+    final homeSearchIds = [
+      ...stored.homeSearchIds.where(
+        (id) => subscriptions.containsKey(id) && memberships.add(id),
+      ),
+      ...unlisted.map((subscription) => subscription.id),
+    ];
+    return SearchOrganization(folders: folders, homeSearchIds: homeSearchIds);
+  }
+
+  void _validateOrganizationMemberships(
+    Iterable<String> ids,
+    Set<String> memberships,
+    Map<String, SearchSubscription> subscriptions,
+  ) {
+    for (final id in ids) {
+      final subscription = subscriptions[id];
+      if (!memberships.add(id) ||
+          subscription == null ||
+          subscription.feedId != null) {
+        throw StateError('Invalid shared search membership');
+      }
+    }
   }
 
   Iterable<SearchSubscription> _subscriptionsForProfile(int profileId) {

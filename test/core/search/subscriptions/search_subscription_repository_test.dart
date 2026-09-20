@@ -223,6 +223,110 @@ void main() {
   );
 
   test(
+    'stores one ordered organization across profiles and recovers unlisted pins in Home',
+    () async {
+      final cat = await repository.create(
+        profileId: 12,
+        query: 'cat',
+        name: null,
+        id: 'cat',
+        createdAt: DateTime.utc(2026, 9, 14),
+      );
+      final dog = await repository.create(
+        profileId: 99,
+        query: 'dog',
+        name: null,
+        id: 'dog',
+        createdAt: DateTime.utc(2026, 9, 15),
+      );
+      final bird = await repository.create(
+        profileId: 12,
+        query: 'bird',
+        name: null,
+        id: 'bird',
+        createdAt: DateTime.utc(2026, 9, 16),
+      );
+      final feed = await repository.saveFeed(
+        profileId: 12,
+        name: 'Feed',
+        queries: ['fish'],
+      );
+      final source = (await repository.getAll()).singleWhere(
+        (search) => search.feedId == feed.id,
+      );
+      final folder = SharedSearchFolder(
+        id: 'animals',
+        name: 'Animals',
+        searchIds: [cat.id, dog.id],
+      );
+
+      await repository.replaceOrganization(
+        SearchOrganization(folders: [folder], homeSearchIds: const []),
+      );
+      await box.close();
+      await organizationBox.close();
+      box = await Hive.openBox<SearchSubscriptionHiveObject>(boxName);
+      organizationBox = await Hive.openBox<dynamic>('folder_test');
+      repository = HiveSearchSubscriptionRepository(
+        box: box,
+        organizationBox: organizationBox,
+      );
+
+      expect(
+        (await repository.getOrganization()).folders.single.searchIds,
+        [cat.id, dog.id],
+      );
+      expect(
+        (await repository.getAll())
+            .where((search) => search.feedId == null)
+            .map((search) => search.profileId),
+        [12, 12, 99],
+      );
+      expect((await repository.getOrganization()).homeSearchIds, [bird.id]);
+
+      final stored = await repository.getOrganization();
+      await expectLater(
+        repository.replaceOrganization(
+          SearchOrganization(
+            folders: [
+              SharedSearchFolder(
+                id: folder.id,
+                name: folder.name,
+                searchIds: [source.id],
+              ),
+            ],
+            homeSearchIds: const [],
+          ),
+        ),
+        throwsStateError,
+      );
+      await expectLater(
+        repository.replaceOrganization(
+          SearchOrganization(
+            folders: [folder],
+            homeSearchIds: [cat.id],
+          ),
+        ),
+        throwsStateError,
+      );
+      expect(await repository.getOrganization(), stored);
+
+      await organizationBox.put(
+        'search:organization',
+        SearchOrganization(
+          folders: [folder],
+          homeSearchIds: ['stale', bird.id],
+        ).toJson(),
+      );
+
+      expect(
+        await repository.getOrganization(),
+        SearchOrganization(folders: [folder], homeSearchIds: [bird.id]),
+      );
+    },
+  );
+
+  test(
     'folder membership rejects cross-profile searches without changing stored folders',
     () async {
       final other = await repository.create(
