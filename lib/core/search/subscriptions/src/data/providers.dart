@@ -53,20 +53,30 @@ class _SearchSubscriptionRepositoryBuild {
   Box<SearchSubscriptionHiveObject>? _box;
   Future<void>? _closing;
   var _disposed = false;
+  var _openingComplete = false;
 
   Future<SearchSubscriptionRepository> open() async {
-    final box = await _openBox();
-    _box = box;
-    if (_disposed) {
-      await _closeBox();
+    try {
+      final box = await _openBox();
+      _box = box;
+      _openingComplete = true;
+      if (_disposed) {
+        await _closeBox();
+      }
+      return HiveSearchSubscriptionRepository(box: box);
+    } catch (_) {
+      _openingComplete = true;
+      _completeClose();
+      rethrow;
     }
-    return HiveSearchSubscriptionRepository(box: box);
   }
 
   Future<void> dispose() {
     _disposed = true;
     if (_box != null) {
       unawaited(_closeBox());
+    } else if (_openingComplete) {
+      _completeClose();
     }
     return _closeCompleter.future;
   }
@@ -75,10 +85,16 @@ class _SearchSubscriptionRepositoryBuild {
     return _closing ??= () async {
       try {
         await _box?.close();
-        _closeCompleter.complete();
+        _completeClose();
       } catch (error, stackTrace) {
         _closeCompleter.completeError(error, stackTrace);
       }
     }();
+  }
+
+  void _completeClose() {
+    if (!_closeCompleter.isCompleted) {
+      _closeCompleter.complete();
+    }
   }
 }
