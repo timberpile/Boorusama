@@ -78,7 +78,7 @@ one `box.put`, and a crash cannot split the checkpoint from its unread count.
   `SearchRefreshOutcome`, `SearchRefreshCommit`, and
   `SearchSubscriptionRepository` for every later task.
 
-- [ ] **Step 1: Write the failing value-behavior tests**
+- [x] **Step 1: Write the failing value-behavior tests**
 
 Cover nullable-name normalization, exact-query fallback, immutable collections,
 oldest-refresh ordering, and query identity normalization without semantic term
@@ -102,13 +102,13 @@ final ordered = [recent, neverChecked, oldest]
 expect(ordered.map((item) => item.id), [neverId, oldestId, recentId]);
 ```
 
-- [ ] **Step 2: Run the domain test and verify it fails**
+- [x] **Step 2: Run the domain test and verify it fails**
 
 Run: `fvm flutter test test/core/search/subscriptions/search_subscription_test.dart`
 
 Expected: FAIL because the subscription types do not exist.
 
-- [ ] **Step 3: Define the immutable values**
+- [x] **Step 3: Define the immutable values**
 
 Implement `SearchSubscription` with these exact fields:
 
@@ -153,7 +153,7 @@ Both contain `postId`; the preview additionally contains nullable
 recent identity contains non-null `postCreatedAt`, which prevents ambiguous
 deduplication data from entering successful refresh state.
 
-- [ ] **Step 4: Define atomic refresh input and repository operations**
+- [x] **Step 4: Define atomic refresh input and repository operations**
 
 Use these contracts so concurrency decisions do not leak into widgets:
 
@@ -245,7 +245,7 @@ which older deduplication identities can be pruned. `restoreForProfile` is
 reserved for compensating a failed profile deletion; it restores exact captured
 aggregates and is not the backup-import API.
 
-- [ ] **Step 5: Export the types, format, and run the test**
+- [x] **Step 5: Export the types, format, and run the test**
 
 Run:
 
@@ -256,7 +256,7 @@ fvm flutter test test/core/search/subscriptions/search_subscription_test.dart
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit the domain boundary**
+- [x] **Step 6: Commit the domain boundary**
 
 ```bash
 git add lib/core/search/subscriptions/types.dart lib/core/search/subscriptions/src/types test/core/search/subscriptions/search_subscription_test.dart
