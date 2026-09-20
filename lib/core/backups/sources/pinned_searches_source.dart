@@ -22,7 +22,7 @@ class PinnedSearchesBackupSource
     : super(
         id: 'pinned_searches',
         priority: 100000,
-        version: 2,
+        version: 3,
         appVersion: ref.read(appVersionProvider),
         dataGetter: () async {
           final repository = await ref.read(
@@ -33,7 +33,27 @@ class PinnedSearchesBackupSource
                 in await ref.read(booruConfigRepoProvider).getAll())
               profile.id: profile,
           };
+          final subscriptions = await repository.getAll();
           return PinnedSearchBackupData(
+            feeds: [
+              for (final feed in await repository.getFeeds())
+                if (profiles[feed.profileId] case final profile?)
+                  PinnedSearchFeedBackupRecord(
+                    id: feed.id,
+                    name: feed.name,
+                    position: feed.position,
+                    queries: subscriptions
+                        .where((s) => s.feedId == feed.id)
+                        .map((s) => s.query)
+                        .toList(),
+                    profile: PinnedSearchProfileReference(
+                      id: profile.id,
+                      booruType: profile.auth.booruType.name,
+                      url: normalizePinnedSearchProfileUrl(profile.url),
+                      name: profile.name,
+                    ),
+                  ),
+            ],
             folders: [
               for (final folder in await repository.getFolders())
                 if (profiles[folder.profileId] case final profile?)
@@ -51,7 +71,9 @@ class PinnedSearchesBackupSource
                   ),
             ],
             records: [
-              for (final subscription in await repository.getAll())
+              for (final subscription in subscriptions.where(
+                (s) => s.feedId == null,
+              ))
                 if (profiles[subscription.profileId] case final profile?)
                   PinnedSearchBackupRecord(
                     id: subscription.id,

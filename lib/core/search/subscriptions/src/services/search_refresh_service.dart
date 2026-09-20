@@ -9,6 +9,7 @@ import '../../../../posts/post/types.dart';
 import '../refresh/chronological_search_scanner.dart';
 import '../refresh/search_refresh_query_adapter.dart';
 import '../types/search_post_preview.dart';
+import '../types/search_following_feed.dart';
 import '../types/search_refresh.dart';
 import '../types/search_subscription.dart';
 import '../types/search_subscription_repository.dart';
@@ -102,6 +103,9 @@ class SearchRefreshService {
         final committed = await repository.commitRefresh(
           SearchRefreshCommit(
             subscriptionId: subscription.id,
+            feedPosts: subscription.feedId == null
+                ? const []
+                : posts.map(CachedFeedPost.fromPost).toList(),
             expectedCreatedAt: subscription.createdAt,
             expectedCheckpoint: checkpoint,
             startedAt: startedAt,

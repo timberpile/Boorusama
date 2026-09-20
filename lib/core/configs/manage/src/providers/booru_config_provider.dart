@@ -101,6 +101,9 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
         final folders = (await searchRepository.getFolders())
             .where((f) => f.profileId == config.id)
             .toList();
+        final feeds = (await searchRepository.getFeeds())
+            .where((f) => f.profileId == config.id)
+            .toList();
         var searchesDeleted = false;
         var profileRemoved = false;
 
@@ -184,6 +187,7 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
               searchRepository,
               subscriptions,
               folders,
+              feeds,
               error,
             );
           }
@@ -275,10 +279,12 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
     SearchSubscriptionRepository searchRepository,
     List<SearchSubscription> subscriptions,
     List<SearchFolder> folders,
+    List<SearchFollowingFeed> feeds,
     Object originalError,
   ) async {
     try {
       await searchRepository.restoreForProfile(config.id, subscriptions);
+      await searchRepository.restoreFeeds(config.id, feeds);
       if (folders.isNotEmpty) {
         await searchRepository.replaceFolders(config.id, folders);
       }

@@ -6,6 +6,31 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   final codec = PinnedSearchBackupCodec();
 
+  test('feed definitions round trip without post caches or checkpoints', () {
+    final profile = codec
+        .parse(ExportDataPayload.legacy(data: [_row()]))
+        .records
+        .single
+        .profile;
+    final data = PinnedSearchBackupData(
+      records: const [],
+      feeds: [
+        PinnedSearchFeedBackupRecord(
+          id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          name: 'Animals',
+          position: 0,
+          queries: const ['cat', 'dog'],
+          profile: profile,
+        ),
+      ],
+    );
+    expect(
+      codec.parse(ExportDataPayload.legacy(data: codec.encode(data))),
+      data,
+    );
+    expect((codec.encode(data).single as Map).keys, isNot(contains('posts')));
+  });
+
   test(
     'folder backups preserve membership and empty folders without runtime state',
     () {

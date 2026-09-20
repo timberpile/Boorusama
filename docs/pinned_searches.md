@@ -210,3 +210,30 @@ budget counts search checks, not a universal HTTP count: engines may first
 resolve tags. Never-checked searches precede the oldest successful checks;
 failed checks back off for five, ten, twenty, then thirty minutes. Checkpoints
 and cached results survive errors. No OS background worker is registered.
+
+Following feeds own hidden subscriptions via nullable `feedId` (Hive field 12).
+Legacy subscriptions default to independent pins. Identity deduplication for
+pins excludes feed sources; identical queries can exist independently in
+several feeds. Folders, user-pin lists, and navigation pin badges exclude hidden
+sources. Feeds use the same scanner and automatic scheduler as independent pins.
+Their materialized cache is one JSON organization-box value per feed, retaining
+500 posts with cached URLs, tags, rating, dimensions, and upload time. Each
+successful source snapshot merges at most fifty posts into that cache, ordered
+by creation time then descending ID, and deduplicated within its profile.
+
+Opening a feed performs no source scans. Clicking a cached thumbnail loads the
+native engine post for details, avoiding generic cache objects in engine-specific
+detail widgets. Pixiv resolves its ordinary synthetic page IDs through artwork
+details and verifies the exact page ID before returning a native post. Refresh
+errors retain cached posts and source checkpoint/error status. Opening a feed
+marks only its owned sources read. Removing sources clears the materialized
+cache to avoid showing results from removed queries; unchanged source state is
+retained. Feeds are bounded discovery views, not complete archives.
+
+Backup version 3 stores feed names and source query definitions, excluding
+runtime cache/checkpoints. Restore creates new hidden source subscriptions and
+maps owning profiles through the existing identity rules. Profile removal also
+removes owned feeds; failure compensation restores feeds alongside subscriptions
+and folders. Cross-box writes are compensated during failures, not crash-atomic.
+Running build_runner for the Hive adapter can remove ignored registry output;
+run `./gen.sh` afterward to restore the engine registry and i18n output.

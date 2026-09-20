@@ -10,6 +10,7 @@ import 'package:uuid/uuid.dart';
 // Project imports:
 import '../../../../boorus/engine/providers.dart';
 import '../../../../configs/manage/providers.dart';
+import '../../../../configs/config/types.dart';
 import '../../../../posts/post/providers.dart';
 import '../data/providers.dart';
 import '../refresh/chronological_search_scanner.dart';
@@ -17,6 +18,7 @@ import '../refresh/search_refresh_query_adapter.dart';
 import '../services/search_refresh_service.dart';
 import '../types/search_refresh.dart';
 import '../types/search_folder.dart';
+import '../types/search_following_feed.dart';
 import '../types/search_subscription.dart';
 import '../types/search_subscription_repository.dart';
 
@@ -34,6 +36,7 @@ class SearchSubscriptionsState extends Equatable {
     required this.batchTotal,
     this.batchProfileId,
     this.folders = const [],
+    this.feeds = const [],
   }) : subscriptions = List.unmodifiable(subscriptions),
        refreshingIds = Set.unmodifiable(refreshingIds);
 
@@ -43,6 +46,7 @@ class SearchSubscriptionsState extends Equatable {
   final int batchTotal;
   final int? batchProfileId;
   final List<SearchFolder> folders;
+  final List<SearchFollowingFeed> feeds;
 
   @override
   List<Object?> get props => [
@@ -52,6 +56,7 @@ class SearchSubscriptionsState extends Equatable {
     batchTotal,
     batchProfileId,
     folders,
+    feeds,
   ];
 }
 
@@ -69,6 +74,7 @@ class SearchSubscriptionsNotifier
   int? _batchProfileId;
   var _disposed = false;
   List<SearchFolder> _folders = const [];
+  List<SearchFollowingFeed> _feeds = const [];
 
   @override
   Future<SearchSubscriptionsState> build() async {
@@ -76,6 +82,7 @@ class SearchSubscriptionsNotifier
     ref.onDispose(() => _disposed = true);
     final repository = await _repository;
     _folders = await repository.getFolders();
+    _feeds = await repository.getFeeds();
     return _snapshot(await repository.getAll());
   }
 
@@ -95,6 +102,61 @@ class SearchSubscriptionsNotifier
             const UnsupportedSearchRefreshQueryAdapter(),
         scanner: ChronologicalSearchScanner(),
       );
+
+  Future<SearchFollowingFeed> saveFeed({
+    required int profileId,
+    required String name,
+    required List<String> queries,
+    String? id,
+  }) => runSerializedMutation((repository) {
+    final config = ref
+        .read(booruConfigProvider)
+        .where((c) => c.id == profileId)
+        .firstOrNull;
+    if (config == null) throw StateError('Missing feed profile');
+    final adapter = ref
+        .read(booruRepoProvider(config.auth))
+        ?.searchRefreshQueryAdapter(config.auth);
+    if (adapter == null ||
+        !adapter.isSupported ||
+        queries.any(
+          (q) =>
+              adapter.plan(q, after: null) is UnsupportedSearchRefreshQueryPlan,
+        )) {
+      throw const FormatException('Unsupported feed query');
+    }
+    return repository.saveFeed(
+      profileId: profileId,
+      name: name,
+      queries: queries,
+      id: id,
+    );
+  });
+
+  Future<void> deleteFeed(String id) =>
+      runSerializedMutation((repository) => repository.deleteFeed(id));
+
+  Future<void> markFeedRead(String id) =>
+      runSerializedMutation((repository) async {
+        for (final source in (await repository.getAll()).where(
+          (s) => s.feedId == id,
+        )) {
+          await repository.markRead(source.id);
+        }
+      });
+
+  Future<void> refreshFeed(String id) async {
+    await future;
+    final sources =
+        state.valueOrNull?.subscriptions
+            .where((s) => s.feedId == id)
+            .toList() ??
+        [];
+    sources.sort(compareSearchRefreshPriority);
+    for (final source in sources.take(10)) {
+      await refresh(source.id);
+    }
+  }
 
   Future<({SearchSubscription subscription, SearchRefreshOutcome refresh})>
   pin({
@@ -365,6 +427,7 @@ class SearchSubscriptionsNotifier
   Future<void> _reload(SearchSubscriptionRepository repository) async {
     final subscriptions = await repository.getAll();
     _folders = await repository.getFolders();
+    _feeds = await repository.getFeeds();
     if (!_disposed) state = AsyncData(_snapshot(subscriptions));
   }
 
@@ -379,6 +442,7 @@ class SearchSubscriptionsNotifier
       SearchSubscriptionsState(
         subscriptions: subscriptions,
         folders: List.unmodifiable(_folders),
+        feeds: List.unmodifiable(_feeds),
         refreshingIds: _inFlight.keys.toSet(),
         batchCompleted: _batchCompleted,
         batchTotal: _batchTotal,

@@ -56,7 +56,17 @@
     "refresh_settings": "Refresh settings",
     "automatic_refresh": "Automatic refresh",
     "refresh_interval": "Every {minutes} minutes",
-    "foreground_refresh_description": "Checks overdue searches across profiles while the app is open, using Wi-Fi or Ethernet."
+    "foreground_refresh_description": "Checks overdue searches across profiles while the app is open, using Wi-Fi or Ethernet.",
+    "following_feeds": "Following feeds",
+    "create_feed": "Create feed",
+    "edit_feed": "Edit feed",
+    "feed_name": "Feed name",
+    "feed_queries": "Search queries",
+    "feed_queries_hint": "One search per line. Up to {limit} sources; separate from your pinned searches.",
+    "delete_feed": "Delete feed",
+    "delete_feed_confirmation": "Delete this feed and its hidden searches? Your pinned searches are preserved.",
+    "feeds_empty": "No following feeds yet.",
+    "feed_freshness": "{checked}/{total} sources checked · {failed} errors"
   },
   "generic": {
     "done": "Done",

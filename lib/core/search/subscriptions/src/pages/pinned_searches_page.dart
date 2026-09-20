@@ -20,6 +20,7 @@ import '../widgets/search_folder_dialog.dart';
 import '../widgets/search_refresh_settings_dialog.dart';
 import '../widgets/pin_search_dialog.dart';
 import '../widgets/pinned_search_card.dart';
+import 'following_feeds_page.dart';
 
 class PinnedSearchesPage extends ConsumerStatefulWidget {
   const PinnedSearchesPage({this.folderId, this.profileId, super.key});
@@ -68,6 +69,16 @@ class _PinnedSearchesPageState extends ConsumerState<PinnedSearchesPage> {
       appBar: AppBar(
         title: Text(folder?.name ?? strings.title),
         actions: [
+          if (widget.folderId == null)
+            IconButton(
+              tooltip: strings.following_feeds,
+              icon: const Icon(Symbols.rss_feed),
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => FollowingFeedsPage(profileId: config.id),
+                ),
+              ),
+            ),
           if (widget.folderId == null)
             IconButton(
               tooltip: strings.refresh_settings,
