@@ -862,7 +862,7 @@ git commit -m "feat(search): delete pins with profiles"
   result-header action for every normal booru search using
   `SearchPageScaffold`.
 
-- [ ] **Step 1: Write failing pin-dialog widget tests**
+- [x] **Step 1: Write failing pin-dialog widget tests**
 
 Pump localized app scaffolding and verify:
 
@@ -882,13 +882,13 @@ final Future<String?> result = showPinSearchDialog(
 );
 ```
 
-- [ ] **Step 2: Run the dialog test and verify it fails**
+- [x] **Step 2: Run the dialog test and verify it fails**
 
 Run: `fvm flutter test test/core/search/subscriptions/pin_search_dialog_test.dart`
 
 Expected: FAIL because the dialog does not exist.
 
-- [ ] **Step 3: Implement the optional-name dialog**
+- [x] **Step 3: Implement the optional-name dialog**
 
 Use `KurumiDialog`/Material controls consistent with existing name dialogs.
 The query is context, not an editable field. Return `null` on cancellation and
@@ -899,7 +899,7 @@ Add i18n keys under a new `pinned_searches` namespace for title, optional name,
 name hint, query label, Pin, Save, and persistence/snapshot feedback. Do not run
 generation until Step 7 so both UI files can be formatted together.
 
-- [ ] **Step 4: Write failing search-page action tests**
+- [x] **Step 4: Write failing search-page action tests**
 
 Pump `SearchPageScaffold` with a fake repository/notifier. Assert the action is
 absent before a non-empty search has loaded, appears after `tagString` becomes
@@ -916,13 +916,13 @@ notifier.pin(
 For an already pinned query, assert the same action opens the dialog with its
 current name and calls `rename` rather than creating a duplicate.
 
-- [ ] **Step 5: Run the action test and verify it fails**
+- [x] **Step 5: Run the action test and verify it fails**
 
 Run: `fvm flutter test test/core/search/subscriptions/search_page_pin_action_test.dart`
 
 Expected: FAIL because the result header has no pin action.
 
-- [ ] **Step 6: Add the action to `SearchPageScaffold`**
+- [x] **Step 6: Add the action to `SearchPageScaffold`**
 
 In the existing result-header row, add a small consumer widget that listens to
 `SearchPageController.tagString`, resolves exact pin state for the current
@@ -933,7 +933,7 @@ Persist before waiting for the initial snapshot. Show a localized success for
 the saved pin and a separate non-destructive warning if its baseline fetch
 fails. Never close or replace the current search result page.
 
-- [ ] **Step 7: Generate localization, format, and run widget tests**
+- [x] **Step 7: Generate localization, format, and run widget tests**
 
 Run:
 
@@ -946,7 +946,7 @@ fvm flutter test test/core/search/subscriptions/search_page_pin_action_test.dart
 
 Expected: generation succeeds and both tests PASS.
 
-- [ ] **Step 8: Commit pin creation UI**
+- [x] **Step 8: Commit pin creation UI**
 
 ```bash
 git add lib/core/search/subscriptions lib/core/search/search/src/widgets/search_page_scaffold.dart packages/i18n

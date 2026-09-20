@@ -1,4 +1,17 @@
 {
+  "pinned_searches": {
+    "pin_title": "Pin Search",
+    "manage_title": "Manage Pinned Search",
+    "optional_name": "Name (optional)",
+    "name_hint": "Use the query as the name",
+    "query_label": "Search query",
+    "pin": "Pin",
+    "save": "Save",
+    "pinned": "Search pinned",
+    "saved": "Pinned search updated",
+    "save_failed": "Could not save the pinned search. Try again.",
+    "snapshot_failed": "Search pinned, but its preview could not be loaded. Refresh it later."
+  },
   "generic": {
     "done": "Done",
     "errors": {
