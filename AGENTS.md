@@ -2,6 +2,12 @@
 - `fvm flutter test` - Run tests
 - `./gen.sh` - Generate i18n, language configs, and booru client configs
 Always use `fvm` for `flutter` and `dart` commands.
+When testing/validating ui behavior, use the Maestro MCP server to control the available android emulator.
+The emulator already has test accounts signed in. Their credentials are in the
+repository-local `.test_credentials` file and may be used for testing. Keep this
+file ignored by Git; never commit its contents, paste them into logs, screenshots,
+issues, or responses, or copy them into test fixtures. Read only the entries
+needed for the current test.
 
 # Code style
 - For Riverpod, always use Notifier/AsyncNotifier. Manually declare providers, no codegen.
@@ -79,4 +85,29 @@ Record:
 - build/tooling quirks
 - unsuccessful approaches worth avoiding
 
-For unfinished work, update `docs/work/active/<task>.md`.
+## Repository task queue
+
+- Record each task or issue in its own Markdown file under `docs/work/`.
+- Read `docs/work/README.md` before working on repository tasks. For a specific
+  request, check the queue for related tasks and stay within the requested scope.
+- The containing folder is the source of truth for task status:
+  - `ready/`: available, unclaimed work.
+  - `in-progress/`: claimed work currently being handled.
+  - `blocked/`: work that cannot proceed until a documented blocker is resolved.
+  - `done/`: work whose acceptance criteria have been verified.
+- When asked to work through the queue, select the highest-priority eligible
+  task from `ready/`, respecting its dependencies. Move it to `in-progress/`
+  before starting and record the agent/session and work branch in the file.
+  Do not take over another agent's claimed task without coordination.
+- Keep filenames stable when moving tasks. Do not duplicate folder status in
+  a status field or maintain a separate status checklist in the README.
+- Include priority, affected feature or branch, problem, expected behavior,
+  acceptance criteria, relevant context, and dependencies in each task file.
+  Update progress and handover notes in that file as work proceeds.
+- If blocked, document the blocker and what is needed to resume, then move the
+  file to `blocked/`. Once resolved, move it to `ready/` or `in-progress/`
+  according to whether an agent is resuming it.
+- Move a task to `done/` only after verifying its acceptance criteria and
+  recording completion evidence. Update links when moving task files.
+- Follow `docs/development_workflow.md` for code changes. Repository tasks do
+  not require GitHub issues and do not authorize unrelated work or delivery.

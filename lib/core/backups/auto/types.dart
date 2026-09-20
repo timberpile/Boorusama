@@ -69,8 +69,7 @@ class AutoBackupEntry {
 
 enum AutoBackupFrequency {
   daily(Duration(days: 1)),
-  weekly(Duration(days: 7))
-  ;
+  weekly(Duration(days: 7));
 
   const AutoBackupFrequency(this.duration);
 

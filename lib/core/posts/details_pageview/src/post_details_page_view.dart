@@ -555,7 +555,7 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
               ? (_) => _controller.startCooldownTimer()
               : null,
           controller: _controller.pageController,
-          physics: blockSwipe
+          physics: blockSwipe || widget.itemCount < 2
               ? const NeverScrollableScrollPhysics()
               : const _PostDetailsPagePhysics(),
           itemCount: widget.itemCount,

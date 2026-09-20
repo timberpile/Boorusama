@@ -21,12 +21,19 @@ final pixivPostRepoProvider =
         return PostRepositoryBuilder(
           tagComposer: tagComposer,
           getSettings: () async => ref.read(imageListingSettingsProvider),
-          fetchSingle: (id, {options}) {
-            // Ids are synthesised per page, so they cannot be turned back
-            // into an illust_id + page_index request on their own. Post
-            // details are always reached from a listing, which already
-            // holds the full post.
-            return Future.value();
+          fetchSingle: (id, {options}) async {
+            final value = switch (id) {
+              NumericPostId(:final value) when value >= 1000 => value,
+              _ => null,
+            };
+            if (value == null) return null;
+            final detail = await client.getIllustDetail(
+              illustId: value ~/ 1000,
+            );
+            if (detail == null) return null;
+            return illustDtoToPosts(
+              detail,
+            ).where((post) => post.id == value).firstOrNull;
           },
           fetch: (tags, page, {limit, options}) async {
             final query = PixivQuery.parse(tags);
@@ -39,17 +46,17 @@ final pixivPostRepoProvider =
             final userId = query.userId;
             final text = query.text;
 
-            final List<PixivIllustDto> illusts;
+            final PixivIllustListResult result;
             if (userId != null) {
-              illusts = (await client.getUserIllusts(
+              result = await client.getUserIllusts(
                 userId: userId,
                 page: page,
-              )).illusts;
+              );
             } else if (text != null) {
-              illusts = (await client.searchIllust(
+              result = await client.searchIllust(
                 word: text,
                 page: page,
-              )).illusts;
+              );
             } else {
               // Pixiv has no tag-less "recent" browse endpoint, so an empty
               // query would otherwise render as a blank grid, which reads as
@@ -57,16 +64,16 @@ final pixivPostRepoProvider =
               // instead (see ranking/providers.dart for the same call with
               // date clamping/omission; here the date is simply omitted so
               // the API returns whatever it considers newest).
-              illusts = (await client.getRanking(
+              result = await client.getRanking(
                 mode: PixivRankingMode.day,
                 page: page,
-              )).illusts;
+              );
             }
 
-            return illustDtosToPosts(
-              illusts,
+            return pixivIllustListResultToPostResult(
+              result,
               metadata: metadata,
-            ).toResult();
+            );
           },
         );
       },

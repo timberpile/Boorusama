@@ -9,6 +9,8 @@ import 'bookmarks_source.dart';
 import 'booru_configs_source.dart';
 import 'downloads_source.dart';
 import 'favorite_tags_source.dart';
+import 'following_feeds_source.dart';
+import 'pinned_searches_source.dart';
 import 'search_history_source.dart';
 import 'settings_source.dart';
 
@@ -40,6 +42,26 @@ final bookmarksBackupSourceProvider = Provider<BackupDataSource>((ref) {
   return BookmarksBackupSource(ref);
 });
 
+final pinnedSearchesBackupSourceProvider =
+    NotifierProvider<PinnedSearchesBackupSourceNotifier, BackupDataSource>(
+      PinnedSearchesBackupSourceNotifier.new,
+    );
+
+class PinnedSearchesBackupSourceNotifier extends Notifier<BackupDataSource> {
+  @override
+  BackupDataSource build() => PinnedSearchesBackupSource(ref);
+}
+
+final followingFeedsBackupSourceProvider =
+    NotifierProvider<FollowingFeedsBackupSourceNotifier, BackupDataSource>(
+      FollowingFeedsBackupSourceNotifier.new,
+    );
+
+class FollowingFeedsBackupSourceNotifier extends Notifier<BackupDataSource> {
+  @override
+  BackupDataSource build() => FollowingFeedsBackupSource(ref);
+}
+
 final backupRegistryProvider = Provider<BackupRegistry>((ref) {
   final registry = BackupRegistry()
     ..register(ref.read(booruConfigsBackupSourceProvider))
@@ -48,7 +70,9 @@ final backupRegistryProvider = Provider<BackupRegistry>((ref) {
     ..register(ref.read(searchHistoryBackupSourceProvider))
     ..register(ref.read(downloadsBackupSourceProvider))
     ..register(ref.read(blacklistedTagsBackupSourceProvider))
-    ..register(ref.read(bookmarksBackupSourceProvider));
+    ..register(ref.read(bookmarksBackupSourceProvider))
+    ..register(ref.watch(pinnedSearchesBackupSourceProvider))
+    ..register(ref.watch(followingFeedsBackupSourceProvider));
   return registry;
 });
 
@@ -60,5 +84,7 @@ final allBackupSourcesProvider = Provider<void>((ref) {
     ..watch(searchHistoryBackupSourceProvider)
     ..watch(downloadsBackupSourceProvider)
     ..watch(blacklistedTagsBackupSourceProvider)
-    ..watch(bookmarksBackupSourceProvider);
+    ..watch(bookmarksBackupSourceProvider)
+    ..watch(pinnedSearchesBackupSourceProvider)
+    ..watch(followingFeedsBackupSourceProvider);
 });

@@ -34,6 +34,8 @@ class PhilomenaClient {
     List<String>? tags,
     int? page,
     int? perPage,
+    String? sortField,
+    String? sortDirection,
   }) async {
     final response = await _dio.get(
       '$kAPISearchPath/images',
@@ -42,6 +44,8 @@ class PhilomenaClient {
           'q': tags.map((e) => e.replaceAll('_', ' ')).join(','),
         if (page != null && page > 1) 'page': page,
         'per_page': ?perPage,
+        'sf': ?sortField,
+        'sd': ?sortDirection,
         if (apiKey != null) 'key': apiKey,
       },
     );

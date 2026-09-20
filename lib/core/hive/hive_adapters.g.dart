@@ -212,3 +212,166 @@ class BookmarkGroupHiveObjectAdapter
           runtimeType == other.runtimeType &&
           typeId == other.typeId;
 }
+
+class SearchSubscriptionHiveObjectAdapter
+    extends TypeAdapter<SearchSubscriptionHiveObject> {
+  @override
+  final typeId = 6;
+
+  @override
+  SearchSubscriptionHiveObject read(BinaryReader reader) {
+    final numOfFields = reader.readByte();
+    final fields = <int, dynamic>{
+      for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
+    };
+    return SearchSubscriptionHiveObject(
+      id: fields[0] as String,
+      profileId: (fields[1] as num).toInt(),
+      query: fields[2] as String,
+      name: fields[3] as String?,
+      position: (fields[4] as num).toInt(),
+      createdAt: fields[5] as DateTime,
+      lastAttemptAt: fields[6] as DateTime?,
+      lastSuccessfulCheckAt: fields[7] as DateTime?,
+      highestSeenPostId: (fields[14] as num?)?.toInt(),
+      unreadCount: (fields[8] as num).toInt(),
+      lastErrorKind: fields[9] as String?,
+      previews: (fields[10] as List).cast<SearchPostPreviewHiveObject>(),
+      recentPostIdentities: (fields[11] as List)
+          .cast<RecentSearchPostHiveObject>(),
+      feedId: fields[12] as String?,
+      runtimeRevision: fields[13] == null ? 0 : (fields[13] as num).toInt(),
+    );
+  }
+
+  @override
+  void write(BinaryWriter writer, SearchSubscriptionHiveObject obj) {
+    writer
+      ..writeByte(15)
+      ..writeByte(0)
+      ..write(obj.id)
+      ..writeByte(1)
+      ..write(obj.profileId)
+      ..writeByte(2)
+      ..write(obj.query)
+      ..writeByte(3)
+      ..write(obj.name)
+      ..writeByte(4)
+      ..write(obj.position)
+      ..writeByte(5)
+      ..write(obj.createdAt)
+      ..writeByte(6)
+      ..write(obj.lastAttemptAt)
+      ..writeByte(7)
+      ..write(obj.lastSuccessfulCheckAt)
+      ..writeByte(8)
+      ..write(obj.unreadCount)
+      ..writeByte(9)
+      ..write(obj.lastErrorKind)
+      ..writeByte(10)
+      ..write(obj.previews)
+      ..writeByte(11)
+      ..write(obj.recentPostIdentities)
+      ..writeByte(12)
+      ..write(obj.feedId)
+      ..writeByte(13)
+      ..write(obj.runtimeRevision)
+      ..writeByte(14)
+      ..write(obj.highestSeenPostId);
+  }
+
+  @override
+  int get hashCode => typeId.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SearchSubscriptionHiveObjectAdapter &&
+          runtimeType == other.runtimeType &&
+          typeId == other.typeId;
+}
+
+class SearchPostPreviewHiveObjectAdapter
+    extends TypeAdapter<SearchPostPreviewHiveObject> {
+  @override
+  final typeId = 7;
+
+  @override
+  SearchPostPreviewHiveObject read(BinaryReader reader) {
+    final numOfFields = reader.readByte();
+    final fields = <int, dynamic>{
+      for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
+    };
+    return SearchPostPreviewHiveObject(
+      postId: (fields[0] as num).toInt(),
+      postCreatedAt: fields[1] as DateTime?,
+      thumbnailUrl: fields[2] as String,
+      sampleUrl: fields[3] as String?,
+      discoveredAt: fields[4] as DateTime,
+    );
+  }
+
+  @override
+  void write(BinaryWriter writer, SearchPostPreviewHiveObject obj) {
+    writer
+      ..writeByte(5)
+      ..writeByte(0)
+      ..write(obj.postId)
+      ..writeByte(1)
+      ..write(obj.postCreatedAt)
+      ..writeByte(2)
+      ..write(obj.thumbnailUrl)
+      ..writeByte(3)
+      ..write(obj.sampleUrl)
+      ..writeByte(4)
+      ..write(obj.discoveredAt);
+  }
+
+  @override
+  int get hashCode => typeId.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SearchPostPreviewHiveObjectAdapter &&
+          runtimeType == other.runtimeType &&
+          typeId == other.typeId;
+}
+
+class RecentSearchPostHiveObjectAdapter
+    extends TypeAdapter<RecentSearchPostHiveObject> {
+  @override
+  final typeId = 8;
+
+  @override
+  RecentSearchPostHiveObject read(BinaryReader reader) {
+    final numOfFields = reader.readByte();
+    final fields = <int, dynamic>{
+      for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
+    };
+    return RecentSearchPostHiveObject(
+      postId: (fields[0] as num).toInt(),
+      postCreatedAt: fields[1] as DateTime,
+    );
+  }
+
+  @override
+  void write(BinaryWriter writer, RecentSearchPostHiveObject obj) {
+    writer
+      ..writeByte(2)
+      ..writeByte(0)
+      ..write(obj.postId)
+      ..writeByte(1)
+      ..write(obj.postCreatedAt);
+  }
+
+  @override
+  int get hashCode => typeId.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is RecentSearchPostHiveObjectAdapter &&
+          runtimeType == other.runtimeType &&
+          typeId == other.typeId;
+}

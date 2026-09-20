@@ -46,9 +46,7 @@ DanbooruPost postDtoToPost(
         dto.source,
         pixivId: dto.pixivId,
       ),
-      createdAt: dto.createdAt != null
-          ? DateTime.parse(dto.createdAt!)
-          : DateTime.now(),
+      createdAt: DateTime.tryParse(dto.createdAt ?? ''),
       score: dto.score ?? 0,
       upScore: dto.upScore ?? 0,
       downScore: dto.downScore ?? 0,

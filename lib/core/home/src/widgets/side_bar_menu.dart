@@ -21,6 +21,9 @@ import '../../../premiums/providers.dart';
 import '../../../premiums/routes.dart';
 import '../../../premiums/types.dart';
 import '../../../search/search/routes.dart';
+import '../../../search/subscriptions/routes.dart';
+import '../../../search/subscriptions/providers.dart';
+import '../../../search/subscriptions/widgets.dart';
 import '../../../settings/providers.dart';
 import '../../../settings/routes.dart';
 import '../../../tags/favorites/routes.dart';
@@ -135,6 +138,23 @@ class SideBarMenu extends ConsumerWidget {
                           onTap: () {
                             goToBookmarkPage(ref);
                           },
+                        ),
+                        SideMenuTile(
+                          icon: const PinnedSearchNavigationIcon(),
+                          title: Text(context.t.pinned_searches.title),
+                          onTap: () => goToPinnedSearchesPage(ref),
+                        ),
+                        SideMenuTile(
+                          icon: Badge(
+                            isLabelVisible: ref.watch(
+                              followingFeedHasNewPostsProvider,
+                            ),
+                            child: const Icon(Symbols.rss_feed),
+                          ),
+                          title: Text(
+                            context.t.pinned_searches.following_feeds,
+                          ),
+                          onTap: () => goToFollowingFeedsPage(ref),
                         ),
                         SideMenuTile(
                           icon: const Icon(Symbols.list),

@@ -68,7 +68,7 @@ class DanbooruPost extends Equatable
     md5: '',
     lastCommentAt: null,
     source: PostSource.none(),
-    createdAt: DateTime.now(),
+    createdAt: null,
     score: 0,
     upScore: 0,
     downScore: 0,
@@ -117,7 +117,7 @@ class DanbooruPost extends Equatable
   final String md5;
   final DateTime? lastCommentAt;
   @override
-  final DateTime createdAt;
+  final DateTime? createdAt;
   @override
   final int score;
   final int upScore;

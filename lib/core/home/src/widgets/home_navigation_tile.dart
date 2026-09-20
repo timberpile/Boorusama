@@ -18,6 +18,8 @@ class HomeNavigationTile extends StatelessWidget {
     this.forceFillIcon = false,
     this.forceIconColor,
     this.enabled = true,
+    this.showBadge = false,
+    this.badgeLabel,
   });
 
   // Will override the onTap function
@@ -30,6 +32,8 @@ class HomeNavigationTile extends StatelessWidget {
   final bool forceFillIcon;
   final Color? forceIconColor;
   final bool enabled;
+  final bool showBadge;
+  final String? badgeLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -39,41 +43,55 @@ class HomeNavigationTile extends StatelessWidget {
       valueListenable: controller,
       builder: (context, index, child) {
         final selected = value == index;
-
-        return KurumiNavigationTile(
-          value: value,
-          index: index,
-          showIcon:
-              constraints.maxWidth > 200 ||
-              constraints.maxWidth <= kMinSideBarWidth,
-          showTitle: constraints.maxWidth > kMinSideBarWidth,
-          selectedIcon: Icon(
-            selected ? selectedIcon : icon,
-            fill: 1,
+        final showIcon =
+            constraints.maxWidth > 200 ||
+            constraints.maxWidth <= kMinSideBarWidth;
+        final titleWidget = Text(
+          title,
+          softWrap: false,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
             color: selected
                 ? Kurumi.themeOf(context).colorScheme.onSecondary
                 : null,
           ),
-          icon: Icon(
-            icon,
-            color:
-                forceIconColor ??
-                (selected
-                    ? Kurumi.themeOf(context).colorScheme.onSecondary
-                    : null),
-            fill: forceFillIcon ? 1 : 0,
-          ),
-          title: Text(
-            title,
-            softWrap: false,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
+        );
+
+        return KurumiNavigationTile(
+          value: value,
+          index: index,
+          showIcon: showIcon,
+          showTitle: constraints.maxWidth > kMinSideBarWidth,
+          selectedIcon: _withBadge(
+            Icon(
+              selected ? selectedIcon : icon,
+              fill: 1,
               color: selected
                   ? Kurumi.themeOf(context).colorScheme.onSecondary
                   : null,
             ),
           ),
+          icon: _withBadge(
+            Icon(
+              icon,
+              color:
+                  forceIconColor ??
+                  (selected
+                      ? Kurumi.themeOf(context).colorScheme.onSecondary
+                      : null),
+              fill: forceFillIcon ? 1 : 0,
+            ),
+          ),
+          title: !showIcon && showBadge
+              ? Row(
+                  children: [
+                    Expanded(child: titleWidget),
+                    const SizedBox(width: 4),
+                    Semantics(label: badgeLabel, child: const Badge()),
+                  ],
+                )
+              : titleWidget,
           onTap: enabled
               ? (value) => onTap != null ? onTap!() : controller.goToTab(value)
               : null,
@@ -81,4 +99,11 @@ class HomeNavigationTile extends StatelessWidget {
       },
     );
   }
+
+  Widget _withBadge(Widget icon) => showBadge
+      ? Semantics(
+          label: badgeLabel,
+          child: Badge(child: icon),
+        )
+      : icon;
 }

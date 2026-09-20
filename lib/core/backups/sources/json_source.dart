@@ -35,6 +35,8 @@ abstract class JsonBackupSource<T>
     this.scopedDataGetter,
     this.exportResultBuilder,
     this.resultExecutor,
+    this.approvedResultExecutor,
+    this.restartAfterImport,
   }) {
     converter = DataBackupConverter(
       version: version,
@@ -67,6 +69,13 @@ abstract class JsonBackupSource<T>
   final BackupOperationResult Function(T data)? exportResultBuilder;
   final Future<BackupOperationResult?> Function(T data, BuildContext? context)?
   resultExecutor;
+  final Future<BackupOperationResult?> Function(
+    T data,
+    BuildContext? context,
+    Object approval,
+  )?
+  approvedResultExecutor;
+  final Future<void> Function(BuildContext? context)? restartAfterImport;
   @override
   BackupOperationResult? lastImportResult;
   final Ref ref;
@@ -129,6 +138,16 @@ abstract class JsonBackupSource<T>
     handler.parse,
     _executeImport,
     uiContext,
+    approvedExecutor: switch (approvedResultExecutor) {
+      final execute? => (parsed, context, approval) async {
+        lastImportResult = await execute(parsed, context, approval);
+      },
+      null => null,
+    },
+    restartApp: switch (restartAfterImport) {
+      final restart? => () => restart(uiContext),
+      null => null,
+    },
   );
 
   Future<BackupOperationResult?> _exportToFile(
@@ -161,12 +180,7 @@ abstract class JsonBackupSource<T>
       return _noContextPrepare(content);
     }
 
-    return importBuilder.prepare(
-      content,
-      handler.parse,
-      _executeImport,
-      uiContext,
-    );
+    return _prepareImport(content, uiContext);
   }
 
   Future<BackupOperationResult?> _exportToClipboard({
@@ -194,21 +208,11 @@ abstract class JsonBackupSource<T>
       return _noContextPrepare(content);
     }
 
-    return importBuilder.prepare(
-      content,
-      handler.parse,
-      _executeImport,
-      uiContext,
-    );
+    return _prepareImport(content, uiContext);
   }
 
   Future<ImportPreparation> _noContextPrepare(String data) =>
-      importBuilder.prepare(
-        data,
-        handler.parse,
-        _executeImport,
-        null,
-      );
+      _prepareImport(data, null);
 
   Future<void> _executeImport(T parsed, BuildContext? context) async {
     if (resultExecutor case final execute?) {

@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Following Feeds · UI behavior mockup</title>
+  <style>
+    :root { font-family: Inter, Roboto, "Segoe UI", sans-serif; color: #f4f4f7; background: #111318; }
+    * { box-sizing: border-box; }
+    button, input { font: inherit; }
+    button { cursor: pointer; }
+    button:focus-visible, input:focus-visible { outline: 2px solid #a2adff; outline-offset: 2px; }
+    .layout { display: grid; grid-template-columns: minmax(240px,1fr) minmax(330px,390px) minmax(240px,1fr); align-items: center; gap: clamp(22px,4vw,72px); max-width: 1370px; min-height: 100vh; margin: auto; padding: 35px; }
+    .copy { max-width: 320px; }
+    .copy.right { justify-self: end; }
+    .eyebrow { color: #9caaff; font-size: 11px; font-weight: 800; letter-spacing: .15em; text-transform: uppercase; }
+    h1 { margin: 13px 0; font-size: clamp(31px,3.2vw,46px); line-height: 1.06; letter-spacing: -.045em; }
+    .copy h2 { font-size: 16px; margin-top: 30px; }
+    .copy p, .copy li { color: #afb0bc; line-height: 1.55; font-size: 14px; }
+    .copy ul { padding-left: 20px; }
+    .scenario { display: grid; gap: 8px; margin-top: 14px; }
+    .scenario button { text-align: left; color: #e7e9f5; background: #242730; border: 1px solid #414654; border-radius: 10px; padding: 10px 12px; }
+    .scenario button:hover, .scenario button.active { border-color: #8c9cff; background: #303753; }
+    .hint { color: #818695 !important; font-size: 12px !important; }
+    .phone { position: relative; display: flex; flex-direction: column; width: 100%; height: min(825px, calc(100vh - 70px)); min-height: 650px; overflow: hidden; border: 7px solid #383b44; border-radius: 38px; background: #09090b; box-shadow: 0 30px 90px #0009, 0 0 0 1px #626671; }
+    .status { flex: none; display: flex; justify-content: space-between; height: 31px; padding: 8px 21px 0; font-size: 12px; font-weight: 700; }
+    .appbar { flex: none; display: flex; align-items: center; min-height: 56px; gap: 9px; padding: 0 15px; border-bottom: 1px solid #2c2d32; }
+    .appbar strong { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 19px; }
+    .icon { width: 32px; height: 32px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; background: transparent; color: #f4f4f7; font-size: 23px; }
+    .icon:hover { background: #30313a; }
+    .screen { min-height: 0; flex: 1; overflow: auto; padding-bottom: 14px; }
+    .bottom { flex: none; display: flex; border-top: 1px solid #34353b; background: #15161b; }
+    .bottom button { flex: 1; border: 0; background: transparent; color: #aaaeba; padding: 12px 3px; font-size: 11px; }
+    .bottom button.active { color: #b3beff; background: #252b42; }
+    .intro { margin: 17px 18px 10px; color: #9da1af; font-size: 12px; line-height: 1.45; }
+    .feed { display: flex; align-items: center; width: calc(100% - 24px); margin: 8px 12px; padding: 14px 12px; text-align: left; background: #202127; border: 1px solid #30323a; border-radius: 9px; color: inherit; }
+    .feed:hover { background: #292b33; }
+    .feed .glyph { width: 37px; height: 37px; display: grid; place-items: center; margin-right: 11px; border-radius: 10px; background: #3c4268; color: #c9d1ff; font-size: 22px; }
+    .feed .details { display: grid; gap: 3px; flex: 1; }
+    .feed strong { font-size: 15px; }
+    .feed small { color: #abb0c0; font-size: 11px; }
+    .new { align-self: start; color: white; background: #ab1641; border-radius: 20px; padding: 3px 6px; font-size: 10px; font-weight: 800; }
+    .action-row { display: flex; align-items: center; justify-content: space-between; margin: 18px; gap: 8px; }
+    .action-row h2 { font-size: 19px; margin: 0; }
+    .follow { display: inline-flex; align-items: center; gap: 7px; padding: 8px 11px; color: #f9f9ff; background: #555cb2; border: 0; border-radius: 18px; font-size: 13px; font-weight: 700; }
+    .follow b { display: grid; place-items: center; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 20px; background: #dbe0ff; color: #303679; font-size: 10px; }
+    .tagline { margin: 0 18px 13px; color: #b3b4bd; font-size: 12px; }
+    .searchbar { margin: 17px 14px 12px; padding: 11px 13px; border: 1px solid #656e9d; border-radius: 10px; background: #252631; color: #e5e8f4; font-size: 14px; }
+    .tag { display: flex; justify-content: space-between; align-items: center; margin: 12px 15px; padding: 12px; border: 1px solid #363947; border-radius: 9px; background: #24262e; color: #bdd0ff; }
+    .tag button { border: 0; color: #e2e6ff; background: #343b59; border-radius: 8px; padding: 6px 9px; font-size: 12px; }
+    .grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 4px; padding: 5px 10px; }
+    .tile { aspect-ratio: .79; border-radius: 4px; background: linear-gradient(138deg,#807a92,#38394d 48%,#95939b); }
+    .tile:nth-child(4n+2) { background: linear-gradient(145deg,#8f9eb0,#434662 53%,#3c3848); }
+    .tile:nth-child(4n+3) { background: linear-gradient(125deg,#9a748b,#493e60 53%,#272938); }
+    .tile:nth-child(4n+4) { background: linear-gradient(145deg,#738e8a,#3a4e5b 53%,#9e8584); }
+    .fresh { margin: 10px 16px; color: #9da3b2; font-size: 11px; }
+    .list-row { display: flex; align-items: center; gap: 10px; padding: 12px 17px; border-bottom: 1px solid #26272c; }
+    .list-row .body { flex: 1; min-width: 0; }
+    .list-row strong { display: block; font-size: 14px; overflow-wrap: anywhere; }
+    .list-row small { color: #a9adb8; font-size: 11px; }
+    .list-row button { border: 0; border-radius: 7px; background: #343b55; color: white; padding: 7px; font-size: 11px; }
+    .addnote { padding: 16px 20px; color: #9298a6; font-size: 12px; line-height: 1.5; }
+    .overlay { position: absolute; inset: 31px 0 0; display: none; align-items: center; justify-content: center; padding: 20px; background: #000b; z-index: 2; }
+    .overlay.open { display: flex; }
+    .dialog { width: 100%; max-height: 85%; overflow: auto; background: #2a2c35; border: 1px solid #515664; border-radius: 20px; padding: 21px; box-shadow: 0 25px 60px #0009; }
+    .dialog[hidden] { display: none; }
+    .dialog h2 { margin: 0 0 5px; font-size: 20px; }
+    .dialog p { margin: 0 0 18px; color: #b9bdc8; font-size: 12px; }
+    .check { display: flex; gap: 10px; align-items: center; margin: 9px 0; font-size: 14px; }
+    .check input { accent-color: #a2afff; width: 18px; height: 18px; }
+    .dialog label.small { display: block; margin: 20px 0 5px; color: #bac0ce; font-size: 12px; }
+    .dialog input[type=text] { width: 100%; padding: 10px; border: 1px solid #72788d; border-radius: 7px; background: #20222b; color: white; }
+    .dialog .actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 19px; }
+    .dialog .actions button { border: 0; border-radius: 7px; color: #dce1ff; background: transparent; padding: 8px; }
+    .dialog .actions button.primary { background: #555fb4; color: white; }
+    .dialog .actions button:disabled { opacity: .4; cursor: default; }
+    @media (max-width: 900px) { .layout { grid-template-columns: 1fr; justify-items: center; padding: 24px; } .copy, .copy.right { max-width: 600px; justify-self: center; } .phone { width: min(390px,100%); height: 740px; } }
+  </style>
+</head>
+<body>
+  <main class="layout">
+    <aside class="copy">
+      <div class="eyebrow">Interactive behavior mockup</div>
+      <h1>Following Feeds</h1>
+      <p>Feeds have their own main menu entry. The list spans all profiles and identifies the owner below each feed name.</p>
+      <h2>Try a starting point</h2>
+      <div class="scenario" id="scenarios">
+        <button data-view="feeds" class="active">All feeds</button>
+        <button data-view="artist">Artist page · Follow</button>
+        <button data-view="search">Search results · Follow</button>
+        <button data-view="tag">Tag context menu · Add to feed</button>
+        <button data-view="first">First feed · empty profile</button>
+      </div>
+      <p class="hint">Use the checkboxes to follow or unfollow the current query. Create feed opens a separate name dialog.</p>
+    </aside>
+    <section class="phone" aria-label="Following Feeds app preview">
+      <div class="status"><span>9:41</span><span>▰ ▰ ◕</span></div>
+      <div class="appbar"><button class="icon" id="back" aria-label="Back">‹</button><strong id="title">Following Feeds</strong><button class="icon" id="manage" aria-label="Manage feed" hidden>⚙</button></div>
+      <div class="screen" id="screen"></div>
+      <nav class="bottom"><button id="menu-feeds" class="active">▣<br>Following Feeds</button><button id="menu-pins">⌕<br>Pinned Searches</button><button id="menu-search">⌕<br>Search</button></nav>
+      <div class="overlay" id="overlay">
+        <div class="dialog" id="selector-dialog"><h2>Add to feed</h2><p id="dialog-query"></p><div id="checks"></div><div class="actions"><button id="close">Done</button><button class="primary" id="open-create">Create feed</button></div></div>
+        <div class="dialog" id="create-dialog" hidden><h2>Create feed</h2><p id="create-query"></p><label class="small" for="new-name">Feed name</label><input id="new-name" type="text" placeholder="For example: Favorite artists"><div class="actions"><button id="cancel-create">Cancel</button><button class="primary" id="create" disabled>Create and follow</button></div></div>
+      </div>
+    </section>
+    <aside class="copy right">
+      <div class="eyebrow">What this demonstrates</div>
+      <h2>Browse, then manage</h2>
+      <p>Open a feed to see its saved recent posts immediately. Older results load as you approach the end. The freshness line reflects gradual source updates.</p>
+      <ul>
+        <li>Following count shows how many feeds contain the exact artist tag or query.</li>
+        <li>Manage shows each tracked search with its own status, open action and refresh action.</li>
+        <li>NEW belongs to a feed when one of its tracked searches has NEW posts.</li>
+      </ul>
+      <p class="hint">Illustrative data and thumbnails. This HTML previews layout and interactions; network refresh is simulated.</p>
+    </aside>
+  </main>
+  <script>
+    const feeds = [
+      { id: 1, name: 'Favorite artists', owner: 'Gelbooru · gelbooru.com', sources: ['hiten', 'mika_pikazo', 'wlop'], fresh: 2, new: true },
+      { id: 2, name: 'Character designs', owner: 'Danbooru · danbooru.donmai.us', sources: ['character_design'], fresh: 1, new: false },
+      { id: 3, name: 'Sketchbook', owner: 'Gelbooru · gelbooru.com', sources: ['sketch', 'hiten'], fresh: 2, new: false },
+    ];
+    let view = 'feeds', selected = null, query = 'hiten';
+    const screen = document.getElementById('screen');
+    const title = document.getElementById('title');
+    const overlay = document.getElementById('overlay');
+    const escape = value => String(value).replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+    function currentOwner() { return view === 'first' ? 'New profile · Gelbooru' : 'Gelbooru · gelbooru.com'; }
+    function count() { return feeds.filter(feed => feed.owner === currentOwner() && feed.sources.includes(query)).length; }
+    function followButton() { const n = count(); return `<button class="follow" data-follow="1">${n ? 'Following' : 'Follow'} ${n ? `<b>${n}</b>` : ''}</button>`; }
+    function grid(n = 18) { return `<div class="grid">${Array.from({length:n}, () => '<div class="tile"></div>').join('')}</div>`; }
+    function render() {
+      document.getElementById('back').hidden = view === 'feeds' || ['artist','search','tag','first'].includes(view);
+      document.getElementById('manage').hidden = view !== 'feed';
+      document.querySelectorAll('#scenarios button').forEach(button => button.classList.toggle('active', button.dataset.view === view));
+      if (view === 'feeds') {
+        title.textContent = 'Following Feeds';
+        screen.innerHTML = `<p class="intro">All feeds across your profiles</p>${feeds.map(feed => `<button class="feed" data-id="${feed.id}"><span class="glyph">◌</span><span class="details"><strong>${escape(feed.name)}</strong><small>${escape(feed.owner)}</small></span>${feed.new ? '<span class="new">NEW</span>' : ''}</button>`).join('')}`;
+      } else if (view === 'artist') {
+        query = 'hiten'; title.textContent = 'Artist';
+        screen.innerHTML = `<div class="action-row"><h2>hiten</h2>${followButton()}</div><p class="tagline">Artist · Gelbooru</p>${grid()}`;
+      } else if (view === 'search') {
+        query = 'blue_eyes solo'; title.textContent = 'Search';
+        screen.innerHTML = `<div class="searchbar">⌕ &nbsp; blue_eyes solo</div><div class="action-row"><h2>Results</h2>${followButton()}</div>${grid()}`;
+      } else if (view === 'tag') {
+        query = 'hiten'; title.textContent = 'Posts';
+        screen.innerHTML = `${grid(6)}<div class="tag"><span>hiten</span><button data-follow="1">Add to feed</button></div>${grid(9)}`;
+      } else if (view === 'first') {
+        query = 'artist_tag'; title.textContent = 'Artist';
+        screen.innerHTML = `<div class="action-row"><h2>artist_tag</h2>${followButton()}</div><p class="tagline">Artist · New profile</p>${grid()}`;
+      } else if (view === 'feed' && selected) {
+        title.textContent = selected.name;
+        screen.innerHTML = `<div class="fresh">${selected.fresh} of ${selected.sources.length} sources checked recently · updates gradually</div>${grid(45)}<p class="fresh">Older posts load as you scroll</p>`;
+        selected.new = false;
+      } else if (view === 'manage' && selected) {
+        title.textContent = `${selected.name} · Manage`;
+        screen.innerHTML = `<p class="intro">Tracked searches in this feed</p>${selected.sources.map((source, index) => `<div class="list-row"><span>⌕</span><span class="body"><strong>${escape(source)}</strong><small>${index < selected.fresh ? 'Checked recently' : 'Waiting for first check'}</small></span><button data-refresh="${escape(source)}">Refresh</button></div>`).join('')}<p class="addnote">Open a search to view it directly. Follow another tag, artist, or search to add it here.</p>`;
+      } else if (view === 'pins') { title.textContent = 'Pinned Searches'; screen.innerHTML = '<p class="intro">Independent pinned searches appear here. Feeds have their own menu entry.</p>'; }
+    }
+    function picker() {
+      const eligible = feeds.filter(feed => feed.owner === currentOwner());
+      document.getElementById('dialog-query').textContent = `Following “${query}” on ${currentOwner()}`;
+      document.getElementById('checks').innerHTML = eligible.length ? eligible.map(feed => `<label class="check"><input type="checkbox" data-feed="${feed.id}" ${feed.sources.includes(query) ? 'checked' : ''}><span>${escape(feed.name)}</span></label>`).join('') : '<p>No following feeds yet.</p>';
+      document.getElementById('close').textContent = eligible.length ? 'Done' : 'Cancel';
+      document.getElementById('selector-dialog').hidden = false;
+      document.getElementById('create-dialog').hidden = true;
+      overlay.classList.add('open');
+    }
+    screen.addEventListener('click', event => {
+      const feed = event.target.closest('[data-id]');
+      if (feed) { selected = feeds.find(item => item.id === Number(feed.dataset.id)); view = 'feed'; render(); }
+      if (event.target.closest('[data-follow]')) picker();
+      const refresh = event.target.closest('[data-refresh]');
+      if (refresh) { refresh.textContent = 'Checked'; selected.fresh = Math.min(selected.fresh + 1, selected.sources.length); }
+    });
+    document.getElementById('checks').addEventListener('change', event => {
+      const feed = feeds.find(item => item.id === Number(event.target.dataset.feed));
+      if (!feed) return;
+      feed.sources = event.target.checked ? [...new Set([...feed.sources, query])] : feed.sources.filter(source => source !== query);
+      if (!feed.sources.length) feeds.splice(feeds.indexOf(feed), 1);
+      picker();
+    });
+    document.getElementById('open-create').addEventListener('click', () => {
+      document.getElementById('create-query').textContent = `This feed will follow: ${query}`;
+      document.getElementById('selector-dialog').hidden = true;
+      document.getElementById('create-dialog').hidden = false;
+      document.getElementById('new-name').focus();
+    });
+    document.getElementById('cancel-create').addEventListener('click', picker);
+    document.getElementById('new-name').addEventListener('input', event => document.getElementById('create').disabled = !event.target.value.trim());
+    document.getElementById('create').addEventListener('click', () => {
+      const input = document.getElementById('new-name');
+      if (!input.value.trim()) return;
+      feeds.push({ id: Date.now(), name: input.value.trim(), owner: currentOwner(), sources: [query], fresh: 0, new: false });
+      input.value = ''; document.getElementById('create').disabled = true;
+      overlay.classList.remove('open'); render();
+    });
+    document.getElementById('close').addEventListener('click', () => { overlay.classList.remove('open'); render(); });
+    document.getElementById('back').addEventListener('click', () => { view = view === 'manage' ? 'feed' : 'feeds'; render(); });
+    document.getElementById('manage').addEventListener('click', () => { view = 'manage'; render(); });
+    document.getElementById('scenarios').addEventListener('click', event => { const button = event.target.closest('[data-view]'); if (button) { view = button.dataset.view; render(); } });
+    document.getElementById('menu-feeds').addEventListener('click', () => { view = 'feeds'; render(); });
+    document.getElementById('menu-pins').addEventListener('click', () => { view = 'pins'; render(); });
+    document.getElementById('menu-search').addEventListener('click', () => { view = 'search'; render(); });
+    render();
+  </script>
+</body>
+</html>

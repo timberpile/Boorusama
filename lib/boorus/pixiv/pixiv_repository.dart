@@ -4,6 +4,8 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Project imports:
+import '../../core/search/subscriptions/src/refresh/search_refresh_query_adapter.dart';
+import 'posts/query.dart';
 import '../../core/boorus/defaults/types.dart';
 import '../../core/configs/config/types.dart';
 import '../../core/configs/create/create.dart';
@@ -20,6 +22,10 @@ const kPixivCustomDownloadFileNameFormat = '{illust_id}_p{page}.{extension}';
 
 class PixivRepository extends BooruRepositoryDefault {
   const PixivRepository({required this.ref});
+
+  @override
+  SearchRefreshQueryAdapter searchRefreshQueryAdapter(BooruConfigAuth config) =>
+      const _PixivSearchRefreshQueryAdapter();
 
   @override
   final Ref ref;
@@ -94,6 +100,19 @@ class PixivRepository extends BooruRepositoryDefault {
   Map<String, String> extraHttpHeaders(BooruConfigAuth config) {
     return {
       'Referer': kPixivImageReferer,
+    };
+  }
+}
+
+class _PixivSearchRefreshQueryAdapter extends DefaultSearchRefreshQueryAdapter {
+  const _PixivSearchRefreshQueryAdapter();
+
+  @override
+  SearchRefreshQueryPlan plan(String query, {required DateTime? after}) {
+    final parsed = PixivQuery.parse(query.trim().split(RegExp(r'\s+')));
+    return switch ((parsed.userId, parsed.text)) {
+      (null, null) => const UnsupportedSearchRefreshQueryPlan(),
+      _ => super.plan(query, after: after),
     };
   }
 }

@@ -30,11 +30,33 @@ class VersionCheckInfo {
 class ImportPreparation {
   const ImportPreparation({
     required this.versionCheck,
-    required this.executeImport,
-  });
+    required Future<void> Function() executeImport,
+    this.restartApp,
+    this.preparedData,
+    this.executeApprovedImport,
+  }) : _executeImport = executeImport;
 
+  final Object? preparedData;
+  final Future<void> Function(Object approval)? executeApprovedImport;
   final VersionCheckInfo versionCheck;
-  final Future<void> Function() executeImport;
+  final Future<void> Function() _executeImport;
+  final Future<void> Function()? restartApp;
+
+  Future<void> executeImport({
+    bool deferRestart = false,
+    Object? approval,
+  }) async {
+    if (approval case final value?) {
+      final approved = executeApprovedImport;
+      if (approved == null) {
+        throw StateError('This source does not accept an import approval');
+      }
+      await approved(value);
+    } else {
+      await _executeImport();
+    }
+    if (!deferRestart) await restartApp?.call();
+  }
 }
 
 class ImportPreparationBuilder<T> {
@@ -56,8 +78,11 @@ class ImportPreparationBuilder<T> {
     String data,
     T Function(ExportDataPayload payload) parser,
     Future<void> Function(T data, BuildContext? uiContext) executor,
-    BuildContext? uiContext,
-  ) async {
+    BuildContext? uiContext, {
+    Future<void> Function()? restartApp,
+    Future<void> Function(T parsed, BuildContext? context, Object approval)?
+    approvedExecutor,
+  }) async {
     final metadata = converter.decode(data: data);
     final parsed = parser(metadata);
 
@@ -87,7 +112,13 @@ class ImportPreparationBuilder<T> {
             currentVersion: null,
             importVersion: null,
           ),
+      preparedData: finalContext.parsedData,
       executeImport: () => executor(finalContext.parsedData, uiContext),
+      executeApprovedImport: approvedExecutor == null
+          ? null
+          : (approval) =>
+                approvedExecutor(finalContext.parsedData, uiContext, approval),
+      restartApp: restartApp,
     );
   }
 }

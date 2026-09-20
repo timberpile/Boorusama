@@ -3,6 +3,7 @@ import 'package:booru_clients/szurubooru.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Project imports:
+import '../../core/search/subscriptions/src/refresh/search_refresh_query_adapter.dart';
 import '../../core/boorus/defaults/types.dart';
 import '../../core/comments/types.dart';
 import '../../core/configs/config/types.dart';
@@ -25,6 +26,18 @@ import 'tags/providers.dart';
 
 class SzurubooruRepository extends BooruRepositoryDefault {
   const SzurubooruRepository({required this.ref});
+
+  @override
+  SearchRefreshQueryAdapter searchRefreshQueryAdapter(BooruConfigAuth config) =>
+      const OrderedSearchRefreshQueryAdapter(
+        orderingToken: null,
+        acceptedOrderingTokens: {
+          'sort:creation-time',
+          'sort:creation-date',
+          'order:creation-time',
+          'order:creation-date',
+        },
+      );
 
   @override
   final Ref ref;

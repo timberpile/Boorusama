@@ -1,0 +1,383 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark">
+    <title>Following Feeds · Architektur-Explorer</title>
+    <style>
+      :root {
+        font-family: Inter, Roboto, "Segoe UI", Arial, sans-serif;
+        color: #f4f5f8;
+        background: #101218;
+        font-synthesis: none;
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; }
+      button, select { font: inherit; }
+      button { cursor: pointer; }
+      button:focus-visible, select:focus-visible { outline: 2px solid #a4afff; outline-offset: 3px; }
+      .shell { max-width: 1380px; margin: auto; padding: 35px clamp(18px, 4vw, 58px) 75px; }
+      .eyebrow { color: #a5b0ff; font-size: 11px; font-weight: 800; letter-spacing: .17em; text-transform: uppercase; }
+      header { display: flex; justify-content: space-between; align-items: start; gap: 26px; }
+      h1 { max-width: 760px; margin: 11px 0 10px; font-size: clamp(30px, 4vw, 52px); line-height: 1.05; letter-spacing: -.048em; }
+      .lede { max-width: 760px; margin: 0; color: #aeb4c2; font-size: 15px; line-height: 1.55; }
+      .newer-design { margin: 13px 0 0; color: #c9d4ff; font-size: 13px; }
+      .newer-design a { color: #b9c7ff; }
+      .draft { flex: none; border: 1px solid #59528d; background: #27233d; border-radius: 999px; padding: 8px 12px; color: #c8c3ff; font-size: 12px; font-weight: 700; }
+      .panel { border: 1px solid #343a48; border-radius: 18px; background: #191d27; box-shadow: 0 18px 54px #0003; }
+      .mode-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 27px 0 18px; }
+      .mode-tabs button, .stage-controls button, .history-buttons button {
+        border: 1px solid #3b4352; border-radius: 11px; background: #222837; color: #dce1ed; padding: 10px 14px; font-size: 13px; font-weight: 700;
+      }
+      .mode-tabs button[aria-selected="true"], .stage-controls button.active, .history-buttons button.active {
+        border-color: #9aa7ff; background: #303d68; color: white;
+      }
+      .mode-tabs button:hover, .stage-controls button:hover, .history-buttons button:hover { border-color: #8392e7; }
+      .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 15px 28px; padding: 17px 20px; }
+      .controls label { display: flex; align-items: center; gap: 9px; color: #aeb7c8; font-size: 13px; font-weight: 650; }
+      select { border: 1px solid #4a5366; border-radius: 9px; background: #111722; color: white; padding: 7px 28px 7px 9px; }
+      .control-hint { margin-left: auto; max-width: 460px; color: #8790a1; font-size: 12px; line-height: 1.45; }
+      .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 15px 0 27px; }
+      .stat { padding: 16px 18px; }
+      .stat strong { display: block; margin: 6px 0 4px; font-size: clamp(20px, 2.5vw, 29px); letter-spacing: -.045em; }
+      .stat span { color: #9da7b9; font-size: 12px; line-height: 1.4; }
+      .stat .stat-label { color: #aab6ff; font-size: 11px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; }
+      h2 { margin: 0 0 6px; font-size: 19px; letter-spacing: -.025em; }
+      h3 { margin: 0 0 7px; font-size: 14px; }
+      .subhead { margin: 0; color: #9da7b8; font-size: 13px; line-height: 1.5; }
+      .section { margin-top: 26px; padding: 22px; }
+      .section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 15px; margin-bottom: 18px; }
+      .section-tag { color: #9ba5ba; font-size: 11px; font-weight: 750; text-transform: uppercase; letter-spacing: .1em; }
+      .model-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+      .box { min-width: 0; border: 1px solid #434c5f; border-radius: 13px; padding: 14px 15px; background: #242b3a; }
+      .box .type { display: block; color: #a6b4ff; font-size: 10px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+      .box strong { display: block; margin: 6px 0 5px; font-size: 15px; }
+      .box p { margin: 0; color: #b0b9ca; font-size: 12px; line-height: 1.45; }
+      .box code, .codebox code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; color: #d9ddff; overflow-wrap: anywhere; }
+      .box.pin { border-color: #466b81; background: #1c303c; }
+      .box.feed { border-color: #715895; background: #2b2540; }
+      .box.search { border-color: #568775; background: #1c3532; }
+      .box.store { border-color: #8b7250; background: #352e25; }
+      .connector { display: grid; place-items: center; min-height: 43px; color: #9da9ff; font-size: 23px; }
+      .connector small { margin-left: 11px; color: #aab3c4; font-size: 12px; }
+      .model-bottom { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+      .model-bottom .box { min-height: 98px; }
+      .flow { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 9px; align-items: stretch; }
+      .flow .step { position: relative; padding: 15px 13px; border: 1px solid #455067; border-radius: 12px; background: #202939; }
+      .flow .step + .step::before { content: "→"; position: absolute; left: -13px; top: 35px; z-index: 2; color: #a4b2ff; font-size: 18px; font-weight: 800; }
+      .flow .step.active { border-color: #a4b0ff; background: #2b3760; box-shadow: inset 0 0 0 1px #6478b8; }
+      .flow .step b { display: block; margin-bottom: 7px; font-size: 13px; }
+      .flow .step span { display: block; color: #a8b2c4; font-size: 11px; line-height: 1.45; }
+      .stage-controls, .history-buttons { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 17px; }
+      .callout { margin-top: 17px; border-left: 3px solid #9caaff; border-radius: 0 9px 9px 0; background: #222d4b; padding: 12px 15px; color: #d9e0ff; font-size: 13px; line-height: 1.5; }
+      .callout.warning { border-color: #f2b868; background: #342a24; color: #f6dbc0; }
+      .scroll-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(260px, .8fr); gap: 22px; }
+      .scroll-figure { border: 1px solid #3a4352; border-radius: 14px; background: #121925; padding: 19px; }
+      .scroll-figure .caption { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 13px; color: #cbd2e1; font-size: 12px; font-weight: 750; }
+      .timeline { position: relative; overflow: hidden; height: 33px; border: 1px solid #525b70; border-radius: 9px; background: repeating-linear-gradient(90deg, #283144 0, #283144 10%, #303b50 10%, #303b50 10.3%); }
+      .timeline .loaded { height: 100%; min-width: 2px; background: repeating-linear-gradient(90deg, #7289e6 0, #7289e6 10%, #829af9 10%, #829af9 10.3%); transition: width .35s; }
+      .timeline .edge { position: absolute; top: 0; bottom: 0; width: 3px; background: #f2bd7a; transition: left .35s; }
+      .legend { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 13px; color: #a8b3c4; font-size: 11px; }
+      .legend i { display: inline-block; width: 10px; height: 10px; margin-right: 5px; border-radius: 2px; background: #829af9; }
+      .legend .saved i { background: #354159; }
+      .legend .end i { background: #f2bd7a; }
+      .scroll-info { margin: 17px 0 0; color: #d5dced; font-size: 13px; line-height: 1.55; min-height: 63px; }
+      .codebox { border: 1px solid #3f485a; border-radius: 12px; background: #111721; padding: 14px; color: #b4bed0; font-size: 12px; line-height: 1.55; }
+      .codebox b { display: block; margin-bottom: 8px; color: #e7eaff; font-size: 12px; }
+      .codebox code { display: block; white-space: pre-wrap; font-size: 11px; }
+      .decision-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+      .decision { padding: 16px; border: 1px solid #4a5366; border-radius: 12px; background: #222937; }
+      .decision h3 { color: #e8ebf8; }
+      .decision p { margin: 0; color: #acb6c8; font-size: 12px; line-height: 1.5; }
+      .decision.chosen { border-color: #9aabff; background: #29365a; }
+      .footer-note { margin-top: 25px; color: #828c9f; font-size: 12px; line-height: 1.55; }
+      .mode-panel { display: none; }
+      body[data-mode="proposal"] .mode-panel[data-for="proposal"],
+      body[data-mode="current"] .mode-panel[data-for="current"],
+      body[data-mode="snapshots"] .mode-panel[data-for="snapshots"] { display: block; }
+      @media (max-width: 900px) {
+        .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .flow { grid-template-columns: 1fr; }
+        .flow .step + .step::before { content: "↓"; top: -18px; left: 50%; }
+        .scroll-grid { grid-template-columns: 1fr; }
+      }
+      @media (max-width: 640px) {
+        header { display: block; }
+        .draft { display: inline-block; margin-top: 16px; }
+        .model-grid, .model-bottom, .decision-grid { grid-template-columns: 1fr; }
+        .controls { align-items: stretch; }
+        .controls label { justify-content: space-between; width: 100%; }
+        .control-hint { margin-left: 0; }
+        .section { padding: 17px; }
+      }
+    </style>
+  </head>
+  <body data-mode="proposal">
+    <main class="shell">
+      <header>
+        <div>
+          <div class="eyebrow">Following Feeds · technischer Architektur-Explorer</div>
+          <h1>Woher kommen die Posts, und was passiert am Listenende?</h1>
+          <p class="lede">Dieses Schaubild vergleicht den aktuellen Branch mit zwei Speicheransätzen. Es zeigt Datenfluss, gemeinsame Suchen, Kosten bei 1.000 Quellen und die Grenze zwischen lokalem Nachladen und neuen Website-Abfragen.</p>
+          <p class="newer-design">Frühere Varianten-Skizze · <a href="2026-09-19-tracked-search-architecture.html">aktuelle TrackedSearch-Architektur ansehen</a></p>
+        </div>
+        <span class="draft">Diskussionsentwurf · keine Implementierung</span>
+      </header>
+
+      <nav class="mode-tabs" aria-label="Architektur vergleichen">
+        <button type="button" data-mode-button="proposal" aria-selected="true">Variante 1 · Feed-Archiv</button>
+        <button type="button" data-mode-button="current" aria-selected="false">Aktueller Branch</button>
+        <button type="button" data-mode-button="snapshots" aria-selected="false">Alternative · Quellen-Puffer</button>
+      </nav>
+
+      <div class="panel controls">
+        <label>Quellen im Feed
+          <select id="source-count">
+            <option value="10">10</option>
+            <option value="100">100</option>
+            <option value="1000" selected>1.000</option>
+          </select>
+        </label>
+        <label>Lokal gespeicherte Feed-Posts
+          <select id="post-count">
+            <option value="500">500</option>
+            <option value="10000" selected>10.000</option>
+            <option value="50000">50.000</option>
+          </select>
+        </label>
+        <p class="control-hint" id="control-hint">Die Zahlen sind Szenarien zur Einordnung, noch keine festgelegten Produktgrenzen. Die Speicher-Schätzung bezieht sich nur auf den Feed-Index.</p>
+      </div>
+
+      <div class="stats" aria-live="polite">
+        <div class="panel stat"><div class="stat-label" id="stat-source-label">Gemeinsame Suchquellen</div><strong id="stat-sources">1.000</strong><span id="stat-source-detail">Ein Abruf pro fälliger Suche, auch wenn mehrere Feeds sie nutzen.</span></div>
+        <div class="panel stat"><div class="stat-label">Rohe Post-IDs</div><strong id="stat-ids">80 KB</strong><span>8 Byte je ID; ohne Vorschau, Zeitpunkt oder Herkunft.</span></div>
+        <div class="panel stat"><div class="stat-label" id="stat-preview-label">Feed-Vorschauen</div><strong id="stat-preview">≈ 2,2 MB</strong><span>Grobe Hochrechnung eines minimalen Testdatensatzes; echte Daten variieren.</span></div>
+        <div class="panel stat"><div class="stat-label">Öffnen des Feeds</div><strong id="stat-open">Eine Seite</strong><span id="stat-open-detail">Nur die ersten 200 lokalen Indexeinträge lesen.</span></div>
+      </div>
+
+      <section class="panel section mode-panel" data-for="proposal">
+        <div class="section-head">
+          <div><h2>Variante 1: eine Suche, mehrere Verwendungen</h2><p class="subhead">Der Feed hält Such-IDs. Die Suche enthält keinen Feed-Verweis. Ein sichtbarer Pin und mehrere Feeds dürfen dieselbe Suche nutzen.</p></div>
+          <span class="section-tag">Datenmodell</span>
+        </div>
+        <div class="model-grid">
+          <div class="box pin"><span class="type">Sichtbarer Pin</span><strong>Künstler A</strong><p>Verweis auf <code>#S17</code>; kein zweiter Abruf.</p></div>
+          <div class="box feed"><span class="type">Feed · Profil Safebooru</span><strong>Künstler</strong><p><code>sourceIds: [#S17, #S45, …]</code></p></div>
+          <div class="box feed"><span class="type">Feed · Profil Safebooru</span><strong>Favoriten</strong><p><code>sourceIds: [#S17, #S82, …]</code></p></div>
+        </div>
+        <div class="connector">↓ <small>alle drei verweisen auf dieselbe Suche</small></div>
+        <div class="model-bottom">
+          <div class="box search"><span class="type">Gemeinsame Suche #S17</span><strong><code>artist_a</code></strong><p>Profil, Query, letzter erfolgreicher Check und ein gemeinsamer <code>NEW</code>-Status. Keine <code>feedId</code>.</p></div>
+          <div class="box store"><span class="type">Feed-Definition</span><strong>Nur Mitgliedschaften</strong><p>Entfernen aus einem Feed löst einen Verweis. Die Suche bleibt, solange ein anderer Feed oder sichtbarer Pin sie nutzt.</p></div>
+        </div>
+        <div class="callout">Gemeinsames <code>NEW</code> bleibt bewusst einfach: Ein Feed zeigt <code>NEW</code>, falls irgendeine seiner Suchen <code>NEW</code> hat. Öffnen des Feeds markiert diese Suchen gelesen und kann deshalb auch den Hinweis an einem Pin oder anderen Feed löschen.</div>
+      </section>
+
+      <section class="panel section mode-panel" data-for="current">
+        <div class="section-head">
+          <div><h2>Aktueller Branch: getrennte Feed-Suchen</h2><p class="subhead">Diese Struktur erklärt das bestehende Verhalten, ist aber nicht die gewünschte gemeinsame Suchquelle.</p></div>
+          <span class="section-tag">Ist-Zustand</span>
+        </div>
+        <div class="model-grid">
+          <div class="box pin"><span class="type">Sichtbarer Pin</span><strong><code>artist_a</code></strong><p>Eigener Suchdatensatz und eigener Abruf.</p></div>
+          <div class="box feed"><span class="type">Feed</span><strong>Künstler</strong><p>Name und ein einzelner JSON-Wert mit höchstens 500 Post-Vorschauen.</p></div>
+          <div class="box search"><span class="type">Verborgene Feed-Suche</span><strong><code>artist_a</code></strong><p>Separater Suchdatensatz mit <code>feedId</code>; derselbe Query kann nochmals abgerufen werden.</p></div>
+        </div>
+        <div class="callout warning">Der Feed liest beim Öffnen die 500 gespeicherten Posts. Die Liste meldet <code>hasMore: false</code>; am Ende gibt es keine nächste Seite. Entfernen einer Quelle leert derzeit den gesamten Feed-Cache.</div>
+      </section>
+
+      <section class="panel section mode-panel" data-for="snapshots">
+        <div class="section-head">
+          <div><h2>Alternative: Posts pro Suche speichern</h2><p class="subhead">Die Such- und Feed-Mitgliedschaft bleibt wie in Variante 1. Erst beim Öffnen werden die gespeicherten Treffer aller Quellen zusammengeführt.</p></div>
+          <span class="section-tag">Vergleich</span>
+        </div>
+        <div class="model-grid">
+          <div class="box search"><span class="type">Suche #S17</span><strong>Eigene Trefferliste</strong><p>Post-IDs, Zeit und Vorschau je Suche speichern.</p></div>
+          <div class="box search"><span class="type">Weitere Suchen</span><strong id="snapshot-source-label">999 Quellen</strong><p>Jede Quelle hat einen eigenen begrenzten Puffer.</p></div>
+          <div class="box feed"><span class="type">Beim Öffnen</span><strong id="snapshot-candidate-label">50.000 Kandidaten</strong><p>Einlesen, zeitlich sortieren und doppelte Posts zusammenführen.</p></div>
+        </div>
+        <div class="callout warning">Entfernen einer Suche ist einfach. Bei 1.000 Quellen und 50 Treffern je Quelle muss das Öffnen aber bis zu 50.000 Einträge betrachten. Mehr Verlauf erfordert entsprechend größere Quellen-Puffer. Eine bloße Liste von IDs liefert weder Vorschaubilder noch die Upload-Zeit für die Sortierung.</div>
+      </section>
+
+      <section class="panel section">
+        <div class="section-head">
+          <div><h2>Vom Abruf zur sichtbaren Feed-Seite</h2><p class="subhead">Wähle einen Schritt. Die Reihenfolge zeigt Variante 1; die Unterschiede der anderen Varianten stehen darüber.</p></div>
+          <span class="section-tag">Datenfluss</span>
+        </div>
+        <div class="flow">
+          <div class="step" data-step="0"><b>1 · Scheduler</b><span>Fällige Suchen im Vordergrund schrittweise prüfen; keine Aktualisierung aller 1.000 beim Öffnen.</span></div>
+          <div class="step" data-step="1"><b>2 · Gemeinsame Suche</b><span>Eine Profil-Query abrufen. Checkpoint und NEW an diesem Suchdatensatz aktualisieren.</span></div>
+          <div class="step" data-step="2"><b>3 · Feed-Verweise</b><span>Nur Feeds finden, die diese Such-ID enthalten. Dieselbe Quelle nicht erneut abrufen.</span></div>
+          <div class="step" data-step="3"><b>4 · Lokaler Feed-Index</b><span>Post-Vorschau und Herkunft je Feed eintragen; gleiche Post-ID pro Feed nur einmal.</span></div>
+          <div class="step" data-step="4"><b>5 · Feed-Ansicht</b><span>Eine sortierte Seite lokal lesen; weitere lokale Seiten rechtzeitig nachladen.</span></div>
+        </div>
+        <div class="stage-controls" aria-label="Schritt hervorheben">
+          <button type="button" data-stage="0">Scheduler</button>
+          <button type="button" data-stage="1">Such-Abruf</button>
+          <button type="button" data-stage="2">Feed-Zuordnung</button>
+          <button type="button" data-stage="3">Speichern</button>
+          <button type="button" data-stage="4">Anzeigen</button>
+        </div>
+        <div class="callout" id="flow-explanation" aria-live="polite"></div>
+      </section>
+
+      <section class="panel section">
+        <div class="section-head">
+          <div><h2>Was passiert beim Scrollen?</h2><p class="subhead">Die blaue Strecke ist in der Ansicht geladen; dahinter liegen weitere lokal gespeicherte Posts. Orange markiert das Ende des lokalen Archivs.</p></div>
+          <span class="section-tag">Interaktive Simulation</span>
+        </div>
+        <div class="scroll-grid">
+          <div class="scroll-figure">
+            <div class="caption"><span id="loaded-label">200 geladen</span><span id="stored-label">10.000 lokal gespeichert</span></div>
+            <div class="timeline" aria-label="Geladene und lokal gespeicherte Posts"><div class="loaded" id="loaded-bar"></div><div class="edge" id="end-marker"></div></div>
+            <div class="legend"><span><i></i> in der Ansicht geladen</span><span class="saved"><i></i> lokal vorhanden, noch nicht geladen</span><span class="end"><i></i> lokales Ende</span></div>
+            <div class="stage-controls" aria-label="Scroll-Situation wählen">
+              <button type="button" data-scroll="start">Feed öffnen</button>
+              <button type="button" data-scroll="near">100 Posts vor Ende</button>
+              <button type="button" data-scroll="end">Lokales Ende erreichen</button>
+            </div>
+            <p class="scroll-info" id="scroll-info" aria-live="polite"></p>
+          </div>
+          <div class="codebox">
+            <b>Variante 1 · schematischer Index</b>
+            <code>Feed { id, profileId, sourceIds }
+Search { id, profileId, query, checkpoint, NEW }
+FeedPost { feedId, postId, uploadedAt, thumbnail }
+FeedPostSource { feedId, postId, searchId }
+
+Nächste Seite:
+WHERE feedId = ?
+  AND (uploadedAt, postId) &lt; cursor
+ORDER BY uploadedAt DESC, postId DESC
+LIMIT 200</code>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel section">
+        <div class="section-head">
+          <div><h2>Die noch offene Grenze</h2><p class="subhead">10.000 lokal gespeicherte Post-IDs sind klein. Sie erzeugen aber keine älteren Treffer, die bisher nie abgerufen wurden.</p></div>
+          <span class="section-tag">Entscheidung offen</span>
+        </div>
+        <div class="decision-grid">
+          <div class="decision" data-history-card="local"><h3>Nur bereits entdeckte Posts</h3><p>Lokale Seiten öffnen schnell. Am Ende des gespeicherten Verlaufs wartet die Ansicht auf spätere automatische Entdeckungen; ältere Website-Posts werden nicht eigens gesucht.</p></div>
+          <div class="decision" data-history-card="remote"><h3>Auch ältere Website-Posts nachladen</h3><p>Beim lokalen Ende müssen viele unabhängige Suchen mit eigenen Seitenpositionen fortgesetzt und zeitlich zusammengeführt werden. Das ist bei 1.000 Quellen der aufwendige Teil.</p></div>
+        </div>
+        <div class="history-buttons" aria-label="Verhalten am lokalen Ende vergleichen">
+          <button type="button" data-history="local">Lokales Ende zeigen</button>
+          <button type="button" data-history="remote">Ältere Website-Posts zeigen</button>
+        </div>
+        <div class="callout warning" id="history-explanation" aria-live="polite"></div>
+      </section>
+
+      <p class="footer-note">Alle Post-Zahlen und Seitenlängen sind veränderbare Beispiele. Die Vorschau-Schätzung skaliert die dokumentierte minimale Hive-Testfixture von rund 110 KB für 500 Posts linear; URLs, Tags und Herkunftszuordnungen können den tatsächlichen Bedarf erhöhen. Das HTML simuliert den Datenfluss, führt keine Website-Abfragen aus und ändert keine App-Daten.</p>
+    </main>
+    <script>
+      const number = new Intl.NumberFormat('de-DE');
+      const steps = [
+        'Der Scheduler verarbeitet überfällige Suchen fair und begrenzt. Ein Feed mit 1.000 Quellen wird nicht beim Öffnen vollständig abgefragt; Aktualität entsteht schrittweise im Vordergrund.',
+        'Jede normalisierte Profil-Query hat einen Suchdatensatz. Ein sichtbarer Pin und mehrere Feeds nutzen denselben Abruf, Checkpoint und NEW-Status.',
+        'Der Feed speichert Such-IDs. Nach einem erfolgreichen Abruf wird über diese Verweise ermittelt, welche Feeds die neuen Treffer erhalten.',
+        'Je betroffenem Feed werden Treffer in einen lokalen, sortierbaren Index eingetragen. Post-ID plus Feed-ID verhindert Duplikate; eine Herkunftszuordnung ermöglicht das Entfernen einzelner Quellen.',
+        'Das Öffnen liest nur eine lokale Seite. Wenn noch 100 Posts dieser geladenen Seite übrig sind, wird die nächste lokale Seite vorab geladen. Dafür ist kein Website-Abruf nötig.'
+      ];
+      const state = { mode: 'proposal', sources: 1000, posts: 10000, step: 4, scroll: 'start', history: 'local' };
+
+      function get(id) { return document.getElementById(id); }
+      function setText(id, value) { get(id).textContent = value; }
+      function formatBytes(bytes) {
+        return bytes >= 1000000
+          ? '≈ ' + number.format(Math.round(bytes / 100000) / 10) + ' MB'
+          : '≈ ' + number.format(Math.round(bytes / 1000)) + ' KB';
+      }
+      function render() {
+        document.body.dataset.mode = state.mode;
+        document.querySelectorAll('[data-mode-button]').forEach(function (button) {
+          button.setAttribute('aria-selected', String(button.dataset.modeButton === state.mode));
+        });
+        document.querySelectorAll('[data-stage]').forEach(function (button) {
+          button.classList.toggle('active', Number(button.dataset.stage) === state.step);
+        });
+        document.querySelectorAll('[data-step]').forEach(function (step) {
+          step.classList.toggle('active', Number(step.dataset.step) === state.step);
+        });
+        document.querySelectorAll('[data-scroll]').forEach(function (button) {
+          button.classList.toggle('active', button.dataset.scroll === state.scroll);
+        });
+        document.querySelectorAll('[data-history]').forEach(function (button) {
+          button.classList.toggle('active', button.dataset.history === state.history);
+        });
+        document.querySelectorAll('[data-history-card]').forEach(function (card) {
+          card.classList.toggle('chosen', card.dataset.historyCard === state.history);
+        });
+        const countForStorage = state.mode === 'current'
+          ? 500
+          : state.mode === 'snapshots' ? state.sources * 50 : state.posts;
+        get('post-count').disabled = state.mode !== 'proposal';
+        setText('control-hint', state.mode === 'proposal'
+          ? 'Die Zahlen sind Szenarien zur Einordnung, noch keine festgelegten Produktgrenzen. Die Speicher-Schätzung bezieht sich nur auf den Feed-Index.'
+          : 'Die wählbare Feed-Archivgröße gilt nur für Variante 1. Der aktuelle Branch hält 500 Posts; die Alternative zeigt 50 Treffer je Quelle.');
+        setText('stat-source-label', state.mode === 'current' ? 'Feed-eigene Suchen' : 'Gemeinsame Suchquellen');
+        setText('stat-source-detail', state.mode === 'current'
+          ? 'Ein sichtbarer Pin mit gleicher Query ist derzeit ein zweiter Suchdatensatz.'
+          : 'Ein Abruf pro fälliger Suche, auch wenn mehrere Feeds sie nutzen.');
+        setText('stat-preview-label', state.mode === 'snapshots' ? 'Quellen-Vorschauen' : 'Feed-Vorschauen');
+        setText('stat-sources', number.format(state.sources));
+        setText('stat-ids', formatBytes(countForStorage * 8));
+        setText('stat-preview', formatBytes(countForStorage * 220));
+        setText('snapshot-source-label', number.format(state.sources - 1) + ' weitere Quellen');
+        setText('snapshot-candidate-label', number.format(state.sources * 50) + ' Kandidaten');
+        const opening = {
+          proposal: ['Eine Seite', 'Nur die ersten 200 lokalen Indexeinträge lesen.'],
+          current: ['500 Posts', 'Einen JSON-Wert lesen; keine weitere Seite.'],
+          snapshots: [number.format(state.sources * 50) + ' Kandidaten', 'Quellen-Puffer einlesen und beim Öffnen zusammenführen.']
+        }[state.mode];
+        setText('stat-open', opening[0]);
+        setText('stat-open-detail', opening[1]);
+        setText('flow-explanation', steps[state.step]);
+        const total = state.mode === 'current' ? 500 : state.mode === 'snapshots' ? state.sources * 50 : state.posts;
+        let loaded = state.mode === 'current' ? 500 : 200;
+        let message = '';
+        if (state.scroll === 'start') {
+          message = state.mode === 'current'
+            ? 'Aktuell wird der gesamte 500er-Cache geladen. Die Liste hat keine nächste Seite.'
+            : 'Die ersten 200 gespeicherten Posts erscheinen sofort. Weitere lokale Seiten bleiben zunächst auf dem Datenträger.';
+        } else if (state.scroll === 'near') {
+          loaded = state.mode === 'current' ? 500 : Math.min(total, 400);
+          message = state.mode === 'current'
+            ? '100 Posts vor dem Ende passiert aktuell nichts: hasMore ist false.'
+            : 'Sobald nur noch 100 geladene Posts übrig sind, liest die Ansicht die nächsten 200 aus dem lokalen Index. Keine der 1.000 Quellen muss dafür neu abgefragt werden.';
+        } else {
+          loaded = total;
+          message = state.mode === 'current'
+            ? 'Nach 500 Posts ist Schluss. Es gibt weder weitere lokale Posts noch Website-Pagination im Feed.'
+            : 'Jetzt sind alle lokal gespeicherten Posts erreicht. Für ältere, bisher nie entdeckte Posts braucht es separate Website-Pagination über die Quellen.';
+        }
+        setText('loaded-label', number.format(loaded) + ' geladen');
+        setText('stored-label', number.format(total) + (state.mode === 'snapshots' ? ' Quellen-Kandidaten' : ' lokal gespeichert'));
+        setText('scroll-info', message);
+        get('loaded-bar').style.width = (loaded / total * 100) + '%';
+        get('end-marker').style.left = 'calc(100% - 3px)';
+        setText('history-explanation', state.history === 'local'
+          ? 'Lokales Nachladen kann 10.000 oder mehr schon entdeckte Posts günstig durchblättern. Es verspricht nicht, vor der ersten Feed-Erfassung oder jenseits des gespeicherten Verlaufs lückenlos weiterzugehen.'
+          : 'Echte ältere Website-Posts benötigen pro Quelle einen eigenen Seitenstand. Um die nächste chronologische Feed-Seite korrekt zu kennen, müssen im ungünstigen Fall sehr viele Quellen betrachtet werden. Dieser Teil ist noch nicht geplant.');
+      }
+      document.querySelectorAll('[data-mode-button]').forEach(function (button) {
+        button.addEventListener('click', function () { state.mode = button.dataset.modeButton; render(); });
+      });
+      document.querySelectorAll('[data-stage]').forEach(function (button) {
+        button.addEventListener('click', function () { state.step = Number(button.dataset.stage); render(); });
+      });
+      document.querySelectorAll('[data-scroll]').forEach(function (button) {
+        button.addEventListener('click', function () { state.scroll = button.dataset.scroll; render(); });
+      });
+      document.querySelectorAll('[data-history]').forEach(function (button) {
+        button.addEventListener('click', function () { state.history = button.dataset.history; render(); });
+      });
+      get('source-count').addEventListener('change', function (event) { state.sources = Number(event.target.value); render(); });
+      get('post-count').addEventListener('change', function (event) { state.posts = Number(event.target.value); render(); });
+      render();
+    </script>
+  </body>
+</html>

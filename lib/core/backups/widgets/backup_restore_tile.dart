@@ -14,6 +14,7 @@ import '../preparation/preparation_pipeline.dart';
 import '../types/backup_data_source.dart';
 import '../types/types.dart';
 import '../utils/backup_file_picker.dart';
+import '../sources/search_backup_envelope.dart';
 
 typedef BackupSuccessMessageBuilder =
     String Function(BackupOperationResult result);
@@ -254,7 +255,10 @@ class DefaultBackupTile extends ConsumerWidget {
               context,
               context.t.settings.backup_and_restore.import_failed
                   .replaceAll('{source}', source.displayName.toLowerCase())
-                  .replaceAll('{error}', _formatImportError(error, context)),
+                  .replaceAll(
+                    '{error}',
+                    formatBackupImportError(error, context, title),
+                  ),
             );
           }
         }
@@ -327,16 +331,32 @@ class DefaultBackupTile extends ConsumerWidget {
           context,
           context.t.settings.backup_and_restore.import_failed
               .replaceAll('{source}', source.displayName.toLowerCase())
-              .replaceAll('{error}', _formatImportError(error, context)),
+              .replaceAll(
+                '{error}',
+                formatBackupImportError(error, context, title),
+              ),
         );
       }
     }
   }
 }
 
-String _formatImportError(Object error, BuildContext context) =>
-    switch (error) {
-      InvalidBackupFormatException() =>
-        context.t.settings.backup_and_restore.invalid_backup_format_error,
-      _ => error.toString(),
-    };
+String formatBackupImportError(
+  Object error,
+  BuildContext context,
+  String sourceName,
+) => switch (error) {
+  WrongSearchBackupSourceException() =>
+    context.t.settings.backup_and_restore.wrong_search_backup_source_error
+        .replaceAll('{source}', sourceName),
+  UnsupportedSearchBackupVersionException() =>
+    context
+        .t
+        .settings
+        .backup_and_restore
+        .unsupported_search_backup_version_error
+        .replaceAll('{source}', sourceName),
+  InvalidBackupFormatException() =>
+    context.t.settings.backup_and_restore.invalid_backup_format_error,
+  _ => error.toString(),
+};

@@ -30,7 +30,7 @@ class GelbooruV2PostDetailsPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final configSearch = ref.watchConfigSearch;
+    final configSearch = payload.configSearch ?? ref.watchConfigSearch;
 
     final postId = payload.posts.getOrNull(payload.initialIndex)?.id;
 
@@ -47,7 +47,7 @@ class GelbooruV2PostDetailsPage extends ConsumerWidget {
             ?.thumbnailOnly ??
         false;
 
-    if (thumbnailOnly) {
+    if (thumbnailOnly && payload.configSearch == null) {
       return _PostDetailsDataLoadingTransitionPage(
         postId: NumericPostId(postId),
         configSearch: configSearch,

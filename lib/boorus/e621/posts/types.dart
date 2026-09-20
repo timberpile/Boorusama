@@ -136,7 +136,7 @@ class E621Post extends Equatable
   final double duration;
 
   @override
-  final DateTime createdAt;
+  final DateTime? createdAt;
 
   @override
   final int? parentId;

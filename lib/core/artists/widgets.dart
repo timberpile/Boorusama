@@ -7,6 +7,7 @@ import '../posts/listing/widgets.dart';
 import '../posts/post/types.dart';
 import '../tags/details/widgets.dart';
 import '../tags/tag/types.dart';
+import '../search/subscriptions/src/widgets/feed_follow_control.dart';
 
 class ArtistPageScaffold<T extends Post> extends ConsumerStatefulWidget {
   const ArtistPageScaffold({
@@ -42,6 +43,7 @@ class _ArtistPageScaffoldState<T extends Post>
         },
         tagName: widget.artistName,
         otherNames: const SizedBox(height: 40, width: 40),
+        extras: [FeedFollowButton(query: widget.artistName)],
         gridBuilder: (context, slivers) => PostGrid(
           controller: controller,
           sliverHeaders: slivers,

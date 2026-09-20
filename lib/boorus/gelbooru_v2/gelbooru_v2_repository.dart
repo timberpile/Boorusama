@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rich_text_controller/rich_text_controller.dart';
 
 // Project imports:
+import '../../core/search/subscriptions/src/refresh/search_refresh_query_adapter.dart';
 import '../../core/boorus/defaults/types.dart';
 import '../../core/comments/types.dart';
 import '../../core/configs/config/types.dart';
@@ -42,6 +43,17 @@ import 'tags/providers.dart';
 
 class GelbooruV2Repository extends BooruRepositoryDefault {
   const GelbooruV2Repository({required this.ref});
+
+  @override
+  SearchRefreshQueryAdapter searchRefreshQueryAdapter(BooruConfigAuth config) {
+    final capabilities = ref
+        .read(gelbooruV2Provider)
+        .getCapabilitiesForSite(config.url);
+    return switch (capabilities?.posts?.thumbnailOnly) {
+      true => const UnsupportedSearchRefreshQueryAdapter(),
+      _ => const DefaultSearchRefreshQueryAdapter(),
+    };
+  }
 
   @override
   final Ref ref;

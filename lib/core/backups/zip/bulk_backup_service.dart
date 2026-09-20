@@ -18,6 +18,12 @@ import 'package:path/path.dart' as p;
 import '../../../foundation/filesystem.dart';
 import '../../../foundation/info/package_info.dart';
 import '../../../foundation/loggers.dart';
+import '../../configs/manage/providers.dart';
+import '../preparation/version_checking.dart';
+import '../preparation/preparation_pipeline.dart';
+import '../sources/search_backup_import_preflight.dart';
+import '../sources/following_feeds_source.dart';
+import '../sources/pinned_searches_source.dart';
 import '../sources/providers.dart';
 import '../types/backup_data_source.dart';
 import '../types/backup_registry.dart';
@@ -452,6 +458,7 @@ class BulkBackupService {
     await BackupUtils.ensureStoragePermissions(ref);
 
     final tempDirPath = await fs.createTempDirectory('boorusama_import_');
+    final restarts = <Future<void> Function()>[];
     logger.verbose(
       'Backup.Import',
       'Created temp directory for import: $tempDirPath',
@@ -538,7 +545,9 @@ class BulkBackupService {
           .nonNulls
           .sorted((a, b) => a.priority.compareTo(b.priority));
 
-      // Import each available source
+      final prepared = <String, ImportPreparation>{};
+
+      // Prepare every source before any source writes.
       for (final source in sourcesToImport) {
         final sourceId = source.id;
         logger.verbose('Backup.Import', 'Processing source: $sourceId');
@@ -585,36 +594,70 @@ class BulkBackupService {
             continue;
           }
 
-          if (uiContext == null || !uiContext.mounted) {
-            logger.error(
-              'Backup.Import',
-              'UI context not available for source: $sourceId',
-            );
-            failed.add(sourceId);
-            continue;
-          }
-
           logger.verbose(
             'Backup.Import',
             'Preparing import for source $sourceId from file: $fileName',
           );
           final preparation = await fileCapability.prepareImport(
             sourceFilePath,
-            uiContext,
+            uiContext != null && uiContext.mounted ? uiContext : null,
           );
 
-          await preparation.executeImport();
-          logger.verbose(
-            'Backup.Import',
-            'Successfully imported source: $sourceId',
-          );
-          imported.add(sourceId);
+          prepared[sourceId] = preparation;
+        } on ImportCancelledException {
+          rethrow;
         } catch (e) {
           logger.error(
             'Backup.Import',
             'Failed to import source $sourceId: $e',
           );
           failed.add(sourceId);
+        }
+      }
+
+      final pinnedSource = registry.getSource('pinned_searches');
+      final feedSource = registry.getSource('following_feeds');
+      final selectedIds = (onlySourceIds ?? sourcesToProcess).toSet();
+      var profilesFailed =
+          selectedIds.contains('profiles') && !prepared.containsKey('profiles');
+      final approvals = profilesFailed
+          ? <String, SearchBackupImportApproval>{}
+          : await preflightSearchBackups(
+              prepared: prepared,
+              selectedIds: selectedIds,
+              pinnedSource: pinnedSource is PinnedSearchesBackupSource
+                  ? pinnedSource
+                  : null,
+              feedSource: feedSource is FollowingFeedsBackupSource
+                  ? feedSource
+                  : null,
+              currentProfiles: () => ref.read(booruConfigRepoProvider).getAll(),
+              context: uiContext != null && uiContext.mounted
+                  ? uiContext
+                  : null,
+            );
+      for (final entry in prepared.entries) {
+        if (profilesFailed &&
+            {'pinned_searches', 'following_feeds'}.contains(entry.key)) {
+          failed.add(entry.key);
+          continue;
+        }
+        try {
+          await entry.value.executeImport(
+            deferRestart: true,
+            approval: approvals[entry.key],
+          );
+          imported.add(entry.key);
+          if (entry.value.restartApp case final restart?) restarts.add(restart);
+        } on ImportCancelledException {
+          rethrow;
+        } catch (e) {
+          logger.error(
+            'Backup.Import',
+            'Failed to import source ${entry.key}: $e',
+          );
+          failed.add(entry.key);
+          if (entry.key == 'profiles') profilesFailed = true;
         }
       }
 
@@ -639,6 +682,9 @@ class BulkBackupService {
         logger.verbose('Backup.Import', 'Cleaned up temp directory');
       } catch (e) {
         logger.warn('Backup.Import', 'Failed to cleanup temp directory: $e');
+      }
+      for (final restart in restarts) {
+        await restart();
       }
     }
   }

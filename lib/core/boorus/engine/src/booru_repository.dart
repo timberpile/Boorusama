@@ -19,6 +19,7 @@ import '../../../posts/listing/types.dart';
 import '../../../posts/post/types.dart';
 import '../../../posts/rating/types.dart';
 import '../../../search/queries/types.dart';
+import '../../../search/subscriptions/src/refresh/search_refresh_query_adapter.dart';
 import '../../../tags/autocompletes/types.dart';
 import '../../../tags/metatag/types.dart';
 import '../../../tags/tag/colors.dart';
@@ -31,6 +32,7 @@ abstract class BooruRepository {
 
   PostCountRepository? postCount(BooruConfigSearch config);
   PostRepository<Post> post(BooruConfigSearch config);
+  SearchRefreshQueryAdapter searchRefreshQueryAdapter(BooruConfigAuth config);
   AutocompleteRepository autocomplete(BooruConfigAuth config);
   NoteRepository note(BooruConfigAuth config);
   TagRepository tag(BooruConfigAuth config);

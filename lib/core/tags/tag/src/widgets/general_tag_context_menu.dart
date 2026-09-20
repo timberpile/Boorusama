@@ -6,8 +6,12 @@ import 'package:kurumi/material.dart';
 
 // Project imports:
 import '../../../../../foundation/clipboard.dart';
+import '../../../../configs/config/providers.dart';
+import '../../../../configs/config/types.dart';
 import '../../../../blacklists/providers.dart';
 import '../../../../search/search/routes.dart';
+import '../../../../search/subscriptions/providers.dart';
+import '../../../../search/subscriptions/src/widgets/feed_follow_control.dart';
 import '../../../favorites/providers.dart';
 
 class GeneralTagContextMenu extends ConsumerWidget
@@ -26,12 +30,22 @@ class GeneralTagContextMenu extends ConsumerWidget
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final globalNotifier = ref.watch(globalBlacklistedTagsProvider.notifier);
+    final config = ref.watchConfig;
 
     return ContextMenuRegion(
       contextMenu: GenericContextMenu(
         buttonConfigs: [
           copyButton(context, tag),
           searchButton(ref, tag),
+          if (ref.watch(pinnedSearchTrackingSupportedProvider(config.auth)))
+            ContextMenuButtonConfig(
+              context.t.pinned_searches.add_to_feed,
+              onPressed: () => showFeedMembershipPicker(
+                context,
+                profileId: config.id,
+                query: tag,
+              ),
+            ),
           ContextMenuButtonConfig(
             context.t.post.detail.add_to_favorites,
             onPressed: () {

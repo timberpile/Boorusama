@@ -10,6 +10,11 @@ import '../../../configs/config/types.dart';
 import '../../../configs/manage/providers.dart';
 import '../../../settings/providers.dart';
 import '../../../settings/types.dart';
+import '../../preparation/version_checking.dart';
+import '../../preparation/preparation_pipeline.dart';
+import '../../sources/search_backup_import_preflight.dart';
+import '../../sources/following_feeds_source.dart';
+import '../../sources/pinned_searches_source.dart';
 import '../../sources/providers.dart';
 import '../../types/types.dart';
 
@@ -260,63 +265,112 @@ class ImportDataNotifier
       return;
     }
 
-    final tasks = QueueList.from(
-      selectedTasks,
-    );
-
-    state = state.copyWith(
-      tasks: [
-        for (final tsk in selectedTasks)
-          if (tsk.status == SelectStatus.selected)
-            tsk.copyWith(importStatus: const ImportQueued())
-          else
-            tsk,
-      ],
-    );
-
-    while (tasks.isNotEmpty) {
-      final task = tasks.removeFirst();
-
+    final registry = ref.read(backupRegistryProvider);
+    final orderedTasks = selectedTasks.toList()
+      ..sort(
+        (a, b) => (registry.getSource(a.id)?.priority ?? 0).compareTo(
+          registry.getSource(b.id)?.priority ?? 0,
+        ),
+      );
+    final prepared = <String, ImportPreparation>{};
+    final importedTaskIds = <String>{};
+    void updateTask(String id, ImportStatus status) {
       state = state.copyWith(
         tasks: [
-          for (final tsk in state.tasks)
-            if (tsk.id == task.id)
-              task.copyWith(importStatus: const Importing())
-            else
-              tsk,
+          for (final task in state.tasks)
+            if (task.id == id) task.copyWith(importStatus: status) else task,
         ],
       );
+    }
 
-      // Artificial delay to make sure user sees the loading indicator
-      await Future.delayed(const Duration(milliseconds: 250));
-
-      try {
-        if (!uiContext.mounted) return;
-        await _handleTask(task, arg, uiContext);
-
-        state = state.copyWith(
-          tasks: [
-            for (final tsk in state.tasks)
-              if (tsk.id == task.id)
-                task.copyWith(importStatus: const ImportDone())
-              else
-                tsk,
-          ],
-        );
-      } catch (e) {
-        state = state.copyWith(
-          tasks: [
-            for (final tsk in state.tasks)
-              if (tsk.id == task.id)
-                task.copyWith(importStatus: ImportError(e.toString()))
-              else
-                tsk,
-          ],
-        );
+    void cancelPending() {
+      for (final task in state.tasks) {
+        if (task.importStatus is ImportQueued ||
+            task.importStatus is Importing) {
+          updateTask(task.id, const ImportNotStarted());
+        }
       }
     }
 
-    final importedTaskIds = selectedTasks.map((t) => t.id).toSet();
+    for (final task in orderedTasks) {
+      updateTask(task.id, const ImportQueued());
+    }
+    try {
+      for (final task in orderedTasks) {
+        if (!uiContext.mounted) throw const ImportCancelledException();
+        try {
+          final source = registry.getSource(task.id);
+          if (source == null) {
+            throw StateError('Unknown backup source: ${task.id}');
+          }
+          prepared[task.id] = await source.capabilities.server.prepareImport(
+            arg,
+            uiContext,
+          );
+        } on ImportCancelledException {
+          rethrow;
+        } catch (e) {
+          updateTask(task.id, ImportError(e.toString()));
+        }
+      }
+      if (!uiContext.mounted) throw const ImportCancelledException();
+      final pinnedSource = registry.getSource('pinned_searches');
+      final feedSource = registry.getSource('following_feeds');
+      final selectedIds = orderedTasks.map((task) => task.id).toSet();
+      var profilesFailed =
+          selectedIds.contains('profiles') && !prepared.containsKey('profiles');
+      final approvals = profilesFailed
+          ? <String, SearchBackupImportApproval>{}
+          : await preflightSearchBackups(
+              prepared: prepared,
+              selectedIds: selectedIds,
+              pinnedSource: pinnedSource is PinnedSearchesBackupSource
+                  ? pinnedSource
+                  : null,
+              feedSource: feedSource is FollowingFeedsBackupSource
+                  ? feedSource
+                  : null,
+              currentProfiles: () => ref.read(booruConfigRepoProvider).getAll(),
+              context: uiContext,
+            );
+      for (final task in orderedTasks) {
+        final preparation = prepared[task.id];
+        if (preparation == null) continue;
+        if (profilesFailed &&
+            {'pinned_searches', 'following_feeds'}.contains(task.id)) {
+          updateTask(task.id, const ImportError('Profile import failed'));
+          continue;
+        }
+        if (!uiContext.mounted) throw const ImportCancelledException();
+        updateTask(task.id, const Importing());
+        try {
+          await preparation.executeImport(
+            deferRestart: true,
+            approval: approvals[task.id],
+          );
+          importedTaskIds.add(task.id);
+          updateTask(task.id, const ImportDone());
+        } on ImportCancelledException {
+          rethrow;
+        } catch (e) {
+          updateTask(task.id, ImportError(e.toString()));
+          if (task.id == 'profiles') profilesFailed = true;
+        }
+      }
+    } on ImportCancelledException {
+      cancelPending();
+      if (importedTaskIds.isEmpty) {
+        state = state.copyWith(step: ImportStep.selection);
+        return;
+      }
+    } catch (e) {
+      for (final task in orderedTasks) {
+        if (!importedTaskIds.contains(task.id)) {
+          updateTask(task.id, ImportError(e.toString()));
+        }
+      }
+    }
+
     if (importedTaskIds.contains('profiles')) {
       final configRepo = ref.read(booruConfigRepoProvider);
       final configs = await configRepo.getAll();
@@ -331,28 +385,7 @@ class ImportDataNotifier
         );
       }
     }
-  }
-
-  Future<void> _handleTask(
-    ImportTask task,
-    String serverUrl,
-    BuildContext uiContext,
-  ) async {
-    final registry = ref.read(backupRegistryProvider);
-    final source = registry.getSource(task.id);
-
-    if (source == null) {
-      throw Exception('Unknown backup source: ${task.id}');
-    }
-
-    final preparation = await source.capabilities.server.prepareImport(
-      serverUrl,
-      uiContext,
-    );
-
-    // For server transfers, we accept all version checks automatically
-    // since the transfer was already initiated by the user
-    await preparation.executeImport();
+    state = state.copyWith(step: ImportStep.done);
   }
 
   void toggleTask(String id) {

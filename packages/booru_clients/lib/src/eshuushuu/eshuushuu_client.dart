@@ -57,6 +57,15 @@ class EShuushuuClient {
     };
   }
 
+  Future<PostDto?> getPost(int id) async {
+    final response = await _dio.get('$_apiBase/images/$id');
+    return switch (response.data) {
+      final Map<String, dynamic> json when json['image_id'] == id =>
+        PostDto.fromJson(json),
+      _ => null,
+    };
+  }
+
   Future<List<CommentDto>> getComments({
     required int imageId,
     int? page,

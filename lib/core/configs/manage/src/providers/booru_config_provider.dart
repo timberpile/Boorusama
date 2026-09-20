@@ -12,6 +12,8 @@ import '../../../../../foundation/utils/collection_utils.dart';
 import '../../../../analytics/analytics_interface.dart';
 import '../../../../analytics/providers.dart';
 import '../../../../settings/providers.dart';
+import '../../../../search/subscriptions/providers.dart';
+import '../../../../search/subscriptions/types.dart';
 import '../../../config/data.dart';
 import '../../../config/providers.dart';
 import '../../../config/types.dart';
@@ -27,6 +29,8 @@ final booruConfigProvider =
       () => throw UnimplementedError(),
       dependencies: [
         booruConfigRepoProvider,
+        searchSubscriptionRepositoryProvider,
+        searchSubscriptionsProvider,
         settingsProvider,
       ],
       name: 'booruConfigProvider',
@@ -88,71 +92,106 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
     };
 
     try {
-      // check if deleting the last config
-      if (state.length == 1) {
-        await ref.read(booruConfigRepoProvider).remove(config);
-        await ref.read(booruConfigProvider.notifier).fetch();
-        // reset order
-        await updateOrder([]);
-        await ref.read(currentBooruConfigProvider.notifier).setEmpty();
+      await ref.read(searchSubscriptionsProvider.notifier).runSerializedMutation((
+        searchRepository,
+      ) async {
+        final subscriptions = (await searchRepository.getAll())
+            .where((subscription) => subscription.profileId == config.id)
+            .toList(growable: false);
+        final organization = await searchRepository.getOrganization();
+        final feeds = (await searchRepository.getFeeds())
+            .where((f) => f.profileId == config.id)
+            .toList();
+        var searchesDeleted = false;
+        var profileRemoved = false;
 
-        onSuccess?.call(config);
+        try {
+          await searchRepository.deleteForProfile(config.id);
+          searchesDeleted = true;
 
-        analyticsAsync.whenData(
-          (a) => a?.logEvent(
-            eventName,
-            parameters: {
-              ...baseParams,
-              'delete_type': 'last',
-            },
-          ),
-        );
+          // check if deleting the last config
+          if (state.length == 1) {
+            await ref.read(booruConfigRepoProvider).remove(config);
+            profileRemoved = true;
+            await ref.read(booruConfigProvider.notifier).fetch();
+            // reset order
+            await updateOrder([]);
+            await ref.read(currentBooruConfigProvider.notifier).setEmpty();
 
-        return;
-      }
+            onSuccess?.call(config);
 
-      // check if deleting current config, if so, set current to the first config
-      final currentConfig = ref.read(currentBooruConfigProvider);
-      var deleteCurrent = false;
-      var deleteFirst = false;
-      if (currentConfig.id == config.id) {
-        final firstConfig = state.first;
+            analyticsAsync.whenData(
+              (a) => a?.logEvent(
+                eventName,
+                parameters: {
+                  ...baseParams,
+                  'delete_type': 'last',
+                },
+              ),
+            );
 
-        // check if deleting the first config
-        deleteFirst = firstConfig.id == config.id;
-        deleteCurrent = true;
+            return;
+          }
 
-        final targetConfig = deleteFirst ? state.skip(1).first : firstConfig;
+          // check if deleting current config, if so, set current to the first config
+          final currentConfig = ref.read(currentBooruConfigProvider);
+          var deleteCurrent = false;
+          var deleteFirst = false;
+          if (currentConfig.id == config.id) {
+            final firstConfig = state.first;
 
-        await ref
-            .read(currentBooruConfigProvider.notifier)
-            .update(targetConfig);
-      }
+            // check if deleting the first config
+            deleteFirst = firstConfig.id == config.id;
+            deleteCurrent = true;
 
-      await ref.read(booruConfigRepoProvider).remove(config);
-      final orders = ref.read(settingsProvider).booruConfigIdOrderList;
-      final newOrders = [...orders..remove(config.id)];
+            final targetConfig = deleteFirst
+                ? state.skip(1).first
+                : firstConfig;
 
-      await updateOrder(newOrders);
+            await ref
+                .read(currentBooruConfigProvider.notifier)
+                .update(targetConfig);
+          }
 
-      final tmp = [...state]..remove(config);
+          await ref.read(booruConfigRepoProvider).remove(config);
+          profileRemoved = true;
+          final orders = ref.read(settingsProvider).booruConfigIdOrderList;
+          final newOrders = [...orders..remove(config.id)];
 
-      state = tmp;
-      onSuccess?.call(config);
+          await updateOrder(newOrders);
 
-      analyticsAsync.whenData(
-        (a) => a?.logEvent(
-          eventName,
-          parameters: {
-            ...baseParams,
-            'delete_type': deleteCurrent
-                ? deleteFirst
-                      ? 'current_first'
-                      : 'current'
-                : 'normal',
-          },
-        ),
-      );
+          final tmp = [...state]..remove(config);
+
+          state = tmp;
+          onSuccess?.call(config);
+
+          analyticsAsync.whenData(
+            (a) => a?.logEvent(
+              eventName,
+              parameters: {
+                ...baseParams,
+                'delete_type': deleteCurrent
+                    ? deleteFirst
+                          ? 'current_first'
+                          : 'current'
+                    : 'normal',
+              },
+            ),
+          );
+        } catch (error, stackTrace) {
+          if (searchesDeleted && !profileRemoved) {
+            await _restoreProfileSubscriptions(
+              config,
+              searchRepository,
+              subscriptions,
+              organization,
+              feeds,
+              error,
+            );
+          }
+          Error.throwWithStackTrace(error, stackTrace);
+        }
+      });
     } catch (e) {
       onFailure?.call(e.toString());
     }
@@ -184,9 +223,58 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
         (element) => element.id == oldConfigId,
       );
 
-      final updatedConfig = await ref
-          .read(booruConfigRepoProvider)
-          .update(oldConfigId, booruConfigData);
+      final proposedConfig = booruConfigData.toBooruConfig(id: oldConfigId);
+      if (proposedConfig == null) {
+        onFailure?.call('Unable to update profile. Failed to save changes');
+        return;
+      }
+      final siteChanged = !_sameBooruSite(existingConfig, proposedConfig);
+      final searches = ref.read(searchSubscriptionsProvider.notifier);
+      Future<BooruConfig?> save() => searches.runSerializedMutation((
+        searchRepository,
+      ) async {
+        final oldSearches = siteChanged
+            ? (await searchRepository.getAll())
+                  .where((search) => search.profileId == oldConfigId)
+                  .toList()
+            : const <SearchSubscription>[];
+        final oldFeeds = siteChanged
+            ? (await searchRepository.getFeeds())
+                  .where((feed) => feed.profileId == oldConfigId)
+                  .toList()
+            : const <SearchFollowingFeed>[];
+        if (siteChanged) {
+          await searchRepository.invalidateRuntimeForProfile(oldConfigId);
+        }
+        final configRepository = ref.read(booruConfigRepoProvider);
+        BooruConfig? updated;
+        try {
+          updated = await configRepository.update(oldConfigId, booruConfigData);
+        } catch (_) {
+          updated = null;
+        }
+        if (updated == null && siteChanged) {
+          final stored = (await configRepository.getAll()).firstWhereOrNull(
+            (config) => config.id == oldConfigId,
+          );
+          if (stored != null && _sameBooruSite(stored, existingConfig)) {
+            await searchRepository.restoreForProfile(oldConfigId, oldSearches);
+            await searchRepository.restoreFeeds(oldConfigId, oldFeeds);
+          } else {
+            updated = stored;
+          }
+        }
+        if (updated != null) {
+          state = [
+            for (final config in state)
+              if (config.id == oldConfigId) updated else config,
+          ];
+        }
+        return updated;
+      });
+      final updatedConfig = siteChanged
+          ? await searches.runWithProfileRefreshPaused(oldConfigId, save)
+          : await save();
 
       if (updatedConfig == null) {
         _logError('Failed to update config: $oldConfigId');
@@ -194,12 +282,7 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
         return;
       }
 
-      final newConfigs = state.map((config) {
-        return config.id == oldConfigId ? updatedConfig : config;
-      }).toList();
-
       _logInfo('Updated config: $oldConfigId');
-      state = newConfigs;
       onSuccess?.call(updatedConfig);
 
       ref
@@ -229,6 +312,27 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
       _logError('Failed to update config: $oldConfigId');
       onFailure?.call(
         'Something went wrong while updating your profile. Please try again',
+      );
+    }
+  }
+
+  Future<void> _restoreProfileSubscriptions(
+    BooruConfig config,
+    SearchSubscriptionRepository searchRepository,
+    List<SearchSubscription> subscriptions,
+    SearchOrganization organization,
+    List<SearchFollowingFeed> feeds,
+    Object originalError,
+  ) async {
+    try {
+      await searchRepository.restoreForProfile(config.id, subscriptions);
+      await searchRepository.restoreFeeds(config.id, feeds);
+      await searchRepository.replaceOrganization(organization);
+    } catch (restoreError) {
+      _logError('Failed to remove config ${config.id}: $originalError');
+      _logError(
+        'Failed to restore pinned searches for config ${config.id}: '
+        '$restoreError',
       );
     }
   }
@@ -332,6 +436,10 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
     ref.read(loggerProvider).verbose('Configs', message);
   }
 }
+
+bool _sameBooruSite(BooruConfig left, BooruConfig right) =>
+    left.auth.booruType == right.auth.booruType &&
+    normalizeBooruSiteUrl(left.url) == normalizeBooruSiteUrl(right.url);
 
 extension BooruConfigNotifierX on BooruConfigNotifier {
   void addOrUpdate({

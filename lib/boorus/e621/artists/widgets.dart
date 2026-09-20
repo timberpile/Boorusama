@@ -8,6 +8,7 @@ import '../../../core/configs/config/providers.dart';
 import '../../../core/posts/listing/widgets.dart';
 import '../../../core/tags/details/widgets.dart';
 import '../../../core/tags/tag/types.dart';
+import '../../../core/search/subscriptions/src/widgets/feed_follow_control.dart';
 import '../posts/providers.dart';
 import 'providers.dart';
 
@@ -48,6 +49,7 @@ class _E621ArtistPageState extends ConsumerState<E621ArtistPage> {
           controller.refresh();
         },
         tagName: widget.artistName,
+        extras: [FeedFollowButton(query: widget.artistName)],
         otherNames: artist.when(
           data: (data) => TagOtherNames(otherNames: data.otherNames),
           error: (error, stackTrace) => const SizedBox(height: 40, width: 40),

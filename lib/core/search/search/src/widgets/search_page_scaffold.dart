@@ -1,5 +1,6 @@
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -22,6 +23,11 @@ import '../../../selected_tags/providers.dart';
 import '../../../selected_tags/types.dart';
 import '../../../suggestions/providers.dart';
 import '../../../suggestions/widgets.dart';
+import '../../../subscriptions/providers.dart';
+import '../../../subscriptions/types.dart';
+import '../../../subscriptions/widgets.dart';
+import '../../../subscriptions/src/widgets/pin_search_folder_picker.dart';
+import '../../../subscriptions/src/widgets/feed_follow_control.dart';
 import '../routes/params.dart';
 import '../types/search_bar_position.dart';
 import '../views/search_landing_view.dart';
@@ -154,12 +160,19 @@ class _SearchPageScaffoldState<T extends Post>
         builder: (context, value, _) => ValueListenableBuilder(
           valueListenable: _postController,
           builder: (context, postController, child) => postController != null
-              ? ResultHeaderFromController(
-                  controller: postController,
-                  onRefresh: null,
-                  hasCount:
-                      ref.watchConfigAuth.booruType.postCountMethod ==
-                      PostCountMethod.search,
+              ? Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ResultHeaderFromController(
+                      controller: postController,
+                      onRefresh: null,
+                      hasCount:
+                          ref.watchConfigAuth.booruType.postCountMethod ==
+                          PostCountMethod.search,
+                    ),
+                    _PinSearchAction(query: value),
+                    FeedFollowButton(query: value),
+                  ],
                 )
               : const SizedBox.shrink(),
         ),
@@ -179,6 +192,156 @@ class _SearchPageScaffoldState<T extends Post>
           _postController.value = controller;
         });
       },
+    );
+  }
+}
+
+class _PinSearchAction extends ConsumerStatefulWidget {
+  const _PinSearchAction({required this.query});
+
+  final String query;
+
+  @override
+  ConsumerState<_PinSearchAction> createState() => _PinSearchActionState();
+}
+
+class _PinSearchActionState extends ConsumerState<_PinSearchAction> {
+  var _busy = false;
+  var _saved = false;
+  String? _error;
+  ({int profileId, String query})? _pendingPin;
+
+  SearchSubscription? _findPin(
+    List<SearchSubscription> subscriptions,
+    int profileId,
+    String query,
+  ) {
+    final identity = normalizeSearchIdentity(query);
+    for (final pin in subscriptions) {
+      if (pin.profileId == profileId &&
+          normalizeSearchIdentity(pin.query) == identity) {
+        return pin;
+      }
+    }
+    return null;
+  }
+
+  void _feedback(String message) {
+    setState(() => _error = message);
+  }
+
+  Future<void> _manage(int profileId, SearchSubscription? existing) async {
+    if (!ref.read(pinnedSearchTrackingSupportedProvider(ref.readConfigAuth))) {
+      _feedback(context.t.pinned_searches.profile_unsupported);
+      return;
+    }
+    final query = widget.query;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final folders =
+          ref
+              .read(searchSubscriptionsProvider)
+              .valueOrNull
+              ?.organization
+              .folders ??
+          [];
+      var folderId = folders
+          .where(
+            (f) => f.searchIds.contains(existing?.id),
+          )
+          .firstOrNull
+          ?.id;
+      final name = await showPinSearchDialog(
+        context,
+        query: query,
+        initialName: existing?.name,
+        isPinned: existing != null,
+        extra: PinSearchFolderPicker(
+          initialFolderId: folderId,
+          onSelected: (value) => folderId = value,
+        ),
+      );
+      if (!mounted || name == null) return;
+      final notifier = ref.read(searchSubscriptionsProvider.notifier);
+      switch (existing) {
+        case final pin?:
+          await notifier.rename(pin.id, name);
+          await notifier.movePinToSharedFolder(pin.id, folderId);
+
+        case null:
+          _pendingPin = (profileId: profileId, query: query);
+          final result = await notifier.pin(
+            profileId: profileId,
+            query: query,
+            name: name,
+            folderId: folderId,
+          );
+          if (!mounted) return;
+          if (result.refresh case SearchRefreshFailed()) {
+            _feedback(context.t.pinned_searches.snapshot_failed);
+          }
+      }
+    } catch (_) {
+      if (mounted) {
+        _feedback(
+          _saved
+              ? context.t.pinned_searches.snapshot_failed
+              : context.t.pinned_searches.save_failed,
+        );
+      }
+    } finally {
+      _pendingPin = null;
+      _saved = false;
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.query.trim().isEmpty) return const SizedBox.shrink();
+    final profileId = ref.watchConfig.id;
+    final subscriptions = ref.watch(searchSubscriptionsProvider);
+    final existing = _findPin(
+      subscriptions.valueOrNull?.subscriptions ?? const [],
+      profileId,
+      widget.query,
+    );
+    ref.listen(searchSubscriptionsProvider, (_, next) {
+      if (_pendingPin case final pending? when !_saved) {
+        final saved = _findPin(
+          next.valueOrNull?.subscriptions ?? const [],
+          pending.profileId,
+          pending.query,
+        );
+        if (saved != null) {
+          _saved = true;
+        }
+      }
+    });
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          tooltip: existing == null
+              ? context.t.pinned_searches.pin_title
+              : context.t.pinned_searches.manage_title,
+          icon: Icon(Symbols.push_pin, fill: existing == null ? 0 : 1),
+          onPressed: _busy || !subscriptions.hasValue
+              ? null
+              : () => _manage(profileId, existing),
+        ),
+        if (_error case final error?)
+          SizedBox(
+            width: 160,
+            child: Text(
+              error,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          ),
+      ],
     );
   }
 }

@@ -48,7 +48,16 @@ final hybooruPostRepoProvider =
                   ),
                 )
                 .toList()
-                .toResult();
+                .toResult(
+                  total: posts.total,
+                  hasMore: switch ((posts.total, posts.pageSize)) {
+                    (final int total, final int pageSize) when pageSize > 0 =>
+                      page * pageSize < total,
+                    (_, final int pageSize) when pageSize > 0 =>
+                      posts.posts.length >= pageSize,
+                    _ => null,
+                  },
+                );
           },
           getSettings: () async => ref.read(imageListingSettingsProvider),
         );
