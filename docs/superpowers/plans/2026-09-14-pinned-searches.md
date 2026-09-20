@@ -374,14 +374,22 @@ rename or mark-read racing a refresh is retained.
 Declare:
 
 ```dart
-final searchSubscriptionRepositoryProvider =
-    FutureProvider<SearchSubscriptionRepository>((ref) async {
-  final box = await Hive.openBox<SearchSubscriptionHiveObject>(
-    'pinned_search_subscriptions',
-  );
-  ref.onDispose(() async => box.close());
-  return HiveSearchSubscriptionRepository(box: box);
-});
+final searchSubscriptionRepositoryProvider = AsyncNotifierProvider<
+  SearchSubscriptionRepositoryNotifier,
+  SearchSubscriptionRepository
+>(SearchSubscriptionRepositoryNotifier.new);
+
+class SearchSubscriptionRepositoryNotifier
+    extends AsyncNotifier<SearchSubscriptionRepository> {
+  @override
+  Future<SearchSubscriptionRepository> build() async {
+    final box = await Hive.openBox<SearchSubscriptionHiveObject>(
+      'pinned_search_subscriptions',
+    );
+    ref.onDispose(() async => box.close());
+    return HiveSearchSubscriptionRepository(box: box);
+  }
+}
 ```
 
 Export only the repository provider from the feature's public `providers.dart`;

@@ -7,6 +7,8 @@ import 'package:hive_ce/hive.dart';
 
 // Project imports:
 import 'package:boorusama/core/hive/hive_adapters.dart';
+import 'package:boorusama/core/search/subscriptions/src/data/hive/recent_search_post_hive_object.dart';
+import 'package:boorusama/core/search/subscriptions/src/data/hive/search_post_preview_hive_object.dart';
 import 'package:boorusama/core/search/subscriptions/src/data/hive/search_subscription_hive_object.dart';
 import 'package:boorusama/core/search/subscriptions/src/data/hive/search_subscription_repository_hive.dart';
 import 'package:boorusama/core/search/subscriptions/types.dart';
@@ -39,12 +41,14 @@ void main() {
     required DateTime startedAt,
     required bool baseline,
     required List<SearchPostPreview> discoveredPosts,
+    DateTime? identityRetentionBoundary,
   }) {
     return SearchRefreshCommit(
       subscriptionId: subscriptionId,
       expectedCheckpoint: expectedCheckpoint,
       startedAt: startedAt,
-      identityRetentionBoundary: DateTime.utc(2026, 9, 1),
+      identityRetentionBoundary:
+          identityRetentionBoundary ?? DateTime.utc(2026, 9),
       baseline: baseline,
       discoveredPosts: discoveredPosts,
     );
@@ -223,6 +227,53 @@ void main() {
     },
   );
 
+  test('prunes merged identities without reducing the unread count', () async {
+    final subscription = await repository.create(
+      profileId: 4,
+      query: 'cat',
+      name: null,
+      id: 'retention',
+      createdAt: createdAt,
+    );
+    final checkpoint = DateTime.utc(2026, 9, 12);
+    await repository.commitRefresh(
+      commit(
+        subscriptionId: subscription.id,
+        expectedCheckpoint: null,
+        startedAt: checkpoint,
+        baseline: true,
+        discoveredPosts: [
+          preview(1, DateTime.utc(2026, 9, 9)),
+          preview(2, DateTime.utc(2026, 9, 10)),
+          preview(3, DateTime.utc(2026, 9, 11)),
+        ],
+      ),
+    );
+
+    final committed = await repository.commitRefresh(
+      commit(
+        subscriptionId: subscription.id,
+        expectedCheckpoint: checkpoint,
+        startedAt: DateTime.utc(2026, 9, 13),
+        identityRetentionBoundary: DateTime.utc(2026, 9, 10),
+        baseline: false,
+        discoveredPosts: [
+          preview(4, DateTime.utc(2026, 9, 9)),
+          preview(5, DateTime.utc(2026, 9, 10)),
+          preview(6, DateTime.utc(2026, 9, 11)),
+        ],
+      ),
+    );
+
+    expect(committed?.unreadCount, 3);
+    expect(committed?.recentPostIdentities.map((item) => item.postId), [
+      2,
+      3,
+      5,
+      6,
+    ]);
+  });
+
   test('commits a baseline with no unread posts', () async {
     final subscription = await repository.create(
       profileId: 4,
@@ -328,22 +379,37 @@ void main() {
           discoveredPosts: const [],
         ),
       );
+      final seededCheckpoint = DateTime.utc(2026, 9, 14, 9, 30);
+      await repository.commitRefresh(
+        commit(
+          subscriptionId: subscription.id,
+          expectedCheckpoint: checkpoint,
+          startedAt: seededCheckpoint,
+          baseline: false,
+          discoveredPosts: [
+            preview(1, DateTime.utc(2026, 9, 14, 9, 10)),
+            preview(2, DateTime.utc(2026, 9, 14, 9, 20)),
+          ],
+        ),
+      );
       final discoveredPosts = [
-        preview(1, DateTime.utc(2026, 9, 14, 10)),
-        preview(2, DateTime.utc(2026, 9, 14, 10, 1)),
+        preview(3, DateTime.utc(2026, 9, 14, 10)),
+        preview(4, DateTime.utc(2026, 9, 14, 10, 1)),
       ];
       final refresh = commit(
         subscriptionId: subscription.id,
-        expectedCheckpoint: checkpoint,
+        expectedCheckpoint: seededCheckpoint,
         startedAt: DateTime.utc(2026, 9, 14, 10),
         baseline: false,
         discoveredPosts: discoveredPosts,
       );
 
       await repository.markRead(subscription.id);
+      await repository.rename(subscription.id, 'Renamed');
       final committed = await repository.commitRefresh(refresh);
 
       expect(committed?.unreadCount, discoveredPosts.length);
+      expect(committed?.name, 'Renamed');
     },
   );
 
@@ -418,4 +484,51 @@ void main() {
 
     expect(await repository.getById(source.id), captured);
   });
+
+  test(
+    'round trips aggregates and maps unknown error names to other',
+    () async {
+      final object = SearchSubscriptionHiveObject(
+        id: 'round-trip',
+        profileId: 4,
+        query: 'cat rating:safe',
+        name: 'Cats',
+        position: 2,
+        createdAt: createdAt,
+        lastAttemptAt: DateTime.utc(2026, 9, 14, 9),
+        lastSuccessfulCheckAt: DateTime.utc(2026, 9, 14, 8, 30),
+        unreadCount: 7,
+        lastErrorKind: 'future_error',
+        previews: [
+          SearchPostPreviewHiveObject(
+            postId: 11,
+            postCreatedAt: DateTime.utc(2026, 9, 14, 8),
+            thumbnailUrl: 'https://example.com/11.jpg',
+            sampleUrl: 'https://example.com/11-sample.jpg',
+            discoveredAt: DateTime.utc(2026, 9, 14, 9),
+          ),
+        ],
+        recentPostIdentities: [
+          RecentSearchPostHiveObject(
+            postId: 11,
+            postCreatedAt: DateTime.utc(2026, 9, 14, 8),
+          ),
+        ],
+      );
+      await box.put(object.id, object);
+      await box.close();
+      box = await Hive.openBox<SearchSubscriptionHiveObject>(boxName);
+      repository = HiveSearchSubscriptionRepository(box: box);
+
+      final restored = await repository.getById(object.id);
+
+      expect(restored?.id, object.id);
+      expect(restored?.profileId, object.profileId);
+      expect(restored?.name, object.name);
+      expect(restored?.previews.single.postId, 11);
+      expect(restored?.recentPostIdentities.single.postId, 11);
+      expect(restored?.unreadCount, 7);
+      expect(restored?.lastErrorKind, SearchRefreshErrorKind.other);
+    },
+  );
 }

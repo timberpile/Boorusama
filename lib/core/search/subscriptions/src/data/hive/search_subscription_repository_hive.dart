@@ -174,23 +174,26 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
       }
 
       final previews = _mergePreviews(commit.discoveredPosts, current.previews);
-      final recentPostIdentities = [
-        ...current.recentPostIdentities.where(
-          (identity) => !identity.postCreatedAt.isBefore(
-            commit.identityRetentionBoundary,
-          ),
-        ),
-        ...newlyDiscovered
-            .where(
-              (preview) => preview.postCreatedAt != null,
-            )
-            .map(
-              (preview) => RecentSearchPostIdentity(
-                postId: preview.postId,
-                postCreatedAt: preview.postCreatedAt!,
-              ),
-            ),
-      ];
+      final recentPostIdentities =
+          [
+                ...current.recentPostIdentities,
+                ...newlyDiscovered
+                    .where(
+                      (preview) => preview.postCreatedAt != null,
+                    )
+                    .map(
+                      (preview) => RecentSearchPostIdentity(
+                        postId: preview.postId,
+                        postCreatedAt: preview.postCreatedAt!,
+                      ),
+                    ),
+              ]
+              .where(
+                (identity) => !identity.postCreatedAt.isBefore(
+                  commit.identityRetentionBoundary,
+                ),
+              )
+              .toList();
       final updated = SearchSubscription(
         id: current.id,
         profileId: current.profileId,
