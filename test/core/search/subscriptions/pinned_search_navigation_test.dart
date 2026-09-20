@@ -178,6 +178,56 @@ void main() {
   }
 
   for (final c in [
+    (width: 63.0, count: 888, label: null, selected: false),
+    (width: 63.0, count: 888, label: null, selected: true),
+    (width: 70.0, count: 1234, label: null, selected: false),
+    (width: 70.0, count: 1234, label: null, selected: true),
+    (width: 100.0, count: 1234, label: '999+', selected: false),
+    (width: 100.0, count: 1234, label: '999+', selected: true),
+  ]) {
+    testWidgets(
+      '${c.selected ? 'selected' : 'unselected'} narrow navigation at ${c.width.toInt()} pixels shows unread without overflowing',
+      (tester) async {
+        initialize();
+        await harness.seed([pinnedFixture(unreadCount: c.count)]);
+        await harness.pump(tester, scaffold(desktopMenu(width: c.width)));
+        expect(tester.takeException(), isNull);
+        final pinnedTile = find.byWidgetPredicate(
+          (widget) =>
+              widget is HomeNavigationTile && widget.title == 'Pinned Searches',
+        );
+        if (c.selected) {
+          await tester.tap(pinnedTile);
+          await settle(tester);
+          expect(tester.takeException(), isNull);
+        }
+        final badge = find.descendant(
+          of: pinnedTile,
+          matching: find.byType(Badge),
+        );
+        expect(badge, findsOneWidget);
+        if (c.label case final label?) {
+          expect(
+            find.descendant(of: badge, matching: find.text(label)),
+            findsOneWidget,
+          );
+        }
+        final tileBounds = tester.getRect(pinnedTile);
+        final badgeBounds = tester.getRect(badge);
+        expect(badgeBounds.width, greaterThan(0));
+        expect(badgeBounds.left, greaterThanOrEqualTo(tileBounds.left));
+        expect(badgeBounds.right, lessThanOrEqualTo(tileBounds.right));
+        await harness.container
+            .read(searchSubscriptionsProvider.notifier)
+            .markRead('cats');
+        await settle(tester);
+        expect(find.byType(Badge), findsNothing);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  for (final c in [
     (name: 'default', key: null),
     (name: 'explicit default', key: const CustomHomeViewKey.defaultValue()),
     (name: 'alternate', key: const CustomHomeViewKey('bookmark')),
