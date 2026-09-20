@@ -388,12 +388,15 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
     unawaited(_controller?.refresh() ?? Future.value());
   }
 
-  Future<void> _openPost(CachedFeedPost post) => _feedAction(context, () async {
+  Future<void> _openPost(int index) => _feedAction(context, () async {
     await ref.read(currentBooruConfigProvider.notifier).update(widget.config);
     if (!mounted) return;
-    goToSinglePostDetailsPage<Post>(
+    final controller = _controller;
+    if (controller == null) return;
+    goToLazyPostDetailsPageFromController(
       ref: ref,
-      postId: NumericPostId(post.id),
+      initialIndex: index,
+      controller: controller,
       configSearch: widget.config.search,
     );
   });
@@ -449,7 +452,7 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
               }
               final post = controller.items.elementAt(index);
               return InkWell(
-                onTap: () => _openPost(post),
+                onTap: () => _openPost(index),
                 child: BooruImage(
                   imageUrl: post.thumbnailImageUrl,
                   config: widget.config.auth,

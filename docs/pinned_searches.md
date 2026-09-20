@@ -269,7 +269,12 @@ loads keep their source cursor and offer Retry. Gelbooru OR batching and an OS
 background service are
 separate future work.
 
-Clicking a cached thumbnail loads the native engine post for details. Pixiv
+Clicking a cached thumbnail loads the native engine post for details.
+Feed details keep the grid controller's ordered post IDs and load native post
+details as pages are visited, rather than fetching every cached post up front.
+Near the end of the loaded IDs, the viewer asks the grid to load more history.
+The HTML-backed Gelbooru V2 favorites grid uses this same list-backed route;
+the single-post route remains for views with no surrounding collection. Pixiv
 resolves its synthetic page IDs through artwork details and verifies the exact
 page ID before returning a native post. Shimmie2 looks up the ID through its
 Danbooru XML endpoint or GraphQL, matching the profile's selected API; E-shuushuu

@@ -71,6 +71,7 @@ class Routes {
       searchRoutes(ref),
       postDetailsRoutes(ref),
       singlePostDetailsRoutes(ref),
+      lazyPostDetailsRoutes(ref),
       postFavoritesRoutes(ref),
       artists(ref),
       characters(ref),

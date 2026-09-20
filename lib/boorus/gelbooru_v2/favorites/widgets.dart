@@ -13,7 +13,6 @@ import '../../../core/posts/details/routes.dart';
 import '../../../core/posts/favorites/providers.dart';
 import '../../../core/posts/favorites/widgets.dart';
 import '../../../core/posts/listing/widgets.dart';
-import '../../../core/posts/post/types.dart';
 import '../gelbooru_v2_provider.dart';
 import '../posts/providers.dart';
 import 'providers.dart';
@@ -93,9 +92,10 @@ class GelbooruV2FavoritesPageHtml extends ConsumerWidget {
                       return;
                     }
 
-                    goToSinglePostDetailsPage(
+                    goToLazyPostDetailsPageFromController(
                       ref: ref,
-                      postId: NumericPostId(post.id),
+                      initialIndex: index,
+                      controller: controller,
                       configSearch: config,
                     );
                   },
