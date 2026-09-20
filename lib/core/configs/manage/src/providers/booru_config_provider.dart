@@ -99,9 +99,6 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
             .where((subscription) => subscription.profileId == config.id)
             .toList(growable: false);
         final organization = await searchRepository.getOrganization();
-        final feeds = (await searchRepository.getFeeds())
-            .where((f) => f.profileId == config.id)
-            .toList();
         var searchesDeleted = false;
         var profileRemoved = false;
 
@@ -185,7 +182,6 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
               searchRepository,
               subscriptions,
               organization,
-              feeds,
               error,
             );
           }
@@ -277,12 +273,10 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
     SearchSubscriptionRepository searchRepository,
     List<SearchSubscription> subscriptions,
     SearchOrganization organization,
-    List<SearchFollowingFeed> feeds,
     Object originalError,
   ) async {
     try {
       await searchRepository.restoreForProfile(config.id, subscriptions);
-      await searchRepository.restoreFeeds(config.id, feeds);
       await searchRepository.replaceOrganization(organization);
     } catch (restoreError) {
       _logError('Failed to remove config ${config.id}: $originalError');

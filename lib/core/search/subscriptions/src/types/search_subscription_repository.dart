@@ -1,20 +1,10 @@
 // Project imports:
 import 'search_refresh.dart';
-import 'search_following_feed.dart';
 import 'search_organization.dart';
 import 'search_subscription.dart';
 
 abstract interface class SearchSubscriptionRepository {
   Future<List<SearchSubscription>> getAll();
-  Future<List<SearchFollowingFeed>> getFeeds();
-  Future<SearchFollowingFeed> saveFeed({
-    required int profileId,
-    required String name,
-    required List<String> queries,
-    String? id,
-  });
-  Future<void> deleteFeed(String id);
-  Future<void> restoreFeeds(int profileId, List<SearchFollowingFeed> feeds);
   Future<SearchOrganization> getOrganization();
   Future<void> replaceOrganization(SearchOrganization organization);
   Future<void> deleteSharedFolderAndPins(String folderId);

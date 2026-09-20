@@ -59,14 +59,13 @@ void main() {
       addTearDown(harness.container.dispose);
       await harness.profiles.addAll([_profile]);
       final beforePins = await harness.repository.getAll();
-      final beforeFeeds = await harness.repository.getFeeds();
       final beforeOrg = await harness.repository.getOrganization();
       final context = await _pumpReboot(tester, harness);
       Object? error;
       final pending = harness
           .source
           .resultExecutor!(
-            _data(includeMissing: true, missingFeed: true),
+            _data(includeMissing: true),
             context,
           )
           .then<void>(
@@ -79,7 +78,7 @@ void main() {
       expect(find.text('Skip unmatched records?'), findsOneWidget);
       expect(
         find.text(
-          '2 pinned searches or feeds have no matching profile and will be skipped. Continue importing?',
+          '1 pinned searches have no matching profile and will be skipped. Continue importing?',
         ),
         findsOneWidget,
       );
@@ -100,7 +99,6 @@ void main() {
       } else {
         expect(error, isA<ImportCancelledException>());
         expect(await harness.repository.getAll(), beforePins);
-        expect(await harness.repository.getFeeds(), beforeFeeds);
         expect(await harness.repository.getOrganization(), beforeOrg);
       }
     });
@@ -118,7 +116,6 @@ void main() {
         throwsA(isA<ImportCancelledException>()),
       );
       expect(await harness.repository.getAll(), isEmpty);
-      expect(await harness.repository.getFeeds(), isEmpty);
       expect(await harness.repository.getOrganization(), before);
     },
   );
@@ -249,7 +246,7 @@ void main() {
           expect(find.text('Skip unmatched records?'), findsOneWidget);
           expect(
             find.text(
-              '1 pinned searches or feeds have no matching profile and will be skipped. Continue importing?',
+              '1 pinned searches have no matching profile and will be skipped. Continue importing?',
             ),
             findsOneWidget,
           );
@@ -678,7 +675,7 @@ void main() {
   });
 
   test(
-    'restores both profiles with their pins feeds and shared order when replacement fails',
+    'restores both profiles with their pins and shared order when replacement fails',
     () async {
       final harness = _Harness();
       addTearDown(harness.container.dispose);
@@ -699,11 +696,6 @@ void main() {
             name: 'Birds',
           ),
         );
-        await harness.repository.saveFeed(
-          profileId: profileId,
-          name: 'Following',
-          queries: ['fish'],
-        );
       }
       final organization = SearchOrganization(
         folders: [
@@ -717,7 +709,6 @@ void main() {
       );
       await harness.repository.replaceOrganization(organization);
       final oldPins = await harness.repository.getAll();
-      final oldFeeds = await harness.repository.getFeeds();
       (harness.profiles.box as _ProfileBox).failNextWrite = true;
       final source =
           harness.container.read(booruConfigsBackupSourceProvider)
@@ -730,7 +721,6 @@ void main() {
 
       expect(await harness.profiles.getAll(), oldProfiles);
       expect(await harness.repository.getAll(), unorderedEquals(oldPins));
-      expect(await harness.repository.getFeeds(), unorderedEquals(oldFeeds));
       expect(await harness.repository.getOrganization(), organization);
       expect(
         (await harness.container.read(
@@ -1183,23 +1173,7 @@ BooruConfig _replacement({
 
 PinnedSearchBackupData _data({
   bool includeMissing = false,
-  bool missingFeed = false,
 }) => PinnedSearchBackupData(
-  feeds: [
-    if (missingFeed)
-      const PinnedSearchFeedBackupRecord(
-        id: '550e8400-e29b-41d4-a716-446655440099',
-        name: 'Missing feed',
-        position: 0,
-        queries: ['cat'],
-        profile: PinnedSearchProfileReference(
-          id: 5,
-          booruType: 'gelbooru',
-          url: 'https://missing.test',
-          name: 'Missing',
-        ),
-      ),
-  ],
   records: [
     const PinnedSearchBackupRecord(
       id: _id,

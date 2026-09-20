@@ -13,6 +13,8 @@ import 'package:boorusama/core/search/subscriptions/src/data/hive/search_subscri
 import 'package:boorusama/core/search/subscriptions/src/data/hive/search_subscription_repository_hive.dart';
 import 'package:boorusama/core/search/subscriptions/types.dart';
 
+import 'subscription_test_utils.dart';
+
 class FailingOrganizationBox extends MemoryBox<dynamic> {
   var failWrites = false;
 
@@ -169,14 +171,6 @@ void main() {
         id: 'bird',
         createdAt: DateTime.utc(2026, 9, 16),
       );
-      final feed = await repository.saveFeed(
-        profileId: 12,
-        name: 'Feed',
-        queries: ['fish'],
-      );
-      final source = (await repository.getAll()).singleWhere(
-        (search) => search.feedId == feed.id,
-      );
       final folder = SharedSearchFolder(
         id: 'animals',
         name: 'Animals',
@@ -200,29 +194,12 @@ void main() {
         [cat.id, dog.id],
       );
       expect(
-        (await repository.getAll())
-            .where((search) => search.feedId == null)
-            .map((search) => search.profileId),
+        (await repository.getAll()).map((search) => search.profileId),
         [12, 12, 99],
       );
       expect((await repository.getOrganization()).homeSearchIds, [bird.id]);
 
       final stored = await repository.getOrganization();
-      await expectLater(
-        repository.replaceOrganization(
-          SearchOrganization(
-            folders: [
-              SharedSearchFolder(
-                id: folder.id,
-                name: folder.name,
-                searchIds: [source.id],
-              ),
-            ],
-            homeSearchIds: const [],
-          ),
-        ),
-        throwsStateError,
-      );
       await expectLater(
         repository.replaceOrganization(
           SearchOrganization(

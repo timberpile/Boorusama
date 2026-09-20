@@ -65,21 +65,6 @@ void main() {
       home: <String>[],
       extra: <Map<String, dynamic>>[],
     ),
-    (
-      name: 'feed membership',
-      members: ['cccccccc-cccc-4ccc-8ccc-cccccccccccc'],
-      home: <String>[],
-      extra: [
-        {
-          'kind': 'feed',
-          'id': 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
-          'name': 'Feed',
-          'position': 0,
-          'queries': ['cat'],
-          'profile': _profile(),
-        },
-      ],
-    ),
   ]) {
     test('rejects ${c.name}', () {
       expect(
@@ -141,31 +126,6 @@ void main() {
       ),
       throwsA(isA<InvalidBackupFormatException>()),
     );
-  });
-
-  test('feed definitions round trip without post caches or checkpoints', () {
-    final profile = codec
-        .parse(ExportDataPayload.legacy(data: [_row()]))
-        .records
-        .single
-        .profile;
-    final data = PinnedSearchBackupData(
-      records: const [],
-      feeds: [
-        PinnedSearchFeedBackupRecord(
-          id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-          name: 'Animals',
-          position: 0,
-          queries: const ['cat', 'dog'],
-          profile: profile,
-        ),
-      ],
-    );
-    expect(
-      codec.parse(ExportDataPayload.legacy(data: codec.encode(data))),
-      data,
-    );
-    expect((codec.encode(data).first as Map).keys, isNot(contains('posts')));
   });
 
   test(

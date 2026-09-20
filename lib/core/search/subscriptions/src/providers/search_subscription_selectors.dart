@@ -55,8 +55,7 @@ final organizedPinnedSearchesProvider =
             .toSet();
         final byId = {
           for (final search in state.subscriptions)
-            if (search.feedId == null && profiles.contains(search.profileId))
-              search.id: search,
+            if (profiles.contains(search.profileId)) search.id: search,
         };
         final ids = folderId == null
             ? state.organization.homeSearchIds
@@ -76,10 +75,7 @@ final pinnedSearchHasNewPostsProvider = Provider<bool>((ref) {
           .valueOrNull
           ?.subscriptions
           .any(
-            (s) =>
-                s.feedId == null &&
-                profiles.contains(s.profileId) &&
-                s.hasNewPosts,
+            (s) => profiles.contains(s.profileId) && s.hasNewPosts,
           ) ??
       false;
 });

@@ -54,8 +54,6 @@ class PinnedSearchImportService {
     unmatchedRecordIds: {
       for (final record in data.records)
         if (_resolveProfile(record.profile, profiles) == null) record.id,
-      for (final feed in data.feeds)
-        if (_resolveProfile(feed.profile, profiles) == null) feed.id,
     },
   );
 
@@ -93,8 +91,7 @@ class PinnedSearchImportService {
       final saved =
           byQuery ??
           switch (byId) {
-            final pin? when pin.profileId == profile.id && pin.feedId == null =>
-              pin,
+            final pin? when pin.profileId == profile.id => pin,
             _ => null,
           };
       if (saved != null) {

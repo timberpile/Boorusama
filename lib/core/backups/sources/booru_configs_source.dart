@@ -155,7 +155,6 @@ Future<void> _replaceProfiles(Ref ref, List<BooruConfig> configs) => ref
           id: oldSubscriptions.where((pin) => pin.profileId == id).toList(),
       };
       final oldOrganization = await searchRepository.getOrganization();
-      final oldFeeds = await searchRepository.getFeeds();
       var profilesChanged = false;
       try {
         for (final id in removedIds) {
@@ -171,10 +170,6 @@ Future<void> _replaceProfiles(Ref ref, List<BooruConfig> configs) => ref
         }
         for (final entry in removedSubscriptions.entries) {
           await searchRepository.restoreForProfile(entry.key, entry.value);
-          await searchRepository.restoreFeeds(
-            entry.key,
-            oldFeeds.where((f) => f.profileId == entry.key).toList(),
-          );
         }
         await searchRepository.replaceOrganization(oldOrganization);
         Error.throwWithStackTrace(error, stackTrace);

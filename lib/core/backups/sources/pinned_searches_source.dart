@@ -41,8 +41,7 @@ class PinnedSearchesBackupSource
           final organization = await repository.getOrganization();
           final exportedIds = subscriptions
               .where(
-                (pin) =>
-                    pin.feedId == null && profiles.containsKey(pin.profileId),
+                (pin) => profiles.containsKey(pin.profileId),
               )
               .map((pin) => pin.id)
               .toSet();
@@ -50,25 +49,6 @@ class PinnedSearchesBackupSource
             homeSearchIds: organization.homeSearchIds
                 .where(exportedIds.contains)
                 .toList(),
-            feeds: [
-              for (final feed in await repository.getFeeds())
-                if (profiles[feed.profileId] case final profile?)
-                  PinnedSearchFeedBackupRecord(
-                    id: feed.id,
-                    name: feed.name,
-                    position: feed.position,
-                    queries: subscriptions
-                        .where((s) => s.feedId == feed.id)
-                        .map((s) => s.query)
-                        .toList(),
-                    profile: PinnedSearchProfileReference(
-                      id: profile.id,
-                      booruType: profile.auth.booruType.name,
-                      url: normalizePinnedSearchProfileUrl(profile.url),
-                      name: profile.name,
-                    ),
-                  ),
-            ],
             folders: [
               for (final (position, folder) in organization.folders.indexed)
                 PinnedSearchFolderBackupRecord(
@@ -81,9 +61,7 @@ class PinnedSearchesBackupSource
                 ),
             ],
             records: [
-              for (final subscription in subscriptions.where(
-                (s) => s.feedId == null,
-              ))
+              for (final subscription in subscriptions)
                 if (profiles[subscription.profileId] case final profile?)
                   PinnedSearchBackupRecord(
                     id: subscription.id,

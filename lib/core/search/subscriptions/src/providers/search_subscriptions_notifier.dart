@@ -10,14 +10,12 @@ import 'package:uuid/uuid.dart';
 // Project imports:
 import '../../../../boorus/engine/providers.dart';
 import '../../../../configs/manage/providers.dart';
-import '../../../../configs/config/types.dart';
 import '../../../../posts/post/providers.dart';
 import '../data/providers.dart';
 import '../refresh/chronological_search_scanner.dart';
 import '../refresh/search_refresh_query_adapter.dart';
 import '../services/search_refresh_service.dart';
 import '../types/search_refresh.dart';
-import '../types/search_following_feed.dart';
 import '../types/search_organization.dart';
 import '../types/search_subscription.dart';
 import '../types/search_subscription_repository.dart';
@@ -35,7 +33,6 @@ class SearchSubscriptionsState extends Equatable {
     required this.batchCompleted,
     required this.batchTotal,
     this.batchProfileId,
-    this.feeds = const [],
     required this.organization,
   }) : subscriptions = List.unmodifiable(subscriptions),
        refreshingIds = Set.unmodifiable(refreshingIds);
@@ -45,7 +42,6 @@ class SearchSubscriptionsState extends Equatable {
   final int batchCompleted;
   final int batchTotal;
   final int? batchProfileId;
-  final List<SearchFollowingFeed> feeds;
   final SearchOrganization organization;
 
   @override
@@ -55,7 +51,6 @@ class SearchSubscriptionsState extends Equatable {
     batchCompleted,
     batchTotal,
     batchProfileId,
-    feeds,
     organization,
   ];
 }
@@ -73,7 +68,6 @@ class SearchSubscriptionsNotifier
   var _batchTotal = 0;
   int? _batchProfileId;
   var _disposed = false;
-  List<SearchFollowingFeed> _feeds = const [];
   var _organization = SearchOrganization(
     folders: const [],
     homeSearchIds: const [],
@@ -84,7 +78,6 @@ class SearchSubscriptionsNotifier
     _disposed = false;
     ref.onDispose(() => _disposed = true);
     final repository = await _repository;
-    _feeds = await repository.getFeeds();
     _organization = await repository.getOrganization();
     return _snapshot(await repository.getAll());
   }
@@ -105,61 +98,6 @@ class SearchSubscriptionsNotifier
             const UnsupportedSearchRefreshQueryAdapter(),
         scanner: ChronologicalSearchScanner(),
       );
-
-  Future<SearchFollowingFeed> saveFeed({
-    required int profileId,
-    required String name,
-    required List<String> queries,
-    String? id,
-  }) => runSerializedMutation((repository) {
-    final config = ref
-        .read(booruConfigProvider)
-        .where((c) => c.id == profileId)
-        .firstOrNull;
-    if (config == null) throw StateError('Missing feed profile');
-    final adapter = ref
-        .read(booruRepoProvider(config.auth))
-        ?.searchRefreshQueryAdapter(config.auth);
-    if (adapter == null ||
-        !adapter.isSupported ||
-        queries.any(
-          (q) =>
-              adapter.plan(q, after: null) is UnsupportedSearchRefreshQueryPlan,
-        )) {
-      throw const FormatException('Unsupported feed query');
-    }
-    return repository.saveFeed(
-      profileId: profileId,
-      name: name,
-      queries: queries,
-      id: id,
-    );
-  });
-
-  Future<void> deleteFeed(String id) =>
-      runSerializedMutation((repository) => repository.deleteFeed(id));
-
-  Future<void> markFeedRead(String id) =>
-      runSerializedMutation((repository) async {
-        for (final source in (await repository.getAll()).where(
-          (s) => s.feedId == id,
-        )) {
-          await repository.markRead(source.id);
-        }
-      });
-
-  Future<void> refreshFeed(String id) async {
-    await future;
-    final sources =
-        state.valueOrNull?.subscriptions
-            .where((s) => s.feedId == id)
-            .toList() ??
-        [];
-    sources.sort(compareSearchRefreshPriority);
-    for (final source in sources.take(10)) {
-      await refresh(source.id);
-    }
-  }
 
   Future<SharedSearchFolder> createSharedFolder(String name) =>
       _mutate((repository) async {
@@ -333,7 +271,7 @@ class SearchSubscriptionsNotifier
         .toSet();
     final items =
         current.subscriptions
-            .where((search) => search.feedId == null && ids.contains(search.id))
+            .where((search) => ids.contains(search.id))
             .toList()
           ..sort(compareSearchRefreshPriority);
     return [for (final item in items) await refresh(item.id)];
@@ -495,7 +433,7 @@ class SearchSubscriptionsNotifier
     String id,
   ) async {
     final search = await repository.getById(id);
-    if (search == null || search.feedId != null) {
+    if (search == null) {
       throw StateError('Independent pinned search not found');
     }
   }
@@ -541,7 +479,6 @@ class SearchSubscriptionsNotifier
 
   Future<void> _reload(SearchSubscriptionRepository repository) async {
     final subscriptions = await repository.getAll();
-    _feeds = await repository.getFeeds();
     _organization = await repository.getOrganization();
     if (!_disposed) state = AsyncData(_snapshot(subscriptions));
   }
@@ -556,7 +493,6 @@ class SearchSubscriptionsNotifier
   SearchSubscriptionsState _snapshot(List<SearchSubscription> subscriptions) =>
       SearchSubscriptionsState(
         subscriptions: subscriptions,
-        feeds: List.unmodifiable(_feeds),
         organization: _organization,
         refreshingIds: _inFlight.keys.toSet(),
         batchCompleted: _batchCompleted,

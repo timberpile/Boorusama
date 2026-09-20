@@ -176,7 +176,7 @@ One JSON Hive value, `search:organization`, stores ordered folders, each
 folder's ordered independent pin IDs, and ordered Home IDs. Subscription
 aggregates still own profile IDs, queries, and refresh state. Missing IDs are
 pruned on read; independent pins absent from organization append to Home in
-`(createdAt, id)` order. Hidden feed sources cannot join Home or folders.
+`(createdAt, id)` order.
 Old experimental profile-folder rows are ignored; no migration is required.
 Mutations are serialized. Folder deletion and profile compensation restore
 captured organization and pins after ordinary storage failures; cross-box
@@ -219,58 +219,6 @@ resolve tags. Never-checked searches precede the oldest successful checks;
 failed checks back off for five, ten, twenty, then thirty minutes. Checkpoints
 and cached results survive errors. No OS background worker is registered.
 
-Following feeds own hidden subscriptions via nullable `feedId` (Hive field 12).
-Legacy subscriptions default to independent pins. Identity deduplication for
-pins excludes feed sources; identical queries can exist independently in
-several feeds. Folders, user-pin lists, and navigation pin badges exclude hidden
-sources. Feeds use the same scanner and automatic scheduler as independent pins.
-Their materialized cache is one JSON organization-box value per feed, retaining
-500 posts with cached URLs, tags, rating, dimensions, and upload time. Each
-successful source snapshot merges at most fifty posts into that cache, ordered
-by creation time then descending ID, and deduplicated within its profile.
-
-Opening a feed performs no source scans. Clicking a cached thumbnail loads the
-native engine post for details, avoiding generic cache objects in engine-specific
-detail widgets. Pixiv resolves its ordinary synthetic page IDs through artwork
-details and verifies the exact page ID before returning a native post. Refresh
-errors retain cached posts and source checkpoint/error status. Opening a feed
-marks only its owned sources read. Removing sources clears the materialized
-cache to avoid showing results from removed queries; unchanged source state is
-retained. Feeds are bounded discovery views, not complete archives.
-
-Backup version 3 stores feed names and source query definitions, excluding
-runtime cache/checkpoints. Restore creates new hidden source subscriptions and
-maps owning profiles through the existing identity rules. Profile removal also
-removes owned feeds; failure compensation restores feeds alongside subscriptions
-and shared organization. Cross-box writes are compensated during failures, not crash-atomic.
-Running build_runner for the Hive adapter can remove ignored registry output;
-run `./gen.sh` afterward to restore the engine registry and i18n output.
-
-Large-feed limits: at most 1,000 normalized unique sources per feed and 500
-materialized posts. All refresh entry points share a three-request concurrency
-gate; automatic work remains sequential and checks foreground/network permission
-again after waiting for a slot. Cache changes refresh the existing post-grid
-controller, preserving its scroll position rather than replacing the grid.
-Independent newest-page checks remain the fallback; no OR batching is enabled
-because source attribution/query equivalence is not verified across engines.
-
-The real-Hive scaling fixture covers 100 and 1,000 sources, eleven independent
-fifty-post commits, deterministic retention/order, definition rejection above
-1,000 sources, and an already-materialized cache read without source requests.
-On the development Linux machine, measured runs were:
-
-| Sources | Definition creation | Eleven snapshot merges | Cached read | Cache size |
-| --- | --- | --- | --- | --- |
-| 100 | 11.1 ms | 139.9 ms | 5.5 ms | 109,953 bytes |
-| 1,000 | 35.3 ms | 83.9 ms | 2.4 ms | 109,953 bytes |
-
-This minimal metadata fixture measures local persistence/parsing, excludes
-network/image rendering, and is affected by warm-up. It supports a local cached
-read target below 100 ms for this fixture, not a portable device guarantee.
-Cached byte size varies with URLs and tags. Retention and request ceilings are
-behavioral test assertions; wall-clock measurements are evidence, not flaky
-pass/fail thresholds.
-
 ## Shared-folder backup and restore
 
 Backup version 4 stores shared folder definitions and order, folder member
@@ -280,8 +228,8 @@ the existing identity rules before memberships are rebuilt. Pin-only backups
 append newly created pins to Home and preserve reused pins' destinations.
 Old experimental profile-folder backups require no folder migration.
 
-Unmatched pin or feed profiles require confirmation before skipping records.
-Standalone restore obtains approval before writing pins, feeds, or folders.
+Unmatched pin profiles require confirmation before skipping records.
+Standalone restore obtains approval before writing pins or folders.
 ZIP and server transfer prepare selected sources and run this preflight before
 any source imports, including profiles. Matching uses the selected backup's
 profiles when present, otherwise current profiles. Cancel or headless import

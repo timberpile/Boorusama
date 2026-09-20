@@ -19,7 +19,6 @@ import '../widgets/move_pin_to_folder_dialog.dart';
 import '../widgets/search_refresh_settings_dialog.dart';
 import '../widgets/pin_search_dialog.dart';
 import '../widgets/pinned_search_card.dart';
-import 'following_feeds_page.dart';
 import 'search_folder_management_page.dart';
 
 class PinnedSearchesPage extends ConsumerStatefulWidget {
@@ -37,7 +36,6 @@ class _PinnedSearchesPageState extends ConsumerState<PinnedSearchesPage> {
 
   @override
   Widget build(BuildContext context) {
-    final activeConfig = ref.watchConfig;
     final eligibleProfiles = ref
         .watch(booruConfigProvider)
         .where((c) => ref.watch(pinnedSearchTrackingSupportedProvider(c.auth)))
@@ -55,17 +53,6 @@ class _PinnedSearchesPageState extends ConsumerState<PinnedSearchesPage> {
               strings.title,
         ),
         actions: [
-          if (widget.folderId == null)
-            IconButton(
-              tooltip: strings.following_feeds,
-              icon: const Icon(Symbols.rss_feed),
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) =>
-                      FollowingFeedsPage(profileId: activeConfig.id),
-                ),
-              ),
-            ),
           if (widget.folderId == null)
             IconButton(
               tooltip: strings.refresh_settings,
@@ -107,9 +94,7 @@ class _PinnedSearchesPageState extends ConsumerState<PinnedSearchesPage> {
                           (activity?.batchCompleted ?? 0) <
                               (activity?.batchTotal ?? 0) ||
                           !(activity?.subscriptions.any(
-                                (s) =>
-                                    s.feedId == null &&
-                                    eligibleProfiles.contains(s.profileId),
+                                (s) => eligibleProfiles.contains(s.profileId),
                               ) ??
                               false)
                       ? null
