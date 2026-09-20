@@ -17,6 +17,7 @@
 *.ipr
 *.iws
 .idea/
+.codex/
 
 # Visual Studio Code related
 .classpath
