@@ -3,8 +3,6 @@ export 'src/types/search_refresh.dart';
 export 'src/types/search_subscription.dart';
 export 'src/types/search_subscription_repository.dart';
 
-export 'src/types/search_folder.dart';
-
 export 'src/types/search_organization.dart';
 
 export 'src/types/search_following_feed.dart';

@@ -153,15 +153,6 @@ class RecordingSearchSubscriptionRepository
   ) async {}
 
   @override
-  Future<List<SearchFolder>> getFolders() async => [];
-
-  @override
-  Future<void> replaceFolders(
-    int profileId,
-    List<SearchFolder> folders,
-  ) async {}
-
-  @override
   Future<SearchOrganization> getOrganization() async => organization;
 
   @override

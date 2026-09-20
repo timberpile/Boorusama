@@ -8,7 +8,6 @@ import 'package:uuid/uuid.dart';
 // Project imports:
 import '../../types/search_post_preview.dart';
 import '../../types/search_refresh.dart';
-import '../../types/search_folder.dart';
 import '../../types/search_following_feed.dart';
 import '../../types/search_organization.dart';
 import '../../types/search_subscription.dart';
@@ -152,44 +151,6 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
         await _organizationBox?.putAll({
           for (final f in feeds) 'feed:${f.id}': f.toJson(),
         });
-      });
-
-  @override
-  Future<List<SearchFolder>> getFolders() => _read(
-    () => [
-      for (final rows in _organizationBox?.values ?? const [])
-        if (rows case final List values)
-          for (final row in values)
-            if (row case final Map json) SearchFolder.fromJson(json),
-    ],
-  );
-
-  @override
-  Future<void> replaceFolders(int profileId, List<SearchFolder> folders) =>
-      _serialize(() async {
-        final box = _organizationBox;
-        if (box == null) throw StateError('Folder storage unavailable');
-        final ids = <String>{};
-        final memberships = <String>{};
-        final names = <String>{};
-        for (final folder in folders) {
-          if (folder.profileId != profileId ||
-              !ids.add(folder.id) ||
-              !names.add(folder.name.toLowerCase())) {
-            throw StateError('Invalid folder ownership or duplicate folder');
-          }
-          for (final id in folder.searchIds) {
-            if (!memberships.add(id) ||
-                _box.get(id)?.profileId != profileId ||
-                _box.get(id)?.feedId != null) {
-              throw StateError('Invalid search membership');
-            }
-          }
-        }
-        await box.put(
-          profileId,
-          folders.map((folder) => folder.toJson()).toList(),
-        );
       });
 
   @override
@@ -547,24 +508,7 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
         previousOrganization,
         {current.id},
       );
-      final rows = _organizationBox?.get(current.profileId);
       try {
-        if (rows case final List values) {
-          final folders = [
-            for (final row in values)
-              if (row case final Map json) SearchFolder.fromJson(json),
-          ];
-          await _organizationBox?.put(current.profileId, [
-            for (final folder in folders)
-              folder
-                  .copyWith(
-                    searchIds: folder.searchIds.where(
-                      (id) => id != current.id,
-                    ),
-                  )
-                  .toJson(),
-          ]);
-        }
         await _organizationBox?.put(
           'search:organization',
           nextOrganization.toJson(),
@@ -573,7 +517,6 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
         await _writeContiguousPositions(current.profileId);
       } catch (_) {
         await _box.putAll(previousPins);
-        if (rows != null) await _organizationBox?.put(current.profileId, rows);
         await _organizationBox?.put(
           'search:organization',
           previousOrganization.toJson(),

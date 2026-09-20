@@ -9,7 +9,6 @@ import 'package:boorusama/core/search/subscriptions/src/pages/pinned_searches_pa
 import 'package:boorusama/core/search/subscriptions/src/widgets/pinned_search_card.dart';
 import 'package:boorusama/core/search/subscriptions/types.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'pinned_search_test_utils.dart';
@@ -28,7 +27,7 @@ void main() {
   }
 
   Future<void> pump(WidgetTester tester) =>
-      harness.pump(tester, const PinnedSearchesPage(profileId: 12));
+      harness.pump(tester, const PinnedSearchesPage());
 
   IconButton refreshAllButton(WidgetTester tester) => tester.widget<IconButton>(
     find.byWidgetPredicate(
@@ -89,18 +88,82 @@ void main() {
     await settle(tester);
   }
 
+  for (final scenario in ['existing', 'home', 'create', 'cancel', 'failure']) {
+    testWidgets(
+      'moving a pin to $scenario preserves its owner and commits only on success',
+      (tester) async {
+        initialize();
+        await harness.seed([
+          pinnedFixture(),
+          pinnedFixture(id: 'dogs', profileId: 99, name: 'Dogs'),
+        ]);
+        await harness.container.read(searchSubscriptionsProvider.future);
+        final notifier = harness.container.read(
+          searchSubscriptionsProvider.notifier,
+        );
+        final oldFolder = await notifier.createSharedFolder('Original');
+        final otherFolder = await notifier.createSharedFolder(
+          'Other owner folder',
+        );
+        await notifier.movePinToSharedFolder('cats', oldFolder.id);
+        await notifier.movePinToSharedFolder('dogs', otherFolder.id);
+        await harness.pump(tester, PinnedSearchesPage(folderId: oldFolder.id));
+        await choose(tester, 'Move to folder');
+        expect(find.text('[Home]'), findsOneWidget);
+        expect(find.text('Other owner folder'), findsOneWidget);
+        expect(find.text('Create folder'), findsOneWidget);
+        if (scenario == 'existing' || scenario == 'home') {
+          await tester.tap(
+            find.text(scenario == 'home' ? '[Home]' : 'Other owner folder'),
+          );
+        } else {
+          await tester.tap(find.text('Create folder'));
+          await settle(tester);
+          expect(find.textContaining('any profile'), findsNothing);
+          await tester.enterText(
+            find.byType(TextField),
+            scenario == 'failure' ? 'Original' : 'New folder',
+          );
+          await tester.pump();
+          await tester.tap(find.text(scenario == 'cancel' ? 'Cancel' : 'Save'));
+        }
+        await settle(tester);
+        await drain(tester);
+        final organization = await harness.repository.getOrganization();
+        final destination = organization.folders
+            .where((f) => f.searchIds.contains('cats'))
+            .firstOrNull;
+        expect((await harness.repository.getById('cats'))!.profileId, 12);
+        switch (scenario) {
+          case 'existing':
+            expect(destination?.id, otherFolder.id);
+          case 'home':
+            expect(organization.homeSearchIds, contains('cats'));
+          case 'create':
+            expect(destination?.name, 'New folder');
+          case 'cancel' || 'failure':
+            expect(destination?.id, oldFolder.id);
+        }
+        if (scenario == 'failure') {
+          expect(
+            find.text('Could not update the pinned search. Try again.'),
+            findsOneWidget,
+          );
+          await tester.pump(const Duration(seconds: 5));
+        }
+      },
+    );
+  }
+
   testWidgets(
-    'an unsupported tab explains support and preserves existing pins',
+    'unsupported profiles keep their cached pins visible and disable refresh all',
     (tester) async {
       harness = PinnedSearchHarness(supported: false);
       addTearDown(harness.dispose);
       await harness.seed([pinnedFixture()]);
       await pump(tester);
       expect(find.text('Pinned Searches'), findsOneWidget);
-      expect(
-        find.text('Pinned searches are not supported for this profile.'),
-        findsOneWidget,
-      );
+      expect(find.text('Cats'), findsOneWidget);
       expect(harness.requests, isEmpty);
       expect((await harness.repository.getAll()).single.id, 'cats');
       expect(refreshAllButton(tester).onPressed, isNull);
@@ -143,7 +206,7 @@ void main() {
     expect(find.text('Retry'), findsOneWidget);
   });
 
-  testWidgets('shows cached active-profile cards without requesting posts', (
+  testWidgets('shows cached cards from all profiles without requesting posts', (
     tester,
   ) async {
     initialize();
@@ -161,6 +224,7 @@ void main() {
         id: 'other',
         profileId: 99,
         name: 'Other profile',
+        query: 'other',
         unreadCount: 90,
       ),
     ]);
@@ -168,8 +232,8 @@ void main() {
     expect(find.text('Cats'), findsOneWidget);
     expect(find.text('cat  rating:safe order:score'), findsOneWidget);
     expect(find.text('dog'), findsOneWidget);
-    expect(find.text('Other profile'), findsNothing);
-    expect(find.text('NEW'), findsOneWidget);
+    expect(find.text('Other profile'), findsOneWidget);
+    expect(find.text('NEW'), findsNWidgets(2));
     expect(find.text('Never checked'), findsNothing);
     expect(find.textContaining('Last checked:'), findsNothing);
     expect(
@@ -311,56 +375,32 @@ void main() {
     },
   );
 
-  testWidgets('move up and down manually order only the active profile', (
-    tester,
-  ) async {
-    initialize();
-    await harness.seed([
-      pinnedFixture(),
-      pinnedFixture(id: 'dogs', name: 'Dogs', query: 'dog', position: 1),
-      pinnedFixture(id: 'birds', name: 'Birds', query: 'bird', position: 2),
-      pinnedFixture(id: 'other', profileId: 99, name: 'Other profile'),
-    ]);
-    await pump(tester);
-    await openMenu(tester);
-    final up = tester.widget<PopupMenuItem<PinnedSearchAction>>(
-      find.ancestor(
-        of: find.text('Move up'),
-        matching: find.byType(PopupMenuItem<PinnedSearchAction>),
-      ),
-    );
-    expect(up.enabled, isFalse);
-    await tester.tap(find.text('Move down'));
-    await settle(tester);
-    expect(
-      tester.getTopLeft(find.text('Dogs')).dy,
-      lessThan(tester.getTopLeft(find.text('Cats')).dy),
-    );
-    expect(find.byType(ReorderableListView), findsNothing);
-    await choose(tester, 'Move down', 'Dogs');
-    await choose(tester, 'Move down', 'Dogs');
-    expect(
-      harness.container
-          .read(profilePinnedSearchesProvider(12))
-          .requireValue
-          .map((item) => item.id),
-      ['cats', 'birds', 'dogs'],
-    );
-    expect((await harness.repository.getById('other'))!.position, 0);
-    await choose(tester, 'Move up', 'Birds');
-    expect(
-      tester.getTopLeft(find.text('Birds')).dy,
-      lessThan(tester.getTopLeft(find.text('Cats')).dy),
-    );
-    await openMenu(tester, 'Dogs');
-    final down = tester.widget<PopupMenuItem<PinnedSearchAction>>(
-      find.ancestor(
-        of: find.text('Move down'),
-        matching: find.byType(PopupMenuItem<PinnedSearchAction>),
-      ),
-    );
-    expect(down.enabled, isFalse);
-  });
+  testWidgets(
+    'move up and down order Home across profiles without changing owners',
+    (tester) async {
+      initialize();
+      await harness.seed([
+        pinnedFixture(),
+        pinnedFixture(id: 'dogs', name: 'Dogs', query: 'dog', profileId: 99),
+      ]);
+      await pump(tester);
+      await choose(tester, 'Move down');
+      expect(
+        tester.getTopLeft(find.text('Dogs')).dy,
+        lessThan(tester.getTopLeft(find.text('Cats')).dy),
+      );
+      expect((await harness.repository.getOrganization()).homeSearchIds, [
+        'dogs',
+        'cats',
+      ]);
+      expect((await harness.repository.getById('dogs'))!.profileId, 99);
+      await choose(tester, 'Move up');
+      expect((await harness.repository.getOrganization()).homeSearchIds, [
+        'cats',
+        'dogs',
+      ]);
+    },
+  );
 
   testWidgets(
     'delete waits for confirmation and removes the card immediately',
@@ -389,7 +429,7 @@ void main() {
     harness.refreshGate = Completer<void>();
     await harness.seed([
       pinnedFixture(query: 'cat'),
-      pinnedFixture(id: 'other', profileId: 99),
+      pinnedFixture(id: 'other', profileId: 99, name: 'Other'),
     ]);
     await pump(tester);
     await choose(tester, 'Refresh');
@@ -400,69 +440,42 @@ void main() {
     expect(find.text('Refreshing…'), findsNothing);
   });
 
-  testWidgets('Refresh All shows progress only for the batch owning profile', (
-    tester,
-  ) async {
-    initialize();
-    harness.refreshGate = Completer<void>();
-    await harness.seed([
-      pinnedFixture(checked: false, query: 'cat'),
-      pinnedFixture(
-        id: 'dogs',
-        query: 'dog',
-        name: 'Dogs',
-        position: 1,
-        checked: false,
-      ),
-      pinnedFixture(
-        id: 'other',
-        profileId: 99,
-        name: 'Other profile',
-        checked: false,
-      ),
-    ]);
-    await pump(tester);
-    await tester.tap(find.byTooltip('Refresh All'));
-    await settle(tester);
-    expect(harness.requests.map((request) => request.profileId), [12, 12]);
-    expect(find.text('Refreshing 0 of 2'), findsOneWidget);
-    expect(
-      refreshAllButton(tester).onPressed,
-      isNull,
-    );
-    expect(
+  testWidgets(
+    'Refresh All visits both owners and remains disabled while a batch runs',
+    (tester) async {
+      initialize();
+      harness.refreshGate = Completer<void>();
+      await harness.seed([
+        pinnedFixture(checked: false, query: 'cat'),
+        pinnedFixture(
+          id: 'other',
+          profileId: 99,
+          name: 'Other',
+          query: 'dog',
+          checked: false,
+        ),
+      ]);
+      await pump(tester);
+      await tester.tap(find.byTooltip('Refresh All'));
+      await settle(tester);
+      expect(harness.requests.map((r) => r.profileId), [12]);
+      expect(refreshAllButton(tester).onPressed, isNull);
       harness.container
-          .read(searchSubscriptionsProvider)
-          .requireValue
-          .batchProfileId,
-      12,
-    );
-    harness.container
-        .read(selectedTestProfileProvider.notifier)
-        .select(otherTestProfile);
-    await harness.pump(tester, const PinnedSearchesPage(profileId: 99));
-    expect(find.text('Refreshing 0 of 2'), findsNothing);
-    expect(
-      refreshAllButton(tester).onPressed,
-      isNotNull,
-    );
-    harness.container
-        .read(selectedTestProfileProvider.notifier)
-        .select(testProfile);
-    await pump(tester);
-    expect(find.text('Refreshing 0 of 2'), findsOneWidget);
-    harness.refreshGate!.complete();
-    await settle(tester);
-    expect(find.text('Refreshing 0 of 2'), findsNothing);
-    expect(
-      refreshAllButton(tester).onPressed,
-      isNotNull,
-    );
-    expect(
-      (await harness.repository.getById('other'))!.lastSuccessfulCheckAt,
-      isNull,
-    );
-  });
+          .read(selectedTestProfileProvider.notifier)
+          .select(otherTestProfile);
+      await pump(tester);
+      expect(refreshAllButton(tester).onPressed, isNull);
+      harness.refreshGate!.complete();
+      await settle(tester);
+      await drain(tester);
+      expect(harness.requests.map((r) => r.profileId), [12, 99]);
+      expect(refreshAllButton(tester).onPressed, isNotNull);
+      expect(
+        (await harness.repository.getById('other'))!.lastSuccessfulCheckAt,
+        isNotNull,
+      );
+    },
+  );
 
   testWidgets(
     'a completed mark-read does not navigate after the page is disposed',

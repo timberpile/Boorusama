@@ -240,11 +240,15 @@ class _PinSearchActionState extends ConsumerState<_PinSearchAction> {
     });
     try {
       final folders =
-          ref.read(searchSubscriptionsProvider).valueOrNull?.folders ?? [];
+          ref
+              .read(searchSubscriptionsProvider)
+              .valueOrNull
+              ?.organization
+              .folders ??
+          [];
       var folderId = folders
           .where(
-            (f) =>
-                f.profileId == profileId && f.searchIds.contains(existing?.id),
+            (f) => f.searchIds.contains(existing?.id),
           )
           .firstOrNull
           ?.id;
@@ -254,7 +258,6 @@ class _PinSearchActionState extends ConsumerState<_PinSearchAction> {
         initialName: existing?.name,
         isPinned: existing != null,
         extra: PinSearchFolderPicker(
-          profileId: profileId,
           initialFolderId: folderId,
           onSelected: (value) => folderId = value,
         ),
@@ -264,7 +267,7 @@ class _PinSearchActionState extends ConsumerState<_PinSearchAction> {
       switch (existing) {
         case final pin?:
           await notifier.rename(pin.id, name);
-          await notifier.moveToFolder(pin, folderId);
+          await notifier.movePinToSharedFolder(pin.id, folderId);
 
         case null:
           _pendingPin = (profileId: profileId, query: query);

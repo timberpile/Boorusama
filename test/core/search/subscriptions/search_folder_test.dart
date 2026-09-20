@@ -14,46 +14,6 @@ void main() {
   tearDown(() => harness.dispose());
 
   test(
-    'moving and deleting folders preserves search checkpoints and manual order',
-    () async {
-      final cats = pinnedFixture(query: 'cat');
-      final dogs = pinnedFixture(
-        id: 'dogs',
-        name: 'Dogs',
-        query: 'dog',
-        position: 1,
-      );
-      await harness.seed([cats, dogs]);
-      final notifier = harness.container.read(
-        searchSubscriptionsProvider.notifier,
-      );
-      await harness.container.read(searchSubscriptionsProvider.future);
-      await notifier.createFolder(12, 'Animals');
-      final folder = harness.container
-          .read(searchSubscriptionsProvider)
-          .requireValue
-          .folders
-          .single;
-      await notifier.moveToFolder(cats, folder.id);
-      await notifier.moveToFolder(dogs, folder.id);
-      await notifier.moveInGroup(dogs, -1, [cats, dogs]);
-      final group = harness.container
-          .read(
-            folderPinnedSearchesProvider((profileId: 12, folderId: folder.id)),
-          )
-          .requireValue;
-      expect(group.map((s) => s.id), ['dogs', 'cats']);
-      expect(group.last.lastSuccessfulCheckAt, cats.lastSuccessfulCheckAt);
-      await notifier.editFolder(folder, delete: true);
-      final unfiled = harness.container
-          .read(folderPinnedSearchesProvider((profileId: 12, folderId: null)))
-          .requireValue;
-      expect(unfiled.map((s) => s.id), ['dogs', 'cats']);
-      expect(unfiled.last.hasNewPosts, isTrue);
-    },
-  );
-
-  test(
     'shared folders order pins from different profiles and leave Home ungrouped',
     () async {
       final cats = pinnedFixture(query: 'cat');

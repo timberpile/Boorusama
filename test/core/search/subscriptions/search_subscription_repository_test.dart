@@ -224,26 +224,37 @@ void main() {
         query: 'cat',
         name: null,
       );
-      await repository.replaceFolders(12, [
-        SearchFolder(
-          id: 'folder',
-          profileId: 12,
-          name: 'Cats',
-          position: 0,
-          searchIds: [search.id],
+      await repository.replaceOrganization(
+        SearchOrganization(
+          homeSearchIds: const [],
+          folders: [
+            SharedSearchFolder(
+              id: 'folder',
+              name: 'Cats',
+              searchIds: [search.id],
+            ),
+          ],
         ),
-      ]);
+      );
       await organizationBox.close();
       organizationBox = await Hive.openBox<dynamic>('folder_test');
       repository = HiveSearchSubscriptionRepository(
         box: box,
         organizationBox: organizationBox,
       );
-      expect((await repository.getFolders()).single.searchIds, {search.id});
+      expect((await repository.getOrganization()).folders.single.searchIds, [
+        search.id,
+      ]);
       await repository.delete(search.id);
-      expect((await repository.getFolders()).single.searchIds, isEmpty);
+      expect(
+        (await repository.getOrganization()).folders.single.searchIds,
+        isEmpty,
+      );
       await repository.deleteForProfile(12);
-      expect(await repository.getFolders(), isEmpty);
+      expect(
+        (await repository.getOrganization()).folders.single.searchIds,
+        isEmpty,
+      );
     },
   );
 
@@ -386,30 +397,6 @@ void main() {
       [second.id, first.id],
     );
   });
-
-  test(
-    'folder membership rejects cross-profile searches without changing stored folders',
-    () async {
-      final other = await repository.create(
-        profileId: 99,
-        query: 'cat',
-        name: null,
-      );
-      await expectLater(
-        repository.replaceFolders(12, [
-          SearchFolder(
-            id: 'folder',
-            profileId: 12,
-            name: 'Cats',
-            position: 0,
-            searchIds: [other.id],
-          ),
-        ]),
-        throwsStateError,
-      );
-      expect(await repository.getFolders(), isEmpty);
-    },
-  );
 
   tearDown(() async {
     await box.close();

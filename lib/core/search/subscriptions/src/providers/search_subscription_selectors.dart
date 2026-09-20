@@ -46,32 +46,6 @@ final pinnedSearchTrackingSupportedProvider =
           false,
     );
 
-final folderPinnedSearchesProvider =
-    Provider.family<
-      AsyncValue<List<SearchSubscription>>,
-      ({int profileId, String? folderId})
-    >((ref, group) {
-      final folders =
-          ref
-              .watch(searchSubscriptionsProvider)
-              .valueOrNull
-              ?.folders
-              .where((f) => f.profileId == group.profileId)
-              .toList() ??
-          [];
-      final membership = {
-        for (final folder in folders)
-          for (final id in folder.searchIds) id: folder.id,
-      };
-      return ref
-          .watch(profilePinnedSearchesProvider(group.profileId))
-          .whenData(
-            (items) => List.unmodifiable(
-              items.where((item) => membership[item.id] == group.folderId),
-            ),
-          );
-    });
-
 final organizedPinnedSearchesProvider =
     Provider.family<AsyncValue<List<SearchSubscription>>, String?>(
       (ref, folderId) => ref.watch(searchSubscriptionsProvider).whenData((

@@ -29,10 +29,10 @@ void main() {
         name: 'Animals',
         queries: ['cat', 'dog'],
       );
-      await notifier.moveInGroup(dogs, -1, [cats, dogs]);
+      await notifier.reorderSharedPins(null, 1, 0);
       expect(
         harness.container
-            .read(profilePinnedSearchesProvider(12))
+            .read(organizedPinnedSearchesProvider(null))
             .requireValue
             .map((s) => s.id),
         ['dogs', 'cats'],
@@ -46,10 +46,9 @@ void main() {
       final source = (await harness.repository.getAll()).firstWhere(
         (s) => s.feedId == feed.id,
       );
-      await notifier.createFolder(12, 'Folder');
-      final folder = (await harness.repository.getFolders()).single;
+      final folder = await notifier.createSharedFolder('Folder');
       await expectLater(
-        notifier.moveToFolder(source, folder.id),
+        notifier.movePinToSharedFolder(source.id, folder.id),
         throwsStateError,
       );
     },
@@ -105,7 +104,7 @@ void main() {
       expect(state.subscriptions.where((s) => s.feedId == feed.id).length, 2);
       expect(
         harness.container
-            .read(profilePinnedSearchesProvider(12))
+            .read(organizedPinnedSearchesProvider(null))
             .requireValue
             .map((s) => s.id),
         ['cats'],

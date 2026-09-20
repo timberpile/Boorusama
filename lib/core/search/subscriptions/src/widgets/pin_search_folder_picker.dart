@@ -6,12 +6,10 @@ import 'search_folder_dialog.dart';
 
 class PinSearchFolderPicker extends ConsumerStatefulWidget {
   const PinSearchFolderPicker({
-    required this.profileId,
     required this.onSelected,
     this.initialFolderId,
     super.key,
   });
-  final int profileId;
   final String? initialFolderId;
   final ValueChanged<String?> onSelected;
   @override
@@ -27,9 +25,8 @@ class _PinSearchFolderPickerState extends ConsumerState<PinSearchFolderPicker> {
         ref
             .watch(searchSubscriptionsProvider)
             .valueOrNull
-            ?.folders
-            .where((f) => f.profileId == widget.profileId)
-            .toList() ??
+            ?.organization
+            .folders ??
         [];
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -40,7 +37,7 @@ class _PinSearchFolderPickerState extends ConsumerState<PinSearchFolderPicker> {
           items: [
             DropdownMenuItem(
               value: '',
-              child: Text(context.t.pinned_searches.unfiled),
+              child: Text(context.t.pinned_searches.home),
             ),
             for (final f in folders)
               DropdownMenuItem(value: f.id, child: Text(f.name)),
@@ -55,15 +52,10 @@ class _PinSearchFolderPickerState extends ConsumerState<PinSearchFolderPicker> {
             final name = await showSearchFolderNameDialog(context);
             if (name == null || !mounted) return;
             try {
-              await ref
+              final folder = await ref
                   .read(searchSubscriptionsProvider.notifier)
-                  .createFolder(widget.profileId, name);
+                  .createSharedFolder(name);
               if (!mounted) return;
-              final folder = ref
-                  .read(searchSubscriptionsProvider)
-                  .requireValue
-                  .folders
-                  .lastWhere((f) => f.profileId == widget.profileId);
               setState(() => _selected = folder.id);
               widget.onSelected(folder.id);
             } catch (_) {

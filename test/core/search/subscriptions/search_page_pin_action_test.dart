@@ -160,6 +160,54 @@ void main() {
   }
 
   testWidgets(
+    'pinning lists shared folders and saves into a folder containing another owner',
+    (tester) async {
+      await initialize();
+      final other = await repository.create(
+        profileId: 99,
+        query: 'dog',
+        name: 'Dog',
+      );
+      await repository.replaceOrganization(
+        SearchOrganization(
+          folders: [
+            SharedSearchFolder(
+              id: 'shared',
+              name: 'Shared animals',
+              searchIds: [other.id],
+            ),
+          ],
+          homeSearchIds: const [],
+        ),
+      );
+      await pump(tester);
+      await load(tester);
+      await tester.tap(find.byTooltip('Pin Search'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.text('[Home]'), findsOneWidget);
+      await tester.tap(find.byType(DropdownButton<String>));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.tap(find.text('Shared animals').last);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.tap(find.text('Pin'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      final pin = await repository.findByQuery(config.id, query);
+      expect(pin?.profileId, config.id);
+      expect((await repository.getOrganization()).folders.single.searchIds, [
+        other.id,
+        pin!.id,
+      ]);
+      snapshot.complete(Either.of(const PostResult(posts: <Post>[], total: 0)));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+    },
+  );
+
+  testWidgets(
     'an unsupported pin action explains support without saving or fetching',
     (tester) async {
       await initialize(supported: false);

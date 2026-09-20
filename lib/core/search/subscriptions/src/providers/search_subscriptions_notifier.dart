@@ -18,7 +18,6 @@ import '../refresh/search_refresh_query_adapter.dart';
 import '../services/search_refresh_service.dart';
 import '../services/search_refresh_request_gate.dart';
 import '../types/search_refresh.dart';
-import '../types/search_folder.dart';
 import '../types/search_following_feed.dart';
 import '../types/search_organization.dart';
 import '../types/search_subscription.dart';
@@ -37,7 +36,6 @@ class SearchSubscriptionsState extends Equatable {
     required this.batchCompleted,
     required this.batchTotal,
     this.batchProfileId,
-    this.folders = const [],
     this.feeds = const [],
     required this.organization,
   }) : subscriptions = List.unmodifiable(subscriptions),
@@ -48,7 +46,6 @@ class SearchSubscriptionsState extends Equatable {
   final int batchCompleted;
   final int batchTotal;
   final int? batchProfileId;
-  final List<SearchFolder> folders;
   final List<SearchFollowingFeed> feeds;
   final SearchOrganization organization;
 
@@ -59,7 +56,6 @@ class SearchSubscriptionsState extends Equatable {
     batchCompleted,
     batchTotal,
     batchProfileId,
-    folders,
     feeds,
     organization,
   ];
@@ -79,7 +75,6 @@ class SearchSubscriptionsNotifier
   var _batchTotal = 0;
   int? _batchProfileId;
   var _disposed = false;
-  List<SearchFolder> _folders = const [];
   List<SearchFollowingFeed> _feeds = const [];
   SearchOrganization _organization = SearchOrganization(
     folders: const [],
@@ -91,7 +86,6 @@ class SearchSubscriptionsNotifier
     _disposed = false;
     ref.onDispose(() => _disposed = true);
     final repository = await _repository;
-    _folders = await repository.getFolders();
     _feeds = await repository.getFeeds();
     _organization = await repository.getOrganization();
     return _snapshot(await repository.getAll());
@@ -363,21 +357,29 @@ class SearchSubscriptionsNotifier
         final saved => saved,
       };
       if (folderId != null) {
-        final folders = (await repository.getFolders())
-            .where((f) => f.profileId == profileId)
-            .toList();
-        if (!folders.any((f) => f.id == folderId)) {
+        final organization = _withoutSharedPin(
+          await repository.getOrganization(),
+          subscription.id,
+        );
+        if (!organization.folders.any((f) => f.id == folderId)) {
           throw StateError('Folder not found');
         }
-        await repository.replaceFolders(profileId, [
-          for (final f in folders)
-            f.copyWith(
-              searchIds: {
-                ...f.searchIds.where((id) => id != subscription.id),
-                if (f.id == folderId) subscription.id,
-              },
-            ),
-        ]);
+        await repository.replaceOrganization(
+          SearchOrganization(
+            folders: [
+              for (final folder in organization.folders)
+                if (folder.id == folderId)
+                  SharedSearchFolder(
+                    id: folder.id,
+                    name: folder.name,
+                    searchIds: [...folder.searchIds, subscription.id],
+                  )
+                else
+                  folder,
+            ],
+            homeSearchIds: organization.homeSearchIds,
+          ),
+        );
       }
       return subscription;
     });
@@ -385,105 +387,6 @@ class SearchSubscriptionsNotifier
       subscription: subscription,
       refresh: await refresh(subscription.id),
     );
-  }
-
-  Future<void> createFolder(int profileId, String name) =>
-      _mutate((repository) async {
-        final folders = (await repository.getFolders())
-            .where((f) => f.profileId == profileId)
-            .toList();
-        folders.add(
-          SearchFolder(
-            id: const Uuid().v4(),
-            profileId: profileId,
-            name: name,
-            position: folders.length,
-            searchIds: const [],
-          ),
-        );
-        await repository.replaceFolders(profileId, folders);
-      });
-
-  Future<void> editFolder(
-    SearchFolder folder, {
-    String? name,
-    int? moveBy,
-    bool delete = false,
-  }) => _mutate((repository) async {
-    final folders =
-        (await repository.getFolders())
-            .where((f) => f.profileId == folder.profileId)
-            .toList()
-          ..sort((a, b) => a.position.compareTo(b.position));
-    final index = folders.indexWhere((f) => f.id == folder.id);
-    if (index < 0) return;
-    final current = folders.removeAt(index);
-    if (!delete) {
-      folders.insert(
-        (index + (moveBy ?? 0)).clamp(0, folders.length),
-        current.copyWith(name: name),
-      );
-    }
-    await repository.replaceFolders(folder.profileId, [
-      for (final (i, f) in folders.indexed) f.copyWith(position: i),
-    ]);
-  });
-
-  Future<void> moveToFolder(SearchSubscription search, String? folderId) =>
-      _mutate((repository) async {
-        final folders = (await repository.getFolders())
-            .where((f) => f.profileId == search.profileId)
-            .toList();
-        if (folders.isEmpty && folderId == null) return;
-        if (folderId != null && !folders.any((f) => f.id == folderId)) {
-          throw StateError('Folder not found');
-        }
-        await repository.replaceFolders(search.profileId, [
-          for (final f in folders)
-            f.copyWith(
-              searchIds: {
-                ...f.searchIds.where((id) => id != search.id),
-                if (f.id == folderId) search.id,
-              },
-            ),
-        ]);
-      });
-
-  Future<void> moveInGroup(
-    SearchSubscription search,
-    int moveBy,
-    List<SearchSubscription> group,
-  ) async {
-    final items =
-        state.requireValue.subscriptions
-            .where((s) => s.profileId == search.profileId && s.feedId == null)
-            .toList()
-          ..sort((a, b) => a.position.compareTo(b.position));
-    final index = group.indexWhere((s) => s.id == search.id);
-    final targetIndex = index + moveBy;
-    if (index < 0 || targetIndex < 0 || targetIndex >= group.length) return;
-    await reorder(
-      search.profileId,
-      items.indexWhere((s) => s.id == search.id),
-      items.indexWhere((s) => s.id == group[targetIndex].id),
-    );
-  }
-
-  Future<List<SearchRefreshOutcome>> refreshFolder(SearchFolder folder) async {
-    final items =
-        state.requireValue.subscriptions
-            .where(
-              (s) =>
-                  folder.searchIds.contains(s.id) &&
-                  s.profileId == folder.profileId,
-            )
-            .toList()
-          ..sort(compareSearchRefreshPriority);
-    final outcomes = <SearchRefreshOutcome>[];
-    for (final item in items) {
-      outcomes.add(await refresh(item.id));
-    }
-    return outcomes;
   }
 
   Future<void> rename(String id, String? name) async {
@@ -640,7 +543,6 @@ class SearchSubscriptionsNotifier
 
   Future<void> _reload(SearchSubscriptionRepository repository) async {
     final subscriptions = await repository.getAll();
-    _folders = await repository.getFolders();
     _feeds = await repository.getFeeds();
     _organization = await repository.getOrganization();
     if (!_disposed) state = AsyncData(_snapshot(subscriptions));
@@ -656,7 +558,6 @@ class SearchSubscriptionsNotifier
   SearchSubscriptionsState _snapshot(List<SearchSubscription> subscriptions) =>
       SearchSubscriptionsState(
         subscriptions: subscriptions,
-        folders: List.unmodifiable(_folders),
         feeds: List.unmodifiable(_feeds),
         organization: _organization,
         refreshingIds: _inFlight.keys.toSet(),

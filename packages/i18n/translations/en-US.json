@@ -57,7 +57,7 @@
     "create_folder": "Create folder",
     "folder_name": "Folder name",
     "move_to_folder": "Move to folder",
-    "unfiled": "Unfiled",
+    "home": "[Home]",
     "refresh_folder": "Refresh Folder",
     "delete_folder_message": "The searches in this folder will move to Unfiled.",
     "refresh_settings": "Refresh settings",
