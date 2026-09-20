@@ -20,9 +20,11 @@ class SearchSubscriptionRepositoryNotifier
     extends AsyncNotifier<SearchSubscriptionRepository> {
   SearchSubscriptionRepositoryNotifier({
     Future<Box<SearchSubscriptionHiveObject>> Function()? openBox,
-  }) : _openBox = openBox ?? _openDefaultBox;
+  }) : _withOrganization = openBox == null,
+       _openBox = openBox ?? _openDefaultBox;
 
   final Future<Box<SearchSubscriptionHiveObject>> Function() _openBox;
+  final bool _withOrganization;
   Future<void> _closeFuture = Future.value();
 
   Future<void> get closeFuture => _closeFuture;
@@ -30,7 +32,10 @@ class SearchSubscriptionRepositoryNotifier
   @override
   Future<SearchSubscriptionRepository> build() async {
     final previousClose = _closeFuture;
-    final resource = _SearchSubscriptionRepositoryBuild(_openBox);
+    final resource = _SearchSubscriptionRepositoryBuild(
+      _openBox,
+      _withOrganization,
+    );
     ref.onDispose(() {
       _closeFuture = resource.dispose();
     });
@@ -46,9 +51,11 @@ class SearchSubscriptionRepositoryNotifier
 }
 
 class _SearchSubscriptionRepositoryBuild {
-  _SearchSubscriptionRepositoryBuild(this._openBox);
+  _SearchSubscriptionRepositoryBuild(this._openBox, this._withOrganization);
 
   final Future<Box<SearchSubscriptionHiveObject>> Function() _openBox;
+  final bool _withOrganization;
+  Box<dynamic>? _organizationBox;
   final _closeCompleter = Completer<void>();
   Box<SearchSubscriptionHiveObject>? _box;
   Future<void>? _closing;
@@ -59,24 +66,28 @@ class _SearchSubscriptionRepositoryBuild {
     try {
       final box = await _openBox();
       _box = box;
+      if (_withOrganization) {
+        _organizationBox = await Hive.openBox<dynamic>('pinned_search_folders');
+      }
       _openingComplete = true;
       if (_disposed) {
         await _closeBox();
       }
-      return HiveSearchSubscriptionRepository(box: box);
+      return HiveSearchSubscriptionRepository(
+        box: box,
+        organizationBox: _organizationBox,
+      );
     } catch (_) {
       _openingComplete = true;
-      _completeClose();
+      await _closeBox();
       rethrow;
     }
   }
 
   Future<void> dispose() {
     _disposed = true;
-    if (_box != null) {
+    if (_openingComplete) {
       unawaited(_closeBox());
-    } else if (_openingComplete) {
-      _completeClose();
     }
     return _closeCompleter.future;
   }
@@ -85,6 +96,7 @@ class _SearchSubscriptionRepositoryBuild {
     return _closing ??= () async {
       try {
         await _box?.close();
+        await _organizationBox?.close();
         _completeClose();
       } catch (error, stackTrace) {
         _closeCompleter.completeError(error, stackTrace);

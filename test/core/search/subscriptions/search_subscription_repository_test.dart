@@ -20,6 +20,7 @@ void main() {
   late Directory tempDirectory;
   late Box<SearchSubscriptionHiveObject> box;
   late HiveSearchSubscriptionRepository repository;
+  late Box<dynamic> organizationBox;
 
   SearchPostPreview preview(
     int id,
@@ -70,11 +71,71 @@ void main() {
       Hive.registerAdapter(RecentSearchPostHiveObjectAdapter());
     }
     box = await Hive.openBox<SearchSubscriptionHiveObject>(boxName);
-    repository = HiveSearchSubscriptionRepository(box: box);
+    organizationBox = await Hive.openBox<dynamic>('folder_test');
+    repository = HiveSearchSubscriptionRepository(
+      box: box,
+      organizationBox: organizationBox,
+    );
   });
+
+  test(
+    'folders survive reopening and deleting a pin removes its membership',
+    () async {
+      final search = await repository.create(
+        profileId: 12,
+        query: 'cat',
+        name: null,
+      );
+      await repository.replaceFolders(12, [
+        SearchFolder(
+          id: 'folder',
+          profileId: 12,
+          name: 'Cats',
+          position: 0,
+          searchIds: [search.id],
+        ),
+      ]);
+      await organizationBox.close();
+      organizationBox = await Hive.openBox<dynamic>('folder_test');
+      repository = HiveSearchSubscriptionRepository(
+        box: box,
+        organizationBox: organizationBox,
+      );
+      expect((await repository.getFolders()).single.searchIds, {search.id});
+      await repository.delete(search.id);
+      expect((await repository.getFolders()).single.searchIds, isEmpty);
+      await repository.deleteForProfile(12);
+      expect(await repository.getFolders(), isEmpty);
+    },
+  );
+
+  test(
+    'folder membership rejects cross-profile searches without changing stored folders',
+    () async {
+      final other = await repository.create(
+        profileId: 99,
+        query: 'cat',
+        name: null,
+      );
+      await expectLater(
+        repository.replaceFolders(12, [
+          SearchFolder(
+            id: 'folder',
+            profileId: 12,
+            name: 'Cats',
+            position: 0,
+            searchIds: [other.id],
+          ),
+        ]),
+        throwsStateError,
+      );
+      expect(await repository.getFolders(), isEmpty);
+    },
+  );
 
   tearDown(() async {
     await box.close();
+    await organizationBox.close();
     await tempDirectory.delete(recursive: true);
   });
 

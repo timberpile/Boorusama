@@ -9,7 +9,15 @@ import '../../../../images/booru_image.dart';
 import '../types/search_refresh.dart';
 import '../types/search_subscription.dart';
 
-enum PinnedSearchAction { info, refresh, rename, moveUp, moveDown, delete }
+enum PinnedSearchAction {
+  info,
+  refresh,
+  rename,
+  moveUp,
+  moveDown,
+  moveFolder,
+  delete,
+}
 
 class PinnedSearchCard extends StatelessWidget {
   const PinnedSearchCard({
@@ -84,6 +92,10 @@ class PinnedSearchCard extends StatelessWidget {
                         value: PinnedSearchAction.moveDown,
                         enabled: canMoveDown,
                         child: Text(strings.move_down),
+                      ),
+                      PopupMenuItem(
+                        value: PinnedSearchAction.moveFolder,
+                        child: Text(strings.move_to_folder),
                       ),
                       PopupMenuItem(
                         value: PinnedSearchAction.delete,

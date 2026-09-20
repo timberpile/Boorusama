@@ -2,12 +2,16 @@
 import 'package:equatable/equatable.dart';
 
 class PinnedSearchBackupData extends Equatable {
-  const PinnedSearchBackupData({required this.records});
+  const PinnedSearchBackupData({
+    required this.records,
+    this.folders = const [],
+  });
 
   final List<PinnedSearchBackupRecord> records;
+  final List<PinnedSearchFolderBackupRecord> folders;
 
   @override
-  List<Object?> get props => [records];
+  List<Object?> get props => [records, folders];
 }
 
 class PinnedSearchBackupRecord extends Equatable {
@@ -54,4 +58,21 @@ String normalizePinnedSearchProfileUrl(String url) {
     port: uri.hasPort ? uri.port : null,
     path: uri.path.replaceFirst(RegExp(r'/+$'), ''),
   ).toString();
+}
+
+class PinnedSearchFolderBackupRecord extends Equatable {
+  const PinnedSearchFolderBackupRecord({
+    required this.id,
+    required this.name,
+    required this.position,
+    required this.searchIds,
+    required this.profile,
+  });
+  final String id;
+  final String name;
+  final int position;
+  final List<String> searchIds;
+  final PinnedSearchProfileReference profile;
+  @override
+  List<Object?> get props => [id, name, position, searchIds, profile];
 }

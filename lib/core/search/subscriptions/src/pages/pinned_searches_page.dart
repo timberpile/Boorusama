@@ -8,17 +8,23 @@ import 'package:material_symbols_icons/symbols.dart';
 // Project imports:
 import '../../../../configs/config/providers.dart';
 import '../../../../configs/config/types.dart';
+import '../../../../configs/manage/providers.dart';
 import '../../../search/routes.dart';
 import '../../../selected_tags/types.dart';
 import '../data/providers.dart';
 import '../providers/search_subscription_selectors.dart';
 import '../providers/search_subscriptions_notifier.dart';
 import '../types/search_subscription.dart';
+import '../types/search_folder.dart';
+import '../widgets/search_folder_dialog.dart';
 import '../widgets/pin_search_dialog.dart';
 import '../widgets/pinned_search_card.dart';
 
 class PinnedSearchesPage extends ConsumerStatefulWidget {
-  const PinnedSearchesPage({super.key});
+  const PinnedSearchesPage({this.folderId, this.profileId, super.key});
+
+  final String? folderId;
+  final int? profileId;
 
   @override
   ConsumerState<PinnedSearchesPage> createState() => _PinnedSearchesPageState();
@@ -30,21 +36,52 @@ class _PinnedSearchesPageState extends ConsumerState<PinnedSearchesPage> {
 
   @override
   Widget build(BuildContext context) {
-    final config = ref.watchConfig;
+    final activeConfig = ref.watchConfig;
+    final config = widget.profileId == null
+        ? activeConfig
+        : ref
+                  .watch(booruConfigProvider)
+                  .where((c) => c.id == widget.profileId)
+                  .firstOrNull ??
+              activeConfig;
     final supported = ref.watch(
       pinnedSearchTrackingSupportedProvider(config.auth),
     );
-    final searches = ref.watch(profilePinnedSearchesProvider(config.id));
+    final searches = ref.watch(
+      folderPinnedSearchesProvider((
+        profileId: config.id,
+        folderId: widget.folderId,
+      )),
+    );
     final activity = ref.watch(searchSubscriptionsProvider).valueOrNull;
     final batchRunning =
         activity?.batchProfileId == config.id &&
         activity!.batchCompleted < activity.batchTotal;
     final strings = context.t.pinned_searches;
+    final folders =
+        activity?.folders.where((f) => f.profileId == config.id).toList() ?? [];
+    folders.sort((a, b) => a.position.compareTo(b.position));
+    final folder = folders.where((f) => f.id == widget.folderId).firstOrNull;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(strings.title),
+        title: Text(folder?.name ?? strings.title),
         actions: [
+          if (widget.folderId == null && supported)
+            IconButton(
+              tooltip: strings.create_folder,
+              icon: const Icon(Symbols.create_new_folder),
+              onPressed: () async {
+                final name = await showSearchFolderNameDialog(context);
+                if (name != null && mounted) {
+                  await _runAction(
+                    () => ref
+                        .read(searchSubscriptionsProvider.notifier)
+                        .createFolder(config.id, name),
+                  );
+                }
+              },
+            ),
           IconButton(
             tooltip: strings.refresh_all,
             icon: const Icon(Symbols.refresh),
@@ -52,9 +89,25 @@ class _PinnedSearchesPageState extends ConsumerState<PinnedSearchesPage> {
                 !supported ||
                     batchRunning ||
                     _pendingBatchProfiles.contains(config.id) ||
-                    (searches.valueOrNull?.isEmpty ?? true)
+                    ((widget.folderId == null
+                                ? ref
+                                      .watch(
+                                        profilePinnedSearchesProvider(
+                                          config.id,
+                                        ),
+                                      )
+                                      .valueOrNull
+                                : searches.valueOrNull)
+                            ?.isEmpty ??
+                        true)
                 ? null
-                : () => _refreshAll(config.id),
+                : () => folder == null
+                      ? _refreshAll(config.id)
+                      : _runAction(
+                          () => ref
+                              .read(searchSubscriptionsProvider.notifier)
+                              .refreshFolder(folder),
+                        ),
           ),
         ],
       ),
@@ -77,7 +130,8 @@ class _PinnedSearchesPageState extends ConsumerState<PinnedSearchesPage> {
                   ],
                 ),
               ),
-              data: (items) => items.isEmpty
+              data: (items) =>
+                  items.isEmpty && (widget.folderId != null || folders.isEmpty)
                   ? Center(child: Text(strings.empty))
                   : Column(
                       children: [
@@ -102,19 +156,95 @@ class _PinnedSearchesPageState extends ConsumerState<PinnedSearchesPage> {
                           ),
                         ],
                         Expanded(
-                          child: ReorderableListView.builder(
+                          child: ListView.builder(
                             padding: const EdgeInsets.all(12),
-                            itemCount: items.length,
-                            onReorderItem: (oldIndex, newIndex) => _runAction(
-                              () => ref
-                                  .read(searchSubscriptionsProvider.notifier)
-                                  .reorder(
-                                    config.id,
-                                    oldIndex,
-                                    newIndex,
+                            itemCount:
+                                items.length +
+                                (widget.folderId == null
+                                    ? folders.length +
+                                          (folders.isNotEmpty &&
+                                                  items.isNotEmpty
+                                              ? 1
+                                              : 0)
+                                    : 0),
+                            itemBuilder: (context, rowIndex) {
+                              if (widget.folderId == null &&
+                                  rowIndex < folders.length) {
+                                final folder = folders[rowIndex];
+                                final hasNew =
+                                    activity?.subscriptions.any(
+                                      (search) =>
+                                          search.profileId == config.id &&
+                                          folder.searchIds.contains(
+                                            search.id,
+                                          ) &&
+                                          search.hasNewPosts,
+                                    ) ??
+                                    false;
+                                return ListTile(
+                                  leading: Badge(
+                                    isLabelVisible: hasNew,
+                                    child: const Icon(Symbols.folder),
                                   ),
-                            ),
-                            itemBuilder: (context, index) {
+                                  title: Text(folder.name),
+                                  onTap: () => Navigator.of(context).push(
+                                    MaterialPageRoute<void>(
+                                      builder: (_) => PinnedSearchesPage(
+                                        folderId: folder.id,
+                                        profileId: config.id,
+                                      ),
+                                    ),
+                                  ),
+                                  trailing: PopupMenuButton<PinnedSearchAction>(
+                                    onSelected: (action) =>
+                                        _folderAction(action, folder),
+                                    itemBuilder: (context) => [
+                                      PopupMenuItem(
+                                        value: PinnedSearchAction.refresh,
+                                        child: Text(strings.refresh_folder),
+                                      ),
+                                      PopupMenuItem(
+                                        value: PinnedSearchAction.rename,
+                                        child: Text(strings.rename),
+                                      ),
+                                      PopupMenuItem(
+                                        value: PinnedSearchAction.moveUp,
+                                        enabled: rowIndex > 0,
+                                        child: Text(strings.move_up),
+                                      ),
+                                      PopupMenuItem(
+                                        value: PinnedSearchAction.moveDown,
+                                        enabled: rowIndex < folders.length - 1,
+                                        child: Text(strings.move_down),
+                                      ),
+                                      PopupMenuItem(
+                                        value: PinnedSearchAction.delete,
+                                        child: Text(
+                                          context.t.generic.action.delete,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }
+                              if (widget.folderId == null &&
+                                  folders.isNotEmpty &&
+                                  items.isNotEmpty &&
+                                  rowIndex == folders.length) {
+                                return Padding(
+                                  padding: const EdgeInsets.all(12),
+                                  child: Text(strings.unfiled),
+                                );
+                              }
+                              final index =
+                                  rowIndex -
+                                  (widget.folderId == null
+                                      ? folders.length +
+                                            (folders.isNotEmpty &&
+                                                    items.isNotEmpty
+                                                ? 1
+                                                : 0)
+                                      : 0);
                               final subscription = items[index];
                               return PinnedSearchCard(
                                 key: ValueKey(subscription.id),
@@ -131,7 +261,7 @@ class _PinnedSearchesPageState extends ConsumerState<PinnedSearchesPage> {
                                 canMoveUp: index > 0,
                                 canMoveDown: index < items.length - 1,
                                 onAction: (action) =>
-                                    _onAction(action, subscription, index),
+                                    _onAction(action, subscription, items),
                               );
                             },
                           ),
@@ -178,7 +308,7 @@ class _PinnedSearchesPageState extends ConsumerState<PinnedSearchesPage> {
   Future<void> _onAction(
     PinnedSearchAction action,
     SearchSubscription subscription,
-    int index,
+    List<SearchSubscription> group,
   ) async {
     switch (action) {
       case PinnedSearchAction.info:
@@ -249,12 +379,42 @@ class _PinnedSearchesPageState extends ConsumerState<PinnedSearchesPage> {
         await _runAction(
           () => ref
               .read(searchSubscriptionsProvider.notifier)
-              .reorder(
-                subscription.profileId,
-                index,
-                index + (action == PinnedSearchAction.moveUp ? -1 : 1),
+              .moveInGroup(
+                subscription,
+                action == PinnedSearchAction.moveUp ? -1 : 1,
+                group,
               ),
         );
+      case PinnedSearchAction.moveFolder:
+        final folders = ref
+            .read(searchSubscriptionsProvider)
+            .requireValue
+            .folders
+            .where((f) => f.profileId == subscription.profileId);
+        final selected = await showDialog<String>(
+          context: context,
+          builder: (context) => SimpleDialog(
+            title: Text(context.t.pinned_searches.move_to_folder),
+            children: [
+              SimpleDialogOption(
+                onPressed: () => Navigator.pop(context, ''),
+                child: Text(context.t.pinned_searches.unfiled),
+              ),
+              for (final folder in folders)
+                SimpleDialogOption(
+                  onPressed: () => Navigator.pop(context, folder.id),
+                  child: Text(folder.name),
+                ),
+            ],
+          ),
+        );
+        if (selected != null) {
+          await _runAction(
+            () => ref
+                .read(searchSubscriptionsProvider.notifier)
+                .moveToFolder(subscription, selected.isEmpty ? null : selected),
+          );
+        }
       case PinnedSearchAction.delete:
         final confirmed = await showDialog<bool>(
           context: context,
@@ -284,6 +444,60 @@ class _PinnedSearchesPageState extends ConsumerState<PinnedSearchesPage> {
               .read(searchSubscriptionsProvider.notifier)
               .delete(subscription.id),
         );
+    }
+  }
+
+  Future<void> _folderAction(
+    PinnedSearchAction action,
+    SearchFolder folder,
+  ) async {
+    final notifier = ref.read(searchSubscriptionsProvider.notifier);
+    switch (action) {
+      case PinnedSearchAction.rename:
+        final name = await showSearchFolderNameDialog(
+          context,
+          name: folder.name,
+        );
+        if (name != null) {
+          await _runAction(() => notifier.editFolder(folder, name: name));
+        }
+      case PinnedSearchAction.moveUp || PinnedSearchAction.moveDown:
+        await _runAction(
+          () => notifier.editFolder(
+            folder,
+            moveBy: action == PinnedSearchAction.moveUp ? -1 : 1,
+          ),
+        );
+      case PinnedSearchAction.delete:
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text(
+              context.t.pinned_searches.delete_title.replaceAll(
+                '{name}',
+                folder.name,
+              ),
+            ),
+            content: Text(context.t.pinned_searches.delete_folder_message),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: Text(context.t.generic.action.cancel),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: Text(context.t.generic.action.delete),
+              ),
+            ],
+          ),
+        );
+        if (confirmed ?? false) {
+          await _runAction(() => notifier.editFolder(folder, delete: true));
+        }
+      case PinnedSearchAction.refresh:
+        await _runAction(() => notifier.refreshFolder(folder));
+      case _:
+        break;
     }
   }
 

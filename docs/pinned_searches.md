@@ -160,7 +160,7 @@ later behavior is recorded only in the design's [Deferred roadmap](superpowers/s
 
 
 The ready queue splits the roadmap into independently reviewable steps:
-[folders](work/ready/PS-006-search-folders.md),
+[folders](work/done/PS-006-search-folders.md),
 [automatic scheduler](work/ready/PS-007-automatic-refresh-scheduler.md),
 [platform background execution](work/ready/PS-008-platform-background-refresh.md),
 [combined feeds](work/ready/PS-009-combined-following-feeds.md), and
@@ -179,3 +179,18 @@ fetches are not a bounded newest-page query. Unsupported profiles keep the tab
 and pin action visible with a localized explanation. Routine check times are
 available through Info; successful pinning is silent and errors remain inline
 in their originating search view.
+
+
+Folders are single-level and profile owned. Each opens a separate search page;
+Unfiled remains on the profile's main page. Folder membership/order is persisted
+as one JSON Hive value per profile, separate from refresh aggregates. Deleting
+a folder preserves searches and their manual order. Backup version 2 contains
+folder definitions and membership, including empty folders; legacy search-only
+backups load into Unfiled. Folder moves and profile compensation are serialized
+with subscription mutations. Cross-box operations use compensation, not a
+crash-atomic transaction.
+
+Widget tests that seed an AsyncNotifier before mounting the first frame should
+use `tester.runAsync`; directly awaiting its future in the fake async zone can
+wait for scheduled Riverpod work that has not yet been pumped. Text controllers
+belong to dialog State so they survive the route's closing animation.

@@ -1,9 +1,12 @@
 // Project imports:
 import 'search_refresh.dart';
+import 'search_folder.dart';
 import 'search_subscription.dart';
 
 abstract interface class SearchSubscriptionRepository {
   Future<List<SearchSubscription>> getAll();
+  Future<List<SearchFolder>> getFolders();
+  Future<void> replaceFolders(int profileId, List<SearchFolder> folders);
   Future<SearchSubscription?> getById(String id);
   Future<SearchSubscription?> findByQuery(int profileId, String query);
   Future<SearchSubscription> create({

@@ -44,7 +44,10 @@ void main() {
 
   Future<void> initialize({bool supported = true}) async {
     box = _FailingBox();
-    repository = HiveSearchSubscriptionRepository(box: box);
+    repository = HiveSearchSubscriptionRepository(
+      box: box,
+      organizationBox: MemoryBox<dynamic>(),
+    );
     snapshot = Completer();
     snapshotCalls = 0;
     container = ProviderContainer(

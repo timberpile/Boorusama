@@ -8,6 +8,38 @@ import 'package:flutter_test/flutter_test.dart';
 import '../search/subscriptions/subscription_test_utils.dart';
 
 void main() {
+  test('folder imports remap profiles and remain idempotent', () async {
+    final repository = memorySubscriptionRepository();
+    final record = _record(0);
+    final data = PinnedSearchBackupData(
+      records: [record],
+      folders: [
+        PinnedSearchFolderBackupRecord(
+          id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          name: 'Animals',
+          position: 0,
+          searchIds: [record.id],
+          profile: record.profile,
+        ),
+        PinnedSearchFolderBackupRecord(
+          id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+          name: 'Empty',
+          position: 1,
+          searchIds: const [],
+          profile: record.profile,
+        ),
+      ],
+    );
+    final service = PinnedSearchImportService(repository: repository);
+    await service.apply(data, profiles: [_profile(9)]);
+    await service.apply(data, profiles: [_profile(9)]);
+    final folders = await repository.getFolders();
+    expect(folders.length, 2);
+    expect(folders.first.profileId, 9);
+    expect(folders.first.searchIds, {(await repository.getAll()).single.id});
+    expect(folders.last.searchIds, isEmpty);
+  });
+
   final mappingCases = [
     (
       description: 'the matching ID before ambiguous URLs',

@@ -10,6 +10,7 @@ class PinnedSearchBackupCodec extends JsonHandler<PinnedSearchBackupData> {
   @override
   PinnedSearchBackupData parse(ExportDataPayload metadata) {
     final records = <PinnedSearchBackupRecord>[];
+    final folders = <PinnedSearchFolderBackupRecord>[];
     final ids = <String>{};
     for (final (index, value) in metadata.data.indexed) {
       final row = 'data[$index]';
@@ -21,6 +22,43 @@ class PinnedSearchBackupCodec extends JsonHandler<PinnedSearchBackupData> {
       };
       if (!ids.add(id)) {
         throw InvalidBackupFormatException('$row.id is repeated');
+      }
+      if (json['kind'] == 'folder') {
+        final membership = switch (json['searchIds']) {
+          final List ids => ids,
+          _ => throw InvalidBackupFormatException('$row.searchIds is invalid'),
+        };
+        final members = <String>[];
+        for (final member in membership) {
+          switch (member) {
+            case final String id when Uuid.isValidUUID(fromString: id):
+              members.add(id.toLowerCase());
+            case _:
+              throw InvalidBackupFormatException('$row.searchIds is invalid');
+          }
+        }
+        final profile = _object(json['profile'], '$row.profile');
+        folders.add(
+          PinnedSearchFolderBackupRecord(
+            id: id,
+            name: _nonBlankString(json['name'], '$row.name').trim(),
+            position: _nonNegativeInt(json['position'], '$row.position'),
+            searchIds: List.unmodifiable(members),
+            profile: PinnedSearchProfileReference(
+              id: _nonNegativeInt(profile['id'], '$row.profile.id'),
+              booruType: _nonBlankString(
+                profile['booruType'],
+                '$row.profile.booruType',
+              ),
+              url: _profileUrl(profile['url'], '$row.profile.url'),
+              name: _nonBlankString(profile['name'], '$row.profile.name'),
+            ),
+          ),
+        );
+        continue;
+      }
+      if (json['kind'] != null && json['kind'] != 'search') {
+        throw InvalidBackupFormatException('$row.kind is invalid');
       }
       final name = switch (json['name']) {
         null => null,
@@ -46,11 +84,52 @@ class PinnedSearchBackupCodec extends JsonHandler<PinnedSearchBackupData> {
         ),
       );
     }
-    return PinnedSearchBackupData(records: List.unmodifiable(records));
+    final ownership = {
+      for (final record in records)
+        record.id: (
+          record.profile.booruType,
+          normalizePinnedSearchProfileUrl(record.profile.url),
+          record.profile.id,
+        ),
+    };
+    final assigned = <String>{};
+    for (final folder in folders) {
+      for (final id in folder.searchIds) {
+        if (!assigned.add(id) ||
+            ownership[id] !=
+                (
+                  folder.profile.booruType,
+                  normalizePinnedSearchProfileUrl(folder.profile.url),
+                  folder.profile.id,
+                )) {
+          throw const InvalidBackupFormatException(
+            'Invalid folder search reference',
+          );
+        }
+      }
+    }
+    return PinnedSearchBackupData(
+      records: List.unmodifiable(records),
+      folders: List.unmodifiable(folders),
+    );
   }
 
   @override
   List<dynamic> encode(PinnedSearchBackupData data) => [
+    for (final folder in data.folders)
+      {
+        'kind': 'folder',
+        'id': folder.id,
+        'name': folder.name,
+        'position': folder.position,
+        'searchIds': folder.searchIds,
+        'profile': {
+          'id': folder.profile.id,
+          'booruType': folder.profile.booruType,
+          'url': normalizePinnedSearchProfileUrl(folder.profile.url),
+          'name': folder.profile.name,
+        },
+      },
     for (final record in data.records)
       {
         'id': record.id,

@@ -138,6 +138,15 @@ class RecordingSearchSubscriptionRepository
   Future<List<SearchSubscription>> getAll() async => _subscriptions.toList();
 
   @override
+  Future<List<SearchFolder>> getFolders() async => [];
+
+  @override
+  Future<void> replaceFolders(
+    int profileId,
+    List<SearchFolder> folders,
+  ) async {}
+
+  @override
   Future<void> deleteForProfile(int profileId) async {
     deletedProfileIds.add(profileId);
     if (deleteFailure case final error?) {

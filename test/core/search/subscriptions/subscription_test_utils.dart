@@ -8,34 +8,39 @@ import 'package:foundation/foundation.dart';
 import 'package:hive_ce/hive.dart';
 
 HiveSearchSubscriptionRepository memorySubscriptionRepository() =>
-    HiveSearchSubscriptionRepository(box: MemorySubscriptionBox());
+    HiveSearchSubscriptionRepository(
+      box: MemorySubscriptionBox(),
+      organizationBox: MemoryBox<dynamic>(),
+    );
 
-class MemorySubscriptionBox implements Box<SearchSubscriptionHiveObject> {
-  final _items = <String, SearchSubscriptionHiveObject>{};
+class MemorySubscriptionBox extends MemoryBox<SearchSubscriptionHiveObject> {}
+
+class MemoryBox<T> implements Box<T> {
+  final _items = <dynamic, T>{};
 
   @override
-  Iterable<SearchSubscriptionHiveObject> get values => _items.values;
+  Iterable<T> get values => _items.values;
 
   @override
-  SearchSubscriptionHiveObject? get(
+  T? get(
     dynamic key, {
-    SearchSubscriptionHiveObject? defaultValue,
+    T? defaultValue,
   }) => _items[key] ?? defaultValue;
 
   @override
   bool containsKey(dynamic key) => _items.containsKey(key);
 
   @override
-  Future<void> put(dynamic key, SearchSubscriptionHiveObject value) async {
-    _items[key as String] = value;
+  Future<void> put(dynamic key, T value) async {
+    _items[key] = value;
   }
 
   @override
   Future<void> putAll(
-    Map<dynamic, SearchSubscriptionHiveObject> entries,
+    Map<dynamic, T> entries,
   ) async {
     for (final entry in entries.entries) {
-      _items[entry.key as String] = entry.value;
+      _items[entry.key] = entry.value;
     }
   }
 

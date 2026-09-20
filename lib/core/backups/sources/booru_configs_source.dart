@@ -154,6 +154,7 @@ Future<void> _replaceProfiles(Ref ref, List<BooruConfig> configs) => ref
         for (final id in removedIds)
           id: oldSubscriptions.where((pin) => pin.profileId == id).toList(),
       };
+      final oldFolders = await searchRepository.getFolders();
       var profilesChanged = false;
       try {
         for (final id in removedIds) {
@@ -169,6 +170,12 @@ Future<void> _replaceProfiles(Ref ref, List<BooruConfig> configs) => ref
         }
         for (final entry in removedSubscriptions.entries) {
           await searchRepository.restoreForProfile(entry.key, entry.value);
+          final folders = oldFolders
+              .where((f) => f.profileId == entry.key)
+              .toList();
+          if (folders.isNotEmpty) {
+            await searchRepository.replaceFolders(entry.key, folders);
+          }
         }
         Error.throwWithStackTrace(error, stackTrace);
       }

@@ -65,6 +65,49 @@ class PinnedSearchImportService {
       );
       imported++;
     }
+    final folders = (await repository.getFolders()).toList();
+    final orderedFolders = data.folders.toList()
+      ..sort((a, b) => a.position.compareTo(b.position));
+    for (final record in orderedFolders) {
+      final profile = _resolveProfile(record.profile, profiles);
+      if (profile == null) continue;
+      if (folders.any((f) => f.id == record.id && f.profileId != profile.id)) {
+        continue;
+      }
+      final owned = folders.where((f) => f.profileId == profile.id).toList();
+      final existingFolder = owned.firstWhereOrNull(
+        (f) =>
+            f.id == record.id ||
+            f.name.toLowerCase() == record.name.toLowerCase(),
+      );
+      final members = <String>{...existingFolder?.searchIds ?? {}};
+      for (final id in record.searchIds) {
+        final source = data.records.firstWhereOrNull((r) => r.id == id);
+        if (source == null) continue;
+        final search = await repository.findByQuery(profile.id, source.query);
+        if (search != null &&
+            !owned.any(
+              (f) =>
+                  f.id != existingFolder?.id && f.searchIds.contains(search.id),
+            )) {
+          members.add(search.id);
+        }
+      }
+      final folder =
+          existingFolder?.copyWith(searchIds: members) ??
+          SearchFolder(
+            id: record.id,
+            profileId: profile.id,
+            name: record.name,
+            position: owned.length,
+            searchIds: members,
+          );
+      owned.removeWhere((f) => f.id == folder.id);
+      owned.add(folder);
+      await repository.replaceFolders(profile.id, owned);
+      folders.removeWhere((f) => f.profileId == profile.id);
+      folders.addAll(owned);
+    }
     return PinnedSearchImportResult(
       importedCount: imported,
       alreadyExistedCount: existing,

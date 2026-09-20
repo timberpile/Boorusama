@@ -311,7 +311,7 @@ void main() {
     },
   );
 
-  testWidgets('move actions and drag reorder only the active profile', (
+  testWidgets('move up and down manually order only the active profile', (
     tester,
   ) async {
     initialize();
@@ -336,11 +336,9 @@ void main() {
       tester.getTopLeft(find.text('Dogs')).dy,
       lessThan(tester.getTopLeft(find.text('Cats')).dy),
     );
-    final list = tester.widget<ReorderableListView>(
-      find.byType(ReorderableListView),
-    );
-    list.onReorderItem!(0, 2);
-    await settle(tester);
+    expect(find.byType(ReorderableListView), findsNothing);
+    await choose(tester, 'Move down', 'Dogs');
+    await choose(tester, 'Move down', 'Dogs');
     expect(
       harness.container
           .read(profilePinnedSearchesProvider(12))

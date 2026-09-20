@@ -6,6 +6,47 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   final codec = PinnedSearchBackupCodec();
 
+  test(
+    'folder backups preserve membership and empty folders without runtime state',
+    () {
+      final record = codec
+          .parse(ExportDataPayload.legacy(data: [_row()]))
+          .records
+          .single;
+      final data = PinnedSearchBackupData(
+        records: [record],
+        folders: [
+          PinnedSearchFolderBackupRecord(
+            id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+            name: 'Animals',
+            position: 0,
+            searchIds: [record.id],
+            profile: record.profile,
+          ),
+          PinnedSearchFolderBackupRecord(
+            id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+            name: 'Empty',
+            position: 1,
+            searchIds: const [],
+            profile: record.profile,
+          ),
+        ],
+      );
+      expect(
+        codec.parse(ExportDataPayload.legacy(data: codec.encode(data))),
+        data,
+      );
+      final invalid = codec.encode(data);
+      (invalid.first as Map<String, dynamic>)['searchIds'] = [
+        'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+      ];
+      expect(
+        () => codec.parse(ExportDataPayload.legacy(data: invalid)),
+        throwsA(isA<InvalidBackupFormatException>()),
+      );
+    },
+  );
+
   test('round trips stable definitions while discarding runtime fields', () {
     final data = codec.parse(
       ExportDataPayload.legacy(

@@ -93,7 +93,10 @@ class PinnedSearchHarness {
     this.loadImages = false,
     this.supported = true,
   }) {
-    repository = HiveSearchSubscriptionRepository(box: box);
+    repository = HiveSearchSubscriptionRepository(
+      box: box,
+      organizationBox: MemoryBox<dynamic>(),
+    );
     container = ProviderContainer(
       overrides: [
         pinnedSearchTrackingSupportedProvider.overrideWith(

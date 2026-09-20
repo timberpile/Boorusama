@@ -8,12 +8,14 @@ Future<String?> showPinSearchDialog(
   required String query,
   String? initialName,
   bool isPinned = false,
+  Widget? extra,
 }) => showDialog<String>(
   context: context,
   builder: (_) => PinSearchDialog(
     query: query,
     initialName: initialName,
     isPinned: isPinned,
+    extra: extra,
   ),
 );
 
@@ -22,12 +24,14 @@ class PinSearchDialog extends StatefulWidget {
     required this.query,
     this.initialName,
     this.isPinned = false,
+    this.extra,
     super.key,
   });
 
   final String query;
   final String? initialName;
   final bool isPinned;
+  final Widget? extra;
 
   @override
   State<PinSearchDialog> createState() => _PinSearchDialogState();
@@ -70,6 +74,7 @@ class _PinSearchDialogState extends State<PinSearchDialog> {
               ),
               onSubmitted: (_) => _submit(),
             ),
+            ?widget.extra,
             const SizedBox(height: 16),
             Row(
               mainAxisAlignment: MainAxisAlignment.end,

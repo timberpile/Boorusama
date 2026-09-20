@@ -26,6 +26,7 @@ import '../../../suggestions/widgets.dart';
 import '../../../subscriptions/providers.dart';
 import '../../../subscriptions/types.dart';
 import '../../../subscriptions/widgets.dart';
+import '../../../subscriptions/src/widgets/pin_search_folder_picker.dart';
 import '../routes/params.dart';
 import '../types/search_bar_position.dart';
 import '../views/search_landing_view.dart';
@@ -238,17 +239,32 @@ class _PinSearchActionState extends ConsumerState<_PinSearchAction> {
       _error = null;
     });
     try {
+      final folders =
+          ref.read(searchSubscriptionsProvider).valueOrNull?.folders ?? [];
+      var folderId = folders
+          .where(
+            (f) =>
+                f.profileId == profileId && f.searchIds.contains(existing?.id),
+          )
+          .firstOrNull
+          ?.id;
       final name = await showPinSearchDialog(
         context,
         query: query,
         initialName: existing?.name,
         isPinned: existing != null,
+        extra: PinSearchFolderPicker(
+          profileId: profileId,
+          initialFolderId: folderId,
+          onSelected: (value) => folderId = value,
+        ),
       );
       if (!mounted || name == null) return;
       final notifier = ref.read(searchSubscriptionsProvider.notifier);
       switch (existing) {
         case final pin?:
           await notifier.rename(pin.id, name);
+          await notifier.moveToFolder(pin, folderId);
 
         case null:
           _pendingPin = (profileId: profileId, query: query);
@@ -256,6 +272,7 @@ class _PinSearchActionState extends ConsumerState<_PinSearchAction> {
             profileId: profileId,
             query: query,
             name: name,
+            folderId: folderId,
           );
           if (!mounted) return;
           if (result.refresh case SearchRefreshFailed()) {
