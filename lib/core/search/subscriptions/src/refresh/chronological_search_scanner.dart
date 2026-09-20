@@ -55,7 +55,9 @@ class ChronologicalSearchScanner {
         final validation = _validatePage(page.posts);
         return switch (validation.error) {
           final SearchRefreshErrorKind kind => FailedSearchScan(kind),
-          null => CompletedSearchScan(_uniquePosts(page.posts)),
+          null => CompletedSearchScan(
+            _uniquePosts(page.posts).take(4).toList(),
+          ),
         };
       },
     );

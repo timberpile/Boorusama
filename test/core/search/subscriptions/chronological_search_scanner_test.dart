@@ -30,33 +30,38 @@ void main() {
     overlap: overlap,
   );
 
-  test('reads only the first page for a baseline', () async {
-    final fetchedPages = <int>[];
-    final result = await scanner(pageSize: 5).scanBaseline(
-      query: 'cat',
-      fetchPage: (pageNumber, limit) async {
-        fetchedPages.add(pageNumber);
-        return Either.of(
-          page([
-            post(4, checkpoint.add(const Duration(minutes: 4))),
-            post(3, checkpoint.add(const Duration(minutes: 3))),
-            post(3, checkpoint.add(const Duration(minutes: 3))),
-            post(2, checkpoint.add(const Duration(minutes: 2))),
-            post(1, checkpoint.add(const Duration(minutes: 1))),
-          ]),
-        );
-      },
-    );
+  test(
+    'reads only the first page and keeps four previews for a baseline',
+    () async {
+      final fetchedPages = <int>[];
+      final result = await scanner(pageSize: 7).scanBaseline(
+        query: 'cat',
+        fetchPage: (pageNumber, limit) async {
+          fetchedPages.add(pageNumber);
+          return Either.of(
+            page([
+              post(6, checkpoint.add(const Duration(minutes: 6))),
+              post(5, checkpoint.add(const Duration(minutes: 5))),
+              post(5, checkpoint.add(const Duration(minutes: 5))),
+              post(4, checkpoint.add(const Duration(minutes: 4))),
+              post(3, checkpoint.add(const Duration(minutes: 3))),
+              post(2, checkpoint.add(const Duration(minutes: 2))),
+              post(1, checkpoint.add(const Duration(minutes: 1))),
+            ]),
+          );
+        },
+      );
 
-    expect(fetchedPages, [1]);
-    expect(result, isA<CompletedSearchScan>());
-    expect((result as CompletedSearchScan).posts.map((item) => item.id), [
-      4,
-      3,
-      2,
-      1,
-    ]);
-  });
+      expect(fetchedPages, [1]);
+      expect(result, isA<CompletedSearchScan>());
+      expect((result as CompletedSearchScan).posts.map((item) => item.id), [
+        6,
+        5,
+        4,
+        3,
+      ]);
+    },
+  );
 
   test('continues until a page reaches the overlap boundary', () async {
     final fetchedPages = <int>[];
