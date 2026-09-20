@@ -8,9 +8,7 @@ both. This change separates their backup contracts and import flows; it does
 not change the live search or feed storage model.
 
 Neither backup format has shipped. Each starts at source format version 1. The
-experimental combined `pinned_searches` version 4 format is deliberately
-unsupported: importing it reports an invalid or unsupported source format.
-There is no v4 migration. The ZIP manifest retains its own version 1.
+experimental combined `pinned_searches` version 4 format should be discarded.
 
 ## Sources and file contracts
 
@@ -134,15 +132,13 @@ not invalidate the other source's prepared payload. A user cancellation during
 the shared profile preflight stops the selected import before any writes.
 
 An older ZIP without `following_feeds` can still import its unrelated valid
-sources. Its experimental v4 `pinned_searches` entry is reported as unsupported
-rather than migrated or treated as a version 1 pin file. Source-format errors
-should identify the selected feature and the reason; they must not appear as a
+sources. Source-format errors should identify the selected feature and the reason; they must not appear as a
 successful zero-item import.
 
 ## Verification
 
 - Codec tests cover independent round trips, source and version checks,
-  rejection of v4, cross-source files, mixed rows, and malformed references.
+  cross-source files, mixed rows, and malformed references.
 - Import tests cover portable profile matching, missing and ambiguous profiles,
   separate pin and feed counts, feed replacement after changed queries,
   repeated imports, same-name feeds, wrong-owner UUID conflicts, query order,
@@ -154,5 +150,4 @@ successful zero-item import.
   unresolved-profile confirmation. Manual Android verification uses the
   available emulator for the visible picker and import dialogs.
 
-No migration of the experimental v4 payload, runtime cache export, or change
-to search-refresh behavior is included.
+No runtime cache export, or change to search-refresh behavior is included.
