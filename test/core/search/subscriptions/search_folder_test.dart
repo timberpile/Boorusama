@@ -88,6 +88,15 @@ void main() {
         [dogs.id, cats.id],
       );
 
+      await notifier.reorderSharedPins(folder.id, 0, 1);
+      expect(
+        harness.container
+            .read(organizedPinnedSearchesProvider(folder.id))
+            .requireValue
+            .map((search) => search.id),
+        [cats.id, dogs.id],
+      );
+
       await notifier.movePinToSharedFolder(cats.id, null);
       expect(
         harness.container
