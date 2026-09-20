@@ -46,7 +46,17 @@
     "snapshot_failed": "Search pinned, but its preview could not be loaded. Refresh it later.",
     "info": "Info",
     "last_attempt": "Last attempted: {date}",
-    "profile_unsupported": "Pinned searches are not supported for this profile."
+    "profile_unsupported": "Pinned searches are not supported for this profile.",
+    "create_folder": "Create folder",
+    "folder_name": "Folder name",
+    "move_to_folder": "Move to folder",
+    "unfiled": "Unfiled",
+    "refresh_folder": "Refresh Folder",
+    "delete_folder_message": "The searches in this folder will move to Unfiled.",
+    "refresh_settings": "Refresh settings",
+    "automatic_refresh": "Automatic refresh",
+    "refresh_interval": "Every {minutes} minutes",
+    "foreground_refresh_description": "Checks overdue searches across profiles while the app is open, using Wi-Fi or Ethernet."
   },
   "generic": {
     "done": "Done",

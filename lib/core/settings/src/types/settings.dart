@@ -7,6 +7,7 @@ import 'package:foundation/foundation.dart';
 import 'package:kurumi/kurumi.dart';
 
 // Project imports:
+import 'search_refresh_settings.dart';
 import '../../../../foundation/applock/types.dart';
 import '../../../../foundation/caching/types.dart';
 import '../../../analytics/types.dart';
@@ -24,6 +25,8 @@ import '../../../search/search/types.dart';
 import '../../../themes/configs/types.dart';
 import '../../../videos/engines/types.dart';
 import '../../../videos/player/types.dart';
+
+export 'search_refresh_settings.dart';
 
 const _settingNotProvided = Object();
 
@@ -65,6 +68,7 @@ class Settings extends Equatable {
     required this.hapticFeedbackLevel,
     required this.autoBackup,
     required this.videoCacheMaxSize,
+    this.searchRefresh = const SearchRefreshSettings(),
   });
 
   Settings.fromJson(Map<String, dynamic> json)
@@ -136,6 +140,7 @@ class Settings extends Equatable {
       swipeAreaToOpenSidebarPercentage =
           json['swipeAreaToOpenSidebarPercentage'] ?? 5,
       autoBackup = AutoBackupSettings.parse(json['autoBackup']),
+      searchRefresh = SearchRefreshSettings.parse(json['searchRefresh']),
       videoCacheMaxSize = switch (json['videoCacheMaxSize']) {
         final v? => CacheSize.tryParse(v) ?? CacheSize.oneGigabyte,
         _ => CacheSize.oneGigabyte,
@@ -274,6 +279,7 @@ class Settings extends Equatable {
   final HapticFeedbackLevel hapticFeedbackLevel;
 
   final AutoBackupSettings autoBackup;
+  final SearchRefreshSettings searchRefresh;
 
   final CacheSize videoCacheMaxSize;
 
@@ -314,6 +320,7 @@ class Settings extends Equatable {
     SearchBarPosition? searchBarPosition,
     HapticFeedbackLevel? hapticFeedbackLevel,
     AutoBackupSettings? autoBackup,
+    SearchRefreshSettings? searchRefresh,
     CacheSize? videoCacheMaxSize,
   }) => Settings(
     listing: listing ?? this.listing,
@@ -371,6 +378,7 @@ class Settings extends Equatable {
     searchBarPosition: searchBarPosition ?? this.searchBarPosition,
     hapticFeedbackLevel: hapticFeedbackLevel ?? this.hapticFeedbackLevel,
     autoBackup: autoBackup ?? this.autoBackup,
+    searchRefresh: searchRefresh ?? this.searchRefresh,
     videoCacheMaxSize: videoCacheMaxSize ?? this.videoCacheMaxSize,
   );
 
@@ -415,6 +423,7 @@ class Settings extends Equatable {
       'searchBarPosition': searchBarPosition.toData(),
       'hapticFeedbackLevel': hapticFeedbackLevel.toData(),
       'autoBackup': autoBackup.toJson(),
+      'searchRefresh': searchRefresh.toJson(),
       'videoCacheMaxSize': videoCacheMaxSize.displayString(),
     };
   }
@@ -456,6 +465,7 @@ class Settings extends Equatable {
     searchBarPosition,
     hapticFeedbackLevel,
     autoBackup,
+    searchRefresh,
     videoCacheMaxSize,
   ];
 

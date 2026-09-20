@@ -1,4 +1,9 @@
 import 'dart:async';
+import 'package:clock/clock.dart';
+import 'package:boorusama/boorus/danbooru/danbooru_repository.dart';
+import 'package:boorusama/core/boorus/engine/providers.dart';
+import 'package:boorusama/core/search/subscriptions/src/providers/search_refresh_coordinator.dart';
+import 'package:boorusama/core/search/subscriptions/src/services/search_refresh_scheduler.dart';
 import 'dart:typed_data';
 
 import 'package:boorusama/core/configs/config/types.dart';
@@ -92,6 +97,9 @@ class PinnedSearchHarness {
     this.repositoryReady,
     this.loadImages = false,
     this.supported = true,
+    Clock clock = const Clock(),
+    SearchRefreshScheduler? scheduler,
+    bool networkAllowed = false,
   }) {
     repository = HiveSearchSubscriptionRepository(
       box: box,
@@ -99,6 +107,16 @@ class PinnedSearchHarness {
     );
     container = ProviderContainer(
       overrides: [
+        settingsProvider.overrideWithValue(Settings.defaultSettings),
+        automaticSearchRefreshNetworkAllowedProvider.overrideWithValue(
+          networkAllowed,
+        ),
+        searchRefreshCoordinatorProvider.overrideWith(
+          () => SearchRefreshCoordinator(scheduler: scheduler),
+        ),
+        booruRepoProvider.overrideWith(
+          (ref, config) => DanbooruRepository(ref: ref),
+        ),
         pinnedSearchTrackingSupportedProvider.overrideWith(
           (ref, config) => supported,
         ),
@@ -117,6 +135,7 @@ class PinnedSearchHarness {
           () => SearchSubscriptionsNotifier(
             refreshService: SearchRefreshService(
               repository: repository,
+              clock: clock,
               resolvePostRepository: (config) => TestSearchPostRepository(
                 (query, page, limit) async {
                   requests.add((

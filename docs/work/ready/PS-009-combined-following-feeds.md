@@ -12,7 +12,7 @@ post ID. Opening uses cached results and exposes freshness and partial failures.
 ## Dependencies and design
 
 - Depends on [PS-005](../done/PS-005-engine-refresh-adapters.md) and
-  [PS-007](PS-007-automatic-refresh-scheduler.md).
+  [PS-007](../done/PS-007-automatic-refresh-scheduler.md).
 - Folders are optional organization, not required feed sources.
 - Before coding, specify subscription purpose/ownership migration, feed persistence,
   bounded result retention, read semantics, ordering ties, backup behavior, and

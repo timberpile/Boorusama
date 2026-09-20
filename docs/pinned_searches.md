@@ -194,3 +194,19 @@ Widget tests that seed an AsyncNotifier before mounting the first frame should
 use `tester.runAsync`; directly awaiting its future in the fake async zone can
 wait for scheduled Riverpod work that has not yet been pumped. Text controllers
 belong to dialog State so they survive the route's closing animation.
+
+Automatic refresh defaults to enabled every five minutes. A search is eligible
+only when its last successful check is strictly older than the interval. The
+foreground coordinator checks eligibility on launch/resume, network recovery,
+and every minute; it stops scheduling when inactive or paused. It accepts Wi-Fi
+or Ethernet, and pauses on mobile-only, offline, or unknown connectivity. The
+existing mobile-data preference controls downloads rather than general network
+refresh, so it is not reused. Manual refresh remains available.
+
+Each automatic run starts at most ten newest-page checks, sequentially with
+one-second spacing, and starts no further checks after twenty seconds. An
+already-started request may finish after that deadline or after pausing. The
+budget counts search checks, not a universal HTTP count: engines may first
+resolve tags. Never-checked searches precede the oldest successful checks;
+failed checks back off for five, ten, twenty, then thirty minutes. Checkpoints
+and cached results survive errors. No OS background worker is registered.

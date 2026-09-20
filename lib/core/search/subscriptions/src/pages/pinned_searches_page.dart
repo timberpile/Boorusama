@@ -17,6 +17,7 @@ import '../providers/search_subscriptions_notifier.dart';
 import '../types/search_subscription.dart';
 import '../types/search_folder.dart';
 import '../widgets/search_folder_dialog.dart';
+import '../widgets/search_refresh_settings_dialog.dart';
 import '../widgets/pin_search_dialog.dart';
 import '../widgets/pinned_search_card.dart';
 
@@ -67,6 +68,12 @@ class _PinnedSearchesPageState extends ConsumerState<PinnedSearchesPage> {
       appBar: AppBar(
         title: Text(folder?.name ?? strings.title),
         actions: [
+          if (widget.folderId == null)
+            IconButton(
+              tooltip: strings.refresh_settings,
+              icon: const Icon(Symbols.settings),
+              onPressed: () => showSearchRefreshSettingsDialog(context),
+            ),
           if (widget.folderId == null && supported)
             IconButton(
               tooltip: strings.create_folder,
