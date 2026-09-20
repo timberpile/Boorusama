@@ -74,10 +74,12 @@ equal timestamps. Explicit `PostResult.hasMore` continuation metadata is
 authoritative, including for engines whose fixed server page size differs from
 the requested limit. Without it, a later check continues until the overlap
 boundary, an empty/short page, or the reported last page. Reaching an access
-cap while the reported total proves results remain is a pagination failure,
-not successful exhaustion. Duplicate IDs across pages are returned once, and
-only timestamps strictly after the actual checkpoint become new-post
-candidates.
+cap before the overlap boundary is a pagination failure unless explicit
+continuation metadata or a reported total proves exhaustion; a missing total
+is not proof. Crossing the overlap boundary on the capped page still completes
+the required chronological range. Duplicate IDs across pages are returned
+once, and only timestamps strictly after the actual checkpoint become
+new-post candidates.
 
 A nullable upload timestamp or an observed non-chronological response produces
 an explicit unsupported result. No timestamp is inferred from the device clock

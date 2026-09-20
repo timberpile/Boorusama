@@ -115,16 +115,24 @@ class ChronologicalSearchScanner {
           };
           final isShortPage = page.posts.length < pageSize;
 
-          if (reachedMaxPage && hasKnownUnscannedResults) {
+          if (reachedOverlapBoundary) {
+            return CompletedSearchScan(posts);
+          }
+
+          if (reachedMaxPage) {
+            if (hasKnownUnscannedResults || (page.hasMore ?? false)) {
+              return const FailedSearchScan(SearchRefreshErrorKind.pagination);
+            }
+            if (page.hasMore == false || page.total != null) {
+              return CompletedSearchScan(posts);
+            }
             return const FailedSearchScan(SearchRefreshErrorKind.pagination);
           }
 
           return switch (page.hasMore) {
             false => CompletedSearchScan(posts),
-            true => reachedOverlapBoundary ? CompletedSearchScan(posts) : null,
-            null => switch (reachedOverlapBoundary ||
-                reachedMaxPage ||
-                isShortPage) {
+            true => null,
+            null => switch (isShortPage) {
               true => CompletedSearchScan(posts),
               false => null,
             },

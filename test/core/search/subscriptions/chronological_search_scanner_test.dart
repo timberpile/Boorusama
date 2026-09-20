@@ -235,6 +235,64 @@ void main() {
     );
   });
 
+  test(
+    'fails when a full maximum page has no total or boundary proof',
+    () async {
+      final fetchedPages = <int>[];
+      final result = await scanner().scanForNewPosts(
+        query: 'cat',
+        checkpoint: checkpoint,
+        fetchPage: (pageNumber, limit) async {
+          fetchedPages.add(pageNumber);
+          return Either.of(
+            PostResult(
+              posts: [
+                post(3, checkpoint.add(const Duration(minutes: 3))),
+                post(2, checkpoint.add(const Duration(minutes: 2))),
+              ],
+              total: null,
+              maxPage: 1,
+            ),
+          );
+        },
+      );
+
+      expect(fetchedPages, [1]);
+      expect(
+        result,
+        const FailedSearchScan(SearchRefreshErrorKind.pagination),
+      );
+    },
+  );
+
+  test(
+    'completes at a capped page after crossing the overlap boundary',
+    () async {
+      final fetchedPages = <int>[];
+      final result = await scanner().scanForNewPosts(
+        query: 'cat',
+        checkpoint: checkpoint,
+        fetchPage: (pageNumber, limit) async {
+          fetchedPages.add(pageNumber);
+          return Either.of(
+            page(
+              [
+                post(2, checkpoint.add(const Duration(minutes: 2))),
+                post(1, checkpoint.subtract(const Duration(minutes: 5))),
+              ],
+              total: 3,
+              maxPage: 1,
+            ),
+          );
+        },
+      );
+
+      expect(fetchedPages, [1]);
+      expect(result, isA<CompletedSearchScan>());
+      expect((result as CompletedSearchScan).posts.map((item) => item.id), [2]);
+    },
+  );
+
   test('returns unsupported when a post timestamp is null', () async {
     final result = await scanner().scanForNewPosts(
       query: 'cat',

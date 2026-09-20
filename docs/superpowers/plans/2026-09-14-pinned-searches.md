@@ -487,6 +487,8 @@ Use `SimplePost` records and a page fetch callback. Cover:
 - explicit `PostResult.hasMore` continuation overrides short-page inference;
 - `maxPage` is honored;
 - an access cap with a total proving unscanned results returns `pagination`;
+- a cap with no total or explicit exhaustion returns `pagination`;
+- reaching the overlap boundary on the capped page completes successfully;
 - a null timestamp returns `SearchRefreshErrorKind.unsupported`;
 - ascending or otherwise non-monotonic timestamps return `unsupported`;
 - a fetch/pagination failure is returned without a partial success.
@@ -553,7 +555,9 @@ overlap boundary, explicit exhaustion, an empty/short page, or `maxPage`.
 Add nullable `hasMore` continuation metadata to `PostResult`; when present it
 is authoritative over page-length inference. If `maxPage` is reached while the
 reported total proves more results remain than the requested pages could have
-scanned, return a pagination failure rather than a partial success.
+scanned, return a pagination failure rather than a partial success. A missing
+total is not exhaustion proof at the cap. Evaluate the overlap boundary first,
+because reaching it completes the required time range even on a capped page.
 
 Return a sealed `SearchScanResult`:
 
