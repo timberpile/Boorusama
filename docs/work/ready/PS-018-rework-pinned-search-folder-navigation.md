@@ -36,12 +36,17 @@ multiple profiles while each pin still opens and refreshes through its owner.
 - [ ] Profile removal clears only its own pins from shared organization;
   feed-owned sources never enter folders or Home. Backup/restore preserves
   shared membership and ordering.
+- [ ] If backup pins reference unmatched profiles, ask before skipping them.
+  For a multi-source ZIP or server restore, cancellation stops the entire
+  restore before any selected source imports.
 - [ ] Add focused persistence and widget coverage, and validate the key
   navigation and deletion flows on Android with Maestro.
 
 ## Design and dependencies
 
 Follow the proposed [shared-folder design](../../superpowers/specs/2026-09-19-shared-pinned-search-folders-design.md).
+The [implementation plan](../../superpowers/plans/2026-09-19-shared-pinned-search-folders.md)
+records the storage, UI, backup, and verification work.
 Folders have not shipped, so the current profile-folder data does not require
 migration. This supersedes the folder ownership and grouping assumptions in
 [PS-006](../done/PS-006-search-folders.md) and

@@ -80,7 +80,15 @@ navigation.
 Backups save shared folder definitions, folder order, member order, and Home
 order alongside independent pins with profile references. Restore maps each
 pin to its profile, then reconstructs shared membership using the resolved
-pin IDs. Pins whose profiles cannot be matched are skipped; remaining members
+pin IDs. If some pin or feed profiles cannot be matched, a confirmation dialog
+identifies how many records will be skipped. Accepting skips those records;
+canceling aborts the restore. For a multi-source ZIP restore, this warning
+appears before any selected source imports, including profiles. Profile
+matching uses the profiles that the selected restore will leave in place:
+profiles from the backup when that source is selected, or the current profiles
+otherwise. The same pre-import rule applies to a multi-source server transfer.
+Standalone pin restore checks before writing any pin, feed, or folder. A
+headless restore with unmatched profiles aborts. Remaining members
 and empty folders are retained. Newly imported pins from pin-only backups
 append to Home; existing pins keep their current destinations.
 Old experimental profile-folder backups need no folder migration.
