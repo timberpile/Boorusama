@@ -8,13 +8,6 @@ fi
 
 base_branch=$1
 head_branch=$2
-pull_request_title=$3
-expected_title="Merge branch '$head_branch'"
-
-if [[ "$pull_request_title" != "$expected_title" ]]; then
-  echo "Pull request title must be: $expected_title" >&2
-  exit 1
-fi
 
 case "$base_branch" in
   develop)

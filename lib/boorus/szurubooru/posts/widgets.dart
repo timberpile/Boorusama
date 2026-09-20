@@ -50,6 +50,7 @@ class SzurubooruPostActionToolbar extends ConsumerWidget {
         configViewer: configViewer,
         builder: (context, buttons) {
           return BooruMenuButtonRow(
+            crossAxisAlignment: CrossAxisAlignment.start,
             maxVisibleButtons: 5,
             buttons: [
               if (loginDetails.hasLogin())

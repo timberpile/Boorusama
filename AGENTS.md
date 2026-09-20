@@ -45,6 +45,8 @@ for (final c in cases) {
 - Read `docs/development_workflow.md` before starting repository changes.
 - Direct commits to `develop`, including upstream synchronization merge commits, are allowed only when the user explicitly authorizes them for the current change. This authorization does not carry over to later changes.
 - Without explicit authorization for a direct `develop` commit, use the standard branch and pull-request workflow. Creating a GitHub issue is recommended.
+- Keep GitHub issue descriptions short and proportional to the issue. For a small issue, use a few concise sentences or bullets covering the problem, relevant reproduction context, and expected behavior. Avoid long paragraphs and implementation narratives unless needed to understand the issue.
+- Do not include validation reports, test counts or results, static-analysis results, testing tool logs, or development history in issue descriptions. Keep verification details in work reports or review discussions instead.
 - Synchronize `upstream/master` by merging it locally into `develop` and pushing the resulting merge commit directly, following `docs/development_workflow.md`. Do not create a synchronization branch or pull request.
 - Create the work branch from the latest `origin/develop`:
   - `feature/<issue-id>-<short-description>` or `feature/<short-description>` for features and additive changes.

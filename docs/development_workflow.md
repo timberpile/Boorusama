@@ -6,6 +6,17 @@ In a fresh Git worktree, run `fvm dart pub get` from
 `packages/boorusama_cli` before the first `./gen.sh`; the generator imports the
 CLI package configuration from that directory.
 
+## Issue descriptions
+
+Keep issue descriptions short and proportional to the problem. Small issues
+should use a few concise sentences or bullets describing the problem, relevant
+reproduction context, and expected behavior. Include longer explanations or
+implementation details only when necessary to understand the issue.
+
+Do not include validation reports, test counts or results, static-analysis
+results, testing tool logs, or development history in issue descriptions. Keep
+verification details in work reports or review discussions instead.
+
 ## Direct commits to develop
 
 - Direct commits to `develop` require explicit user authorization for the current change. Authorization does not carry over to later changes.
@@ -39,15 +50,9 @@ CLI package configuration from that directory.
    Use `feature/` for features and additive changes. Use `fix/` for bug fixes and corrective changes. The description must contain lowercase letters, numbers, and hyphens only.
 
 4. Implement and verify the change on that branch. Development commits use conventional commit summaries.
-5. Push the branch and open a pull request targeting `develop`. Its title must be exactly:
-
-   ```text
-   Merge branch '<branch-name>'
-   ```
-
-   When an issue exists, include `Closes #<issue-id>` in the pull request body so it closes when the pull request merges. Otherwise, omit the closing reference. Keep the description to a few concise bullets describing only the meaningful end-state changes introduced when merged. Do not include implementation details, test history, development phases, temporary steps, or exhaustive file-level summaries unless they are essential to understanding the result.
+5. Push the branch and open a pull request targeting `develop`. When an issue exists, include `Closes #<issue-id>` in the pull request body so it closes when the pull request merges. Otherwise, omit the closing reference. Keep the description to a few concise bullets describing only the meaningful end-state changes introduced when merged. Do not include implementation details, test history, development phases, temporary steps, or exhaustive file-level summaries unless they are essential to understanding the result.
 6. Wait for required checks and explicit user approval. GitHub auto-merge must remain disabled.
-7. Manually squash-merge the pull request. Keep the generated squash commit title unchanged.
+7. Manually squash-merge the pull request. Set the resulting commit title to `Merge branch '<branch-name>'`.
 8. GitHub deletes the remote source branch automatically. Synchronize `develop`, then delete the local source branch.
 
 ## Incorporating upstream changes
@@ -114,10 +119,12 @@ Direct pushes, force pushes, and deletion are prohibited for `master`, including
 
 - Feature and fix pull requests target `develop`.
 - Only `develop` may be promoted to `master`.
-- A promotion uses a pull request titled `Merge branch 'develop'`. Linking a release-tracking issue is recommended, but not required.
+- A promotion uses a merged commit titled `Merge branch 'develop'`. Linking a release-tracking issue is recommended, but not required.
 - Feature and fix pull requests use squash merging. Upstream synchronization uses an explicitly authorized local merge commit pushed directly to `develop`. Rebase merging and automatic merging remain disabled.
 
-The pull request policy workflow validates the base branch, source branch, and title. Issue references remain optional. Repository settings supply the matching squash title by default and delete merged remote branches.
+The pull request policy workflow validates the base and source branches. Issue references remain optional. The squash commit title must be set when merging; repository settings delete merged remote branches.
+
+The workflow checks out the policy script from the pull request's base commit. Keep its invocation compatible with the version on `develop` while changing the policy, or the change's own pull request can fail before the new script is merged.
 
 ## GitHub CLI example
 
@@ -130,7 +137,7 @@ gh pr create \
   --repo timberpile/Boorusama \
   --base develop \
   --head feature/42-load-original-on-zoom \
-  --title "Merge branch 'feature/42-load-original-on-zoom'" \
+  --title "Load original image on zoom" \
   --body 'Closes #42'
 ```
 

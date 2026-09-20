@@ -27,3 +27,21 @@ name. Merge unions memberships, while Replace uses exactly the imported
 membership set without deleting bookmark records. All conflict choices are
 collected before storage is changed, so cancelling a conflict dialog cancels
 the whole import.
+
+## Name dialog lifecycle
+
+Create, rename, duplicate, and create-and-add share the name dialog. Its widget
+state owns the text controller and disposes it when the widget unmounts.
+`showDialog` completes when the route is popped, before the closing animation
+unmounts the text field. Disposing the controller immediately after awaiting
+`showDialog` can therefore cause a used-after-disposal error, followed by a
+misleading `_dependents.isEmpty` framework assertion.
+
+## Post viewer toolbar layout
+
+Post viewer action rows align controls at the top, with a minimum 48-pixel
+control height that also centers the compact overflow button. The bookmark
+caption occupies up to two lines beneath its icon; its 112-pixel text area can
+extend beyond the adaptive row's narrower button slot. This keeps caption
+length from changing the bookmark icon's alignment with neighboring controls.
+Other adaptive rows retain their default center alignment.

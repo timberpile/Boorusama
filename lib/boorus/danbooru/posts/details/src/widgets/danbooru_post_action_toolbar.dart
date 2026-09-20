@@ -72,6 +72,7 @@ class DanbooruPostActionToolbar extends ConsumerWidget {
         configViewer: configViewer,
         builder: (context, buttons) {
           return BooruMenuButtonRow(
+            crossAxisAlignment: CrossAxisAlignment.start,
             maxVisibleButtons: hasLogin ? 7 : 4,
             buttons: [
               if (hasLogin)

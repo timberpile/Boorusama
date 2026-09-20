@@ -52,6 +52,7 @@ class SimplePostActionToolbar<T extends Post> extends ConsumerWidget {
       configViewer: viewer,
       builder: (context, buttons) {
         return BooruMenuButtonRow(
+          crossAxisAlignment: CrossAxisAlignment.start,
           maxVisibleButtons: maxVisibleButtons,
           buttons: [
             if (favoriteButton case final btn?)

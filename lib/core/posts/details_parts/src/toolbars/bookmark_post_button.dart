@@ -1,6 +1,9 @@
 // Dart imports:
 import 'dart:async';
 
+// Flutter imports:
+import 'package:flutter/rendering.dart' show OverflowBoxFit;
+
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
@@ -95,11 +98,13 @@ class BookmarkPostButton extends ConsumerWidget {
                 ),
               ),
             ),
-            SizedBox(
-              width: 72,
+            OverflowBox(
+              fit: OverflowBoxFit.deferToChild,
+              minWidth: 112,
+              maxWidth: 112,
               child: Text(
                 activeLabel,
-                maxLines: 1,
+                maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
                 style: Kurumi.themeOf(context).textTheme.labelSmall,

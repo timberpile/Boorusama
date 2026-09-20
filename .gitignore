@@ -9,6 +9,8 @@
 .buildlog/
 .history
 .svn/
+.codex/
+.test_credentials
 
 # IntelliJ related
 *.iml

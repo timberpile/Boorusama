@@ -16,6 +16,7 @@ class BooruMenuButtonRow extends StatelessWidget {
     this.onOverflow,
     this.maxVisibleButtons,
     this.alignment,
+    this.crossAxisAlignment = CrossAxisAlignment.center,
     this.padding,
     this.onOpened,
     this.onClosed,
@@ -31,6 +32,7 @@ class BooruMenuButtonRow extends StatelessWidget {
   final ValueChanged<int>? onOverflow;
   final int? maxVisibleButtons;
   final MainAxisAlignment? alignment;
+  final CrossAxisAlignment crossAxisAlignment;
   final EdgeInsetsGeometry? padding;
   final VoidCallback? onOpened;
   final VoidCallback? onClosed;
@@ -49,6 +51,7 @@ class BooruMenuButtonRow extends StatelessWidget {
       onOverflow: onOverflow,
       maxVisibleButtons: maxVisibleButtons,
       alignment: alignment,
+      crossAxisAlignment: crossAxisAlignment,
       padding: padding,
       onOpened: () {
         behavior.adaptiveMenuFeedback?.call();
