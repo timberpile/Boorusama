@@ -18,6 +18,7 @@ class HomeNavigationTile extends StatelessWidget {
     this.forceFillIcon = false,
     this.forceIconColor,
     this.enabled = true,
+    this.badgeCount,
   });
 
   // Will override the onTap function
@@ -30,6 +31,7 @@ class HomeNavigationTile extends StatelessWidget {
   final bool forceFillIcon;
   final Color? forceIconColor;
   final bool enabled;
+  final int? badgeCount;
 
   @override
   Widget build(BuildContext context) {
@@ -47,21 +49,25 @@ class HomeNavigationTile extends StatelessWidget {
               constraints.maxWidth > 200 ||
               constraints.maxWidth <= kMinSideBarWidth,
           showTitle: constraints.maxWidth > kMinSideBarWidth,
-          selectedIcon: Icon(
-            selected ? selectedIcon : icon,
-            fill: 1,
-            color: selected
-                ? Kurumi.themeOf(context).colorScheme.onSecondary
-                : null,
+          selectedIcon: _withBadge(
+            Icon(
+              selected ? selectedIcon : icon,
+              fill: 1,
+              color: selected
+                  ? Kurumi.themeOf(context).colorScheme.onSecondary
+                  : null,
+            ),
           ),
-          icon: Icon(
-            icon,
-            color:
-                forceIconColor ??
-                (selected
-                    ? Kurumi.themeOf(context).colorScheme.onSecondary
-                    : null),
-            fill: forceFillIcon ? 1 : 0,
+          icon: _withBadge(
+            Icon(
+              icon,
+              color:
+                  forceIconColor ??
+                  (selected
+                      ? Kurumi.themeOf(context).colorScheme.onSecondary
+                      : null),
+              fill: forceFillIcon ? 1 : 0,
+            ),
           ),
           title: Text(
             title,
@@ -81,4 +87,9 @@ class HomeNavigationTile extends StatelessWidget {
       },
     );
   }
+
+  Widget _withBadge(Widget icon) => switch (badgeCount) {
+    final count? when count > 0 => Badge.count(count: count, child: icon),
+    _ => icon,
+  };
 }

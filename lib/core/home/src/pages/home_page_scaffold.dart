@@ -21,6 +21,8 @@ import '../../../premiums/providers.dart';
 import '../../../premiums/routes.dart';
 import '../../../premiums/types.dart';
 import '../../../search/search/widgets.dart';
+import '../../../search/subscriptions/providers.dart';
+import '../../../search/subscriptions/widgets.dart';
 import '../../../settings/routes.dart';
 import '../../../tags/favorites/widgets.dart';
 import '../../../widgets/widgets.dart';
@@ -260,6 +262,7 @@ List<Widget> coreDesktopViewBuilder({
     for (int i = 0; i < totalPlaceholder; i++) const SizedBox.shrink(),
     if (viewKey != null && viewKey.isAlt) const SearchPage(),
     const BookmarkGroupBrowserPage(),
+    const PinnedSearchesPage(),
     const BlacklistedTagPage(),
     const FavoriteTagsPage(),
     const BulkDownloadPage(),
@@ -286,7 +289,7 @@ List<Widget> coreDesktopTabBuilder(
         constraints: constraints,
         selectedIcon: Symbols.search,
         icon: Symbols.search,
-        title: 'Search',
+        title: context.t.settings.search.search,
       ),
     HomeNavigationTile(
       value: _v(2),
@@ -298,26 +301,36 @@ List<Widget> coreDesktopTabBuilder(
     HomeNavigationTile(
       value: _v(3),
       constraints: constraints,
+      selectedIcon: Symbols.push_pin,
+      icon: Symbols.push_pin,
+      title: context.t.pinned_searches.title,
+      badgeCount: ref.watch(
+        profilePinnedSearchUnreadCountProvider(ref.watchConfig.id),
+      ),
+    ),
+    HomeNavigationTile(
+      value: _v(4),
+      constraints: constraints,
       selectedIcon: Symbols.list_alt,
       icon: Symbols.list_alt,
       title: context.t.sideMenu.your_blacklist,
     ),
     HomeNavigationTile(
-      value: _v(4),
+      value: _v(5),
       constraints: constraints,
       selectedIcon: Symbols.tag,
       icon: Symbols.tag,
       title: context.t.favorite_tags.title,
     ),
     HomeNavigationTile(
-      value: _v(5),
+      value: _v(6),
       constraints: constraints,
       selectedIcon: Symbols.sim_card_download,
       icon: Symbols.sim_card_download,
       title: context.t.sideMenu.bulk_download,
     ),
     HomeNavigationTile(
-      value: _v(6),
+      value: _v(7),
       constraints: constraints,
       selectedIcon: Symbols.download,
       icon: Symbols.download,

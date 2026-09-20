@@ -1,0 +1,149 @@
+// Package imports:
+import 'package:i18n/i18n.dart';
+import 'package:kurumi/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
+
+// Project imports:
+import '../../../../configs/config/types.dart';
+import '../../../../images/booru_image.dart';
+import '../types/search_refresh.dart';
+import '../types/search_subscription.dart';
+
+enum PinnedSearchAction { refresh, rename, moveUp, moveDown, delete }
+
+class PinnedSearchCard extends StatelessWidget {
+  const PinnedSearchCard({
+    required this.subscription,
+    required this.config,
+    required this.refreshing,
+    required this.onOpen,
+    required this.canMoveUp,
+    required this.canMoveDown,
+    required this.onAction,
+    super.key,
+  });
+
+  final SearchSubscription subscription;
+  final BooruConfigAuth config;
+  final bool refreshing;
+  final VoidCallback? onOpen;
+  final bool canMoveUp;
+  final bool canMoveDown;
+  final ValueChanged<PinnedSearchAction> onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = context.t.pinned_searches;
+    final localizations = MaterialLocalizations.of(context);
+    final checkedAt = subscription.lastSuccessfulCheckAt?.toLocal();
+
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onOpen,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      subscription.displayName,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                  ),
+                  if (subscription.unreadCount > 0)
+                    Semantics(
+                      label: strings.unread_count.replaceAll(
+                        '{count}',
+                        '${subscription.unreadCount}',
+                      ),
+                      child: Badge.count(count: subscription.unreadCount),
+                    ),
+                  PopupMenuButton<PinnedSearchAction>(
+                    icon: const Icon(Symbols.more_vert),
+                    onSelected: onAction,
+                    itemBuilder: (context) => [
+                      PopupMenuItem(
+                        value: PinnedSearchAction.refresh,
+                        enabled: !refreshing,
+                        child: Text(strings.refresh),
+                      ),
+                      PopupMenuItem(
+                        value: PinnedSearchAction.rename,
+                        child: Text(strings.rename),
+                      ),
+                      PopupMenuItem(
+                        value: PinnedSearchAction.moveUp,
+                        enabled: canMoveUp,
+                        child: Text(strings.move_up),
+                      ),
+                      PopupMenuItem(
+                        value: PinnedSearchAction.moveDown,
+                        enabled: canMoveDown,
+                        child: Text(strings.move_down),
+                      ),
+                      PopupMenuItem(
+                        value: PinnedSearchAction.delete,
+                        child: Text(context.t.generic.action.delete),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              if (subscription.displayName != subscription.query)
+                Text(subscription.query),
+              if (subscription.previews.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Row(
+                    children: [
+                      for (final preview in subscription.previews.take(4))
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.all(2),
+                            child: BooruImage(
+                              imageUrl: preview.thumbnailUrl,
+                              config: config,
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                        ),
+                      for (var i = subscription.previews.length; i < 4; i++)
+                        const Spacer(),
+                    ],
+                  ),
+                ),
+              Text(switch (checkedAt) {
+                null => strings.never_checked,
+                final date => strings.last_checked.replaceAll(
+                  '{date}',
+                  '${localizations.formatMediumDate(date)} ${localizations.formatTimeOfDay(TimeOfDay.fromDateTime(date))}',
+                ),
+              }),
+              if (refreshing) Text(strings.refreshing),
+              if (subscription.lastErrorKind case final kind?)
+                Text(
+                  switch (kind) {
+                    SearchRefreshErrorKind.network => strings.error_network,
+                    SearchRefreshErrorKind.authentication =>
+                      strings.error_authentication,
+                    SearchRefreshErrorKind.query => strings.error_query,
+                    SearchRefreshErrorKind.pagination =>
+                      strings.error_pagination,
+                    SearchRefreshErrorKind.parsing => strings.error_parsing,
+                    SearchRefreshErrorKind.unsupported =>
+                      strings.error_unsupported,
+                    SearchRefreshErrorKind.other => strings.error_other,
+                  },
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

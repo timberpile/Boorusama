@@ -980,7 +980,7 @@ git commit -m "feat(search): pin searches from results"
   mark-read/open behavior, and active-profile unread badges on mobile and
   desktop navigation.
 
-- [ ] **Step 1: Write failing page behavior tests**
+- [x] **Step 1: Write failing page behavior tests**
 
 Cover loading/error/empty states and a populated active-profile list. For a
 card verify effective name, optional query subtitle, four-preview limit,
@@ -999,13 +999,13 @@ Also assert Refresh All forwards only the active profile ID, progress is shown,
 rename/reorder/delete update the list, a broken preview uses the existing image
 fallback, and opening the page itself makes no post request.
 
-- [ ] **Step 2: Write failing navigation badge tests**
+- [x] **Step 2: Write failing navigation badge tests**
 
 Provide searches for two profiles. Assert mobile and desktop navigation show
 only the selected profile's summed unread count, update after `markRead`, and
 hide the badge at zero.
 
-- [ ] **Step 3: Run both widget tests and verify they fail**
+- [x] **Step 3: Run both widget tests and verify they fail**
 
 Run:
 
@@ -1016,7 +1016,7 @@ fvm flutter test test/core/search/subscriptions/pinned_search_navigation_test.da
 
 Expected: FAIL because the page and route are absent.
 
-- [ ] **Step 4: Implement routes and flat page**
+- [x] **Step 4: Implement routes and flat page**
 
 Register a `pinnedSearchRoutes` child of `Routes.home` at
 `/pinned-searches`. `goToPinnedSearchesPage(ref)` pushes that route.
@@ -1039,7 +1039,7 @@ goToSearchPage(
 If mark-read fails, keep the user on the page and show a localized error rather
 than opening with a badge that was not cleared.
 
-- [ ] **Step 5: Implement cards and cached previews**
+- [x] **Step 5: Implement cards and cached previews**
 
 Use up to four square `BooruImage` children with the owning profile's auth
 context and existing loading/error fallback. Do not fetch posts from the card
@@ -1047,7 +1047,7 @@ or page. Add overflow actions for refresh, rename, move up/down, and delete;
 boundary move actions remain visible but disabled. Deletion is immediate after
 the existing destructive confirmation pattern.
 
-- [ ] **Step 6: Add mobile and desktop navigation badges**
+- [x] **Step 6: Add mobile and desktop navigation badges**
 
 Add a Pinned Searches tile beside other search/bookmark navigation. Extend
 `HomeNavigationTile` with optional `badgeCount` and wrap both selected and
@@ -1059,7 +1059,7 @@ into `coreDesktopTabBuilder`, shifting the following `_v(...)` values together
 so page and tile indices remain aligned. Add a focused test protecting that
 mapping.
 
-- [ ] **Step 7: Add i18n copy and generate**
+- [x] **Step 7: Add i18n copy and generate**
 
 Add keys for Pinned Searches navigation/title, empty state, Refresh, Refresh
 All, refreshing progress, unread count, last checked, never checked, rename,
@@ -1071,7 +1071,7 @@ Then run:
 fvm dart format lib/core/search/subscriptions lib/core/routers/routes.dart lib/core/home test/core/search/subscriptions
 ```
 
-- [ ] **Step 8: Run page and navigation tests**
+- [x] **Step 8: Run page and navigation tests**
 
 Run:
 
@@ -1082,7 +1082,7 @@ fvm flutter test test/core/search/subscriptions/pinned_search_navigation_test.da
 
 Expected: PASS.
 
-- [ ] **Step 9: Commit browsing UI**
+- [x] **Step 9: Commit browsing UI**
 
 ```bash
 git add lib/core/search/subscriptions lib/core/routers/routes.dart lib/core/home packages/i18n test/core/search/subscriptions

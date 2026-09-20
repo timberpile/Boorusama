@@ -30,6 +30,7 @@ class SearchSubscriptionsState extends Equatable {
     required Set<String> refreshingIds,
     required this.batchCompleted,
     required this.batchTotal,
+    this.batchProfileId,
   }) : subscriptions = List.unmodifiable(subscriptions),
        refreshingIds = Set.unmodifiable(refreshingIds);
 
@@ -37,6 +38,7 @@ class SearchSubscriptionsState extends Equatable {
   final Set<String> refreshingIds;
   final int batchCompleted;
   final int batchTotal;
+  final int? batchProfileId;
 
   @override
   List<Object?> get props => [
@@ -44,6 +46,7 @@ class SearchSubscriptionsState extends Equatable {
     refreshingIds,
     batchCompleted,
     batchTotal,
+    batchProfileId,
   ];
 }
 
@@ -58,6 +61,7 @@ class SearchSubscriptionsNotifier
   Future<void> _batchTail = Future.value();
   var _batchCompleted = 0;
   var _batchTotal = 0;
+  int? _batchProfileId;
   var _disposed = false;
 
   @override
@@ -178,6 +182,7 @@ class SearchSubscriptionsNotifier
           ..sort(compareSearchRefreshPriority);
     _batchCompleted = 0;
     _batchTotal = subscriptions.length;
+    _batchProfileId = profileId;
     _publishActivity();
     final outcomes = List<SearchRefreshOutcome>.filled(
       subscriptions.length,
@@ -245,6 +250,7 @@ class SearchSubscriptionsNotifier
         refreshingIds: _inFlight.keys.toSet(),
         batchCompleted: _batchCompleted,
         batchTotal: _batchTotal,
+        batchProfileId: _batchProfileId,
       );
 }
 
