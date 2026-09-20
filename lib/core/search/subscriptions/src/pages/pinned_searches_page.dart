@@ -21,6 +21,7 @@ import '../widgets/search_refresh_settings_dialog.dart';
 import '../widgets/pin_search_dialog.dart';
 import '../widgets/pinned_search_card.dart';
 import 'following_feeds_page.dart';
+import 'search_folder_management_page.dart';
 
 class PinnedSearchesPage extends ConsumerStatefulWidget {
   const PinnedSearchesPage({this.folderId, this.profileId, super.key});
@@ -74,7 +75,15 @@ class _PinnedSearchesPageState extends ConsumerState<PinnedSearchesPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(folder?.name ?? strings.title),
+        title: Text(
+          widget.profileId == null
+              ? activity?.organization.folders
+                        .where((f) => f.id == widget.folderId)
+                        .firstOrNull
+                        ?.name ??
+                    strings.title
+              : folder?.name ?? strings.title,
+        ),
         actions: [
           if (widget.folderId == null)
             IconButton(
@@ -92,25 +101,38 @@ class _PinnedSearchesPageState extends ConsumerState<PinnedSearchesPage> {
               icon: const Icon(Symbols.settings),
               onPressed: () => showSearchRefreshSettingsDialog(context),
             ),
-          if (widget.folderId == null && supported)
+          if (widget.folderId == null)
             IconButton(
-              tooltip: strings.create_folder,
-              icon: const Icon(Symbols.create_new_folder),
-              onPressed: () async {
-                final name = await showSearchFolderNameDialog(context);
-                if (name != null && mounted) {
-                  await _runAction(
-                    () => ref
-                        .read(searchSubscriptionsProvider.notifier)
-                        .createFolder(config.id, name),
-                  );
-                }
-              },
+              tooltip: strings.manage_folders,
+              icon: const Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Icon(Symbols.folder),
+                  Positioned(
+                    right: -4,
+                    bottom: -4,
+                    child: Icon(Symbols.build, size: 14),
+                  ),
+                ],
+              ),
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const SearchFolderManagementPage(),
+                ),
+              ),
             ),
           IconButton(
-            tooltip: strings.refresh_all,
+            tooltip: widget.folderId == null
+                ? strings.refresh_all
+                : strings.refresh_folder,
             icon: const Icon(Symbols.refresh),
-            onPressed: isRoot
+            onPressed: widget.profileId == null && widget.folderId != null
+                ? () => _runAction(
+                    () => ref
+                        .read(searchSubscriptionsProvider.notifier)
+                        .refreshSharedFolder(widget.folderId!),
+                  )
+                : isRoot
                 ? (_refreshingAllProfiles ||
                           (activity?.batchCompleted ?? 0) <
                               (activity?.batchTotal ?? 0) ||
@@ -145,7 +167,7 @@ class _PinnedSearchesPageState extends ConsumerState<PinnedSearchesPage> {
           ),
         ],
       ),
-      body: widget.profileId == null && widget.folderId == null
+      body: widget.profileId == null
           ? _allProfilesBody(activeConfig)
           : !supported
           ? Center(child: Text(strings.profile_unsupported))
@@ -322,8 +344,12 @@ class _PinnedSearchesPageState extends ConsumerState<PinnedSearchesPage> {
   Widget _allProfilesBody(BooruConfig activeConfig) {
     final strings = context.t.pinned_searches;
     final profiles = ref.watch(booruConfigProvider);
+    final activity = ref.watch(searchSubscriptionsProvider).valueOrNull;
+    final folders = widget.folderId == null
+        ? activity?.organization.folders ?? []
+        : [];
     return ref
-        .watch(searchSubscriptionsProvider)
+        .watch(organizedPinnedSearchesProvider(widget.folderId))
         .when(
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (_, _) => Center(
@@ -341,137 +367,87 @@ class _PinnedSearchesPageState extends ConsumerState<PinnedSearchesPage> {
               ],
             ),
           ),
-          data: (activity) => ListView(
-            children: [
-              for (final config in profiles)
-                Builder(
-                  builder: (context) {
-                    final supported = ref.watch(
-                      pinnedSearchTrackingSupportedProvider(config.auth),
-                    );
-                    final folders =
-                        activity.folders
-                            .where((f) => f.profileId == config.id)
-                            .toList()
-                          ..sort((a, b) => a.position.compareTo(b.position));
-                    final items =
-                        ref
-                            .watch(
-                              folderPinnedSearchesProvider((
-                                profileId: config.id,
-                                folderId: null,
-                              )),
-                            )
-                            .valueOrNull ??
-                        [];
-                    final hasNew = activity.subscriptions.any(
-                      (s) =>
-                          s.profileId == config.id &&
-                          s.feedId == null &&
-                          s.hasNewPosts,
-                    );
-                    final running =
-                        activity.batchProfileId == config.id &&
-                        activity.batchCompleted < activity.batchTotal;
-                    return ExpansionTile(
-                      key: PageStorageKey('pinned_profile_${config.id}'),
-                      initiallyExpanded: config.id == activeConfig.id,
-                      leading: Badge(
-                        isLabelVisible: hasNew,
-                        child: const Icon(Symbols.person),
+          data: (items) => items.isEmpty && folders.isEmpty
+              ? Center(child: Text(strings.empty))
+              : ListView(
+                  children: [
+                    if ((activity?.batchCompleted ?? 0) <
+                        (activity?.batchTotal ?? 0))
+                      LinearProgressIndicator(
+                        value: activity!.batchCompleted / activity.batchTotal,
                       ),
-                      title: Text(
-                        config.name.isEmpty ? config.url : config.name,
-                      ),
-                      subtitle: config.name.isEmpty ? null : Text(config.url),
-                      children: [
-                        if (!supported)
-                          Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Text(strings.profile_unsupported),
-                          )
-                        else ...[
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.end,
-                            children: [
-                              IconButton(
-                                tooltip: strings.profile_actions,
-                                icon: const Icon(Symbols.folder_open),
-                                onPressed: () => Navigator.of(context).push(
-                                  MaterialPageRoute<void>(
-                                    builder: (_) => PinnedSearchesPage(
-                                      profileId: config.id,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              IconButton(
-                                tooltip: strings.refresh_profile,
-                                icon: const Icon(Symbols.refresh),
-                                onPressed:
-                                    running ||
-                                        _pendingBatchProfiles.contains(
-                                          config.id,
-                                        ) ||
-                                        !activity.subscriptions.any(
-                                          (s) => s.profileId == config.id,
-                                        )
-                                    ? null
-                                    : () => _refreshAll(config.id),
-                              ),
-                            ],
+                    for (final folder in folders)
+                      ListTile(
+                        leading: Badge(
+                          isLabelVisible: activity!.subscriptions.any(
+                            (s) =>
+                                folder.searchIds.contains(s.id) &&
+                                s.hasNewPosts,
                           ),
-                          if (running)
-                            LinearProgressIndicator(
-                              value:
-                                  activity.batchCompleted / activity.batchTotal,
+                          child: const Icon(Symbols.folder),
+                        ),
+                        title: Text(folder.name),
+                        subtitle: Text(
+                          strings.folder_item_count.replaceAll(
+                            '{count}',
+                            '${folder.searchIds.length}',
+                          ),
+                        ),
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) =>
+                                PinnedSearchesPage(folderId: folder.id),
+                          ),
+                        ),
+                        trailing: IconButton(
+                          tooltip: strings.refresh_folder,
+                          icon: const Icon(Symbols.refresh),
+                          onPressed: () => _runAction(
+                            () => ref
+                                .read(searchSubscriptionsProvider.notifier)
+                                .refreshSharedFolder(folder.id),
+                          ),
+                        ),
+                      ),
+                    for (final (index, subscription) in items.indexed)
+                      Builder(
+                        builder: (context) {
+                          final owner = profiles.singleWhere(
+                            (c) => c.id == subscription.profileId,
+                          );
+                          final caption = owner.name.isEmpty
+                              ? owner.url
+                              : profiles
+                                        .where((c) => c.name == owner.name)
+                                        .length ==
+                                    1
+                              ? owner.name
+                              : '${owner.name} · ${owner.url}';
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            child: PinnedSearchCard(
+                              key: ValueKey(subscription.id),
+                              subscription: subscription,
+                              config: owner.auth,
+                              ownerCaption: caption,
+                              refreshing:
+                                  activity?.refreshingIds.contains(
+                                    subscription.id,
+                                  ) ??
+                                  false,
+                              onOpen: _openingIds.contains(subscription.id)
+                                  ? null
+                                  : () => _open(subscription),
+                              canMoveUp: index > 0,
+                              canMoveDown: index < items.length - 1,
+                              onAction: (action) =>
+                                  _onAction(action, subscription, items),
                             ),
-                          for (final (index, folder) in folders.indexed)
-                            _folderTile(
-                              config,
-                              folder,
-                              index,
-                              folders,
-                              activity,
-                            ),
-                          if (folders.isNotEmpty && items.isNotEmpty)
-                            Padding(
-                              padding: const EdgeInsets.all(12),
-                              child: Text(strings.unfiled),
-                            ),
-                          if (items.isEmpty && folders.isEmpty)
-                            Padding(
-                              padding: const EdgeInsets.all(16),
-                              child: Text(strings.empty),
-                            ),
-                          for (final (index, subscription) in items.indexed)
-                            Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                              ),
-                              child: PinnedSearchCard(
-                                key: ValueKey(subscription.id),
-                                subscription: subscription,
-                                config: config.auth,
-                                refreshing: activity.refreshingIds.contains(
-                                  subscription.id,
-                                ),
-                                onOpen: _openingIds.contains(subscription.id)
-                                    ? null
-                                    : () => _open(subscription),
-                                canMoveUp: index > 0,
-                                canMoveDown: index < items.length - 1,
-                                onAction: (action) =>
-                                    _onAction(action, subscription, items),
-                              ),
-                            ),
-                        ],
-                      ],
-                    );
-                  },
+                          );
+                        },
+                      ),
+                  ],
                 ),
-            ],
-          ),
         );
   }
 
@@ -601,13 +577,22 @@ class _PinnedSearchesPageState extends ConsumerState<PinnedSearchesPage> {
         );
       case PinnedSearchAction.moveUp || PinnedSearchAction.moveDown:
         await _runAction(
-          () => ref
-              .read(searchSubscriptionsProvider.notifier)
-              .moveInGroup(
-                subscription,
-                action == PinnedSearchAction.moveUp ? -1 : 1,
-                group,
-              ),
+          () => widget.profileId == null
+              ? ref
+                    .read(searchSubscriptionsProvider.notifier)
+                    .reorderSharedPins(
+                      widget.folderId,
+                      group.indexOf(subscription),
+                      group.indexOf(subscription) +
+                          (action == PinnedSearchAction.moveUp ? -1 : 1),
+                    )
+              : ref
+                    .read(searchSubscriptionsProvider.notifier)
+                    .moveInGroup(
+                      subscription,
+                      action == PinnedSearchAction.moveUp ? -1 : 1,
+                      group,
+                    ),
         );
       case PinnedSearchAction.moveFolder:
         final folders = ref

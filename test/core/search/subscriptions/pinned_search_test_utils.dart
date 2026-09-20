@@ -103,6 +103,7 @@ class PinnedSearchHarness {
     Clock clock = const Clock(),
     SearchRefreshScheduler? scheduler,
     bool networkAllowed = false,
+    List<BooruConfig>? profiles,
   }) {
     repository = HiveSearchSubscriptionRepository(
       box: box,
@@ -139,7 +140,7 @@ class PinnedSearchHarness {
         ),
         booruConfigProvider.overrideWith(
           () => BooruConfigNotifier(
-            initialConfigs: [testProfile, otherTestProfile],
+            initialConfigs: profiles ?? [testProfile, otherTestProfile],
           ),
         ),
         searchSubscriptionRepositoryProvider.overrideWith(
@@ -277,4 +278,13 @@ class _NoImageCache implements ImageCacheManager {
   Future<void> saveFile(String key, Uint8List bytes) async {}
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+Future<void> drain(WidgetTester tester) async {
+  for (var i = 0; i < 20; i++) {
+    await tester.pump();
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 10)),
+    );
+  }
 }

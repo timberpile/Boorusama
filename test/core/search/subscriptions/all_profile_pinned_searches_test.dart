@@ -4,20 +4,42 @@ import 'package:boorusama/core/search/subscriptions/providers.dart';
 import 'package:boorusama/core/search/subscriptions/src/pages/pinned_searches_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:boorusama/core/configs/config/types.dart';
 import 'pinned_search_test_utils.dart';
 
-Future<void> drain(WidgetTester tester) async {
-  for (var i = 0; i < 20; i++) {
-    await tester.pump();
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 10)),
-    );
-  }
-}
-
 void main() {
+  for (final c in [
+    (name: 'Main', otherName: 'Other', expected: 'Main'),
+    (
+      name: 'Shared',
+      otherName: 'Shared',
+      expected: 'Shared · https://active.example',
+    ),
+  ]) {
+    testWidgets('profile footnotes distinguish ${c.name} from ${c.otherName}', (
+      tester,
+    ) async {
+      final harness = PinnedSearchHarness(
+        profiles: [
+          BooruConfig.fromJson({...testProfile.toJson(), 'name': c.name}),
+          BooruConfig.fromJson({
+            ...otherTestProfile.toJson(),
+            'name': c.otherName,
+          }),
+        ],
+      );
+      addTearDown(harness.dispose);
+      await tester.runAsync(() async {
+        await harness.seed([pinnedFixture()]);
+        await harness.container.read(searchSubscriptionsProvider.future);
+      });
+      await harness.pump(tester, const PinnedSearchesPage());
+      expect(find.text(c.expected), findsOneWidget);
+    });
+  }
+
   testWidgets(
-    'profile groups collapse independently and cached browsing does not switch profiles',
+    'Home shows all owners without profile groups and browsing keeps the active profile',
     (tester) async {
       final harness = PinnedSearchHarness();
       addTearDown(harness.dispose);
@@ -35,30 +57,14 @@ void main() {
       });
       await harness.pump(tester, const PinnedSearchesPage());
       expect(find.text('Cats'), findsOneWidget);
-      expect(find.text('Other search'), findsNothing);
-      await tester.tap(
-        find
-            .descendant(
-              of: find.byKey(const PageStorageKey('pinned_profile_99')),
-              matching: find.byType(ListTile),
-            )
-            .first,
-      );
-      await settle(tester);
       expect(find.text('Other search'), findsOneWidget);
+      expect(find.byType(ExpansionTile), findsNothing);
+      expect(find.text('Unfiled'), findsNothing);
+      expect(find.byTooltip('Manage folders'), findsOneWidget);
+      expect(find.text('https://active.example'), findsOneWidget);
+      expect(find.text('https://other.example'), findsOneWidget);
       expect(harness.container.read(currentBooruConfigProvider).id, 12);
       expect(harness.requests, isEmpty);
-      await tester.tap(
-        find
-            .descendant(
-              of: find.byKey(const PageStorageKey('pinned_profile_12')),
-              matching: find.byType(ListTile),
-            )
-            .first,
-      );
-      await settle(tester);
-      expect(find.text('Cats'), findsNothing);
-      expect(find.text('Other search'), findsOneWidget);
     },
   );
 
@@ -102,15 +108,6 @@ void main() {
             builder: themeBuilder,
           ),
         ),
-      );
-      await settle(tester);
-      await tester.tap(
-        find
-            .descendant(
-              of: find.byKey(const PageStorageKey('pinned_profile_99')),
-              matching: find.byType(ListTile),
-            )
-            .first,
       );
       await settle(tester);
       await tester.tap(find.text('Other search'));

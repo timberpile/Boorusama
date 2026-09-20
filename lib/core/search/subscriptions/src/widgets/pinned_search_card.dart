@@ -28,9 +28,11 @@ class PinnedSearchCard extends StatelessWidget {
     required this.canMoveUp,
     required this.canMoveDown,
     required this.onAction,
+    this.ownerCaption,
     super.key,
   });
 
+  final String? ownerCaption;
   final SearchSubscription subscription;
   final BooruConfigAuth config;
   final bool refreshing;
@@ -128,6 +130,8 @@ class PinnedSearchCard extends StatelessWidget {
                     ],
                   ),
                 ),
+              if (ownerCaption case final caption?)
+                Text(caption, style: Theme.of(context).textTheme.bodySmall),
               if (refreshing) Text(strings.refreshing),
               if (subscription.lastErrorKind case final kind?)
                 Text(

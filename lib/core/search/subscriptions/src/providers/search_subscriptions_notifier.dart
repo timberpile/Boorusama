@@ -279,6 +279,48 @@ class SearchSubscriptionsNotifier
     );
   });
 
+  Future<void> renameSharedFolder(String id, String name) =>
+      _mutate((repository) async {
+        final organization = await repository.getOrganization();
+        organization.folders.singleWhere((folder) => folder.id == id);
+        await repository.replaceOrganization(
+          SearchOrganization(
+            folders: [
+              for (final folder in organization.folders)
+                if (folder.id == id)
+                  SharedSearchFolder(
+                    id: id,
+                    name: name,
+                    searchIds: folder.searchIds,
+                  )
+                else
+                  folder,
+            ],
+            homeSearchIds: organization.homeSearchIds,
+          ),
+        );
+      });
+
+  Future<void> reorderSharedFolders(int oldIndex, int newIndex) =>
+      _mutate((repository) async {
+        final organization = await repository.getOrganization();
+        final folders = organization.folders.toList();
+        if (oldIndex < 0 ||
+            oldIndex >= folders.length ||
+            newIndex < 0 ||
+            newIndex >= folders.length) {
+          return;
+        }
+        final folder = folders.removeAt(oldIndex);
+        folders.insert(newIndex, folder);
+        await repository.replaceOrganization(
+          SearchOrganization(
+            folders: folders,
+            homeSearchIds: organization.homeSearchIds,
+          ),
+        );
+      });
+
   Future<void> deleteSharedFolderAndPins(String folderId) =>
       _mutate((repository) => repository.deleteSharedFolderAndPins(folderId));
 
