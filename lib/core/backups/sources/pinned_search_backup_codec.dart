@@ -13,9 +13,17 @@ class PinnedSearchBackupCodec extends JsonHandler<PinnedSearchBackupData> {
     final folders = <PinnedSearchFolderBackupRecord>[];
     final feeds = <PinnedSearchFeedBackupRecord>[];
     final ids = <String>{};
+    List<String>? homeSearchIds;
     for (final (index, value) in metadata.data.indexed) {
       final row = 'data[$index]';
       final json = _object(value, row);
+      if (json['kind'] == 'organization') {
+        if (homeSearchIds != null) {
+          throw InvalidBackupFormatException('$row organization is repeated');
+        }
+        homeSearchIds = _searchIds(json['homeSearchIds'], '$row.homeSearchIds');
+        continue;
+      }
       final id = switch (json['id']) {
         final String id when Uuid.isValidUUID(fromString: id) =>
           id.toLowerCase(),
@@ -52,35 +60,13 @@ class PinnedSearchBackupCodec extends JsonHandler<PinnedSearchBackupData> {
         continue;
       }
       if (json['kind'] == 'folder') {
-        final membership = switch (json['searchIds']) {
-          final List ids => ids,
-          _ => throw InvalidBackupFormatException('$row.searchIds is invalid'),
-        };
-        final members = <String>[];
-        for (final member in membership) {
-          switch (member) {
-            case final String id when Uuid.isValidUUID(fromString: id):
-              members.add(id.toLowerCase());
-            case _:
-              throw InvalidBackupFormatException('$row.searchIds is invalid');
-          }
-        }
-        final profile = _object(json['profile'], '$row.profile');
+        final members = _searchIds(json['searchIds'], '$row.searchIds');
         folders.add(
           PinnedSearchFolderBackupRecord(
             id: id,
             name: _nonBlankString(json['name'], '$row.name').trim(),
             position: _nonNegativeInt(json['position'], '$row.position'),
             searchIds: List.unmodifiable(members),
-            profile: PinnedSearchProfileReference(
-              id: _nonNegativeInt(profile['id'], '$row.profile.id'),
-              booruType: _nonBlankString(
-                profile['booruType'],
-                '$row.profile.booruType',
-              ),
-              url: _profileUrl(profile['url'], '$row.profile.url'),
-              name: _nonBlankString(profile['name'], '$row.profile.name'),
-            ),
           ),
         );
         continue;
@@ -112,34 +98,29 @@ class PinnedSearchBackupCodec extends JsonHandler<PinnedSearchBackupData> {
         ),
       );
     }
-    final ownership = {
-      for (final record in records)
-        record.id: (
-          record.profile.booruType,
-          normalizePinnedSearchProfileUrl(record.profile.url),
-          record.profile.id,
-        ),
-    };
-    final assigned = <String>{};
+    final independentIds = records.map((record) => record.id).toSet();
+    final folderNames = <String>{};
     for (final folder in folders) {
-      for (final id in folder.searchIds) {
-        if (!assigned.add(id) ||
-            ownership[id] !=
-                (
-                  folder.profile.booruType,
-                  normalizePinnedSearchProfileUrl(folder.profile.url),
-                  folder.profile.id,
-                )) {
-          throw const InvalidBackupFormatException(
-            'Invalid folder search reference',
-          );
-        }
+      if (!folderNames.add(folder.name.toLowerCase())) {
+        throw const InvalidBackupFormatException('Repeated folder name');
+      }
+    }
+    final assigned = <String>{};
+    for (final id in [
+      ...?homeSearchIds,
+      for (final folder in folders) ...folder.searchIds,
+    ]) {
+      if (!assigned.add(id) || !independentIds.contains(id)) {
+        throw const InvalidBackupFormatException(
+          'Invalid organization search reference',
+        );
       }
     }
     return PinnedSearchBackupData(
       records: List.unmodifiable(records),
       folders: List.unmodifiable(folders),
       feeds: List.unmodifiable(feeds),
+      homeSearchIds: List.unmodifiable(homeSearchIds ?? const <String>[]),
     );
   }
 
@@ -166,12 +147,6 @@ class PinnedSearchBackupCodec extends JsonHandler<PinnedSearchBackupData> {
         'name': folder.name,
         'position': folder.position,
         'searchIds': folder.searchIds,
-        'profile': {
-          'id': folder.profile.id,
-          'booruType': folder.profile.booruType,
-          'url': normalizePinnedSearchProfileUrl(folder.profile.url),
-          'name': folder.profile.name,
-        },
       },
     for (final record in data.records)
       {
@@ -186,6 +161,7 @@ class PinnedSearchBackupCodec extends JsonHandler<PinnedSearchBackupData> {
           'name': record.profile.name,
         },
       },
+    {'kind': 'organization', 'homeSearchIds': data.homeSearchIds},
   ];
 }
 
@@ -215,3 +191,15 @@ String _profileUrl(Object? value, String field) {
   }
   throw InvalidBackupFormatException('$field is invalid');
 }
+
+List<String> _searchIds(Object? value, String field) => switch (value) {
+  final List values => [
+    for (final value in values)
+      switch (value) {
+        final String id when Uuid.isValidUUID(fromString: id) =>
+          id.toLowerCase(),
+        _ => throw InvalidBackupFormatException('$field is invalid'),
+      },
+  ],
+  _ => throw InvalidBackupFormatException('$field is invalid'),
+};

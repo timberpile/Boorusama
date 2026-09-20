@@ -6,6 +6,143 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   final codec = PinnedSearchBackupCodec();
 
+  for (final ids in [
+    const [_id, _id],
+    const ['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'],
+  ]) {
+    test('rejects invalid Home membership $ids', () {
+      expect(
+        () => codec.parse(
+          ExportDataPayload.legacy(
+            data: [
+              _row(),
+              {'kind': 'organization', 'homeSearchIds': ids},
+            ],
+          ),
+        ),
+        throwsA(isA<InvalidBackupFormatException>()),
+      );
+    });
+  }
+  test(
+    'preserves explicit Home order without requiring an organization ID',
+    () {
+      final data = codec.parse(
+        ExportDataPayload.legacy(
+          data: [
+            _row(),
+            {
+              'kind': 'organization',
+              'homeSearchIds': [_id],
+            },
+          ],
+        ),
+      );
+      expect(data.homeSearchIds, [_id]);
+      expect(
+        codec.parse(ExportDataPayload.legacy(data: codec.encode(data))),
+        data,
+      );
+    },
+  );
+
+  for (final c in [
+    (
+      name: 'duplicate folder membership',
+      members: [_id, _id],
+      home: <String>[],
+      extra: <Map<String, dynamic>>[],
+    ),
+    (
+      name: 'membership shared with Home',
+      members: [_id],
+      home: [_id],
+      extra: <Map<String, dynamic>>[],
+    ),
+    (
+      name: 'unknown folder member',
+      members: ['cccccccc-cccc-4ccc-8ccc-cccccccccccc'],
+      home: <String>[],
+      extra: <Map<String, dynamic>>[],
+    ),
+    (
+      name: 'feed membership',
+      members: ['cccccccc-cccc-4ccc-8ccc-cccccccccccc'],
+      home: <String>[],
+      extra: [
+        {
+          'kind': 'feed',
+          'id': 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+          'name': 'Feed',
+          'position': 0,
+          'queries': ['cat'],
+          'profile': _profile(),
+        },
+      ],
+    ),
+  ]) {
+    test('rejects ${c.name}', () {
+      expect(
+        () => codec.parse(
+          ExportDataPayload.legacy(
+            data: [
+              _row(),
+              ...c.extra,
+              {
+                'kind': 'folder',
+                'id': 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+                'name': 'Folder',
+                'position': 0,
+                'searchIds': c.members,
+              },
+              {'kind': 'organization', 'homeSearchIds': c.home},
+            ],
+          ),
+        ),
+        throwsA(isA<InvalidBackupFormatException>()),
+      );
+    });
+  }
+  test('rejects multiple Home organization rows', () {
+    expect(
+      () => codec.parse(
+        const ExportDataPayload.legacy(
+          data: [
+            {'kind': 'organization', 'homeSearchIds': <String>[]},
+            {'kind': 'organization', 'homeSearchIds': <String>[]},
+          ],
+        ),
+      ),
+      throwsA(isA<InvalidBackupFormatException>()),
+    );
+  });
+
+  test('rejects duplicate folder names before import', () {
+    expect(
+      () => codec.parse(
+        const ExportDataPayload.legacy(
+          data: [
+            {
+              'kind': 'folder',
+              'id': 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+              'name': 'Animals',
+              'position': 0,
+              'searchIds': <String>[],
+            },
+            {
+              'kind': 'folder',
+              'id': 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+              'name': 'animals',
+              'position': 1,
+              'searchIds': <String>[],
+            },
+          ],
+        ),
+      ),
+      throwsA(isA<InvalidBackupFormatException>()),
+    );
+  });
+
   test('feed definitions round trip without post caches or checkpoints', () {
     final profile = codec
         .parse(ExportDataPayload.legacy(data: [_row()]))
@@ -28,7 +165,7 @@ void main() {
       codec.parse(ExportDataPayload.legacy(data: codec.encode(data))),
       data,
     );
-    expect((codec.encode(data).single as Map).keys, isNot(contains('posts')));
+    expect((codec.encode(data).first as Map).keys, isNot(contains('posts')));
   });
 
   test(
@@ -39,21 +176,36 @@ void main() {
           .records
           .single;
       final data = PinnedSearchBackupData(
-        records: [record],
+        records: [
+          record,
+          codec
+              .parse(
+                ExportDataPayload.legacy(
+                  data: [
+                    {
+                      ..._row(),
+                      'id': 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+                      'profile': {..._profile(), 'id': 99},
+                    },
+                  ],
+                ),
+              )
+              .records
+              .single,
+        ],
+
         folders: [
           PinnedSearchFolderBackupRecord(
             id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
             name: 'Animals',
             position: 0,
-            searchIds: [record.id],
-            profile: record.profile,
+            searchIds: [record.id, 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'],
           ),
-          PinnedSearchFolderBackupRecord(
+          const PinnedSearchFolderBackupRecord(
             id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
             name: 'Empty',
             position: 1,
-            searchIds: const [],
-            profile: record.profile,
+            searchIds: [],
           ),
         ],
       );
@@ -63,7 +215,7 @@ void main() {
       );
       final invalid = codec.encode(data);
       (invalid.first as Map<String, dynamic>)['searchIds'] = [
-        'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+        'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
       ];
       expect(
         () => codec.parse(ExportDataPayload.legacy(data: invalid)),
@@ -115,6 +267,7 @@ void main() {
         ..._row(),
         'profile': {..._profile(), 'url': 'https://example.test/Posts'},
       },
+      {'kind': 'organization', 'homeSearchIds': <String>[]},
     ]);
     expect(codec.parse(ExportDataPayload.legacy(data: encoded)), data);
   });
@@ -131,7 +284,7 @@ void main() {
     expect(data.records.single.id, _id);
     expect(data.records.single.name, isNull);
     expect(data.records.single.query, 'cat  rating:safe');
-    expect(codec.encode(data).single['name'], isNull);
+    expect(codec.encode(data).first['name'], isNull);
   });
 
   test('accepts an omitted optional name', () {
@@ -170,7 +323,7 @@ void main() {
         ),
       );
       expect(data.records.single.profile.url, c.output);
-      expect(codec.encode(data).single['profile']['url'], c.output);
+      expect(codec.encode(data).first['profile']['url'], c.output);
       expect(
         codec.parse(ExportDataPayload.legacy(data: codec.encode(data))),
         data,
@@ -200,7 +353,7 @@ void main() {
         ],
       );
       expect(
-        codec.encode(data).single['profile']['url'],
+        codec.encode(data).first['profile']['url'],
         'https://example.test:8443/Path',
       );
     },

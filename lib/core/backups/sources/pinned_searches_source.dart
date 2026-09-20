@@ -22,7 +22,7 @@ class PinnedSearchesBackupSource
     : super(
         id: 'pinned_searches',
         priority: 100000,
-        version: 3,
+        version: 4,
         appVersion: ref.read(appVersionProvider),
         dataGetter: () async {
           final repository = await ref.read(
@@ -34,7 +34,18 @@ class PinnedSearchesBackupSource
               profile.id: profile,
           };
           final subscriptions = await repository.getAll();
+          final organization = await repository.getOrganization();
+          final exportedIds = subscriptions
+              .where(
+                (pin) =>
+                    pin.feedId == null && profiles.containsKey(pin.profileId),
+              )
+              .map((pin) => pin.id)
+              .toSet();
           return PinnedSearchBackupData(
+            homeSearchIds: organization.homeSearchIds
+                .where(exportedIds.contains)
+                .toList(),
             feeds: [
               for (final feed in await repository.getFeeds())
                 if (profiles[feed.profileId] case final profile?)
@@ -55,20 +66,15 @@ class PinnedSearchesBackupSource
                   ),
             ],
             folders: [
-              for (final folder in await repository.getFolders())
-                if (profiles[folder.profileId] case final profile?)
-                  PinnedSearchFolderBackupRecord(
-                    id: folder.id,
-                    name: folder.name,
-                    position: folder.position,
-                    searchIds: folder.searchIds.toList(),
-                    profile: PinnedSearchProfileReference(
-                      id: profile.id,
-                      booruType: profile.auth.booruType.name,
-                      url: normalizePinnedSearchProfileUrl(profile.url),
-                      name: profile.name,
-                    ),
-                  ),
+              for (final (position, folder) in organization.folders.indexed)
+                PinnedSearchFolderBackupRecord(
+                  id: folder.id,
+                  name: folder.name,
+                  position: position,
+                  searchIds: folder.searchIds
+                      .where(exportedIds.contains)
+                      .toList(),
+                ),
             ],
             records: [
               for (final subscription in subscriptions.where(

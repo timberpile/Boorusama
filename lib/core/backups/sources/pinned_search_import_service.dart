@@ -26,15 +26,51 @@ class PinnedSearchImportResult extends Equatable {
   ];
 }
 
+class PinnedSearchImportPreview extends Equatable {
+  PinnedSearchImportPreview({required Set<String> unmatchedRecordIds})
+    : unmatchedRecordIds = Set.unmodifiable(unmatchedRecordIds);
+
+  final Set<String> unmatchedRecordIds;
+
+  @override
+  List<Object?> get props => [unmatchedRecordIds];
+}
+
+class UnmatchedPinnedSearchProfilesException implements Exception {
+  const UnmatchedPinnedSearchProfilesException(this.recordIds);
+
+  final Set<String> recordIds;
+}
+
 class PinnedSearchImportService {
   const PinnedSearchImportService({required this.repository});
 
   final SearchSubscriptionRepository repository;
 
+  PinnedSearchImportPreview preview(
+    PinnedSearchBackupData data, {
+    required List<BooruConfig> profiles,
+  }) => PinnedSearchImportPreview(
+    unmatchedRecordIds: {
+      for (final record in data.records)
+        if (_resolveProfile(record.profile, profiles) == null) record.id,
+      for (final feed in data.feeds)
+        if (_resolveProfile(feed.profile, profiles) == null) feed.id,
+    },
+  );
+
   Future<PinnedSearchImportResult> apply(
     PinnedSearchBackupData data, {
     required List<BooruConfig> profiles,
+    bool allowMissingProfiles = false,
   }) async {
+    final unmatched = preview(data, profiles: profiles).unmatchedRecordIds;
+    if (unmatched.isNotEmpty && !allowMissingProfiles) {
+      throw UnmatchedPinnedSearchProfilesException(unmatched);
+    }
+    final previousOrganization = await repository.getOrganization();
+    final createdIds = <String>[];
+    final importedByBackupId = <String, String>{};
     final ordered = data.records.indexed.toList()
       ..sort((left, right) {
         final byPosition = left.$2.position.compareTo(right.$2.position);
@@ -52,61 +88,108 @@ class PinnedSearchImportService {
         skipped++;
         continue;
       }
-      if (await repository.getById(record.id) != null ||
-          await repository.findByQuery(profile.id, record.query) != null) {
+      final byId = await repository.getById(record.id);
+      final byQuery = await repository.findByQuery(profile.id, record.query);
+      final saved =
+          byQuery ??
+          switch (byId) {
+            final pin? when pin.profileId == profile.id && pin.feedId == null =>
+              pin,
+            _ => null,
+          };
+      if (saved != null) {
+        importedByBackupId[record.id] = saved.id;
         existing++;
         continue;
       }
-      await repository.create(
+      final created = await repository.create(
         profileId: profile.id,
         query: record.query,
         name: record.name,
-        id: record.id,
+        id: byId == null ? record.id : null,
       );
+      importedByBackupId[record.id] = created.id;
+      createdIds.add(created.id);
       imported++;
     }
-    final folders = (await repository.getFolders()).toList();
-    final orderedFolders = data.folders.toList()
-      ..sort((a, b) => a.position.compareTo(b.position));
-    for (final record in orderedFolders) {
-      final profile = _resolveProfile(record.profile, profiles);
-      if (profile == null) continue;
-      if (folders.any((f) => f.id == record.id && f.profileId != profile.id)) {
-        continue;
-      }
-      final owned = folders.where((f) => f.profileId == profile.id).toList();
-      final existingFolder = owned.firstWhereOrNull(
-        (f) =>
-            f.id == record.id ||
-            f.name.toLowerCase() == record.name.toLowerCase(),
+    if (createdIds.isNotEmpty ||
+        data.folders.isNotEmpty ||
+        data.homeSearchIds.isNotEmpty) {
+      final organization = SearchOrganization(
+        folders: previousOrganization.folders,
+        homeSearchIds: [...previousOrganization.homeSearchIds, ...createdIds],
       );
-      final members = <String>{...existingFolder?.searchIds ?? {}};
-      for (final id in record.searchIds) {
-        final source = data.records.firstWhereOrNull((r) => r.id == id);
-        if (source == null) continue;
-        final search = await repository.findByQuery(profile.id, source.query);
-        if (search != null &&
-            !owned.any(
-              (f) =>
-                  f.id != existingFolder?.id && f.searchIds.contains(search.id),
-            )) {
-          members.add(search.id);
+      final assigned = <String>{};
+      List<String> mappedIds(Iterable<String> ids) => [
+        for (final id in ids)
+          if (importedByBackupId[id] case final savedId?)
+            if (assigned.add(savedId)) savedId,
+      ];
+      final home = mappedIds(data.homeSearchIds);
+      final orderedFolders = data.folders.toList()
+        ..sort((a, b) => a.position.compareTo(b.position));
+      final importedFolders = <SharedSearchFolder>[];
+      final matchedFolderIds = <String>{};
+      for (final record in orderedFolders) {
+        final existingFolder =
+            organization.folders.firstWhereOrNull(
+              (folder) => folder.id == record.id,
+            ) ??
+            organization.folders.firstWhereOrNull(
+              (folder) =>
+                  folder.name.toLowerCase() == record.name.toLowerCase(),
+            );
+        final folderId = existingFolder?.id ?? record.id;
+        matchedFolderIds.add(folderId);
+        final importedIndex = importedFolders.indexWhere(
+          (folder) => folder.id == folderId,
+        );
+        final members = mappedIds(record.searchIds);
+        final folder = SharedSearchFolder(
+          id: folderId,
+          name: existingFolder?.name ?? record.name,
+          searchIds: [
+            if (importedIndex >= 0) ...importedFolders[importedIndex].searchIds,
+            ...members,
+          ],
+        );
+        if (importedIndex >= 0) {
+          importedFolders[importedIndex] = folder;
+        } else {
+          importedFolders.add(folder);
         }
       }
-      final folder =
-          existingFolder?.copyWith(searchIds: members) ??
-          SearchFolder(
-            id: record.id,
-            profileId: profile.id,
-            name: record.name,
-            position: owned.length,
-            searchIds: members,
-          );
-      owned.removeWhere((f) => f.id == folder.id);
-      owned.add(folder);
-      await repository.replaceFolders(profile.id, owned);
-      folders.removeWhere((f) => f.profileId == profile.id);
-      folders.addAll(owned);
+      await repository.replaceOrganization(
+        SearchOrganization(
+          folders: [
+            for (final folder in importedFolders)
+              SharedSearchFolder(
+                id: folder.id,
+                name: folder.name,
+                searchIds: [
+                  ...folder.searchIds,
+                  ...?organization.folders
+                      .firstWhereOrNull((local) => local.id == folder.id)
+                      ?.searchIds
+                      .where((id) => !assigned.contains(id)),
+                ],
+              ),
+            for (final folder in organization.folders)
+              if (!matchedFolderIds.contains(folder.id))
+                SharedSearchFolder(
+                  id: folder.id,
+                  name: folder.name,
+                  searchIds: folder.searchIds.where(
+                    (id) => !assigned.contains(id),
+                  ),
+                ),
+          ],
+          homeSearchIds: [
+            ...home,
+            ...organization.homeSearchIds.where((id) => !assigned.contains(id)),
+          ],
+        ),
+      );
     }
     final feeds = (await repository.getFeeds()).toList();
     for (final record in data.feeds) {
