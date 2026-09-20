@@ -15,6 +15,16 @@ import 'package:boorusama/core/search/subscriptions/src/data/hive/search_subscri
 import 'package:boorusama/core/search/subscriptions/types.dart';
 import 'subscription_test_utils.dart';
 
+class FailingOrganizationBox extends MemoryBox<dynamic> {
+  var failWrites = false;
+
+  @override
+  Future<void> put(dynamic key, dynamic value) async {
+    if (failWrites) throw StateError('organization write failed');
+    await super.put(key, value);
+  }
+}
+
 void main() {
   const boxName = 'pinned_search_subscriptions_test';
   final createdAt = DateTime.utc(2026, 9, 14, 8);
@@ -868,6 +878,154 @@ void main() {
 
       expect(await repository.getById('first'), isNull);
       expect((await repository.getById('second'))?.profileId, 5);
+    },
+  );
+
+  test('removes only deleted profile pins from shared folders', () async {
+    final cat = await repository.create(
+      profileId: 12,
+      query: 'cat',
+      name: null,
+      id: 'cat',
+      createdAt: createdAt,
+    );
+    final dog = await repository.create(
+      profileId: 99,
+      query: 'dog',
+      name: null,
+      id: 'dog',
+      createdAt: createdAt,
+    );
+    final home = await repository.create(
+      profileId: 99,
+      query: 'bird',
+      name: null,
+      id: 'bird',
+      createdAt: createdAt,
+    );
+    await repository.replaceOrganization(
+      SearchOrganization(
+        folders: [
+          SharedSearchFolder(
+            id: 'animals',
+            name: 'Animals',
+            searchIds: [cat.id, dog.id],
+          ),
+        ],
+        homeSearchIds: [home.id],
+      ),
+    );
+
+    await repository.deleteForProfile(12);
+
+    expect(
+      await repository.getOrganization(),
+      SearchOrganization(
+        folders: [
+          SharedSearchFolder(
+            id: 'animals',
+            name: 'Animals',
+            searchIds: [dog.id],
+          ),
+        ],
+        homeSearchIds: [home.id],
+      ),
+    );
+  });
+
+  test(
+    'deleting a shared folder unpins its members and keeps Home pins',
+    () async {
+      final cat = await repository.create(
+        profileId: 12,
+        query: 'cat',
+        name: null,
+        id: 'cat',
+        createdAt: createdAt,
+      );
+      final dog = await repository.create(
+        profileId: 99,
+        query: 'dog',
+        name: null,
+        id: 'dog',
+        createdAt: createdAt,
+      );
+      final home = await repository.create(
+        profileId: 99,
+        query: 'bird',
+        name: null,
+        id: 'bird',
+        createdAt: createdAt,
+      );
+      await repository.replaceOrganization(
+        SearchOrganization(
+          folders: [
+            SharedSearchFolder(
+              id: 'animals',
+              name: 'Animals',
+              searchIds: [cat.id, dog.id],
+            ),
+          ],
+          homeSearchIds: [home.id],
+        ),
+      );
+
+      await repository.deleteSharedFolderAndPins('animals');
+
+      expect((await repository.getAll()).map((search) => search.id), [home.id]);
+      expect(
+        await repository.getOrganization(),
+        SearchOrganization(folders: const [], homeSearchIds: [home.id]),
+      );
+    },
+  );
+
+  test(
+    'restores shared-folder members after organization storage fails',
+    () async {
+      final subscriptions = MemorySubscriptionBox();
+      final organization = FailingOrganizationBox();
+      final failingRepository = HiveSearchSubscriptionRepository(
+        box: subscriptions,
+        organizationBox: organization,
+      );
+      final cat = await failingRepository.create(
+        profileId: 12,
+        query: 'cat',
+        name: null,
+        id: 'cat',
+        createdAt: createdAt,
+      );
+      final dog = await failingRepository.create(
+        profileId: 99,
+        query: 'dog',
+        name: null,
+        id: 'dog',
+        createdAt: createdAt,
+      );
+      final original = SearchOrganization(
+        folders: [
+          SharedSearchFolder(
+            id: 'animals',
+            name: 'Animals',
+            searchIds: [cat.id, dog.id],
+          ),
+        ],
+        homeSearchIds: const [],
+      );
+      await failingRepository.replaceOrganization(original);
+      organization.failWrites = true;
+
+      await expectLater(
+        failingRepository.deleteSharedFolderAndPins('animals'),
+        throwsStateError,
+      );
+
+      expect(
+        (await failingRepository.getAll()).map((search) => search.id),
+        [cat.id, dog.id],
+      );
+      expect(await failingRepository.getOrganization(), original);
     },
   );
 

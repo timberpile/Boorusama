@@ -123,14 +123,21 @@ class MockCallback extends Mock {
 
 class RecordingSearchSubscriptionRepository
     implements SearchSubscriptionRepository {
-  RecordingSearchSubscriptionRepository(List<SearchSubscription> subscriptions)
-    : _subscriptions = subscriptions.toList();
+  RecordingSearchSubscriptionRepository(
+    List<SearchSubscription> subscriptions, {
+    SearchOrganization? organization,
+  }) : _subscriptions = subscriptions.toList(),
+       organization =
+           organization ??
+           SearchOrganization(folders: const [], homeSearchIds: const []);
 
   final List<SearchSubscription> _subscriptions;
   final deletedProfileIds = <int>[];
   final restoredProfileIds = <int>[];
   List<SearchSubscription>? restoredSubscriptions;
   Error? deleteFailure;
+  SearchOrganization organization;
+  SearchOrganization? restoredOrganization;
 
   List<SearchSubscription> get remaining => _subscriptions.toList();
 
@@ -155,13 +162,54 @@ class RecordingSearchSubscriptionRepository
   ) async {}
 
   @override
+  Future<SearchOrganization> getOrganization() async => organization;
+
+  @override
+  Future<void> replaceOrganization(SearchOrganization value) async {
+    organization = value;
+    restoredOrganization = value;
+  }
+
+  @override
+  Future<void> deleteSharedFolderAndPins(String folderId) async {
+    final folder = organization.folders
+        .where((folder) => folder.id == folderId)
+        .firstOrNull;
+    if (folder == null) return;
+    _subscriptions.removeWhere(
+      (search) => folder.searchIds.contains(search.id),
+    );
+    organization = SearchOrganization(
+      folders: organization.folders.where((folder) => folder.id != folderId),
+      homeSearchIds: organization.homeSearchIds,
+    );
+  }
+
+  @override
   Future<void> deleteForProfile(int profileId) async {
     deletedProfileIds.add(profileId);
     if (deleteFailure case final error?) {
       throw error;
     }
+    final removedIds = _subscriptions
+        .where((subscription) => subscription.profileId == profileId)
+        .map((subscription) => subscription.id)
+        .toSet();
     _subscriptions.removeWhere(
       (subscription) => subscription.profileId == profileId,
+    );
+    organization = SearchOrganization(
+      folders: [
+        for (final folder in organization.folders)
+          SharedSearchFolder(
+            id: folder.id,
+            name: folder.name,
+            searchIds: folder.searchIds.where((id) => !removedIds.contains(id)),
+          ),
+      ],
+      homeSearchIds: organization.homeSearchIds.where(
+        (id) => !removedIds.contains(id),
+      ),
     );
   }
 
@@ -726,10 +774,20 @@ void main() {
             subscriptionFor('second', 1, position: 1),
           ];
           final unaffectedSearch = subscriptionFor('other', 2);
+          final organization = SearchOrganization(
+            folders: [
+              SharedSearchFolder(
+                id: 'mixed',
+                name: 'Mixed',
+                searchIds: [pinnedSearches.first.id, unaffectedSearch.id],
+              ),
+            ],
+            homeSearchIds: [pinnedSearches.last.id],
+          );
           final searchRepository = RecordingSearchSubscriptionRepository([
             ...pinnedSearches,
             unaffectedSearch,
-          ]);
+          ], organization: organization);
           final configRepository = InMemoryBooruConfigRepository(
             removeFailure: StateError('profile deletion failed'),
           );
@@ -764,6 +822,7 @@ void main() {
           expect(searchRepository.deletedProfileIds, [1]);
           expect(searchRepository.restoredProfileIds, [1]);
           expect(searchRepository.restoredSubscriptions, pinnedSearches);
+          expect(searchRepository.restoredOrganization, organization);
           expect(
             searchRepository.remaining,
             unorderedEquals([...pinnedSearches, unaffectedSearch]),

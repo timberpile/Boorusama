@@ -20,6 +20,7 @@ abstract interface class SearchSubscriptionRepository {
   Future<void> replaceFolders(int profileId, List<SearchFolder> folders);
   Future<SearchOrganization> getOrganization();
   Future<void> replaceOrganization(SearchOrganization organization);
+  Future<void> deleteSharedFolderAndPins(String folderId);
   Future<SearchSubscription?> getById(String id);
   Future<SearchSubscription?> findByQuery(int profileId, String query);
   Future<SearchSubscription> create({

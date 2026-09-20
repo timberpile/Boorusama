@@ -32,8 +32,10 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
   Future<void> _mutationTail = Future.value();
 
   List<SearchFollowingFeed> _feeds() => [
-    for (final value in _organizationBox?.values ?? const [])
-      if (value case final Map json) SearchFollowingFeed.fromJson(json),
+    for (final key in _organizationBox?.keys ?? const [])
+      if (key case final String key when key.startsWith('feed:'))
+        if (_organizationBox?.get(key) case final Map json)
+          SearchFollowingFeed.fromJson(json),
   ];
 
   @override
@@ -223,6 +225,37 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
         );
         await storage.put('search:organization', organization.toJson());
       });
+
+  @override
+  Future<void> deleteSharedFolderAndPins(String folderId) => _serialize(
+    () async {
+      final storage = _organizationBox;
+      if (storage == null) throw StateError('Organization storage unavailable');
+      final previousOrganization = _organization();
+      final folder = previousOrganization.folders
+          .where((folder) => folder.id == folderId)
+          .firstOrNull;
+      if (folder == null) return;
+      final previousPins = {
+        for (final id in folder.searchIds)
+          if (_box.get(id) case final pin?) id: pin,
+      };
+      final nextOrganization = SearchOrganization(
+        folders: previousOrganization.folders.where(
+          (item) => item.id != folderId,
+        ),
+        homeSearchIds: previousOrganization.homeSearchIds,
+      );
+      try {
+        await _box.deleteAll(previousPins.keys);
+        await storage.put('search:organization', nextOrganization.toJson());
+      } catch (_) {
+        await _box.putAll(previousPins);
+        await storage.put('search:organization', previousOrganization.toJson());
+        rethrow;
+      }
+    },
+  );
 
   @override
   Future<List<SearchSubscription>> getAll() {
@@ -502,25 +535,40 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
       if (current == null) {
         return;
       }
+      final previousOrganization = _organization();
+      final nextOrganization = _removeOrganizationMemberships(
+        previousOrganization,
+        {current.id},
+      );
       final rows = _organizationBox?.get(current.profileId);
-      if (rows case final List values) {
-        final folders = [
-          for (final row in values)
-            if (row case final Map json) SearchFolder.fromJson(json),
-        ];
-        await _organizationBox?.put(current.profileId, [
-          for (final folder in folders)
-            folder
-                .copyWith(
-                  searchIds: folder.searchIds.where((id) => id != current.id),
-                )
-                .toJson(),
-        ]);
-      }
       try {
+        if (rows case final List values) {
+          final folders = [
+            for (final row in values)
+              if (row case final Map json) SearchFolder.fromJson(json),
+          ];
+          await _organizationBox?.put(current.profileId, [
+            for (final folder in folders)
+              folder
+                  .copyWith(
+                    searchIds: folder.searchIds.where(
+                      (id) => id != current.id,
+                    ),
+                  )
+                  .toJson(),
+          ]);
+        }
+        await _organizationBox?.put(
+          'search:organization',
+          nextOrganization.toJson(),
+        );
         await _box.delete(current.id);
       } catch (_) {
         if (rows != null) await _organizationBox?.put(current.profileId, rows);
+        await _organizationBox?.put(
+          'search:organization',
+          previousOrganization.toJson(),
+        );
         rethrow;
       }
       await _writeContiguousPositions(current.profileId);
@@ -534,17 +582,35 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
           .where((object) => object.profileId == profileId)
           .map((object) => object.id)
           .toList();
+      final previousPins = {
+        for (final id in keys)
+          if (_box.get(id) case final pin?) id: pin,
+      };
+      final previousOrganization = _organization();
+      final nextOrganization = _removeOrganizationMemberships(
+        previousOrganization,
+        keys.toSet(),
+      );
       final previous = _organizationBox?.get(profileId);
       final feeds = _feeds().where((f) => f.profileId == profileId).toList();
-      await _organizationBox?.deleteAll(feeds.map((f) => 'feed:${f.id}'));
-      await _organizationBox?.delete(profileId);
       try {
+        await _organizationBox?.deleteAll(feeds.map((f) => 'feed:${f.id}'));
+        await _organizationBox?.delete(profileId);
+        await _organizationBox?.put(
+          'search:organization',
+          nextOrganization.toJson(),
+        );
         await _box.deleteAll(keys);
       } catch (_) {
+        await _box.putAll(previousPins);
         if (previous != null) await _organizationBox?.put(profileId, previous);
         await _organizationBox?.putAll({
           for (final f in feeds) 'feed:${f.id}': f.toJson(),
         });
+        await _organizationBox?.put(
+          'search:organization',
+          previousOrganization.toJson(),
+        );
         rethrow;
       }
     });
@@ -635,6 +701,21 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
       homeSearchIds: [...homeSearchIds, ...unlisted.map((search) => search.id)],
     );
   }
+
+  SearchOrganization _removeOrganizationMemberships(
+    SearchOrganization organization,
+    Set<String> ids,
+  ) => SearchOrganization(
+    folders: [
+      for (final folder in organization.folders)
+        SharedSearchFolder(
+          id: folder.id,
+          name: folder.name,
+          searchIds: folder.searchIds.where((id) => !ids.contains(id)),
+        ),
+    ],
+    homeSearchIds: organization.homeSearchIds.where((id) => !ids.contains(id)),
+  );
 
   void _validateOrganizationMemberships(
     Iterable<String> ids,
