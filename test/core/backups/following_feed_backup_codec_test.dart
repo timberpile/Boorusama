@@ -91,7 +91,7 @@ ExportDataPayload _payload({
   exportDate: null,
   exportVersion: null,
   data: data,
-  extraFields: {if (source != null) 'source': source},
+  extraFields: {'source': ?source},
 );
 
 Map<String, dynamic> _feedRow({List<dynamic> queries = const ['cat', 'dog']}) =>

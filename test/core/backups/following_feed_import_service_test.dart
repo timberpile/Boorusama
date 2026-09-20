@@ -134,7 +134,7 @@ void main() {
       }
       await FollowingFeedImportService(repository: repository).apply(
         _data([
-          _record(2, position: 0),
+          _record(2),
           _record(3, position: 1),
           _record(4, position: 1),
         ]),
@@ -208,7 +208,7 @@ void main() {
 }
 
 class _FailingSubscriptionBox extends MemorySubscriptionBox {
-  bool failNextPutAll = false;
+  var failNextPutAll = false;
 
   @override
   Future<void> putAll(
@@ -223,7 +223,7 @@ class _FailingSubscriptionBox extends MemorySubscriptionBox {
 }
 
 class _FailingOrganizationBox extends MemoryBox<dynamic> {
-  bool failNextPutAll = false;
+  var failNextPutAll = false;
 
   @override
   Future<void> putAll(Map<dynamic, dynamic> entries) async {

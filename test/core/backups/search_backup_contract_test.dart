@@ -95,7 +95,7 @@ ExportDataPayload _payload({String? source, int version = 1}) =>
       exportDate: null,
       exportVersion: null,
       data: const [],
-      extraFields: {if (source != null) 'source': source},
+      extraFields: {'source': ?source},
     );
 
 BooruConfig _profile(int id, {BooruType type = BooruType.danbooru}) =>

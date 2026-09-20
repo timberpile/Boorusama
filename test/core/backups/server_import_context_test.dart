@@ -200,6 +200,150 @@ void main() {
     expect(receivedContext, same(pageContext));
     expect(receivedContext?.mounted, isTrue);
   });
+
+  testWidgets('device import continues a feed after a pinned search fails', (
+    tester,
+  ) async {
+    var feedWrites = 0;
+    final pin = _TestBackupSource(
+      id: 'pinned_searches',
+      priority: 100000,
+      onPrepareImport: (_) => ImportPreparation(
+        versionCheck: _preparation.versionCheck,
+        executeImport: () async => throw StateError('bad pin import'),
+      ),
+    );
+    final feed = _TestBackupSource(
+      id: 'following_feeds',
+      priority: 100001,
+      onPrepareImport: (_) => ImportPreparation(
+        versionCheck: _preparation.versionCheck,
+        executeImport: () async => feedWrites++,
+      ),
+    );
+    final container = _containerFor([pin, feed]);
+    addTearDown(container.dispose);
+    final listener = container.listen(
+      importDataProvider('https://example.com'),
+      (_, _) {},
+    );
+    addTearDown(listener.close);
+    final context = await _context(tester, container);
+
+    await container
+        .read(importDataProvider('https://example.com').notifier)
+        .startImport(context);
+
+    final tasks = container
+        .read(importDataProvider('https://example.com'))
+        .tasks;
+    expect(
+      tasks.singleWhere((task) => task.id == 'pinned_searches').importStatus,
+      isA<ImportError>(),
+    );
+    expect(
+      tasks.singleWhere((task) => task.id == 'following_feeds').importStatus,
+      isA<ImportDone>(),
+    );
+    expect(feedWrites, 1);
+  });
+
+  testWidgets(
+    'failed profile preparation blocks both dependent device sources only',
+    (tester) async {
+      var otherWrites = 0;
+      final profiles = _TestBackupSource(
+        id: 'profiles',
+        priority: -1,
+        onPrepareImport: (_) => throw StateError('bad profiles'),
+      );
+      final pin = _TestBackupSource(
+        id: 'pinned_searches',
+        priority: 100000,
+        onPrepareImport: (_) => _preparation,
+      );
+      final feed = _TestBackupSource(
+        id: 'following_feeds',
+        priority: 100001,
+        onPrepareImport: (_) => _preparation,
+      );
+      final other = _TestBackupSource(
+        id: 'other',
+        priority: 100002,
+        onPrepareImport: (_) => ImportPreparation(
+          versionCheck: _preparation.versionCheck,
+          executeImport: () async => otherWrites++,
+        ),
+      );
+      final container = _containerFor([profiles, pin, feed, other]);
+      addTearDown(container.dispose);
+      final listener = container.listen(
+        importDataProvider('https://example.com'),
+        (_, _) {},
+      );
+      addTearDown(listener.close);
+      final context = await _context(tester, container);
+
+      await container
+          .read(importDataProvider('https://example.com').notifier)
+          .startImport(context);
+
+      final tasks = container
+          .read(importDataProvider('https://example.com'))
+          .tasks;
+      for (final id in ['profiles', 'pinned_searches', 'following_feeds']) {
+        expect(
+          tasks.singleWhere((task) => task.id == id).importStatus,
+          isA<ImportError>(),
+        );
+      }
+      expect(
+        tasks.singleWhere((task) => task.id == 'other').importStatus,
+        isA<ImportDone>(),
+      );
+      expect(otherWrites, 1);
+    },
+  );
+}
+
+ProviderContainer _containerFor(List<_TestBackupSource> sources) {
+  final registry = BackupRegistry();
+  sources.forEach(registry.register);
+  return ProviderContainer(
+    overrides: [
+      backupRegistryProvider.overrideWithValue(registry),
+      exportCategoriesProvider.overrideWithValue([
+        for (final source in sources)
+          ExportCategory(
+            name: source.id,
+            displayName: source.displayName,
+            route: source.id,
+            handler: source.capabilities.server.export,
+          ),
+      ]),
+    ],
+  );
+}
+
+Future<BuildContext> _context(
+  WidgetTester tester,
+  ProviderContainer container,
+) async {
+  late BuildContext context;
+  await tester.pumpWidget(
+    UncontrolledProviderScope(
+      container: container,
+      child: MaterialApp(
+        home: Builder(
+          builder: (value) {
+            context = value;
+            return const SizedBox();
+          },
+        ),
+      ),
+    ),
+  );
+  return context;
 }
 
 const _preparation = ImportPreparation(

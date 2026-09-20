@@ -617,19 +617,25 @@ class BulkBackupService {
 
       final pinnedSource = registry.getSource('pinned_searches');
       final feedSource = registry.getSource('following_feeds');
-      final approvals = await preflightSearchBackups(
-        prepared: prepared,
-        selectedIds: (onlySourceIds ?? sourcesToProcess).toSet(),
-        pinnedSource: pinnedSource is PinnedSearchesBackupSource
-            ? pinnedSource
-            : null,
-        feedSource: feedSource is FollowingFeedsBackupSource
-            ? feedSource
-            : null,
-        currentProfiles: () => ref.read(booruConfigRepoProvider).getAll(),
-        context: uiContext != null && uiContext.mounted ? uiContext : null,
-      );
-      var profilesFailed = false;
+      final selectedIds = (onlySourceIds ?? sourcesToProcess).toSet();
+      var profilesFailed =
+          selectedIds.contains('profiles') && !prepared.containsKey('profiles');
+      final approvals = profilesFailed
+          ? <String, SearchBackupImportApproval>{}
+          : await preflightSearchBackups(
+              prepared: prepared,
+              selectedIds: selectedIds,
+              pinnedSource: pinnedSource is PinnedSearchesBackupSource
+                  ? pinnedSource
+                  : null,
+              feedSource: feedSource is FollowingFeedsBackupSource
+                  ? feedSource
+                  : null,
+              currentProfiles: () => ref.read(booruConfigRepoProvider).getAll(),
+              context: uiContext != null && uiContext.mounted
+                  ? uiContext
+                  : null,
+            );
       for (final entry in prepared.entries) {
         if (profilesFailed &&
             {'pinned_searches', 'following_feeds'}.contains(entry.key)) {

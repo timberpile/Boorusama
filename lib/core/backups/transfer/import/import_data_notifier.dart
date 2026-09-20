@@ -316,19 +316,23 @@ class ImportDataNotifier
       if (!uiContext.mounted) throw const ImportCancelledException();
       final pinnedSource = registry.getSource('pinned_searches');
       final feedSource = registry.getSource('following_feeds');
-      final approvals = await preflightSearchBackups(
-        prepared: prepared,
-        selectedIds: orderedTasks.map((task) => task.id).toSet(),
-        pinnedSource: pinnedSource is PinnedSearchesBackupSource
-            ? pinnedSource
-            : null,
-        feedSource: feedSource is FollowingFeedsBackupSource
-            ? feedSource
-            : null,
-        currentProfiles: () => ref.read(booruConfigRepoProvider).getAll(),
-        context: uiContext,
-      );
-      var profilesFailed = false;
+      final selectedIds = orderedTasks.map((task) => task.id).toSet();
+      var profilesFailed =
+          selectedIds.contains('profiles') && !prepared.containsKey('profiles');
+      final approvals = profilesFailed
+          ? <String, SearchBackupImportApproval>{}
+          : await preflightSearchBackups(
+              prepared: prepared,
+              selectedIds: selectedIds,
+              pinnedSource: pinnedSource is PinnedSearchesBackupSource
+                  ? pinnedSource
+                  : null,
+              feedSource: feedSource is FollowingFeedsBackupSource
+                  ? feedSource
+                  : null,
+              currentProfiles: () => ref.read(booruConfigRepoProvider).getAll(),
+              context: uiContext,
+            );
       for (final task in orderedTasks) {
         final preparation = prepared[task.id];
         if (preparation == null) continue;

@@ -8,6 +8,8 @@ import 'package:boorusama/core/backups/preparation/version_checking.dart';
 import 'package:boorusama/core/backups/types/backup_data_source.dart';
 import 'package:boorusama/core/backups/sources/booru_configs_source.dart';
 import 'package:boorusama/core/backups/sources/pinned_search_backup_data.dart';
+import 'package:boorusama/core/backups/sources/following_feed_backup_data.dart';
+import 'package:boorusama/core/backups/sources/following_feeds_source.dart';
 import 'package:boorusama/core/backups/sources/search_backup_profile.dart';
 import 'package:boorusama/core/backups/sources/pinned_searches_source.dart';
 import 'package:boorusama/core/backups/sources/providers.dart';
@@ -179,7 +181,8 @@ void main() {
               ],
             );
         if (selectedProfiles) {
-          await expectLater(importing, throwsStateError);
+          final result = await importing;
+          expect(result.failed, containsAll(['profiles', 'pinned_searches']));
           expect(await harness.repository.getAll(), isEmpty);
         } else {
           final result = await importing;
@@ -827,6 +830,196 @@ void main() {
     },
   );
 
+  test('ZIP imports both sources and can select either one alone', () async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+    final directory = Directory.systemTemp.createTempSync('separate-backups-');
+    addTearDown(() => directory.deleteSync(recursive: true));
+    for (final selected in [
+      <String>['profiles', 'pinned_searches', 'following_feeds'],
+      <String>['pinned_searches'],
+      <String>['following_feeds'],
+    ]) {
+      final harness = _Harness();
+      addTearDown(harness.container.dispose);
+      await harness.profiles.addAll([_profile]);
+      final file = _writeBackupZip(
+        directory,
+        harness,
+        includePins: true,
+        includeFeeds: true,
+      );
+      final result = await harness.container
+          .read(bulkBackupServiceProvider)
+          .importFromZip(
+            file.path,
+            null,
+            onlySourceIds: selected,
+          );
+      expect(result.imported, selected);
+      expect(result.failed, isEmpty);
+      expect(
+        (await harness.repository.getAll())
+            .where((s) => s.query == 'cat  rating:safe')
+            .length,
+        selected.contains('pinned_searches') ? 1 : 0,
+      );
+      expect(
+        (await harness.repository.getFeeds()).length,
+        selected.contains('following_feeds') ? 1 : 0,
+      );
+    }
+  });
+
+  test('an invalid pin file does not stop a valid feed file in ZIP', () async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+    final harness = _Harness();
+    addTearDown(harness.container.dispose);
+    await harness.profiles.addAll([_profile]);
+    final directory = Directory.systemTemp.createTempSync('separate-backups-');
+    addTearDown(() => directory.deleteSync(recursive: true));
+    final file = _writeBackupZip(
+      directory,
+      harness,
+      includePins: true,
+      includeFeeds: true,
+      pinContent: jsonEncode({
+        'source': 'pinned_searches',
+        'version': 2,
+        'data': [],
+      }),
+    );
+
+    final result = await harness.container
+        .read(bulkBackupServiceProvider)
+        .importFromZip(file.path, null);
+    expect(result.failed, contains('pinned_searches'));
+    expect(result.imported, contains('following_feeds'));
+    expect((await harness.repository.getFeeds()).single.name, 'Animals');
+  });
+
+  test(
+    'a failed profile preparation blocks pins and feeds but imports an unrelated source',
+    () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
+      final harness = _Harness();
+      addTearDown(harness.container.dispose);
+      var otherWrites = 0;
+      harness.container
+          .read(backupRegistryProvider)
+          .register(_OtherBackupSource(() => otherWrites++));
+      final directory = Directory.systemTemp.createTempSync(
+        'separate-backups-',
+      );
+      addTearDown(() => directory.deleteSync(recursive: true));
+      final file = _writeBackupZip(
+        directory,
+        harness,
+        includePins: true,
+        includeFeeds: true,
+        includeOther: true,
+        profilesContent: '{invalid',
+      );
+
+      final result = await harness.container
+          .read(bulkBackupServiceProvider)
+          .importFromZip(file.path, null);
+      expect(
+        result.failed,
+        containsAll(['profiles', 'pinned_searches', 'following_feeds']),
+      );
+      expect(result.imported, contains('other'));
+      expect(otherWrites, 1);
+      expect(await harness.repository.getAll(), isEmpty);
+      expect(await harness.repository.getFeeds(), isEmpty);
+    },
+  );
+
+  test(
+    'a failed profile write blocks both dependent ZIP sources only',
+    () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
+      final harness = _Harness();
+      addTearDown(harness.container.dispose);
+      var otherWrites = 0;
+      harness.container
+          .read(backupRegistryProvider)
+          .register(
+            _OtherBackupSource(() => otherWrites++),
+          );
+      final directory = Directory.systemTemp.createTempSync(
+        'separate-backups-',
+      );
+      addTearDown(() => directory.deleteSync(recursive: true));
+      final file = _writeBackupZip(
+        directory,
+        harness,
+        includePins: true,
+        includeFeeds: true,
+        includeOther: true,
+      );
+      (harness.profiles.box as _ProfileBox).failNextWrite = true;
+
+      final result = await harness.container
+          .read(bulkBackupServiceProvider)
+          .importFromZip(file.path, null);
+      expect(
+        result.failed,
+        containsAll(['profiles', 'pinned_searches', 'following_feeds']),
+      );
+      expect(result.imported, contains('other'));
+      expect(otherWrites, 1);
+      expect(await harness.repository.getAll(), isEmpty);
+      expect(await harness.repository.getFeeds(), isEmpty);
+    },
+  );
+
+  test(
+    'a feed definition conflict does not stop a valid pin import in ZIP',
+    () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
+      final harness = _Harness();
+      addTearDown(harness.container.dispose);
+      final otherProfile = _replacement(id: 9, url: 'https://other.test');
+      await harness.profiles.addAll([_profile, otherProfile]);
+      final conflictId = _feedData().feeds.single.id;
+      await harness.repository.saveFeed(
+        profileId: 9,
+        name: 'Local',
+        queries: ['bird'],
+        id: conflictId,
+      );
+      final directory = Directory.systemTemp.createTempSync(
+        'separate-backups-',
+      );
+      addTearDown(() => directory.deleteSync(recursive: true));
+      final file = _writeBackupZip(
+        directory,
+        harness,
+        includePins: true,
+        includeFeeds: true,
+        backupProfiles: [_profile, otherProfile],
+      );
+
+      final result = await harness.container
+          .read(bulkBackupServiceProvider)
+          .importFromZip(file.path, null);
+      expect(result.imported, contains('pinned_searches'));
+      expect(result.failed, contains('following_feeds'));
+      expect((await harness.repository.getFeeds()).single.name, 'Local');
+      expect(
+        (await harness.repository.getAll()).any(
+          (s) => s.query == 'cat  rating:safe',
+        ),
+        isTrue,
+      );
+    },
+  );
+
   final zipCases = [
     (
       description: 'ZIP restore restarts only after profiles and pins finish',
@@ -1098,8 +1291,12 @@ File _writeBackupZip(
   Directory directory,
   _Harness harness, {
   required bool includePins,
+  bool includeFeeds = false,
   PinnedSearchBackupData? pinData,
+  FollowingFeedBackupData? feedData,
+  String? pinContent,
   List<BooruConfig>? backupProfiles,
+  String? profilesContent,
   bool includeOther = false,
 }) {
   final source =
@@ -1113,16 +1310,28 @@ File _writeBackupZip(
       'sourceFiles': {
         if (includeOther) 'other': 'other.json',
         if (includePins) 'pinned_searches': 'pins.json',
+        if (includeFeeds) 'following_feeds': 'feeds.json',
         'profiles': 'profiles.json',
       },
     }),
-    'profiles.json': source.converter.encode(
-      payload: (backupProfiles ?? [_profile]).map((p) => p.toJson()).toList(),
-    ),
+    'profiles.json':
+        profilesContent ??
+        source.converter.encode(
+          payload: (backupProfiles ?? [_profile])
+              .map((p) => p.toJson())
+              .toList(),
+        ),
     if (includePins)
-      'pins.json': harness.source.converter.encode(
-        payload: harness.source.handler.encode(pinData ?? _data()),
-        extraFields: const {'source': 'pinned_searches'},
+      'pins.json':
+          pinContent ??
+          harness.source.converter.encode(
+            payload: harness.source.handler.encode(pinData ?? _data()),
+            extraFields: const {'source': 'pinned_searches'},
+          ),
+    if (includeFeeds)
+      'feeds.json': harness.feedSource.converter.encode(
+        payload: harness.feedSource.handler.encode(feedData ?? _feedData()),
+        extraFields: const {'source': 'following_feeds'},
       ),
   };
   final archive = Archive();
@@ -1218,6 +1427,26 @@ PinnedSearchBackupData _data({
   ],
 );
 
+FollowingFeedBackupData _feedData({
+  String id = '550e8400-e29b-41d4-a716-446655440009',
+  int profileId = 4,
+}) => FollowingFeedBackupData(
+  feeds: [
+    FollowingFeedBackupRecord(
+      id: id,
+      name: 'Animals',
+      position: 0,
+      queries: const ['cat', 'dog'],
+      profile: BackupProfileReference(
+        id: profileId,
+        booruType: 'danbooru',
+        url: profileId == 4 ? 'https://example.test' : 'https://other.test',
+        name: 'Example',
+      ),
+    ),
+  ],
+);
+
 SearchSubscription _runtimePin(int profileId) => SearchSubscription(
   id: _id,
   profileId: profileId,
@@ -1280,6 +1509,9 @@ class _Harness {
   PinnedSearchesBackupSource get source =>
       container.read(pinnedSearchesBackupSourceProvider)
           as PinnedSearchesBackupSource;
+  FollowingFeedsBackupSource get feedSource =>
+      container.read(followingFeedsBackupSourceProvider)
+          as FollowingFeedsBackupSource;
 }
 
 class _RepositoryNotifier extends SearchSubscriptionRepositoryNotifier {
