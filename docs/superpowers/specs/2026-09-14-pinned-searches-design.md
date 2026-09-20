@@ -201,12 +201,14 @@ createdAt: timestamp
 lastAttemptAt: timestamp?
 lastSuccessfulCheckAt: timestamp?
 unreadCount: integer
-refreshStatus: idle | refreshing | failed | unsupported
 lastErrorKind: network | authentication | query | pagination | parsing | other?
 ```
 
 Every MVP subscription is user-pinned. Feed ownership and hidden-source fields
 are added by the later feed migration, after their lifecycle is specified.
+The `refreshing` state is transient provider state rather than persisted data;
+after a process restart a search returns to idle while retaining its last
+successful checkpoint and error.
 
 The executable query is preserved. Identity normalization may trim surrounding
 whitespace for duplicate detection, but must not reorder terms, change case,
@@ -214,9 +216,9 @@ or infer semantic equivalence. A profile cannot have two pinned subscriptions
 with the same normalized query. Pinning an existing query edits or opens its
 existing pin instead of creating a duplicate.
 
-Changing the query clears unread and disposable refresh data and establishes a
-new initial baseline. Renaming or reordering a subscription preserves that
-state.
+Queries are immutable in the MVP. A user changes a query by deleting the old
+pin and pinning the desired search. Renaming or reordering a subscription
+preserves its refresh and read state.
 
 ### `SearchPostPreview`
 
@@ -252,9 +254,8 @@ the concrete local database so supported platforms can use their established
 storage backend.
 
 Operations that change multiple records are logically atomic. This includes
-pin creation, mark-read, refresh commit, query reset, reordering, and profile
-deletion. The repository enforces profile ownership rather than trusting
-widgets.
+pin creation, mark-read, refresh commit, reordering, and profile deletion. The
+repository enforces profile ownership rather than trusting widgets.
 
 ### State
 
@@ -283,7 +284,8 @@ Chronological checking is a capability exposed by each booru integration, not
 generic string concatenation in UI or state code. It is responsible for:
 
 - retaining the original search constraints;
-- overriding incompatible order or random operators for checking only;
+- overriding incompatible order or random operators when safe, or reporting
+  the query as unsupported for refresh;
 - expressing an uploaded-after boundary when supported;
 - paginating newest-first until the old boundary is reached;
 - reporting unsupported cases explicitly.
@@ -312,8 +314,8 @@ remain valid.
 - Unsupported chronological tracking is distinct from temporary failure.
 - Profile deletion wins over an in-flight refresh; a late result cannot
   recreate deleted data.
-- Query editing or deletion invalidates in-flight work through subscription
-  revision checking before commit.
+- Deletion invalidates in-flight work because refresh commits recheck
+  subscription existence and the expected checkpoint before writing.
 - Broken cached image URLs use the existing image fallback and never block
   opening or managing a search.
 
@@ -334,7 +336,7 @@ Tests focus on observable behavior and external integration boundaries:
 - Failed and incomplete scans preserve checkpoint, unread count, and previews.
 - Opening resets known unread results without swallowing a refresh committed
   afterward.
-- Query changes reset the baseline; rename and reorder operations preserve it.
+- Queries are immutable; rename and reorder operations preserve refresh state.
 - Navigation badge sums update after refresh, read, and delete.
 - Batch refresh starts never-refreshed searches first and then oldest successful
   refresh first, while continuing past independent failures.
