@@ -45,6 +45,7 @@ void main() {
   }) {
     return SearchRefreshCommit(
       subscriptionId: subscriptionId,
+      expectedCreatedAt: createdAt,
       expectedCheckpoint: expectedCheckpoint,
       startedAt: startedAt,
       identityRetentionBoundary:
@@ -329,6 +330,51 @@ void main() {
     expect((await repository.getById(subscription.id))?.unreadCount, 0);
   });
 
+  final staleIncarnationCases = [
+    (description: 'successful result', fails: false),
+    (description: 'failure', fails: true),
+  ];
+  for (final c in staleIncarnationCases) {
+    test(
+      'rejects an old ${c.description} after recreating the same subscription ID',
+      () async {
+        final original = await repository.create(
+          profileId: 4,
+          query: 'cat',
+          name: null,
+          id: 'reused',
+          createdAt: createdAt,
+        );
+        final pendingCommit = commit(
+          subscriptionId: original.id,
+          expectedCheckpoint: null,
+          startedAt: createdAt.add(const Duration(minutes: 5)),
+          baseline: true,
+          discoveredPosts: [preview(42, createdAt)],
+        );
+        await repository.delete(original.id);
+        final restored = await repository.create(
+          profileId: 4,
+          query: 'cat',
+          name: null,
+          id: original.id,
+          createdAt: createdAt.add(const Duration(hours: 1)),
+        );
+        final result = c.fails
+            ? await repository.recordRefreshFailure(
+                original.id,
+                expectedCreatedAt: original.createdAt,
+                attemptedAt: pendingCommit.startedAt,
+                kind: SearchRefreshErrorKind.network,
+              )
+            : await repository.commitRefresh(pendingCommit);
+
+        expect(result, isNull);
+        expect(await repository.getById(original.id), restored);
+      },
+    );
+  }
+
   test('preserves refresh state when recording a failure', () async {
     final subscription = await repository.create(
       profileId: 4,
@@ -350,6 +396,7 @@ void main() {
 
     final failed = await repository.recordRefreshFailure(
       subscription.id,
+      expectedCreatedAt: subscription.createdAt,
       attemptedAt: DateTime.utc(2026, 9, 14, 10),
       kind: SearchRefreshErrorKind.network,
     );

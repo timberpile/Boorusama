@@ -171,6 +171,7 @@ enum SearchRefreshErrorKind {
 class SearchRefreshCommit extends Equatable {
   const SearchRefreshCommit({
     required this.subscriptionId,
+    required this.expectedCreatedAt,
     required this.expectedCheckpoint,
     required this.startedAt,
     required this.identityRetentionBoundary,
@@ -178,6 +179,7 @@ class SearchRefreshCommit extends Equatable {
     required this.discoveredPosts,
   });
   final String subscriptionId;
+  final DateTime expectedCreatedAt;
   final DateTime? expectedCheckpoint;
   final DateTime startedAt;
   final DateTime identityRetentionBoundary;
@@ -226,6 +228,7 @@ abstract interface class SearchSubscriptionRepository {
   Future<SearchSubscription?> commitRefresh(SearchRefreshCommit commit);
   Future<SearchSubscription?> recordRefreshFailure(
     String id, {
+    required DateTime expectedCreatedAt,
     required DateTime attemptedAt,
     required SearchRefreshErrorKind kind,
   });
@@ -238,10 +241,12 @@ abstract interface class SearchSubscriptionRepository {
 }
 ```
 
-`commitRefresh` must return `null` if the subscription was deleted or its
-checkpoint no longer equals `expectedCheckpoint`. This is the stale-result
-guard used by the service. `identityRetentionBoundary` tells the repository
-which older deduplication identities can be pruned. `restoreForProfile` is
+`commitRefresh` must return `null` if the subscription was deleted, its immutable
+`createdAt` no longer equals `expectedCreatedAt`, or its checkpoint no longer
+equals `expectedCheckpoint`. `recordRefreshFailure` must reject a missing or
+different `createdAt` incarnation too, so an old request cannot write to a
+restored subscription with the same UUID. `identityRetentionBoundary` tells the
+repository which older deduplication identities can be pruned. `restoreForProfile` is
 reserved for compensating a failed profile deletion; it restores exact captured
 aggregates and is not the backup-import API.
 
@@ -353,8 +358,8 @@ Future<T> _serialize<T>(Future<T> Function() operation) {
 ```
 
 For `commitRefresh`, reload the current object inside `_serialize`, verify its
-checkpoint, discard candidate IDs already in its recent identity window, merge
-and sort previews newest-first, keep four previews, and:
+creation timestamp and checkpoint, discard candidate IDs already in its recent
+identity window, merge and sort previews newest-first, keep four previews, and:
 
 ```dart
 final unreadCount = commit.baseline
@@ -667,9 +672,11 @@ typedef SearchRefreshQueryAdapterResolver = SearchRefreshQueryAdapter Function(
 Capture `startedAt = clock.now().toUtc()` before planning/fetching. Pattern
 match on the query plan and scanner result. Convert successful `Post` objects
 to preview/identity values only after explicitly validating `createdAt`. Pass
-the subscription's original checkpoint as `expectedCheckpoint` in the atomic
-commit. Map external `BooruError` categories to the closest
-`SearchRefreshErrorKind`; never expose raw exception text as UI copy.
+the subscription's original checkpoint as `expectedCheckpoint` and immutable
+creation timestamp as `expectedCreatedAt` in the atomic commit. Pass the same
+captured `expectedCreatedAt` when recording failures. Map external `BooruError`
+categories to the closest `SearchRefreshErrorKind`; never expose raw exception
+text as UI copy.
 
 - [x] **Step 4: Write failing notifier tests**
 
@@ -1145,7 +1152,10 @@ Expected: FAIL because the backup codec does not exist.
 
 Use `PinnedSearchBackupData`, `PinnedSearchBackupRecord`, and
 `PinnedSearchProfileReference` Equatable values. Normalize profile URLs by
-lowercasing the host, removing a trailing slash, and retaining scheme/path.
+lowercasing the host, removing all trailing path slashes, and retaining
+scheme/host/port/path. Strip user info, query, and fragment so profile references
+cannot leak embedded credentials. Use this idempotent portable identity for
+export, parsing, mapping, and profile-replacement comparisons.
 JSON parsing must pattern-match nullable/external values and throw
 `InvalidBackupFormatException` with the offending row/field.
 

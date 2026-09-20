@@ -77,10 +77,18 @@ void main() {
 
   final urlCases = [
     (input: 'https://EXAMPLE.test/', output: 'https://example.test'),
+    (input: 'https://EXAMPLE.test////', output: 'https://example.test'),
     (input: 'http://EXAMPLE.test/Path/', output: 'http://example.test/Path'),
+    (input: 'http://EXAMPLE.test/Path////', output: 'http://example.test/Path'),
     (
       input: 'https://EXAMPLE.test/Path/?x=A#B',
-      output: 'https://example.test/Path?x=A#B',
+      output: 'https://example.test/Path',
+    ),
+    (
+      input:
+          'https://private-user:private-password@EXAMPLE.test:8443/Path/'
+          '?unknown-secret=private-token#private-fragment',
+      output: 'https://example.test:8443/Path',
     ),
   ];
   for (final c in urlCases) {
@@ -96,8 +104,41 @@ void main() {
         ),
       );
       expect(data.records.single.profile.url, c.output);
+      expect(codec.encode(data).single['profile']['url'], c.output);
+      expect(
+        codec.parse(ExportDataPayload.legacy(data: codec.encode(data))),
+        data,
+      );
     });
   }
+
+  test(
+    'strips credentials when encoding a directly supplied profile reference',
+    () {
+      const data = PinnedSearchBackupData(
+        records: [
+          PinnedSearchBackupRecord(
+            id: _id,
+            name: null,
+            query: 'cat',
+            position: 0,
+            profile: PinnedSearchProfileReference(
+              id: 4,
+              booruType: 'danbooru',
+              url:
+                  'https://private-user:private-password@EXAMPLE.test:8443/Path/'
+                  '?secret=private-token#private-fragment',
+              name: 'Example',
+            ),
+          ),
+        ],
+      );
+      expect(
+        codec.encode(data).single['profile']['url'],
+        'https://example.test:8443/Path',
+      );
+    },
+  );
 
   final cases = [
     (description: 'null rows', value: null, field: 'data[0]'),

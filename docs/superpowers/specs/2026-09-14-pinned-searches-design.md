@@ -305,6 +305,11 @@ skips searches whose profile was not restored, and establishes a fresh baseline
 only when the user next refreshes them. Legacy backups without Pinned Searches
 remain valid.
 
+Portable profile URLs omit user info, query, and fragment to exclude embedded
+credentials. Their identity retains scheme/host/port/path, lowercases the host,
+and removes all trailing path slashes idempotently. Use the same identity when
+exporting, parsing, mapping restored pins, and comparing replacement profiles.
+
 ## Error handling
 
 - Saving a pin and performing its initial snapshot are separate outcomes. A
@@ -314,8 +319,10 @@ remain valid.
 - Unsupported chronological tracking is distinct from temporary failure.
 - Profile deletion wins over an in-flight refresh; a late result cannot
   recreate deleted data.
-- Deletion invalidates in-flight work because refresh commits recheck
-  subscription existence and the expected checkpoint before writing.
+- Deletion invalidates in-flight work because refresh successes and failures
+  recheck subscription existence and the captured immutable `createdAt` before
+  writing. Successes additionally recheck the expected checkpoint. This prevents
+  old work from contaminating a backup-restored pin that reuses the same UUID.
 - Broken cached image URLs use the existing image fallback and never block
   opening or managing a search.
 

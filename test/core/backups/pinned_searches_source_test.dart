@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -14,10 +15,15 @@ import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/configs/config/src/data/booru_config_repository_hive.dart';
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/configs/manage/providers.dart';
+import 'package:boorusama/core/errors/types.dart';
 import 'package:boorusama/core/posts/post/providers.dart';
+import 'package:boorusama/core/posts/post/types.dart';
 import 'package:boorusama/core/search/subscriptions/providers.dart';
 import 'package:boorusama/core/search/subscriptions/src/data/providers.dart';
 import 'package:boorusama/core/search/subscriptions/src/data/hive/search_subscription_repository_hive.dart';
+import 'package:boorusama/core/search/subscriptions/src/refresh/chronological_search_scanner.dart';
+import 'package:boorusama/core/search/subscriptions/src/refresh/search_refresh_query_adapter.dart';
+import 'package:boorusama/core/search/subscriptions/src/services/search_refresh_service.dart';
 import 'package:boorusama/core/search/subscriptions/types.dart';
 import 'package:boorusama/core/settings/providers.dart';
 import 'package:boorusama/core/settings/types.dart';
@@ -30,6 +36,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:foundation/foundation.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
@@ -135,6 +142,82 @@ void main() {
   );
 
   test(
+    'exports credential-free identity and maps different local credentials',
+    () async {
+      final exporter = _Harness();
+      final importer = _Harness();
+      addTearDown(exporter.container.dispose);
+      addTearDown(importer.container.dispose);
+      await exporter.profiles.addAll([
+        _replacement(
+          url:
+              'https://private-user:private-password@EXAMPLE.test:8443/Posts/'
+              '?api_key=private-token#private-fragment',
+        ),
+      ]);
+      await exporter.repository.restoreForProfile(4, [_runtimePin(4)]);
+      await importer.profiles.addAll([
+        _replacement(
+          id: 8,
+          url:
+              'https://local-user:local-password@example.test:8443/Posts'
+              '?other_key=local-token#local-fragment',
+        ),
+      ]);
+
+      final data = await exporter.source.dataGetter();
+      expect(
+        data.records.single.profile.url,
+        'https://example.test:8443/Posts',
+      );
+      final response = await exporter.source.capabilities.server.export(
+        shelf.Request('GET', Uri.parse('https://device.test/pinned_searches')),
+      );
+      final text = await response.readAsString();
+      expect(text, isNot(contains('private-')));
+      final parsed = importer.source.handler.parse(
+        importer.source.converter.decode(data: text),
+      );
+      final result = await importer.source.resultExecutor!(parsed, null);
+      expect(result?.pinnedSearchCount, 1);
+      expect(result?.skippedProfileCount, 0);
+      expect((await importer.repository.getAll()).single.profileId, 8);
+    },
+  );
+
+  final slashCases = [
+    (description: 'root', url: 'https://EXAMPLE.test////'),
+    (description: 'base path', url: 'https://EXAMPLE.test/Posts////'),
+  ];
+  for (final c in slashCases) {
+    test(
+      'exported pins restore to the same profile with repeated ${c.description} slashes',
+      () async {
+        final harness = _Harness();
+        addTearDown(harness.container.dispose);
+        await harness.profiles.addAll([_replacement(url: c.url)]);
+        await harness.repository.restoreForProfile(4, [_runtimePin(4)]);
+        final response = await harness.source.capabilities.server.export(
+          shelf.Request(
+            'GET',
+            Uri.parse('https://device.test/pinned_searches'),
+          ),
+        );
+        final parsed = harness.source.handler.parse(
+          harness.source.converter.decode(data: await response.readAsString()),
+        );
+        await harness.repository.delete(_id);
+
+        final result = await harness.source.resultExecutor!(parsed, null);
+
+        expect(result?.pinnedSearchCount, 1);
+        expect(result?.skippedProfileCount, 0);
+        expect((await harness.repository.getAll()).single.profileId, 4);
+      },
+    );
+  }
+
+  test(
     'file import exposes counts through the shared result interface',
     () async {
       final harness = _Harness();
@@ -192,6 +275,15 @@ void main() {
       replacement: _replacement(),
       preservesPins: true,
     ),
+    (
+      description: 'preserves pin history when only profile credentials change',
+      replacement: _replacement(
+        url:
+            'https://new-user:new-password@example.test/'
+            '?api_key=new-key#new-fragment',
+      ),
+      preservesPins: true,
+    ),
   ];
   for (final c in replacementCases) {
     test(c.description, () async {
@@ -219,6 +311,114 @@ void main() {
         c.replacement.id,
       ]);
     });
+  }
+
+  final staleRefreshCases = [
+    (description: 'success', fails: false),
+    (description: 'failure', fails: true),
+  ];
+  for (final c in staleRefreshCases) {
+    test(
+      'discards an old refresh ${c.description} after profile replacement restores the same UUID',
+      () async {
+        final harness = _Harness();
+        addTearDown(harness.container.dispose);
+        await harness.profiles.addAll([_profile]);
+        final oldPin = await harness.repository.create(
+          id: _id,
+          profileId: 4,
+          query: 'cat',
+          name: null,
+          createdAt: DateTime.utc(2026),
+        );
+        final fetched = Completer<void>();
+        final release = Completer<void>();
+        var calls = 0;
+        var posts = TestSearchPostRepository((_, _, _) async {
+          calls++;
+          fetched.complete();
+          await release.future;
+          return c.fails
+              ? Either.left(
+                  AppError(
+                    type: AppErrorType.cannotReachServer,
+                    message: 'offline',
+                  ),
+                )
+              : Either.of(
+                  PostResult(
+                    posts: [TestSearchPost(42, DateTime.utc(2026, 9))],
+                    total: 1,
+                  ),
+                );
+        });
+        final refresh = SearchRefreshService(
+          repository: harness.repository,
+          resolvePostRepository: (_) => posts,
+          resolveQueryAdapter: (_) => const DefaultSearchRefreshQueryAdapter(),
+          scanner: ChronologicalSearchScanner(),
+        );
+        final pending = refresh.refresh(oldPin, _profile);
+        await fetched.future;
+        final profilesSource =
+            harness.container.read(booruConfigsBackupSourceProvider)
+                as BooruConfigsBackupSource;
+        final replacement = _replacement(url: 'https://replacement.test');
+        await profilesSource.executor([replacement], null);
+        expect(await harness.repository.getById(_id), isNull);
+        final data = PinnedSearchBackupData(
+          records: [
+            PinnedSearchBackupRecord(
+              id: _id,
+              name: null,
+              query: 'cat',
+              position: 0,
+              profile: PinnedSearchProfileReference(
+                id: 4,
+                booruType: 'danbooru',
+                url: replacement.url,
+                name: replacement.name,
+              ),
+            ),
+          ],
+        );
+        final result = await harness.source.resultExecutor!(data, null);
+        expect(result?.pinnedSearchCount, 1);
+        final restored = (await harness.repository.getById(_id))!;
+        expect(restored.createdAt, isNot(oldPin.createdAt));
+        expect(restored.previews, isEmpty);
+        expect(restored.recentPostIdentities, isEmpty);
+        expect(restored.unreadCount, 0);
+        expect(restored.lastSuccessfulCheckAt, isNull);
+        expect(restored.lastAttemptAt, isNull);
+        expect(restored.lastErrorKind, isNull);
+        expect(calls, 1);
+
+        release.complete();
+        expect(await pending, const SearchRefreshDiscarded());
+        expect(await harness.repository.getById(_id), restored);
+
+        posts = TestSearchPostRepository((_, _, _) async {
+          calls++;
+          return Either.of(
+            PostResult(
+              posts: [TestSearchPost(77, DateTime.utc(2026, 9))],
+              total: 1,
+            ),
+          );
+        });
+        expect(
+          await refresh.refresh(restored, replacement),
+          isA<SearchRefreshSucceeded>(),
+        );
+        final refreshed = (await harness.repository.getById(_id))!;
+        expect(refreshed.previews.map((post) => post.postId), [77]);
+        expect(refreshed.unreadCount, 0);
+        expect(refreshed.lastSuccessfulCheckAt, isNotNull);
+        expect(refreshed.lastErrorKind, isNull);
+        expect(calls, 2);
+      },
+    );
   }
 
   test('keeps profiles and pins when removing old pins fails', () async {

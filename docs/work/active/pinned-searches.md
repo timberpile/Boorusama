@@ -81,6 +81,10 @@ cd ../..
 - Backup contains definitions, optional names, profile mapping, and relative
   order. It excludes previews, recent IDs, checkpoints, unread counts, attempts,
   and errors.
+- Portable profile identity strips URL user info, query, and fragment to avoid
+  exporting embedded credentials. It retains scheme/host/port/path, lowercases
+  the host, and removes all terminal path slashes idempotently. Export, parsing,
+  restore mapping, and profile replacement use this same identity.
 
 ## Explicitly deferred
 
@@ -119,8 +123,11 @@ not add speculative fields, services, or UI for those phases.
 - Reload the current aggregate during refresh commit so mark-read or rename
   operations racing a refresh are not overwritten.
 - A refresh completing after mark-read may add newly committed unread posts.
-- Reject stale commits if the subscription was deleted or its expected
-  checkpoint changed.
+- Reject stale successes and failures if the subscription was deleted or its
+  immutable `createdAt` changed. Backup import can recreate the same UUID with
+  a null checkpoint, so UUID/checkpoint alone does not identify an incarnation.
+  Successful commits must also match the captured checkpoint. Runtime rollback
+  preserves the captured aggregate and its original `createdAt`.
 - Use manually declared Riverpod `Notifier`/`AsyncNotifier` providers only.
 - Put all user-facing copy in i18n and access it through `context.t`.
 - Parse backup and remote data defensively with explicit nullable handling.

@@ -34,6 +34,7 @@ void main() {
     subscription = (await repository.commitRefresh(
       SearchRefreshCommit(
         subscriptionId: subscription.id,
+        expectedCreatedAt: subscription.createdAt,
         expectedCheckpoint: null,
         startedAt: checkpoint,
         identityRetentionBoundary: checkpoint.subtract(

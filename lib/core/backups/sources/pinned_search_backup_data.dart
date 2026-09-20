@@ -48,12 +48,10 @@ class PinnedSearchProfileReference extends Equatable {
 
 String normalizePinnedSearchProfileUrl(String url) {
   final uri = Uri.parse(url);
-  return uri
-      .replace(
-        host: uri.host.toLowerCase(),
-        path: uri.path.endsWith('/')
-            ? uri.path.substring(0, uri.path.length - 1)
-            : uri.path,
-      )
-      .toString();
+  return Uri(
+    scheme: uri.scheme,
+    host: uri.host.toLowerCase(),
+    port: uri.hasPort ? uri.port : null,
+    path: uri.path.replaceFirst(RegExp(r'/+$'), ''),
+  ).toString();
 }

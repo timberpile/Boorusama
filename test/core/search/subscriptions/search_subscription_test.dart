@@ -99,6 +99,7 @@ void main() {
     );
     final commit = SearchRefreshCommit(
       subscriptionId: item.id,
+      expectedCreatedAt: item.createdAt,
       expectedCheckpoint: null,
       startedAt: now,
       identityRetentionBoundary: now.subtract(const Duration(days: 1)),

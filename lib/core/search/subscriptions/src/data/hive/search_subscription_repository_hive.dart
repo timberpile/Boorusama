@@ -162,7 +162,8 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
         return null;
       }
       final current = _toSubscription(currentObject);
-      if (current.lastSuccessfulCheckAt != commit.expectedCheckpoint) {
+      if (current.createdAt != commit.expectedCreatedAt ||
+          current.lastSuccessfulCheckAt != commit.expectedCheckpoint) {
         return null;
       }
 
@@ -221,12 +222,13 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
   @override
   Future<SearchSubscription?> recordRefreshFailure(
     String id, {
+    required DateTime expectedCreatedAt,
     required DateTime attemptedAt,
     required SearchRefreshErrorKind kind,
   }) {
     return _serialize(() async {
       final current = _box.get(id.trim());
-      if (current == null) {
+      if (current == null || current.createdAt != expectedCreatedAt) {
         return null;
       }
       final subscription = _toSubscription(current);

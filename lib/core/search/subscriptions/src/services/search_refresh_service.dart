@@ -76,14 +76,14 @@ class SearchRefreshService {
 
     switch (scan) {
       case FailedSearchScan(:final kind):
-        return _fail(subscription.id, startedAt, kind);
+        return _fail(subscription, startedAt, kind);
       case CompletedSearchScan(:final posts):
         final previews = <SearchPostPreview>[];
         for (final post in posts) {
           switch (post.createdAt) {
             case null:
               return _fail(
-                subscription.id,
+                subscription,
                 startedAt,
                 SearchRefreshErrorKind.unsupported,
               );
@@ -102,6 +102,7 @@ class SearchRefreshService {
         final committed = await repository.commitRefresh(
           SearchRefreshCommit(
             subscriptionId: subscription.id,
+            expectedCreatedAt: subscription.createdAt,
             expectedCheckpoint: checkpoint,
             startedAt: startedAt,
             identityRetentionBoundary: startedAt.subtract(scanner.overlap),
@@ -124,12 +125,13 @@ class SearchRefreshService {
   }
 
   Future<SearchRefreshOutcome> _fail(
-    String id,
+    SearchSubscription subscription,
     DateTime startedAt,
     SearchRefreshErrorKind kind,
   ) async {
     final saved = await repository.recordRefreshFailure(
-      id,
+      subscription.id,
+      expectedCreatedAt: subscription.createdAt,
       attemptedAt: startedAt,
       kind: kind,
     );

@@ -23,6 +23,7 @@ abstract interface class SearchSubscriptionRepository {
   Future<SearchSubscription?> commitRefresh(SearchRefreshCommit commit);
   Future<SearchSubscription?> recordRefreshFailure(
     String id, {
+    required DateTime expectedCreatedAt,
     required DateTime attemptedAt,
     required SearchRefreshErrorKind kind,
   });

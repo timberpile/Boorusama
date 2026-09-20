@@ -18,6 +18,7 @@ enum SearchRefreshErrorKind {
 class SearchRefreshCommit extends Equatable {
   SearchRefreshCommit({
     required this.subscriptionId,
+    required this.expectedCreatedAt,
     required this.expectedCheckpoint,
     required this.startedAt,
     required this.identityRetentionBoundary,
@@ -26,6 +27,7 @@ class SearchRefreshCommit extends Equatable {
   }) : discoveredPosts = List.unmodifiable(discoveredPosts);
 
   final String subscriptionId;
+  final DateTime expectedCreatedAt;
   final DateTime? expectedCheckpoint;
   final DateTime startedAt;
   final DateTime identityRetentionBoundary;
@@ -35,6 +37,7 @@ class SearchRefreshCommit extends Equatable {
   @override
   List<Object?> get props => [
     subscriptionId,
+    expectedCreatedAt,
     expectedCheckpoint,
     startedAt,
     identityRetentionBoundary,
