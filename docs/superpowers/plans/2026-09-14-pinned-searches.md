@@ -284,7 +284,7 @@ git commit -m "feat(search): define pinned search domain"
 - Consumes: all Task 1 values and `SearchSubscriptionRepository`.
 - Produces: `HiveSearchSubscriptionRepository` and `searchSubscriptionRepositoryProvider`.
 
-- [ ] **Step 1: Write failing repository contract tests**
+- [x] **Step 1: Write failing repository contract tests**
 
 Use a temporary Hive directory and a real typed box. Register only the new
 adapters when their type IDs are not already registered. Cover:
@@ -314,13 +314,13 @@ deduplication, baseline commits with zero unread, stale checkpoint rejection,
 failure preservation, deletion, `deleteForProfile` isolation, and exact
 `restoreForProfile` compensation.
 
-- [ ] **Step 2: Run the repository test and verify it fails**
+- [x] **Step 2: Run the repository test and verify it fails**
 
 Run: `fvm flutter test test/core/search/subscriptions/search_subscription_repository_test.dart`
 
 Expected: FAIL because the Hive objects and repository do not exist.
 
-- [ ] **Step 3: Add compact Hive aggregate objects**
+- [x] **Step 3: Add compact Hive aggregate objects**
 
 Store one `SearchSubscriptionHiveObject` per subscription in the
 `pinned_search_subscriptions` box. Its fields mirror `SearchSubscription`, with
@@ -331,7 +331,7 @@ unknown future values can map to `other` instead of failing deserialization.
 Register all three object types in `@GenerateAdapters`. Do not choose type IDs
 manually; let the existing Hive CE generator allocate from `nextTypeId`.
 
-- [ ] **Step 4: Implement serialized repository mutations**
+- [x] **Step 4: Implement serialized repository mutations**
 
 Use a private future tail so reads participating in a mutation cannot observe
 half-written ordering:
@@ -369,7 +369,7 @@ error, and prune recent identities older than
 `unreadCount` to zero. All mutations rebuild from the latest stored object so a
 rename or mark-read racing a refresh is retained.
 
-- [ ] **Step 5: Add the repository provider and public exports**
+- [x] **Step 5: Add the repository provider and public exports**
 
 Declare:
 
@@ -387,7 +387,7 @@ final searchSubscriptionRepositoryProvider =
 Export only the repository provider from the feature's public `providers.dart`;
 keep Hive objects internal except where generator imports require them.
 
-- [ ] **Step 6: Generate adapters and format immediately**
+- [x] **Step 6: Generate adapters and format immediately**
 
 Run:
 
@@ -401,7 +401,7 @@ fvm dart format lib/core/search/subscriptions lib/core/hive test/core/search/sub
 
 Expected: generation succeeds and registers all three new Hive adapters.
 
-- [ ] **Step 7: Run persistence tests**
+- [x] **Step 7: Run persistence tests**
 
 Run:
 
@@ -412,7 +412,7 @@ fvm flutter test test/core/search/subscriptions/search_subscription_repository_t
 
 Expected: PASS.
 
-- [ ] **Step 8: Commit persistence**
+- [x] **Step 8: Commit persistence**
 
 ```bash
 git add lib/core/search/subscriptions lib/core/hive test/core/search/subscriptions
