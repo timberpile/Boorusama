@@ -36,18 +36,22 @@ void main() {
     addTearDown(controller.dispose);
   }
 
-  Widget desktopMenu({CustomHomeViewKey? viewKey}) => Consumer(
-    builder: (context, ref, _) => Column(
-      children: coreDesktopTabBuilder(
-        ref,
-        const BoxConstraints(maxWidth: 280),
-        viewKey,
-        true,
-        false,
-        false,
-      ),
-    ),
-  );
+  Widget desktopMenu({CustomHomeViewKey? viewKey, double width = 220}) =>
+      SizedBox(
+        width: width,
+        child: Consumer(
+          builder: (context, ref, _) => Column(
+            children: coreDesktopTabBuilder(
+              ref,
+              BoxConstraints(maxWidth: width),
+              viewKey,
+              true,
+              false,
+              false,
+            ),
+          ),
+        ),
+      );
 
   Widget scaffold(Widget child) => InheritedHomePageController(
     controller: controller,
@@ -121,6 +125,54 @@ void main() {
         await settle(tester);
         expect(find.byType(Badge), findsNothing);
         expect(find.text('Pinned Searches'), findsOneWidget);
+      },
+    );
+  }
+
+  for (final c in [
+    (width: 62.0, selected: false),
+    (width: 62.0, selected: true),
+    (width: 160.0, selected: false),
+    (width: 160.0, selected: true),
+    (width: 220.0, selected: false),
+    (width: 220.0, selected: true),
+  ]) {
+    testWidgets(
+      '${c.selected ? 'selected' : 'unselected'} desktop navigation at ${c.width.toInt()} pixels preserves unread until marked read',
+      (tester) async {
+        initialize();
+        await harness.seed([pinnedFixture(unreadCount: 8)]);
+        await harness.pump(tester, scaffold(desktopMenu(width: c.width)));
+        final pinnedTile = find.byWidgetPredicate(
+          (widget) =>
+              widget is HomeNavigationTile && widget.title == 'Pinned Searches',
+        );
+        if (c.selected) {
+          await tester.tap(pinnedTile);
+          await settle(tester);
+        }
+        expect(
+          find.descendant(of: pinnedTile, matching: find.text('8')),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(of: pinnedTile, matching: find.byType(Badge)),
+          findsOneWidget,
+        );
+        final badge = find.descendant(
+          of: pinnedTile,
+          matching: find.byType(Badge),
+        );
+        expect(
+          tester.getRect(pinnedTile).contains(tester.getCenter(badge)),
+          isTrue,
+        );
+        await harness.container
+            .read(searchSubscriptionsProvider.notifier)
+            .markRead('cats');
+        await settle(tester);
+        expect(find.byType(Badge), findsNothing);
+        expect(tester.takeException(), isNull);
       },
     );
   }

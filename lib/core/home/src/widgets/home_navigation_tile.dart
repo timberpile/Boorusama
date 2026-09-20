@@ -41,13 +41,25 @@ class HomeNavigationTile extends StatelessWidget {
       valueListenable: controller,
       builder: (context, index, child) {
         final selected = value == index;
+        final showIcon =
+            constraints.maxWidth > 200 ||
+            constraints.maxWidth <= kMinSideBarWidth;
+        final titleWidget = Text(
+          title,
+          softWrap: false,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: selected
+                ? Kurumi.themeOf(context).colorScheme.onSecondary
+                : null,
+          ),
+        );
 
         return KurumiNavigationTile(
           value: value,
           index: index,
-          showIcon:
-              constraints.maxWidth > 200 ||
-              constraints.maxWidth <= kMinSideBarWidth,
+          showIcon: showIcon,
           showTitle: constraints.maxWidth > kMinSideBarWidth,
           selectedIcon: _withBadge(
             Icon(
@@ -69,17 +81,16 @@ class HomeNavigationTile extends StatelessWidget {
               fill: forceFillIcon ? 1 : 0,
             ),
           ),
-          title: Text(
-            title,
-            softWrap: false,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: selected
-                  ? Kurumi.themeOf(context).colorScheme.onSecondary
-                  : null,
+          title: switch ((showIcon, badgeCount)) {
+            (false, final count?) when count > 0 => Row(
+              children: [
+                Expanded(child: titleWidget),
+                const SizedBox(width: 8),
+                Badge.count(count: count),
+              ],
             ),
-          ),
+            _ => titleWidget,
+          },
           onTap: enabled
               ? (value) => onTap != null ? onTap!() : controller.goToTab(value)
               : null,
