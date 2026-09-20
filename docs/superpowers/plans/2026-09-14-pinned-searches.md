@@ -789,7 +789,7 @@ git commit -m "feat(search): refresh pinned searches manually"
 - Produces: profile deletion that removes the owning subscription aggregates
   and prevents late refresh commits from recreating them.
 
-- [ ] **Step 1: Extend deletion tests with pinned-search cleanup**
+- [x] **Step 1: Extend deletion tests with pinned-search cleanup**
 
 Override `searchSubscriptionRepositoryProvider` with a recording repository.
 Add cases for deleting the current profile, another profile, and the final
@@ -805,13 +805,13 @@ Also verify both failure directions: a search-repository deletion failure does
 not remove the profile, while a profile-repository deletion failure restores
 the exact captured subscriptions.
 
-- [ ] **Step 2: Run the focused config test and verify it fails**
+- [x] **Step 2: Run the focused config test and verify it fails**
 
 Run: `fvm flutter test test/booru_config_notifier_test.dart`
 
 Expected: FAIL because profile deletion does not call the search repository.
 
-- [ ] **Step 3: Add cascade cleanup before config removal**
+- [x] **Step 3: Add cascade cleanup before config removal**
 
 Before entering the existing last/current/ordinary branches, capture the
 profile's subscriptions and run `deleteForProfile(config.id)`. Extract one
@@ -825,7 +825,7 @@ Do not change the existing confirmation dialog or add recovery UI. Because
 refresh commits reload the aggregate by ID, in-flight work receives `null`
 during the cascade and cannot recreate a deleted search.
 
-- [ ] **Step 4: Format and run deletion tests**
+- [x] **Step 4: Format and run deletion tests**
 
 Run:
 
@@ -836,7 +836,7 @@ fvm flutter test test/booru_config_notifier_test.dart
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit profile lifecycle integration**
+- [x] **Step 5: Commit profile lifecycle integration**
 
 ```bash
 git add lib/core/configs/manage/src/providers/booru_config_provider.dart test/booru_config_notifier_test.dart

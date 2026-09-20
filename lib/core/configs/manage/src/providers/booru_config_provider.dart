@@ -12,6 +12,8 @@ import '../../../../../foundation/utils/collection_utils.dart';
 import '../../../../analytics/analytics_interface.dart';
 import '../../../../analytics/providers.dart';
 import '../../../../settings/providers.dart';
+import '../../../../search/subscriptions/providers.dart';
+import '../../../../search/subscriptions/types.dart';
 import '../../../config/data.dart';
 import '../../../config/providers.dart';
 import '../../../config/types.dart';
@@ -27,6 +29,7 @@ final booruConfigProvider =
       () => throw UnimplementedError(),
       dependencies: [
         booruConfigRepoProvider,
+        searchSubscriptionRepositoryProvider,
         settingsProvider,
       ],
       name: 'booruConfigProvider',
@@ -88,9 +91,21 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
     };
 
     try {
+      final searchRepository = await ref.read(
+        searchSubscriptionRepositoryProvider.future,
+      );
+      final subscriptions = (await searchRepository.getAll())
+          .where((subscription) => subscription.profileId == config.id)
+          .toList(growable: false);
+      await searchRepository.deleteForProfile(config.id);
+
       // check if deleting the last config
       if (state.length == 1) {
-        await ref.read(booruConfigRepoProvider).remove(config);
+        await _removeConfigWithSubscriptionCompensation(
+          config,
+          searchRepository,
+          subscriptions,
+        );
         await ref.read(booruConfigProvider.notifier).fetch();
         // reset order
         await updateOrder([]);
@@ -129,7 +144,11 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
             .update(targetConfig);
       }
 
-      await ref.read(booruConfigRepoProvider).remove(config);
+      await _removeConfigWithSubscriptionCompensation(
+        config,
+        searchRepository,
+        subscriptions,
+      );
       final orders = ref.read(settingsProvider).booruConfigIdOrderList;
       final newOrders = [...orders..remove(config.id)];
 
@@ -230,6 +249,27 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
       onFailure?.call(
         'Something went wrong while updating your profile. Please try again',
       );
+    }
+  }
+
+  Future<void> _removeConfigWithSubscriptionCompensation(
+    BooruConfig config,
+    SearchSubscriptionRepository searchRepository,
+    List<SearchSubscription> subscriptions,
+  ) async {
+    try {
+      await ref.read(booruConfigRepoProvider).remove(config);
+    } catch (error, stackTrace) {
+      try {
+        await searchRepository.restoreForProfile(config.id, subscriptions);
+      } catch (restoreError) {
+        _logError('Failed to remove config ${config.id}: $error');
+        _logError(
+          'Failed to restore pinned searches for config ${config.id}: '
+          '$restoreError',
+        );
+      }
+      Error.throwWithStackTrace(error, stackTrace);
     }
   }
 
