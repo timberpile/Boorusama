@@ -326,6 +326,42 @@ void main() {
     },
   );
 
+  test('preserves explicit Home order after reopening Hive storage', () async {
+    final first = await repository.create(
+      profileId: 12,
+      query: 'first',
+      name: null,
+      id: 'first',
+      createdAt: DateTime.utc(2026, 9, 14),
+    );
+    final second = await repository.create(
+      profileId: 99,
+      query: 'second',
+      name: null,
+      id: 'second',
+      createdAt: DateTime.utc(2026, 9, 15),
+    );
+    await repository.replaceOrganization(
+      SearchOrganization(
+        folders: const [],
+        homeSearchIds: [second.id, first.id],
+      ),
+    );
+    await box.close();
+    await organizationBox.close();
+    box = await Hive.openBox<SearchSubscriptionHiveObject>(boxName);
+    organizationBox = await Hive.openBox<dynamic>('folder_test');
+    repository = HiveSearchSubscriptionRepository(
+      box: box,
+      organizationBox: organizationBox,
+    );
+
+    expect(
+      (await repository.getOrganization()).homeSearchIds,
+      [second.id, first.id],
+    );
+  });
+
   test(
     'folder membership rejects cross-profile searches without changing stored folders',
     () async {

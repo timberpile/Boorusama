@@ -619,6 +619,9 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
           ),
         ),
     ];
+    final homeSearchIds = stored.homeSearchIds
+        .where((id) => subscriptions.containsKey(id) && memberships.add(id))
+        .toList();
     final unlisted =
         subscriptions.values
             .where((subscription) => memberships.add(subscription.id))
@@ -627,13 +630,10 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
             final byCreatedAt = left.createdAt.compareTo(right.createdAt);
             return byCreatedAt != 0 ? byCreatedAt : left.id.compareTo(right.id);
           });
-    final homeSearchIds = [
-      ...stored.homeSearchIds.where(
-        (id) => subscriptions.containsKey(id) && memberships.add(id),
-      ),
-      ...unlisted.map((subscription) => subscription.id),
-    ];
-    return SearchOrganization(folders: folders, homeSearchIds: homeSearchIds);
+    return SearchOrganization(
+      folders: folders,
+      homeSearchIds: [...homeSearchIds, ...unlisted.map((search) => search.id)],
+    );
   }
 
   void _validateOrganizationMemberships(
