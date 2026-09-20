@@ -53,13 +53,14 @@ class SearchFollowingFeed extends Equatable {
   final List<CachedFeedPost> posts;
   SearchFollowingFeed copyWith({
     String? name,
+    int? position,
     List<String>? sourceIds,
     List<CachedFeedPost>? posts,
   }) => SearchFollowingFeed(
     id: id,
     profileId: profileId,
     name: name ?? this.name,
-    position: position,
+    position: position ?? this.position,
     sourceIds: sourceIds ?? this.sourceIds,
     posts: posts ?? this.posts,
   );

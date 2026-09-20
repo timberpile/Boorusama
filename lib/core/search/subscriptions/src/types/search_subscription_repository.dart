@@ -14,6 +14,7 @@ abstract interface class SearchSubscriptionRepository {
     String? id,
   });
   Future<void> deleteFeed(String id);
+  Future<void> setFeedOrder(int profileId, List<String> orderedIds);
   Future<void> restoreFeeds(int profileId, List<SearchFollowingFeed> feeds);
   Future<SearchOrganization> getOrganization();
   Future<void> replaceOrganization(SearchOrganization organization);

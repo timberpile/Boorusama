@@ -321,6 +321,113 @@ void main() {
     },
   );
 
+  test(
+    'adding a member clears cached feed posts and retains shared source state',
+    () async {
+      final first = await harness.repository.saveFeed(
+        profileId: 12,
+        name: 'First',
+        queries: ['cat'],
+      );
+      final second = await harness.repository.saveFeed(
+        profileId: 12,
+        name: 'Second',
+        queries: ['cat'],
+      );
+      final cat = (await harness.repository.getById(first.sourceIds.single))!;
+      await harness.repository.commitRefresh(
+        SearchRefreshCommit(
+          subscriptionId: cat.id,
+          expectedCreatedAt: cat.createdAt,
+          expectedCheckpoint: null,
+          startedAt: checkedAt,
+          identityRetentionBoundary: checkedAt,
+          baseline: true,
+          discoveredPosts: const [],
+          feedPosts: [
+            CachedFeedPost.fromPost(TestSearchPost(1, checkedAt)),
+          ],
+        ),
+      );
+      expect((await harness.repository.getFeeds()).first.posts, isNotEmpty);
+
+      final updated = await harness.repository.saveFeed(
+        profileId: 12,
+        name: 'First',
+        queries: ['cat', 'dog'],
+        id: first.id,
+      );
+      expect(updated.posts, isEmpty);
+      expect(updated.sourceIds.first, cat.id);
+      expect(
+        (await harness.repository.getById(cat.id))!.lastSuccessfulCheckAt,
+        isNotNull,
+      );
+      await harness.repository.saveFeed(
+        profileId: 12,
+        name: 'First',
+        queries: ['dog'],
+        id: first.id,
+      );
+      expect(
+        (await harness.repository.getFeeds()).last.sourceIds.single,
+        cat.id,
+      );
+      expect(
+        await harness.repository.getById(second.sourceIds.single),
+        isNotNull,
+      );
+    },
+  );
+
+  test(
+    'feed ordering rejects incomplete IDs without changing saved order',
+    () async {
+      final first = await harness.repository.saveFeed(
+        profileId: 12,
+        name: 'First',
+        queries: ['cat'],
+      );
+      final second = await harness.repository.saveFeed(
+        profileId: 12,
+        name: 'Second',
+        queries: ['dog'],
+      );
+      final third = await harness.repository.saveFeed(
+        profileId: 12,
+        name: 'Third',
+        queries: ['bird'],
+      );
+      await harness.repository.setFeedOrder(12, [
+        third.id,
+        first.id,
+        second.id,
+      ]);
+      expect((await harness.repository.getFeeds()).map((feed) => feed.id), [
+        third.id,
+        first.id,
+        second.id,
+      ]);
+      expect(
+        (await harness.repository.getFeeds()).map((feed) => feed.position),
+        [
+          0,
+          1,
+          2,
+        ],
+      );
+      await expectLater(
+        harness.repository.setFeedOrder(12, [first.id, second.id]),
+        throwsFormatException,
+      );
+      expect((await harness.repository.getFeeds()).map((feed) => feed.id), [
+        third.id,
+        first.id,
+        second.id,
+      ]);
+    },
+  );
+
   testWidgets(
     'feed overview lists both profile owners without fetching hidden sources',
     (tester) async {

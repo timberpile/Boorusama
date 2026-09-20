@@ -2,6 +2,7 @@
 import 'dart:async';
 
 // Package imports:
+import 'package:collection/collection.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:uuid/uuid.dart';
 
@@ -30,21 +31,29 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
   final Box<dynamic>? _organizationBox;
   Future<void> _mutationTail = Future.value();
 
-  List<SearchFollowingFeed> _feeds() => [
-    for (final value in _organizationBox?.values ?? const [])
-      if (value case final Map json
-          when json['id'] is String &&
-              json['profileId'] is int &&
-              json['name'] is String)
-        SearchFollowingFeed.fromJson({
-          ...json,
-          if (json['sourceIds'] is! List)
-            'sourceIds': [
-              for (final search in _box.values)
-                if (search.feedId == json['id']) search.id,
-            ],
-        }),
-  ];
+  List<SearchFollowingFeed> _feeds() {
+    final feeds = [
+      for (final value in _organizationBox?.values ?? const [])
+        if (value case final Map json
+            when json['id'] is String &&
+                json['profileId'] is int &&
+                json['name'] is String)
+          SearchFollowingFeed.fromJson({
+            ...json,
+            if (json['sourceIds'] is! List)
+              'sourceIds': [
+                for (final search in _box.values)
+                  if (search.feedId == json['id']) search.id,
+              ],
+          }),
+    ];
+    final ordered = feeds.indexed.toList()
+      ..sort((left, right) {
+        final position = left.$2.position.compareTo(right.$2.position);
+        return position != 0 ? position : left.$1.compareTo(right.$1);
+      });
+    return [for (final (_, feed) in ordered) feed];
+  }
 
   Set<String> _feedSourceIds() => {
     for (final feed in _feeds()) ...feed.sourceIds,
@@ -114,6 +123,12 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
     final retainedIds = retained.map((source) => source.id).toSet();
     final removedIds =
         previous?.sourceIds.toSet().difference(retainedIds) ?? <String>{};
+    final membershipChanged =
+        previous != null &&
+        !const SetEquality<String>().equals(
+          previous.sourceIds.toSet(),
+          retainedIds,
+        );
     final otherIds = {
       for (final feed in feeds)
         if (feed.id != feedId) ...feed.sourceIds,
@@ -134,7 +149,7 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
           previous?.position ??
           feeds.where((f) => f.profileId == profileId).length,
       sourceIds: retained.map((source) => source.id).toList(),
-      posts: removedIds.isNotEmpty ? const [] : previous?.posts ?? const [],
+      posts: membershipChanged ? const [] : previous?.posts ?? const [],
     );
     await storage.put('feed:$feedId', feed.toJson());
     try {
@@ -179,6 +194,33 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
       rethrow;
     }
   });
+
+  @override
+  Future<void> setFeedOrder(int profileId, List<String> orderedIds) =>
+      _serialize(() async {
+        final storage = _organizationBox;
+        if (storage == null) throw StateError('Feed storage unavailable');
+        final feeds = _feeds().where((f) => f.profileId == profileId).toList();
+        final ids = feeds.map((f) => f.id).toSet();
+        if (orderedIds.length != feeds.length ||
+            orderedIds.toSet().length != feeds.length ||
+            !ids.containsAll(orderedIds)) {
+          throw const FormatException('Incomplete feed order');
+        }
+        final byId = {for (final feed in feeds) feed.id: feed};
+        final previous = {
+          for (final id in orderedIds) 'feed:$id': storage.get('feed:$id'),
+        };
+        try {
+          await storage.putAll({
+            for (final (position, id) in orderedIds.indexed)
+              'feed:$id': byId[id]!.copyWith(position: position).toJson(),
+          });
+        } catch (_) {
+          await storage.putAll(previous);
+          rethrow;
+        }
+      });
 
   @override
   Future<void> restoreFeeds(int profileId, List<SearchFollowingFeed> feeds) =>
