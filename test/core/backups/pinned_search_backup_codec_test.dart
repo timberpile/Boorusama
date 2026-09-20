@@ -7,6 +7,58 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   final codec = PinnedSearchBackupCodec();
 
+  test('accepts an empty pinned export with an organization row', () {
+    final data = codec.parse(_payload(data: const []));
+    expect(data.records, isEmpty);
+    expect(codec.encode(data), [
+      {'kind': 'organization', 'homeSearchIds': <String>[]},
+    ]);
+  });
+
+  test('rejects a missing organization row and records without kinds', () {
+    expect(
+      () => codec.parse(
+        const ExportDataPayload(
+          version: 1,
+          exportDate: null,
+          exportVersion: null,
+          extraFields: {'source': 'pinned_searches'},
+          data: [],
+        ),
+      ),
+      throwsA(isA<InvalidBackupFormatException>()),
+    );
+    expect(
+      () => codec.parse(_payload(data: [_row()..remove('kind')])),
+      throwsA(isA<InvalidBackupFormatException>()),
+    );
+  });
+
+  test('rejects a feed row and an envelope for the other source', () {
+    expect(
+      () => codec.parse(
+        _payload(
+          data: [
+            {'kind': 'feed', 'id': _id},
+          ],
+        ),
+      ),
+      throwsA(isA<InvalidBackupFormatException>()),
+    );
+    expect(
+      () => codec.parse(
+        const ExportDataPayload(
+          version: 1,
+          exportDate: null,
+          exportVersion: null,
+          extraFields: {'source': 'following_feeds'},
+          data: [],
+        ),
+      ),
+      throwsA(isA<InvalidBackupFormatException>()),
+    );
+  });
+
   for (final ids in [
     const [_id, _id],
     const ['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'],
@@ -14,7 +66,7 @@ void main() {
     test('rejects invalid Home membership $ids', () {
       expect(
         () => codec.parse(
-          ExportDataPayload.legacy(
+          _payload(
             data: [
               _row(),
               {'kind': 'organization', 'homeSearchIds': ids},
@@ -29,7 +81,7 @@ void main() {
     'preserves explicit Home order without requiring an organization ID',
     () {
       final data = codec.parse(
-        ExportDataPayload.legacy(
+        _payload(
           data: [
             _row(),
             {
@@ -41,7 +93,7 @@ void main() {
       );
       expect(data.homeSearchIds, [_id]);
       expect(
-        codec.parse(ExportDataPayload.legacy(data: codec.encode(data))),
+        codec.parse(_payload(data: codec.encode(data))),
         data,
       );
     },
@@ -85,7 +137,7 @@ void main() {
     test('rejects ${c.name}', () {
       expect(
         () => codec.parse(
-          ExportDataPayload.legacy(
+          _payload(
             data: [
               _row(),
               ...c.extra,
@@ -107,7 +159,7 @@ void main() {
   test('rejects multiple Home organization rows', () {
     expect(
       () => codec.parse(
-        const ExportDataPayload.legacy(
+        _payload(
           data: [
             {'kind': 'organization', 'homeSearchIds': <String>[]},
             {'kind': 'organization', 'homeSearchIds': <String>[]},
@@ -121,7 +173,7 @@ void main() {
   test('rejects duplicate folder names before import', () {
     expect(
       () => codec.parse(
-        const ExportDataPayload.legacy(
+        _payload(
           data: [
             {
               'kind': 'folder',
@@ -144,44 +196,16 @@ void main() {
     );
   });
 
-  test('feed definitions round trip without post caches or checkpoints', () {
-    final profile = codec
-        .parse(ExportDataPayload.legacy(data: [_row()]))
-        .records
-        .single
-        .profile;
-    final data = PinnedSearchBackupData(
-      records: const [],
-      feeds: [
-        PinnedSearchFeedBackupRecord(
-          id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-          name: 'Animals',
-          position: 0,
-          queries: const ['cat', 'dog'],
-          profile: profile,
-        ),
-      ],
-    );
-    expect(
-      codec.parse(ExportDataPayload.legacy(data: codec.encode(data))),
-      data,
-    );
-    expect((codec.encode(data).first as Map).keys, isNot(contains('posts')));
-  });
-
   test(
     'folder backups preserve membership and empty folders without runtime state',
     () {
-      final record = codec
-          .parse(ExportDataPayload.legacy(data: [_row()]))
-          .records
-          .single;
+      final record = codec.parse(_payload(data: [_row()])).records.single;
       final data = PinnedSearchBackupData(
         records: [
           record,
           codec
               .parse(
-                ExportDataPayload.legacy(
+                _payload(
                   data: [
                     {
                       ..._row(),
@@ -211,7 +235,7 @@ void main() {
         ],
       );
       expect(
-        codec.parse(ExportDataPayload.legacy(data: codec.encode(data))),
+        codec.parse(_payload(data: codec.encode(data))),
         data,
       );
       final invalid = codec.encode(data);
@@ -219,7 +243,7 @@ void main() {
         'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
       ];
       expect(
-        () => codec.parse(ExportDataPayload.legacy(data: invalid)),
+        () => codec.parse(_payload(data: invalid)),
         throwsA(isA<InvalidBackupFormatException>()),
       );
     },
@@ -227,7 +251,7 @@ void main() {
 
   test('round trips stable definitions while discarding runtime fields', () {
     final data = codec.parse(
-      ExportDataPayload.legacy(
+      _payload(
         data: [
           {
             ..._row(),
@@ -270,12 +294,12 @@ void main() {
       },
       {'kind': 'organization', 'homeSearchIds': <String>[]},
     ]);
-    expect(codec.parse(ExportDataPayload.legacy(data: encoded)), data);
+    expect(codec.parse(_payload(data: encoded)), data);
   });
 
   test('canonicalizes UUIDs and optional names without changing the query', () {
     final data = codec.parse(
-      ExportDataPayload.legacy(
+      _payload(
         data: [
           {..._row(), 'id': _id.toUpperCase(), 'name': '   '},
         ],
@@ -290,7 +314,7 @@ void main() {
 
   test('accepts an omitted optional name', () {
     final data = codec.parse(
-      ExportDataPayload.legacy(data: [_row()..remove('name')]),
+      _payload(data: [_row()..remove('name')]),
     );
     expect(data.records.single.name, isNull);
   });
@@ -314,7 +338,7 @@ void main() {
   for (final c in urlCases) {
     test('normalizes ${c.input} without dropping scheme or path', () {
       final data = codec.parse(
-        ExportDataPayload.legacy(
+        _payload(
           data: [
             {
               ..._row(),
@@ -326,7 +350,7 @@ void main() {
       expect(data.records.single.profile.url, c.output);
       expect(codec.encode(data).first['profile']['url'], c.output);
       expect(
-        codec.parse(ExportDataPayload.legacy(data: codec.encode(data))),
+        codec.parse(_payload(data: codec.encode(data))),
         data,
       );
     });
@@ -487,7 +511,7 @@ void main() {
   for (final c in cases) {
     test('rejects ${c.description} with the offending field', () {
       expect(
-        () => codec.parse(ExportDataPayload.legacy(data: [c.value])),
+        () => codec.parse(_payload(data: [c.value])),
         throwsA(
           isA<InvalidBackupFormatException>().having(
             (e) => e.details,
@@ -502,7 +526,7 @@ void main() {
   test('rejects repeated UUIDs after canonicalization', () {
     expect(
       () => codec.parse(
-        ExportDataPayload.legacy(
+        _payload(
           data: [
             _row(),
             {..._row(), 'id': _id.toUpperCase()},
@@ -530,9 +554,23 @@ Map<String, dynamic> _profile() => {
 };
 
 Map<String, dynamic> _row() => {
+  'kind': 'search',
   'id': _id,
   'name': 'Cats',
   'query': 'cat  rating:safe',
   'position': 0,
   'profile': _profile(),
 };
+
+ExportDataPayload _payload({required List<dynamic> data}) => ExportDataPayload(
+  version: 1,
+  exportDate: null,
+  exportVersion: null,
+  extraFields: const {'source': 'pinned_searches'},
+  data: data.any((row) => row is Map && row['kind'] == 'organization')
+      ? data
+      : [
+          ...data,
+          {'kind': 'organization', 'homeSearchIds': <String>[]},
+        ],
+);

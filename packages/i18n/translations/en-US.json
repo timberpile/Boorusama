@@ -1,4 +1,16 @@
 {
+  "following_feeds_backup": {
+    "title": "Following Feeds",
+    "backup_count": {
+      "one": "$n following feed",
+      "other": "$n following feeds"
+    },
+    "backup_loading": "Loading following feeds…",
+    "load_failed": "Could not load following feeds.",
+    "backup_export_success": "Exported {count} following feeds",
+    "backup_import_success": "Imported {count} following feeds; {existing} already existed",
+    "backup_import_skipped": "Imported {count} following feeds; {existing} already existed. Skipped {skipped} feeds because their profile was missing or ambiguous."
+  },
   "pinned_searches": {
     "title": "Pinned Searches",
     "backup_count": {

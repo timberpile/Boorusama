@@ -67,7 +67,7 @@ void main() {
       final pending = harness
           .source
           .resultExecutor!(
-            _data(includeMissing: true, missingFeed: true),
+            _data(includeMissing: true),
             context,
           )
           .then<void>(
@@ -80,7 +80,7 @@ void main() {
       expect(find.text('Skip unmatched records?'), findsOneWidget);
       expect(
         find.text(
-          '2 pinned searches or feeds have no matching profile and will be skipped. Continue importing?',
+          '1 pinned searches or feeds have no matching profile and will be skipped. Continue importing?',
         ),
         findsOneWidget,
       );
@@ -285,8 +285,8 @@ void main() {
     final registry = harness.container.read(backupRegistryProvider);
     final sources = registry.getAllSources();
     expect(
-      sources.map((source) => source.id).toList().sublist(sources.length - 2),
-      ['profiles', 'pinned_searches'],
+      sources.map((source) => source.id).toList().sublist(sources.length - 3),
+      ['profiles', 'pinned_searches', 'following_feeds'],
     );
     expect(registry.getSource('pinned_searches'), same(harness.source));
     expect(harness.source.priority, 100000);
@@ -315,6 +315,7 @@ void main() {
         jsonDecode(await response.readAsString()) as Map<String, dynamic>;
     expect(payload['data'], [
       {
+        'kind': 'search',
         'id': _id,
         'name': 'Cats',
         'query': 'cat  rating:safe',
@@ -466,6 +467,7 @@ void main() {
         ..writeAsStringSync(
           harness.source.converter.encode(
             payload: harness.source.handler.encode(_data()),
+            extraFields: const {'source': 'pinned_searches'},
           ),
         );
       final prepared = await harness.source.capabilities.file!.prepareImport(
@@ -914,6 +916,7 @@ void main() {
                     payload: harness.source.handler.encode(
                       _data(includeMissing: action != 'matched'),
                     ),
+                    extraFields: const {'source': 'pinned_searches'},
                   );
             request.response.headers.contentType = ContentType.json;
             request.response.write(data);
@@ -1119,6 +1122,7 @@ File _writeBackupZip(
     if (includePins)
       'pins.json': harness.source.converter.encode(
         payload: harness.source.handler.encode(pinData ?? _data()),
+        extraFields: const {'source': 'pinned_searches'},
       ),
   };
   final archive = Archive();
@@ -1184,23 +1188,7 @@ BooruConfig _replacement({
 
 PinnedSearchBackupData _data({
   bool includeMissing = false,
-  bool missingFeed = false,
 }) => PinnedSearchBackupData(
-  feeds: [
-    if (missingFeed)
-      const PinnedSearchFeedBackupRecord(
-        id: '550e8400-e29b-41d4-a716-446655440099',
-        name: 'Missing feed',
-        position: 0,
-        queries: ['cat'],
-        profile: BackupProfileReference(
-          id: 5,
-          booruType: 'gelbooru',
-          url: 'https://missing.test',
-          name: 'Missing',
-        ),
-      ),
-  ],
   records: [
     const PinnedSearchBackupRecord(
       id: _id,

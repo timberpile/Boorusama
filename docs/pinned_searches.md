@@ -135,8 +135,13 @@ or IDs reassigned to a different booru type/portable URL; equivalent same-ID
 profiles retain their pins. These cross-repository operations use compensation,
 not a crash-atomic transaction across profile and subscription storage.
 
-The `pinned_searches` backup source runs after profiles. It exports UUIDs,
-optional names, immutable queries, relative ordering, and profile references.
+The `pinned_searches` and `following_feeds` backup sources run after profiles.
+Each exports a separate JSON format with source-specific `source` and `version: 1`
+headers. Pinned Searches exports independent pins, shared folders, Home order,
+UUIDs, optional names, immutable queries, relative ordering, and profile
+references. Following Feeds exports feed UUIDs, names, order, exact query lists,
+and profile references. Internal searches used by feeds never appear in the
+Pinned Searches export.
 Previews, recent IDs, NEW state, checkpoints, attempts, errors, and creation
 timestamps are excluded. Portable profile URLs retain scheme, host, port, and
 path, lowercase the host, remove all terminal slashes, and strip user info,

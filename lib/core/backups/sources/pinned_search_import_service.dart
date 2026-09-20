@@ -55,8 +55,6 @@ class PinnedSearchImportService {
     unmatchedRecordIds: {
       for (final record in data.records)
         if (resolveBackupProfile(record.profile, profiles) == null) record.id,
-      for (final feed in data.feeds)
-        if (resolveBackupProfile(feed.profile, profiles) == null) feed.id,
     },
   );
 
@@ -199,52 +197,6 @@ class PinnedSearchImportService {
           ],
         ),
       );
-    }
-    final feeds = (await repository.getFeeds()).toList();
-    for (final record in data.feeds) {
-      final profile = resolveBackupProfile(record.profile, profiles);
-      if (profile == null) {
-        skipped++;
-        continue;
-      }
-      final idOwner = feeds.firstWhereOrNull((f) => f.id == record.id);
-      if (idOwner?.profileId == profile.id) {
-        existing++;
-        continue;
-      }
-      if (idOwner != null) {
-        final byId = {
-          for (final search in await repository.getAll()) search.id: search,
-        };
-        final recordQueries = record.queries
-            .map(normalizeSearchIdentity)
-            .toSet();
-        final importedBefore = feeds.any(
-          (feed) =>
-              feed.profileId == profile.id &&
-              feed.name.toLowerCase() == record.name.toLowerCase() &&
-              const SetEquality<String>().equals(
-                {
-                  for (final id in feed.sourceIds)
-                    if (byId[id] case final search?)
-                      normalizeSearchIdentity(search.query),
-                },
-                recordQueries,
-              ),
-        );
-        if (importedBefore) {
-          existing++;
-          continue;
-        }
-      }
-      final feed = await repository.saveFeed(
-        profileId: profile.id,
-        name: record.name,
-        queries: record.queries,
-        id: idOwner == null ? record.id : null,
-      );
-      feeds.add(feed);
-      imported++;
     }
     return PinnedSearchImportResult(
       importedCount: imported,

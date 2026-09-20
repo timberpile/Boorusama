@@ -6,13 +6,14 @@ import '../types/types.dart';
 import '../utils/json_handler.dart';
 import 'pinned_search_backup_data.dart';
 import 'search_backup_profile.dart';
+import 'search_backup_envelope.dart';
 
 class PinnedSearchBackupCodec extends JsonHandler<PinnedSearchBackupData> {
   @override
   PinnedSearchBackupData parse(ExportDataPayload metadata) {
+    requireSearchBackupEnvelope(metadata, 'pinned_searches');
     final records = <PinnedSearchBackupRecord>[];
     final folders = <PinnedSearchFolderBackupRecord>[];
-    final feeds = <PinnedSearchFeedBackupRecord>[];
     final ids = <String>{};
     List<String>? homeSearchIds;
     for (final (index, value) in metadata.data.indexed) {
@@ -33,24 +34,6 @@ class PinnedSearchBackupCodec extends JsonHandler<PinnedSearchBackupData> {
       if (!ids.add(id)) {
         throw InvalidBackupFormatException('$row.id is repeated');
       }
-      if (json['kind'] == 'feed') {
-        final queries = switch (json['queries']) {
-          final List values when values.isNotEmpty && values.length <= 1000 => [
-            for (final value in values) _nonBlankString(value, '$row.queries'),
-          ],
-          _ => throw InvalidBackupFormatException('$row.queries is invalid'),
-        };
-        feeds.add(
-          PinnedSearchFeedBackupRecord(
-            id: id,
-            name: _nonBlankString(json['name'], '$row.name').trim(),
-            position: _nonNegativeInt(json['position'], '$row.position'),
-            queries: List.unmodifiable(queries),
-            profile: parseBackupProfile(json['profile'], '$row.profile'),
-          ),
-        );
-        continue;
-      }
       if (json['kind'] == 'folder') {
         final members = _searchIds(json['searchIds'], '$row.searchIds');
         folders.add(
@@ -63,7 +46,7 @@ class PinnedSearchBackupCodec extends JsonHandler<PinnedSearchBackupData> {
         );
         continue;
       }
-      if (json['kind'] != null && json['kind'] != 'search') {
+      if (json['kind'] != 'search') {
         throw InvalidBackupFormatException('$row.kind is invalid');
       }
       final name = switch (json['name']) {
@@ -81,6 +64,9 @@ class PinnedSearchBackupCodec extends JsonHandler<PinnedSearchBackupData> {
         ),
       );
     }
+    if (homeSearchIds == null) {
+      throw const InvalidBackupFormatException('Missing organization row');
+    }
     final independentIds = records.map((record) => record.id).toSet();
     final folderNames = <String>{};
     for (final folder in folders) {
@@ -90,7 +76,7 @@ class PinnedSearchBackupCodec extends JsonHandler<PinnedSearchBackupData> {
     }
     final assigned = <String>{};
     for (final id in [
-      ...?homeSearchIds,
+      ...homeSearchIds,
       for (final folder in folders) ...folder.searchIds,
     ]) {
       if (!assigned.add(id) || !independentIds.contains(id)) {
@@ -102,22 +88,12 @@ class PinnedSearchBackupCodec extends JsonHandler<PinnedSearchBackupData> {
     return PinnedSearchBackupData(
       records: List.unmodifiable(records),
       folders: List.unmodifiable(folders),
-      feeds: List.unmodifiable(feeds),
-      homeSearchIds: List.unmodifiable(homeSearchIds ?? const <String>[]),
+      homeSearchIds: List.unmodifiable(homeSearchIds),
     );
   }
 
   @override
   List<dynamic> encode(PinnedSearchBackupData data) => [
-    for (final feed in data.feeds)
-      {
-        'kind': 'feed',
-        'id': feed.id,
-        'name': feed.name,
-        'position': feed.position,
-        'queries': feed.queries,
-        'profile': feed.profile.toJson(),
-      },
     for (final folder in data.folders)
       {
         'kind': 'folder',
@@ -128,6 +104,7 @@ class PinnedSearchBackupCodec extends JsonHandler<PinnedSearchBackupData> {
       },
     for (final record in data.records)
       {
+        'kind': 'search',
         'id': record.id,
         'name': record.name,
         'query': record.query,
