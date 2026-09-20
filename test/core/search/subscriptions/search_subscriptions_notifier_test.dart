@@ -48,6 +48,7 @@ void main() {
       recentPostIdentities: const [],
       unreadCount: unread,
       lastSuccessfulCheckAt: checkedAt,
+      highestSeenPostId: checkedAt == null ? null : -1,
     );
     final existing = (await repository.getAll())
         .where((other) => other.profileId == item.profileId)

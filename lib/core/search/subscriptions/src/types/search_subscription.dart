@@ -18,6 +18,7 @@ class SearchSubscription extends Equatable {
     String? name,
     this.lastAttemptAt,
     this.lastSuccessfulCheckAt,
+    this.highestSeenPostId,
     this.lastErrorKind,
     this.runtimeRevision = 0,
   }) : unreadCount = unreadCount > 0 ? 1 : 0,
@@ -57,6 +58,7 @@ class SearchSubscription extends Equatable {
   final int unreadCount;
   final DateTime? lastAttemptAt;
   final DateTime? lastSuccessfulCheckAt;
+  final int? highestSeenPostId;
   final SearchRefreshErrorKind? lastErrorKind;
   final int runtimeRevision;
 
@@ -77,6 +79,7 @@ class SearchSubscription extends Equatable {
     unreadCount,
     lastAttemptAt,
     lastSuccessfulCheckAt,
+    highestSeenPostId,
     lastErrorKind,
     runtimeRevision,
   ];

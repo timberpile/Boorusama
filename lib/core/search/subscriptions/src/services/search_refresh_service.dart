@@ -113,18 +113,14 @@ class SearchRefreshService {
           ),
         );
         if (committed == null) return const SearchRefreshDiscarded();
-        final knownIds = subscription.recentPostIdentities
-            .map((post) => post.postId)
-            .toSet();
         return SearchRefreshSucceeded(
           subscription: committed,
-          detectedNewPosts:
-              !baseline &&
-              previews.any(
-                (post) =>
-                    post.postCreatedAt!.isAfter(checkpoint) &&
-                    knownIds.add(post.postId),
-              ),
+          detectedNewPosts: switch (subscription.highestSeenPostId) {
+            final previousId? when !baseline => previews.any(
+              (post) => post.postId > previousId,
+            ),
+            _ => false,
+          },
           baseline: baseline,
         );
     }

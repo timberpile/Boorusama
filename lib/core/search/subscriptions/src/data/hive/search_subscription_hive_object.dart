@@ -15,6 +15,7 @@ class SearchSubscriptionHiveObject extends HiveObject {
     required this.createdAt,
     required this.lastAttemptAt,
     required this.lastSuccessfulCheckAt,
+    this.highestSeenPostId,
     required this.unreadCount,
     required this.lastErrorKind,
     required this.previews,
@@ -33,6 +34,7 @@ class SearchSubscriptionHiveObject extends HiveObject {
   DateTime createdAt;
   DateTime? lastAttemptAt;
   DateTime? lastSuccessfulCheckAt;
+  int? highestSeenPostId;
   int unreadCount;
   String? lastErrorKind;
   List<SearchPostPreviewHiveObject> previews;

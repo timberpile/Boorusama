@@ -15,9 +15,10 @@ supersedes their exhaustive scanning and numeric unread-count requirements.
 
 `SearchSubscriptionRepository` is the persistence boundary. Each subscription
 is one record in the `pinned_search_subscriptions` Hive box, including its
-definition, checkpoint, NEW state, up to four previews, and at most 50 recent
-post identities. A refresh writes that aggregate once so these fields cannot be
-split across separate refresh writes. Repository mutations are serialized;
+definition, refresh time, highest observed post ID, NEW state, up to four
+previews, and at most 50 recent post identities. A refresh writes that
+aggregate once so these fields cannot be split across separate refresh writes.
+Repository mutations are serialized;
 ordering reads wait for pending mutations.
 
 A subscription belongs to exactly one `BooruConfig.id`. Post IDs are meaningful
@@ -41,10 +42,11 @@ snapshot. The first successful snapshot caches up to four distinct newest
 posts and sets a checkpoint without NEW. If this attempt fails, the saved pin
 remains; its first later successful explicit refresh establishes that baseline.
 
-A later refresh sets NEW when the fetched snapshot contains a matching post
-whose upload timestamp is strictly after the previous successful checkpoint
-and whose ID is not already known. Posts uploaded at the checkpoint, or old
-posts that start matching after metadata edits, do not trigger NEW. A search
+A later refresh sets NEW when the fetched snapshot contains a post ID higher
+than the highest ID observed by that search in earlier successful refreshes.
+Upload timestamps do not affect NEW. The highest ID never decreases, including
+after an empty snapshot. Existing searches without a stored ID boundary use
+their next successful refresh to establish one without creating NEW. A search
 card shows NEW; the navigation entry shows a dot if any independent pin owned
 by an existing profile has NEW. Neither reports a total.
 
@@ -59,7 +61,8 @@ performed while the request was in flight.
 `SearchRefreshService` resolves the owning profile's existing `PostRepository`
 and the `SearchRefreshQueryAdapter` exposed by `BooruRepository`. It records its
 UTC start time before planning or fetching. A successful validated snapshot
-advances the checkpoint to that time; it does not claim exhaustive coverage.
+updates the last-check time and highest observed post ID; it does not claim
+exhaustive coverage.
 
 `ChronologicalSearchScanner.scanSnapshot` requests only page 1 with a limit of
 50 and inspects at most 50 returned posts, even if the server returns more. It
@@ -71,18 +74,20 @@ Raw repository fetches avoid enrichment requests for returned posts.
 
 The scanner requires an upload timestamp on each post and deduplicates IDs.
 It accepts the site's default post order, including small differences between
-ID order and upload timestamps. A missing upload time produces an unsupported result.
+ID order and upload timestamps. A missing upload time produces an unsupported
+result.
 No timestamp is inferred from the device clock or post ID. A successful
 snapshot replaces previews with its newest four posts; an empty snapshot clears
-previews. Failures preserve the previous checkpoint, previews, and NEW state
-while recording an attempt/error. No partial snapshot commits on failure.
+previews. Failures preserve the previous ID boundary, last-check time,
+previews, and NEW state while recording an attempt/error. No partial snapshot
+commits on failure.
 
-This detects new uploads visible in the newest snapshot, rather than counting
-or enumerating every upload since the old checkpoint. Uploads that leave the
-snapshot before a refresh, delayed indexing with older timestamps, or server
-clock differences may escape detection. Tracking relies on actual upload times,
-stable identities, and approximately newest-first results from the integration.
-The scanner cannot prove that the server returned the newest available posts.
+This detects higher post IDs visible in the newest snapshot, rather than counting
+or enumerating every upload since the previous refresh. If more than 50 matching
+posts arrive between checks, NEW still appears when a higher ID is visible,
+but the feed cache may miss some intermediate posts. Tracking assumes IDs rise
+approximately with the site's default newest-first order. The scanner cannot
+prove that the server returned every newest available post.
 
 The current default query adapter preserves ordinary queries and rejects
 `order`, `order_by`, or `sort` metatags using either `:` or `=`. This includes
@@ -93,10 +98,10 @@ planning passes no uploaded-after filter so current previews remain available
 when there are no new uploads.
 
 Rule34 and Safebooru.org use site-specific XML post-list endpoints because their
-JSON format can omit `created_at`. The Gelbooru v2 parser preserves the XML
-upload time, timezone offset, and total result count while retaining JSON
-support for other sites. Totals are not used for NEW detection. The `change`
-field is not an upload time and must not be used for new-post tracking.
+JSON format can omit `created_at`, which previews and feed caches still need.
+The Gelbooru v2 parser preserves the XML upload time, timezone offset, and total
+result count while retaining JSON support for other sites. Totals and upload
+times are not used for NEW detection.
 
 Engine capability adapters and unsupported-profile explanations are tracked
 separately in [PS-005](work/done/PS-005-engine-refresh-adapters.md).
@@ -243,7 +248,8 @@ pins only.
 
 Changing a profile's engine or normalized site URL retains its feed definitions
 and search queries but clears post caches, previews, NEW/error state, and refresh
-checkpoints. The persisted runtime revision rejects results from refreshes
+checkpoints and highest observed IDs. The persisted runtime revision rejects
+results from refreshes
 started against the previous site without changing each search's creation time
 or its position in Home. New refreshes for that profile pause while the cache
 is reset and the profile update is saved. The reset is written first, so an

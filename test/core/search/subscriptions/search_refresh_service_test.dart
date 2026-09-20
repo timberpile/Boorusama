@@ -102,6 +102,56 @@ void main() {
     expect((await repository.getById('cat'))?.unreadCount, 1);
   });
 
+  test('a higher post ID sets NEW even with an older upload time', () async {
+    posts = TestSearchPostRepository(
+      (_, _, _) async => Either.right(
+        [TestSearchPost(100, checkpoint)].toResult(),
+      ),
+    );
+    now = checkpoint;
+    await service().refresh(subscription, BooruConfig.empty);
+    subscription = (await repository.getById('cat'))!;
+    posts = TestSearchPostRepository(
+      (_, _, _) async => Either.right(
+        [
+          TestSearchPost(101, checkpoint.subtract(const Duration(days: 1))),
+          TestSearchPost(100, checkpoint),
+        ].toResult(),
+      ),
+    );
+    now = startedAt;
+
+    final result = await service().refresh(subscription, BooruConfig.empty);
+
+    expect((result as SearchRefreshSucceeded).detectedNewPosts, isTrue);
+    expect((await repository.getById('cat'))?.hasNewPosts, isTrue);
+  });
+
+  test('a lower post ID does not set NEW with a newer upload time', () async {
+    posts = TestSearchPostRepository(
+      (_, _, _) async => Either.right(
+        [TestSearchPost(100, checkpoint)].toResult(),
+      ),
+    );
+    now = checkpoint;
+    await service().refresh(subscription, BooruConfig.empty);
+    subscription = (await repository.getById('cat'))!;
+    posts = TestSearchPostRepository(
+      (_, _, _) async => Either.right(
+        [
+          TestSearchPost(100, checkpoint),
+          TestSearchPost(99, startedAt.add(const Duration(days: 1))),
+        ].toResult(),
+      ),
+    );
+    now = startedAt;
+
+    final result = await service().refresh(subscription, BooruConfig.empty);
+
+    expect((result as SearchRefreshSucceeded).detectedNewPosts, isFalse);
+    expect((await repository.getById('cat'))?.hasNewPosts, isFalse);
+  });
+
   test('captures the UTC start before query planning and fetch', () async {
     await seedCheckpoint();
     adapter = _TestAdapter((query, after) {
@@ -161,7 +211,15 @@ void main() {
   test(
     'old matching posts update previews without setting NEW after metadata edits',
     () async {
-      await seedCheckpoint();
+      posts = TestSearchPostRepository(
+        (_, _, _) async => Either.right(
+          [TestSearchPost(10, checkpoint)].toResult(),
+        ),
+      );
+      now = checkpoint;
+      await service().refresh(subscription, BooruConfig.empty);
+      subscription = (await repository.getById('cat'))!;
+      now = startedAt;
       posts = TestSearchPostRepository(
         (_, _, _) async => Either.right(
           [
@@ -193,6 +251,7 @@ void main() {
       expect(saved.hasNewPosts, isTrue);
       expect(saved.previews, isEmpty);
       expect(saved.lastSuccessfulCheckAt, now);
+      expect(saved.highestSeenPostId, 2);
     },
   );
 
@@ -267,6 +326,7 @@ void main() {
       expect(saved.lastAttemptAt, now);
       expect(saved.lastErrorKind, c.expected);
       expect(saved.lastSuccessfulCheckAt, startedAt);
+      expect(saved.highestSeenPostId, subscription.highestSeenPostId);
       expect(saved.previews, subscription.previews);
       expect(saved.hasNewPosts, isTrue);
     });

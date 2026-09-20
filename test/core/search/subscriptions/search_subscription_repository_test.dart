@@ -292,6 +292,7 @@ void main() {
       expect(reset.createdAt, source.createdAt);
       expect(reset.runtimeRevision, source.runtimeRevision + 1);
       expect(reset.lastSuccessfulCheckAt, isNull);
+      expect(reset.highestSeenPostId, isNull);
       expect(reset.lastAttemptAt, isNull);
       expect(reset.lastErrorKind, isNull);
       expect(reset.previews, isEmpty);
@@ -701,9 +702,9 @@ void main() {
         startedAt: checkpoint,
         baseline: true,
         discoveredPosts: [
-          preview(1, DateTime.utc(2026, 9, 9)),
-          preview(2, DateTime.utc(2026, 9, 10)),
-          preview(3, DateTime.utc(2026, 9, 11)),
+          preview(10, DateTime.utc(2026, 9, 9)),
+          preview(11, DateTime.utc(2026, 9, 10)),
+          preview(12, DateTime.utc(2026, 9, 11)),
         ],
       ),
     );
@@ -727,8 +728,8 @@ void main() {
     expect(
       committed?.recentPostIdentities.map((item) => item.postId),
       unorderedEquals([
-        2,
-        3,
+        11,
+        12,
         5,
         6,
       ]),
@@ -800,7 +801,82 @@ void main() {
 
     expect(committed?.unreadCount, 0);
     expect(committed?.lastSuccessfulCheckAt, DateTime.utc(2026, 9, 14, 9));
+    expect(committed?.highestSeenPostId, 1);
   });
+
+  test('the highest observed post ID survives reopening storage', () async {
+    final subscription = await repository.create(
+      profileId: 4,
+      query: 'cat',
+      name: null,
+      id: 'id-checkpoint',
+      createdAt: createdAt,
+    );
+    final firstCheck = DateTime.utc(2026, 9, 14, 9);
+    await repository.commitRefresh(
+      commit(
+        subscriptionId: subscription.id,
+        expectedCheckpoint: null,
+        startedAt: firstCheck,
+        baseline: true,
+        discoveredPosts: [preview(100, firstCheck)],
+      ),
+    );
+    await box.close();
+    box = await Hive.openBox<SearchSubscriptionHiveObject>(boxName);
+    repository = HiveSearchSubscriptionRepository(box: box);
+
+    expect((await repository.getById(subscription.id))?.highestSeenPostId, 100);
+    final next = await repository.commitRefresh(
+      commit(
+        subscriptionId: subscription.id,
+        expectedCheckpoint: firstCheck,
+        startedAt: firstCheck.add(const Duration(hours: 1)),
+        baseline: false,
+        discoveredPosts: [
+          preview(101, firstCheck.subtract(const Duration(days: 1))),
+        ],
+      ),
+    );
+    expect(next?.highestSeenPostId, 101);
+    expect(next?.hasNewPosts, isTrue);
+  });
+
+  test(
+    'an existing checked search establishes an ID boundary without NEW',
+    () async {
+      final checkpoint = DateTime.utc(2026, 9, 14, 9);
+      await box.put(
+        'old',
+        SearchSubscriptionHiveObject(
+          id: 'old',
+          profileId: 4,
+          query: 'cat',
+          name: null,
+          position: 0,
+          createdAt: createdAt,
+          lastAttemptAt: checkpoint,
+          lastSuccessfulCheckAt: checkpoint,
+          unreadCount: 0,
+          lastErrorKind: null,
+          previews: const [],
+          recentPostIdentities: const [],
+        ),
+      );
+      final migrated = await repository.commitRefresh(
+        commit(
+          subscriptionId: 'old',
+          expectedCheckpoint: checkpoint,
+          startedAt: checkpoint.add(const Duration(hours: 1)),
+          baseline: false,
+          discoveredPosts: [preview(100, checkpoint)],
+        ),
+      );
+
+      expect(migrated?.highestSeenPostId, 100);
+      expect(migrated?.hasNewPosts, isFalse);
+    },
+  );
 
   test('rejects a refresh whose checkpoint has become stale', () async {
     final subscription = await repository.create(
@@ -819,6 +895,7 @@ void main() {
         discoveredPosts: const [],
       ),
     );
+    expect((await repository.getById(subscription.id))?.highestSeenPostId, -1);
 
     final stale = await repository.commitRefresh(
       commit(

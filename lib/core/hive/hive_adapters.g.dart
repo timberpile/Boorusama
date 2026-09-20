@@ -233,6 +233,7 @@ class SearchSubscriptionHiveObjectAdapter
       createdAt: fields[5] as DateTime,
       lastAttemptAt: fields[6] as DateTime?,
       lastSuccessfulCheckAt: fields[7] as DateTime?,
+      highestSeenPostId: (fields[14] as num?)?.toInt(),
       unreadCount: (fields[8] as num).toInt(),
       lastErrorKind: fields[9] as String?,
       previews: (fields[10] as List).cast<SearchPostPreviewHiveObject>(),
@@ -246,7 +247,7 @@ class SearchSubscriptionHiveObjectAdapter
   @override
   void write(BinaryWriter writer, SearchSubscriptionHiveObject obj) {
     writer
-      ..writeByte(14)
+      ..writeByte(15)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -274,7 +275,9 @@ class SearchSubscriptionHiveObjectAdapter
       ..writeByte(12)
       ..write(obj.feedId)
       ..writeByte(13)
-      ..write(obj.runtimeRevision);
+      ..write(obj.runtimeRevision)
+      ..writeByte(14)
+      ..write(obj.highestSeenPostId);
   }
 
   @override

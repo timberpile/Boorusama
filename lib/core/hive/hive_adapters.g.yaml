@@ -75,7 +75,7 @@ types:
         index: 2
   SearchSubscriptionHiveObject:
     typeId: 6
-    nextIndex: 14
+    nextIndex: 15
     fields:
       id:
         index: 0
@@ -105,6 +105,8 @@ types:
         index: 12
       runtimeRevision:
         index: 13
+      highestSeenPostId:
+        index: 14
   SearchPostPreviewHiveObject:
     typeId: 7
     nextIndex: 5

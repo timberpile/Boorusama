@@ -471,6 +471,14 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
       }
 
       final previews = _mergePreviews(commit.discoveredPosts, const []);
+      final highestSeenPostId = commit.discoveredPosts.fold<int>(
+        current.highestSeenPostId ?? -1,
+        (highest, post) => post.postId > highest ? post.postId : highest,
+      );
+      final foundHigherId = switch (current.highestSeenPostId) {
+        final previousId? => highestSeenPostId > previousId,
+        _ => false,
+      };
       final recentPostIdentities =
           [
                 ...current.recentPostIdentities,
@@ -505,22 +513,8 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
         runtimeRevision: current.runtimeRevision,
         previews: previews,
         recentPostIdentities: recentPostIdentities.take(50).toList(),
-        unreadCount:
-            !commit.baseline &&
-                (current.hasNewPosts ||
-                    newlyDiscovered.any(
-                      (preview) => switch ((
-                        preview.postCreatedAt,
-                        commit.expectedCheckpoint,
-                      )) {
-                        (
-                          final DateTime uploadedAt,
-                          final DateTime checkpoint,
-                        ) =>
-                          uploadedAt.isAfter(checkpoint),
-                        _ => false,
-                      },
-                    ))
+        highestSeenPostId: highestSeenPostId,
+        unreadCount: !commit.baseline && (current.hasNewPosts || foundHigherId)
             ? 1
             : 0,
         lastAttemptAt: commit.startedAt,
@@ -583,6 +577,7 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
         unreadCount: subscription.unreadCount,
         lastAttemptAt: attemptedAt,
         lastSuccessfulCheckAt: subscription.lastSuccessfulCheckAt,
+        highestSeenPostId: subscription.highestSeenPostId,
         lastErrorKind: kind,
       );
       final object = _toObject(updated);
@@ -870,6 +865,7 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
       unreadCount: object.unreadCount,
       lastAttemptAt: object.lastAttemptAt,
       lastSuccessfulCheckAt: object.lastSuccessfulCheckAt,
+      highestSeenPostId: object.highestSeenPostId,
       lastErrorKind: _toErrorKind(object.lastErrorKind),
     );
   }
@@ -885,6 +881,7 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
       runtimeRevision: subscription.runtimeRevision,
       lastAttemptAt: subscription.lastAttemptAt,
       lastSuccessfulCheckAt: subscription.lastSuccessfulCheckAt,
+      highestSeenPostId: subscription.highestSeenPostId,
       unreadCount: subscription.unreadCount,
       lastErrorKind: subscription.lastErrorKind?.name,
       previews: subscription.previews.map(_toPreviewObject).toList(),
@@ -947,6 +944,7 @@ extension on SearchSubscription {
       unreadCount: unreadCount,
       lastAttemptAt: lastAttemptAt,
       lastSuccessfulCheckAt: lastSuccessfulCheckAt,
+      highestSeenPostId: highestSeenPostId,
       lastErrorKind: lastErrorKind,
     );
   }
@@ -965,6 +963,7 @@ extension on SearchSubscription {
       unreadCount: unreadCount,
       lastAttemptAt: lastAttemptAt,
       lastSuccessfulCheckAt: lastSuccessfulCheckAt,
+      highestSeenPostId: highestSeenPostId,
       lastErrorKind: lastErrorKind,
     );
   }
@@ -983,6 +982,7 @@ extension on SearchSubscription {
       unreadCount: value,
       lastAttemptAt: lastAttemptAt,
       lastSuccessfulCheckAt: lastSuccessfulCheckAt,
+      highestSeenPostId: highestSeenPostId,
       lastErrorKind: lastErrorKind,
     );
   }
