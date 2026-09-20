@@ -11,12 +11,12 @@ import '../../search/subscriptions/providers.dart';
 import '../preparation/preparation_pipeline.dart';
 import '../types/types.dart';
 import '../widgets/backup_restore_tile.dart';
-import '../widgets/pinned_search_missing_profiles_dialog.dart';
+import '../widgets/search_backup_missing_profiles_dialog.dart';
 import 'following_feed_backup_codec.dart';
 import 'following_feed_backup_data.dart';
 import 'following_feed_import_service.dart';
 import 'json_source.dart';
-import 'pinned_search_import_preflight.dart';
+import 'search_backup_import_preflight.dart';
 import 'search_backup_profile.dart';
 
 class FollowingFeedsBackupSource
@@ -76,7 +76,7 @@ class FollowingFeedsBackupSource
           return _applyApproved(ref, data, approval);
         },
         approvedResultExecutor: (data, context, approval) =>
-            _applyApproved(ref, data, approval as PinnedSearchImportApproval),
+            _applyApproved(ref, data, approval as SearchBackupImportApproval),
         handler: FollowingFeedBackupCodec(),
         exportResultBuilder: (data) => BackupOperationResult(
           bookmarkCount: 0,
@@ -85,11 +85,23 @@ class FollowingFeedsBackupSource
         ref: ref,
       );
 
-  Future<PinnedSearchImportApproval> confirmImportPreview(
+  Future<SearchBackupImportApproval> confirmImportPreview(
     FollowingFeedBackupData data,
     Future<List<BooruConfig>> Function() projectedProfilesGetter,
     BuildContext? context,
   ) => _confirmImportPreview(ref, data, projectedProfilesGetter, context);
+
+  Future<Set<String>> unmatchedRecordIds(
+    FollowingFeedBackupData data,
+    List<BooruConfig> profiles,
+  ) async {
+    final repository = await ref.read(
+      searchSubscriptionRepositoryProvider.future,
+    );
+    return FollowingFeedImportService(
+      repository: repository,
+    ).preview(data, profiles: profiles).unmatchedRecordIds;
+  }
 
   @override
   String get displayName => Translations().following_feeds_backup.title;
@@ -127,7 +139,7 @@ class FollowingFeedsBackupSource
   );
 }
 
-Future<PinnedSearchImportApproval> _confirmImportPreview(
+Future<SearchBackupImportApproval> _confirmImportPreview(
   Ref ref,
   FollowingFeedBackupData data,
   Future<List<BooruConfig>> Function() projectedProfilesGetter,
@@ -141,18 +153,15 @@ Future<PinnedSearchImportApproval> _confirmImportPreview(
     data,
     profiles: await projectedProfilesGetter(),
   );
-  if (projected.unmatchedRecordIds.isNotEmpty) {
-    if (context == null || !context.mounted) {
-      throw const ImportCancelledException();
-    }
-    final accepted = await showPinnedSearchMissingProfilesDialog(
-      context,
-      projected.unmatchedRecordIds.length,
-    );
-    if (accepted != true || !context.mounted) {
-      throw const ImportCancelledException();
-    }
+  if (context != null && !context.mounted) {
+    throw const ImportCancelledException();
   }
+  await confirmSearchBackupProfiles(
+    unmatchedRecordIds: projected.unmatchedRecordIds,
+    pinnedCount: 0,
+    feedCount: projected.unmatchedRecordIds.length,
+    context: context,
+  );
   final latest = service.preview(
     data,
     profiles: await projectedProfilesGetter(),
@@ -163,13 +172,13 @@ Future<PinnedSearchImportApproval> _confirmImportPreview(
   )) {
     throw const ImportCancelledException();
   }
-  return PinnedSearchImportApproval(projected.unmatchedRecordIds);
+  return SearchBackupImportApproval(projected.unmatchedRecordIds);
 }
 
 Future<BackupOperationResult> _applyApproved(
   Ref ref,
   FollowingFeedBackupData data,
-  PinnedSearchImportApproval approval,
+  SearchBackupImportApproval approval,
 ) => ref.read(searchSubscriptionsProvider.notifier).runSerializedMutation((
   repository,
 ) async {

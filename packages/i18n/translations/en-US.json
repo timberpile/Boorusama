@@ -1,4 +1,18 @@
 {
+  "search_backup_import": {
+    "title": "Skip unmatched records?",
+    "message": "No matching profile for {counts}. Those records will be skipped. Continue importing?",
+    "pinned_count": {
+      "one": "$n pinned search",
+      "other": "$n pinned searches"
+    },
+    "feed_count": {
+      "one": "$n following feed",
+      "other": "$n following feeds"
+    },
+    "joiner": " and ",
+    "skip_and_import": "Skip and import"
+  },
   "following_feeds_backup": {
     "title": "Following Feeds",
     "backup_count": {

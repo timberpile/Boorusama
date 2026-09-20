@@ -21,7 +21,8 @@ import '../../../foundation/loggers.dart';
 import '../../configs/manage/providers.dart';
 import '../preparation/version_checking.dart';
 import '../preparation/preparation_pipeline.dart';
-import '../sources/pinned_search_import_preflight.dart';
+import '../sources/search_backup_import_preflight.dart';
+import '../sources/following_feeds_source.dart';
 import '../sources/pinned_searches_source.dart';
 import '../sources/providers.dart';
 import '../types/backup_data_source.dart';
@@ -615,22 +616,30 @@ class BulkBackupService {
       }
 
       final pinnedSource = registry.getSource('pinned_searches');
-      final approval = pinnedSource is PinnedSearchesBackupSource
-          ? await preflightPinnedSearches(
-              prepared: prepared,
-              selectedIds: (onlySourceIds ?? sourcesToProcess).toSet(),
-              pinnedSource: pinnedSource,
-              currentProfiles: () => ref.read(booruConfigRepoProvider).getAll(),
-              context: uiContext != null && uiContext.mounted
-                  ? uiContext
-                  : null,
-            )
-          : null;
+      final feedSource = registry.getSource('following_feeds');
+      final approvals = await preflightSearchBackups(
+        prepared: prepared,
+        selectedIds: (onlySourceIds ?? sourcesToProcess).toSet(),
+        pinnedSource: pinnedSource is PinnedSearchesBackupSource
+            ? pinnedSource
+            : null,
+        feedSource: feedSource is FollowingFeedsBackupSource
+            ? feedSource
+            : null,
+        currentProfiles: () => ref.read(booruConfigRepoProvider).getAll(),
+        context: uiContext != null && uiContext.mounted ? uiContext : null,
+      );
+      var profilesFailed = false;
       for (final entry in prepared.entries) {
+        if (profilesFailed &&
+            {'pinned_searches', 'following_feeds'}.contains(entry.key)) {
+          failed.add(entry.key);
+          continue;
+        }
         try {
           await entry.value.executeImport(
             deferRestart: true,
-            approval: entry.key == 'pinned_searches' ? approval : null,
+            approval: approvals[entry.key],
           );
           imported.add(entry.key);
           if (entry.value.restartApp case final restart?) restarts.add(restart);
@@ -642,11 +651,7 @@ class BulkBackupService {
             'Failed to import source ${entry.key}: $e',
           );
           failed.add(entry.key);
-          if (entry.key == 'profiles' &&
-              prepared.containsKey('pinned_searches')) {
-            failed.add('pinned_searches');
-            break;
-          }
+          if (entry.key == 'profiles') profilesFailed = true;
         }
       }
 

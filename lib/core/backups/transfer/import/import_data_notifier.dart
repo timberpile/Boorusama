@@ -12,7 +12,8 @@ import '../../../settings/providers.dart';
 import '../../../settings/types.dart';
 import '../../preparation/version_checking.dart';
 import '../../preparation/preparation_pipeline.dart';
-import '../../sources/pinned_search_import_preflight.dart';
+import '../../sources/search_backup_import_preflight.dart';
+import '../../sources/following_feeds_source.dart';
 import '../../sources/pinned_searches_source.dart';
 import '../../sources/providers.dart';
 import '../../types/types.dart';
@@ -314,24 +315,34 @@ class ImportDataNotifier
       }
       if (!uiContext.mounted) throw const ImportCancelledException();
       final pinnedSource = registry.getSource('pinned_searches');
-      final approval = pinnedSource is PinnedSearchesBackupSource
-          ? await preflightPinnedSearches(
-              prepared: prepared,
-              selectedIds: orderedTasks.map((task) => task.id).toSet(),
-              pinnedSource: pinnedSource,
-              currentProfiles: () => ref.read(booruConfigRepoProvider).getAll(),
-              context: uiContext,
-            )
-          : null;
+      final feedSource = registry.getSource('following_feeds');
+      final approvals = await preflightSearchBackups(
+        prepared: prepared,
+        selectedIds: orderedTasks.map((task) => task.id).toSet(),
+        pinnedSource: pinnedSource is PinnedSearchesBackupSource
+            ? pinnedSource
+            : null,
+        feedSource: feedSource is FollowingFeedsBackupSource
+            ? feedSource
+            : null,
+        currentProfiles: () => ref.read(booruConfigRepoProvider).getAll(),
+        context: uiContext,
+      );
+      var profilesFailed = false;
       for (final task in orderedTasks) {
         final preparation = prepared[task.id];
         if (preparation == null) continue;
+        if (profilesFailed &&
+            {'pinned_searches', 'following_feeds'}.contains(task.id)) {
+          updateTask(task.id, const ImportError('Profile import failed'));
+          continue;
+        }
         if (!uiContext.mounted) throw const ImportCancelledException();
         updateTask(task.id, const Importing());
         try {
           await preparation.executeImport(
             deferRestart: true,
-            approval: task.id == 'pinned_searches' ? approval : null,
+            approval: approvals[task.id],
           );
           importedTaskIds.add(task.id);
           updateTask(task.id, const ImportDone());
@@ -339,11 +350,7 @@ class ImportDataNotifier
           rethrow;
         } catch (e) {
           updateTask(task.id, ImportError(e.toString()));
-          if (task.id == 'profiles' &&
-              prepared.containsKey('pinned_searches')) {
-            updateTask('pinned_searches', ImportError(e.toString()));
-            break;
-          }
+          if (task.id == 'profiles') profilesFailed = true;
         }
       }
     } on ImportCancelledException {

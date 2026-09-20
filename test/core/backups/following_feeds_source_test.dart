@@ -1,10 +1,12 @@
 import 'dart:convert';
 
+import 'package:boorusama/core/backups/preparation/preparation_pipeline.dart';
 import 'package:boorusama/core/backups/sources/following_feed_backup_data.dart';
 import 'package:boorusama/core/backups/sources/following_feeds_source.dart';
 import 'package:boorusama/core/backups/sources/pinned_searches_source.dart';
 import 'package:boorusama/core/backups/sources/providers.dart';
 import 'package:boorusama/core/backups/sources/search_backup_profile.dart';
+import 'package:boorusama/core/backups/widgets/search_backup_missing_profiles_dialog.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/configs/config/src/data/booru_config_repository_hive.dart';
 import 'package:boorusama/core/configs/config/types.dart';
@@ -13,8 +15,10 @@ import 'package:boorusama/core/search/subscriptions/src/data/providers.dart';
 import 'package:boorusama/core/search/subscriptions/types.dart';
 import 'package:boorusama/foundation/info/package_info.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
+import 'package:i18n/i18n.dart';
 import 'package:shelf/shelf.dart' as shelf;
 
 import '../search/subscriptions/subscription_test_utils.dart';
@@ -124,6 +128,136 @@ void main() {
       expect(await harness.repository.getById(pin.id), pin);
     },
   );
+
+  testWidgets(
+    'shows the standalone feed warning and skips only unmatched feeds',
+    (tester) async {
+      final harness = _Harness();
+      addTearDown(harness.container.dispose);
+      await harness.profiles.addAll([_profile]);
+      final context = await _pumpContext(tester, harness);
+      final data = FollowingFeedBackupData(
+        feeds: [
+          _record(_id, profileId: 4, url: 'https://example.test'),
+          _record(
+            '550e8400-e29b-41d4-a716-446655440001',
+            profileId: 9,
+            url: 'https://missing.test',
+          ),
+        ],
+      );
+      Object? error;
+      final pending = harness.feedSource.resultExecutor!(data, context)
+          .then<void>((_) {}, onError: (Object e) => error = e);
+      await tester.pumpAndSettle();
+      expect(
+        find.text(
+          'No matching profile for 1 following feed. Those records will be skipped. Continue importing?',
+        ),
+        findsOneWidget,
+      );
+      expect(await harness.repository.getFeeds(), isEmpty);
+      await tester.tap(find.text('Skip and import'));
+      await tester.pumpAndSettle();
+      await pending;
+      expect(error, isNull);
+      expect((await harness.repository.getFeeds()).single.id, _id);
+    },
+  );
+
+  testWidgets('one dialog lists unmatched pinned searches and feeds', (
+    tester,
+  ) async {
+    final harness = _Harness();
+    addTearDown(harness.container.dispose);
+    final context = await _pumpContext(tester, harness);
+    Object? error;
+    final pending = confirmSearchBackupProfiles(
+      unmatchedRecordIds: {'pin', 'feed1', 'feed2'},
+      pinnedCount: 1,
+      feedCount: 2,
+      context: context,
+    ).then<void>((_) {}, onError: (Object e) => error = e);
+    await tester.pumpAndSettle();
+    expect(
+      find.text(
+        'No matching profile for 1 pinned search and 2 following feeds. Those records will be skipped. Continue importing?',
+      ),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    await pending;
+    expect(error, isA<ImportCancelledException>());
+  });
+
+  testWidgets(
+    'a new ambiguous profile while the warning is open cancels before writes',
+    (tester) async {
+      final harness = _Harness();
+      addTearDown(harness.container.dispose);
+      await harness.profiles.addAll([_profile]);
+      final context = await _pumpContext(tester, harness);
+      final data = FollowingFeedBackupData(
+        feeds: [
+          _record(_id, profileId: 99, url: 'https://example.test'),
+          _record(
+            '550e8400-e29b-41d4-a716-446655440001',
+            profileId: 9,
+            url: 'https://missing.test',
+          ),
+        ],
+      );
+      Object? error;
+      final pending = harness.feedSource.resultExecutor!(data, context)
+          .then<void>((_) {}, onError: (Object e) => error = e);
+      await tester.pumpAndSettle();
+      expect(find.text('Skip unmatched records?'), findsOneWidget);
+      await harness.profiles.addAll([_profileWithId(5)]);
+      await tester.tap(find.text('Skip and import'));
+      await tester.pumpAndSettle();
+      await pending;
+      expect(error, isA<ImportCancelledException>());
+      expect(await harness.repository.getFeeds(), isEmpty);
+    },
+  );
+}
+
+FollowingFeedBackupRecord _record(
+  String id, {
+  required int profileId,
+  required String url,
+}) => FollowingFeedBackupRecord(
+  id: id,
+  name: 'Animals',
+  position: 0,
+  queries: const ['cat'],
+  profile: BackupProfileReference(
+    id: profileId,
+    booruType: 'danbooru',
+    url: url,
+    name: 'Remote',
+  ),
+);
+
+Future<BuildContext> _pumpContext(WidgetTester tester, _Harness harness) async {
+  late BuildContext context;
+  await tester.pumpWidget(
+    UncontrolledProviderScope(
+      container: harness.container,
+      child: BooruLocalization(
+        child: MaterialApp(
+          home: Builder(
+            builder: (value) {
+              context = value;
+              return const Scaffold(body: SizedBox());
+            },
+          ),
+        ),
+      ),
+    ),
+  );
+  return context;
 }
 
 Future<Map<String, dynamic>> _export(
@@ -144,6 +278,11 @@ final _profile = BooruConfig.fromJson({
   'booruIdHint': BooruType.danbooru.id,
   'url': 'https://example.test',
   'name': 'Example',
+});
+
+BooruConfig _profileWithId(int id) => BooruConfig.fromJson({
+  ..._profile.toJson(),
+  'id': id,
 });
 
 class _Harness {

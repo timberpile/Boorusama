@@ -80,7 +80,7 @@ void main() {
       expect(find.text('Skip unmatched records?'), findsOneWidget);
       expect(
         find.text(
-          '1 pinned searches or feeds have no matching profile and will be skipped. Continue importing?',
+          'No matching profile for 1 pinned search. Those records will be skipped. Continue importing?',
         ),
         findsOneWidget,
       );
@@ -250,7 +250,7 @@ void main() {
           expect(find.text('Skip unmatched records?'), findsOneWidget);
           expect(
             find.text(
-              '1 pinned searches or feeds have no matching profile and will be skipped. Continue importing?',
+              'No matching profile for 1 pinned search. Those records will be skipped. Continue importing?',
             ),
             findsOneWidget,
           );
