@@ -1,3 +1,11 @@
+# 4.5.0-timberpile.2
+- Add Pixiv support
+- Add Bookmark groups
+- Add Pinned searches
+- Add Following feeds
+- Improve post viewing with original-image zoom and comic-strip scrolling
+- Improve Android release signing and APK verification
+
 # 4.5.0-timberpile.1
 - Establish the Boorusama Timber app identity and Timberpile release/update channel for this fork.
 
