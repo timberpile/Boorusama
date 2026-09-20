@@ -174,7 +174,9 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
             throw StateError('Invalid folder ownership or duplicate folder');
           }
           for (final id in folder.searchIds) {
-            if (!memberships.add(id) || _box.get(id)?.profileId != profileId) {
+            if (!memberships.add(id) ||
+                _box.get(id)?.profileId != profileId ||
+                _box.get(id)?.feedId != null) {
               throw StateError('Invalid search membership');
             }
           }

@@ -275,7 +275,7 @@ class SearchSubscriptionsNotifier
   ) async {
     final items =
         state.requireValue.subscriptions
-            .where((s) => s.profileId == search.profileId)
+            .where((s) => s.profileId == search.profileId && s.feedId == null)
             .toList()
           ..sort((a, b) => a.position.compareTo(b.position));
     final index = group.indexWhere((s) => s.id == search.id);

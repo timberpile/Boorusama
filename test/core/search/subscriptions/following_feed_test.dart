@@ -8,6 +8,49 @@ import 'pinned_search_test_utils.dart';
 import 'subscription_test_utils.dart';
 
 void main() {
+  test(
+    'manual pin order and folders exclude feed-owned subscriptions',
+    () async {
+      final harness = PinnedSearchHarness();
+      addTearDown(harness.dispose);
+      final cats = pinnedFixture(query: 'cat');
+      final dogs = pinnedFixture(id: 'dogs', query: 'dog', position: 1);
+      await harness.seed([cats, dogs]);
+      final notifier = harness.container.read(
+        searchSubscriptionsProvider.notifier,
+      );
+      await harness.container.read(searchSubscriptionsProvider.future);
+      final feed = await notifier.saveFeed(
+        profileId: 12,
+        name: 'Animals',
+        queries: ['cat', 'dog'],
+      );
+      await notifier.moveInGroup(dogs, -1, [cats, dogs]);
+      expect(
+        harness.container
+            .read(profilePinnedSearchesProvider(12))
+            .requireValue
+            .map((s) => s.id),
+        ['dogs', 'cats'],
+      );
+      expect(
+        (await harness.repository.getAll())
+            .where((s) => s.feedId == feed.id)
+            .length,
+        2,
+      );
+      final source = (await harness.repository.getAll()).firstWhere(
+        (s) => s.feedId == feed.id,
+      );
+      await notifier.createFolder(12, 'Folder');
+      final folder = (await harness.repository.getFolders()).single;
+      await expectLater(
+        notifier.moveToFolder(source, folder.id),
+        throwsStateError,
+      );
+    },
+  );
+
   late PinnedSearchHarness harness;
   setUp(() => harness = PinnedSearchHarness());
   tearDown(() => harness.dispose());
