@@ -3,6 +3,9 @@
 Priority: Normal
 Affected feature: Pinned-search organization and navigation
 
+Claimed by: Codex /root, 2026-09-19
+Work branch: `feature/ps-018-shared-pinned-search-folders`
+
 ## Problem and reproduction
 
 The all-profile page groups pins by profile and shows a folder-open shortcut
