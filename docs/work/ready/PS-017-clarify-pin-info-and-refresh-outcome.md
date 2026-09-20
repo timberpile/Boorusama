@@ -15,8 +15,9 @@ from Info, even though the card can show a localized error.
 
 Info identifies the query and, only when the pin has a custom name, identifies
 that name. It describes the outcome of the most recent refresh attempt. For a
-failed attempt, it shows the corresponding user-facing error message while
-retaining the date of the last successful check as separate history.
+failed attempt, the Last attempt value includes the corresponding user-facing
+error message while retaining the date of the last successful check as
+separate history.
 
 ## Acceptance criteria
 
@@ -25,9 +26,10 @@ retaining the date of the last successful check as separate history.
   does not repeat the query as its name.
 - [ ] Show whether the last attempt succeeded or failed when an attempt exists.
   Before any attempt, do not imply success or failure.
-- [ ] On failure, show the localized message for the stored error kind, including
-  the unsupported case, in Info. Keep the last successful check timestamp
-  distinct from the failed attempt timestamp.
+- [ ] On failure, show the localized message for the stored error kind directly
+  in the Last attempt value, including the unsupported case. Do not add a
+  separate Message field. Keep the last successful check timestamp distinct
+  from the failed attempt timestamp.
 - [ ] After a later successful refresh, Info shows success and no stale failure
   message.
 - [ ] Widget coverage includes unnamed and named pins, never attempted,

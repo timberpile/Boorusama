@@ -299,7 +299,7 @@
       <symbol id="i-back" viewBox="0 0 24 24"><path d="m14.5 4.5-7.5 7.5 7.5 7.5M7 12h14"/></symbol>
       <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
       <symbol id="i-folder" viewBox="0 0 24 24"><path d="M2.5 7.5a2 2 0 0 1 2-2H9l2.2 2H19.5a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-15a2 2 0 0 1-2-2z"/><path d="M2.5 10h19"/></symbol>
-      <symbol id="i-folder-manage" viewBox="0 0 24 24"><path d="M2 7.7a2 2 0 0 1 2-2h4.5l2 2H20a2 2 0 0 1 2 2v8.8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z"/><path d="M13.4 14.8h6.2M16.5 11.7v6.2"/></symbol>
+      <symbol id="i-folder-manage" viewBox="0 0 24 24"><path d="M2 7.7a2 2 0 0 1 2-2h4.5l2 2H20a2 2 0 0 1 2 2v8.8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z"/><path d="M19.5 11.2a3 3 0 0 0-3.8 3.8l-3.7 3.7 1.6 1.6 3.7-3.7a3 3 0 0 0 3.8-3.8l-1.6 1.1-1.1-1.1z"/></symbol>
       <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 8.5A8.5 8.5 0 1 0 20.5 15M20 3.5v5.7h-5.7"/></symbol>
       <symbol id="i-rss" viewBox="0 0 24 24"><path d="M4 4a16 16 0 0 1 16 16M4 10a10 10 0 0 1 10 10"/><circle cx="5" cy="19" r="1.5" fill="currentColor" stroke="none"/></symbol>
       <symbol id="i-settings" viewBox="0 0 24 24"><path d="m10 2-.5 2.2-2 .9-2-.9-2.2 2.2.9 2-.9 2L1 11v3l2.3.5.9 2-.9 2 2.2 2.2 2-.9 2 .9L10 23h3l.5-2.3 2-.9 2 .9 2.2-2.2-.9-2 .9-2L22 14v-3l-2.3-.5-.9-2 .9-2-2.2-2.2-2 .9-2-.9L13 2z" transform="translate(.5 -.5) scale(.95)"/><circle cx="11.5" cy="11.5" r="3.1"/></symbol>
@@ -407,7 +407,7 @@
       function getPin(id) { return state.pins.find(pin => pin.id === id); }
       function getFolder(id) { return state.folders.find(folder => folder.id === id); }
       function pinLabel(pin) { return pin.name || pin.query; }
-      function countLabel(count) { return `${count} pinned ${count === 1 ? 'search' : 'searches'}`; }
+      function countLabel(count) { return `${count} ${count === 1 ? 'item' : 'items'}`; }
 
       function header() {
         const isRoot = page.kind === 'root';
@@ -482,7 +482,7 @@
 
       function managerBody() {
         return `<div class="scroll-inner">
-          <p class="manager-intro">Organize searches from any profile in one folder. Reorder folders here; open a folder to arrange its searches.</p>
+          <p class="manager-intro">Reorder folders here; open a folder to arrange its searches.</p>
           <div class="manager-heading">Named folders</div>
           ${state.folders.length ? state.folders.map((folder, index) => `<div class="manager-row">
             <span class="folder-icon-wrap">${icon('folder')}</span>
@@ -521,7 +521,7 @@
             <button class="dialog-link" data-action="create-folder">${icon('plus', 'small')}Create folder</button>
             <div class="dialog-actions"><button data-action="close-dialog">Cancel</button></div>`;
         } else if (dialog.kind === 'create') {
-          content = `<h3>Create folder</h3><p>${dialog.pinId ? `The selected search will move into the new folder.` : 'Folders can hold pinned searches from any profile.'}</p>
+          content = `<h3>Create folder</h3>${dialog.pinId ? '<p>The selected search will move into the new folder.</p>' : ''}
             <label class="input-label" for="folder-name">Folder name</label><input id="folder-name" class="text-input" maxlength="60" placeholder="Name" autofocus>
             <div id="dialog-error" class="dialog-error"></div>
             <div class="dialog-actions"><button data-action="close-dialog">Cancel</button><button data-action="save-folder">Create</button></div>`;
@@ -534,8 +534,8 @@
           const folder = getFolder(dialog.folderId);
           const count = folderPins(folder.id).length;
           content = `<h3>Delete “${escapeHtml(folder.name)}”?</h3>
-            <p class="warning">${count ? `This will unpin all ${count} ${count === 1 ? 'search' : 'searches'} in this folder, even when they belong to different profiles.` : 'This folder is empty and will be removed.'}</p>
-            <p>Posts and profiles will stay in the app. Unpinning cannot be undone.</p>
+            <p class="warning">${count === 1 ? 'This will unpin the search in this folder.' : count > 1 ? `This will unpin all ${count} searches in this folder.` : 'This folder is empty and will be removed.'}</p>
+            <p>${count ? 'Unpinning cannot be undone.' : 'Deleting cannot be undone.'}</p>
             <div class="dialog-actions"><button data-action="close-dialog">Cancel</button><button class="danger" data-action="confirm-delete-folder">Delete folder</button></div>`;
         } else if (dialog.kind === 'info') {
           const pin = getPin(dialog.pinId);
@@ -545,8 +545,7 @@
             <div class="info-rule"></div>
             <div class="info-field"><span>Last checked</span><strong>${escapeHtml(pin.lastChecked || 'Never checked')}</strong></div>
             <div class="info-field"><span>Last attempted</span><strong>${escapeHtml(pin.lastAttempt || 'Never attempted')}</strong></div>
-            <div class="info-field"><span>Last attempt</span><strong class="${pin.status === 'failure' ? 'status-failure' : 'status-success'}">${pin.status === 'failure' ? 'Failed' : 'Successful'}</strong></div>
-            ${pin.status === 'failure' ? `<div class="info-field"><span>Message</span><strong class="status-failure">${escapeHtml(pin.error)}</strong></div>` : ''}
+            <div class="info-field"><span>Last attempt</span><strong class="${pin.status === 'failure' ? 'status-failure' : 'status-success'}">${pin.status === 'failure' ? `Failed · ${escapeHtml(pin.error)}` : 'Successful'}</strong></div>
             <div class="dialog-actions"><button data-action="close-dialog">OK</button></div>`;
         } else if (dialog.kind === 'pin') {
           content = `<h3>Pin Search</h3>

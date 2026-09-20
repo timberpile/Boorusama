@@ -10,12 +10,15 @@
 
 **Spec:** `docs/superpowers/specs/2026-09-19-shared-pinned-search-folders-design.md`
 
+**UI mockup:** `docs/superpowers/mockups/2026-09-19-shared-pinned-search-folders.html`
+
 ## Global Constraints
 
 - Named folders can contain independent pins from different profiles; folders stay single-level.
 - Home is the no-folder destination, displayed as `[Home]` in pickers, with no Home heading above root cards.
+- Folder rows display counts as `N items`; Manage folders uses a folder icon with a wrench. The create-folder dialog omits explanatory copy about profiles.
 - Every card shows its owning profile; opening and refreshing use that owner.
-- Deleting a folder unpins every member only after a confirmation warning; cancel changes nothing.
+- Deleting a folder unpins every member only after a confirmation warning; for two searches it reads "This will unpin all 2 searches in this folder. Unpinning cannot be undone." Cancel changes nothing.
 - The current profile-folder format and old experimental folder backups need no migration.
 - Hidden following-feed sources never enter Home, folders, ordering, or folder badges.
 - Before restoring a backup with unmatched profile references, obtain confirmation before any selected ZIP or server-transfer source imports. Match against backup profiles when that source is selected, or current profiles otherwise. Cancel aborts the entire restore; headless import with unmatched references aborts.
@@ -477,17 +480,20 @@ for (final task in orderedTasks) {
 - Consumes: `organizedPinnedSearchesProvider`, global notifier folder commands, and profile config lookup.
 - Produces: one root collection, folder pages without `profileId`, owner footnotes, and Manage folders page.
 
-- [ ] **Step 1: Write failing widget tests.** Assert all Home pins are visible without profile headers or an Unfiled heading; named folders appear first. Test a named profile, an unnamed profile using URL, and duplicate profile names using URL disambiguation. Assert opening a pin switches to its owner. In Manage folders, create/rename/reorder, cancel Delete, then confirm Delete and assert member pins are gone while unrelated Home pins remain.
+- [ ] **Step 1: Write failing widget tests.** Assert all Home pins are visible without profile headers or an Unfiled heading; named folders appear first and their counts say `N items`. Test a named profile, an unnamed profile using URL, and duplicate profile names using URL disambiguation. Assert opening a pin switches to its owner. In Manage folders, create/rename/reorder, cancel Delete, then confirm Delete and assert member pins are gone while unrelated Home pins remain. Assert the two short warning sentences and that a folder with two pins says `2 items`.
 
 ```dart
 expect(find.text('Cats'), findsOneWidget);
 expect(find.text('Other search'), findsOneWidget);
 expect(find.text('Unfiled'), findsNothing);
 expect(find.byTooltip('Manage folders'), findsOneWidget);
+expect(find.text('2 items'), findsOneWidget);
+expect(find.text('This will unpin all 2 searches in this folder.'), findsOneWidget);
+expect(find.text('Unpinning cannot be undone.'), findsOneWidget);
 ```
 
 - [ ] **Step 2: Run the three widget test files and confirm failure.** Run `fvm flutter test test/core/search/subscriptions/all_profile_pinned_searches_test.dart test/core/search/subscriptions/pinned_searches_page_test.dart test/core/search/subscriptions/search_folder_test.dart`.
-- [ ] **Step 3: Build the root and manager screens.** Root reads all independent pins through the global selector; folder rows render before Home cards. Remove `ExpansionTile` profile groups and the per-profile management shortcut. `PinnedSearchCard` receives an owner caption computed from profile name and URL. The app-bar button opens `SearchFolderManagementPage`. Its Delete dialog names the folder, counts members, warns about unpinning, and calls `deleteSharedFolderAndPins` only on confirmation. Retain folder NEW/Refresh and root Refresh All behavior.
+- [ ] **Step 3: Build the root and manager screens.** Root reads all independent pins through the global selector; folder rows render before Home cards and show localized `N items` counts. Remove `ExpansionTile` profile groups and the per-profile management shortcut. `PinnedSearchCard` receives an owner caption computed from profile name and URL. The app-bar Manage folders action uses a folder icon with a wrench, not a plus, and opens `SearchFolderManagementPage`. Its Delete dialog names the folder, shows the two short localized warning sentences for nonempty folders, and calls `deleteSharedFolderAndPins` only on confirmation. Retain folder NEW/Refresh and root Refresh All behavior.
 
 ```dart
 final configs = ref.watch(booruConfigProvider);
@@ -530,7 +536,7 @@ if (confirmed == true) {
 - Consumes: global folders, `createSharedFolderAndMovePin`, and `movePinToSharedFolder` from Task 3.
 - Produces: `[Home]` plus every named folder in both pickers; Create folder from Move to folder.
 
-- [ ] **Step 1: Write failing dialog tests.** From a pin owned by profile 12, choose a folder containing profile 99 pins and assert it moves there without changing owner. Choose `[Home]` and assert it leaves the folder. Create a folder from Move to folder and assert the pin lands in it. Cancel the create dialog or force a creation failure and assert its old membership remains.
+- [ ] **Step 1: Write failing dialog tests.** From a pin owned by profile 12, choose a folder containing profile 99 pins and assert it moves there without changing owner. Choose `[Home]` and assert it leaves the folder. Create a folder from Move to folder and assert the pin lands in it. Cancel the create dialog or force a creation failure and assert its old membership remains. The create-folder dialog does not show a generic explanation that folders can contain pins from any profile.
 
 ```dart
 await tester.tap(find.text('Move to folder'));

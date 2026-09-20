@@ -17,27 +17,31 @@ behavior from PS-006. The Info dialog change in PS-017 is separate.
 The root page shows named folders in manual order, then Home's search cards. It
 shows neither profile group headers nor a Home heading. If there are no named
 folders, it simply shows cards; if Home is empty, it shows only folders. Each
-card, including inside folders, has a small profile footnote. It shows the
-profile name, falls back to the site URL when unnamed, and includes the URL if
-names alone are ambiguous. Opening a pin activates its owning profile and runs
-its stored query through that profile.
+folder row labels its count as `N items`. Each card, including inside folders,
+has a small profile footnote. It shows the profile name, falls back to the
+site URL when unnamed, and includes the URL if names alone are ambiguous.
+Opening a pin activates its owning profile and runs its stored query through
+that profile.
 
-The current Add Folder app-bar action becomes **Manage folders**. Its page
-provides create, rename, manual reorder, and delete actions for shared named
-folders. Home cannot be renamed or deleted. The old per-profile management
-shortcut goes away. Tapping a named folder opens its member page, which keeps
-the folder's NEW and refresh actions.
+The current Add Folder app-bar action becomes **Manage folders**, using a
+folder with a wrench icon. Its page provides create, rename, manual reorder,
+and delete actions for shared named folders. Home cannot be renamed or
+deleted. The old per-profile management shortcut goes away. Tapping a named
+folder opens its member page, which keeps the folder's NEW and refresh actions.
 
 The pin dialog and **Move to folder** dialog list all named folders and
 `[Home]`. Move to folder also offers **Create folder**. Creating one there
 moves the selected pin into it after creation succeeds; cancel or failure
 leaves the pin where it was. Move up/down changes the visible order within
 Home or the current folder, including between pins from different profiles.
+The create-folder dialog does not explain that folders can span profiles.
 
 Deleting a named folder requires confirmation that names it, counts its pins,
-and warns that they will be unpinned. Confirming removes the folder and every
-member pin, across profiles. Cancel changes nothing. Empty folders also
-require confirmation. This does not delete posts or profiles.
+and warns that they will be unpinned. For two searches, the message reads:
+"This will unpin all 2 searches in this folder. Unpinning cannot be undone."
+Confirming removes the folder and every member pin, across profiles. Cancel
+changes nothing. Empty folders also require confirmation. This does not delete
+posts or profiles.
 
 ## Organization model
 
