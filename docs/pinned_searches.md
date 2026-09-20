@@ -8,13 +8,15 @@ profile's authentication and image fallback.
 
 The approved requirements are in the [design](superpowers/specs/2026-09-14-pinned-searches-design.md)
 and the task-by-task [implementation plan](superpowers/plans/2026-09-14-pinned-searches.md).
+The later [bounded-refresh decision](work/done/PS-001-bounded-newest-post-refresh.md)
+supersedes their exhaustive scanning and numeric unread-count requirements.
 
 ## Storage and ownership
 
 `SearchSubscriptionRepository` is the persistence boundary. Each subscription
 is one record in the `pinned_search_subscriptions` Hive box, including its
-definition, checkpoint, unread count, up to four previews, and recent post
-identities. A refresh writes that aggregate once so these fields cannot be
+definition, checkpoint, NEW state, up to four previews, and at most 50 recent
+post identities. A refresh writes that aggregate once so these fields cannot be
 split across separate refresh writes. Repository mutations are serialized;
 ordering reads wait for pending mutations.
 
@@ -26,68 +28,79 @@ is trimmed, and cannot be edited after pinning. Renaming and reordering retain
 runtime state. Blank custom names persist as `null`, so the label falls back
 to the stored query.
 
-Unread counts are independent of cached previews and recent identity retention.
-Dropping an old identity or preview does not reduce unread. The identity window
-is bounded by upload time at the next checkpoint's overlap boundary, rather
-than by the four-preview presentation limit.
+The legacy Hive `unreadCount` field is retained for compatibility, but positive
+values load as 1 and are displayed as NEW. No exact count is computed. NEW is
+independent of preview and identity retention: dropping cached posts does not
+clear it. Recent identities are limited to the newest 50 within a five-minute
+upload-time window before the next checkpoint.
 
 ## Baseline, new, and read
 
 Pinning saves and publishes the definition before attempting its initial
-snapshot. The first successful snapshot validates the first result page,
-caches up to four distinct newest posts, and sets a checkpoint with zero unread.
-If this attempt fails, the saved pin remains; its first later successful
-explicit refresh still establishes a zero-unread baseline.
+snapshot. The first successful snapshot caches up to four distinct newest
+posts and sets a checkpoint without NEW. If this attempt fails, the saved pin
+remains; its first later successful explicit refresh establishes that baseline.
 
-A later refresh counts a matching post only when its upload timestamp is
-strictly after the previous successful checkpoint and its ID is not already
-known in the recent identity window. Posts uploaded at the checkpoint, or old
-posts that start matching after metadata edits, do not count. One post matching
-several subscriptions contributes once to each subscription; the active-profile
-navigation badge sums those counts rather than deduplicating across searches.
+A later refresh sets NEW when the fetched snapshot contains a matching post
+whose upload timestamp is strictly after the previous successful checkpoint
+and whose ID is not already known. Posts uploaded at the checkpoint, or old
+posts that start matching after metadata edits, do not trigger NEW. A search
+card shows NEW; the active-profile navigation entry shows a dot if any of its
+searches has NEW. Neither reports a total.
 
 Opening a pin awaits an atomic mark-read mutation before passing the unchanged
 query to the normal search route. A failed mark-read keeps the user on the
-management page. A refresh committing afterward may add newly discovered
-unread posts. Refresh commits reload the current aggregate, preserving a rename,
-reorder, or mark-read performed while the request was in flight.
+management page. A refresh committing afterward may set NEW again. Refresh
+commits reload the current aggregate, preserving a rename, reorder, or mark-read
+performed while the request was in flight.
 
-## Chronological refresh
+## Bounded chronological snapshots
 
 `SearchRefreshService` resolves the owning profile's existing `PostRepository`
-and the `SearchRefreshQueryAdapter` exposed by `BooruRepository`. The service
-records its UTC start time before planning or fetching; only a complete scan
-advances the checkpoint to that time.
+and the `SearchRefreshQueryAdapter` exposed by `BooruRepository`. It records its
+UTC start time before planning or fetching. A successful validated snapshot
+advances the checkpoint to that time; it does not claim exhaustive coverage.
 
-The current default adapter preserves ordinary queries and rejects `order`,
-`order_by`, or `sort` metatags using either `:` or `=`. This includes explicit
-chronological ordering tokens: the conservative default does not rewrite or
-interpret their engine-specific values. An integration may override the
-adapter to safely transform ordering or add a native uploaded-after boundary,
-while the stored query remains unchanged. The default does not add such a
-boundary or emulate query semantics locally.
+`ChronologicalSearchScanner.scanSnapshot` requests only page 1 with a limit of
+50 and inspects at most 50 returned posts, even if the server returns more. It
+does not follow continuation metadata, access caps, totals, or old checkpoints.
+Both the initial baseline and later refreshes use this same budget. Requests,
+post processing, and retained identities stay bounded independently of the
+number of matching uploads; server/network latency is outside that guarantee.
+Raw repository fetches avoid enrichment requests for returned posts.
 
-`ChronologicalSearchScanner` requests 50 posts per page and uses a five-minute
-overlap before the old checkpoint. It validates non-increasing UTC upload
-timestamps throughout every fetched page and across page boundaries, allowing
-equal timestamps. Explicit `PostResult.hasMore` continuation metadata is
-authoritative, including for engines whose fixed server page size differs from
-the requested limit. Without it, a later check continues until the overlap
-boundary, an empty/short page, or the reported last page. Reaching an access
-cap before the overlap boundary is a pagination failure unless explicit
-continuation metadata or a reported total proves exhaustion; a missing total
-is not proof. Crossing the overlap boundary on the capped page still completes
-the required chronological range. Duplicate IDs across pages are returned
-once, and only timestamps strictly after the actual checkpoint become
-new-post candidates.
+The scanner validates non-increasing UTC upload timestamps within the bounded
+snapshot, allowing equal timestamps and deduplicating IDs. A nullable upload
+time or observed non-chronological response produces an unsupported result.
+No timestamp is inferred from the device clock or post ID. A successful
+snapshot replaces previews with its newest four posts; an empty snapshot clears
+previews. Failures preserve the previous checkpoint, previews, and NEW state
+while recording an attempt/error. No partial snapshot commits on failure.
 
-A nullable upload timestamp or an observed non-chronological response produces
-an explicit unsupported result. No timestamp is inferred from the device clock
-or post ID. Query, authentication, parsing, network, and pagination failures
-record an attempt/error but preserve the last successful checkpoint, previews,
-and unread count. A scan never commits its partial discoveries on failure.
-Reliable tracking therefore depends on the integration supplying upload times,
-newest-first results, and accurate pagination metadata.
+This detects new uploads visible in the newest snapshot, rather than counting
+or enumerating every upload since the old checkpoint. Uploads that leave the
+snapshot before a refresh, delayed indexing with older timestamps, or server
+clock differences may escape detection. Tracking relies on actual upload times,
+stable identities, and newest-first results from the integration. Validation
+can reject observed bad ordering but cannot prove that the server returned the
+newest available posts.
+
+The current default query adapter preserves ordinary queries and rejects
+`order`, `order_by`, or `sort` metatags using either `:` or `=`. This includes
+explicit chronological ordering tokens: the conservative default does not
+interpret their engine-specific values. An integration may override the adapter
+to safely transform ordering while the stored query remains unchanged. Refresh
+planning passes no uploaded-after filter so current previews remain available
+when there are no new uploads.
+
+Rule34 and Safebooru.org use site-specific XML post-list endpoints because their
+JSON format can omit `created_at`. The Gelbooru v2 parser preserves the XML
+upload time, timezone offset, and total result count while retaining JSON
+support for other sites. Totals are not used for NEW detection. The `change`
+field is not an upload time and must not be used for new-post tracking.
+
+Engine capability adapters and unsupported-profile explanations are tracked
+separately in [PS-005](work/ready/PS-005-engine-refresh-adapters.md).
 
 ## Manual batch and concurrent operations
 
@@ -120,7 +133,7 @@ not a crash-atomic transaction across profile and subscription storage.
 
 The `pinned_searches` backup source runs after profiles. It exports UUIDs,
 optional names, immutable queries, relative ordering, and profile references.
-Previews, recent IDs, unread counts, checkpoints, attempts, errors, and creation
+Previews, recent IDs, NEW state, checkpoints, attempts, errors, and creation
 timestamps are excluded. Portable profile URLs retain scheme, host, port, and
 path, lowercase the host, remove all terminal slashes, and strip user info,
 query, and fragment to exclude embedded credentials. Export, parsing, mapping,
@@ -144,3 +157,15 @@ dispose the state needed to map the following pinned-search source.
 
 Folders, automatic refresh, and combined feeds are deferred. Their intended
 later behavior is recorded only in the design's [Deferred roadmap](superpowers/specs/2026-09-14-pinned-searches-design.md#deferred-roadmap).
+
+
+The ready queue splits the roadmap into independently reviewable steps:
+[folders](work/ready/PS-006-search-folders.md),
+[automatic scheduler](work/ready/PS-007-automatic-refresh-scheduler.md),
+[platform background execution](work/ready/PS-008-platform-background-refresh.md),
+[combined feeds](work/ready/PS-009-combined-following-feeds.md), and
+[large-feed scaling](work/ready/PS-010-large-feed-incremental-refresh.md).
+The possible [all-profile list](work/ready/PS-011-all-profile-pinned-search-list-design.md)
+has a separate design task. Existing UI improvements remain PS-002 through
+PS-004, and engine capability support remains PS-005. Task dependencies govern
+eligibility; folders can proceed independently of automatic refresh.

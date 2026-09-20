@@ -14,14 +14,15 @@ class SearchSubscription extends Equatable {
     required this.createdAt,
     required List<SearchPostPreview> previews,
     required List<RecentSearchPostIdentity> recentPostIdentities,
-    required this.unreadCount,
+    required int unreadCount,
     String? name,
     this.lastAttemptAt,
     this.lastSuccessfulCheckAt,
     this.lastErrorKind,
-  }) : name = _normalizeSearchSubscriptionName(name),
-       previews = List.unmodifiable(previews),
-       recentPostIdentities = List.unmodifiable(recentPostIdentities);
+  }) : unreadCount = unreadCount > 0 ? 1 : 0,
+       name = _normalizeSearchSubscriptionName(name),
+       previews = List.unmodifiable(previews.take(4)),
+       recentPostIdentities = List.unmodifiable(recentPostIdentities.take(50));
 
   factory SearchSubscription.create({
     required String id,
@@ -58,6 +59,7 @@ class SearchSubscription extends Equatable {
   final SearchRefreshErrorKind? lastErrorKind;
 
   String get displayName => name ?? query;
+  bool get hasNewPosts => unreadCount > 0;
   bool get hasBaseline => lastSuccessfulCheckAt != null;
 
   @override

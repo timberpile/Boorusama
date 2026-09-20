@@ -60,10 +60,10 @@ String parseIntToMonthString(int value) => switch (value) {
 
 DateTime? parseRFC822String(String input) {
   try {
-    final parts = input.split(' ');
+    final parts = input.trim().split(RegExp(r'\s+'));
 
     final monthStr = parts[1];
-    final day = parts[2];
+    final day = parts[2].padLeft(2, '0');
     final time = parts[3];
     final offset = parts[4];
     final year = parts[5];

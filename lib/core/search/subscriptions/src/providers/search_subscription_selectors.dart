@@ -20,13 +20,13 @@ final profilePinnedSearchesProvider =
       });
     });
 
-final profilePinnedSearchUnreadCountProvider = Provider.family<int, int>((
+final profilePinnedSearchHasNewPostsProvider = Provider.family<bool, int>((
   ref,
   profileId,
 ) {
   return ref
           .watch(profilePinnedSearchesProvider(profileId))
           .valueOrNull
-          ?.fold<int>(0, (total, item) => total + item.unreadCount) ??
-      0;
+          ?.any((item) => item.hasNewPosts) ??
+      false;
 });

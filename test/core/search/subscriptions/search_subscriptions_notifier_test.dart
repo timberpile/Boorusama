@@ -171,15 +171,15 @@ void main() {
   );
 
   test(
-    'serializes mutations and publishes profile lists and unread totals',
+    'serializes mutations and publishes profile lists and NEW state',
     () async {
       await seed('first', checkedAt: checkpoint, unread: 3);
       await seed('second', checkedAt: checkpoint, unread: 2);
       await seed('other', profileId: config.id + 1, unread: 9);
       await container.read(searchSubscriptionsProvider.future);
       expect(
-        container.read(profilePinnedSearchUnreadCountProvider(config.id)),
-        5,
+        container.read(profilePinnedSearchHasNewPostsProvider(config.id)),
+        isTrue,
       );
       final publications = <List<String>>[];
       container.listen(searchSubscriptionsProvider, (_, next) {
@@ -197,7 +197,7 @@ void main() {
         notifier().reorder(config.id, 1, 0),
         notifier().delete('second'),
       ]);
-      expect(publications, contains(contains('first:Renamed:3')));
+      expect(publications, contains(contains('first:Renamed:1')));
       expect(publications, contains(contains('first:Renamed:0')));
       expect(
         container
@@ -207,12 +207,12 @@ void main() {
         ['first'],
       );
       expect(
-        container.read(profilePinnedSearchUnreadCountProvider(config.id)),
-        0,
+        container.read(profilePinnedSearchHasNewPostsProvider(config.id)),
+        isFalse,
       );
       expect(
-        container.read(profilePinnedSearchUnreadCountProvider(config.id + 1)),
-        9,
+        container.read(profilePinnedSearchHasNewPostsProvider(config.id + 1)),
+        isTrue,
       );
     },
   );

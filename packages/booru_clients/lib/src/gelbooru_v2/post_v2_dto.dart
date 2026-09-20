@@ -1,6 +1,7 @@
 // Package imports:
 import 'package:equatable/equatable.dart';
 import 'package:path/path.dart' as path;
+import 'package:xml/xml.dart';
 
 class PostV2Dto {
   PostV2Dto({
@@ -14,6 +15,7 @@ class PostV2Dto {
     this.id,
     this.image,
     this.change,
+    this.createdAt,
     this.owner,
     this.parentId,
     this.rating,
@@ -84,6 +86,10 @@ class PostV2Dto {
       id: json['id'],
       image: json['image'],
       change: json['change'],
+      createdAt: switch (json['created_at']) {
+        final String value => value,
+        _ => null,
+      },
       owner: json['owner'],
       parentId: json['parent_id'],
       rating: json['rating'],
@@ -98,6 +104,27 @@ class PostV2Dto {
       commentCount: json['comment_count'],
     );
   }
+  factory PostV2Dto.fromXml(XmlElement element, String baseUrl) {
+    final values = <String, dynamic>{
+      for (final attribute in element.attributes)
+        attribute.name.local: attribute.value,
+    };
+    for (final key in [
+      'id',
+      'width',
+      'height',
+      'change',
+      'parent_id',
+      'sample_height',
+      'sample_width',
+      'score',
+      'comment_count',
+    ]) {
+      values[key] = int.tryParse(element.getAttribute(key) ?? '');
+    }
+    return PostV2Dto.fromJson(values, baseUrl);
+  }
+
   final String? previewUrl;
   final String? sampleUrl;
   final String? fileUrl;
@@ -108,6 +135,7 @@ class PostV2Dto {
   final int? id;
   final String? image;
   final int? change;
+  final String? createdAt;
   final String? owner;
   final int? parentId;
   final String? rating;
@@ -128,7 +156,11 @@ class PostV2Dto {
 bool? _parseBool(dynamic value) => switch (value) {
   final int i => i > 0 ? true : false,
   final bool b => b,
-  final String s => bool.tryParse(s),
+  final String s => switch (s) {
+    '1' => true,
+    '0' => false,
+    _ => bool.tryParse(s),
+  },
   _ => null,
 };
 

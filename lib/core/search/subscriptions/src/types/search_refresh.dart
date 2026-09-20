@@ -24,7 +24,7 @@ class SearchRefreshCommit extends Equatable {
     required this.identityRetentionBoundary,
     required this.baseline,
     required List<SearchPostPreview> discoveredPosts,
-  }) : discoveredPosts = List.unmodifiable(discoveredPosts);
+  }) : discoveredPosts = List.unmodifiable(discoveredPosts.take(50));
 
   final String subscriptionId;
   final DateTime expectedCreatedAt;
@@ -53,16 +53,16 @@ sealed class SearchRefreshOutcome extends Equatable {
 final class SearchRefreshSucceeded extends SearchRefreshOutcome {
   const SearchRefreshSucceeded({
     required this.subscription,
-    required this.discoveredCount,
+    required this.detectedNewPosts,
     required this.baseline,
   });
 
   final SearchSubscription subscription;
-  final int discoveredCount;
+  final bool detectedNewPosts;
   final bool baseline;
 
   @override
-  List<Object?> get props => [subscription, discoveredCount, baseline];
+  List<Object?> get props => [subscription, detectedNewPosts, baseline];
 }
 
 final class SearchRefreshFailed extends SearchRefreshOutcome {

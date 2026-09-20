@@ -54,13 +54,11 @@ class PinnedSearchCard extends StatelessWidget {
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                   ),
-                  if (subscription.unreadCount > 0)
+                  if (subscription.hasNewPosts)
                     Semantics(
-                      label: strings.unread_count.replaceAll(
-                        '{count}',
-                        '${subscription.unreadCount}',
-                      ),
-                      child: Badge.count(count: subscription.unreadCount),
+                      label: strings.new_posts,
+                      excludeSemantics: true,
+                      child: Badge(label: Text(strings.new_badge)),
                     ),
                   PopupMenuButton<PinnedSearchAction>(
                     icon: const Icon(Symbols.more_vert),

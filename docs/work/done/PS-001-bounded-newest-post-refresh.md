@@ -4,6 +4,9 @@ Priority: High
 Affected feature: Pinned searches
 Reported on branch: `fix/rule34-pinned-search-tracking`
 
+Agent: Codex (/root)
+Work branch: `feature/chronological-pinned-search-support`
+
 ## Problem
 
 Fetching newest posts per search takes much longer when more posts have been
@@ -43,17 +46,17 @@ complete chronological coverage.
 
 ## Acceptance criteria
 
-- [ ] Latest-post refresh has a fixed per-search request and result budget when
+- [x] Latest-post refresh has a fixed per-search request and result budget when
   there are few or many posts uploaded since the previous check.
-- [ ] No exact-count requirement triggers scanning every new matching post.
-- [ ] Numeric new-post counts are replaced with NEW unless a verified exact
+- [x] No exact-count requirement triggers scanning every new matching post.
+- [x] Numeric new-post counts are replaced with NEW unless a verified exact
   count mechanism satisfies the bounded-work requirement for that integration.
-- [ ] Baseline refresh does not set NEW; newly uploaded matching posts do;
+- [x] Baseline refresh does not set NEW; newly uploaded matching posts do;
   metadata changes to old posts do not. Opening a pin clears known NEW state.
-- [ ] Search-item and navigation indicators are reconciled with the change;
+- [x] Search-item and navigation indicators are reconciled with the change;
   they do not present stale numeric unread counts as exact new-post totals.
-- [ ] Failed refreshes preserve usable cached previews.
-- [ ] Updated tests and subsystem documentation reflect the revised scope;
+- [x] Failed refreshes preserve usable cached previews.
+- [x] Updated tests and subsystem documentation reflect the revised scope;
   a bounded fetch is not presented as a completed exhaustive scan.
 
 ## Relevant context
@@ -65,6 +68,32 @@ complete chronological coverage.
 - Existing count/checkpoint requirements in the approved design and plan must
   be reconciled with this newer user request.
 
+## Progress
+
+Implemented one-page snapshots (request and inspection limit 50), four-preview
+replacement, a 50-identity retention limit, and NEW indicators on cards and
+navigation. Existing positive Hive unread counts normalize to NEW. Engine
+support and unsupported-profile messages are deferred to PS-005 at the user's
+request.
+
 ## Completion evidence
 
-Record verification here when resolved.
+Verified on 2026-09-17:
+
+- `./gen.sh` succeeded and static analysis reported no issues.
+- Full suite: 1,039 tests passed. Focused pinned-search suite: 121 passed.
+- Tests compare small and 50,000-post backlogs, cap oversized responses, retain
+  only 50 identities across repeated snapshots, and verify baseline/new/old
+  upload semantics, failed refresh preservation, legacy count loading, and
+  mark-read concurrency.
+- Android development APK built and installed without clearing profile data.
+- Maestro verified live Safebooru `absurdres` refresh: last-checked advanced,
+  cached previews remained usable, and no unsupported warning appeared.
+- Maestro verified existing Danbooru NEW state, opening the pin clearing it,
+  and its navigation indicator clearing. The entry remains between bookmarks
+  and blacklist. Newly uploaded detection is covered by deterministic tests;
+  no controlled server upload was performed.
+
+A successful snapshot observes only the bounded newest window; it cannot
+promise every upload since the old checkpoint was seen. This limitation and
+clock/indexing assumptions are recorded in the subsystem documentation.

@@ -16,8 +16,8 @@ sealed class SearchScanResult extends Equatable {
   const SearchScanResult();
 }
 
-final class CompletedSearchScan extends SearchScanResult {
-  const CompletedSearchScan(this.posts);
+final class LoadedSearchSnapshot extends SearchScanResult {
+  const LoadedSearchSnapshot(this.posts);
 
   final List<Post> posts;
 
@@ -35,158 +35,39 @@ final class FailedSearchScan extends SearchScanResult {
 }
 
 class ChronologicalSearchScanner {
-  ChronologicalSearchScanner({
-    this.pageSize = 50,
-    this.overlap = const Duration(minutes: 5),
-  }) : assert(pageSize > 0, 'pageSize must be positive'),
-       assert(!overlap.isNegative, 'overlap must not be negative');
+  ChronologicalSearchScanner({this.pageSize = 50})
+    : assert(pageSize > 0, 'pageSize must be positive');
 
   final int pageSize;
-  final Duration overlap;
 
-  Future<SearchScanResult> scanBaseline({
-    required String query,
+  Future<SearchScanResult> scanSnapshot({
     required SearchRefreshPageFetcher fetchPage,
   }) async {
     final result = await fetchPage(1, pageSize);
     return result.fold(
       FailedSearchScan.new,
       (page) {
-        final validation = _validatePage(page.posts);
-        return switch (validation.error) {
-          final SearchRefreshErrorKind kind => FailedSearchScan(kind),
-          null => CompletedSearchScan(
-            _uniquePosts(page.posts).take(4).toList(),
-          ),
-        };
-      },
-    );
-  }
-
-  Future<SearchScanResult> scanForNewPosts({
-    required String query,
-    required DateTime checkpoint,
-    required SearchRefreshPageFetcher fetchPage,
-  }) async {
-    final normalizedCheckpoint = checkpoint.toUtc();
-    final overlapBoundary = normalizedCheckpoint.subtract(overlap);
-    final posts = <Post>[];
-    final seenIds = <int>{};
-    DateTime? previousCreatedAt;
-
-    for (var pageNumber = 1; ; pageNumber++) {
-      final fetched = await fetchPage(pageNumber, pageSize);
-      final result = fetched.fold<SearchScanResult?>(
-        (kind) => FailedSearchScan(kind),
-        (page) {
-          final validation = _validatePage(
-            page.posts,
-            previousCreatedAt: previousCreatedAt,
-          );
-          final error = validation.error;
-          if (error != null) return FailedSearchScan(error);
-
-          previousCreatedAt = validation.lastCreatedAt;
-          for (final post in page.posts) {
-            switch (post.createdAt) {
-              case final DateTime createdAt
-                  when createdAt.toUtc().isAfter(normalizedCheckpoint):
-                if (seenIds.add(post.id)) {
-                  posts.add(post);
-                }
-              case null:
+        final posts = <Post>[];
+        final seenIds = <int>{};
+        DateTime? previousCreatedAt;
+        for (final post in page.posts.take(pageSize)) {
+          switch (post.createdAt) {
+            case null:
+              return const FailedSearchScan(SearchRefreshErrorKind.unsupported);
+            case final DateTime createdAt:
+              final uploadedAt = createdAt.toUtc();
+              if (previousCreatedAt != null &&
+                  uploadedAt.isAfter(previousCreatedAt)) {
                 return const FailedSearchScan(
                   SearchRefreshErrorKind.unsupported,
                 );
-            }
+              }
+              previousCreatedAt = uploadedAt;
+              if (seenIds.add(post.id)) posts.add(post);
           }
-
-          final oldestCreatedAt = validation.oldestCreatedAt;
-          final reachedOverlapBoundary =
-              oldestCreatedAt != null &&
-              !oldestCreatedAt.isAfter(overlapBoundary);
-          final reachedMaxPage = switch (page.maxPage) {
-            final int maxPage => pageNumber >= maxPage,
-            null => false,
-          };
-          final hasKnownUnscannedResults = switch (page.total) {
-            final int total => total > pageNumber * pageSize,
-            null => false,
-          };
-          final isShortPage = page.posts.length < pageSize;
-
-          if (reachedOverlapBoundary) {
-            return CompletedSearchScan(posts);
-          }
-
-          if (reachedMaxPage) {
-            if (hasKnownUnscannedResults || (page.hasMore ?? false)) {
-              return const FailedSearchScan(SearchRefreshErrorKind.pagination);
-            }
-            if (page.hasMore == false || page.total != null) {
-              return CompletedSearchScan(posts);
-            }
-            return const FailedSearchScan(SearchRefreshErrorKind.pagination);
-          }
-
-          return switch (page.hasMore) {
-            false => CompletedSearchScan(posts),
-            true => null,
-            null => switch (isShortPage) {
-              true => CompletedSearchScan(posts),
-              false => null,
-            },
-          };
-        },
-      );
-
-      if (result != null) return result;
-    }
-  }
-
-  _PageValidation _validatePage(
-    List<Post> posts, {
-    DateTime? previousCreatedAt,
-  }) {
-    var lastCreatedAt = previousCreatedAt;
-
-    for (final post in posts) {
-      final createdAt = post.createdAt;
-      if (createdAt == null) {
-        return const _PageValidation.unsupported();
-      }
-
-      final normalizedCreatedAt = createdAt.toUtc();
-      if (lastCreatedAt != null && normalizedCreatedAt.isAfter(lastCreatedAt)) {
-        return const _PageValidation.unsupported();
-      }
-      lastCreatedAt = normalizedCreatedAt;
-    }
-
-    return _PageValidation(
-      lastCreatedAt: lastCreatedAt,
-      oldestCreatedAt: posts.isEmpty ? null : lastCreatedAt,
+        }
+        return LoadedSearchSnapshot(List.unmodifiable(posts));
+      },
     );
   }
-
-  List<Post> _uniquePosts(List<Post> posts) {
-    final seenIds = <int>{};
-    return posts.where((post) => seenIds.add(post.id)).toList();
-  }
-}
-
-class _PageValidation {
-  const _PageValidation({
-    required this.lastCreatedAt,
-    required this.oldestCreatedAt,
-  }) : error = null;
-
-  const _PageValidation.unsupported()
-    : error = SearchRefreshErrorKind.unsupported,
-      lastCreatedAt = null,
-      oldestCreatedAt = null;
-
-  final SearchRefreshErrorKind? error;
-  final DateTime? lastCreatedAt;
-  final DateTime? oldestCreatedAt;
 }

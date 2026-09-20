@@ -78,7 +78,7 @@ void main() {
     (name: 'desktop', mobile: false),
   ]) {
     testWidgets(
-      '${c.name} badges follow the selected profile and disappear at zero',
+      '${c.name} NEW badges follow the profile and clear after reading all its pins',
       (tester) async {
         initialize();
         await harness.seed([
@@ -96,29 +96,29 @@ void main() {
           tester,
           scaffold(c.mobile ? mobileMenu() : desktopMenu()),
         );
-        expect(find.text('Pinned Searches'), findsOneWidget);
-        expect(find.text('8'), findsOneWidget);
+        expect(find.byType(Badge), findsOneWidget);
+        expect(find.text('8'), findsNothing);
         expect(find.text('90'), findsNothing);
-        if (!c.mobile) {
-          await tester.tap(find.text('Pinned Searches'));
-          await settle(tester);
-          expect(find.text('8'), findsOneWidget);
-        }
         await harness.container
             .read(searchSubscriptionsProvider.notifier)
             .markRead('cats');
         await settle(tester);
-        expect(find.text('5'), findsOneWidget);
-        expect(find.text('8'), findsNothing);
+        expect(find.byType(Badge), findsOneWidget);
         harness.container
             .read(selectedTestProfileProvider.notifier)
             .select(otherTestProfile);
         await settle(tester);
-        expect(find.text('90'), findsOneWidget);
-        expect(find.text('5'), findsNothing);
+        expect(find.byType(Badge), findsOneWidget);
+        await harness.container
+            .read(searchSubscriptionsProvider.notifier)
+            .markRead('other');
+        await settle(tester);
+        expect(find.byType(Badge), findsNothing);
         harness.container
             .read(selectedTestProfileProvider.notifier)
             .select(testProfile);
+        await settle(tester);
+        expect(find.byType(Badge), findsOneWidget);
         await harness.container
             .read(searchSubscriptionsProvider.notifier)
             .markRead('dogs');
@@ -131,88 +131,30 @@ void main() {
 
   for (final c in [
     (width: 62.0, selected: false),
-    (width: 62.0, selected: true),
+    (width: 63.0, selected: true),
+    (width: 70.0, selected: false),
+    (width: 100.0, selected: true),
     (width: 160.0, selected: false),
-    (width: 160.0, selected: true),
-    (width: 220.0, selected: false),
     (width: 220.0, selected: true),
   ]) {
     testWidgets(
-      '${c.selected ? 'selected' : 'unselected'} desktop navigation at ${c.width.toInt()} pixels preserves unread until marked read',
+      'desktop NEW badge at ${c.width.toInt()} pixels with selection ${c.selected} stays inside its tile',
       (tester) async {
         initialize();
-        await harness.seed([pinnedFixture(unreadCount: 8)]);
+        await harness.seed([pinnedFixture(unreadCount: 1234)]);
         await harness.pump(tester, scaffold(desktopMenu(width: c.width)));
-        final pinnedTile = find.byWidgetPredicate(
+        final tile = find.byWidgetPredicate(
           (widget) =>
               widget is HomeNavigationTile && widget.title == 'Pinned Searches',
         );
         if (c.selected) {
-          await tester.tap(pinnedTile);
+          await tester.tap(tile);
           await settle(tester);
         }
-        expect(
-          find.descendant(of: pinnedTile, matching: find.text('8')),
-          findsOneWidget,
-        );
-        expect(
-          find.descendant(of: pinnedTile, matching: find.byType(Badge)),
-          findsOneWidget,
-        );
-        final badge = find.descendant(
-          of: pinnedTile,
-          matching: find.byType(Badge),
-        );
-        expect(
-          tester.getRect(pinnedTile).contains(tester.getCenter(badge)),
-          isTrue,
-        );
-        await harness.container
-            .read(searchSubscriptionsProvider.notifier)
-            .markRead('cats');
-        await settle(tester);
-        expect(find.byType(Badge), findsNothing);
-        expect(tester.takeException(), isNull);
-      },
-    );
-  }
-
-  for (final c in [
-    (width: 63.0, count: 888, label: null, selected: false),
-    (width: 63.0, count: 888, label: null, selected: true),
-    (width: 70.0, count: 1234, label: null, selected: false),
-    (width: 70.0, count: 1234, label: null, selected: true),
-    (width: 100.0, count: 1234, label: '999+', selected: false),
-    (width: 100.0, count: 1234, label: '999+', selected: true),
-  ]) {
-    testWidgets(
-      '${c.selected ? 'selected' : 'unselected'} narrow navigation at ${c.width.toInt()} pixels shows unread without overflowing',
-      (tester) async {
-        initialize();
-        await harness.seed([pinnedFixture(unreadCount: c.count)]);
-        await harness.pump(tester, scaffold(desktopMenu(width: c.width)));
-        expect(tester.takeException(), isNull);
-        final pinnedTile = find.byWidgetPredicate(
-          (widget) =>
-              widget is HomeNavigationTile && widget.title == 'Pinned Searches',
-        );
-        if (c.selected) {
-          await tester.tap(pinnedTile);
-          await settle(tester);
-          expect(tester.takeException(), isNull);
-        }
-        final badge = find.descendant(
-          of: pinnedTile,
-          matching: find.byType(Badge),
-        );
+        final badge = find.descendant(of: tile, matching: find.byType(Badge));
         expect(badge, findsOneWidget);
-        if (c.label case final label?) {
-          expect(
-            find.descendant(of: badge, matching: find.text(label)),
-            findsOneWidget,
-          );
-        }
-        final tileBounds = tester.getRect(pinnedTile);
+        expect(find.text('1234'), findsNothing);
+        final tileBounds = tester.getRect(tile);
         final badgeBounds = tester.getRect(badge);
         expect(badgeBounds.width, greaterThan(0));
         expect(badgeBounds.left, greaterThanOrEqualTo(tileBounds.left));

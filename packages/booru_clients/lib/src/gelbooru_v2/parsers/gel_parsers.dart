@@ -31,6 +31,16 @@ GelbooruV2Posts parseGelPosts(
       posts: l.map((item) => PostV2Dto.fromJson(item, baseUrl)).toList(),
       count: null,
     ),
+    final String s when s.trimLeft().startsWith('<') => () {
+      final root = XmlDocument.parse(s).rootElement;
+      return (
+        posts: root
+            .findElements('post')
+            .map((item) => PostV2Dto.fromXml(item, baseUrl))
+            .toList(),
+        count: int.tryParse(root.getAttribute('count') ?? ''),
+      );
+    }(),
     final String s => (
       posts: (jsonDecode(s) as List<dynamic>)
           .map<PostV2Dto>((item) => PostV2Dto.fromJson(item, baseUrl))

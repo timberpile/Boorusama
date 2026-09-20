@@ -1,5 +1,6 @@
 // Package imports:
 import 'package:booru_clients/gelbooru.dart';
+import 'package:foundation/foundation.dart';
 import 'package:path/path.dart' as path;
 
 // Project imports:
@@ -45,7 +46,10 @@ GelbooruV2Post gelbooruV2PostDtoToGelbooruPost(
     hasParentOrChildren: dto.parentId != null && dto.parentId != 0,
     fileSize: 0,
     score: dto.score ?? 0,
-    createdAt: null,
+    createdAt: switch (dto.createdAt) {
+      final String value => parseRFC822String(value),
+      null => null,
+    },
     parentId: dto.parentId != 0 ? dto.parentId : null,
     uploaderId: null,
     uploaderName: dto.owner,

@@ -177,7 +177,7 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
         }
       }
 
-      final previews = _mergePreviews(commit.discoveredPosts, current.previews);
+      final previews = _mergePreviews(commit.discoveredPosts, const []);
       final recentPostIdentities =
           [
                 ...current.recentPostIdentities,
@@ -197,7 +197,11 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
                   commit.identityRetentionBoundary,
                 ),
               )
-              .toList();
+              .toList()
+            ..sort(
+              (left, right) =>
+                  right.postCreatedAt.compareTo(left.postCreatedAt),
+            );
       final updated = SearchSubscription(
         id: current.id,
         profileId: current.profileId,
@@ -206,10 +210,25 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
         position: current.position,
         createdAt: current.createdAt,
         previews: previews,
-        recentPostIdentities: recentPostIdentities,
-        unreadCount: commit.baseline
-            ? 0
-            : current.unreadCount + newlyDiscovered.length,
+        recentPostIdentities: recentPostIdentities.take(50).toList(),
+        unreadCount:
+            !commit.baseline &&
+                (current.hasNewPosts ||
+                    newlyDiscovered.any(
+                      (preview) => switch ((
+                        preview.postCreatedAt,
+                        commit.expectedCheckpoint,
+                      )) {
+                        (
+                          final DateTime uploadedAt,
+                          final DateTime checkpoint,
+                        ) =>
+                          uploadedAt.isAfter(checkpoint),
+                        _ => false,
+                      },
+                    ))
+            ? 1
+            : 0,
         lastAttemptAt: commit.startedAt,
         lastSuccessfulCheckAt: commit.startedAt,
       );
@@ -392,8 +411,9 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
       name: object.name,
       position: object.position,
       createdAt: object.createdAt,
-      previews: object.previews.map(_toPreview).toList(),
-      recentPostIdentities: object.recentPostIdentities
+      previews: object.previews.take(4).map(_toPreview).toList(),
+      recentPostIdentities: object.recentPostIdentities.reversed
+          .take(50)
           .map(
             (identity) => RecentSearchPostIdentity(
               postId: identity.postId,

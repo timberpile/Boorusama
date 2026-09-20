@@ -82,7 +82,7 @@ void main() {
     );
   });
 
-  test('later refresh commits only new posts', () async {
+  test('later refresh sets NEW and keeps newest matching previews', () async {
     await seedCheckpoint();
     posts = TestSearchPostRepository(
       (_, _, _) async => Either.of(
@@ -97,16 +97,16 @@ void main() {
       ),
     );
     final result = await service().refresh(subscription, BooruConfig.empty);
-    expect((result as SearchRefreshSucceeded).discoveredCount, 2);
+    expect((result as SearchRefreshSucceeded).detectedNewPosts, isTrue);
     expect(result.baseline, isFalse);
-    expect((await repository.getById('cat'))?.unreadCount, 2);
+    expect((await repository.getById('cat'))?.unreadCount, 1);
   });
 
   test('captures the UTC start before query planning and fetch', () async {
     await seedCheckpoint();
     adapter = _TestAdapter((query, after) {
       expect(query, 'cat');
-      expect(after, checkpoint.subtract(const Duration(minutes: 5)));
+      expect(after, isNull);
       now = startedAt.add(const Duration(hours: 1));
       return const SupportedSearchRefreshQueryPlan(query: 'cat date:planned');
     });
@@ -122,6 +122,79 @@ void main() {
       isTrue,
     );
   });
+
+  for (final total in [1, 50000]) {
+    test(
+      'refreshing $total matching uploads uses one page and sets NEW',
+      () async {
+        await seedCheckpoint();
+        final requests = <(int, int?)>[];
+        posts = TestSearchPostRepository((_, page, limit) async {
+          requests.add((page, limit));
+          return Either.right(
+            PostResult(
+              posts: [
+                for (
+                  var id = total;
+                  id > total - (total < 50 ? total : 50);
+                  id--
+                )
+                  TestSearchPost(id, checkpoint.add(Duration(seconds: id))),
+              ],
+              total: total,
+              hasMore: total > 50,
+            ),
+          );
+        });
+        final result = await service().refresh(subscription, BooruConfig.empty);
+        expect(requests, [(1, 50)]);
+        expect(result, isA<SearchRefreshSucceeded>());
+        final saved = (await repository.getById('cat'))!;
+        expect(saved.hasNewPosts, isTrue);
+        expect(saved.lastSuccessfulCheckAt, startedAt);
+        expect(saved.previews.length, total < 4 ? total : 4);
+        expect(saved.recentPostIdentities.length, lessThanOrEqualTo(50));
+      },
+    );
+  }
+
+  test(
+    'old matching posts update previews without setting NEW after metadata edits',
+    () async {
+      await seedCheckpoint();
+      posts = TestSearchPostRepository(
+        (_, _, _) async => Either.right(
+          [
+            TestSearchPost(9, checkpoint),
+            TestSearchPost(8, checkpoint.subtract(const Duration(days: 1))),
+          ].toResult(),
+        ),
+      );
+      final result = await service().refresh(subscription, BooruConfig.empty);
+      expect((result as SearchRefreshSucceeded).detectedNewPosts, isFalse);
+      final saved = (await repository.getById('cat'))!;
+      expect(saved.hasNewPosts, isFalse);
+      expect(saved.previews.map((post) => post.postId), [9, 8]);
+    },
+  );
+
+  test(
+    'a successful empty snapshot clears old previews and retains pending NEW',
+    () async {
+      await seedCheckpoint();
+      await service().refresh(subscription, BooruConfig.empty);
+      subscription = (await repository.getById('cat'))!;
+      posts = TestSearchPostRepository(
+        (_, _, _) async => Either.right(PostResult.empty()),
+      );
+      now = startedAt.add(const Duration(hours: 1));
+      await service().refresh(subscription, BooruConfig.empty);
+      final saved = (await repository.getById('cat'))!;
+      expect(saved.hasNewPosts, isTrue);
+      expect(saved.previews, isEmpty);
+      expect(saved.lastSuccessfulCheckAt, now);
+    },
+  );
 
   final failures = [
     (
@@ -190,7 +263,7 @@ void main() {
       expect(saved.lastErrorKind, c.expected);
       expect(saved.lastSuccessfulCheckAt, startedAt);
       expect(saved.previews, subscription.previews);
-      expect(saved.unreadCount, 2);
+      expect(saved.hasNewPosts, isTrue);
     });
   }
 

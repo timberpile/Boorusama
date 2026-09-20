@@ -44,7 +44,7 @@ class SearchRefreshService {
     try {
       final plan = resolveQueryAdapter(config.auth).plan(
         subscription.query,
-        after: checkpoint?.toUtc().subtract(scanner.overlap),
+        after: null,
       );
       switch (plan) {
         case UnsupportedSearchRefreshQueryPlan():
@@ -55,20 +55,17 @@ class SearchRefreshService {
             int page,
             int limit,
           ) async {
-            return (await posts.getPosts(query, page, limit: limit).run())
+            return (await posts
+                    .getPosts(
+                      query,
+                      page,
+                      limit: limit,
+                      options: PostFetchOptions.raw,
+                    )
+                    .run())
                 .mapLeft(_mapError);
           }
-          scan = switch (checkpoint) {
-            null => await scanner.scanBaseline(
-              query: query,
-              fetchPage: fetchPage,
-            ),
-            final checkedAt => await scanner.scanForNewPosts(
-              query: query,
-              checkpoint: checkedAt,
-              fetchPage: fetchPage,
-            ),
-          };
+          scan = await scanner.scanSnapshot(fetchPage: fetchPage);
       }
     } catch (error) {
       scan = FailedSearchScan(_mapError(error));
@@ -77,7 +74,7 @@ class SearchRefreshService {
     switch (scan) {
       case FailedSearchScan(:final kind):
         return _fail(subscription, startedAt, kind);
-      case CompletedSearchScan(:final posts):
+      case LoadedSearchSnapshot(:final posts):
         final previews = <SearchPostPreview>[];
         for (final post in posts) {
           switch (post.createdAt) {
@@ -105,7 +102,9 @@ class SearchRefreshService {
             expectedCreatedAt: subscription.createdAt,
             expectedCheckpoint: checkpoint,
             startedAt: startedAt,
-            identityRetentionBoundary: startedAt.subtract(scanner.overlap),
+            identityRetentionBoundary: startedAt.subtract(
+              const Duration(minutes: 5),
+            ),
             baseline: baseline,
             discoveredPosts: previews,
           ),
@@ -116,9 +115,13 @@ class SearchRefreshService {
             .toSet();
         return SearchRefreshSucceeded(
           subscription: committed,
-          discoveredCount: baseline
-              ? 0
-              : previews.where((post) => knownIds.add(post.postId)).length,
+          detectedNewPosts:
+              !baseline &&
+              previews.any(
+                (post) =>
+                    post.postCreatedAt!.isAfter(checkpoint) &&
+                    knownIds.add(post.postId),
+              ),
           baseline: baseline,
         );
     }

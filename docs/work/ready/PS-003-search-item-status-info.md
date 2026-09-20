@@ -32,3 +32,7 @@ details; this is optional, not a requirement to expand the MVP.
 ## Completion evidence
 
 Record verification here when resolved.
+
+## User decisions — 2026-09-17
+
+Add an Info action for routine check details; remove Last checked from normal cards.

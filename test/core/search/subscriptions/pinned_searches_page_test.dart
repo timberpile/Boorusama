@@ -139,7 +139,7 @@ void main() {
     expect(find.text('cat  rating:safe order:score'), findsOneWidget);
     expect(find.text('dog'), findsOneWidget);
     expect(find.text('Other profile'), findsNothing);
-    expect(find.text('3'), findsOneWidget);
+    expect(find.text('NEW'), findsOneWidget);
     expect(find.text('Never checked'), findsOneWidget);
     expect(find.textContaining('Last checked:'), findsOneWidget);
     expect(
@@ -250,7 +250,7 @@ void main() {
       harness.box.failWrites = true;
       await tester.tap(find.text('Cats'));
       await settle(tester);
-      expect((await harness.repository.getById('cats'))!.unreadCount, 3);
+      expect((await harness.repository.getById('cats'))!.unreadCount, 1);
       expect(find.byType(PinnedSearchesPage), findsOneWidget);
       expect(
         find.text('Could not mark this search as read. Try again.'),
@@ -276,7 +276,7 @@ void main() {
       await settle(tester);
       expect(find.text('Cats'), findsNothing);
       expect(find.text('cat  rating:safe order:score'), findsOneWidget);
-      expect((await harness.repository.getById('cats'))!.unreadCount, 3);
+      expect((await harness.repository.getById('cats'))!.unreadCount, 1);
       expect(harness.requests, isEmpty);
     },
   );

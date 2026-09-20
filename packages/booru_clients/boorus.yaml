@@ -111,6 +111,8 @@
           required: true
           instructions-key: "booru.api_key_instructions.variants_1"
         overrides:
+          posts:
+            endpoint: "/index.php?page=dapi&s=post&q=index"
           autocomplete:
             endpoint: "https://api.rule34.xxx/autocomplete.php"
           favorites:
@@ -145,6 +147,9 @@
       - url: https://xbooru.com/
       - url: https://tbib.org/
       - url: https://safebooru.org/
+        overrides:
+          posts:
+            endpoint: "/index.php?page=dapi&s=post&q=index"
 
 - moebooru:
     metadata:

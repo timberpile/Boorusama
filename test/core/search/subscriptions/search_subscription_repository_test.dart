@@ -187,7 +187,7 @@ void main() {
   });
 
   test(
-    'deduplicates overlapping refresh identities before counting unread',
+    'deduplicates overlapping identities before detecting new uploads',
     () async {
       final subscription = await repository.create(
         profileId: 4,
@@ -221,14 +221,17 @@ void main() {
       );
 
       expect(committed?.unreadCount, 1);
-      expect(committed?.recentPostIdentities.map((item) => item.postId), [
-        1,
-        2,
-      ]);
+      expect(
+        committed?.recentPostIdentities.map((item) => item.postId),
+        unorderedEquals([
+          1,
+          2,
+        ]),
+      );
     },
   );
 
-  test('prunes merged identities without reducing the unread count', () async {
+  test('old matches prune identities without setting NEW', () async {
     final subscription = await repository.create(
       profileId: 4,
       query: 'cat',
@@ -266,14 +269,61 @@ void main() {
       ),
     );
 
-    expect(committed?.unreadCount, 3);
-    expect(committed?.recentPostIdentities.map((item) => item.postId), [
-      2,
-      3,
-      5,
-      6,
-    ]);
+    expect(committed?.hasNewPosts, isFalse);
+    expect(
+      committed?.recentPostIdentities.map((item) => item.postId),
+      unorderedEquals([
+        2,
+        3,
+        5,
+        6,
+      ]),
+    );
   });
+
+  test(
+    'repeated snapshots retain only the newest bounded identity window',
+    () async {
+      final subscription = await repository.create(
+        profileId: 4,
+        query: 'cat',
+        name: null,
+        id: 'bounded',
+        createdAt: createdAt,
+      );
+      DateTime? checkpoint;
+      for (var round = 0; round < 3; round++) {
+        final startedAt = DateTime.utc(2026, 9, 14, 9, round);
+        final saved = await repository.commitRefresh(
+          commit(
+            subscriptionId: subscription.id,
+            expectedCheckpoint: checkpoint,
+            startedAt: startedAt,
+            baseline: checkpoint == null,
+            discoveredPosts: [
+              for (var offset = 49; offset >= 0; offset--)
+                preview(
+                  round * 50 + offset,
+                  startedAt.add(Duration(seconds: offset)),
+                ),
+            ],
+          ),
+        );
+        expect(saved!.recentPostIdentities.length, 50);
+        expect(saved.previews.length, 4);
+        expect(
+          saved.recentPostIdentities.map((post) => post.postId),
+          unorderedEquals([
+            for (var offset = 0; offset < 50; offset++) round * 50 + offset,
+          ]),
+        );
+        expect(saved.hasNewPosts, round > 0);
+        checkpoint = startedAt;
+      }
+      await repository.markRead(subscription.id);
+      expect((await repository.getById(subscription.id))!.hasNewPosts, isFalse);
+    },
+  );
 
   test('commits a baseline with no unread posts', () async {
     final subscription = await repository.create(
@@ -455,7 +505,7 @@ void main() {
       await repository.rename(subscription.id, 'Renamed');
       final committed = await repository.commitRefresh(refresh);
 
-      expect(committed?.unreadCount, discoveredPosts.length);
+      expect(committed?.hasNewPosts, isTrue);
       expect(committed?.name, 'Renamed');
     },
   );
@@ -533,7 +583,7 @@ void main() {
   });
 
   test(
-    'round trips aggregates and maps unknown error names to other',
+    'loads legacy unread counts as NEW while preserving persisted fields',
     () async {
       final object = SearchSubscriptionHiveObject(
         id: 'round-trip',
@@ -574,7 +624,8 @@ void main() {
       expect(restored?.name, object.name);
       expect(restored?.previews.single.postId, 11);
       expect(restored?.recentPostIdentities.single.postId, 11);
-      expect(restored?.unreadCount, 7);
+      expect(restored?.hasNewPosts, isTrue);
+      expect(restored?.unreadCount, 1);
       expect(restored?.lastErrorKind, SearchRefreshErrorKind.other);
     },
   );

@@ -304,8 +304,9 @@ List<Widget> coreDesktopTabBuilder(
       selectedIcon: Symbols.push_pin,
       icon: Symbols.push_pin,
       title: context.t.pinned_searches.title,
-      badgeCount: ref.watch(
-        profilePinnedSearchUnreadCountProvider(ref.watchConfig.id),
+      badgeLabel: context.t.pinned_searches.new_posts,
+      showBadge: ref.watch(
+        profilePinnedSearchHasNewPostsProvider(ref.watchConfig.id),
       ),
     ),
     HomeNavigationTile(
