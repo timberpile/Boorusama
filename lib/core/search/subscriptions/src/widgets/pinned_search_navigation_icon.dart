@@ -5,7 +5,6 @@ import 'package:kurumi/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 // Project imports:
-import '../../../../configs/config/providers.dart';
 import '../providers/search_subscription_selectors.dart';
 
 class PinnedSearchNavigationIcon extends ConsumerWidget {
@@ -14,7 +13,7 @@ class PinnedSearchNavigationIcon extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final hasNewPosts = ref.watch(
-      profilePinnedSearchHasNewPostsProvider(ref.watchConfig.id),
+      pinnedSearchHasNewPostsProvider,
     );
     const icon = Icon(Symbols.push_pin);
     return hasNewPosts

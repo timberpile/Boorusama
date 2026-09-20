@@ -65,14 +65,20 @@ class FollowingFeedsPage extends ConsumerWidget {
                                 )
                                 ? const Badge(child: Icon(Symbols.rss_feed))
                                 : const Icon(Symbols.rss_feed),
-                            onTap: () => Navigator.of(context).push(
-                              MaterialPageRoute<void>(
-                                builder: (_) => FollowingFeedPage(
-                                  feedId: feed.id,
-                                  profileId: profileId,
+                            onTap: () => _feedAction(context, () async {
+                              await ref
+                                  .read(currentBooruConfigProvider.notifier)
+                                  .update(config);
+                              if (!context.mounted) return;
+                              await Navigator.of(context).push(
+                                MaterialPageRoute<void>(
+                                  builder: (_) => FollowingFeedPage(
+                                    feedId: feed.id,
+                                    profileId: profileId,
+                                  ),
                                 ),
-                              ),
-                            ),
+                              );
+                            }),
                             trailing: PopupMenuButton<String>(
                               onSelected: (action) async {
                                 if (action == 'edit') {
@@ -423,6 +429,16 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
     }
   }
 
+  Future<void> _openPost(CachedFeedPost post) => _feedAction(context, () async {
+    await ref.read(currentBooruConfigProvider.notifier).update(widget.config);
+    if (!mounted) return;
+    goToSinglePostDetailsPage<Post>(
+      ref: ref,
+      postId: NumericPostId(post.id),
+      configSearch: widget.config.search,
+    );
+  });
+
   @override
   Widget build(BuildContext context) => PostScope<CachedFeedPost>(
     fetcher: (page) => TaskEither.right(
@@ -440,11 +456,7 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
         itemBuilder: (context, index, scroll, useHero) {
           final post = controller.items.elementAt(index);
           return InkWell(
-            onTap: () => goToSinglePostDetailsPage<Post>(
-              ref: ref,
-              postId: NumericPostId(post.id),
-              configSearch: widget.config.search,
-            ),
+            onTap: () => _openPost(post),
             child: BooruImage(
               imageUrl: post.thumbnailImageUrl,
               config: widget.config.auth,

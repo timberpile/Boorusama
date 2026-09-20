@@ -22,6 +22,9 @@ import 'package:boorusama/core/search/subscriptions/src/services/search_refresh_
 import 'package:boorusama/core/search/subscriptions/types.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 import 'package:boorusama/core/settings/providers.dart';
+import 'package:boorusama/core/settings/src/data/setting_repository_hive.dart';
+import 'package:boorusama/core/analytics/providers.dart';
+import 'package:boorusama/foundation/loggers.dart';
 import 'package:boorusama/core/settings/src/types/settings.dart';
 import 'package:boorusama/foundation/info/device_info.dart';
 import 'package:cache_manager/cache_manager.dart';
@@ -108,6 +111,17 @@ class PinnedSearchHarness {
     container = ProviderContainer(
       overrides: [
         settingsProvider.overrideWithValue(Settings.defaultSettings),
+        loggerProvider.overrideWithValue(
+          ConsoleLogger(options: const ConsoleLoggerOptions.defaults()),
+        ),
+        settingsNotifierProvider.overrideWith(
+          () => SettingsNotifier(Settings.defaultSettings),
+        ),
+        settingsRepoProvider.overrideWithValue(
+          SettingsRepositoryHive(Future.value(MemoryBox<dynamic>())),
+        ),
+        initialSettingsBooruConfigProvider.overrideWithValue(testProfile),
+        analyticsProvider.overrideWith((ref) => Future.value()),
         automaticSearchRefreshNetworkAllowedProvider.overrideWithValue(
           networkAllowed,
         ),

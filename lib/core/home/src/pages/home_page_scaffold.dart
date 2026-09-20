@@ -306,7 +306,7 @@ List<Widget> coreDesktopTabBuilder(
       title: context.t.pinned_searches.title,
       badgeLabel: context.t.pinned_searches.new_posts,
       showBadge: ref.watch(
-        profilePinnedSearchHasNewPostsProvider(ref.watchConfig.id),
+        pinnedSearchHasNewPostsProvider,
       ),
     ),
     HomeNavigationTile(

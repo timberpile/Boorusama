@@ -8,6 +8,21 @@ Priority: Normal
   [implementation plan](../../superpowers/plans/2026-09-14-pinned-searches.md).
 - [ ] Check off that plan step only after the flows have been verified.
 
+## Current verification update — 2026-09-18
+
+The emulator/Maestro availability blocker is resolved in the current workspace.
+The PS-001–PS-011 work verified pin editing/keyboard behavior, Info, folders,
+manual/automatic refresh, independent NEW semantics, feed lifecycle/cache,
+profile grouping, and owning-profile search navigation on Android. The full
+suite passes 1,090 tests with clean analysis. See the completed task records.
+
+The original nine-flow checklist below remains historical and is not fully
+signed off: controlled new-upload and failure scenarios, profile deletion, and
+backup restoration have deterministic automated coverage, but the complete
+original manual checklist has not been exercised on controlled live profiles.
+Do not mistake the old missing-emulator description for a current environment
+limitation. This historical handover is outside the requested ready queue.
+
 ## Blocker and resumption
 
 This handover is filed under `blocked/` because the recorded 2026-09-14 session

@@ -78,7 +78,7 @@ void main() {
     (name: 'desktop', mobile: false),
   ]) {
     testWidgets(
-      '${c.name} NEW badges follow the profile and clear after reading all its pins',
+      '${c.name} NEW badges cover all profiles and clear after reading all pins',
       (tester) async {
         initialize();
         await harness.seed([
@@ -113,7 +113,7 @@ void main() {
             .read(searchSubscriptionsProvider.notifier)
             .markRead('other');
         await settle(tester);
-        expect(find.byType(Badge), findsNothing);
+        expect(find.byType(Badge), findsOneWidget);
         harness.container
             .read(selectedTestProfileProvider.notifier)
             .select(testProfile);

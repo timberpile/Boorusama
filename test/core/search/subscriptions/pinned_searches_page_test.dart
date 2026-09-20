@@ -28,7 +28,7 @@ void main() {
   }
 
   Future<void> pump(WidgetTester tester) =>
-      harness.pump(tester, const PinnedSearchesPage());
+      harness.pump(tester, const PinnedSearchesPage(profileId: 12));
 
   IconButton refreshAllButton(WidgetTester tester) => tester.widget<IconButton>(
     find.byWidgetPredicate(
@@ -440,7 +440,7 @@ void main() {
     harness.container
         .read(selectedTestProfileProvider.notifier)
         .select(otherTestProfile);
-    await settle(tester);
+    await harness.pump(tester, const PinnedSearchesPage(profileId: 99));
     expect(find.text('Refreshing 0 of 2'), findsNothing);
     expect(
       refreshAllButton(tester).onPressed,
@@ -449,7 +449,7 @@ void main() {
     harness.container
         .read(selectedTestProfileProvider.notifier)
         .select(testProfile);
-    await settle(tester);
+    await pump(tester);
     expect(find.text('Refreshing 0 of 2'), findsOneWidget);
     harness.refreshGate!.complete();
     await settle(tester);

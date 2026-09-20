@@ -262,3 +262,21 @@ read target below 100 ms for this fixture, not a portable device guarantee.
 Cached byte size varies with URLs and tags. Retention and request ceilings are
 behavioral test assertions; wall-clock measurements are evidence, not flaky
 pass/fail thresholds.
+
+Pinned Searches now groups independent searches by owning profile. Groups
+collapse independently; the active profile starts expanded and saved expansion
+state survives navigation. Profile-scoped folders still open separate pages.
+Cached browsing does not switch profiles or scan sources. Opening a search or
+feed activates its owning profile before entering the engine's search/post flow;
+opening a search marks only that search read. Unsupported profiles display their
+explanation inside the group. Deleted profiles and their orphaned definitions
+are excluded from grouping and the navigation badge.
+
+Root Refresh All visits supported profiles sequentially; each profile's batch
+uses the shared request gate. Profile/folder pages retain scoped refresh actions.
+The navigation NEW badge covers independent pins across existing profiles,
+excluding hidden feed sources; each group also shows its own badge. Root create
+folder/feed actions use the currently selected profile; Manage profile searches
+opens an explicit profile page for those actions on another group. Side-menu
+section/order and desktop tab placement are unchanged. Results are never merged
+across profiles.

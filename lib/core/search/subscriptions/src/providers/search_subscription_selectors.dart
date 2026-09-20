@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 // Project imports:
 import '../../../../boorus/engine/providers.dart';
 import '../../../../configs/config/types.dart';
+import '../../../../configs/manage/providers.dart';
 import '../types/search_subscription.dart';
 import 'search_subscriptions_notifier.dart';
 
@@ -70,3 +71,18 @@ final folderPinnedSearchesProvider =
             ),
           );
     });
+
+final pinnedSearchHasNewPostsProvider = Provider<bool>((ref) {
+  final profiles = ref.watch(booruConfigProvider).map((c) => c.id).toSet();
+  return ref
+          .watch(searchSubscriptionsProvider)
+          .valueOrNull
+          ?.subscriptions
+          .any(
+            (s) =>
+                s.feedId == null &&
+                profiles.contains(s.profileId) &&
+                s.hasNewPosts,
+          ) ??
+      false;
+});
