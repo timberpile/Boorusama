@@ -15,11 +15,12 @@ class SearchSubscription extends Equatable {
     required List<SearchPostPreview> previews,
     required List<RecentSearchPostIdentity> recentPostIdentities,
     required this.unreadCount,
-    this.name,
+    String? name,
     this.lastAttemptAt,
     this.lastSuccessfulCheckAt,
     this.lastErrorKind,
-  }) : previews = List.unmodifiable(previews),
+  }) : name = _normalizeSearchSubscriptionName(name),
+       previews = List.unmodifiable(previews),
        recentPostIdentities = List.unmodifiable(recentPostIdentities);
 
   factory SearchSubscription.create({
@@ -30,8 +31,6 @@ class SearchSubscription extends Equatable {
     required int position,
     required DateTime createdAt,
   }) {
-    final normalizedName = name?.trim();
-
     return SearchSubscription(
       id: id,
       profileId: profileId,
@@ -41,10 +40,7 @@ class SearchSubscription extends Equatable {
       previews: const [],
       recentPostIdentities: const [],
       unreadCount: 0,
-      name: switch (normalizedName) {
-        null || '' => null,
-        final value => value,
-      },
+      name: name,
     );
   }
 
@@ -83,4 +79,11 @@ class SearchSubscription extends Equatable {
 
 String normalizeSearchIdentity(String query) {
   return query.trim().split(RegExp(r'\s+')).join(' ');
+}
+
+String? _normalizeSearchSubscriptionName(String? name) {
+  return switch (name?.trim()) {
+    null || '' => null,
+    final value => value,
+  };
 }

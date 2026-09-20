@@ -42,6 +42,31 @@ void main() {
     },
   );
 
+  for (final testCase in [
+    (name: '', description: 'empty'),
+    (name: '   ', description: 'whitespace-only'),
+  ]) {
+    test(
+      'normalizes a ${testCase.description} direct custom name to null',
+      () {
+        final item = SearchSubscription(
+          id: 'direct-${testCase.description}',
+          profileId: 7,
+          query: 'cat_girl order:id',
+          name: testCase.name,
+          position: 0,
+          createdAt: now,
+          previews: const [],
+          recentPostIdentities: const [],
+          unreadCount: 0,
+        );
+
+        expect(item.name, isNull);
+        expect(item.displayName, 'cat_girl order:id');
+      },
+    );
+  }
+
   test('normalizes query identities without changing term order or casing', () {
     expect(normalizeSearchIdentity('  A   B  '), 'A B');
     expect(normalizeSearchIdentity('  B  A  '), 'B A');
