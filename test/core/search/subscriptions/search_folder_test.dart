@@ -52,6 +52,67 @@ void main() {
     },
   );
 
+  test(
+    'shared folders order pins from different profiles and leave Home ungrouped',
+    () async {
+      final cats = pinnedFixture(query: 'cat');
+      final dogs = pinnedFixture(
+        id: 'dogs',
+        name: 'Dogs',
+        profileId: 99,
+        query: 'dog',
+      );
+      await harness.seed([cats, dogs]);
+      final notifier = harness.container.read(
+        searchSubscriptionsProvider.notifier,
+      );
+      await harness.container.read(searchSubscriptionsProvider.future);
+
+      final folder = await notifier.createSharedFolder('Animals');
+      await notifier.movePinToSharedFolder(cats.id, folder.id);
+      await notifier.movePinToSharedFolder(dogs.id, folder.id);
+      expect(
+        harness.container
+            .read(organizedPinnedSearchesProvider(folder.id))
+            .requireValue
+            .map((search) => search.id),
+        [cats.id, dogs.id],
+      );
+
+      await notifier.reorderSharedPins(folder.id, 1, 0);
+      expect(
+        harness.container
+            .read(organizedPinnedSearchesProvider(folder.id))
+            .requireValue
+            .map((search) => search.id),
+        [dogs.id, cats.id],
+      );
+
+      await notifier.movePinToSharedFolder(cats.id, null);
+      expect(
+        harness.container
+            .read(organizedPinnedSearchesProvider(folder.id))
+            .requireValue
+            .map((search) => search.id),
+        [dogs.id],
+      );
+      expect(
+        harness.container
+            .read(organizedPinnedSearchesProvider(null))
+            .requireValue
+            .map((search) => search.id),
+        [cats.id],
+      );
+      expect(
+        harness.container
+            .read(organizedPinnedSearchesProvider(folder.id))
+            .requireValue
+            .any((search) => search.hasNewPosts),
+        isTrue,
+      );
+    },
+  );
+
   testWidgets(
     'creating a folder keeps text input alive until the dialog finishes closing',
     (tester) async {
@@ -65,6 +126,26 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  test('refreshing a shared folder uses each pin owner', () async {
+    final cats = pinnedFixture(query: 'cat');
+    final dogs = pinnedFixture(id: 'dogs', profileId: 99, query: 'dog');
+    await harness.seed([cats, dogs]);
+    final notifier = harness.container.read(
+      searchSubscriptionsProvider.notifier,
+    );
+    await harness.container.read(searchSubscriptionsProvider.future);
+    final folder = await notifier.createSharedFolder('Animals');
+    await notifier.movePinToSharedFolder(cats.id, folder.id);
+    await notifier.movePinToSharedFolder(dogs.id, folder.id);
+
+    await notifier.refreshSharedFolder(folder.id);
+
+    expect(harness.requests, [
+      (profileId: 12, query: 'cat'),
+      (profileId: 99, query: 'dog'),
+    ]);
+  });
 
   testWidgets(
     'opening a folder navigates to its own manually ordered search page',

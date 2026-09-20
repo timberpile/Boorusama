@@ -8,6 +8,10 @@ import 'pinned_search_test_utils.dart';
 import 'subscription_test_utils.dart';
 
 void main() {
+  late PinnedSearchHarness harness;
+  setUp(() => harness = PinnedSearchHarness());
+  tearDown(() => harness.dispose());
+
   test(
     'manual pin order and folders exclude feed-owned subscriptions',
     () async {
@@ -51,9 +55,36 @@ void main() {
     },
   );
 
-  late PinnedSearchHarness harness;
-  setUp(() => harness = PinnedSearchHarness());
-  tearDown(() => harness.dispose());
+  test(
+    'shared folders exclude feed-owned sources from the same profile',
+    () async {
+      await harness.seed([pinnedFixture(query: 'cat')]);
+      final notifier = harness.container.read(
+        searchSubscriptionsProvider.notifier,
+      );
+      await harness.container.read(searchSubscriptionsProvider.future);
+      final feed = await notifier.saveFeed(
+        profileId: 12,
+        name: 'Animals',
+        queries: ['dog'],
+      );
+      final source = (await harness.repository.getAll()).singleWhere(
+        (search) => search.feedId == feed.id,
+      );
+      final folder = await notifier.createSharedFolder('Pins');
+
+      await expectLater(
+        notifier.movePinToSharedFolder(source.id, folder.id),
+        throwsStateError,
+      );
+      expect(
+        harness.container
+            .read(organizedPinnedSearchesProvider(folder.id))
+            .requireValue,
+        isEmpty,
+      );
+    },
+  );
 
   test(
     'feed sources are separate from identical user pins and feed reading preserves user NEW',

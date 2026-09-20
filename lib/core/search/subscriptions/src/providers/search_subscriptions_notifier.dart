@@ -20,6 +20,7 @@ import '../services/search_refresh_request_gate.dart';
 import '../types/search_refresh.dart';
 import '../types/search_folder.dart';
 import '../types/search_following_feed.dart';
+import '../types/search_organization.dart';
 import '../types/search_subscription.dart';
 import '../types/search_subscription_repository.dart';
 
@@ -38,6 +39,7 @@ class SearchSubscriptionsState extends Equatable {
     this.batchProfileId,
     this.folders = const [],
     this.feeds = const [],
+    required this.organization,
   }) : subscriptions = List.unmodifiable(subscriptions),
        refreshingIds = Set.unmodifiable(refreshingIds);
 
@@ -48,6 +50,7 @@ class SearchSubscriptionsState extends Equatable {
   final int? batchProfileId;
   final List<SearchFolder> folders;
   final List<SearchFollowingFeed> feeds;
+  final SearchOrganization organization;
 
   @override
   List<Object?> get props => [
@@ -58,6 +61,7 @@ class SearchSubscriptionsState extends Equatable {
     batchProfileId,
     folders,
     feeds,
+    organization,
   ];
 }
 
@@ -77,6 +81,10 @@ class SearchSubscriptionsNotifier
   var _disposed = false;
   List<SearchFolder> _folders = const [];
   List<SearchFollowingFeed> _feeds = const [];
+  SearchOrganization _organization = SearchOrganization(
+    folders: const [],
+    homeSearchIds: const [],
+  );
 
   @override
   Future<SearchSubscriptionsState> build() async {
@@ -85,6 +93,7 @@ class SearchSubscriptionsNotifier
     final repository = await _repository;
     _folders = await repository.getFolders();
     _feeds = await repository.getFeeds();
+    _organization = await repository.getOrganization();
     return _snapshot(await repository.getAll());
   }
 
@@ -158,6 +167,136 @@ class SearchSubscriptionsNotifier
     for (final source in sources.take(10)) {
       await refresh(source.id);
     }
+  }
+
+  Future<SharedSearchFolder> createSharedFolder(String name) =>
+      _mutate((repository) async {
+        final folder = SharedSearchFolder(
+          id: const Uuid().v4(),
+          name: name,
+          searchIds: const [],
+        );
+        final organization = await repository.getOrganization();
+        await repository.replaceOrganization(
+          SearchOrganization(
+            folders: [...organization.folders, folder],
+            homeSearchIds: organization.homeSearchIds,
+          ),
+        );
+        return folder;
+      });
+
+  Future<SharedSearchFolder> createSharedFolderAndMovePin(
+    String searchId,
+    String name,
+  ) => _mutate((repository) async {
+    await _requireIndependentPin(repository, searchId);
+    final folder = SharedSearchFolder(
+      id: const Uuid().v4(),
+      name: name,
+      searchIds: [searchId],
+    );
+    final organization = _withoutSharedPin(
+      await repository.getOrganization(),
+      searchId,
+    );
+    await repository.replaceOrganization(
+      SearchOrganization(
+        folders: [...organization.folders, folder],
+        homeSearchIds: organization.homeSearchIds,
+      ),
+    );
+    return folder;
+  });
+
+  Future<void> movePinToSharedFolder(String searchId, String? folderId) =>
+      _mutate((repository) async {
+        await _requireIndependentPin(repository, searchId);
+        final organization = _withoutSharedPin(
+          await repository.getOrganization(),
+          searchId,
+        );
+        if (folderId != null &&
+            !organization.folders.any((folder) => folder.id == folderId)) {
+          throw StateError('Shared folder not found');
+        }
+        await repository.replaceOrganization(
+          SearchOrganization(
+            folders: [
+              for (final folder in organization.folders)
+                if (folder.id == folderId)
+                  SharedSearchFolder(
+                    id: folder.id,
+                    name: folder.name,
+                    searchIds: [...folder.searchIds, searchId],
+                  )
+                else
+                  folder,
+            ],
+            homeSearchIds: [
+              ...organization.homeSearchIds,
+              if (folderId == null) searchId,
+            ],
+          ),
+        );
+      });
+
+  Future<void> reorderSharedPins(
+    String? folderId,
+    int oldIndex,
+    int newIndex,
+  ) => _mutate((repository) async {
+    final organization = await repository.getOrganization();
+    final ids = folderId == null
+        ? organization.homeSearchIds.toList()
+        : organization.folders
+              .singleWhere((folder) => folder.id == folderId)
+              .searchIds
+              .toList();
+    if (oldIndex < 0 ||
+        oldIndex >= ids.length ||
+        newIndex < 0 ||
+        newIndex >= ids.length) {
+      return;
+    }
+    final pin = ids.removeAt(oldIndex);
+    ids.insert(newIndex, pin);
+    await repository.replaceOrganization(
+      SearchOrganization(
+        folders: [
+          for (final folder in organization.folders)
+            if (folder.id == folderId)
+              SharedSearchFolder(
+                id: folder.id,
+                name: folder.name,
+                searchIds: ids,
+              )
+            else
+              folder,
+        ],
+        homeSearchIds: folderId == null ? ids : organization.homeSearchIds,
+      ),
+    );
+  });
+
+  Future<void> deleteSharedFolderAndPins(String folderId) =>
+      _mutate((repository) => repository.deleteSharedFolderAndPins(folderId));
+
+  Future<List<SearchRefreshOutcome>> refreshSharedFolder(
+    String folderId,
+  ) async {
+    await future;
+    final current = state.requireValue;
+    final ids = current.organization.folders
+        .singleWhere((folder) => folder.id == folderId)
+        .searchIds
+        .toSet();
+    final items =
+        current.subscriptions
+            .where((search) => search.feedId == null && ids.contains(search.id))
+            .toList()
+          ..sort(compareSearchRefreshPriority);
+    return [for (final item in items) await refresh(item.id)];
   }
 
   Future<({SearchSubscription subscription, SearchRefreshOutcome refresh})>
@@ -408,6 +547,31 @@ class SearchSubscriptionsNotifier
     Future<T> Function(SearchSubscriptionRepository repository) operation,
   ) => runSerializedMutation(operation);
 
+  Future<void> _requireIndependentPin(
+    SearchSubscriptionRepository repository,
+    String id,
+  ) async {
+    final search = await repository.getById(id);
+    if (search == null || search.feedId != null) {
+      throw StateError('Independent pinned search not found');
+    }
+  }
+
+  SearchOrganization _withoutSharedPin(
+    SearchOrganization organization,
+    String searchId,
+  ) => SearchOrganization(
+    folders: [
+      for (final folder in organization.folders)
+        SharedSearchFolder(
+          id: folder.id,
+          name: folder.name,
+          searchIds: folder.searchIds.where((id) => id != searchId),
+        ),
+    ],
+    homeSearchIds: organization.homeSearchIds.where((id) => id != searchId),
+  );
+
   Future<T> runSerializedMutation<T>(
     Future<T> Function(SearchSubscriptionRepository repository) operation,
   ) => _serialize(() async {
@@ -436,6 +600,7 @@ class SearchSubscriptionsNotifier
     final subscriptions = await repository.getAll();
     _folders = await repository.getFolders();
     _feeds = await repository.getFeeds();
+    _organization = await repository.getOrganization();
     if (!_disposed) state = AsyncData(_snapshot(subscriptions));
   }
 
@@ -451,6 +616,7 @@ class SearchSubscriptionsNotifier
         subscriptions: subscriptions,
         folders: List.unmodifiable(_folders),
         feeds: List.unmodifiable(_feeds),
+        organization: _organization,
         refreshingIds: _inFlight.keys.toSet(),
         batchCompleted: _batchCompleted,
         batchTotal: _batchTotal,

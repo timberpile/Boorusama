@@ -343,6 +343,34 @@ void main() {
     expect(await notifier().refresh('missing'), const SearchRefreshDiscarded());
     expect(snapshot().refreshingIds, isEmpty);
   });
+
+  test(
+    'creates a shared folder and keeps its member when creation succeeds',
+    () async {
+      final cat = await seed('cat', unread: 2);
+      await container.read(searchSubscriptionsProvider.future);
+
+      final folder = await notifier().createSharedFolderAndMovePin(
+        cat.id,
+        'Animals',
+      );
+
+      expect(folder.searchIds, [cat.id]);
+      expect(snapshot().organization.folders, [folder]);
+    },
+  );
+
+  test('a failed shared create-and-move keeps the pin in Home', () async {
+    final cat = await seed('cat', unread: 2);
+    await container.read(searchSubscriptionsProvider.future);
+
+    await expectLater(
+      notifier().createSharedFolderAndMovePin(cat.id, ' '),
+      throwsFormatException,
+    );
+
+    expect(snapshot().organization.homeSearchIds, [cat.id]);
+  });
 }
 
 class _RepositoryNotifier extends SearchSubscriptionRepositoryNotifier {

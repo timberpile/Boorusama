@@ -72,6 +72,32 @@ final folderPinnedSearchesProvider =
           );
     });
 
+final organizedPinnedSearchesProvider =
+    Provider.family<AsyncValue<List<SearchSubscription>>, String?>(
+      (ref, folderId) => ref.watch(searchSubscriptionsProvider).whenData((
+        state,
+      ) {
+        final profiles = ref
+            .watch(booruConfigProvider)
+            .map((config) => config.id)
+            .toSet();
+        final byId = {
+          for (final search in state.subscriptions)
+            if (search.feedId == null && profiles.contains(search.profileId))
+              search.id: search,
+        };
+        final ids = folderId == null
+            ? state.organization.homeSearchIds
+            : state.organization.folders
+                  .singleWhere((folder) => folder.id == folderId)
+                  .searchIds;
+        return List.unmodifiable([
+          for (final id in ids)
+            if (byId[id] case final search?) search,
+        ]);
+      }),
+    );
+
 final pinnedSearchHasNewPostsProvider = Provider<bool>((ref) {
   final profiles = ref.watch(booruConfigProvider).map((c) => c.id).toSet();
   return ref
