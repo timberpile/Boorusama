@@ -95,9 +95,13 @@ class InMemorySettingsRepository implements SettingsRepository {
   InMemorySettingsRepository() : _settings = Settings.defaultSettings;
 
   late Settings _settings;
+  Error? saveFailure;
 
   @override
   Future<bool> save(Settings settings) {
+    if (saveFailure case final error?) {
+      return Future.error(error);
+    }
     _settings = settings;
     return Future.value(true);
   }
@@ -705,6 +709,56 @@ void main() {
             unorderedEquals([...pinnedSearches, unaffectedSearch]),
           );
           expect(failures, ['Bad state: profile deletion failed']);
+        },
+      );
+
+      test(
+        'restores pinned searches when current-profile replacement persistence fails',
+        () async {
+          final config1 = BooruConfig.empty.toBooruConfigData();
+          final config2 = BooruConfig.empty.toBooruConfigData();
+          final config3 = BooruConfig.empty.toBooruConfigData();
+          final pinnedSearches = [
+            subscriptionFor('first', 2),
+            subscriptionFor('second', 2, position: 1),
+          ];
+          final unaffectedSearch = subscriptionFor('other', 3);
+          final searchRepository = RecordingSearchSubscriptionRepository([
+            ...pinnedSearches,
+            unaffectedSearch,
+          ]);
+          final configRepository = InMemoryBooruConfigRepository();
+          final settingsRepository = InMemorySettingsRepository();
+          final container = createBooruConfigContainer(
+            settingsRepository: settingsRepository,
+            booruConfigRepository: configRepository,
+            searchSubscriptionRepository: searchRepository,
+          );
+          addTearDown(container.dispose);
+          final notifier = container.read(booruConfigProvider.notifier);
+          await notifier.add(data: config1);
+          await notifier.add(data: config2, setAsCurrent: true);
+          await notifier.add(data: config3);
+          settingsRepository.saveFailure = StateError('settings save failed');
+          final failures = <String>[];
+
+          await notifier.delete(
+            config2.toBooruConfig(id: 2)!,
+            onFailure: failures.add,
+          );
+
+          expect(
+            (await configRepository.getAll()).map((config) => config.id),
+            [1, 2, 3],
+          );
+          expect(searchRepository.restoredProfileIds, [2]);
+          expect(searchRepository.restoredSubscriptions, pinnedSearches);
+          expect(
+            searchRepository.remaining,
+            unorderedEquals([...pinnedSearches, unaffectedSearch]),
+          );
+          expect(failures, ['Bad state: settings save failed']);
+          expect(failures, hasLength(1));
         },
       );
     },

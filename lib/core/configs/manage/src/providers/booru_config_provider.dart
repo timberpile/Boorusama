@@ -97,20 +97,65 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
       final subscriptions = (await searchRepository.getAll())
           .where((subscription) => subscription.profileId == config.id)
           .toList(growable: false);
-      await searchRepository.deleteForProfile(config.id);
+      var searchesDeleted = false;
+      var profileRemoved = false;
 
-      // check if deleting the last config
-      if (state.length == 1) {
-        await _removeConfigWithSubscriptionCompensation(
-          config,
-          searchRepository,
-          subscriptions,
-        );
-        await ref.read(booruConfigProvider.notifier).fetch();
-        // reset order
-        await updateOrder([]);
-        await ref.read(currentBooruConfigProvider.notifier).setEmpty();
+      try {
+        await searchRepository.deleteForProfile(config.id);
+        searchesDeleted = true;
 
+        // check if deleting the last config
+        if (state.length == 1) {
+          await ref.read(booruConfigRepoProvider).remove(config);
+          profileRemoved = true;
+          await ref.read(booruConfigProvider.notifier).fetch();
+          // reset order
+          await updateOrder([]);
+          await ref.read(currentBooruConfigProvider.notifier).setEmpty();
+
+          onSuccess?.call(config);
+
+          analyticsAsync.whenData(
+            (a) => a?.logEvent(
+              eventName,
+              parameters: {
+                ...baseParams,
+                'delete_type': 'last',
+              },
+            ),
+          );
+
+          return;
+        }
+
+        // check if deleting current config, if so, set current to the first config
+        final currentConfig = ref.read(currentBooruConfigProvider);
+        var deleteCurrent = false;
+        var deleteFirst = false;
+        if (currentConfig.id == config.id) {
+          final firstConfig = state.first;
+
+          // check if deleting the first config
+          deleteFirst = firstConfig.id == config.id;
+          deleteCurrent = true;
+
+          final targetConfig = deleteFirst ? state.skip(1).first : firstConfig;
+
+          await ref
+              .read(currentBooruConfigProvider.notifier)
+              .update(targetConfig);
+        }
+
+        await ref.read(booruConfigRepoProvider).remove(config);
+        profileRemoved = true;
+        final orders = ref.read(settingsProvider).booruConfigIdOrderList;
+        final newOrders = [...orders..remove(config.id)];
+
+        await updateOrder(newOrders);
+
+        final tmp = [...state]..remove(config);
+
+        state = tmp;
         onSuccess?.call(config);
 
         analyticsAsync.whenData(
@@ -118,60 +163,25 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
             eventName,
             parameters: {
               ...baseParams,
-              'delete_type': 'last',
+              'delete_type': deleteCurrent
+                  ? deleteFirst
+                        ? 'current_first'
+                        : 'current'
+                  : 'normal',
             },
           ),
         );
-
-        return;
+      } catch (error, stackTrace) {
+        if (searchesDeleted && !profileRemoved) {
+          await _restoreProfileSubscriptions(
+            config,
+            searchRepository,
+            subscriptions,
+            error,
+          );
+        }
+        Error.throwWithStackTrace(error, stackTrace);
       }
-
-      // check if deleting current config, if so, set current to the first config
-      final currentConfig = ref.read(currentBooruConfigProvider);
-      var deleteCurrent = false;
-      var deleteFirst = false;
-      if (currentConfig.id == config.id) {
-        final firstConfig = state.first;
-
-        // check if deleting the first config
-        deleteFirst = firstConfig.id == config.id;
-        deleteCurrent = true;
-
-        final targetConfig = deleteFirst ? state.skip(1).first : firstConfig;
-
-        await ref
-            .read(currentBooruConfigProvider.notifier)
-            .update(targetConfig);
-      }
-
-      await _removeConfigWithSubscriptionCompensation(
-        config,
-        searchRepository,
-        subscriptions,
-      );
-      final orders = ref.read(settingsProvider).booruConfigIdOrderList;
-      final newOrders = [...orders..remove(config.id)];
-
-      await updateOrder(newOrders);
-
-      final tmp = [...state]..remove(config);
-
-      state = tmp;
-      onSuccess?.call(config);
-
-      analyticsAsync.whenData(
-        (a) => a?.logEvent(
-          eventName,
-          parameters: {
-            ...baseParams,
-            'delete_type': deleteCurrent
-                ? deleteFirst
-                      ? 'current_first'
-                      : 'current'
-                : 'normal',
-          },
-        ),
-      );
     } catch (e) {
       onFailure?.call(e.toString());
     }
@@ -252,24 +262,20 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
     }
   }
 
-  Future<void> _removeConfigWithSubscriptionCompensation(
+  Future<void> _restoreProfileSubscriptions(
     BooruConfig config,
     SearchSubscriptionRepository searchRepository,
     List<SearchSubscription> subscriptions,
+    Object originalError,
   ) async {
     try {
-      await ref.read(booruConfigRepoProvider).remove(config);
-    } catch (error, stackTrace) {
-      try {
-        await searchRepository.restoreForProfile(config.id, subscriptions);
-      } catch (restoreError) {
-        _logError('Failed to remove config ${config.id}: $error');
-        _logError(
-          'Failed to restore pinned searches for config ${config.id}: '
-          '$restoreError',
-        );
-      }
-      Error.throwWithStackTrace(error, stackTrace);
+      await searchRepository.restoreForProfile(config.id, subscriptions);
+    } catch (restoreError) {
+      _logError('Failed to remove config ${config.id}: $originalError');
+      _logError(
+        'Failed to restore pinned searches for config ${config.id}: '
+        '$restoreError',
+      );
     }
   }
 
