@@ -32,10 +32,12 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
   Future<void> _mutationTail = Future.value();
 
   List<SearchFollowingFeed> _feeds() => [
-    for (final key in _organizationBox?.keys ?? const [])
-      if (key case final String key when key.startsWith('feed:'))
-        if (_organizationBox?.get(key) case final Map json)
-          SearchFollowingFeed.fromJson(json),
+    for (final value in _organizationBox?.values ?? const [])
+      if (value case final Map json
+          when json['id'] is String &&
+              json['profileId'] is int &&
+              json['name'] is String)
+        SearchFollowingFeed.fromJson(json),
   ];
 
   @override
@@ -536,6 +538,11 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
         return;
       }
       final previousOrganization = _organization();
+      final previousPins = {
+        for (final subscription in _subscriptions())
+          if (subscription.profileId == current.profileId)
+            subscription.id: _toObject(subscription),
+      };
       final nextOrganization = _removeOrganizationMemberships(
         previousOrganization,
         {current.id},
@@ -563,7 +570,9 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
           nextOrganization.toJson(),
         );
         await _box.delete(current.id);
+        await _writeContiguousPositions(current.profileId);
       } catch (_) {
+        await _box.putAll(previousPins);
         if (rows != null) await _organizationBox?.put(current.profileId, rows);
         await _organizationBox?.put(
           'search:organization',
@@ -571,7 +580,6 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
         );
         rethrow;
       }
-      await _writeContiguousPositions(current.profileId);
     });
   }
 

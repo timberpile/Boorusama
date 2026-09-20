@@ -25,6 +25,21 @@ class FailingOrganizationBox extends MemoryBox<dynamic> {
   }
 }
 
+class FailingPositionSubscriptionBox extends MemorySubscriptionBox {
+  var failNextPositionWrite = false;
+
+  @override
+  Future<void> putAll(
+    Map<dynamic, SearchSubscriptionHiveObject> entries,
+  ) async {
+    if (failNextPositionWrite) {
+      failNextPositionWrite = false;
+      throw StateError('position write failed');
+    }
+    await super.putAll(entries);
+  }
+}
+
 void main() {
   const boxName = 'pinned_search_subscriptions_test';
   final createdAt = DateTime.utc(2026, 9, 14, 8);
@@ -1025,6 +1040,49 @@ void main() {
         (await failingRepository.getAll()).map((search) => search.id),
         [cat.id, dog.id],
       );
+      expect(await failingRepository.getOrganization(), original);
+    },
+  );
+
+  test(
+    'restores a pin and its organization after position writes fail',
+    () async {
+      final subscriptions = FailingPositionSubscriptionBox();
+      final organization = MemoryBox<dynamic>();
+      final failingRepository = HiveSearchSubscriptionRepository(
+        box: subscriptions,
+        organizationBox: organization,
+      );
+      final cat = await failingRepository.create(
+        profileId: 12,
+        query: 'cat',
+        name: null,
+        id: 'cat',
+        createdAt: createdAt,
+      );
+      final dog = await failingRepository.create(
+        profileId: 12,
+        query: 'dog',
+        name: null,
+        id: 'dog',
+        createdAt: createdAt,
+      );
+      final original = SearchOrganization(
+        folders: [
+          SharedSearchFolder(
+            id: 'animals',
+            name: 'Animals',
+            searchIds: [cat.id],
+          ),
+        ],
+        homeSearchIds: [dog.id],
+      );
+      await failingRepository.replaceOrganization(original);
+      subscriptions.failNextPositionWrite = true;
+
+      await expectLater(failingRepository.delete(cat.id), throwsStateError);
+
+      expect(await failingRepository.getById(cat.id), cat);
       expect(await failingRepository.getOrganization(), original);
     },
   );
