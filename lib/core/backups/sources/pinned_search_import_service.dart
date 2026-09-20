@@ -6,6 +6,7 @@ import 'package:equatable/equatable.dart';
 import '../../configs/config/types.dart';
 import '../../search/subscriptions/types.dart';
 import 'pinned_search_backup_data.dart';
+import 'search_backup_profile.dart';
 
 class PinnedSearchImportResult extends Equatable {
   const PinnedSearchImportResult({
@@ -53,9 +54,9 @@ class PinnedSearchImportService {
   }) => PinnedSearchImportPreview(
     unmatchedRecordIds: {
       for (final record in data.records)
-        if (_resolveProfile(record.profile, profiles) == null) record.id,
+        if (resolveBackupProfile(record.profile, profiles) == null) record.id,
       for (final feed in data.feeds)
-        if (_resolveProfile(feed.profile, profiles) == null) feed.id,
+        if (resolveBackupProfile(feed.profile, profiles) == null) feed.id,
     },
   );
 
@@ -81,7 +82,10 @@ class PinnedSearchImportService {
       });
     final mapped = [
       for (final (_, record) in ordered)
-        (record: record, profile: _resolveProfile(record.profile, profiles)),
+        (
+          record: record,
+          profile: resolveBackupProfile(record.profile, profiles),
+        ),
     ];
     var imported = 0;
     var existing = 0;
@@ -198,7 +202,7 @@ class PinnedSearchImportService {
     }
     final feeds = (await repository.getFeeds()).toList();
     for (final record in data.feeds) {
-      final profile = _resolveProfile(record.profile, profiles);
+      final profile = resolveBackupProfile(record.profile, profiles);
       if (profile == null) {
         skipped++;
         continue;
@@ -248,23 +252,4 @@ class PinnedSearchImportService {
       skippedProfileCount: skipped,
     );
   }
-}
-
-BooruConfig? _resolveProfile(
-  PinnedSearchProfileReference reference,
-  List<BooruConfig> profiles,
-) {
-  final normalizedUrl = normalizePinnedSearchProfileUrl(reference.url);
-  final matches = profiles
-      .where(
-        (profile) =>
-            profile.auth.booruType.name == reference.booruType &&
-            normalizePinnedSearchProfileUrl(profile.url) == normalizedUrl,
-      )
-      .toList();
-  return matches.firstWhereOrNull((profile) => profile.id == reference.id) ??
-      switch (matches) {
-        [final profile] => profile,
-        _ => null,
-      };
 }

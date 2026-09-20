@@ -1,6 +1,6 @@
 // Package imports:
 import 'package:equatable/equatable.dart';
-import '../../configs/config/types.dart';
+import 'search_backup_profile.dart';
 
 class PinnedSearchBackupData extends Equatable {
   const PinnedSearchBackupData({
@@ -32,31 +32,11 @@ class PinnedSearchBackupRecord extends Equatable {
   final String? name;
   final String query;
   final int position;
-  final PinnedSearchProfileReference profile;
+  final BackupProfileReference profile;
 
   @override
   List<Object?> get props => [id, name, query, position, profile];
 }
-
-class PinnedSearchProfileReference extends Equatable {
-  const PinnedSearchProfileReference({
-    required this.id,
-    required this.booruType,
-    required this.url,
-    required this.name,
-  });
-
-  final int id;
-  final String booruType;
-  final String url;
-  final String name;
-
-  @override
-  List<Object?> get props => [id, booruType, url, name];
-}
-
-String normalizePinnedSearchProfileUrl(String url) =>
-    normalizeBooruSiteUrl(url);
 
 class PinnedSearchFolderBackupRecord extends Equatable {
   const PinnedSearchFolderBackupRecord({
@@ -85,7 +65,7 @@ class PinnedSearchFeedBackupRecord extends Equatable {
   final String name;
   final int position;
   final List<String> queries;
-  final PinnedSearchProfileReference profile;
+  final BackupProfileReference profile;
   @override
   List<Object?> get props => [id, name, position, queries, profile];
 }

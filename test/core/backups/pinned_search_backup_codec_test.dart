@@ -1,5 +1,6 @@
 import 'package:boorusama/core/backups/sources/pinned_search_backup_codec.dart';
 import 'package:boorusama/core/backups/sources/pinned_search_backup_data.dart';
+import 'package:boorusama/core/backups/sources/search_backup_profile.dart';
 import 'package:boorusama/core/backups/types.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -251,7 +252,7 @@ void main() {
             name: 'Cats',
             query: 'cat  rating:safe',
             position: 0,
-            profile: PinnedSearchProfileReference(
+            profile: BackupProfileReference(
               id: 4,
               booruType: 'danbooru',
               url: 'https://example.test/Posts',
@@ -341,7 +342,7 @@ void main() {
             name: null,
             query: 'cat',
             position: 0,
-            profile: PinnedSearchProfileReference(
+            profile: BackupProfileReference(
               id: 4,
               booruType: 'danbooru',
               url:

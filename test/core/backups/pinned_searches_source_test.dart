@@ -8,6 +8,7 @@ import 'package:boorusama/core/backups/preparation/version_checking.dart';
 import 'package:boorusama/core/backups/types/backup_data_source.dart';
 import 'package:boorusama/core/backups/sources/booru_configs_source.dart';
 import 'package:boorusama/core/backups/sources/pinned_search_backup_data.dart';
+import 'package:boorusama/core/backups/sources/search_backup_profile.dart';
 import 'package:boorusama/core/backups/sources/pinned_searches_source.dart';
 import 'package:boorusama/core/backups/sources/providers.dart';
 import 'package:boorusama/core/backups/transfer/import/import_data_notifier.dart';
@@ -607,7 +608,7 @@ void main() {
               name: null,
               query: 'cat',
               position: 0,
-              profile: PinnedSearchProfileReference(
+              profile: BackupProfileReference(
                 id: 4,
                 booruType: 'danbooru',
                 url: replacement.url,
@@ -1192,7 +1193,7 @@ PinnedSearchBackupData _data({
         name: 'Missing feed',
         position: 0,
         queries: ['cat'],
-        profile: PinnedSearchProfileReference(
+        profile: BackupProfileReference(
           id: 5,
           booruType: 'gelbooru',
           url: 'https://missing.test',
@@ -1206,7 +1207,7 @@ PinnedSearchBackupData _data({
       name: 'Cats',
       query: 'cat  rating:safe',
       position: 0,
-      profile: PinnedSearchProfileReference(
+      profile: BackupProfileReference(
         id: 4,
         booruType: 'danbooru',
         url: 'https://example.test',
@@ -1219,7 +1220,7 @@ PinnedSearchBackupData _data({
         name: null,
         query: 'dog',
         position: 0,
-        profile: PinnedSearchProfileReference(
+        profile: BackupProfileReference(
           id: 5,
           booruType: 'gelbooru',
           url: 'https://missing.test',

@@ -19,7 +19,7 @@ import '../utils/json_handler.dart';
 import '../widgets/backup_restore_tile.dart';
 import '../widgets/import_booru_configs_alert_dialog.dart';
 import 'json_source.dart';
-import 'pinned_search_backup_data.dart';
+import 'search_backup_profile.dart';
 
 class BooruConfigExportData {
   BooruConfigExportData({
@@ -183,7 +183,7 @@ Future<void> _replaceProfiles(Ref ref, List<BooruConfig> configs) => ref
 
 ({String booruType, String url}) _profileIdentity(BooruConfig profile) => (
   booruType: profile.auth.booruType.name,
-  url: normalizePinnedSearchProfileUrl(profile.url),
+  url: normalizeBackupProfileUrl(profile.url),
 );
 
 // Custom validation step for booru configs

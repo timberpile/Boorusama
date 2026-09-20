@@ -19,6 +19,7 @@ import 'pinned_search_backup_codec.dart';
 import 'pinned_search_backup_data.dart';
 import 'pinned_search_import_service.dart';
 import 'pinned_search_import_preflight.dart';
+import 'search_backup_profile.dart';
 
 class PinnedSearchesBackupSource
     extends JsonBackupSource<PinnedSearchBackupData> {
@@ -66,10 +67,10 @@ class PinnedSearchesBackupSource
                         .where((s) => feed.sourceIds.contains(s.id))
                         .map((s) => s.query)
                         .toList(),
-                    profile: PinnedSearchProfileReference(
+                    profile: BackupProfileReference(
                       id: profile.id,
                       booruType: profile.auth.booruType.name,
-                      url: normalizePinnedSearchProfileUrl(profile.url),
+                      url: normalizeBackupProfileUrl(profile.url),
                       name: profile.name,
                     ),
                   ),
@@ -95,10 +96,10 @@ class PinnedSearchesBackupSource
                     name: subscription.name,
                     query: subscription.query,
                     position: subscription.position,
-                    profile: PinnedSearchProfileReference(
+                    profile: BackupProfileReference(
                       id: profile.id,
                       booruType: profile.auth.booruType.name,
-                      url: normalizePinnedSearchProfileUrl(profile.url),
+                      url: normalizeBackupProfileUrl(profile.url),
                       name: profile.name,
                     ),
                   ),

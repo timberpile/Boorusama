@@ -5,6 +5,7 @@ import 'package:uuid/uuid.dart';
 import '../types/types.dart';
 import '../utils/json_handler.dart';
 import 'pinned_search_backup_data.dart';
+import 'search_backup_profile.dart';
 
 class PinnedSearchBackupCodec extends JsonHandler<PinnedSearchBackupData> {
   @override
@@ -39,22 +40,13 @@ class PinnedSearchBackupCodec extends JsonHandler<PinnedSearchBackupData> {
           ],
           _ => throw InvalidBackupFormatException('$row.queries is invalid'),
         };
-        final profile = _object(json['profile'], '$row.profile');
         feeds.add(
           PinnedSearchFeedBackupRecord(
             id: id,
             name: _nonBlankString(json['name'], '$row.name').trim(),
             position: _nonNegativeInt(json['position'], '$row.position'),
             queries: List.unmodifiable(queries),
-            profile: PinnedSearchProfileReference(
-              id: _nonNegativeInt(profile['id'], '$row.profile.id'),
-              booruType: _nonBlankString(
-                profile['booruType'],
-                '$row.profile.booruType',
-              ),
-              url: _profileUrl(profile['url'], '$row.profile.url'),
-              name: _nonBlankString(profile['name'], '$row.profile.name'),
-            ),
+            profile: parseBackupProfile(json['profile'], '$row.profile'),
           ),
         );
         continue;
@@ -79,22 +71,13 @@ class PinnedSearchBackupCodec extends JsonHandler<PinnedSearchBackupData> {
         final String name => name.trim().isEmpty ? null : name.trim(),
         _ => throw InvalidBackupFormatException('$row.name is invalid'),
       };
-      final profile = _object(json['profile'], '$row.profile');
       records.add(
         PinnedSearchBackupRecord(
           id: id,
           name: name,
           query: _nonBlankString(json['query'], '$row.query'),
           position: _nonNegativeInt(json['position'], '$row.position'),
-          profile: PinnedSearchProfileReference(
-            id: _nonNegativeInt(profile['id'], '$row.profile.id'),
-            booruType: _nonBlankString(
-              profile['booruType'],
-              '$row.profile.booruType',
-            ),
-            url: _profileUrl(profile['url'], '$row.profile.url'),
-            name: _nonBlankString(profile['name'], '$row.profile.name'),
-          ),
+          profile: parseBackupProfile(json['profile'], '$row.profile'),
         ),
       );
     }
@@ -133,12 +116,7 @@ class PinnedSearchBackupCodec extends JsonHandler<PinnedSearchBackupData> {
         'name': feed.name,
         'position': feed.position,
         'queries': feed.queries,
-        'profile': {
-          'id': feed.profile.id,
-          'booruType': feed.profile.booruType,
-          'url': normalizePinnedSearchProfileUrl(feed.profile.url),
-          'name': feed.profile.name,
-        },
+        'profile': feed.profile.toJson(),
       },
     for (final folder in data.folders)
       {
@@ -154,12 +132,7 @@ class PinnedSearchBackupCodec extends JsonHandler<PinnedSearchBackupData> {
         'name': record.name,
         'query': record.query,
         'position': record.position,
-        'profile': {
-          'id': record.profile.id,
-          'booruType': record.profile.booruType,
-          'url': normalizePinnedSearchProfileUrl(record.profile.url),
-          'name': record.profile.name,
-        },
+        'profile': record.profile.toJson(),
       },
     {'kind': 'organization', 'homeSearchIds': data.homeSearchIds},
   ];
@@ -179,18 +152,6 @@ int _nonNegativeInt(Object? value, String field) => switch (value) {
   final int value when value >= 0 => value,
   _ => throw InvalidBackupFormatException('$field is invalid'),
 };
-
-String _profileUrl(Object? value, String field) {
-  final url = _nonBlankString(value, field);
-  final uri = Uri.tryParse(url);
-  if (uri case Uri(
-    scheme: 'http' || 'https',
-    host: final host,
-  ) when host.isNotEmpty) {
-    return normalizePinnedSearchProfileUrl(url);
-  }
-  throw InvalidBackupFormatException('$field is invalid');
-}
 
 List<String> _searchIds(Object? value, String field) => switch (value) {
   final List values => [

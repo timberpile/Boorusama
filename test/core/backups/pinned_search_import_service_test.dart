@@ -1,4 +1,5 @@
 import 'package:boorusama/core/backups/sources/pinned_search_backup_data.dart';
+import 'package:boorusama/core/backups/sources/search_backup_profile.dart';
 import 'package:boorusama/core/backups/sources/pinned_search_import_service.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/configs/config/types.dart';
@@ -222,7 +223,7 @@ void main() {
       name: null,
       query: 'dog',
       position: 0,
-      profile: const PinnedSearchProfileReference(
+      profile: const BackupProfileReference(
         id: 99,
         booruType: 'danbooru',
         url: 'https://other.test',
@@ -665,7 +666,7 @@ PinnedSearchBackupRecord _record(
   name: 'Cats $index',
   query: query ?? 'cat  tag_$index',
   position: position,
-  profile: PinnedSearchProfileReference(
+  profile: BackupProfileReference(
     id: profileId,
     booruType: 'danbooru',
     url: 'https://EXAMPLE.test/Posts/',
