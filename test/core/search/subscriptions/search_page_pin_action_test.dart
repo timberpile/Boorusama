@@ -182,7 +182,7 @@ void main() {
       expect(saved?.name, 'Cats');
       expect(saved?.query, query);
       expect(saved?.lastSuccessfulCheckAt, isNull);
-      expect(find.text('Search pinned'), findsOneWidget);
+      expect(find.text('Search pinned'), findsNothing);
       expect(find.byTooltip('Manage Pinned Search'), findsOneWidget);
       expect(find.byType(SearchPageScaffold<Post>), findsOneWidget);
       expect(snapshotCalls, 1);
@@ -221,7 +221,7 @@ void main() {
       expect((await repository.getAll()).single.id, saved.id);
       expect((await repository.getAll()).single.name, isNull);
       expect(snapshotCalls, 0);
-      expect(find.text('Pinned search updated'), findsOneWidget);
+      expect(find.text('Pinned search updated'), findsNothing);
     },
   );
 
@@ -250,7 +250,7 @@ void main() {
       await load(tester);
       await submit(tester, '   ');
       expect((await repository.getAll()).single.name, isNull);
-      expect(find.text('Search pinned'), findsOneWidget);
+      expect(find.text('Search pinned'), findsNothing);
       snapshot.completeError(Exception('offline'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
@@ -265,6 +265,40 @@ void main() {
       );
       expect((await repository.getAll()).single.lastSuccessfulCheckAt, isNull);
       expect(find.byType(SearchPageScaffold<Post>), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'a delayed preview failure stays in its originating search view',
+    (tester) async {
+      await initialize();
+      await pump(tester);
+      await load(tester);
+      await submit(tester, 'Cats');
+      final navigator = Navigator.of(
+        tester.element(find.byType(SearchPageScaffold<Post>)),
+      );
+      navigator.push(
+        MaterialPageRoute<void>(
+          builder: (_) => const Scaffold(body: Text('Opened post')),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      snapshot.completeError(Exception('offline'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.text('Opened post'), findsOneWidget);
+      expect(find.byType(SnackBar), findsNothing);
+      expect(find.textContaining('preview could not be loaded'), findsNothing);
+      navigator.pop();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(
+        find.textContaining('preview could not be loaded'),
+        findsOneWidget,
+      );
+      expect((await repository.getAll()).single.name, 'Cats');
     },
   );
 

@@ -205,6 +205,7 @@ class _PinSearchAction extends ConsumerStatefulWidget {
 class _PinSearchActionState extends ConsumerState<_PinSearchAction> {
   var _busy = false;
   var _saved = false;
+  String? _error;
   ({int profileId, String query})? _pendingPin;
 
   SearchSubscription? _findPin(
@@ -223,14 +224,15 @@ class _PinSearchActionState extends ConsumerState<_PinSearchAction> {
   }
 
   void _feedback(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    setState(() => _error = message);
   }
 
   Future<void> _manage(int profileId, SearchSubscription? existing) async {
     final query = widget.query;
-    setState(() => _busy = true);
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
     try {
       final name = await showPinSearchDialog(
         context,
@@ -243,7 +245,7 @@ class _PinSearchActionState extends ConsumerState<_PinSearchAction> {
       switch (existing) {
         case final pin?:
           await notifier.rename(pin.id, name);
-          if (mounted) _feedback(context.t.pinned_searches.saved);
+
         case null:
           _pendingPin = (profileId: profileId, query: query);
           final result = await notifier.pin(
@@ -290,18 +292,30 @@ class _PinSearchActionState extends ConsumerState<_PinSearchAction> {
         );
         if (saved != null) {
           _saved = true;
-          _feedback(context.t.pinned_searches.pinned);
         }
       }
     });
-    return IconButton(
-      tooltip: existing == null
-          ? context.t.pinned_searches.pin_title
-          : context.t.pinned_searches.manage_title,
-      icon: Icon(Symbols.push_pin, fill: existing == null ? 0 : 1),
-      onPressed: _busy || !subscriptions.hasValue
-          ? null
-          : () => _manage(profileId, existing),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          tooltip: existing == null
+              ? context.t.pinned_searches.pin_title
+              : context.t.pinned_searches.manage_title,
+          icon: Icon(Symbols.push_pin, fill: existing == null ? 0 : 1),
+          onPressed: _busy || !subscriptions.hasValue
+              ? null
+              : () => _manage(profileId, existing),
+        ),
+        if (_error case final error?)
+          SizedBox(
+            width: 160,
+            child: Text(
+              error,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          ),
+      ],
     );
   }
 }
