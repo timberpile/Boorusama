@@ -35,6 +35,7 @@ abstract class JsonBackupSource<T>
     this.scopedDataGetter,
     this.exportResultBuilder,
     this.resultExecutor,
+    this.approvedResultExecutor,
     this.restartAfterImport,
   }) {
     converter = DataBackupConverter(
@@ -68,6 +69,12 @@ abstract class JsonBackupSource<T>
   final BackupOperationResult Function(T data)? exportResultBuilder;
   final Future<BackupOperationResult?> Function(T data, BuildContext? context)?
   resultExecutor;
+  final Future<BackupOperationResult?> Function(
+    T data,
+    BuildContext? context,
+    Object approval,
+  )?
+  approvedResultExecutor;
   final Future<void> Function(BuildContext? context)? restartAfterImport;
   @override
   BackupOperationResult? lastImportResult;
@@ -131,6 +138,12 @@ abstract class JsonBackupSource<T>
     handler.parse,
     _executeImport,
     uiContext,
+    approvedExecutor: switch (approvedResultExecutor) {
+      final execute? => (parsed, context, approval) async {
+        lastImportResult = await execute(parsed, context, approval);
+      },
+      null => null,
+    },
     restartApp: switch (restartAfterImport) {
       final restart? => () => restart(uiContext),
       null => null,

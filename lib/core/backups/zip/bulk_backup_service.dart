@@ -18,6 +18,11 @@ import 'package:path/path.dart' as p;
 import '../../../foundation/filesystem.dart';
 import '../../../foundation/info/package_info.dart';
 import '../../../foundation/loggers.dart';
+import '../../configs/manage/providers.dart';
+import '../preparation/version_checking.dart';
+import '../preparation/preparation_pipeline.dart';
+import '../sources/pinned_search_import_preflight.dart';
+import '../sources/pinned_searches_source.dart';
 import '../sources/providers.dart';
 import '../types/backup_data_source.dart';
 import '../types/backup_registry.dart';
@@ -539,7 +544,9 @@ class BulkBackupService {
           .nonNulls
           .sorted((a, b) => a.priority.compareTo(b.priority));
 
-      // Import each available source
+      final prepared = <String, ImportPreparation>{};
+
+      // Prepare every source before any source writes.
       for (final source in sourcesToImport) {
         final sourceId = source.id;
         logger.verbose('Backup.Import', 'Processing source: $sourceId');
@@ -586,39 +593,60 @@ class BulkBackupService {
             continue;
           }
 
-          if (uiContext == null || !uiContext.mounted) {
-            logger.error(
-              'Backup.Import',
-              'UI context not available for source: $sourceId',
-            );
-            failed.add(sourceId);
-            continue;
-          }
-
           logger.verbose(
             'Backup.Import',
             'Preparing import for source $sourceId from file: $fileName',
           );
           final preparation = await fileCapability.prepareImport(
             sourceFilePath,
-            uiContext,
+            uiContext != null && uiContext.mounted ? uiContext : null,
           );
 
-          await preparation.executeImport(deferRestart: true);
-          if (preparation.restartApp case final restart?) {
-            restarts.add(restart);
-          }
-          logger.verbose(
-            'Backup.Import',
-            'Successfully imported source: $sourceId',
-          );
-          imported.add(sourceId);
+          prepared[sourceId] = preparation;
+        } on ImportCancelledException {
+          rethrow;
         } catch (e) {
           logger.error(
             'Backup.Import',
             'Failed to import source $sourceId: $e',
           );
           failed.add(sourceId);
+        }
+      }
+
+      final pinnedSource = registry.getSource('pinned_searches');
+      final approval = pinnedSource is PinnedSearchesBackupSource
+          ? await preflightPinnedSearches(
+              prepared: prepared,
+              selectedIds: (onlySourceIds ?? sourcesToProcess).toSet(),
+              pinnedSource: pinnedSource,
+              currentProfiles: () => ref.read(booruConfigRepoProvider).getAll(),
+              context: uiContext != null && uiContext.mounted
+                  ? uiContext
+                  : null,
+            )
+          : null;
+      for (final entry in prepared.entries) {
+        try {
+          await entry.value.executeImport(
+            deferRestart: true,
+            approval: entry.key == 'pinned_searches' ? approval : null,
+          );
+          imported.add(entry.key);
+          if (entry.value.restartApp case final restart?) restarts.add(restart);
+        } on ImportCancelledException {
+          rethrow;
+        } catch (e) {
+          logger.error(
+            'Backup.Import',
+            'Failed to import source ${entry.key}: $e',
+          );
+          failed.add(entry.key);
+          if (entry.key == 'profiles' &&
+              prepared.containsKey('pinned_searches')) {
+            failed.add('pinned_searches');
+            break;
+          }
         }
       }
 

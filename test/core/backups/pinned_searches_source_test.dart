@@ -3,6 +3,9 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:archive/archive.dart';
+import 'package:boorusama/core/backups/preparation/preparation_pipeline.dart';
+import 'package:boorusama/core/backups/preparation/version_checking.dart';
+import 'package:boorusama/core/backups/types/backup_data_source.dart';
 import 'package:boorusama/core/backups/sources/booru_configs_source.dart';
 import 'package:boorusama/core/backups/sources/pinned_search_backup_data.dart';
 import 'package:boorusama/core/backups/sources/pinned_searches_source.dart';
@@ -46,6 +49,232 @@ import '../search/subscriptions/subscription_test_utils.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  for (final action in ['cancel', 'dismiss', 'accept', 'change profiles']) {
+    testWidgets('standalone unmatched imports $action before writing', (
+      tester,
+    ) async {
+      final harness = _Harness();
+      addTearDown(harness.container.dispose);
+      await harness.profiles.addAll([_profile]);
+      final beforePins = await harness.repository.getAll();
+      final beforeFeeds = await harness.repository.getFeeds();
+      final beforeOrg = await harness.repository.getOrganization();
+      final context = await _pumpReboot(tester, harness);
+      Object? error;
+      final pending = harness
+          .source
+          .resultExecutor!(
+            _data(includeMissing: true, missingFeed: true),
+            context,
+          )
+          .then<void>(
+            (_) {},
+            onError: (Object e) {
+              error = e;
+            },
+          );
+      await tester.pumpAndSettle();
+      expect(find.text('Skip unmatched records?'), findsOneWidget);
+      expect(
+        find.text(
+          '2 pinned searches or feeds have no matching profile and will be skipped. Continue importing?',
+        ),
+        findsOneWidget,
+      );
+      expect(await harness.repository.getAll(), beforePins);
+      if (action == 'change profiles') await harness.profiles.clear();
+      if (action == 'dismiss') {
+        Navigator.of(context).pop();
+      } else {
+        await tester.tap(
+          find.text(action == 'cancel' ? 'Cancel' : 'Skip and import'),
+        );
+      }
+      await tester.pumpAndSettle();
+      await pending;
+      if (action == 'accept') {
+        expect(error, isNull);
+        expect((await harness.repository.getAll()).map((p) => p.id), [_id]);
+      } else {
+        expect(error, isA<ImportCancelledException>());
+        expect(await harness.repository.getAll(), beforePins);
+        expect(await harness.repository.getFeeds(), beforeFeeds);
+        expect(await harness.repository.getOrganization(), beforeOrg);
+      }
+    });
+  }
+
+  test(
+    'headless unmatched imports cancel before changing organization',
+    () async {
+      final harness = _Harness();
+      addTearDown(harness.container.dispose);
+      await harness.profiles.addAll([_profile]);
+      final before = await harness.repository.getOrganization();
+      await expectLater(
+        harness.source.resultExecutor!(_data(includeMissing: true), null),
+        throwsA(isA<ImportCancelledException>()),
+      );
+      expect(await harness.repository.getAll(), isEmpty);
+      expect(await harness.repository.getFeeds(), isEmpty);
+      expect(await harness.repository.getOrganization(), before);
+    },
+  );
+
+  test('headless ZIP preflight cancels before replacing profiles', () async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+    final harness = _Harness();
+    addTearDown(harness.container.dispose);
+    harness.container.read(allBackupSourcesProvider);
+    await harness.profiles.addAll([_replacement(id: 8)]);
+    final profiles = await harness.profiles.getAll();
+    final directory = Directory.systemTemp.createTempSync('preflight-');
+    addTearDown(() => directory.deleteSync(recursive: true));
+    final file = _writeBackupZip(
+      directory,
+      harness,
+      includePins: true,
+      pinData: _data(includeMissing: true),
+    );
+    await expectLater(
+      harness.container
+          .read(bulkBackupServiceProvider)
+          .importFromZip(file.path, null),
+      throwsA(isA<ImportCancelledException>()),
+    );
+    expect(await harness.profiles.getAll(), profiles);
+    expect(await harness.repository.getAll(), isEmpty);
+  });
+
+  for (final selectedProfiles in [false, true]) {
+    test(
+      'ZIP ${selectedProfiles ? 'aborts for invalid selected profiles' : 'uses current profiles when profiles are deselected'}',
+      () async {
+        debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+        addTearDown(() => debugDefaultTargetPlatformOverride = null);
+        final harness = _Harness();
+        addTearDown(harness.container.dispose);
+        await harness.profiles.addAll([_profile]);
+        final before = await harness.profiles.getAll();
+        final directory = Directory.systemTemp.createTempSync('preflight-');
+        addTearDown(() => directory.deleteSync(recursive: true));
+        final file = _writeBackupZip(
+          directory,
+          harness,
+          includePins: true,
+          backupProfiles: [],
+        );
+        final importing = harness.container
+            .read(bulkBackupServiceProvider)
+            .importFromZip(
+              file.path,
+              null,
+              onlySourceIds: [
+                if (selectedProfiles) 'profiles',
+                'pinned_searches',
+              ],
+            );
+        if (selectedProfiles) {
+          await expectLater(importing, throwsStateError);
+          expect(await harness.repository.getAll(), isEmpty);
+        } else {
+          final result = await importing;
+          expect(result.imported, ['pinned_searches']);
+          expect((await harness.repository.getAll()).single.profileId, 4);
+        }
+        expect(await harness.profiles.getAll(), before);
+      },
+    );
+  }
+
+  for (final action in ['cancel', 'accept']) {
+    testWidgets(
+      'ZIP $action checks projected profiles before any source writes',
+      (tester) async {
+        debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+        addTearDown(() => debugDefaultTargetPlatformOverride = null);
+        final harness = (await tester.runAsync(() async {
+          final harness = _Harness();
+          await harness.profiles.addAll([
+            _replacement(id: 8, url: 'https://old.test'),
+          ]);
+          await harness.repository.restoreForProfile(8, [_runtimePin(8)]);
+          await harness.container.read(searchSubscriptionsProvider.future);
+          return harness;
+        }))!;
+        addTearDown(harness.container.dispose);
+        var otherWrites = 0;
+        harness.container
+            .read(backupRegistryProvider)
+            .register(
+              _OtherBackupSource(() {
+                otherWrites++;
+              }),
+            );
+        final context = await _pumpReboot(tester, harness);
+        final directory = Directory.systemTemp.createTempSync('preflight-');
+        addTearDown(() => directory.deleteSync(recursive: true));
+        final file = _writeBackupZip(
+          directory,
+          harness,
+          includePins: true,
+          includeOther: true,
+          pinData: _data(includeMissing: true),
+        );
+        await tester.runAsync(() async {
+          final beforeProfiles = await harness.profiles.getAll();
+          final beforePins = await harness.repository.getAll();
+          final beforeOrg = await harness.repository.getOrganization();
+          Object? error;
+          final pending = harness.container
+              .read(bulkBackupServiceProvider)
+              .importFromZip(file.path, context)
+              .then<void>(
+                (_) {},
+                onError: (Object e) {
+                  error = e;
+                },
+              );
+          for (
+            var i = 0;
+            i < 100 && find.text('Skip unmatched records?').evaluate().isEmpty;
+            i++
+          ) {
+            await Future<void>.delayed(const Duration(milliseconds: 10));
+            _renderPendingFrame(tester);
+          }
+          expect(find.text('Skip unmatched records?'), findsOneWidget);
+          expect(
+            find.text(
+              '1 pinned searches or feeds have no matching profile and will be skipped. Continue importing?',
+            ),
+            findsOneWidget,
+          );
+          expect(otherWrites, 0);
+          expect(await harness.profiles.getAll(), beforeProfiles);
+          expect(await harness.repository.getAll(), beforePins);
+          Navigator.of(context).pop(action == 'accept');
+          await pending;
+          if (action == 'cancel') {
+            expect(error, isA<ImportCancelledException>());
+            expect(otherWrites, 0);
+            expect(await harness.profiles.getAll(), beforeProfiles);
+            expect(await harness.repository.getAll(), beforePins);
+            expect(await harness.repository.getOrganization(), beforeOrg);
+          } else {
+            expect(error, isNull);
+            expect(otherWrites, 1);
+            expect((await harness.profiles.getAll()).map((p) => p.id), [4]);
+            expect((await harness.repository.getAll()).single.profileId, 4);
+          }
+        });
+        await tester.pump();
+        debugDefaultTargetPlatformOverride = null;
+      },
+    );
+  }
 
   test('registers and watches pinned searches after profiles', () {
     final harness = _Harness();
@@ -95,6 +324,10 @@ void main() {
           'name': 'Example',
         },
       },
+      {
+        'kind': 'organization',
+        'homeSearchIds': [_id],
+      },
     ]);
     final result = harness.source.exportResultBuilder!(
       await harness.source.dataGetter(),
@@ -121,7 +354,7 @@ void main() {
       final result = await harness.source.resultExecutor!(_data(), null);
 
       expect(result?.pinnedSearchCount, 1);
-      expect(result?.skippedProfileCount, 1);
+      expect(result?.skippedProfileCount, 0);
       expect(result?.alreadyExistedCount, 0);
       final state = await harness.container.read(
         searchSubscriptionsProvider.future,
@@ -137,7 +370,7 @@ void main() {
       final repeated = await harness.source.resultExecutor!(_data(), null);
       expect(repeated?.pinnedSearchCount, 0);
       expect(repeated?.alreadyExistedCount, 1);
-      expect(repeated?.skippedProfileCount, 1);
+      expect(repeated?.skippedProfileCount, 0);
     },
   );
 
@@ -240,7 +473,7 @@ void main() {
       expect(await harness.repository.getAll(), isEmpty);
       await prepared.executeImport();
       expect(harness.source.lastImportResult?.pinnedSearchCount, 1);
-      expect(harness.source.lastImportResult?.skippedProfileCount, 1);
+      expect(harness.source.lastImportResult?.skippedProfileCount, 0);
     },
   );
 
@@ -479,7 +712,12 @@ void main() {
       final harness = _Harness();
       addTearDown(harness.container.dispose);
       await harness.profiles.addAll([_profile]);
-      final result = await harness.source.resultExecutor!(_data(), null);
+      await harness.source.resultExecutor!(_data(), null);
+      const result = BackupOperationResult(
+        bookmarkCount: 0,
+        pinnedSearchCount: 1,
+        skippedProfileCount: 1,
+      );
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: harness.container,
@@ -500,7 +738,7 @@ void main() {
       final tile = tester.widget<DefaultBackupTile>(
         find.byType(DefaultBackupTile),
       );
-      expect(tile.importSuccessMessageBuilder!(result!), contains('Skipped 1'));
+      expect(tile.importSuccessMessageBuilder!(result), contains('Skipped 1'));
       expect(tile.importSuccessMessageBuilder!(result), contains('profile'));
       expect(tile.importSuccessMessageBuilder!(result), contains('Imported 1'));
       expect(
@@ -611,67 +849,88 @@ void main() {
     });
   }
 
-  testWidgets(
-    'server restore finishes pins before exposing the profile restart',
-    (tester) async {
-      final harness = (await tester.runAsync(() async {
-        final harness = _Harness();
-        await harness.container.read(searchSubscriptionsProvider.future);
-        return harness;
-      }))!;
-      addTearDown(harness.container.dispose);
-      final context = await _pumpReboot(tester, harness);
-      final server = await tester.runAsync(
-        () => HttpServer.bind(InternetAddress.loopbackIPv4, 0),
-      );
-      addTearDown(() => server!.close(force: true));
-      final profilesSource =
-          harness.container.read(booruConfigsBackupSourceProvider)
-              as BooruConfigsBackupSource;
-      await tester.runAsync(() async {
-        server!.listen((request) async {
-          if (request.uri.path == '/pinned_searches') {
-            _renderPendingFrame(tester);
-          }
-          final data = request.uri.path == '/profiles'
-              ? profilesSource.converter.encode(payload: [_profile.toJson()])
-              : harness.source.converter.encode(
-                  payload: harness.source.handler.encode(_data()),
-                );
-          request.response.headers.contentType = ContentType.json;
-          request.response.write(data);
-          await request.response.close();
+  for (final action in ['matched', 'cancel', 'accept']) {
+    testWidgets(
+      'server restore $action preflights before exposing the profile restart',
+      (tester) async {
+        final harness = (await tester.runAsync(() async {
+          final harness = _Harness();
+          await harness.container.read(searchSubscriptionsProvider.future);
+          return harness;
+        }))!;
+        addTearDown(harness.container.dispose);
+        final context = await _pumpReboot(tester, harness);
+        final server = await tester.runAsync(
+          () => HttpServer.bind(InternetAddress.loopbackIPv4, 0),
+        );
+        addTearDown(() => server!.close(force: true));
+        final profilesSource =
+            harness.container.read(booruConfigsBackupSourceProvider)
+                as BooruConfigsBackupSource;
+        await tester.runAsync(() async {
+          server!.listen((request) async {
+            if (request.uri.path == '/pinned_searches') {
+              _renderPendingFrame(tester);
+            }
+            final data = request.uri.path == '/profiles'
+                ? profilesSource.converter.encode(payload: [_profile.toJson()])
+                : harness.source.converter.encode(
+                    payload: harness.source.handler.encode(
+                      _data(includeMissing: action != 'matched'),
+                    ),
+                  );
+            request.response.headers.contentType = ContentType.json;
+            request.response.write(data);
+            await request.response.close();
+          });
         });
-      });
-      final url = 'http://127.0.0.1:${server!.port}';
-      final listener = harness.container.listen(
-        importDataProvider(url),
-        (_, _) {},
-      );
-      addTearDown(listener.close);
-      final notifier = harness.container.read(importDataProvider(url).notifier)
-        ..deselectAllTasks()
-        ..toggleTask('profiles')
-        ..toggleTask('pinned_searches');
+        final url = 'http://127.0.0.1:${server!.port}';
+        final listener = harness.container.listen(
+          importDataProvider(url),
+          (_, _) {},
+        );
+        addTearDown(listener.close);
+        final notifier =
+            harness.container.read(importDataProvider(url).notifier)
+              ..deselectAllTasks()
+              ..toggleTask('profiles')
+              ..toggleTask('pinned_searches');
 
-      await tester.runAsync(
-        () => HttpOverrides.runWithHttpOverrides(
-          () => notifier.startImport(context),
-          _LocalHttpOverrides(),
-        ),
-      );
-      await tester.pump();
-      final state = harness.container.read(importDataProvider(url));
-      expect(
-        state.tasks.map((task) => task.importStatus),
-        everyElement(isA<ImportDone>()),
-      );
-      final pins = await tester.runAsync(harness.repository.getAll);
-      expect(pins!.map((pin) => pin.id), [_id]);
-      expect(state.reloadPayload?.configs.map((config) => config.id), [4]);
-      expect(context.mounted, isTrue);
-    },
-  );
+        await tester.runAsync(() async {
+          final pending = HttpOverrides.runWithHttpOverrides(
+            () => notifier.startImport(context),
+            _LocalHttpOverrides(),
+          );
+          if (action != 'matched') {
+            await _waitForWarning(tester);
+            expect(await harness.profiles.getAll(), isEmpty);
+            expect(await harness.repository.getAll(), isEmpty);
+            Navigator.of(context).pop(action == 'accept');
+          }
+          await pending;
+        });
+        await tester.pump();
+        final state = harness.container.read(importDataProvider(url));
+        if (action == 'cancel') {
+          expect(state.step, ImportStep.selection);
+          expect(await harness.profiles.getAll(), isEmpty);
+          expect(await tester.runAsync(harness.repository.getAll), isEmpty);
+          expect(state.reloadPayload, isNull);
+          return;
+        }
+        expect(
+          state.tasks
+              .where((task) => task.status == SelectStatus.selected)
+              .map((task) => task.importStatus),
+          everyElement(isA<ImportDone>()),
+        );
+        final pins = await tester.runAsync(harness.repository.getAll);
+        expect(pins!.map((pin) => pin.id), [_id]);
+        expect(state.reloadPayload?.configs.map((config) => config.id), [4]);
+        expect(context.mounted, isTrue);
+      },
+    );
+  }
 
   testWidgets('standalone profile import still restarts after installation', (
     tester,
@@ -704,6 +963,15 @@ void main() {
     expect((await harness.profiles.getAll()).map((profile) => profile.id), [4]);
     expect(context.mounted, isFalse);
   });
+}
+
+Future<void> _waitForWarning(WidgetTester tester) async {
+  for (var i = 0; i < 100; i++) {
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+    _renderPendingFrame(tester);
+    if (find.text('Skip unmatched records?').evaluate().isNotEmpty) return;
+  }
+  fail('Missing profile warning did not appear');
 }
 
 Future<BuildContext> _pumpReboot(
@@ -745,23 +1013,30 @@ File _writeBackupZip(
   Directory directory,
   _Harness harness, {
   required bool includePins,
+  PinnedSearchBackupData? pinData,
+  List<BooruConfig>? backupProfiles,
+  bool includeOther = false,
 }) {
   final source =
       harness.container.read(booruConfigsBackupSourceProvider)
           as BooruConfigsBackupSource;
   final entries = {
+    if (includeOther) 'other.json': '{}',
     'manifest.json': jsonEncode({
       'version': 1,
       'exportDate': '2026-09-14T12:00:00Z',
       'sourceFiles': {
+        if (includeOther) 'other': 'other.json',
         if (includePins) 'pinned_searches': 'pins.json',
         'profiles': 'profiles.json',
       },
     }),
-    'profiles.json': source.converter.encode(payload: [_profile.toJson()]),
+    'profiles.json': source.converter.encode(
+      payload: (backupProfiles ?? [_profile]).map((p) => p.toJson()).toList(),
+    ),
     if (includePins)
       'pins.json': harness.source.converter.encode(
-        payload: harness.source.handler.encode(_data()),
+        payload: harness.source.handler.encode(pinData ?? _data()),
       ),
   };
   final archive = Archive();
@@ -825,9 +1100,27 @@ BooruConfig _replacement({
   'name': 'Replacement',
 });
 
-PinnedSearchBackupData _data() => const PinnedSearchBackupData(
+PinnedSearchBackupData _data({
+  bool includeMissing = false,
+  bool missingFeed = false,
+}) => PinnedSearchBackupData(
+  feeds: [
+    if (missingFeed)
+      const PinnedSearchFeedBackupRecord(
+        id: '550e8400-e29b-41d4-a716-446655440099',
+        name: 'Missing feed',
+        position: 0,
+        queries: ['cat'],
+        profile: PinnedSearchProfileReference(
+          id: 5,
+          booruType: 'gelbooru',
+          url: 'https://missing.test',
+          name: 'Missing',
+        ),
+      ),
+  ],
   records: [
-    PinnedSearchBackupRecord(
+    const PinnedSearchBackupRecord(
       id: _id,
       name: 'Cats',
       query: 'cat  rating:safe',
@@ -839,18 +1132,19 @@ PinnedSearchBackupData _data() => const PinnedSearchBackupData(
         name: 'Example',
       ),
     ),
-    PinnedSearchBackupRecord(
-      id: '550e8400-e29b-41d4-a716-446655440001',
-      name: null,
-      query: 'dog',
-      position: 0,
-      profile: PinnedSearchProfileReference(
-        id: 5,
-        booruType: 'gelbooru',
-        url: 'https://missing.test',
-        name: 'Missing',
+    if (includeMissing)
+      const PinnedSearchBackupRecord(
+        id: '550e8400-e29b-41d4-a716-446655440001',
+        name: null,
+        query: 'dog',
+        position: 0,
+        profile: PinnedSearchProfileReference(
+          id: 5,
+          booruType: 'gelbooru',
+          url: 'https://missing.test',
+          name: 'Missing',
+        ),
       ),
-    ),
   ],
 );
 
@@ -972,4 +1266,38 @@ class _FailingSubscriptionBox extends MemorySubscriptionBox {
     }
     await super.deleteAll(keys);
   }
+}
+
+class _OtherBackupSource implements BackupDataSource {
+  _OtherBackupSource(this.onWrite);
+  final void Function() onWrite;
+  @override
+  String get id => 'other';
+  @override
+  String get displayName => 'Other';
+  @override
+  int get priority => 0;
+  ImportPreparation _prepare() => ImportPreparation(
+    versionCheck: const VersionCheckInfo(
+      result: VersionCheckResult.compatible,
+      currentVersion: null,
+      importVersion: null,
+    ),
+    executeImport: () async {
+      onWrite();
+    },
+  );
+  @override
+  late final capabilities = BackupCapabilities(
+    server: ServerCapability(
+      export: (_) => throw UnimplementedError(),
+      prepareImport: (_, _) async => _prepare(),
+    ),
+    file: FileCapability(
+      export: (_, {options}) async => null,
+      prepareImport: (_, _) async => _prepare(),
+    ),
+  );
+  @override
+  Widget buildTile(BuildContext context) => const SizedBox();
 }
