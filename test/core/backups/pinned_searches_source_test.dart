@@ -11,6 +11,7 @@ import 'package:boorusama/core/backups/sources/pinned_search_backup_data.dart';
 import 'package:boorusama/core/backups/sources/pinned_searches_source.dart';
 import 'package:boorusama/core/backups/sources/providers.dart';
 import 'package:boorusama/core/backups/transfer/import/import_data_notifier.dart';
+import 'package:boorusama/core/backups/transfer/import/transfer_data_dialog.dart';
 import 'package:boorusama/core/backups/types.dart';
 import 'package:boorusama/core/backups/widgets/backup_restore_tile.dart';
 import 'package:boorusama/core/backups/zip/bulk_backup_service.dart';
@@ -849,7 +850,7 @@ void main() {
     });
   }
 
-  for (final action in ['matched', 'cancel', 'accept']) {
+  for (final action in ['matched', 'cancel', 'accept', 'late cancel']) {
     testWidgets(
       'server restore $action preflights before exposing the profile restart',
       (tester) async {
@@ -890,6 +891,17 @@ void main() {
           (_, _) {},
         );
         addTearDown(listener.close);
+        if (action == 'late cancel') {
+          harness.container
+              .read(backupRegistryProvider)
+              .register(
+                _OtherBackupSource(
+                  () => throw const ImportCancelledException(),
+                  id: 'pinned_searches',
+                  priority: 100000,
+                ),
+              );
+        }
         final notifier =
             harness.container.read(importDataProvider(url).notifier)
               ..deselectAllTasks()
@@ -901,7 +913,7 @@ void main() {
             () => notifier.startImport(context),
             _LocalHttpOverrides(),
           );
-          if (action != 'matched') {
+          if (action == 'cancel' || action == 'accept') {
             await _waitForWarning(tester);
             expect(await harness.profiles.getAll(), isEmpty);
             expect(await harness.repository.getAll(), isEmpty);
@@ -916,6 +928,41 @@ void main() {
           expect(await harness.profiles.getAll(), isEmpty);
           expect(await tester.runAsync(harness.repository.getAll), isEmpty);
           expect(state.reloadPayload, isNull);
+          return;
+        }
+        if (action == 'late cancel') {
+          expect(state.step, ImportStep.done);
+          expect(state.reloadPayload?.configs.map((profile) => profile.id), [
+            4,
+          ]);
+          expect(
+            state.tasks
+                .firstWhere((task) => task.id == 'profiles')
+                .importStatus,
+            isA<ImportDone>(),
+          );
+          expect(
+            state.tasks
+                .firstWhere((task) => task.id == 'pinned_searches')
+                .importStatus,
+            isNot(isA<ImportDone>()),
+          );
+          expect(await tester.runAsync(harness.repository.getAll), isEmpty);
+          await tester.pumpWidget(
+            UncontrolledProviderScope(
+              container: harness.container,
+              child: BooruLocalization(
+                child: MaterialApp(
+                  builder: (context, child) => KurumiTheme(
+                    data: KurumiThemeData.fromMaterial(Theme.of(context)),
+                    child: child!,
+                  ),
+                  home: Scaffold(body: ImportingStep(url: url)),
+                ),
+              ),
+            ),
+          );
+          expect(find.text('Restart App'), findsOneWidget);
           return;
         }
         expect(
@@ -1269,14 +1316,14 @@ class _FailingSubscriptionBox extends MemorySubscriptionBox {
 }
 
 class _OtherBackupSource implements BackupDataSource {
-  _OtherBackupSource(this.onWrite);
+  _OtherBackupSource(this.onWrite, {this.id = 'other', this.priority = 0});
   final void Function() onWrite;
   @override
-  String get id => 'other';
+  final String id;
   @override
   String get displayName => 'Other';
   @override
-  int get priority => 0;
+  final int priority;
   ImportPreparation _prepare() => ImportPreparation(
     versionCheck: const VersionCheckInfo(
       result: VersionCheckResult.compatible,

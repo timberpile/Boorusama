@@ -4,6 +4,11 @@ import 'package:flutter/material.dart';
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:i18n/i18n.dart';
+import 'package:kurumi/kurumi.dart';
+import 'package:boorusama/core/settings/providers.dart';
+import 'package:boorusama/core/settings/types.dart';
+import 'package:boorusama/core/backups/transfer/import/transfer_data_dialog.dart';
 
 // Project imports:
 import 'package:boorusama/core/backups/preparation/version_checking.dart';
@@ -15,6 +20,68 @@ import 'package:boorusama/core/backups/types/backup_registry.dart';
 import 'package:boorusama/core/backups/types/types.dart';
 
 void main() {
+  testWidgets('a completed subset shows Done and omits unselected progress', (
+    tester,
+  ) async {
+    final selected = _TestBackupSource(
+      id: 'selected',
+      onPrepareImport: (_) => _preparation,
+    );
+    final unselected = _TestBackupSource(
+      id: 'unselected',
+      onPrepareImport: (_) => throw StateError('Not selected'),
+    );
+    final registry = BackupRegistry()
+      ..register(selected)
+      ..register(unselected);
+    final container = ProviderContainer(
+      overrides: [
+        backupRegistryProvider.overrideWithValue(registry),
+        settingsProvider.overrideWithValue(Settings.defaultSettings),
+        exportCategoriesProvider.overrideWithValue([
+          for (final source in [selected, unselected])
+            ExportCategory(
+              name: source.id,
+              displayName: source.id,
+              route: source.id,
+              handler: source.capabilities.server.export,
+            ),
+        ]),
+      ],
+    );
+    addTearDown(container.dispose);
+    late BuildContext context;
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: BooruLocalization(
+          child: MaterialApp(
+            builder: (context, child) => KurumiTheme(
+              data: KurumiThemeData.fromMaterial(Theme.of(context)),
+              child: child!,
+            ),
+            home: Scaffold(
+              body: Builder(
+                builder: (value) {
+                  context = value;
+                  return const ImportingStep(url: 'https://example.com');
+                },
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    final notifier = container.read(
+      importDataProvider('https://example.com').notifier,
+    )..toggleTask('unselected');
+    await notifier.startImport(context);
+    await tester.pumpAndSettle();
+    expect(find.text('Done'), findsOneWidget);
+    expect(find.text('selected'), findsOneWidget);
+    expect(find.text('unselected'), findsNothing);
+  });
+
   testWidgets(
     'canceling preparation leaves earlier selected sources unexecuted',
     (tester) async {

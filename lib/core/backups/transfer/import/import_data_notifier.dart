@@ -283,12 +283,12 @@ class ImportDataNotifier
     }
 
     void cancelPending() {
-      for (final task in orderedTasks) {
-        if (!importedTaskIds.contains(task.id)) {
+      for (final task in state.tasks) {
+        if (task.importStatus is ImportQueued ||
+            task.importStatus is Importing) {
           updateTask(task.id, const ImportNotStarted());
         }
       }
-      state = state.copyWith(step: ImportStep.selection);
     }
 
     for (final task in orderedTasks) {
@@ -348,7 +348,10 @@ class ImportDataNotifier
       }
     } on ImportCancelledException {
       cancelPending();
-      return;
+      if (importedTaskIds.isEmpty) {
+        state = state.copyWith(step: ImportStep.selection);
+        return;
+      }
     } catch (e) {
       for (final task in orderedTasks) {
         if (!importedTaskIds.contains(task.id)) {
@@ -371,6 +374,7 @@ class ImportDataNotifier
         );
       }
     }
+    state = state.copyWith(step: ImportStep.done);
   }
 
   void toggleTask(String id) {

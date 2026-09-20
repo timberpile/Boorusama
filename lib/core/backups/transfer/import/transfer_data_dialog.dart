@@ -59,10 +59,12 @@ class ImportingStep extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(settingsProvider);
-    final tasks = ref.watch(importDataProvider(url).select((s) => s.tasks));
-    final isDone = tasks.every((element) {
-      return element.importStatus is ImportDone;
-    });
+    final tasks = ref
+        .watch(importDataProvider(url).select((s) => s.tasks))
+        .where((task) => task.status == SelectStatus.selected);
+    final isDone = ref.watch(
+      importDataProvider(url).select((state) => state.step == ImportStep.done),
+    );
 
     final theme = Kurumi.themeOf(context);
     final colorScheme = theme.colorScheme;
