@@ -1,5 +1,23 @@
 # Implementation Handover: Pinned Searches MVP
 
+Priority: Normal
+
+## Remaining acceptance criteria
+
+- [ ] Complete and record all nine manual flows in Task 9 Step 7 of the
+  [implementation plan](../../superpowers/plans/2026-09-14-pinned-searches.md).
+- [ ] Check off that plan step only after the flows have been verified.
+
+## Blocker and resumption
+
+This handover is filed under `blocked/` because the recorded 2026-09-14 session
+could not perform manual verification. The environment details below are
+historical, not a fresh check of the current environment. Before resuming,
+check available Android emulator/Maestro access and arrange a test profile with
+a controlled new-upload scenario. If verification can proceed, move this file
+to `in-progress/` and record the agent/session and current work branch. Follow
+the current repository instructions when they differ from historical guidance.
+
 ## Current status
 
 The MVP implementation and automated verification are complete on
