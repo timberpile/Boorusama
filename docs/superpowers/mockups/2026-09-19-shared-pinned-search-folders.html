@@ -1,0 +1,723 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark">
+    <title>Pinned Searches · Shared folders mockup</title>
+    <style>
+      :root {
+        font-family: Inter, Roboto, "Segoe UI", Arial, sans-serif;
+        color: #f6f6f7;
+        background: #111318;
+        font-synthesis: none;
+      }
+
+      * { box-sizing: border-box; }
+      button, input { font: inherit; }
+      button { cursor: pointer; }
+      button:focus-visible, input:focus-visible { outline: 2px solid #91a3ff; outline-offset: 3px; }
+
+      .board {
+        display: grid;
+        grid-template-columns: minmax(225px, 1fr) minmax(340px, 390px) minmax(225px, 1fr);
+        gap: clamp(22px, 4vw, 76px);
+        align-items: center;
+        max-width: 1400px;
+        min-height: 100vh;
+        margin: auto;
+        padding: 36px clamp(24px, 5vw, 80px);
+      }
+
+      .side { align-self: center; max-width: 310px; }
+      .side.right { justify-self: end; }
+      .eyebrow {
+        color: #9ba9ff;
+        font-size: 11px;
+        font-weight: 750;
+        letter-spacing: .15em;
+        text-transform: uppercase;
+      }
+      .side h1 { font-size: clamp(31px, 3vw, 45px); line-height: 1.07; margin: 16px 0; letter-spacing: -.045em; }
+      .side h2 { color: #f0f0f2; font-size: 15px; margin: 0 0 13px; }
+      .side p, .side li { color: #a5a8b2; font-size: 14px; line-height: 1.6; }
+      .side ul { padding-left: 19px; margin: 0; }
+      .side li + li { margin-top: 9px; }
+      .side .rule { height: 1px; background: #343741; margin: 27px 0; }
+      .demo-label { color: #818691; font-size: 11px; font-weight: 750; letter-spacing: .12em; margin: 30px 0 11px; text-transform: uppercase; }
+      .scenario-list { display: grid; gap: 8px; }
+      .scenario-list button, .text-link {
+        border: 1px solid #343842;
+        border-radius: 11px;
+        background: #202229;
+        color: #e9eaf0;
+        min-height: 41px;
+        padding: 9px 12px;
+        text-align: left;
+      }
+      .scenario-list button:hover, .text-link:hover { border-color: #7285ff; }
+      .scenario-list button.active { background: #293153; border-color: #8696ff; color: #fff; }
+      .small-note { font-size: 12px !important; color: #818691 !important; }
+      .text-link { margin-top: 17px; }
+
+      .stage { justify-self: center; width: 100%; max-width: 390px; }
+      .phone {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+        height: min(830px, calc(100vh - 72px));
+        min-height: 650px;
+        overflow: hidden;
+        border: 7px solid #34363d;
+        border-radius: 38px;
+        background: #000;
+        box-shadow: 0 38px 105px #000a, 0 0 0 1px #60636c;
+      }
+      .statusbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex: none;
+        height: 36px;
+        padding: 5px 24px 0;
+        font-size: 13px;
+        font-weight: 650;
+      }
+      .status-icons { display: flex; gap: 6px; align-items: center; font-size: 13px; }
+      .battery { width: 18px; height: 10px; border: 1.6px solid currentColor; border-radius: 3px; position: relative; }
+      .battery::before { content: ""; position: absolute; inset: 1.5px; background: currentColor; border-radius: 1px; }
+      .battery::after { content: ""; position: absolute; width: 2px; height: 4px; right: -4px; top: 2px; background: currentColor; border-radius: 1px; }
+      .app { display: flex; flex-direction: column; min-height: 0; flex: 1; }
+      .appbar {
+        display: flex;
+        align-items: center;
+        flex: none;
+        height: 59px;
+        padding: 0 8px;
+        border-bottom: 1px solid #343434;
+      }
+      .appbar h2 {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        margin: 0 0 0 4px;
+        font-size: 19px;
+        font-weight: 720;
+        letter-spacing: -.035em;
+      }
+      .appbar-actions { display: flex; align-items: center; gap: 0; }
+      .icon-button {
+        display: inline-grid;
+        place-items: center;
+        flex: none;
+        width: 39px;
+        height: 42px;
+        border: 0;
+        border-radius: 20px;
+        background: transparent;
+        color: #f6f6f7;
+      }
+      .icon-button:hover { background: #26272b; }
+      svg.icon { width: 23px; height: 23px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+      .icon.small { width: 17px; height: 17px; }
+      .scroll { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: #484848 transparent; }
+      .scroll-inner { padding: 10px 0 26px; }
+      .folder-row {
+        display: flex;
+        align-items: center;
+        width: 100%;
+        min-height: 73px;
+        gap: 14px;
+        padding: 11px 18px;
+        border: 0;
+        border-bottom: 1px solid #262626;
+        background: #050505;
+        color: inherit;
+        text-align: left;
+      }
+      .folder-row:hover { background: #171717; }
+      .folder-icon-wrap { position: relative; display: grid; place-items: center; width: 30px; height: 30px; flex: none; }
+      .folder-icon-wrap .icon { width: 27px; height: 27px; }
+      .folder-icon-wrap .dot { position: absolute; width: 7px; height: 7px; top: 0; right: -2px; border-radius: 50%; background: #bc0d35; box-shadow: 0 0 0 2px #050505; }
+      .folder-copy { display: grid; flex: 1; min-width: 0; gap: 3px; }
+      .folder-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 16px; font-weight: 590; }
+      .folder-meta { color: #aaaab0; font-size: 12px; }
+      .chevron { color: #a9a9ad; width: 18px !important; height: 18px !important; }
+      .badge {
+        border-radius: 999px;
+        padding: 2px 6px 3px;
+        background: #ae0630;
+        color: #fff;
+        font-size: 10px;
+        font-weight: 780;
+        line-height: 1;
+        letter-spacing: .015em;
+      }
+      .folder-divider { height: 12px; border-bottom: 1px solid #202020; margin-bottom: 5px; }
+      .pin-card {
+        position: relative;
+        margin: 8px 12px;
+        padding: 12px;
+        border-radius: 7px;
+        background: #1b1b1b;
+        color: #f5f5f5;
+      }
+      .pin-top { display: flex; align-items: flex-start; gap: 7px; }
+      .pin-main {
+        display: grid;
+        gap: 5px;
+        flex: 1;
+        min-width: 0;
+        padding: 3px 0 0;
+        border: 0;
+        background: transparent;
+        color: inherit;
+        text-align: left;
+      }
+      .pin-main:hover .pin-title { text-decoration: underline; }
+      .pin-title { overflow-wrap: anywhere; font-size: 15px; line-height: 1.3; font-weight: 680; }
+      .pin-query { color: #c8c8cc; font-size: 12px; line-height: 1.3; }
+      .profile-footnote { display: flex; align-items: center; gap: 5px; color: #aeb2bd; font-size: 11px; line-height: 1.25; }
+      .profile-footnote .icon { color: #92a1ff; width: 13px; height: 13px; }
+      .pin-top > .badge { margin-top: 8px; }
+      .pin-top .more { width: 29px; height: 32px; margin-top: -2px; }
+      .pin-top .more .icon { width: 20px; }
+      .previews { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; margin-top: 12px; }
+      .preview { aspect-ratio: 1; min-width: 0; border-radius: 7px; overflow: hidden; position: relative; background: #30323a; }
+      .preview::before, .preview::after { content: ""; position: absolute; border-radius: 48%; opacity: .75; }
+      .preview::before { width: 80%; height: 78%; left: 11%; top: 16%; background: #ffffff72; transform: rotate(-22deg); }
+      .preview::after { width: 44%; height: 56%; left: 29%; top: -7%; background: #3e476f99; transform: rotate(24deg); }
+      .art-0 { background: linear-gradient(145deg, #ed95a9, #e8d8ad 45%, #7d8db8); }
+      .art-1 { background: linear-gradient(30deg, #617aae, #c7dbeb 55%, #e9adc0); }
+      .art-2 { background: linear-gradient(130deg, #a7a1c0, #f3e5ce 48%, #b78068); }
+      .art-3 { background: linear-gradient(20deg, #696d86, #dcbdc7 55%, #f1e7dc); }
+      .art-4 { background: linear-gradient(45deg, #efbfc7, #e8e4d8 48%, #9ca8d0); }
+      .art-5 { background: linear-gradient(135deg, #b985a8, #f3c5ae 55%, #6f6388); }
+      .art-6 { background: linear-gradient(65deg, #8b779c, #d6d3df 53%, #b5c2d8); }
+      .art-7 { background: linear-gradient(125deg, #e7cdc9, #f6f5e9 48%, #bac8d5); }
+      .art-8 { background: linear-gradient(35deg, #e3aebb, #acc0bd 53%, #7480af); }
+      .art-9 { background: linear-gradient(140deg, #e8d0d5, #f1f0e8 52%, #959cc9); }
+      .art-10 { background: linear-gradient(20deg, #8392bf, #e2e3e6 50%, #d2b8cb); }
+      .art-11 { background: linear-gradient(115deg, #ac9abb, #f5d6d2 50%, #d5e2e8); }
+      .pin-error { margin: 9px 0 0; color: #f5a3ae; font-size: 11px; line-height: 1.35; }
+      .pin-menu {
+        position: absolute;
+        z-index: 5;
+        top: 39px;
+        right: 9px;
+        width: 176px;
+        padding: 5px;
+        border: 1px solid #444;
+        border-radius: 9px;
+        background: #2b2b2d;
+        box-shadow: 0 12px 35px #000b;
+      }
+      .pin-menu button { display: block; width: 100%; min-height: 37px; padding: 7px 10px; border: 0; border-radius: 5px; background: transparent; color: #f7f7f8; text-align: left; font-size: 13px; }
+      .pin-menu button:hover { background: #414146; }
+      .pin-menu button:disabled { color: #86868c; cursor: default; }
+      .pin-menu button:disabled:hover { background: transparent; }
+      .pin-menu button.danger { color: #ff9fa9; }
+      .empty { padding: 75px 25px; color: #aaaab0; text-align: center; font-size: 13px; line-height: 1.5; }
+      .empty .icon { display: block; width: 35px; height: 35px; margin: 0 auto 14px; color: #a6a6aa; }
+      .manager-intro { margin: 8px 19px 20px; color: #aeb0b8; font-size: 12px; line-height: 1.45; }
+      .manager-heading { padding: 0 19px 8px; color: #90949e; font-size: 11px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
+      .manager-row { display: flex; align-items: center; gap: 11px; min-height: 74px; padding: 10px 13px 10px 18px; border-top: 1px solid #252525; }
+      .manager-row .folder-icon-wrap { width: 26px; }
+      .manager-row .folder-icon-wrap .icon { width: 24px; }
+      .manager-copy { display: grid; gap: 3px; flex: 1; min-width: 0; }
+      .manager-copy strong { font-size: 14px; font-weight: 620; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+      .manager-copy span { color: #a4a4ab; font-size: 11px; }
+      .mini-actions { display: flex; gap: 0; }
+      .mini-actions .icon-button { width: 27px; height: 34px; color: #dadbe1; }
+      .mini-actions .icon { width: 18px; height: 18px; }
+      .mini-actions .icon-button:disabled { opacity: .3; cursor: default; }
+      .manager-home { margin-top: 20px; border-top: 1px solid #363636; }
+      .manager-home .manager-copy strong { color: #d4d6e2; }
+      .system-nav { display: grid; place-items: center; flex: none; height: 25px; background: #000; }
+      .system-nav::after { content: ""; width: 108px; height: 4px; border-radius: 5px; background: #fff; }
+
+      .modal-layer { position: absolute; z-index: 20; inset: 0; display: grid; place-items: center; pointer-events: none; }
+      .modal-layer.open { pointer-events: auto; }
+      .scrim { position: absolute; inset: 0; background: #0009; }
+      .dialog {
+        position: relative;
+        width: calc(100% - 48px);
+        max-width: 340px;
+        max-height: calc(100% - 90px);
+        overflow: auto;
+        padding: 24px 22px 17px;
+        border-radius: 27px;
+        background: #29292b;
+        box-shadow: 0 18px 55px #0008;
+      }
+      .dialog h3 { margin: 0 0 17px; font-size: 22px; line-height: 1.2; font-weight: 590; }
+      .dialog p { margin: 0 0 15px; color: #dddde0; font-size: 13px; line-height: 1.5; }
+      .dialog .warning { color: #ffbbc1; }
+      .dialog-actions { display: flex; justify-content: flex-end; gap: 5px; margin-top: 17px; }
+      .dialog-actions button, .dialog-link { border: 0; border-radius: 20px; background: transparent; color: #9aabff; font-size: 13px; font-weight: 660; min-height: 38px; padding: 9px 13px; }
+      .dialog-actions button:hover, .dialog-link:hover { background: #394161; }
+      .dialog-actions .danger { color: #ff9ea7; }
+      .dialog-actions .danger:hover { background: #5a313a; }
+      .choice { display: flex; align-items: center; gap: 11px; width: 100%; min-height: 57px; padding: 8px 2px; border: 0; border-bottom: 1px solid #424245; background: transparent; color: #f1f1f2; text-align: left; }
+      .choice .icon { color: #ccd0dc; flex: none; }
+      .choice .choice-copy { display: grid; gap: 3px; flex: 1; }
+      .choice small { color: #b0b0b7; font-size: 10px; }
+      .choice .radio { width: 18px; height: 18px; border: 2px solid #aaaab0; border-radius: 50%; }
+      .choice.selected .radio { border-color: #91a3ff; position: relative; }
+      .choice.selected .radio::after { content: ""; position: absolute; inset: 3px; background: #91a3ff; border-radius: 50%; }
+      .dialog-link { display: inline-flex; align-items: center; gap: 8px; padding-left: 0; margin-top: 12px; }
+      .input-label { display: block; color: #c9cad0; font-size: 12px; margin: 16px 0 7px; }
+      .text-input { width: 100%; min-height: 44px; padding: 9px 11px; border: 1px solid #777780; border-radius: 6px; background: transparent; color: #fff; font-size: 14px; }
+      .dialog-error { min-height: 18px; margin-top: 7px; color: #ffabb4; font-size: 11px; }
+      .info-field { display: grid; gap: 3px; margin-bottom: 15px; }
+      .info-field span { color: #aaaab2; font-size: 11px; font-weight: 640; }
+      .info-field strong { font-size: 13px; font-weight: 470; overflow-wrap: anywhere; }
+      .info-rule { height: 1px; background: #47474c; margin: 17px 0; }
+      .status-success { color: #a9d5bb; }
+      .status-failure { color: #ffadb6; }
+      .toast { position: absolute; z-index: 30; left: 18px; right: 18px; bottom: 39px; padding: 11px 14px; border-radius: 9px; background: #353539; color: white; font-size: 12px; opacity: 0; transform: translateY(8px); transition: opacity .18s, transform .18s; pointer-events: none; box-shadow: 0 8px 25px #0008; }
+      .toast.show { opacity: 1; transform: translateY(0); }
+      .stage-caption { margin-top: 16px; color: #999da8; font-size: 12px; text-align: center; }
+
+      @media (max-width: 1000px) {
+        .board { grid-template-columns: minmax(190px, 1fr) minmax(340px, 390px); }
+        .side.right { display: none; }
+      }
+      @media (max-width: 650px) {
+        .board { display: block; min-height: 100dvh; padding: 0; }
+        .side, .stage-caption { display: none; }
+        .stage { max-width: none; }
+        .phone { width: 100%; height: 100dvh; min-height: 0; border: 0; border-radius: 0; box-shadow: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <svg aria-hidden="true" style="position:absolute;width:0;height:0;overflow:hidden">
+      <symbol id="i-back" viewBox="0 0 24 24"><path d="m14.5 4.5-7.5 7.5 7.5 7.5M7 12h14"/></symbol>
+      <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
+      <symbol id="i-folder" viewBox="0 0 24 24"><path d="M2.5 7.5a2 2 0 0 1 2-2H9l2.2 2H19.5a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-15a2 2 0 0 1-2-2z"/><path d="M2.5 10h19"/></symbol>
+      <symbol id="i-folder-manage" viewBox="0 0 24 24"><path d="M2 7.7a2 2 0 0 1 2-2h4.5l2 2H20a2 2 0 0 1 2 2v8.8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z"/><path d="M13.4 14.8h6.2M16.5 11.7v6.2"/></symbol>
+      <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 8.5A8.5 8.5 0 1 0 20.5 15M20 3.5v5.7h-5.7"/></symbol>
+      <symbol id="i-rss" viewBox="0 0 24 24"><path d="M4 4a16 16 0 0 1 16 16M4 10a10 10 0 0 1 10 10"/><circle cx="5" cy="19" r="1.5" fill="currentColor" stroke="none"/></symbol>
+      <symbol id="i-settings" viewBox="0 0 24 24"><path d="m10 2-.5 2.2-2 .9-2-.9-2.2 2.2.9 2-.9 2L1 11v3l2.3.5.9 2-.9 2 2.2 2.2 2-.9 2 .9L10 23h3l.5-2.3 2-.9 2 .9 2.2-2.2-.9-2 .9-2L22 14v-3l-2.3-.5-.9-2 .9-2-2.2-2.2-2 .9-2-.9L13 2z" transform="translate(.5 -.5) scale(.95)"/><circle cx="11.5" cy="11.5" r="3.1"/></symbol>
+      <symbol id="i-more" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="19" r="1.3" fill="currentColor" stroke="none"/></symbol>
+      <symbol id="i-person" viewBox="0 0 24 24"><circle cx="12" cy="7" r="3.5"/><path d="M4.5 21v-2.2a6 6 0 0 1 6-6h3a6 6 0 0 1 6 6V21z"/></symbol>
+      <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 4v16M4 12h16"/></symbol>
+      <symbol id="i-up" viewBox="0 0 24 24"><path d="m6 15 6-6 6 6"/></symbol>
+      <symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+      <symbol id="i-edit" viewBox="0 0 24 24"><path d="m4 17 0 3 3 0 12.4-12.4-3-3zM14.5 6.5l3 3"/></symbol>
+      <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 6h16M9 6V4h6v2M6.5 6l.8 14h9.4l.8-14M10 10v7M14 10v7"/></symbol>
+    </svg>
+
+    <div class="board">
+      <aside class="side left">
+        <div class="eyebrow">Boorusama · Design preview</div>
+        <h1>One place for pinned searches.</h1>
+        <p>Explore a proposed layout based on the current Android screen. Folder names and preview artwork are illustrative; the dark app style, actions, cards, and NEW badges follow the emulator.</p>
+        <div class="demo-label">Sample states</div>
+        <div class="scenario-list" aria-label="Sample states">
+          <button type="button" data-scenario="mixed" class="active">Folders and Home</button>
+          <button type="button" data-scenario="home">Home only</button>
+          <button type="button" data-scenario="folders">Folders only</button>
+        </div>
+        <button type="button" class="text-link" data-action="reset">Reset interactive demo</button>
+        <button type="button" class="text-link" data-action="show-pin-dialog">Preview Pin Search dialog</button>
+        <p class="small-note">Tap folders, cards, and menus in the phone preview. This is a design mockup; it does not alter app data.</p>
+      </aside>
+
+      <main class="stage">
+        <div class="phone" aria-label="Interactive Android-style Pinned Searches mockup">
+          <div class="statusbar"><span>2:31</span><div class="status-icons"><span>▮▮▮</span><span>⌁</span><span class="battery"></span></div></div>
+          <div id="app" class="app"></div>
+          <div class="system-nav"></div>
+          <div id="modal-layer" class="modal-layer"></div>
+          <div id="toast" class="toast" role="status" aria-live="polite"></div>
+        </div>
+        <div class="stage-caption">Standalone HTML · Resize for a full-screen mobile preview</div>
+      </main>
+
+      <aside class="side right">
+        <h2>What to look for</h2>
+        <ul>
+          <li>Named folders sit above search cards. Searches in Home have no heading on the root page.</li>
+          <li>Each card shows its owning profile, including inside a folder containing searches from different profiles.</li>
+          <li>The former Add Folder action opens Manage folders. You can also create a folder while moving a search.</li>
+          <li>Deleting a folder warns that it will unpin its searches. Cancel leaves them in place.</li>
+        </ul>
+        <div class="rule"></div>
+        <h2>Try these flows</h2>
+        <p>Open Favorites, use a card’s menu to move it to <strong>[Home]</strong>, then open Manage folders to reorder or delete a folder. Use a card’s Info action to preview the separately tracked Info-dialog change.</p>
+      </aside>
+    </div>
+
+    <script>
+      const initialPins = [
+        { id: 'video', name: 'No videos', query: '-video', profile: 'Default profile', url: 'https://safebooru.donmai.us/', folderId: 'favorites', isNew: true, art: 0, status: 'success', lastChecked: 'Sat, Sep 19 1:24 PM', lastAttempt: 'Sat, Sep 19 1:24 PM' },
+        { id: 'absurdres', name: null, query: 'absurdres', profile: 'Safebooru', url: 'https://safebooru.org/', folderId: 'favorites', isNew: true, art: 4, status: 'success', lastChecked: 'Sat, Sep 19 1:24 PM', lastAttempt: 'Sat, Sep 19 1:24 PM' },
+        { id: 'sunna', name: null, query: 'sunna_(zenless_zone_zero)', profile: 'Safebooru', url: 'https://safebooru.org/', folderId: null, isNew: false, art: 8, status: 'failure', error: 'Could not connect. Try refreshing again.', lastChecked: 'Fri, Sep 18 8:10 PM', lastAttempt: 'Sat, Sep 19 2:10 PM' }
+      ];
+      const initialFolders = [
+        { id: 'favorites', name: 'Favorites' },
+        { id: 'studies', name: 'Character studies' }
+      ];
+
+      const app = document.querySelector('#app');
+      const modalLayer = document.querySelector('#modal-layer');
+      const toastElement = document.querySelector('#toast');
+      let state;
+      let page = { kind: 'root' };
+      let dialog = null;
+      let menuPinId = null;
+      let scenario = 'mixed';
+      let toastTimer;
+
+      function icon(name, extra = '') {
+        return `<svg class="icon ${extra}" aria-hidden="true"><use href="#i-${name}"></use></svg>`;
+      }
+
+      function escapeHtml(value) {
+        return String(value).replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
+      }
+
+      function reset(nextScenario = 'mixed') {
+        scenario = nextScenario;
+        state = {
+          pins: structuredClone(initialPins),
+          folders: structuredClone(initialFolders)
+        };
+        if (scenario === 'home') {
+          state.folders = [];
+          state.pins.forEach(pin => { pin.folderId = null; });
+        } else if (scenario === 'folders') {
+          state.pins.find(pin => pin.id === 'sunna').folderId = 'studies';
+        }
+        page = { kind: 'root' };
+        dialog = null;
+        menuPinId = null;
+        document.querySelectorAll('[data-scenario]').forEach(button => {
+          button.classList.toggle('active', button.dataset.scenario === scenario);
+        });
+        render();
+      }
+
+      function folderPins(folderId) { return state.pins.filter(pin => pin.folderId === folderId); }
+      function getPin(id) { return state.pins.find(pin => pin.id === id); }
+      function getFolder(id) { return state.folders.find(folder => folder.id === id); }
+      function pinLabel(pin) { return pin.name || pin.query; }
+      function countLabel(count) { return `${count} pinned ${count === 1 ? 'search' : 'searches'}`; }
+
+      function header() {
+        const isRoot = page.kind === 'root';
+        const folder = page.kind === 'folder' ? getFolder(page.id) : null;
+        const title = isRoot ? 'Pinned Searches' : page.kind === 'manager' ? 'Manage folders' : folder?.name || 'Folder';
+        const actions = isRoot
+          ? `<button class="icon-button" data-action="feeds" aria-label="Following feeds" title="Following feeds">${icon('rss')}</button>
+             <button class="icon-button" data-action="refresh-settings" aria-label="Refresh settings" title="Refresh settings">${icon('settings')}</button>
+             <button class="icon-button" data-action="manage" aria-label="Manage folders" title="Manage folders">${icon('folder-manage')}</button>
+             <button class="icon-button" data-action="refresh" aria-label="Refresh all" title="Refresh all">${icon('refresh')}</button>`
+          : page.kind === 'folder'
+            ? `<button class="icon-button" data-action="refresh" aria-label="Refresh folder" title="Refresh folder">${icon('refresh')}</button>`
+            : `<button class="icon-button" data-action="create-folder" aria-label="Create folder" title="Create folder">${icon('plus')}</button>`;
+        return `<header class="appbar">
+          <button class="icon-button" data-action="back" aria-label="Back" title="Back">${icon('back')}</button>
+          <h2>${escapeHtml(title)}</h2><div class="appbar-actions">${actions}</div>
+        </header>`;
+      }
+
+      function folderRow(folder) {
+        const pins = folderPins(folder.id);
+        const hasNew = pins.some(pin => pin.isNew);
+        return `<button type="button" class="folder-row" data-action="open-folder" data-id="${escapeHtml(folder.id)}">
+          <span class="folder-icon-wrap">${icon('folder')}${hasNew ? '<span class="dot"></span>' : ''}</span>
+          <span class="folder-copy"><span class="folder-name">${escapeHtml(folder.name)}</span><span class="folder-meta">${countLabel(pins.length)}</span></span>
+          ${hasNew ? '<span class="badge">NEW</span>' : ''}${icon('chevron', 'chevron')}
+        </button>`;
+      }
+
+      function pinCard(pin) {
+        const query = pin.name && pin.name !== pin.query ? `<span class="pin-query">${escapeHtml(pin.query)}</span>` : '';
+        const art = [0, 1, 2, 3].map(offset => `<span class="preview art-${(pin.art + offset) % 12}" aria-hidden="true"></span>`).join('');
+        const siblings = folderPins(pin.folderId);
+        const position = siblings.findIndex(item => item.id === pin.id);
+        const menu = menuPinId === pin.id ? `<div class="pin-menu">
+          <button data-action="info" data-id="${pin.id}">Info</button>
+          <button data-action="move" data-id="${pin.id}">Move to folder</button>
+          <button data-action="pin-up" data-id="${pin.id}" ${position === 0 ? 'disabled' : ''}>Move up</button>
+          <button data-action="pin-down" data-id="${pin.id}" ${position === siblings.length - 1 ? 'disabled' : ''}>Move down</button>
+          <button data-action="refresh-pin" data-id="${pin.id}">Refresh</button>
+          <button class="danger" data-action="delete-pin" data-id="${pin.id}">Delete</button>
+        </div>` : '';
+        return `<article class="pin-card">
+          <div class="pin-top">
+            <button class="pin-main" data-action="open-pin" data-id="${pin.id}" aria-label="Open ${escapeHtml(pinLabel(pin))}">
+              <span class="pin-title">${escapeHtml(pinLabel(pin))}</span>${query}
+              <span class="profile-footnote">${icon('person')}<span>${escapeHtml(pin.profile)}</span></span>
+            </button>
+            ${pin.isNew ? '<span class="badge">NEW</span>' : ''}
+            <button class="icon-button more" data-action="menu" data-id="${pin.id}" aria-label="Actions for ${escapeHtml(pinLabel(pin))}">${icon('more')}</button>
+          </div>
+          <div class="previews" aria-label="Four post preview placeholders">${art}</div>
+          ${pin.status === 'failure' ? `<p class="pin-error">${escapeHtml(pin.error)}</p>` : ''}
+          ${menu}
+        </article>`;
+      }
+
+      function rootBody() {
+        const homePins = folderPins(null);
+        if (!state.folders.length && !homePins.length) return `<div class="empty">${icon('folder')}No pinned searches yet</div>`;
+        return `<div class="scroll-inner">
+          ${state.folders.map(folderRow).join('')}
+          ${state.folders.length && homePins.length ? '<div class="folder-divider"></div>' : ''}
+          ${homePins.map(pinCard).join('')}
+        </div>`;
+      }
+
+      function folderBody() {
+        const pins = folderPins(page.id);
+        return `<div class="scroll-inner">${pins.length ? pins.map(pinCard).join('') : `<div class="empty">${icon('folder')}This folder is empty.</div>`}</div>`;
+      }
+
+      function managerBody() {
+        return `<div class="scroll-inner">
+          <p class="manager-intro">Organize searches from any profile in one folder. Reorder folders here; open a folder to arrange its searches.</p>
+          <div class="manager-heading">Named folders</div>
+          ${state.folders.length ? state.folders.map((folder, index) => `<div class="manager-row">
+            <span class="folder-icon-wrap">${icon('folder')}</span>
+            <span class="manager-copy"><strong>${escapeHtml(folder.name)}</strong><span>${countLabel(folderPins(folder.id).length)}</span></span>
+            <span class="mini-actions">
+              <button class="icon-button" data-action="folder-up" data-id="${folder.id}" aria-label="Move ${escapeHtml(folder.name)} up" ${index === 0 ? 'disabled' : ''}>${icon('up')}</button>
+              <button class="icon-button" data-action="folder-down" data-id="${folder.id}" aria-label="Move ${escapeHtml(folder.name)} down" ${index === state.folders.length - 1 ? 'disabled' : ''}>${icon('down')}</button>
+              <button class="icon-button" data-action="rename-folder" data-id="${folder.id}" aria-label="Rename ${escapeHtml(folder.name)}">${icon('edit')}</button>
+              <button class="icon-button" data-action="ask-delete-folder" data-id="${folder.id}" aria-label="Delete ${escapeHtml(folder.name)}">${icon('trash')}</button>
+            </span>
+          </div>`).join('') : '<div class="manager-intro">No named folders yet.</div>'}
+          <div class="manager-home manager-row">
+            <span class="folder-icon-wrap">${icon('folder')}</span>
+            <span class="manager-copy"><strong>[Home]</strong><span>Searches outside named folders · ${folderPins(null).length}</span></span>
+          </div>
+        </div>`;
+      }
+
+      function choice(destination, selected, description) {
+        const folder = destination === null ? null : getFolder(destination);
+        const label = folder ? folder.name : '[Home]';
+        const id = destination === null ? 'home' : destination;
+        return `<button type="button" class="choice ${selected === destination ? 'selected' : ''}" data-action="choose-destination" data-id="${escapeHtml(id)}">
+          ${icon('folder')}<span class="choice-copy"><span>${escapeHtml(label)}</span>${description ? `<small>${escapeHtml(description)}</small>` : ''}</span><span class="radio"></span>
+        </button>`;
+      }
+
+      function dialogHtml() {
+        if (!dialog) return '';
+        let content = '';
+        if (dialog.kind === 'move') {
+          const pin = getPin(dialog.pinId);
+          content = `<h3>Move to folder</h3><p>Choose where to keep “${escapeHtml(pinLabel(pin))}”.</p>
+            ${choice(null, pin.folderId, 'Searches outside named folders')}
+            ${state.folders.map(folder => choice(folder.id, pin.folderId, '')).join('')}
+            <button class="dialog-link" data-action="create-folder">${icon('plus', 'small')}Create folder</button>
+            <div class="dialog-actions"><button data-action="close-dialog">Cancel</button></div>`;
+        } else if (dialog.kind === 'create') {
+          content = `<h3>Create folder</h3><p>${dialog.pinId ? `The selected search will move into the new folder.` : 'Folders can hold pinned searches from any profile.'}</p>
+            <label class="input-label" for="folder-name">Folder name</label><input id="folder-name" class="text-input" maxlength="60" placeholder="Name" autofocus>
+            <div id="dialog-error" class="dialog-error"></div>
+            <div class="dialog-actions"><button data-action="close-dialog">Cancel</button><button data-action="save-folder">Create</button></div>`;
+        } else if (dialog.kind === 'rename') {
+          const folder = getFolder(dialog.folderId);
+          content = `<h3>Rename folder</h3><label class="input-label" for="folder-name">Folder name</label><input id="folder-name" class="text-input" maxlength="60" value="${escapeHtml(folder.name)}" autofocus>
+            <div id="dialog-error" class="dialog-error"></div>
+            <div class="dialog-actions"><button data-action="close-dialog">Cancel</button><button data-action="save-rename">Save</button></div>`;
+        } else if (dialog.kind === 'delete-folder') {
+          const folder = getFolder(dialog.folderId);
+          const count = folderPins(folder.id).length;
+          content = `<h3>Delete “${escapeHtml(folder.name)}”?</h3>
+            <p class="warning">${count ? `This will unpin all ${count} ${count === 1 ? 'search' : 'searches'} in this folder, even when they belong to different profiles.` : 'This folder is empty and will be removed.'}</p>
+            <p>Posts and profiles will stay in the app. Unpinning cannot be undone.</p>
+            <div class="dialog-actions"><button data-action="close-dialog">Cancel</button><button class="danger" data-action="confirm-delete-folder">Delete folder</button></div>`;
+        } else if (dialog.kind === 'info') {
+          const pin = getPin(dialog.pinId);
+          content = `<h3>Info</h3>
+            ${pin.name ? `<div class="info-field"><span>Name</span><strong>${escapeHtml(pin.name)}</strong></div>` : ''}
+            <div class="info-field"><span>Query</span><strong>${escapeHtml(pin.query)}</strong></div>
+            <div class="info-rule"></div>
+            <div class="info-field"><span>Last checked</span><strong>${escapeHtml(pin.lastChecked || 'Never checked')}</strong></div>
+            <div class="info-field"><span>Last attempted</span><strong>${escapeHtml(pin.lastAttempt || 'Never attempted')}</strong></div>
+            <div class="info-field"><span>Last attempt</span><strong class="${pin.status === 'failure' ? 'status-failure' : 'status-success'}">${pin.status === 'failure' ? 'Failed' : 'Successful'}</strong></div>
+            ${pin.status === 'failure' ? `<div class="info-field"><span>Message</span><strong class="status-failure">${escapeHtml(pin.error)}</strong></div>` : ''}
+            <div class="dialog-actions"><button data-action="close-dialog">OK</button></div>`;
+        } else if (dialog.kind === 'pin') {
+          content = `<h3>Pin Search</h3>
+            <label class="input-label" for="pin-query">Search query</label><input id="pin-query" class="text-input" value="${escapeHtml(dialog.query)}" maxlength="120">
+            <label class="input-label" for="pin-name">Name (optional)</label><input id="pin-name" class="text-input" value="${escapeHtml(dialog.name)}" placeholder="Use the query as the name" maxlength="60">
+            <label class="input-label">Folder</label>
+            ${choice(null, dialog.folderId, 'Searches outside named folders')}
+            ${state.folders.map(folder => choice(folder.id, dialog.folderId, '')).join('')}
+            <div id="dialog-error" class="dialog-error"></div>
+            <div class="dialog-actions"><button data-action="close-dialog">Cancel</button><button data-action="save-pin">Pin</button></div>`;
+        } else if (dialog.kind === 'delete-pin') {
+          const pin = getPin(dialog.pinId);
+          content = `<h3>Delete “${escapeHtml(pinLabel(pin))}”?</h3><p>This will unpin the search and remove its cached previews.</p>
+            <div class="dialog-actions"><button data-action="close-dialog">Cancel</button><button class="danger" data-action="confirm-delete-pin">Delete</button></div>`;
+        }
+        return `<div class="scrim" data-action="close-dialog"></div><section class="dialog" role="dialog" aria-modal="true" aria-label="${escapeHtml(dialog.kind)}">${content}</section>`;
+      }
+
+      function render() {
+        if (page.kind === 'folder' && !getFolder(page.id)) page = { kind: 'root' };
+        const body = page.kind === 'root' ? rootBody() : page.kind === 'folder' ? folderBody() : managerBody();
+        app.innerHTML = `${header()}<div class="scroll">${body}</div>`;
+        modalLayer.innerHTML = dialogHtml();
+        modalLayer.classList.toggle('open', Boolean(dialog));
+        if (dialog?.kind === 'create' || dialog?.kind === 'rename') {
+          requestAnimationFrame(() => modalLayer.querySelector('#folder-name')?.focus());
+        }
+      }
+
+      function toast(message) {
+        clearTimeout(toastTimer);
+        toastElement.textContent = message;
+        toastElement.classList.add('show');
+        toastTimer = setTimeout(() => toastElement.classList.remove('show'), 3300);
+      }
+
+      function showError(message) {
+        const error = modalLayer.querySelector('#dialog-error');
+        if (error) error.textContent = message;
+      }
+
+      function moveFolder(id, direction) {
+        const index = state.folders.findIndex(folder => folder.id === id);
+        const next = index + direction;
+        if (index < 0 || next < 0 || next >= state.folders.length) return;
+        [state.folders[index], state.folders[next]] = [state.folders[next], state.folders[index]];
+        render();
+      }
+
+      function movePin(id, direction) {
+        const pin = getPin(id);
+        const siblings = folderPins(pin.folderId);
+        const position = siblings.findIndex(item => item.id === id);
+        const neighbor = siblings[position + direction];
+        if (!neighbor) return;
+        const first = state.pins.indexOf(pin);
+        const second = state.pins.indexOf(neighbor);
+        [state.pins[first], state.pins[second]] = [state.pins[second], state.pins[first]];
+      }
+
+      document.addEventListener('click', event => {
+        const scenarioButton = event.target.closest('[data-scenario]');
+        if (scenarioButton) { reset(scenarioButton.dataset.scenario); return; }
+        const button = event.target.closest('[data-action]');
+        if (!button) {
+          if (menuPinId) { menuPinId = null; render(); }
+          return;
+        }
+        const action = button.dataset.action;
+        const id = button.dataset.id;
+        if (action !== 'menu') menuPinId = null;
+        switch (action) {
+          case 'reset': reset('mixed'); return;
+          case 'show-pin-dialog': dialog = { kind: 'pin', folderId: null, query: 'blue_hair', name: '' }; break;
+          case 'back': page = { kind: 'root' }; break;
+          case 'manage': page = { kind: 'manager' }; break;
+          case 'open-folder': page = { kind: 'folder', id }; break;
+          case 'menu': menuPinId = menuPinId === id ? null : id; break;
+          case 'open-pin': {
+            const pin = getPin(id);
+            pin.isNew = false;
+            toast(`Would open “${pin.query}” with ${pin.profile}.`);
+            break;
+          }
+          case 'move': dialog = { kind: 'move', pinId: id }; break;
+          case 'pin-up': movePin(id, -1); break;
+          case 'pin-down': movePin(id, 1); break;
+          case 'info': dialog = { kind: 'info', pinId: id }; break;
+          case 'refresh-pin': toast(`Refreshing “${pinLabel(getPin(id))}” through ${getPin(id).profile}.`); break;
+          case 'delete-pin': dialog = { kind: 'delete-pin', pinId: id }; break;
+          case 'confirm-delete-pin': state.pins = state.pins.filter(pin => pin.id !== dialog.pinId); dialog = null; toast('Pinned search deleted.'); break;
+          case 'refresh': toast(page.kind === 'folder' ? 'Refreshing every search in this folder through its own profile.' : 'Refreshing pinned searches across supported profiles.'); break;
+          case 'feeds': toast('Following feeds are outside this mockup.'); break;
+          case 'refresh-settings': toast('Refresh settings are outside this mockup.'); break;
+          case 'create-folder': dialog = { kind: 'create', pinId: dialog?.kind === 'move' ? dialog.pinId : null }; break;
+          case 'rename-folder': dialog = { kind: 'rename', folderId: id }; break;
+          case 'ask-delete-folder': dialog = { kind: 'delete-folder', folderId: id }; break;
+          case 'folder-up': moveFolder(id, -1); return;
+          case 'folder-down': moveFolder(id, 1); return;
+          case 'save-folder': {
+            const name = modalLayer.querySelector('#folder-name').value.trim();
+            if (!name) { showError('Enter a folder name.'); return; }
+            if (state.folders.some(folder => folder.name.toLowerCase() === name.toLowerCase())) { showError('A folder with that name already exists.'); return; }
+            const folderId = `folder-${Date.now()}`;
+            state.folders.push({ id: folderId, name });
+            if (dialog.pinId) getPin(dialog.pinId).folderId = folderId;
+            const moved = Boolean(dialog.pinId);
+            dialog = null;
+            toast(moved ? `Moved search to ${name}.` : `Created ${name}.`);
+            break;
+          }
+          case 'save-rename': {
+            const name = modalLayer.querySelector('#folder-name').value.trim();
+            if (!name) { showError('Enter a folder name.'); return; }
+            if (state.folders.some(folder => folder.id !== dialog.folderId && folder.name.toLowerCase() === name.toLowerCase())) { showError('A folder with that name already exists.'); return; }
+            getFolder(dialog.folderId).name = name;
+            dialog = null;
+            toast('Folder renamed.');
+            break;
+          }
+          case 'confirm-delete-folder': {
+            const folder = getFolder(dialog.folderId);
+            const removed = folderPins(folder.id).length;
+            state.pins = state.pins.filter(pin => pin.folderId !== folder.id);
+            state.folders = state.folders.filter(item => item.id !== folder.id);
+            dialog = null;
+            if (page.kind === 'folder') page = { kind: 'root' };
+            toast(`Deleted ${folder.name} and unpinned ${removed} ${removed === 1 ? 'search' : 'searches'}.`);
+            break;
+          }
+          case 'choose-destination': {
+            const destination = id === 'home' ? null : id;
+            if (dialog.kind === 'move') {
+              const pin = getPin(dialog.pinId);
+              pin.folderId = destination;
+              dialog = null;
+              toast(destination ? `Moved search to ${getFolder(destination).name}.` : 'Moved search to [Home].');
+            } else if (dialog.kind === 'pin') {
+              dialog.query = modalLayer.querySelector('#pin-query').value;
+              dialog.name = modalLayer.querySelector('#pin-name').value;
+              dialog.folderId = destination;
+            }
+            break;
+          }
+          case 'save-pin': {
+            const query = modalLayer.querySelector('#pin-query').value.trim();
+            const name = modalLayer.querySelector('#pin-name').value.trim();
+            if (!query) { showError('Enter a search query.'); return; }
+            state.pins.push({ id: `pin-${Date.now()}`, name: name || null, query, profile: 'Safebooru', url: 'https://safebooru.org/', folderId: dialog.folderId, isNew: false, art: 2, status: 'success', lastChecked: null, lastAttempt: null });
+            dialog = null;
+            page = { kind: 'root' };
+            toast('Search pinned.');
+            break;
+          }
+          case 'close-dialog': dialog = null; break;
+          default: return;
+        }
+        render();
+      });
+
+      document.addEventListener('keydown', event => {
+        if (event.key === 'Escape' && dialog) { dialog = null; render(); }
+        if (event.key === 'Enter' && dialog?.kind === 'create' && event.target.id === 'folder-name') {
+          modalLayer.querySelector('[data-action="save-folder"]').click();
+        }
+        if (event.key === 'Enter' && dialog?.kind === 'rename' && event.target.id === 'folder-name') {
+          modalLayer.querySelector('[data-action="save-rename"]').click();
+        }
+      });
+
+      reset();
+    </script>
+  </body>
+</html>
