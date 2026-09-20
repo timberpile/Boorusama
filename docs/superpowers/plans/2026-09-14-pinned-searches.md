@@ -1243,7 +1243,7 @@ git commit -m "feat(search): back up pinned searches"
 - Produces: verified behavior and durable project documentation for later folder,
   automatic-refresh, and feed phases.
 
-- [ ] **Step 1: Add subsystem documentation**
+- [x] **Step 1: Add subsystem documentation**
 
 Write `docs/pinned_searches.md` with the implemented boundaries only:
 
@@ -1258,7 +1258,7 @@ Write `docs/pinned_searches.md` with the implemented boundaries only:
 
 Do not describe unimplemented folders, schedulers, or feeds as current behavior.
 
-- [ ] **Step 2: Format all changed Dart files**
+- [x] **Step 2: Format all changed Dart files**
 
 Run:
 
@@ -1268,26 +1268,26 @@ fvm dart format lib test
 
 Expected: exits 0.
 
-- [ ] **Step 3: Run static analysis**
+- [x] **Step 3: Run static analysis**
 
 Run: `fvm flutter analyze`
 
 Expected: exits 0 with no errors or warnings introduced by the feature.
 
-- [ ] **Step 4: Run the complete focused test group**
+- [x] **Step 4: Run the complete focused test group**
 
 Run: `fvm flutter test test/core/search/subscriptions test/core/backups/pinned_search_backup_codec_test.dart test/core/backups/pinned_search_import_service_test.dart test/core/backups/pinned_searches_source_test.dart test/booru_config_notifier_test.dart`
 
 Expected: PASS.
 
-- [ ] **Step 5: Run the full test suite**
+- [x] **Step 5: Run the full test suite**
 
 Run: `fvm flutter test`
 
 Expected: PASS. If an unrelated pre-existing failure occurs, record its exact
 test name and verify the focused suite still passes; do not weaken tests.
 
-- [ ] **Step 6: Verify generated and repository state**
+- [x] **Step 6: Verify generated and repository state**
 
 Run:
 
@@ -1316,7 +1316,7 @@ Verify in a development build:
 9. Export/import pins and confirm definitions return without runtime badges or
    previews.
 
-- [ ] **Step 8: Commit verification documentation and any verified fixes**
+- [x] **Step 8: Commit verification documentation and any verified fixes**
 
 ```bash
 git add docs/pinned_searches.md
@@ -1324,7 +1324,7 @@ git add lib test packages/i18n
 git commit -m "docs(search): document pinned searches"
 ```
 
-- [ ] **Step 9: Confirm branch readiness**
+- [x] **Step 9: Confirm branch readiness**
 
 Run:
 

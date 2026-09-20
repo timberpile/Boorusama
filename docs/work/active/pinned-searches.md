@@ -1,5 +1,26 @@
 # Implementation Handover: Pinned Searches MVP
 
+## Current status
+
+The MVP implementation and automated verification are complete on
+`feature/pinned-search-subscriptions`. See [the subsystem documentation](../../pinned_searches.md)
+for implemented boundaries. Fresh verification on 2026-09-14 passed generation,
+static analysis, all 202 focused tests, and the full 1,026-test suite.
+
+Task 9 Step 7 remains unchecked: none of the nine manual development-build
+flows has been exercised. Flutter detects only the WSL2 Linux desktop target;
+Linux build prerequisites and display variables are present, but this agent
+session has no GUI interaction/capture tool, connected Android device, or
+Chrome executable. No live test profile with a controlled new-upload scenario
+has been supplied. This is a manual-verification blocker, not a claim that a
+Linux build fails. Complete the plan's manual checklist in an interactive
+development build before claiming those flows were manually verified.
+
+The required whole-tree formatter exited successfully and exposed eight
+pre-existing formatting-only differences outside the feature. Those unrelated
+hunks were excluded from this branch. No delivery action has been performed;
+push, pull request, merge, and branch deletion still require an explicit request.
+
 ## Objective
 
 Implement the approved Pinned Searches MVP completely by following:
