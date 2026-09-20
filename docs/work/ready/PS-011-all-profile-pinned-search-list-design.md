@@ -11,7 +11,7 @@ implement cross-profile feeds, folders, or merged post results.
 
 ## Dependencies and scope
 
-- Build on [PS-005](PS-005-engine-refresh-adapters.md) capability behavior.
+- Build on [PS-005](../done/PS-005-engine-refresh-adapters.md) capability behavior.
 - Keep subscriptions, queries, authentication, post identities, and folders
   owned by their original profiles.
 - Keep the navigation entry in its current side-menu section and position.

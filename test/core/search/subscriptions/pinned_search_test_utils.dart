@@ -88,10 +88,17 @@ SearchSubscription pinnedFixture({
 );
 
 class PinnedSearchHarness {
-  PinnedSearchHarness({this.repositoryReady, this.loadImages = false}) {
+  PinnedSearchHarness({
+    this.repositoryReady,
+    this.loadImages = false,
+    this.supported = true,
+  }) {
     repository = HiveSearchSubscriptionRepository(box: box);
     container = ProviderContainer(
       overrides: [
+        pinnedSearchTrackingSupportedProvider.overrideWith(
+          (ref, config) => supported,
+        ),
         currentReadOnlyBooruConfigProvider.overrideWith(
           (ref) => ref.watch(selectedTestProfileProvider),
         ),
@@ -156,6 +163,7 @@ class PinnedSearchHarness {
 
   final Completer<void>? repositoryReady;
   final bool loadImages;
+  final bool supported;
   final box = ControlledSubscriptionBox();
   late final SearchSubscriptionRepository repository;
   late final ProviderContainer container;

@@ -42,13 +42,16 @@ void main() {
   late Completer<Either<BooruError, PostResult<Post>>> snapshot;
   var snapshotCalls = 0;
 
-  Future<void> initialize() async {
+  Future<void> initialize({bool supported = true}) async {
     box = _FailingBox();
     repository = HiveSearchSubscriptionRepository(box: box);
     snapshot = Completer();
     snapshotCalls = 0;
     container = ProviderContainer(
       overrides: [
+        pinnedSearchTrackingSupportedProvider.overrideWith(
+          (ref, config) => supported,
+        ),
         initialSettingsBooruConfigProvider.overrideWithValue(config),
         currentReadOnlyBooruConfigProvider.overrideWithValue(config),
         currentReadOnlyBooruConfigAuthProvider.overrideWithValue(config.auth),
@@ -152,6 +155,24 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
   }
+
+  testWidgets(
+    'an unsupported pin action explains support without saving or fetching',
+    (tester) async {
+      await initialize(supported: false);
+      await pump(tester);
+      await load(tester);
+      await tester.tap(find.byTooltip('Pin Search'));
+      await tester.pump();
+      expect(
+        find.text('Pinned searches are not supported for this profile.'),
+        findsOneWidget,
+      );
+      expect(find.byType(TextField), findsNothing);
+      expect(await repository.getAll(), isEmpty);
+      expect(snapshotCalls, 0);
+    },
+  );
 
   testWidgets('only a loaded non-empty query exposes the pin action', (
     tester,

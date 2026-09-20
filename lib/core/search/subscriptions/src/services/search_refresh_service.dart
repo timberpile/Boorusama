@@ -60,7 +60,10 @@ class SearchRefreshService {
                       query,
                       page,
                       limit: limit,
-                      options: PostFetchOptions.raw,
+                      options: const PostFetchOptions(
+                        cascadeRequest: false,
+                        chronological: true,
+                      ),
                     )
                     .run())
                 .mapLeft(_mapError);

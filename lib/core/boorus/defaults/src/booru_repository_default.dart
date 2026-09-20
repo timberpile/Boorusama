@@ -90,7 +90,7 @@ abstract class BooruRepositoryDefault implements BooruRepository {
 
   @override
   SearchRefreshQueryAdapter searchRefreshQueryAdapter(BooruConfigAuth config) {
-    return const DefaultSearchRefreshQueryAdapter();
+    return const UnsupportedSearchRefreshQueryAdapter();
   }
 
   @override

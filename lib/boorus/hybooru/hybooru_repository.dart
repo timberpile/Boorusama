@@ -3,6 +3,7 @@ import 'package:booru_clients/hybooru.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Project imports:
+import '../../core/search/subscriptions/src/refresh/search_refresh_query_adapter.dart';
 import '../../core/boorus/defaults/types.dart';
 import '../../core/configs/config/types.dart';
 import '../../core/configs/create/create.dart';
@@ -17,6 +18,10 @@ import 'tags/providers.dart';
 
 class HybooruRepository extends BooruRepositoryDefault {
   const HybooruRepository({required this.ref});
+
+  @override
+  SearchRefreshQueryAdapter searchRefreshQueryAdapter(BooruConfigAuth config) =>
+      const DefaultSearchRefreshQueryAdapter();
 
   @override
   final Ref ref;

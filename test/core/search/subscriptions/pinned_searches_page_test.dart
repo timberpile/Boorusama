@@ -89,6 +89,24 @@ void main() {
     await settle(tester);
   }
 
+  testWidgets(
+    'an unsupported tab explains support and preserves existing pins',
+    (tester) async {
+      harness = PinnedSearchHarness(supported: false);
+      addTearDown(harness.dispose);
+      await harness.seed([pinnedFixture()]);
+      await pump(tester);
+      expect(find.text('Pinned Searches'), findsOneWidget);
+      expect(
+        find.text('Pinned searches are not supported for this profile.'),
+        findsOneWidget,
+      );
+      expect(harness.requests, isEmpty);
+      expect((await harness.repository.getAll()).single.id, 'cats');
+      expect(refreshAllButton(tester).onPressed, isNull);
+    },
+  );
+
   testWidgets('routine check details are available through Info only', (
     tester,
   ) async {

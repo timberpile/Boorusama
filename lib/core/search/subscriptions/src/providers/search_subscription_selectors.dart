@@ -2,6 +2,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Project imports:
+import '../../../../boorus/engine/providers.dart';
+import '../../../../configs/config/types.dart';
 import '../types/search_subscription.dart';
 import 'search_subscriptions_notifier.dart';
 
@@ -30,3 +32,13 @@ final profilePinnedSearchHasNewPostsProvider = Provider.family<bool, int>((
           ?.any((item) => item.hasNewPosts) ??
       false;
 });
+
+final pinnedSearchTrackingSupportedProvider =
+    Provider.family<bool, BooruConfigAuth>(
+      (ref, config) =>
+          ref
+              .watch(booruRepoProvider(config))
+              ?.searchRefreshQueryAdapter(config)
+              .isSupported ??
+          false,
+    );

@@ -12,7 +12,7 @@ After integrating bounded snapshots and NEW indicators, the full suite passed
 1,039 tests and the focused pinned-search suite passed 121 tests. See completed
 [PS-001](../done/PS-001-bounded-newest-post-refresh.md) for that decision and
 verification. Engine adapters and unsupported-profile messaging are queued in
-[PS-005](../ready/PS-005-engine-refresh-adapters.md).
+[PS-005](../done/PS-005-engine-refresh-adapters.md).
 
 Maestro verified the user's Safebooru `absurdres` pin on the updated emulator
 build: Refresh All established a baseline, removed the unsupported warning,

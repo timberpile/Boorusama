@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Project imports:
+import '../../core/search/subscriptions/src/refresh/search_refresh_query_adapter.dart';
 import '../../core/boorus/defaults/types.dart';
 import '../../core/configs/config/types.dart';
 import '../../core/configs/create/create.dart';
@@ -22,6 +23,10 @@ import 'tags/providers.dart';
 
 class PhilomenaRepository extends BooruRepositoryDefault {
   const PhilomenaRepository({required this.ref});
+
+  @override
+  SearchRefreshQueryAdapter searchRefreshQueryAdapter(BooruConfigAuth config) =>
+      const DefaultSearchRefreshQueryAdapter();
 
   @override
   final Ref ref;

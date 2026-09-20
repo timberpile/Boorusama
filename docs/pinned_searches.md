@@ -100,7 +100,7 @@ support for other sites. Totals are not used for NEW detection. The `change`
 field is not an upload time and must not be used for new-post tracking.
 
 Engine capability adapters and unsupported-profile explanations are tracked
-separately in [PS-005](work/ready/PS-005-engine-refresh-adapters.md).
+separately in [PS-005](work/done/PS-005-engine-refresh-adapters.md).
 
 ## Manual batch and concurrent operations
 
@@ -169,3 +169,13 @@ The possible [all-profile list](work/ready/PS-011-all-profile-pinned-search-list
 has a separate design task. Existing UI improvements remain PS-002 through
 PS-004, and engine capability support remains PS-005. Task dependencies govern
 eligibility; folders can proceed independently of automatic refresh.
+
+
+Supported engines explicitly opt in to timestamp tracking; the repository
+default is unsupported. Danbooru and Szurubooru add canonical chronological
+query terms. Philomena receives created_at descending through raw fetch options.
+Nozomi remains unsupported because complete index intersection and per-post
+fetches are not a bounded newest-page query. Unsupported profiles keep the tab
+and pin action visible with a localized explanation. Routine check times are
+available through Info; successful pinning is silent and errors remain inline
+in their originating search view.

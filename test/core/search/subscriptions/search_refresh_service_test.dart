@@ -298,6 +298,8 @@ void main() {
 
 class _TestAdapter implements SearchRefreshQueryAdapter {
   _TestAdapter(this.resolve);
+  @override
+  bool get isSupported => true;
   final SearchRefreshQueryPlan Function(String query, DateTime? after) resolve;
   @override
   SearchRefreshQueryPlan plan(String query, {required DateTime? after}) =>

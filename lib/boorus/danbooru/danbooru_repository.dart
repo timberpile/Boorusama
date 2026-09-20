@@ -12,6 +12,7 @@ import 'package:foundation/foundation.dart';
 import 'package:rich_text_controller/rich_text_controller.dart';
 
 // Project imports:
+import '../../core/search/subscriptions/src/refresh/search_refresh_query_adapter.dart';
 import '../../core/blacklists/types.dart';
 import '../../core/boorus/defaults/types.dart';
 import '../../core/boorus/engine/types.dart';
@@ -69,6 +70,24 @@ class DanbooruRepository extends BooruRepositoryDefault {
   const DanbooruRepository({
     required this.ref,
   });
+
+  @override
+  SearchRefreshQueryAdapter searchRefreshQueryAdapter(BooruConfigAuth config) =>
+      const OrderedSearchRefreshQueryAdapter(
+        orderingToken: 'order:created_at',
+        acceptedOrderingTokens: {
+          'order:created_at',
+          'order:id',
+          'order:id_desc',
+        },
+        unsupportedMetatags: {
+          'random',
+          'ordfav',
+          'ordvote',
+          'ordpool',
+          'ordfavgroup',
+        },
+      );
 
   @override
   final Ref ref;

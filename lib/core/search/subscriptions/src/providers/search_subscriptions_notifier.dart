@@ -84,7 +84,7 @@ class SearchSubscriptionsNotifier
                 .read(booruEngineRegistryProvider)
                 .getRepository(config.booruType)
                 ?.searchRefreshQueryAdapter(config) ??
-            const _UnavailableSearchRefreshQueryAdapter(),
+            const UnsupportedSearchRefreshQueryAdapter(),
         scanner: ChronologicalSearchScanner(),
       );
 
@@ -256,13 +256,4 @@ class SearchSubscriptionsNotifier
         batchTotal: _batchTotal,
         batchProfileId: _batchProfileId,
       );
-}
-
-class _UnavailableSearchRefreshQueryAdapter
-    implements SearchRefreshQueryAdapter {
-  const _UnavailableSearchRefreshQueryAdapter();
-
-  @override
-  SearchRefreshQueryPlan plan(String query, {required DateTime? after}) =>
-      const UnsupportedSearchRefreshQueryPlan();
 }

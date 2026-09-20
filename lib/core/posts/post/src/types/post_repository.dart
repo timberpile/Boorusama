@@ -11,9 +11,11 @@ import 'post.dart';
 class PostFetchOptions {
   const PostFetchOptions({
     this.cascadeRequest = true,
+    this.chronological = false,
   });
 
   final bool cascadeRequest;
+  final bool chronological;
 
   static const defaults = PostFetchOptions();
   static const raw = PostFetchOptions(

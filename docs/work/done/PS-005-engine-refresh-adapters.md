@@ -23,14 +23,14 @@ now complete; this adapter task remains queued.
 
 ## Acceptance criteria
 
-- [ ] Unsupported engines default to an explicit unsupported capability.
-- [ ] Every readily supported engine opts in with upload-time, chronological
+- [x] Unsupported engines default to an explicit unsupported capability.
+- [x] Every readily supported engine opts in with upload-time, chronological
       ordering, stable identity, and a bounded newest-page fetch.
-- [ ] Supported adapters reuse the shared bounded scanner from PS-001.
-- [ ] Both unsupported entry points show a localized explanation.
-- [ ] Side-menu section placement and desktop tab indices remain unchanged.
-- [ ] Existing pins persist across unsupported-profile visits.
-- [ ] Tests and documentation distinguish implemented support from unverified
+- [x] Supported adapters reuse the shared bounded scanner from PS-001.
+- [x] Both unsupported entry points show a localized explanation.
+- [x] Side-menu section placement and desktop tab indices remain unchanged.
+- [x] Existing pins persist across unsupported-profile visits.
+- [x] Tests and documentation distinguish implemented support from unverified
       authenticated endpoints.
 
 ## Investigation findings
@@ -50,3 +50,21 @@ that its post repository currently drops.
 Rule34 and Safebooru.org XML parsing is already implemented and Safebooru's
 existing pin was verified live in the emulator. The site-specific XML work
 remains in the working tree; it is not a claim of support for all Gelbooru sites.
+
+## Completion — 2026-09-17
+
+Agent: Codex (/root). Branch: `feature/chronological-pinned-search-support`.
+133 pinned-search tests passed and static analysis was clean. Tests verify
+canonical upload ordering, rejection of unsafe order overrides, unsupported
+tab/pin actions without writes/requests, and preserved existing pins.
+Maestro verified the unchanged menu location and live Danbooru refresh.
+Rule34 XML is covered by parser/scanner tests; authenticated live validation
+remains unavailable. Safebooru was verified live in the preceding XML step.
+
+Opted in Danbooru, e621, Gelbooru, non-thumbnail-only Gelbooru v2, Moebooru,
+Philomena, Shimmie2, Szurubooru, AnimePictures, Hybooru, E-shuushuu, and Pixiv.
+Philomena raw refresh sets created_at descending; E-shuushuu forwards the limit.
+Nozomi is postponed in PS-012 because its complete index intersections violate
+the bounded-work requirement. Timestamp-less integrations and unstable Sankaku
+identity remain unsupported. Opt-in is not a claim that every authenticated
+site was verified live; nullable/unsorted responses still fail explicitly.

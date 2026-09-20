@@ -31,6 +31,9 @@ class _PinnedSearchesPageState extends ConsumerState<PinnedSearchesPage> {
   @override
   Widget build(BuildContext context) {
     final config = ref.watchConfig;
+    final supported = ref.watch(
+      pinnedSearchTrackingSupportedProvider(config.auth),
+    );
     final searches = ref.watch(profilePinnedSearchesProvider(config.id));
     final activity = ref.watch(searchSubscriptionsProvider).valueOrNull;
     final batchRunning =
@@ -46,7 +49,8 @@ class _PinnedSearchesPageState extends ConsumerState<PinnedSearchesPage> {
             tooltip: strings.refresh_all,
             icon: const Icon(Symbols.refresh),
             onPressed:
-                batchRunning ||
+                !supported ||
+                    batchRunning ||
                     _pendingBatchProfiles.contains(config.id) ||
                     (searches.valueOrNull?.isEmpty ?? true)
                 ? null
@@ -54,81 +58,87 @@ class _PinnedSearchesPageState extends ConsumerState<PinnedSearchesPage> {
           ),
         ],
       ),
-      body: searches.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (_, _) => Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(strings.load_failed),
-              TextButton(
-                onPressed: () {
-                  ref.invalidate(searchSubscriptionRepositoryProvider);
-                  ref.invalidate(searchSubscriptionsProvider);
-                },
-                child: Text(context.t.generic.action.retry),
-              ),
-            ],
-          ),
-        ),
-        data: (items) => items.isEmpty
-            ? Center(child: Text(strings.empty))
-            : Column(
-                children: [
-                  if (batchRunning) ...[
-                    LinearProgressIndicator(
-                      value: activity.batchCompleted / activity.batchTotal,
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: Text(
-                        strings.refreshing_progress
-                            .replaceAll(
-                              '{completed}',
-                              '${activity.batchCompleted}',
-                            )
-                            .replaceAll('{total}', '${activity.batchTotal}'),
-                      ),
+      body: !supported
+          ? Center(child: Text(strings.profile_unsupported))
+          : searches.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (_, _) => Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(strings.load_failed),
+                    TextButton(
+                      onPressed: () {
+                        ref.invalidate(searchSubscriptionRepositoryProvider);
+                        ref.invalidate(searchSubscriptionsProvider);
+                      },
+                      child: Text(context.t.generic.action.retry),
                     ),
                   ],
-                  Expanded(
-                    child: ReorderableListView.builder(
-                      padding: const EdgeInsets.all(12),
-                      itemCount: items.length,
-                      onReorderItem: (oldIndex, newIndex) => _runAction(
-                        () => ref
-                            .read(searchSubscriptionsProvider.notifier)
-                            .reorder(
-                              config.id,
-                              oldIndex,
-                              newIndex,
-                            ),
-                      ),
-                      itemBuilder: (context, index) {
-                        final subscription = items[index];
-                        return PinnedSearchCard(
-                          key: ValueKey(subscription.id),
-                          subscription: subscription,
-                          config: config.auth,
-                          refreshing:
-                              activity?.refreshingIds.contains(
-                                subscription.id,
-                              ) ??
-                              false,
-                          onOpen: _openingIds.contains(subscription.id)
-                              ? null
-                              : () => _open(subscription),
-                          canMoveUp: index > 0,
-                          canMoveDown: index < items.length - 1,
-                          onAction: (action) =>
-                              _onAction(action, subscription, index),
-                        );
-                      },
-                    ),
-                  ),
-                ],
+                ),
               ),
-      ),
+              data: (items) => items.isEmpty
+                  ? Center(child: Text(strings.empty))
+                  : Column(
+                      children: [
+                        if (batchRunning) ...[
+                          LinearProgressIndicator(
+                            value:
+                                activity.batchCompleted / activity.batchTotal,
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.all(8),
+                            child: Text(
+                              strings.refreshing_progress
+                                  .replaceAll(
+                                    '{completed}',
+                                    '${activity.batchCompleted}',
+                                  )
+                                  .replaceAll(
+                                    '{total}',
+                                    '${activity.batchTotal}',
+                                  ),
+                            ),
+                          ),
+                        ],
+                        Expanded(
+                          child: ReorderableListView.builder(
+                            padding: const EdgeInsets.all(12),
+                            itemCount: items.length,
+                            onReorderItem: (oldIndex, newIndex) => _runAction(
+                              () => ref
+                                  .read(searchSubscriptionsProvider.notifier)
+                                  .reorder(
+                                    config.id,
+                                    oldIndex,
+                                    newIndex,
+                                  ),
+                            ),
+                            itemBuilder: (context, index) {
+                              final subscription = items[index];
+                              return PinnedSearchCard(
+                                key: ValueKey(subscription.id),
+                                subscription: subscription,
+                                config: config.auth,
+                                refreshing:
+                                    activity?.refreshingIds.contains(
+                                      subscription.id,
+                                    ) ??
+                                    false,
+                                onOpen: _openingIds.contains(subscription.id)
+                                    ? null
+                                    : () => _open(subscription),
+                                canMoveUp: index > 0,
+                                canMoveDown: index < items.length - 1,
+                                onAction: (action) =>
+                                    _onAction(action, subscription, index),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+            ),
     );
   }
 

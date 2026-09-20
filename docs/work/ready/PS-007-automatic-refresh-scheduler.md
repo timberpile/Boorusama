@@ -12,7 +12,7 @@ continues to reflect only the active profile.
 
 ## Dependencies and design
 
-- Depends on [PS-005](PS-005-engine-refresh-adapters.md) for explicit engine capabilities.
+- Depends on [PS-005](../done/PS-005-engine-refresh-adapters.md) for explicit engine capabilities.
 - PS-006 folders are independent and are not a scheduler prerequisite.
 - Specify interval defaults, disabling behavior, run budgets, retry policy,
   and scheduler-state persistence before implementation.

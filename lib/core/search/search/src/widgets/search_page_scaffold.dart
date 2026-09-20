@@ -228,6 +228,10 @@ class _PinSearchActionState extends ConsumerState<_PinSearchAction> {
   }
 
   Future<void> _manage(int profileId, SearchSubscription? existing) async {
+    if (!ref.read(pinnedSearchTrackingSupportedProvider(ref.readConfigAuth))) {
+      _feedback(context.t.pinned_searches.profile_unsupported);
+      return;
+    }
     final query = widget.query;
     setState(() {
       _busy = true;
