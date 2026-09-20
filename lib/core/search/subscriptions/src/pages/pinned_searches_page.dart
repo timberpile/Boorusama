@@ -82,7 +82,7 @@ class _PinnedSearchesPageState extends ConsumerState<PinnedSearchesPage> {
                   Positioned(
                     right: -4,
                     bottom: -4,
-                    child: Icon(Symbols.build, size: 14),
+                    child: Icon(Symbols.build, size: 14, fill: 1),
                   ),
                 ],
               ),
