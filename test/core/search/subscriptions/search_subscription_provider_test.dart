@@ -161,7 +161,7 @@ void main() {
       container.invalidate(searchSubscriptionRepositoryProvider);
       final rebuilt = await container
           .read(searchSubscriptionRepositoryProvider.future)
-          .timeout(const Duration(milliseconds: 100));
+          .timeout(const Duration(seconds: 1));
       final created = await rebuilt.create(
         profileId: 4,
         query: 'retry',

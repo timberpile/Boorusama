@@ -21,12 +21,19 @@ final pixivPostRepoProvider =
         return PostRepositoryBuilder(
           tagComposer: tagComposer,
           getSettings: () async => ref.read(imageListingSettingsProvider),
-          fetchSingle: (id, {options}) {
-            // Ids are synthesised per page, so they cannot be turned back
-            // into an illust_id + page_index request on their own. Post
-            // details are always reached from a listing, which already
-            // holds the full post.
-            return Future.value();
+          fetchSingle: (id, {options}) async {
+            final value = switch (id) {
+              NumericPostId(:final value) when value >= 1000 => value,
+              _ => null,
+            };
+            if (value == null) return null;
+            final detail = await client.getIllustDetail(
+              illustId: value ~/ 1000,
+            );
+            if (detail == null) return null;
+            return illustDtoToPosts(
+              detail,
+            ).where((post) => post.id == value).firstOrNull;
           },
           fetch: (tags, page, {limit, options}) async {
             final query = PixivQuery.parse(tags);

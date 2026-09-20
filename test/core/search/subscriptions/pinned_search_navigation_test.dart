@@ -15,6 +15,7 @@ import 'package:boorusama/core/search/search/widgets.dart';
 import 'package:boorusama/core/search/subscriptions/providers.dart';
 import 'package:boorusama/core/search/subscriptions/routes.dart';
 import 'package:boorusama/core/search/subscriptions/src/pages/pinned_searches_page.dart';
+import 'package:boorusama/core/search/subscriptions/src/widgets/pinned_search_navigation_icon.dart';
 import 'package:boorusama/core/settings/providers.dart';
 import 'package:boorusama/core/settings/src/types/settings.dart';
 import 'package:boorusama/core/tags/favorites/widgets.dart';
@@ -73,6 +74,17 @@ void main() {
     child: const SideBarMenu(),
   );
 
+  Finder pinnedBadge(bool mobile) => find.descendant(
+    of: mobile
+        ? find.byType(PinnedSearchNavigationIcon)
+        : find.byWidgetPredicate(
+            (widget) =>
+                widget is HomeNavigationTile &&
+                widget.title == 'Pinned Searches',
+          ),
+    matching: find.byType(Badge),
+  );
+
   for (final c in [
     (name: 'mobile', mobile: true),
     (name: 'desktop', mobile: false),
@@ -96,34 +108,34 @@ void main() {
           tester,
           scaffold(c.mobile ? mobileMenu() : desktopMenu()),
         );
-        expect(find.byType(Badge), findsOneWidget);
+        expect(pinnedBadge(c.mobile), findsOneWidget);
         expect(find.text('8'), findsNothing);
         expect(find.text('90'), findsNothing);
         await harness.container
             .read(searchSubscriptionsProvider.notifier)
             .markRead('cats');
         await settle(tester);
-        expect(find.byType(Badge), findsOneWidget);
+        expect(pinnedBadge(c.mobile), findsOneWidget);
         harness.container
             .read(selectedTestProfileProvider.notifier)
             .select(otherTestProfile);
         await settle(tester);
-        expect(find.byType(Badge), findsOneWidget);
+        expect(pinnedBadge(c.mobile), findsOneWidget);
         await harness.container
             .read(searchSubscriptionsProvider.notifier)
             .markRead('other');
         await settle(tester);
-        expect(find.byType(Badge), findsOneWidget);
+        expect(pinnedBadge(c.mobile), findsOneWidget);
         harness.container
             .read(selectedTestProfileProvider.notifier)
             .select(testProfile);
         await settle(tester);
-        expect(find.byType(Badge), findsOneWidget);
+        expect(pinnedBadge(c.mobile), findsOneWidget);
         await harness.container
             .read(searchSubscriptionsProvider.notifier)
             .markRead('dogs');
         await settle(tester);
-        expect(find.byType(Badge), findsNothing);
+        expect(pinnedBadge(c.mobile), findsNothing);
         expect(find.text('Pinned Searches'), findsOneWidget);
       },
     );

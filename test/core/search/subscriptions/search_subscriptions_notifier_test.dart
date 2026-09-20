@@ -336,6 +336,27 @@ void main() {
     },
   );
 
+  test('refresh all only checks independent pinned searches', () async {
+    await seed('visible');
+    final feed = await repository.saveFeed(
+      profileId: config.id,
+      name: 'Animals',
+      queries: ['hidden'],
+    );
+    final fetched = <String>[];
+    posts = TestSearchPostRepository((query, _, _) async {
+      fetched.add(query);
+      return Either.of(PostResult.empty());
+    });
+
+    final outcomes = await notifier().refreshAll(config.id);
+
+    expect(outcomes, hasLength(1));
+    expect(fetched, ['visible']);
+    expect(snapshot().batchTotal, 1);
+    expect(feed.sourceIds, hasLength(1));
+  });
+
   test('discards a missing subscription without fetching posts', () async {
     posts = TestSearchPostRepository(
       (_, _, _) async => throw StateError('Must not fetch'),

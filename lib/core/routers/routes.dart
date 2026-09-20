@@ -78,6 +78,7 @@ class Routes {
       settingsDesktopRoutes,
       bookmarkRoutes,
       pinnedSearchRoutes,
+      followingFeedRoutes,
       globalBlacklistedTagsRoutes,
       downloadManagerRoutes,
       bulkDownloadsRoutes,

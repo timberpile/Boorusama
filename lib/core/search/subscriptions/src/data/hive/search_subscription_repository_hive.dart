@@ -8,6 +8,7 @@ import 'package:uuid/uuid.dart';
 // Project imports:
 import '../../types/search_post_preview.dart';
 import '../../types/search_refresh.dart';
+import '../../types/search_following_feed.dart';
 import '../../types/search_organization.dart';
 import '../../types/search_subscription.dart';
 import '../../types/search_subscription_repository.dart';
@@ -28,6 +29,172 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
   final Uuid _uuid;
   final Box<dynamic>? _organizationBox;
   Future<void> _mutationTail = Future.value();
+
+  List<SearchFollowingFeed> _feeds() => [
+    for (final value in _organizationBox?.values ?? const [])
+      if (value case final Map json
+          when json['id'] is String &&
+              json['profileId'] is int &&
+              json['name'] is String)
+        SearchFollowingFeed.fromJson({
+          ...json,
+          if (json['sourceIds'] is! List)
+            'sourceIds': [
+              for (final search in _box.values)
+                if (search.feedId == json['id']) search.id,
+            ],
+        }),
+  ];
+
+  Set<String> _feedSourceIds() => {
+    for (final feed in _feeds()) ...feed.sourceIds,
+  };
+
+  @override
+  Future<List<SearchFollowingFeed>> getFeeds() => _serialize(() async {
+    final feeds = _feeds();
+    for (final feed in feeds) {
+      if (_organizationBox?.get('feed:${feed.id}') case final Map json
+          when json['sourceIds'] is! List) {
+        await _organizationBox?.put('feed:${feed.id}', feed.toJson());
+      }
+    }
+    return feeds;
+  });
+
+  @override
+  Future<SearchFollowingFeed> saveFeed({
+    required int profileId,
+    required String name,
+    required List<String> queries,
+    String? id,
+  }) => _serialize(() async {
+    final storage = _organizationBox;
+    if (storage == null) throw StateError('Feed storage unavailable');
+    final normalized = queries
+        .map(normalizeSearchIdentity)
+        .where((query) => query.isNotEmpty)
+        .toSet()
+        .toList();
+    if (name.trim().isEmpty ||
+        normalized.isEmpty ||
+        normalized.length > followingFeedSourceLimit) {
+      throw const FormatException('Invalid feed definition');
+    }
+    final feeds = _feeds();
+    final previous = id == null
+        ? null
+        : feeds.where((f) => f.id == id).firstOrNull;
+    if (previous != null && previous.profileId != profileId) {
+      throw StateError('Feed ownership mismatch');
+    }
+    final feedId = previous?.id ?? id ?? _uuid.v4();
+    final all = _subscriptions().toList();
+    final internalIds = _feedSourceIds();
+    final internalByQuery = <String, SearchSubscription>{
+      for (final search in all)
+        if (internalIds.contains(search.id) && search.profileId == profileId)
+          normalizeSearchIdentity(search.query): search,
+    };
+    final retained = <SearchSubscription>[];
+    for (final (position, query) in normalized.indexed) {
+      final existing = internalByQuery[query];
+      retained.add(
+        existing ??
+            SearchSubscription.create(
+              id: _uuid.v4(),
+              profileId: profileId,
+              query: query,
+              name: null,
+              position: position,
+              createdAt: DateTime.now().toUtc(),
+            ),
+      );
+    }
+    final retainedIds = retained.map((source) => source.id).toSet();
+    final removedIds =
+        previous?.sourceIds.toSet().difference(retainedIds) ?? <String>{};
+    final otherIds = {
+      for (final feed in feeds)
+        if (feed.id != feedId) ...feed.sourceIds,
+    };
+    final orphans = removedIds.difference(otherIds);
+    final oldSources = {
+      for (final source in all)
+        if (orphans.contains(source.id)) source.id: _toObject(source),
+    };
+    final createdIds = retainedIds.difference(
+      all.map((source) => source.id).toSet(),
+    );
+    final feed = SearchFollowingFeed(
+      id: feedId,
+      profileId: profileId,
+      name: name.trim(),
+      position:
+          previous?.position ??
+          feeds.where((f) => f.profileId == profileId).length,
+      sourceIds: retained.map((source) => source.id).toList(),
+      posts: removedIds.isNotEmpty ? const [] : previous?.posts ?? const [],
+    );
+    await storage.put('feed:$feedId', feed.toJson());
+    try {
+      await _box.putAll({
+        for (final source in retained)
+          if (createdIds.contains(source.id)) source.id: _toObject(source),
+      });
+      await _box.deleteAll(orphans);
+    } catch (_) {
+      await _box.deleteAll(createdIds);
+      await _box.putAll(oldSources);
+      if (previous == null) {
+        await storage.delete('feed:$feedId');
+      } else {
+        await storage.put('feed:$feedId', previous.toJson());
+      }
+      rethrow;
+    }
+    return feed;
+  });
+
+  @override
+  Future<void> deleteFeed(String id) => _serialize(() async {
+    final feeds = _feeds();
+    final feed = feeds.where((item) => item.id == id).firstOrNull;
+    if (feed == null) return;
+    final referencedElsewhere = {
+      for (final item in feeds)
+        if (item.id != id) ...item.sourceIds,
+    };
+    final orphanIds = feed.sourceIds.toSet().difference(referencedElsewhere);
+    final sources = {
+      for (final source in _subscriptions())
+        if (orphanIds.contains(source.id)) source.id: _toObject(source),
+    };
+    await _organizationBox?.delete('feed:$id');
+    try {
+      await _box.deleteAll(orphanIds);
+    } catch (_) {
+      await _organizationBox?.put('feed:$id', feed.toJson());
+      await _box.putAll(sources);
+      rethrow;
+    }
+  });
+
+  @override
+  Future<void> restoreFeeds(int profileId, List<SearchFollowingFeed> feeds) =>
+      _serialize(() async {
+        if (feeds.any((f) => f.profileId != profileId)) {
+          throw StateError('Invalid feed ownership');
+        }
+        await _organizationBox?.deleteAll(
+          _feeds()
+              .where((f) => f.profileId == profileId)
+              .map((f) => 'feed:${f.id}'),
+        );
+        await _organizationBox?.putAll({
+          for (final f in feeds) 'feed:${f.id}': f.toJson(),
+        });
+      });
 
   @override
   Future<SearchOrganization> getOrganization() => _read(_organization);
@@ -113,8 +280,10 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
   Future<SearchSubscription?> findByQuery(int profileId, String query) {
     return _read(() {
       final normalizedQuery = normalizeSearchIdentity(query);
+      final internalIds = _feedSourceIds();
       for (final subscription in _subscriptions()) {
         if (subscription.profileId == profileId &&
+            !internalIds.contains(subscription.id) &&
             normalizeSearchIdentity(subscription.query) == normalizedQuery) {
           return subscription;
         }
@@ -137,9 +306,11 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
         throw const FormatException('Pinned search queries cannot be empty.');
       }
       final subscriptions = _subscriptions().toList();
+      final internalIds = _feedSourceIds();
       if (subscriptions.any(
         (subscription) =>
             subscription.profileId == profileId &&
+            !internalIds.contains(subscription.id) &&
             normalizeSearchIdentity(subscription.query) == normalizedQuery,
       )) {
         throw StateError(
@@ -160,7 +331,11 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
         query: query,
         name: name,
         position: subscriptions
-            .where((subscription) => subscription.profileId == profileId)
+            .where(
+              (subscription) =>
+                  subscription.profileId == profileId &&
+                  !internalIds.contains(subscription.id),
+            )
             .fold(
               0,
               (next, item) => item.position >= next ? item.position + 1 : next,
@@ -304,7 +479,29 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
         lastSuccessfulCheckAt: commit.startedAt,
       );
       final object = _toObject(updated);
-      await _box.put(object.id, object);
+      final referencingFeeds = _feeds()
+          .where((feed) => feed.sourceIds.contains(current.id))
+          .toList();
+      final previousFeeds = <String, Object?>{
+        for (final feed in referencingFeeds)
+          feed.id: _organizationBox?.get('feed:${feed.id}'),
+      };
+      for (final feed in referencingFeeds) {
+        await _organizationBox?.put(
+          'feed:${feed.id}',
+          feed.merge(commit.feedPosts).toJson(),
+        );
+      }
+      try {
+        await _box.put(object.id, object);
+      } catch (_) {
+        for (final entry in previousFeeds.entries) {
+          if (entry.value != null) {
+            await _organizationBox?.put('feed:${entry.key}', entry.value);
+          }
+        }
+        rethrow;
+      }
       return _toSubscription(object);
     });
   }
@@ -393,7 +590,9 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
         keys.toSet(),
       );
       final previous = _organizationBox?.get(profileId);
+      final feeds = _feeds().where((f) => f.profileId == profileId).toList();
       try {
+        await _organizationBox?.deleteAll(feeds.map((f) => 'feed:${f.id}'));
         await _organizationBox?.delete(profileId);
         await _organizationBox?.put(
           'search:organization',
@@ -403,6 +602,9 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
       } catch (_) {
         await _box.putAll(previousPins);
         if (previous != null) await _organizationBox?.put(profileId, previous);
+        await _organizationBox?.putAll({
+          for (final f in feeds) 'feed:${f.id}': f.toJson(),
+        });
         await _organizationBox?.put(
           'search:organization',
           previousOrganization.toJson(),
@@ -466,9 +668,11 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
       final Map json => SearchOrganization.fromJson(json),
       _ => SearchOrganization(folders: const [], homeSearchIds: const []),
     };
+    final internalIds = _feedSourceIds();
     final subscriptions = {
       for (final subscription in _subscriptions())
-        subscription.id: subscription,
+        if (!internalIds.contains(subscription.id))
+          subscription.id: subscription,
     };
     final memberships = <String>{};
     final folders = [
@@ -518,17 +722,23 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
     Set<String> memberships,
     Map<String, SearchSubscription> subscriptions,
   ) {
+    final internalIds = _feedSourceIds();
     for (final id in ids) {
       final subscription = subscriptions[id];
-      if (!memberships.add(id) || subscription == null) {
+      if (!memberships.add(id) ||
+          subscription == null ||
+          internalIds.contains(id)) {
         throw StateError('Invalid shared search membership');
       }
     }
   }
 
   Iterable<SearchSubscription> _subscriptionsForProfile(int profileId) {
+    final internalIds = _feedSourceIds();
     return _subscriptions().where(
-      (subscription) => subscription.profileId == profileId,
+      (subscription) =>
+          subscription.profileId == profileId &&
+          !internalIds.contains(subscription.id),
     );
   }
 

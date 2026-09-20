@@ -38,10 +38,16 @@ class PinnedSearchesBackupSource
               profile.id: profile,
           };
           final subscriptions = await repository.getAll();
+          final feeds = await repository.getFeeds();
+          final internalIds = {
+            for (final feed in feeds) ...feed.sourceIds,
+          };
           final organization = await repository.getOrganization();
           final exportedIds = subscriptions
               .where(
-                (pin) => profiles.containsKey(pin.profileId),
+                (pin) =>
+                    !internalIds.contains(pin.id) &&
+                    profiles.containsKey(pin.profileId),
               )
               .map((pin) => pin.id)
               .toSet();
@@ -49,6 +55,25 @@ class PinnedSearchesBackupSource
             homeSearchIds: organization.homeSearchIds
                 .where(exportedIds.contains)
                 .toList(),
+            feeds: [
+              for (final feed in feeds)
+                if (profiles[feed.profileId] case final profile?)
+                  PinnedSearchFeedBackupRecord(
+                    id: feed.id,
+                    name: feed.name,
+                    position: feed.position,
+                    queries: subscriptions
+                        .where((s) => feed.sourceIds.contains(s.id))
+                        .map((s) => s.query)
+                        .toList(),
+                    profile: PinnedSearchProfileReference(
+                      id: profile.id,
+                      booruType: profile.auth.booruType.name,
+                      url: normalizePinnedSearchProfileUrl(profile.url),
+                      name: profile.name,
+                    ),
+                  ),
+            ],
             folders: [
               for (final (position, folder) in organization.folders.indexed)
                 PinnedSearchFolderBackupRecord(
@@ -61,7 +86,9 @@ class PinnedSearchesBackupSource
                 ),
             ],
             records: [
-              for (final subscription in subscriptions)
+              for (final subscription in subscriptions.where(
+                (s) => !internalIds.contains(s.id),
+              ))
                 if (profiles[subscription.profileId] case final profile?)
                   PinnedSearchBackupRecord(
                     id: subscription.id,

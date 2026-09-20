@@ -176,7 +176,7 @@ One JSON Hive value, `search:organization`, stores ordered folders, each
 folder's ordered independent pin IDs, and ordered Home IDs. Subscription
 aggregates still own profile IDs, queries, and refresh state. Missing IDs are
 pruned on read; independent pins absent from organization append to Home in
-`(createdAt, id)` order.
+`(createdAt, id)` order. Hidden feed sources cannot join Home or folders.
 Old experimental profile-folder rows are ignored; no migration is required.
 Mutations are serialized. Folder deletion and profile compensation restore
 captured organization and pins after ordinary storage failures; cross-box
@@ -219,6 +219,59 @@ resolve tags. Never-checked searches precede the oldest successful checks;
 failed checks back off for five, ten, twenty, then thirty minutes. Checkpoints
 and cached results survive errors. No OS background worker is registered.
 
+Following Feeds is a separate navigation feature. A feed belongs to one profile
+and stores the IDs of the tracked searches that supply it. Search records have
+no feed ownership in the domain model. Hive field 12, the former `feedId`, is
+read only to migrate older feed records to `sourceIds`. An independent pin for
+the same query has its own record and NEW state. One internal search may serve
+more than one feed. Folder membership, pin lists, and pin badges exclude all
+internal searches by looking at feed membership.
+
+A user follows an existing tag, artist, or current search into one or more
+feeds, or creates a named feed from that starting point. There is no empty-feed
+creation or raw query editor. The all-profile feed list shows each owner's
+profile caption. Artist Follow/Following shows how many feeds contain the exact
+artist tag. Feed management lists its member searches for direct opening and
+manual refresh.
+
+Feeds use the same chronological scanner and foreground refresh scheduler as
+independent pins. A feed has NEW if any member search has NEW. Opening it marks
+only its members read; opening a member may also clear its feed's NEW. Adding a
+new member checks that source directly and does not create NEW before that
+search discovers new posts. Pinned Searches' Refresh All checks independent
+pins only.
+
+Each feed persists a chronological, deduplicated recent snapshot of at most 500
+posts. Successful source snapshots merge into it; failures preserve the cache
+and source status. Opening the feed renders this snapshot without a source
+scan. Approaching the end starts a session-only chronological merge of older
+pages from the member sources. Source pagination buffers and older post IDs are
+discarded when the feed view closes. History loading starts after actual
+scrolling; very short cached lists expose a Load older posts button. An empty
+recent snapshot waits for foreground source refreshes. Older browsing may
+require many network requests for a large feed, while opening its recent cache
+remains immediate. The feed grid uses infinite scrolling regardless of the
+global page mode. When new posts arrive during history browsing, the current
+session stays in place until the user chooses Show updated posts. Failed page
+loads keep their source cursor and offer Retry. Gelbooru OR batching and an OS
+background service are
+separate future work.
+
+Clicking a cached thumbnail loads the native engine post for details. Pixiv
+resolves its synthetic page IDs through artwork details and verifies the exact
+page ID before returning a native post. Removing a source clears the recent
+snapshot so posts exclusive to that source do not remain visible. Unchanged
+source checkpoints persist. All refresh entry points share a three-request
+concurrency gate; automatic work remains sequential.
+
+Backup version 3 stores feed names and source query definitions, excluding
+runtime cache and checkpoints. Restore creates internal source searches and
+maps owners through the existing profile identity rules. Profile removal also
+removes its feeds; failure compensation restores feeds, searches, and shared
+organization. These cross-box writes are compensated on ordinary failures but
+are not crash-atomic. Run `./gen.sh` after Hive adapter generation to restore
+the engine registry and i18n output.
+
 ## Shared-folder backup and restore
 
 Backup version 4 stores shared folder definitions and order, folder member
@@ -228,8 +281,8 @@ the existing identity rules before memberships are rebuilt. Pin-only backups
 append newly created pins to Home and preserve reused pins' destinations.
 Old experimental profile-folder backups require no folder migration.
 
-Unmatched pin profiles require confirmation before skipping records.
-Standalone restore obtains approval before writing pins or folders.
+Unmatched pin or feed profiles require confirmation before skipping records.
+Standalone restore obtains approval before writing pins, feeds, or folders.
 ZIP and server transfer prepare selected sources and run this preflight before
 any source imports, including profiles. Matching uses the selected backup's
 profiles when present, otherwise current profiles. Cancel or headless import

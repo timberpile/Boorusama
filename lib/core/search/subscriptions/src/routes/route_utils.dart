@@ -6,3 +6,6 @@ import '../../../../router.dart';
 
 Future<void> goToPinnedSearchesPage(WidgetRef ref) =>
     ref.router.push('/pinned-searches');
+
+Future<void> goToFollowingFeedsPage(WidgetRef ref) =>
+    ref.router.push('/following-feeds');

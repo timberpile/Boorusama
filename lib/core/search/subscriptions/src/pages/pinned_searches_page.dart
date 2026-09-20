@@ -94,7 +94,11 @@ class _PinnedSearchesPageState extends ConsumerState<PinnedSearchesPage> {
                           (activity?.batchCompleted ?? 0) <
                               (activity?.batchTotal ?? 0) ||
                           !(activity?.subscriptions.any(
-                                (s) => eligibleProfiles.contains(s.profileId),
+                                (s) =>
+                                    !activity.feeds.any(
+                                      (feed) => feed.sourceIds.contains(s.id),
+                                    ) &&
+                                    eligibleProfiles.contains(s.profileId),
                               ) ??
                               false)
                       ? null

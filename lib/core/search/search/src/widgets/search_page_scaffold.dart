@@ -27,6 +27,7 @@ import '../../../subscriptions/providers.dart';
 import '../../../subscriptions/types.dart';
 import '../../../subscriptions/widgets.dart';
 import '../../../subscriptions/src/widgets/pin_search_folder_picker.dart';
+import '../../../subscriptions/src/widgets/feed_follow_control.dart';
 import '../routes/params.dart';
 import '../types/search_bar_position.dart';
 import '../views/search_landing_view.dart';
@@ -170,6 +171,7 @@ class _SearchPageScaffoldState<T extends Post>
                           PostCountMethod.search,
                     ),
                     _PinSearchAction(query: value),
+                    FeedFollowButton(query: value),
                   ],
                 )
               : const SizedBox.shrink(),

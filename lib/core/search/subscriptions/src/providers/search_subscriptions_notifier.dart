@@ -10,12 +10,15 @@ import 'package:uuid/uuid.dart';
 // Project imports:
 import '../../../../boorus/engine/providers.dart';
 import '../../../../configs/manage/providers.dart';
+import '../../../../configs/config/types.dart';
 import '../../../../posts/post/providers.dart';
 import '../data/providers.dart';
 import '../refresh/chronological_search_scanner.dart';
 import '../refresh/search_refresh_query_adapter.dart';
 import '../services/search_refresh_service.dart';
+import '../services/search_refresh_request_gate.dart';
 import '../types/search_refresh.dart';
+import '../types/search_following_feed.dart';
 import '../types/search_organization.dart';
 import '../types/search_subscription.dart';
 import '../types/search_subscription_repository.dart';
@@ -33,6 +36,7 @@ class SearchSubscriptionsState extends Equatable {
     required this.batchCompleted,
     required this.batchTotal,
     this.batchProfileId,
+    this.feeds = const [],
     required this.organization,
   }) : subscriptions = List.unmodifiable(subscriptions),
        refreshingIds = Set.unmodifiable(refreshingIds);
@@ -42,6 +46,7 @@ class SearchSubscriptionsState extends Equatable {
   final int batchCompleted;
   final int batchTotal;
   final int? batchProfileId;
+  final List<SearchFollowingFeed> feeds;
   final SearchOrganization organization;
 
   @override
@@ -51,6 +56,7 @@ class SearchSubscriptionsState extends Equatable {
     batchCompleted,
     batchTotal,
     batchProfileId,
+    feeds,
     organization,
   ];
 }
@@ -62,12 +68,14 @@ class SearchSubscriptionsNotifier
 
   final SearchRefreshService? _refreshService;
   final Map<String, Future<SearchRefreshOutcome>> _inFlight = {};
+  final _requestGate = SearchRefreshRequestGate();
   Future<void> _mutationTail = Future.value();
   Future<void> _batchTail = Future.value();
   var _batchCompleted = 0;
   var _batchTotal = 0;
   int? _batchProfileId;
   var _disposed = false;
+  List<SearchFollowingFeed> _feeds = const [];
   var _organization = SearchOrganization(
     folders: const [],
     homeSearchIds: const [],
@@ -78,6 +86,7 @@ class SearchSubscriptionsNotifier
     _disposed = false;
     ref.onDispose(() => _disposed = true);
     final repository = await _repository;
+    _feeds = await repository.getFeeds();
     _organization = await repository.getOrganization();
     return _snapshot(await repository.getAll());
   }
@@ -98,6 +107,99 @@ class SearchSubscriptionsNotifier
             const UnsupportedSearchRefreshQueryAdapter(),
         scanner: ChronologicalSearchScanner(),
       );
+
+  Future<SearchFollowingFeed> saveFeed({
+    required int profileId,
+    required String name,
+    required List<String> queries,
+    String? id,
+  }) => runSerializedMutation((repository) {
+    _validateFeedQueries(profileId, queries);
+    return repository.saveFeed(
+      profileId: profileId,
+      name: name,
+      queries: queries,
+      id: id,
+    );
+  });
+
+  void _validateFeedQueries(int profileId, List<String> queries) {
+    final config = ref
+        .read(booruConfigProvider)
+        .where((c) => c.id == profileId)
+        .firstOrNull;
+    if (config == null) throw StateError('Missing feed profile');
+    final adapter = ref
+        .read(booruRepoProvider(config.auth))
+        ?.searchRefreshQueryAdapter(config.auth);
+    if (adapter == null ||
+        !adapter.isSupported ||
+        queries.any(
+          (q) =>
+              adapter.plan(q, after: null) is UnsupportedSearchRefreshQueryPlan,
+        )) {
+      throw const FormatException('Unsupported feed query');
+    }
+  }
+
+  Future<SearchFollowingFeed?> setFeedFollowing({
+    required String feedId,
+    required int profileId,
+    required String query,
+    required bool following,
+  }) => _mutate((repository) async {
+    final feed = (await repository.getFeeds())
+        .where((item) => item.id == feedId)
+        .firstOrNull;
+    if (feed == null || feed.profileId != profileId) {
+      throw StateError('Feed profile mismatch');
+    }
+    final byId = {
+      for (final search in await repository.getAll()) search.id: search,
+    };
+    final identity = normalizeSearchIdentity(query);
+    if (identity.isEmpty) throw const FormatException('Empty feed query');
+    final queries = [
+      for (final id in feed.sourceIds)
+        if (byId[id] case final search?) search.query,
+    ];
+    final updated = following
+        ? {
+            ...queries,
+            if (!queries.any(
+              (item) => normalizeSearchIdentity(item) == identity,
+            ))
+              query,
+          }.toList()
+        : queries
+              .where((item) => normalizeSearchIdentity(item) != identity)
+              .toList();
+    if (updated.length == queries.length) return feed;
+    if (updated.isEmpty) {
+      await repository.deleteFeed(feed.id);
+      return null;
+    }
+    if (following) _validateFeedQueries(profileId, [query]);
+    return repository.saveFeed(
+      profileId: profileId,
+      name: feed.name,
+      queries: updated,
+      id: feed.id,
+    );
+  });
+
+  Future<void> deleteFeed(String id) =>
+      runSerializedMutation((repository) => repository.deleteFeed(id));
+
+  Future<void> markFeedRead(String id) =>
+      runSerializedMutation((repository) async {
+        final feed = (await repository.getFeeds())
+            .where((feed) => feed.id == id)
+            .firstOrNull;
+        for (final sourceId in feed?.sourceIds ?? const <String>[]) {
+          await repository.markRead(sourceId);
+        }
+      });
 
   Future<SharedSearchFolder> createSharedFolder(String name) =>
       _mutate((repository) async {
@@ -348,14 +450,20 @@ class SearchSubscriptionsNotifier
   Future<void> delete(String id) =>
       _mutate((repository) => repository.delete(id));
 
-  Future<SearchRefreshOutcome> refresh(String id) {
-    return _inFlight[id] ??= _refresh(id).whenComplete(() {
+  Future<SearchRefreshOutcome> refresh(String id, {bool Function()? canStart}) {
+    return _inFlight[id] ??= _refresh(id, canStart).whenComplete(() {
       _inFlight.remove(id);
       _publishActivity();
     });
   }
 
-  Future<SearchRefreshOutcome> _refresh(String id) async {
+  Future<SearchRefreshOutcome> _refresh(String id, bool Function()? canStart) =>
+      _requestGate.run(() async {
+        if (!(canStart?.call() ?? true)) return const SearchRefreshDiscarded();
+        return _performRefresh(id);
+      });
+
+  Future<SearchRefreshOutcome> _performRefresh(String id) async {
     await future;
     if (_disposed) return const SearchRefreshDiscarded();
     _publishActivity();
@@ -391,9 +499,17 @@ class SearchSubscriptionsNotifier
 
   Future<List<SearchRefreshOutcome>> _refreshAll(int profileId) async {
     await future;
+    final repository = await _repository;
+    final feedSourceIds = {
+      for (final feed in await repository.getFeeds()) ...feed.sourceIds,
+    };
     final subscriptions =
-        (await (await _repository).getAll())
-            .where((item) => item.profileId == profileId)
+        (await repository.getAll())
+            .where(
+              (item) =>
+                  item.profileId == profileId &&
+                  !feedSourceIds.contains(item.id),
+            )
             .toList()
           ..sort(compareSearchRefreshPriority);
     _batchCompleted = 0;
@@ -433,7 +549,10 @@ class SearchSubscriptionsNotifier
     String id,
   ) async {
     final search = await repository.getById(id);
-    if (search == null) {
+    if (search == null ||
+        (await repository.getFeeds()).any(
+          (feed) => feed.sourceIds.contains(id),
+        )) {
       throw StateError('Independent pinned search not found');
     }
   }
@@ -479,6 +598,7 @@ class SearchSubscriptionsNotifier
 
   Future<void> _reload(SearchSubscriptionRepository repository) async {
     final subscriptions = await repository.getAll();
+    _feeds = await repository.getFeeds();
     _organization = await repository.getOrganization();
     if (!_disposed) state = AsyncData(_snapshot(subscriptions));
   }
@@ -493,6 +613,7 @@ class SearchSubscriptionsNotifier
   SearchSubscriptionsState _snapshot(List<SearchSubscription> subscriptions) =>
       SearchSubscriptionsState(
         subscriptions: subscriptions,
+        feeds: List.unmodifiable(_feeds),
         organization: _organization,
         refreshingIds: _inFlight.keys.toSet(),
         batchCompleted: _batchCompleted,

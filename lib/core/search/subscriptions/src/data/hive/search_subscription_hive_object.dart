@@ -19,8 +19,10 @@ class SearchSubscriptionHiveObject extends HiveObject {
     required this.lastErrorKind,
     required this.previews,
     required this.recentPostIdentities,
+    this.feedId,
   });
 
+  String? feedId;
   String id;
   int profileId;
   String query;

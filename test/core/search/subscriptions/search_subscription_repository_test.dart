@@ -1,5 +1,6 @@
 // Dart imports:
 import 'dart:io';
+import 'dart:convert';
 
 // Package imports:
 import 'package:flutter_test/flutter_test.dart';
@@ -12,7 +13,6 @@ import 'package:boorusama/core/search/subscriptions/src/data/hive/search_post_pr
 import 'package:boorusama/core/search/subscriptions/src/data/hive/search_subscription_hive_object.dart';
 import 'package:boorusama/core/search/subscriptions/src/data/hive/search_subscription_repository_hive.dart';
 import 'package:boorusama/core/search/subscriptions/types.dart';
-
 import 'subscription_test_utils.dart';
 
 class FailingOrganizationBox extends MemoryBox<dynamic> {
@@ -80,6 +80,144 @@ void main() {
           identityRetentionBoundary ?? DateTime.utc(2026, 9),
       baseline: baseline,
       discoveredPosts: discoveredPosts,
+    );
+  }
+
+  test(
+    'feed ownership and materialized results survive closing both Hive boxes',
+    () async {
+      final pin = await repository.create(
+        profileId: 12,
+        query: 'cat',
+        name: null,
+      );
+      final feed = await repository.saveFeed(
+        profileId: 12,
+        name: 'Animals',
+        queries: ['cat'],
+      );
+      final source = (await repository.getAll()).singleWhere(
+        (s) => feed.sourceIds.contains(s.id),
+      );
+      await repository.commitRefresh(
+        SearchRefreshCommit(
+          subscriptionId: source.id,
+          expectedCreatedAt: source.createdAt,
+          expectedCheckpoint: null,
+          startedAt: createdAt,
+          identityRetentionBoundary: createdAt,
+          baseline: true,
+          discoveredPosts: const [],
+          feedPosts: [CachedFeedPost.fromPost(TestSearchPost(7, createdAt))],
+        ),
+      );
+      await box.close();
+      await organizationBox.close();
+      box = await Hive.openBox<SearchSubscriptionHiveObject>(boxName);
+      organizationBox = await Hive.openBox<dynamic>('folder_test');
+      repository = HiveSearchSubscriptionRepository(
+        box: box,
+        organizationBox: organizationBox,
+      );
+      expect((await repository.getFeeds()).single.sourceIds, [source.id]);
+      expect((await repository.getFeeds()).single.posts.single.id, 7);
+      expect((await repository.findByQuery(12, 'cat'))!.id, pin.id);
+      await repository.deleteFeed(feed.id);
+      expect((await repository.getAll()).single.id, pin.id);
+    },
+  );
+
+  test(
+    'legacy feed membership migrates from search records to the feed',
+    () async {
+      final source = await repository.create(
+        profileId: 12,
+        query: 'cat',
+        name: null,
+      );
+      final legacy = box.get(source.id)!..feedId = 'legacy';
+      await box.put(source.id, legacy);
+      await organizationBox.put('feed:legacy', {
+        'id': 'legacy',
+        'profileId': 12,
+        'name': 'Cats',
+        'position': 0,
+      });
+
+      expect((await repository.getFeeds()).single.sourceIds, [source.id]);
+      expect(
+        (organizationBox.get('feed:legacy') as Map)['sourceIds'],
+        [source.id],
+      );
+      await repository.markRead(source.id);
+      expect((await repository.getFeeds()).single.sourceIds, [source.id]);
+    },
+  );
+
+  for (final sourceCount in [100, 1000]) {
+    test(
+      'a $sourceCount source feed opens from a bounded cache and merges incrementally',
+      () async {
+        final creation = Stopwatch()..start();
+        final feed = await repository.saveFeed(
+          profileId: 12,
+          name: 'Large feed',
+          queries: [for (var i = 0; i < sourceCount; i++) 'source_$i'],
+        );
+        creation.stop();
+        final sources = (await repository.getAll())
+            .where((s) => feed.sourceIds.contains(s.id))
+            .toList();
+        final updates = Stopwatch()..start();
+        for (var batch = 0; batch < 11; batch++) {
+          final source = sources[batch];
+          await repository.commitRefresh(
+            SearchRefreshCommit(
+              subscriptionId: source.id,
+              expectedCreatedAt: source.createdAt,
+              expectedCheckpoint: null,
+              startedAt: createdAt,
+              identityRetentionBoundary: createdAt,
+              baseline: true,
+              discoveredPosts: const [],
+              feedPosts: [
+                for (var i = 0; i < 50; i++)
+                  CachedFeedPost.fromPost(
+                    TestSearchPost(
+                      batch * 50 + i,
+                      createdAt.add(Duration(seconds: batch * 50 + i)),
+                    ),
+                  ),
+              ],
+            ),
+          );
+        }
+        updates.stop();
+        final opening = Stopwatch()..start();
+        final materialized = (await repository.getFeeds()).single;
+        opening.stop();
+        expect(materialized.posts.length, followingFeedRetention);
+        expect(materialized.posts.first.id, 549);
+        expect(materialized.posts.last.id, 50);
+        expect(
+          (await repository.getAll()).where((s) => s.hasBaseline).length,
+          11,
+        );
+        final bytes = utf8.encode(jsonEncode(materialized.toJson())).length;
+        stdout.writeln(
+          'FEED_BENCH sources=$sourceCount create_ms=${creation.elapsedMicroseconds / 1000} merge_11_ms=${updates.elapsedMicroseconds / 1000} cached_open_ms=${opening.elapsedMicroseconds / 1000} cache_bytes=$bytes',
+        );
+        await expectLater(
+          repository.saveFeed(
+            profileId: 12,
+            name: 'Too large',
+            queries: [
+              for (var i = 0; i <= followingFeedSourceLimit; i++) 'overflow_$i',
+            ],
+          ),
+          throwsFormatException,
+        );
+      },
     );
   }
 
@@ -171,6 +309,14 @@ void main() {
         id: 'bird',
         createdAt: DateTime.utc(2026, 9, 16),
       );
+      final feed = await repository.saveFeed(
+        profileId: 12,
+        name: 'Feed',
+        queries: ['fish'],
+      );
+      final source = (await repository.getAll()).singleWhere(
+        (search) => feed.sourceIds.contains(search.id),
+      );
       final folder = SharedSearchFolder(
         id: 'animals',
         name: 'Animals',
@@ -194,12 +340,29 @@ void main() {
         [cat.id, dog.id],
       );
       expect(
-        (await repository.getAll()).map((search) => search.profileId),
+        (await repository.getAll())
+            .where((search) => !feed.sourceIds.contains(search.id))
+            .map((search) => search.profileId),
         [12, 12, 99],
       );
       expect((await repository.getOrganization()).homeSearchIds, [bird.id]);
 
       final stored = await repository.getOrganization();
+      await expectLater(
+        repository.replaceOrganization(
+          SearchOrganization(
+            folders: [
+              SharedSearchFolder(
+                id: folder.id,
+                name: folder.name,
+                searchIds: [source.id],
+              ),
+            ],
+            homeSearchIds: const [],
+          ),
+        ),
+        throwsStateError,
+      );
       await expectLater(
         repository.replaceOrganization(
           SearchOrganization(

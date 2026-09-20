@@ -8,6 +8,126 @@ import 'package:flutter_test/flutter_test.dart';
 import '../search/subscriptions/subscription_test_utils.dart';
 
 void main() {
+  test(
+    'feed backups restore owned hidden queries separately and repeated imports preserve them',
+    () async {
+      final repository = memorySubscriptionRepository();
+      final record = _record(0);
+      final data = PinnedSearchBackupData(
+        records: [record],
+        feeds: [
+          PinnedSearchFeedBackupRecord(
+            id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+            name: 'Animals',
+            position: 0,
+            queries: [record.query, 'dog'],
+            profile: record.profile,
+          ),
+        ],
+      );
+      final service = PinnedSearchImportService(repository: repository);
+      await service.apply(data, profiles: [_profile(9)]);
+      await service.apply(data, profiles: [_profile(9)]);
+      final feed = (await repository.getFeeds()).single;
+      expect(feed.profileId, 9);
+      expect(feed.posts, isEmpty);
+      final subscriptions = await repository.getAll();
+      expect(
+        subscriptions.where((s) => feed.sourceIds.contains(s.id)).length,
+        2,
+      );
+      expect(
+        subscriptions.where((s) => !feed.sourceIds.contains(s.id)).length,
+        1,
+      );
+      expect(subscriptions.every((s) => s.lastSuccessfulCheckAt == null), true);
+      await repository.deleteFeed(feed.id);
+      expect(
+        feed.sourceIds,
+        isNot(contains((await repository.getAll()).single.id)),
+      );
+    },
+  );
+
+  test(
+    'same-named feeds keep distinct definitions after repeated import',
+    () async {
+      final repository = memorySubscriptionRepository();
+      final profile = _record(0).profile;
+      final data = PinnedSearchBackupData(
+        records: const [],
+        feeds: [
+          PinnedSearchFeedBackupRecord(
+            id: _id(10),
+            name: 'Animals',
+            position: 0,
+            queries: const ['cat'],
+            profile: profile,
+          ),
+          PinnedSearchFeedBackupRecord(
+            id: _id(11),
+            name: 'animals',
+            position: 1,
+            queries: const ['dog'],
+            profile: profile,
+          ),
+        ],
+      );
+      final service = PinnedSearchImportService(repository: repository);
+
+      await service.apply(data, profiles: [_profile(9)]);
+      await service.apply(data, profiles: [_profile(9)]);
+
+      final feeds = await repository.getFeeds();
+      final searches = {
+        for (final search in await repository.getAll()) search.id: search,
+      };
+      expect(feeds.map((feed) => feed.id), [_id(10), _id(11)]);
+      expect(feeds.map((feed) => feed.name), ['Animals', 'animals']);
+      expect(
+        feeds.map((feed) => searches[feed.sourceIds.single]!.query),
+        ['cat', 'dog'],
+      );
+    },
+  );
+
+  test('a feed ID collision with another profile keeps both feeds', () async {
+    final repository = memorySubscriptionRepository();
+    await repository.saveFeed(
+      profileId: 4,
+      name: 'Local',
+      queries: ['bird'],
+      id: _id(12),
+    );
+    final data = PinnedSearchBackupData(
+      records: const [],
+      feeds: [
+        PinnedSearchFeedBackupRecord(
+          id: _id(12),
+          name: 'Animals',
+          position: 0,
+          queries: const ['cat'],
+          profile: _record(0).profile,
+        ),
+      ],
+    );
+    final service = PinnedSearchImportService(repository: repository);
+
+    await service.apply(data, profiles: [_profile(9)]);
+    await service.apply(data, profiles: [_profile(9)]);
+
+    final feeds = await repository.getFeeds();
+    final searches = {
+      for (final search in await repository.getAll()) search.id: search,
+    };
+    expect(feeds.length, 2);
+    expect(feeds.first.id, _id(12));
+    expect(feeds.first.profileId, 4);
+    expect(feeds.last.profileId, 9);
+    expect(searches[feeds.first.sourceIds.single]!.query, 'bird');
+    expect(searches[feeds.last.sourceIds.single]!.query, 'cat');
+  });
+
   test('folder imports remap profiles and remain idempotent', () async {
     final repository = memorySubscriptionRepository();
     final record = _record(0);
@@ -38,13 +158,22 @@ void main() {
   });
 
   test(
-    'previews unmatched pins and rejects before any writes',
+    'previews unmatched pins and feeds and rejects before any writes',
     () async {
       final repository = memorySubscriptionRepository();
       final service = PinnedSearchImportService(repository: repository);
       final missing = _record(1, profileId: 99);
       final data = PinnedSearchBackupData(
         records: [_record(0), missing],
+        feeds: [
+          PinnedSearchFeedBackupRecord(
+            id: _id(8),
+            name: 'Feed',
+            position: 0,
+            queries: const ['cat'],
+            profile: missing.profile,
+          ),
+        ],
         folders: const [
           PinnedSearchFolderBackupRecord(
             id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
@@ -57,6 +186,7 @@ void main() {
       final profiles = [_profile(4), _profile(5)];
       expect(service.preview(data, profiles: profiles).unmatchedRecordIds, {
         _id(1),
+        _id(8),
       });
       expect(await repository.getAll(), isEmpty);
       await expectLater(
@@ -65,12 +195,13 @@ void main() {
       );
       expect(await repository.getAll(), isEmpty);
       expect((await repository.getOrganization()).folders, isEmpty);
+      expect(await repository.getFeeds(), isEmpty);
       final result = await service.apply(
         data,
         profiles: profiles,
         allowMissingProfiles: true,
       );
-      expect(result.skippedProfileCount, 1);
+      expect(result.skippedProfileCount, 2);
       expect(
         (await repository.getOrganization()).folders.single.searchIds,
         isEmpty,
@@ -426,53 +557,67 @@ void main() {
     },
   );
 
-  test(
-    'imports a fresh pin when its ID collides with another profile',
-    () async {
-      final repository = memorySubscriptionRepository();
-      final collisionId = (await repository.create(
-        profileId: 9,
-        query: 'original',
-        name: null,
-        id: _id(0),
-      )).id;
-      final original = await repository.getById(collisionId);
-      final record = PinnedSearchBackupRecord(
-        id: collisionId,
-        name: null,
-        query: 'cat',
-        position: 0,
-        profile: _record(0).profile,
-      );
-      final data = PinnedSearchBackupData(
-        records: [record],
-        folders: [
-          PinnedSearchFolderBackupRecord(
-            id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-            name: 'Animals',
-            position: 0,
-            searchIds: [collisionId],
-          ),
-        ],
-      );
-      final service = PinnedSearchImportService(repository: repository);
-      final result = await service.apply(data, profiles: [_profile(4)]);
-      expect(result.importedCount, 1);
-      expect(await repository.getById(collisionId), original);
-      final pin = (await repository.findByQuery(4, 'cat'))!;
-      expect(pin.id, isNot(collisionId));
-      expect((await repository.getOrganization()).folders.single.searchIds, [
-        pin.id,
-      ]);
-      expect(
-        (await service.apply(
-          data,
-          profiles: [_profile(4)],
-        )).alreadyExistedCount,
-        1,
-      );
-    },
-  );
+  for (final feedOwned in [false, true]) {
+    test(
+      'imports a fresh pin when its ID collides with ${feedOwned ? "a feed source" : "another profile"}',
+      () async {
+        final repository = memorySubscriptionRepository();
+        final String collisionId;
+        if (feedOwned) {
+          final feed = await repository.saveFeed(
+            profileId: 4,
+            name: 'Feed',
+            queries: ['original'],
+          );
+          collisionId = (await repository.getAll())
+              .firstWhere((pin) => feed.sourceIds.contains(pin.id))
+              .id;
+        } else {
+          collisionId = (await repository.create(
+            profileId: 9,
+            query: 'original',
+            name: null,
+            id: _id(0),
+          )).id;
+        }
+        final original = await repository.getById(collisionId);
+        final record = PinnedSearchBackupRecord(
+          id: collisionId,
+          name: null,
+          query: 'cat',
+          position: 0,
+          profile: _record(0).profile,
+        );
+        final data = PinnedSearchBackupData(
+          records: [record],
+          folders: [
+            PinnedSearchFolderBackupRecord(
+              id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+              name: 'Animals',
+              position: 0,
+              searchIds: [collisionId],
+            ),
+          ],
+        );
+        final service = PinnedSearchImportService(repository: repository);
+        final result = await service.apply(data, profiles: [_profile(4)]);
+        expect(result.importedCount, 1);
+        expect(await repository.getById(collisionId), original);
+        final pin = (await repository.findByQuery(4, 'cat'))!;
+        expect(pin.id, isNot(collisionId));
+        expect((await repository.getOrganization()).folders.single.searchIds, [
+          pin.id,
+        ]);
+        expect(
+          (await service.apply(
+            data,
+            profiles: [_profile(4)],
+          )).alreadyExistedCount,
+          1,
+        );
+      },
+    );
+  }
 
   test(
     'restores definitions with an empty baseline and no runtime history',

@@ -5,15 +5,17 @@ class PinnedSearchBackupData extends Equatable {
   const PinnedSearchBackupData({
     required this.records,
     this.folders = const [],
+    this.feeds = const [],
     this.homeSearchIds = const [],
   });
 
   final List<String> homeSearchIds;
   final List<PinnedSearchBackupRecord> records;
   final List<PinnedSearchFolderBackupRecord> folders;
+  final List<PinnedSearchFeedBackupRecord> feeds;
 
   @override
-  List<Object?> get props => [records, folders, homeSearchIds];
+  List<Object?> get props => [records, folders, feeds, homeSearchIds];
 }
 
 class PinnedSearchBackupRecord extends Equatable {
@@ -75,4 +77,21 @@ class PinnedSearchFolderBackupRecord extends Equatable {
   final List<String> searchIds;
   @override
   List<Object?> get props => [id, name, position, searchIds];
+}
+
+class PinnedSearchFeedBackupRecord extends Equatable {
+  const PinnedSearchFeedBackupRecord({
+    required this.id,
+    required this.name,
+    required this.position,
+    required this.queries,
+    required this.profile,
+  });
+  final String id;
+  final String name;
+  final int position;
+  final List<String> queries;
+  final PinnedSearchProfileReference profile;
+  @override
+  List<Object?> get props => [id, name, position, queries, profile];
 }

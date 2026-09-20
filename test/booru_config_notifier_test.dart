@@ -145,6 +145,14 @@ class RecordingSearchSubscriptionRepository
   Future<List<SearchSubscription>> getAll() async => _subscriptions.toList();
 
   @override
+  Future<List<SearchFollowingFeed>> getFeeds() async => [];
+  @override
+  Future<void> restoreFeeds(
+    int profileId,
+    List<SearchFollowingFeed> feeds,
+  ) async {}
+
+  @override
   Future<SearchOrganization> getOrganization() async => organization;
 
   @override

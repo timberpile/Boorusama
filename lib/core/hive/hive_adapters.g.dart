@@ -238,13 +238,14 @@ class SearchSubscriptionHiveObjectAdapter
       previews: (fields[10] as List).cast<SearchPostPreviewHiveObject>(),
       recentPostIdentities: (fields[11] as List)
           .cast<RecentSearchPostHiveObject>(),
+      feedId: fields[12] as String?,
     );
   }
 
   @override
   void write(BinaryWriter writer, SearchSubscriptionHiveObject obj) {
     writer
-      ..writeByte(12)
+      ..writeByte(13)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -268,7 +269,9 @@ class SearchSubscriptionHiveObjectAdapter
       ..writeByte(10)
       ..write(obj.previews)
       ..writeByte(11)
-      ..write(obj.recentPostIdentities);
+      ..write(obj.recentPostIdentities)
+      ..writeByte(12)
+      ..write(obj.feedId);
   }
 
   @override

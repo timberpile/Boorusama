@@ -11,6 +11,7 @@ class PinnedSearchBackupCodec extends JsonHandler<PinnedSearchBackupData> {
   PinnedSearchBackupData parse(ExportDataPayload metadata) {
     final records = <PinnedSearchBackupRecord>[];
     final folders = <PinnedSearchFolderBackupRecord>[];
+    final feeds = <PinnedSearchFeedBackupRecord>[];
     final ids = <String>{};
     List<String>? homeSearchIds;
     for (final (index, value) in metadata.data.indexed) {
@@ -30,6 +31,33 @@ class PinnedSearchBackupCodec extends JsonHandler<PinnedSearchBackupData> {
       };
       if (!ids.add(id)) {
         throw InvalidBackupFormatException('$row.id is repeated');
+      }
+      if (json['kind'] == 'feed') {
+        final queries = switch (json['queries']) {
+          final List values when values.isNotEmpty && values.length <= 1000 => [
+            for (final value in values) _nonBlankString(value, '$row.queries'),
+          ],
+          _ => throw InvalidBackupFormatException('$row.queries is invalid'),
+        };
+        final profile = _object(json['profile'], '$row.profile');
+        feeds.add(
+          PinnedSearchFeedBackupRecord(
+            id: id,
+            name: _nonBlankString(json['name'], '$row.name').trim(),
+            position: _nonNegativeInt(json['position'], '$row.position'),
+            queries: List.unmodifiable(queries),
+            profile: PinnedSearchProfileReference(
+              id: _nonNegativeInt(profile['id'], '$row.profile.id'),
+              booruType: _nonBlankString(
+                profile['booruType'],
+                '$row.profile.booruType',
+              ),
+              url: _profileUrl(profile['url'], '$row.profile.url'),
+              name: _nonBlankString(profile['name'], '$row.profile.name'),
+            ),
+          ),
+        );
+        continue;
       }
       if (json['kind'] == 'folder') {
         final members = _searchIds(json['searchIds'], '$row.searchIds');
@@ -91,12 +119,27 @@ class PinnedSearchBackupCodec extends JsonHandler<PinnedSearchBackupData> {
     return PinnedSearchBackupData(
       records: List.unmodifiable(records),
       folders: List.unmodifiable(folders),
+      feeds: List.unmodifiable(feeds),
       homeSearchIds: List.unmodifiable(homeSearchIds ?? const <String>[]),
     );
   }
 
   @override
   List<dynamic> encode(PinnedSearchBackupData data) => [
+    for (final feed in data.feeds)
+      {
+        'kind': 'feed',
+        'id': feed.id,
+        'name': feed.name,
+        'position': feed.position,
+        'queries': feed.queries,
+        'profile': {
+          'id': feed.profile.id,
+          'booruType': feed.profile.booruType,
+          'url': normalizePinnedSearchProfileUrl(feed.profile.url),
+          'name': feed.profile.name,
+        },
+      },
     for (final folder in data.folders)
       {
         'kind': 'folder',

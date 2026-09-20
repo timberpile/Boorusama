@@ -3,6 +3,7 @@ import 'package:equatable/equatable.dart';
 
 // Project imports:
 import 'search_post_preview.dart';
+import 'search_following_feed.dart';
 import 'search_subscription.dart';
 
 enum SearchRefreshErrorKind {
@@ -24,8 +25,10 @@ class SearchRefreshCommit extends Equatable {
     required this.identityRetentionBoundary,
     required this.baseline,
     required List<SearchPostPreview> discoveredPosts,
+    this.feedPosts = const [],
   }) : discoveredPosts = List.unmodifiable(discoveredPosts.take(50));
 
+  final List<CachedFeedPost> feedPosts;
   final String subscriptionId;
   final DateTime expectedCreatedAt;
   final DateTime? expectedCheckpoint;
@@ -43,6 +46,7 @@ class SearchRefreshCommit extends Equatable {
     identityRetentionBoundary,
     baseline,
     discoveredPosts,
+    feedPosts,
   ];
 }
 

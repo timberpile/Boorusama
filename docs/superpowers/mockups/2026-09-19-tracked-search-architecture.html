@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark">
+    <title>TrackedSearch · Architekturkarte</title>
+    <style>
+      :root {
+        font-family: Inter, Roboto, "Segoe UI", Arial, sans-serif;
+        color: #f3f5fb;
+        background: #101219;
+        font-synthesis: none;
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; }
+      button { font: inherit; cursor: pointer; }
+      button:focus-visible { outline: 2px solid #aab8ff; outline-offset: 3px; }
+      .shell { max-width: 1320px; margin: auto; padding: 34px clamp(18px, 4vw, 56px) 76px; }
+      .eyebrow { color: #a7b6ff; font-size: 11px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
+      header { display: flex; justify-content: space-between; align-items: start; gap: 24px; }
+      h1 { margin: 10px 0 12px; max-width: 780px; font-size: clamp(31px, 4vw, 51px); line-height: 1.06; letter-spacing: -.047em; }
+      .lede { max-width: 830px; margin: 0; color: #aeb8ca; font-size: 15px; line-height: 1.6; }
+      .draft { flex: none; border: 1px solid #675c95; background: #29223d; color: #d5ccff; border-radius: 999px; padding: 9px 13px; font-size: 12px; font-weight: 750; }
+      .panel { margin-top: 22px; border: 1px solid #343b4b; border-radius: 18px; background: #191e29; box-shadow: 0 18px 52px #0002; }
+      .panel-inner { padding: clamp(18px, 2.5vw, 27px); }
+      .panel-heading { display: flex; justify-content: space-between; gap: 18px; align-items: baseline; }
+      h2 { margin: 0; font-size: 20px; letter-spacing: -.025em; }
+      h3 { margin: 0 0 7px; font-size: 14px; }
+      .subtle { margin: 7px 0 0; color: #9faabe; font-size: 13px; line-height: 1.55; }
+      .legend { display: flex; flex-wrap: wrap; gap: 8px; }
+      .legend span, .pill { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; border: 1px solid #495267; background: #242b3b; color: #c4cede; padding: 5px 9px; font-size: 11px; font-weight: 750; white-space: nowrap; }
+      .legend .persistent, .pill.persistent { border-color: #846b50; color: #f5d9a9; background: #352b23; }
+      .legend .memory, .pill.memory { border-color: #527899; color: #bde6ff; background: #1d3142; }
+      .legend .runtime, .pill.runtime { border-color: #67765b; color: #d6efbb; background: #273327; }
+      .diagram { margin-top: 24px; }
+      .lane-label { display: flex; align-items: center; gap: 11px; color: #aab6c8; font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+      .lane-label::after { content: ""; height: 1px; flex: 1; background: #3c4657; }
+      .consumer-grid, .cache-grid, .runtime-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 13px; margin-top: 13px; }
+      .node { min-width: 0; border: 1px solid #495366; border-radius: 14px; background: #232b3a; padding: 16px 17px; }
+      .node.pin { border-color: #547994; background: #1d3140; }
+      .node.feed { border-color: #746294; background: #2d2740; }
+      .node.search { border-color: #5e927e; background: #1e3633; }
+      .node.index { border-color: #846b50; background: #342c26; }
+      .node.memory { border-color: #527b99; background: #1b3445; }
+      .node.service { border-color: #697e63; background: #28362b; }
+      .node .type { display: block; margin-bottom: 7px; color: #a9b7ff; font-size: 10px; font-weight: 850; letter-spacing: .11em; text-transform: uppercase; }
+      .node.pin .type, .node.memory .type { color: #a9ddff; }
+      .node.feed .type { color: #d1bdff; }
+      .node.search .type, .node.service .type { color: #bbebd2; }
+      .node.index .type { color: #f1d6a9; }
+      .node strong { display: block; font-size: 17px; letter-spacing: -.025em; }
+      .node p { margin: 8px 0 0; color: #c0c9d5; font-size: 12px; line-height: 1.5; }
+      .node code, .code { color: #e0e5ff; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: .94em; overflow-wrap: anywhere; }
+      .node .pill { margin-top: 12px; }
+      .join { display: grid; grid-template-columns: repeat(3, 1fr); max-width: 950px; margin: 9px auto 3px; text-align: center; color: #a8b6ff; font-size: 24px; font-weight: 700; }
+      .join span { display: block; }
+      .join small { display: block; color: #9ca8bd; font-size: 11px; font-weight: 650; }
+      .search-wrap { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 13px; }
+      .search-wrap .node { width: 100%; }
+      .relationship-note { margin: 13px auto 25px; max-width: 760px; text-align: center; color: #aab5c6; font-size: 12px; line-height: 1.5; }
+      .relationship-note strong { color: #e5eaff; }
+      .feed-data-label { margin-top: 24px; }
+      .cache-grid .node:first-child { grid-column: 1 / 3; }
+      .cache-grid .node:last-child { grid-column: 3; }
+      .arrow-row { display: flex; align-items: center; justify-content: center; gap: 14px; margin: 14px 0; color: #aebbd0; font-size: 12px; font-weight: 700; }
+      .arrow-row b { color: #adc0ff; font-size: 18px; }
+      .runtime-grid { align-items: stretch; }
+      .runtime-grid .node { position: relative; }
+      .runtime-grid .node + .node::before { content: "→"; position: absolute; left: -20px; top: 43%; z-index: 1; color: #b5c8ab; font-size: 20px; font-weight: 800; }
+      .runtime-grid .node p { min-height: 38px; }
+      .footline { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 15px; }
+      .footline span { color: #b8c3d0; border: 1px solid #3b4657; border-radius: 9px; padding: 8px 10px; background: #202634; font-size: 12px; }
+      .flow-tabs { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 18px; }
+      .flow-tabs button { border: 1px solid #44516a; background: #232c3d; color: #dce5f3; border-radius: 10px; padding: 9px 13px; font-size: 13px; font-weight: 750; }
+      .flow-tabs button:hover { border-color: #8299e8; }
+      .flow-tabs button[aria-selected="true"] { background: #334475; border-color: #a4b6ff; color: white; }
+      .flow-panel { display: none; margin-top: 18px; }
+      body[data-flow="refresh"] .flow-panel[data-for="refresh"],
+      body[data-flow="scroll"] .flow-panel[data-for="scroll"],
+      body[data-flow="read"] .flow-panel[data-for="read"] { display: block; }
+      .steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+      .step { position: relative; border: 1px solid #47516a; border-radius: 12px; background: #222a39; padding: 14px; min-height: 135px; }
+      .step + .step::before { content: "→"; position: absolute; left: -17px; top: 51px; color: #abbaff; font-size: 18px; font-weight: 800; }
+      .step .number { color: #a8b8ff; font-size: 11px; font-weight: 850; }
+      .step strong { display: block; margin: 7px 0 6px; font-size: 14px; }
+      .step p { margin: 0; color: #b5bfd0; font-size: 12px; line-height: 1.45; }
+      .callout { margin-top: 16px; border-left: 3px solid #8b9cec; border-radius: 0 10px 10px 0; background: #222a42; padding: 12px 14px; color: #c6d0e4; font-size: 13px; line-height: 1.5; }
+      .callout strong { color: #ecf0ff; }
+      .spec-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 17px; }
+      .spec { border: 1px solid #3e485a; border-radius: 12px; background: #202633; padding: 15px; }
+      .spec h3 { margin-bottom: 7px; }
+      .spec p { margin: 0; color: #adb9cb; font-size: 12px; line-height: 1.5; }
+      .spec strong { color: #e5eafb; }
+      @media (max-width: 820px) {
+        .consumer-grid, .runtime-grid { grid-template-columns: 1fr; }
+        .join { display: block; margin: 10px 0; }
+        .join span:first-child, .join span:last-child { display: none; }
+        .cache-grid, .search-wrap { grid-template-columns: 1fr; }
+        .cache-grid .node:first-child, .cache-grid .node:last-child { grid-column: auto; }
+        .runtime-grid .node + .node::before { content: "↓"; left: 50%; top: -19px; }
+        .steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .step + .step::before { display: none; }
+      }
+      @media (max-width: 580px) {
+        header, .panel-heading { display: block; }
+        .draft { display: inline-block; margin-top: 16px; }
+        .legend { margin-top: 15px; }
+        .steps, .spec-grid { grid-template-columns: 1fr; }
+        .step { min-height: auto; }
+      }
+    </style>
+  </head>
+  <body data-flow="refresh">
+    <main class="shell">
+      <header>
+        <div>
+          <div class="eyebrow">Following Feeds · Architektur-Skizze</div>
+          <h1>Gleiche Query, getrennte Zustände</h1>
+          <p class="lede">Ein sichtbarer Pin hat seine eigene <span class="code">TrackedSearch</span>, auch wenn ein Feed denselben Tag enthält. Mehrere Feeds können eine interne Suche gemeinsam verwenden. Jeder Feed besitzt seine kombinierte Post-Liste und seine Seitenpuffer.</p>
+        </div>
+        <span class="draft">Diskussionsentwurf · keine Implementierung</span>
+      </header>
+
+      <section class="panel panel-inner" aria-labelledby="model-title">
+        <div class="panel-heading">
+          <div>
+            <h2 id="model-title">Klassen und Beziehungen</h2>
+            <p class="subtle">Beispiel: Pin und Feeds folgen demselben Tag. Der Pin nutzt <span class="code">#SP4</span>; zwei Feeds nutzen intern <span class="code">#S17</span>.</p>
+          </div>
+          <div class="legend" aria-label="Speicherart">
+            <span class="persistent">● dauerhaft</span>
+            <span class="memory">● Arbeitsspeicher</span>
+            <span class="runtime">● Laufzeit-Service</span>
+          </div>
+        </div>
+
+        <div class="diagram">
+          <div class="lane-label">Gespeicherte Ansichten</div>
+          <div class="consumer-grid">
+            <div class="node pin">
+              <span class="type">PinnedSearch #P4</span>
+              <strong>Künstler A</strong>
+              <p><code>trackedSearchId: #SP4</code><br>Name, Ordner, Position. Eigener NEW-Zustand.</p>
+              <span class="pill persistent">dauerhaft · sichtbarer Pin</span>
+            </div>
+            <div class="node feed">
+              <span class="type">Feed #F1</span>
+              <strong>Lieblingskünstler</strong>
+              <p><code>trackedSearchIds: [#S17, #S42, …]</code><br>Name, Profil, Mitgliedschaften.</p>
+              <span class="pill persistent">dauerhaft · eigener Feed</span>
+            </div>
+            <div class="node feed">
+              <span class="type">Feed #F2</span>
+              <strong>Inspiration</strong>
+              <p><code>trackedSearchIds: [#S17, #S81, …]</code><br>Gleiche Suche, andere Kombination.</p>
+              <span class="pill persistent">dauerhaft · eigener Feed</span>
+            </div>
+          </div>
+
+          <div class="join" aria-hidden="true">
+            <span>↓<small>eigene Suche #SP4</small></span>
+            <span>↘<small>interne Suche #S17</small></span>
+            <span>↙<small>interne Suche #S17</small></span>
+          </div>
+          <div class="search-wrap">
+            <div class="node search">
+              <span class="type">TrackedSearch #SP4 · sichtbarer Pin</span>
+              <strong><code>artist_a</code></strong>
+              <p>Eigener Checkpoint und <code>NEW</code>-Status. Öffnen des Feeds ändert diesen Pin nicht.</p>
+              <span class="pill persistent">dauerhaft · unabhängig vom Feed</span>
+            </div>
+            <div class="node search">
+              <span class="type">TrackedSearch #S17 · intern in Feeds</span>
+              <strong><code>artist_a</code></strong>
+              <p><code>profileId</code>, Query, Checkpoint, <code>NEW</code>, wenige bekannte Post-IDs und letzter Fehler. Kennt die Feeds nicht.</p>
+              <span class="pill persistent">dauerhaft · leichter Suchzustand</span>
+            </div>
+          </div>
+          <p class="relationship-note"><strong>Pin und Feed prüfen ihre Suchen unabhängig.</strong> Die beiden Feeds können #S17 gemeinsam nutzen; dessen Ergebnisse ergänzen beide Feed-Indizes.</p>
+
+          <div class="lane-label feed-data-label">Daten für die Feed-Darstellung · je Feed getrennt</div>
+          <div class="cache-grid">
+            <div class="node index">
+              <span class="type">FeedRecentIndex · je Feed</span>
+              <strong>Schnell sichtbares Fenster</strong>
+              <p>Sortierte Post-Referenzen mit Zeit und den nötigen Vorschaudaten. Feed öffnen liest diesen Index sofort. Die genaue Aufbewahrungsgröße ist noch offen.</p>
+              <span class="pill persistent">dauerhaft · auch nach Neustart</span>
+            </div>
+            <div class="node memory">
+              <span class="type">FeedSessionCache · geöffneter Feed</span>
+              <strong>Ältere Seiten &amp; Cursor</strong>
+              <p>Nach Bedarf geladene Seiten je Suche, Merge-Puffer und Scroll-Position. Nach App-Neustart werden ältere Seiten bei Bedarf erneut geladen.</p>
+              <span class="pill memory">nur Arbeitsspeicher</span>
+            </div>
+          </div>
+
+          <div class="lane-label feed-data-label">Gemeinsamer Abrufweg</div>
+          <div class="runtime-grid">
+            <div class="node service">
+              <span class="type">RefreshCoordinator</span>
+              <strong>Schrittweise Planung</strong>
+              <p>Wählt fällige Suchen aus. Bei 1.000 Quellen startet er nur einen begrenzten Teil pro Runde.</p>
+              <span class="pill runtime">Laufzeit-Service</span>
+            </div>
+            <div class="node service">
+              <span class="type">TrackedSearchRefresher</span>
+              <strong>Prüft neueste Posts</strong>
+              <p>Verwendet Query-Adapter und Scanner; aktualisiert Checkpoint und NEW, liefert gefundene Posts an Feed-Indizes.</p>
+              <span class="pill runtime">Laufzeit-Service</span>
+            </div>
+            <div class="node service">
+              <span class="type">Booru PostRepository</span>
+              <strong>Lädt Suchseiten</strong>
+              <p>Bestehende Engine-Anbindung für normale Suchen und das Nachladen älterer Seiten.</p>
+              <span class="pill runtime">bestehende Abstraktion</span>
+            </div>
+          </div>
+          <div class="footline">
+            <span><strong>Pin:</strong> eigener NEW-Status, optional wenige Vorschaubilder</span>
+            <span><strong>TrackedSearch:</strong> Status statt vollständiger Post-Liste</span>
+            <span><strong>Feed:</strong> eigener Index, ältere Seiten im Arbeitsspeicher</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel panel-inner" aria-labelledby="flow-title">
+        <h2 id="flow-title">Was passiert konkret?</h2>
+        <p class="subtle">Die drei Abläufe verwenden dieselben Klassen. Wähle einen Ablauf, um die Zuständigkeiten zu sehen.</p>
+        <div class="flow-tabs" role="tablist" aria-label="Ablauf wählen">
+          <button type="button" role="tab" data-flow-button="refresh" aria-selected="true" aria-controls="flow-refresh">Automatisch prüfen</button>
+          <button type="button" role="tab" data-flow-button="scroll" aria-selected="false" aria-controls="flow-scroll">Feed durchscrollen</button>
+          <button type="button" role="tab" data-flow-button="read" aria-selected="false" aria-controls="flow-read">Feed öffnen &amp; NEW</button>
+        </div>
+
+        <div id="flow-refresh" class="flow-panel" data-for="refresh" role="tabpanel">
+          <div class="steps">
+            <div class="step"><span class="number">01 · Scheduler</span><strong>#S17 ist fällig</strong><p>Ein Check versorgt beide Feeds. Der sichtbare Pin #SP4 wird unabhängig geprüft.</p></div>
+            <div class="step"><span class="number">02 · Engine</span><strong>Neueste Seite laden</strong><p>Der gemeinsame Fetcher nutzt das Profil und dessen Booru-Adapter.</p></div>
+            <div class="step"><span class="number">03 · Suchzustand</span><strong>Checkpoint &amp; NEW</strong><p>Die TrackedSearch speichert das Ergebnis der Prüfung und wenige Identitäten.</p></div>
+            <div class="step"><span class="number">04 · Feed-Indizes</span><strong>Neue Posts einordnen</strong><p>#F1 und #F2 ergänzen ihre eigenen, deduplizierten Ansichten.</p></div>
+          </div>
+          <div class="callout"><strong>Eventual consistency:</strong> Der Scheduler prüft Quellen nacheinander. Ein Feed wartet beim Öffnen nicht darauf, dass alle Quellen fertig sind.</div>
+        </div>
+
+        <div id="flow-scroll" class="flow-panel" data-for="scroll" role="tabpanel" hidden>
+          <div class="steps">
+            <div class="step"><span class="number">01 · Sofort</span><strong>Gespeicherter Index</strong><p>Der Feed zeigt die bekannten aktuellen Posts, ohne 1.000 Suchen gleichzeitig zu starten.</p></div>
+            <div class="step"><span class="number">02 · Nähe zum Ende</span><strong>Nachladen anstoßen</strong><p>Ungefähr 100 Posts vor dem Ende werden die nächsten benötigten Suchseiten angefordert.</p></div>
+            <div class="step"><span class="number">03 · Im Speicher</span><strong>Seiten kombinieren</strong><p>Die Seitenpuffer halten Cursor je Suche; Posts werden sortiert und dedupliziert.</p></div>
+            <div class="step"><span class="number">04 · Neustart</span><strong>Älteres erneut holen</strong><p>Das aktuelle Fenster bleibt gespeichert. Tief geladene Seiten und Cursor beginnen neu.</p></div>
+          </div>
+          <div class="callout"><strong>Bewusst einfach:</strong> Tiefes Scrollen benötigt während dieser Sitzung Speicher. Der Feed speichert keinen unbegrenzten historischen Post-Bestand dauerhaft.</div>
+        </div>
+
+        <div id="flow-read" class="flow-panel" data-for="read" role="tabpanel" hidden>
+          <div class="steps">
+            <div class="step"><span class="number">01 · Berechnen</span><strong>Feed hat NEW</strong><p>Mindestens eine referenzierte TrackedSearch hat bereits NEW.</p></div>
+            <div class="step"><span class="number">02 · Öffnen</span><strong>Nur #F1</strong><p>Die Suchen von #F1 werden als gelesen markiert; Suchen nur aus #F2 bleiben unberührt.</p></div>
+            <div class="step"><span class="number">03 · Teilen</span><strong>#S17 ist intern geteilt</strong><p>Sein NEW kann auch in #F2 verschwinden. Der sichtbare Pin #SP4 bleibt unverändert.</p></div>
+            <div class="step"><span class="number">04 · Kein Extrastatus</span><strong>Einfach ableiten</strong><p>Der Feed speichert keinen eigenen Read-Checkpoint und keine separate NEW-Zählung.</p></div>
+          </div>
+          <div class="callout"><strong>Bereits vereinbart:</strong> Sichtbare Pins sind unabhängig von Feeds. Wenn Feeds intern eine Suche teilen, bleibt deren NEW-Semantik vorerst einfach; ein späteres Ticket kann getrennte Lesestände je Feed prüfen.</div>
+        </div>
+      </section>
+
+      <section class="panel panel-inner" aria-labelledby="boundary-title">
+        <h2 id="boundary-title">Grenze dieses Entwurfs</h2>
+        <div class="spec-grid">
+          <div class="spec"><h3>In dieser Feed-Überarbeitung</h3><p><strong>TrackedSearch</strong> beschreibt gespeicherte, beobachtete Queries. Pins und Feeds nutzen dasselbe Modell und denselben Abrufweg, aber sichtbare Pins haben einen unabhängigen Zustand.</p></div>
+          <div class="spec"><h3>Später und optional</h3><p>Für geeignete Gelbooru-Feeds kann die Tag-Liste des Feeds <strong>eine interne OR-TrackedSearch</strong> erzeugen. Dann gibt es keine einzelnen internen Suchen für diese Tags. Eine allgemeine Post-Source für alle Booru-Timelines und Suchen bleibt außerhalb dieses Entwurfs.</p></div>
+        </div>
+      </section>
+    </main>
+    <script>
+      const buttons = [...document.querySelectorAll('[data-flow-button]')];
+      const panels = [...document.querySelectorAll('.flow-panel')];
+      for (const button of buttons) {
+        button.addEventListener('click', () => {
+          const flow = button.dataset.flowButton;
+          document.body.dataset.flow = flow;
+          for (const item of buttons) {
+            item.setAttribute('aria-selected', String(item === button));
+          }
+          for (const panel of panels) {
+            panel.hidden = panel.dataset.for !== flow;
+          }
+        });
+      }
+    </script>
+  </body>
+</html>
