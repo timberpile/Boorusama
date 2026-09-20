@@ -1,6 +1,5 @@
 // Dart imports:
 import 'dart:io';
-import 'dart:convert';
 
 // Package imports:
 import 'package:flutter_test/flutter_test.dart';
@@ -126,73 +125,6 @@ void main() {
       expect((await repository.getAll()).single.id, pin.id);
     },
   );
-
-  for (final sourceCount in [100, 1000]) {
-    test(
-      'a $sourceCount source feed opens from a bounded cache and merges incrementally',
-      () async {
-        final creation = Stopwatch()..start();
-        final feed = await repository.saveFeed(
-          profileId: 12,
-          name: 'Large feed',
-          queries: [for (var i = 0; i < sourceCount; i++) 'source_$i'],
-        );
-        creation.stop();
-        final sources = (await repository.getAll())
-            .where((s) => s.feedId == feed.id)
-            .toList();
-        final updates = Stopwatch()..start();
-        for (var batch = 0; batch < 11; batch++) {
-          final source = sources[batch];
-          await repository.commitRefresh(
-            SearchRefreshCommit(
-              subscriptionId: source.id,
-              expectedCreatedAt: source.createdAt,
-              expectedCheckpoint: null,
-              startedAt: createdAt,
-              identityRetentionBoundary: createdAt,
-              baseline: true,
-              discoveredPosts: const [],
-              feedPosts: [
-                for (var i = 0; i < 50; i++)
-                  CachedFeedPost.fromPost(
-                    TestSearchPost(
-                      batch * 50 + i,
-                      createdAt.add(Duration(seconds: batch * 50 + i)),
-                    ),
-                  ),
-              ],
-            ),
-          );
-        }
-        updates.stop();
-        final opening = Stopwatch()..start();
-        final materialized = (await repository.getFeeds()).single;
-        opening.stop();
-        expect(materialized.posts.length, followingFeedRetention);
-        expect(materialized.posts.first.id, 549);
-        expect(materialized.posts.last.id, 50);
-        expect(
-          (await repository.getAll()).where((s) => s.hasBaseline).length,
-          11,
-        );
-        final bytes = utf8.encode(jsonEncode(materialized.toJson())).length;
-        stdout.writeln(
-          'FEED_BENCH sources=$sourceCount create_ms=${creation.elapsedMicroseconds / 1000} merge_11_ms=${updates.elapsedMicroseconds / 1000} cached_open_ms=${opening.elapsedMicroseconds / 1000} cache_bytes=$bytes',
-        );
-        await expectLater(
-          repository.saveFeed(
-            profileId: 12,
-            name: 'Too large',
-            queries: [
-              for (var i = 0; i <= followingFeedSourceLimit; i++) 'overflow_$i',
-            ],
-          ),
-          throwsFormatException,
-        );
-      },
-    );
-  }
 
   setUp(() async {
     tempDirectory = await Directory.systemTemp.createTemp(

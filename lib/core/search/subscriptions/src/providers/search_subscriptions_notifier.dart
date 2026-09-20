@@ -16,7 +16,6 @@ import '../data/providers.dart';
 import '../refresh/chronological_search_scanner.dart';
 import '../refresh/search_refresh_query_adapter.dart';
 import '../services/search_refresh_service.dart';
-import '../services/search_refresh_request_gate.dart';
 import '../types/search_refresh.dart';
 import '../types/search_following_feed.dart';
 import '../types/search_organization.dart';
@@ -68,7 +67,6 @@ class SearchSubscriptionsNotifier
 
   final SearchRefreshService? _refreshService;
   final Map<String, Future<SearchRefreshOutcome>> _inFlight = {};
-  final _requestGate = SearchRefreshRequestGate();
   Future<void> _mutationTail = Future.value();
   Future<void> _batchTail = Future.value();
   var _batchCompleted = 0;
@@ -412,20 +410,14 @@ class SearchSubscriptionsNotifier
   Future<void> delete(String id) =>
       _mutate((repository) => repository.delete(id));
 
-  Future<SearchRefreshOutcome> refresh(String id, {bool Function()? canStart}) {
-    return _inFlight[id] ??= _refresh(id, canStart).whenComplete(() {
+  Future<SearchRefreshOutcome> refresh(String id) {
+    return _inFlight[id] ??= _refresh(id).whenComplete(() {
       _inFlight.remove(id);
       _publishActivity();
     });
   }
 
-  Future<SearchRefreshOutcome> _refresh(String id, bool Function()? canStart) =>
-      _requestGate.run(() async {
-        if (!(canStart?.call() ?? true)) return const SearchRefreshDiscarded();
-        return _performRefresh(id);
-      });
-
-  Future<SearchRefreshOutcome> _performRefresh(String id) async {
+  Future<SearchRefreshOutcome> _refresh(String id) async {
     await future;
     if (_disposed) return const SearchRefreshDiscarded();
     _publishActivity();
