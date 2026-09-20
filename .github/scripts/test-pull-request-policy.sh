@@ -33,54 +33,44 @@ expect_success \
   'issue-numbered feature branches can target develop' \
   "$validator" \
   develop \
-  feature/42-load-original-on-zoom \
-  'Any pull request title' \
-  'Closes #42'
-
-expect_success \
-  'valid branches can be checked without title and body arguments' \
-  "$validator" \
-  develop \
   feature/42-load-original-on-zoom
 
 expect_success \
   'fix branches can target develop' \
   "$validator" \
   develop \
-  fix/51-handle-empty-tags \
-  'Fix empty tags' \
-  ''
+  fix/51-handle-empty-tags
 
 expect_success \
   'feature branches without an issue can target develop' \
   "$validator" \
   develop \
-  feature/load-original-on-zoom \
-  'Load original image on zoom' \
-  ''
+  feature/load-original-on-zoom
 
 expect_success \
   'upstream synchronization can target develop without an issue' \
   "$validator" \
   develop \
-  sync/upstream-master \
-  'Synchronize upstream' \
-  ''
+  sync/upstream-master
 
 expect_success \
   'develop can be promoted to master without an issue' \
   "$validator" \
   master \
-  develop \
-  'Promote develop' \
-  ''
+  develop
 
 expect_failure \
   'feature branches cannot target master directly' \
   "$validator" \
   master \
+  feature/42-load-original-on-zoom
+
+expect_failure \
+  'obsolete title and body arguments are rejected' \
+  "$validator" \
+  develop \
   feature/42-load-original-on-zoom \
-  'Direct promotion' \
+  'An unused title' \
   ''
 
 if ((failures > 0)); then
