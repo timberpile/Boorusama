@@ -1,0 +1,105 @@
+import 'package:boorusama/core/errors/types.dart';
+import 'package:boorusama/core/posts/post/types.dart';
+import 'package:boorusama/core/posts/rating/types.dart';
+import 'package:boorusama/core/posts/sources/types.dart';
+import 'package:boorusama/core/search/subscriptions/src/data/hive/search_subscription_hive_object.dart';
+import 'package:boorusama/core/search/subscriptions/src/data/hive/search_subscription_repository_hive.dart';
+import 'package:foundation/foundation.dart';
+import 'package:hive_ce/hive.dart';
+
+HiveSearchSubscriptionRepository memorySubscriptionRepository() =>
+    HiveSearchSubscriptionRepository(box: MemorySubscriptionBox());
+
+class MemorySubscriptionBox implements Box<SearchSubscriptionHiveObject> {
+  final _items = <String, SearchSubscriptionHiveObject>{};
+
+  @override
+  Iterable<SearchSubscriptionHiveObject> get values => _items.values;
+
+  @override
+  SearchSubscriptionHiveObject? get(
+    dynamic key, {
+    SearchSubscriptionHiveObject? defaultValue,
+  }) => _items[key] ?? defaultValue;
+
+  @override
+  bool containsKey(dynamic key) => _items.containsKey(key);
+
+  @override
+  Future<void> put(dynamic key, SearchSubscriptionHiveObject value) async {
+    _items[key as String] = value;
+  }
+
+  @override
+  Future<void> putAll(
+    Map<dynamic, SearchSubscriptionHiveObject> entries,
+  ) async {
+    for (final entry in entries.entries) {
+      _items[entry.key as String] = entry.value;
+    }
+  }
+
+  @override
+  Future<void> delete(dynamic key) async {
+    _items.remove(key);
+  }
+
+  @override
+  Future<void> deleteAll(Iterable<dynamic> keys) async {
+    keys.toList().forEach(_items.remove);
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class TestSearchPostRepository extends PostRepository<Post> {
+  TestSearchPostRepository(this.fetch);
+
+  final Future<Either<BooruError, PostResult<Post>>> Function(
+    String query,
+    int page,
+    int? limit,
+  )
+  fetch;
+
+  @override
+  PostsOrError<Post> getPosts(
+    String tags,
+    int page, {
+    int? limit,
+    PostFetchOptions? options,
+  }) => TaskEither(() => fetch(tags, page, limit));
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class TestSearchPost extends SimplePost {
+  TestSearchPost(int id, DateTime? createdAt)
+    : super(
+        id: id,
+        createdAt: createdAt,
+        thumbnailImageUrl: 'https://example.com/$id-thumb.jpg',
+        sampleImageUrl: 'https://example.com/$id.jpg',
+        originalImageUrl: '',
+        tags: const {},
+        rating: Rating.general,
+        hasComment: false,
+        isTranslated: false,
+        hasParentOrChildren: false,
+        source: PostSource.none(),
+        score: 0,
+        duration: 0,
+        fileSize: 0,
+        format: 'jpg',
+        hasSound: null,
+        height: 0,
+        md5: '',
+        videoThumbnailUrl: '',
+        videoUrl: '',
+        width: 0,
+        uploaderId: null,
+        metadata: null,
+      );
+}

@@ -602,7 +602,7 @@ git commit -m "feat(search): scan pinned searches chronologically"
   selectors, `refresh`, `refreshAll`, `pin`, `rename`, `reorder`, `markRead`,
   and `delete` commands.
 
-- [ ] **Step 1: Write failing refresh-service tests**
+- [x] **Step 1: Write failing refresh-service tests**
 
 Use fake external boundaries only: an in-memory repository, fake post-page
 fetcher, fake query adapter, and fixed `Clock`. Verify:
@@ -626,13 +626,13 @@ Also verify unsupported plan, post-repository failure, null timestamp, stale
 commit, and deletion during fetch. Failure records `lastAttemptAt` and error
 kind but preserves checkpoint/previews/unread.
 
-- [ ] **Step 2: Run the service test and verify it fails**
+- [x] **Step 2: Run the service test and verify it fails**
 
 Run: `fvm flutter test test/core/search/subscriptions/search_refresh_service_test.dart`
 
 Expected: FAIL because `SearchRefreshService` does not exist.
 
-- [ ] **Step 3: Implement `SearchRefreshService`**
+- [x] **Step 3: Implement `SearchRefreshService`**
 
 Inject all side effects:
 
@@ -671,7 +671,7 @@ the subscription's original checkpoint as `expectedCheckpoint` in the atomic
 commit. Map external `BooruError` categories to the closest
 `SearchRefreshErrorKind`; never expose raw exception text as UI copy.
 
-- [ ] **Step 4: Write failing notifier tests**
+- [x] **Step 4: Write failing notifier tests**
 
 Cover serialized state publication, active-profile selectors, initial snapshot
 after pin, duplicate-query reuse, optional rename, mark-read, reorder/delete,
@@ -686,13 +686,13 @@ expect(maxConcurrentRefreshes, lessThanOrEqualTo(3));
 
 Verify an independent failure does not prevent later searches from starting.
 
-- [ ] **Step 5: Run the notifier test and verify it fails**
+- [x] **Step 5: Run the notifier test and verify it fails**
 
 Run: `fvm flutter test test/core/search/subscriptions/search_subscriptions_notifier_test.dart`
 
 Expected: FAIL because provider state and commands do not exist.
 
-- [ ] **Step 6: Implement notifier state and commands**
+- [x] **Step 6: Implement notifier state and commands**
 
 Use immutable state with all subscriptions plus transient activity:
 
@@ -757,7 +757,7 @@ final profilePinnedSearchUnreadCountProvider =
 });
 ```
 
-- [ ] **Step 7: Format and run service/notifier tests**
+- [x] **Step 7: Format and run service/notifier tests**
 
 Run:
 
@@ -769,7 +769,7 @@ fvm flutter test test/core/search/subscriptions/search_subscriptions_notifier_te
 
 Expected: PASS.
 
-- [ ] **Step 8: Commit application behavior**
+- [x] **Step 8: Commit application behavior**
 
 ```bash
 git add lib/core/search/subscriptions test/core/search/subscriptions
