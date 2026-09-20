@@ -452,6 +452,7 @@ class BulkBackupService {
     await BackupUtils.ensureStoragePermissions(ref);
 
     final tempDirPath = await fs.createTempDirectory('boorusama_import_');
+    final restarts = <Future<void> Function()>[];
     logger.verbose(
       'Backup.Import',
       'Created temp directory for import: $tempDirPath',
@@ -603,7 +604,10 @@ class BulkBackupService {
             uiContext,
           );
 
-          await preparation.executeImport();
+          await preparation.executeImport(deferRestart: true);
+          if (preparation.restartApp case final restart?) {
+            restarts.add(restart);
+          }
           logger.verbose(
             'Backup.Import',
             'Successfully imported source: $sourceId',
@@ -639,6 +643,9 @@ class BulkBackupService {
         logger.verbose('Backup.Import', 'Cleaned up temp directory');
       } catch (e) {
         logger.warn('Backup.Import', 'Failed to cleanup temp directory: $e');
+      }
+      for (final restart in restarts) {
+        await restart();
       }
     }
   }

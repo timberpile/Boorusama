@@ -10,6 +10,7 @@ import '../../../foundation/info/package_info.dart';
 import '../../config_widgets/website_logo.dart';
 import '../../configs/config/types.dart';
 import '../../configs/manage/providers.dart';
+import '../../search/subscriptions/providers.dart';
 import '../../settings/providers.dart';
 import '../../widgets/reboot.dart';
 import '../preparation/preparation_pipeline.dart';
@@ -18,6 +19,7 @@ import '../utils/json_handler.dart';
 import '../widgets/backup_restore_tile.dart';
 import '../widgets/import_booru_configs_alert_dialog.dart';
 import 'json_source.dart';
+import 'pinned_search_backup_data.dart';
 
 class BooruConfigExportData {
   BooruConfigExportData({
@@ -49,23 +51,22 @@ class BooruConfigsBackupSource extends JsonBackupSource<List<BooruConfig>> {
   BooruConfigsBackupSource(Ref ref)
     : super(
         id: 'profiles',
-        priority: 99999, // Lowest priority - show last
+        priority: 99999,
         version: kBooruConfigsExporterImporterVersion,
         appVersion: ref.read(appVersionProvider),
         dataGetter: () async => ref.read(booruConfigProvider),
-        executor: (configs, uiContext) async {
-          final configRepo = ref.read(booruConfigRepoProvider);
-          await configRepo.clear();
-          final newConfigs = await configRepo.addAll(configs);
-
-          final firstConfig = newConfigs.firstOrNull;
-
-          if (uiContext != null && uiContext.mounted && firstConfig != null) {
+        executor: (configs, _) => _replaceProfiles(ref, configs),
+        restartAfterImport: (uiContext) async {
+          final configs = await ref.read(booruConfigRepoProvider).getAll();
+          if ((uiContext, configs.firstOrNull) case (
+            final context?,
+            final firstConfig?,
+          ) when context.mounted) {
             Reboot.start(
-              uiContext,
+              context,
               RebootData(
                 config: firstConfig,
-                configs: newConfigs,
+                configs: configs,
                 settings: ref.read(settingsProvider),
               ),
             );
@@ -132,6 +133,51 @@ class BooruConfigsBackupSource extends JsonBackupSource<List<BooruConfig>> {
     );
   }
 }
+
+Future<void> _replaceProfiles(Ref ref, List<BooruConfig> configs) => ref
+    .read(searchSubscriptionsProvider.notifier)
+    .runSerializedMutation((searchRepository) async {
+      final configRepository = ref.read(booruConfigRepoProvider);
+      final oldProfiles = await configRepository.getAll();
+      final importedIdentities = {
+        for (final profile in configs) profile.id: _profileIdentity(profile),
+      };
+      final removedIds = oldProfiles
+          .where(
+            (profile) =>
+                importedIdentities[profile.id] != _profileIdentity(profile),
+          )
+          .map((profile) => profile.id)
+          .toSet();
+      final oldSubscriptions = await searchRepository.getAll();
+      final removedSubscriptions = {
+        for (final id in removedIds)
+          id: oldSubscriptions.where((pin) => pin.profileId == id).toList(),
+      };
+      var profilesChanged = false;
+      try {
+        for (final id in removedIds) {
+          await searchRepository.deleteForProfile(id);
+        }
+        profilesChanged = true;
+        await configRepository.clear();
+        await configRepository.addAll(configs);
+      } catch (error, stackTrace) {
+        if (profilesChanged) {
+          await configRepository.clear();
+          await configRepository.addAll(oldProfiles);
+        }
+        for (final entry in removedSubscriptions.entries) {
+          await searchRepository.restoreForProfile(entry.key, entry.value);
+        }
+        Error.throwWithStackTrace(error, stackTrace);
+      }
+    });
+
+({String booruType, String url}) _profileIdentity(BooruConfig profile) => (
+  booruType: profile.auth.booruType.name,
+  url: normalizePinnedSearchProfileUrl(profile.url),
+);
 
 // Custom validation step for booru configs
 class _BooruConfigValidationStep extends PreparationStep<List<BooruConfig>> {

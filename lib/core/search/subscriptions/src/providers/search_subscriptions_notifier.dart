@@ -210,6 +210,10 @@ class SearchSubscriptionsNotifier
 
   Future<T> _mutate<T>(
     Future<T> Function(SearchSubscriptionRepository repository) operation,
+  ) => runSerializedMutation(operation);
+
+  Future<T> runSerializedMutation<T>(
+    Future<T> Function(SearchSubscriptionRepository repository) operation,
   ) => _serialize(() async {
     await future;
     final repository = await _repository;

@@ -1,6 +1,14 @@
 {
   "pinned_searches": {
     "title": "Pinned Searches",
+    "backup_count": {
+      "one": "$n pinned search",
+      "other": "$n pinned searches"
+    },
+    "backup_loading": "Loading pinned searches…",
+    "backup_export_success": "Exported {count} pinned searches",
+    "backup_import_success": "Imported {count} pinned searches; {existing} already existed",
+    "backup_import_skipped": "Imported {count} pinned searches; {existing} already existed. Skipped {skipped} searches because their profile was missing or ambiguous.",
     "empty": "No pinned searches yet",
     "load_failed": "Could not load pinned searches.",
     "operation_failed": "Could not update the pinned search. Try again.",

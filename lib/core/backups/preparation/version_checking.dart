@@ -30,11 +30,18 @@ class VersionCheckInfo {
 class ImportPreparation {
   const ImportPreparation({
     required this.versionCheck,
-    required this.executeImport,
-  });
+    required Future<void> Function() executeImport,
+    this.restartApp,
+  }) : _executeImport = executeImport;
 
   final VersionCheckInfo versionCheck;
-  final Future<void> Function() executeImport;
+  final Future<void> Function() _executeImport;
+  final Future<void> Function()? restartApp;
+
+  Future<void> executeImport({bool deferRestart = false}) async {
+    await _executeImport();
+    if (!deferRestart) await restartApp?.call();
+  }
 }
 
 class ImportPreparationBuilder<T> {
@@ -56,8 +63,9 @@ class ImportPreparationBuilder<T> {
     String data,
     T Function(ExportDataPayload payload) parser,
     Future<void> Function(T data, BuildContext? uiContext) executor,
-    BuildContext? uiContext,
-  ) async {
+    BuildContext? uiContext, {
+    Future<void> Function()? restartApp,
+  }) async {
     final metadata = converter.decode(data: data);
     final parsed = parser(metadata);
 
@@ -88,6 +96,7 @@ class ImportPreparationBuilder<T> {
             importVersion: null,
           ),
       executeImport: () => executor(finalContext.parsedData, uiContext),
+      restartApp: restartApp,
     );
   }
 }

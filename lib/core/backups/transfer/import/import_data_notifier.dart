@@ -352,7 +352,8 @@ class ImportDataNotifier
 
     // For server transfers, we accept all version checks automatically
     // since the transfer was already initiated by the user
-    await preparation.executeImport();
+    // The transfer dialog offers restart after all sources finish.
+    await preparation.executeImport(deferRestart: true);
   }
 
   void toggleTask(String id) {

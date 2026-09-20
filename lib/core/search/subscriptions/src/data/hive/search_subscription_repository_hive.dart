@@ -90,7 +90,10 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
         name: name,
         position: subscriptions
             .where((subscription) => subscription.profileId == profileId)
-            .length,
+            .fold(
+              0,
+              (next, item) => item.position >= next ? item.position + 1 : next,
+            ),
         createdAt: createdAt ?? DateTime.now().toUtc(),
       );
       final object = _toObject(subscription);

@@ -1111,7 +1111,7 @@ git commit -m "feat(search): browse pinned searches"
 - Produces: backup source ID `pinned_searches`, portable profile mapping,
   validated JSON codec, idempotent append restore, and localized backup tile.
 
-- [ ] **Step 1: Write failing codec tests**
+- [x] **Step 1: Write failing codec tests**
 
 Define backup records containing only stable definition data:
 
@@ -1135,13 +1135,13 @@ queries, invalid positions, duplicate IDs, and missing/invalid profile fields.
 Verify runtime fields such as preview URLs, unread counts, checkpoints, and
 errors are absent from encoded JSON.
 
-- [ ] **Step 2: Run the codec test and verify it fails**
+- [x] **Step 2: Run the codec test and verify it fails**
 
 Run: `fvm flutter test test/core/backups/pinned_search_backup_codec_test.dart`
 
 Expected: FAIL because the backup codec does not exist.
 
-- [ ] **Step 3: Implement validated backup values and codec**
+- [x] **Step 3: Implement validated backup values and codec**
 
 Use `PinnedSearchBackupData`, `PinnedSearchBackupRecord`, and
 `PinnedSearchProfileReference` Equatable values. Normalize profile URLs by
@@ -1149,7 +1149,7 @@ lowercasing the host, removing a trailing slash, and retaining scheme/path.
 JSON parsing must pattern-match nullable/external values and throw
 `InvalidBackupFormatException` with the offending row/field.
 
-- [ ] **Step 4: Write failing import-service tests**
+- [x] **Step 4: Write failing import-service tests**
 
 Cover profile resolution in this order:
 
@@ -1161,13 +1161,13 @@ Verify imported pins append after existing positions, preserve their imported
 relative order, reuse an existing normalized query for that profile, remain
 idempotent on repeated import, and never create a pin for an unmapped profile.
 
-- [ ] **Step 5: Run the import test and verify it fails**
+- [x] **Step 5: Run the import test and verify it fails**
 
 Run: `fvm flutter test test/core/backups/pinned_search_import_service_test.dart`
 
 Expected: FAIL because the import service does not exist.
 
-- [ ] **Step 6: Implement import planning and application**
+- [x] **Step 6: Implement import planning and application**
 
 Keep mapping and mutation outside widgets. Return:
 
@@ -1185,7 +1185,7 @@ Create restored subscriptions without previews, recent IDs, checkpoints,
 attempts, errors, or unread counts. Do not issue network requests during
 restore; the next explicit refresh establishes a baseline.
 
-- [ ] **Step 7: Register the backup source after profiles**
+- [x] **Step 7: Register the backup source after profiles**
 
 Create `PinnedSearchesBackupSource` as a `JsonBackupSource` with ID
 `pinned_searches` and priority `100000`, one greater than the existing profiles
@@ -1199,7 +1199,7 @@ showing the number of definitions; import messaging must mention skipped pins
 when their profile was absent. A backup/manifest without `pinned_searches`
 continues through the existing missing-source behavior unchanged.
 
-- [ ] **Step 8: Generate, format, and run backup tests**
+- [x] **Step 8: Generate, format, and run backup tests**
 
 Run:
 
@@ -1213,7 +1213,7 @@ fvm flutter test test/core/backups/pinned_searches_source_test.dart
 
 Expected: PASS.
 
-- [ ] **Step 9: Commit backup support**
+- [x] **Step 9: Commit backup support**
 
 ```bash
 git add lib/core/backups lib/core/search/subscriptions packages/i18n test/core/backups
