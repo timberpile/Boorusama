@@ -33,37 +33,49 @@ expect_success \
   'issue-numbered feature branches can target develop' \
   "$validator" \
   develop \
-  feature/42-load-original-on-zoom
+  feature/42-load-original-on-zoom \
+  'Any pull request title' \
+  'Closes #42'
 
 expect_success \
   'fix branches can target develop' \
   "$validator" \
   develop \
-  fix/51-handle-empty-tags
+  fix/51-handle-empty-tags \
+  'Fix empty tags' \
+  ''
 
 expect_success \
   'feature branches without an issue can target develop' \
   "$validator" \
   develop \
-  feature/load-original-on-zoom
+  feature/load-original-on-zoom \
+  'Load original image on zoom' \
+  ''
 
 expect_success \
   'upstream synchronization can target develop without an issue' \
   "$validator" \
   develop \
-  sync/upstream-master
+  sync/upstream-master \
+  'Synchronize upstream' \
+  ''
 
 expect_success \
   'develop can be promoted to master without an issue' \
   "$validator" \
   master \
-  develop
+  develop \
+  'Promote develop' \
+  ''
 
 expect_failure \
   'feature branches cannot target master directly' \
   "$validator" \
   master \
-  feature/42-load-original-on-zoom
+  feature/42-load-original-on-zoom \
+  'Direct promotion' \
+  ''
 
 if ((failures > 0)); then
   echo "$failures pull request policy test(s) failed"

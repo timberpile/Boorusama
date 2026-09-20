@@ -37,6 +37,10 @@ jobs:
           BASE_BRANCH: ${{ github.base_ref }}
           HEAD_BRANCH: ${{ github.head_ref }}
         run: |
+          # The base branch may still have the validator that requires a matching title.
+          expected_title="Merge branch '$HEAD_BRANCH'"
           .github/scripts/validate-pull-request-policy.sh \
             "$BASE_BRANCH" \
-            "$HEAD_BRANCH"
+            "$HEAD_BRANCH" \
+            "$expected_title" \
+            ''

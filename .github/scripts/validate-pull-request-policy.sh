@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if (($# != 2)); then
-  echo 'usage: validate-pull-request-policy.sh <base> <head>' >&2
+if (($# != 4)); then
+  echo 'usage: validate-pull-request-policy.sh <base> <head> <title> <body>' >&2
   exit 2
 fi
 

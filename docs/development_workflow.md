@@ -124,6 +124,8 @@ Direct pushes, force pushes, and deletion are prohibited for `master`, including
 
 The pull request policy workflow validates the base and source branches. Issue references remain optional. The squash commit title must be set when merging; repository settings delete merged remote branches.
 
+The workflow checks out the policy script from the pull request's base commit. Keep its invocation compatible with the version on `develop` while changing the policy, or the change's own pull request can fail before the new script is merged.
+
 ## GitHub CLI example
 
 For issue `42`:
