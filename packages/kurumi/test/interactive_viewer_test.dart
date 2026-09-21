@@ -389,6 +389,39 @@ void main() {
     expect(controller.value.entry(1, 1), closeTo(1, 0.001));
     expect(controller.value.entry(2, 2), closeTo(1, 0.001));
   });
+
+  testWidgets('snaps after a pinch continues as a one-finger pan', (
+    tester,
+  ) async {
+    final controller = await _pumpViewer(
+      tester,
+      contentSize: const Size(1000, 1000),
+      snapZoomToFit: true,
+    );
+    final first = await tester.startGesture(
+      const Offset(120, 500),
+      pointer: 1,
+    );
+    final second = await tester.startGesture(
+      const Offset(880, 500),
+      pointer: 2,
+    );
+    await tester.pump();
+
+    await first.moveTo(const Offset(101, 500));
+    await second.moveTo(const Offset(899, 500));
+    await tester.pump();
+    await first.up();
+    await tester.pump();
+    await second.moveBy(const Offset(-30, 0));
+    await tester.pump();
+    await second.up();
+    await tester.pumpAndSettle();
+
+    expect(controller.value.entry(0, 0), closeTo(1, 0.001));
+    expect(controller.value.entry(1, 1), closeTo(1, 0.001));
+    expect(controller.value.entry(2, 2), closeTo(1, 0.001));
+  });
 }
 
 Matrix4 _transformation({

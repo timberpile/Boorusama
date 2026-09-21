@@ -415,7 +415,7 @@ class _KurumiRawInteractiveViewerState extends State<KurumiRawInteractiveViewer>
           transformationController: _controller,
           panEnabled: enable && widget.panEnabled,
           scaleEnabled: enable && widget.scaleEnabled,
-          onInteractionStart: enable ? (_) => _handleInteractionStart() : null,
+          onInteractionStart: enable ? _handleInteractionStart : null,
           onInteractionUpdate: enable
               ? (details) => _interactionWasPinch |= details.pointerCount >= 2
               : null,
@@ -426,11 +426,13 @@ class _KurumiRawInteractiveViewerState extends State<KurumiRawInteractiveViewer>
     );
   }
 
-  void _handleInteractionStart() {
+  void _handleInteractionStart(ScaleStartDetails details) {
+    if (_snapTimer != null && details.pointerCount == 1) return;
+
     _snapTimer?.cancel();
     _snapTimer = null;
     _interactionStartScale = _scale2D(_controller.value);
-    _interactionWasPinch = false;
+    _interactionWasPinch = details.pointerCount >= 2;
   }
 
   void _handleInteractionEnd() {

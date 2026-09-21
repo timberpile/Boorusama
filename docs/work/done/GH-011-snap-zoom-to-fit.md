@@ -41,7 +41,7 @@ the regular post viewer should snap a rendered image dimension that is within
 
 ## Completion evidence
 
-- `fvm flutter test packages/kurumi/test/interactive_viewer_test.dart test/settings/snap_zoom_to_fit_test.dart test/core/widgets/interactive_viewer_extended_test.dart`: 28 passed.
+- `fvm flutter test packages/kurumi/test/interactive_viewer_test.dart test/settings/snap_zoom_to_fit_test.dart test/core/widgets/interactive_viewer_extended_test.dart`: 29 passed.
 - `fvm flutter test`: 1,245 passed.
 - `fvm flutter analyze`: no issues found.
 - `fvm flutter build apk --debug --flavor dev`: succeeded.
