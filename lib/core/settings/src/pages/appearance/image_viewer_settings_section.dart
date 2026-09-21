@@ -92,6 +92,16 @@ class ImageViewerSettingsSection extends ConsumerWidget {
           ),
         ),
         KurumiSwitchListTile(
+          title: Text(context.t.settings.image_viewer.snap_zoom_to_fit),
+          subtitle: Text(
+            context.t.settings.image_viewer.snap_zoom_to_fit_description,
+          ),
+          value: viewer.snapZoomToFit,
+          onChanged: (value) => onUpdate(
+            viewer.copyWith(snapZoomToFit: value),
+          ),
+        ),
+        KurumiSwitchListTile(
           title: Text(
             context.t.settings.image_viewer.auto_adjust_comic_strips,
           ),

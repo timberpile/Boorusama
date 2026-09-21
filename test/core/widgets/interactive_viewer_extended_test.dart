@@ -46,4 +46,55 @@ void main() {
     expect(translation.x, closeTo(-500, 0.001));
     expect(translation.y, closeTo(-200, 0.001));
   });
+
+  for (final testCase in [
+    (enabled: false, expectedScale: 5.8),
+    (enabled: true, expectedScale: 6.0),
+  ]) {
+    testWidgets(
+      'uses snap zoom ${testCase.enabled ? 'when enabled' : 'only when opted in'}',
+      (tester) async {
+        tester.view.devicePixelRatio = 1;
+        tester.view.physicalSize = const Size(1000, 1000);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        addTearDown(tester.view.resetPhysicalSize);
+
+        final controller = TransformationController();
+        addTearDown(controller.dispose);
+
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              hapticFeedbackLevelProvider.overrideWithValue(
+                HapticFeedbackLevel.none,
+              ),
+            ],
+            child: MaterialApp(
+              home: InteractiveViewerExtended(
+                controller: controller,
+                contentSize: const Size(500, 3000),
+                snapZoomToFit: testCase.enabled,
+                child: const SizedBox.expand(),
+              ),
+            ),
+          ),
+        );
+
+        final viewer = tester.widget<InteractiveViewer>(
+          find.byType(InteractiveViewer),
+        );
+        viewer.onInteractionStart!(ScaleStartDetails());
+        viewer.onInteractionUpdate!(ScaleUpdateDetails(pointerCount: 2));
+        controller.value = Matrix4.diagonal3Values(5.8, 5.8, 1);
+        await tester.pump();
+        viewer.onInteractionEnd!(ScaleEndDetails());
+        await tester.pump(const Duration(milliseconds: 100));
+
+        expect(
+          controller.value.getMaxScaleOnAxis(),
+          closeTo(testCase.expectedScale, 0.001),
+        );
+      },
+    );
+  }
 }

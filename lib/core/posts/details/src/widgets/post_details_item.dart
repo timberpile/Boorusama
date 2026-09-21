@@ -99,6 +99,11 @@ class _PostDetailsItemState<T extends Post>
         (settings) => settings.loadOriginalOnZoom,
       ),
     );
+    final snapZoomToFit = ref.watch(
+      imageViewerSettingsProvider.select(
+        (settings) => settings.snapZoomToFit,
+      ),
+    );
 
     final booruRepo = ref.watch(booruRepoProvider(widget.authConfig));
     final gestures = widget.gestureConfig?.fullview;
@@ -162,6 +167,7 @@ class _PostDetailsItemState<T extends Post>
           controller: widget.transformController,
           constrainPanToContent:
               widget.detailsController.currentSettledPage.value == widget.index,
+          snapZoomToFit: snapZoomToFit,
           enable: switch (ref.watch(
             noteOverlayProvider((widget.authConfig, post)),
           )) {

@@ -20,6 +20,7 @@ class InteractiveViewerExtended extends ConsumerWidget {
     this.panEnabled = true,
     this.scaleEnabled = true,
     this.constrainPanToContent = false,
+    this.snapZoomToFit = false,
   });
 
   final Widget child;
@@ -34,6 +35,7 @@ class InteractiveViewerExtended extends ConsumerWidget {
   final bool panEnabled;
   final bool scaleEnabled;
   final bool constrainPanToContent;
+  final bool snapZoomToFit;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -53,6 +55,7 @@ class InteractiveViewerExtended extends ConsumerWidget {
       panEnabled: panEnabled,
       scaleEnabled: scaleEnabled,
       constrainPanToContent: constrainPanToContent,
+      snapZoomToFit: snapZoomToFit,
       child: child,
     );
   }

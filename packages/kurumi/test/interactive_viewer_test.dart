@@ -159,13 +159,276 @@ void main() {
 
     _expectTranslation(controller, x: -500, y: -500);
   });
+
+  for (final scale in [5.7, 6.3]) {
+    testWidgets('snaps an inclusive width threshold at scale $scale', (
+      tester,
+    ) async {
+      final controller = await _pumpViewer(
+        tester,
+        contentSize: const Size(500, 3000),
+        snapZoomToFit: true,
+      );
+
+      _startInteraction(tester);
+      controller.value = _transformation(scale: scale, x: -200, y: -400);
+      await tester.pump();
+      expect(controller.value.getMaxScaleOnAxis(), closeTo(scale, 0.001));
+
+      await _endInteraction(tester);
+
+      expect(controller.value.getMaxScaleOnAxis(), closeTo(6, 0.001));
+    });
+  }
+
+  testWidgets('snaps a near-fit height to the viewport height', (
+    tester,
+  ) async {
+    final controller = await _pumpViewer(
+      tester,
+      contentSize: const Size(3000, 500),
+      snapZoomToFit: true,
+    );
+
+    _startInteraction(tester);
+    controller.value = _transformation(scale: 5.8, x: -400, y: -200);
+    await tester.pump();
+
+    await _endInteraction(tester);
+
+    expect(controller.value.getMaxScaleOnAxis(), closeTo(6, 0.001));
+    expect(controller.value.entry(0, 0), closeTo(6, 0.001));
+    expect(controller.value.entry(1, 1), closeTo(6, 0.001));
+  });
+
+  for (final scale in [5.69, 6.31]) {
+    testWidgets('does not snap outside the threshold at scale $scale', (
+      tester,
+    ) async {
+      final controller = await _pumpViewer(
+        tester,
+        contentSize: const Size(500, 3000),
+        snapZoomToFit: true,
+      );
+
+      _startInteraction(tester);
+      controller.value = _transformation(scale: scale, x: -200, y: -400);
+      await tester.pump();
+
+      await _endInteraction(tester);
+
+      expect(controller.value.getMaxScaleOnAxis(), closeTo(scale, 0.001));
+    });
+  }
+
+  testWidgets('snaps the proportionally closer dimension when both qualify', (
+    tester,
+  ) async {
+    final controller = await _pumpViewer(
+      tester,
+      contentSize: const Size(1000, 1020),
+      snapZoomToFit: true,
+    );
+
+    _startInteraction(tester);
+    controller.value = _transformation(scale: 1.04, x: -20, y: -20);
+    await tester.pump();
+
+    await _endInteraction(tester);
+
+    expect(controller.value.getMaxScaleOnAxis(), closeTo(1.02, 0.001));
+  });
+
+  testWidgets('leaves near-fit zoom unchanged before the interaction ends', (
+    tester,
+  ) async {
+    final controller = await _pumpViewer(
+      tester,
+      contentSize: const Size(500, 3000),
+      snapZoomToFit: true,
+    );
+
+    _startInteraction(tester);
+    controller.value = _transformation(scale: 5.8, x: -200, y: -400);
+    await tester.pump();
+
+    expect(controller.value.getMaxScaleOnAxis(), closeTo(5.8, 0.001));
+  });
+
+  testWidgets('leaves the selected zoom unchanged when snapping is disabled', (
+    tester,
+  ) async {
+    final controller = await _pumpViewer(
+      tester,
+      contentSize: const Size(500, 3000),
+      snapZoomToFit: false,
+    );
+
+    _startInteraction(tester);
+    controller.value = _transformation(scale: 5.8, x: -200, y: -400);
+    await tester.pump();
+
+    await _endInteraction(tester);
+
+    expect(controller.value.getMaxScaleOnAxis(), closeTo(5.8, 0.001));
+  });
+
+  testWidgets('does not snap when an interaction ends without scaling', (
+    tester,
+  ) async {
+    final controller = await _pumpViewer(
+      tester,
+      contentSize: const Size(500, 3000),
+      snapZoomToFit: true,
+    );
+    controller.value = _transformation(scale: 5.8, x: -200, y: -400);
+    await tester.pump();
+
+    _startInteraction(tester);
+    await _endInteraction(tester);
+
+    expect(controller.value.getMaxScaleOnAxis(), closeTo(5.8, 0.001));
+  });
+
+  testWidgets('waits for post-pinch scale movement to settle before snapping', (
+    tester,
+  ) async {
+    final controller = await _pumpViewer(
+      tester,
+      contentSize: const Size(500, 3000),
+      snapZoomToFit: true,
+    );
+
+    _startInteraction(tester);
+    controller.value = _transformation(scale: 5.8, x: -200, y: -400);
+    _endInteractionCallback(tester);
+    controller.value = _transformation(scale: 5.9, x: -200, y: -400);
+    await tester.pump(const Duration(milliseconds: 25));
+    controller.value = _transformation(scale: 6.1, x: -200, y: -400);
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(controller.value.getMaxScaleOnAxis(), closeTo(6, 0.001));
+  });
+
+  testWidgets('does not snap scale changes from a one-pointer interaction', (
+    tester,
+  ) async {
+    final controller = await _pumpViewer(
+      tester,
+      contentSize: const Size(500, 3000),
+      snapZoomToFit: true,
+    );
+
+    _startInteraction(tester, pointerCount: 1);
+    controller.value = _transformation(scale: 5.8, x: -200, y: -400);
+    await _endInteraction(tester);
+
+    expect(controller.value.getMaxScaleOnAxis(), closeTo(5.8, 0.001));
+  });
+
+  testWidgets('does not snap beyond the existing maximum scale', (
+    tester,
+  ) async {
+    final controller = await _pumpViewer(
+      tester,
+      contentSize: const Size(1200, 190),
+      snapZoomToFit: true,
+    );
+
+    _startInteraction(tester);
+    controller.value = _transformation(scale: 6, x: -200, y: -20);
+    await _endInteraction(tester);
+
+    expect(controller.value.getMaxScaleOnAxis(), closeTo(6, 0.001));
+  });
+
+  testWidgets('snaps a fitting dimension from below identity scale', (
+    tester,
+  ) async {
+    final controller = await _pumpViewer(
+      tester,
+      contentSize: const Size(1000, 1000),
+      snapZoomToFit: true,
+    );
+    controller.value = _transformation(scale: 0.9, x: 40, y: 40);
+
+    _startInteraction(tester);
+    controller.value = _transformation(scale: 0.95, x: 25, y: 25);
+    await _endInteraction(tester);
+
+    expect(controller.value.entry(0, 0), closeTo(1, 0.001));
+    expect(controller.value.entry(1, 1), closeTo(1, 0.001));
+  });
+
+  testWidgets('snaps after a real two-pointer pinch ends', (tester) async {
+    final controller = await _pumpViewer(
+      tester,
+      contentSize: const Size(1000, 1000),
+      snapZoomToFit: true,
+    );
+    final first = await tester.startGesture(
+      const Offset(120, 500),
+      pointer: 1,
+    );
+    final second = await tester.startGesture(
+      const Offset(880, 500),
+      pointer: 2,
+    );
+    await tester.pump();
+
+    await first.moveTo(const Offset(101, 500));
+    await second.moveTo(const Offset(899, 500));
+    await tester.pump();
+    expect(controller.value.entry(0, 0), closeTo(1.05, 0.01));
+
+    await first.up();
+    await second.up();
+    await tester.pumpAndSettle();
+
+    expect(controller.value.entry(0, 0), closeTo(1, 0.001));
+    expect(controller.value.entry(1, 1), closeTo(1, 0.001));
+    expect(controller.value.entry(2, 2), closeTo(1, 0.001));
+  });
+
+  testWidgets('snaps after a pinch continues as a one-finger pan', (
+    tester,
+  ) async {
+    final controller = await _pumpViewer(
+      tester,
+      contentSize: const Size(1000, 1000),
+      snapZoomToFit: true,
+    );
+    final first = await tester.startGesture(
+      const Offset(120, 500),
+      pointer: 1,
+    );
+    final second = await tester.startGesture(
+      const Offset(880, 500),
+      pointer: 2,
+    );
+    await tester.pump();
+
+    await first.moveTo(const Offset(101, 500));
+    await second.moveTo(const Offset(899, 500));
+    await tester.pump();
+    await first.up();
+    await tester.pump();
+    await second.moveBy(const Offset(-30, 0));
+    await tester.pump();
+    await second.up();
+    await tester.pumpAndSettle();
+
+    expect(controller.value.entry(0, 0), closeTo(1, 0.001));
+    expect(controller.value.entry(1, 1), closeTo(1, 0.001));
+    expect(controller.value.entry(2, 2), closeTo(1, 0.001));
+  });
 }
 
 Matrix4 _transformation({
   required double scale,
   required double x,
   required double y,
-}) => Matrix4.diagonal3Values(scale, scale, 1)..setTranslationRaw(x, y, 0);
+}) => Matrix4.diagonal3Values(scale, scale, scale)..setTranslationRaw(x, y, 0);
 
 Future<TransformationController> _pumpViewer(
   WidgetTester tester, {
@@ -173,6 +436,7 @@ Future<TransformationController> _pumpViewer(
   TransformationController? controller,
   Size viewportSize = const Size(1000, 1000),
   bool constrainPanToContent = true,
+  bool snapZoomToFit = false,
 }) async {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = viewportSize;
@@ -188,12 +452,33 @@ Future<TransformationController> _pumpViewer(
         controller: viewerController,
         contentSize: contentSize,
         constrainPanToContent: constrainPanToContent,
+        snapZoomToFit: snapZoomToFit,
         child: const SizedBox.expand(),
       ),
     ),
   );
 
   return viewerController;
+}
+
+Future<void> _endInteraction(WidgetTester tester) async {
+  _endInteractionCallback(tester);
+  await tester.pump(const Duration(milliseconds: 100));
+}
+
+void _endInteractionCallback(WidgetTester tester) {
+  final viewer = tester.widget<InteractiveViewer>(
+    find.byType(InteractiveViewer),
+  );
+  viewer.onInteractionEnd!(ScaleEndDetails());
+}
+
+void _startInteraction(WidgetTester tester, {int pointerCount = 2}) {
+  final viewer = tester.widget<InteractiveViewer>(
+    find.byType(InteractiveViewer),
+  );
+  viewer.onInteractionStart!(ScaleStartDetails());
+  viewer.onInteractionUpdate!(ScaleUpdateDetails(pointerCount: pointerCount));
 }
 
 void _expectTranslation(
