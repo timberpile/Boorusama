@@ -387,6 +387,7 @@ void main() {
 
     expect(controller.value.entry(0, 0), closeTo(1, 0.001));
     expect(controller.value.entry(1, 1), closeTo(1, 0.001));
+    expect(controller.value.entry(2, 2), closeTo(1, 0.001));
   });
 }
 
@@ -394,7 +395,7 @@ Matrix4 _transformation({
   required double scale,
   required double x,
   required double y,
-}) => Matrix4.diagonal3Values(scale, scale, 1)..setTranslationRaw(x, y, 0);
+}) => Matrix4.diagonal3Values(scale, scale, scale)..setTranslationRaw(x, y, 0);
 
 Future<TransformationController> _pumpViewer(
   WidgetTester tester, {

@@ -639,6 +639,7 @@ Matrix4? _snapTransformationToViewport({
   return matrix.clone()
     ..setEntry(0, 0, targetScale)
     ..setEntry(1, 1, targetScale)
+    ..setEntry(2, 2, targetScale)
     ..setTranslationRaw(
       center.dx + (translation.x - center.dx) * scaleFactor,
       center.dy + (translation.y - center.dy) * scaleFactor,
