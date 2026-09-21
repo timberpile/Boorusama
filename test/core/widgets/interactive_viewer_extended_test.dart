@@ -84,10 +84,11 @@ void main() {
           find.byType(InteractiveViewer),
         );
         viewer.onInteractionStart!(ScaleStartDetails());
+        viewer.onInteractionUpdate!(ScaleUpdateDetails(pointerCount: 2));
         controller.value = Matrix4.diagonal3Values(5.8, 5.8, 1);
         await tester.pump();
         viewer.onInteractionEnd!(ScaleEndDetails());
-        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 100));
 
         expect(
           controller.value.getMaxScaleOnAxis(),

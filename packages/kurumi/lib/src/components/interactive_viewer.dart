@@ -1,4 +1,5 @@
 // Dart imports:
+import 'dart:async';
 import 'dart:math';
 
 // Flutter imports:
@@ -25,6 +26,8 @@ const _kContentConstraintTolerance = 0.5;
 const _kSnapToFitTolerance = 0.05;
 
 const _kScaleChangeTolerance = 1e-10;
+
+const _kSnapSettleDuration = Duration(milliseconds: 50);
 
 class KurumiTransformationDetails {
   const KurumiTransformationDetails({
@@ -224,6 +227,8 @@ class _KurumiRawInteractiveViewerState extends State<KurumiRawInteractiveViewer>
   var _applyingContentConstraint = false;
 
   double? _interactionStartScale;
+  var _interactionWasPinch = false;
+  Timer? _snapTimer;
 
   @override
   void initState() {
@@ -273,6 +278,10 @@ class _KurumiRawInteractiveViewerState extends State<KurumiRawInteractiveViewer>
   void _onAnimationChanged() => _controller.value = _animation.value;
 
   void _onChanged() {
+    if (_snapTimer != null) {
+      _scheduleSnap();
+    }
+
     if (_applyContentConstraint()) return;
 
     final currentScale = _controller.value.getMaxScaleOnAxis();
@@ -344,6 +353,7 @@ class _KurumiRawInteractiveViewerState extends State<KurumiRawInteractiveViewer>
 
   @override
   void dispose() {
+    _snapTimer?.cancel();
     _animationController
       ..removeListener(_onAnimationChanged)
       ..dispose();
@@ -405,9 +415,9 @@ class _KurumiRawInteractiveViewerState extends State<KurumiRawInteractiveViewer>
           transformationController: _controller,
           panEnabled: enable && widget.panEnabled,
           scaleEnabled: enable && widget.scaleEnabled,
-          onInteractionStart: enable
-              ? (_) => _interactionStartScale = _controller.value
-                    .getMaxScaleOnAxis()
+          onInteractionStart: enable ? (_) => _handleInteractionStart() : null,
+          onInteractionUpdate: enable
+              ? (details) => _interactionWasPinch |= details.pointerCount >= 2
               : null,
           onInteractionEnd: enable ? (_) => _handleInteractionEnd() : null,
           child: child,
@@ -416,22 +426,43 @@ class _KurumiRawInteractiveViewerState extends State<KurumiRawInteractiveViewer>
     );
   }
 
+  void _handleInteractionStart() {
+    _snapTimer?.cancel();
+    _snapTimer = null;
+    _interactionStartScale = _scale2D(_controller.value);
+    _interactionWasPinch = false;
+  }
+
   void _handleInteractionEnd() {
     final startScale = _interactionStartScale;
     _interactionStartScale = null;
-    if (!widget.snapZoomToFit || startScale == null) return;
+    final wasPinch = _interactionWasPinch;
+    _interactionWasPinch = false;
+    if (!widget.snapZoomToFit || !wasPinch || startScale == null) return;
 
-    final currentScale = _controller.value.getMaxScaleOnAxis();
+    final currentScale = _scale2D(_controller.value);
     if ((currentScale - startScale).abs() <= _kScaleChangeTolerance) return;
 
-    final snapped = _snapTransformationToViewport(
-      matrix: _controller.value,
-      contentSize: widget.contentSize,
-      containerSize: _containerSize,
-    );
-    if (snapped != null) {
-      _controller.value = snapped;
-    }
+    _scheduleSnap();
+  }
+
+  void _scheduleSnap() {
+    _snapTimer?.cancel();
+    _snapTimer = Timer(_kSnapSettleDuration, () {
+      _snapTimer = null;
+      if (!mounted || !widget.snapZoomToFit) return;
+
+      final snapped = _snapTransformationToViewport(
+        matrix: _controller.value,
+        contentSize: widget.contentSize,
+        containerSize: _containerSize,
+        minScale: _kFallbackMinScale,
+        maxScale: _calcMaxScale(widget.contentSize, _containerSize),
+      );
+      if (snapped != null) {
+        _controller.value = snapped;
+      }
+    });
   }
 
   Matrix4 _calculateDoubleTapMatrix(Offset tapPosition) {
@@ -565,12 +596,14 @@ Matrix4? _snapTransformationToViewport({
   required Matrix4 matrix,
   required Size? contentSize,
   required Size? containerSize,
+  required double minScale,
+  required double maxScale,
 }) {
   if (!_isValidSize(contentSize) || !_isValidSize(containerSize)) return null;
 
   final content = contentSize!;
   final container = containerSize!;
-  final currentScale = matrix.getMaxScaleOnAxis();
+  final currentScale = _scale2D(matrix);
   if (!currentScale.isFinite || currentScale <= 0) return null;
 
   final containScale = min(
@@ -598,6 +631,8 @@ Matrix4? _snapTransformationToViewport({
   };
   final scaleFactor = 1 / targetRatio;
   final targetScale = currentScale * scaleFactor;
+  if (targetScale < minScale || targetScale > maxScale) return null;
+
   final center = container.center(Offset.zero);
   final translation = matrix.getTranslation();
 
@@ -613,6 +648,12 @@ Matrix4? _snapTransformationToViewport({
 
 bool _qualifiesForSnap(double ratio) =>
     ratio >= 1 - _kSnapToFitTolerance && ratio <= 1 + _kSnapToFitTolerance;
+
+double _scale2D(Matrix4 matrix) {
+  final scaleX = matrix.entry(0, 0);
+  final scaleY = matrix.entry(1, 0);
+  return sqrt(scaleX * scaleX + scaleY * scaleY);
+}
 
 Matrix4? _constrainPanToContent({
   required Matrix4 matrix,
