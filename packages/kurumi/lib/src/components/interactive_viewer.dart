@@ -22,6 +22,10 @@ const _kImageExceedsContainerThreshold = 3.0;
 
 const _kContentConstraintTolerance = 0.5;
 
+const _kSnapToFitTolerance = 0.05;
+
+const _kScaleChangeTolerance = 1e-10;
+
 class KurumiTransformationDetails {
   const KurumiTransformationDetails({
     required this.scale,
@@ -109,6 +113,7 @@ class KurumiInteractiveViewer extends StatelessWidget {
     this.panEnabled = true,
     this.scaleEnabled = true,
     this.constrainPanToContent = false,
+    this.snapZoomToFit = false,
   });
 
   final Widget child;
@@ -125,6 +130,7 @@ class KurumiInteractiveViewer extends StatelessWidget {
   final bool scaleEnabled;
 
   final bool constrainPanToContent;
+  final bool snapZoomToFit;
 
   @override
   Widget build(BuildContext context) {
@@ -140,6 +146,7 @@ class KurumiInteractiveViewer extends StatelessWidget {
       panEnabled: panEnabled,
       scaleEnabled: scaleEnabled,
       constrainPanToContent: constrainPanToContent,
+      snapZoomToFit: snapZoomToFit,
       child: child,
     );
   }
@@ -160,6 +167,7 @@ class KurumiRawInteractiveViewer extends StatefulWidget {
     this.panEnabled = true,
     this.scaleEnabled = true,
     this.constrainPanToContent = false,
+    this.snapZoomToFit = false,
   });
 
   final Widget child;
@@ -186,6 +194,7 @@ class KurumiRawInteractiveViewer extends StatefulWidget {
   final bool scaleEnabled;
 
   final bool constrainPanToContent;
+  final bool snapZoomToFit;
 
   @override
   State<KurumiRawInteractiveViewer> createState() =>
@@ -213,6 +222,8 @@ class _KurumiRawInteractiveViewerState extends State<KurumiRawInteractiveViewer>
   var _hasTriggeredMaxZoomHaptic = false;
 
   var _applyingContentConstraint = false;
+
+  double? _interactionStartScale;
 
   @override
   void initState() {
@@ -394,10 +405,33 @@ class _KurumiRawInteractiveViewerState extends State<KurumiRawInteractiveViewer>
           transformationController: _controller,
           panEnabled: enable && widget.panEnabled,
           scaleEnabled: enable && widget.scaleEnabled,
+          onInteractionStart: enable
+              ? (_) => _interactionStartScale = _controller.value
+                    .getMaxScaleOnAxis()
+              : null,
+          onInteractionEnd: enable ? (_) => _handleInteractionEnd() : null,
           child: child,
         );
       },
     );
+  }
+
+  void _handleInteractionEnd() {
+    final startScale = _interactionStartScale;
+    _interactionStartScale = null;
+    if (!widget.snapZoomToFit || startScale == null) return;
+
+    final currentScale = _controller.value.getMaxScaleOnAxis();
+    if ((currentScale - startScale).abs() <= _kScaleChangeTolerance) return;
+
+    final snapped = _snapTransformationToViewport(
+      matrix: _controller.value,
+      contentSize: widget.contentSize,
+      containerSize: _containerSize,
+    );
+    if (snapped != null) {
+      _controller.value = snapped;
+    }
   }
 
   Matrix4 _calculateDoubleTapMatrix(Offset tapPosition) {
@@ -526,6 +560,59 @@ bool _isValidSize(Size? size) =>
     size.height.isFinite &&
     size.width > 0 &&
     size.height > 0;
+
+Matrix4? _snapTransformationToViewport({
+  required Matrix4 matrix,
+  required Size? contentSize,
+  required Size? containerSize,
+}) {
+  if (!_isValidSize(contentSize) || !_isValidSize(containerSize)) return null;
+
+  final content = contentSize!;
+  final container = containerSize!;
+  final currentScale = matrix.getMaxScaleOnAxis();
+  if (!currentScale.isFinite || currentScale <= 0) return null;
+
+  final containScale = min(
+    container.width / content.width,
+    container.height / content.height,
+  );
+  final fittedSize = Size(
+    content.width * containScale,
+    content.height * containScale,
+  );
+  final widthRatio = fittedSize.width * currentScale / container.width;
+  final heightRatio = fittedSize.height * currentScale / container.height;
+  final widthQualifies = _qualifiesForSnap(widthRatio);
+  final heightQualifies = _qualifiesForSnap(heightRatio);
+  if (!widthQualifies && !heightQualifies) return null;
+
+  final targetRatio = switch ((widthQualifies, heightQualifies)) {
+    (true, true) =>
+      (widthRatio - 1).abs() <= (heightRatio - 1).abs()
+          ? widthRatio
+          : heightRatio,
+    (true, false) => widthRatio,
+    (false, true) => heightRatio,
+    _ => throw StateError('At least one dimension must qualify'),
+  };
+  final scaleFactor = 1 / targetRatio;
+  final targetScale = currentScale * scaleFactor;
+  final center = container.center(Offset.zero);
+  final translation = matrix.getTranslation();
+
+  return matrix.clone()
+    ..setEntry(0, 0, targetScale)
+    ..setEntry(1, 1, targetScale)
+    ..setTranslationRaw(
+      center.dx + (translation.x - center.dx) * scaleFactor,
+      center.dy + (translation.y - center.dy) * scaleFactor,
+      translation.z,
+    );
+}
+
+bool _qualifiesForSnap(double ratio) =>
+    ratio >= 1 - _kSnapToFitTolerance && ratio <= 1 + _kSnapToFitTolerance;
 
 Matrix4? _constrainPanToContent({
   required Matrix4 matrix,
