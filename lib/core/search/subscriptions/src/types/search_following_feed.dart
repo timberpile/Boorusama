@@ -90,7 +90,7 @@ class SearchFollowingFeed extends Equatable {
   List<Object?> get props => [id, profileId, name, position, sourceIds, posts];
 }
 
-class CachedFeedPost extends SimplePost {
+class CachedFeedPost extends SimplePost implements PostMediaVariants {
   CachedFeedPost({
     required super.id,
     required DateTime createdAt,
@@ -102,7 +102,9 @@ class CachedFeedPost extends SimplePost {
     required super.width,
     required super.height,
     required super.format,
-  }) : super(
+    required Map<String, String> mediaVariants,
+  }) : mediaVariants = Map.unmodifiable(mediaVariants),
+       super(
          createdAt: createdAt,
          thumbnailImageUrl: thumbnail,
          sampleImageUrl: sample,
@@ -133,6 +135,10 @@ class CachedFeedPost extends SimplePost {
     width: post.width,
     height: post.height,
     format: post.format,
+    mediaVariants: switch (post) {
+      PostMediaVariants(:final mediaVariants) => mediaVariants,
+      _ => const {},
+    },
   );
   factory CachedFeedPost.fromJson(Map json) => CachedFeedPost(
     id: switch (json['id']) {
@@ -174,7 +180,21 @@ class CachedFeedPost extends SimplePost {
       final String value => value,
       _ => '',
     },
+    mediaVariants: switch (json['mediaVariants']) {
+      final Map values => {
+        for (final entry in values.entries)
+          if (entry case MapEntry(
+            key: final String key,
+            value: final String value,
+          ))
+            key: value,
+      },
+      _ => const {},
+    },
   );
+  @override
+  final Map<String, String> mediaVariants;
+
   Map<String, Object?> toJson() => {
     'id': id,
     'createdAt': createdAt!.toIso8601String(),
@@ -186,6 +206,7 @@ class CachedFeedPost extends SimplePost {
     'width': width,
     'height': height,
     'format': format,
+    if (mediaVariants.isNotEmpty) 'mediaVariants': mediaVariants,
   };
   @override
   List<Object?> get props => [
@@ -199,5 +220,6 @@ class CachedFeedPost extends SimplePost {
     width,
     height,
     format,
+    mediaVariants,
   ];
 }

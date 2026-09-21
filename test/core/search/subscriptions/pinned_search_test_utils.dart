@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'package:clock/clock.dart';
 import 'package:boorusama/boorus/danbooru/danbooru_repository.dart';
+import 'package:boorusama/core/blacklists/providers.dart';
 import 'package:boorusama/core/boorus/engine/providers.dart';
+import 'package:boorusama/core/boorus/engine/types.dart';
 import 'package:boorusama/core/search/subscriptions/src/providers/search_refresh_coordinator.dart';
 import 'package:boorusama/core/search/subscriptions/src/services/search_refresh_scheduler.dart';
 import 'dart:typed_data';
@@ -100,6 +102,7 @@ class PinnedSearchHarness {
     this.repositoryReady,
     this.loadImages = false,
     this.supported = true,
+    ImageListingSettings? listingSettings,
     Clock clock = const Clock(),
     SearchRefreshScheduler? scheduler,
     bool networkAllowed = false,
@@ -129,6 +132,7 @@ class PinnedSearchHarness {
         searchRefreshCoordinatorProvider.overrideWith(
           () => SearchRefreshCoordinator(scheduler: scheduler),
         ),
+        booruEngineRegistryProvider.overrideWithValue(BooruEngineRegistry()),
         booruRepoProvider.overrideWith(
           (ref, config) => DanbooruRepository(ref: ref),
         ),
@@ -168,8 +172,9 @@ class PinnedSearchHarness {
           ),
         ),
         automaticMediaLoadingEnabledProvider.overrideWithValue(loadImages),
+        blacklistTagsProvider.overrideWith((ref, config) => const {}),
         imageListingSettingsProvider.overrideWithValue(
-          Settings.defaultSettings.listing,
+          listingSettings ?? Settings.defaultSettings.listing,
         ),
         deviceInfoProvider.overrideWithValue(DeviceInfo.empty()),
         defaultImageCacheManagerProvider.overrideWithValue(_NoImageCache()),

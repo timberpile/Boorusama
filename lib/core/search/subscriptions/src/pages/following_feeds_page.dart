@@ -9,7 +9,6 @@ import '../../../../configs/config/types.dart';
 import '../../../../configs/manage/providers.dart';
 import '../../../../boorus/engine/providers.dart';
 import '../../../../errors/types.dart';
-import '../../../../images/booru_image.dart';
 import '../../../../posts/details/routes.dart';
 import '../../../../posts/listing/widgets.dart';
 import '../../../../posts/listing/providers.dart';
@@ -22,6 +21,7 @@ import '../providers/search_subscriptions_notifier.dart';
 import '../types/search_following_feed.dart';
 import '../types/search_subscription.dart';
 import '../types/search_refresh.dart';
+import '../widgets/feed_post_thumbnail.dart';
 import 'following_feed_management_page.dart';
 
 class FollowingFeedsPage extends ConsumerWidget {
@@ -94,11 +94,9 @@ class FollowingFeedsPage extends ConsumerWidget {
                                             padding: const EdgeInsets.all(2),
                                             child: AspectRatio(
                                               aspectRatio: 1,
-                                              child: BooruImage(
-                                                imageUrl:
-                                                    post.thumbnailImageUrl,
+                                              child: FeedPostThumbnail(
+                                                post: post,
                                                 config: config.auth,
-                                                fit: BoxFit.cover,
                                               ),
                                             ),
                                           ),
@@ -510,10 +508,9 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
               final post = controller.items.elementAt(index);
               return InkWell(
                 onTap: () => _openPost(index),
-                child: BooruImage(
-                  imageUrl: post.thumbnailImageUrl,
+                child: FeedPostThumbnail(
+                  post: post,
                   config: widget.config.auth,
-                  fit: BoxFit.cover,
                 ),
               );
             },

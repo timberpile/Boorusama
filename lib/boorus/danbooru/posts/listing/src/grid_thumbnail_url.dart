@@ -1,6 +1,4 @@
 // Package imports:
-import 'package:foundation/foundation.dart';
-
 // Project imports:
 import '../../../../../core/images/types.dart';
 import '../../../../../core/posts/listing/types.dart';
@@ -15,51 +13,73 @@ class DanbooruGridThumbnailUrlGenerator implements GridThumbnailUrlGenerator {
     Post post, {
     required GridThumbnailSettings settings,
   }) {
-    return castOrNull<DanbooruPost>(post).toOption().fold(
-      () => const DefaultGridThumbnailUrlGenerator().resolve(
+    final hasDanbooruVariants = switch (post) {
+      DanbooruPost() => true,
+      PostMediaVariants(:final mediaVariants) => mediaVariants.isNotEmpty,
+      _ => false,
+    };
+    if (!hasDanbooruVariants) {
+      return const DefaultGridThumbnailUrlGenerator().resolve(
         post,
         settings: settings,
-      ),
-      (post) {
-        final media = defaultGridThumbnailMedia(post, settings);
+      );
+    }
 
-        return GridThumbnailMedia(
-          url: _danbooruGridThumbnailUrl(post, settings),
-          aspectRatio: media.aspectRatio,
-          placeholderUrl: media.placeholderUrl,
-          placeholderAspectRatio: media.placeholderAspectRatio,
-          placeholderFit: media.placeholderFit,
-        );
-      },
+    final media = defaultGridThumbnailMedia(post, settings);
+
+    return GridThumbnailMedia(
+      url: _danbooruGridThumbnailUrl(post, settings),
+      aspectRatio: media.aspectRatio,
+      placeholderUrl: media.placeholderUrl,
+      placeholderAspectRatio: media.placeholderAspectRatio,
+      placeholderFit: media.placeholderFit,
     );
   }
 }
 
 String _danbooruGridThumbnailUrl(
-  DanbooruPost post,
+  Post post,
   GridThumbnailSettings settings,
 ) => switch (settings.imageQuality) {
   ImageQuality.automatic => switch (settings.gridSize) {
-    GridSize.micro => post.url180x180,
-    GridSize.tiny => post.url360x360,
-    _ => post.url720x720,
+    GridSize.micro => _variantUrl(post, PostQualityType.v180x180),
+    GridSize.tiny => _variantUrl(post, PostQualityType.v360x360),
+    _ => _variantUrl(post, PostQualityType.v720x720),
   },
   ImageQuality.low => switch (settings.gridSize) {
-    GridSize.micro || GridSize.tiny => post.url180x180,
-    _ => post.url360x360,
+    GridSize.micro ||
+    GridSize.tiny => _variantUrl(post, PostQualityType.v180x180),
+    _ => _variantUrl(post, PostQualityType.v360x360),
   },
   ImageQuality.high => switch (settings.gridSize) {
-    GridSize.micro => post.url180x180,
-    GridSize.tiny => post.url360x360,
-    _ => post.url720x720,
+    GridSize.micro => _variantUrl(post, PostQualityType.v180x180),
+    GridSize.tiny => _variantUrl(post, PostQualityType.v360x360),
+    _ => _variantUrl(post, PostQualityType.v720x720),
   },
   ImageQuality.highest =>
     post.isVideo
-        ? post.url720x720
+        ? _variantUrl(post, PostQualityType.v720x720)
         : switch (settings.gridSize) {
-            GridSize.micro => post.url360x360,
-            GridSize.tiny => post.url720x720,
-            _ => post.urlSample,
+            GridSize.micro => _variantUrl(post, PostQualityType.v360x360),
+            GridSize.tiny => _variantUrl(post, PostQualityType.v720x720),
+            _ => _variantUrl(post, PostQualityType.sample),
           },
-  ImageQuality.original => post.urlOriginal,
+  ImageQuality.original => _variantUrl(post, PostQualityType.original),
 };
+
+String _variantUrl(Post post, PostQualityType type) {
+  final url = switch (post) {
+    DanbooruPost(:final variants) => variants.getUrl(type),
+    PostMediaVariants(:final mediaVariants) => mediaVariants[type.value] ?? '',
+    _ => '',
+  };
+  if (url.isNotEmpty) return url;
+
+  return switch (type) {
+    PostQualityType.v180x180 ||
+    PostQualityType.v360x360 ||
+    PostQualityType.v720x720 => post.thumbnailImageUrl,
+    PostQualityType.sample => post.sampleImageUrl,
+    PostQualityType.original => post.originalImageUrl,
+  };
+}

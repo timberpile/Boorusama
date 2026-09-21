@@ -14,7 +14,7 @@ typedef DanbooruPostsOrError = PostsOrErrorCore<DanbooruPost>;
 
 class DanbooruPost extends Equatable
     with MediaInfoMixin, TranslatedMixin, ImageInfoMixin, VideoInfoMixin
-    implements Post, DanbooruTagDetails {
+    implements Post, DanbooruTagDetails, PostMediaVariants {
   DanbooruPost({
     required this.id,
     required this.thumbnailImageUrl,
@@ -137,6 +137,11 @@ class DanbooruPost extends Equatable
   @override
   final double duration;
   final PostVariants variants;
+
+  @override
+  Map<String, String> get mediaVariants => {
+    for (final entry in variants.variants.entries) entry.key.value: entry.value,
+  };
   @override
   final DanbooruPostStatus? status;
 

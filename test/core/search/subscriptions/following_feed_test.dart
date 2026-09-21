@@ -1,9 +1,14 @@
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/images/booru_image.dart';
+import 'package:boorusama/core/images/types.dart';
+import 'package:boorusama/core/posts/listing/types.dart';
+import 'package:boorusama/core/posts/post/types.dart';
 import 'package:boorusama/core/search/subscriptions/providers.dart';
 import 'package:boorusama/core/search/subscriptions/types.dart';
 import 'package:boorusama/core/search/subscriptions/src/pages/following_feeds_page.dart';
 import 'package:boorusama/core/search/subscriptions/src/pages/pinned_searches_page.dart';
+import 'package:boorusama/core/search/subscriptions/src/widgets/feed_post_thumbnail.dart';
+import 'package:boorusama/core/settings/src/types/settings.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'pinned_search_test_utils.dart';
@@ -275,6 +280,18 @@ void main() {
     },
   );
 
+  test('cached feed posts preserve media variants through serialization', () {
+    final cached = CachedFeedPost.fromPost(
+      _VariantSearchPost(42, checkedAt),
+    );
+
+    expect(cached.mediaVariants, _VariantSearchPost.variants);
+    expect(
+      CachedFeedPost.fromJson(cached.toJson()).mediaVariants,
+      _VariantSearchPost.variants,
+    );
+  });
+
   test(
     'editing feed sources preserves unchanged checkpoints and removes only owned sources',
     () async {
@@ -500,6 +517,135 @@ void main() {
     expect(harness.requests, isEmpty);
   });
 
+  testWidgets('feed overview uses the configured high-quality images', (
+    tester,
+  ) async {
+    harness.dispose();
+    harness = PinnedSearchHarness(
+      listingSettings: Settings.defaultSettings.listing.copyWith(
+        imageQuality: ImageQuality.high,
+      ),
+    );
+    await tester.runAsync(() async {
+      final feed = await harness.repository.saveFeed(
+        profileId: 12,
+        name: 'Animals',
+        queries: ['cat'],
+      );
+      final source = (await harness.repository.getById(feed.sourceIds.single))!;
+      await harness.repository.commitRefresh(
+        SearchRefreshCommit(
+          subscriptionId: source.id,
+          expectedCreatedAt: source.createdAt,
+          expectedCheckpoint: null,
+          startedAt: checkedAt,
+          identityRetentionBoundary: checkedAt,
+          baseline: true,
+          discoveredPosts: const [],
+          feedPosts: [
+            CachedFeedPost.fromPost(TestSearchPost(1, checkedAt)),
+          ],
+        ),
+      );
+      await harness.container.read(searchSubscriptionsProvider.future);
+    });
+
+    await harness.pump(tester, const FollowingFeedsPage());
+
+    expect(
+      tester.widget<BooruImage>(find.byType(BooruImage)).imageUrl,
+      'https://example.com/1.jpg',
+    );
+  });
+
+  final thumbnailCases = [
+    (
+      quality: ImageQuality.low,
+      expectedUrl: 'https://example.com/1-thumb.jpg',
+    ),
+    (quality: ImageQuality.high, expectedUrl: 'https://example.com/1.jpg'),
+  ];
+  for (final c in thumbnailCases) {
+    testWidgets('feed thumbnails use ${c.quality.name} image quality', (
+      tester,
+    ) async {
+      harness.dispose();
+      harness = PinnedSearchHarness(
+        listingSettings: Settings.defaultSettings.listing.copyWith(
+          imageQuality: c.quality,
+        ),
+      );
+
+      await harness.pump(
+        tester,
+        FeedPostThumbnail(
+          post: CachedFeedPost.fromPost(TestSearchPost(1, checkedAt)),
+          config: testProfile.auth,
+        ),
+      );
+
+      expect(
+        tester.widget<BooruImage>(find.byType(BooruImage)).imageUrl,
+        c.expectedUrl,
+      );
+    });
+  }
+
+  final automaticThumbnailCases = [
+    (gridSize: GridSize.micro, expectedUrl: 'https://example.com/180.jpg'),
+    (gridSize: GridSize.tiny, expectedUrl: 'https://example.com/360.jpg'),
+    (gridSize: GridSize.normal, expectedUrl: 'https://example.com/720.jpg'),
+  ];
+  for (final c in automaticThumbnailCases) {
+    testWidgets(
+      'cached feed thumbnails use the ${c.gridSize.name} automatic variant',
+      (tester) async {
+        harness.dispose();
+        harness = PinnedSearchHarness(
+          listingSettings: Settings.defaultSettings.listing.copyWith(
+            imageQuality: ImageQuality.automatic,
+            gridSize: c.gridSize,
+          ),
+        );
+        final post = CachedFeedPost.fromJson({
+          'id': 1,
+          'createdAt': checkedAt.toIso8601String(),
+          'thumbnail': 'https://example.com/thumb.jpg',
+          'sample': 'https://example.com/sample.jpg',
+          'original': 'https://example.com/original.jpg',
+          'tags': const <String>[],
+          'rating': 'general',
+          'width': 100,
+          'height': 100,
+          'format': 'jpg',
+          'mediaVariants': const {
+            '180x180': 'https://example.com/180.jpg',
+            '360x360': 'https://example.com/360.jpg',
+            '720x720': 'https://example.com/720.jpg',
+          },
+        });
+
+        await harness.pump(
+          tester,
+          FeedPostThumbnail(post: post, config: testProfile.auth),
+        );
+
+        expect(
+          tester.widget<BooruImage>(find.byType(BooruImage)).imageUrl,
+          c.expectedUrl,
+        );
+        expect(
+          post.toJson()['mediaVariants'],
+          {
+            '180x180': 'https://example.com/180.jpg',
+            '360x360': 'https://example.com/360.jpg',
+            '720x720': 'https://example.com/720.jpg',
+          },
+        );
+      },
+    );
+  }
+
   testWidgets('rate limited source is visible on the feed overview', (
     tester,
   ) async {
@@ -524,4 +670,17 @@ void main() {
       findsOneWidget,
     );
   });
+}
+
+class _VariantSearchPost extends TestSearchPost implements PostMediaVariants {
+  _VariantSearchPost(super.id, super.createdAt);
+
+  static const variants = {
+    '180x180': 'https://example.com/180.jpg',
+    '360x360': 'https://example.com/360.jpg',
+    '720x720': 'https://example.com/720.jpg',
+  };
+
+  @override
+  Map<String, String> get mediaVariants => variants;
 }
