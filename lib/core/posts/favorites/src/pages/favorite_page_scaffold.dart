@@ -5,52 +5,58 @@ import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
-import 'package:scroll_to_index/scroll_to_index.dart';
 
 // Project imports:
+import '../../../../boorus/engine/providers.dart';
+import '../../../../configs/config/providers.dart';
+import '../../../../configs/config/types.dart';
 import '../../../../search/search/routes.dart';
 import '../../../../widgets/widgets.dart';
-import '../../../listing/providers.dart';
 import '../../../listing/widgets.dart';
+import '../../../post/providers.dart';
 import '../../../post/types.dart';
-
-typedef IndexedSelectableFavoritesWidgetBuilder<T extends Post> =
-    Widget Function(
-      BuildContext context,
-      int index,
-      AutoScrollController autoScrollController,
-      PostGridController<T> controller,
-      bool useHero,
-    );
 
 class FavoritesPageScaffold<T extends Post> extends ConsumerWidget {
   const FavoritesPageScaffold({
     required this.fetcher,
     required this.favQueryBuilder,
-    this.itemBuilder,
     super.key,
   });
 
   final PostsOrError<T> Function(int page) fetcher;
   final String Function()? favQueryBuilder;
-  final IndexedSelectableFavoritesWidgetBuilder<T>? itemBuilder;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final config = ref.watchConfig;
+    final origin = PostOrigin.fromSource(
+      booruType: config.auth.booruType,
+      booruId: config.booruId,
+      source: config.url,
+      profileIdHint: config.id,
+    );
+    final converter =
+        ref.watch(booruPostConverterProvider(config.auth.booruType)) ??
+        (Post post, PostOrigin origin) => UnifiedPost(
+          origin: origin,
+          core: PostCoreData.fromPost(post),
+          booruData: LegacyPostData(
+            typeKey: 'legacy_${origin.booruType.name}',
+            custom: const {},
+          ),
+        );
+
     return CustomContextMenuOverlay(
-      child: PostScope(
-        fetcher: (page) => fetcher(page),
+      child: PostScope<UnifiedPost>(
+        fetcher: (page) => fetcher(page).map(
+          (result) => convertPostResult(
+            result,
+            origin: origin,
+            converter: converter,
+          ),
+        ),
         builder: (context, controller) => PostGrid(
           controller: controller,
-          itemBuilder: itemBuilder != null
-              ? (context, index, autoScrollController, useHero) => itemBuilder!(
-                  context,
-                  index,
-                  autoScrollController,
-                  controller,
-                  useHero,
-                )
-              : null,
           sliverHeaders: [
             SliverAppBar(
               title: Text(context.t.profile.favorites),

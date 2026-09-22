@@ -13,6 +13,7 @@ import '../../core/posts/details/types.dart';
 import '../../core/posts/details/widgets.dart';
 import '../../core/posts/details_parts/types.dart';
 import '../../core/posts/details_parts/widgets.dart';
+import '../../core/posts/post/providers.dart';
 import '../../core/posts/post/types.dart';
 import '../../core/search/search/routes.dart';
 import '../../core/search/search/widgets.dart';
@@ -21,7 +22,6 @@ import 'configs/widgets.dart';
 import 'favorites/widgets.dart';
 import 'home/widgets.dart';
 import 'posts/post_codec.dart';
-import 'posts/providers.dart';
 import 'posts/post_data.dart';
 import 'posts/types.dart';
 import 'posts/widgets.dart';
@@ -35,6 +35,10 @@ class EshuushuuBuilder extends BaseBooruBuilder {
     typeKey: 'eshuushuu',
     uiBuilder: postDetailsUIBuilder,
   );
+
+  @override
+  PostToUnifiedConverter get postConverter =>
+      (post, origin) => eshuushuuPostToUnified(post as EshuushuuPost, origin);
 
   @override
   CommentPageBuilder? get commentPageBuilder =>
@@ -88,8 +92,7 @@ class EshuushuuBuilder extends BaseBooruBuilder {
   PostDetailsPageBuilder get postDetailsPageBuilder =>
       (context, payload) => LegacyPostDetailsPageAdapter(
         payload: payload,
-        converter: (post, origin) =>
-            eshuushuuPostToUnified(post as EshuushuuPost, origin),
+        converter: postConverter,
       );
 
   @override
@@ -152,8 +155,7 @@ class EshuushuuSearchPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final config = ref.watchConfigSearch;
-    final postRepo = ref.watch(eshuushuuPostRepoProvider(config));
+    final postRepo = ref.watch(unifiedPostRepoProvider(ref.watchConfig));
 
     return SearchPageScaffold(
       params: params,

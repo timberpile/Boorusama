@@ -12,6 +12,7 @@ import '../../core/configs/manage/widgets.dart';
 import '../../core/downloads/filename/types.dart';
 import '../../core/home/types.dart';
 import '../../core/posts/details/widgets.dart';
+import '../../core/posts/post/providers.dart';
 import '../../core/posts/post/types.dart';
 import '../../core/search/search/routes.dart';
 import '../../core/search/search/widgets.dart';
@@ -22,7 +23,6 @@ import 'favorites/widgets.dart';
 import 'home/types.dart';
 import 'home/widgets.dart';
 import 'posts/post_codec.dart';
-import 'posts/providers.dart';
 import 'posts/post_data.dart';
 import 'posts/types.dart';
 import 'posts/widgets.dart';
@@ -36,6 +36,10 @@ class E621Builder extends BaseBooruBuilder {
     typeKey: 'e621',
     uiBuilder: postDetailsUIBuilder,
   );
+
+  @override
+  PostToUnifiedConverter get postConverter =>
+      (post, origin) => e621PostToUnified(post as E621Post, origin);
 
   @override
   CreateConfigPageBuilder get createConfigPageBuilder =>
@@ -84,8 +88,7 @@ class E621Builder extends BaseBooruBuilder {
   PostDetailsPageBuilder get postDetailsPageBuilder =>
       (context, payload) => LegacyPostDetailsPageAdapter(
         payload: payload,
-        converter: (post, origin) =>
-            e621PostToUnified(post as E621Post, origin),
+        converter: postConverter,
       );
 
   @override
@@ -129,8 +132,7 @@ class E621SearchPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final config = ref.watchConfigSearch;
-    final postRepo = ref.watch(e621PostRepoProvider(config));
+    final postRepo = ref.watch(unifiedPostRepoProvider(ref.watchConfig));
 
     return SearchPageScaffold(
       params: params,

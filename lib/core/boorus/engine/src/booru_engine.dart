@@ -20,6 +20,7 @@ class BooruEngine {
         booruType: booru.type,
         codec: repository.postDataCodec,
         presentation: builder.postPresentation,
+        converter: builder.postConverter,
       );
 }
 

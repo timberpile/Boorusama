@@ -31,6 +31,10 @@ class MoebooruBuilder extends BaseBooruBuilder {
   );
 
   @override
+  PostToUnifiedConverter get postConverter =>
+      (post, origin) => moebooruPostToUnified(post as MoebooruPost, origin);
+
+  @override
   CreateConfigPageBuilder get createConfigPageBuilder =>
       (
         context,
@@ -87,8 +91,7 @@ class MoebooruBuilder extends BaseBooruBuilder {
   PostDetailsPageBuilder get postDetailsPageBuilder =>
       (context, payload) => LegacyPostDetailsPageAdapter(
         payload: payload,
-        converter: (post, origin) =>
-            moebooruPostToUnified(post as MoebooruPost, origin),
+        converter: postConverter,
       );
 
   @override

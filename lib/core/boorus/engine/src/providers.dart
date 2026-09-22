@@ -62,3 +62,8 @@ final booruPostPresentationProvider =
       return capability?.presentationFor(request.origin, request.data) ??
           const GenericPostPresentation();
     }, name: 'booruPostPresentationProvider');
+
+final booruPostConverterProvider =
+    Provider.family<PostToUnifiedConverter?, BooruType>((ref, type) {
+      return ref.watch(booruPostCapabilityProvider(type))?.converter;
+    }, name: 'booruPostConverterProvider');

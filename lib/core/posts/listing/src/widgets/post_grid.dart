@@ -210,7 +210,7 @@ class _PostGridState<T extends Post> extends ConsumerState<PostGrid<T>> {
 
                   if (customItem != null) return customItem;
 
-                  return GeneralPostContextMenu(
+                  return _PostGridContextMenu(
                     index: index,
                     controller: widget.controller,
                     child: DefaultImageGridItem(
@@ -228,6 +228,63 @@ class _PostGridState<T extends Post> extends ConsumerState<PostGrid<T>> {
     );
   }
 }
+
+class _PostGridContextMenu extends StatelessWidget {
+  const _PostGridContextMenu({
+    required this.controller,
+    required this.index,
+    required this.child,
+  });
+
+  final PostGridController<Post> controller;
+  final int index;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => ValueListenableBuilder(
+    valueListenable: controller.itemsNotifier,
+    builder: (context, posts, _) => Consumer(
+      builder: (context, ref, _) {
+        final post = index < posts.length ? posts[index] : null;
+        final presentation = switch (post) {
+          final UnifiedPost post => ref.watch(
+            booruPostPresentationProvider((
+              origin: post.origin,
+              data: post.booruData,
+            )),
+          ),
+          _ => null,
+        };
+
+        final contextMenuPresentation = _contextMenuPresentation(presentation);
+        if (post case final UnifiedPost unifiedPost
+            when presentation != null &&
+                contextMenuPresentation != null &&
+                presentation.supports(unifiedPost.booruData)) {
+          return contextMenuPresentation.buildGridContextMenu(
+            context,
+            post: unifiedPost,
+            index: index,
+            child: child,
+          );
+        }
+
+        return GeneralPostContextMenu(
+          index: index,
+          controller: controller,
+          child: child,
+        );
+      },
+    ),
+  );
+}
+
+BooruPostGridContextMenuPresentation? _contextMenuPresentation(
+  Object? presentation,
+) => switch (presentation) {
+  final BooruPostGridContextMenuPresentation presentation => presentation,
+  _ => null,
+};
 
 class PostGridScrollToTopButton extends StatelessWidget {
   const PostGridScrollToTopButton({

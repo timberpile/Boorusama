@@ -31,6 +31,10 @@ class GelbooruV2Builder extends BaseBooruBuilder {
   );
 
   @override
+  PostToUnifiedConverter get postConverter =>
+      (post, origin) => gelbooruV2PostToUnified(post as GelbooruV2Post, origin);
+
+  @override
   CreateConfigPageBuilder get createConfigPageBuilder =>
       (
         context,
@@ -79,8 +83,7 @@ class GelbooruV2Builder extends BaseBooruBuilder {
   PostDetailsPageBuilder get postDetailsPageBuilder =>
       (context, payload) => LegacyPostDetailsPageAdapter(
         payload: payload,
-        converter: (post, origin) =>
-            gelbooruV2PostToUnified(post as GelbooruV2Post, origin),
+        converter: postConverter,
       );
 
   @override

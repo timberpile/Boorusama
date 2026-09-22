@@ -28,6 +28,11 @@ class AnimePicturesBuilder extends BaseBooruBuilder {
       );
 
   @override
+  PostToUnifiedConverter get postConverter =>
+      (post, origin) =>
+          animePicturesPostToUnified(post as AnimePicturesPost, origin);
+
+  @override
   CreateConfigPageBuilder get createConfigPageBuilder =>
       (
         context,
@@ -64,8 +69,7 @@ class AnimePicturesBuilder extends BaseBooruBuilder {
   PostDetailsPageBuilder get postDetailsPageBuilder =>
       (context, payload) => LegacyPostDetailsPageAdapter(
         payload: payload,
-        converter: (post, origin) =>
-            animePicturesPostToUnified(post as AnimePicturesPost, origin),
+        converter: postConverter,
       );
 
   @override

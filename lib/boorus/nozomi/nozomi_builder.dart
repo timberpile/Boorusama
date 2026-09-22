@@ -20,6 +20,10 @@ class NozomiBuilder extends BaseBooruBuilder {
   );
 
   @override
+  PostToUnifiedConverter get postConverter =>
+      (post, origin) => nozomiPostToUnified(post as NozomiPost, origin);
+
+  @override
   CreateConfigPageBuilder get createConfigPageBuilder =>
       (
         context,
@@ -47,8 +51,7 @@ class NozomiBuilder extends BaseBooruBuilder {
   PostDetailsPageBuilder get postDetailsPageBuilder =>
       (context, payload) => LegacyPostDetailsPageAdapter(
         payload: payload,
-        converter: (post, origin) =>
-            nozomiPostToUnified(post as NozomiPost, origin),
+        converter: postConverter,
       );
 
   @override

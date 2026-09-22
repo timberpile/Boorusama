@@ -11,6 +11,7 @@ import '../../core/configs/config/types.dart';
 import '../../core/configs/create/widgets.dart';
 import '../../core/configs/manage/widgets.dart';
 import '../../core/posts/details/widgets.dart';
+import '../../core/posts/post/providers.dart';
 import '../../core/posts/post/types.dart';
 import '../../core/search/search/routes.dart';
 import '../../core/search/search/widgets.dart';
@@ -21,7 +22,6 @@ import 'configs/widgets.dart';
 import 'favorites/widgets.dart';
 import 'home/widgets.dart';
 import 'posts/post_codec.dart';
-import 'posts/providers.dart';
 import 'posts/post_data.dart';
 import 'posts/types.dart';
 import 'posts/widgets.dart';
@@ -34,6 +34,10 @@ class SzurubooruBuilder extends BaseBooruBuilder {
     typeKey: 'szurubooru',
     uiBuilder: postDetailsUIBuilder,
   );
+
+  @override
+  PostToUnifiedConverter get postConverter =>
+      (post, origin) => szurubooruPostToUnified(post as SzurubooruPost, origin);
 
   @override
   CreateConfigPageBuilder get createConfigPageBuilder =>
@@ -93,8 +97,7 @@ class SzurubooruBuilder extends BaseBooruBuilder {
   PostDetailsPageBuilder get postDetailsPageBuilder =>
       (context, payload) => LegacyPostDetailsPageAdapter(
         payload: payload,
-        converter: (post, origin) =>
-            szurubooruPostToUnified(post as SzurubooruPost, origin),
+        converter: postConverter,
       );
 
   @override
@@ -111,9 +114,9 @@ class SzurubooruSearchPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final config = ref.watchConfigSearch;
+    final config = ref.watchConfig;
     final loginDetails = ref.watch(szurubooruLoginDetailsProvider(config.auth));
-    final postRepo = ref.watch(szurubooruPostRepoProvider(config));
+    final postRepo = ref.watch(unifiedPostRepoProvider(config));
 
     return SearchPageScaffold(
       landingViewBuilder: (controller) => DefaultMobileSearchLandingView(

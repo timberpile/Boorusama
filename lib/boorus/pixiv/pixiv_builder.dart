@@ -26,6 +26,10 @@ class PixivBuilder extends BaseBooruBuilder {
   );
 
   @override
+  PostToUnifiedConverter get postConverter =>
+      (post, origin) => pixivPostToUnified(post as PixivPost, origin);
+
+  @override
   CreateConfigPageBuilder get createConfigPageBuilder =>
       (
         context,
@@ -66,8 +70,7 @@ class PixivBuilder extends BaseBooruBuilder {
   PostDetailsPageBuilder get postDetailsPageBuilder =>
       (context, payload) => LegacyPostDetailsPageAdapter(
         payload: payload,
-        converter: (post, origin) =>
-            pixivPostToUnified(post as PixivPost, origin),
+        converter: postConverter,
       );
 
   /// Pixiv illusts carry a meaningful tag pool, so the tags section stays

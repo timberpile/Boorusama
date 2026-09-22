@@ -6,10 +6,14 @@ import 'package:kurumi/material.dart';
 
 // Project imports:
 import '../../../core/configs/config/providers.dart';
+import '../../../core/configs/config/types.dart';
 import '../../../core/posts/listing/providers.dart';
+import '../../../core/posts/post/providers.dart';
+import '../../../core/posts/post/types.dart';
 import '../../../core/search/search/routes.dart';
 import '../../../core/search/search/widgets.dart';
 import '../posts/providers.dart';
+import '../posts/post_codec.dart';
 import '../posts/types.dart';
 
 class NozomiSearchPage extends ConsumerStatefulWidget {
@@ -26,16 +30,22 @@ class NozomiSearchPage extends ConsumerStatefulWidget {
 
 class _NozomiSearchPageState extends ConsumerState<NozomiSearchPage> {
   late NozomiPostOrder _order = _parseNozomiPostOrder(widget.params.order);
-  ValueNotifier<PostGridController<NozomiPost>?>? _postController;
+  ValueNotifier<PostGridController<UnifiedPost>?>? _postController;
 
   @override
   Widget build(BuildContext context) {
-    final config = ref.watchConfigSearch;
-    final postRepo = ref.watch(
-      nozomiPostRepoWithOrderProvider((config: config, order: _order)),
+    final config = ref.watchConfig;
+    final legacyRepo = ref.watch(
+      nozomiPostRepoWithOrderProvider((config: config.search, order: _order)),
+    );
+    final postRepo = UnifiedPostRepository<NozomiPost>.fromConfig(
+      delegate: legacyRepo,
+      config: config,
+      converter: (post, origin) =>
+          nozomiPostToUnified(post as NozomiPost, origin),
     );
 
-    return SearchPageScaffold<NozomiPost>(
+    return SearchPageScaffold<UnifiedPost>(
       params: widget.params,
       fetcher: (page, controller) => postRepo.getPostsFromController(
         controller.tagSet,

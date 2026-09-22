@@ -2,18 +2,25 @@
 import '../../../../boorus/booru/types.dart';
 import 'booru_post_data.dart';
 import 'booru_post_presentation.dart';
+import 'post.dart';
 import 'post_origin.dart';
+import 'unified_post.dart';
+
+typedef PostToUnifiedConverter =
+    UnifiedPost Function(Post post, PostOrigin origin);
 
 final class BooruPostCapability<D extends BooruPostData> {
   const BooruPostCapability({
     required this.booruType,
     required this.codec,
     required this.presentation,
+    this.converter,
   });
 
   final BooruType booruType;
   final BooruPostDataCodec<D>? codec;
   final BooruPostPresentation presentation;
+  final PostToUnifiedConverter? converter;
 
   BooruPostDataCodec<D>? codecFor(PostOrigin origin, BooruPostData data) {
     final candidate = codec;

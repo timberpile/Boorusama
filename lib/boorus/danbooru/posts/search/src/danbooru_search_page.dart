@@ -5,15 +5,15 @@ import 'package:rich_text_controller/rich_text_controller.dart';
 
 // Project imports:
 import '../../../../../core/configs/config/providers.dart';
+import '../../../../../core/configs/config/types.dart';
 import '../../../../../core/posts/count/widgets.dart';
+import '../../../../../core/posts/post/providers.dart';
 import '../../../../../core/search/search/routes.dart';
 import '../../../../../core/search/search/widgets.dart';
 import '../../../../../core/search/selected_tags/types.dart';
 import '../../../../../core/tags/metatag/widgets.dart';
 import '../../../../../foundation/utils/flutter_utils.dart';
 import '../../../tags/user_metatags/providers.dart';
-import '../../listing/widgets.dart';
-import '../../post/providers.dart';
 import 'widgets/danbooru_metatags_section.dart';
 import 'widgets/related_tag_section.dart';
 import 'widgets/trending_section.dart';
@@ -33,8 +33,8 @@ class DanbooruSearchPage extends ConsumerStatefulWidget {
 class _DanbooruSearchPageState extends ConsumerState<DanbooruSearchPage> {
   @override
   Widget build(BuildContext context) {
-    final config = ref.watchConfigSearch;
-    final postRepo = ref.watch(danbooruPostRepoProvider(config));
+    final config = ref.watchConfig;
+    final postRepo = ref.watch(unifiedPostRepoProvider(config));
     final metatags = ref.watch(metatagsProvider).map((e) => e.name).join('|');
     final metatagExtractor = ref.watch(
       danbooruMetatagExtractorProvider(config.auth),
@@ -58,18 +58,6 @@ class _DanbooruSearchPageState extends ConsumerState<DanbooruSearchPage> {
           ),
         ),
       ],
-      itemBuilder:
-          (context, index, scrollController, postController, useHero) =>
-              DanbooruPostListingContextMenu(
-                index: index,
-                controller: postController,
-                child: DefaultDanbooruImageGridItem(
-                  index: index,
-                  autoScrollController: scrollController,
-                  controller: postController,
-                  useHero: useHero,
-                ),
-              ),
       landingViewBuilder: (controller) =>
           DanbooruSearchLandingView(controller: controller),
       extraHeaders:

@@ -19,6 +19,10 @@ class HybooruBuilder extends BaseBooruBuilder {
   );
 
   @override
+  PostToUnifiedConverter get postConverter =>
+      (post, origin) => hybooruPostToUnified(post as HybooruPost, origin);
+
+  @override
   CreateConfigPageBuilder get createConfigPageBuilder =>
       (
         context,
@@ -40,8 +44,7 @@ class HybooruBuilder extends BaseBooruBuilder {
   PostDetailsPageBuilder get postDetailsPageBuilder =>
       (context, payload) => LegacyPostDetailsPageAdapter(
         payload: payload,
-        converter: (post, origin) =>
-            hybooruPostToUnified(post as HybooruPost, origin),
+        converter: postConverter,
       );
 
   @override

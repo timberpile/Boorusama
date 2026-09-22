@@ -24,6 +24,10 @@ class PhilomenaBuilder extends BaseBooruBuilder {
   );
 
   @override
+  PostToUnifiedConverter get postConverter =>
+      (post, origin) => philomenaPostToUnified(post as PhilomenaPost, origin);
+
+  @override
   CreateConfigPageBuilder get createConfigPageBuilder =>
       (
         context,
@@ -60,8 +64,7 @@ class PhilomenaBuilder extends BaseBooruBuilder {
   PostDetailsPageBuilder get postDetailsPageBuilder =>
       (context, payload) => LegacyPostDetailsPageAdapter(
         payload: payload,
-        converter: (post, origin) =>
-            philomenaPostToUnified(post as PhilomenaPost, origin),
+        converter: postConverter,
       );
 
   @override

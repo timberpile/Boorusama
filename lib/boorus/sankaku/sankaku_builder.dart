@@ -29,6 +29,10 @@ class SankakuBuilder extends BaseBooruBuilder {
   );
 
   @override
+  PostToUnifiedConverter get postConverter =>
+      (post, origin) => sankakuPostToUnified(post as SankakuPost, origin);
+
+  @override
   CreateConfigPageBuilder get createConfigPageBuilder =>
       (
         context,
@@ -69,8 +73,7 @@ class SankakuBuilder extends BaseBooruBuilder {
   PostDetailsPageBuilder get postDetailsPageBuilder =>
       (context, payload) => LegacyPostDetailsPageAdapter(
         payload: payload,
-        converter: (post, origin) =>
-            sankakuPostToUnified(post as SankakuPost, origin),
+        converter: postConverter,
       );
 
   @override

@@ -19,6 +19,10 @@ class ZerochanBuilder extends BaseBooruBuilder {
   );
 
   @override
+  PostToUnifiedConverter get postConverter =>
+      (post, origin) => zerochanPostToUnified(post as ZerochanPost, origin);
+
+  @override
   CreateConfigPageBuilder get createConfigPageBuilder =>
       (
         context,
@@ -40,8 +44,7 @@ class ZerochanBuilder extends BaseBooruBuilder {
   PostDetailsPageBuilder get postDetailsPageBuilder =>
       (context, payload) => LegacyPostDetailsPageAdapter(
         payload: payload,
-        converter: (post, origin) =>
-            zerochanPostToUnified(post as ZerochanPost, origin),
+        converter: postConverter,
       );
 
   @override

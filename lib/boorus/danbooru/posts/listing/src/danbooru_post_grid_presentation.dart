@@ -17,12 +17,16 @@ import '../../_shared/danbooru_creator_preloader.dart';
 import '../../_shared/post_creator_preloadable.dart';
 import '../../details/src/details_ui_builder.dart';
 import '../../post/types.dart';
+import '../../post/widgets.dart';
 import 'danbooru_post_preview.dart';
 
 const _kBannedTextThreshold = 200.0;
 
 final class DanbooruPostGridPresentation
-    implements BooruPostPresentation, BooruPostGridPresentation {
+    implements
+        BooruPostPresentation,
+        BooruPostGridPresentation,
+        BooruPostGridContextMenuPresentation {
   const DanbooruPostGridPresentation();
 
   @override
@@ -49,6 +53,18 @@ final class DanbooruPostGridPresentation
     post: post,
     config: config,
     isBanned: post.status?.matches('banned') ?? false,
+  );
+
+  @override
+  Widget buildGridContextMenu(
+    BuildContext context, {
+    required UnifiedPost post,
+    required int index,
+    required Widget child,
+  }) => DanbooruPostContextMenu(
+    post: post,
+    index: index,
+    child: child,
   );
 
   PostGridItemAdditions buildLegacyGridItemAdditions(

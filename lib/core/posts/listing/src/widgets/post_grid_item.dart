@@ -30,6 +30,15 @@ abstract interface class BooruPostGridPresentation {
   });
 }
 
+abstract interface class BooruPostGridContextMenuPresentation {
+  Widget buildGridContextMenu(
+    BuildContext context, {
+    required UnifiedPost post,
+    required int index,
+    required Widget child,
+  });
+}
+
 final class PostGridItemAdditions {
   const PostGridItemAdditions({
     this.quickActionButton,

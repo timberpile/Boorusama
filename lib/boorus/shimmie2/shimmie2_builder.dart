@@ -27,6 +27,10 @@ class Shimmie2Builder extends BaseBooruBuilder {
   );
 
   @override
+  PostToUnifiedConverter get postConverter =>
+      (post, origin) => shimmie2PostToUnified(post as Shimmie2Post, origin);
+
+  @override
   CreateConfigPageBuilder get createConfigPageBuilder =>
       (
         context,
@@ -63,8 +67,7 @@ class Shimmie2Builder extends BaseBooruBuilder {
   PostDetailsPageBuilder get postDetailsPageBuilder =>
       (context, payload) => LegacyPostDetailsPageAdapter(
         payload: payload,
-        converter: (post, origin) =>
-            shimmie2PostToUnified(post as Shimmie2Post, origin),
+        converter: postConverter,
       );
 
   @override

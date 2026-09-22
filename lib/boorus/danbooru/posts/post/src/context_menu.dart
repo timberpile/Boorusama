@@ -18,7 +18,7 @@ import '../../../configs/providers.dart';
 import '../../../favgroups/favgroups/routes.dart';
 import '../../../versions/routes.dart';
 import '../../listing/providers.dart';
-import 'danbooru_post.dart';
+import '../../../../../core/posts/post/types.dart';
 
 class DanbooruPostContextMenu extends ConsumerWidget {
   const DanbooruPostContextMenu({
@@ -29,7 +29,7 @@ class DanbooruPostContextMenu extends ConsumerWidget {
   });
 
   final Widget child;
-  final DanbooruPost post;
+  final Post post;
   final int index;
 
   @override

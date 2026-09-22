@@ -14,6 +14,7 @@ import '../../core/home/widgets.dart';
 import '../../core/posts/details/widgets.dart';
 import '../../core/posts/listing/providers.dart';
 import '../../core/posts/listing/widgets.dart';
+import '../../core/posts/post/types.dart';
 import '../../core/posts/statistics/types.dart';
 import '../../core/posts/statistics/widgets.dart';
 import 'artists/artist/widgets.dart';
@@ -38,6 +39,10 @@ class DanbooruBuilder extends BaseBooruBuilder {
 
   @override
   final postPresentation = const DanbooruPostGridPresentation();
+
+  @override
+  PostToUnifiedConverter get postConverter =>
+      (post, origin) => danbooruPostToUnified(post as DanbooruPost, origin);
 
   @override
   CreateConfigPageBuilder get createConfigPageBuilder =>
@@ -86,8 +91,7 @@ class DanbooruBuilder extends BaseBooruBuilder {
   PostDetailsPageBuilder get postDetailsPageBuilder =>
       (context, payload) => LegacyPostDetailsPageAdapter(
         payload: payload,
-        converter: (post, origin) =>
-            danbooruPostToUnified(post as DanbooruPost, origin),
+        converter: postConverter,
       );
 
   @override

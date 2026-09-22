@@ -1,18 +1,14 @@
 // Package imports:
 import 'package:booru_clients/core.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:foundation/foundation.dart';
-import 'package:i18n/i18n.dart';
-import 'package:kurumi/kurumi.dart';
-import 'package:kurumi/material.dart';
 
 // Project imports:
 import '../../../core/configs/auth/widgets.dart';
 import '../../../core/configs/config/providers.dart';
-import '../../../core/posts/details/routes.dart';
 import '../../../core/posts/favorites/providers.dart';
 import '../../../core/posts/favorites/widgets.dart';
-import '../../../core/posts/listing/widgets.dart';
 import '../gelbooru_v2_provider.dart';
 import '../posts/providers.dart';
 import 'providers.dart';
@@ -74,33 +70,6 @@ class GelbooruV2FavoritesPageHtml extends ConsumerWidget {
 
     return FavoritesPageScaffold(
       favQueryBuilder: null,
-      itemBuilder:
-          (context, index, autoScrollController, controller, useHero) =>
-              GeneralPostContextMenu(
-                index: index,
-                controller: controller,
-                child: DefaultImageGridItem(
-                  index: index,
-                  autoScrollController: autoScrollController,
-                  controller: controller,
-                  useHero: useHero,
-                  config: config.auth,
-                  onTap: () {
-                    final post = controller.items.elementAtOrNull(index);
-                    if (post == null) {
-                      Kurumi.showErrorToast(context, 'Post not found'.hc);
-                      return;
-                    }
-
-                    goToLazyPostDetailsPageFromController(
-                      ref: ref,
-                      initialIndex: index,
-                      controller: controller,
-                      configSearch: config,
-                    );
-                  },
-                ),
-              ),
       fetcher: (page) => TaskEither.Do(($) async {
         // Just a placeholder since we can't really search with tags
         final r = await $(repo.getPosts('', page));

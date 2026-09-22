@@ -32,6 +32,10 @@ class GelbooruV1Builder extends BaseBooruBuilder {
   );
 
   @override
+  PostToUnifiedConverter get postConverter =>
+      (post, origin) => gelbooruV1PostToUnified(post as GelbooruV1Post, origin);
+
+  @override
   CreateConfigPageBuilder get createConfigPageBuilder =>
       (
         context,
@@ -78,8 +82,7 @@ class GelbooruV1Builder extends BaseBooruBuilder {
   PostDetailsPageBuilder get postDetailsPageBuilder =>
       (context, payload) => LegacyPostDetailsPageAdapter(
         payload: payload,
-        converter: (post, origin) =>
-            gelbooruV1PostToUnified(post as GelbooruV1Post, origin),
+        converter: postConverter,
       );
 
   @override
@@ -97,7 +100,7 @@ class GelbooruV1SearchPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final postRepo = ref.watch(postRepoProvider(ref.watchConfigSearch));
+    final postRepo = ref.watch(unifiedPostRepoProvider(ref.watchConfig));
 
     return SearchPageScaffold(
       landingViewBuilder: (controller) => DefaultMobileSearchLandingView(
