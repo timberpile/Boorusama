@@ -53,6 +53,9 @@ abstract class BooruRepositoryDefault implements BooruRepository {
   const BooruRepositoryDefault();
 
   @override
+  BooruPostDataCodec<BooruPostData>? get postDataCodec => null;
+
+  @override
   AutocompleteRepository autocomplete(BooruConfigAuth config);
 
   @override
