@@ -6,8 +6,23 @@ final _transparentWhite = img.ColorRgba8(255, 255, 255, 0);
 
 Future<void> main(List<String> arguments) async {
   final root = _rootFrom(arguments);
-  final source = _decode('$root/assets/images/logo.png');
+  await _writeSources(
+    root,
+    _decode('$root/assets/images/logo.png'),
+    'assets/icon',
+  );
+  await _writeSources(
+    root,
+    _decode('$root/assets/images/logo-dev.png'),
+    'assets/icon/dev',
+  );
+}
 
+Future<void> _writeSources(
+  String root,
+  img.Image source,
+  String outputDirectory,
+) async {
   final compact = _placeSource(
     source,
     canvasSize: 500,
@@ -23,15 +38,19 @@ Future<void> main(List<String> arguments) async {
     y: 80,
   );
 
-  await _writePng(root, 'assets/icon/icon-512x512.png', compact);
-  await _writePng(root, 'assets/icon/icon-ios.png', ios);
-  await _writePng(root, 'assets/icon/icon-macos.png', _macosSource(source));
+  await _writePng(root, '$outputDirectory/icon-512x512.png', compact);
+  await _writePng(root, '$outputDirectory/icon-ios.png', ios);
   await _writePng(
     root,
-    'assets/icon/icon-monochrome-512x512.png',
+    '$outputDirectory/icon-macos.png',
+    _macosSource(source),
+  );
+  await _writePng(
+    root,
+    '$outputDirectory/icon-monochrome-512x512.png',
     _monochromeSource(source),
   );
-  await _writePng(root, 'assets/icon/icon-windows.png', source);
+  await _writePng(root, '$outputDirectory/icon-windows.png', source);
 }
 
 String _rootFrom(List<String> arguments) {
