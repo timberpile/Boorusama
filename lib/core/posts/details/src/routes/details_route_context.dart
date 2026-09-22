@@ -16,6 +16,7 @@ class DetailsRouteContext<T extends Post> extends Equatable {
     required this.initialThumbnailUrl,
     required this.configSearch,
     this.dislclaimer,
+    this.useMixedViewer = false,
   });
 
   DetailsRouteContext<T> copyWith({
@@ -32,6 +33,7 @@ class DetailsRouteContext<T extends Post> extends Equatable {
       initialThumbnailUrl: initialThumbnailUrl,
       dislclaimer: dislclaimer,
       configSearch: configSearch,
+      useMixedViewer: useMixedViewer,
     );
   }
 
@@ -43,6 +45,7 @@ class DetailsRouteContext<T extends Post> extends Equatable {
   final String? initialThumbnailUrl;
   final String? dislclaimer;
   final BooruConfigSearch? configSearch;
+  final bool useMixedViewer;
 
   @override
   List<Object?> get props => [
@@ -53,5 +56,6 @@ class DetailsRouteContext<T extends Post> extends Equatable {
     hero,
     initialThumbnailUrl,
     dislclaimer,
+    useMixedViewer,
   ];
 }

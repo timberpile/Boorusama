@@ -177,7 +177,7 @@ class PostGridItem extends ConsumerWidget {
     return HeroMode(
       enabled: useHero,
       child: KurumiHero(
-        tag: '${post.id}_hero',
+        tag: postHeroTag(post),
         child: ExplicitContentBlockOverlay(
           rating: post.rating,
           child: tooltip,

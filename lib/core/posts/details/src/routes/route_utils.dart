@@ -60,6 +60,7 @@ void goToPostDetailsPageCore<T extends Post>({
       hero: hero,
       initialThumbnailUrl: initialThumbnailUrl,
       configSearch: null,
+      useMixedViewer: posts.any((post) => post is UnifiedPost),
     ),
   );
 }

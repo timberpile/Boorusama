@@ -78,7 +78,7 @@ class _PostDetailsLayoutSwitcherState<T extends Post>
           final currentPost = widget.posts[currentPage];
 
           if (currentPost.isVideo) {
-            await _controller.waitForVideoCompletion(currentPost.id);
+            await _controller.waitForVideoCompletion(currentPost);
           }
         }
       },

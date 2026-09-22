@@ -45,7 +45,7 @@ class SzurubooruPostActionToolbar extends ConsumerWidget {
       child: CommonPostButtonsBuilder(
         post: post,
         onStartSlideshow: controller.startSlideshow,
-        onLoadOriginal: () => detailsController.loadOriginalImage(post.id),
+        onLoadOriginal: () => detailsController.loadOriginalImage(post),
         config: config,
         configViewer: configViewer,
         builder: (context, buttons) {

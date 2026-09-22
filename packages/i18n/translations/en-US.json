@@ -265,6 +265,7 @@
       "show_translated": "Show translated",
       "show_n_more": "Show $n more",
       "show_less": "Show less",
+      "site_features_unavailable": "Some site-specific features are unavailable for this post.",
       "login_required_notice": "You have to log in to perform this action",
       "open_wiki": "Open wiki",
       "add_to_favorites": "Add to favorites",

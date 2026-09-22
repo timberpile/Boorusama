@@ -35,7 +35,7 @@ class HydrusPostActionToolbar extends ConsumerWidget {
     return CommonPostButtonsBuilder(
       post: post,
       onStartSlideshow: controller.startSlideshow,
-      onLoadOriginal: () => detailsController.loadOriginalImage(post.id),
+      onLoadOriginal: () => detailsController.loadOriginalImage(post),
       config: config,
       configViewer: ref.watchConfigViewer,
       builder: (context, buttons) {

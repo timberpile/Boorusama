@@ -47,7 +47,7 @@ class SimplePostActionToolbar<T extends Post> extends ConsumerWidget {
     return CommonPostButtonsBuilder(
       post: post,
       onStartSlideshow: onStartSlideshow,
-      onLoadOriginal: () => detailsController.loadOriginalImage(post.id),
+      onLoadOriginal: () => detailsController.loadOriginalImage(post),
       config: auth,
       configViewer: viewer,
       builder: (context, buttons) {

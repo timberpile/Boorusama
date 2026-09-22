@@ -67,7 +67,7 @@ class DanbooruPostActionToolbar extends ConsumerWidget {
       child: CommonPostButtonsBuilder(
         post: post,
         onStartSlideshow: onStartSlideshow,
-        onLoadOriginal: () => detailsController.loadOriginalImage(post.id),
+        onLoadOriginal: () => detailsController.loadOriginalImage(post),
         config: config,
         configViewer: configViewer,
         builder: (context, buttons) {

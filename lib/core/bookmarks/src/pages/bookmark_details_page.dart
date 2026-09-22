@@ -210,7 +210,7 @@ class BookmarkPostActionToolbar extends ConsumerWidget {
       child: CommonPostButtonsBuilder(
         post: originalPost,
         onStartSlideshow: controller.startSlideshow,
-        onLoadOriginal: () => detailsController.loadOriginalImage(post.id),
+        onLoadOriginal: () => detailsController.loadOriginalImage(post),
         config: config?.auth,
         configViewer: config?.viewer,
         copy: false,

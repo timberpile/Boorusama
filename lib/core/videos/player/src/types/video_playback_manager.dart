@@ -11,8 +11,8 @@ import 'video_progress.dart';
 class VideoPlaybackManager extends ChangeNotifier {
   VideoPlaybackManager();
 
-  final Map<int, BooruPlayer> _players = {};
-  final Set<int> _pendingPlayback = {};
+  final Map<String, BooruPlayer> _players = {};
+  final Set<String> _pendingPlayback = {};
   final _videoProgress = ValueNotifier(VideoProgress.zero);
   final _isVideoPlaying = ValueNotifier<bool>(false);
   final _seekStreamController = StreamController<VideoProgress>.broadcast();
@@ -21,7 +21,7 @@ class VideoPlaybackManager extends ChangeNotifier {
   ValueNotifier<bool> get isVideoPlaying => _isVideoPlaying;
   Stream<VideoProgress> get seekStream => _seekStreamController.stream;
 
-  void registerPlayer(BooruPlayer player, int id) {
+  void registerPlayer(BooruPlayer player, String id) {
     _players[id] = player;
 
     // If playback was requested before registration, play now
@@ -31,12 +31,12 @@ class VideoPlaybackManager extends ChangeNotifier {
     }
   }
 
-  void unregisterPlayer(int id) {
+  void unregisterPlayer(String id) {
     _players.remove(id);
     _pendingPlayback.remove(id);
   }
 
-  Future<void> playVideo(int id) async {
+  Future<void> playVideo(String id) async {
     _isVideoPlaying.value = true;
     final player = _players[id];
     if (player != null) {
@@ -47,7 +47,7 @@ class VideoPlaybackManager extends ChangeNotifier {
     }
   }
 
-  Future<void> pauseVideo(int id) async {
+  Future<void> pauseVideo(String id) async {
     _isVideoPlaying.value = false;
     final player = _players[id];
     if (player != null) {
@@ -55,7 +55,7 @@ class VideoPlaybackManager extends ChangeNotifier {
     }
   }
 
-  void seekVideo(Duration position, int id) {
+  void seekVideo(Duration position, String id) {
     final player = _players[id];
     if (player != null) {
       player.seek(position);
@@ -72,7 +72,7 @@ class VideoPlaybackManager extends ChangeNotifier {
   void updateProgress(
     double current,
     double total,
-    int currentVideoId,
+    String currentVideoId,
   ) {
     final currentPlayer = _players[currentVideoId];
     if (currentPlayer != null) {
@@ -91,12 +91,12 @@ class VideoPlaybackManager extends ChangeNotifier {
     _videoProgress.value = VideoProgress.zero;
   }
 
-  BooruPlayer? getPlayer(int id) {
+  BooruPlayer? getPlayer(String id) {
     return _players[id];
   }
 
   Duration? seekVideoByDirection(
-    int playerId,
+    String playerId,
     bool isForward,
     Duration? postDuration,
     int doubleTapSeekDurationSeconds,

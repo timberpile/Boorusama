@@ -54,7 +54,7 @@ class PostMedia<T extends Post> extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final details = PostDetails.of(context);
-    final heroTag = '${post.id}_hero';
+    final heroTag = postHeroTag(post);
     final automaticMediaLoadingEnabled = ref.watch(
       automaticMediaLoadingEnabledProvider,
     );
@@ -98,12 +98,12 @@ class PostMedia<T extends Post> extends ConsumerWidget {
                           details.controller.onCurrentPositionChanged(
                             current,
                             total,
-                            post.id.toString(),
+                            post,
                           ),
                       onVideoPlayerCreated: (player) => details.controller
-                          .onBooruVideoPlayerCreated(player, post.id),
-                      onVideoPlayerDisposed: () => details.controller
-                          .onBooruVideoPlayerDisposed(post.id),
+                          .onBooruVideoPlayerCreated(player, post),
+                      onVideoPlayerDisposed: () =>
+                          details.controller.onBooruVideoPlayerDisposed(post),
                       sound: ref.watch(globalSoundStateProvider),
                       speed: ref.watch(playbackSpeedProvider(videoUrl)),
                       thumbnailUrl: post.videoThumbnailUrl,

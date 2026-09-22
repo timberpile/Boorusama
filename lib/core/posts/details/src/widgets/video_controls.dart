@@ -216,9 +216,9 @@ class _VideoControlsContent<T extends Post> extends ConsumerWidget {
         isPlaying: controller.isVideoPlaying,
         onPlayingChanged: (value) {
           if (value) {
-            controller.pauseVideo(post.id, showAnimation: true);
+            controller.pauseVideo(post, showAnimation: true);
           } else if (!value) {
-            controller.playVideo(post.id, showAnimation: true);
+            controller.playVideo(post, showAnimation: true);
           } else {
             // do nothing
           }
@@ -242,12 +242,12 @@ class _VideoControlsContent<T extends Post> extends ConsumerWidget {
             position: progress.position,
             buffered: const [],
             onDragStart: () {
-              controller.pauseVideo(post.id);
+              controller.pauseVideo(post);
             },
             onDragEnd: () {
-              controller.playVideo(post.id);
+              controller.playVideo(post);
             },
-            seekTo: (position) => controller.onVideoSeekTo(position, post.id),
+            seekTo: (position) => controller.onVideoSeekTo(position, post),
             barHeight: 3,
             handleHeight: 6,
             drawShadow: true,

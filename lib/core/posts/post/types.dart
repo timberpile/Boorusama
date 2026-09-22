@@ -14,6 +14,7 @@ export 'src/data/stored_post_codec.dart';
 export 'src/data/post_origin_resolver.dart';
 export 'src/types/post_media_aspect_ratios.dart';
 export 'src/types/post_media_variants.dart';
+export 'src/types/post_viewer_identity.dart';
 export 'src/types/simple_post.dart';
 export 'src/types/post_quality.dart';
 export 'src/types/post_repository.dart';
