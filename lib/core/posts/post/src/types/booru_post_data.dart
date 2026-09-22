@@ -14,6 +14,39 @@ abstract interface class BooruPostDataCodec<D extends BooruPostData> {
   D decode(Map<String, Object?> json, {required int version});
 }
 
+class EmptyPostDataCodec implements BooruPostDataCodec<EmptyPostData> {
+  const EmptyPostDataCodec(this.typeKey);
+
+  @override
+  final String typeKey;
+
+  @override
+  int get currentVersion => 1;
+
+  @override
+  bool supports(BooruPostData data) =>
+      data is EmptyPostData && data.typeKey == typeKey;
+
+  @override
+  Map<String, Object?> encode(EmptyPostData data) {
+    if (!supports(data)) {
+      throw ArgumentError.value(data, 'data', 'Incompatible empty post data');
+    }
+    return const {};
+  }
+
+  @override
+  EmptyPostData decode(
+    Map<String, Object?> json, {
+    required int version,
+  }) {
+    if (version != currentVersion || json.isNotEmpty) {
+      throw const FormatException('Invalid empty post data');
+    }
+    return EmptyPostData(typeKey: typeKey);
+  }
+}
+
 final class EmptyPostData extends Equatable implements BooruPostData {
   const EmptyPostData({required this.typeKey, this.schemaVersion = 1});
 

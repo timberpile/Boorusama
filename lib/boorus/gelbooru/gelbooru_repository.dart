@@ -36,6 +36,7 @@ import 'comments/providers.dart';
 import 'configs/providers.dart';
 import 'favorites/providers.dart';
 import 'notes/providers.dart';
+import 'posts/post_codec.dart';
 import 'posts/providers.dart';
 import 'posts/types.dart';
 import 'syntax/providers.dart';
@@ -43,6 +44,10 @@ import 'tags/providers.dart';
 
 class GelbooruRepository extends BooruRepositoryDefault {
   const GelbooruRepository({required this.ref});
+
+  @override
+  BooruPostDataCodec<EmptyPostData> get postDataCodec =>
+      const GelbooruPostCodec();
 
   @override
   SearchRefreshQueryAdapter searchRefreshQueryAdapter(BooruConfigAuth config) =>
