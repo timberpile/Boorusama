@@ -18,9 +18,11 @@ class DefaultImagePreviewQuickActionButton extends ConsumerWidget {
   const DefaultImagePreviewQuickActionButton({
     required this.post,
     super.key,
+    this.defaultActionButton,
   });
 
   final Post post;
+  final Widget? defaultActionButton;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -74,12 +76,13 @@ class DefaultImagePreviewQuickActionButton extends ConsumerWidget {
         },
       ),
       ImageQuickActionType.defaultAction =>
-        booruBuilder?.quickFavoriteButtonBuilder != null
-            ? booruBuilder!.quickFavoriteButtonBuilder!(
-                context,
-                post,
-              )
-            : const SizedBox.shrink(),
+        defaultActionButton ??
+            (booruBuilder?.quickFavoriteButtonBuilder != null
+                ? booruBuilder!.quickFavoriteButtonBuilder!(
+                    context,
+                    post,
+                  )
+                : const SizedBox.shrink()),
       ImageQuickActionType.none => const SizedBox.shrink(),
     };
   }

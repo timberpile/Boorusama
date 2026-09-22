@@ -36,6 +36,9 @@ class DanbooruBuilder extends BaseBooruBuilder {
   DanbooruBuilder();
 
   @override
+  final postPresentation = const DanbooruPostGridPresentation();
+
+  @override
   CreateConfigPageBuilder get createConfigPageBuilder =>
       (
         context,
@@ -139,6 +142,7 @@ class DanbooruBuilder extends BaseBooruBuilder {
         () => const SizedBox.shrink(),
         (post) => DanbooruQuickFavoriteButton(
           post: post,
+          isBanned: post.isBanned,
         ),
       );
 

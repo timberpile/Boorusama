@@ -61,18 +61,7 @@ UnifiedPost danbooruPostToUnified(DanbooruPost post, PostOrigin origin) =>
     UnifiedPost(
       origin: origin,
       core: PostCoreData.fromPost(post, status: post.status?.value),
-      booruData: DanbooruPostData(
-        lastCommentAt: post.lastCommentAt,
-        upScore: post.upScore,
-        downScore: post.downScore,
-        favCount: post.favCount,
-        approverId: post.approverId,
-        generalTags: post.generalTags,
-        metaTags: post.metaTags,
-        hasChildren: post.hasChildren,
-        hasLarge: post.hasLarge,
-        pixelHash: post.pixelHash,
-      ),
+      booruData: DanbooruPostData.fromPost(post),
     );
 
 Set<String> _stringSet(Object? value) => switch (value) {

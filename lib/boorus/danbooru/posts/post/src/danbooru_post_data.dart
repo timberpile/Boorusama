@@ -3,6 +3,7 @@ import 'package:equatable/equatable.dart';
 
 // Project imports:
 import '../../../../../core/posts/post/types.dart';
+import 'danbooru_post.dart';
 
 final class DanbooruPostData extends Equatable implements BooruPostData {
   const DanbooruPostData({
@@ -17,6 +18,19 @@ final class DanbooruPostData extends Equatable implements BooruPostData {
     required this.hasLarge,
     required this.pixelHash,
   });
+
+  factory DanbooruPostData.fromPost(DanbooruPost post) => DanbooruPostData(
+    lastCommentAt: post.lastCommentAt,
+    upScore: post.upScore,
+    downScore: post.downScore,
+    favCount: post.favCount,
+    approverId: post.approverId,
+    generalTags: post.generalTags,
+    metaTags: post.metaTags,
+    hasChildren: post.hasChildren,
+    hasLarge: post.hasLarge,
+    pixelHash: post.pixelHash,
+  );
 
   final DateTime? lastCommentAt;
   final int upScore;
