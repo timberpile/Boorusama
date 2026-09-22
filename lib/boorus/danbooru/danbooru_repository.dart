@@ -59,6 +59,7 @@ import 'posts/favorites/providers.dart';
 import 'posts/listing/providers.dart';
 import 'posts/listing/types.dart';
 import 'posts/post/providers.dart';
+import 'posts/post/src/danbooru_post_codec.dart';
 import 'posts/post/types.dart';
 import 'posts/votes/providers.dart';
 import 'syntax/providers.dart';
@@ -70,6 +71,10 @@ class DanbooruRepository extends BooruRepositoryDefault {
   const DanbooruRepository({
     required this.ref,
   });
+
+  @override
+  BooruPostDataCodec<DanbooruPostData> get postDataCodec =>
+      const DanbooruPostCodec();
 
   @override
   SearchRefreshQueryAdapter searchRefreshQueryAdapter(BooruConfigAuth config) =>

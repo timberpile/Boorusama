@@ -26,12 +26,17 @@ import 'configs/providers.dart';
 import 'downloads/providers.dart';
 import 'favorites/providers.dart';
 import 'notes/providers.dart';
+import 'posts/post_codec.dart';
+import 'posts/post_data.dart';
 import 'posts/providers.dart';
 import 'tags/color.dart';
 import 'tags/providers.dart';
 
 class E621Repository extends BooruRepositoryDefault {
   const E621Repository({required this.ref});
+
+  @override
+  BooruPostDataCodec<E621PostData> get postDataCodec => const E621PostCodec();
 
   @override
   SearchRefreshQueryAdapter searchRefreshQueryAdapter(BooruConfigAuth config) =>
