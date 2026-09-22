@@ -298,7 +298,9 @@ void main() {
           .copyWith(originalUrl: 'https://example.com/new.jpg')
           .toPost();
       final config = BooruConfigAuth.fromConfig(
-        BooruConfig.empty.copyWith(booruIdHint: post.bookmark.booruId),
+        BooruConfig.empty.copyWith(
+          booruIdHint: post.origin.booruType.id,
+        ),
       );
 
       await expectLater(
@@ -359,7 +361,9 @@ void main() {
           .copyWith(originalUrl: 'https://example.com/rollback.jpg')
           .toPost();
       final config = BooruConfigAuth.fromConfig(
-        BooruConfig.empty.copyWith(booruIdHint: post.bookmark.booruId),
+        BooruConfig.empty.copyWith(
+          booruIdHint: post.origin.booruType.id,
+        ),
       );
 
       final result = await notifier.createGroupWithPosts('Atomic', config, [
@@ -402,7 +406,9 @@ void main() {
           .copyWith(originalUrl: 'https://example.com/settings-rollback.jpg')
           .toPost();
       final config = BooruConfigAuth.fromConfig(
-        BooruConfig.empty.copyWith(booruIdHint: post.bookmark.booruId),
+        BooruConfig.empty.copyWith(
+          booruIdHint: post.origin.booruType.id,
+        ),
       );
 
       await expectLater(
@@ -1157,11 +1163,9 @@ class _FailingSecondReadBookmarkRepository extends BookmarkHiveRepository {
     required ImageUrlResolver Function(int? booruId) imageUrlResolver,
     required PostLinkGenerator Function(int? booruId) postLinkGenerator,
   }) async {
-    final bookmark = switch (post) {
-      BookmarkPost(:final bookmark) => bookmark,
-      _ => throw StateError('Expected a stored bookmark post.'),
-    };
-    return (await addBookmarkWithBookmarks([bookmark])).single;
+    return (await addBookmarkWithBookmarks([
+      _bookmarkFromPost(post),
+    ])).single;
   }
 
   @override
@@ -1186,11 +1190,7 @@ class _CommitsThenThrowsAddBookmarkRepository extends BookmarkHiveRepository {
     required ImageUrlResolver Function(int? booruId) imageUrlResolver,
     required PostLinkGenerator Function(int? booruId) postLinkGenerator,
   }) async {
-    final bookmark = switch (post) {
-      BookmarkPost(:final bookmark) => bookmark,
-      _ => throw StateError('Expected a stored bookmark post.'),
-    };
-    await addBookmarkWithBookmarks([bookmark]);
+    await addBookmarkWithBookmarks([_bookmarkFromPost(post)]);
     throw StateError('bookmark write reported failure after committing');
   }
 }
@@ -1204,13 +1204,9 @@ class _BookmarkPostRepository extends BookmarkHiveRepository {
     Post post, {
     required ImageUrlResolver Function(int? booruId) imageUrlResolver,
     required PostLinkGenerator Function(int? booruId) postLinkGenerator,
-  }) async {
-    final bookmark = switch (post) {
-      BookmarkPost(:final bookmark) => bookmark,
-      _ => throw StateError('Expected a stored bookmark post.'),
-    };
-    return (await addBookmarkWithBookmarks([bookmark])).single;
-  }
+  }) async => (await addBookmarkWithBookmarks([
+    _bookmarkFromPost(post),
+  ])).single;
 }
 
 class _FailsSecondAddBookmarkRepository extends BookmarkHiveRepository {
@@ -1227,12 +1223,27 @@ class _FailsSecondAddBookmarkRepository extends BookmarkHiveRepository {
   }) async {
     _addCount++;
     if (_addCount == 2) throw StateError('second bookmark write failed');
-    final bookmark = switch (post) {
-      BookmarkPost(:final bookmark) => bookmark,
-      _ => throw StateError('Expected a stored bookmark post.'),
-    };
-    return (await addBookmarkWithBookmarks([bookmark])).single;
+    return (await addBookmarkWithBookmarks([
+      _bookmarkFromPost(post),
+    ])).single;
   }
+}
+
+Bookmark _bookmarkFromPost(Post post) {
+  final unified = switch (post) {
+    final UnifiedPost post => post,
+    _ => throw StateError('Expected a unified bookmark post.'),
+  };
+  return Bookmark.fromSnapshot(
+    id: -1,
+    createdAt: DateTime(1),
+    updatedAt: DateTime(1),
+    snapshot: const StoredPostCodec().encode(unified),
+    post: unified,
+    sourceUrl: unified.origin.sourceHost.isEmpty
+        ? ''
+        : 'https://${unified.origin.sourceHost}',
+  );
 }
 
 class _FailsSecondAddAndFirstCleanupRepository

@@ -26,6 +26,7 @@ class DefaultImageGridItem<T extends Post> extends StatelessWidget {
     this.imageUrl,
     this.imageCacheManager,
     this.imageConfig,
+    this.presentation,
   });
 
   final int index;
@@ -38,6 +39,7 @@ class DefaultImageGridItem<T extends Post> extends StatelessWidget {
   final ImageCacheManager? imageCacheManager;
   final BooruConfigAuth config;
   final BooruConfigAuth? imageConfig;
+  final BooruPostPresentation? presentation;
 
   @override
   Widget build(BuildContext context) {
@@ -61,6 +63,7 @@ class DefaultImageGridItem<T extends Post> extends StatelessWidget {
               imageCacheManager: imageCacheManager,
               imageConfig: imageConfig,
               leadingIcons: leadingIcons,
+              presentation: presentation,
               autoScrollOptions: AutoScrollOptions(
                 controller: autoScrollController,
                 index: index,

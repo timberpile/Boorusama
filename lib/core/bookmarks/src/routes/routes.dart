@@ -5,7 +5,7 @@ import 'package:kurumi/cupertino.dart';
 // Project imports:
 import '../../../posts/listing/providers.dart';
 import '../../../router.dart';
-import '../data/bookmark_convert.dart';
+import '../../../posts/post/types.dart';
 import '../pages/bookmark_details_page.dart';
 import '../pages/bookmark_page.dart';
 import '../pages/bookmark_group_browser_page.dart';
@@ -49,7 +49,7 @@ final bookmarkRoutes = GoRoute(
           child: BookmarkDetailsPage(
             initialIndex: state.uri.queryParameters['index']?.toInt() ?? 0,
             initialThumbnailUrl: extra['initialThumbnailUrl'] as String,
-            controller: extra['controller'] as PostGridController<BookmarkPost>,
+            controller: extra['controller'] as PostGridController<UnifiedPost>,
           ),
         );
       },

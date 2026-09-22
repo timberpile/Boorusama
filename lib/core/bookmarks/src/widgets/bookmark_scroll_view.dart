@@ -11,13 +11,11 @@ import 'package:selection_mode/selection_mode.dart';
 import 'package:sliver_tools/sliver_tools.dart';
 
 // Project imports:
-import '../../../../foundation/info/package_info.dart';
 import '../../../../foundation/loggers.dart';
-import '../../../../foundation/url_launcher.dart';
-import '../../../boorus/engine/providers.dart';
 import '../../../config_widgets/website_logo.dart';
 import '../../../configs/config/providers.dart';
 import '../../../configs/config/types.dart';
+import '../../../configs/manage/providers.dart';
 import '../../../posts/listing/providers.dart';
 import '../../../posts/listing/widgets.dart';
 import '../../../posts/post/types.dart';
@@ -33,7 +31,6 @@ import '../providers/local_providers.dart';
 import '../routes/route_utils.dart';
 import 'bookmark_appbar.dart';
 import 'bookmark_booru_type_selector.dart';
-import 'bookmark_context_menu_section.dart';
 import 'bookmark_search_bar.dart';
 import 'bookmark_shuffle_button.dart';
 import 'bookmark_sort_button.dart';
@@ -80,7 +77,7 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
 
   @override
   Widget build(BuildContext context) {
-    return RawPostScope<BookmarkPost>(
+    return RawPostScope<UnifiedPost>(
       onError: (message) {
         ref.read(loggerProvider).error('Bookmark Listing', message);
       },
@@ -163,12 +160,16 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
               postController: controller,
               bookmark: false,
               onBulkDownload: (selectedPosts) {
+                final library = ref.read(bookmarkProvider).valueOrNull;
                 ref
                     .read(bookmarkProvider.notifier)
                     .downloadBookmarks(
                       auth,
                       download,
-                      selectedPosts.map((e) => e.bookmark).toList(),
+                      selectedPosts
+                          .map((post) => library?.bookmarkForPost(post))
+                          .nonNulls
+                          .toList(),
                     );
               },
               extraActions: (selectedPosts) => [
@@ -261,20 +262,33 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
 
   Widget _buildItem(
     int index,
-    PostGridController<BookmarkPost> controller,
+    PostGridController<UnifiedPost> controller,
   ) {
     final edit = ref.watch(bookmarkEditProvider);
-    final auth = ref.watchConfigAuth;
 
     return ValueListenableBuilder(
       valueListenable: controller.itemsNotifier,
       builder: (_, posts, _) {
         final post = posts[index];
+        final bookmark = ref
+            .watch(bookmarkProvider)
+            .valueOrNull
+            ?.bookmarkForPost(post);
+        final config = switch (const PostOriginResolver().resolve(
+          post.origin,
+          ref.watch(booruConfigProvider),
+        )) {
+          ResolvedPostOrigin(:final config) => config,
+          _ => null,
+        };
+        final presentation = config == null
+            ? const GenericPostPresentation()
+            : null;
+        final effectiveAuth = config?.auth ?? BooruConfig.empty.auth;
 
         return Stack(
           children: [
-            BookmarkContextMenu(
-              post: post,
+            PostGridContextMenu(
               index: index,
               controller: controller,
               child: DefaultImageGridItem(
@@ -286,19 +300,16 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                     : post.sampleImageUrl,
                 imageCacheManager: ref.watch(bookmarkImageCacheManagerProvider),
                 useHero: false,
-                config: auth,
-                imageConfig: ref
-                    .watch(
-                      firstMatchingConfigByBooruTypeProvider((
-                        post.bookmark.booruId,
-                        Uri.tryParse(post.bookmark.sourceUrl)?.host ?? '',
-                      )),
-                    )
-                    ?.auth,
+                config: effectiveAuth,
+                imageConfig: config?.auth,
+                presentation: presentation,
                 leadingIcons: [
                   ClipRRect(
                     borderRadius: BorderRadius.circular(8),
-                    child: ConfigAwareWebsiteLogo(url: post.bookmark.sourceUrl),
+                    child: ConfigAwareWebsiteLogo.fromBooruType(
+                      post.origin.booruType,
+                      post.origin.sourceHost,
+                    ),
                   ),
                 ],
                 onTap: () {
@@ -306,7 +317,7 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                     ref,
                     index,
                     initialThumbnailUrl: post.isVideo
-                        ? post.bookmark.thumbnailUrl
+                        ? post.thumbnailImageUrl
                         : post.sampleImageUrl,
                     controller: controller,
                   );
@@ -320,78 +331,20 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                 child: KurumiCircularIconButton(
                   padding: const EdgeInsets.all(4),
                   icon: const Icon(Symbols.close),
-                  onPressed: () => ref.bookmarks.removeBookmarkFromView(
-                    post.bookmark,
-                    widget.view,
-                    onSuccess: () {
-                      controller.remove([post.id], (e) => e.id);
-                    },
-                  ),
+                  onPressed: bookmark == null
+                      ? null
+                      : () => ref.bookmarks.removeBookmarkFromView(
+                          bookmark,
+                          widget.view,
+                          onSuccess: () {
+                            controller.remove([post.id], (e) => e.id);
+                          },
+                        ),
                 ),
               ),
           ],
         );
       },
-    );
-  }
-}
-
-class BookmarkContextMenu extends ConsumerWidget {
-  const BookmarkContextMenu({
-    super.key,
-    required this.post,
-    required this.index,
-    required this.controller,
-    required this.child,
-  });
-
-  final BookmarkPost post;
-  final int index;
-  final PostGridController<BookmarkPost> controller;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final search = ref.watchConfigSearch;
-    final auth = search.auth;
-    final loginDetails = ref.watch(booruLoginDetailsProvider(auth));
-    final download = ref.watchConfigDownload;
-
-    return KurumiContextMenu(
-      menuItemsBuilder: (context) => [
-        KurumiContextMenuTile(
-          title: context.t.download.download,
-          onTap: () => ref.bookmarks.downloadBookmarks(
-            auth,
-            download,
-            [post.bookmark],
-          ),
-        ),
-        BookmarkContextMenuSection(post: post, config: auth),
-        if (!loginDetails.hasStrictSFW)
-          KurumiContextMenuTile(
-            title: 'Open source in browser',
-            onTap: () => launchExternalUrlString(post.bookmark.sourceUrl),
-          ),
-        if (ref.watch(isDevEnvironmentProvider))
-          if (post.bookmark.booruId == auth.booruId)
-            if (ref.watch(booruBuilderProvider(auth))?.sessionRestoreBuilder
-                case final builder?)
-              if (post.toPaginationSnapshot() case final snapshot?)
-                KurumiContextMenuTile(
-                  title: "Restore this bookmark's session",
-                  onTap: () {
-                    showDialog(
-                      context: context,
-                      builder: (context) => builder(
-                        context,
-                        snapshot,
-                      ),
-                    );
-                  },
-                ),
-      ],
-      child: child,
     );
   }
 }

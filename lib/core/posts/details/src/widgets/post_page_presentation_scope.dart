@@ -6,6 +6,7 @@ import 'package:kurumi/material.dart';
 import '../../../../boorus/engine/providers.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../configs/manage/providers.dart';
+import '../../../../configs/manage/widgets.dart';
 import '../../../post/types.dart';
 import '../types/inherited_post.dart';
 import '../types/post_presentation_context.dart';
@@ -54,32 +55,8 @@ class PostPagePresentationScope extends ConsumerWidget {
     final presentation = _resolve(ref);
     final config = presentation.effectiveConfig;
 
-    return ProviderScope(
-      overrides: [
-        currentReadOnlyBooruConfigProvider.overrideWithValue(config),
-        currentReadOnlyBooruConfigAuthProvider.overrideWithValue(config.auth),
-        currentReadOnlyBooruConfigSearchProvider.overrideWithValue(
-          config.search,
-        ),
-        currentReadOnlyBooruConfigFilterProvider.overrideWithValue(
-          config.filter,
-        ),
-        currentReadOnlyBooruConfigGestureProvider.overrideWithValue(
-          config.postGestures,
-        ),
-        currentReadOnlyBooruConfigThemeProvider.overrideWithValue(
-          config.theme,
-        ),
-        currentReadOnlyBooruConfigLayoutProvider.overrideWithValue(
-          config.layout,
-        ),
-        currentReadOnlyBooruConfigViewerProvider.overrideWithValue(
-          config.viewer,
-        ),
-        currentReadOnlyBooruConfigDownloadProvider.overrideWithValue(
-          config.download,
-        ),
-      ],
+    return CurrentBooruConfigScope(
+      config: config,
       child: InheritedPost(
         presentationContext: presentation.context,
         child: _PostPagePresentationBuilder(

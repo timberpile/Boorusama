@@ -14,7 +14,10 @@ import 'package:selection_mode/selection_mode.dart';
 import '../../../../../foundation/html.dart';
 import '../../../../boorus/engine/providers.dart';
 import '../../../../configs/config/providers.dart';
+import '../../../../configs/config/types.dart';
 import '../../../../configs/create/routes.dart';
+import '../../../../configs/manage/providers.dart';
+import '../../../../configs/manage/widgets.dart';
 import '../../../../configs/search/types.dart';
 import '../../../../errors/providers.dart';
 import '../../../../settings/providers.dart';
@@ -210,7 +213,7 @@ class _PostGridState<T extends Post> extends ConsumerState<PostGrid<T>> {
 
                   if (customItem != null) return customItem;
 
-                  return _PostGridContextMenu(
+                  return PostGridContextMenu(
                     index: index,
                     controller: widget.controller,
                     child: DefaultImageGridItem(
@@ -229,11 +232,12 @@ class _PostGridState<T extends Post> extends ConsumerState<PostGrid<T>> {
   }
 }
 
-class _PostGridContextMenu extends StatelessWidget {
-  const _PostGridContextMenu({
+class PostGridContextMenu extends StatelessWidget {
+  const PostGridContextMenu({
     required this.controller,
     required this.index,
     required this.child,
+    super.key,
   });
 
   final PostGridController<Post> controller;
@@ -246,8 +250,19 @@ class _PostGridContextMenu extends StatelessWidget {
     builder: (context, posts, _) => Consumer(
       builder: (context, ref, _) {
         final post = index < posts.length ? posts[index] : null;
-        final presentation = switch (post) {
-          final UnifiedPost post => ref.watch(
+        final originResolution = switch (post) {
+          final UnifiedPost post => const PostOriginResolver().resolve(
+            post.origin,
+            ref.watch(booruConfigProvider),
+          ),
+          _ => null,
+        };
+        final config = switch (originResolution) {
+          ResolvedPostOrigin(:final config) => config,
+          _ => null,
+        };
+        final presentation = switch ((post, config)) {
+          (final UnifiedPost post, final BooruConfig _) => ref.watch(
             booruPostPresentationProvider((
               origin: post.origin,
               data: post.booruData,
@@ -257,22 +272,29 @@ class _PostGridContextMenu extends StatelessWidget {
         };
 
         final contextMenuPresentation = _contextMenuPresentation(presentation);
+        final Widget menu;
         if (post case final UnifiedPost unifiedPost
-            when presentation != null &&
+            when config != null &&
+                presentation != null &&
                 contextMenuPresentation != null &&
                 presentation.supports(unifiedPost.booruData)) {
-          return contextMenuPresentation.buildGridContextMenu(
+          menu = contextMenuPresentation.buildGridContextMenu(
             context,
             post: unifiedPost,
             index: index,
             child: child,
           );
+        } else {
+          menu = GeneralPostContextMenu(
+            index: index,
+            controller: controller,
+            child: child,
+          );
         }
 
-        return GeneralPostContextMenu(
-          index: index,
-          controller: controller,
-          child: child,
+        return CurrentBooruConfigScope(
+          config: config ?? BooruConfig.empty,
+          child: menu,
         );
       },
     ),

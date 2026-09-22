@@ -265,6 +265,25 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     }
   });
 
+  Future<void> upgradeBookmarkSnapshot(
+    Bookmark bookmark,
+    UnifiedPost post,
+  ) => _serialize(() async {
+    final capability = ref
+        .read(booruEngineRegistryProvider)
+        .getPostCapability(post.origin.booruType);
+    final codec = capability?.codecFor(post.origin, post.booruData);
+    if (codec == null) {
+      throw StateError('No compatible post codec is available.');
+    }
+    await (await _service).upgradeBookmarkSnapshot(
+      bookmark: bookmark,
+      post: post,
+      dataCodec: codec,
+    );
+    await _publishCommittedMutation();
+  });
+
   Future<BookmarkToggleOutcome> togglePostTarget(
     BooruConfigAuth config,
     Post post, {

@@ -63,6 +63,28 @@ class BookmarkLibraryService {
     );
   }
 
+  Future<Bookmark> upgradeBookmarkSnapshot({
+    required Bookmark bookmark,
+    required UnifiedPost post,
+    required BooruPostDataCodec? dataCodec,
+    DateTime? updatedAt,
+  }) async {
+    final snapshot = const StoredPostCodec().encode(
+      post,
+      dataCodec: dataCodec,
+    );
+    final upgraded = Bookmark.fromSnapshot(
+      id: bookmark.id,
+      createdAt: bookmark.createdAt,
+      updatedAt: updatedAt ?? DateTime.now(),
+      snapshot: snapshot,
+      post: post,
+      sourceUrl: bookmark.sourceUrl,
+    );
+    await bookmarkRepository.updateBookmark(upgraded);
+    return upgraded;
+  }
+
   Future<bool> addBookmarkToGroup({
     required String groupId,
     Bookmark? existingBookmark,

@@ -5,8 +5,8 @@ import 'package:kurumi/kurumi.dart';
 
 // Project imports:
 import '../../../posts/listing/providers.dart';
+import '../../../posts/post/types.dart';
 import '../../../router.dart';
-import '../data/bookmark_convert.dart';
 import '../providers/bookmark_provider.dart';
 import '../types/bookmark_target.dart';
 import '../types/bookmark_view.dart';
@@ -60,7 +60,7 @@ Future<void> goToBookmarkDetailsPage(
   WidgetRef ref,
   int index, {
   required String initialThumbnailUrl,
-  required PostGridController<BookmarkPost> controller,
+  required PostGridController<UnifiedPost> controller,
 }) {
   return ref.router.push(
     Uri(

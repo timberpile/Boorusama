@@ -31,6 +31,7 @@ class MixedPostDetailsPage extends StatelessWidget {
     required this.initialThumbnailUrl,
     required this.scrollController,
     required this.disclaimer,
+    this.uiBuilderDecorator,
     super.key,
   }) : assert(posts.length > 0, 'Mixed viewer requires at least one post'),
        assert(
@@ -43,6 +44,11 @@ class MixedPostDetailsPage extends StatelessWidget {
   final String? initialThumbnailUrl;
   final AutoScrollController? scrollController;
   final String? disclaimer;
+  final PostDetailsUIBuilder Function(
+    PostDetailsUIBuilder builder,
+    Post post,
+  )?
+  uiBuilderDecorator;
 
   @override
   Widget build(BuildContext context) => PostDetailsScope<Post>(
@@ -51,12 +57,18 @@ class MixedPostDetailsPage extends StatelessWidget {
     posts: posts,
     dislclaimer: disclaimer,
     scrollController: scrollController,
-    child: const _MixedPostDetailsView(),
+    child: _MixedPostDetailsView(uiBuilderDecorator: uiBuilderDecorator),
   );
 }
 
 class _MixedPostDetailsView extends ConsumerStatefulWidget {
-  const _MixedPostDetailsView();
+  const _MixedPostDetailsView({required this.uiBuilderDecorator});
+
+  final PostDetailsUIBuilder Function(
+    PostDetailsUIBuilder builder,
+    Post post,
+  )?
+  uiBuilderDecorator;
 
   @override
   ConsumerState<_MixedPostDetailsView> createState() =>
@@ -109,7 +121,7 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
     final layout = config.layout;
     final gestures = config.postGestures;
     final booruRepo = ref.watch(booruRepoProvider(auth));
-    final uiBuilder = switch ((
+    final baseUiBuilder = switch ((
       currentPresentation.usesGenericPresentation,
       currentPresentation.context.post,
     )) {
@@ -118,6 +130,13 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
         currentPresentation.context.presentation.detailsBuilder(post),
       _ => _genericPostDetailsUiBuilder,
     };
+    final currentPost = currentPresentation.context.post;
+    final uiBuilder =
+        widget.uiBuilderDecorator?.call(
+          baseUiBuilder,
+          currentPost,
+        ) ??
+        baseUiBuilder;
 
     final scaffold = PostDetailsPageScaffold<Post>(
       transformController: _transformController,
@@ -179,7 +198,7 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
       },
     );
 
-    final post = currentPresentation.context.post;
+    final post = currentPost;
     final wrapper =
         currentPresentation.context.presentation.detailsWrapperBuilder;
     final behaviorCompanion = switch ((post, wrapper)) {

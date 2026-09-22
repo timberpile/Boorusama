@@ -3,6 +3,7 @@ import 'package:foundation/foundation.dart';
 import 'package:hive_ce/hive.dart';
 
 // Project imports:
+import '../../../../boorus/booru/types.dart';
 import '../../../../posts/post/types.dart';
 import '../../../../posts/sources/types.dart';
 import '../../types/bookmark.dart';
@@ -11,9 +12,13 @@ import '../bookmark_convert.dart';
 import 'bookmark_hive_object.dart';
 
 class BookmarkHiveRepository implements BookmarkRepository {
-  const BookmarkHiveRepository(this._box);
+  const BookmarkHiveRepository(
+    this._box, {
+    this.postDataCodec,
+  });
 
   final Box<BookmarkHiveObject> _box;
+  final BooruPostDataCodec? Function(BooruType type)? postDataCodec;
 
   @override
   Future<Bookmark> addBookmark(
@@ -23,30 +28,45 @@ class BookmarkHiveRepository implements BookmarkRepository {
     required PostLinkGenerator Function(int? booruId) postLinkGenerator,
   }) async {
     final now = DateTime.now();
-
-    final favoriteHiveObject = BookmarkHiveObject(
-      booruId: booruId,
-      postId: post.id,
+    final sourceUrl = postLinkGenerator(booruId).getLink(post);
+    final unifiedPost = switch (post) {
+      final UnifiedPost post => post,
+      _ => Bookmark(
+        id: -1,
+        booruId: booruId,
+        createdAt: now,
+        updatedAt: now,
+        thumbnailUrl: post.thumbnailImageUrl,
+        sampleUrl: post.sampleImageUrl,
+        originalUrl: post.originalImageUrl,
+        sourceUrl: sourceUrl,
+        width: post.width,
+        height: post.height,
+        md5: post.md5,
+        tags: post.tags,
+        realSourceUrl: post.source.url,
+        format: post.format,
+        imageUrlResolver: imageUrlResolver(booruId),
+        postId: post.id,
+        metadata: Bookmark.toMetadata(post.metadata),
+      ).post,
+    };
+    final snapshot = const StoredPostCodec().encode(
+      unifiedPost,
+      dataCodec: postDataCodec?.call(unifiedPost.origin.booruType),
+    );
+    final bookmark = Bookmark.fromSnapshot(
+      id: -1,
       createdAt: now,
       updatedAt: now,
-      thumbnailUrl: post.thumbnailImageUrl,
-      sampleUrl: post.sampleImageUrl,
-      originalUrl: post.originalImageUrl,
-      sourceUrl: postLinkGenerator(booruId).getLink(post),
-      width: post.width,
-      height: post.height,
-      md5: post.md5,
-      tags: post.tags.toList(),
-      realSourceUrl: post.source.url,
-      format: post.format,
-      metadata: Bookmark.toMetadata(post.metadata),
+      snapshot: snapshot,
+      post: unifiedPost,
+      sourceUrl: sourceUrl,
     );
+    final favoriteHiveObject = favoriteToHiveObject(bookmark);
     final id = await _box.add(favoriteHiveObject);
 
-    return tryMapBookmarkHiveObjectToBookmark(
-      favoriteHiveObject,
-      imageUrlResolver,
-    ).getOrElse((_) => Bookmark.empty).copyWith(id: id);
+    return bookmark.copyWith(id: id);
   }
 
   @override
@@ -69,12 +89,32 @@ class BookmarkHiveRepository implements BookmarkRepository {
     required ImageUrlResolver Function(int? booruId) imageUrlResolver,
   }) =>
       TaskEither.fromEither(
-        tryGetBoxValues(_box).mapLeft(mapBoxErrorToBookmarkGetError),
-      ).flatMap(
-        (objects) => TaskEither.fromEither(
-          tryMapBookmarkHiveObjectsToBookmarks(objects, imageUrlResolver),
-        ),
-      );
+            tryGetBoxValues(_box).mapLeft(mapBoxErrorToBookmarkGetError),
+          )
+          .flatMap(
+            (objects) => TaskEither.fromEither(
+              tryMapBookmarkHiveObjectsToBookmarks(
+                objects,
+                imageUrlResolver,
+                postDataCodec,
+              ),
+            ),
+          )
+          .flatMap(
+            (bookmarks) => TaskEither.tryCatch(
+              () async {
+                for (final bookmark in bookmarks) {
+                  final stored = _box.get(bookmark.id);
+                  if (stored?.snapshotSchemaVersion != 1 ||
+                      stored?.postSnapshot == null) {
+                    await _box.put(bookmark.id, favoriteToHiveObject(bookmark));
+                  }
+                }
+                return bookmarks;
+              },
+              (_, _) => BookmarkGetError.unknown,
+            ),
+          );
 
   @override
   Future<List<Bookmark>> addBookmarks(
