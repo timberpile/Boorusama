@@ -5,15 +5,21 @@ import 'dart:convert';
 import 'package:uuid/uuid.dart';
 
 // Project imports:
+import '../../boorus/booru/types.dart';
 import '../../bookmarks/types.dart';
+import '../../posts/post/types.dart';
 import '../types/types.dart';
 import '../utils/json_handler.dart';
 import 'bookmark_backup_data.dart';
 
 class BookmarkBackupCodec extends JsonHandler<BookmarkBackupData> {
-  BookmarkBackupCodec({required this.bookmarkParser});
+  BookmarkBackupCodec({
+    required this.bookmarkParser,
+    this.postDataCodec,
+  });
 
   final Bookmark Function(Map<String, dynamic>) bookmarkParser;
+  final BooruPostDataCodec? Function(BooruType type)? postDataCodec;
 
   @override
   BookmarkBackupData parse(ExportDataPayload metadata) {
@@ -25,8 +31,13 @@ class BookmarkBackupCodec extends JsonHandler<BookmarkBackupData> {
         throw InvalidBackupFormatException('data[$index] must be an object');
       }
       try {
-        _validateBookmark(value, index);
-        final bookmark = bookmarkParser(value);
+        final bookmark = switch (metadata.version) {
+          1 => _parseVersion1Bookmark(value, index),
+          2 => _parseVersion2Bookmark(value, index),
+          _ => throw InvalidBackupFormatException(
+            'Unsupported bookmark backup version ${metadata.version}',
+          ),
+        };
         if (!bookmarkIds.add(bookmark.id)) {
           throw InvalidBackupFormatException(
             'data[$index].id is repeated',
@@ -92,11 +103,56 @@ class BookmarkBackupCodec extends JsonHandler<BookmarkBackupData> {
   }
 
   @override
-  List<dynamic> encode(BookmarkBackupData data) =>
-      data.bookmarks.map((bookmark) => bookmark.toJson()).toList();
+  List<dynamic> encode(BookmarkBackupData data) => data.bookmarks
+      .map(
+        (bookmark) => {
+          'localId': bookmark.localId,
+          'createdAt': bookmark.createdAt.toIso8601String(),
+          'updatedAt': bookmark.updatedAt.toIso8601String(),
+          'snapshot': bookmark.snapshot.toJson(),
+        },
+      )
+      .toList();
+
+  Bookmark _parseVersion1Bookmark(Map<String, dynamic> value, int index) {
+    _validateVersion1Bookmark(value, index);
+    return bookmarkParser(value);
+  }
+
+  Bookmark _parseVersion2Bookmark(Map<String, dynamic> value, int index) {
+    final localId = value['localId'];
+    final createdAt = value['createdAt'];
+    final updatedAt = value['updatedAt'];
+    final rawSnapshot = value['snapshot'];
+    if (localId is! int ||
+        createdAt is! String ||
+        updatedAt is! String ||
+        rawSnapshot is! Map<String, dynamic>) {
+      throw InvalidBackupFormatException('data[$index] is invalid');
+    }
+
+    final snapshot = StoredPostSnapshot.fromJson(rawSnapshot);
+    final type = BooruType.fromLegacyId(snapshot.origin.booruTypeId);
+    final decoded = const StoredPostCodec().decode(
+      snapshot,
+      dataCodec: postDataCodec?.call(type),
+    );
+    return switch (decoded) {
+      StoredPostDecodeSuccess(:final post) => Bookmark.fromSnapshot(
+        id: localId,
+        createdAt: DateTime.parse(createdAt),
+        updatedAt: DateTime.parse(updatedAt),
+        snapshot: snapshot,
+        post: post,
+      ),
+      StoredPostDecodeFailure() => throw InvalidBackupFormatException(
+        'data[$index].snapshot is invalid',
+      ),
+    };
+  }
 }
 
-void _validateBookmark(Map<String, dynamic> value, int index) {
+void _validateVersion1Bookmark(Map<String, dynamic> value, int index) {
   final requiredInts = ['id', 'booruId'];
   final requiredStrings = [
     'createdAt',
