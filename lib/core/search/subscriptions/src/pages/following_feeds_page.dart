@@ -5,6 +5,7 @@ import 'package:foundation/foundation.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
+import 'package:scroll_to_index/scroll_to_index.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../configs/manage/providers.dart';
 import '../../../../boorus/engine/providers.dart';
@@ -95,7 +96,10 @@ class FollowingFeedsPage extends ConsumerWidget {
                                             child: AspectRatio(
                                               aspectRatio: 1,
                                               child: FeedPostThumbnail(
-                                                post: post,
+                                                post: _decodeFeedPost(
+                                                  ref,
+                                                  post,
+                                                ),
                                                 config: config.auth,
                                               ),
                                             ),
@@ -125,10 +129,6 @@ class FollowingFeedsPage extends ConsumerWidget {
                             child: const Icon(Symbols.rss_feed),
                           ),
                           onTap: () => _feedAction(context, () async {
-                            await ref
-                                .read(currentBooruConfigProvider.notifier)
-                                .update(config);
-                            if (!context.mounted) return;
                             await Navigator.of(context).push(
                               MaterialPageRoute<void>(
                                 builder: (_) => FollowingFeedPage(
@@ -351,7 +351,7 @@ class _CachedFeedGrid extends ConsumerStatefulWidget {
 }
 
 class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
-  PostGridController<CachedFeedPost>? _controller;
+  PostGridController<UnifiedPost>? _controller;
   late FeedHistorySession _history;
   var _prefetchedAtLength = -1;
   var _historyStarted = false;
@@ -372,7 +372,9 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
 
   FeedHistorySession _createHistory() => FeedHistorySession(
     sources: widget.sources,
-    recent: widget.feed.posts,
+    recent: [
+      for (final post in widget.feed.posts) _decodeFeedPost(ref, post),
+    ],
     fetchPage: (source, page) async {
       final adapter = ref
           .read(booruRepoProvider(widget.config.auth))
@@ -380,7 +382,7 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
       final plan = adapter?.plan(source.query, after: null);
       if (plan case SupportedSearchRefreshQueryPlan(:final query)) {
         final result = await ref
-            .read(postRepoProvider(widget.config.search))
+            .read(unifiedPostRepoProvider(widget.config))
             .getPosts(
               query,
               page,
@@ -443,16 +445,19 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
     unawaited(_controller?.refresh() ?? Future.value());
   }
 
-  Future<void> _openPost(int index) => _feedAction(context, () async {
-    await ref.read(currentBooruConfigProvider.notifier).update(widget.config);
-    if (!mounted) return;
+  Future<void> _openPost(
+    int index,
+    AutoScrollController scrollController,
+    UnifiedPost post,
+  ) => _feedAction(context, () async {
     final controller = _controller;
     if (controller == null) return;
-    goToLazyPostDetailsPageFromController(
+    goToPostDetailsPageFromController(
       ref: ref,
       initialIndex: index,
       controller: controller,
-      configSearch: widget.config.search,
+      scrollController: scrollController,
+      initialThumbnailUrl: post.thumbnailImageUrl,
     );
   });
 
@@ -465,7 +470,7 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
   }
 
   @override
-  Widget build(BuildContext context) => PostScope<CachedFeedPost>(
+  Widget build(BuildContext context) => PostScope<UnifiedPost>(
     pageMode: PageMode.infinite,
     fetcher: (page) {
       final history = _history;
@@ -488,7 +493,7 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
       _controller = controller;
       return Stack(
         children: [
-          PostGrid<CachedFeedPost>(
+          PostGrid<UnifiedPost>(
             controller: controller,
             enablePullToRefresh: false,
             itemBuilder: (context, index, scroll, useHero) {
@@ -506,11 +511,27 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
                 });
               }
               final post = controller.items.elementAt(index);
-              return InkWell(
-                onTap: () => _openPost(index),
-                child: FeedPostThumbnail(
-                  post: post,
-                  config: widget.config.auth,
+              final config = switch (const PostOriginResolver().resolve(
+                post.origin,
+                ref.watch(booruConfigProvider),
+              )) {
+                ResolvedPostOrigin(:final config) => config,
+                _ => null,
+              };
+              return PostGridContextMenu(
+                controller: controller,
+                index: index,
+                child: DefaultImageGridItem(
+                  index: index,
+                  autoScrollController: scroll,
+                  controller: controller,
+                  useHero: useHero,
+                  config: config?.auth ?? BooruConfig.empty.auth,
+                  imageConfig: config?.auth,
+                  presentation: config == null
+                      ? const GenericPostPresentation()
+                      : null,
+                  onTap: () => _openPost(index, scroll, post),
                 ),
               );
             },
@@ -556,4 +577,11 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
       );
     },
   );
+}
+
+UnifiedPost _decodeFeedPost(WidgetRef ref, CachedFeedPost cached) {
+  final codec = ref
+      .read(booruPostCapabilityProvider(cached.post.origin.booruType))
+      ?.codec;
+  return cached.decodeWith(codec).post;
 }

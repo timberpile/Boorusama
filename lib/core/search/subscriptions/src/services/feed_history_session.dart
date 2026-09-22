@@ -1,9 +1,8 @@
 import '../../../../posts/post/types.dart';
-import '../types/search_following_feed.dart';
 import '../types/search_subscription.dart';
 
 typedef FeedSourcePageFetcher =
-    Future<PostResult<Post>> Function(
+    Future<PostResult<UnifiedPost>> Function(
       SearchSubscription source,
       int page,
     );
@@ -11,7 +10,7 @@ typedef FeedSourcePageFetcher =
 class FeedHistorySession {
   FeedHistorySession({
     required List<SearchSubscription> sources,
-    required List<CachedFeedPost> recent,
+    required List<UnifiedPost> recent,
     required FeedSourcePageFetcher fetchPage,
   }) : _cursors = [for (final source in sources) _FeedCursor(source)],
        _recent = List.unmodifiable(recent),
@@ -20,12 +19,12 @@ class FeedHistorySession {
        _oldestRecent = recent.isEmpty ? null : recent.last.createdAt;
 
   final List<_FeedCursor> _cursors;
-  final List<CachedFeedPost> _recent;
+  final List<UnifiedPost> _recent;
   final FeedSourcePageFetcher _fetchPage;
   final Set<int> _knownIds;
   final DateTime? _oldestRecent;
-  final Map<int, PostResult<CachedFeedPost>> _loadedPages = {};
-  final List<CachedFeedPost> _pendingPosts = [];
+  final Map<int, PostResult<UnifiedPost>> _loadedPages = {};
+  final List<UnifiedPost> _pendingPosts = [];
   var _initialized = false;
   var _disposed = false;
 
@@ -35,7 +34,7 @@ class FeedHistorySession {
     _loadedPages.clear();
   }
 
-  Future<PostResult<CachedFeedPost>> load(int page) async {
+  Future<PostResult<UnifiedPost>> load(int page) async {
     if (_disposed) throw StateError('Feed history session closed');
     if (_loadedPages[page] case final result?) return result;
     if (page == 1 && _recent.isNotEmpty) {
@@ -70,7 +69,7 @@ class FeedHistorySession {
         posts.add(post);
       }
     }
-    final result = PostResult<CachedFeedPost>(
+    final result = PostResult<UnifiedPost>(
       posts: List.unmodifiable(posts),
       total: null,
       hasMore: _cursors.any(
@@ -99,7 +98,7 @@ class FeedHistorySession {
           cursor.posts =
               [
                 for (final post in result.posts)
-                  if (post.createdAt != null) CachedFeedPost.fromPost(post),
+                  if (post.createdAt != null) post,
               ]..sort((left, right) {
                 final date = right.createdAt!.compareTo(left.createdAt!);
                 return date == 0 ? right.id.compareTo(left.id) : date;
@@ -133,7 +132,7 @@ class _FeedCursor {
   var page = 1;
   var offset = 0;
   var hasMore = true;
-  List<CachedFeedPost> posts = const [];
+  List<UnifiedPost> posts = const [];
 
-  CachedFeedPost? get current => offset < posts.length ? posts[offset] : null;
+  UnifiedPost? get current => offset < posts.length ? posts[offset] : null;
 }

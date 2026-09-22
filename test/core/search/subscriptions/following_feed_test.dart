@@ -1,16 +1,31 @@
+import 'package:boorusama/boorus/gelbooru_v2/posts/post_codec.dart';
+import 'package:boorusama/boorus/gelbooru_v2/posts/post_data.dart';
+import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/configs/config/types.dart';
+import 'package:boorusama/core/configs/manage/providers.dart';
 import 'package:boorusama/core/images/booru_image.dart';
 import 'package:boorusama/core/images/types.dart';
+import 'package:boorusama/core/posts/details/routes.dart';
+import 'package:boorusama/core/posts/details_parts/types.dart';
 import 'package:boorusama/core/posts/listing/types.dart';
+import 'package:boorusama/core/posts/listing/widgets.dart';
 import 'package:boorusama/core/posts/post/types.dart';
+import 'package:boorusama/core/posts/post/widgets.dart';
+import 'package:boorusama/core/posts/rating/types.dart';
+import 'package:boorusama/core/posts/sources/types.dart';
+import 'package:boorusama/core/router.dart';
 import 'package:boorusama/core/search/subscriptions/providers.dart';
 import 'package:boorusama/core/search/subscriptions/types.dart';
 import 'package:boorusama/core/search/subscriptions/src/pages/following_feeds_page.dart';
 import 'package:boorusama/core/search/subscriptions/src/pages/pinned_searches_page.dart';
 import 'package:boorusama/core/search/subscriptions/src/widgets/feed_post_thumbnail.dart';
 import 'package:boorusama/core/settings/src/types/settings.dart';
+import 'package:boorusama/core/themes/colors/types.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:kurumi/kurumi.dart';
+import 'package:kurumi/material.dart';
 import 'pinned_search_test_utils.dart';
 import 'subscription_test_utils.dart';
 
@@ -558,6 +573,122 @@ void main() {
     );
   });
 
+  testWidgets(
+    'feed uses native cards and opens mixed snapshots without changing profiles',
+    (tester) async {
+      harness.dispose();
+      const presentation = _FeedPresentation();
+      harness = PinnedSearchHarness(
+        profiles: [_feedConfig],
+        postCapability: const BooruPostCapability<BooruPostData>(
+          booruType: BooruType.gelbooruV2,
+          codec: GelbooruV2PostCodec(),
+          presentation: presentation,
+        ),
+      );
+      final feed = await harness.repository.saveFeed(
+        profileId: _feedConfig.id,
+        name: 'Native feed',
+        queries: ['cat'],
+      );
+      final source = (await harness.repository.getById(feed.sourceIds.single))!;
+      final native = CachedFeedPost.fromPost(
+        _feedPost(42),
+        dataCodec: const GelbooruV2PostCodec(),
+      );
+      final fallbackSource = CachedFeedPost.fromPost(
+        _feedPost(41),
+        dataCodec: const GelbooruV2PostCodec(),
+      );
+      final fallback = CachedFeedPost.fromJson({
+        'snapshotSchemaVersion': 1,
+        'postSnapshot': {
+          ...fallbackSource.snapshot.toJson(),
+          'codecVersion': 99,
+          'custom': const {'future': true},
+        },
+      }, dataCodec: const GelbooruV2PostCodec());
+      await harness.repository.commitRefresh(
+        SearchRefreshCommit(
+          subscriptionId: source.id,
+          expectedCreatedAt: source.createdAt,
+          expectedCheckpoint: null,
+          startedAt: checkedAt,
+          identityRetentionBoundary: checkedAt,
+          baseline: true,
+          discoveredPosts: const [],
+          feedPosts: [native, fallback],
+        ),
+      );
+      await harness.container.read(searchSubscriptionsProvider.future);
+
+      DetailsRouteContext? opened;
+      harness.router = GoRouter(
+        initialLocation: '/',
+        routes: [
+          GoRoute(
+            path: '/',
+            builder: (_, _) => FollowingFeedPage(
+              feedId: feed.id,
+              profileId: _feedConfig.id,
+            ),
+          ),
+          GoRoute(
+            path: '/details',
+            builder: (_, state) {
+              opened = state.extra! as DetailsRouteContext;
+              return const Scaffold(body: Text('mixed feed viewer'));
+            },
+          ),
+        ],
+      );
+      addTearDown(harness.router.dispose);
+      await tester.pumpWidget(
+        harness.wrap(
+          MaterialApp.router(
+            routerConfig: harness.router,
+            theme: Kurumi.themeFrom(
+              KurumiThemeMode.light,
+              colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
+              systemDarkMode: false,
+            ).withBoorusamaColors(),
+            builder: themeBuilder,
+          ),
+        ),
+      );
+      await settle(tester);
+
+      expect(find.text('native feed card'), findsOneWidget);
+      final cards = tester.widgetList<PostGridItem>(find.byType(PostGridItem));
+      expect(cards.length, 2);
+      expect(
+        (cards.first.post as UnifiedPost).booruData,
+        isA<GelbooruV2PostData>(),
+      );
+      expect(
+        (cards.last.post as UnifiedPost).booruData,
+        isA<UnknownPostData>(),
+      );
+      expect(harness.requests, isEmpty);
+
+      await tester.tap(find.byType(ImageGridItem).first);
+      await tester.pumpAndSettle();
+
+      expect(find.text('mixed feed viewer'), findsOneWidget);
+      expect(opened?.useMixedViewer, isTrue);
+      expect(opened?.posts.length, 2);
+      expect(
+        (opened!.posts.last as UnifiedPost).booruData,
+        isA<UnknownPostData>(),
+      );
+      expect(
+        harness.container.read(currentBooruConfigProvider).url,
+        testProfile.url,
+      );
+      expect(harness.requests, isEmpty);
+    },
+  );
+
   final thumbnailCases = [
     (
       quality: ImageQuality.low,
@@ -579,7 +710,7 @@ void main() {
       await harness.pump(
         tester,
         FeedPostThumbnail(
-          post: CachedFeedPost.fromPost(TestSearchPost(1, checkedAt)),
+          post: CachedFeedPost.fromPost(TestSearchPost(1, checkedAt)).post,
           config: testProfile.auth,
         ),
       );
@@ -627,7 +758,7 @@ void main() {
 
         await harness.pump(
           tester,
-          FeedPostThumbnail(post: post, config: testProfile.auth),
+          FeedPostThumbnail(post: post.post, config: testProfile.auth),
         );
 
         expect(
@@ -635,7 +766,7 @@ void main() {
           c.expectedUrl,
         );
         expect(
-          post.toJson()['mediaVariants'],
+          post.snapshot.common['mediaVariants'],
           {
             '180x180': 'https://example.com/180.jpg',
             '360x360': 'https://example.com/360.jpg',
@@ -683,4 +814,69 @@ class _VariantSearchPost extends TestSearchPost implements PostMediaVariants {
 
   @override
   Map<String, String> get mediaVariants => variants;
+}
+
+final _feedConfig = BooruConfig.fromJson({
+  ...BooruConfig.defaultConfig(
+    booruType: BooruType.gelbooruV2,
+    url: 'https://gelbooru.example',
+    customDownloadFileNameFormat: null,
+  ).toJson(),
+  'id': 12,
+});
+
+UnifiedPost _feedPost(int id) => UnifiedPost(
+  origin: PostOrigin.fromSource(
+    booruType: BooruType.gelbooruV2,
+    booruId: _feedConfig.booruId,
+    source: _feedConfig.url,
+    profileIdHint: _feedConfig.id,
+  ),
+  core: PostCoreData(
+    id: id,
+    createdAt: checkedAt.add(Duration(seconds: id)),
+    thumbnailImageUrl: 'https://example.com/$id-thumb.jpg',
+    sampleImageUrl: 'https://example.com/$id.jpg',
+    originalImageUrl: 'https://example.com/$id-original.jpg',
+    videoUrl: '',
+    videoThumbnailUrl: '',
+    width: 100,
+    height: 100,
+    format: 'jpg',
+    md5: '$id',
+    fileSize: 1,
+    duration: 0,
+    tags: const {'cat'},
+    rating: Rating.general,
+    hasComment: false,
+    isTranslated: false,
+    hasParentOrChildren: false,
+    source: PostSource.none(),
+    score: 0,
+  ),
+  booruData: const GelbooruV2PostData(hasNotes: true),
+);
+
+final class _FeedPresentation
+    implements BooruPostPresentation, BooruPostGridPresentation {
+  const _FeedPresentation();
+
+  @override
+  PostDetailsWrapperBuilder? get detailsWrapperBuilder => null;
+
+  @override
+  bool supports(BooruPostData data) => data is GelbooruV2PostData;
+
+  @override
+  PostDetailsUIBuilder detailsBuilder(UnifiedPost post) =>
+      const PostDetailsUIBuilder();
+
+  @override
+  PostGridItemAdditions buildGridItemAdditions(
+    BuildContext context, {
+    required UnifiedPost post,
+    required BooruConfigAuth config,
+  }) => const PostGridItemAdditions(
+    quickActionButton: Text('native feed card'),
+  );
 }

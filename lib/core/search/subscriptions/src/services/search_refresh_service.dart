@@ -15,7 +15,9 @@ import '../types/search_subscription.dart';
 import '../types/search_subscription_repository.dart';
 
 typedef SearchPostRepositoryResolver =
-    PostRepository<Post> Function(BooruConfigSearch config);
+    PostRepository<Post> Function(BooruConfig config);
+typedef SearchPostDataCodecResolver =
+    BooruPostDataCodec? Function(BooruConfig config);
 typedef SearchRefreshQueryAdapterResolver =
     SearchRefreshQueryAdapter Function(BooruConfigAuth config);
 
@@ -25,11 +27,13 @@ class SearchRefreshService {
     required this.resolvePostRepository,
     required this.resolveQueryAdapter,
     required this.scanner,
+    this.resolvePostDataCodec,
     Clock clock = const Clock(),
   }) : _clock = clock;
 
   final SearchSubscriptionRepository repository;
   final SearchPostRepositoryResolver resolvePostRepository;
+  final SearchPostDataCodecResolver? resolvePostDataCodec;
   final SearchRefreshQueryAdapterResolver resolveQueryAdapter;
   final ChronologicalSearchScanner scanner;
   final Clock _clock;
@@ -51,7 +55,7 @@ class SearchRefreshService {
         case UnsupportedSearchRefreshQueryPlan():
           scan = const FailedSearchScan(SearchRefreshErrorKind.unsupported);
         case SupportedSearchRefreshQueryPlan(:final query):
-          final posts = resolvePostRepository(config.search);
+          final posts = resolvePostRepository(config);
           Future<Either<SearchRefreshErrorKind, PostResult<Post>>> fetchPage(
             int page,
             int limit,
@@ -100,7 +104,19 @@ class SearchRefreshService {
         final committed = await repository.commitRefresh(
           SearchRefreshCommit(
             subscriptionId: subscription.id,
-            feedPosts: posts.map(CachedFeedPost.fromPost).toList(),
+            feedPosts: [
+              for (final post in posts)
+                CachedFeedPost.fromPost(
+                  post,
+                  origin: PostOrigin.fromSource(
+                    booruType: config.auth.booruType,
+                    booruId: config.booruId,
+                    source: config.url,
+                    profileIdHint: config.id,
+                  ),
+                  dataCodec: resolvePostDataCodec?.call(config),
+                ),
+            ],
             expectedCreatedAt: subscription.createdAt,
             expectedRevision: subscription.runtimeRevision,
             expectedCheckpoint: checkpoint,

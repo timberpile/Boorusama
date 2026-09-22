@@ -11,6 +11,8 @@ import 'dart:typed_data';
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/configs/manage/providers.dart';
 import 'package:boorusama/core/developer_options/providers.dart';
+import 'package:boorusama/core/downloads/downloader/providers.dart';
+import 'package:boorusama/core/downloads/downloader/types.dart';
 import 'package:boorusama/core/http/client/providers.dart';
 import 'package:boorusama/core/images/providers.dart';
 import 'package:boorusama/core/router.dart';
@@ -23,6 +25,7 @@ import 'package:boorusama/core/search/subscriptions/src/refresh/search_refresh_q
 import 'package:boorusama/core/search/subscriptions/src/services/search_refresh_service.dart';
 import 'package:boorusama/core/search/subscriptions/types.dart';
 import 'package:boorusama/core/posts/post/types.dart';
+import 'package:boorusama/core/posts/favorites/providers.dart';
 import 'package:boorusama/core/settings/providers.dart';
 import 'package:boorusama/core/settings/src/data/setting_repository_hive.dart';
 import 'package:boorusama/core/analytics/providers.dart';
@@ -108,6 +111,7 @@ class PinnedSearchHarness {
     SearchRefreshScheduler? scheduler,
     bool networkAllowed = false,
     List<BooruConfig>? profiles,
+    BooruPostCapability<BooruPostData>? postCapability,
   }) {
     repository = HiveSearchSubscriptionRepository(
       box: box,
@@ -134,9 +138,16 @@ class PinnedSearchHarness {
           () => SearchRefreshCoordinator(scheduler: scheduler),
         ),
         booruEngineRegistryProvider.overrideWithValue(BooruEngineRegistry()),
+        if (postCapability != null)
+          booruPostCapabilityProvider.overrideWith(
+            (ref, type) =>
+                type == postCapability.booruType ? postCapability : null,
+          ),
         booruRepoProvider.overrideWith(
           (ref, config) => DanbooruRepository(ref: ref),
         ),
+        canFavoriteProvider.overrideWith((ref, config) => false),
+        downloadServiceProvider.overrideWithValue(_TestDownloadService()),
         pinnedSearchTrackingSupportedProvider.overrideWith(
           (ref, config) => supported,
         ),
@@ -259,6 +270,21 @@ class ControlledSubscriptionBox extends MemorySubscriptionBox {
     if (failWrites) throw StateError('disk full');
     await super.put(key, value);
   }
+}
+
+final class _TestDownloadService implements DownloadService {
+  @override
+  Future<DownloadResult> download(DownloadOptions options) async =>
+      DownloadEnqueued(DownloadTaskInfo(path: '', id: options.url));
+
+  @override
+  Future<bool> cancelAll(String group) async => true;
+
+  @override
+  Future<void> pauseAll(String group) async {}
+
+  @override
+  Future<void> resumeAll(String group) async {}
 }
 
 class _RepositoryNotifier extends SearchSubscriptionRepositoryNotifier {

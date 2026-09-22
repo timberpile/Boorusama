@@ -99,7 +99,12 @@ class SearchSubscriptionsNotifier
       _refreshService ??
       SearchRefreshService(
         repository: repository,
-        resolvePostRepository: (config) => ref.read(postRepoProvider(config)),
+        resolvePostRepository: (config) =>
+            ref.read(unifiedPostRepoProvider(config)),
+        resolvePostDataCodec: (config) => ref
+            .read(booruEngineRegistryProvider)
+            .getPostCapability(config.auth.booruType)
+            ?.codec,
         resolveQueryAdapter: (config) =>
             ref
                 .read(booruEngineRegistryProvider)

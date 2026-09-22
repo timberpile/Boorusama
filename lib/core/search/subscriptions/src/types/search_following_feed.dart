@@ -1,4 +1,6 @@
 import 'package:equatable/equatable.dart';
+
+import '../../../../boorus/booru/types.dart';
 import '../../../../posts/post/types.dart';
 import '../../../../posts/rating/types.dart';
 import '../../../../posts/sources/types.dart';
@@ -16,35 +18,38 @@ class SearchFollowingFeed extends Equatable {
     List<CachedFeedPost> posts = const [],
   }) : sourceIds = List.unmodifiable(sourceIds),
        posts = List.unmodifiable(posts.take(followingFeedRetention));
-  factory SearchFollowingFeed.fromJson(Map json) => SearchFollowingFeed(
-    id: switch (json['id']) {
-      final String value when value.isNotEmpty => value,
-      _ => throw const FormatException('Invalid feed id'),
-    },
-    profileId: switch (json['profileId']) {
+  factory SearchFollowingFeed.fromJson(Map json) {
+    final profileId = switch (json['profileId']) {
       final int value => value,
       _ => throw const FormatException('Invalid feed profile'),
-    },
-    name: switch (json['name']) {
-      final String value when value.trim().isNotEmpty => value.trim(),
-      _ => throw const FormatException('Invalid feed name'),
-    },
-    position: switch (json['position']) {
-      final int value => value,
-      _ => 0,
-    },
-    sourceIds: switch (json['sourceIds']) {
-      final List values => values.whereType<String>().toList(),
-      _ => const [],
-    },
-    posts: switch (json['posts']) {
-      final List values => [
-        for (final Map value in values.whereType<Map>())
-          CachedFeedPost.fromJson(value),
-      ],
-      _ => const [],
-    },
-  );
+    };
+    return SearchFollowingFeed(
+      id: switch (json['id']) {
+        final String value when value.isNotEmpty => value,
+        _ => throw const FormatException('Invalid feed id'),
+      },
+      profileId: profileId,
+      name: switch (json['name']) {
+        final String value when value.trim().isNotEmpty => value.trim(),
+        _ => throw const FormatException('Invalid feed name'),
+      },
+      position: switch (json['position']) {
+        final int value => value,
+        _ => 0,
+      },
+      sourceIds: switch (json['sourceIds']) {
+        final List values => values.whereType<String>().toList(),
+        _ => const [],
+      },
+      posts: switch (json['posts']) {
+        final List values => [
+          for (final Map value in values.whereType<Map>())
+            CachedFeedPost.fromJson(value, profileId: profileId),
+        ],
+        _ => const [],
+      },
+    );
+  }
   final String id;
   final int profileId;
   final String name;
@@ -90,97 +95,81 @@ class SearchFollowingFeed extends Equatable {
   List<Object?> get props => [id, profileId, name, position, sourceIds, posts];
 }
 
-class CachedFeedPost extends SimplePost implements PostMediaVariants {
-  CachedFeedPost({
-    required super.id,
-    required DateTime createdAt,
-    required String thumbnail,
-    required String sample,
-    required String original,
-    required Set<String> tags,
-    required super.rating,
-    required super.width,
-    required super.height,
-    required super.format,
-    required Map<String, String> mediaVariants,
-  }) : mediaVariants = Map.unmodifiable(mediaVariants),
-       super(
-         createdAt: createdAt,
-         thumbnailImageUrl: thumbnail,
-         sampleImageUrl: sample,
-         originalImageUrl: original,
-         tags: Set.unmodifiable(tags),
-         hasComment: false,
-         isTranslated: false,
-         hasParentOrChildren: false,
-         source: PostSource.none(),
-         score: 0,
-         duration: 0,
-         fileSize: 0,
-         hasSound: null,
-         md5: '',
-         videoThumbnailUrl: '',
-         videoUrl: '',
-         uploaderId: null,
-         metadata: null,
-       );
-  factory CachedFeedPost.fromPost(Post post) => CachedFeedPost(
-    id: post.id,
-    createdAt: post.createdAt!,
-    thumbnail: post.thumbnailImageUrl,
-    sample: post.sampleImageUrl,
-    original: post.originalImageUrl,
-    tags: post.tags,
-    rating: post.rating,
-    width: post.width,
-    height: post.height,
-    format: post.format,
-    mediaVariants: switch (post) {
-      PostMediaVariants(:final mediaVariants) => mediaVariants,
-      _ => const {},
-    },
-  );
-  factory CachedFeedPost.fromJson(Map json) => CachedFeedPost(
-    id: switch (json['id']) {
-      final int value => value,
-      _ => throw const FormatException('Invalid cached post id'),
-    },
-    createdAt: switch (json['createdAt']) {
+class CachedFeedPost extends Equatable {
+  const CachedFeedPost._({required this.snapshot, required this.post});
+
+  factory CachedFeedPost.fromPost(
+    Post source, {
+    PostOrigin? origin,
+    PostToUnifiedConverter? converter,
+    BooruPostDataCodec? dataCodec,
+  }) {
+    final post = switch (source) {
+      final UnifiedPost post => post,
+      _ when origin != null && converter != null => converter(source, origin),
+      _ => UnifiedPost(
+        origin:
+            origin ??
+            PostOrigin.fromSource(
+              booruType: BooruType.unknown,
+              booruId: 0,
+              source: '',
+            ),
+        core: PostCoreData.fromPost(source),
+        booruData: const LegacyPostData(
+          typeKey: 'legacy_feed',
+          custom: {},
+        ),
+      ),
+    };
+    final snapshot = const StoredPostCodec().encode(
+      post,
+      dataCodec: dataCodec,
+    );
+    return CachedFeedPost._(snapshot: snapshot, post: post);
+  }
+
+  factory CachedFeedPost.fromSnapshot(
+    StoredPostSnapshot snapshot, {
+    BooruPostDataCodec? dataCodec,
+  }) {
+    final result = const StoredPostCodec().decode(
+      snapshot,
+      dataCodec: dataCodec,
+    );
+    return switch (result) {
+      StoredPostDecodeSuccess(:final post) => CachedFeedPost._(
+        snapshot: snapshot,
+        post: post,
+      ),
+      StoredPostDecodeFailure(:final reason, :final error) =>
+        throw FormatException(
+          'Invalid cached post snapshot: $reason',
+          error,
+        ),
+    };
+  }
+
+  factory CachedFeedPost.fromJson(
+    Map json, {
+    int? profileId,
+    BooruPostDataCodec? dataCodec,
+  }) {
+    if (json case {
+      'snapshotSchemaVersion': 1,
+      'postSnapshot': final Map rawSnapshot,
+    }) {
+      return CachedFeedPost.fromSnapshot(
+        StoredPostSnapshot.fromJson(Map<String, dynamic>.from(rawSnapshot)),
+        dataCodec: dataCodec,
+      );
+    }
+
+    final createdAt = switch (json['createdAt']) {
       final String value => DateTime.parse(value).toUtc(),
       _ => throw const FormatException('Invalid cached post timestamp'),
-    },
-    thumbnail: switch (json['thumbnail']) {
-      final String value => value,
-      _ => '',
-    },
-    sample: switch (json['sample']) {
-      final String value => value,
-      _ => '',
-    },
-    original: switch (json['original']) {
-      final String value => value,
-      _ => '',
-    },
-    tags: switch (json['tags']) {
-      final List values => values.whereType<String>().toSet(),
-      _ => const {},
-    },
-    rating:
-        Rating.values.where((r) => r.name == json['rating']).firstOrNull ??
-        Rating.general,
-    width: switch (json['width']) {
-      final num value => value.toDouble(),
-      _ => 0,
-    },
-    height: switch (json['height']) {
-      final num value => value.toDouble(),
-      _ => 0,
-    },
-    format: switch (json['format']) {
-      final String value => value,
-      _ => '',
-    },
-    mediaVariants: switch (json['mediaVariants']) {
+    };
+    final mediaVariants = switch (json['mediaVariants']) {
       final Map values => {
         for (final entry in values.entries)
           if (entry case MapEntry(
@@ -189,37 +178,87 @@ class CachedFeedPost extends SimplePost implements PostMediaVariants {
           ))
             key: value,
       },
-      _ => const {},
-    },
-  );
-  @override
-  final Map<String, String> mediaVariants;
+      _ => const <String, String>{},
+    };
+    final post = UnifiedPost(
+      origin: PostOrigin.fromSource(
+        booruType: BooruType.unknown,
+        booruId: profileId ?? 0,
+        source: '',
+        profileIdHint: profileId,
+      ),
+      core: PostCoreData(
+        id: switch (json['id']) {
+          final int value => value,
+          _ => throw const FormatException('Invalid cached post id'),
+        },
+        createdAt: createdAt,
+        thumbnailImageUrl: switch (json['thumbnail']) {
+          final String value => value,
+          _ => '',
+        },
+        sampleImageUrl: switch (json['sample']) {
+          final String value => value,
+          _ => '',
+        },
+        originalImageUrl: switch (json['original']) {
+          final String value => value,
+          _ => '',
+        },
+        videoUrl: '',
+        videoThumbnailUrl: '',
+        mediaVariants: mediaVariants,
+        width: switch (json['width']) {
+          final num value => value.toDouble(),
+          _ => 0,
+        },
+        height: switch (json['height']) {
+          final num value => value.toDouble(),
+          _ => 0,
+        },
+        format: switch (json['format']) {
+          final String value => value,
+          _ => '',
+        },
+        md5: '',
+        fileSize: 0,
+        duration: 0,
+        tags: switch (json['tags']) {
+          final List values => values.whereType<String>().toSet(),
+          _ => const {},
+        },
+        rating:
+            Rating.values.where((r) => r.name == json['rating']).firstOrNull ??
+            Rating.general,
+        hasComment: false,
+        isTranslated: false,
+        hasParentOrChildren: false,
+        source: PostSource.none(),
+        score: 0,
+      ),
+      booruData: const LegacyPostData(typeKey: 'legacy_feed', custom: {}),
+    );
+    return CachedFeedPost.fromPost(post);
+  }
+
+  final StoredPostSnapshot snapshot;
+  final UnifiedPost post;
+
+  int get id => post.id;
+  DateTime? get createdAt => post.createdAt;
+  String get thumbnailImageUrl => post.thumbnailImageUrl;
+  String get sampleImageUrl => post.sampleImageUrl;
+  String get originalImageUrl => post.originalImageUrl;
+  Map<String, String> get mediaVariants => post.mediaVariants;
+
+  CachedFeedPost decodeWith(BooruPostDataCodec? dataCodec) =>
+      CachedFeedPost.fromSnapshot(snapshot, dataCodec: dataCodec);
 
   Map<String, Object?> toJson() => {
-    'id': id,
-    'createdAt': createdAt!.toIso8601String(),
-    'thumbnail': thumbnailImageUrl,
-    'sample': sampleImageUrl,
-    'original': originalImageUrl,
-    'tags': tags.toList(),
-    'rating': rating.name,
-    'width': width,
-    'height': height,
-    'format': format,
-    if (mediaVariants.isNotEmpty) 'mediaVariants': mediaVariants,
+    'snapshotSchemaVersion': 1,
+    'postSnapshot': snapshot.toJson(),
   };
+
   @override
-  List<Object?> get props => [
-    id,
-    createdAt,
-    thumbnailImageUrl,
-    sampleImageUrl,
-    originalImageUrl,
-    tags,
-    rating,
-    width,
-    height,
-    format,
-    mediaVariants,
-  ];
+  List<Object?> get props => [snapshot];
 }
