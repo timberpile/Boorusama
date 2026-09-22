@@ -14,6 +14,8 @@ import '../../core/posts/post/types.dart';
 import '../../core/tags/autocompletes/types.dart';
 import 'client_provider.dart';
 import 'posts/link_generator.dart';
+import 'posts/post_codec.dart';
+import 'posts/post_data.dart';
 import 'posts/providers.dart';
 import 'posts/types.dart';
 import 'tags/providers.dart';
@@ -22,6 +24,9 @@ const kPixivCustomDownloadFileNameFormat = '{illust_id}_p{page}.{extension}';
 
 class PixivRepository extends BooruRepositoryDefault {
   const PixivRepository({required this.ref});
+
+  @override
+  BooruPostDataCodec<PixivPostData> get postDataCodec => const PixivPostCodec();
 
   @override
   SearchRefreshQueryAdapter searchRefreshQueryAdapter(BooruConfigAuth config) =>

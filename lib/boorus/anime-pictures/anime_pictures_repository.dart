@@ -19,6 +19,8 @@ import '../../core/tags/tag/types.dart';
 import 'client_provider.dart';
 import 'downloads/file_url_extractor.dart';
 import 'downloads/providers.dart';
+import 'posts/post_codec.dart';
+import 'posts/post_data.dart';
 import 'posts/providers.dart';
 import 'tags/providers.dart';
 
@@ -31,6 +33,10 @@ final animePicturesDownloadFileUrlExtractorProvider =
 
 class AnimePicturesRepository extends BooruRepositoryDefault {
   const AnimePicturesRepository({required this.ref});
+
+  @override
+  BooruPostDataCodec<AnimePicturesPostData> get postDataCodec =>
+      const AnimePicturesPostCodec();
 
   @override
   SearchRefreshQueryAdapter searchRefreshQueryAdapter(BooruConfigAuth config) =>
