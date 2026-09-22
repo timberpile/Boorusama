@@ -25,6 +25,7 @@ import 'home/widgets.dart';
 import 'posts/details/widgets.dart';
 import 'posts/favorites/widgets.dart';
 import 'posts/listing/widgets.dart';
+import 'posts/post/src/danbooru_post_codec.dart';
 import 'posts/post/types.dart';
 import 'posts/restoration/widgets.dart';
 import 'posts/search/widgets.dart';
@@ -82,18 +83,12 @@ class DanbooruBuilder extends BaseBooruBuilder {
       );
 
   @override
-  PostDetailsPageBuilder get postDetailsPageBuilder => (context, payload) {
-    final posts = payload.posts.map((e) => e as DanbooruPost).toList();
-
-    return PostDetailsScope<DanbooruPost>(
-      initialIndex: payload.initialIndex,
-      initialThumbnailUrl: payload.initialThumbnailUrl,
-      posts: posts,
-      scrollController: payload.scrollController,
-      dislclaimer: payload.dislclaimer,
-      child: const DanbooruPostDetailsPage(),
-    );
-  };
+  PostDetailsPageBuilder get postDetailsPageBuilder =>
+      (context, payload) => LegacyPostDetailsPageAdapter(
+        payload: payload,
+        converter: (post, origin) =>
+            danbooruPostToUnified(post as DanbooruPost, origin),
+      );
 
   @override
   FavoritesPageBuilder? get favoritesPageBuilder =>

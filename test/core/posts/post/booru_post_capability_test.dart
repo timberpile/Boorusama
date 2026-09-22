@@ -150,6 +150,9 @@ final class _NativePresentation implements BooruPostPresentation {
   const _NativePresentation();
 
   @override
+  PostDetailsWrapperBuilder? get detailsWrapperBuilder => null;
+
+  @override
   PostDetailsUIBuilder detailsBuilder(UnifiedPost post) =>
       const PostDetailsUIBuilder();
 

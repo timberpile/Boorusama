@@ -8,11 +8,11 @@ import '../../../core/configs/config/providers.dart';
 import '../../../core/posts/details/types.dart';
 import '../../../core/posts/details_parts/types.dart';
 import '../../../core/posts/details_parts/widgets.dart';
+import '../../../core/posts/post/types.dart';
 import '../../../core/widgets/adaptive_button_row.dart';
 import '../../../core/widgets/booru_menu_button_row.dart';
 import '../favorites/providers.dart';
 import '../favorites/widgets.dart';
-import 'types.dart';
 
 class HydrusPostActionToolbar extends ConsumerWidget {
   const HydrusPostActionToolbar({
@@ -21,7 +21,7 @@ class HydrusPostActionToolbar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final post = InheritedPost.of<HydrusPost>(context);
+    final post = InheritedPost.of<UnifiedPost>(context);
     final canFav = ref
         .watch(hydrusCanFavoriteProvider(ref.watchConfigAuth))
         .maybeWhen(
@@ -29,7 +29,7 @@ class HydrusPostActionToolbar extends ConsumerWidget {
           orElse: () => false,
         );
     final controller = PostDetailsPageViewScope.of(context);
-    final detailsController = PostDetails.of<HydrusPost>(context).controller;
+    final detailsController = PostDetails.of<Post>(context).controller;
     final config = ref.watchConfigAuth;
 
     return CommonPostButtonsBuilder(
@@ -78,9 +78,10 @@ final kHydrusPostDetailsUIBuilder = PostDetailsUIBuilder(
   },
   full: {
     DetailsPart.toolbar: (context) => const HydrusPostActionToolbar(),
-    DetailsPart.tags: (context) => const DefaultInheritedTagsTile<HydrusPost>(),
+    DetailsPart.tags: (context) =>
+        const DefaultInheritedTagsTile<UnifiedPost>(),
     DetailsPart.fileDetails: (context) =>
-        const DefaultInheritedFileDetailsSection<HydrusPost>(
+        const DefaultInheritedFileDetailsSection<UnifiedPost>(
           initialExpanded: true,
         ),
   },

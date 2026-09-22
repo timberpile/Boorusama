@@ -12,7 +12,6 @@ import '../../../client_provider.dart';
 import '../../../configs/providers.dart';
 import '../../../favorites/providers.dart';
 import '../../../moebooru.dart';
-import '../../../posts/types.dart';
 
 class MoebooruPostDetailsActionToolbar extends ConsumerWidget {
   const MoebooruPostDetailsActionToolbar({
@@ -22,13 +21,13 @@ class MoebooruPostDetailsActionToolbar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final config = ref.watchConfigAuth;
-    final post = InheritedPost.of<MoebooruPost>(context);
+    final post = InheritedPost.of<UnifiedPost>(context);
     final booru = ref.watch(moebooruProvider);
 
     return SliverToBoxAdapter(
       child: booru.supportsFavorite(config.url)
-          ? _Toolbar<MoebooruPost>(post: post)
-          : DefaultPostActionToolbar<MoebooruPost>(post: post),
+          ? _Toolbar<UnifiedPost>(post: post)
+          : DefaultPostActionToolbar<UnifiedPost>(post: post),
     );
   }
 }

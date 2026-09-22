@@ -85,10 +85,12 @@ final szurubooruPostRepoProvider =
       },
     );
 
-final szurubooruUploaderQueryProvider =
-    Provider.family<UploaderQuery?, SzurubooruPost>((ref, post) {
-      return switch (post.uploaderName) {
-        final uploader? => UploaderColonUploaderQuery(uploader),
-        _ => null,
-      };
-    });
+final szurubooruUploaderQueryProvider = Provider.family<UploaderQuery?, Post>((
+  ref,
+  post,
+) {
+  return switch (post.uploaderName) {
+    final uploader? => UploaderColonUploaderQuery(uploader),
+    _ => null,
+  };
+});

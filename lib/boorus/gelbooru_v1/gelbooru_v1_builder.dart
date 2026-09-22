@@ -11,15 +11,25 @@ import '../../core/configs/config/types.dart';
 import '../../core/configs/create/widgets.dart';
 import '../../core/configs/manage/widgets.dart';
 import '../../core/downloads/filename/types.dart';
+import '../../core/posts/details/widgets.dart';
 import '../../core/posts/details_parts/types.dart';
+import '../../core/posts/post/types.dart';
 import '../../core/posts/post/providers.dart';
 import '../../core/search/search/routes.dart';
 import '../../core/search/search/widgets.dart';
 import '../../foundation/html.dart';
 import 'configs/widgets.dart';
+import 'posts/post_codec.dart';
+import 'posts/types.dart';
 
 class GelbooruV1Builder extends BaseBooruBuilder {
   GelbooruV1Builder();
+
+  @override
+  late final postPresentation = TypedBooruPostPresentation<EmptyPostData>(
+    typeKey: 'gelbooru_v1',
+    uiBuilder: postDetailsUIBuilder,
+  );
 
   @override
   CreateConfigPageBuilder get createConfigPageBuilder =>
@@ -63,6 +73,14 @@ class GelbooruV1Builder extends BaseBooruBuilder {
   @override
   final PostDetailsUIBuilder postDetailsUIBuilder =
       kFallbackPostDetailsUIBuilder;
+
+  @override
+  PostDetailsPageBuilder get postDetailsPageBuilder =>
+      (context, payload) => LegacyPostDetailsPageAdapter(
+        payload: payload,
+        converter: (post, origin) =>
+            gelbooruV1PostToUnified(post as GelbooruV1Post, origin),
+      );
 
   @override
   CreateUnknownBooruWidgetsBuilder get unknownBooruWidgetsBuilder =>

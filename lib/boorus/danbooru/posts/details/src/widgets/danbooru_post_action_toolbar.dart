@@ -10,6 +10,7 @@ import '../../../../../../core/posts/details_parts/widgets.dart';
 import '../../../../../../core/posts/favorites/providers.dart';
 import '../../../../../../core/posts/favorites/widgets.dart';
 import '../../../../../../core/posts/shares/widgets.dart';
+import '../../../../../../core/posts/post/types.dart';
 import '../../../../../../core/posts/votes/types.dart';
 import '../../../../../../core/posts/votes/widgets.dart';
 import '../../../../../../core/router.dart';
@@ -18,7 +19,6 @@ import '../../../../../../core/widgets/booru_menu_button_row.dart';
 import '../../../../configs/providers.dart';
 import '../../../../favgroups/favgroups/routes.dart';
 import '../../../../versions/routes.dart';
-import '../../../post/types.dart';
 import '../../../votes/providers.dart';
 
 class DanbooruInheritedPostActionToolbar extends ConsumerWidget {
@@ -26,7 +26,7 @@ class DanbooruInheritedPostActionToolbar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final post = InheritedPost.maybeOf<DanbooruPost>(context);
+    final post = InheritedPost.maybeOf<UnifiedPost>(context);
     final controller = PostDetailsPageViewScope.of(context);
 
     return post != null
@@ -45,7 +45,7 @@ class DanbooruPostActionToolbar extends ConsumerWidget {
     super.key,
   });
 
-  final DanbooruPost post;
+  final Post post;
   final void Function() onStartSlideshow;
 
   @override
@@ -59,7 +59,7 @@ class DanbooruPostActionToolbar extends ConsumerWidget {
     final voteState = postVote?.voteState ?? VoteState.unvote;
     final notifier = ref.watch(favoritesProvider(config).notifier);
     final loginDetails = ref.watch(danbooruLoginDetailsProvider(config));
-    final detailsController = PostDetails.of<DanbooruPost>(context).controller;
+    final detailsController = PostDetails.of<Post>(context).controller;
     final hasLogin = loginDetails.hasLogin();
     final voteId = postVote?.voteId;
 

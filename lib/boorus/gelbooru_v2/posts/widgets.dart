@@ -153,7 +153,7 @@ class GelbooruV2UploaderFileDetailTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final post = InheritedPost.of<GelbooruV2Post>(context);
+    final post = InheritedPost.of<UnifiedPost>(context);
     final uploaderName = post.uploaderName;
 
     return switch (uploaderName) {
@@ -176,7 +176,7 @@ class GelbooruV2RelatedPostsSection extends ConsumerWidget {
   const GelbooruV2RelatedPostsSection({super.key});
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final post = InheritedPost.of<GelbooruV2Post>(context);
+    final post = InheritedPost.of<UnifiedPost>(context);
 
     return post.hasParent
         ? ref
@@ -212,9 +212,9 @@ class GelbooruV2UploaderPostsSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final post = InheritedPost.of<GelbooruV2Post>(context);
+    final post = InheritedPost.of<UnifiedPost>(context);
 
-    return UploaderPostsSection<GelbooruV2Post>(
+    return UploaderPostsSection<UnifiedPost>(
       query: ref.watch(
         gelbooruV2UploaderQueryProvider(post),
       ),
@@ -225,26 +225,26 @@ class GelbooruV2UploaderPostsSection extends ConsumerWidget {
 final kGelbooruV2PostDetailsUIBuilder = PostDetailsUIBuilder(
   preview: {
     DetailsPart.toolbar: (context) =>
-        const DefaultInheritedPostActionToolbar<GelbooruV2Post>(),
+        const DefaultInheritedPostActionToolbar<UnifiedPost>(),
   },
   full: {
     DetailsPart.toolbar: (context) =>
-        const DefaultInheritedPostActionToolbar<GelbooruV2Post>(),
+        const DefaultInheritedPostActionToolbar<UnifiedPost>(),
     DetailsPart.source: (context) =>
-        const DefaultInheritedSourceSection<GelbooruV2Post>(),
+        const DefaultInheritedSourceSection<UnifiedPost>(),
     DetailsPart.tags: (context) =>
-        const DefaultInheritedTagsTile<GelbooruV2Post>(),
+        const DefaultInheritedTagsTile<UnifiedPost>(),
     DetailsPart.fileDetails: (context) =>
-        const DefaultInheritedFileDetailsSection<GelbooruV2Post>(
+        const DefaultInheritedFileDetailsSection<UnifiedPost>(
           uploader: GelbooruV2UploaderFileDetailTile(),
         ),
     DetailsPart.artistPosts: (context) =>
-        const DefaultInheritedArtistPostsSection<GelbooruV2Post>(),
+        const DefaultInheritedArtistPostsSection<UnifiedPost>(),
     DetailsPart.uploaderPosts: (context) =>
         const GelbooruV2UploaderPostsSection(),
     DetailsPart.relatedPosts: (context) =>
         const GelbooruV2RelatedPostsSection(),
     DetailsPart.characterList: (context) =>
-        const DefaultInheritedCharacterPostsSection<GelbooruV2Post>(),
+        const DefaultInheritedCharacterPostsSection<UnifiedPost>(),
   },
 );

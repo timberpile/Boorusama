@@ -4,13 +4,163 @@ import 'package:kurumi/material.dart';
 
 // Project imports:
 import '../../../../configs/config/types.dart';
+import '../../../../configs/manage/providers.dart';
+import '../../../../developer_options/providers.dart';
 import '../../../../http/client/providers.dart';
 import '../../../details_pageview/widgets.dart';
 import '../../../listing/providers.dart';
 import '../../../media_preload/providers.dart';
 import '../../../media_preload/types.dart';
 import '../../../post/types.dart';
+import '../providers/providers.dart';
 import 'post_details_page_view_scope.dart';
+
+class MixedPostDetailsImagePreloader extends ConsumerStatefulWidget {
+  const MixedPostDetailsImagePreloader({
+    required this.child,
+    required this.posts,
+    super.key,
+  });
+
+  final List<Post> posts;
+  final Widget child;
+
+  @override
+  ConsumerState<MixedPostDetailsImagePreloader> createState() =>
+      _MixedPostDetailsImagePreloaderState();
+}
+
+class _MixedPostDetailsImagePreloaderState
+    extends ConsumerState<MixedPostDetailsImagePreloader> {
+  final _managers = <BooruConfigAuth, PreloadManager>{};
+  final _directionHistory = DirectionHistory();
+  PostDetailsPageViewController? _pageViewController;
+  int? _lastPage;
+
+  PostDetailsPageViewController get _controller =>
+      _pageViewController ??= PostDetailsPageViewScope.of(context);
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_pageViewController != null) return;
+
+    final controller = _controller;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _lastPage = controller.initialPage;
+      _preloadAdjacentPages(controller.initialPage);
+    });
+    controller.currentPage.addListener(_onPageChanged);
+  }
+
+  void _onPageChanged() {
+    if (!mounted) return;
+    final currentPage = _controller.page;
+    _directionHistory.addDirection(currentPage, _lastPage);
+    _lastPage = currentPage;
+    _preloadAdjacentPages(currentPage);
+  }
+
+  void _preloadAdjacentPages(int currentPage) {
+    if (!ref.read(automaticMediaLoadingEnabledProvider)) return;
+
+    final resolved = <int, _ResolvedPreloadPost>{};
+    for (var index = 0; index < widget.posts.length; index++) {
+      if (_resolve(widget.posts[index]) case final value?) {
+        resolved[index] = value;
+      }
+    }
+
+    for (final auth in resolved.values.map((e) => e.auth).toSet()) {
+      final manager = _managers.putIfAbsent(auth, () {
+        final dio = ref.read(dioForWidgetProvider(auth));
+        return ref.read(
+          preloadManagerProvider((dio: dio, authConfig: auth)),
+        );
+      });
+      final gridThumbnailUrlBuilder = ref.read(
+        gridThumbnailUrlGeneratorProvider(auth),
+      );
+      final settings = ref.read(gridThumbnailSettingsProvider(auth));
+
+      manager.preloadWithStrategy(
+        strategy: DirectionBasedPreloadStrategy(
+          directionHistory: _directionHistory,
+        ),
+        currentPage: currentPage,
+        itemCount: widget.posts.length,
+        mediaBuilder: (index) {
+          final value = resolved[index];
+          if (value == null || value.auth != auth) return null;
+
+          final post = value.post;
+          if (post.isVideo) {
+            return ImageMedia.fromUrl(
+              post.videoThumbnailUrl,
+              estimatedSizeBytes: post.fileSize,
+            );
+          }
+
+          final thumbnail = gridThumbnailUrlBuilder
+              .resolve(
+                post,
+                settings: settings,
+              )
+              .url;
+          return post.originalImageUrl == value.imageUrl
+              ? ImageMedia.fromUrl(
+                  thumbnail,
+                  estimatedSizeBytes: post.fileSize,
+                )
+              : ImageMedia(
+                  thumbnailUrl: thumbnail,
+                  originalUrl: value.imageUrl,
+                  estimatedSizeBytes: post.fileSize,
+                );
+        },
+      );
+    }
+  }
+
+  _ResolvedPreloadPost? _resolve(Post post) {
+    if (post is! UnifiedPost) return null;
+    final resolution = const PostOriginResolver().resolve(
+      post.origin,
+      ref.read(booruConfigProvider),
+    );
+    final config = switch (resolution) {
+      ResolvedPostOrigin(:final config) => config,
+      _ => null,
+    };
+    if (config == null) return null;
+
+    final resolver = ref.read(mediaUrlResolverProvider(config.auth));
+    return (
+      post: post,
+      auth: config.auth,
+      imageUrl: resolver.resolveMediaUrl(post, config.viewer),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.currentPage.removeListener(_onPageChanged);
+    for (final manager in _managers.values) {
+      manager.cancelAll();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
+}
+
+typedef _ResolvedPreloadPost = ({
+  Post post,
+  BooruConfigAuth auth,
+  String imageUrl,
+});
 
 class PostDetailsImagePreloader<T extends Post> extends ConsumerStatefulWidget {
   const PostDetailsImagePreloader({

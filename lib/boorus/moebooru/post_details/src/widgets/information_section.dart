@@ -6,9 +6,9 @@ import 'package:kurumi/material.dart';
 import '../../../../../core/configs/config/providers.dart';
 import '../../../../../core/posts/details/types.dart';
 import '../../../../../core/posts/details_parts/widgets.dart';
+import '../../../../../core/posts/post/types.dart';
 import '../../../../../core/router.dart';
 import '../../../../../core/tags/categories/types.dart';
-import '../../../posts/types.dart';
 import '../../../tags/providers.dart';
 import '../../../tags/types.dart';
 
@@ -19,7 +19,7 @@ class MoebooruInformationSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final post = InheritedPost.of<MoebooruPost>(context);
+    final post = InheritedPost.of<UnifiedPost>(context);
     final config = ref.watchConfigAuth;
 
     return SliverToBoxAdapter(

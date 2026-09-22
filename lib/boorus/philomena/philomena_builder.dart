@@ -7,12 +7,21 @@ import '../../core/configs/create/widgets.dart';
 import '../../core/configs/manage/widgets.dart';
 import '../../core/configs/network/widgets.dart';
 import '../../core/posts/details/widgets.dart';
+import '../../core/posts/post/types.dart';
 import 'configs/widgets.dart';
+import 'posts/post_codec.dart';
+import 'posts/post_data.dart';
 import 'posts/types.dart';
 import 'posts/widgets.dart';
 
 class PhilomenaBuilder extends BaseBooruBuilder {
   PhilomenaBuilder();
+
+  @override
+  late final postPresentation = TypedBooruPostPresentation<PhilomenaPostData>(
+    typeKey: 'philomena',
+    uiBuilder: postDetailsUIBuilder,
+  );
 
   @override
   CreateConfigPageBuilder get createConfigPageBuilder =>
@@ -48,18 +57,12 @@ class PhilomenaBuilder extends BaseBooruBuilder {
       );
 
   @override
-  PostDetailsPageBuilder get postDetailsPageBuilder => (context, payload) {
-    final posts = payload.posts.map((e) => e as PhilomenaPost).toList();
-
-    return PostDetailsScope(
-      initialIndex: payload.initialIndex,
-      initialThumbnailUrl: payload.initialThumbnailUrl,
-      posts: posts,
-      scrollController: payload.scrollController,
-      dislclaimer: payload.dislclaimer,
-      child: const DefaultPostDetailsPage<PhilomenaPost>(),
-    );
-  };
+  PostDetailsPageBuilder get postDetailsPageBuilder =>
+      (context, payload) => LegacyPostDetailsPageAdapter(
+        payload: payload,
+        converter: (post, origin) =>
+            philomenaPostToUnified(post as PhilomenaPost, origin),
+      );
 
   @override
   final postDetailsUIBuilder = kPhilomenaPostDetailsUIBuilder;

@@ -19,7 +19,7 @@ import 'media_url_resolver.dart';
 final danbooruPostDetailsChildrenProvider = FutureProvider.family
     .autoDispose<
       List<DanbooruPost>,
-      (BooruConfigFilter, BooruConfigSearch, DanbooruPost)
+      (BooruConfigFilter, BooruConfigSearch, Post)
     >((ref, params) {
       ref.cacheFor(const Duration(seconds: 60));
 
@@ -56,12 +56,14 @@ final danbooruMediaUrlResolverProvider =
       ),
     );
 
-final danbooruUploaderQueryProvider =
-    Provider.family<UploaderQuery?, DanbooruPost>((ref, post) {
-      final uploader = ref.watch(danbooruCreatorProvider(post.uploaderId));
+final danbooruUploaderQueryProvider = Provider.family<UploaderQuery?, Post>((
+  ref,
+  post,
+) {
+  final uploader = ref.watch(danbooruCreatorProvider(post.uploaderId));
 
-      return switch (uploader) {
-        final uploader? => UserColonUploaderQuery(uploader.name),
-        _ => null,
-      };
-    });
+  return switch (uploader) {
+    final uploader? => UserColonUploaderQuery(uploader.name),
+    _ => null,
+  };
+});

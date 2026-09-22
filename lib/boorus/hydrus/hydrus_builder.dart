@@ -12,17 +12,26 @@ import '../../core/configs/config/types.dart';
 import '../../core/configs/manage/widgets.dart';
 import '../../core/configs/network/widgets.dart';
 import '../../core/posts/details/widgets.dart';
+import '../../core/posts/post/types.dart';
 import '../../core/search/search/routes.dart';
 import '../../core/search/search/widgets.dart';
 import 'configs/widgets.dart';
 import 'favorites/widgets.dart';
 import 'home/widgets.dart';
+import 'posts/post_codec.dart';
 import 'posts/providers.dart';
+import 'posts/post_data.dart';
 import 'posts/types.dart';
 import 'posts/widgets.dart';
 
 class HydrusBuilder extends BaseBooruBuilder {
   HydrusBuilder();
+
+  @override
+  late final postPresentation = TypedBooruPostPresentation<HydrusPostData>(
+    typeKey: 'hydrus',
+    uiBuilder: postDetailsUIBuilder,
+  );
 
   @override
   CreateConfigPageBuilder get createConfigPageBuilder =>
@@ -58,18 +67,12 @@ class HydrusBuilder extends BaseBooruBuilder {
       );
 
   @override
-  PostDetailsPageBuilder get postDetailsPageBuilder => (context, payload) {
-    final posts = payload.posts.map((e) => e as HydrusPost).toList();
-
-    return PostDetailsScope(
-      initialIndex: payload.initialIndex,
-      initialThumbnailUrl: payload.initialThumbnailUrl,
-      posts: posts,
-      scrollController: payload.scrollController,
-      dislclaimer: payload.dislclaimer,
-      child: const DefaultPostDetailsPage<HydrusPost>(),
-    );
-  };
+  PostDetailsPageBuilder get postDetailsPageBuilder =>
+      (context, payload) => LegacyPostDetailsPageAdapter(
+        payload: payload,
+        converter: (post, origin) =>
+            hydrusPostToUnified(post as HydrusPost, origin),
+      );
 
   @override
   FavoritesPageBuilder? get favoritesPageBuilder =>

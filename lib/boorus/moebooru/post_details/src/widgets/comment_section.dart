@@ -7,8 +7,8 @@ import 'package:kurumi/material.dart';
 // Project imports:
 import '../../../../../core/configs/config/providers.dart';
 import '../../../../../core/posts/details/types.dart';
+import '../../../../../core/posts/post/types.dart';
 import '../../../comments/providers.dart';
-import '../../../posts/types.dart';
 import 'comment_item.dart';
 
 class MoebooruCommentSection extends ConsumerWidget {
@@ -21,7 +21,7 @@ class MoebooruCommentSection extends ConsumerWidget {
     final theme = Kurumi.themeOf(context);
     final textTheme = theme.textTheme;
     final colorScheme = theme.colorScheme;
-    final post = InheritedPost.of<MoebooruPost>(context);
+    final post = InheritedPost.of<UnifiedPost>(context);
     final params = (ref.watchConfigAuth, post.id);
 
     return SliverToBoxAdapter(

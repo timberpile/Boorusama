@@ -75,10 +75,12 @@ final sankakuPostRepoProvider =
       },
     );
 
-final sankakuUploaderQueryProvider =
-    Provider.family<UploaderQuery?, SankakuPost>((ref, post) {
-      return switch (post.uploaderName) {
-        final uploader? => UserColonUploaderQuery(uploader),
-        _ => null,
-      };
-    });
+final sankakuUploaderQueryProvider = Provider.family<UploaderQuery?, Post>((
+  ref,
+  post,
+) {
+  return switch (post.uploaderName) {
+    final uploader? => UserColonUploaderQuery(uploader),
+    _ => null,
+  };
+});

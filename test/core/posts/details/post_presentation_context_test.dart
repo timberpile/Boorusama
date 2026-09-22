@@ -152,6 +152,9 @@ final class _NotesPresentation implements BooruPostPresentation {
   const _NotesPresentation();
 
   @override
+  PostDetailsWrapperBuilder? get detailsWrapperBuilder => null;
+
+  @override
   bool supports(BooruPostData data) => data is GelbooruV2PostData;
 
   @override

@@ -10,7 +10,6 @@ import '../../../core/search/queries/providers.dart';
 import '../../../core/settings/providers.dart';
 import '../clients/providers.dart';
 import 'parser.dart';
-import 'types.dart';
 
 final shimmie2PostRepoProvider =
     Provider.family<PostRepository, BooruConfigSearch>(
@@ -67,10 +66,12 @@ final shimmie2PostRepoProvider =
       },
     );
 
-final shimmie2UploaderQueryProvider =
-    Provider.family<UploaderQuery?, Shimmie2Post>((ref, post) {
-      return switch (post.uploaderName) {
-        final uploader? => UserEqualsUploaderQuery(uploader),
-        _ => null,
-      };
-    });
+final shimmie2UploaderQueryProvider = Provider.family<UploaderQuery?, Post>((
+  ref,
+  post,
+) {
+  return switch (post.uploaderName) {
+    final uploader? => UserEqualsUploaderQuery(uploader),
+    _ => null,
+  };
+});

@@ -70,7 +70,7 @@ final e621MediaUrlResolverProvider = Provider<MediaUrlResolver>((ref) {
   );
 });
 
-final e621UploaderQueryProvider = Provider.family<UploaderQuery?, E621Post>((
+final e621UploaderQueryProvider = Provider.family<UploaderQuery?, Post>((
   ref,
   post,
 ) {

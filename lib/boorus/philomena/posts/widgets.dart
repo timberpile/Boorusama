@@ -7,29 +7,32 @@ import '../../../core/artists/types.dart';
 import '../../../core/posts/details/types.dart';
 import '../../../core/posts/details_parts/types.dart';
 import '../../../core/posts/details_parts/widgets.dart';
+import '../../../core/posts/post/types.dart';
 import '../../../core/search/search/routes.dart';
 import 'providers.dart';
-import 'types.dart';
+import 'post_data.dart';
 
 class PhilomenaStatsTileSection extends ConsumerWidget {
   const PhilomenaStatsTileSection({super.key});
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final post = InheritedPost.of<PhilomenaPost>(context);
+    final post = InheritedPost.of<UnifiedPost>(context);
+    final data = InheritedPost.presentationOf(
+      context,
+    ).data<PhilomenaPostData>();
 
     return SliverToBoxAdapter(
       child: SimplePostStatsTile(
-        totalComments: post.commentCount,
-        favCount: post.favCount,
+        totalComments: data?.commentCount ?? 0,
+        favCount: data?.favCount ?? 0,
         score: post.score,
-        votePercentText: _generatePercentText(post),
+        votePercentText: _generatePercentText(post, data),
       ),
     );
   }
 
-  String _generatePercentText(PhilomenaPost? post) {
-    if (post == null) return '';
-    final percent = post.score > 0 ? (post.upvotes / post.score) : 0;
+  String _generatePercentText(Post post, PhilomenaPostData? data) {
+    final percent = post.score > 0 ? ((data?.upvotes ?? 0) / post.score) : 0;
     return post.score > 0 ? '(${(percent * 100).toInt()}% upvoted)' : '';
   }
 }
@@ -38,11 +41,14 @@ class PhilomenaArtistInfoSection extends ConsumerWidget {
   const PhilomenaArtistInfoSection({super.key});
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final post = InheritedPost.of<PhilomenaPost>(context);
+    final post = InheritedPost.of<UnifiedPost>(context);
+    final data = InheritedPost.presentationOf(
+      context,
+    ).data<PhilomenaPostData>();
 
     return SliverToBoxAdapter(
       child: ArtistSection(
-        commentary: ArtistCommentary.description(post.description),
+        commentary: ArtistCommentary.description(data?.description ?? ''),
         artistTags: post.artistTags ?? {},
         source: post.source,
       ),
@@ -55,7 +61,7 @@ class PhilomenaUploaderFileDetailTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final post = InheritedPost.of<PhilomenaPost>(context);
+    final post = InheritedPost.of<UnifiedPost>(context);
     final uploaderName = post.uploaderName;
 
     return switch (uploaderName) {
@@ -79,9 +85,9 @@ class PhilomenaUploaderPostsSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final post = InheritedPost.of<PhilomenaPost>(context);
+    final post = InheritedPost.of<UnifiedPost>(context);
 
-    return UploaderPostsSection<PhilomenaPost>(
+    return UploaderPostsSection<UnifiedPost>(
       query: ref.watch(
         philomenaUploaderQueryProvider(post),
       ),
@@ -92,23 +98,23 @@ class PhilomenaUploaderPostsSection extends ConsumerWidget {
 final kPhilomenaPostDetailsUIBuilder = PostDetailsUIBuilder(
   preview: {
     DetailsPart.info: (context) =>
-        const DefaultInheritedInformationSection<PhilomenaPost>(),
+        const DefaultInheritedInformationSection<UnifiedPost>(),
     DetailsPart.toolbar: (context) =>
-        const DefaultInheritedPostActionToolbar<PhilomenaPost>(),
+        const DefaultInheritedPostActionToolbar<UnifiedPost>(),
   },
   full: {
     DetailsPart.info: (context) =>
-        const DefaultInheritedInformationSection<PhilomenaPost>(),
+        const DefaultInheritedInformationSection<UnifiedPost>(),
     DetailsPart.toolbar: (context) =>
-        const DefaultInheritedPostActionToolbar<PhilomenaPost>(),
+        const DefaultInheritedPostActionToolbar<UnifiedPost>(),
     DetailsPart.artistInfo: (context) => const PhilomenaArtistInfoSection(),
     DetailsPart.stats: (context) => const PhilomenaStatsTileSection(),
     DetailsPart.source: (context) =>
-        const DefaultInheritedSourceSection<PhilomenaPost>(),
+        const DefaultInheritedSourceSection<UnifiedPost>(),
     DetailsPart.tags: (context) =>
-        const DefaultInheritedBasicTagsTile<PhilomenaPost>(),
+        const DefaultInheritedBasicTagsTile<UnifiedPost>(),
     DetailsPart.fileDetails: (context) =>
-        const DefaultInheritedFileDetailsSection<PhilomenaPost>(
+        const DefaultInheritedFileDetailsSection<UnifiedPost>(
           uploader: PhilomenaUploaderFileDetailTile(),
         ),
     DetailsPart.uploaderPosts: (context) =>

@@ -13,6 +13,9 @@ import '../../../../../core/posts/sources/types.dart';
 import '../../../../../foundation/clipboard.dart';
 import '../../../../../foundation/url_launcher.dart';
 import '../../favorites/widgets.dart';
+import '../../_shared/danbooru_creator_preloader.dart';
+import '../../_shared/post_creator_preloadable.dart';
+import '../../details/src/details_ui_builder.dart';
 import '../../post/types.dart';
 import 'danbooru_post_preview.dart';
 
@@ -27,7 +30,14 @@ final class DanbooruPostGridPresentation
 
   @override
   PostDetailsUIBuilder detailsBuilder(UnifiedPost post) =>
-      const PostDetailsUIBuilder();
+      danbooruPostDetailsUiBuilder;
+
+  @override
+  PostDetailsWrapperBuilder get detailsWrapperBuilder =>
+      ({required post, required child}) => DanbooruCreatorPreloader(
+        preloadable: PostCreatorsPreloadable.fromUnifiedPost(post),
+        child: child,
+      );
 
   @override
   PostGridItemAdditions buildGridItemAdditions(

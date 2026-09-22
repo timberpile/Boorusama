@@ -6,15 +6,29 @@ import '../../core/configs/create/widgets.dart';
 import '../../core/configs/manage/widgets.dart';
 import '../../core/downloads/filename/types.dart';
 import '../../core/home/types.dart';
+import '../../core/posts/details/widgets.dart';
+import '../../core/posts/post/types.dart';
 import 'artists/widgets.dart';
 import 'configs/widgets.dart';
 import 'favorites/widgets.dart';
 import 'home/types.dart';
 import 'home/widgets.dart';
 import 'post_details/widgets.dart';
+import 'post_details/src/favorite_loader.dart';
+import 'posts/post_codec.dart';
+import 'posts/post_data.dart';
+import 'posts/types.dart';
 
 class MoebooruBuilder extends BaseBooruBuilder {
   MoebooruBuilder();
+
+  @override
+  late final postPresentation = TypedBooruPostPresentation<MoebooruPostData>(
+    typeKey: 'moebooru',
+    uiBuilder: postDetailsUIBuilder,
+    detailsWrapperBuilder: ({required post, required child}) =>
+        MoebooruFavoriteUsersLoader(post: post, child: child),
+  );
 
   @override
   CreateConfigPageBuilder get createConfigPageBuilder =>
@@ -71,7 +85,11 @@ class MoebooruBuilder extends BaseBooruBuilder {
 
   @override
   PostDetailsPageBuilder get postDetailsPageBuilder =>
-      (context, payload) => MoebooruPostDetailsPage.fromRouteData(payload);
+      (context, payload) => LegacyPostDetailsPageAdapter(
+        payload: payload,
+        converter: (post, origin) =>
+            moebooruPostToUnified(post as MoebooruPost, origin),
+      );
 
   @override
   Map<CustomHomeViewKey, CustomHomeDataBuilder> get customHomeViewBuilders =>

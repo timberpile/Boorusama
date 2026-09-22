@@ -7,17 +7,28 @@ import '../../core/configs/create/widgets.dart';
 import '../../core/configs/manage/widgets.dart';
 import '../../core/downloads/filename/types.dart';
 import '../../core/home/types.dart';
+import '../../core/posts/details/widgets.dart';
+import '../../core/posts/post/types.dart';
 import 'artists/widgets.dart';
 import 'configs/widgets.dart';
 import 'favorites/widgets.dart';
 import 'home/types.dart';
 import 'home/widgets.dart';
+import 'posts/post_codec.dart';
+import 'posts/post_data.dart';
+import 'posts/types.dart';
 import 'posts/widgets.dart';
 import 'restoration/widgets.dart';
 import 'search/widgets.dart';
 
 class GelbooruV2Builder extends BaseBooruBuilder {
   GelbooruV2Builder();
+
+  @override
+  late final postPresentation = TypedBooruPostPresentation<GelbooruV2PostData>(
+    typeKey: 'gelbooru_v2',
+    uiBuilder: postDetailsUIBuilder,
+  );
 
   @override
   CreateConfigPageBuilder get createConfigPageBuilder =>
@@ -65,11 +76,12 @@ class GelbooruV2Builder extends BaseBooruBuilder {
       );
 
   @override
-  PostDetailsPageBuilder get postDetailsPageBuilder => (context, payload) {
-    return GelbooruV2PostDetailsPage(
-      payload: payload,
-    );
-  };
+  PostDetailsPageBuilder get postDetailsPageBuilder =>
+      (context, payload) => LegacyPostDetailsPageAdapter(
+        payload: payload,
+        converter: (post, origin) =>
+            gelbooruV2PostToUnified(post as GelbooruV2Post, origin),
+      );
 
   @override
   FavoritesPageBuilder? get favoritesPageBuilder =>

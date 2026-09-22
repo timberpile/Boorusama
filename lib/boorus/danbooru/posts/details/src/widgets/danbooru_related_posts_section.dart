@@ -16,7 +16,7 @@ class DanbooruRelatedPostsSection extends ConsumerWidget {
     super.key,
   });
 
-  final DanbooruPost currentPost;
+  final Post currentPost;
   final List<DanbooruPost> posts;
 
   @override

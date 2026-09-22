@@ -3,11 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Project imports:
 import '../../../../../../core/router.dart';
-import '../../../../posts/post/types.dart';
+import '../../../../../../core/posts/post/types.dart';
 
 void goToTagEditPage(
   WidgetRef ref, {
-  required DanbooruPost post,
+  required Post post,
 }) {
   ref.router.push(
     Uri(

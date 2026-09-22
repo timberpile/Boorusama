@@ -6,16 +6,16 @@ import 'package:kurumi/material.dart';
 import '../../../core/posts/details/types.dart';
 import '../../../core/posts/details_parts/types.dart';
 import '../../../core/posts/details_parts/widgets.dart';
+import '../../../core/posts/post/types.dart';
 import '../../../core/search/search/routes.dart';
 import 'providers.dart';
-import 'types.dart';
 
 class GelbooruUploaderFileDetailTile extends ConsumerWidget {
   const GelbooruUploaderFileDetailTile({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final post = InheritedPost.of<GelbooruPost>(context);
+    final post = InheritedPost.of<UnifiedPost>(context);
     final uploaderName = post.uploaderName;
 
     return switch (uploaderName) {
@@ -39,9 +39,9 @@ class GelbooruUploaderPostsSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final post = InheritedPost.of<GelbooruPost>(context);
+    final post = InheritedPost.of<UnifiedPost>(context);
 
-    return UploaderPostsSection<GelbooruPost>(
+    return UploaderPostsSection<UnifiedPost>(
       query: ref.watch(
         gelbooruUploaderQueryProvider(post),
       ),
@@ -52,24 +52,24 @@ class GelbooruUploaderPostsSection extends ConsumerWidget {
 final kGelbooruPostDetailsUIBuilder = PostDetailsUIBuilder(
   preview: {
     DetailsPart.toolbar: (context) =>
-        const DefaultInheritedPostActionToolbar<GelbooruPost>(),
+        const DefaultInheritedPostActionToolbar<UnifiedPost>(),
   },
   full: {
     DetailsPart.toolbar: (context) =>
-        const DefaultInheritedPostActionToolbar<GelbooruPost>(),
+        const DefaultInheritedPostActionToolbar<UnifiedPost>(),
     DetailsPart.source: (context) =>
-        const DefaultInheritedSourceSection<GelbooruPost>(),
+        const DefaultInheritedSourceSection<UnifiedPost>(),
     DetailsPart.tags: (context) =>
-        const DefaultInheritedTagsTile<GelbooruPost>(),
+        const DefaultInheritedTagsTile<UnifiedPost>(),
     DetailsPart.fileDetails: (context) =>
-        const DefaultInheritedFileDetailsSection<GelbooruPost>(
+        const DefaultInheritedFileDetailsSection<UnifiedPost>(
           uploader: GelbooruUploaderFileDetailTile(),
         ),
     DetailsPart.artistPosts: (context) =>
-        const DefaultInheritedArtistPostsSection<GelbooruPost>(),
+        const DefaultInheritedArtistPostsSection<UnifiedPost>(),
     DetailsPart.uploaderPosts: (context) =>
         const GelbooruUploaderPostsSection(),
     DetailsPart.characterList: (context) =>
-        const DefaultInheritedCharacterPostsSection<GelbooruPost>(),
+        const DefaultInheritedCharacterPostsSection<UnifiedPost>(),
   },
 );

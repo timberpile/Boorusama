@@ -10,7 +10,6 @@ import '../../../../../core/posts/details/types.dart';
 import '../../../../../core/posts/details_parts/widgets.dart';
 import '../../../../../core/posts/post/types.dart';
 import '../../../../../core/search/search/routes.dart';
-import '../../../posts/types.dart';
 import '../../providers.dart';
 
 class MoebooruRelatedPostsSection extends ConsumerWidget {
@@ -20,7 +19,7 @@ class MoebooruRelatedPostsSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final post = InheritedPost.of<MoebooruPost>(context);
+    final post = InheritedPost.of<UnifiedPost>(context);
     final params = (ref.watchConfigSearch, post);
 
     final postsAsync = ref.watch(moebooruPostDetailsChildrenProvider(params));

@@ -4,12 +4,20 @@ import '../../core/boorus/engine/types.dart';
 import '../../core/configs/config/types.dart';
 import '../../core/configs/create/widgets.dart';
 import '../../core/posts/details/widgets.dart';
+import '../../core/posts/post/types.dart';
+import 'posts/post_codec.dart';
 import 'posts/types.dart';
 import 'posts/widgets.dart';
 import 'search/widgets.dart';
 
 class NozomiBuilder extends BaseBooruBuilder {
   NozomiBuilder();
+
+  @override
+  late final postPresentation = TypedBooruPostPresentation<EmptyPostData>(
+    typeKey: 'nozomi',
+    uiBuilder: postDetailsUIBuilder,
+  );
 
   @override
   CreateConfigPageBuilder get createConfigPageBuilder =>
@@ -36,18 +44,12 @@ class NozomiBuilder extends BaseBooruBuilder {
       );
 
   @override
-  PostDetailsPageBuilder get postDetailsPageBuilder => (context, payload) {
-    final posts = payload.posts.map((e) => e as NozomiPost).toList();
-
-    return PostDetailsScope(
-      initialIndex: payload.initialIndex,
-      initialThumbnailUrl: payload.initialThumbnailUrl,
-      posts: posts,
-      scrollController: payload.scrollController,
-      dislclaimer: payload.dislclaimer,
-      child: const DefaultPostDetailsPage<NozomiPost>(),
-    );
-  };
+  PostDetailsPageBuilder get postDetailsPageBuilder =>
+      (context, payload) => LegacyPostDetailsPageAdapter(
+        payload: payload,
+        converter: (post, origin) =>
+            nozomiPostToUnified(post as NozomiPost, origin),
+      );
 
   @override
   final postDetailsUIBuilder = kNozomiPostDetailsUIBuilder;

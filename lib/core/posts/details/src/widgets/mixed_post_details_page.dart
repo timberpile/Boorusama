@@ -17,7 +17,9 @@ import '../providers/providers.dart';
 import '../types/inherited_post.dart';
 import '../types/post_details.dart';
 import 'post_details_actions.dart';
+import 'post_details_image_preloader.dart';
 import 'post_details_item.dart';
+import 'post_details_notes.dart';
 import 'post_details_page_scaffold.dart';
 import 'post_details_scope.dart';
 import 'post_page_presentation_scope.dart';
@@ -76,15 +78,18 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
   Widget build(BuildContext context) {
     final details = PostDetails.of<Post>(context);
 
-    return ValueListenableBuilder<Post>(
-      valueListenable: details.controller.currentPost,
-      builder: (context, currentPost, _) => PostPagePresentationScope(
-        post: currentPost,
-        builder: (context, ref, currentPresentation) => _buildViewer(
-          context,
-          ref,
-          details,
-          currentPresentation,
+    return MixedPostDetailsImagePreloader(
+      posts: details.posts,
+      child: ValueListenableBuilder<Post>(
+        valueListenable: details.controller.currentPost,
+        builder: (context, currentPost, _) => PostPagePresentationScope(
+          post: currentPost,
+          builder: (context, ref, currentPresentation) => _buildViewer(
+            context,
+            ref,
+            details,
+            currentPresentation,
+          ),
         ),
       ),
     );
@@ -114,7 +119,7 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
       _ => _genericPostDetailsUiBuilder,
     };
 
-    return PostDetailsPageScaffold<Post>(
+    final scaffold = PostDetailsPageScaffold<Post>(
       transformController: _transformController,
       isInitPage: _isInitPage,
       controller: controller,
@@ -172,6 +177,30 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
           },
         );
       },
+    );
+
+    final post = currentPresentation.context.post;
+    final wrapper =
+        currentPresentation.context.presentation.detailsWrapperBuilder;
+    final behaviorCompanion = switch ((post, wrapper)) {
+      (final UnifiedPost post, final wrapper?) => wrapper(
+        post: post,
+        child: const SizedBox.shrink(),
+      ),
+      _ => null,
+    };
+
+    return CurrentPostDetailsNotes(
+      post: post,
+      viewerConfig: viewer,
+      authConfig: auth,
+      enabled: !currentPresentation.usesGenericPresentation,
+      child: Stack(
+        children: [
+          scaffold,
+          if (behaviorCompanion != null) Offstage(child: behaviorCompanion),
+        ],
+      ),
     );
   }
 }

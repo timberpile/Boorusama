@@ -20,14 +20,13 @@ import '../extensions/providers.dart';
 import '../extensions/types.dart';
 import 'bulk_provider.dart';
 import 'providers.dart';
-import 'types.dart';
 
 class Shimmie2UploaderFileDetailTile extends ConsumerWidget {
   const Shimmie2UploaderFileDetailTile({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final post = InheritedPost.of<Shimmie2Post>(context);
+    final post = InheritedPost.of<UnifiedPost>(context);
     final uploaderName = post.uploaderName;
 
     return switch (uploaderName) {
@@ -49,15 +48,15 @@ class Shimmie2UploaderFileDetailTile extends ConsumerWidget {
 final kShimmie2PostDetailsUIBuilder = PostDetailsUIBuilder(
   preview: {
     DetailsPart.toolbar: (context) =>
-        const DefaultInheritedPostActionToolbar<Shimmie2Post>(),
+        const DefaultInheritedPostActionToolbar<UnifiedPost>(),
   },
   full: {
     DetailsPart.toolbar: (context) =>
-        const DefaultInheritedPostActionToolbar<Shimmie2Post>(),
+        const DefaultInheritedPostActionToolbar<UnifiedPost>(),
     DetailsPart.tags: (context) =>
-        const DefaultInheritedBasicTagsTile<Shimmie2Post>(),
+        const DefaultInheritedBasicTagsTile<UnifiedPost>(),
     DetailsPart.fileDetails: (context) =>
-        const DefaultInheritedFileDetailsSection<Shimmie2Post>(
+        const DefaultInheritedFileDetailsSection<UnifiedPost>(
           uploader: Shimmie2UploaderFileDetailTile(),
         ),
     DetailsPart.uploaderPosts: (context) =>
@@ -70,9 +69,9 @@ class Shimmie2UploaderPostsSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final post = InheritedPost.of<Shimmie2Post>(context);
+    final post = InheritedPost.of<UnifiedPost>(context);
 
-    return UploaderPostsSection<Shimmie2Post>(
+    return UploaderPostsSection<UnifiedPost>(
       query: ref.watch(
         shimmie2UploaderQueryProvider(post),
       ),

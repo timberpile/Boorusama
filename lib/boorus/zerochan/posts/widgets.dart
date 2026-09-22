@@ -1,21 +1,21 @@
 // Project imports:
 import '../../../core/posts/details_parts/types.dart';
 import '../../../core/posts/details_parts/widgets.dart';
-import 'types.dart';
+import '../../../core/posts/post/types.dart';
 
 final kZerochanPostDetailsUIBuilder = PostDetailsUIBuilder(
   preview: {
     DetailsPart.toolbar: (context) =>
-        const DefaultInheritedPostActionToolbar<ZerochanPost>(),
+        const DefaultInheritedPostActionToolbar<UnifiedPost>(),
   },
   full: {
     DetailsPart.toolbar: (context) =>
-        const DefaultInheritedPostActionToolbar<ZerochanPost>(),
+        const DefaultInheritedPostActionToolbar<UnifiedPost>(),
     DetailsPart.source: (context) =>
-        const DefaultInheritedSourceSection<ZerochanPost>(),
+        const DefaultInheritedSourceSection<UnifiedPost>(),
     DetailsPart.tags: (context) =>
-        const DefaultInheritedTagsTile<ZerochanPost>(),
+        const DefaultInheritedTagsTile<UnifiedPost>(),
     DetailsPart.fileDetails: (context) =>
-        const DefaultInheritedFileDetailsSection<ZerochanPost>(),
+        const DefaultInheritedFileDetailsSection<UnifiedPost>(),
   },
 );

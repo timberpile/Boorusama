@@ -6,16 +6,25 @@ import '../../core/configs/create/widgets.dart';
 import '../../core/configs/manage/widgets.dart';
 import '../../core/home/types.dart';
 import '../../core/posts/details/widgets.dart';
+import '../../core/posts/post/types.dart';
 import 'comments/widgets.dart';
 import 'configs/widgets.dart';
 import 'favorites/widgets.dart';
 import 'home/types.dart';
 import 'home/widgets.dart';
+import 'posts/post_codec.dart';
+import 'posts/post_data.dart';
 import 'posts/types.dart';
 import 'posts/widgets.dart';
 
 class Shimmie2Builder extends BaseBooruBuilder {
   Shimmie2Builder();
+
+  @override
+  late final postPresentation = TypedBooruPostPresentation<Shimmie2PostData>(
+    typeKey: 'shimmie2',
+    uiBuilder: postDetailsUIBuilder,
+  );
 
   @override
   CreateConfigPageBuilder get createConfigPageBuilder =>
@@ -51,18 +60,12 @@ class Shimmie2Builder extends BaseBooruBuilder {
       );
 
   @override
-  PostDetailsPageBuilder get postDetailsPageBuilder => (context, payload) {
-    final posts = payload.posts.map((e) => e as Shimmie2Post).toList();
-
-    return PostDetailsScope(
-      initialIndex: payload.initialIndex,
-      initialThumbnailUrl: payload.initialThumbnailUrl,
-      posts: posts,
-      scrollController: payload.scrollController,
-      dislclaimer: payload.dislclaimer,
-      child: const DefaultPostDetailsPage<Shimmie2Post>(),
-    );
-  };
+  PostDetailsPageBuilder get postDetailsPageBuilder =>
+      (context, payload) => LegacyPostDetailsPageAdapter(
+        payload: payload,
+        converter: (post, origin) =>
+            shimmie2PostToUnified(post as Shimmie2Post, origin),
+      );
 
   @override
   final postDetailsUIBuilder = kShimmie2PostDetailsUIBuilder;

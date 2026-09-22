@@ -11,6 +11,7 @@ import '../../../core/posts/details_parts/widgets.dart';
 import '../../../core/posts/favorites/providers.dart';
 import '../../../core/posts/favorites/widgets.dart';
 import '../../../core/posts/shares/widgets.dart';
+import '../../../core/posts/post/types.dart';
 import '../../../core/router.dart';
 import '../../../core/search/search/routes.dart';
 import '../../../core/widgets/adaptive_button_row.dart';
@@ -18,7 +19,7 @@ import '../../../core/widgets/booru_menu_button_row.dart';
 import '../configs/providers.dart';
 import '../pools/widgets.dart';
 import '../post_votes/widgets.dart';
-import '../posts/types.dart';
+import 'post_data.dart';
 import 'providers.dart';
 
 class SzurubooruPostActionToolbar extends ConsumerWidget {
@@ -28,11 +29,9 @@ class SzurubooruPostActionToolbar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final post = InheritedPost.of<SzurubooruPost>(context);
+    final post = InheritedPost.of<UnifiedPost>(context);
     final controller = PostDetailsPageViewScope.of(context);
-    final detailsController = PostDetails.of<SzurubooruPost>(
-      context,
-    ).controller;
+    final detailsController = PostDetails.of<Post>(context).controller;
 
     final config = ref.watchConfigAuth;
     final configViewer = ref.watchConfigViewer;
@@ -120,7 +119,7 @@ class SzurubooruUploaderFileDetailTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final post = InheritedPost.of<SzurubooruPost>(context);
+    final post = InheritedPost.of<UnifiedPost>(context);
     final uploaderName = post.uploaderName;
 
     return switch (uploaderName) {
@@ -143,14 +142,17 @@ class SzurubooruStatsTileSection extends ConsumerWidget {
   const SzurubooruStatsTileSection({super.key});
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final post = InheritedPost.of<SzurubooruPost>(context);
+    final post = InheritedPost.of<UnifiedPost>(context);
+    final data = InheritedPost.presentationOf(
+      context,
+    ).data<SzurubooruPostData>();
 
     return SliverToBoxAdapter(
       child: Column(
         children: [
           SimplePostStatsTile(
-            totalComments: post.commentCount,
-            favCount: post.favoriteCount,
+            totalComments: data?.commentCount ?? 0,
+            favCount: data?.favoriteCount ?? 0,
             score: post.score,
           ),
         ],
@@ -164,9 +166,9 @@ class SzurubooruUploaderPostsSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final post = InheritedPost.of<SzurubooruPost>(context);
+    final post = InheritedPost.of<UnifiedPost>(context);
 
-    return UploaderPostsSection<SzurubooruPost>(
+    return UploaderPostsSection<UnifiedPost>(
       query: ref.watch(
         szurubooruUploaderQueryProvider(post),
       ),
@@ -179,10 +181,12 @@ class SzurubooruPoolTileSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final post = InheritedPost.of<SzurubooruPost>(context);
+    final data = InheritedPost.presentationOf(
+      context,
+    ).data<SzurubooruPostData>();
 
     return SliverToBoxAdapter(
-      child: SzurubooruPoolTiles(pools: post.pools),
+      child: SzurubooruPoolTiles(pools: data?.pools ?? const []),
     );
   }
 }
@@ -195,9 +199,9 @@ final kSzurubooruPostDetailsUIBuilder = PostDetailsUIBuilder(
     DetailsPart.toolbar: (context) => const SzurubooruPostActionToolbar(),
     DetailsPart.stats: (context) => const SzurubooruStatsTileSection(),
     DetailsPart.tags: (context) =>
-        const DefaultInheritedTagsTile<SzurubooruPost>(),
+        const DefaultInheritedTagsTile<UnifiedPost>(),
     DetailsPart.fileDetails: (context) =>
-        const DefaultInheritedFileDetailsSection<SzurubooruPost>(
+        const DefaultInheritedFileDetailsSection<UnifiedPost>(
           uploader: SzurubooruUploaderFileDetailTile(),
         ),
     DetailsPart.pool: (context) => const SzurubooruPoolTileSection(),

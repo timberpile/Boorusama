@@ -10,26 +10,42 @@ import 'package:visibility_detector/visibility_detector.dart';
 
 // Project imports:
 import 'package:boorusama/boorus/danbooru/posts/post/types.dart';
+import 'package:boorusama/boorus/danbooru/danbooru.dart';
+import 'package:boorusama/boorus/danbooru/danbooru_builder.dart';
+import 'package:boorusama/boorus/danbooru/posts/_shared/danbooru_creator_preloader.dart';
+import 'package:boorusama/boorus/danbooru/posts/details/widgets.dart';
+import 'package:boorusama/boorus/e621/e621.dart';
+import 'package:boorusama/boorus/e621/e621_builder.dart';
 import 'package:boorusama/boorus/e621/posts/post_data.dart';
+import 'package:boorusama/boorus/pixiv/pixiv.dart';
+import 'package:boorusama/boorus/pixiv/pixiv_builder.dart';
 import 'package:boorusama/boorus/pixiv/posts/post_data.dart';
 import 'package:boorusama/boorus/pixiv/posts/types.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/boorus/engine/providers.dart';
+import 'package:boorusama/core/boorus/engine/types.dart';
 import 'package:boorusama/core/configs/config/providers.dart';
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/configs/manage/providers.dart';
 import 'package:boorusama/core/developer_options/providers.dart';
+import 'package:boorusama/core/downloads/downloader/providers.dart';
+import 'package:boorusama/core/downloads/downloader/types.dart';
+import 'package:boorusama/core/http/client/providers.dart';
 import 'package:boorusama/core/posts/details/providers.dart';
 import 'package:boorusama/core/posts/details/types.dart';
 import 'package:boorusama/core/posts/details/widgets.dart';
 import 'package:boorusama/core/posts/details_pageview/widgets.dart';
 import 'package:boorusama/core/posts/details_parts/types.dart';
+import 'package:boorusama/core/posts/details_parts/widgets.dart';
+import 'package:boorusama/core/posts/favorites/providers.dart';
+import 'package:boorusama/core/posts/favorites/src/data/providers.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 import 'package:boorusama/core/posts/rating/types.dart';
 import 'package:boorusama/core/posts/sources/types.dart';
 import 'package:boorusama/core/premiums/providers.dart';
 import 'package:boorusama/core/settings/providers.dart';
 import 'package:boorusama/core/settings/types.dart';
+import 'package:boorusama/foundation/loggers.dart';
 
 void main() {
   testWidgets(
@@ -47,12 +63,30 @@ void main() {
       final pageView = _pageViewController(tester);
       final slideshow = pageView.slideshowController;
 
-      expect(find.text('danbooru@danbooru.example'), findsWidgets);
+      expect(find.byType(DanbooruInformationSection), findsWidgets);
+      expect(
+        find.byType(DanbooruCreatorPreloader, skipOffstage: false),
+        findsOneWidget,
+      );
+      expect(find.byType(CurrentPostDetailsNotes), findsOneWidget);
+      expect(find.byType(MixedPostDetailsImagePreloader), findsOneWidget);
+      expect(
+        tester
+            .widget<CurrentPostDetailsNotes>(
+              find.byType(CurrentPostDetailsNotes),
+            )
+            .enabled,
+        isTrue,
+      );
       _expectMedia(tester, postId: 1, host: 'danbooru.example');
 
       details.loadOriginalImage(_posts[0]);
       await _nextPage(tester);
-      expect(find.text('e621@e621.example'), findsWidgets);
+      expect(find.byType(DanbooruInformationSection), findsNothing);
+      expect(
+        find.byType(DefaultInheritedInformationSection<UnifiedPost>),
+        findsWidgets,
+      );
       _expectMedia(tester, postId: 1, host: 'e621.example');
 
       final expand = pageView.expandToSnapPoint();
@@ -62,7 +96,10 @@ void main() {
 
       await pageView.nextPage(duration: Duration.zero);
       await tester.pumpAndSettle();
-      expect(find.text('pixiv@pixiv.example'), findsWidgets);
+      expect(
+        find.byType(DefaultInheritedPostActionToolbar<UnifiedPost>),
+        findsWidgets,
+      );
       _expectMedia(tester, postId: 1, host: 'pixiv.example');
       expect(_detailsController(tester), same(details));
       expect(_pageViewController(tester), same(pageView));
@@ -77,6 +114,14 @@ void main() {
       expect(
         find.text('Some site-specific features are unavailable for this post.'),
         findsOneWidget,
+      );
+      expect(
+        tester
+            .widget<CurrentPostDetailsNotes>(
+              find.byType(CurrentPostDetailsNotes),
+            )
+            .enabled,
+        isFalse,
       );
       expect(find.text('Tags'), findsOneWidget);
       expect(find.textContaining('unknown@'), findsNothing);
@@ -225,11 +270,12 @@ class _Harness {
           booruConfigProvider.overrideWith(
             () => BooruConfigNotifier(initialConfigs: _configs),
           ),
+          booruEngineRegistryProvider.overrideWith(_createEngineRegistry),
           booruPostPresentationProvider.overrideWith((ref, request) {
             return switch (request.data) {
-              DanbooruPostData() => const _Presentation('danbooru'),
-              E621PostData() => const _Presentation('e621'),
-              PixivPostData() => const _Presentation('pixiv'),
+              DanbooruPostData() => DanbooruBuilder().postPresentation,
+              E621PostData() => E621Builder().postPresentation,
+              PixivPostData() => PixivBuilder().postPresentation,
               _ => const GenericPostPresentation(),
             };
           }),
@@ -242,6 +288,12 @@ class _Harness {
           automaticMediaLoadingEnabledProvider.overrideWithValue(false),
           hasPremiumLayoutProvider.overrideWithValue(false),
           showPremiumFeatsProvider.overrideWithValue(false),
+          downloadServiceProvider.overrideWithValue(_DownloadService()),
+          httpHeadersProvider.overrideWith((ref, config) => const {}),
+          loggerProvider.overrideWithValue(const _Logger()),
+          favoriteRepoProvider.overrideWith(
+            (ref, config) => EmptyFavoriteRepository(),
+          ),
         ],
       );
 
@@ -267,6 +319,59 @@ class _Harness {
   );
 
   void dispose() => container.dispose();
+}
+
+BooruEngineRegistry _createEngineRegistry(Ref ref) {
+  final registry = BooruEngineRegistry();
+  for (final components in [createDanbooru(), createE621(), createPixiv()]) {
+    final booru = components.parser.parse();
+    registry.register(
+      booru.type,
+      BooruEngine(
+        booru: booru,
+        builder: components.createBuilder(),
+        repository: components.createRepository(ref),
+      ),
+    );
+  }
+  return registry;
+}
+
+final class _DownloadService implements DownloadService {
+  @override
+  Future<DownloadResult> download(DownloadOptions options) async =>
+      DownloadEnqueued(DownloadTaskInfo(path: '', id: options.url));
+
+  @override
+  Future<bool> cancelAll(String group) async => true;
+
+  @override
+  Future<void> pauseAll(String group) async {}
+
+  @override
+  Future<void> resumeAll(String group) async {}
+}
+
+final class _Logger implements Logger {
+  const _Logger();
+
+  @override
+  String getDebugName() => 'mixed post details test';
+
+  @override
+  void debug(String serviceName, String message) {}
+
+  @override
+  void error(String serviceName, String message) {}
+
+  @override
+  void info(String serviceName, String message) {}
+
+  @override
+  void verbose(String serviceName, String message) {}
+
+  @override
+  void warn(String serviceName, String message) {}
 }
 
 final _globalConfig = BooruConfig.defaultConfig(
@@ -402,6 +507,9 @@ final class _Presentation implements BooruPostPresentation {
   const _Presentation(this.name);
 
   final String name;
+
+  @override
+  PostDetailsWrapperBuilder? get detailsWrapperBuilder => null;
 
   @override
   bool supports(BooruPostData data) => data.typeKey == name;

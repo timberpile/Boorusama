@@ -64,29 +64,30 @@ final gelbooruV2PostProvider =
     });
 
 final gelbooruV2ChildPostsProvider = FutureProvider.autoDispose
-    .family<
-      List<GelbooruV2Post>,
-      (BooruConfigFilter, BooruConfigSearch, GelbooruV2Post)
-    >((ref, params) {
-      final (filter, search, post) = params;
+    .family<List<GelbooruV2Post>, (BooruConfigFilter, BooruConfigSearch, Post)>(
+      (ref, params) {
+        final (filter, search, post) = params;
 
-      return ref
-          .watch(gelbooruV2PostRepoProvider(search))
-          .getPostsFromTagWithBlacklist(
-            tag: post.relationshipQuery,
-            blacklist: ref.watch(blacklistTagsProvider(filter).future),
-          );
-    });
+        return ref
+            .watch(gelbooruV2PostRepoProvider(search))
+            .getPostsFromTagWithBlacklist(
+              tag: post.relationshipQuery,
+              blacklist: ref.watch(blacklistTagsProvider(filter).future),
+            );
+      },
+    );
 
 final gelbooruV2PostImageUrlResolverProvider =
     Provider<GelbooruV2ImageUrlResolver>(
       (ref) => const GelbooruV2ImageUrlResolver(),
     );
 
-final gelbooruV2UploaderQueryProvider =
-    Provider.family<UploaderQuery?, GelbooruV2Post>((ref, post) {
-      return switch (post.uploaderName) {
-        final uploader? => UserColonUploaderQuery(uploader),
-        _ => null,
-      };
-    });
+final gelbooruV2UploaderQueryProvider = Provider.family<UploaderQuery?, Post>((
+  ref,
+  post,
+) {
+  return switch (post.uploaderName) {
+    final uploader? => UserColonUploaderQuery(uploader),
+    _ => null,
+  };
+});

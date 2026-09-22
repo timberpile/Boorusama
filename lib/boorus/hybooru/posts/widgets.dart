@@ -1,19 +1,19 @@
 // Project imports:
 import '../../../core/posts/details_parts/types.dart';
 import '../../../core/posts/details_parts/widgets.dart';
-import 'types.dart';
+import '../../../core/posts/post/types.dart';
 
 final kHybooruPostDetailsUIBuilder = PostDetailsUIBuilder(
   preview: {
     DetailsPart.toolbar: (context) =>
-        const DefaultInheritedPostActionToolbar<HybooruPost>(),
+        const DefaultInheritedPostActionToolbar<UnifiedPost>(),
   },
   full: {
     DetailsPart.toolbar: (context) =>
-        const DefaultInheritedPostActionToolbar<HybooruPost>(),
+        const DefaultInheritedPostActionToolbar<UnifiedPost>(),
     DetailsPart.tags: (context) =>
-        const DefaultInheritedTagsTile<HybooruPost>(),
+        const DefaultInheritedTagsTile<UnifiedPost>(),
     DetailsPart.fileDetails: (context) =>
-        const DefaultInheritedFileDetailsSection<HybooruPost>(),
+        const DefaultInheritedFileDetailsSection<UnifiedPost>(),
   },
 );

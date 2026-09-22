@@ -7,8 +7,8 @@ import 'package:kurumi/material.dart';
 // Project imports:
 import '../../../../../../core/configs/config/providers.dart';
 import '../../../../../../core/images/booru_image.dart';
+import '../../../../../../core/posts/post/types.dart';
 import '../../../../../../core/search/search/widgets.dart';
-import '../../../../posts/post/types.dart';
 import '../providers/favorite_groups_filterable_notifier.dart';
 import '../routes/route_utils.dart';
 import '../wigdets/add_to_favgroup_list.dart';
@@ -19,7 +19,7 @@ class AddToFavoriteGroupPage extends ConsumerWidget {
     super.key,
   });
 
-  final List<DanbooruPost> posts;
+  final List<Post> posts;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -46,7 +46,7 @@ class AddToFavoriteGroupPage extends ConsumerWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 2),
                   child: BooruImage(
                     config: ref.watchConfigAuth,
-                    imageUrl: posts[index].url720x720,
+                    imageUrl: posts[index].sampleImageUrl,
                     aspectRatio: posts[index].aspectRatio,
                   ),
                 ),

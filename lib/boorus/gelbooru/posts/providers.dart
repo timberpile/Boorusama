@@ -84,10 +84,12 @@ int? _gelbooruMaxAccessiblePage(int? limit) {
   return (_gelbooruSearchDepthLimit - 1) ~/ limit;
 }
 
-final gelbooruUploaderQueryProvider =
-    Provider.family<UploaderQuery?, GelbooruPost>((ref, post) {
-      return switch (post.uploaderName) {
-        final uploader? => UserColonUploaderQuery(uploader),
-        _ => null,
-      };
-    });
+final gelbooruUploaderQueryProvider = Provider.family<UploaderQuery?, Post>((
+  ref,
+  post,
+) {
+  return switch (post.uploaderName) {
+    final uploader? => UserColonUploaderQuery(uploader),
+    _ => null,
+  };
+});

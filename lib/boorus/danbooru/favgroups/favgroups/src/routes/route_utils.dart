@@ -4,14 +4,14 @@ import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 
 // Project imports:
-import '../../../../posts/post/types.dart';
+import '../../../../../../core/posts/post/types.dart';
 import '../pages/add_to_favorite_group_page.dart';
 import '../pages/create_favorite_group_sheet.dart';
 import '../types/danbooru_favorite_group.dart';
 
 Future<bool?> goToAddToFavoriteGroupSelectionPage(
   BuildContext context,
-  List<DanbooruPost> posts,
+  List<Post> posts,
 ) {
   return Kurumi.showModalBottomSheet<bool>(
     context: context,

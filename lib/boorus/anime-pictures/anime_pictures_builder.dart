@@ -7,15 +7,25 @@ import '../../core/configs/manage/widgets.dart';
 import '../../core/posts/details/widgets.dart';
 import '../../core/posts/details_parts/types.dart';
 import '../../core/posts/details_parts/widgets.dart';
+import '../../core/posts/post/types.dart';
 import 'configs/widgets.dart';
 import 'favorites/widgets.dart';
 import 'home/widgets.dart';
+import 'posts/post_codec.dart';
+import 'posts/post_data.dart';
 import 'posts/types.dart';
 import 'posts/widgets.dart';
 import 'users/widgets.dart';
 
 class AnimePicturesBuilder extends BaseBooruBuilder {
   AnimePicturesBuilder();
+
+  @override
+  late final postPresentation =
+      TypedBooruPostPresentation<AnimePicturesPostData>(
+        typeKey: 'anime_pictures',
+        uiBuilder: postDetailsUIBuilder,
+      );
 
   @override
   CreateConfigPageBuilder get createConfigPageBuilder =>
@@ -51,18 +61,12 @@ class AnimePicturesBuilder extends BaseBooruBuilder {
       );
 
   @override
-  PostDetailsPageBuilder get postDetailsPageBuilder => (context, payload) {
-    final posts = payload.posts.map((e) => e as AnimePicturesPost).toList();
-
-    return PostDetailsScope(
-      initialIndex: payload.initialIndex,
-      initialThumbnailUrl: payload.initialThumbnailUrl,
-      posts: posts,
-      scrollController: payload.scrollController,
-      dislclaimer: payload.dislclaimer,
-      child: const DefaultPostDetailsPage<AnimePicturesPost>(),
-    );
-  };
+  PostDetailsPageBuilder get postDetailsPageBuilder =>
+      (context, payload) => LegacyPostDetailsPageAdapter(
+        payload: payload,
+        converter: (post, origin) =>
+            animePicturesPostToUnified(post as AnimePicturesPost, origin),
+      );
 
   @override
   HomePageBuilder get homePageBuilder =>
@@ -78,15 +82,15 @@ class AnimePicturesBuilder extends BaseBooruBuilder {
   final postDetailsUIBuilder = PostDetailsUIBuilder(
     preview: {
       DetailsPart.toolbar: (context) =>
-          const DefaultInheritedPostActionToolbar<AnimePicturesPost>(),
+          const DefaultInheritedPostActionToolbar<UnifiedPost>(),
     },
     full: {
       DetailsPart.toolbar: (context) =>
-          const DefaultInheritedPostActionToolbar<AnimePicturesPost>(),
+          const DefaultInheritedPostActionToolbar<UnifiedPost>(),
       DetailsPart.tags: (context) =>
-          const DefaultInheritedTagsTile<AnimePicturesPost>(),
+          const DefaultInheritedTagsTile<UnifiedPost>(),
       DetailsPart.fileDetails: (context) =>
-          const DefaultInheritedFileDetailsSection<AnimePicturesPost>(),
+          const DefaultInheritedFileDetailsSection<UnifiedPost>(),
       DetailsPart.relatedPosts: (context) =>
           const AnimePicturesRelatedPostsSection(),
     },

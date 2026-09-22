@@ -8,9 +8,9 @@ import '../../../core/configs/config/providers.dart';
 import '../../../core/posts/details/routes.dart';
 import '../../../core/posts/details/types.dart';
 import '../../../core/posts/details_parts/widgets.dart';
+import '../../../core/posts/post/types.dart';
 import 'parser.dart';
 import 'providers.dart';
-import 'types.dart';
 
 class AnimePicturesRelatedPostsSection extends ConsumerWidget {
   const AnimePicturesRelatedPostsSection({
@@ -19,8 +19,8 @@ class AnimePicturesRelatedPostsSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final posts = PostDetails.of<AnimePicturesPost>(context).posts;
-    final post = InheritedPost.of<AnimePicturesPost>(context);
+    final posts = PostDetails.of<Post>(context).posts;
+    final post = InheritedPost.of<UnifiedPost>(context);
     final configAuth = ref.watchConfigAuth;
     final configViewer = ref.watchConfigViewer;
     final params = (configAuth, post.id);
