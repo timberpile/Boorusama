@@ -18,7 +18,7 @@ class DefaultInheritedSourceSection<T extends Post> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final post = InheritedPost.of<T>(context);
+    final post = InheritedPost.of(context);
 
     return SliverToBoxAdapter(
       child: post.source.whenWeb(

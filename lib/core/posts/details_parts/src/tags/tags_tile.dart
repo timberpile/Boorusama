@@ -35,7 +35,7 @@ class _DefaultInheritedTagsTileState<T extends Post>
 
   @override
   Widget build(BuildContext context) {
-    final post = InheritedPost.of<T>(context);
+    final post = InheritedPost.of(context);
     final auth = ref.watchConfigAuth;
     final params = (auth, post);
 

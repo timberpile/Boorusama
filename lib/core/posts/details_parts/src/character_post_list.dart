@@ -19,7 +19,7 @@ class DefaultInheritedCharacterPostsSection<T extends Post>
   const DefaultInheritedCharacterPostsSection({super.key});
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final post = InheritedPost.of<T>(context);
+    final post = InheritedPost.of(context);
 
     return ref
         .watch(

@@ -17,28 +17,34 @@ class PostDetailsData<T extends Post> {
   final PostDetailsController<T> controller;
 }
 
-class PostDetails<T extends Post> extends InheritedWidget {
+class PostDetails extends InheritedWidget {
   const PostDetails({
     required this.data,
     required super.child,
     super.key,
   });
 
-  final PostDetailsData<T> data;
+  final Object data;
 
   static PostDetailsData<T> of<T extends Post>(BuildContext context) {
-    final widget = context.dependOnInheritedWidgetOfExactType<PostDetails<T>>();
-    return widget?.data ?? (throw Exception('No PostDetails found in context'));
+    final widget = context.dependOnInheritedWidgetOfExactType<PostDetails>();
+    final data = widget?.data;
+    return data is PostDetailsData<T>
+        ? data
+        : (throw StateError('No compatible post details found in context'));
   }
 
   static PostDetailsData<T>? maybeOf<T extends Post>(BuildContext context) {
-    final widget = context.dependOnInheritedWidgetOfExactType<PostDetails<T>>();
+    final widget = context.dependOnInheritedWidgetOfExactType<PostDetails>();
 
-    return widget?.data;
+    return switch (widget?.data) {
+      final PostDetailsData<T> data => data,
+      _ => null,
+    };
   }
 
   @override
-  bool updateShouldNotify(PostDetails<T> oldWidget) {
+  bool updateShouldNotify(PostDetails oldWidget) {
     return data != oldWidget.data;
   }
 }

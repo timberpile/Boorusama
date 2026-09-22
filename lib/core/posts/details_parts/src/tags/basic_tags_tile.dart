@@ -23,7 +23,7 @@ class DefaultInheritedBasicTagsTile<T extends Post> extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final post = InheritedPost.of<T>(context);
+    final post = InheritedPost.of(context);
     final config = ref.watchConfigAuth;
 
     return SliverToBoxAdapter(

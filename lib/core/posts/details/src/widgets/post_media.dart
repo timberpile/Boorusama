@@ -53,7 +53,7 @@ class PostMedia<T extends Post> extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final details = PostDetails.of<T>(context);
+    final details = PostDetails.of(context);
     final heroTag = '${post.id}_hero';
     final automaticMediaLoadingEnabled = ref.watch(
       automaticMediaLoadingEnabledProvider,

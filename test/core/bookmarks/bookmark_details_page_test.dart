@@ -60,15 +60,17 @@ void main() {
             ),
             home: PostDetailsPageViewScope(
               controller: pageViewController,
-              child: PostDetails<BookmarkPost>(
+              child: PostDetails(
                 data: PostDetailsData(
                   posts: [post],
                   controller: detailsController,
                 ),
                 child: CustomScrollView(
                   slivers: [
-                    InheritedPost<BookmarkPost>(
-                      post: post,
+                    InheritedPost(
+                      presentationContext: PostPresentationContext.generic(
+                        post,
+                      ),
                       child: const BookmarkPostActionToolbar(),
                     ),
                   ],

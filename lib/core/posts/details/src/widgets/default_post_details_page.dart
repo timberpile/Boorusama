@@ -38,7 +38,7 @@ class _DefaultPostDetailsPageState<T extends Post>
 
   @override
   Widget build(BuildContext context) {
-    final data = PostDetails.of<T>(context);
+    final data = PostDetails.of(context);
     final posts = data.posts;
     final controller = data.controller;
     final auth = ref.watchConfigAuth;
