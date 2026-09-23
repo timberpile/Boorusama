@@ -6,7 +6,6 @@ import '../../../../boorus/engine/providers.dart';
 import '../../../../configs/config/types.dart';
 import '../types/post_link_generator.dart';
 import '../types/post_repository.dart';
-import '../types/post_origin.dart';
 import '../types/post.dart';
 import 'post_link_generator_impl.dart';
 import 'post_repository_impl.dart';
@@ -42,12 +41,7 @@ final originAwarePostRepoProvider =
       };
       return OriginAwarePostRepository(
         delegate: delegate,
-        origin: PostOrigin.fromSource(
-          booruType: config.auth.booruType,
-          booruId: config.booruId,
-          source: config.url,
-          profileIdHint: config.id,
-        ),
+        origin: postOriginFromConfig(config),
       );
     }, name: 'originAwarePostRepoProvider');
 

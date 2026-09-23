@@ -284,7 +284,7 @@ class DanbooruRepository extends BooruRepositoryDefault {
         onViewTags: () => goToShowTaglistPage(
           ref,
           post,
-          auth: ref.readConfigAuth,
+          config: ref.readConfig,
         ),
         onViewOriginal: () => goToOriginalImagePage(ref, post),
         onOpenSource: () => post.source.whenWeb(

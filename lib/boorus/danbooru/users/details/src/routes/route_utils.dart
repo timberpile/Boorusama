@@ -2,6 +2,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Project imports:
+import '../../../../../../core/configs/config/providers.dart';
 import '../../../../../../core/router.dart';
 import '../types/user_details.dart';
 
@@ -22,6 +23,7 @@ void goToUserDetailsPage(
         ...details.toQueryParams(),
       },
     ).toString(),
+    extra: ref.readConfig,
   );
 }
 

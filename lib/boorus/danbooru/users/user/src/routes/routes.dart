@@ -2,6 +2,8 @@
 import 'package:kurumi/cupertino.dart';
 
 // Project imports:
+import '../../../../../../core/configs/config/types.dart';
+import '../../../../../../core/configs/manage/widgets.dart';
 import '../../../../../../core/router.dart';
 import '../pages/danbooru_favoriter_list_page.dart';
 import '../pages/danbooru_voter_list_page.dart';
@@ -16,13 +18,11 @@ final danbooruFavoriterListRoutes = GoRoute(
       builder: (context) {
         final postId = int.tryParse(state.pathParameters['id'] ?? '');
 
-        if (postId == null) {
-          return const InvalidPage(
-            message: 'Invalid post ID',
-          );
-        }
+        final page = postId == null
+            ? const InvalidPage(message: 'Invalid post ID')
+            : DanbooruFavoriterListPage(postId: postId);
 
-        return DanbooruFavoriterListPage(postId: postId);
+        return _scopePage(state.extra, page);
       },
     ),
   ),
@@ -38,14 +38,20 @@ final danbooruVoterListRoutes = GoRoute(
       builder: (context) {
         final postId = int.tryParse(state.pathParameters['id'] ?? '');
 
-        if (postId == null) {
-          return const InvalidPage(
-            message: 'Invalid post ID',
-          );
-        }
+        final page = postId == null
+            ? const InvalidPage(message: 'Invalid post ID')
+            : DanbooruVoterListPage(postId: postId);
 
-        return DanbooruVoterListPage(postId: postId);
+        return _scopePage(state.extra, page);
       },
     ),
   ),
 );
+
+Widget _scopePage(Object? extra, Widget page) => switch (extra) {
+  final BooruConfig config => CurrentBooruConfigScope(
+    config: config,
+    child: page,
+  ),
+  _ => page,
+};

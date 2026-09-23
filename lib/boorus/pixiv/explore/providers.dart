@@ -8,10 +8,10 @@ import 'package:foundation/foundation.dart';
 import '../../../core/configs/config/types.dart';
 import '../../../core/errors/types.dart';
 import '../../../core/posts/explores/types.dart';
+import '../../../core/posts/post/providers.dart';
 import '../../../core/posts/post/types.dart';
 import '../client_provider.dart';
 import '../posts/parser.dart';
-import '../posts/types.dart';
 import 'feed.dart';
 
 /// Pixiv's ranking is offset-paged at 30 items/page (see `PixivClient`,
@@ -110,16 +110,20 @@ bool pixivShouldWarnXRestrict(PixivExploreFeed feed, int? accountXRestrict) {
 }
 
 final pixivExploreRepoProvider =
-    Provider.family<PixivExploreRepository, BooruConfigAuth>((ref, config) {
-      final client = ref.watch(pixivClientProvider(config));
+    Provider.family<PixivExploreRepository, BooruConfig>((ref, config) {
+      final client = ref.watch(pixivClientProvider(config.auth));
 
-      return PixivExploreRepository(client: client);
+      return PixivExploreRepository(
+        client: client,
+        origin: postOriginFromConfig(config),
+      );
     });
 
 class PixivExploreRepository {
-  PixivExploreRepository({required this.client});
+  PixivExploreRepository({required this.client, required this.origin});
 
   final PixivClient client;
+  final PostOrigin origin;
 
   /// The page beyond which a given feed is known to have run out, per the
   /// API's own `next_url` signal (see `PixivIllustListResult.hasMore`) —
@@ -164,7 +168,10 @@ class PixivExploreRepository {
           _exhaustedAfterPage[key] = page;
         }
 
-        return illustDtosToPosts(result.illusts).toResult();
+        return bindPostResultOrigin(
+          illustDtosToPosts(result.illusts).toResult(),
+          origin: origin,
+        );
       },
       _mapError,
     );

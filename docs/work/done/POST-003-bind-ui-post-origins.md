@@ -36,5 +36,7 @@ host and profile hint that produced it.
   its exact host and profile ID.
 - Artist, favorite, popular, related-post, and pool fetches bind their posts at
   the UI repository boundary.
+- Custom AnimePictures, Pixiv, Eshuushuu, Nozomi, and Moebooru feeds bind
+  direct-client results with the same reusable origin boundary.
 - Origin repository and direct-fetch regression tests pass, along with the
-  complete 1,388-test suite.
+  complete 1,392-test suite.

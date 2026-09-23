@@ -2,6 +2,8 @@
 import 'package:kurumi/cupertino.dart';
 
 // Project imports:
+import '../../../../../../core/configs/config/types.dart';
+import '../../../../../../core/configs/manage/widgets.dart';
 import '../../../../../../core/router.dart';
 import '../pages/comment_create_page.dart';
 import '../pages/comment_update_page.dart';
@@ -20,24 +22,26 @@ final danbooruCommentEditorRoutes = GoRoute(
           state.uri.queryParameters['comment_id'] ?? '',
         );
 
-        if (postId == null) {
-          return const InvalidPage(
-            message: 'Invalid post ID',
-          );
-        }
-
-        if (commentId != null && text != null) {
-          return CommentUpdatePage(
+        final page = switch ((postId, commentId, text)) {
+          (null, _, _) => const InvalidPage(message: 'Invalid post ID'),
+          (final postId?, final commentId?, final text?) => CommentUpdatePage(
             postId: postId,
             commentId: commentId,
             initialContent: text,
-          );
-        } else {
-          return CommentCreatePage(
+          ),
+          (final postId?, _, _) => CommentCreatePage(
             postId: postId,
             initialContent: text,
-          );
-        }
+          ),
+        };
+
+        return switch (state.extra) {
+          final BooruConfig config => CurrentBooruConfigScope(
+            config: config,
+            child: page,
+          ),
+          _ => page,
+        };
       },
     ),
   ),

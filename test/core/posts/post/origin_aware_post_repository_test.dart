@@ -94,6 +94,13 @@ void main() {
 
     expect(result.fold((value) => value, (_) => null), same(error));
   });
+
+  test('binds direct-client post lists to the complete source profile', () {
+    final posts = bindPostsOrigin([first, second], origin: origin);
+
+    expect(posts.map((post) => post.origin), [origin, origin]);
+    expect(posts.map((post) => post.id), [2, 1]);
+  });
 }
 
 final class _Repository implements PostRepository<Post> {

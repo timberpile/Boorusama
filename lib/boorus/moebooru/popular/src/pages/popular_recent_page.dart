@@ -26,7 +26,7 @@ class _MoebooruPopularPageState
   final selectedPeriod = ValueNotifier(MoebooruTimePeriod.day);
 
   MoebooruPopularRepository get repo =>
-      ref.read(moebooruPopularRepoProvider(ref.readConfigAuth));
+      ref.read(moebooruPopularRepoProvider(ref.readConfig));
 
   @override
   Widget build(BuildContext context) {

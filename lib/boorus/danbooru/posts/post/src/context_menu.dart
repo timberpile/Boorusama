@@ -105,7 +105,7 @@ class DanbooruPostContextMenu extends ConsumerWidget {
               goToShowTaglistPage(
                 ref,
                 post,
-                auth: booruConfig,
+                config: profile,
               );
             },
           ),

@@ -32,5 +32,12 @@ resolved `BooruConfig`, including nested sheets.
 - Tag-history route data carries and installs the page-scoped profile.
 - Favorite-group selection, creation, and editing sheets install the supplied
   profile, including the nested creation sheet.
+- Comments, searches, artists, characters, tag sheets, editors, user pages,
+  voter/favoriter lists, and wiki pages carry and install the launching profile.
+- Providers reached from those scoped pages declare their current-profile
+  dependencies, so Riverpod rebuilds them in the page-local container instead
+  of raising an override assertion.
 - The route handoff regression test passes with a page-local profile, and tag
-  history loaded successfully from the mixed viewer on `emulator-5556`.
+  history and the reported Danbooru search/details/back flow loaded successfully
+  on `emulator-5556`.
+- The complete 1,392-test suite passes.

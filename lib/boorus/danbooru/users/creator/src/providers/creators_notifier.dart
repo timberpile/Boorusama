@@ -39,6 +39,7 @@ class CreatorsNotifier
   Future<void> load(List<int> ids) async {
     // only load ids that are not already loaded
     final notInCached = ids.where((id) => !state.containsKey(id)).toList();
+    if (notInCached.isEmpty) return;
 
     final repo = await futureRepo;
     final creators = await repo.getCreatorsByIdStringComma(

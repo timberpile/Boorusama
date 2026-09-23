@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/boorus/engine/providers.dart';
 import '../../../../../core/configs/config/providers.dart';
 import '../../../../../core/configs/config/types.dart';
+import '../../../../../core/configs/manage/providers.dart';
 import '../../../../../core/posts/explores/types.dart';
 import '../../../../../core/posts/post/providers.dart';
 import '../../../../../core/posts/post/types.dart';
@@ -60,18 +61,21 @@ final danbooruExploreRepoProvider = Provider.family<ExploreRepository, BooruConf
   ],
 );
 
-final danbooruMostViewedTodayProvider = FutureProvider<PostResult<Post>>((ref) {
-  final repo = ref
-      .watch(danbooruExploreRepoProvider(ref.watchConfig))
-      .getMostViewedPosts(DateTime.now());
+final danbooruMostViewedTodayProvider = FutureProvider<PostResult<Post>>(
+  (ref) {
+    final repo = ref
+        .watch(danbooruExploreRepoProvider(ref.watchConfig))
+        .getMostViewedPosts(DateTime.now());
 
-  return repo.run().then(
-    (value) => value.fold(
-      (l) => <Post>[].toResult(),
-      (r) => r,
-    ),
-  );
-});
+    return repo.run().then(
+      (value) => value.fold(
+        (l) => <Post>[].toResult(),
+        (r) => r,
+      ),
+    );
+  },
+  dependencies: [currentReadOnlyBooruConfigProvider],
+);
 
 final danbooruPopularTodayProvider = FutureProvider<PostResult<Post>>((
   ref,
@@ -86,7 +90,7 @@ final danbooruPopularTodayProvider = FutureProvider<PostResult<Post>>((
       (r) => r,
     ),
   );
-});
+}, dependencies: [currentReadOnlyBooruConfigProvider]);
 
 final danbooruHotTodayProvider = FutureProvider<PostResult<Post>>((
   ref,
@@ -101,4 +105,4 @@ final danbooruHotTodayProvider = FutureProvider<PostResult<Post>>((
       (r) => r,
     ),
   );
-});
+}, dependencies: [currentReadOnlyBooruConfigProvider]);

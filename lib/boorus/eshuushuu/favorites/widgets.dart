@@ -6,8 +6,10 @@ import 'package:kurumi/material.dart';
 // Project imports:
 import '../../../core/configs/auth/widgets.dart';
 import '../../../core/configs/config/providers.dart';
+import '../../../core/configs/config/types.dart';
 import '../../../core/posts/favorites/providers.dart';
 import '../../../core/posts/favorites/widgets.dart';
+import '../../../core/posts/post/providers.dart';
 import '../../../core/posts/post/types.dart';
 import '../client_provider.dart';
 import '../configs/extra_data.dart';
@@ -38,9 +40,9 @@ class _EshuushuuFavoritesPageInternal extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final config = ref.watchConfigAuth;
-    final notifier = ref.watch(favoritesProvider(config).notifier);
-    final client = ref.watch(eshuushuuClientProvider(config));
+    final config = ref.watchConfig;
+    final notifier = ref.watch(favoritesProvider(config.auth).notifier);
+    final client = ref.watch(eshuushuuClientProvider(config.auth));
 
     return FavoritesPageScaffold(
       favQueryBuilder: null,
@@ -50,9 +52,10 @@ class _EshuushuuFavoritesPageInternal extends ConsumerWidget {
           page: page,
         );
 
-        final posts = dtos
-            .map((dto) => parser.postDtoToPost(dto, null))
-            .toList();
+        final posts = bindPostsOrigin(
+          dtos.map((dto) => parser.postDtoToPost(dto, null)),
+          origin: postOriginFromConfig(config),
+        );
 
         notifier.preloadInternal(
           posts,

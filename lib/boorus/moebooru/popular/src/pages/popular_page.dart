@@ -35,7 +35,7 @@ class _MoebooruPopularPageState extends ConsumerState<MoebooruPopularPage> {
   final selectedPopular = ValueNotifier(MoebooruPopularType.day);
 
   MoebooruPopularRepository get repo =>
-      ref.read(moebooruPopularRepoProvider(ref.readConfigAuth));
+      ref.read(moebooruPopularRepoProvider(ref.readConfig));
 
   DateTime get selectedDate => selectedDateNotifier.value;
 

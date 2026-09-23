@@ -6,6 +6,7 @@ import 'package:kurumi/material.dart';
 
 // Project imports:
 import '../../../../../foundation/display/media_query_utils.dart';
+import '../../../../configs/config/providers.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../tags/show/routes.dart';
 import '../../../post/types.dart';
@@ -90,7 +91,7 @@ class RawTagsTileTitle<T extends Post> extends ConsumerWidget {
                   ref,
                   post,
                   initiallyMultiSelectEnabled: true,
-                  auth: auth,
+                  config: ref.readConfig,
                 );
               },
             ),

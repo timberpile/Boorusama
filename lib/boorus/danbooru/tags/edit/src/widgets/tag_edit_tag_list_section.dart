@@ -8,6 +8,7 @@ import 'package:sliver_tools/sliver_tools.dart';
 // Project imports:
 import '../../../../../../core/configs/config/providers.dart';
 import '../../../../../../core/configs/config/types.dart';
+import '../../../../../../core/configs/manage/providers.dart';
 import '../../../../../../core/search/search/widgets.dart';
 import '../../../../../../core/settings/providers.dart';
 import '../../../../../../core/tags/categories/providers.dart';
@@ -49,7 +50,7 @@ class DanbooruTagEditColorNotifier
 
     final tagTypeStore = await ref.watch(booruTagTypeStoreProvider.future);
 
-    await tagTypeStore.saveTagIfNotExist(ref.watchConfigAuth.url, t);
+    await tagTypeStore.saveTagIfNotExist(arg.url, t);
 
     return _load(tags.toList());
   }
@@ -112,6 +113,7 @@ final _tagColorProvider = Provider.autoDispose
         return colors[tag];
       },
       dependencies: [
+        currentReadOnlyBooruConfigAuthProvider,
         danbooruTagEditColorsProvider,
       ],
       name: 'tagColorProvider',

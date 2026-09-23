@@ -7,6 +7,7 @@ import 'package:kurumi/material.dart';
 
 // Project imports:
 import '../../../core/configs/config/providers.dart';
+import '../../../core/configs/config/types.dart';
 import '../../../core/posts/explores/widgets.dart';
 import '../../../core/posts/listing/widgets.dart';
 import '../../../core/posts/post/types.dart';
@@ -22,12 +23,12 @@ class AnimePicturesTopPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final config = ref.watchConfigAuth;
+    final config = ref.watchConfig;
 
     return ExplorePage(
       useAppBarPadding: useAppBarPadding,
       sliverOverviews: [
-        if (config.passHash != null)
+        if (config.auth.passHash != null)
           const SliverToBoxAdapter(
             child: Padding(
               padding: EdgeInsets.symmetric(vertical: 20),
@@ -131,7 +132,7 @@ class _DailyPopularExplore extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final params = (
-      config: ref.watchConfigAuth,
+      config: ref.watchConfig,
       erotic: ref.watch(eroticOnProvider),
     );
 
@@ -162,7 +163,7 @@ class _WeeklyPopularExplore extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final params = (
-      config: ref.watchConfigAuth,
+      config: ref.watchConfig,
       erotic: ref.watch(eroticOnProvider),
     );
 

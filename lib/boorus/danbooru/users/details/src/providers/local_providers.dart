@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Project imports:
 import '../../../../../../core/configs/config/providers.dart';
+import '../../../../../../core/configs/manage/providers.dart';
 import '../../../../../../core/posts/post/providers.dart';
 import '../../../../../../core/posts/post/types.dart';
 import '../../../../../../core/tags/categories/types.dart';
@@ -37,7 +38,7 @@ final danbooruUserUploadsProvider =
       );
 
       return uploads.posts;
-    });
+    }, dependencies: [currentReadOnlyBooruConfigProvider]);
 
 final selectedUploadDateRangeSelectorTypeProvider =
     StateProvider.autoDispose<UploadDateRange>(
@@ -90,7 +91,7 @@ final userDataProvider = FutureProvider.autoDispose
       data.sort((a, b) => a.date.compareTo(b.date));
 
       return data;
-    });
+    }, dependencies: [currentReadOnlyBooruConfigAuthProvider]);
 
 final userCopyrightDataProvider =
     FutureProvider.family<DanbooruRelatedTag, DanbooruCopyrightDataParams>((
@@ -108,6 +109,6 @@ final userCopyrightDataProvider =
             order: RelatedType.frequency,
             category: TagCategory.copyright(),
           );
-    });
+    }, dependencies: [currentReadOnlyBooruConfigAuthProvider]);
 
 typedef DanbooruCopyrightDataParams = ({String username, int uploadCount});

@@ -5,9 +5,11 @@ import 'package:kurumi/material.dart';
 
 // Project imports:
 import '../../../core/configs/config/providers.dart';
+import '../../../core/configs/config/types.dart';
 import '../../../core/posts/details/routes.dart';
 import '../../../core/posts/details/types.dart';
 import '../../../core/posts/details_parts/widgets.dart';
+import '../../../core/posts/post/providers.dart';
 import '../../../core/posts/post/types.dart';
 import 'parser.dart';
 import 'providers.dart';
@@ -19,9 +21,9 @@ class AnimePicturesRelatedPostsSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final posts = PostDetails.of<Post>(context).posts;
     final post = InheritedPost.of<Post>(context);
-    final configAuth = ref.watchConfigAuth;
+    final config = ref.watchConfig;
+    final configAuth = config.auth;
     final configViewer = ref.watchConfigViewer;
     final params = (configAuth, post.id);
     final mediaUrlResolver = ref.watch(
@@ -31,22 +33,31 @@ class AnimePicturesRelatedPostsSection extends ConsumerWidget {
     return ref
         .watch(postDetailsProvider(params))
         .when(
-          data: (details) => details.tied != null && details.tied!.isNotEmpty
-              ? SliverRelatedPostsSection(
-                  posts: details.tied!.map(dtoToAnimePicturesPost).toList(),
-                  imageUrl: (post) =>
-                      mediaUrlResolver.resolveMediaUrl(post, configViewer),
-                  onTap: (index) => goToPostDetailsPageFromPosts(
-                    ref: ref,
-                    posts: posts,
-                    initialIndex: index,
-                    initialThumbnailUrl: mediaUrlResolver.resolveMediaUrl(
-                      posts[index],
-                      configViewer,
-                    ),
-                  ),
-                )
-              : const SliverSizedBox.shrink(),
+          data: (details) {
+            final tied = details.tied;
+            if (tied == null || tied.isEmpty) {
+              return const SliverSizedBox.shrink();
+            }
+
+            final relatedPosts = bindPostsOrigin(
+              tied.map(dtoToAnimePicturesPost),
+              origin: postOriginFromConfig(config),
+            );
+            return SliverRelatedPostsSection(
+              posts: relatedPosts,
+              imageUrl: (post) =>
+                  mediaUrlResolver.resolveMediaUrl(post, configViewer),
+              onTap: (index) => goToPostDetailsPageFromPosts(
+                ref: ref,
+                posts: relatedPosts,
+                initialIndex: index,
+                initialThumbnailUrl: mediaUrlResolver.resolveMediaUrl(
+                  relatedPosts[index],
+                  configViewer,
+                ),
+              ),
+            );
+          },
           error: (e, _) => const SliverSizedBox.shrink(),
           loading: () => const SliverSizedBox.shrink(),
         );

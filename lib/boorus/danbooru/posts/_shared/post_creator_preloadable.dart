@@ -1,8 +1,11 @@
+// Package imports:
+import 'package:equatable/equatable.dart';
+
 // Project imports:
 import '../post/types.dart';
 import '../../../../core/posts/post/types.dart';
 
-class PostCreatorsPreloadable {
+class PostCreatorsPreloadable extends Equatable {
   factory PostCreatorsPreloadable.fromPosts(List<Post> posts) {
     final ids = posts
         .expand(
@@ -29,7 +32,11 @@ class PostCreatorsPreloadable {
       if (approverId case final id?) id,
     ]);
   }
-  PostCreatorsPreloadable._(this.userIds);
+  PostCreatorsPreloadable._(Iterable<int> userIds)
+    : userIds = (userIds.toSet().toList()..sort()).toList(growable: false);
 
   final List<int> userIds;
+
+  @override
+  List<Object?> get props => [userIds];
 }

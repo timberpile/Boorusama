@@ -2,6 +2,8 @@
 import 'package:kurumi/cupertino.dart';
 
 // Project imports:
+import '../../../../../../core/configs/config/types.dart';
+import '../../../../../../core/configs/manage/widgets.dart';
 import '../../../../../../core/router.dart';
 import '../pages/danbooru_profile_page.dart';
 import '../pages/danbooru_user_details_page.dart';
@@ -13,7 +15,13 @@ final danbooruProfileRoutes = GoRoute(
   pageBuilder: (context, state) => CupertinoPage(
     key: state.pageKey,
     name: state.name,
-    child: const DanbooruProfilePage(),
+    child: switch (state.extra) {
+      final BooruConfig config => CurrentBooruConfigScope(
+        config: config,
+        child: const DanbooruProfilePage(),
+      ),
+      _ => const DanbooruProfilePage(),
+    },
   ),
 );
 
@@ -30,15 +38,17 @@ final danbooruUserDetailsRoutes = GoRoute(
           pathParameters: state.pathParameters,
         );
 
-        if (details == null) {
-          return const InvalidPage(
-            message: 'Invalid user',
-          );
-        }
+        final page = details == null
+            ? const InvalidPage(message: 'Invalid user')
+            : DanbooruUserDetailsPage(details: details);
 
-        return DanbooruUserDetailsPage(
-          details: details,
-        );
+        return switch (state.extra) {
+          final BooruConfig config => CurrentBooruConfigScope(
+            config: config,
+            child: page,
+          ),
+          _ => page,
+        };
       },
     ),
   ),

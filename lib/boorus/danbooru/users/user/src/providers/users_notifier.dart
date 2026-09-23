@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Project imports:
 import '../../../../../../core/configs/config/providers.dart';
+import '../../../../../../core/configs/manage/providers.dart';
 import '../../../../../../core/posts/post/providers.dart';
 import '../../../../posts/favorites/types.dart';
 import '../../../../posts/post/types.dart';
@@ -12,20 +13,27 @@ import '../types/user.dart';
 final danbooruUserProvider = AsyncNotifierProvider.autoDispose
     .family<UserNotifier, DanbooruUser, int>(
       UserNotifier.new,
+      dependencies: [currentReadOnlyBooruConfigAuthProvider],
     );
 
 final danbooruUserFavoritesProvider = FutureProvider.autoDispose
-    .family<List<Post>, int>((ref, uid) async {
-      final config = ref.watchConfig;
-      final user = await ref.watch(danbooruUserProvider(uid).future);
-      final repo = ref.watch(originAwarePostRepoProvider(config));
-      final favs = await repo.getPostsFromTagsOrEmpty(
-        buildFavoriteQuery(user.name),
-        limit: 50,
-      );
+    .family<List<Post>, int>(
+      (ref, uid) async {
+        final config = ref.watchConfig;
+        final user = await ref.watch(danbooruUserProvider(uid).future);
+        final repo = ref.watch(originAwarePostRepoProvider(config));
+        final favs = await repo.getPostsFromTagsOrEmpty(
+          buildFavoriteQuery(user.name),
+          limit: 50,
+        );
 
-      return favs.posts;
-    });
+        return favs.posts;
+      },
+      dependencies: [
+        currentReadOnlyBooruConfigProvider,
+        danbooruUserProvider,
+      ],
+    );
 
 class UserNotifier extends AutoDisposeFamilyAsyncNotifier<DanbooruUser, int> {
   @override

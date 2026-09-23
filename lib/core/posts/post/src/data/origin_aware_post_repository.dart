@@ -17,12 +17,7 @@ class OriginAwarePostRepository implements PostRepository<Post> {
     required BooruConfig config,
   }) => OriginAwarePostRepository(
     delegate: delegate,
-    origin: PostOrigin.fromSource(
-      booruType: config.auth.booruType,
-      booruId: config.booruId,
-      source: config.url,
-      profileIdHint: config.id,
-    ),
+    origin: postOriginFromConfig(config),
   );
 
   final PostRepository<Post> delegate;
@@ -72,10 +67,21 @@ PostResult<Post> bindPostResultOrigin(
   PostResult<Post> result, {
   required PostOrigin origin,
 }) => PostResult(
-  posts: result.posts
-      .map((post) => post.copyWith(origin: origin))
-      .toList(growable: false),
+  posts: bindPostsOrigin(result.posts, origin: origin),
   total: result.total,
   maxPage: result.maxPage,
   hasMore: result.hasMore,
 );
+
+PostOrigin postOriginFromConfig(BooruConfig config) => PostOrigin.fromSource(
+  booruType: config.auth.booruType,
+  booruId: config.booruId,
+  source: config.url,
+  profileIdHint: config.id,
+);
+
+List<Post> bindPostsOrigin(
+  Iterable<Post> posts, {
+  required PostOrigin origin,
+}) =>
+    posts.map((post) => post.copyWith(origin: origin)).toList(growable: false);

@@ -284,7 +284,7 @@ class PostGestureHandler {
     goToShowTaglistPage(
       ref,
       post,
-      auth: ref.readConfigAuth,
+      config: ref.readConfig,
     );
   }
 

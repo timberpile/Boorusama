@@ -51,6 +51,12 @@ void main() {
     await tester.pumpWidget(build(second));
     await tester.pump();
     expect(repository.requests, ['11,12', '21,22']);
+
+    await tester.pumpWidget(
+      build(_post(id: 2, uploaderId: 21, approverId: 22)),
+    );
+    await tester.pump();
+    expect(repository.requests, ['11,12', '21,22']);
   });
 }
 

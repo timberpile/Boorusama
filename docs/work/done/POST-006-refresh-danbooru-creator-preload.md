@@ -31,4 +31,6 @@ without stale creator state.
 - The preloader reloads when its post preloadable changes while retaining the
   existing creator notifier cache.
 - A widget regression test confirms distinct uploader and approver IDs are
-  requested for consecutive Danbooru posts.
+  requested for consecutive Danbooru posts without refetching an equivalent
+  uploader/approver set after a parent rebuild.
+- Empty creator requests return before reaching the repository.
