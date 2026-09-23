@@ -56,14 +56,14 @@ final danbooruMediaUrlResolverProvider =
       ),
     );
 
-final danbooruUploaderQueryProvider = Provider.family<UploaderQuery?, Post>((
-  ref,
-  post,
-) {
-  final uploader = ref.watch(danbooruCreatorProvider(post.uploaderId));
+final danbooruUploaderQueryProvider = Provider.family<UploaderQuery?, Post>(
+  (ref, post) {
+    final uploader = ref.watch(danbooruCreatorProvider(post.uploaderId));
 
-  return switch (uploader) {
-    final uploader? => UserColonUploaderQuery(uploader.name),
-    _ => null,
-  };
-});
+    return switch (uploader) {
+      final uploader? => UserColonUploaderQuery(uploader.name),
+      _ => null,
+    };
+  },
+  dependencies: [danbooruCreatorProvider],
+);

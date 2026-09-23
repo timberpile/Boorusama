@@ -13,6 +13,7 @@ import 'package:boorusama/boorus/danbooru/posts/post/types.dart';
 import 'package:boorusama/boorus/danbooru/danbooru.dart';
 import 'package:boorusama/boorus/danbooru/danbooru_builder.dart';
 import 'package:boorusama/boorus/danbooru/posts/_shared/danbooru_creator_preloader.dart';
+import 'package:boorusama/boorus/danbooru/posts/details/providers.dart';
 import 'package:boorusama/boorus/danbooru/posts/details/widgets.dart';
 import 'package:boorusama/boorus/e621/e621.dart';
 import 'package:boorusama/boorus/e621/e621_builder.dart';
@@ -49,6 +50,51 @@ import 'package:boorusama/core/themes/colors/providers.dart';
 import 'package:boorusama/foundation/loggers.dart';
 
 void main() {
+  testWidgets('Danbooru uploader details use the page-scoped profile', (
+    tester,
+  ) async {
+    final harness = _Harness();
+    addTearDown(harness.dispose);
+    final post = _post(
+      id: 1,
+      booruType: BooruType.danbooru,
+      host: 'https://danbooru.example',
+      uploaderId: 101372,
+      data: const DanbooruPostData(
+        lastCommentAt: null,
+        upScore: 1,
+        downScore: 0,
+        favCount: 2,
+        approverId: null,
+        generalTags: {},
+        metaTags: {},
+        hasChildren: false,
+        hasLarge: true,
+        pixelHash: '',
+      ),
+    );
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: harness.container,
+        child: MaterialApp(
+          home: CurrentBooruConfigScope(
+            config: _configs.first,
+            child: Consumer(
+              builder: (context, ref, _) {
+                ref.watch(danbooruUploaderQueryProvider(post));
+                return const Text('Uploader details');
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Uploader details'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('tag colors follow a page-scoped profile after a root read', (
     tester,
   ) async {
@@ -508,6 +554,7 @@ Post _post({
   required BooruType booruType,
   required String host,
   required BooruPostData data,
+  int? uploaderId,
 }) => Post(
   origin: PostOrigin.fromSource(
     booruType: booruType,
@@ -534,6 +581,7 @@ Post _post({
     hasParentOrChildren: false,
     source: PostSource.none(),
     score: 0,
+    uploaderId: uploaderId,
   ),
   booruData: data,
 );

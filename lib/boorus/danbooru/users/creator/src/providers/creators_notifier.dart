@@ -5,6 +5,7 @@ import 'package:foundation/foundation.dart';
 // Project imports:
 import '../../../../../../core/configs/config/providers.dart';
 import '../../../../../../core/configs/config/types.dart';
+import '../../../../../../core/configs/manage/providers.dart';
 import '../types/creator.dart';
 import '../types/creator_repository.dart';
 import 'local_providers.dart';
@@ -16,11 +17,14 @@ final danbooruCreatorsProvider =
       BooruConfigAuth
     >(CreatorsNotifier.new);
 
-final danbooruCreatorProvider = Provider.family<Creator?, int?>((ref, id) {
-  if (id == null) return null;
-  final config = ref.watchConfigAuth;
-  return ref.watch(danbooruCreatorsProvider(config))[id];
-});
+final danbooruCreatorProvider = Provider.family<Creator?, int?>(
+  (ref, id) {
+    if (id == null) return null;
+    final config = ref.watchConfigAuth;
+    return ref.watch(danbooruCreatorsProvider(config))[id];
+  },
+  dependencies: [currentReadOnlyBooruConfigAuthProvider],
+);
 
 class CreatorsNotifier
     extends FamilyNotifier<IMap<int, Creator>, BooruConfigAuth> {

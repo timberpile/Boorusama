@@ -57,6 +57,12 @@ changes the read-only profile and presentation for each active post. It does
 not change the globally selected profile. Media resolution is also scoped per
 page so adjacent posts from different engines cannot inherit stale settings.
 
+Providers that use `ref.watchConfig*` below this per-page scope must declare
+the matching `currentReadOnlyBooruConfig*Provider` as a Riverpod dependency.
+Providers that watch one of those scoped providers must declare that provider
+as a dependency too. Without the complete dependency chain, Riverpod attempts
+to read the provider from the root container and asserts at runtime.
+
 When origin or payload resolution fails, the viewer continues with cached
 media, common tags and file details, navigation, zoom, download, and sharing.
 Engine-only mutations are disabled and a localized reason-specific warning is
