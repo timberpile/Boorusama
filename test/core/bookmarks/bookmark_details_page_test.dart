@@ -16,7 +16,6 @@ import 'package:visibility_detector/visibility_detector.dart';
 import 'package:boorusama/boorus/gelbooru_v2/posts/post_data.dart';
 import 'package:boorusama/core/bookmarks/src/providers/bookmark_provider.dart';
 import 'package:boorusama/core/bookmarks/src/pages/bookmark_details_page.dart';
-import 'package:boorusama/core/bookmarks/src/types/bookmark.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_library_state.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_target.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
@@ -32,7 +31,6 @@ import 'package:boorusama/core/http/client/providers.dart';
 import 'package:boorusama/core/posts/details/providers.dart';
 import 'package:boorusama/core/posts/details/types.dart';
 import 'package:boorusama/core/posts/details/widgets.dart';
-import 'package:boorusama/core/posts/details_pageview/widgets.dart';
 import 'package:boorusama/core/posts/details_parts/types.dart';
 import 'package:boorusama/core/posts/favorites/providers.dart';
 import 'package:boorusama/core/posts/favorites/src/data/providers.dart';
@@ -44,80 +42,12 @@ import 'package:boorusama/core/posts/sources/types.dart';
 import 'package:boorusama/core/premiums/providers.dart';
 import 'package:boorusama/core/settings/providers.dart';
 import 'package:boorusama/core/settings/src/types/settings.dart';
+import 'package:boorusama/core/widgets/booru_menu_button_row.dart';
 import 'package:boorusama/foundation/loggers.dart';
 
 void main() {
-  testWidgets('bookmark details toolbar renders inside bookmark post details', (
-    tester,
-  ) async {
-    final post = Bookmark.empty.post;
-    final detailsController = PostDetailsController<Post>(
-      scrollController: null,
-      initialPage: 0,
-      posts: [post],
-      initialThumbnailUrl: null,
-      reduceAnimations: true,
-      dislclaimer: null,
-      doubleTapSeekDuration: 5,
-    );
-    final pageViewController = PostDetailsPageViewController(
-      initialPage: 0,
-      totalPage: 1,
-      checkIfLargeScreen: () => false,
-    );
-    addTearDown(detailsController.dispose);
-    addTearDown(pageViewController.dispose);
-
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          booruConfigProvider.overrideWith(
-            () => BooruConfigNotifier(initialConfigs: const []),
-          ),
-          firstMatchingConfigBySourceUrlProvider.overrideWith(
-            (ref, params) => null,
-          ),
-          imageViewerSettingsProvider.overrideWithValue(
-            Settings.defaultSettings.viewer,
-          ),
-          showPremiumFeatsProvider.overrideWithValue(false),
-        ],
-        child: BooruLocalization(
-          child: MaterialApp(
-            builder: (context, child) => KurumiTheme(
-              data: KurumiThemeData.fromMaterial(Theme.of(context)),
-              child: child!,
-            ),
-            home: PostDetailsPageViewScope(
-              controller: pageViewController,
-              child: PostDetails(
-                data: PostDetailsData(
-                  posts: [post],
-                  controller: detailsController,
-                ),
-                child: CustomScrollView(
-                  slivers: [
-                    InheritedPost(
-                      presentationContext: PostPresentationContext.generic(
-                        post,
-                      ),
-                      child: const BookmarkPostActionToolbar(),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-
-    expect(tester.takeException(), isNull);
-    expect(find.byType(BookmarkPostActionToolbar), findsOneWidget);
-  });
-
   testWidgets(
-    'bookmark viewer uses native presentation then falls back without refetching',
+    'bookmark viewer renders only the active booru toolbar',
     (tester) async {
       VisibilityDetectorController.instance.updateInterval = Duration.zero;
       var fetchCount = 0;
@@ -142,7 +72,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('native@gelbooru.example'), findsOneWidget);
-      expect(find.byType(BookmarkPostActionToolbar), findsOneWidget);
+      expect(find.byType(BooruMenuButtonRow), findsOneWidget);
       expect(find.byType(PostPresentationFallbackWarning), findsNothing);
       expect(fetchCount, 1);
 
@@ -151,11 +81,38 @@ void main() {
 
       expect(find.text('native@gelbooru.example'), findsNothing);
       expect(find.byType(PostPresentationFallbackWarning), findsOneWidget);
-      expect(find.byType(BookmarkPostActionToolbar), findsOneWidget);
+      expect(find.byType(BooruMenuButtonRow), findsOneWidget);
       expect(fetchCount, 1);
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('bookmark viewer keeps its opened posts after the grid changes', (
+    tester,
+  ) async {
+    VisibilityDetectorController.instance.updateInterval = Duration.zero;
+    final post = _nativePost();
+    final controller = PostGridController<Post>(
+      fetcher: (_) => TaskEither.right(PostResult(posts: [post], total: 1)),
+      blacklistedTagsFetcher: () async => const {},
+      mountedChecker: () => true,
+      duplicateTracker: PostDuplicateTracker(),
+      onError: (_) {},
+      debounceDuration: Duration.zero,
+    );
+    addTearDown(controller.dispose);
+    await controller.refresh();
+
+    await tester.pumpWidget(_BookmarkViewerHarness(controller: controller));
+    await tester.pumpAndSettle();
+    expect(find.text('native@gelbooru.example'), findsOneWidget);
+
+    controller.remove([post.id], (candidate) => candidate.id);
+    await tester.pumpAndSettle();
+
+    expect(find.text('native@gelbooru.example'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('bookmark context menu uses the post origin profile', (
     tester,
@@ -346,12 +303,22 @@ final class _NativePresentation
   PostDetailsUIBuilder detailsBuilder(Post post) => PostDetailsUIBuilder(
     preview: {
       DetailsPart.toolbar: (context) => const SliverToBoxAdapter(
-        child: Text('native@gelbooru.example'),
+        child: Column(
+          children: [
+            Text('native@gelbooru.example'),
+            BooruMenuButtonRow(buttons: []),
+          ],
+        ),
       ),
     },
     full: {
       DetailsPart.toolbar: (context) => const SliverToBoxAdapter(
-        child: Text('native@gelbooru.example'),
+        child: Column(
+          children: [
+            Text('native@gelbooru.example'),
+            BooruMenuButtonRow(buttons: []),
+          ],
+        ),
       ),
     },
   );

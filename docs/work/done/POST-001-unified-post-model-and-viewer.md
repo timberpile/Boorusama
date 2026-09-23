@@ -97,3 +97,35 @@ viewer from safely displaying posts from different engines.
   or fallback warning.
 
 All acceptance criteria are verified.
+
+## Reopened verification
+
+- Manual review found a duplicated bookmark-viewer toolbar, live removal
+  invalidating the open page, source logos falling back to a globe, and
+  versioned bookmarks with a missing origin host opening in the fallback UI.
+- Native presentations now own their toolbar without bookmark decoration. The
+  bookmark toolbar is retained only for the generic fallback presentation.
+- Bookmark details snapshot their mixed post list. Target-aware bookmark
+  changes are queued without publishing viewer state, cancel on a second tap,
+  and commit idempotently only after the details route closes. Commit failures
+  do not block later changes and surface as a soft warning. The bookmark grid
+  coalesces its refresh until the viewer closes, including when navigation
+  replaces the source page.
+- Bookmark cards resolve the exact origin profile and its custom icon. Bare
+  source hosts are normalized as web URLs, including hosts with ports and IPv6
+  literals.
+- New and stored versioned snapshots recover a missing origin host from their
+  generated or persisted post URL and rewrite the repaired snapshot. Decode
+  failures keep their original versioned payload intact while using the safe
+  generic fallback.
+- Focused bookmark and mixed-viewer suites passed 124 tests. The final full
+  `fvm flutter test --no-pub` run passed 1,370 tests.
+- Focused analysis of the final regression files reports no issues. Full
+  `fvm flutter analyze --no-pub` still reports the known 234 info-level lints
+  and no errors or warnings. `git diff --check` is clean.
+- Maestro verified Gelbooru and Danbooru profile icons in the mixed bookmark
+  grid, one native Danbooru toolbar, no Riverpod dependency error, a stable
+  image during deferred removal, second-tap cancellation, and the bookmark
+  count changing only after leaving the viewer.
+
+The reopened acceptance criteria are verified.

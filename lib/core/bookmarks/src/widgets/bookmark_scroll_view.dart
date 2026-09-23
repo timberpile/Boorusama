@@ -23,7 +23,9 @@ import '../../../widgets/widgets.dart';
 import '../../types.dart';
 import '../data/bookmark_convert.dart';
 import '../data/bookmark_selection.dart';
+import '../data/bookmark_view_refresh_gate.dart';
 import '../data/providers.dart';
+import '../providers/bookmark_details_mutation_notifier.dart';
 import '../providers/bookmark_provider.dart';
 import '../providers/bookmark_group_selectors.dart';
 import '../providers/bookmark_shuffle_provider.dart';
@@ -56,6 +58,31 @@ class BookmarkScrollView extends ConsumerStatefulWidget {
 
 class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
   final _selectionModeController = SelectionModeController();
+  final _refreshGate = BookmarkViewRefreshGate();
+
+  void _scheduleRefresh(PostGridController<Post> controller) {
+    final selected = selectedBookmarkIdentities(
+      controller.items.toList(),
+      _selectionModeController.selection,
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await controller.refresh(preserveSelection: true);
+      if (!mounted || selected.isEmpty) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final indices = bookmarkSelectionIndices(
+          controller.items.toList(),
+          selected,
+        );
+        _selectionModeController.deselectAll();
+        if (indices.isEmpty) {
+          _selectionModeController.disable();
+        } else {
+          _selectionModeController.enable(initialSelected: indices);
+        }
+      });
+    });
+  }
 
   List<String> _parseTagsFromText(String text) {
     return text.isEmpty
@@ -124,28 +151,20 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                 controller.refresh();
               });
             })
+            ..listen(
+              bookmarkDetailsMutationProvider.select(
+                (state) => state.isVisible,
+              ),
+              (_, visible) {
+                if (_refreshGate.onDetailsVisibilityChanged(visible)) {
+                  _scheduleRefresh(controller);
+                }
+              },
+            )
             ..listen(bookmarkProvider, (_, _) {
-              final selected = selectedBookmarkIdentities(
-                controller.items.toList(),
-                _selectionModeController.selection,
-              );
-              WidgetsBinding.instance.addPostFrameCallback((_) async {
-                await controller.refresh(preserveSelection: true);
-                if (!mounted || selected.isEmpty) return;
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (!mounted) return;
-                  final indices = bookmarkSelectionIndices(
-                    controller.items.toList(),
-                    selected,
-                  );
-                  _selectionModeController.deselectAll();
-                  if (indices.isEmpty) {
-                    _selectionModeController.disable();
-                  } else {
-                    _selectionModeController.enable(initialSelected: indices);
-                  }
-                });
-              });
+              if (_refreshGate.onLibraryChanged()) {
+                _scheduleRefresh(controller);
+              }
             });
 
           final auth = ref.watchConfigAuth;
@@ -306,10 +325,15 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                 leadingIcons: [
                   ClipRRect(
                     borderRadius: BorderRadius.circular(8),
-                    child: ConfigAwareWebsiteLogo.fromBooruType(
-                      post.origin.booruType,
-                      post.origin.sourceHost,
-                    ),
+                    child: config == null
+                        ? ConfigAwareWebsiteLogo.fromBooruType(
+                            post.origin.booruType,
+                            post.origin.sourceHost,
+                          )
+                        : ConfigAwareWebsiteLogo.fromConfig(
+                            config.auth,
+                            customIconUrl: config.profileIcon?.url,
+                          ),
                   ),
                 ],
                 onTap: () {

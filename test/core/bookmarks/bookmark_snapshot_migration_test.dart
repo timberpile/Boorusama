@@ -153,6 +153,62 @@ void main() {
     },
   );
 
+  test(
+    'unsupported common snapshot versions remain unchanged after fallback loading',
+    () async {
+      final post = _nativePost();
+      final encoded = const StoredPostCodec().encode(
+        post,
+        dataCodec: const GelbooruV2PostCodec(),
+      );
+      final unsupportedSnapshot = <String, dynamic>{
+        ...encoded.toJson(),
+        'common': <String, Object?>{
+          ...encoded.common,
+          'schemaVersion': StoredPostCodec.commonSchemaVersion + 1,
+        },
+      };
+      await bookmarkBox.put(
+        5,
+        BookmarkHiveObject(
+          booruId: BooruType.gelbooruV2.id,
+          createdAt: DateTime.utc(2026),
+          updatedAt: DateTime.utc(2026),
+          thumbnailUrl: post.thumbnailImageUrl,
+          sampleUrl: post.sampleImageUrl,
+          originalUrl: post.originalImageUrl,
+          sourceUrl: 'https://gelbooru.example/post/${post.id}',
+          width: post.width,
+          height: post.height,
+          md5: post.md5,
+          tags: post.tags.toList(),
+          realSourceUrl: post.source.url,
+          format: post.format,
+          postId: post.id,
+          metadata: const {},
+          snapshotSchemaVersion: 1,
+          postSnapshot: unsupportedSnapshot,
+        ),
+      );
+
+      final bookmark =
+          (await BookmarkHiveRepository(
+                bookmarkBox,
+                postDataCodec: (type) => switch (type) {
+                  BooruType.gelbooruV2 => const GelbooruV2PostCodec(),
+                  _ => null,
+                },
+              ).getAllBookmarksOrThrow(
+                imageUrlResolver: (_) => const DefaultImageUrlResolver(),
+              ))
+              .single;
+
+      expect(bookmark.post.booruData, isA<LegacyPostData>());
+      expect(bookmarkBox.get(5)!.snapshotSchemaVersion, 1);
+      expect(bookmarkBox.get(5)!.postSnapshot, unsupportedSnapshot);
+    },
+  );
+
   test('native snapshot data survives repository storage and reload', () async {
     final post = Post(
       origin: PostOrigin.fromSource(
@@ -208,6 +264,81 @@ void main() {
     expect(reloaded.post.booruData, const GelbooruV2PostData(hasNotes: true));
     expect(reloaded.snapshot.custom, {'hasNotes': true});
     expect(reloaded.snapshot.origin.profileIdHint, 12);
+  });
+
+  test(
+    'new bookmarks recover a missing origin host from the post link',
+    () async {
+      final repository = BookmarkHiveRepository(
+        bookmarkBox,
+        postDataCodec: (type) => switch (type) {
+          BooruType.gelbooruV2 => const GelbooruV2PostCodec(),
+          _ => null,
+        },
+      );
+      final post = _nativePost().copyWith(
+        origin: PostOrigin.forBooruType(BooruType.gelbooruV2),
+      );
+
+      final bookmark = await repository.addBookmark(
+        BooruType.gelbooruV2.id,
+        post,
+        imageUrlResolver: (_) => const DefaultImageUrlResolver(),
+        postLinkGenerator: (_) => const _PostLinkGenerator(),
+      );
+
+      expect(bookmark.post.origin.sourceHost, 'gelbooru.example');
+      expect(bookmark.snapshot.origin.sourceHost, 'gelbooru.example');
+    },
+  );
+
+  test('stored snapshots recover a missing origin host on load', () async {
+    final post = _nativePost().copyWith(
+      origin: PostOrigin.forBooruType(BooruType.gelbooruV2),
+    );
+    final snapshot = const StoredPostCodec().encode(
+      post,
+      dataCodec: const GelbooruV2PostCodec(),
+    );
+    await bookmarkBox.put(
+      41,
+      BookmarkHiveObject(
+        booruId: BooruType.gelbooruV2.id,
+        createdAt: DateTime.utc(2026),
+        updatedAt: DateTime.utc(2026),
+        thumbnailUrl: post.thumbnailImageUrl,
+        sampleUrl: post.sampleImageUrl,
+        originalUrl: post.originalImageUrl,
+        sourceUrl: 'https://gelbooru.example/post/${post.id}',
+        width: post.width,
+        height: post.height,
+        md5: post.md5,
+        tags: post.tags.toList(),
+        realSourceUrl: post.source.url,
+        format: post.format,
+        postId: post.id,
+        metadata: const {},
+        snapshotSchemaVersion: 1,
+        postSnapshot: snapshot.toJson(),
+      ),
+    );
+    final repository = BookmarkHiveRepository(
+      bookmarkBox,
+      postDataCodec: (type) => switch (type) {
+        BooruType.gelbooruV2 => const GelbooruV2PostCodec(),
+        _ => null,
+      },
+    );
+
+    final bookmark = (await repository.getAllBookmarksOrThrow(
+      imageUrlResolver: (_) => const DefaultImageUrlResolver(),
+    )).single;
+
+    expect(bookmark.post.origin.sourceHost, 'gelbooru.example');
+    expect(
+      bookmarkBox.get(41)!.postSnapshot!['origin'],
+      containsPair('sourceHost', 'gelbooru.example'),
+    );
   });
 
   test(

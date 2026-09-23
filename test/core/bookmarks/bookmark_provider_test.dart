@@ -432,6 +432,61 @@ void main() {
     },
   );
 
+  test(
+    'setting target membership repeatedly preserves the desired state',
+    () async {
+      final source = Bookmark.empty.copyWith(
+        originalUrl: 'https://example.com/idempotent.jpg',
+      );
+      await bookmarkRepository.addBookmarkWithBookmarks([source]);
+      final stored = (await bookmarkRepository.getAllBookmarksOrThrow(
+        imageUrlResolver: (_) => const DefaultImageUrlResolver(),
+      )).single;
+      final group = await groupRepository.createGroup('Idempotent');
+      final target = BookmarkTarget.group(group.id);
+      final container = createContainer();
+      final notifier = container.read(bookmarkProvider.notifier);
+      await notifier.future;
+      final config = BooruConfigAuth.fromConfig(
+        BooruConfig.empty.copyWith(booruIdHint: stored.booruId),
+      );
+
+      for (var i = 0; i < 2; i++) {
+        expect(
+          await notifier.setPostTargetMembership(
+            config,
+            source.toPost(),
+            target: target,
+            bookmarked: true,
+          ),
+          BookmarkToggleOutcome.added,
+        );
+      }
+      expect((await groupRepository.getGroup(group.id))?.bookmarkIds, {
+        stored.id,
+      });
+
+      for (var i = 0; i < 2; i++) {
+        expect(
+          await notifier.setPostTargetMembership(
+            config,
+            source.toPost(),
+            target: target,
+            bookmarked: false,
+          ),
+          BookmarkToggleOutcome.removed,
+        );
+      }
+      expect((await groupRepository.getGroup(group.id))?.bookmarkIds, isEmpty);
+      expect(
+        await bookmarkRepository.getAllBookmarksOrEmpty(
+          imageUrlResolver: (_) => const DefaultImageUrlResolver(),
+        ),
+        isEmpty,
+      );
+    },
+  );
+
   test('two queued toggles apply both intents in order', () async {
     final source = Bookmark.empty.copyWith(
       originalUrl: 'https://example.com/toggle.jpg',

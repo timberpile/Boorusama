@@ -15,6 +15,7 @@ import 'package:material_symbols_icons/symbols.dart';
 // Project imports:
 import '../../../../bookmarks/providers.dart';
 import '../../../../bookmarks/src/data/bookmark_convert.dart';
+import '../../../../bookmarks/src/providers/bookmark_details_mutation_notifier.dart';
 import '../../../../bookmarks/src/widgets/bookmark_group_label.dart';
 import '../../../../bookmarks/widgets.dart';
 import '../../../../configs/config/providers.dart';
@@ -213,10 +214,15 @@ extension BookmarkPostX on WidgetRef {
     BooruConfigAuth config,
     BuildContext context,
   ) async {
-    final outcome = await read(bookmarkProvider.notifier).togglePostTarget(
-      config,
-      post,
-    );
+    final detailsMutations = read(bookmarkDetailsMutationProvider);
+    final bookmarkLibrary = read(bookmarkProvider).valueOrNull;
+    final outcome = detailsMutations.isVisible && bookmarkLibrary != null
+        ? read(bookmarkDetailsMutationProvider.notifier).toggle(
+            config: config,
+            post: post,
+            library: bookmarkLibrary,
+          )
+        : await read(bookmarkProvider.notifier).togglePostTarget(config, post);
     if (!context.mounted) return outcome;
     switch (outcome) {
       case BookmarkToggleOutcome.added:

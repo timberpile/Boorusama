@@ -28,16 +28,17 @@ class BookmarkHiveRepository implements BookmarkRepository {
   }) async {
     final now = DateTime.now();
     final sourceUrl = postLinkGenerator(booruId).getLink(post);
+    final storedPost = recoverBookmarkPostOrigin(post, sourceUrl);
     final snapshot = const StoredPostCodec().encode(
-      post,
-      dataCodec: postDataCodec?.call(post.origin.booruType),
+      storedPost,
+      dataCodec: postDataCodec?.call(storedPost.origin.booruType),
     );
     final bookmark = Bookmark.fromSnapshot(
       id: -1,
       createdAt: now,
       updatedAt: now,
       snapshot: snapshot,
-      post: post,
+      post: storedPost,
       sourceUrl: sourceUrl,
     );
     final favoriteHiveObject = favoriteToHiveObject(bookmark);
@@ -70,7 +71,7 @@ class BookmarkHiveRepository implements BookmarkRepository {
           )
           .flatMap(
             (objects) => TaskEither.fromEither(
-              tryMapBookmarkHiveObjectsToBookmarks(
+              tryMapBookmarkHiveObjectsWithWriteBack(
                 objects,
                 imageUrlResolver,
                 postDataCodec,
@@ -78,16 +79,17 @@ class BookmarkHiveRepository implements BookmarkRepository {
             ),
           )
           .flatMap(
-            (bookmarks) => TaskEither.tryCatch(
+            (mappings) => TaskEither.tryCatch(
               () async {
-                for (final bookmark in bookmarks) {
-                  final stored = _box.get(bookmark.id);
-                  if (stored?.snapshotSchemaVersion != 1 ||
-                      stored?.postSnapshot == null) {
-                    await _box.put(bookmark.id, favoriteToHiveObject(bookmark));
+                for (final mapping in mappings) {
+                  if (mapping.needsWriteBack) {
+                    await _box.put(
+                      mapping.bookmark.id,
+                      favoriteToHiveObject(mapping.bookmark),
+                    );
                   }
                 }
-                return bookmarks;
+                return [for (final mapping in mappings) mapping.bookmark];
               },
               (_, _) => BookmarkGetError.unknown,
             ),

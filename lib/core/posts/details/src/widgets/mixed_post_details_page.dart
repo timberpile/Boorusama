@@ -31,7 +31,7 @@ class MixedPostDetailsPage extends StatelessWidget {
     required this.initialThumbnailUrl,
     required this.scrollController,
     required this.disclaimer,
-    this.uiBuilderDecorator,
+    this.fallbackUiBuilderDecorator,
     super.key,
   }) : assert(posts.length > 0, 'Mixed viewer requires at least one post'),
        assert(
@@ -44,11 +44,8 @@ class MixedPostDetailsPage extends StatelessWidget {
   final String? initialThumbnailUrl;
   final AutoScrollController? scrollController;
   final String? disclaimer;
-  final PostDetailsUIBuilder Function(
-    PostDetailsUIBuilder builder,
-    Post post,
-  )?
-  uiBuilderDecorator;
+  final PostDetailsUIBuilder Function(PostDetailsUIBuilder, Post)?
+  fallbackUiBuilderDecorator;
 
   @override
   Widget build(BuildContext context) => PostDetailsScope<Post>(
@@ -57,18 +54,17 @@ class MixedPostDetailsPage extends StatelessWidget {
     posts: posts,
     dislclaimer: disclaimer,
     scrollController: scrollController,
-    child: _MixedPostDetailsView(uiBuilderDecorator: uiBuilderDecorator),
+    child: _MixedPostDetailsView(
+      fallbackUiBuilderDecorator: fallbackUiBuilderDecorator,
+    ),
   );
 }
 
 class _MixedPostDetailsView extends ConsumerStatefulWidget {
-  const _MixedPostDetailsView({required this.uiBuilderDecorator});
+  const _MixedPostDetailsView({required this.fallbackUiBuilderDecorator});
 
-  final PostDetailsUIBuilder Function(
-    PostDetailsUIBuilder builder,
-    Post post,
-  )?
-  uiBuilderDecorator;
+  final PostDetailsUIBuilder Function(PostDetailsUIBuilder, Post)?
+  fallbackUiBuilderDecorator;
 
   @override
   ConsumerState<_MixedPostDetailsView> createState() =>
@@ -122,15 +118,13 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
     final gestures = config.postGestures;
     final booruRepo = ref.watch(booruRepoProvider(auth));
     final currentPost = currentPresentation.context.post;
-    final baseUiBuilder = currentPresentation.usesGenericPresentation
-        ? _genericPostDetailsUiBuilder
+    final uiBuilder = currentPresentation.usesGenericPresentation
+        ? widget.fallbackUiBuilderDecorator?.call(
+                _genericPostDetailsUiBuilder,
+                currentPost,
+              ) ??
+              _genericPostDetailsUiBuilder
         : currentPresentation.context.presentation.detailsBuilder(currentPost);
-    final uiBuilder =
-        widget.uiBuilderDecorator?.call(
-          baseUiBuilder,
-          currentPost,
-        ) ??
-        baseUiBuilder;
 
     final scaffold = PostDetailsPageScaffold<Post>(
       transformController: _transformController,

@@ -7,6 +7,7 @@ import 'package:kurumi/kurumi.dart';
 import '../../../posts/listing/providers.dart';
 import '../../../posts/post/types.dart';
 import '../../../router.dart';
+import '../providers/bookmark_details_mutation_notifier.dart';
 import '../providers/bookmark_provider.dart';
 import '../types/bookmark_target.dart';
 import '../types/bookmark_view.dart';
@@ -61,17 +62,39 @@ Future<void> goToBookmarkDetailsPage(
   int index, {
   required String initialThumbnailUrl,
   required PostGridController<Post> controller,
-}) {
-  return ref.router.push(
-    Uri(
-      path: '/bookmarks/details',
-      queryParameters: {
-        'index': index.toString(),
-      },
-    ).toString(),
-    extra: {
-      'controller': controller,
-      'initialThumbnailUrl': initialThumbnailUrl,
-    },
+}) async {
+  final detailsMutations = ref.read(
+    bookmarkDetailsMutationProvider.notifier,
   );
+  final bookmarkLibrary = ref.read(bookmarkProvider.notifier);
+  detailsMutations.begin();
+  try {
+    await ref.router.push(
+      Uri(
+        path: '/bookmarks/details',
+        queryParameters: {
+          'index': index.toString(),
+        },
+      ).toString(),
+      extra: {
+        'controller': controller,
+        'initialThumbnailUrl': initialThumbnailUrl,
+      },
+    );
+  } finally {
+    try {
+      final committed = await detailsMutations.commit(bookmarkLibrary);
+      if (!committed) {
+        final context = navigatorKey.currentContext;
+        if (context != null && context.mounted) {
+          Kurumi.showErrorToast(
+            context,
+            context.t.bookmark.groups.operation_failed,
+          );
+        }
+      }
+    } finally {
+      detailsMutations.end();
+    }
+  }
 }

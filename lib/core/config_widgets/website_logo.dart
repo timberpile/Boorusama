@@ -41,8 +41,15 @@ class ConfigAwareWebsiteLogo extends ConsumerWidget {
        size = kFaviconSize,
        _isFixedIcon = _isFixed(booruType);
 
-  static String _sourceFromType(BooruType booruType, String url) =>
-      booruType == BooruType.hydrus ? 'assets/images/hydrus-logo.png' : url;
+  static String _sourceFromType(BooruType booruType, String url) {
+    if (booruType == BooruType.hydrus) {
+      return 'assets/images/hydrus-logo.png';
+    }
+    final scheme = Uri.tryParse(url)?.scheme.toLowerCase();
+    if (url.isEmpty || scheme == 'http' || scheme == 'https') return url;
+
+    return 'https://$url';
+  }
 
   static bool _isFixed(BooruType booruType) => booruType == BooruType.hydrus;
 

@@ -312,16 +312,66 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       final uniqueId = bookmarkIdentityForPost(post, config.booruIdHint);
       final bookmark = current.bookmarksByUniqueId[uniqueId];
       final memberships = current.membershipsFor(uniqueId);
-      if (selectedTarget.groupId case final groupId?) {
-        if (bookmark != null && memberships.contains(groupId)) {
-          await (await _service).removeBookmarksFromGroup(
-            [bookmark],
-            groupId,
-            deleteWhenMembershipBecomesEmpty: true,
-          );
-          await _publishCommittedMutation();
-          return BookmarkToggleOutcome.removed;
-        }
+      final bookmarked = switch (selectedTarget.groupId) {
+        final groupId? => bookmark != null && memberships.contains(groupId),
+        null => bookmark != null && memberships.isEmpty,
+      };
+      if (selectedTarget.isUngrouped &&
+          bookmark != null &&
+          memberships.isNotEmpty) {
+        return BookmarkToggleOutcome.unavailable;
+      }
+      return _setPostTargetMembership(
+        config,
+        post,
+        current,
+        selectedTarget,
+        bookmarked: !bookmarked,
+      );
+    } catch (_) {
+      await _publishCommittedMutation();
+      return BookmarkToggleOutcome.failed;
+    }
+  });
+
+  Future<BookmarkToggleOutcome> setPostTargetMembership(
+    BooruConfigAuth config,
+    Post post, {
+    required BookmarkTarget target,
+    required bool bookmarked,
+  }) => _serialize(() async {
+    try {
+      return await _setPostTargetMembership(
+        config,
+        post,
+        await future,
+        target,
+        bookmarked: bookmarked,
+      );
+    } catch (_) {
+      await _publishCommittedMutation();
+      return BookmarkToggleOutcome.failed;
+    }
+  });
+
+  Future<BookmarkToggleOutcome> _setPostTargetMembership(
+    BooruConfigAuth config,
+    Post post,
+    BookmarkLibraryState current,
+    BookmarkTarget target, {
+    required bool bookmarked,
+  }) async {
+    final uniqueId = bookmarkIdentityForPost(post, config.booruIdHint);
+    final bookmark = current.bookmarksByUniqueId[uniqueId];
+    final memberships = current.membershipsFor(uniqueId);
+    if (target.groupId case final groupId?) {
+      final isMember = bookmark != null && memberships.contains(groupId);
+      if (isMember == bookmarked) {
+        return bookmarked
+            ? BookmarkToggleOutcome.added
+            : BookmarkToggleOutcome.removed;
+      }
+      if (bookmarked) {
         await (await _service).addBookmarkToGroup(
           groupId: groupId,
           existingBookmark: bookmark,
@@ -333,20 +383,33 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
         await _publishCommittedMutation();
         return BookmarkToggleOutcome.added;
       }
-      if (bookmark != null) {
-        if (memberships.isNotEmpty) return BookmarkToggleOutcome.unavailable;
-        await (await _service).deleteBookmarks([bookmark]);
-        await _publishCommittedMutation();
-        return BookmarkToggleOutcome.removed;
-      }
+      await (await _service).removeBookmarksFromGroup(
+        [bookmark!],
+        groupId,
+        deleteWhenMembershipBecomesEmpty: true,
+      );
+      await _publishCommittedMutation();
+      return BookmarkToggleOutcome.removed;
+    }
+
+    if (bookmark != null && memberships.isNotEmpty) {
+      return BookmarkToggleOutcome.unavailable;
+    }
+    final isBookmarked = bookmark != null;
+    if (isBookmarked == bookmarked) {
+      return bookmarked
+          ? BookmarkToggleOutcome.added
+          : BookmarkToggleOutcome.removed;
+    }
+    if (bookmarked) {
       await _createBookmark(config, post);
       await _publishCommittedMutation();
       return BookmarkToggleOutcome.added;
-    } catch (_) {
-      await _publishCommittedMutation();
-      return BookmarkToggleOutcome.failed;
     }
-  });
+    await (await _service).deleteBookmarks([bookmark!]);
+    await _publishCommittedMutation();
+    return BookmarkToggleOutcome.removed;
+  }
 
   Future<BookmarkGroup> createGroup(String name, {bool activate = false}) =>
       _serialize(() async {
