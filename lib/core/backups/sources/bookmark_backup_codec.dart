@@ -110,6 +110,7 @@ class BookmarkBackupCodec extends JsonHandler<BookmarkBackupData> {
           'createdAt': bookmark.createdAt.toIso8601String(),
           'updatedAt': bookmark.updatedAt.toIso8601String(),
           'snapshot': bookmark.snapshot.toJson(),
+          'postId': bookmark.postId,
         },
       )
       .toList();
@@ -124,11 +125,16 @@ class BookmarkBackupCodec extends JsonHandler<BookmarkBackupData> {
     final createdAt = value['createdAt'];
     final updatedAt = value['updatedAt'];
     final rawSnapshot = value['snapshot'];
+    final hasPostId = value.containsKey('postId');
+    final rawPostId = value['postId'];
     if (localId is! int ||
         createdAt is! String ||
         updatedAt is! String ||
         rawSnapshot is! Map<String, dynamic>) {
       throw InvalidBackupFormatException('data[$index] is invalid');
+    }
+    if (hasPostId && rawPostId != null && rawPostId is! int) {
+      throw InvalidBackupFormatException('data[$index].postId is invalid');
     }
 
     final snapshot = StoredPostSnapshot.fromJson(rawSnapshot);
@@ -144,7 +150,7 @@ class BookmarkBackupCodec extends JsonHandler<BookmarkBackupData> {
         updatedAt: DateTime.parse(updatedAt),
         snapshot: snapshot,
         post: post,
-        postId: post.id,
+        postId: hasPostId ? rawPostId as int? : _legacyVersion2PostId(post),
       ),
       StoredPostDecodeFailure() => throw InvalidBackupFormatException(
         'data[$index].snapshot is invalid',
@@ -152,6 +158,11 @@ class BookmarkBackupCodec extends JsonHandler<BookmarkBackupData> {
     };
   }
 }
+
+int? _legacyVersion2PostId(Post post) => switch (post.booruData) {
+  LegacyPostData() || UnknownPostData() => null,
+  _ => post.id,
+};
 
 void _validateVersion1Bookmark(Map<String, dynamic> value, int index) {
   final requiredInts = ['id', 'booruId'];

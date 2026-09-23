@@ -259,20 +259,29 @@ class _OriginCompatibleMultiSelectionActions<T extends Post>
         final selectedPosts = selectionModeController
             .selectedFrom(postController.items.toList())
             .toList();
-        final compatible = selectedPosts.every(
-          (post) => switch (const PostOriginResolver().resolve(
+        final compatible = selectedPosts.every((post) {
+          final resolvedConfig = switch (const PostOriginResolver().resolve(
             post.origin,
             configs,
           )) {
-            ResolvedPostOrigin(config: final resolved) =>
-              resolved.id == config.id,
-            _ => false,
-          },
-        );
+            ResolvedPostOrigin(config: final resolved) => resolved,
+            _ => null,
+          };
+          if (resolvedConfig?.id != config.id) return false;
+
+          final presentation = ref.watch(
+            booruPostPresentationProvider((
+              origin: post.origin,
+              data: post.booruData,
+            )),
+          );
+          return presentation is! GenericPostPresentation &&
+              presentation.supports(post.booruData);
+        });
 
         return compatible
             ? builder(context, selectionModeController, postController)
-            : DefaultMultiSelectionActions(postController: postController);
+            : const SizedBox.shrink();
       },
     );
   }

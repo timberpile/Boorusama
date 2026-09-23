@@ -699,6 +699,7 @@ void main() {
       harness.dispose();
       harness = PinnedSearchHarness(
         profiles: [testProfile, _feedConfig, _otherFeedConfig],
+        postCapability: _feedCapability,
         listingSettings: Settings.defaultSettings.listing.copyWith(
           showPostListConfigHeader: false,
         ),
@@ -744,6 +745,9 @@ void main() {
 
       expect(footerConfigs, isNotEmpty);
       expect(footerConfigs.last, _feedConfig.auth);
+      expect(find.text('native bulk mutation'), findsOneWidget);
+      expect(find.text('Download'), findsOneWidget);
+      expect(find.text('Bookmark'), findsOneWidget);
       expect(
         harness.container.read(currentBooruConfigProvider),
         testProfile,
@@ -752,11 +756,12 @@ void main() {
   );
 
   testWidgets(
-    'feed hides native bulk mutations for an incompatible selected origin',
+    'feed exposes no bulk actions for an incompatible selected origin',
     (tester) async {
       harness.dispose();
       harness = PinnedSearchHarness(
         profiles: [testProfile, _feedConfig, _otherFeedConfig],
+        postCapability: _feedCapability,
         listingSettings: Settings.defaultSettings.listing.copyWith(
           showPostListConfigHeader: false,
         ),
@@ -806,6 +811,68 @@ void main() {
       await tester.pump();
 
       expect(find.text('native bulk mutation'), findsNothing);
+      expect(find.text('Download'), findsNothing);
+      expect(find.text('Bookmark'), findsNothing);
+      expect(
+        harness.container.read(currentBooruConfigProvider),
+        testProfile,
+      );
+    },
+  );
+
+  testWidgets(
+    'feed exposes no bulk actions for an incompatible owner-profile payload',
+    (tester) async {
+      harness.dispose();
+      harness = PinnedSearchHarness(
+        profiles: [testProfile, _feedConfig],
+        postCapability: _feedCapability,
+        listingSettings: Settings.defaultSettings.listing.copyWith(
+          showPostListConfigHeader: false,
+        ),
+        booruBuilder: (config) => _FeedMultiSelectionBuilder(config: config),
+      );
+      final feed = await harness.repository.saveFeed(
+        profileId: _feedConfig.id,
+        name: 'Native feed',
+        queries: ['cat'],
+      );
+      final source = (await harness.repository.getById(feed.sourceIds.single))!;
+      final incompatible = _feedPost(44).copyWith(
+        booruData: const UnknownPostData(
+          typeKey: 'gelbooru_v2',
+          schemaVersion: 99,
+          custom: {'future': true},
+          reason: UnknownPostDataReason.unsupportedVersion,
+        ),
+      );
+      await harness.repository.commitRefresh(
+        SearchRefreshCommit(
+          subscriptionId: source.id,
+          expectedCreatedAt: source.createdAt,
+          expectedCheckpoint: null,
+          startedAt: checkedAt,
+          identityRetentionBoundary: checkedAt,
+          baseline: true,
+          discoveredPosts: const [],
+          feedPosts: [feedPostSnapshotFromPost(incompatible)],
+        ),
+      );
+      await harness.container.read(searchSubscriptionsProvider.future);
+      await harness.pump(
+        tester,
+        FollowingFeedPage(feedId: feed.id, profileId: _feedConfig.id),
+      );
+
+      final selection = tester
+          .widget<SelectionMode>(find.byType(SelectionMode))
+          .controller!;
+      selection.enable(initialSelected: const [0]);
+      await tester.pump();
+
+      expect(find.text('native bulk mutation'), findsNothing);
+      expect(find.text('Download'), findsNothing);
+      expect(find.text('Bookmark'), findsNothing);
       expect(
         harness.container.read(currentBooruConfigProvider),
         testProfile,
@@ -982,6 +1049,12 @@ final _otherFeedConfig = BooruConfig.fromJson({
   'id': 100,
 });
 
+const _feedCapability = BooruPostCapability<BooruPostData>(
+  booruType: BooruType.gelbooruV2,
+  codec: GelbooruV2PostCodec(),
+  presentation: _FeedPresentation(),
+);
+
 Post _feedPost(int id) => Post(
   origin: PostOrigin.fromSource(
     booruType: BooruType.gelbooruV2,
@@ -1048,6 +1121,9 @@ final class _FeedMultiSelectionBuilder extends BaseBooruBuilder {
   MultiSelectionActionsBuilder get multiSelectionActionsBuilder =>
       (context, controller, postController) {
         onBuild?.call(config);
-        return const Text('native bulk mutation');
+        return DefaultMultiSelectionActions(
+          postController: postController,
+          extraActions: (_) => const [Text('native bulk mutation')],
+        );
       };
 }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/boorus/defaults/widgets.dart';
 import 'package:boorusama/core/boorus/engine/providers.dart';
@@ -79,6 +81,64 @@ void main() {
         expect(harness.currentUpdates, 1);
       },
     );
+
+    testWidgets(
+      'saving profile A ${testCase.label} does not replace profile B selected before completion',
+      (tester) async {
+        final profileA = _config(id: 1, url: 'https://a.example');
+        final profileB = _config(id: 2, url: 'https://b.example');
+        final updateGate = Completer<void>();
+        final harness = await _pumpEditor(
+          tester,
+          global: profileA,
+          edited: profileA,
+          configs: [profileA, profileB],
+          updateGate: updateGate,
+          open: testCase.open,
+        );
+        addTearDown(harness.dispose);
+        const parts = [CustomDetailsPartKey('info')];
+
+        harness.params.onUpdate(parts);
+        await tester.pump();
+        await harness.currentNotifier.update(profileB);
+        updateGate.complete();
+        await tester.pumpAndSettle();
+
+        expect(harness.container.read(currentBooruConfigProvider), profileB);
+        expect(harness.currentUpdates, 1);
+      },
+    );
+
+    testWidgets(
+      'saving profile B ${testCase.label} refreshes B selected before completion',
+      (tester) async {
+        final profileA = _config(id: 1, url: 'https://a.example');
+        final profileB = _config(id: 2, url: 'https://b.example');
+        final updateGate = Completer<void>();
+        final harness = await _pumpEditor(
+          tester,
+          global: profileA,
+          edited: profileB,
+          configs: [profileA, profileB],
+          updateGate: updateGate,
+          open: testCase.open,
+        );
+        addTearDown(harness.dispose);
+        const parts = [CustomDetailsPartKey('info')];
+
+        harness.params.onUpdate(parts);
+        await tester.pump();
+        await harness.currentNotifier.update(profileB);
+        updateGate.complete();
+        await tester.pumpAndSettle();
+
+        final current = harness.container.read(currentBooruConfigProvider);
+        expect(current.id, profileB.id);
+        expect(testCase.savedParts(current.layout), parts);
+        expect(harness.currentUpdates, 2);
+      },
+    );
   }
 }
 
@@ -88,6 +148,7 @@ Future<_EditorHarness> _pumpEditor(
   required BooruConfig edited,
   required void Function(WidgetRef ref) open,
   List<BooruConfig>? configs,
+  Completer<void>? updateGate,
 }) async {
   late DetailsLayoutManagerParams params;
   late _RecordingCurrentConfigNotifier currentNotifier;
@@ -113,6 +174,7 @@ Future<_EditorHarness> _pumpEditor(
       booruConfigProvider.overrideWith(
         () => _RecordingBooruConfigNotifier(
           configs ?? [global, edited],
+          updateGate: updateGate,
         ),
       ),
       currentBooruConfigProvider.overrideWith(
@@ -162,8 +224,12 @@ class _OpenEditor extends StatelessWidget {
 }
 
 class _RecordingBooruConfigNotifier extends BooruConfigNotifier {
-  _RecordingBooruConfigNotifier(List<BooruConfig> configs)
-    : super(initialConfigs: configs);
+  _RecordingBooruConfigNotifier(
+    List<BooruConfig> configs, {
+    this.updateGate,
+  }) : super(initialConfigs: configs);
+
+  final Completer<void>? updateGate;
 
   @override
   Future<void> update({
@@ -172,6 +238,7 @@ class _RecordingBooruConfigNotifier extends BooruConfigNotifier {
     void Function(String message)? onFailure,
     void Function(BooruConfig booruConfig)? onSuccess,
   }) async {
+    await updateGate?.future;
     final updated = booruConfigData.toBooruConfig(id: oldConfigId)!;
     state = [
       for (final config in state)
