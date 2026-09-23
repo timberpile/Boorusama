@@ -77,6 +77,7 @@ class Bookmark extends Equatable with ImageInfoMixin, TagListCheckMixin {
       updatedAt: updatedAt,
       snapshot: snapshot,
       post: post,
+      postId: postId,
       sourceUrl: sourceUrl,
     );
   }
@@ -87,6 +88,7 @@ class Bookmark extends Equatable with ImageInfoMixin, TagListCheckMixin {
     required this.updatedAt,
     required this.snapshot,
     required this.post,
+    required this.postId,
     String? sourceUrl,
   }) : _sourceUrl = sourceUrl;
 
@@ -123,6 +125,7 @@ class Bookmark extends Equatable with ImageInfoMixin, TagListCheckMixin {
   final DateTime updatedAt;
   final StoredPostSnapshot snapshot;
   final Post post;
+  final int? postId;
   final String? _sourceUrl;
 
   int get booruId => snapshot.origin.booruTypeId;
@@ -140,7 +143,6 @@ class Bookmark extends Equatable with ImageInfoMixin, TagListCheckMixin {
   Set<String> get tags => post.tags;
   String? get realSourceUrl => post.source.url;
   String? get format => post.format;
-  int? get postId => post.id;
   Map<String, String> get metadata => toMetadata(post.metadata);
   int? get metadataPage => post.metadata?.page;
   int? get metadataLimit => post.metadata?.limit;
@@ -221,6 +223,7 @@ class Bookmark extends Equatable with ImageInfoMixin, TagListCheckMixin {
         updatedAt: updatedAt ?? this.updatedAt,
         snapshot: snapshot ?? this.snapshot,
         post: post ?? this.post,
+        postId: post?.id ?? this.postId,
         sourceUrl: sourceUrl ?? this.sourceUrl,
       );
     }
@@ -272,7 +275,7 @@ class Bookmark extends Equatable with ImageInfoMixin, TagListCheckMixin {
   };
 
   @override
-  List<Object?> get props => [id, createdAt, updatedAt, snapshot];
+  List<Object?> get props => [id, createdAt, updatedAt, snapshot, postId];
 }
 
 typedef BookmarkEntry = Bookmark;

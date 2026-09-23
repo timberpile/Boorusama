@@ -1,3 +1,6 @@
+// Dart imports:
+import 'dart:async';
+
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
@@ -24,7 +27,27 @@ import 'post_details_page_scaffold.dart';
 import 'post_details_scope.dart';
 import 'post_page_presentation_scope.dart';
 
-class MixedPostDetailsPage extends StatelessWidget {
+sealed class PostRecoveryResult {
+  const PostRecoveryResult();
+}
+
+final class PostRecoverySuccess extends PostRecoveryResult {
+  const PostRecoverySuccess(this.post);
+
+  final Post post;
+}
+
+final class PostRecoveryFailure extends PostRecoveryResult {
+  const PostRecoveryFailure(this.reason);
+
+  final PostPresentationFallbackReason reason;
+}
+
+typedef PostRecoveryCallback = Future<PostRecoveryResult> Function();
+typedef PostRecoveryBuilder =
+    PostRecoveryCallback? Function(Post post, BooruConfig config);
+
+class MixedPostDetailsPage extends StatefulWidget {
   const MixedPostDetailsPage({
     required this.posts,
     required this.initialIndex,
@@ -32,6 +55,7 @@ class MixedPostDetailsPage extends StatelessWidget {
     required this.scrollController,
     required this.disclaimer,
     this.fallbackUiBuilderDecorator,
+    this.postRecoveryBuilder,
     super.key,
   }) : assert(posts.length > 0, 'Mixed viewer requires at least one post'),
        assert(
@@ -46,25 +70,38 @@ class MixedPostDetailsPage extends StatelessWidget {
   final String? disclaimer;
   final PostDetailsUIBuilder Function(PostDetailsUIBuilder, Post)?
   fallbackUiBuilderDecorator;
+  final PostRecoveryBuilder? postRecoveryBuilder;
+
+  @override
+  State<MixedPostDetailsPage> createState() => _MixedPostDetailsPageState();
+}
+
+class _MixedPostDetailsPageState extends State<MixedPostDetailsPage> {
+  late final List<Post> _posts = widget.posts.toList();
 
   @override
   Widget build(BuildContext context) => PostDetailsScope<Post>(
-    initialIndex: initialIndex,
-    initialThumbnailUrl: initialThumbnailUrl,
-    posts: posts,
-    dislclaimer: disclaimer,
-    scrollController: scrollController,
+    initialIndex: widget.initialIndex,
+    initialThumbnailUrl: widget.initialThumbnailUrl,
+    posts: _posts,
+    dislclaimer: widget.disclaimer,
+    scrollController: widget.scrollController,
     child: _MixedPostDetailsView(
-      fallbackUiBuilderDecorator: fallbackUiBuilderDecorator,
+      fallbackUiBuilderDecorator: widget.fallbackUiBuilderDecorator,
+      postRecoveryBuilder: widget.postRecoveryBuilder,
     ),
   );
 }
 
 class _MixedPostDetailsView extends ConsumerStatefulWidget {
-  const _MixedPostDetailsView({required this.fallbackUiBuilderDecorator});
+  const _MixedPostDetailsView({
+    required this.fallbackUiBuilderDecorator,
+    required this.postRecoveryBuilder,
+  });
 
   final PostDetailsUIBuilder Function(PostDetailsUIBuilder, Post)?
   fallbackUiBuilderDecorator;
+  final PostRecoveryBuilder? postRecoveryBuilder;
 
   @override
   ConsumerState<_MixedPostDetailsView> createState() =>
@@ -74,6 +111,8 @@ class _MixedPostDetailsView extends ConsumerStatefulWidget {
 class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
   final _transformController = TransformationController();
   final _isInitPage = ValueNotifier(true);
+  final _fallbackReasons = <int, PostPresentationFallbackReason>{};
+  final _recovering = <int>{};
 
   @override
   void dispose() {
@@ -118,6 +157,24 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
     final gestures = config.postGestures;
     final booruRepo = ref.watch(booruRepoProvider(auth));
     final currentPost = currentPresentation.context.post;
+    final currentIndex = controller.currentPage.value;
+    final fallbackReason =
+        _fallbackReasons[currentIndex] ?? currentPresentation.fallbackReason;
+    final recovery = switch ((
+      fallbackReason,
+      currentPresentation.config,
+      widget.postRecoveryBuilder,
+      _recovering.contains(currentIndex),
+    )) {
+      (
+        final PostPresentationFallbackReason _,
+        final config?,
+        final builder?,
+        false,
+      ) =>
+        builder(currentPost, config),
+      _ => null,
+    };
     final uiBuilder = currentPresentation.usesGenericPresentation
         ? widget.fallbackUiBuilderDecorator?.call(
                 _genericPostDetailsUiBuilder,
@@ -137,7 +194,16 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
       layoutConfig: layout,
       viewerWarning: currentPresentation.usesGenericPresentation
           ? PostPresentationFallbackWarning(
-              reason: currentPresentation.fallbackReason!,
+              reason: fallbackReason!,
+              onRetry: recovery == null
+                  ? null
+                  : () => unawaited(
+                      _recoverPost(
+                        details: details,
+                        index: currentIndex,
+                        recovery: recovery,
+                      ),
+                    ),
             )
           : null,
       actions: defaultActions(
@@ -210,6 +276,37 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
         ],
       ),
     );
+  }
+
+  Future<void> _recoverPost({
+    required PostDetailsData<Post> details,
+    required int index,
+    required PostRecoveryCallback recovery,
+  }) async {
+    setState(() => _recovering.add(index));
+    late final PostRecoveryResult result;
+    try {
+      result = await recovery();
+    } catch (_) {
+      result = const PostRecoveryFailure(
+        PostPresentationFallbackReason.refreshFailed,
+      );
+    }
+    if (!mounted) return;
+
+    switch (result) {
+      case PostRecoverySuccess(:final post):
+        details.controller.replacePost(index, post);
+        setState(() {
+          _fallbackReasons.remove(index);
+          _recovering.remove(index);
+        });
+      case PostRecoveryFailure(:final reason):
+        setState(() {
+          _fallbackReasons[index] = reason;
+          _recovering.remove(index);
+        });
+    }
   }
 }
 

@@ -46,6 +46,7 @@ void main() {
       updatedAt: DateTime.utc(2026, 2, 3),
       snapshot: snapshot,
       post: post,
+      postId: post.id,
     );
     final data = BookmarkBackupData(
       bookmarks: [nativeBookmark],

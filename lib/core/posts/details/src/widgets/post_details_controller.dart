@@ -60,6 +60,14 @@ class PostDetailsController<T extends Post> extends ChangeNotifier {
     }
   }
 
+  void replacePost(int index, T post) {
+    RangeError.checkValidIndex(index, posts, 'index');
+    posts[index] = post;
+    if (currentPage.value == index) {
+      currentPost.value = post;
+    }
+  }
+
   void onPageSettled(int page) {
     if (page == currentSettledPage.value) return;
 

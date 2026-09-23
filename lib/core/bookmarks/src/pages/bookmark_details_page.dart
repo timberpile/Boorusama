@@ -5,6 +5,7 @@ import 'package:kurumi/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 // Project imports:
+import '../../../boorus/engine/providers.dart';
 import '../../../configs/config/types.dart';
 import '../../../configs/manage/providers.dart';
 import '../../../downloads/filename/types.dart';
@@ -13,14 +14,16 @@ import '../../../posts/details_parts/types.dart';
 import '../../../posts/details_parts/widgets.dart';
 import '../../../posts/details/widgets.dart';
 import '../../../posts/listing/providers.dart';
+import '../../../posts/post/providers.dart';
 import '../../../posts/post/types.dart';
 import '../../../posts/shares/widgets.dart';
 import '../../../widgets/adaptive_button_row.dart';
 import '../../../widgets/booru_menu_button_row.dart';
 import '../data/providers.dart';
 import '../providers/bookmark_provider.dart';
+import '../types/bookmark.dart';
 
-class BookmarkDetailsPage extends StatelessWidget {
+class BookmarkDetailsPage extends ConsumerWidget {
   BookmarkDetailsPage({
     required this.initialIndex,
     required this.initialThumbnailUrl,
@@ -33,14 +36,71 @@ class BookmarkDetailsPage extends StatelessWidget {
   final List<Post> posts;
 
   @override
-  Widget build(BuildContext context) => MixedPostDetailsPage(
-    posts: posts,
-    initialIndex: initialIndex,
-    initialThumbnailUrl: initialThumbnailUrl,
-    scrollController: null,
-    disclaimer: null,
-    fallbackUiBuilderDecorator: _withBookmarkToolbar,
-  );
+  Widget build(BuildContext context, WidgetRef ref) {
+    final library = ref.watch(bookmarkProvider).valueOrNull;
+
+    return MixedPostDetailsPage(
+      posts: posts,
+      initialIndex: initialIndex,
+      initialThumbnailUrl: initialThumbnailUrl,
+      scrollController: null,
+      disclaimer: null,
+      fallbackUiBuilderDecorator: _withBookmarkToolbar,
+      postRecoveryBuilder: (post, config) {
+        final bookmark = library?.bookmarkForPost(post);
+        final postId = bookmark?.postId;
+        final repositoryAvailable =
+            ref.read(booruRepoProvider(config.auth)) != null;
+        if (bookmark == null ||
+            postId == null ||
+            postId <= 0 ||
+            !repositoryAvailable) {
+          return null;
+        }
+
+        return () => _recoverBookmarkPost(
+          ref,
+          bookmark: bookmark,
+          postId: postId,
+          config: config,
+        );
+      },
+    );
+  }
+}
+
+Future<PostRecoveryResult> _recoverBookmarkPost(
+  WidgetRef ref, {
+  required Bookmark bookmark,
+  required int postId,
+  required BooruConfig config,
+}) async {
+  try {
+    final result = await ref
+        .read(originAwarePostRepoProvider(config))
+        .getPost(NumericPostId(postId))
+        .run();
+    return await result.fold(
+      (_) => const PostRecoveryFailure(
+        PostPresentationFallbackReason.refreshFailed,
+      ),
+      (post) async {
+        if (post == null) {
+          return const PostRecoveryFailure(
+            PostPresentationFallbackReason.removedUpstreamPost,
+          );
+        }
+        await ref
+            .read(bookmarkProvider.notifier)
+            .upgradeBookmarkSnapshot(bookmark, post);
+        return PostRecoverySuccess(post);
+      },
+    );
+  } catch (_) {
+    return const PostRecoveryFailure(
+      PostPresentationFallbackReason.refreshFailed,
+    );
+  }
 }
 
 PostDetailsUIBuilder _withBookmarkToolbar(

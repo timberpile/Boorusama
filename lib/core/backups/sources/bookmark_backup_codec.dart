@@ -144,6 +144,7 @@ class BookmarkBackupCodec extends JsonHandler<BookmarkBackupData> {
         updatedAt: DateTime.parse(updatedAt),
         snapshot: snapshot,
         post: post,
+        postId: post.id,
       ),
       StoredPostDecodeFailure() => throw InvalidBackupFormatException(
         'data[$index].snapshot is invalid',

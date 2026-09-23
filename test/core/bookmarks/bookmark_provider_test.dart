@@ -1291,6 +1291,7 @@ Bookmark _bookmarkFromPost(Post post) {
     updatedAt: DateTime(1),
     snapshot: const StoredPostCodec().encode(post),
     post: post,
+    postId: post.id,
     sourceUrl: post.origin.sourceHost.isEmpty
         ? ''
         : 'https://${post.origin.sourceHost}',

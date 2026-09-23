@@ -1,6 +1,8 @@
 import 'package:boorusama/boorus/gelbooru_v2/posts/post_codec.dart';
 import 'package:boorusama/boorus/gelbooru_v2/posts/post_data.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
+import 'package:boorusama/core/boorus/defaults/widgets.dart';
+import 'package:boorusama/core/boorus/engine/types.dart';
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/configs/manage/providers.dart';
 import 'package:boorusama/core/images/booru_image.dart';
@@ -26,6 +28,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
+import 'package:selection_mode/selection_mode.dart';
 import 'pinned_search_test_utils.dart';
 import 'subscription_test_utils.dart';
 
@@ -689,6 +692,127 @@ void main() {
     },
   );
 
+  testWidgets(
+    'feed footer uses its owner profile without changing the global profile',
+    (tester) async {
+      final footerConfigs = <BooruConfigAuth>[];
+      harness.dispose();
+      harness = PinnedSearchHarness(
+        profiles: [testProfile, _feedConfig, _otherFeedConfig],
+        listingSettings: Settings.defaultSettings.listing.copyWith(
+          showPostListConfigHeader: false,
+        ),
+        booruBuilder: (config) => _FeedMultiSelectionBuilder(
+          config: config,
+          onBuild: footerConfigs.add,
+        ),
+      );
+      final feed = await harness.repository.saveFeed(
+        profileId: _feedConfig.id,
+        name: 'Native feed',
+        queries: ['cat'],
+      );
+      final source = (await harness.repository.getById(feed.sourceIds.single))!;
+      await harness.repository.commitRefresh(
+        SearchRefreshCommit(
+          subscriptionId: source.id,
+          expectedCreatedAt: source.createdAt,
+          expectedCheckpoint: null,
+          startedAt: checkedAt,
+          identityRetentionBoundary: checkedAt,
+          baseline: true,
+          discoveredPosts: const [],
+          feedPosts: [
+            feedPostSnapshotFromPost(
+              _feedPost(42),
+              dataCodec: const GelbooruV2PostCodec(),
+            ),
+          ],
+        ),
+      );
+      await harness.container.read(searchSubscriptionsProvider.future);
+
+      await harness.pump(
+        tester,
+        FollowingFeedPage(feedId: feed.id, profileId: _feedConfig.id),
+      );
+      final selection = tester
+          .widget<SelectionMode>(find.byType(SelectionMode))
+          .controller!;
+      selection.enable(initialSelected: const [0]);
+      await tester.pump();
+
+      expect(footerConfigs, isNotEmpty);
+      expect(footerConfigs.last, _feedConfig.auth);
+      expect(
+        harness.container.read(currentBooruConfigProvider),
+        testProfile,
+      );
+    },
+  );
+
+  testWidgets(
+    'feed hides native bulk mutations for an incompatible selected origin',
+    (tester) async {
+      harness.dispose();
+      harness = PinnedSearchHarness(
+        profiles: [testProfile, _feedConfig, _otherFeedConfig],
+        listingSettings: Settings.defaultSettings.listing.copyWith(
+          showPostListConfigHeader: false,
+        ),
+        booruBuilder: (config) => _FeedMultiSelectionBuilder(config: config),
+      );
+      final feed = await harness.repository.saveFeed(
+        profileId: _feedConfig.id,
+        name: 'Native feed',
+        queries: ['cat'],
+      );
+      final source = (await harness.repository.getById(feed.sourceIds.single))!;
+      final incompatible = _feedPost(43).copyWith(
+        origin: PostOrigin.fromSource(
+          booruType: BooruType.gelbooruV2,
+          booruId: _feedConfig.booruId,
+          source: _otherFeedConfig.url,
+          profileIdHint: _otherFeedConfig.id,
+        ),
+      );
+      await harness.repository.commitRefresh(
+        SearchRefreshCommit(
+          subscriptionId: source.id,
+          expectedCreatedAt: source.createdAt,
+          expectedCheckpoint: null,
+          startedAt: checkedAt,
+          identityRetentionBoundary: checkedAt,
+          baseline: true,
+          discoveredPosts: const [],
+          feedPosts: [
+            feedPostSnapshotFromPost(
+              incompatible,
+              dataCodec: const GelbooruV2PostCodec(),
+            ),
+          ],
+        ),
+      );
+      await harness.container.read(searchSubscriptionsProvider.future);
+      await harness.pump(
+        tester,
+        FollowingFeedPage(feedId: feed.id, profileId: _feedConfig.id),
+      );
+
+      final selection = tester
+          .widget<SelectionMode>(find.byType(SelectionMode))
+          .controller!;
+      selection.enable(initialSelected: const [0]);
+      await tester.pump();
+
+      expect(find.text('native bulk mutation'), findsNothing);
+      expect(
+        harness.container.read(currentBooruConfigProvider),
+        testProfile,
+      );
+    },
+  );
+
   final thumbnailCases = [
     (
       quality: ImageQuality.low,
@@ -850,7 +974,12 @@ final _feedConfig = BooruConfig.fromJson({
     url: 'https://gelbooru.example',
     customDownloadFileNameFormat: null,
   ).toJson(),
-  'id': 12,
+  'id': 99,
+});
+
+final _otherFeedConfig = BooruConfig.fromJson({
+  ..._feedConfig.toJson(),
+  'id': 100,
 });
 
 Post _feedPost(int id) => Post(
@@ -907,4 +1036,18 @@ final class _FeedPresentation
   }) => const PostGridItemAdditions(
     quickActionButton: Text('native feed card'),
   );
+}
+
+final class _FeedMultiSelectionBuilder extends BaseBooruBuilder {
+  _FeedMultiSelectionBuilder({required this.config, this.onBuild});
+
+  final BooruConfigAuth config;
+  final ValueChanged<BooruConfigAuth>? onBuild;
+
+  @override
+  MultiSelectionActionsBuilder get multiSelectionActionsBuilder =>
+      (context, controller, postController) {
+        onBuild?.call(config);
+        return const Text('native bulk mutation');
+      };
 }

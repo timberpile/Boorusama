@@ -39,6 +39,7 @@ class BookmarkHiveRepository implements BookmarkRepository {
       updatedAt: now,
       snapshot: snapshot,
       post: storedPost,
+      postId: storedPost.id,
       sourceUrl: sourceUrl,
     );
     final favoriteHiveObject = favoriteToHiveObject(bookmark);

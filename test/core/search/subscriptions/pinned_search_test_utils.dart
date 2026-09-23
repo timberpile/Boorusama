@@ -112,6 +112,7 @@ class PinnedSearchHarness {
     bool networkAllowed = false,
     List<BooruConfig>? profiles,
     BooruPostCapability<BooruPostData>? postCapability,
+    BooruBuilder? Function(BooruConfigAuth config)? booruBuilder,
   }) {
     repository = HiveSearchSubscriptionRepository(
       box: box,
@@ -142,6 +143,10 @@ class PinnedSearchHarness {
           booruPostCapabilityProvider.overrideWith(
             (ref, type) =>
                 type == postCapability.booruType ? postCapability : null,
+          ),
+        if (booruBuilder != null)
+          booruBuilderProvider.overrideWith(
+            (ref, config) => booruBuilder(config),
           ),
         booruRepoProvider.overrideWith(
           (ref, config) => DanbooruRepository(ref: ref),

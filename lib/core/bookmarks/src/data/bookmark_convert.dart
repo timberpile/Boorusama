@@ -163,6 +163,7 @@ BookmarkHiveMapping _bookmarkFromStoredSnapshot(
       updatedAt: hiveObject.updatedAt!,
       snapshot: recoveredSnapshot,
       post: recoveredPost,
+      postId: hiveObject.postId,
       sourceUrl: hiveObject.sourceUrl,
     ),
     needsWriteBack: originWasRecovered,

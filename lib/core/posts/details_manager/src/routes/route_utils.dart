@@ -38,6 +38,7 @@ void goToDetailsLayoutManagerForPreviewWidgets(WidgetRef ref) {
     currentBooruConfigProvider.notifier,
   );
   final config = ref.watchConfig;
+  final wasGlobalCurrent = ref.read(currentBooruConfigProvider).id == config.id;
 
   goToDetailsLayoutManagerPage(
     ref,
@@ -56,7 +57,9 @@ void goToDetailsLayoutManagerForPreviewWidgets(WidgetRef ref) {
               .toBooruConfigData(),
           oldConfigId: config.id,
           onSuccess: (booruConfig) {
-            currentConfigNotifier.update(booruConfig);
+            if (wasGlobalCurrent) {
+              currentConfigNotifier.update(booruConfig);
+            }
           },
         );
       },
@@ -80,6 +83,7 @@ void goToDetailsLayoutManagerForFullWidgets(WidgetRef ref) {
     currentBooruConfigProvider.notifier,
   );
   final config = ref.watchConfig;
+  final wasGlobalCurrent = ref.read(currentBooruConfigProvider).id == config.id;
 
   goToDetailsLayoutManagerPage(
     ref,
@@ -98,7 +102,9 @@ void goToDetailsLayoutManagerForFullWidgets(WidgetRef ref) {
               .toBooruConfigData(),
           oldConfigId: config.id,
           onSuccess: (booruConfig) {
-            currentConfigNotifier.update(booruConfig);
+            if (wasGlobalCurrent) {
+              currentConfigNotifier.update(booruConfig);
+            }
           },
         );
       },

@@ -14,10 +14,10 @@ import 'package:visibility_detector/visibility_detector.dart';
 
 // Project imports:
 import 'package:boorusama/boorus/gelbooru_v2/posts/post_data.dart';
+import 'package:boorusama/boorus/gelbooru_v2/posts/post_codec.dart';
 import 'package:boorusama/core/bookmarks/src/providers/bookmark_provider.dart';
 import 'package:boorusama/core/bookmarks/src/pages/bookmark_details_page.dart';
-import 'package:boorusama/core/bookmarks/src/types/bookmark_library_state.dart';
-import 'package:boorusama/core/bookmarks/src/types/bookmark_target.dart';
+import 'package:boorusama/core/bookmarks/types.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/boorus/engine/providers.dart';
 import 'package:boorusama/core/boorus/engine/types.dart';
@@ -36,6 +36,7 @@ import 'package:boorusama/core/posts/favorites/providers.dart';
 import 'package:boorusama/core/posts/favorites/src/data/providers.dart';
 import 'package:boorusama/core/posts/listing/providers.dart';
 import 'package:boorusama/core/posts/listing/widgets.dart';
+import 'package:boorusama/core/posts/post/providers.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 import 'package:boorusama/core/posts/rating/types.dart';
 import 'package:boorusama/core/posts/sources/types.dart';
@@ -164,6 +165,137 @@ void main() {
     expect(find.text('menu@other.example'), findsNothing);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'retry refreshes one legacy bookmark and preserves viewer order, identity, and groups',
+    (tester) async {
+      VisibilityDetectorController.instance.updateInterval = Duration.zero;
+      final legacy = _legacyBookmark();
+      final group = BookmarkGroup(
+        id: 'kept',
+        name: 'Kept',
+        bookmarkIds: {legacy.id},
+      );
+      final notifier = _RecoveryBookmarkNotifier(legacy, group);
+      final repositoryConfigs = <BooruConfig>[];
+      final controller = _controller([
+        _nativePost(id: 90),
+        legacy.post,
+        _nativePost(id: 92),
+      ]);
+      addTearDown(controller.dispose);
+
+      await tester.pumpWidget(
+        _BookmarkViewerHarness(
+          controller: controller,
+          initialIndex: 1,
+          bookmarkNotifier: notifier,
+          recoveryRepository: _RecoveryPostRepository(
+            result: TaskEither.right(_nativePost(id: 91)),
+          ),
+          repositoryConfigs: repositoryConfigs,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(PostPresentationFallbackWarning), findsOneWidget);
+      expect(find.text('Retry'), findsOneWidget);
+
+      await tester.tap(find.text('Retry'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('post:91'), findsOneWidget);
+      expect(find.byType(PostPresentationFallbackWarning), findsNothing);
+      expect(repositoryConfigs, [_config]);
+      final persisted = notifier.state.requireValue.items.single;
+      expect(persisted.id, legacy.id);
+      expect(persisted.createdAt, legacy.createdAt);
+      expect(persisted.post.id, 91);
+      expect(
+        notifier.state.requireValue.groups.single.bookmarkIds,
+        {legacy.id},
+      );
+      expect(persisted.snapshot.toJson().toString(), isNot(contains('secret')));
+
+      await tester.drag(find.byType(PageView).first, const Offset(-700, 0));
+      await tester.pumpAndSettle();
+      expect(find.text('post:92'), findsOneWidget);
+
+      await tester.drag(find.byType(PageView).first, const Offset(700, 0));
+      await tester.pumpAndSettle();
+      await tester.drag(find.byType(PageView).first, const Offset(700, 0));
+      await tester.pumpAndSettle();
+      expect(find.text('post:90'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'missing refreshed bookmark stays generic with a removed warning',
+    (
+      tester,
+    ) async {
+      VisibilityDetectorController.instance.updateInterval = Duration.zero;
+      final legacy = _legacyBookmark();
+      final notifier = _RecoveryBookmarkNotifier(
+        legacy,
+        BookmarkGroup(id: 'kept', name: 'Kept', bookmarkIds: {legacy.id}),
+      );
+      final controller = _controller([legacy.post]);
+      addTearDown(controller.dispose);
+
+      await tester.pumpWidget(
+        _BookmarkViewerHarness(
+          controller: controller,
+          bookmarkNotifier: notifier,
+          recoveryRepository: _RecoveryPostRepository(
+            result: TaskEither.right(null),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Retry'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(PostPresentationFallbackWarning), findsOneWidget);
+      expect(
+        find.text('The post is no longer available on its original site.'),
+        findsOneWidget,
+      );
+      expect(notifier.upgrades, 0);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'legacy bookmark without an upstream post ID does not offer retry',
+    (tester) async {
+      VisibilityDetectorController.instance.updateInterval = Duration.zero;
+      final legacy = _legacyBookmark(postId: null);
+      final notifier = _RecoveryBookmarkNotifier(
+        legacy,
+        BookmarkGroup(id: 'kept', name: 'Kept', bookmarkIds: {legacy.id}),
+      );
+      final controller = _controller([legacy.post]);
+      addTearDown(controller.dispose);
+
+      await tester.pumpWidget(
+        _BookmarkViewerHarness(
+          controller: controller,
+          bookmarkNotifier: notifier,
+          recoveryRepository: _RecoveryPostRepository(
+            result: TaskEither.right(_nativePost(id: 91)),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(PostPresentationFallbackWarning), findsOneWidget);
+      expect(find.text('Retry'), findsNothing);
+      expect(notifier.upgrades, 0);
+    },
+  );
 }
 
 final _config = BooruConfig.fromJson({
@@ -175,9 +307,10 @@ final _config = BooruConfig.fromJson({
   'id': 12,
 });
 
-Post _nativePost() => _post(
+Post _nativePost({int id = 1}) => _post(
   data: const GelbooruV2PostData(hasNotes: true),
   tags: const {'native'},
+  id: id,
 );
 
 Post _fallbackPost() => _post(
@@ -227,9 +360,19 @@ Post _post({
 );
 
 class _BookmarkViewerHarness extends StatelessWidget {
-  const _BookmarkViewerHarness({required this.controller});
+  const _BookmarkViewerHarness({
+    required this.controller,
+    this.initialIndex = 0,
+    this.bookmarkNotifier,
+    this.recoveryRepository,
+    this.repositoryConfigs,
+  });
 
   final PostGridController<Post> controller;
+  final int initialIndex;
+  final BookmarkLibraryNotifier? bookmarkNotifier;
+  final PostRepository<Post>? recoveryRepository;
+  final List<BooruConfig>? repositoryConfigs;
 
   @override
   Widget build(BuildContext context) => ProviderScope(
@@ -242,7 +385,9 @@ class _BookmarkViewerHarness extends StatelessWidget {
         () => BooruConfigNotifier(initialConfigs: [_config]),
       ),
       booruEngineRegistryProvider.overrideWithValue(BooruEngineRegistry()),
-      bookmarkProvider.overrideWith(_EmptyBookmarkNotifier.new),
+      bookmarkProvider.overrideWith(
+        () => bookmarkNotifier ?? _EmptyBookmarkNotifier(),
+      ),
       booruPostPresentationProvider.overrideWith(
         (ref, request) => switch (request.data) {
           GelbooruV2PostData() => const _NativePresentation(),
@@ -252,7 +397,14 @@ class _BookmarkViewerHarness extends StatelessWidget {
       mediaUrlResolverProvider.overrideWith(
         (ref, config) => const _MediaResolver(),
       ),
-      booruRepoProvider.overrideWith((ref, config) => null),
+      booruRepoProvider.overrideWith(
+        (ref, config) =>
+            recoveryRepository == null ? null : _AvailableBooruRepository(),
+      ),
+      originAwarePostRepoProvider.overrideWith((ref, config) {
+        repositoryConfigs?.add(config);
+        return recoveryRepository ?? EmptyPostRepository();
+      }),
       booruBuilderProvider.overrideWith((ref, config) => null),
       automaticMediaLoadingEnabledProvider.overrideWithValue(false),
       hasPremiumLayoutProvider.overrideWithValue(false),
@@ -271,7 +423,7 @@ class _BookmarkViewerHarness extends StatelessWidget {
           child: child!,
         ),
         home: BookmarkDetailsPage(
-          initialIndex: 0,
+          initialIndex: initialIndex,
           initialThumbnailUrl: null,
           controller: controller,
         ),
@@ -302,21 +454,23 @@ final class _NativePresentation
   @override
   PostDetailsUIBuilder detailsBuilder(Post post) => PostDetailsUIBuilder(
     preview: {
-      DetailsPart.toolbar: (context) => const SliverToBoxAdapter(
+      DetailsPart.toolbar: (context) => SliverToBoxAdapter(
         child: Column(
           children: [
-            Text('native@gelbooru.example'),
-            BooruMenuButtonRow(buttons: []),
+            const Text('native@gelbooru.example'),
+            Text('post:${post.id}'),
+            const BooruMenuButtonRow(buttons: []),
           ],
         ),
       ),
     },
     full: {
-      DetailsPart.toolbar: (context) => const SliverToBoxAdapter(
+      DetailsPart.toolbar: (context) => SliverToBoxAdapter(
         child: Column(
           children: [
-            Text('native@gelbooru.example'),
-            BooruMenuButtonRow(buttons: []),
+            const Text('native@gelbooru.example'),
+            Text('post:${post.id}'),
+            const BooruMenuButtonRow(buttons: []),
           ],
         ),
       ),
@@ -334,6 +488,98 @@ final class _NativePresentation
       'menu@${Uri.parse(ref.watchConfigAuth.url).host}',
     ),
   );
+}
+
+PostGridController<Post> _controller(List<Post> posts) {
+  final controller = PostGridController<Post>(
+    fetcher: (_) => TaskEither.right(
+      PostResult(posts: posts, total: posts.length),
+    ),
+    blacklistedTagsFetcher: () async => const {},
+    mountedChecker: () => true,
+    duplicateTracker: PostDuplicateTracker(),
+    onError: (_) {},
+    debounceDuration: Duration.zero,
+  );
+  controller.refresh();
+  return controller;
+}
+
+Bookmark _legacyBookmark({int? postId = 91}) => Bookmark(
+  id: 501,
+  booruId: BooruType.gelbooruV2.id,
+  createdAt: DateTime.utc(2025),
+  updatedAt: DateTime.utc(2025, 1, 2),
+  thumbnailUrl: 'thumbnail-91',
+  sampleUrl: 'sample-91',
+  originalUrl: 'original-91',
+  sourceUrl: '${_config.url}/posts/91',
+  width: 100,
+  height: 100,
+  md5: 'legacy-91',
+  tags: const {'cached'},
+  realSourceUrl: null,
+  format: 'jpg',
+  imageUrlResolver: const DefaultImageUrlResolver(),
+  postId: postId,
+  metadata: const {},
+);
+
+final class _RecoveryBookmarkNotifier extends BookmarkLibraryNotifier {
+  _RecoveryBookmarkNotifier(this.bookmark, this.group);
+
+  final Bookmark bookmark;
+  final BookmarkGroup group;
+  var upgrades = 0;
+
+  @override
+  FutureOr<BookmarkLibraryState> build() => BookmarkLibraryState(
+    bookmarks: [bookmark],
+    groups: [group],
+    activeTarget: const BookmarkTarget.ungrouped(),
+  );
+
+  @override
+  Future<void> upgradeBookmarkSnapshot(Bookmark bookmark, Post post) async {
+    upgrades++;
+    final snapshot = const StoredPostCodec().encode(
+      post,
+      dataCodec: const GelbooruV2PostCodec(),
+    );
+    final upgraded = Bookmark.fromSnapshot(
+      id: bookmark.id,
+      createdAt: bookmark.createdAt,
+      updatedAt: DateTime.utc(2026),
+      snapshot: snapshot,
+      post: post,
+      postId: post.id,
+      sourceUrl: bookmark.sourceUrl,
+    );
+    state = AsyncValue.data(
+      BookmarkLibraryState(
+        bookmarks: [upgraded],
+        groups: [group],
+        activeTarget: const BookmarkTarget.ungrouped(),
+      ),
+    );
+  }
+}
+
+final class _RecoveryPostRepository extends PostRepository<Post> {
+  _RecoveryPostRepository({required this.result});
+
+  final PostOrError<Post> result;
+
+  @override
+  PostOrError<Post> getPost(PostId id, {PostFetchOptions? options}) => result;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+final class _AvailableBooruRepository implements BooruRepository {
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 final class _MediaResolver implements MediaUrlResolver {

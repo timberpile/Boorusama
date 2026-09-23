@@ -13,6 +13,7 @@ import 'package:selection_mode/selection_mode.dart';
 // Project imports:
 import '../../../../../foundation/html.dart';
 import '../../../../boorus/engine/providers.dart';
+import '../../../../boorus/engine/types.dart';
 import '../../../../configs/config/providers.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../configs/create/routes.dart';
@@ -128,11 +129,14 @@ class _PostGridState<T extends Post> extends ConsumerState<PostGrid<T>> {
 
             final multiSelectActions =
                 widget.multiSelectActions ??
-                booruBuilder?.multiSelectionActionsBuilder?.call(
-                  context,
-                  _selectionModeController,
-                  widget.controller,
-                );
+                switch (booruBuilder?.multiSelectionActionsBuilder) {
+                  final builder? => _OriginCompatibleMultiSelectionActions(
+                    selectionModeController: _selectionModeController,
+                    postController: widget.controller,
+                    builder: builder,
+                  ),
+                  null => null,
+                };
 
             return multiSelectActions ?? const SizedBox.shrink();
           },
@@ -228,6 +232,48 @@ class _PostGridState<T extends Post> extends ConsumerState<PostGrid<T>> {
               ),
             ),
       ),
+    );
+  }
+}
+
+class _OriginCompatibleMultiSelectionActions<T extends Post>
+    extends ConsumerWidget {
+  const _OriginCompatibleMultiSelectionActions({
+    required this.selectionModeController,
+    required this.postController,
+    required this.builder,
+  });
+
+  final SelectionModeController selectionModeController;
+  final PostGridController<T> postController;
+  final MultiSelectionActionsBuilder builder;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final config = ref.watchConfig;
+    final configs = ref.watch(booruConfigProvider);
+
+    return ListenableBuilder(
+      listenable: selectionModeController,
+      builder: (context, _) {
+        final selectedPosts = selectionModeController
+            .selectedFrom(postController.items.toList())
+            .toList();
+        final compatible = selectedPosts.every(
+          (post) => switch (const PostOriginResolver().resolve(
+            post.origin,
+            configs,
+          )) {
+            ResolvedPostOrigin(config: final resolved) =>
+              resolved.id == config.id,
+            _ => false,
+          },
+        );
+
+        return compatible
+            ? builder(context, selectionModeController, postController)
+            : DefaultMultiSelectionActions(postController: postController);
+      },
     );
   }
 }

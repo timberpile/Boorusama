@@ -79,6 +79,7 @@ class BookmarkLibraryService {
       updatedAt: updatedAt ?? DateTime.now(),
       snapshot: snapshot,
       post: post,
+      postId: post.id,
       sourceUrl: bookmark.sourceUrl,
     );
     await bookmarkRepository.updateBookmark(upgraded);

@@ -8,6 +8,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'package:scroll_to_index/scroll_to_index.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../configs/manage/providers.dart';
+import '../../../../configs/manage/widgets.dart';
 import '../../../../boorus/engine/providers.dart';
 import '../../../../errors/types.dart';
 import '../../../../posts/details/routes.dart';
@@ -470,112 +471,115 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
   }
 
   @override
-  Widget build(BuildContext context) => PostScope<Post>(
-    pageMode: PageMode.infinite,
-    fetcher: (page) {
-      final history = _history;
-      return TaskEither.tryCatch(
-        () => history.load(page),
-        (error, _) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted && identical(history, _history)) {
-              setState(() => _historyError = true);
-            }
-          });
-          return AppError(
-            type: AppErrorType.loadDataFromServerFailed,
-            message: '$error',
-          );
-        },
-      );
-    },
-    builder: (context, controller) {
-      _controller = controller;
-      return Stack(
-        children: [
-          PostGrid<Post>(
-            controller: controller,
-            enablePullToRefresh: false,
-            itemBuilder: (context, index, scroll, useHero) {
-              if (scroll.hasClients &&
-                  scroll.offset > 0 &&
-                  controller.hasMore &&
-                  index >= controller.items.length - 100 &&
-                  _prefetchedAtLength != controller.items.length) {
-                _prefetchedAtLength = controller.items.length;
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (mounted) {
-                    setState(() => _historyStarted = true);
-                    unawaited(controller.fetchMore());
-                  }
-                });
+  Widget build(BuildContext context) => CurrentBooruConfigScope(
+    config: widget.config,
+    child: PostScope<Post>(
+      pageMode: PageMode.infinite,
+      fetcher: (page) {
+        final history = _history;
+        return TaskEither.tryCatch(
+          () => history.load(page),
+          (error, _) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted && identical(history, _history)) {
+                setState(() => _historyError = true);
               }
-              final post = controller.items.elementAt(index);
-              final config = switch (const PostOriginResolver().resolve(
-                post.origin,
-                ref.watch(booruConfigProvider),
-              )) {
-                ResolvedPostOrigin(:final config) => config,
-                _ => null,
-              };
-              return PostGridContextMenu(
-                controller: controller,
-                index: index,
-                child: DefaultImageGridItem(
-                  index: index,
-                  autoScrollController: scroll,
+            });
+            return AppError(
+              type: AppErrorType.loadDataFromServerFailed,
+              message: '$error',
+            );
+          },
+        );
+      },
+      builder: (context, controller) {
+        _controller = controller;
+        return Stack(
+          children: [
+            PostGrid<Post>(
+              controller: controller,
+              enablePullToRefresh: false,
+              itemBuilder: (context, index, scroll, useHero) {
+                if (scroll.hasClients &&
+                    scroll.offset > 0 &&
+                    controller.hasMore &&
+                    index >= controller.items.length - 100 &&
+                    _prefetchedAtLength != controller.items.length) {
+                  _prefetchedAtLength = controller.items.length;
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (mounted) {
+                      setState(() => _historyStarted = true);
+                      unawaited(controller.fetchMore());
+                    }
+                  });
+                }
+                final post = controller.items.elementAt(index);
+                final config = switch (const PostOriginResolver().resolve(
+                  post.origin,
+                  ref.watch(booruConfigProvider),
+                )) {
+                  ResolvedPostOrigin(:final config) => config,
+                  _ => null,
+                };
+                return PostGridContextMenu(
                   controller: controller,
-                  useHero: useHero,
-                  config: config?.auth ?? BooruConfig.empty.auth,
-                  imageConfig: config?.auth,
-                  presentation: config == null
-                      ? const GenericPostPresentation()
-                      : null,
-                  onTap: () => _openPost(index, scroll, post),
-                ),
-              );
-            },
-          ),
-          if (_hasUpdates ||
-              _historyError ||
-              (widget.feed.posts.length < 12 &&
-                  !_historyStarted &&
-                  !controller.refreshing &&
-                  controller.hasMore))
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 16,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (_hasUpdates)
-                    FilledButton(
-                      onPressed: _showLatestPosts,
-                      child: Text(
-                        context.t.pinned_searches.feed_updates_available,
-                      ),
-                    ),
-                  if (_historyError)
-                    FilledButton(
-                      onPressed: _retryHistory,
-                      child: Text(context.t.generic.action.retry),
-                    ),
-                  if (widget.feed.posts.length < 12 &&
-                      !_historyStarted &&
-                      !_historyError &&
-                      !controller.refreshing &&
-                      controller.hasMore)
-                    FilledButton(
-                      onPressed: _loadOlderPosts,
-                      child: Text(context.t.pinned_searches.load_older_posts),
-                    ),
-                ],
-              ),
+                  index: index,
+                  child: DefaultImageGridItem(
+                    index: index,
+                    autoScrollController: scroll,
+                    controller: controller,
+                    useHero: useHero,
+                    config: config?.auth ?? BooruConfig.empty.auth,
+                    imageConfig: config?.auth,
+                    presentation: config == null
+                        ? const GenericPostPresentation()
+                        : null,
+                    onTap: () => _openPost(index, scroll, post),
+                  ),
+                );
+              },
             ),
-        ],
-      );
-    },
+            if (_hasUpdates ||
+                _historyError ||
+                (widget.feed.posts.length < 12 &&
+                    !_historyStarted &&
+                    !controller.refreshing &&
+                    controller.hasMore))
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 16,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_hasUpdates)
+                      FilledButton(
+                        onPressed: _showLatestPosts,
+                        child: Text(
+                          context.t.pinned_searches.feed_updates_available,
+                        ),
+                      ),
+                    if (_historyError)
+                      FilledButton(
+                        onPressed: _retryHistory,
+                        child: Text(context.t.generic.action.retry),
+                      ),
+                    if (widget.feed.posts.length < 12 &&
+                        !_historyStarted &&
+                        !_historyError &&
+                        !controller.refreshing &&
+                        controller.hasMore)
+                      FilledButton(
+                        onPressed: _loadOlderPosts,
+                        child: Text(context.t.pinned_searches.load_older_posts),
+                      ),
+                  ],
+                ),
+              ),
+          ],
+        );
+      },
+    ),
   );
 }
 
