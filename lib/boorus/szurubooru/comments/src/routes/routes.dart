@@ -2,6 +2,8 @@
 import 'package:kurumi/cupertino.dart';
 
 // Project imports:
+import '../../../../../core/configs/config/types.dart';
+import '../../../../../core/configs/manage/widgets.dart';
 import '../../../../../core/router.dart';
 import '../pages/comment_create_page.dart';
 import '../pages/comment_update_page.dart';
@@ -20,26 +22,30 @@ final szurubooruCommentEditorRoutes = GoRoute(
           state.uri.queryParameters['comment_id'] ?? '',
         );
 
-        if (postId == null) {
-          return const InvalidPage(
+        final page = switch ((postId, commentId, text)) {
+          (null, _, _) => const InvalidPage(
             message: 'Invalid post ID',
-          );
-        }
-
-        if (commentId == null) {
-          return SzurubooruCommentCreatePage(
+          ),
+          (final int postId, null, _) => SzurubooruCommentCreatePage(
             postId: postId,
             initialContent: text,
-          );
-        } else if (text == null) {
-          return const InvalidPage(message: 'Invalid comment');
-        }
+          ),
+          (_, _, null) => const InvalidPage(message: 'Invalid comment'),
+          (final int postId, final int commentId, final String text) =>
+            SzurubooruCommentUpdatePage(
+              postId: postId,
+              commentId: commentId,
+              initialContent: text,
+            ),
+        };
 
-        return SzurubooruCommentUpdatePage(
-          postId: postId,
-          commentId: commentId,
-          initialContent: text,
-        );
+        return switch (state.extra) {
+          final BooruConfig config => CurrentBooruConfigScope(
+            config: config,
+            child: page,
+          ),
+          _ => page,
+        };
       },
     ),
   ),

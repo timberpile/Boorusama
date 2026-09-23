@@ -6,6 +6,7 @@ import 'package:foundation/foundation.dart';
 // Project imports:
 import '../../../core/configs/config/providers.dart';
 import '../../../core/configs/config/types.dart';
+import '../../../core/configs/manage/providers.dart';
 import '../../../core/posts/favorites/providers.dart';
 import '../../../core/posts/votes/providers.dart';
 import '../client_provider.dart';
@@ -91,4 +92,5 @@ final szurubooruPostVoteProvider = Provider.autoDispose
         final config = ref.watchConfigAuth;
         return ref.watch(szurubooruPostVotesProvider(config))[postId];
       },
+      dependencies: [currentReadOnlyBooruConfigAuthProvider],
     );

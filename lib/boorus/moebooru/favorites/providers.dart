@@ -14,14 +14,14 @@ final moebooruFavoritesProvider =
       dependencies: [currentReadOnlyBooruConfigAuthProvider],
     );
 
-var _cancelToken = CancelToken();
-
 class MoebooruFavoritesNotifier extends FamilyNotifier<Set<String>?, int> {
   late BooruConfigAuth _config;
+  var _cancelToken = CancelToken();
 
   @override
   Set<String>? build(int arg) {
     _config = ref.watchConfigAuth;
+    ref.onDispose(() => _cancelToken.cancel());
     return null;
   }
 

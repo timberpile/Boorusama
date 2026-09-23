@@ -39,4 +39,4 @@ host and profile hint that produced it.
 - Custom AnimePictures, Pixiv, Eshuushuu, Nozomi, and Moebooru feeds bind
   direct-client results with the same reusable origin boundary.
 - Origin repository and direct-fetch regression tests pass, along with the
-  complete 1,392-test suite.
+  complete 1,397-test suite.

@@ -112,7 +112,7 @@ class _SearchPageScaffoldState<T extends Post>
       onSearch: () {
         ref
             .read(searchHistoryProvider.notifier)
-            .addHistoryFromController(_tagsController);
+            .addHistoryFromController(_tagsController, ref.readConfigAuth);
       },
       metatagExtractor: extractor,
       textMatchers: widget.textMatchers,

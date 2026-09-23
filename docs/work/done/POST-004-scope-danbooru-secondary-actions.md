@@ -37,7 +37,11 @@ resolved `BooruConfig`, including nested sheets.
 - Providers reached from those scoped pages declare their current-profile
   dependencies, so Riverpod rebuilds them in the page-local container instead
   of raising an override assertion.
+- The same scope handoff covers Szurubooru comment editors and pool details;
+  E621 artist and Szurubooru vote providers are scope-aware, and search history
+  records the profile that launched the search.
+- Concurrent Moebooru favorite-user loads use notifier-local cancellation.
 - The route handoff regression test passes with a page-local profile, and tag
   history and the reported Danbooru search/details/back flow loaded successfully
   on `emulator-5556`.
-- The complete 1,392-test suite passes.
+- The complete 1,397-test suite passes.
