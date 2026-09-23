@@ -67,7 +67,7 @@ class _TagEditUploadPageState extends ConsumerState<TagEditUploadPage> {
       viewController: viewController,
       imageFooterBuilder: () {
         final text = Text(
-          buildDetailsText(widget.post),
+          buildDetailsText(widget.post.post),
         );
 
         return Container(

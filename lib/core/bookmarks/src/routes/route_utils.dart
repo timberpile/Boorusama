@@ -60,7 +60,7 @@ Future<void> goToBookmarkDetailsPage(
   WidgetRef ref,
   int index, {
   required String initialThumbnailUrl,
-  required PostGridController<UnifiedPost> controller,
+  required PostGridController<Post> controller,
 }) {
   return ref.router.push(
     Uri(

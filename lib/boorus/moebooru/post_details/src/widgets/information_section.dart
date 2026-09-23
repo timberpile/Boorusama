@@ -19,7 +19,7 @@ class MoebooruInformationSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final post = InheritedPost.of<UnifiedPost>(context);
+    final post = InheritedPost.of<Post>(context);
     final config = ref.watchConfigAuth;
 
     return SliverToBoxAdapter(

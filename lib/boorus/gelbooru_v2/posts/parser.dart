@@ -4,18 +4,20 @@ import 'package:foundation/foundation.dart';
 import 'package:path/path.dart' as path;
 
 // Project imports:
+import '../../../core/boorus/booru/types.dart';
 import '../../../core/posts/post/tags.dart';
 import '../../../core/posts/post/types.dart';
 import '../../../core/posts/rating/types.dart';
 import '../../../core/posts/sources/types.dart';
+import 'post_codec.dart';
 import 'types.dart';
 
-GelbooruV2Post gelbooruV2PostDtoToGelbooruPostNoMetadata(
+Post gelbooruV2PostDtoToGelbooruPostNoMetadata(
   PostV2Dto dto,
   GelbooruV2ImageUrlResolver imageUrlResolver,
 ) => gelbooruV2PostDtoToGelbooruPost(dto, null, imageUrlResolver);
 
-GelbooruV2Post gelbooruV2PostDtoToGelbooruPost(
+Post gelbooruV2PostDtoToGelbooruPost(
   PostV2Dto dto,
   PostMetadata? metadata,
   GelbooruV2ImageUrlResolver imageUrlResolver,
@@ -30,7 +32,7 @@ GelbooruV2Post gelbooruV2PostDtoToGelbooruPost(
     dto.fileUrl ?? '',
   );
 
-  return GelbooruV2Post(
+  final record = GelbooruV2PostRecord(
     id: dto.id!,
     thumbnailImageUrl: previewUrl,
     sampleImageUrl: sampleUrl,
@@ -57,6 +59,10 @@ GelbooruV2Post gelbooruV2PostDtoToGelbooruPost(
     metadata: metadata,
     status: StringPostStatus.tryParse(dto.status),
     isVideoPreview: dto.isVideoPreview ?? false,
+  );
+  return gelbooruV2PostFromRecord(
+    record,
+    PostOrigin.forBooruType(BooruType.gelbooruV2),
   );
 }
 

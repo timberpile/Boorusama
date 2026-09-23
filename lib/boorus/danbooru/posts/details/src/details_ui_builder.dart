@@ -45,7 +45,7 @@ class DanbooruArtistPostsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DefaultInheritedArtistPostsSection<UnifiedPost>(
+    return DefaultInheritedArtistPostsSection<Post>(
       filterQuery: CustomPostFilterQuery(
         includeWhen: (post) => !(post.status?.matches('banned') ?? false),
       ),
@@ -58,9 +58,9 @@ class DanbooruUploaderPostsSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final post = InheritedPost.of<UnifiedPost>(context);
+    final post = InheritedPost.of<Post>(context);
 
-    return UploaderPostsSection<UnifiedPost>(
+    return UploaderPostsSection<Post>(
       query: ref.watch(
         danbooruUploaderQueryProvider(post),
       ),

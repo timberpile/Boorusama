@@ -1,3 +1,6 @@
+export '../../../core/posts/post/types.dart' show Post;
+export 'post_data.dart';
+
 // Package imports:
 import 'package:equatable/equatable.dart';
 
@@ -8,15 +11,15 @@ import '../../../core/posts/sources/types.dart';
 import '../../../core/tags/tag/types.dart';
 import '../pools/types.dart';
 
-class SzurubooruPost extends Equatable
+class SzurubooruPostRecord extends Equatable
     with
         MediaInfoMixin,
         TranslatedMixin,
         ImageInfoMixin,
         VideoInfoMixin,
-        NoTagDetailsMixin
-    implements Post {
-  SzurubooruPost({
+        NoTagDetailsRecordMixin
+    implements PostRecord {
+  SzurubooruPostRecord({
     required this.id,
     required this.thumbnailImageUrl,
     required this.sampleImageUrl,

@@ -1,8 +1,11 @@
+export '../../../core/posts/post/types.dart' show Post;
+export 'post_data.dart';
+
 // Project imports:
 import '../../../core/posts/post/types.dart';
 
-class HydrusPost extends SimplePost {
-  HydrusPost({
+class HydrusPostRecord extends CommonPostRecord {
+  HydrusPostRecord({
     required super.id,
     required super.thumbnailImageUrl,
     required super.sampleImageUrl,

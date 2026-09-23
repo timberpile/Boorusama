@@ -49,7 +49,7 @@ final bookmarkRoutes = GoRoute(
           child: BookmarkDetailsPage(
             initialIndex: state.uri.queryParameters['index']?.toInt() ?? 0,
             initialThumbnailUrl: extra['initialThumbnailUrl'] as String,
-            controller: extra['controller'] as PostGridController<UnifiedPost>,
+            controller: extra['controller'] as PostGridController<Post>,
           ),
         );
       },

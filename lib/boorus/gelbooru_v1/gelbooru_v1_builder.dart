@@ -19,8 +19,6 @@ import '../../core/search/search/routes.dart';
 import '../../core/search/search/widgets.dart';
 import '../../foundation/html.dart';
 import 'configs/widgets.dart';
-import 'posts/post_codec.dart';
-import 'posts/types.dart';
 
 class GelbooruV1Builder extends BaseBooruBuilder {
   GelbooruV1Builder();
@@ -30,10 +28,6 @@ class GelbooruV1Builder extends BaseBooruBuilder {
     typeKey: 'gelbooru_v1',
     uiBuilder: postDetailsUIBuilder,
   );
-
-  @override
-  PostToUnifiedConverter get postConverter =>
-      (post, origin) => gelbooruV1PostToUnified(post as GelbooruV1Post, origin);
 
   @override
   CreateConfigPageBuilder get createConfigPageBuilder =>
@@ -80,9 +74,8 @@ class GelbooruV1Builder extends BaseBooruBuilder {
 
   @override
   PostDetailsPageBuilder get postDetailsPageBuilder =>
-      (context, payload) => LegacyPostDetailsPageAdapter(
+      (context, payload) => MixedPostDetailsPageAdapter(
         payload: payload,
-        converter: postConverter,
       );
 
   @override
@@ -100,7 +93,7 @@ class GelbooruV1SearchPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final postRepo = ref.watch(unifiedPostRepoProvider(ref.watchConfig));
+    final postRepo = ref.watch(originAwarePostRepoProvider(ref.watchConfig));
 
     return SearchPageScaffold(
       landingViewBuilder: (controller) => DefaultMobileSearchLandingView(

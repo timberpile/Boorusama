@@ -9,7 +9,6 @@ import '../../core/configs/network/widgets.dart';
 import '../../core/posts/details/widgets.dart';
 import '../../core/posts/post/types.dart';
 import 'configs/widgets.dart';
-import 'posts/post_codec.dart';
 import 'posts/post_data.dart';
 import 'posts/types.dart';
 import 'posts/widgets.dart';
@@ -22,10 +21,6 @@ class PhilomenaBuilder extends BaseBooruBuilder {
     typeKey: 'philomena',
     uiBuilder: postDetailsUIBuilder,
   );
-
-  @override
-  PostToUnifiedConverter get postConverter =>
-      (post, origin) => philomenaPostToUnified(post as PhilomenaPost, origin);
 
   @override
   CreateConfigPageBuilder get createConfigPageBuilder =>
@@ -62,9 +57,8 @@ class PhilomenaBuilder extends BaseBooruBuilder {
 
   @override
   PostDetailsPageBuilder get postDetailsPageBuilder =>
-      (context, payload) => LegacyPostDetailsPageAdapter(
+      (context, payload) => MixedPostDetailsPageAdapter(
         payload: payload,
-        converter: postConverter,
       );
 
   @override

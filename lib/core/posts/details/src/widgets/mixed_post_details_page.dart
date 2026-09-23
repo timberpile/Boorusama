@@ -121,16 +121,10 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
     final layout = config.layout;
     final gestures = config.postGestures;
     final booruRepo = ref.watch(booruRepoProvider(auth));
-    final baseUiBuilder = switch ((
-      currentPresentation.usesGenericPresentation,
-      currentPresentation.context.post,
-    )) {
-      (true, _) => _genericPostDetailsUiBuilder,
-      (false, final UnifiedPost post) =>
-        currentPresentation.context.presentation.detailsBuilder(post),
-      _ => _genericPostDetailsUiBuilder,
-    };
     final currentPost = currentPresentation.context.post;
+    final baseUiBuilder = currentPresentation.usesGenericPresentation
+        ? _genericPostDetailsUiBuilder
+        : currentPresentation.context.presentation.detailsBuilder(currentPost);
     final uiBuilder =
         widget.uiBuilderDecorator?.call(
           baseUiBuilder,
@@ -201,13 +195,12 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
     final post = currentPost;
     final wrapper =
         currentPresentation.context.presentation.detailsWrapperBuilder;
-    final behaviorCompanion = switch ((post, wrapper)) {
-      (final UnifiedPost post, final wrapper?) => wrapper(
-        post: post,
-        child: const SizedBox.shrink(),
-      ),
-      _ => null,
-    };
+    final behaviorCompanion = wrapper == null
+        ? null
+        : wrapper(
+            post: post,
+            child: const SizedBox.shrink(),
+          );
 
     return CurrentPostDetailsNotes(
       post: post,

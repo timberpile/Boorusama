@@ -251,7 +251,7 @@ class PostGridContextMenu extends StatelessWidget {
       builder: (context, ref, _) {
         final post = index < posts.length ? posts[index] : null;
         final originResolution = switch (post) {
-          final UnifiedPost post => const PostOriginResolver().resolve(
+          final Post post => const PostOriginResolver().resolve(
             post.origin,
             ref.watch(booruConfigProvider),
           ),
@@ -262,7 +262,7 @@ class PostGridContextMenu extends StatelessWidget {
           _ => null,
         };
         final presentation = switch ((post, config)) {
-          (final UnifiedPost post, final BooruConfig _) => ref.watch(
+          (final Post post, final BooruConfig _) => ref.watch(
             booruPostPresentationProvider((
               origin: post.origin,
               data: post.booruData,
@@ -273,14 +273,14 @@ class PostGridContextMenu extends StatelessWidget {
 
         final contextMenuPresentation = _contextMenuPresentation(presentation);
         final Widget menu;
-        if (post case final UnifiedPost unifiedPost
+        if (post case final Post post
             when config != null &&
                 presentation != null &&
                 contextMenuPresentation != null &&
-                presentation.supports(unifiedPost.booruData)) {
+                presentation.supports(post.booruData)) {
           menu = contextMenuPresentation.buildGridContextMenu(
             context,
-            post: unifiedPost,
+            post: post,
             index: index,
             child: child,
           );

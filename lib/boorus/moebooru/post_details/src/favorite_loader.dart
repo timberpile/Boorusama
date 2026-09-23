@@ -20,7 +20,7 @@ class MoebooruFavoriteUsersLoader extends ConsumerStatefulWidget {
     super.key,
   });
 
-  final UnifiedPost post;
+  final Post post;
   final Widget child;
 
   @override
@@ -99,7 +99,7 @@ class MoebooruFavoritesLoader extends ConsumerStatefulWidget {
     super.key,
   });
 
-  final PostDetailsData<MoebooruPost> data;
+  final PostDetailsData<Post> data;
   final PostDetailsPageViewController controller;
   final Widget child;
 
@@ -110,11 +110,11 @@ class MoebooruFavoritesLoader extends ConsumerStatefulWidget {
 
 class _MoebooruFavoritesLoaderState
     extends ConsumerState<MoebooruFavoritesLoader> {
-  late PostDetailsData<MoebooruPost> data = widget.data;
+  late PostDetailsData<Post> data = widget.data;
   late var _pageViewController = widget.controller;
 
-  List<MoebooruPost> get posts => data.posts;
-  PostDetailsController<MoebooruPost> get controller => data.controller;
+  List<Post> get posts => data.posts;
+  PostDetailsController<Post> get controller => data.controller;
 
   var _fetchFavSlideShowSkipped = false;
 

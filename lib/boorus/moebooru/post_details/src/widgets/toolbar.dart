@@ -21,13 +21,13 @@ class MoebooruPostDetailsActionToolbar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final config = ref.watchConfigAuth;
-    final post = InheritedPost.of<UnifiedPost>(context);
+    final post = InheritedPost.of<Post>(context);
     final booru = ref.watch(moebooruProvider);
 
     return SliverToBoxAdapter(
       child: booru.supportsFavorite(config.url)
-          ? _Toolbar<UnifiedPost>(post: post)
-          : DefaultPostActionToolbar<UnifiedPost>(post: post),
+          ? _Toolbar<Post>(post: post)
+          : DefaultPostActionToolbar<Post>(post: post),
     );
   }
 }

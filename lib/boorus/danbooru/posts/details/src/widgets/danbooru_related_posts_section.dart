@@ -17,7 +17,7 @@ class DanbooruRelatedPostsSection extends ConsumerWidget {
   });
 
   final Post currentPost;
-  final List<DanbooruPost> posts;
+  final List<Post> posts;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

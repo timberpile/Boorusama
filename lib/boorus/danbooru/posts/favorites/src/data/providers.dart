@@ -14,7 +14,7 @@ import '../types/favorite.dart';
 import 'parser.dart';
 
 final danbooruFavoriteRepoProvider =
-    Provider.family<FavoriteRepository<DanbooruPost>, BooruConfigAuth>(
+    Provider.family<FavoriteRepository<Post>, BooruConfigAuth>(
       (ref, config) {
         final client = ref.watch(danbooruClientProvider(config));
         final loginDetails = ref.watch(danbooruLoginDetailsProvider(config));

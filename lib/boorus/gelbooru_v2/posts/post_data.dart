@@ -18,3 +18,10 @@ final class GelbooruV2PostData extends Equatable implements BooruPostData {
   @override
   List<Object?> get props => [hasNotes];
 }
+
+extension GelbooruV2PostDataX on Post {
+  bool get hasNotes => switch (booruData) {
+    GelbooruV2PostData(:final hasNotes) => hasNotes,
+    _ => false,
+  };
+}

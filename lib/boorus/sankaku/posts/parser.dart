@@ -3,14 +3,16 @@ import 'package:booru_clients/sankaku.dart';
 import 'package:coreutils/coreutils.dart';
 
 // Project imports:
+import '../../../core/boorus/booru/types.dart';
 import '../../../core/posts/post/types.dart';
 import '../../../core/posts/rating/types.dart';
 import '../../../core/posts/sources/types.dart';
 import '../../../core/tags/categories/types.dart';
 import '../../../core/tags/tag/types.dart';
+import 'post_codec.dart';
 import 'types.dart';
 
-SankakuPost postDtoToPost(
+Post postDtoToPost(
   PostDto e,
   PostIdGenerator idGenerator,
   PostMetadata? metadata,
@@ -104,7 +106,7 @@ SankakuPost postDtoToPost(
     StringId s => (idGenerator.generateId(), s),
   };
 
-  return SankakuPost(
+  final record = SankakuPostRecord(
     id: id,
     sankakuId: sankakuId,
     isFavorited: e.isFavorited ?? false,
@@ -146,6 +148,10 @@ SankakuPost postDtoToPost(
     uploaderName: e.author?.name,
     metadata: metadata,
     status: StringPostStatus.tryParse(e.status),
+  );
+  return sankakuPostFromRecord(
+    record,
+    PostOrigin.forBooruType(BooruType.sankaku),
   );
 }
 

@@ -3,22 +3,21 @@ import '../post/types.dart';
 import '../../../../core/posts/post/types.dart';
 
 class PostCreatorsPreloadable {
-  factory PostCreatorsPreloadable.fromPosts(List<DanbooruPost> posts) {
+  factory PostCreatorsPreloadable.fromPosts(List<Post> posts) {
     final ids = posts
-        .map(
-          (e) => [
-            e.uploaderId,
-            if (e.approverId != null) e.approverId!,
+        .expand(
+          (post) => [
+            if (post.uploaderId case final id?) id,
+            if (post.approverId case final id?) id,
           ],
         )
-        .expand((e) => e)
         .toSet()
         .toList();
 
     return PostCreatorsPreloadable._(ids);
   }
 
-  factory PostCreatorsPreloadable.fromUnifiedPost(UnifiedPost post) {
+  factory PostCreatorsPreloadable.fromPost(Post post) {
     final data = post.booruData;
     final approverId = switch (data) {
       DanbooruPostData(:final approverId) => approverId,

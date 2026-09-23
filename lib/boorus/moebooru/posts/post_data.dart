@@ -18,3 +18,10 @@ final class MoebooruPostData extends Equatable implements BooruPostData {
   @override
   List<Object?> get props => [largeImageUrl];
 }
+
+extension MoebooruPostDataX on Post {
+  String get largeImageUrl => switch (booruData) {
+    MoebooruPostData(:final largeImageUrl) => largeImageUrl,
+    _ => '',
+  };
+}

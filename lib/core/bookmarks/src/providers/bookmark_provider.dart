@@ -267,7 +267,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
 
   Future<void> upgradeBookmarkSnapshot(
     Bookmark bookmark,
-    UnifiedPost post,
+    Post post,
   ) => _serialize(() async {
     final capability = ref
         .read(booruEngineRegistryProvider)

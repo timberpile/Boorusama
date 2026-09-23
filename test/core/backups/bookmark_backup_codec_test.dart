@@ -245,7 +245,7 @@ void main() {
   });
 }
 
-UnifiedPost _nativePost() => UnifiedPost(
+Post _nativePost() => Post(
   origin: PostOrigin.fromSource(
     booruType: BooruType.gelbooruV2,
     booruId: BooruType.gelbooruV2.id,

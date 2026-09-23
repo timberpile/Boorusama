@@ -18,7 +18,7 @@ final hydrusPostRepoProvider =
         final client = ref.watch(hydrusClientProvider(config.auth));
         final tagComposer = ref.watch(defaultTagQueryComposerProvider(config));
 
-        Future<PostResult<HydrusPost>> getPosts(
+        Future<PostResult<Post>> getPosts(
           List<String> tags,
           int page, {
           int? limit,

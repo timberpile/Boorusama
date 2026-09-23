@@ -32,9 +32,8 @@ final class HydrusPostCodec implements BooruPostDataCodec<HydrusPostData> {
   }
 }
 
-UnifiedPost hydrusPostToUnified(HydrusPost post, PostOrigin origin) =>
-    UnifiedPost(
-      origin: origin,
-      core: PostCoreData.fromPost(post),
-      booruData: HydrusPostData(ownFavorite: post.ownFavorite),
-    );
+Post hydrusPostFromRecord(HydrusPostRecord post, PostOrigin origin) => Post(
+  origin: origin,
+  core: PostCoreData.fromPost(post),
+  booruData: HydrusPostData(ownFavorite: post.ownFavorite),
+);

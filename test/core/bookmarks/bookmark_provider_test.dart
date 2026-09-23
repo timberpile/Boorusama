@@ -1230,19 +1230,15 @@ class _FailsSecondAddBookmarkRepository extends BookmarkHiveRepository {
 }
 
 Bookmark _bookmarkFromPost(Post post) {
-  final unified = switch (post) {
-    final UnifiedPost post => post,
-    _ => throw StateError('Expected a unified bookmark post.'),
-  };
   return Bookmark.fromSnapshot(
     id: -1,
     createdAt: DateTime(1),
     updatedAt: DateTime(1),
-    snapshot: const StoredPostCodec().encode(unified),
-    post: unified,
-    sourceUrl: unified.origin.sourceHost.isEmpty
+    snapshot: const StoredPostCodec().encode(post),
+    post: post,
+    sourceUrl: post.origin.sourceHost.isEmpty
         ? ''
-        : 'https://${unified.origin.sourceHost}',
+        : 'https://${post.origin.sourceHost}',
   );
 }
 

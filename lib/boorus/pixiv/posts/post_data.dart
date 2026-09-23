@@ -59,3 +59,26 @@ final class PixivPostData extends Equatable implements BooruPostData {
     isRestricted,
   ];
 }
+
+extension PixivPostDataX on Post {
+  PixivPostData? get pixivData => switch (booruData) {
+    final PixivPostData data => data,
+    _ => null,
+  };
+
+  int get illustId => pixivData?.illustId ?? id;
+  int get pageIndex => pixivData?.pageIndex ?? 0;
+  int get pageCount => pixivData?.pageCount ?? 1;
+  int get userId => pixivData?.userId ?? 0;
+  String get userName => pixivData?.userName ?? '';
+  String get userAccount => pixivData?.userAccount ?? '';
+  PixivIllustType get illustType =>
+      pixivData?.illustType ?? PixivIllustType.unknown;
+  int get totalBookmarks => pixivData?.totalBookmarks ?? 0;
+  int get totalView => pixivData?.totalView ?? 0;
+  int get aiType => pixivData?.aiType ?? 0;
+  String? get seriesTitle => pixivData?.seriesTitle;
+  bool get isUgoira => pixivData?.isUgoira ?? false;
+  bool get isRestricted => pixivData?.isRestricted ?? false;
+  bool get hasMultiplePages => pageCount > 1;
+}

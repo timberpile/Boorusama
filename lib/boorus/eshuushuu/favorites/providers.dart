@@ -9,7 +9,7 @@ import '../client_provider.dart';
 import '../posts/types.dart';
 
 final eshuushuuFavoriteRepoProvider =
-    Provider.family<FavoriteRepository<EshuushuuPost>, BooruConfigAuth>(
+    Provider.family<FavoriteRepository<Post>, BooruConfigAuth>(
       (ref, config) {
         final client = ref.watch(eshuushuuClientProvider(config));
         final hasAuth =

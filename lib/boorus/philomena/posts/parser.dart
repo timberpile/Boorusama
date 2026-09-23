@@ -3,15 +3,17 @@ import 'package:booru_clients/philomena.dart';
 import 'package:foundation/foundation.dart';
 
 // Project imports:
+import '../../../core/boorus/booru/types.dart';
 import '../../../core/posts/post/types.dart';
 import '../../../core/posts/rating/types.dart';
 import '../../../core/posts/sources/types.dart';
+import 'post_codec.dart';
 import 'types.dart';
 
-PhilomenaPost postDtoToPost(ImageDto e, PostMetadata? metadata) {
+Post postDtoToPost(ImageDto e, PostMetadata? metadata) {
   final isVideo = e.mimeType?.contains('video') ?? false;
 
-  return PhilomenaPost(
+  final record = PhilomenaPostRecord(
     id: e.id ?? 0,
     thumbnailImageUrl: isVideo
         ? _parseVideoThumbnail(e) ?? ''
@@ -53,6 +55,10 @@ PhilomenaPost postDtoToPost(ImageDto e, PostMetadata? metadata) {
     uploaderName: e.uploader,
     metadata: metadata,
     status: null,
+  );
+  return philomenaPostFromRecord(
+    record,
+    PostOrigin.forBooruType(BooruType.philomena),
   );
 }
 

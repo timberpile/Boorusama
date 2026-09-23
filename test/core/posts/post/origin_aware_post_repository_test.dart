@@ -19,8 +19,8 @@ void main() {
     source: 'https://gelbooru.example',
     profileIdHint: 42,
   );
-  final first = _Post(2);
-  final second = _Post(1);
+  final first = _post(2);
+  final second = _post(1);
   final delegate = _Repository(
     result: PostResult(
       posts: [first, second],
@@ -29,10 +29,9 @@ void main() {
       hasMore: true,
     ),
   );
-  final repository = UnifiedPostRepository(
+  final repository = OriginAwarePostRepository(
     delegate: delegate,
     origin: origin,
-    converter: _convert,
   );
 
   test('preserves post order and pagination metadata', () async {
@@ -52,7 +51,7 @@ void main() {
   test(
     'converts controller and single-post results with the same origin',
     () async {
-    const options = PostFetchOptions.raw;
+      const options = PostFetchOptions.raw;
       final controllerResult = await repository
           .getPostsFromController(
             SearchTagSet.fromList(const ['one', 'two']),
@@ -86,10 +85,9 @@ void main() {
       type: AppErrorType.loadDataFromServerFailed,
       message: 'failed',
     );
-    final repository = UnifiedPostRepository(
+    final repository = OriginAwarePostRepository(
       delegate: _Repository(error: error),
       origin: origin,
-      converter: _convert,
     );
 
     final result = await repository.getPosts('', 1).run();
@@ -98,19 +96,13 @@ void main() {
   });
 }
 
-UnifiedPost _convert(Post post, PostOrigin origin) => UnifiedPost(
-  origin: origin,
-  core: PostCoreData.fromPost(post),
-  booruData: const EmptyPostData(typeKey: 'gelbooru'),
-);
-
-final class _Repository implements PostRepository<_Post> {
+final class _Repository implements PostRepository<Post> {
   _Repository({
     this.result,
     this.error,
   });
 
-  final PostResult<_Post>? result;
+  final PostResult<Post>? result;
   final BooruError? error;
 
   String? lastTags;
@@ -122,7 +114,7 @@ final class _Repository implements PostRepository<_Post> {
   final TagQueryComposer tagComposer = EmptyTagQueryComposer();
 
   @override
-  PostsOrError<_Post> getPosts(
+  PostsOrError<Post> getPosts(
     String tags,
     int page, {
     int? limit,
@@ -136,7 +128,7 @@ final class _Repository implements PostRepository<_Post> {
   }
 
   @override
-  PostsOrError<_Post> getPostsFromController(
+  PostsOrError<Post> getPostsFromController(
     SearchTagSet controller,
     int page, {
     int? limit,
@@ -149,7 +141,7 @@ final class _Repository implements PostRepository<_Post> {
   }
 
   @override
-  PostOrError<_Post> getPost(
+  PostOrError<Post> getPost(
     PostId id, {
     PostFetchOptions? options,
   }) {
@@ -168,37 +160,38 @@ final class _Repository implements PostRepository<_Post> {
     };
   }
 
-  PostsOrError<_Post> _result() => switch ((error, result)) {
+  PostsOrError<Post> _result() => switch ((error, result)) {
     (final error?, _) => TaskEither.left(error),
     (_, final result?) => TaskEither.right(result),
     _ => TaskEither.right(PostResult.empty()),
   };
 }
 
-final class _Post extends SimplePost {
-  _Post(int id)
-    : super(
-        id: id,
-        thumbnailImageUrl: 'thumb/$id',
-        sampleImageUrl: 'sample/$id',
-        originalImageUrl: 'original/$id',
-        tags: const {},
-        rating: Rating.general,
-        hasComment: false,
-        isTranslated: false,
-        hasParentOrChildren: false,
-        source: PostSource.none(),
-        score: 0,
-        duration: 0,
-        fileSize: 0,
-        format: 'jpg',
-        hasSound: null,
-        height: 1,
-        md5: '',
-        videoThumbnailUrl: '',
-        videoUrl: '',
-        width: 1,
-        uploaderId: null,
-        metadata: null,
-      );
-}
+Post _post(int id) => Post(
+  origin: PostOrigin.forBooruType(BooruType.unknown),
+  core: PostCoreData(
+    id: id,
+    thumbnailImageUrl: 'thumb/$id',
+    sampleImageUrl: 'sample/$id',
+    originalImageUrl: 'original/$id',
+    videoUrl: '',
+    videoThumbnailUrl: '',
+    width: 1,
+    height: 1,
+    format: 'jpg',
+    md5: '',
+    fileSize: 0,
+    duration: 0,
+    hasSound: null,
+    tags: const {},
+    rating: Rating.general,
+    hasComment: false,
+    isTranslated: false,
+    hasParentOrChildren: false,
+    source: PostSource.none(),
+    score: 0,
+    uploaderId: null,
+    metadata: null,
+  ),
+  booruData: const EmptyPostData(typeKey: 'test'),
+);

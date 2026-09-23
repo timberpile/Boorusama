@@ -84,7 +84,7 @@ void main() {
       await _nextPage(tester);
       expect(find.byType(DanbooruInformationSection), findsNothing);
       expect(
-        find.byType(DefaultInheritedInformationSection<UnifiedPost>),
+        find.byType(DefaultInheritedInformationSection<Post>),
         findsWidgets,
       );
       _expectMedia(tester, postId: 1, host: 'e621.example');
@@ -97,7 +97,7 @@ void main() {
       await pageView.nextPage(duration: Duration.zero);
       await tester.pumpAndSettle();
       expect(
-        find.byType(DefaultInheritedPostActionToolbar<UnifiedPost>),
+        find.byType(DefaultInheritedPostActionToolbar<Post>),
         findsWidgets,
       );
       _expectMedia(tester, postId: 1, host: 'pixiv.example');
@@ -468,12 +468,12 @@ final _posts = <Post>[
   ),
 ];
 
-UnifiedPost _post({
+Post _post({
   required int id,
   required BooruType booruType,
   required String host,
   required BooruPostData data,
-}) => UnifiedPost(
+}) => Post(
   origin: PostOrigin.fromSource(
     booruType: booruType,
     booruId: booruType.id,
@@ -515,7 +515,7 @@ final class _Presentation implements BooruPostPresentation {
   bool supports(BooruPostData data) => data.typeKey == name;
 
   @override
-  PostDetailsUIBuilder detailsBuilder(UnifiedPost post) => PostDetailsUIBuilder(
+  PostDetailsUIBuilder detailsBuilder(Post post) => PostDetailsUIBuilder(
     preview: {
       DetailsPart.toolbar: (context) => _PresentationProbe(name: name),
     },

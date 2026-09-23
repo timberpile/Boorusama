@@ -1,3 +1,6 @@
+export '../../../core/posts/post/types.dart' show Post;
+export 'post_data.dart';
+
 // Package imports:
 import 'package:collection/collection.dart';
 import 'package:equatable/equatable.dart';
@@ -11,10 +14,10 @@ import '../../../core/posts/post/types.dart';
 import '../../../core/posts/rating/types.dart';
 import '../../../core/posts/sources/types.dart';
 
-class PhilomenaPost extends Equatable
+class PhilomenaPostRecord extends Equatable
     with MediaInfoMixin, TranslatedMixin, ImageInfoMixin, VideoInfoMixin
-    implements Post {
-  PhilomenaPost({
+    implements PostRecord {
+  PhilomenaPostRecord({
     required this.id,
     required this.thumbnailImageUrl,
     required this.sampleImageUrl,
@@ -214,7 +217,7 @@ class PhilomenaMediaUrlResolver implements MediaUrlResolver {
   String resolveMediaUrl(
     Post rawPost,
     BooruConfigViewer config,
-  ) => castOrNull<PhilomenaPost>(rawPost).toOption().fold(
+  ) => castOrNull<PhilomenaPostRecord>(rawPost).toOption().fold(
     () => rawPost.sampleImageUrl,
     (post) => config.imageDetaisQuality.toOption().fold(
       () => post.sampleImageUrl,

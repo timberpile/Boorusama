@@ -3,16 +3,18 @@ import 'package:booru_clients/e621.dart';
 import 'package:path/path.dart' show extension;
 
 // Project imports:
+import '../../../core/boorus/booru/types.dart';
 import '../../../core/posts/post/types.dart';
 import '../../../core/posts/rating/types.dart';
 import '../../../core/posts/sources/types.dart';
+import 'post_codec.dart';
 import 'types.dart';
 
-E621Post? postDtoToPostNoMetadata(PostDto dto) {
+Post? postDtoToPostNoMetadata(PostDto dto) {
   return postDtoToPost(dto, null);
 }
 
-E621Post? postDtoToPost(PostDto dto, PostMetadata? metadata) {
+Post? postDtoToPost(PostDto dto, PostMetadata? metadata) {
   final file = dto.file;
 
   if (file == null || file.url == null) return null;
@@ -32,7 +34,7 @@ E621Post? postDtoToPost(PostDto dto, PostMetadata? metadata) {
   final sampleUrl = dto.sample?.url;
   final originalUrl = dto.file?.url ?? '';
 
-  return E621Post(
+  final record = E621PostRecord(
     id: dto.id ?? 0,
     source: PostSource.from(dto.sources?.firstOrNull),
     thumbnailImageUrl: previewUrl,
@@ -76,6 +78,10 @@ E621Post? postDtoToPost(PostDto dto, PostMetadata? metadata) {
       isFlagged: dto.flags?.flagged,
       isDeleted: dto.flags?.deleted,
     ),
+  );
+  return e621PostFromRecord(
+    record,
+    PostOrigin.forBooruType(BooruType.e621),
   );
 }
 

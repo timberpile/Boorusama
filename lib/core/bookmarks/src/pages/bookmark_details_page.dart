@@ -31,7 +31,7 @@ class BookmarkDetailsPage extends StatelessWidget {
 
   final int initialIndex;
   final String? initialThumbnailUrl;
-  final PostGridController<UnifiedPost> controller;
+  final PostGridController<Post> controller;
 
   @override
   Widget build(BuildContext context) => ValueListenableBuilder(
@@ -88,14 +88,11 @@ class BookmarkPostActionToolbar extends ConsumerWidget {
         .watch(bookmarkProvider)
         .valueOrNull
         ?.bookmarkForPost(post);
-    final config = switch (post) {
-      UnifiedPost(:final origin) => switch (const PostOriginResolver().resolve(
-        origin,
-        ref.watch(booruConfigProvider),
-      )) {
-        ResolvedPostOrigin(:final config) => config,
-        _ => null,
-      },
+    final config = switch (const PostOriginResolver().resolve(
+      post.origin,
+      ref.watch(booruConfigProvider),
+    )) {
+      ResolvedPostOrigin(:final config) => config,
       _ => null,
     };
 

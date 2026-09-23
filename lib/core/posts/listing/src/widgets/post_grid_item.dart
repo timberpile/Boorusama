@@ -25,7 +25,7 @@ typedef PostGridTooltipBuilder = Widget Function(Widget child);
 abstract interface class BooruPostGridPresentation {
   PostGridItemAdditions buildGridItemAdditions(
     BuildContext context, {
-    required UnifiedPost post,
+    required Post post,
     required BooruConfigAuth config,
   });
 }
@@ -33,7 +33,7 @@ abstract interface class BooruPostGridPresentation {
 abstract interface class BooruPostGridContextMenuPresentation {
   Widget buildGridContextMenu(
     BuildContext context, {
-    required UnifiedPost post,
+    required Post post,
     required int index,
     required Widget child,
   });
@@ -199,22 +199,16 @@ class PostGridItem extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
   ) {
-    final unifiedPost = switch (post) {
-      final UnifiedPost post => post,
-      _ => null,
-    };
-    if (unifiedPost == null) return PostGridItemAdditions.empty;
-
     final resolvedPresentation = switch (presentation) {
       final presentation? => presentation,
       null => ref.watch(
         booruPostPresentationProvider((
-          origin: unifiedPost.origin,
-          data: unifiedPost.booruData,
+          origin: post.origin,
+          data: post.booruData,
         )),
       ),
     };
-    if (!resolvedPresentation.supports(unifiedPost.booruData)) {
+    if (!resolvedPresentation.supports(post.booruData)) {
       return PostGridItemAdditions.empty;
     }
     if (resolvedPresentation is! BooruPostGridPresentation) {
@@ -224,7 +218,7 @@ class PostGridItem extends ConsumerWidget {
 
     return gridPresentation.buildGridItemAdditions(
       context,
-      post: unifiedPost,
+      post: post,
       config: config,
     );
   }

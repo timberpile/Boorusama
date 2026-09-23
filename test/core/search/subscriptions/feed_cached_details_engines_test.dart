@@ -57,7 +57,8 @@ void main() {
         .run();
     final post = result.getOrElse((_) => null);
 
-    expect(post, isA<Shimmie2Post>());
+    expect(post, isA<Post>());
+    expect(post?.booruData, isA<Shimmie2PostData>());
     expect(post?.id, 42);
     expect(post?.originalImageUrl, 'https://shimmie.example/images/42.jpg');
     expect(requests.single.path, '/api/danbooru/find_posts');
@@ -116,7 +117,10 @@ void main() {
             .run();
         final post = result.getOrElse((_) => null);
 
-        expect(post, returnedId == 42 ? isA<Shimmie2Post>() : isNull);
+        expect(post, returnedId == 42 ? isA<Post>() : isNull);
+        if (post != null) {
+          expect(post.booruData, isA<Shimmie2PostData>());
+        }
         expect(requests, hasLength(2));
         expect(requests.every((request) => request.path == '/graphql'), isTrue);
       },
@@ -160,7 +164,8 @@ void main() {
         .run();
     final post = result.getOrElse((_) => null);
 
-    expect(post, isA<EshuushuuPost>());
+    expect(post, isA<Post>());
+    expect(post?.booruData, isA<EshuushuuPostData>());
     expect(post?.id, 42);
     expect(post?.originalImageUrl, 'https://cdn.example/42.jpg');
     expect(requests.single.path, '/api/v1/images/42');

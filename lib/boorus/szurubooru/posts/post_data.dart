@@ -39,3 +39,16 @@ final class SzurubooruPostData extends Equatable implements BooruPostData {
     pools,
   ];
 }
+
+extension SzurubooruPostDataX on Post {
+  SzurubooruPostData? get szurubooruData => switch (booruData) {
+    final SzurubooruPostData data => data,
+    _ => null,
+  };
+
+  bool get ownFavorite => szurubooruData?.ownFavorite ?? false;
+  int get favoriteCount => szurubooruData?.favoriteCount ?? 0;
+  int get commentCount => szurubooruData?.commentCount ?? 0;
+  List<Tag> get tagDetails => szurubooruData?.tagDetails ?? const [];
+  List<SzurubooruPool> get pools => szurubooruData?.pools ?? const [];
+}

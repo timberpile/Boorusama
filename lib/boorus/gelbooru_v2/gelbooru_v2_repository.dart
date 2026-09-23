@@ -117,7 +117,7 @@ class GelbooruV2Repository extends BooruRepositoryDefault {
 
   @override
   DownloadFilenameGenerator downloadFilenameBuilder(BooruConfigAuth config) {
-    return DownloadFileNameBuilder<GelbooruV2Post>(
+    return DownloadFileNameBuilder<Post>(
       defaultFileNameFormat: kDefaultCustomDownloadFileNameFormat,
       defaultBulkDownloadFileNameFormat: kDefaultCustomDownloadFileNameFormat,
       sampleData: kDanbooruPostSamples,

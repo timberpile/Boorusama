@@ -118,7 +118,7 @@ void main() {
   });
 }
 
-UnifiedPost _post(BooruPostData data) => UnifiedPost(
+Post _post(BooruPostData data) => Post(
   origin: PostOrigin.fromSource(
     booruType: BooruType.gelbooruV2,
     booruId: BooruType.gelbooruV2.id,
@@ -158,6 +158,6 @@ final class _NotesPresentation implements BooruPostPresentation {
   bool supports(BooruPostData data) => data is GelbooruV2PostData;
 
   @override
-  PostDetailsUIBuilder detailsBuilder(UnifiedPost post) =>
+  PostDetailsUIBuilder detailsBuilder(Post post) =>
       const PostDetailsUIBuilder();
 }

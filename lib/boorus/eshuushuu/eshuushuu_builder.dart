@@ -21,7 +21,6 @@ import 'comments/widgets.dart';
 import 'configs/widgets.dart';
 import 'favorites/widgets.dart';
 import 'home/widgets.dart';
-import 'posts/post_codec.dart';
 import 'posts/post_data.dart';
 import 'posts/types.dart';
 import 'posts/widgets.dart';
@@ -35,10 +34,6 @@ class EshuushuuBuilder extends BaseBooruBuilder {
     typeKey: 'eshuushuu',
     uiBuilder: postDetailsUIBuilder,
   );
-
-  @override
-  PostToUnifiedConverter get postConverter =>
-      (post, origin) => eshuushuuPostToUnified(post as EshuushuuPost, origin);
 
   @override
   CommentPageBuilder? get commentPageBuilder =>
@@ -90,9 +85,8 @@ class EshuushuuBuilder extends BaseBooruBuilder {
 
   @override
   PostDetailsPageBuilder get postDetailsPageBuilder =>
-      (context, payload) => LegacyPostDetailsPageAdapter(
+      (context, payload) => MixedPostDetailsPageAdapter(
         payload: payload,
-        converter: postConverter,
       );
 
   @override
@@ -105,13 +99,13 @@ class EshuushuuBuilder extends BaseBooruBuilder {
   final postDetailsUIBuilder = PostDetailsUIBuilder(
     preview: {
       DetailsPart.toolbar: (context) =>
-          const DefaultInheritedPostActionToolbar<UnifiedPost>(),
+          const DefaultInheritedPostActionToolbar<Post>(),
     },
     full: {
       DetailsPart.toolbar: (context) =>
-          const DefaultInheritedPostActionToolbar<UnifiedPost>(),
+          const DefaultInheritedPostActionToolbar<Post>(),
       DetailsPart.source: (context) =>
-          const DefaultInheritedSourceSection<UnifiedPost>(),
+          const DefaultInheritedSourceSection<Post>(),
       DetailsPart.tags: (context) => const EshuushuuInheritedTagsTile(),
       DetailsPart.fileDetails: (context) =>
           const _EshuushuuFileDetailsSection(),
@@ -124,7 +118,7 @@ class _EshuushuuFileDetailsSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final post = InheritedPost.of<UnifiedPost>(context);
+    final post = InheritedPost.of<Post>(context);
 
     return SliverToBoxAdapter(
       child: DefaultFileDetailsSection(
@@ -155,7 +149,7 @@ class EshuushuuSearchPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final postRepo = ref.watch(unifiedPostRepoProvider(ref.watchConfig));
+    final postRepo = ref.watch(originAwarePostRepoProvider(ref.watchConfig));
 
     return SearchPageScaffold(
       params: params,

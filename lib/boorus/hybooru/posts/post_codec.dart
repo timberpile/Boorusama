@@ -7,9 +7,8 @@ final class HybooruPostCodec extends EmptyPostDataCodec {
   const HybooruPostCodec() : super('hybooru');
 }
 
-UnifiedPost hybooruPostToUnified(HybooruPost post, PostOrigin origin) =>
-    UnifiedPost(
-      origin: origin,
-      core: PostCoreData.fromPost(post),
-      booruData: hybooruPostData,
-    );
+Post hybooruPostFromRecord(HybooruPostRecord post, PostOrigin origin) => Post(
+  origin: origin,
+  core: PostCoreData.fromPost(post),
+  booruData: hybooruPostData,
+);

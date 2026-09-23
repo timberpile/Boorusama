@@ -36,7 +36,7 @@ class DanbooruInfinitePostIdList extends ConsumerWidget {
     final repo = ref.watch(danbooruPostRepoProvider(config));
 
     return CustomContextMenuOverlay(
-      child: PostScope<DanbooruPost>(
+      child: PostScope<Post>(
         key: ValueKey(order),
         fetcher: (page) => TaskEither.tryCatch(
           () => repo.fetchPostIds(

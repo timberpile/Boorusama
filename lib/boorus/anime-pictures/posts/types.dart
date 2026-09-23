@@ -1,8 +1,10 @@
+export '../../../core/posts/post/types.dart' show Post;
+
 // Project imports:
 import '../../../core/posts/post/types.dart';
 
-class AnimePicturesPost extends SimplePost {
-  AnimePicturesPost({
+class AnimePicturesPostRecord extends CommonPostRecord {
+  AnimePicturesPostRecord({
     required super.id,
     required super.thumbnailImageUrl,
     required super.sampleImageUrl,

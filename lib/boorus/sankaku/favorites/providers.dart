@@ -50,7 +50,7 @@ class SankakuFavoritesNotifier
 
   SankakuClient get client => ref.read(sankakuClientProvider(arg));
 
-  void preload(List<SankakuPost> posts) {
+  void preload(List<Post> posts) {
     final cache = state.unlock;
 
     for (final post in posts) {

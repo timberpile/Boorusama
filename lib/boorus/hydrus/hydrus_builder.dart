@@ -19,7 +19,6 @@ import '../../core/search/search/widgets.dart';
 import 'configs/widgets.dart';
 import 'favorites/widgets.dart';
 import 'home/widgets.dart';
-import 'posts/post_codec.dart';
 import 'posts/post_data.dart';
 import 'posts/types.dart';
 import 'posts/widgets.dart';
@@ -32,10 +31,6 @@ class HydrusBuilder extends BaseBooruBuilder {
     typeKey: 'hydrus',
     uiBuilder: postDetailsUIBuilder,
   );
-
-  @override
-  PostToUnifiedConverter get postConverter =>
-      (post, origin) => hydrusPostToUnified(post as HydrusPost, origin);
 
   @override
   CreateConfigPageBuilder get createConfigPageBuilder =>
@@ -72,9 +67,8 @@ class HydrusBuilder extends BaseBooruBuilder {
 
   @override
   PostDetailsPageBuilder get postDetailsPageBuilder =>
-      (context, payload) => LegacyPostDetailsPageAdapter(
+      (context, payload) => MixedPostDetailsPageAdapter(
         payload: payload,
-        converter: postConverter,
       );
 
   @override
@@ -122,7 +116,7 @@ class HydrusSearchPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final postRepo = ref.watch(unifiedPostRepoProvider(ref.watchConfig));
+    final postRepo = ref.watch(originAwarePostRepoProvider(ref.watchConfig));
     return SearchPageScaffold(
       params: params,
       fetcher: (page, controller) =>

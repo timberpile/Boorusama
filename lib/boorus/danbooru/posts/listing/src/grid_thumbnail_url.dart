@@ -13,11 +13,8 @@ class DanbooruGridThumbnailUrlGenerator implements GridThumbnailUrlGenerator {
     Post post, {
     required GridThumbnailSettings settings,
   }) {
-    final hasDanbooruVariants = switch (post) {
-      DanbooruPost() => true,
-      PostMediaVariants(:final mediaVariants) => mediaVariants.isNotEmpty,
-      _ => false,
-    };
+    final hasDanbooruVariants =
+        post.danbooruData != null || post.mediaVariants.isNotEmpty;
     if (!hasDanbooruVariants) {
       return const DefaultGridThumbnailUrlGenerator().resolve(
         post,
@@ -68,11 +65,7 @@ String _danbooruGridThumbnailUrl(
 };
 
 String _variantUrl(Post post, PostQualityType type) {
-  final url = switch (post) {
-    DanbooruPost(:final variants) => variants.getUrl(type),
-    PostMediaVariants(:final mediaVariants) => mediaVariants[type.value] ?? '',
-    _ => '',
-  };
+  final url = post.variants.getUrl(type);
   if (url.isNotEmpty) return url;
 
   return switch (type) {

@@ -23,7 +23,7 @@ class GelbooruSearchPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final config = ref.watchConfig;
-    final postRepo = ref.watch(unifiedPostRepoProvider(config));
+    final postRepo = ref.watch(originAwarePostRepoProvider(config));
     final metatagPattern = ref.watch(gelbooruMetatagRegexProvider(config.auth));
 
     return SearchPageScaffold(

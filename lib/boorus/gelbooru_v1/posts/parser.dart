@@ -3,17 +3,19 @@ import 'package:booru_clients/gelbooru.dart';
 import 'package:coreutils/coreutils.dart';
 
 // Project imports:
+import '../../../core/boorus/booru/types.dart';
 import '../../../core/posts/post/tags.dart';
 import '../../../core/posts/post/types.dart';
 import '../../../core/posts/rating/types.dart';
 import '../../../core/posts/sources/types.dart';
+import 'post_codec.dart';
 import 'types.dart';
 
-GelbooruV1Post postDtoToPost(
+Post postDtoToPost(
   PostV1Dto post,
   PostMetadata? metadata,
 ) {
-  return GelbooruV1Post(
+  final record = GelbooruV1PostRecord(
     id: post.id ?? 0,
     thumbnailImageUrl: normalizeUrl(post.previewUrl),
     sampleImageUrl: normalizeUrl(post.sampleUrl),
@@ -38,5 +40,9 @@ GelbooruV1Post postDtoToPost(
     createdAt: null,
     uploaderName: null,
     metadata: metadata,
+  );
+  return gelbooruV1PostFromRecord(
+    record,
+    PostOrigin.forBooruType(BooruType.gelbooruV1),
   );
 }

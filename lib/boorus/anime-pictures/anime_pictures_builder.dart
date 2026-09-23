@@ -11,7 +11,6 @@ import '../../core/posts/post/types.dart';
 import 'configs/widgets.dart';
 import 'favorites/widgets.dart';
 import 'home/widgets.dart';
-import 'posts/post_codec.dart';
 import 'posts/post_data.dart';
 import 'posts/types.dart';
 import 'posts/widgets.dart';
@@ -26,11 +25,6 @@ class AnimePicturesBuilder extends BaseBooruBuilder {
         typeKey: 'anime_pictures',
         uiBuilder: postDetailsUIBuilder,
       );
-
-  @override
-  PostToUnifiedConverter get postConverter =>
-      (post, origin) =>
-          animePicturesPostToUnified(post as AnimePicturesPost, origin);
 
   @override
   CreateConfigPageBuilder get createConfigPageBuilder =>
@@ -67,9 +61,8 @@ class AnimePicturesBuilder extends BaseBooruBuilder {
 
   @override
   PostDetailsPageBuilder get postDetailsPageBuilder =>
-      (context, payload) => LegacyPostDetailsPageAdapter(
+      (context, payload) => MixedPostDetailsPageAdapter(
         payload: payload,
-        converter: postConverter,
       );
 
   @override
@@ -86,15 +79,14 @@ class AnimePicturesBuilder extends BaseBooruBuilder {
   final postDetailsUIBuilder = PostDetailsUIBuilder(
     preview: {
       DetailsPart.toolbar: (context) =>
-          const DefaultInheritedPostActionToolbar<UnifiedPost>(),
+          const DefaultInheritedPostActionToolbar<Post>(),
     },
     full: {
       DetailsPart.toolbar: (context) =>
-          const DefaultInheritedPostActionToolbar<UnifiedPost>(),
-      DetailsPart.tags: (context) =>
-          const DefaultInheritedTagsTile<UnifiedPost>(),
+          const DefaultInheritedPostActionToolbar<Post>(),
+      DetailsPart.tags: (context) => const DefaultInheritedTagsTile<Post>(),
       DetailsPart.fileDetails: (context) =>
-          const DefaultInheritedFileDetailsSection<UnifiedPost>(),
+          const DefaultInheritedFileDetailsSection<Post>(),
       DetailsPart.relatedPosts: (context) =>
           const AnimePicturesRelatedPostsSection(),
     },

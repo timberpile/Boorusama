@@ -33,10 +33,10 @@ final class GelbooruV2PostCodec
   };
 }
 
-UnifiedPost gelbooruV2PostToUnified(
-  GelbooruV2Post post,
+Post gelbooruV2PostFromRecord(
+  GelbooruV2PostRecord post,
   PostOrigin origin,
-) => UnifiedPost(
+) => Post(
   origin: origin,
   core: PostCoreData.fromPost(post),
   booruData: GelbooruV2PostData(hasNotes: post.hasNotes),

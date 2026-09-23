@@ -1,4 +1,5 @@
 // Package imports:
+import 'package:booru_clients/sankaku.dart';
 import 'package:equatable/equatable.dart';
 
 // Project imports:
@@ -53,4 +54,34 @@ final class SankakuPostIdData extends Equatable {
 
   @override
   List<Object?> get props => [value, isNumeric];
+}
+
+extension SankakuPostDataX on Post {
+  SankakuPostData? get sankakuData => switch (booruData) {
+    final SankakuPostData data => data,
+    _ => null,
+  };
+
+  SankakuId? get sankakuId => switch (sankakuData?.sankakuId) {
+    SankakuPostIdData(value: final value, isNumeric: true) =>
+      switch (int.tryParse(value)) {
+        final parsed? => IntId(parsed),
+        null => null,
+      },
+    SankakuPostIdData(value: final value) => StringId(value),
+    null => null,
+  };
+  bool get isFavorited => sankakuData?.isFavorited ?? false;
+  int get favoriteCount => sankakuData?.favoriteCount ?? 0;
+  List<Tag> get artistDetailsTags => sankakuData?.artistDetailsTags ?? const [];
+  List<Tag> get characterDetailsTags =>
+      sankakuData?.characterDetailsTags ?? const [];
+  List<Tag> get copyrightDetailsTags =>
+      sankakuData?.copyrightDetailsTags ?? const [];
+  List<Tag> get generalDetailsTags =>
+      sankakuData?.generalDetailsTags ?? const [];
+  List<Tag> get metaDetailsTags => sankakuData?.metaDetailsTags ?? const [];
+  Set<String> get generalTags =>
+      generalDetailsTags.map((tag) => tag.name).toSet();
+  Set<String> get metaTags => metaDetailsTags.map((tag) => tag.name).toSet();
 }

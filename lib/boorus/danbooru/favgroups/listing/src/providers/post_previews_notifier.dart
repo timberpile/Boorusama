@@ -46,7 +46,7 @@ class FavoriteGroupPreviewsNotifier
         .run()
         .then(
           (value) => value.fold(
-            (l) => <DanbooruPost>[].toResult(),
+            (l) => <Post>[].toResult(),
             (r) => r,
           ),
         );

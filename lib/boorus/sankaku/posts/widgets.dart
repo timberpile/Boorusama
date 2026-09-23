@@ -25,7 +25,7 @@ class SankakuQuickFavoriteButton extends ConsumerWidget {
     super.key,
   });
 
-  final SankakuPost post;
+  final Post post;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -56,7 +56,7 @@ class SankakuPostActionToolbar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final post = InheritedPost.of<UnifiedPost>(context);
+    final post = InheritedPost.of<Post>(context);
     final data = InheritedPost.presentationOf(context).data<SankakuPostData>();
     final controller = PostDetailsPageViewScope.of(context);
     final id = _sankakuId(data?.sankakuId);
@@ -90,7 +90,7 @@ class SankakuUploaderFileDetailTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final post = InheritedPost.of<UnifiedPost>(context);
+    final post = InheritedPost.of<Post>(context);
     final uploaderName = post.uploaderName;
 
     return switch (uploaderName) {
@@ -114,9 +114,9 @@ class SankakuUploaderPostsSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final post = InheritedPost.of<UnifiedPost>(context);
+    final post = InheritedPost.of<Post>(context);
 
-    return UploaderPostsSection<UnifiedPost>(
+    return UploaderPostsSection<Post>(
       query: ref.watch(
         sankakuUploaderQueryProvider(post),
       ),
@@ -127,25 +127,24 @@ class SankakuUploaderPostsSection extends ConsumerWidget {
 final kSankakuPostDetailsUIBuilder = PostDetailsUIBuilder(
   preview: {
     DetailsPart.info: (context) =>
-        const DefaultInheritedInformationSection<UnifiedPost>(
+        const DefaultInheritedInformationSection<Post>(
           showSource: true,
         ),
     DetailsPart.toolbar: (context) => const SankakuPostActionToolbar(),
   },
   full: {
     DetailsPart.info: (context) =>
-        const DefaultInheritedInformationSection<UnifiedPost>(
+        const DefaultInheritedInformationSection<Post>(
           showSource: true,
         ),
     DetailsPart.toolbar: (context) => const SankakuPostActionToolbar(),
-    DetailsPart.tags: (context) =>
-        const DefaultInheritedTagsTile<UnifiedPost>(),
+    DetailsPart.tags: (context) => const DefaultInheritedTagsTile<Post>(),
     DetailsPart.fileDetails: (context) =>
-        const DefaultInheritedFileDetailsSection<UnifiedPost>(
+        const DefaultInheritedFileDetailsSection<Post>(
           uploader: SankakuUploaderFileDetailTile(),
         ),
     DetailsPart.artistPosts: (context) =>
-        const DefaultInheritedArtistPostsSection<UnifiedPost>(),
+        const DefaultInheritedArtistPostsSection<Post>(),
     DetailsPart.uploaderPosts: (context) => const SankakuUploaderPostsSection(),
   },
 );

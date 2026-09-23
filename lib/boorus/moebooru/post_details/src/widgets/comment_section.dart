@@ -21,7 +21,7 @@ class MoebooruCommentSection extends ConsumerWidget {
     final theme = Kurumi.themeOf(context);
     final textTheme = theme.textTheme;
     final colorScheme = theme.colorScheme;
-    final post = InheritedPost.of<UnifiedPost>(context);
+    final post = InheritedPost.of<Post>(context);
     final params = (ref.watchConfigAuth, post.id);
 
     return SliverToBoxAdapter(

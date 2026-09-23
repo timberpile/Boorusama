@@ -98,7 +98,7 @@ void main() {
       expect(bookmark.snapshot.origin.booruId, 21);
       expect(bookmark.snapshot.origin.sourceHost, 'gelbooru.example');
       expect(bookmark.snapshot.common['id'], 9);
-      expect(bookmark.toPost(), isA<UnifiedPost>());
+      expect(bookmark.toPost(), isA<Post>());
       expect(bookmark.toPost().booruData, isA<LegacyPostData>());
 
       final migrated = bookmarkBox.get(17)!;
@@ -154,7 +154,7 @@ void main() {
   );
 
   test('native snapshot data survives repository storage and reload', () async {
-    final post = UnifiedPost(
+    final post = Post(
       origin: PostOrigin.fromSource(
         booruType: BooruType.gelbooruV2,
         booruId: 37,
@@ -273,7 +273,7 @@ void main() {
   );
 }
 
-UnifiedPost _nativePost() => UnifiedPost(
+Post _nativePost() => Post(
   origin: PostOrigin.fromSource(
     booruType: BooruType.gelbooruV2,
     booruId: 37,

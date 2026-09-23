@@ -43,3 +43,19 @@ final class EshuushuuPostData extends Equatable implements BooruPostData {
     bayesianRating,
   ];
 }
+
+extension EshuushuuPostDataX on Post {
+  EshuushuuPostData? get eshuushuuData => switch (booruData) {
+    final EshuushuuPostData data => data,
+    _ => null,
+  };
+
+  Set<String>? get characters => eshuushuuData?.characters;
+  Set<String>? get artist => eshuushuuData?.artists;
+  Set<String>? get sourceTags => eshuushuuData?.sourceTags;
+  Set<String>? get generalTags => eshuushuuData?.generalTags;
+  String? get largeImageUrl => eshuushuuData?.largeImageUrl;
+  bool? get isFavorited => eshuushuuData?.isFavorited;
+  int? get favorites => eshuushuuData?.favorites;
+  double? get bayesianRating => eshuushuuData?.bayesianRating;
+}

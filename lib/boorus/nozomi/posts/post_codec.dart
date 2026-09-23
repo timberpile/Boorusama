@@ -7,9 +7,8 @@ final class NozomiPostCodec extends EmptyPostDataCodec {
   const NozomiPostCodec() : super('nozomi');
 }
 
-UnifiedPost nozomiPostToUnified(NozomiPost post, PostOrigin origin) =>
-    UnifiedPost(
-      origin: origin,
-      core: PostCoreData.fromPost(post),
-      booruData: nozomiPostData,
-    );
+Post nozomiPostFromRecord(NozomiPostRecord post, PostOrigin origin) => Post(
+  origin: origin,
+  core: PostCoreData.fromPost(post),
+  booruData: nozomiPostData,
+);

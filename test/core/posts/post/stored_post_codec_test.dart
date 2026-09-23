@@ -16,7 +16,7 @@ void main() {
   const dataCodec = _TestPostDataCodec();
 
   test('round trip preserves every common and custom post value', () {
-    final post = UnifiedPost(
+    final post = Post(
       origin: PostOrigin.fromSource(
         booruType: BooruType.danbooru,
         booruId: 20,
@@ -91,7 +91,7 @@ void main() {
   });
 
   test('absent optional values remain absent and source hosts normalize', () {
-    final post = UnifiedPost(
+    final post = Post(
       origin: PostOrigin.fromSource(
         booruType: BooruType.e621,
         booruId: 25,

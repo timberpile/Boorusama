@@ -155,7 +155,7 @@ class PostDetailsDataLoadingTransitionPage extends ConsumerWidget {
               initialThumbnailUrl: null,
               dislclaimer: 'Single post mode, swiping is disabled',
               configSearch: configSearch,
-              useMixedViewer: post is UnifiedPost,
+              useMixedViewer: true,
             );
             return pageBuilder(context, detailsContext);
           },

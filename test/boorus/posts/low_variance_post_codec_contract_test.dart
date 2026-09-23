@@ -33,8 +33,8 @@ void main() {
       <
         ({
           String name,
-          Post legacy,
-          UnifiedPost Function(PostOrigin origin) convert,
+          PostRecord legacy,
+          Post Function(PostOrigin origin) convert,
           BooruPostDataCodec<EmptyPostData> codec,
           String typeKey,
         })
@@ -42,7 +42,7 @@ void main() {
         (
           name: 'Gelbooru V1',
           legacy: _gelbooruV1Post(),
-          convert: (origin) => gelbooruV1PostToUnified(
+          convert: (origin) => gelbooruV1PostFromRecord(
             _gelbooruV1Post(),
             origin,
           ),
@@ -52,21 +52,21 @@ void main() {
         (
           name: 'Hybooru',
           legacy: _hybooruPost(),
-          convert: (origin) => hybooruPostToUnified(_hybooruPost(), origin),
+          convert: (origin) => hybooruPostFromRecord(_hybooruPost(), origin),
           codec: const HybooruPostCodec(),
           typeKey: 'hybooru',
         ),
         (
           name: 'Zerochan',
           legacy: _zerochanPost(),
-          convert: (origin) => zerochanPostToUnified(_zerochanPost(), origin),
+          convert: (origin) => zerochanPostFromRecord(_zerochanPost(), origin),
           codec: const ZerochanPostCodec(),
           typeKey: 'zerochan',
         ),
         (
           name: 'Gelbooru',
           legacy: _gelbooruPost(),
-          convert: (origin) => gelbooruPostToUnified(_gelbooruPost(), origin),
+          convert: (origin) => gelbooruPostFromRecord(_gelbooruPost(), origin),
           codec: const GelbooruPostCodec(),
           typeKey: 'gelbooru',
         ),
@@ -85,7 +85,7 @@ void main() {
 
   test('Gelbooru V2 preserves its note capability through a snapshot', () {
     final legacy = _gelbooruV2Post();
-    final post = gelbooruV2PostToUnified(legacy, origin);
+    final post = gelbooruV2PostFromRecord(legacy, origin);
 
     final decoded = _roundTrip(post, const GelbooruV2PostCodec());
 
@@ -95,7 +95,7 @@ void main() {
 
   test('Moebooru preserves its large image URL through a snapshot', () {
     final legacy = _moebooruPost();
-    final post = moebooruPostToUnified(legacy, origin);
+    final post = moebooruPostFromRecord(legacy, origin);
 
     final decoded = _roundTrip(post, const MoebooruPostCodec());
 
@@ -107,20 +107,23 @@ void main() {
   });
 }
 
-UnifiedPost _roundTrip<D extends BooruPostData>(
-  UnifiedPost post,
+Post _roundTrip<D extends BooruPostData>(
+  Post post,
   BooruPostDataCodec<D> dataCodec,
 ) {
+  expect(post.runtimeType, Post);
   const codec = StoredPostCodec();
   final result = codec.decode(
     codec.encode(post, dataCodec: dataCodec),
     dataCodec: dataCodec,
   );
   expect(result, isA<StoredPostDecodeSuccess>());
-  return (result as StoredPostDecodeSuccess).post;
+  final decoded = (result as StoredPostDecodeSuccess).post;
+  expect(decoded.runtimeType, Post);
+  return decoded;
 }
 
-void _expectCommonPost(Post actual, Post expected) {
+void _expectCommonPost(Post actual, PostRecord expected) {
   expect(actual.id, expected.id);
   expect(actual.createdAt, expected.createdAt);
   expect(actual.thumbnailImageUrl, expected.thumbnailImageUrl);
@@ -149,7 +152,7 @@ void _expectCommonPost(Post actual, Post expected) {
   expect(actual.status?.matches('active'), expected.status?.matches('active'));
 }
 
-GelbooruV1Post _gelbooruV1Post() => GelbooruV1Post(
+GelbooruV1PostRecord _gelbooruV1Post() => GelbooruV1PostRecord(
   id: 11,
   thumbnailImageUrl: 'https://cdn.example/thumb.jpg',
   sampleImageUrl: 'https://cdn.example/sample.jpg',
@@ -176,7 +179,7 @@ GelbooruV1Post _gelbooruV1Post() => GelbooruV1Post(
   metadata: const PostMetadata(page: 2, search: 'one', limit: 40),
 );
 
-HybooruPost _hybooruPost() => HybooruPost(
+HybooruPostRecord _hybooruPost() => HybooruPostRecord(
   id: 12,
   thumbnailImageUrl: 'thumb',
   sampleImageUrl: 'sample',
@@ -203,7 +206,7 @@ HybooruPost _hybooruPost() => HybooruPost(
   metadata: null,
 );
 
-ZerochanPost _zerochanPost() => ZerochanPost(
+ZerochanPostRecord _zerochanPost() => ZerochanPostRecord(
   id: 13,
   thumbnailImageUrl: 'thumb-z',
   sampleImageUrl: 'sample-z',
@@ -230,7 +233,7 @@ ZerochanPost _zerochanPost() => ZerochanPost(
   metadata: null,
 );
 
-GelbooruPost _gelbooruPost() => GelbooruPost(
+GelbooruPostRecord _gelbooruPost() => GelbooruPostRecord(
   format: 'jpg',
   height: 720,
   id: 14,
@@ -254,7 +257,7 @@ GelbooruPost _gelbooruPost() => GelbooruPost(
   status: StringPostStatus.tryParse('active'),
 );
 
-GelbooruV2Post _gelbooruV2Post() => GelbooruV2Post(
+GelbooruV2PostRecord _gelbooruV2Post() => GelbooruV2PostRecord(
   format: 'png',
   height: 700,
   id: 15,
@@ -279,7 +282,7 @@ GelbooruV2Post _gelbooruV2Post() => GelbooruV2Post(
   status: StringPostStatus.tryParse('pending'),
 );
 
-MoebooruPost _moebooruPost() => MoebooruPost(
+MoebooruPostRecord _moebooruPost() => MoebooruPostRecord(
   id: 16,
   tags: const {'moe'},
   source: PostSource.none(),

@@ -36,7 +36,7 @@ void main() {
     final legacy = _animePicturesPost();
 
     final decoded = _roundTrip(
-      animePicturesPostToUnified(legacy, origin),
+      animePicturesPostFromRecord(legacy, origin),
       const AnimePicturesPostCodec(),
     );
 
@@ -68,7 +68,7 @@ void main() {
     final legacy = _eshuushuuPost();
 
     final decoded = _roundTrip(
-      eshuushuuPostToUnified(legacy, origin),
+      eshuushuuPostFromRecord(legacy, origin),
       const EshuushuuPostCodec(),
     );
 
@@ -107,7 +107,7 @@ void main() {
     final legacy = _hydrusPost();
 
     final decoded = _roundTrip(
-      hydrusPostToUnified(legacy, origin),
+      hydrusPostFromRecord(legacy, origin),
       const HydrusPostCodec(),
     );
 
@@ -125,7 +125,7 @@ void main() {
     final legacy = _nozomiPost();
 
     final decoded = _roundTrip(
-      nozomiPostToUnified(legacy, origin),
+      nozomiPostFromRecord(legacy, origin),
       const NozomiPostCodec(),
     );
 
@@ -147,7 +147,7 @@ void main() {
       final legacy = _pixivPost();
 
       final decoded = _roundTrip(
-        pixivPostToUnified(legacy, origin),
+        pixivPostFromRecord(legacy, origin),
         const PixivPostCodec(),
       );
 
@@ -199,7 +199,7 @@ void main() {
       final legacy = _philomenaPost();
 
       final decoded = _roundTrip(
-        philomenaPostToUnified(legacy, origin),
+        philomenaPostFromRecord(legacy, origin),
         const PhilomenaPostCodec(),
       );
 
@@ -228,24 +228,27 @@ void main() {
   );
 }
 
-UnifiedPost _roundTrip<D extends BooruPostData>(
-  UnifiedPost post,
+Post _roundTrip<D extends BooruPostData>(
+  Post post,
   BooruPostDataCodec<D> dataCodec,
 ) {
+  expect(post.runtimeType, Post);
   const codec = StoredPostCodec();
   final result = codec.decode(
     codec.encode(post, dataCodec: dataCodec),
     dataCodec: dataCodec,
   );
   expect(result, isA<StoredPostDecodeSuccess>());
-  return (result as StoredPostDecodeSuccess).post;
+  final decoded = (result as StoredPostDecodeSuccess).post;
+  expect(decoded.runtimeType, Post);
+  return decoded;
 }
 
 D _roundTripData<D extends BooruPostData>(
   D data,
   BooruPostDataCodec<D> dataCodec,
 ) {
-  final post = UnifiedPost(
+  final post = Post(
     origin: PostOrigin.fromSource(
       booruType: BooruType.danbooru,
       booruId: 1,
@@ -257,7 +260,7 @@ D _roundTripData<D extends BooruPostData>(
   return _roundTrip(post, dataCodec).booruData as D;
 }
 
-void _expectCommonPost(Post actual, Post expected) {
+void _expectCommonPost(Post actual, PostRecord expected) {
   expect(actual.id, expected.id);
   expect(actual.createdAt, expected.createdAt);
   expect(actual.thumbnailImageUrl, expected.thumbnailImageUrl);
@@ -272,7 +275,7 @@ void _expectCommonPost(Post actual, Post expected) {
   expect(actual.copyrightTags, expected.copyrightTags);
 }
 
-AnimePicturesPost _animePicturesPost() => AnimePicturesPost(
+AnimePicturesPostRecord _animePicturesPost() => AnimePicturesPostRecord(
   id: 1,
   thumbnailImageUrl: 'thumb',
   sampleImageUrl: 'sample',
@@ -301,7 +304,7 @@ AnimePicturesPost _animePicturesPost() => AnimePicturesPost(
   tagsCount: 14,
 );
 
-EshuushuuPost _eshuushuuPost() => EshuushuuPost(
+EshuushuuPostRecord _eshuushuuPost() => EshuushuuPostRecord(
   id: 2,
   thumbnailImageUrl: 'thumb',
   sampleImageUrl: 'sample',
@@ -336,7 +339,7 @@ EshuushuuPost _eshuushuuPost() => EshuushuuPost(
   bayesianRating: 4.75,
 );
 
-HydrusPost _hydrusPost() => HydrusPost(
+HydrusPostRecord _hydrusPost() => HydrusPostRecord(
   id: 3,
   thumbnailImageUrl: 'thumb',
   sampleImageUrl: 'sample',
@@ -364,7 +367,7 @@ HydrusPost _hydrusPost() => HydrusPost(
   ownFavorite: true,
 );
 
-NozomiPost _nozomiPost() => NozomiPost(
+NozomiPostRecord _nozomiPost() => NozomiPostRecord(
   id: 4,
   thumbnailImageUrl: 'thumb',
   sampleImageUrl: 'sample',
@@ -399,7 +402,7 @@ NozomiPost _nozomiPost() => NozomiPost(
   copyrightTagSet: const {'copyright'},
 );
 
-PixivPost _pixivPost() => PixivPost(
+PixivPostRecord _pixivPost() => PixivPostRecord(
   id: 12301,
   thumbnailImageUrl: 'thumb',
   sampleImageUrl: 'sample',
@@ -437,7 +440,7 @@ PixivPost _pixivPost() => PixivPost(
   isRestricted: true,
 );
 
-PhilomenaPost _philomenaPost() => PhilomenaPost(
+PhilomenaPostRecord _philomenaPost() => PhilomenaPostRecord(
   id: 5,
   thumbnailImageUrl: 'thumb',
   sampleImageUrl: 'sample',

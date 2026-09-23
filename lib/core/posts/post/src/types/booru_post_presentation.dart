@@ -4,14 +4,14 @@ import 'package:flutter/widgets.dart';
 // Project imports:
 import '../../../details_parts/src/details_ui_builder.dart';
 import 'booru_post_data.dart';
-import 'unified_post.dart';
+import 'post.dart';
 
 typedef PostDetailsWrapperBuilder =
-    Widget Function({required UnifiedPost post, required Widget child});
+    Widget Function({required Post post, required Widget child});
 
 abstract interface class BooruPostPresentation {
   bool supports(BooruPostData data);
-  PostDetailsUIBuilder detailsBuilder(UnifiedPost post);
+  PostDetailsUIBuilder detailsBuilder(Post post);
   PostDetailsWrapperBuilder? get detailsWrapperBuilder;
 }
 
@@ -33,7 +33,7 @@ final class TypedBooruPostPresentation<D extends BooruPostData>
   bool supports(BooruPostData data) => data is D && data.typeKey == typeKey;
 
   @override
-  PostDetailsUIBuilder detailsBuilder(UnifiedPost post) => uiBuilder;
+  PostDetailsUIBuilder detailsBuilder(Post post) => uiBuilder;
 }
 
 final class GenericPostPresentation implements BooruPostPresentation {
@@ -43,7 +43,7 @@ final class GenericPostPresentation implements BooruPostPresentation {
   bool supports(BooruPostData data) => true;
 
   @override
-  PostDetailsUIBuilder detailsBuilder(UnifiedPost post) =>
+  PostDetailsUIBuilder detailsBuilder(Post post) =>
       const PostDetailsUIBuilder();
 
   @override

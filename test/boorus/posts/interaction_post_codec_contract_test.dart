@@ -60,7 +60,7 @@ void main() {
   test(
     'Danbooru conversion keeps variants and moderation status in common data',
     () {
-      final legacy = danbooru.DanbooruPost(
+      final legacy = danbooru.DanbooruPostRecord(
         id: 2,
         thumbnailImageUrl: 'thumb',
         sampleImageUrl: 'sample',
@@ -99,7 +99,7 @@ void main() {
         status: const danbooru.BannedStatus(),
       );
 
-      final converted = danbooruPostToUnified(
+      final converted = danbooruPostFromRecord(
         legacy,
         PostOrigin.fromSource(
           booruType: BooruType.danbooru,
@@ -108,6 +108,7 @@ void main() {
         ),
       );
 
+      expect(converted.runtimeType, Post);
       expect(converted.core.mediaVariants, {
         '180x180': 'small',
         '720x720': 'large',
@@ -277,7 +278,7 @@ D _roundTripData<D extends BooruPostData>(
   BooruPostDataCodec<D> dataCodec,
 ) {
   const codec = StoredPostCodec();
-  final post = UnifiedPost(
+  final post = Post(
     origin: PostOrigin.fromSource(
       booruType: BooruType.danbooru,
       booruId: BooruType.danbooru.id,
@@ -286,12 +287,15 @@ D _roundTripData<D extends BooruPostData>(
     core: _commonPost(),
     booruData: data,
   );
+  expect(post.runtimeType, Post);
   final result = codec.decode(
     codec.encode(post, dataCodec: dataCodec),
     dataCodec: dataCodec,
   );
   expect(result, isA<StoredPostDecodeSuccess>());
-  return (result as StoredPostDecodeSuccess).post.booruData as D;
+  final decoded = (result as StoredPostDecodeSuccess).post;
+  expect(decoded.runtimeType, Post);
+  return decoded.booruData as D;
 }
 
 PostCoreData _commonPost() => PostCoreData(

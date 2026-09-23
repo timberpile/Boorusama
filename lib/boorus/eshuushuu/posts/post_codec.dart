@@ -49,8 +49,8 @@ final class EshuushuuPostCodec
   }
 }
 
-UnifiedPost eshuushuuPostToUnified(EshuushuuPost post, PostOrigin origin) =>
-    UnifiedPost(
+Post eshuushuuPostFromRecord(EshuushuuPostRecord post, PostOrigin origin) =>
+    Post(
       origin: origin,
       core: PostCoreData.fromPost(post),
       booruData: EshuushuuPostData(

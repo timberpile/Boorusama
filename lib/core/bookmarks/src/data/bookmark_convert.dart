@@ -116,16 +116,10 @@ BookmarkHiveObject favoriteToHiveObject(Bookmark bookmark) {
 }
 
 BookmarkUniqueId bookmarkIdentityForPost(Post post, int booruId) =>
-    switch (post) {
-      UnifiedPost(:final origin) => BookmarkUniqueId.fromPost(
-        post,
-        origin.booruType.id,
-      ),
-      _ => BookmarkUniqueId.fromPost(post, booruId),
-    };
+    BookmarkUniqueId.fromPost(post, post.origin.booruType.id);
 
 extension BookmarkToPost on Bookmark {
-  UnifiedPost toPost() => post;
+  Post toPost() => post;
 
   PaginationSnapshot? toPaginationSnapshot() => switch (postId) {
     (final postId?) => PaginationSnapshot(

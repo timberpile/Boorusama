@@ -1,8 +1,10 @@
+export '../../../core/posts/post/types.dart' show Post;
+
 // Project imports:
 import '../../../core/posts/post/types.dart';
 
-class GelbooruV1Post extends SimplePost {
-  GelbooruV1Post({
+class GelbooruV1PostRecord extends CommonPostRecord {
+  GelbooruV1PostRecord({
     required super.id,
     required super.thumbnailImageUrl,
     required super.sampleImageUrl,

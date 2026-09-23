@@ -15,7 +15,7 @@ class SearchFollowingFeed extends Equatable {
     required this.name,
     this.position = 0,
     List<String> sourceIds = const [],
-    List<CachedFeedPost> posts = const [],
+    List<StoredPostSnapshot> posts = const [],
   }) : sourceIds = List.unmodifiable(sourceIds),
        posts = List.unmodifiable(posts.take(followingFeedRetention));
   factory SearchFollowingFeed.fromJson(Map json) {
@@ -44,7 +44,7 @@ class SearchFollowingFeed extends Equatable {
       posts: switch (json['posts']) {
         final List values => [
           for (final Map value in values.whereType<Map>())
-            CachedFeedPost.fromJson(value, profileId: profileId),
+            feedPostSnapshotFromJson(value, profileId: profileId),
         ],
         _ => const [],
       },
@@ -55,12 +55,12 @@ class SearchFollowingFeed extends Equatable {
   final String name;
   final int position;
   final List<String> sourceIds;
-  final List<CachedFeedPost> posts;
+  final List<StoredPostSnapshot> posts;
   SearchFollowingFeed copyWith({
     String? name,
     int? position,
     List<String>? sourceIds,
-    List<CachedFeedPost>? posts,
+    List<StoredPostSnapshot>? posts,
   }) => SearchFollowingFeed(
     id: id,
     profileId: profileId,
@@ -75,18 +75,19 @@ class SearchFollowingFeed extends Equatable {
     'name': name,
     'position': position,
     'sourceIds': sourceIds,
-    if (includeCache) 'posts': posts.map((p) => p.toJson()).toList(),
+    if (includeCache) 'posts': posts.map(feedPostSnapshotToJson).toList(),
   };
-  SearchFollowingFeed merge(List<CachedFeedPost> incoming) {
-    final byId = {for (final post in posts) post.id: post};
+  SearchFollowingFeed merge(List<StoredPostSnapshot> incoming) {
+    final byId = {for (final post in posts) feedPostId(post): post};
     for (final post in incoming.take(50)) {
-      byId[post.id] = post;
+      byId[feedPostId(post)] = post;
     }
     final merged = byId.values.toList()
       ..sort((a, b) {
-        final date = (b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0))
-            .compareTo(a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0));
-        return date == 0 ? b.id.compareTo(a.id) : date;
+        final date = (feedPostCreatedAt(b) ?? _epoch).compareTo(
+          feedPostCreatedAt(a) ?? _epoch,
+        );
+        return date == 0 ? feedPostId(b).compareTo(feedPostId(a)) : date;
       });
     return copyWith(posts: merged.take(followingFeedRetention).toList());
   }
@@ -95,92 +96,49 @@ class SearchFollowingFeed extends Equatable {
   List<Object?> get props => [id, profileId, name, position, sourceIds, posts];
 }
 
-class CachedFeedPost extends Equatable {
-  const CachedFeedPost._({required this.snapshot, required this.post});
+final _epoch = DateTime.fromMillisecondsSinceEpoch(0);
 
-  factory CachedFeedPost.fromPost(
-    Post source, {
-    PostOrigin? origin,
-    PostToUnifiedConverter? converter,
-    BooruPostDataCodec? dataCodec,
+StoredPostSnapshot feedPostSnapshotFromPost(
+  Post post, {
+  PostOrigin? origin,
+  BooruPostDataCodec? dataCodec,
+}) => const StoredPostCodec().encode(
+  origin == null ? post : post.copyWith(origin: origin),
+  dataCodec: dataCodec,
+);
+
+StoredPostSnapshot feedPostSnapshotFromJson(
+  Map json, {
+  int? profileId,
+}) {
+  if (json case {
+    'snapshotSchemaVersion': 1,
+    'postSnapshot': final Map rawSnapshot,
   }) {
-    final post = switch (source) {
-      final UnifiedPost post => post,
-      _ when origin != null && converter != null => converter(source, origin),
-      _ => UnifiedPost(
-        origin:
-            origin ??
-            PostOrigin.fromSource(
-              booruType: BooruType.unknown,
-              booruId: 0,
-              source: '',
-            ),
-        core: PostCoreData.fromPost(source),
-        booruData: const LegacyPostData(
-          typeKey: 'legacy_feed',
-          custom: {},
-        ),
-      ),
-    };
-    final snapshot = const StoredPostCodec().encode(
-      post,
-      dataCodec: dataCodec,
+    final snapshot = StoredPostSnapshot.fromJson(
+      Map<String, dynamic>.from(rawSnapshot),
     );
-    return CachedFeedPost._(snapshot: snapshot, post: post);
+    decodeFeedPost(snapshot);
+    return snapshot;
   }
 
-  factory CachedFeedPost.fromSnapshot(
-    StoredPostSnapshot snapshot, {
-    BooruPostDataCodec? dataCodec,
-  }) {
-    final result = const StoredPostCodec().decode(
-      snapshot,
-      dataCodec: dataCodec,
-    );
-    return switch (result) {
-      StoredPostDecodeSuccess(:final post) => CachedFeedPost._(
-        snapshot: snapshot,
-        post: post,
-      ),
-      StoredPostDecodeFailure(:final reason, :final error) =>
-        throw FormatException(
-          'Invalid cached post snapshot: $reason',
-          error,
-        ),
-    };
-  }
-
-  factory CachedFeedPost.fromJson(
-    Map json, {
-    int? profileId,
-    BooruPostDataCodec? dataCodec,
-  }) {
-    if (json case {
-      'snapshotSchemaVersion': 1,
-      'postSnapshot': final Map rawSnapshot,
-    }) {
-      return CachedFeedPost.fromSnapshot(
-        StoredPostSnapshot.fromJson(Map<String, dynamic>.from(rawSnapshot)),
-        dataCodec: dataCodec,
-      );
-    }
-
-    final createdAt = switch (json['createdAt']) {
-      final String value => DateTime.parse(value).toUtc(),
-      _ => throw const FormatException('Invalid cached post timestamp'),
-    };
-    final mediaVariants = switch (json['mediaVariants']) {
-      final Map values => {
-        for (final entry in values.entries)
-          if (entry case MapEntry(
-            key: final String key,
-            value: final String value,
-          ))
-            key: value,
-      },
-      _ => const <String, String>{},
-    };
-    final post = UnifiedPost(
+  final createdAt = switch (json['createdAt']) {
+    final String value => DateTime.parse(value).toUtc(),
+    _ => throw const FormatException('Invalid cached post timestamp'),
+  };
+  final mediaVariants = switch (json['mediaVariants']) {
+    final Map values => {
+      for (final entry in values.entries)
+        if (entry case MapEntry(
+          key: final String key,
+          value: final String value,
+        ))
+          key: value,
+    },
+    _ => const <String, String>{},
+  };
+  return feedPostSnapshotFromPost(
+    Post(
       origin: PostOrigin.fromSource(
         booruType: BooruType.unknown,
         booruId: profileId ?? 0,
@@ -237,28 +195,34 @@ class CachedFeedPost extends Equatable {
         score: 0,
       ),
       booruData: const LegacyPostData(typeKey: 'legacy_feed', custom: {}),
-    );
-    return CachedFeedPost.fromPost(post);
-  }
-
-  final StoredPostSnapshot snapshot;
-  final UnifiedPost post;
-
-  int get id => post.id;
-  DateTime? get createdAt => post.createdAt;
-  String get thumbnailImageUrl => post.thumbnailImageUrl;
-  String get sampleImageUrl => post.sampleImageUrl;
-  String get originalImageUrl => post.originalImageUrl;
-  Map<String, String> get mediaVariants => post.mediaVariants;
-
-  CachedFeedPost decodeWith(BooruPostDataCodec? dataCodec) =>
-      CachedFeedPost.fromSnapshot(snapshot, dataCodec: dataCodec);
-
-  Map<String, Object?> toJson() => {
-    'snapshotSchemaVersion': 1,
-    'postSnapshot': snapshot.toJson(),
-  };
-
-  @override
-  List<Object?> get props => [snapshot];
+    ),
+  );
 }
+
+Post decodeFeedPost(
+  StoredPostSnapshot snapshot, {
+  BooruPostDataCodec? dataCodec,
+}) => switch (const StoredPostCodec().decode(snapshot, dataCodec: dataCodec)) {
+  StoredPostDecodeSuccess(:final post) => post,
+  StoredPostDecodeFailure(:final reason, :final error) => throw FormatException(
+    'Invalid cached post snapshot: $reason',
+    error,
+  ),
+};
+
+int feedPostId(StoredPostSnapshot snapshot) => switch (snapshot.common['id']) {
+  final int id => id,
+  _ => throw const FormatException('Invalid cached post id'),
+};
+
+DateTime? feedPostCreatedAt(StoredPostSnapshot snapshot) =>
+    switch (snapshot.common['createdAt']) {
+      final String value => DateTime.parse(value),
+      null => null,
+      _ => throw const FormatException('Invalid cached post timestamp'),
+    };
+
+Map<String, Object?> feedPostSnapshotToJson(StoredPostSnapshot snapshot) => {
+  'snapshotSchemaVersion': 1,
+  'postSnapshot': snapshot.toJson(),
+};

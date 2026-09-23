@@ -18,3 +18,10 @@ final class HydrusPostData extends Equatable implements BooruPostData {
   @override
   List<Object?> get props => [ownFavorite];
 }
+
+extension HydrusPostDataX on Post {
+  bool? get ownFavorite => switch (booruData) {
+    HydrusPostData(:final ownFavorite) => ownFavorite,
+    _ => null,
+  };
+}

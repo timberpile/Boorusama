@@ -60,7 +60,7 @@ class _PixivExplorePageState extends ConsumerState<PixivExplorePage> {
     ).xRestrict;
 
     return Scaffold(
-      body: PostScope<PixivPost>(
+      body: PostScope<Post>(
         fetcher: (page) => ref
             .read(pixivExploreRepoProvider(config))
             .getPosts(

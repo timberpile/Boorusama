@@ -4,23 +4,25 @@ import 'package:foundation/foundation.dart';
 import 'package:path/path.dart' as path;
 
 // Project imports:
+import '../../../core/boorus/booru/types.dart';
 import '../../../core/posts/post/types.dart';
 import '../../../core/posts/rating/types.dart';
 import '../../../core/posts/sources/types.dart';
 import '../common/parser.dart';
+import 'post_codec.dart';
 import 'types.dart';
 
-GelbooruPost gelbooruPostDtoToGelbooruPostNoMetadata(PostDto dto) =>
+Post gelbooruPostDtoToGelbooruPostNoMetadata(PostDto dto) =>
     gelbooruPostDtoToGelbooruPost(dto, null);
 
-GelbooruPost gelbooruPostDtoToGelbooruPost(
+Post gelbooruPostDtoToGelbooruPost(
   PostDto dto,
   PostMetadata? metadata,
 ) {
   final decodedTags =
       dto.tags?.split(' ').map(decodeHtmlEntities).toSet() ?? {};
 
-  return GelbooruPost(
+  final record = GelbooruPostRecord(
     id: dto.id!,
     thumbnailImageUrl: dto.previewUrl ?? '',
     sampleImageUrl: dto.sampleUrl ?? dto.fileUrl ?? '',
@@ -43,5 +45,9 @@ GelbooruPost gelbooruPostDtoToGelbooruPost(
     uploaderName: dto.owner,
     metadata: metadata,
     status: StringPostStatus.tryParse(dto.status),
+  );
+  return gelbooruPostFromRecord(
+    record,
+    PostOrigin.forBooruType(BooruType.gelbooru),
   );
 }

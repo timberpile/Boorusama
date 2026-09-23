@@ -44,7 +44,7 @@ void main() {
         fetchPage: (source, page) async {
           fetched.add('${source.query}:$page');
           final ids = pages[source.query]![page - 1];
-          return PostResult<UnifiedPost>(
+          return PostResult<Post>(
             posts: [
               for (final id in ids)
                 _post(TestSearchPost(id, now.add(Duration(seconds: id)))),
@@ -94,7 +94,7 @@ void main() {
           attempts++;
           if (attempts == 1) throw StateError('Offline');
           expect(page, 1);
-          return PostResult<UnifiedPost>(
+          return PostResult<Post>(
             posts: [
               _post(
                 TestSearchPost(
@@ -134,7 +134,7 @@ void main() {
         if (page == 2 && pageTwoAttempts++ == 0) {
           throw StateError('Offline');
         }
-        return PostResult<UnifiedPost>(
+        return PostResult<Post>(
           posts: [
             for (final id in page == 1 ? [10, 9] : [8])
               _post(
@@ -174,7 +174,7 @@ void main() {
       final requests = <String>[];
       final started = Completer<void>();
       final replies = [
-        for (var i = 0; i < 3; i++) Completer<PostResult<UnifiedPost>>(),
+        for (var i = 0; i < 3; i++) Completer<PostResult<Post>>(),
       ];
       final session = FeedHistorySession(
         sources: sources,
@@ -191,7 +191,7 @@ void main() {
       session.dispose();
       for (final reply in replies) {
         reply.complete(
-          const PostResult<UnifiedPost>(posts: [], total: null),
+          const PostResult<Post>(posts: [], total: null),
         );
       }
       await expectLater(loading, throwsStateError);
@@ -200,7 +200,7 @@ void main() {
   );
 }
 
-UnifiedPost _post(Post post) => UnifiedPost(
+Post _post(Post post) => Post(
   origin: PostOrigin.fromSource(
     booruType: BooruType.unknown,
     booruId: 0,

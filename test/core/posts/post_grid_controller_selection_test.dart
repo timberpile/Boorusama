@@ -19,9 +19,9 @@ void main() {
   test(
     'a preserving refresh exposes its selection policy only while loading',
     () async {
-      late PostGridController<UnifiedPost> controller;
+      late PostGridController<Post> controller;
       var preservedDuringFetch = false;
-      controller = PostGridController<UnifiedPost>(
+      controller = PostGridController<Post>(
         fetcher: (_) {
           preservedDuringFetch = controller.preserveSelectionOnRefresh;
           return TaskEither.right(
@@ -72,9 +72,9 @@ void main() {
   test(
     'a refresh requested while loading runs after the active refresh',
     () async {
-      final firstFetch = Completer<PostResult<UnifiedPost>>();
+      final firstFetch = Completer<PostResult<Post>>();
       var fetchCount = 0;
-      final controller = PostGridController<UnifiedPost>(
+      final controller = PostGridController<Post>(
         fetcher: (_) {
           fetchCount++;
           return TaskEither.tryCatch(
@@ -105,7 +105,7 @@ void main() {
   test('a failed refresh does not block the next refresh', () async {
     var fetchCount = 0;
     var blacklistCount = 0;
-    final controller = PostGridController<UnifiedPost>(
+    final controller = PostGridController<Post>(
       fetcher: (_) {
         fetchCount++;
         return TaskEither.right(
@@ -135,10 +135,10 @@ void main() {
   });
 
   test('a queued refresh still runs after the active refresh fails', () async {
-    final firstFetch = Completer<PostResult<UnifiedPost>>();
+    final firstFetch = Completer<PostResult<Post>>();
     var fetchCount = 0;
     var blacklistCount = 0;
-    final controller = PostGridController<UnifiedPost>(
+    final controller = PostGridController<Post>(
       fetcher: (_) {
         fetchCount++;
         return TaskEither.tryCatch(
@@ -174,9 +174,9 @@ void main() {
   });
 
   test('a queued page reset overrides page preservation', () async {
-    final firstFetch = Completer<PostResult<UnifiedPost>>();
+    final firstFetch = Completer<PostResult<Post>>();
     final fetchedPages = <int>[];
-    final controller = PostGridController<UnifiedPost>(
+    final controller = PostGridController<Post>(
       initialPage: 5,
       pageMode: PageMode.paginated,
       fetcher: (page) {
@@ -209,9 +209,9 @@ void main() {
   test(
     'a refresh completes quietly after its controller is disposed',
     () async {
-      final fetch = Completer<PostResult<UnifiedPost>>();
+      final fetch = Completer<PostResult<Post>>();
       var mounted = true;
-      final controller = PostGridController<UnifiedPost>(
+      final controller = PostGridController<Post>(
         fetcher: (_) => TaskEither.tryCatch(
           () => fetch.future,
           (error, _) => UnknownError(error: error, message: 'failed'),

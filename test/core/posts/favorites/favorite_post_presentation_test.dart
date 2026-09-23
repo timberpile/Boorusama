@@ -51,10 +51,15 @@ void main() {
       routes: [
         GoRoute(
           path: '/',
-          builder: (_, _) => FavoritesPageScaffold<GelbooruPost>(
+          builder: (_, _) => FavoritesPageScaffold(
             favQueryBuilder: null,
             fetcher: (_) => TaskEither.right(
-              PostResult(posts: [GelbooruPost.empty()], total: 1),
+              PostResult(
+                posts: [
+                  gelbooruPostFromRecord(GelbooruPostRecord.empty(), _origin),
+                ],
+                total: 1,
+              ),
             ),
           ),
         ),
@@ -75,22 +80,22 @@ void main() {
     expect(find.text('native@gelbooru.example'), findsOneWidget);
     expect(find.text('native context menu'), findsOneWidget);
     final card = tester.widget<PostGridItem>(find.byType(PostGridItem));
-    expect(card.post, isA<UnifiedPost>());
-    expect((card.post as UnifiedPost).origin.profileIdHint, 42);
+    expect(card.post, isA<Post>());
+    expect(card.post.origin.profileIdHint, 42);
 
     await tester.tap(find.byType(ImageGridItem));
     await tester.pumpAndSettle();
 
     expect(find.text('mixed viewer'), findsOneWidget);
     expect(opened?.useMixedViewer, isTrue);
-    expect(opened?.posts.single, isA<UnifiedPost>());
+    expect(opened?.posts.single, isA<Post>());
   });
 
   testWidgets('search uses native cards and opens the mixed viewer', (
     tester,
   ) async {
     DetailsRouteContext? opened;
-    final post = gelbooruPostToUnified(GelbooruPost.empty(), _origin);
+    final post = gelbooruPostFromRecord(GelbooruPostRecord.empty(), _origin);
     final router = GoRouter(
       initialLocation: '/',
       routes: [
@@ -116,7 +121,7 @@ void main() {
     await tester.pumpWidget(
       _TestApp(
         router: router,
-        unifiedRepository: _UnifiedRepository(post),
+        originAwareRepository: _OriginAwareRepository(post),
       ),
     );
     await tester.pumpAndSettle();
@@ -152,10 +157,10 @@ final _origin = PostOrigin.fromSource(
 );
 
 final class _TestApp extends StatelessWidget {
-  const _TestApp({required this.router, this.unifiedRepository});
+  const _TestApp({required this.router, this.originAwareRepository});
 
   final GoRouter router;
-  final PostRepository<UnifiedPost>? unifiedRepository;
+  final PostRepository<Post>? originAwareRepository;
 
   @override
   Widget build(BuildContext context) => ProviderScope(
@@ -185,16 +190,11 @@ final class _TestApp extends StatelessWidget {
       imageListingSettingsProvider.overrideWithValue(
         Settings.defaultSettings.listing,
       ),
-      booruPostConverterProvider.overrideWith(
-        (ref, type) =>
-            (post, origin) =>
-                gelbooruPostToUnified(post as GelbooruPost, origin),
-      ),
       booruPostPresentationProvider.overrideWith(
         (ref, request) => const _Presentation(),
       ),
-      if (unifiedRepository case final repository?)
-        unifiedPostRepoProvider.overrideWith((ref, config) => repository),
+      if (originAwareRepository case final repository?)
+        originAwarePostRepoProvider.overrideWith((ref, config) => repository),
       gridThumbnailUrlGeneratorProvider.overrideWith(
         (ref, config) => const _ThumbnailGenerator(),
       ),
@@ -238,16 +238,16 @@ final class _TestApp extends StatelessWidget {
   );
 }
 
-final class _UnifiedRepository implements PostRepository<UnifiedPost> {
-  const _UnifiedRepository(this.post);
+final class _OriginAwareRepository implements PostRepository<Post> {
+  const _OriginAwareRepository(this.post);
 
-  final UnifiedPost post;
+  final Post post;
 
   @override
   TagQueryComposer get tagComposer => EmptyTagQueryComposer();
 
   @override
-  PostsOrError<UnifiedPost> getPosts(
+  PostsOrError<Post> getPosts(
     String tags,
     int page, {
     int? limit,
@@ -255,7 +255,7 @@ final class _UnifiedRepository implements PostRepository<UnifiedPost> {
   }) => TaskEither.right(PostResult(posts: [post], total: 1));
 
   @override
-  PostsOrError<UnifiedPost> getPostsFromController(
+  PostsOrError<Post> getPostsFromController(
     SearchTagSet controller,
     int page, {
     int? limit,
@@ -263,7 +263,7 @@ final class _UnifiedRepository implements PostRepository<UnifiedPost> {
   }) => TaskEither.right(PostResult(posts: [post], total: 1));
 
   @override
-  PostOrError<UnifiedPost> getPost(
+  PostOrError<Post> getPost(
     PostId id, {
     PostFetchOptions? options,
   }) => TaskEither.right(post);
@@ -283,13 +283,13 @@ final class _Presentation
   bool supports(BooruPostData data) => data.typeKey == 'gelbooru';
 
   @override
-  PostDetailsUIBuilder detailsBuilder(UnifiedPost post) =>
+  PostDetailsUIBuilder detailsBuilder(Post post) =>
       const PostDetailsUIBuilder();
 
   @override
   PostGridItemAdditions buildGridItemAdditions(
     BuildContext context, {
-    required UnifiedPost post,
+    required Post post,
     required BooruConfigAuth config,
   }) => PostGridItemAdditions(
     quickActionButton: Text('native@${Uri.parse(config.url).host}'),
@@ -298,7 +298,7 @@ final class _Presentation
   @override
   Widget buildGridContextMenu(
     BuildContext context, {
-    required UnifiedPost post,
+    required Post post,
     required int index,
     required Widget child,
   }) => Stack(

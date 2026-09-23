@@ -19,7 +19,7 @@ import '../types/upload_date_range.dart';
 typedef DanbooruUserUploadParams = ({String username, int uploadCount});
 
 final danbooruUserUploadsProvider =
-    FutureProvider.family<List<DanbooruPost>, DanbooruUserUploadParams>((
+    FutureProvider.family<List<Post>, DanbooruUserUploadParams>((
       ref,
       params,
     ) async {

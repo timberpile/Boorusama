@@ -2,15 +2,17 @@
 import 'package:booru_clients/nozomi.dart';
 
 // Project imports:
+import '../../../core/boorus/booru/types.dart';
 import '../../../core/posts/post/types.dart';
 import '../../../core/posts/rating/types.dart';
 import '../../../core/posts/sources/types.dart';
 import '../../../core/tags/categories/types.dart';
 import '../../../core/tags/local/types.dart';
 import '../../../foundation/path.dart' as path;
+import 'post_codec.dart';
 import 'types.dart';
 
-NozomiPost postDtoToPost(
+Post postDtoToPost(
   NozomiPostDto e,
   PostMetadata? metadata,
 ) {
@@ -26,7 +28,7 @@ NozomiPost postDtoToPost(
   final thumbnailAspectRatio = thumbnailUrl.isNotEmpty ? 1.0 : mediaAspectRatio;
   final sampleAspectRatio = isVideo ? thumbnailAspectRatio : mediaAspectRatio;
 
-  return NozomiPost(
+  final record = NozomiPostRecord(
     id: e.id,
     thumbnailImageUrl: previewUrl,
     sampleImageUrl: sampleUrl,
@@ -59,6 +61,10 @@ NozomiPost postDtoToPost(
     artistTagSet: e.artistTags.map((e) => e.tag).toSet(),
     characterTagSet: e.characterTags.map((e) => e.tag).toSet(),
     copyrightTagSet: e.copyrightTags.map((e) => e.tag).toSet(),
+  );
+  return nozomiPostFromRecord(
+    record,
+    PostOrigin.forBooruType(BooruType.nozomi),
   );
 }
 

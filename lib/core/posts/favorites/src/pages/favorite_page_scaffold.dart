@@ -7,7 +7,6 @@ import 'package:kurumi/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 // Project imports:
-import '../../../../boorus/engine/providers.dart';
 import '../../../../configs/config/providers.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../search/search/routes.dart';
@@ -16,14 +15,14 @@ import '../../../listing/widgets.dart';
 import '../../../post/providers.dart';
 import '../../../post/types.dart';
 
-class FavoritesPageScaffold<T extends Post> extends ConsumerWidget {
+class FavoritesPageScaffold extends ConsumerWidget {
   const FavoritesPageScaffold({
     required this.fetcher,
     required this.favQueryBuilder,
     super.key,
   });
 
-  final PostsOrError<T> Function(int page) fetcher;
+  final PostsOrError<Post> Function(int page) fetcher;
   final String Function()? favQueryBuilder;
 
   @override
@@ -35,24 +34,12 @@ class FavoritesPageScaffold<T extends Post> extends ConsumerWidget {
       source: config.url,
       profileIdHint: config.id,
     );
-    final converter =
-        ref.watch(booruPostConverterProvider(config.auth.booruType)) ??
-        (Post post, PostOrigin origin) => UnifiedPost(
-          origin: origin,
-          core: PostCoreData.fromPost(post),
-          booruData: LegacyPostData(
-            typeKey: 'legacy_${origin.booruType.name}',
-            custom: const {},
-          ),
-        );
-
     return CustomContextMenuOverlay(
-      child: PostScope<UnifiedPost>(
+      child: PostScope<Post>(
         fetcher: (page) => fetcher(page).map(
-          (result) => convertPostResult(
+          (result) => bindPostResultOrigin(
             result,
             origin: origin,
-            converter: converter,
           ),
         ),
         builder: (context, controller) => PostGrid(

@@ -100,7 +100,7 @@ class SearchSubscriptionsNotifier
       SearchRefreshService(
         repository: repository,
         resolvePostRepository: (config) =>
-            ref.read(unifiedPostRepoProvider(config)),
+            ref.read(originAwarePostRepoProvider(config)),
         resolvePostDataCodec: (config) => ref
             .read(booruEngineRegistryProvider)
             .getPostCapability(config.auth.booruType)

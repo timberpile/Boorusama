@@ -12,7 +12,6 @@ import 'configs/widgets.dart';
 import 'favorites/widgets.dart';
 import 'home/types.dart';
 import 'home/widgets.dart';
-import 'posts/post_codec.dart';
 import 'posts/post_data.dart';
 import 'posts/types.dart';
 import 'posts/widgets.dart';
@@ -25,10 +24,6 @@ class Shimmie2Builder extends BaseBooruBuilder {
     typeKey: 'shimmie2',
     uiBuilder: postDetailsUIBuilder,
   );
-
-  @override
-  PostToUnifiedConverter get postConverter =>
-      (post, origin) => shimmie2PostToUnified(post as Shimmie2Post, origin);
 
   @override
   CreateConfigPageBuilder get createConfigPageBuilder =>
@@ -65,9 +60,8 @@ class Shimmie2Builder extends BaseBooruBuilder {
 
   @override
   PostDetailsPageBuilder get postDetailsPageBuilder =>
-      (context, payload) => LegacyPostDetailsPageAdapter(
+      (context, payload) => MixedPostDetailsPageAdapter(
         payload: payload,
-        converter: postConverter,
       );
 
   @override

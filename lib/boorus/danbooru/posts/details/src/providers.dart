@@ -17,10 +17,10 @@ import '../../post/types.dart';
 import 'media_url_resolver.dart';
 
 final danbooruPostDetailsChildrenProvider = FutureProvider.family
-    .autoDispose<
-      List<DanbooruPost>,
-      (BooruConfigFilter, BooruConfigSearch, Post)
-    >((ref, params) {
+    .autoDispose<List<Post>, (BooruConfigFilter, BooruConfigSearch, Post)>((
+      ref,
+      params,
+    ) {
       ref.cacheFor(const Duration(seconds: 60));
 
       final (filter, search, post) = params;

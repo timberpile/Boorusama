@@ -62,7 +62,7 @@ class SzurubooruPostVotesNotifier
     removeLocalVote(postId);
   }
 
-  Future<void> getVotes(List<SzurubooruPost> posts) async {
+  Future<void> getVotes(List<Post> posts) async {
     final postIds = posts.map((post) => post.id).toList();
     final postIdsToFetch = VotesStateHelpers.filterPostIdsNeedingFetch(
       state,

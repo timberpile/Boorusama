@@ -62,7 +62,7 @@ class GelbooruV2PostDetailsPage extends ConsumerWidget {
       );
     }
 
-    final posts = payload.posts.map((e) => e as GelbooruV2Post).toList();
+    final posts = payload.posts.cast<Post>();
 
     return PostDetailsScope(
       initialIndex: payload.initialIndex,
@@ -70,7 +70,7 @@ class GelbooruV2PostDetailsPage extends ConsumerWidget {
       posts: posts,
       scrollController: payload.scrollController,
       dislclaimer: payload.dislclaimer,
-      child: const DefaultPostDetailsPage<GelbooruV2Post>(),
+      child: const DefaultPostDetailsPage<Post>(),
     );
   }
 }
@@ -90,10 +90,10 @@ class _PayloadPostDetailsPage<T extends Post> extends ConsumerWidget {
     return PostDetailsScope(
       initialIndex: payload.initialIndex,
       initialThumbnailUrl: payload.initialThumbnailUrl,
-      posts: payload.posts.map((e) => e as GelbooruV2Post).toList(),
+      posts: payload.posts.map((e) => e as Post).toList(),
       scrollController: payload.scrollController,
       dislclaimer: payload.dislclaimer,
-      child: const DefaultPostDetailsPage<GelbooruV2Post>(),
+      child: const DefaultPostDetailsPage<Post>(),
     );
   }
 }
@@ -153,7 +153,7 @@ class GelbooruV2UploaderFileDetailTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final post = InheritedPost.of<UnifiedPost>(context);
+    final post = InheritedPost.of<Post>(context);
     final uploaderName = post.uploaderName;
 
     return switch (uploaderName) {
@@ -176,7 +176,7 @@ class GelbooruV2RelatedPostsSection extends ConsumerWidget {
   const GelbooruV2RelatedPostsSection({super.key});
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final post = InheritedPost.of<UnifiedPost>(context);
+    final post = InheritedPost.of<Post>(context);
 
     return post.hasParent
         ? ref
@@ -212,9 +212,9 @@ class GelbooruV2UploaderPostsSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final post = InheritedPost.of<UnifiedPost>(context);
+    final post = InheritedPost.of<Post>(context);
 
-    return UploaderPostsSection<UnifiedPost>(
+    return UploaderPostsSection<Post>(
       query: ref.watch(
         gelbooruV2UploaderQueryProvider(post),
       ),
@@ -225,26 +225,25 @@ class GelbooruV2UploaderPostsSection extends ConsumerWidget {
 final kGelbooruV2PostDetailsUIBuilder = PostDetailsUIBuilder(
   preview: {
     DetailsPart.toolbar: (context) =>
-        const DefaultInheritedPostActionToolbar<UnifiedPost>(),
+        const DefaultInheritedPostActionToolbar<Post>(),
   },
   full: {
     DetailsPart.toolbar: (context) =>
-        const DefaultInheritedPostActionToolbar<UnifiedPost>(),
+        const DefaultInheritedPostActionToolbar<Post>(),
     DetailsPart.source: (context) =>
-        const DefaultInheritedSourceSection<UnifiedPost>(),
-    DetailsPart.tags: (context) =>
-        const DefaultInheritedTagsTile<UnifiedPost>(),
+        const DefaultInheritedSourceSection<Post>(),
+    DetailsPart.tags: (context) => const DefaultInheritedTagsTile<Post>(),
     DetailsPart.fileDetails: (context) =>
-        const DefaultInheritedFileDetailsSection<UnifiedPost>(
+        const DefaultInheritedFileDetailsSection<Post>(
           uploader: GelbooruV2UploaderFileDetailTile(),
         ),
     DetailsPart.artistPosts: (context) =>
-        const DefaultInheritedArtistPostsSection<UnifiedPost>(),
+        const DefaultInheritedArtistPostsSection<Post>(),
     DetailsPart.uploaderPosts: (context) =>
         const GelbooruV2UploaderPostsSection(),
     DetailsPart.relatedPosts: (context) =>
         const GelbooruV2RelatedPostsSection(),
     DetailsPart.characterList: (context) =>
-        const DefaultInheritedCharacterPostsSection<UnifiedPost>(),
+        const DefaultInheritedCharacterPostsSection<Post>(),
   },
 );

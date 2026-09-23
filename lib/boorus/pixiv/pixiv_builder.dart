@@ -12,7 +12,6 @@ import '../../core/posts/post/types.dart';
 import 'configs/widgets.dart';
 import 'home/custom_home.dart';
 import 'home/pixiv_home_page.dart';
-import 'posts/post_codec.dart';
 import 'posts/post_data.dart';
 import 'posts/types.dart';
 
@@ -24,10 +23,6 @@ class PixivBuilder extends BaseBooruBuilder {
     typeKey: 'pixiv',
     uiBuilder: postDetailsUIBuilder,
   );
-
-  @override
-  PostToUnifiedConverter get postConverter =>
-      (post, origin) => pixivPostToUnified(post as PixivPost, origin);
 
   @override
   CreateConfigPageBuilder get createConfigPageBuilder =>
@@ -68,9 +63,8 @@ class PixivBuilder extends BaseBooruBuilder {
 
   @override
   PostDetailsPageBuilder get postDetailsPageBuilder =>
-      (context, payload) => LegacyPostDetailsPageAdapter(
+      (context, payload) => MixedPostDetailsPageAdapter(
         payload: payload,
-        converter: postConverter,
       );
 
   /// Pixiv illusts carry a meaningful tag pool, so the tags section stays
@@ -79,15 +73,14 @@ class PixivBuilder extends BaseBooruBuilder {
   final postDetailsUIBuilder = PostDetailsUIBuilder(
     preview: {
       DetailsPart.toolbar: (context) =>
-          const DefaultInheritedPostActionToolbar<UnifiedPost>(),
+          const DefaultInheritedPostActionToolbar<Post>(),
     },
     full: {
       DetailsPart.toolbar: (context) =>
-          const DefaultInheritedPostActionToolbar<UnifiedPost>(),
-      DetailsPart.tags: (context) =>
-          const DefaultInheritedTagsTile<UnifiedPost>(),
+          const DefaultInheritedPostActionToolbar<Post>(),
+      DetailsPart.tags: (context) => const DefaultInheritedTagsTile<Post>(),
       DetailsPart.fileDetails: (context) =>
-          const DefaultInheritedFileDetailsSection<UnifiedPost>(),
+          const DefaultInheritedFileDetailsSection<Post>(),
     },
   );
 

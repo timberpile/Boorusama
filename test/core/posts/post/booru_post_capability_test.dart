@@ -67,7 +67,7 @@ PostOrigin _origin(BooruType type) => PostOrigin.fromSource(
   source: 'https://example.com/',
 );
 
-UnifiedPost _post() => UnifiedPost(
+Post _post() => Post(
   origin: _origin(BooruType.unknown),
   core: PostCoreData(
     id: 1,
@@ -153,7 +153,7 @@ final class _NativePresentation implements BooruPostPresentation {
   PostDetailsWrapperBuilder? get detailsWrapperBuilder => null;
 
   @override
-  PostDetailsUIBuilder detailsBuilder(UnifiedPost post) =>
+  PostDetailsUIBuilder detailsBuilder(Post post) =>
       const PostDetailsUIBuilder();
 
   @override

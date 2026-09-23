@@ -62,23 +62,22 @@ final class PixivPostCodec implements BooruPostDataCodec<PixivPostData> {
   }
 }
 
-UnifiedPost pixivPostToUnified(PixivPost post, PostOrigin origin) =>
-    UnifiedPost(
-      origin: origin,
-      core: PostCoreData.fromPost(post),
-      booruData: PixivPostData(
-        illustId: post.illustId,
-        pageIndex: post.pageIndex,
-        pageCount: post.pageCount,
-        userId: post.userId,
-        userName: post.userName,
-        userAccount: post.userAccount,
-        illustType: post.illustType,
-        totalBookmarks: post.totalBookmarks,
-        totalView: post.totalView,
-        aiType: post.aiType,
-        seriesTitle: post.seriesTitle,
-        isUgoira: post.isUgoira,
-        isRestricted: post.isRestricted,
-      ),
-    );
+Post pixivPostFromRecord(PixivPostRecord post, PostOrigin origin) => Post(
+  origin: origin,
+  core: PostCoreData.fromPost(post),
+  booruData: PixivPostData(
+    illustId: post.illustId,
+    pageIndex: post.pageIndex,
+    pageCount: post.pageCount,
+    userId: post.userId,
+    userName: post.userName,
+    userAccount: post.userAccount,
+    illustType: post.illustType,
+    totalBookmarks: post.totalBookmarks,
+    totalView: post.totalView,
+    aiType: post.aiType,
+    seriesTitle: post.seriesTitle,
+    isUgoira: post.isUgoira,
+    isRestricted: post.isRestricted,
+  ),
+);

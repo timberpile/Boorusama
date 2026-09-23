@@ -90,14 +90,14 @@ class DownloadTestConstants {
 
   static final posts = [
     // page 1
-    DummyPost(
+    dummyPost(
       id: 1,
       thumbnailImageUrl: 'test-thumbnail-url-1',
       originalImageUrl: 'test-original-url-1',
       sampleImageUrl: 'test-sample-url-1',
       tags: {'tag1', 'tag2'},
     ),
-    DummyPost(
+    dummyPost(
       id: 2,
       thumbnailImageUrl: 'test-thumbnail-url-2',
       originalImageUrl: 'test-original-url-2',
@@ -105,14 +105,14 @@ class DownloadTestConstants {
       tags: {'tag3', 'tag4'},
     ),
     // page 2
-    DummyPost(
+    dummyPost(
       id: 3,
       thumbnailImageUrl: 'test-thumbnail-url-3',
       originalImageUrl: 'test-original-url-3',
       sampleImageUrl: 'test-sample-url-3',
       tags: {'tag5', 'tag6'},
     ),
-    DummyPost(
+    dummyPost(
       id: 4,
       thumbnailImageUrl: 'test-thumbnail-url-4',
       originalImageUrl: 'test-original-url-4',
@@ -120,14 +120,14 @@ class DownloadTestConstants {
       tags: {'tag7'},
     ),
     // page 3
-    DummyPost(
+    dummyPost(
       id: 5,
       thumbnailImageUrl: 'test-thumbnail-url-5',
       originalImageUrl: 'test-original-url-5',
       sampleImageUrl: 'test-sample-url-5',
       tags: {'tag8'},
     ),
-    DummyPost(
+    dummyPost(
       id: 6,
       thumbnailImageUrl: 'test-thumbnail-url-6',
       originalImageUrl: 'test-original-url-6',
@@ -135,7 +135,7 @@ class DownloadTestConstants {
       tags: {'tag9'},
     ),
     // page 4
-    DummyPost(
+    dummyPost(
       id: 7,
       thumbnailImageUrl: 'test-thumbnail-url-7',
       originalImageUrl: 'test-original-url-7',
@@ -226,7 +226,7 @@ class DummyDownloadService implements d.DownloadService {
   Future<void> resumeAll(String group) async {}
 }
 
-final dummyDownloadFileNameBuilder = DownloadFileNameBuilder<DummyPost>(
+final dummyDownloadFileNameBuilder = DownloadFileNameBuilder<Post>(
   tokenHandlers: const [],
   sampleData: const [],
   defaultFileNameFormat: 'test-default-format',
@@ -343,7 +343,7 @@ List<Override> getTestOverrides({
   ];
 }
 
-class MockAsyncFilenameBuilder implements DownloadFilenameGenerator<DummyPost> {
+class MockAsyncFilenameBuilder implements DownloadFilenameGenerator<Post> {
   MockAsyncFilenameBuilder({
     this.hasAsyncTokens = false,
     this.preloadResult = const Sync(),
@@ -356,15 +356,15 @@ class MockAsyncFilenameBuilder implements DownloadFilenameGenerator<DummyPost> {
   final bool shouldFailGenerate;
   final bool shouldFailPreload;
 
-  final List<DummyPost> generatedPosts = [];
-  final List<List<DummyPost>> preloadedChunks = [];
+  final List<Post> generatedPosts = [];
+  final List<List<Post>> preloadedChunks = [];
   var preloadCallCount = 0;
 
   @override
   Future<String> generateForBulkDownload(
     Settings settings,
     BooruConfigDownload config,
-    DummyPost post, {
+    Post post, {
     required String downloadUrl,
     Map<String, String>? metadata,
     CancelToken? cancelToken,
@@ -390,7 +390,7 @@ class MockAsyncFilenameBuilder implements DownloadFilenameGenerator<DummyPost> {
 
   @override
   Future<PreloadResult> preloadForBulkDownload(
-    List<DummyPost> posts,
+    List<Post> posts,
     BooruConfigAuth config,
     BooruConfigDownload downloadConfig,
     CancelToken? cancelToken,
@@ -423,7 +423,7 @@ class MockAsyncFilenameBuilder implements DownloadFilenameGenerator<DummyPost> {
   Future<String> generate(
     Settings settings,
     BooruConfigDownload config,
-    DummyPost post, {
+    Post post, {
     required String downloadUrl,
     Map<String, String>? metadata,
     CancelToken? cancelToken,

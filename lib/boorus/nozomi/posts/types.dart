@@ -1,8 +1,11 @@
+export '../../../core/posts/post/types.dart' show Post;
+
 // Project imports:
 import '../../../core/posts/post/types.dart';
 
-class NozomiPost extends SimplePost implements PostMediaAspectRatios {
-  NozomiPost({
+class NozomiPostRecord extends CommonPostRecord
+    implements PostMediaAspectRatios {
+  NozomiPostRecord({
     required super.id,
     required super.thumbnailImageUrl,
     required super.sampleImageUrl,
@@ -70,4 +73,15 @@ class NozomiPost extends SimplePost implements PostMediaAspectRatios {
 
   @override
   Set<String>? get copyrightTags => copyrightTagSet;
+}
+
+extension NozomiPostDataX on Post {
+  EmptyPostData? get nozomiData => switch (booruData) {
+    final EmptyPostData data when data.typeKey == 'nozomi' => data,
+    _ => null,
+  };
+
+  Set<String> get artistTagSet => artistTags ?? const {};
+  Set<String> get characterTagSet => characterTags ?? const {};
+  Set<String> get copyrightTagSet => copyrightTags ?? const {};
 }

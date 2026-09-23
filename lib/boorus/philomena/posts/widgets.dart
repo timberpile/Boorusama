@@ -16,7 +16,7 @@ class PhilomenaStatsTileSection extends ConsumerWidget {
   const PhilomenaStatsTileSection({super.key});
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final post = InheritedPost.of<UnifiedPost>(context);
+    final post = InheritedPost.of<Post>(context);
     final data = InheritedPost.presentationOf(
       context,
     ).data<PhilomenaPostData>();
@@ -41,7 +41,7 @@ class PhilomenaArtistInfoSection extends ConsumerWidget {
   const PhilomenaArtistInfoSection({super.key});
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final post = InheritedPost.of<UnifiedPost>(context);
+    final post = InheritedPost.of<Post>(context);
     final data = InheritedPost.presentationOf(
       context,
     ).data<PhilomenaPostData>();
@@ -61,7 +61,7 @@ class PhilomenaUploaderFileDetailTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final post = InheritedPost.of<UnifiedPost>(context);
+    final post = InheritedPost.of<Post>(context);
     final uploaderName = post.uploaderName;
 
     return switch (uploaderName) {
@@ -85,9 +85,9 @@ class PhilomenaUploaderPostsSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final post = InheritedPost.of<UnifiedPost>(context);
+    final post = InheritedPost.of<Post>(context);
 
-    return UploaderPostsSection<UnifiedPost>(
+    return UploaderPostsSection<Post>(
       query: ref.watch(
         philomenaUploaderQueryProvider(post),
       ),
@@ -98,23 +98,22 @@ class PhilomenaUploaderPostsSection extends ConsumerWidget {
 final kPhilomenaPostDetailsUIBuilder = PostDetailsUIBuilder(
   preview: {
     DetailsPart.info: (context) =>
-        const DefaultInheritedInformationSection<UnifiedPost>(),
+        const DefaultInheritedInformationSection<Post>(),
     DetailsPart.toolbar: (context) =>
-        const DefaultInheritedPostActionToolbar<UnifiedPost>(),
+        const DefaultInheritedPostActionToolbar<Post>(),
   },
   full: {
     DetailsPart.info: (context) =>
-        const DefaultInheritedInformationSection<UnifiedPost>(),
+        const DefaultInheritedInformationSection<Post>(),
     DetailsPart.toolbar: (context) =>
-        const DefaultInheritedPostActionToolbar<UnifiedPost>(),
+        const DefaultInheritedPostActionToolbar<Post>(),
     DetailsPart.artistInfo: (context) => const PhilomenaArtistInfoSection(),
     DetailsPart.stats: (context) => const PhilomenaStatsTileSection(),
     DetailsPart.source: (context) =>
-        const DefaultInheritedSourceSection<UnifiedPost>(),
-    DetailsPart.tags: (context) =>
-        const DefaultInheritedBasicTagsTile<UnifiedPost>(),
+        const DefaultInheritedSourceSection<Post>(),
+    DetailsPart.tags: (context) => const DefaultInheritedBasicTagsTile<Post>(),
     DetailsPart.fileDetails: (context) =>
-        const DefaultInheritedFileDetailsSection<UnifiedPost>(
+        const DefaultInheritedFileDetailsSection<Post>(
           uploader: PhilomenaUploaderFileDetailTile(),
         ),
     DetailsPart.uploaderPosts: (context) =>

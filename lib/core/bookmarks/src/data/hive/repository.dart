@@ -5,7 +5,6 @@ import 'package:hive_ce/hive.dart';
 // Project imports:
 import '../../../../boorus/booru/types.dart';
 import '../../../../posts/post/types.dart';
-import '../../../../posts/sources/types.dart';
 import '../../types/bookmark.dart';
 import '../../types/bookmark_repository.dart';
 import '../bookmark_convert.dart';
@@ -29,38 +28,16 @@ class BookmarkHiveRepository implements BookmarkRepository {
   }) async {
     final now = DateTime.now();
     final sourceUrl = postLinkGenerator(booruId).getLink(post);
-    final unifiedPost = switch (post) {
-      final UnifiedPost post => post,
-      _ => Bookmark(
-        id: -1,
-        booruId: booruId,
-        createdAt: now,
-        updatedAt: now,
-        thumbnailUrl: post.thumbnailImageUrl,
-        sampleUrl: post.sampleImageUrl,
-        originalUrl: post.originalImageUrl,
-        sourceUrl: sourceUrl,
-        width: post.width,
-        height: post.height,
-        md5: post.md5,
-        tags: post.tags,
-        realSourceUrl: post.source.url,
-        format: post.format,
-        imageUrlResolver: imageUrlResolver(booruId),
-        postId: post.id,
-        metadata: Bookmark.toMetadata(post.metadata),
-      ).post,
-    };
     final snapshot = const StoredPostCodec().encode(
-      unifiedPost,
-      dataCodec: postDataCodec?.call(unifiedPost.origin.booruType),
+      post,
+      dataCodec: postDataCodec?.call(post.origin.booruType),
     );
     final bookmark = Bookmark.fromSnapshot(
       id: -1,
       createdAt: now,
       updatedAt: now,
       snapshot: snapshot,
-      post: unifiedPost,
+      post: post,
       sourceUrl: sourceUrl,
     );
     final favoriteHiveObject = favoriteToHiveObject(bookmark);

@@ -104,49 +104,48 @@ final class Shimmie2PostCodec implements BooruPostDataCodec<Shimmie2PostData> {
   }
 }
 
-UnifiedPost shimmie2PostToUnified(Shimmie2Post post, PostOrigin origin) =>
-    UnifiedPost(
-      origin: origin,
-      core: PostCoreData.fromPost(post),
-      booruData: Shimmie2PostData(
-        locked: post.locked,
-        ext: post.ext,
-        mime: post.mime,
-        niceName: post.niceName,
-        tooltip: post.tooltip,
-        favorites: post.favorites,
-        numericScore: post.numericScore,
-        notes: post.notes,
-        hasChildren: post.hasChildren,
-        title: post.title,
-        approved: post.approved,
-        approvedById: post.approvedById,
-        isPrivate: post.private,
-        trash: post.trash,
-        ownerJoinDate: post.ownerJoinDate,
-        votes: post.votes
-            ?.map(
-              (vote) => Shimmie2VoteData(
-                score: vote.score,
-                userName: vote.userName,
-                userId: vote.userId,
-              ),
-            )
-            .toList(),
-        myVote: post.myVote,
-        comments: post.comments
-            ?.map(
-              (comment) => Shimmie2CommentData(
-                id: comment.id,
-                comment: comment.comment,
-                posted: comment.posted,
-                ownerName: comment.ownerName,
-                ownerId: comment.ownerId,
-              ),
-            )
-            .toList(),
-      ),
-    );
+Post shimmie2PostFromRecord(Shimmie2PostRecord post, PostOrigin origin) => Post(
+  origin: origin,
+  core: PostCoreData.fromPost(post),
+  booruData: Shimmie2PostData(
+    locked: post.locked,
+    ext: post.ext,
+    mime: post.mime,
+    niceName: post.niceName,
+    tooltip: post.tooltip,
+    favorites: post.favorites,
+    numericScore: post.numericScore,
+    notes: post.notes,
+    hasChildren: post.hasChildren,
+    title: post.title,
+    approved: post.approved,
+    approvedById: post.approvedById,
+    isPrivate: post.private,
+    trash: post.trash,
+    ownerJoinDate: post.ownerJoinDate,
+    votes: post.votes
+        ?.map(
+          (vote) => Shimmie2VoteData(
+            score: vote.score,
+            userName: vote.userName,
+            userId: vote.userId,
+          ),
+        )
+        .toList(),
+    myVote: post.myVote,
+    comments: post.comments
+        ?.map(
+          (comment) => Shimmie2CommentData(
+            id: comment.id,
+            comment: comment.comment,
+            posted: comment.posted,
+            ownerName: comment.ownerName,
+            ownerId: comment.ownerId,
+          ),
+        )
+        .toList(),
+  ),
+);
 
 DateTime? _optionalDate(Object? value) => switch (value) {
   final String date => DateTime.parse(date),

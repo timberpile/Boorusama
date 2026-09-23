@@ -180,7 +180,7 @@ class _SzurubooruPoolPostList extends ConsumerWidget {
     final repo = ref.watch(szurubooruPostRepoProvider(config));
     final order = ref.watch(szurubooruPoolDetailsOrderProvider(pool.id));
 
-    return PostScope<SzurubooruPost>(
+    return PostScope<Post>(
       key: ValueKey((pool.postIds, order)),
       fetcher: (page) => TaskEither.tryCatch(
         () => repo.fetchPostIds(
@@ -194,10 +194,10 @@ class _SzurubooruPoolPostList extends ConsumerWidget {
           message: error.toString(),
         ),
       ),
-      builder: (context, controller) => PostGrid<SzurubooruPost>(
+      builder: (context, controller) => PostGrid<Post>(
         controller: controller,
         itemBuilder: (context, index, scrollController, useHero) =>
-            DefaultImageGridItem<SzurubooruPost>(
+            DefaultImageGridItem<Post>(
               index: index,
               autoScrollController: scrollController,
               controller: controller,

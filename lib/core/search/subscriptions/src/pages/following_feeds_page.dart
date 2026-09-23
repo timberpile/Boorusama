@@ -351,7 +351,7 @@ class _CachedFeedGrid extends ConsumerStatefulWidget {
 }
 
 class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
-  PostGridController<UnifiedPost>? _controller;
+  PostGridController<Post>? _controller;
   late FeedHistorySession _history;
   var _prefetchedAtLength = -1;
   var _historyStarted = false;
@@ -382,7 +382,7 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
       final plan = adapter?.plan(source.query, after: null);
       if (plan case SupportedSearchRefreshQueryPlan(:final query)) {
         final result = await ref
-            .read(unifiedPostRepoProvider(widget.config))
+            .read(originAwarePostRepoProvider(widget.config))
             .getPosts(
               query,
               page,
@@ -405,7 +405,7 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
       oldWidget.feed.sourceIds,
       widget.feed.sourceIds,
     );
-    final postsChanged = !const ListEquality<CachedFeedPost>().equals(
+    final postsChanged = !const ListEquality<StoredPostSnapshot>().equals(
       oldWidget.feed.posts,
       widget.feed.posts,
     );
@@ -448,7 +448,7 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
   Future<void> _openPost(
     int index,
     AutoScrollController scrollController,
-    UnifiedPost post,
+    Post post,
   ) => _feedAction(context, () async {
     final controller = _controller;
     if (controller == null) return;
@@ -470,7 +470,7 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
   }
 
   @override
-  Widget build(BuildContext context) => PostScope<UnifiedPost>(
+  Widget build(BuildContext context) => PostScope<Post>(
     pageMode: PageMode.infinite,
     fetcher: (page) {
       final history = _history;
@@ -493,7 +493,7 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
       _controller = controller;
       return Stack(
         children: [
-          PostGrid<UnifiedPost>(
+          PostGrid<Post>(
             controller: controller,
             enablePullToRefresh: false,
             itemBuilder: (context, index, scroll, useHero) {
@@ -579,9 +579,13 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
   );
 }
 
-UnifiedPost _decodeFeedPost(WidgetRef ref, CachedFeedPost cached) {
+Post _decodeFeedPost(WidgetRef ref, StoredPostSnapshot snapshot) {
   final codec = ref
-      .read(booruPostCapabilityProvider(cached.post.origin.booruType))
+      .read(
+        booruPostCapabilityProvider(
+          PostOrigin.fromSnapshot(snapshot.origin).booruType,
+        ),
+      )
       ?.codec;
-  return cached.decodeWith(codec).post;
+  return decodeFeedPost(snapshot, dataCodec: codec);
 }

@@ -5,8 +5,6 @@ import '../../core/configs/config/types.dart';
 import '../../core/configs/create/widgets.dart';
 import '../../core/posts/details/widgets.dart';
 import '../../core/posts/post/types.dart';
-import 'posts/post_codec.dart';
-import 'posts/types.dart';
 import 'posts/widgets.dart';
 
 class ZerochanBuilder extends BaseBooruBuilder {
@@ -17,10 +15,6 @@ class ZerochanBuilder extends BaseBooruBuilder {
     typeKey: 'zerochan',
     uiBuilder: postDetailsUIBuilder,
   );
-
-  @override
-  PostToUnifiedConverter get postConverter =>
-      (post, origin) => zerochanPostToUnified(post as ZerochanPost, origin);
 
   @override
   CreateConfigPageBuilder get createConfigPageBuilder =>
@@ -42,9 +36,8 @@ class ZerochanBuilder extends BaseBooruBuilder {
 
   @override
   PostDetailsPageBuilder get postDetailsPageBuilder =>
-      (context, payload) => LegacyPostDetailsPageAdapter(
+      (context, payload) => MixedPostDetailsPageAdapter(
         payload: payload,
-        converter: postConverter,
       );
 
   @override

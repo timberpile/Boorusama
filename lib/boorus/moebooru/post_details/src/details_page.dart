@@ -18,7 +18,7 @@ class MoebooruPostDetailsPage extends StatelessWidget {
   const MoebooruPostDetailsPage({super.key});
 
   static Widget fromRouteData(DetailsRouteContext payload) {
-    final posts = payload.posts.map((e) => e as MoebooruPost).toList();
+    final posts = payload.posts.cast<Post>();
 
     return PostDetailsScope(
       initialIndex: payload.initialIndex,
@@ -32,7 +32,7 @@ class MoebooruPostDetailsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final data = PostDetails.of<MoebooruPost>(context);
+    final data = PostDetails.of<Post>(context);
     final controller = PostDetailsPageViewScope.of(context);
 
     return MoebooruFavoritesLoader(
@@ -51,7 +51,7 @@ class MoebooruPostDetailsPageInternal extends ConsumerStatefulWidget {
     super.key,
   });
 
-  final PostDetailsData<MoebooruPost> data;
+  final PostDetailsData<Post> data;
 
   @override
   ConsumerState<MoebooruPostDetailsPageInternal> createState() =>
@@ -60,12 +60,12 @@ class MoebooruPostDetailsPageInternal extends ConsumerStatefulWidget {
 
 class _MoebooruPostDetailsPageState
     extends ConsumerState<MoebooruPostDetailsPageInternal> {
-  late PostDetailsData<MoebooruPost> data = widget.data;
+  late PostDetailsData<Post> data = widget.data;
   final _transformController = TransformationController();
   final _isInitPage = ValueNotifier(true);
 
-  List<MoebooruPost> get posts => data.posts;
-  PostDetailsController<MoebooruPost> get controller => data.controller;
+  List<Post> get posts => data.posts;
+  PostDetailsController<Post> get controller => data.controller;
 
   @override
   void didUpdateWidget(covariant MoebooruPostDetailsPageInternal oldWidget) {

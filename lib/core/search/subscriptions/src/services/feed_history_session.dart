@@ -2,7 +2,7 @@ import '../../../../posts/post/types.dart';
 import '../types/search_subscription.dart';
 
 typedef FeedSourcePageFetcher =
-    Future<PostResult<UnifiedPost>> Function(
+    Future<PostResult<Post>> Function(
       SearchSubscription source,
       int page,
     );
@@ -10,7 +10,7 @@ typedef FeedSourcePageFetcher =
 class FeedHistorySession {
   FeedHistorySession({
     required List<SearchSubscription> sources,
-    required List<UnifiedPost> recent,
+    required List<Post> recent,
     required FeedSourcePageFetcher fetchPage,
   }) : _cursors = [for (final source in sources) _FeedCursor(source)],
        _recent = List.unmodifiable(recent),
@@ -19,12 +19,12 @@ class FeedHistorySession {
        _oldestRecent = recent.isEmpty ? null : recent.last.createdAt;
 
   final List<_FeedCursor> _cursors;
-  final List<UnifiedPost> _recent;
+  final List<Post> _recent;
   final FeedSourcePageFetcher _fetchPage;
   final Set<int> _knownIds;
   final DateTime? _oldestRecent;
-  final Map<int, PostResult<UnifiedPost>> _loadedPages = {};
-  final List<UnifiedPost> _pendingPosts = [];
+  final Map<int, PostResult<Post>> _loadedPages = {};
+  final List<Post> _pendingPosts = [];
   var _initialized = false;
   var _disposed = false;
 
@@ -34,7 +34,7 @@ class FeedHistorySession {
     _loadedPages.clear();
   }
 
-  Future<PostResult<UnifiedPost>> load(int page) async {
+  Future<PostResult<Post>> load(int page) async {
     if (_disposed) throw StateError('Feed history session closed');
     if (_loadedPages[page] case final result?) return result;
     if (page == 1 && _recent.isNotEmpty) {
@@ -69,7 +69,7 @@ class FeedHistorySession {
         posts.add(post);
       }
     }
-    final result = PostResult<UnifiedPost>(
+    final result = PostResult<Post>(
       posts: List.unmodifiable(posts),
       total: null,
       hasMore: _cursors.any(
@@ -132,7 +132,7 @@ class _FeedCursor {
   var page = 1;
   var offset = 0;
   var hasMore = true;
-  List<UnifiedPost> posts = const [];
+  List<Post> posts = const [];
 
-  UnifiedPost? get current => offset < posts.length ? posts[offset] : null;
+  Post? get current => offset < posts.length ? posts[offset] : null;
 }

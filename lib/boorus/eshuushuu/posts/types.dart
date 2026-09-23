@@ -1,8 +1,11 @@
+export '../../../core/posts/post/types.dart' show Post;
+export 'post_data.dart';
+
 // Project imports:
 import '../../../core/posts/post/types.dart';
 
-class EshuushuuPost extends SimplePost {
-  EshuushuuPost({
+class EshuushuuPostRecord extends CommonPostRecord {
+  EshuushuuPostRecord({
     required super.id,
     required super.thumbnailImageUrl,
     required super.sampleImageUrl,

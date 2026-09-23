@@ -108,7 +108,7 @@ void main() {
           identityRetentionBoundary: createdAt,
           baseline: true,
           discoveredPosts: const [],
-          feedPosts: [CachedFeedPost.fromPost(TestSearchPost(7, createdAt))],
+          feedPosts: [feedPostSnapshotFromPost(TestSearchPost(7, createdAt))],
         ),
       );
       await box.close();
@@ -120,7 +120,10 @@ void main() {
         organizationBox: organizationBox,
       );
       expect((await repository.getFeeds()).single.sourceIds, [source.id]);
-      expect((await repository.getFeeds()).single.posts.single.id, 7);
+      expect(
+        feedPostId((await repository.getFeeds()).single.posts.single),
+        7,
+      );
       expect((await repository.findByQuery(12, 'cat'))!.id, pin.id);
       await repository.deleteFeed(feed.id);
       expect((await repository.getAll()).single.id, pin.id);
@@ -182,7 +185,7 @@ void main() {
               discoveredPosts: const [],
               feedPosts: [
                 for (var i = 0; i < 50; i++)
-                  CachedFeedPost.fromPost(
+                  feedPostSnapshotFromPost(
                     TestSearchPost(
                       batch * 50 + i,
                       createdAt.add(Duration(seconds: batch * 50 + i)),
@@ -197,8 +200,8 @@ void main() {
         final materialized = (await repository.getFeeds()).single;
         opening.stop();
         expect(materialized.posts.length, followingFeedRetention);
-        expect(materialized.posts.first.id, 549);
-        expect(materialized.posts.last.id, 50);
+        expect(feedPostId(materialized.posts.first), 549);
+        expect(feedPostId(materialized.posts.last), 50);
         expect(
           (await repository.getAll()).where((s) => s.hasBaseline).length,
           11,
@@ -274,7 +277,7 @@ void main() {
         identityRetentionBoundary: createdAt,
         baseline: true,
         discoveredPosts: [preview(5, createdAt)],
-        feedPosts: [CachedFeedPost.fromPost(TestSearchPost(5, createdAt))],
+        feedPosts: [feedPostSnapshotFromPost(TestSearchPost(5, createdAt))],
       );
       await repository.commitRefresh(oldCommit);
       await repository.recordRefreshFailure(

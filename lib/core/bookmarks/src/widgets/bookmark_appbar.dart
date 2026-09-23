@@ -19,7 +19,7 @@ class BookmarkAppBar extends ConsumerWidget {
     super.key,
   });
 
-  final PostGridController<UnifiedPost> controller;
+  final PostGridController<Post> controller;
   final String? title;
 
   @override

@@ -13,7 +13,7 @@ class EshuushuuInheritedTagsTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return DefaultInheritedTagsTile<UnifiedPost>(
+    return DefaultInheritedTagsTile<Post>(
       onTagTap: (tag) {
         final tagSet = SearchTagSet();
         tagSet.addTag(

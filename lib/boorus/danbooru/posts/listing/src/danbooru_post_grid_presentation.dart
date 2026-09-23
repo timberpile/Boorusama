@@ -33,20 +33,20 @@ final class DanbooruPostGridPresentation
   bool supports(BooruPostData data) => data is DanbooruPostData;
 
   @override
-  PostDetailsUIBuilder detailsBuilder(UnifiedPost post) =>
+  PostDetailsUIBuilder detailsBuilder(Post post) =>
       danbooruPostDetailsUiBuilder;
 
   @override
   PostDetailsWrapperBuilder get detailsWrapperBuilder =>
       ({required post, required child}) => DanbooruCreatorPreloader(
-        preloadable: PostCreatorsPreloadable.fromUnifiedPost(post),
+        preloadable: PostCreatorsPreloadable.fromPost(post),
         child: child,
       );
 
   @override
   PostGridItemAdditions buildGridItemAdditions(
     BuildContext context, {
-    required UnifiedPost post,
+    required Post post,
     required BooruConfigAuth config,
   }) => _buildAdditions(
     context,
@@ -58,7 +58,7 @@ final class DanbooruPostGridPresentation
   @override
   Widget buildGridContextMenu(
     BuildContext context, {
-    required UnifiedPost post,
+    required Post post,
     required int index,
     required Widget child,
   }) => DanbooruPostContextMenu(
@@ -69,7 +69,7 @@ final class DanbooruPostGridPresentation
 
   PostGridItemAdditions buildLegacyGridItemAdditions(
     BuildContext context, {
-    required DanbooruPost post,
+    required Post post,
     required BooruConfigAuth config,
   }) => _buildAdditions(
     context,

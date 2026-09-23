@@ -14,7 +14,7 @@ class MoebooruUploaderFileDetailTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final post = InheritedPost.of<UnifiedPost>(context);
+    final post = InheritedPost.of<Post>(context);
     final uploaderName = post.uploaderName;
 
     return switch (uploaderName) {

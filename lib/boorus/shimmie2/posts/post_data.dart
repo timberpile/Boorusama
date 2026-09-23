@@ -107,3 +107,12 @@ final class Shimmie2CommentData extends Equatable {
   @override
   List<Object?> get props => [id, comment, posted, ownerName, ownerId];
 }
+
+extension Shimmie2PostDataX on Post {
+  Shimmie2PostData? get shimmie2Data => switch (booruData) {
+    final Shimmie2PostData data => data,
+    _ => null,
+  };
+
+  List<Shimmie2CommentData>? get comments => shimmie2Data?.comments;
+}

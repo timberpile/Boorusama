@@ -3,6 +3,7 @@ import 'package:booru_clients/szurubooru.dart';
 import 'package:collection/collection.dart';
 
 // Project imports:
+import '../../../core/boorus/booru/types.dart';
 import '../../../core/posts/post/types.dart';
 import '../../../core/posts/rating/types.dart';
 import '../../../core/posts/sources/types.dart';
@@ -10,14 +11,15 @@ import '../../../core/tags/categories/types.dart';
 import '../../../core/tags/tag/types.dart';
 import '../../../foundation/path.dart';
 import '../pools/providers.dart';
+import 'post_codec.dart';
 import 'types.dart';
 
-SzurubooruPost postDtoToPost(
+Post postDtoToPost(
   PostDto e,
   PostMetadata? metadata,
   List<TagCategory>? categories,
 ) {
-  return SzurubooruPost(
+  final record = SzurubooruPostRecord(
     id: e.id ?? 0,
     thumbnailImageUrl: e.thumbnailUrl ?? '',
     sampleImageUrl: e.contentUrl ?? '',
@@ -69,5 +71,9 @@ SzurubooruPost postDtoToPost(
     metadata: metadata,
     status: null,
     pools: e.pools?.map(poolDtoToSzurubooruPool).nonNulls.toList() ?? const [],
+  );
+  return szurubooruPostFromRecord(
+    record,
+    PostOrigin.forBooruType(BooruType.szurubooru),
   );
 }

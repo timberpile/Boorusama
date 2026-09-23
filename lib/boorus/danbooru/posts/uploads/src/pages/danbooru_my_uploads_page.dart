@@ -175,6 +175,7 @@ class DanbooruUploadGrid extends ConsumerStatefulWidget {
 
 class _DanbooruUploadGridState extends ConsumerState<DanbooruUploadGrid> {
   late final _autoScrollController = AutoScrollController();
+  final _uploadsByPostId = <int, DanbooruUploadPost>{};
 
   @override
   void dispose() {
@@ -201,7 +202,11 @@ class _DanbooruUploadGridState extends ConsumerState<DanbooruUploadGrid> {
                 },
               );
 
-          return uploads.map((e) => e.previewPost).nonNulls.toList().toResult();
+          final previews = uploads.map((e) => e.previewPost).nonNulls.toList();
+          for (final preview in previews) {
+            _uploadsByPostId[preview.id] = preview;
+          }
+          return previews.map((preview) => preview.post).toList().toResult();
         },
       ),
       builder: (context, controller) => LayoutBuilder(
@@ -226,7 +231,7 @@ class _DanbooruUploadGridState extends ConsumerState<DanbooruUploadGrid> {
   }
 
   Widget _buildGrid(
-    PostGridController<DanbooruUploadPost> controller,
+    PostGridController<Post> controller,
     BoxConstraints constraints,
     DanbooruUploadHideState hideState,
   ) {
@@ -237,6 +242,7 @@ class _DanbooruUploadGridState extends ConsumerState<DanbooruUploadGrid> {
             valueListenable: controller.itemsNotifier,
             builder: (_, posts, _) {
               final post = posts[index];
+              final upload = _uploadsByPostId[post.id]!;
 
               // Filter out hidden posts when showHiddenUploads is false
               if (!hideState.shouldShowInList(post.id)) {
@@ -248,7 +254,7 @@ class _DanbooruUploadGridState extends ConsumerState<DanbooruUploadGrid> {
               return Stack(
                 children: [
                   DanbooruUploadPostContextMenu(
-                    post: post,
+                    post: upload,
                     onVisibilityChanged: (visible) {
                       _changeVisibility(post.id, visible);
                     },
@@ -262,8 +268,8 @@ class _DanbooruUploadGridState extends ConsumerState<DanbooruUploadGrid> {
                         if (widget.type == UploadTabType.unposted) {
                           goToTagEditUploadPage(
                             ref,
-                            post: post,
-                            uploadId: post.uploadId,
+                            post: upload,
+                            uploadId: upload.uploadId,
                             //TODO: Refresh later
                             // onSubmitted: () => controller.refresh(),
                           );
@@ -297,13 +303,13 @@ class _DanbooruUploadGridState extends ConsumerState<DanbooruUploadGrid> {
                     ),
                   ),
                   if (widget.type == UploadTabType.unposted)
-                    _buildUnpostedChip(post),
-                  if (post.uploaderId != 0 &&
-                      post.uploaderId != widget.userId &&
+                    _buildUnpostedChip(upload),
+                  if (upload.uploaderId != 0 &&
+                      upload.uploaderId != widget.userId &&
                       widget.type == UploadTabType.posted)
-                    _buildUploaderChip(context, post),
-                  if (post.mediaAssetCount > 1)
-                    _buildCountChip(post)
+                    _buildUploaderChip(context, upload),
+                  if (upload.mediaAssetCount > 1)
+                    _buildCountChip(upload)
                   else
                     Positioned(
                       bottom: 4,

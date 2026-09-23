@@ -16,7 +16,7 @@ import 'repo.dart';
 import 'types.dart';
 
 final gelbooruV2PostRepoProvider =
-    Provider.family<PostRepository<GelbooruV2Post>, BooruConfigSearch>(
+    Provider.family<PostRepository<Post>, BooruConfigSearch>(
       (ref, config) {
         final client = ref.watch(gelbooruV2ClientProvider(config.auth));
         final tagComposer = ref.watch(
@@ -64,7 +64,7 @@ final gelbooruV2PostProvider =
     });
 
 final gelbooruV2ChildPostsProvider = FutureProvider.autoDispose
-    .family<List<GelbooruV2Post>, (BooruConfigFilter, BooruConfigSearch, Post)>(
+    .family<List<Post>, (BooruConfigFilter, BooruConfigSearch, Post)>(
       (ref, params) {
         final (filter, search, post) = params;
 

@@ -65,8 +65,8 @@ final class PhilomenaPostCodec
   }
 }
 
-UnifiedPost philomenaPostToUnified(PhilomenaPost post, PostOrigin origin) =>
-    UnifiedPost(
+Post philomenaPostFromRecord(PhilomenaPostRecord post, PostOrigin origin) =>
+    Post(
       origin: origin,
       core: PostCoreData.fromPost(post),
       booruData: PhilomenaPostData(

@@ -21,7 +21,7 @@ class HydrusPostActionToolbar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final post = InheritedPost.of<UnifiedPost>(context);
+    final post = InheritedPost.of<Post>(context);
     final canFav = ref
         .watch(hydrusCanFavoriteProvider(ref.watchConfigAuth))
         .maybeWhen(
@@ -78,10 +78,9 @@ final kHydrusPostDetailsUIBuilder = PostDetailsUIBuilder(
   },
   full: {
     DetailsPart.toolbar: (context) => const HydrusPostActionToolbar(),
-    DetailsPart.tags: (context) =>
-        const DefaultInheritedTagsTile<UnifiedPost>(),
+    DetailsPart.tags: (context) => const DefaultInheritedTagsTile<Post>(),
     DetailsPart.fileDetails: (context) =>
-        const DefaultInheritedFileDetailsSection<UnifiedPost>(
+        const DefaultInheritedFileDetailsSection<Post>(
           initialExpanded: true,
         ),
   },

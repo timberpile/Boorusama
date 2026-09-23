@@ -14,7 +14,6 @@ import 'configs/widgets.dart';
 import 'favorites/widgets.dart';
 import 'home/types.dart';
 import 'home/widgets.dart';
-import 'posts/post_codec.dart';
 import 'posts/post_data.dart';
 import 'posts/types.dart';
 import 'posts/widgets.dart';
@@ -29,10 +28,6 @@ class GelbooruV2Builder extends BaseBooruBuilder {
     typeKey: 'gelbooru_v2',
     uiBuilder: postDetailsUIBuilder,
   );
-
-  @override
-  PostToUnifiedConverter get postConverter =>
-      (post, origin) => gelbooruV2PostToUnified(post as GelbooruV2Post, origin);
 
   @override
   CreateConfigPageBuilder get createConfigPageBuilder =>
@@ -81,9 +76,8 @@ class GelbooruV2Builder extends BaseBooruBuilder {
 
   @override
   PostDetailsPageBuilder get postDetailsPageBuilder =>
-      (context, payload) => LegacyPostDetailsPageAdapter(
+      (context, payload) => MixedPostDetailsPageAdapter(
         payload: payload,
-        converter: postConverter,
       );
 
   @override

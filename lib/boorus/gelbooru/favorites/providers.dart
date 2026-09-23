@@ -10,7 +10,7 @@ import '../client_provider.dart';
 import '../posts/types.dart';
 
 final gelbooruFavoriteRepoProvider =
-    Provider.family<FavoriteRepository<GelbooruPost>, BooruConfigAuth>(
+    Provider.family<FavoriteRepository<Post>, BooruConfigAuth>(
       (ref, config) {
         final client = ref.watch(gelbooruClientProvider(config));
 

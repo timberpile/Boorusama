@@ -6,7 +6,6 @@ import '../types/post.dart';
 import '../types/post_core_data.dart';
 import '../types/post_origin.dart';
 import '../types/stored_post_snapshot.dart';
-import '../types/unified_post.dart';
 
 enum StoredPostDecodeFailureReason {
   malformedOrigin,
@@ -21,7 +20,7 @@ sealed class StoredPostDecodeResult {
 final class StoredPostDecodeSuccess extends StoredPostDecodeResult {
   const StoredPostDecodeSuccess(this.post);
 
-  final UnifiedPost post;
+  final Post post;
 }
 
 final class StoredPostDecodeFailure extends StoredPostDecodeResult {
@@ -37,7 +36,7 @@ final class StoredPostCodec {
   static const commonSchemaVersion = 1;
 
   StoredPostSnapshot encode<D extends BooruPostData>(
-    UnifiedPost post, {
+    Post post, {
     BooruPostDataCodec<D>? dataCodec,
   }) {
     final data = post.booruData;
@@ -101,7 +100,7 @@ final class StoredPostCodec {
     final data = _decodeCustom(snapshot, origin, dataCodec);
 
     return StoredPostDecodeSuccess(
-      UnifiedPost(origin: origin, core: core, booruData: data),
+      Post(origin: origin, core: core, booruData: data),
     );
   }
 

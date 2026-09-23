@@ -301,33 +301,32 @@ void main() {
   }
 }
 
-UnifiedPost _post({required BooruType type, required BooruPostData data}) =>
-    UnifiedPost(
-      origin: PostOrigin.fromSource(
-        booruType: type,
-        booruId: type.id,
-        source: 'https://${type.id}.example',
-      ),
-      core: PostCoreData(
-        id: 1,
-        thumbnailImageUrl: 'thumb',
-        sampleImageUrl: 'sample',
-        originalImageUrl: 'original',
-        tags: const {'tag'},
-        rating: Rating.general,
-        hasComment: false,
-        isTranslated: false,
-        hasParentOrChildren: false,
-        source: PostSource.none(),
-        score: 0,
-        duration: 0,
-        fileSize: 0,
-        format: 'jpg',
-        height: 1,
-        md5: '',
-        videoThumbnailUrl: '',
-        videoUrl: '',
-        width: 1,
-      ),
-      booruData: data,
-    );
+Post _post({required BooruType type, required BooruPostData data}) => Post(
+  origin: PostOrigin.fromSource(
+    booruType: type,
+    booruId: type.id,
+    source: 'https://${type.id}.example',
+  ),
+  core: PostCoreData(
+    id: 1,
+    thumbnailImageUrl: 'thumb',
+    sampleImageUrl: 'sample',
+    originalImageUrl: 'original',
+    tags: const {'tag'},
+    rating: Rating.general,
+    hasComment: false,
+    isTranslated: false,
+    hasParentOrChildren: false,
+    source: PostSource.none(),
+    score: 0,
+    duration: 0,
+    fileSize: 0,
+    format: 'jpg',
+    height: 1,
+    md5: '',
+    videoThumbnailUrl: '',
+    videoUrl: '',
+    width: 1,
+  ),
+  booruData: data,
+);

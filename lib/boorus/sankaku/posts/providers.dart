@@ -18,7 +18,7 @@ final sankakuPseudoIdGeneratorProvider = Provider((ref) {
 });
 
 final sankakuPostRepoProvider =
-    Provider.family<PostRepository<SankakuPost>, BooruConfigSearch>(
+    Provider.family<PostRepository<Post>, BooruConfigSearch>(
       (ref, config) {
         final client = ref.watch(sankakuClientProvider(config.auth));
         final idGenerator = ref.watch(sankakuPseudoIdGeneratorProvider);

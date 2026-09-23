@@ -6,14 +6,13 @@ import '../../../core/posts/post/types.dart';
 final kNozomiPostDetailsUIBuilder = PostDetailsUIBuilder(
   preview: {
     DetailsPart.toolbar: (context) =>
-        const DefaultInheritedPostActionToolbar<UnifiedPost>(),
+        const DefaultInheritedPostActionToolbar<Post>(),
   },
   full: {
     DetailsPart.toolbar: (context) =>
-        const DefaultInheritedPostActionToolbar<UnifiedPost>(),
-    DetailsPart.tags: (context) =>
-        const DefaultInheritedTagsTile<UnifiedPost>(),
+        const DefaultInheritedPostActionToolbar<Post>(),
+    DetailsPart.tags: (context) => const DefaultInheritedTagsTile<Post>(),
     DetailsPart.fileDetails: (context) =>
-        const DefaultInheritedFileDetailsSection<UnifiedPost>(),
+        const DefaultInheritedFileDetailsSection<Post>(),
   },
 );

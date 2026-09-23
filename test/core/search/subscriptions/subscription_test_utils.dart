@@ -1,3 +1,4 @@
+import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/errors/types.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 import 'package:boorusama/core/posts/rating/types.dart';
@@ -80,31 +81,32 @@ class TestSearchPostRepository extends PostRepository<Post> {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-class TestSearchPost extends SimplePost {
-  TestSearchPost(int id, DateTime? createdAt)
-    : super(
-        id: id,
-        createdAt: createdAt,
-        thumbnailImageUrl: 'https://example.com/$id-thumb.jpg',
-        sampleImageUrl: 'https://example.com/$id.jpg',
-        originalImageUrl: '',
-        tags: const {},
-        rating: Rating.general,
-        hasComment: false,
-        isTranslated: false,
-        hasParentOrChildren: false,
-        source: PostSource.none(),
-        score: 0,
-        duration: 0,
-        fileSize: 0,
-        format: 'jpg',
-        hasSound: null,
-        height: 0,
-        md5: '',
-        videoThumbnailUrl: '',
-        videoUrl: '',
-        width: 0,
-        uploaderId: null,
-        metadata: null,
-      );
-}
+Post TestSearchPost(int id, DateTime? createdAt) => Post(
+  origin: PostOrigin.forBooruType(BooruType.unknown),
+  core: PostCoreData(
+    id: id,
+    createdAt: createdAt,
+    thumbnailImageUrl: 'https://example.com/$id-thumb.jpg',
+    sampleImageUrl: 'https://example.com/$id.jpg',
+    originalImageUrl: '',
+    tags: const {},
+    rating: Rating.general,
+    hasComment: false,
+    isTranslated: false,
+    hasParentOrChildren: false,
+    source: PostSource.none(),
+    score: 0,
+    duration: 0,
+    fileSize: 0,
+    format: 'jpg',
+    hasSound: null,
+    height: 0,
+    md5: '',
+    videoThumbnailUrl: '',
+    videoUrl: '',
+    width: 0,
+    uploaderId: null,
+    metadata: null,
+  ),
+  booruData: const LegacyPostData(typeKey: 'test_search', custom: {}),
+);

@@ -34,7 +34,7 @@ class _DanbooruSearchPageState extends ConsumerState<DanbooruSearchPage> {
   @override
   Widget build(BuildContext context) {
     final config = ref.watchConfig;
-    final postRepo = ref.watch(unifiedPostRepoProvider(config));
+    final postRepo = ref.watch(originAwarePostRepoProvider(config));
     final metatags = ref.watch(metatagsProvider).map((e) => e.name).join('|');
     final metatagExtractor = ref.watch(
       danbooruMetatagExtractorProvider(config.auth),

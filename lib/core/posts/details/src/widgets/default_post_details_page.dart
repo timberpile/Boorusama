@@ -5,7 +5,6 @@ import 'package:kurumi/material.dart';
 // Project imports:
 import '../../../../boorus/engine/providers.dart';
 import '../../../../configs/config/providers.dart';
-import '../../../../configs/config/types.dart';
 import '../../../../notes/note/widgets.dart';
 import '../../../post/types.dart';
 import '../../routes.dart';
@@ -18,68 +17,22 @@ import 'post_details_item.dart';
 import 'post_details_notes.dart';
 import 'post_details_page_scaffold.dart';
 
-typedef LegacyPostConverter =
-    UnifiedPost Function(Post post, PostOrigin origin);
-
-class LegacyPostDetailsPageAdapter extends ConsumerWidget {
-  const LegacyPostDetailsPageAdapter({
+class MixedPostDetailsPageAdapter extends StatelessWidget {
+  const MixedPostDetailsPageAdapter({
     required this.payload,
-    required this.converter,
     super.key,
   });
 
   final DetailsRouteContext payload;
-  final LegacyPostConverter converter;
-
-  static DetailsRouteContext<UnifiedPost> convertPayload({
-    required DetailsRouteContext payload,
-    required PostOrigin origin,
-    required LegacyPostConverter converter,
-  }) => DetailsRouteContext<UnifiedPost>(
-    initialIndex: payload.initialIndex,
-    posts: payload.posts
-        .map((post) => converter(post, origin))
-        .toList(growable: false),
-    scrollController: payload.scrollController,
-    isDesktop: payload.isDesktop,
-    hero: payload.hero,
-    initialThumbnailUrl: payload.initialThumbnailUrl,
-    configSearch: payload.configSearch,
-    dislclaimer: payload.dislclaimer,
-    useMixedViewer: true,
-  );
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final currentConfig = ref.watchConfig;
-    final routeAuth = payload.configSearch?.auth;
-    final usesCurrentProfile =
-        routeAuth == null ||
-        routeAuth == BooruConfigAuth.fromConfig(currentConfig);
-    final origin = usesCurrentProfile
-        ? PostOrigin.fromSource(
-            booruType: currentConfig.auth.booruType,
-            booruId: currentConfig.booruId,
-            source: currentConfig.url,
-            profileIdHint: currentConfig.id,
-          )
-        : PostOrigin.fromSource(
-            booruType: routeAuth.booruType,
-            booruId: routeAuth.booruId,
-            source: routeAuth.url,
-          );
-    final converted = convertPayload(
-      payload: payload,
-      origin: origin,
-      converter: converter,
-    );
-
+  Widget build(BuildContext context) {
     return MixedPostDetailsPage(
-      posts: converted.posts,
-      initialIndex: converted.initialIndex,
-      initialThumbnailUrl: converted.initialThumbnailUrl,
-      scrollController: converted.scrollController,
-      disclaimer: converted.dislclaimer,
+      posts: payload.posts.cast<Post>(),
+      initialIndex: payload.initialIndex,
+      initialThumbnailUrl: payload.initialThumbnailUrl,
+      scrollController: payload.scrollController,
+      disclaimer: payload.dislclaimer,
     );
   }
 }

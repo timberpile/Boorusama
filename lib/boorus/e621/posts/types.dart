@@ -1,3 +1,6 @@
+export '../../../core/posts/post/types.dart' show Post;
+export 'post_data.dart';
+
 // Flutter imports:
 import 'package:flutter/widgets.dart';
 
@@ -11,14 +14,15 @@ import '../../../core/posts/details/types.dart';
 import '../../../core/posts/post/types.dart';
 import '../../../core/posts/rating/types.dart';
 import '../../../core/posts/sources/types.dart';
+import 'post_data.dart';
 import 'status.dart';
 
 export 'status.dart';
 
-class E621Post extends Equatable
+class E621PostRecord extends Equatable
     with MediaInfoMixin, TranslatedMixin, ImageInfoMixin, VideoInfoMixin
-    implements Post {
-  E621Post({
+    implements PostRecord {
+  E621PostRecord({
     required this.id,
     required this.source,
     required this.thumbnailImageUrl,
@@ -231,20 +235,17 @@ class E621MediaUrlResolver extends DefaultMediaUrlResolver {
   String resolveVideoUrl(
     Post post,
     BooruConfigViewer config,
-  ) => switch (post) {
-    final E621Post p =>
+  ) =>
       switch (E621VideoVariantType.tryParse(config.videoQuality)) {
-            E621VideoVariantType.original =>
-              p.videoVariants[E621VideoVariantType.original]?.url,
-            E621VideoVariantType.sample =>
-              p.videoVariants[E621VideoVariantType.sample]?.url,
-            E621VideoVariantType.v720p =>
-              p.videoVariants[E621VideoVariantType.v720p]?.url,
-            E621VideoVariantType.v480p =>
-              p.videoVariants[E621VideoVariantType.v480p]?.url,
-            null => p.videoVariants[E621VideoVariantType.v720p]?.url,
-          } ??
-          post.videoUrl,
-    _ => post.videoUrl,
-  };
+        E621VideoVariantType.original =>
+          post.videoVariants[E621VideoVariantType.original]?.url,
+        E621VideoVariantType.sample =>
+          post.videoVariants[E621VideoVariantType.sample]?.url,
+        E621VideoVariantType.v720p =>
+          post.videoVariants[E621VideoVariantType.v720p]?.url,
+        E621VideoVariantType.v480p =>
+          post.videoVariants[E621VideoVariantType.v480p]?.url,
+        null => post.videoVariants[E621VideoVariantType.v720p]?.url,
+      } ??
+      post.videoUrl;
 }

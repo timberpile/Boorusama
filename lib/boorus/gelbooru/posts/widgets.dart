@@ -15,7 +15,7 @@ class GelbooruUploaderFileDetailTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final post = InheritedPost.of<UnifiedPost>(context);
+    final post = InheritedPost.of<Post>(context);
     final uploaderName = post.uploaderName;
 
     return switch (uploaderName) {
@@ -39,9 +39,9 @@ class GelbooruUploaderPostsSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final post = InheritedPost.of<UnifiedPost>(context);
+    final post = InheritedPost.of<Post>(context);
 
-    return UploaderPostsSection<UnifiedPost>(
+    return UploaderPostsSection<Post>(
       query: ref.watch(
         gelbooruUploaderQueryProvider(post),
       ),
@@ -52,24 +52,23 @@ class GelbooruUploaderPostsSection extends ConsumerWidget {
 final kGelbooruPostDetailsUIBuilder = PostDetailsUIBuilder(
   preview: {
     DetailsPart.toolbar: (context) =>
-        const DefaultInheritedPostActionToolbar<UnifiedPost>(),
+        const DefaultInheritedPostActionToolbar<Post>(),
   },
   full: {
     DetailsPart.toolbar: (context) =>
-        const DefaultInheritedPostActionToolbar<UnifiedPost>(),
+        const DefaultInheritedPostActionToolbar<Post>(),
     DetailsPart.source: (context) =>
-        const DefaultInheritedSourceSection<UnifiedPost>(),
-    DetailsPart.tags: (context) =>
-        const DefaultInheritedTagsTile<UnifiedPost>(),
+        const DefaultInheritedSourceSection<Post>(),
+    DetailsPart.tags: (context) => const DefaultInheritedTagsTile<Post>(),
     DetailsPart.fileDetails: (context) =>
-        const DefaultInheritedFileDetailsSection<UnifiedPost>(
+        const DefaultInheritedFileDetailsSection<Post>(
           uploader: GelbooruUploaderFileDetailTile(),
         ),
     DetailsPart.artistPosts: (context) =>
-        const DefaultInheritedArtistPostsSection<UnifiedPost>(),
+        const DefaultInheritedArtistPostsSection<Post>(),
     DetailsPart.uploaderPosts: (context) =>
         const GelbooruUploaderPostsSection(),
     DetailsPart.characterList: (context) =>
-        const DefaultInheritedCharacterPostsSection<UnifiedPost>(),
+        const DefaultInheritedCharacterPostsSection<Post>(),
   },
 );

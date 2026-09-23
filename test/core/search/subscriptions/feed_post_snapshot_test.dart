@@ -10,26 +10,29 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   test('feed rows round-trip complete native post snapshots', () {
     final post = _post(const GelbooruV2PostData(hasNotes: true));
-    final row = CachedFeedPost.fromPost(
+    final snapshot = feedPostSnapshotFromPost(
       post,
       dataCodec: const GelbooruV2PostCodec(),
     );
 
-    final restored = CachedFeedPost.fromJson(
-      row.toJson(),
+    final restoredSnapshot = feedPostSnapshotFromJson(
+      feedPostSnapshotToJson(snapshot),
+    );
+    final restored = decodeFeedPost(
+      restoredSnapshot,
       dataCodec: const GelbooruV2PostCodec(),
     );
 
-    expect(restored.snapshot, row.snapshot);
-    expect(restored.post, post);
-    expect(restored.toJson(), {
+    expect(restoredSnapshot, snapshot);
+    expect(restored, post);
+    expect(feedPostSnapshotToJson(restoredSnapshot), {
       'snapshotSchemaVersion': 1,
-      'postSnapshot': row.snapshot.toJson(),
+      'postSnapshot': snapshot.toJson(),
     });
   });
 
   test('legacy feed rows migrate to a generic full snapshot', () {
-    final row = CachedFeedPost.fromJson({
+    final snapshot = feedPostSnapshotFromJson({
       'id': 42,
       'createdAt': DateTime.utc(2026).toIso8601String(),
       'thumbnail': 'thumb',
@@ -43,35 +46,43 @@ void main() {
       'mediaVariants': const {'180x180': 'small'},
     }, profileId: 17);
 
-    expect(row.id, 42);
-    expect(row.post.origin.booruType, BooruType.unknown);
-    expect(row.post.origin.profileIdHint, 17);
-    expect(row.post.booruData, isA<LegacyPostData>());
-    expect(row.post.mediaVariants, {'180x180': 'small'});
-    expect(row.toJson().keys, {'snapshotSchemaVersion', 'postSnapshot'});
+    final post = decodeFeedPost(snapshot);
+    expect(feedPostId(snapshot), 42);
+    expect(post.origin.booruType, BooruType.unknown);
+    expect(post.origin.profileIdHint, 17);
+    expect(post.booruData, isA<LegacyPostData>());
+    expect(post.mediaVariants, {'180x180': 'small'});
+    expect(feedPostSnapshotToJson(snapshot).keys, {
+      'snapshotSchemaVersion',
+      'postSnapshot',
+    });
   });
 
   test('unsupported custom data keeps cached media in generic UI', () {
-    final native = CachedFeedPost.fromPost(
+    final native = feedPostSnapshotFromPost(
       _post(const GelbooruV2PostData(hasNotes: true)),
       dataCodec: const GelbooruV2PostCodec(),
     );
-    final malformed = CachedFeedPost.fromJson({
+    final malformedSnapshot = feedPostSnapshotFromJson({
       'snapshotSchemaVersion': 1,
       'postSnapshot': {
-        ...native.snapshot.toJson(),
+        ...native.toJson(),
         'codecVersion': 99,
         'custom': const {'future': true},
       },
-    }, dataCodec: const GelbooruV2PostCodec());
+    });
+    final malformed = decodeFeedPost(
+      malformedSnapshot,
+      dataCodec: const GelbooruV2PostCodec(),
+    );
 
-    expect(malformed.post.booruData, isA<UnknownPostData>());
-    expect(malformed.post.sampleImageUrl, 'sample');
-    expect(malformed.post.id, 42);
+    expect(malformed.booruData, isA<UnknownPostData>());
+    expect(malformed.sampleImageUrl, 'sample');
+    expect(malformed.id, 42);
   });
 }
 
-UnifiedPost _post(BooruPostData data) => UnifiedPost(
+Post _post(BooruPostData data) => Post(
   origin: PostOrigin.fromSource(
     booruType: BooruType.gelbooruV2,
     booruId: 23,

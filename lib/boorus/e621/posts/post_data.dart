@@ -110,3 +110,25 @@ final class E621VideoVariantData extends Equatable {
   @override
   List<Object?> get props => [type, url, size, width, height, codec, fps];
 }
+
+extension E621PostDataX on Post {
+  E621PostData? get e621Data => switch (booruData) {
+    final E621PostData data => data,
+    _ => null,
+  };
+
+  Set<String> get generalTags => e621Data?.generalTags ?? const {};
+  Set<String> get metaTags => e621Data?.metaTags ?? const {};
+  Set<String> get speciesTags => e621Data?.speciesTags ?? const {};
+  Set<String> get invalidTags => e621Data?.invalidTags ?? const {};
+  Set<String> get loreTags => e621Data?.loreTags ?? const {};
+  int get upScore => e621Data?.upScore ?? 0;
+  int get downScore => e621Data?.downScore ?? 0;
+  int get favCount => e621Data?.favCount ?? 0;
+  bool get isFavorited => e621Data?.isFavorited ?? false;
+  String get description => e621Data?.description ?? '';
+  Map<E621VideoVariantType, E621VideoVariant> get videoVariants => {
+    for (final variant in e621Data?.videoVariants ?? const [])
+      variant.type: variant.toVariant(),
+  };
+}

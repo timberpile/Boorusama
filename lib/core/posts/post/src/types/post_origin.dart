@@ -24,6 +24,12 @@ final class PostOrigin extends Equatable {
     profileIdHint: profileIdHint,
   );
 
+  factory PostOrigin.forBooruType(BooruType booruType) => PostOrigin.fromSource(
+    booruType: booruType,
+    booruId: booruType.id,
+    source: '',
+  );
+
   factory PostOrigin.fromSnapshot(PostOriginSnapshot snapshot) => PostOrigin._(
     booruType: BooruType.fromLegacyId(snapshot.booruTypeId),
     booruId: snapshot.booruId,

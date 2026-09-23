@@ -47,7 +47,7 @@ class _FavoriteGroupDetailsPageState
   late var postIds = Queue<int>.from(widget.group.postIds);
 
   @override
-  PostRepository<DanbooruPost> get postRepository =>
+  PostRepository<Post> get postRepository =>
       ref.read(danbooruPostRepoProvider(ref.readConfigSearch));
 
   @override
@@ -125,7 +125,7 @@ class _FavoriteGroupDetailsPageState
   }
 
   Widget _buildEditButton(
-    PostGridController<DanbooruPost> controller,
+    PostGridController<Post> controller,
     BooruConfigSearch config,
   ) {
     return IconButton(
@@ -179,15 +179,15 @@ class FavoriteGroupEditPage extends StatefulWidget {
     super.key,
   });
 
-  final List<DanbooruPost> posts;
-  final void Function(List<DanbooruPost> posts) onSave;
+  final List<Post> posts;
+  final void Function(List<Post> posts) onSave;
 
   @override
   State<FavoriteGroupEditPage> createState() => _FavoriteGroupEditPageState();
 }
 
 class _FavoriteGroupEditPageState extends State<FavoriteGroupEditPage> {
-  late final List<DanbooruPost> posts = widget.posts;
+  late final List<Post> posts = widget.posts;
 
   void _onReorder(int oldIndex, int newIndex) {
     final post = posts.removeAt(oldIndex);

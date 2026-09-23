@@ -35,13 +35,13 @@ final sankakuTagExtractorProvider =
           tagCache: ref.watch(tagCacheRepositoryProvider.future),
           sorter: TagSorter.defaults(),
           fetcher: (post, options) {
-            if (post case final SankakuPost sankakuPost) {
+            if (post.sankakuData != null) {
               return [
-                ...sankakuPost.artistDetailsTags,
-                ...sankakuPost.characterDetailsTags,
-                ...sankakuPost.copyrightDetailsTags,
-                ...sankakuPost.generalDetailsTags,
-                ...sankakuPost.metaDetailsTags,
+                ...post.artistDetailsTags,
+                ...post.characterDetailsTags,
+                ...post.copyrightDetailsTags,
+                ...post.generalDetailsTags,
+                ...post.metaDetailsTags,
               ];
             } else {
               return TagExtractor.extractTagsFromGenericPost(post);

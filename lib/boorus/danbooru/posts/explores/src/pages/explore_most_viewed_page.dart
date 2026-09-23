@@ -39,7 +39,7 @@ class _ExploreMostViewedPageState extends ConsumerState<ExploreMostViewedPage> {
     return CustomContextMenuOverlay(
       child: PostScope(
         fetcher: (page) => page > 1
-            ? TaskEither.fromEither(Either.of(<DanbooruPost>[].toResult()))
+            ? TaskEither.fromEither(Either.of(<Post>[].toResult()))
             : ref
                   .read(danbooruExploreRepoProvider(config))
                   .getMostViewedPosts(selectedDateNotifier.value),

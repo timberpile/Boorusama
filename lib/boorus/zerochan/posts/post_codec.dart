@@ -7,9 +7,8 @@ final class ZerochanPostCodec extends EmptyPostDataCodec {
   const ZerochanPostCodec() : super('zerochan');
 }
 
-UnifiedPost zerochanPostToUnified(ZerochanPost post, PostOrigin origin) =>
-    UnifiedPost(
-      origin: origin,
-      core: PostCoreData.fromPost(post),
-      booruData: zerochanPostData,
-    );
+Post zerochanPostFromRecord(ZerochanPostRecord post, PostOrigin origin) => Post(
+  origin: origin,
+  core: PostCoreData.fromPost(post),
+  booruData: zerochanPostData,
+);

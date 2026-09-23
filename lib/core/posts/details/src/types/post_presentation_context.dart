@@ -15,12 +15,9 @@ final class PostPresentationContext {
     required BooruPostPresentation presentation,
     BooruConfig? resolvedConfig,
   }) {
-    final isCompatible = switch (post) {
-      UnifiedPost(:final booruData) =>
+    final isCompatible =
         presentation is! GenericPostPresentation &&
-            presentation.supports(booruData),
-      _ => false,
-    };
+        presentation.supports(post.booruData);
 
     return PostPresentationContext._(
       post: post,
@@ -45,9 +42,8 @@ final class PostPresentationContext {
   final BooruConfig? resolvedConfig;
   final bool _hasValidatedPayload;
 
-  D? data<D extends BooruPostData>() => switch (post) {
-    UnifiedPost(:final booruData) when _hasValidatedPayload && booruData is D =>
-      booruData,
-    _ => null,
-  };
+  D? data<D extends BooruPostData>() {
+    final data = post.booruData;
+    return _hasValidatedPayload && data is D ? data : null;
+  }
 }

@@ -16,7 +16,7 @@ final danbooruUserProvider = AsyncNotifierProvider.autoDispose
     );
 
 final danbooruUserFavoritesProvider = FutureProvider.autoDispose
-    .family<List<DanbooruPost>, int>((ref, uid) async {
+    .family<List<Post>, int>((ref, uid) async {
       final config = ref.watchConfigSearch;
       final user = await ref.watch(danbooruUserProvider(uid).future);
       final repo = ref.watch(danbooruPostRepoProvider(config));

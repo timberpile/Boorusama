@@ -29,7 +29,7 @@ class SzurubooruPostActionToolbar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final post = InheritedPost.of<UnifiedPost>(context);
+    final post = InheritedPost.of<Post>(context);
     final controller = PostDetailsPageViewScope.of(context);
     final detailsController = PostDetails.of<Post>(context).controller;
 
@@ -119,7 +119,7 @@ class SzurubooruUploaderFileDetailTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final post = InheritedPost.of<UnifiedPost>(context);
+    final post = InheritedPost.of<Post>(context);
     final uploaderName = post.uploaderName;
 
     return switch (uploaderName) {
@@ -142,7 +142,7 @@ class SzurubooruStatsTileSection extends ConsumerWidget {
   const SzurubooruStatsTileSection({super.key});
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final post = InheritedPost.of<UnifiedPost>(context);
+    final post = InheritedPost.of<Post>(context);
     final data = InheritedPost.presentationOf(
       context,
     ).data<SzurubooruPostData>();
@@ -166,9 +166,9 @@ class SzurubooruUploaderPostsSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final post = InheritedPost.of<UnifiedPost>(context);
+    final post = InheritedPost.of<Post>(context);
 
-    return UploaderPostsSection<UnifiedPost>(
+    return UploaderPostsSection<Post>(
       query: ref.watch(
         szurubooruUploaderQueryProvider(post),
       ),
@@ -198,10 +198,9 @@ final kSzurubooruPostDetailsUIBuilder = PostDetailsUIBuilder(
   full: {
     DetailsPart.toolbar: (context) => const SzurubooruPostActionToolbar(),
     DetailsPart.stats: (context) => const SzurubooruStatsTileSection(),
-    DetailsPart.tags: (context) =>
-        const DefaultInheritedTagsTile<UnifiedPost>(),
+    DetailsPart.tags: (context) => const DefaultInheritedTagsTile<Post>(),
     DetailsPart.fileDetails: (context) =>
-        const DefaultInheritedFileDetailsSection<UnifiedPost>(
+        const DefaultInheritedFileDetailsSection<Post>(
           uploader: SzurubooruUploaderFileDetailTile(),
         ),
     DetailsPart.pool: (context) => const SzurubooruPoolTileSection(),

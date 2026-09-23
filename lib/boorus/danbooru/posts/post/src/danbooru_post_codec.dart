@@ -57,12 +57,11 @@ final class DanbooruPostCodec implements BooruPostDataCodec<DanbooruPostData> {
   }
 }
 
-UnifiedPost danbooruPostToUnified(DanbooruPost post, PostOrigin origin) =>
-    UnifiedPost(
-      origin: origin,
-      core: PostCoreData.fromPost(post, status: post.status?.value),
-      booruData: DanbooruPostData.fromPost(post),
-    );
+Post danbooruPostFromRecord(DanbooruPostRecord post, PostOrigin origin) => Post(
+  origin: origin,
+  core: PostCoreData.fromPost(post, status: post.status?.value),
+  booruData: DanbooruPostData.fromPost(post),
+);
 
 Set<String> _stringSet(Object? value) => switch (value) {
   final List<Object?> values => values.map((e) => e as String).toSet(),

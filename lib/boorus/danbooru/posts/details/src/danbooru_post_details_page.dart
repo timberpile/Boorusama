@@ -35,7 +35,7 @@ class _DanbooruPostDetailsPageState extends State<DanbooruPostDetailsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final data = PostDetails.of<DanbooruPost>(context);
+    final data = PostDetails.of<Post>(context);
     final posts = data.posts;
     final detailsController = data.controller;
 

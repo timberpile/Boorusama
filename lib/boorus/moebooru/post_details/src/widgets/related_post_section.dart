@@ -19,7 +19,7 @@ class MoebooruRelatedPostsSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final post = InheritedPost.of<UnifiedPost>(context);
+    final post = InheritedPost.of<Post>(context);
     final params = (ref.watchConfigSearch, post);
 
     final postsAsync = ref.watch(moebooruPostDetailsChildrenProvider(params));

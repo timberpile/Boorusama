@@ -65,7 +65,7 @@ class BookmarkLibraryService {
 
   Future<Bookmark> upgradeBookmarkSnapshot({
     required Bookmark bookmark,
-    required UnifiedPost post,
+    required Post post,
     required BooruPostDataCodec? dataCodec,
     DateTime? updatedAt,
   }) async {

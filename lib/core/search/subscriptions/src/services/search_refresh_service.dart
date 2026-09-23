@@ -106,7 +106,7 @@ class SearchRefreshService {
             subscriptionId: subscription.id,
             feedPosts: [
               for (final post in posts)
-                CachedFeedPost.fromPost(
+                feedPostSnapshotFromPost(
                   post,
                   origin: PostOrigin.fromSource(
                     booruType: config.auth.booruType,

@@ -5,8 +5,6 @@ import '../../core/configs/config/types.dart';
 import '../../core/configs/create/widgets.dart';
 import '../../core/posts/details/widgets.dart';
 import '../../core/posts/post/types.dart';
-import 'posts/post_codec.dart';
-import 'posts/types.dart';
 import 'posts/widgets.dart';
 import 'search/widgets.dart';
 
@@ -18,10 +16,6 @@ class NozomiBuilder extends BaseBooruBuilder {
     typeKey: 'nozomi',
     uiBuilder: postDetailsUIBuilder,
   );
-
-  @override
-  PostToUnifiedConverter get postConverter =>
-      (post, origin) => nozomiPostToUnified(post as NozomiPost, origin);
 
   @override
   CreateConfigPageBuilder get createConfigPageBuilder =>
@@ -49,9 +43,8 @@ class NozomiBuilder extends BaseBooruBuilder {
 
   @override
   PostDetailsPageBuilder get postDetailsPageBuilder =>
-      (context, payload) => LegacyPostDetailsPageAdapter(
+      (context, payload) => MixedPostDetailsPageAdapter(
         payload: payload,
-        converter: postConverter,
       );
 
   @override

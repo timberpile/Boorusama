@@ -68,20 +68,8 @@ class PostPagePresentationScope extends ConsumerWidget {
   }
 
   PostPagePresentation _resolve(WidgetRef ref) {
-    final unifiedPost = switch (post) {
-      final UnifiedPost post => post,
-      _ => null,
-    };
-    if (unifiedPost == null) {
-      return PostPagePresentation(
-        context: PostPresentationContext.generic(post),
-        config: null,
-        fallbackReason: PostPresentationFallbackReason.unsupportedPost,
-      );
-    }
-
     final originResolution = const PostOriginResolver().resolve(
-      unifiedPost.origin,
+      post.origin,
       ref.watch(booruConfigProvider),
     );
     final config = switch (originResolution) {
@@ -106,8 +94,8 @@ class PostPagePresentationScope extends ConsumerWidget {
 
     final enginePresentation = ref.watch(
       booruPostPresentationProvider((
-        origin: unifiedPost.origin,
-        data: unifiedPost.booruData,
+        origin: post.origin,
+        data: post.booruData,
       )),
     );
     final presentationContext = PostPresentationContext.resolve(

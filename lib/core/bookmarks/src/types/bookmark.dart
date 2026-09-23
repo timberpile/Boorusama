@@ -36,7 +36,7 @@ class Bookmark extends Equatable with ImageInfoMixin, TagListCheckMixin {
     final effectiveFormat = format ?? _extension(resolvedOriginal);
     final isVideo = isFormatVideo(effectiveFormat);
     final booruType = BooruType.fromLegacyId(booruId);
-    final post = UnifiedPost(
+    final post = Post(
       origin: PostOrigin.fromSource(
         booruType: booruType,
         booruId: booruId,
@@ -122,7 +122,7 @@ class Bookmark extends Equatable with ImageInfoMixin, TagListCheckMixin {
   final DateTime createdAt;
   final DateTime updatedAt;
   final StoredPostSnapshot snapshot;
-  final UnifiedPost post;
+  final Post post;
   final String? _sourceUrl;
 
   int get booruId => snapshot.origin.booruTypeId;
@@ -199,7 +199,7 @@ class Bookmark extends Equatable with ImageInfoMixin, TagListCheckMixin {
     Map<String, String>? metadata,
     ImageUrlResolver? imageUrlResolver,
     StoredPostSnapshot? snapshot,
-    UnifiedPost? post,
+    Post? post,
   }) {
     final changesLegacyPost =
         thumbnailUrl != null ||

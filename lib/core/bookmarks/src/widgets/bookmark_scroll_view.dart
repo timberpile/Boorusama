@@ -77,7 +77,7 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
 
   @override
   Widget build(BuildContext context) {
-    return RawPostScope<UnifiedPost>(
+    return RawPostScope<Post>(
       onError: (message) {
         ref.read(loggerProvider).error('Bookmark Listing', message);
       },
@@ -262,7 +262,7 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
 
   Widget _buildItem(
     int index,
-    PostGridController<UnifiedPost> controller,
+    PostGridController<Post> controller,
   ) {
     final edit = ref.watch(bookmarkEditProvider);
 

@@ -39,15 +39,15 @@ final class AnimePicturesPostCodec
   }
 }
 
-UnifiedPost animePicturesPostToUnified(
-  AnimePicturesPost post,
+Post animePicturesPostFromRecord(
+  AnimePicturesPostRecord post,
   PostOrigin origin,
 ) {
   final (statusValue, statusType) = switch (post.status) {
     AnimePicturesPostStatus(:final value, :final type) => (value, type),
     _ => (null, null),
   };
-  return UnifiedPost(
+  return Post(
     origin: origin,
     core: PostCoreData.fromPost(post),
     booruData: AnimePicturesPostData(

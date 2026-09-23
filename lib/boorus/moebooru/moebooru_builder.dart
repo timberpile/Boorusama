@@ -15,7 +15,6 @@ import 'home/types.dart';
 import 'home/widgets.dart';
 import 'post_details/widgets.dart';
 import 'post_details/src/favorite_loader.dart';
-import 'posts/post_codec.dart';
 import 'posts/post_data.dart';
 import 'posts/types.dart';
 
@@ -29,10 +28,6 @@ class MoebooruBuilder extends BaseBooruBuilder {
     detailsWrapperBuilder: ({required post, required child}) =>
         MoebooruFavoriteUsersLoader(post: post, child: child),
   );
-
-  @override
-  PostToUnifiedConverter get postConverter =>
-      (post, origin) => moebooruPostToUnified(post as MoebooruPost, origin);
 
   @override
   CreateConfigPageBuilder get createConfigPageBuilder =>
@@ -89,9 +84,8 @@ class MoebooruBuilder extends BaseBooruBuilder {
 
   @override
   PostDetailsPageBuilder get postDetailsPageBuilder =>
-      (context, payload) => LegacyPostDetailsPageAdapter(
+      (context, payload) => MixedPostDetailsPageAdapter(
         payload: payload,
-        converter: postConverter,
       );
 
   @override

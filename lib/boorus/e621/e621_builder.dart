@@ -22,7 +22,6 @@ import 'configs/widgets.dart';
 import 'favorites/widgets.dart';
 import 'home/types.dart';
 import 'home/widgets.dart';
-import 'posts/post_codec.dart';
 import 'posts/post_data.dart';
 import 'posts/types.dart';
 import 'posts/widgets.dart';
@@ -36,10 +35,6 @@ class E621Builder extends BaseBooruBuilder {
     typeKey: 'e621',
     uiBuilder: postDetailsUIBuilder,
   );
-
-  @override
-  PostToUnifiedConverter get postConverter =>
-      (post, origin) => e621PostToUnified(post as E621Post, origin);
 
   @override
   CreateConfigPageBuilder get createConfigPageBuilder =>
@@ -86,9 +81,8 @@ class E621Builder extends BaseBooruBuilder {
 
   @override
   PostDetailsPageBuilder get postDetailsPageBuilder =>
-      (context, payload) => LegacyPostDetailsPageAdapter(
+      (context, payload) => MixedPostDetailsPageAdapter(
         payload: payload,
-        converter: postConverter,
       );
 
   @override
@@ -132,7 +126,7 @@ class E621SearchPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final postRepo = ref.watch(unifiedPostRepoProvider(ref.watchConfig));
+    final postRepo = ref.watch(originAwarePostRepoProvider(ref.watchConfig));
 
     return SearchPageScaffold(
       params: params,

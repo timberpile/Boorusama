@@ -51,8 +51,8 @@ final class SzurubooruPostCodec
   }
 }
 
-UnifiedPost szurubooruPostToUnified(SzurubooruPost post, PostOrigin origin) =>
-    UnifiedPost(
+Post szurubooruPostFromRecord(SzurubooruPostRecord post, PostOrigin origin) =>
+    Post(
       origin: origin,
       core: PostCoreData.fromPost(post),
       booruData: SzurubooruPostData(

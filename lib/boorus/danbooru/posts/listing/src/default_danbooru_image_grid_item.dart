@@ -27,7 +27,7 @@ class DefaultDanbooruImageGridItem extends StatelessWidget {
 
   final int index;
   final AutoScrollController autoScrollController;
-  final PostGridController<DanbooruPost> controller;
+  final PostGridController<Post> controller;
   final BlockOverlayItem? blockOverlay;
   final VoidCallback? onTap;
   final bool useHero;

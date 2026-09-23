@@ -76,16 +76,16 @@ class PixivRepository extends BooruRepositoryDefault {
           post.format.startsWith('.') ? post.format.substring(1) : post.format,
       tokenHandlers: [
         TokenHandler('illust_id', (post, options) {
-          return post is PixivPost ? post.illustId.toString() : '';
+          return post.pixivData == null ? '' : post.illustId.toString();
         }),
         TokenHandler('page', (post, options) {
-          return post is PixivPost ? post.pageIndex.toString() : '';
+          return post.pixivData == null ? '' : post.pageIndex.toString();
         }),
         TokenHandler('user_id', (post, options) {
-          return post is PixivPost ? post.userId.toString() : '';
+          return post.pixivData == null ? '' : post.userId.toString();
         }),
         TokenHandler('user_name', (post, options) {
-          return post is PixivPost ? post.userName : '';
+          return post.pixivData == null ? '' : post.userName;
         }),
       ],
     );

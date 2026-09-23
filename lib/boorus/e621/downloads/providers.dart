@@ -15,7 +15,7 @@ import '../posts/types.dart';
 
 final e621DownloadFilenameGeneratorProvider =
     Provider.family<DownloadFilenameGenerator, BooruConfigAuth>((ref, config) {
-      return DownloadFileNameBuilder<E621Post>(
+      return DownloadFileNameBuilder<Post>(
         defaultFileNameFormat: kBoorusamaCustomDownloadFileNameFormat,
         defaultBulkDownloadFileNameFormat:
             kBoorusamaBulkDownloadCustomFileNameFormat,
@@ -24,14 +24,17 @@ final e621DownloadFilenameGeneratorProvider =
           WidthTokenHandler(),
           HeightTokenHandler(),
           AspectRatioTokenHandler(),
-          TokenHandler('artist', (post, config) => post.artistTags.join(' ')),
+          TokenHandler(
+            'artist',
+            (post, config) => post.artistTags?.join(' ') ?? '',
+          ),
           TokenHandler(
             'character',
-            (post, config) => post.characterTags.join(' '),
+            (post, config) => post.characterTags?.join(' ') ?? '',
           ),
           TokenHandler(
             'copyright',
-            (post, config) => post.copyrightTags.join(' '),
+            (post, config) => post.copyrightTags?.join(' ') ?? '',
           ),
           TokenHandler('general', (post, config) => post.generalTags.join(' ')),
           TokenHandler('meta', (post, config) => post.metaTags.join(' ')),
@@ -94,8 +97,7 @@ final class E621DownloadFileUrlExtractor implements DownloadFileUrlExtractor {
     required Post post,
     required String quality,
   }) async {
-    if (post case final E621Post p
-        when p.isVideo && p.videoVariants.isNotEmpty) {
+    if (post case final Post p when p.isVideo && p.videoVariants.isNotEmpty) {
       final url = switch (quality) {
         'original' =>
           p.videoVariants[E621VideoVariantType.original]?.url ??
@@ -136,7 +138,7 @@ final class E621DownloadSource implements DownloadSourceProvider {
           url: post.sampleImageUrl,
           name: context.t.settings.download.qualities.sample,
         ),
-      if (post case final E621Post e621Post) ...[
+      if (post case final Post e621Post) ...[
         if (e621Post.videoVariants[E621VideoVariantType.v480p] case final v?)
           DownloadSource(
             url: v.url,

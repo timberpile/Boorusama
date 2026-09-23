@@ -7,9 +7,8 @@ final class GelbooruPostCodec extends EmptyPostDataCodec {
   const GelbooruPostCodec() : super('gelbooru');
 }
 
-UnifiedPost gelbooruPostToUnified(GelbooruPost post, PostOrigin origin) =>
-    UnifiedPost(
-      origin: origin,
-      core: PostCoreData.fromPost(post),
-      booruData: gelbooruPostData,
-    );
+Post gelbooruPostFromRecord(GelbooruPostRecord post, PostOrigin origin) => Post(
+  origin: origin,
+  core: PostCoreData.fromPost(post),
+  booruData: gelbooruPostData,
+);

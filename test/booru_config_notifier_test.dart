@@ -500,7 +500,7 @@ void main() {
               name: 'Artists',
               sourceIds: const ['source'],
               posts: [
-                CachedFeedPost.fromPost(TestSearchPost(5, checkedAt)),
+                feedPostSnapshotFromPost(TestSearchPost(5, checkedAt)),
               ],
             ),
           ],

@@ -26,7 +26,7 @@ class Shimmie2UploaderFileDetailTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final post = InheritedPost.of<UnifiedPost>(context);
+    final post = InheritedPost.of<Post>(context);
     final uploaderName = post.uploaderName;
 
     return switch (uploaderName) {
@@ -48,15 +48,14 @@ class Shimmie2UploaderFileDetailTile extends ConsumerWidget {
 final kShimmie2PostDetailsUIBuilder = PostDetailsUIBuilder(
   preview: {
     DetailsPart.toolbar: (context) =>
-        const DefaultInheritedPostActionToolbar<UnifiedPost>(),
+        const DefaultInheritedPostActionToolbar<Post>(),
   },
   full: {
     DetailsPart.toolbar: (context) =>
-        const DefaultInheritedPostActionToolbar<UnifiedPost>(),
-    DetailsPart.tags: (context) =>
-        const DefaultInheritedBasicTagsTile<UnifiedPost>(),
+        const DefaultInheritedPostActionToolbar<Post>(),
+    DetailsPart.tags: (context) => const DefaultInheritedBasicTagsTile<Post>(),
     DetailsPart.fileDetails: (context) =>
-        const DefaultInheritedFileDetailsSection<UnifiedPost>(
+        const DefaultInheritedFileDetailsSection<Post>(
           uploader: Shimmie2UploaderFileDetailTile(),
         ),
     DetailsPart.uploaderPosts: (context) =>
@@ -69,9 +68,9 @@ class Shimmie2UploaderPostsSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final post = InheritedPost.of<UnifiedPost>(context);
+    final post = InheritedPost.of<Post>(context);
 
-    return UploaderPostsSection<UnifiedPost>(
+    return UploaderPostsSection<Post>(
       query: ref.watch(
         shimmie2UploaderQueryProvider(post),
       ),

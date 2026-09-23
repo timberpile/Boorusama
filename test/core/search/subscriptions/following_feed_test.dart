@@ -261,7 +261,7 @@ void main() {
             discoveredPosts: const [],
             feedPosts: [
               for (final id in ids)
-                CachedFeedPost.fromPost(
+                feedPostSnapshotFromPost(
                   TestSearchPost(id, checkedAt.add(Duration(seconds: id))),
                 ),
             ],
@@ -272,7 +272,7 @@ void main() {
       await commit(sources[0], [1, 2]);
       await commit(sources[1], [2, 3]);
       expect(
-        (await harness.repository.getFeeds()).single.posts.map((p) => p.id),
+        (await harness.repository.getFeeds()).single.posts.map(feedPostId),
         [3, 2, 1],
       );
       await harness.repository.recordRefreshFailure(
@@ -282,7 +282,7 @@ void main() {
         kind: SearchRefreshErrorKind.network,
       );
       expect(
-        (await harness.repository.getFeeds()).single.posts.map((p) => p.id),
+        (await harness.repository.getFeeds()).single.posts.map(feedPostId),
         [3, 2, 1],
       );
       final restored = SearchFollowingFeed.fromJson(
@@ -296,14 +296,14 @@ void main() {
   );
 
   test('cached feed posts preserve media variants through serialization', () {
-    final cached = CachedFeedPost.fromPost(
-      _VariantSearchPost(42, checkedAt),
-    );
+    final cached = feedPostSnapshotFromPost(_variantSearchPost(42, checkedAt));
 
-    expect(cached.mediaVariants, _VariantSearchPost.variants);
+    expect(decodeFeedPost(cached).mediaVariants, _variantMediaVariants);
     expect(
-      CachedFeedPost.fromJson(cached.toJson()).mediaVariants,
-      _VariantSearchPost.variants,
+      decodeFeedPost(
+        feedPostSnapshotFromJson(feedPostSnapshotToJson(cached)),
+      ).mediaVariants,
+      _variantMediaVariants,
     );
   });
 
@@ -377,7 +377,7 @@ void main() {
           baseline: true,
           discoveredPosts: const [],
           feedPosts: [
-            CachedFeedPost.fromPost(TestSearchPost(1, checkedAt)),
+            feedPostSnapshotFromPost(TestSearchPost(1, checkedAt)),
           ],
         ),
       );
@@ -512,7 +512,7 @@ void main() {
           discoveredPosts: const [],
           feedPosts: [
             for (var i = 0; i < 6; i++)
-              CachedFeedPost.fromPost(
+              feedPostSnapshotFromPost(
                 TestSearchPost(i, checkedAt.add(Duration(seconds: i))),
               ),
           ],
@@ -558,7 +558,7 @@ void main() {
           baseline: true,
           discoveredPosts: const [],
           feedPosts: [
-            CachedFeedPost.fromPost(TestSearchPost(1, checkedAt)),
+            feedPostSnapshotFromPost(TestSearchPost(1, checkedAt)),
           ],
         ),
       );
@@ -592,22 +592,22 @@ void main() {
         queries: ['cat'],
       );
       final source = (await harness.repository.getById(feed.sourceIds.single))!;
-      final native = CachedFeedPost.fromPost(
+      final native = feedPostSnapshotFromPost(
         _feedPost(42),
         dataCodec: const GelbooruV2PostCodec(),
       );
-      final fallbackSource = CachedFeedPost.fromPost(
+      final fallbackSource = feedPostSnapshotFromPost(
         _feedPost(41),
         dataCodec: const GelbooruV2PostCodec(),
       );
-      final fallback = CachedFeedPost.fromJson({
+      final fallback = feedPostSnapshotFromJson({
         'snapshotSchemaVersion': 1,
         'postSnapshot': {
-          ...fallbackSource.snapshot.toJson(),
+          ...fallbackSource.toJson(),
           'codecVersion': 99,
           'custom': const {'future': true},
         },
-      }, dataCodec: const GelbooruV2PostCodec());
+      });
       await harness.repository.commitRefresh(
         SearchRefreshCommit(
           subscriptionId: source.id,
@@ -662,11 +662,11 @@ void main() {
       final cards = tester.widgetList<PostGridItem>(find.byType(PostGridItem));
       expect(cards.length, 2);
       expect(
-        (cards.first.post as UnifiedPost).booruData,
+        cards.first.post.booruData,
         isA<GelbooruV2PostData>(),
       );
       expect(
-        (cards.last.post as UnifiedPost).booruData,
+        cards.last.post.booruData,
         isA<UnknownPostData>(),
       );
       expect(harness.requests, isEmpty);
@@ -678,7 +678,7 @@ void main() {
       expect(opened?.useMixedViewer, isTrue);
       expect(opened?.posts.length, 2);
       expect(
-        (opened!.posts.last as UnifiedPost).booruData,
+        opened!.posts.last.booruData,
         isA<UnknownPostData>(),
       );
       expect(
@@ -710,7 +710,9 @@ void main() {
       await harness.pump(
         tester,
         FeedPostThumbnail(
-          post: CachedFeedPost.fromPost(TestSearchPost(1, checkedAt)).post,
+          post: decodeFeedPost(
+            feedPostSnapshotFromPost(TestSearchPost(1, checkedAt)),
+          ),
           config: testProfile.auth,
         ),
       );
@@ -738,7 +740,7 @@ void main() {
             gridSize: c.gridSize,
           ),
         );
-        final post = CachedFeedPost.fromJson({
+        final post = feedPostSnapshotFromJson({
           'id': 1,
           'createdAt': checkedAt.toIso8601String(),
           'thumbnail': 'https://example.com/thumb.jpg',
@@ -758,7 +760,10 @@ void main() {
 
         await harness.pump(
           tester,
-          FeedPostThumbnail(post: post.post, config: testProfile.auth),
+          FeedPostThumbnail(
+            post: decodeFeedPost(post),
+            config: testProfile.auth,
+          ),
         );
 
         expect(
@@ -766,7 +771,7 @@ void main() {
           c.expectedUrl,
         );
         expect(
-          post.snapshot.common['mediaVariants'],
+          post.common['mediaVariants'],
           {
             '180x180': 'https://example.com/180.jpg',
             '360x360': 'https://example.com/360.jpg',
@@ -803,17 +808,40 @@ void main() {
   });
 }
 
-class _VariantSearchPost extends TestSearchPost implements PostMediaVariants {
-  _VariantSearchPost(super.id, super.createdAt);
+const _variantMediaVariants = {
+  '180x180': 'https://example.com/180.jpg',
+  '360x360': 'https://example.com/360.jpg',
+  '720x720': 'https://example.com/720.jpg',
+};
 
-  static const variants = {
-    '180x180': 'https://example.com/180.jpg',
-    '360x360': 'https://example.com/360.jpg',
-    '720x720': 'https://example.com/720.jpg',
-  };
-
-  @override
-  Map<String, String> get mediaVariants => variants;
+Post _variantSearchPost(int id, DateTime? createdAt) {
+  final post = TestSearchPost(id, createdAt);
+  return post.copyWith(
+    core: PostCoreData(
+      id: post.id,
+      createdAt: post.createdAt,
+      thumbnailImageUrl: post.thumbnailImageUrl,
+      sampleImageUrl: post.sampleImageUrl,
+      originalImageUrl: post.originalImageUrl,
+      videoUrl: post.videoUrl,
+      videoThumbnailUrl: post.videoThumbnailUrl,
+      mediaVariants: _variantMediaVariants,
+      width: post.width,
+      height: post.height,
+      format: post.format,
+      md5: post.md5,
+      fileSize: post.fileSize,
+      duration: post.duration,
+      hasSound: post.hasSound,
+      tags: post.tags,
+      rating: post.rating,
+      hasComment: post.hasComment,
+      isTranslated: post.isTranslated,
+      hasParentOrChildren: post.hasParentOrChildren,
+      source: post.source,
+      score: post.score,
+    ),
+  );
 }
 
 final _feedConfig = BooruConfig.fromJson({
@@ -825,7 +853,7 @@ final _feedConfig = BooruConfig.fromJson({
   'id': 12,
 });
 
-UnifiedPost _feedPost(int id) => UnifiedPost(
+Post _feedPost(int id) => Post(
   origin: PostOrigin.fromSource(
     booruType: BooruType.gelbooruV2,
     booruId: _feedConfig.booruId,
@@ -868,13 +896,13 @@ final class _FeedPresentation
   bool supports(BooruPostData data) => data is GelbooruV2PostData;
 
   @override
-  PostDetailsUIBuilder detailsBuilder(UnifiedPost post) =>
+  PostDetailsUIBuilder detailsBuilder(Post post) =>
       const PostDetailsUIBuilder();
 
   @override
   PostGridItemAdditions buildGridItemAdditions(
     BuildContext context, {
-    required UnifiedPost post,
+    required Post post,
     required BooruConfigAuth config,
   }) => const PostGridItemAdditions(
     quickActionButton: Text('native feed card'),

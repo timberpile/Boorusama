@@ -4,7 +4,7 @@ import 'package:foundation/foundation.dart';
 // Project imports:
 import '../../../post/types.dart';
 
-String buildDetailsText(DanbooruPost post) {
+String buildDetailsText(Post post) {
   final fileSizeText = post.fileSize > 0
       ? '• ${Filesize.parse(post.fileSize, round: 1)}'
       : '';

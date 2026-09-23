@@ -124,7 +124,6 @@ class _MixedPostDetailsImagePreloaderState
   }
 
   _ResolvedPreloadPost? _resolve(Post post) {
-    if (post is! UnifiedPost) return null;
     final resolution = const PostOriginResolver().resolve(
       post.origin,
       ref.read(booruConfigProvider),

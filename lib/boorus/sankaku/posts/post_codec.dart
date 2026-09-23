@@ -65,31 +65,30 @@ final class SankakuPostCodec implements BooruPostDataCodec<SankakuPostData> {
   }
 }
 
-UnifiedPost sankakuPostToUnified(SankakuPost post, PostOrigin origin) =>
-    UnifiedPost(
-      origin: origin,
-      core: PostCoreData.fromPost(post),
-      booruData: SankakuPostData(
-        sankakuId: switch (post.sankakuId) {
-          IntId(:final value) => SankakuPostIdData(
-            value: value.toString(),
-            isNumeric: true,
-          ),
-          StringId(:final value) => SankakuPostIdData(
-            value: value,
-            isNumeric: false,
-          ),
-          null => null,
-        },
-        isFavorited: post.isFavorited,
-        favoriteCount: post.favoriteCount,
-        artistDetailsTags: post.artistDetailsTags,
-        characterDetailsTags: post.characterDetailsTags,
-        copyrightDetailsTags: post.copyrightDetailsTags,
-        generalDetailsTags: post.generalDetailsTags,
-        metaDetailsTags: post.metaDetailsTags,
+Post sankakuPostFromRecord(SankakuPostRecord post, PostOrigin origin) => Post(
+  origin: origin,
+  core: PostCoreData.fromPost(post),
+  booruData: SankakuPostData(
+    sankakuId: switch (post.sankakuId) {
+      IntId(:final value) => SankakuPostIdData(
+        value: value.toString(),
+        isNumeric: true,
       ),
-    );
+      StringId(:final value) => SankakuPostIdData(
+        value: value,
+        isNumeric: false,
+      ),
+      null => null,
+    },
+    isFavorited: post.isFavorited,
+    favoriteCount: post.favoriteCount,
+    artistDetailsTags: post.artistDetailsTags,
+    characterDetailsTags: post.characterDetailsTags,
+    copyrightDetailsTags: post.copyrightDetailsTags,
+    generalDetailsTags: post.generalDetailsTags,
+    metaDetailsTags: post.metaDetailsTags,
+  ),
+);
 
 Map<String, Object?> _encodeTag(Tag tag) => {
   'name': tag.name,

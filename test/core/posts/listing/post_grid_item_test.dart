@@ -146,10 +146,10 @@ final _config = BooruConfig.defaultConfig(
   customDownloadFileNameFormat: null,
 );
 
-UnifiedPost _post({
+Post _post({
   BooruPostData data = const EmptyPostData(typeKey: 'test'),
   String? status,
-}) => UnifiedPost(
+}) => Post(
   origin: PostOrigin.fromSource(
     booruType: BooruType.danbooru,
     booruId: BooruType.danbooru.id,

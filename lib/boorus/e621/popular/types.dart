@@ -6,5 +6,5 @@ import '../../../core/posts/post/types.dart';
 import '../posts/types.dart';
 
 abstract interface class E621PopularRepository {
-  PostsOrError<E621Post> getPopularPosts(DateTime date, TimeScale timeScale);
+  PostsOrError<Post> getPopularPosts(DateTime date, TimeScale timeScale);
 }

@@ -129,7 +129,7 @@ class PixivExploreRepository {
   /// within one — doesn't inherit another feed's exhaustion point.
   final Map<String, int> _exhaustedAfterPage = {};
 
-  PostsOrError<PixivPost> getPosts({
+  PostsOrError<Post> getPosts({
     required PixivExploreFeed feed,
     required int page,
     DateTime? now,
@@ -137,7 +137,7 @@ class PixivExploreRepository {
     final key = _cacheKeyFor(feed);
     final exhaustedAfter = _exhaustedAfterPage[key];
     if (exhaustedAfter != null && page > exhaustedAfter) {
-      return TaskEither.of(const <PixivPost>[].toResult());
+      return TaskEither.of(const <Post>[].toResult());
     }
 
     return TaskEither.tryCatch(

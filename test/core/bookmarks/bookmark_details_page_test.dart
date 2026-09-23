@@ -51,7 +51,7 @@ void main() {
     tester,
   ) async {
     final post = Bookmark.empty.post;
-    final detailsController = PostDetailsController<UnifiedPost>(
+    final detailsController = PostDetailsController<Post>(
       scrollController: null,
       initialPage: 0,
       posts: [post],
@@ -122,7 +122,7 @@ void main() {
       VisibilityDetectorController.instance.updateInterval = Duration.zero;
       var fetchCount = 0;
       final posts = [_nativePost(), _fallbackPost()];
-      final controller = PostGridController<UnifiedPost>(
+      final controller = PostGridController<Post>(
         fetcher: (_) {
           fetchCount++;
           return TaskEither.right(
@@ -161,7 +161,7 @@ void main() {
     tester,
   ) async {
     final post = _nativePost();
-    final controller = PostGridController<UnifiedPost>(
+    final controller = PostGridController<Post>(
       fetcher: (_) => TaskEither.right(PostResult(posts: [post], total: 1)),
       blacklistedTagsFetcher: () async => const {},
       mountedChecker: () => true,
@@ -218,12 +218,12 @@ final _config = BooruConfig.fromJson({
   'id': 12,
 });
 
-UnifiedPost _nativePost() => _post(
+Post _nativePost() => _post(
   data: const GelbooruV2PostData(hasNotes: true),
   tags: const {'native'},
 );
 
-UnifiedPost _fallbackPost() => _post(
+Post _fallbackPost() => _post(
   data: const UnknownPostData(
     typeKey: 'gelbooru_v2',
     schemaVersion: 99,
@@ -234,11 +234,11 @@ UnifiedPost _fallbackPost() => _post(
   id: 2,
 );
 
-UnifiedPost _post({
+Post _post({
   required BooruPostData data,
   required Set<String> tags,
   int id = 1,
-}) => UnifiedPost(
+}) => Post(
   origin: PostOrigin.fromSource(
     booruType: BooruType.gelbooruV2,
     booruId: _config.booruId,
@@ -272,7 +272,7 @@ UnifiedPost _post({
 class _BookmarkViewerHarness extends StatelessWidget {
   const _BookmarkViewerHarness({required this.controller});
 
-  final PostGridController<UnifiedPost> controller;
+  final PostGridController<Post> controller;
 
   @override
   Widget build(BuildContext context) => ProviderScope(
@@ -343,7 +343,7 @@ final class _NativePresentation
   bool supports(BooruPostData data) => data is GelbooruV2PostData;
 
   @override
-  PostDetailsUIBuilder detailsBuilder(UnifiedPost post) => PostDetailsUIBuilder(
+  PostDetailsUIBuilder detailsBuilder(Post post) => PostDetailsUIBuilder(
     preview: {
       DetailsPart.toolbar: (context) => const SliverToBoxAdapter(
         child: Text('native@gelbooru.example'),
@@ -359,7 +359,7 @@ final class _NativePresentation
   @override
   Widget buildGridContextMenu(
     BuildContext context, {
-    required UnifiedPost post,
+    required Post post,
     required int index,
     required Widget child,
   }) => Consumer(

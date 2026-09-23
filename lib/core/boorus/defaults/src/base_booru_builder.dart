@@ -23,9 +23,6 @@ class BaseBooruBuilder implements BooruBuilder {
   BooruPostPresentation get postPresentation => const GenericPostPresentation();
 
   @override
-  PostToUnifiedConverter? get postConverter => null;
-
-  @override
   CreateConfigPageBuilder get createConfigPageBuilder =>
       (
         context,

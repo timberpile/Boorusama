@@ -31,9 +31,8 @@ final class MoebooruPostCodec implements BooruPostDataCodec<MoebooruPostData> {
   };
 }
 
-UnifiedPost moebooruPostToUnified(MoebooruPost post, PostOrigin origin) =>
-    UnifiedPost(
-      origin: origin,
-      core: PostCoreData.fromPost(post),
-      booruData: MoebooruPostData(largeImageUrl: post.largeImageUrl),
-    );
+Post moebooruPostFromRecord(MoebooruPostRecord post, PostOrigin origin) => Post(
+  origin: origin,
+  core: PostCoreData.fromPost(post),
+  booruData: MoebooruPostData(largeImageUrl: post.largeImageUrl),
+);

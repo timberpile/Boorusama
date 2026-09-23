@@ -2,12 +2,14 @@
 import 'package:booru_clients/eshuushuu.dart';
 
 // Project imports:
+import '../../../core/boorus/booru/types.dart';
 import '../../../core/posts/post/types.dart';
 import '../../../core/posts/rating/types.dart';
 import '../../../core/posts/sources/types.dart';
+import 'post_codec.dart';
 import 'types.dart';
 
-EshuushuuPost postDtoToPost(
+Post postDtoToPost(
   PostDto e,
   PostMetadata? metadata,
 ) {
@@ -45,7 +47,7 @@ EshuushuuPost postDtoToPost(
   final sampleUrl = e.mediumUrl ?? e.thumbnailUrl ?? '';
   final hasComments = (e.posts ?? 0) > 0;
 
-  return EshuushuuPost(
+  final record = EshuushuuPostRecord(
     id: e.imageId ?? 0,
     thumbnailImageUrl: e.thumbnailUrl ?? '',
     sampleImageUrl: sampleUrl,
@@ -78,6 +80,10 @@ EshuushuuPost postDtoToPost(
     isFavorited: e.isFavorited,
     favorites: e.favorites,
     bayesianRating: e.bayesianRating,
+  );
+  return eshuushuuPostFromRecord(
+    record,
+    PostOrigin.forBooruType(BooruType.eshuushuu),
   );
 }
 

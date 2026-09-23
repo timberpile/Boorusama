@@ -22,20 +22,19 @@ final moebooruPostDetailsUIBuilder = PostDetailsUIBuilder(
   full: {
     DetailsPart.info: (context) => const MoebooruInformationSection(),
     DetailsPart.toolbar: (context) => const MoebooruPostDetailsActionToolbar(),
-    DetailsPart.tags: (context) =>
-        const DefaultInheritedTagsTile<UnifiedPost>(),
+    DetailsPart.tags: (context) => const DefaultInheritedTagsTile<Post>(),
     DetailsPart.fileDetails: (context) =>
-        const DefaultInheritedFileDetailsSection<UnifiedPost>(
+        const DefaultInheritedFileDetailsSection<Post>(
           uploader: MoebooruUploaderFileDetailTile(),
         ),
     DetailsPart.artistPosts: (context) =>
-        const DefaultInheritedArtistPostsSection<UnifiedPost>(),
+        const DefaultInheritedArtistPostsSection<Post>(),
     DetailsPart.uploaderPosts: (context) =>
         const MoebooruUploaderPostsSection(),
     DetailsPart.relatedPosts: (context) => const MoebooruRelatedPostsSection(),
     DetailsPart.comments: (context) => const MoebooruCommentSection(),
     DetailsPart.characterList: (context) =>
-        const DefaultInheritedCharacterPostsSection<UnifiedPost>(),
+        const DefaultInheritedCharacterPostsSection<Post>(),
   },
 );
 
@@ -44,9 +43,9 @@ class MoebooruUploaderPostsSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final post = InheritedPost.of<UnifiedPost>(context);
+    final post = InheritedPost.of<Post>(context);
 
-    return UploaderPostsSection<UnifiedPost>(
+    return UploaderPostsSection<Post>(
       query: ref.watch(
         moebooruUploaderQueryProvider(post),
       ),

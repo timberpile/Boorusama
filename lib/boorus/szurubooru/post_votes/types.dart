@@ -24,12 +24,11 @@ class SzurubooruPostVote extends Equatable implements PostVote {
     score: post.score ?? 0,
   );
 
-  factory SzurubooruPostVote.fromPost(SzurubooruPost post) =>
-      SzurubooruPostVote(
-        id: post.id,
-        postId: post.id,
-        score: post.score,
-      );
+  factory SzurubooruPostVote.fromPost(Post post) => SzurubooruPostVote(
+    id: post.id,
+    postId: post.id,
+    score: post.score,
+  );
 
   @override
   final int id;

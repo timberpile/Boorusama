@@ -92,7 +92,7 @@ final class E621PostCodec implements BooruPostDataCodec<E621PostData> {
   }
 }
 
-UnifiedPost e621PostToUnified(E621Post post, PostOrigin origin) => UnifiedPost(
+Post e621PostFromRecord(E621PostRecord post, PostOrigin origin) => Post(
   origin: origin,
   core: PostCoreData.fromPost(post, status: post.status?.value),
   booruData: E621PostData(

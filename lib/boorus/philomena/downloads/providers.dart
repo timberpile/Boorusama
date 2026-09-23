@@ -14,8 +14,8 @@ final class PhilomenaDownloadSource implements DownloadSourceProvider {
 
   @override
   List<DownloadSource> getDownloadSources(BuildContext context, Post post) {
-    if (post case final PhilomenaPost philPost) {
-      final rep = philPost.representation;
+    if (post.philomenaData != null) {
+      final rep = post.representation;
       return [
         if (rep.thumbTiny.isNotEmpty)
           DownloadSource(

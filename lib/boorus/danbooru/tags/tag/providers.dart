@@ -66,8 +66,8 @@ final danbooruTagExtractorProvider =
             final raw = <Tag>{};
 
             for (final post in posts) {
-              if (post case final DanbooruPost danbooruPost) {
-                final tags = _extractTagsFromPost(danbooruPost);
+              if (post.danbooruData != null) {
+                final tags = _extractTagsFromPost(post);
 
                 if (options.fetchTagCount) {
                   partial.addAll(tags);
@@ -106,8 +106,8 @@ final danbooruTagExtractorProvider =
           fetcher: (post, options) {
             final tagResolver = ref.read(danbooruTagResolverProvider(config));
 
-            if (post case final DanbooruPost danbooruPost) {
-              final tags = _extractTagsFromPost(danbooruPost);
+            if (post.danbooruData != null) {
+              final tags = _extractTagsFromPost(post);
 
               if (!options.fetchTagCount) {
                 return tags;
@@ -122,10 +122,10 @@ final danbooruTagExtractorProvider =
       },
     );
 
-List<Tag> _extractTagsFromPost(DanbooruPost post) {
+List<Tag> _extractTagsFromPost(Post post) {
   final tags = <Tag>[];
 
-  for (final t in post.artistTags) {
+  for (final t in post.artistTags ?? const <String>{}) {
     tags.add(
       Tag.noCount(
         name: t,
@@ -134,7 +134,7 @@ List<Tag> _extractTagsFromPost(DanbooruPost post) {
     );
   }
 
-  for (final t in post.copyrightTags) {
+  for (final t in post.copyrightTags ?? const <String>{}) {
     tags.add(
       Tag.noCount(
         name: t,
@@ -143,7 +143,7 @@ List<Tag> _extractTagsFromPost(DanbooruPost post) {
     );
   }
 
-  for (final t in post.characterTags) {
+  for (final t in post.characterTags ?? const <String>{}) {
     tags.add(
       Tag.noCount(
         name: t,

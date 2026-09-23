@@ -6,7 +6,6 @@ import 'booru_builder_types.dart';
 
 abstract class BooruBuilder {
   BooruPostPresentation get postPresentation => const GenericPostPresentation();
-  PostToUnifiedConverter? get postConverter => null;
 
   HomePageBuilder get homePageBuilder;
   CreateConfigPageBuilder get createConfigPageBuilder;

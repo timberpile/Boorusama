@@ -12,7 +12,7 @@ class PoolCover extends Equatable {
     required this.aspectRatio,
   });
 
-  factory PoolCover.fromPost(DanbooruPost post) {
+  factory PoolCover.fromPost(Post post) {
     return PoolCover(
       id: post.id,
       url: switch ((post.id, post.isAnimated)) {

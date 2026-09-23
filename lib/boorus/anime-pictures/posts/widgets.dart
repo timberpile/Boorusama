@@ -20,7 +20,7 @@ class AnimePicturesRelatedPostsSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final posts = PostDetails.of<Post>(context).posts;
-    final post = InheritedPost.of<UnifiedPost>(context);
+    final post = InheritedPost.of<Post>(context);
     final configAuth = ref.watchConfigAuth;
     final configViewer = ref.watchConfigViewer;
     final params = (configAuth, post.id);

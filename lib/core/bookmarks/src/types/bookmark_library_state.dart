@@ -48,10 +48,7 @@ class BookmarkLibraryState extends Equatable {
   Bookmark? bookmarkForPost(Post post, {int fallbackBooruId = -1}) =>
       bookmarksByUniqueId[BookmarkUniqueId.fromPost(
         post,
-        switch (post) {
-          UnifiedPost(:final origin) => origin.booruType.id,
-          _ => fallbackBooruId,
-        },
+        post.origin.booruType.id,
       )];
 
   @override

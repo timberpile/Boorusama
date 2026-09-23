@@ -24,14 +24,11 @@ class _BookmarkTagTilesState extends ConsumerState<BookmarkTagTiles> {
   @override
   Widget build(BuildContext context) {
     final post = InheritedPost.of<Post>(context);
-    final config = switch (post) {
-      UnifiedPost(:final origin) => switch (const PostOriginResolver().resolve(
-        origin,
-        ref.watch(booruConfigProvider),
-      )) {
-        ResolvedPostOrigin(:final config) => config,
-        _ => null,
-      },
+    final config = switch (const PostOriginResolver().resolve(
+      post.origin,
+      ref.watch(booruConfigProvider),
+    )) {
+      ResolvedPostOrigin(:final config) => config,
       _ => null,
     };
 
