@@ -58,4 +58,6 @@ dependencies are not declared.
 - Repeated the exact `id:12247758` flow on `emulator-5556`: details rendered
   title, statistics, tags, file details, uploader, and related posts; both back
   operations completed without new Flutter exceptions.
-- Awaiting the requested independent Sol High branch review.
+- Independent Sol High review confirmed the provider fix and reported five
+  broader feature-branch findings, tracked separately as POST-003 through
+  POST-007.

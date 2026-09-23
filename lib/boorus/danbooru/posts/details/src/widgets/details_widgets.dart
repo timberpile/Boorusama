@@ -166,7 +166,7 @@ class DanbooruRelatedPostsSection2 extends ConsumerWidget {
     return ref
         .watch(
           danbooruPostDetailsChildrenProvider(
-            (ref.watchConfigFilter, ref.watchConfigSearch, post),
+            (ref.watchConfigFilter, ref.watchConfig, post),
           ),
         )
         .maybeWhen(

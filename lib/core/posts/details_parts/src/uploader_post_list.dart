@@ -80,7 +80,7 @@ class _UploaderPostsSectionState<T extends Post>
                           detailsPostsProvider(
                             (
                               ref.watchConfigFilter,
-                              ref.watchConfigSearch,
+                              ref.watchConfig,
                               q.resolveTag(),
                               widget.filterQuery ?? postFilterQueryNone,
                             ),

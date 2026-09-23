@@ -84,7 +84,7 @@ class _DefaultInheritedArtistPostsSectionState<T extends Post>
                                         detailsPostsProvider(
                                           (
                                             ref.watchConfigFilter,
-                                            ref.watchConfigSearch,
+                                            ref.watchConfig,
                                             tag,
                                             widget.filterQuery ??
                                                 postFilterQueryNone,

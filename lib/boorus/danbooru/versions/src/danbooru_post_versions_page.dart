@@ -178,6 +178,7 @@ class _Content extends ConsumerWidget {
                   delegate: SliverChildBuilderDelegate(
                     (context, index) => TagEditHistoryCard(
                       version: data[index],
+                      config: ref.watchConfig,
                       onUserTap: () => goToUserDetailsPage(
                         ref,
                         details: UserDetails.fromCreator(data[index].updater),

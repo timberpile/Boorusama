@@ -30,7 +30,8 @@ class GelbooruV2PostDetailsPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final configSearch = payload.configSearch ?? ref.watchConfigSearch;
+    final config = payload.config ?? ref.watchConfig;
+    final configSearch = config.search;
 
     final postId = payload.posts.getOrNull(payload.initialIndex)?.id;
 
@@ -47,10 +48,10 @@ class GelbooruV2PostDetailsPage extends ConsumerWidget {
             ?.thumbnailOnly ??
         false;
 
-    if (thumbnailOnly && payload.configSearch == null) {
+    if (thumbnailOnly && payload.config == null) {
       return _PostDetailsDataLoadingTransitionPage(
         postId: NumericPostId(postId),
-        configSearch: configSearch,
+        config: config,
         pageBuilder: (context, detailsContext) {
           final widget = InheritedDetailsContext(
             context: detailsContext,
@@ -81,9 +82,9 @@ class _PayloadPostDetailsPage<T extends Post> extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final payload = InheritedDetailsContext.of<T>(context);
-    final configSearch = payload.configSearch;
+    final config = payload.config;
 
-    if (configSearch == null) {
+    if (config == null) {
       return const UnimplementedPage();
     }
 
@@ -102,11 +103,11 @@ class _PostDetailsDataLoadingTransitionPage extends ConsumerWidget {
   const _PostDetailsDataLoadingTransitionPage({
     required this.pageBuilder,
     required this.postId,
-    required this.configSearch,
+    required this.config,
   });
 
   final PostId postId;
-  final BooruConfigSearch configSearch;
+  final BooruConfig config;
 
   final Widget Function(
     BuildContext context,
@@ -116,7 +117,7 @@ class _PostDetailsDataLoadingTransitionPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final params = (postId, configSearch);
+    final params = (postId, config);
     return ref
         .watch(gelbooruV2PostProvider(params))
         .when(
@@ -134,7 +135,7 @@ class _PostDetailsDataLoadingTransitionPage extends ConsumerWidget {
               initialThumbnailUrl: null,
               dislclaimer:
                   'This site only supports viewing one post at a time.'.hc,
-              configSearch: configSearch,
+              config: config,
             );
             return pageBuilder(context, detailsContext);
           },
@@ -182,7 +183,7 @@ class GelbooruV2RelatedPostsSection extends ConsumerWidget {
         ? ref
               .watch(
                 gelbooruV2ChildPostsProvider(
-                  (ref.watchConfigFilter, ref.watchConfigSearch, post),
+                  (ref.watchConfigFilter, ref.watchConfig, post),
                 ),
               )
               .maybeWhen(

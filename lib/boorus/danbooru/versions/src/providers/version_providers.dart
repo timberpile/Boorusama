@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Project imports:
 import '../../../../../core/configs/config/providers.dart';
+import '../../../../../core/configs/manage/providers.dart';
 import '../data/providers.dart';
 import '../types/danbooru_post_version.dart';
 
@@ -12,4 +13,4 @@ final danbooruPostVersionsProvider = FutureProvider.autoDispose
       final repo = ref.watch(danbooruPostVersionsRepoProvider(config));
 
       return repo.getPostVersions(id: id);
-    });
+    }, dependencies: [currentReadOnlyBooruConfigAuthProvider]);

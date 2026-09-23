@@ -123,7 +123,7 @@ class _UserDetailsTagChangesState extends ConsumerState<UserDetailsTagChanges> {
                         delegate: SliverChildBuilderDelegate(
                           (context, index) => TagEditHistoryCard(
                             version: versions[index],
-                            configSearch: ref.watchConfigSearch,
+                            config: ref.watchConfig,
                           ),
                           childCount: versions.length,
                         ),

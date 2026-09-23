@@ -6,14 +6,14 @@ import 'package:kurumi/material.dart';
 
 // Project imports:
 import '../../../core/configs/config/providers.dart';
+import '../../../core/configs/config/types.dart';
 import '../../../core/posts/explores/types.dart';
 import '../../../core/posts/explores/widgets.dart';
 import '../../../core/posts/listing/widgets.dart';
+import '../../../core/posts/post/providers.dart';
 import '../../../core/posts/post/types.dart';
 import '../../../core/widgets/widgets.dart';
-import '../posts/types.dart';
 import 'providers.dart';
-import 'types.dart';
 
 class E621PopularPage extends ConsumerStatefulWidget {
   const E621PopularPage({
@@ -28,21 +28,32 @@ class _E621PopularPageState extends ConsumerState<E621PopularPage> {
   final selectedDateNotifier = ValueNotifier(DateTime.now());
   final selectedTimescale = ValueNotifier(TimeScale.day);
 
-  E621PopularRepository get repo =>
-      ref.read(e621PopularPostRepoProvider(ref.readConfigAuth));
-
   DateTime get selectedDate => selectedDateNotifier.value;
   TimeScale get scale => selectedTimescale.value;
 
   @override
   Widget build(BuildContext context) {
+    final config = ref.watchConfig;
+    final repo = ref.watch(e621PopularPostRepoProvider(config.auth));
+    final origin = PostOrigin.fromSource(
+      booruType: config.auth.booruType,
+      booruId: config.booruId,
+      source: config.url,
+      profileIdHint: config.id,
+    );
+
     return CustomContextMenuOverlay(
       child: Scaffold(
         body: SafeArea(
           child: PostScope(
             fetcher: (page) => page > 1
                 ? TaskEither.of(<Post>[].toResult())
-                : repo.getPopularPosts(selectedDate, scale),
+                : repo
+                      .getPopularPosts(selectedDate, scale)
+                      .map(
+                        (result) =>
+                            bindPostResultOrigin(result, origin: origin),
+                      ),
             builder: (context, controller) => Column(
               children: [
                 Container(

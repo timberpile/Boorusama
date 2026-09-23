@@ -6,6 +6,7 @@ import 'package:kurumi/material.dart';
 
 // Project imports:
 import '../../../../../../core/configs/config/providers.dart';
+import '../../../../../../core/configs/config/types.dart';
 import '../../../../../../core/images/booru_image.dart';
 import '../../../../../../core/posts/post/types.dart';
 import '../../../../../../core/search/search/widgets.dart';
@@ -23,7 +24,8 @@ class AddToFavoriteGroupPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final config = ref.watchConfigSearch;
+    final profile = ref.watchConfig;
+    final config = profile.search;
 
     return Scaffold(
       appBar: AppBar(
@@ -70,6 +72,7 @@ class AddToFavoriteGroupPage extends ConsumerWidget {
                 ),
                 onPressed: () => goToFavoriteGroupCreatePage(
                   context,
+                  profile,
                   enableManualPostInput: false,
                 ),
                 child: Text(context.t.favorite_groups.create),

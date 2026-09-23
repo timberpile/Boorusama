@@ -7,10 +7,11 @@ import 'package:foundation/foundation.dart';
 // Project imports:
 import '../../../core/configs/auth/widgets.dart';
 import '../../../core/configs/config/providers.dart';
+import '../../../core/configs/config/types.dart';
 import '../../../core/posts/favorites/providers.dart';
 import '../../../core/posts/favorites/widgets.dart';
+import '../../../core/posts/post/providers.dart';
 import '../gelbooru_v2_provider.dart';
-import '../posts/providers.dart';
 import 'providers.dart';
 
 class GelbooruV2FavoritesPage extends ConsumerWidget {
@@ -43,13 +44,13 @@ class GelbooruV2FavoritesPageApi extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final config = ref.watchConfigSearch;
+    final config = ref.watchConfig;
     final query = 'fav:$uid';
 
     return FavoritesPageScaffold(
       favQueryBuilder: () => query,
       fetcher: (page) =>
-          ref.read(gelbooruV2PostRepoProvider(config)).getPosts(query, page),
+          ref.read(originAwarePostRepoProvider(config)).getPosts(query, page),
     );
   }
 }
@@ -64,8 +65,13 @@ class GelbooruV2FavoritesPageHtml extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final config = ref.watchConfigSearch;
-    final repo = ref.watch(gelbooruV2FavoritesPostRepoProvider((config, uid)));
+    final config = ref.watchConfig;
+    final repo = OriginAwarePostRepository.fromConfig(
+      delegate: ref.watch(
+        gelbooruV2FavoritesPostRepoProvider((config.search, uid)),
+      ),
+      config: config,
+    );
     final notifier = ref.watch(favoritesProvider(config.auth).notifier);
 
     return FavoritesPageScaffold(

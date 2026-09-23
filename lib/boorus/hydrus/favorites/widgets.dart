@@ -4,11 +4,12 @@ import 'package:kurumi/material.dart';
 
 // Project imports:
 import '../../../core/configs/config/providers.dart';
+import '../../../core/configs/config/types.dart';
 import '../../../core/posts/favorites/providers.dart';
 import '../../../core/posts/favorites/widgets.dart';
+import '../../../core/posts/post/providers.dart';
 import '../../../core/posts/post/types.dart';
 import '../../../core/search/selected_tags/types.dart';
-import '../posts/providers.dart';
 import 'providers.dart';
 
 class HydrusFavoritesPage extends ConsumerWidget {
@@ -18,7 +19,7 @@ class HydrusFavoritesPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final config = ref.watchConfigSearch;
+    final config = ref.watchConfig;
 
     return ref
         .watch(ratingServiceNameProvider(config.auth))
@@ -31,7 +32,7 @@ class HydrusFavoritesPage extends ConsumerWidget {
                     return FavoritesPageScaffold(
                       favQueryBuilder: () => query,
                       fetcher: (page) => ref
-                          .read(hydrusPostRepoProvider(config))
+                          .read(originAwarePostRepoProvider(config))
                           .getPostsFromController(
                             SearchTagSet.fromList([query]),
                             page,

@@ -50,6 +50,7 @@ class DanbooruPostActionToolbar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final profile = ref.watchConfig;
     final config = ref.watchConfigAuth;
     final configViewer = ref.watchConfigViewer;
     final download = ref.watchConfigDownload;
@@ -142,8 +143,11 @@ class DanbooruPostActionToolbar extends ConsumerWidget {
                 SimpleButtonData(
                   icon: Icons.folder_special,
                   title: context.t.post.action.add_to_favorite_group,
-                  onPressed: () =>
-                      goToAddToFavoriteGroupSelectionPage(context, [post]),
+                  onPressed: () => goToAddToFavoriteGroupSelectionPage(
+                    context,
+                    [post],
+                    profile,
+                  ),
                 ),
               SimpleButtonData(
                 icon: Icons.history,

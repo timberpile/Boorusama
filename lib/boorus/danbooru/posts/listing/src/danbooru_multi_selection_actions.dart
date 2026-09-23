@@ -31,6 +31,7 @@ class DanbooruMultiSelectionActions extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final profile = ref.watchConfig;
     final config = ref.watchConfigAuth;
     final loginDetails = ref.watch(danbooruLoginDetailsProvider(config));
     final controller = SelectionMode.of(context);
@@ -45,6 +46,7 @@ class DanbooruMultiSelectionActions extends ConsumerWidget {
                     final shouldEnd = await goToAddToFavoriteGroupSelectionPage(
                       context,
                       selectedPosts,
+                      profile,
                     );
                     if (shouldEnd != null && shouldEnd) {
                       controller.disable();

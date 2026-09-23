@@ -41,7 +41,7 @@ final gelbooruV2PostRepoProvider =
     );
 
 final gelbooruV2PostProvider =
-    FutureProvider.family<Post?, (PostId, BooruConfigSearch)>((
+    FutureProvider.family<Post?, (PostId, BooruConfig)>((
       ref,
       params,
     ) async {
@@ -56,7 +56,10 @@ final gelbooruV2PostProvider =
         ref.cacheFor(Duration(seconds: cacheDuration));
       }
 
-      final postRepo = ref.watch(gelbooruV2PostRepoProvider(config));
+      final postRepo = OriginAwarePostRepository.fromConfig(
+        delegate: ref.watch(gelbooruV2PostRepoProvider(config.search)),
+        config: config,
+      );
 
       final result = await postRepo.getPost(id).run();
 
@@ -64,12 +67,12 @@ final gelbooruV2PostProvider =
     });
 
 final gelbooruV2ChildPostsProvider = FutureProvider.autoDispose
-    .family<List<Post>, (BooruConfigFilter, BooruConfigSearch, Post)>(
+    .family<List<Post>, (BooruConfigFilter, BooruConfig, Post)>(
       (ref, params) {
-        final (filter, search, post) = params;
+        final (filter, config, post) = params;
 
         return ref
-            .watch(gelbooruV2PostRepoProvider(search))
+            .watch(originAwarePostRepoProvider(config))
             .getPostsFromTagWithBlacklist(
               tag: post.relationshipQuery,
               blacklist: ref.watch(blacklistTagsProvider(filter).future),

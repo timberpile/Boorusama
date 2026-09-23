@@ -6,9 +6,10 @@ import 'package:kurumi/material.dart';
 // Project imports:
 import '../../../core/configs/auth/widgets.dart';
 import '../../../core/configs/config/providers.dart';
+import '../../../core/configs/config/types.dart';
 import '../../../core/posts/favorites/providers.dart';
 import '../../../core/posts/favorites/widgets.dart';
-import '../posts/providers.dart';
+import '../../../core/posts/post/providers.dart';
 
 class GelbooruFavoritesPage extends ConsumerWidget {
   const GelbooruFavoritesPage({super.key});
@@ -35,10 +36,10 @@ class GelbooruFavoritesPageInternal extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final config = ref.watchConfigSearch;
+    final config = ref.watchConfig;
     final query = 'fav:$uid';
     final notifier = ref.watch(favoritesProvider(config.auth).notifier);
-    final repo = ref.watch(gelbooruPostRepoProvider(config));
+    final repo = ref.watch(originAwarePostRepoProvider(config));
 
     return FavoritesPageScaffold(
       favQueryBuilder: () => query,

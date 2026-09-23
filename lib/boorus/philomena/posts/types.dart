@@ -4,7 +4,6 @@ export 'post_data.dart';
 // Package imports:
 import 'package:collection/collection.dart';
 import 'package:equatable/equatable.dart';
-import 'package:foundation/foundation.dart';
 
 // Project imports:
 import '../../../core/configs/config/types.dart';
@@ -13,6 +12,7 @@ import '../../../core/posts/details/types.dart';
 import '../../../core/posts/post/types.dart';
 import '../../../core/posts/rating/types.dart';
 import '../../../core/posts/sources/types.dart';
+import 'post_data.dart';
 
 class PhilomenaPostRecord extends Equatable
     with MediaInfoMixin, TranslatedMixin, ImageInfoMixin, VideoInfoMixin
@@ -215,25 +215,26 @@ class PhilomenaMediaUrlResolver implements MediaUrlResolver {
 
   @override
   String resolveMediaUrl(
-    Post rawPost,
+    Post post,
     BooruConfigViewer config,
-  ) => castOrNull<PhilomenaPostRecord>(rawPost).toOption().fold(
-    () => rawPost.sampleImageUrl,
-    (post) => config.imageDetaisQuality.toOption().fold(
-      () => post.sampleImageUrl,
-      (quality) => switch (stringToPhilomenaPostQualityType(quality)) {
-        PhilomenaPostQualityType.full => post.representation.full,
-        PhilomenaPostQualityType.large => post.representation.large,
-        PhilomenaPostQualityType.medium => post.representation.medium,
-        PhilomenaPostQualityType.tall => post.representation.tall,
-        PhilomenaPostQualityType.small => post.representation.small,
-        PhilomenaPostQualityType.thumb => post.representation.thumb,
-        PhilomenaPostQualityType.thumbSmall => post.representation.thumbSmall,
-        PhilomenaPostQualityType.thumbTiny => post.representation.thumbTiny,
-        null => post.representation.small,
-      },
-    ),
-  );
+  ) {
+    final representation = post.philomenaData?.representation;
+    if (representation == null) return post.sampleImageUrl;
+    final quality = config.imageDetaisQuality;
+    if (quality == null) return post.sampleImageUrl;
+
+    return switch (stringToPhilomenaPostQualityType(quality)) {
+      PhilomenaPostQualityType.full => representation.full,
+      PhilomenaPostQualityType.large => representation.large,
+      PhilomenaPostQualityType.medium => representation.medium,
+      PhilomenaPostQualityType.tall => representation.tall,
+      PhilomenaPostQualityType.small => representation.small,
+      PhilomenaPostQualityType.thumb => representation.thumb,
+      PhilomenaPostQualityType.thumbSmall => representation.thumbSmall,
+      PhilomenaPostQualityType.thumbTiny => representation.thumbTiny,
+      null => representation.small,
+    };
+  }
 
   @override
   String resolveVideoUrl(

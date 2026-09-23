@@ -18,19 +18,19 @@ class LazyPostDetailsRouteContext {
   const LazyPostDetailsRouteContext({
     required this.source,
     required this.initialIndex,
-    required this.configSearch,
+    required this.config,
   });
 
   final LazyPostDetailsSource source;
   final int initialIndex;
-  final BooruConfigSearch configSearch;
+  final BooruConfig config;
 }
 
 void goToLazyPostDetailsPageFromController<T extends Post>({
   required WidgetRef ref,
   required int initialIndex,
   required PostGridController<T> controller,
-  required BooruConfigSearch configSearch,
+  required BooruConfig config,
 }) {
   ref.router.push(
     '/post-list-details',
@@ -42,7 +42,7 @@ void goToLazyPostDetailsPageFromController<T extends Post>({
         fetchMore: controller.fetchMore,
       ),
       initialIndex: initialIndex,
-      configSearch: configSearch,
+      config: config,
     ),
   );
 }
@@ -82,21 +82,21 @@ class _LazyPostDetailsPage extends ConsumerWidget {
           : Axis.horizontal,
       itemBuilder: (context, postId) => _LazyPostItem(
         postId: postId,
-        configSearch: data.configSearch,
+        config: data.config,
       ),
     );
   }
 }
 
 class _LazyPostItem extends ConsumerWidget {
-  const _LazyPostItem({required this.postId, required this.configSearch});
+  const _LazyPostItem({required this.postId, required this.config});
 
   final int postId;
-  final BooruConfigSearch configSearch;
+  final BooruConfig config;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final params = (NumericPostId(postId), configSearch);
+    final params = (NumericPostId(postId), config);
     return ref
         .watch(singlePostDetailsProvider(params))
         .when(
@@ -110,7 +110,7 @@ class _LazyPostItem extends ConsumerWidget {
                     isDesktop: context.isLargeScreen,
                     hero: false,
                     initialThumbnailUrl: null,
-                    configSearch: configSearch,
+                    config: config,
                   ),
                   child: const PayloadPostDetailsPage<Post>(),
                 ),
@@ -124,7 +124,7 @@ class _LazyPostItem extends ConsumerWidget {
   Widget _errorPage(
     BuildContext context,
     WidgetRef ref,
-    (NumericPostId, BooruConfigSearch) params,
+    (NumericPostId, BooruConfig) params,
   ) => Scaffold(
     body: Center(
       child: Column(

@@ -12,23 +12,21 @@ import '../../../../../foundation/riverpod/riverpod.dart';
 import '../../../pools/pool/providers.dart';
 import '../../../pools/pool/types.dart';
 import '../../../users/creator/providers.dart';
-import '../../post/providers.dart';
-import '../../post/types.dart';
 import 'media_url_resolver.dart';
 
 final danbooruPostDetailsChildrenProvider = FutureProvider.family
-    .autoDispose<List<Post>, (BooruConfigFilter, BooruConfigSearch, Post)>((
+    .autoDispose<List<Post>, (BooruConfigFilter, BooruConfig, Post)>((
       ref,
       params,
     ) {
       ref.cacheFor(const Duration(seconds: 60));
 
-      final (filter, search, post) = params;
+      final (filter, config, post) = params;
 
       if (!post.hasParentOrChildren) return [];
 
       return ref
-          .watch(danbooruPostRepoProvider(search))
+          .watch(originAwarePostRepoProvider(config))
           .getPostsFromTagWithBlacklist(
             tag: post.relationshipQuery,
             blacklist: ref.watch(blacklistTagsProvider(filter).future),

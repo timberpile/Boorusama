@@ -34,6 +34,7 @@ class DanbooruPostContextMenu extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final profile = ref.watchConfig;
     final booruConfig = ref.watchConfigAuth;
     final loginDetails = ref.watch(danbooruLoginDetailsProvider(booruConfig));
     final hasAccount = loginDetails.hasLogin();
@@ -76,6 +77,7 @@ class DanbooruPostContextMenu extends ConsumerWidget {
               goToAddToFavoriteGroupSelectionPage(
                 context,
                 [post],
+                profile,
               );
             },
           ),
