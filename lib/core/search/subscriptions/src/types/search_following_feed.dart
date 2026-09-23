@@ -203,6 +203,17 @@ Post decodeFeedPost(
   StoredPostSnapshot snapshot, {
   BooruPostDataCodec? dataCodec,
 }) => switch (const StoredPostCodec().decode(snapshot, dataCodec: dataCodec)) {
+  StoredPostDecodeSuccess(:final post)
+      when dataCodec == null &&
+          post.origin.booruType == BooruType.unknown &&
+          post.origin.sourceHost.isEmpty =>
+    post.copyWith(
+      booruData: LegacyPostData(
+        typeKey: 'legacy_feed',
+        schemaVersion: snapshot.codecVersion,
+        custom: snapshot.custom,
+      ),
+    ),
   StoredPostDecodeSuccess(:final post) => post,
   StoredPostDecodeFailure(:final reason, :final error) => throw FormatException(
     'Invalid cached post snapshot: $reason',

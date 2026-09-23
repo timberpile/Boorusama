@@ -112,7 +112,7 @@ void main() {
       await pageView.nextPage(duration: Duration.zero);
       await tester.pumpAndSettle();
       expect(
-        find.text('Some site-specific features are unavailable for this post.'),
+        find.text('The original site profile is no longer available.'),
         findsOneWidget,
       );
       expect(
@@ -184,7 +184,7 @@ void main() {
             ),
           ),
           presentation: const GenericPostPresentation(),
-          reason: PostPresentationFallbackReason.incompatiblePresentation,
+          reason: PostPresentationFallbackReason.malformedData,
           effectiveUrl: 'https://danbooru.example',
         ),
       ];

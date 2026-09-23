@@ -142,7 +142,9 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
       gestureConfig: gestures,
       layoutConfig: layout,
       viewerWarning: currentPresentation.usesGenericPresentation
-          ? const PostPresentationFallbackWarning()
+          ? PostPresentationFallbackWarning(
+              reason: currentPresentation.fallbackReason!,
+            )
           : null,
       actions: defaultActions(
         note: currentPresentation.usesGenericPresentation
@@ -266,30 +268,65 @@ class _GenericPostTagsSection extends StatelessWidget {
 }
 
 class PostPresentationFallbackWarning extends StatelessWidget {
-  const PostPresentationFallbackWarning({super.key});
+  const PostPresentationFallbackWarning({
+    required this.reason,
+    this.onRetry,
+    super.key,
+  });
+
+  final PostPresentationFallbackReason reason;
+  final VoidCallback? onRetry;
 
   @override
-  Widget build(BuildContext context) => SafeArea(
-    minimum: const EdgeInsets.all(12),
-    child: Material(
-      color: Kurumi.themeOf(context).colorScheme.errorContainer,
-      borderRadius: BorderRadius.circular(16),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Symbols.warning, fill: 1),
-            const SizedBox(width: 8),
-            Flexible(
-              child: Text(
-                context.t.post.detail.site_features_unavailable,
-                textAlign: TextAlign.center,
+  Widget build(BuildContext context) {
+    final message = switch (reason) {
+      PostPresentationFallbackReason.missingProfile =>
+        context.t.post.detail.fallback.missing_profile,
+      PostPresentationFallbackReason.ambiguousProfile =>
+        context.t.post.detail.fallback.ambiguous_profile,
+      PostPresentationFallbackReason.unavailableEngine =>
+        context.t.post.detail.fallback.unavailable_engine,
+      PostPresentationFallbackReason.malformedData =>
+        context.t.post.detail.fallback.malformed_data,
+      PostPresentationFallbackReason.unsupportedVersion =>
+        context.t.post.detail.fallback.unsupported_version,
+      PostPresentationFallbackReason.removedUpstreamPost =>
+        context.t.post.detail.fallback.removed_upstream_post,
+      PostPresentationFallbackReason.refreshFailed =>
+        context.t.post.detail.fallback.refresh_failed,
+      PostPresentationFallbackReason.incompatiblePresentation =>
+        context.t.post.detail.site_features_unavailable,
+    };
+
+    return SafeArea(
+      minimum: const EdgeInsets.all(12),
+      child: Material(
+        color: Kurumi.themeOf(context).colorScheme.errorContainer,
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Symbols.warning, fill: 1),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  message,
+                  textAlign: TextAlign.center,
+                ),
               ),
-            ),
-          ],
+              if (onRetry != null) ...[
+                const SizedBox(width: 8),
+                TextButton(
+                  onPressed: onRetry,
+                  child: Text(context.t.generic.action.retry),
+                ),
+              ],
+            ],
+          ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }

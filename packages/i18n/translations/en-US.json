@@ -266,6 +266,15 @@
       "show_n_more": "Show $n more",
       "show_less": "Show less",
       "site_features_unavailable": "Some site-specific features are unavailable for this post.",
+      "fallback": {
+        "missing_profile": "The original site profile is no longer available.",
+        "ambiguous_profile": "More than one site profile matches this post.",
+        "unavailable_engine": "Support for this post’s site is unavailable.",
+        "malformed_data": "Some saved site-specific data could not be read.",
+        "unsupported_version": "This post was saved by a newer data format.",
+        "removed_upstream_post": "The post is no longer available on its original site.",
+        "refresh_failed": "The latest site-specific data could not be loaded."
+      },
       "login_required_notice": "You have to log in to perform this action",
       "open_wiki": "Open wiki",
       "add_to_favorites": "Add to favorites",

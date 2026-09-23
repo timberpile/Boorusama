@@ -12,9 +12,13 @@ import '../types/inherited_post.dart';
 import '../types/post_presentation_context.dart';
 
 enum PostPresentationFallbackReason {
-  unsupportedPost,
   missingProfile,
   ambiguousProfile,
+  unavailableEngine,
+  malformedData,
+  unsupportedVersion,
+  removedUpstreamPost,
+  refreshFailed,
   incompatiblePresentation,
 }
 
@@ -105,7 +109,7 @@ class PostPagePresentationScope extends ConsumerWidget {
     );
     final fallbackReason =
         presentationContext.presentation is GenericPostPresentation
-        ? PostPresentationFallbackReason.incompatiblePresentation
+        ? _genericFallbackReason(post.booruData)
         : null;
 
     return PostPagePresentation(
@@ -115,6 +119,17 @@ class PostPagePresentationScope extends ConsumerWidget {
     );
   }
 }
+
+PostPresentationFallbackReason _genericFallbackReason(BooruPostData data) =>
+    switch (data) {
+      UnknownPostData(reason: UnknownPostDataReason.unsupportedVersion) =>
+        PostPresentationFallbackReason.unsupportedVersion,
+      UnknownPostData(reason: UnknownPostDataReason.malformedData) =>
+        PostPresentationFallbackReason.malformedData,
+      UnknownPostData(reason: UnknownPostDataReason.unavailableCodec) =>
+        PostPresentationFallbackReason.unavailableEngine,
+      _ => PostPresentationFallbackReason.incompatiblePresentation,
+    };
 
 class _PostPagePresentationBuilder extends ConsumerWidget {
   const _PostPagePresentationBuilder({

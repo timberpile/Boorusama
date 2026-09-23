@@ -67,7 +67,7 @@ final dioForWidgetProvider = Provider.family<Dio, BooruConfigAuth>(
         .getRepository(config.booruType);
 
     if (repository == null) {
-      throw Exception('No repository found for ${config.booruType}');
+      return ref.watch(genericDioProvider);
     }
 
     return repository.dio(config);
