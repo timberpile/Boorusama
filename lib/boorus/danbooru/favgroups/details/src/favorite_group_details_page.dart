@@ -18,12 +18,11 @@ import '../../../../../core/images/booru_image.dart';
 import '../../../../../core/posts/listing/providers.dart';
 import '../../../../../core/posts/listing/routes.dart';
 import '../../../../../core/posts/listing/widgets.dart';
+import '../../../../../core/posts/post/providers.dart';
 import '../../../../../core/posts/post/types.dart';
 import '../../../../../core/search/search/routes.dart';
 import '../../../../../core/widgets/widgets.dart';
 import '../../../posts/listing/widgets.dart';
-import '../../../posts/post/providers.dart';
-import '../../../posts/post/types.dart';
 import '../../favgroups/providers.dart';
 import '../../favgroups/types.dart';
 import 'danbooru_favorite_group_post_mixin.dart';
@@ -48,7 +47,7 @@ class _FavoriteGroupDetailsPageState
 
   @override
   PostRepository<Post> get postRepository =>
-      ref.read(danbooruPostRepoProvider(ref.readConfigSearch));
+      ref.read(originAwarePostRepoProvider(ref.readConfig));
 
   @override
   Widget build(BuildContext context) {

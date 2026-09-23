@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../../core/configs/config/providers.dart';
 import '../../../../../../core/posts/post/providers.dart';
 import '../../../../posts/favorites/types.dart';
-import '../../../../posts/post/providers.dart';
 import '../../../../posts/post/types.dart';
 import '../data/providers.dart';
 import '../types/user.dart';
@@ -17,9 +16,9 @@ final danbooruUserProvider = AsyncNotifierProvider.autoDispose
 
 final danbooruUserFavoritesProvider = FutureProvider.autoDispose
     .family<List<Post>, int>((ref, uid) async {
-      final config = ref.watchConfigSearch;
+      final config = ref.watchConfig;
       final user = await ref.watch(danbooruUserProvider(uid).future);
-      final repo = ref.watch(danbooruPostRepoProvider(config));
+      final repo = ref.watch(originAwarePostRepoProvider(config));
       final favs = await repo.getPostsFromTagsOrEmpty(
         buildFavoriteQuery(user.name),
         limit: 50,

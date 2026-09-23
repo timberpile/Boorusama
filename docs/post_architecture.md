@@ -45,6 +45,13 @@ shared cards and viewers keep engine-neutral behavior.
 exact profile hint first, then matches engine and normalized host. Missing or
 ambiguous profiles never select an arbitrary account.
 
+Profile-specific listing code must bind the full `BooruConfig` at the
+repository boundary, before a post reaches `PostScope`. Parser defaults know
+the engine but not the selected host or profile ID; leaving those defaults on
+a live post makes multiple profiles for the same engine ambiguous. Use
+`originAwarePostRepoProvider` (or explicitly bind custom repository results)
+for home, search, favorites, and engine-owned listing pages.
+
 `MixedPostDetailsPage` keeps one controller while `PostPagePresentationScope`
 changes the read-only profile and presentation for each active post. It does
 not change the globally selected profile. Media resolution is also scoped per

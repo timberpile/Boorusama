@@ -12,7 +12,6 @@ import '../../../../../../core/posts/listing/widgets.dart';
 import '../../../../../../core/posts/post/types.dart';
 import '../../../../../../core/widgets/widgets.dart';
 import '../../../listing/widgets.dart';
-import '../../../post/types.dart';
 import '../providers.dart';
 import '../widgets/explore_sliver_app_bar.dart';
 
@@ -34,7 +33,7 @@ class _ExploreMostViewedPageState extends ConsumerState<ExploreMostViewedPage> {
 
   @override
   Widget build(BuildContext context) {
-    final config = ref.watchConfigSearch;
+    final config = ref.watchConfig;
 
     return CustomContextMenuOverlay(
       child: PostScope(

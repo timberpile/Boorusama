@@ -69,13 +69,18 @@ viewer from safely displaying posts from different engines.
 - Added reason-specific localized fallback UI. Missing engines use the generic
   image client, so cached/legacy posts remain navigable instead of rendering a
   repository exception.
+- Profile-specific home and Danbooru listing repositories now attach the exact
+  host and profile ID before rendering. Scoped theme providers declare their
+  dynamic-profile dependencies, so native detail chips can switch profiles
+  after the same provider was already read by another page.
 
 ## Verification
 
 - `fvm flutter test --no-pub test/core/posts test/core/bookmarks test/core/search/subscriptions test/core/backups test/core/http/client/dio_for_widget_provider_test.dart test/boorus/posts`: 631 tests passed.
-- `fvm flutter test --no-pub`: 1,352 tests passed.
-- `fvm dart analyze --format machine lib test`: no errors or warnings. Full
-  `fvm flutter analyze` reports 239 info-level lints.
+- `fvm flutter test --no-pub`: 1,353 tests passed.
+- Focused analysis of every final touched Dart file reports no issues. Full
+  `fvm flutter analyze --no-pub` reports 234 info-level lints and no errors or
+  warnings.
 - `git diff --check`: clean.
 - Android dev APK built and installed successfully on `emulator-5554`.
 - Maestro opened an existing 60-post legacy list whose profiles no longer
@@ -85,12 +90,10 @@ viewer from safely displaying posts from different engines.
 - Widget coverage verifies one viewer switching among Danbooru, e621, Pixiv,
   and fallback pages without changing the globally selected profile, plus
   native bookmark and feed presentation behavior.
+- Maestro loaded real Danbooru and anonymous e621 home results, bookmarked one
+  post from each profile, and opened the resulting two-engine bookmark list.
+  The first page exposed e621's Comments action; after one swipe, the same
+  viewer exposed the Danbooru artist and removed Comments without an exception
+  or fallback warning.
 
-## Remaining verification
-
-- Run the full Danbooru → e621 → Pixiv → fallback sequence against real
-  configured emulator profiles and verify the visible native actions on each
-  swipe. The current emulator only exposed a Safebooru profile, had no saved
-  bookmarks, and its live search request failed at the server, so this exact
-  live mixed sequence could not be assembled. Keep this task in progress until
-  that manual acceptance check is recorded.
+All acceptance criteria are verified.

@@ -7,8 +7,6 @@ import '../../../../../../core/posts/post/providers.dart';
 import '../../../../../../core/posts/post/types.dart';
 import '../../../../../../core/tags/categories/types.dart';
 import '../../../../../../foundation/riverpod/riverpod.dart';
-import '../../../../posts/post/providers.dart';
-import '../../../../posts/post/types.dart';
 import '../../../../reports/providers.dart';
 import '../../../../reports/types.dart';
 import '../../../../tags/related/providers.dart';
@@ -29,9 +27,9 @@ final danbooruUserUploadsProvider =
       final name = params.username;
 
       if (uploadCount == 0) return [];
-      final config = ref.watchConfigSearch;
+      final config = ref.watchConfig;
 
-      final repo = ref.watch(danbooruPostRepoProvider(config));
+      final repo = ref.watch(originAwarePostRepoProvider(config));
       final uploads = await repo.getPostsFromTagsOrEmpty(
         'user:$name',
         limit: 50,

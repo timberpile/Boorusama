@@ -8,10 +8,10 @@ import '../../../../../../core/configs/config/providers.dart';
 import '../../../../../../core/errors/types.dart';
 import '../../../../../../core/posts/listing/widgets.dart';
 import '../../../../../../core/posts/pools/widgets.dart';
+import '../../../../../../core/posts/post/providers.dart';
 import '../../../../../../core/settings/providers.dart';
 import '../../../../../../core/widgets/widgets.dart';
 import '../../../../posts/listing/widgets.dart';
-import '../../../../posts/post/providers.dart';
 import '../../../../posts/post/types.dart';
 import '../../../pool/types.dart';
 import '../providers/filter_provider.dart';
@@ -31,9 +31,9 @@ class DanbooruInfinitePostIdList extends ConsumerWidget {
     final perPage = ref.watch(
       imageListingSettingsProvider.select((value) => value.postsPerPage),
     );
-    final config = ref.watchConfigSearch;
+    final config = ref.watchConfig;
     final order = ref.watch(poolFilterProvider.select((state) => state.order));
-    final repo = ref.watch(danbooruPostRepoProvider(config));
+    final repo = ref.watch(originAwarePostRepoProvider(config));
 
     return CustomContextMenuOverlay(
       child: PostScope<Post>(

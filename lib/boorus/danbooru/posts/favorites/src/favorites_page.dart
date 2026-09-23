@@ -9,10 +9,10 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../../../../../core/configs/auth/widgets.dart';
 import '../../../../../core/configs/config/providers.dart';
 import '../../../../../core/posts/listing/widgets.dart';
+import '../../../../../core/posts/post/providers.dart';
 import '../../../../../core/search/search/routes.dart';
 import '../../../../../core/widgets/widgets.dart';
 import '../../listing/widgets.dart';
-import '../../post/providers.dart';
 import 'types/favorite.dart';
 
 class DanbooruFavoritesPage extends ConsumerWidget {
@@ -40,9 +40,9 @@ class DanbooruFavoritesPageInternal extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final config = ref.watchConfigSearch;
+    final config = ref.watchConfig;
     final query = buildFavoriteQuery(username);
-    final postRepo = ref.watch(danbooruPostRepoProvider(config));
+    final postRepo = ref.watch(originAwarePostRepoProvider(config));
 
     return CustomContextMenuOverlay(
       child: PostScope(

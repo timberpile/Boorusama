@@ -19,7 +19,6 @@ import 'package:boorusama/boorus/e621/e621_builder.dart';
 import 'package:boorusama/boorus/e621/posts/post_data.dart';
 import 'package:boorusama/boorus/pixiv/pixiv.dart';
 import 'package:boorusama/boorus/pixiv/pixiv_builder.dart';
-import 'package:boorusama/boorus/pixiv/posts/post_data.dart';
 import 'package:boorusama/boorus/pixiv/posts/types.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/boorus/engine/providers.dart';
@@ -27,6 +26,7 @@ import 'package:boorusama/core/boorus/engine/types.dart';
 import 'package:boorusama/core/configs/config/providers.dart';
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/configs/manage/providers.dart';
+import 'package:boorusama/core/configs/manage/widgets.dart';
 import 'package:boorusama/core/developer_options/providers.dart';
 import 'package:boorusama/core/downloads/downloader/providers.dart';
 import 'package:boorusama/core/downloads/downloader/types.dart';
@@ -45,9 +45,38 @@ import 'package:boorusama/core/posts/sources/types.dart';
 import 'package:boorusama/core/premiums/providers.dart';
 import 'package:boorusama/core/settings/providers.dart';
 import 'package:boorusama/core/settings/types.dart';
+import 'package:boorusama/core/themes/colors/providers.dart';
 import 'package:boorusama/foundation/loggers.dart';
 
 void main() {
+  testWidgets('tag colors follow a page-scoped profile after a root read', (
+    tester,
+  ) async {
+    final harness = _Harness();
+    addTearDown(harness.dispose);
+    final request = (BooruConfig.empty.auth, 'artist');
+
+    harness.container.read(chipColorsFromTagStringProvider(request));
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: harness.container,
+        child: MaterialApp(
+          home: CurrentBooruConfigScope(
+            config: BooruConfig.empty,
+            child: Consumer(
+              builder: (context, ref, _) {
+                ref.watch(chipColorsFromTagStringProvider(request));
+                return const SizedBox();
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'mixed pages switch presentation profile and media without changing the global profile',
     (tester) async {
@@ -55,6 +84,9 @@ void main() {
       final harness = _Harness();
       addTearDown(harness.dispose);
 
+      harness.container.read(
+        chipColorsFromTagStringProvider((_configs.first.auth, 'artist')),
+      );
       await tester.pumpWidget(harness.build());
       await tester.pumpAndSettle();
 
@@ -265,6 +297,9 @@ class _Harness {
         overrides: [
           settingsProvider.overrideWithValue(
             Settings.defaultSettings.copyWith(reduceAnimations: true),
+          ),
+          colorSchemeProvider.overrideWithValue(
+            ColorScheme.fromSeed(seedColor: Colors.blue),
           ),
           initialSettingsBooruConfigProvider.overrideWithValue(_globalConfig),
           booruConfigProvider.overrideWith(
