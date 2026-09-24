@@ -46,3 +46,5 @@ Work branch: `feature/bookmark-post-behavior-parity`
 
 - 2026-09-24: Conversational design approved. Written specification created
   for review before the executable plan and manifest collection.
+- 2026-09-24: Written specification approved. Detailed execution plan created;
+  manifest collection remains gated on plan review and execution choice.
