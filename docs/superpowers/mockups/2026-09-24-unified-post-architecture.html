@@ -420,7 +420,24 @@
         </div>
       </section>
 
-      <p class="footnote">Implementierungsreferenz: <a href="../specs/2026-09-22-unified-post-model-and-viewer-design.md">Design des einheitlichen Post-Modells und Mixed-Booru-Viewers</a>. Dieses Diagramm beschreibt die Architektur des Feature-Branches, nicht den abgebrochenen Untersuchungs-Branch zum Feed-Rendering.</p>
+      <section class="panel new-only">
+        <div class="section-head">
+          <div><h2>Performance im einmaligen Live-Vergleich</h2><p>Ein Profile-Mode-Lauf mit 1.000 abwechselnden Danbooru- und Gelbooru-v2-Bookmarks zeigte keine praktisch relevante Verzögerung beim ersten Rasterbild. Die reicheren Snapshots benötigen erwartungsgemäß mehr lokalen Speicher.</p></div>
+          <span class="section-tag">Messung</span>
+        </div>
+        <table class="class-map">
+          <thead><tr><th>Messwert</th><th>Develop</th><th>Dieser Branch</th><th>Einordnung</th></tr></thead>
+          <tbody>
+            <tr><td>Kaltes Laden der Bookmarks</td><td>18,0 ms</td><td>38,9 ms</td><td>Rund 21 ms mehr; unter der vorab gesetzten praktischen Schwelle von 100 ms.</td></tr>
+            <tr><td>Erstes Rasterbild</td><td>107,7 ms</td><td>107,2 ms</td><td>Im Messrauschen gleich.</td></tr>
+            <tr><td>Speicherbedarf (PSS)</td><td>249,4 MiB</td><td>258,1 MiB</td><td>Etwa 8,7 MiB beziehungsweise 3,5 % mehr.</td></tr>
+            <tr><td>Lokale Bookmark-Datei</td><td>1,00 MiB</td><td>3,31 MiB</td><td>Etwa 3,3-mal so groß, weil native Booru-Daten im Snapshot erhalten bleiben.</td></tr>
+          </tbody>
+        </table>
+        <div class="context-note" style="margin-top: 15px">Die Werte stammen aus einem einmaligen Emulatorvergleich und sind eine Größenordnung, kein dauerhaftes Performance-Versprechen. Die verwendete feste Post-Liste bleibt als <a href="../benchmarks/2026-09-24-bookmark-live-comparison-manifest.json">reproduzierbares 1.000-Post-Manifest</a> erhalten.</div>
+      </section>
+
+      <p class="footnote">Implementierungsreferenz: <a href="../specs/2026-09-22-unified-post-model-and-viewer-design.md">Design des einheitlichen Post-Modells und Mixed-Booru-Viewers</a>. Dieses Diagramm beschreibt die Architektur des Feature-Branches, nicht den abgebrochenen Untersuchungs-Branch zum Feed-Rendering. Das Live-Benchmark-Harness selbst war nur für den einmaligen Vergleich bestimmt und gehört nicht zum Produkt.</p>
     </main>
 
     <script>
