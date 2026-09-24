@@ -7,6 +7,7 @@ import 'package:kurumi/material.dart';
 // Project imports:
 import '../../../../../../core/configs/config/providers.dart';
 import '../../../../../../core/posts/details_parts/widgets.dart';
+import '../../../../../../core/posts/post/types.dart';
 import '../../../../../../core/search/search/routes.dart';
 import '../../../../../../core/tags/tag/providers.dart';
 import '../../../../../../core/tags/tag/types.dart';
@@ -23,7 +24,7 @@ class DanbooruTagsTile extends StatefulWidget {
     super.key,
   });
 
-  final DanbooruPost post;
+  final Post post;
 
   @override
   State<DanbooruTagsTile> createState() => _DanbooruTagsTileState();
@@ -85,7 +86,7 @@ class DanbooruTagsTileTitle extends ConsumerWidget {
     required this.post,
   });
 
-  final DanbooruPost post;
+  final Post post;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

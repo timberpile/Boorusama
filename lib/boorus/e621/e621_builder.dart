@@ -12,6 +12,8 @@ import '../../core/configs/manage/widgets.dart';
 import '../../core/downloads/filename/types.dart';
 import '../../core/home/types.dart';
 import '../../core/posts/details/widgets.dart';
+import '../../core/posts/post/providers.dart';
+import '../../core/posts/post/types.dart';
 import '../../core/search/search/routes.dart';
 import '../../core/search/search/widgets.dart';
 import 'artists/widgets.dart';
@@ -20,13 +22,19 @@ import 'configs/widgets.dart';
 import 'favorites/widgets.dart';
 import 'home/types.dart';
 import 'home/widgets.dart';
-import 'posts/providers.dart';
+import 'posts/post_data.dart';
 import 'posts/types.dart';
 import 'posts/widgets.dart';
 import 'videos/widgets.dart';
 
 class E621Builder extends BaseBooruBuilder {
   E621Builder();
+
+  @override
+  late final postPresentation = TypedBooruPostPresentation<E621PostData>(
+    typeKey: 'e621',
+    uiBuilder: postDetailsUIBuilder,
+  );
 
   @override
   CreateConfigPageBuilder get createConfigPageBuilder =>
@@ -72,18 +80,10 @@ class E621Builder extends BaseBooruBuilder {
       );
 
   @override
-  PostDetailsPageBuilder get postDetailsPageBuilder => (context, payload) {
-    final posts = payload.posts.map((e) => e as E621Post).toList();
-
-    return PostDetailsScope(
-      initialIndex: payload.initialIndex,
-      initialThumbnailUrl: payload.initialThumbnailUrl,
-      posts: posts,
-      scrollController: payload.scrollController,
-      dislclaimer: payload.dislclaimer,
-      child: const DefaultPostDetailsPage<E621Post>(),
-    );
-  };
+  PostDetailsPageBuilder get postDetailsPageBuilder =>
+      (context, payload) => MixedPostDetailsPageAdapter(
+        payload: payload,
+      );
 
   @override
   FavoritesPageBuilder? get favoritesPageBuilder =>
@@ -126,8 +126,7 @@ class E621SearchPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final config = ref.watchConfigSearch;
-    final postRepo = ref.watch(e621PostRepoProvider(config));
+    final postRepo = ref.watch(originAwarePostRepoProvider(ref.watchConfig));
 
     return SearchPageScaffold(
       params: params,

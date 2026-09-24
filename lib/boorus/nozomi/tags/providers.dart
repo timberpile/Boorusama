@@ -46,7 +46,7 @@ final nozomiTagExtractorProvider =
           tagCache: tagCache,
           sorter: TagSorter.defaults(),
           fetcher: (post, options) async {
-            final counts = options.fetchTagCount && post is NozomiPost
+            final counts = options.fetchTagCount && post.nozomiData != null
                 ? await _getNozomiTagCounts(
                     client: client,
                     tagCache: tagCache,
@@ -65,7 +65,7 @@ Future<Map<String, int>> _getNozomiTagCounts({
   required NozomiClient client,
   required Future<TagCacheRepository> tagCache,
   required String siteHost,
-  required NozomiPost post,
+  required Post post,
 }) async {
   final cache = await tagCache;
   final resolved = await cache.resolveTags(siteHost, post.tags.toList());
@@ -163,7 +163,7 @@ Duration _getNozomiRefreshInterval(int postCount) {
 }
 
 List<Tag> _extractNozomiTags(Post post, Map<String, int> counts) {
-  if (post is! NozomiPost) {
+  if (post.nozomiData == null) {
     return TagExtractor.extractTagsFromGenericPost(post);
   }
 
@@ -206,7 +206,7 @@ List<Tag> _extractNozomiTags(Post post, Map<String, int> counts) {
   ];
 }
 
-Map<String, TagCategory> _nozomiTagCategories(NozomiPost post) {
+Map<String, TagCategory> _nozomiTagCategories(Post post) {
   final categorizedTags = <String>{
     ...post.artistTagSet,
     ...post.characterTagSet,

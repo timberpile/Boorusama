@@ -1,3 +1,6 @@
+export '../../../core/posts/post/types.dart' show Post;
+export 'post_data.dart';
+
 // Project imports:
 import '../../../core/posts/post/types.dart';
 
@@ -19,11 +22,11 @@ enum PixivIllustType {
 /// One page of one Pixiv illust.
 ///
 /// A Pixiv work (illust) can carry several pages, but [Post] models exactly
-/// one, so each page becomes its own [PixivPost]. [illustId] is therefore
+/// one, so each page becomes its own [PixivPostRecord]. [illustId] is therefore
 /// shared between siblings while [id] is unique — see `syntheticPostId` in
 /// `parser.dart` for why that matters.
-class PixivPost extends SimplePost {
-  PixivPost({
+class PixivPostRecord extends CommonPostRecord {
+  PixivPostRecord({
     required super.id,
     required super.thumbnailImageUrl,
     required super.sampleImageUrl,

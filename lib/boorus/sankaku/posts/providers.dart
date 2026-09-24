@@ -18,7 +18,7 @@ final sankakuPseudoIdGeneratorProvider = Provider((ref) {
 });
 
 final sankakuPostRepoProvider =
-    Provider.family<PostRepository<SankakuPost>, BooruConfigSearch>(
+    Provider.family<PostRepository<Post>, BooruConfigSearch>(
       (ref, config) {
         final client = ref.watch(sankakuClientProvider(config.auth));
         final idGenerator = ref.watch(sankakuPseudoIdGeneratorProvider);
@@ -75,10 +75,12 @@ final sankakuPostRepoProvider =
       },
     );
 
-final sankakuUploaderQueryProvider =
-    Provider.family<UploaderQuery?, SankakuPost>((ref, post) {
-      return switch (post.uploaderName) {
-        final uploader? => UserColonUploaderQuery(uploader),
-        _ => null,
-      };
-    });
+final sankakuUploaderQueryProvider = Provider.family<UploaderQuery?, Post>((
+  ref,
+  post,
+) {
+  return switch (post.uploaderName) {
+    final uploader? => UserColonUploaderQuery(uploader),
+    _ => null,
+  };
+});

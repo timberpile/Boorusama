@@ -9,9 +9,11 @@ import 'package:url_launcher/url_launcher.dart';
 
 // Project imports:
 import '../../../core/configs/config/providers.dart';
+import '../../../core/configs/config/types.dart';
 import '../../../core/developer_options/blocked_media_placeholder.dart';
 import '../../../core/developer_options/providers.dart';
 import '../../../core/posts/listing/widgets.dart';
+import '../../../core/posts/post/providers.dart';
 import '../../../core/posts/post/types.dart';
 import '../../../core/users/widgets.dart';
 import '../../../core/widgets/widgets.dart';
@@ -510,8 +512,8 @@ class _EshuushuuUserPostsTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final config = ref.watchConfigAuth;
-    final client = ref.watch(eshuushuuClientProvider(config));
+    final config = ref.watchConfig;
+    final client = ref.watch(eshuushuuClientProvider(config.auth));
 
     return CustomContextMenuOverlay(
       child: PostScope(
@@ -522,9 +524,10 @@ class _EshuushuuUserPostsTab extends ConsumerWidget {
             page: page,
           );
 
-          final posts = dtos
-              .map((dto) => parser.postDtoToPost(dto, null))
-              .toList();
+          final posts = bindPostsOrigin(
+            dtos.map((dto) => parser.postDtoToPost(dto, null)),
+            origin: postOriginFromConfig(config),
+          );
 
           return posts.toResult();
         }),

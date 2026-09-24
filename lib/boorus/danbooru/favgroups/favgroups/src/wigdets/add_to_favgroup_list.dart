@@ -11,7 +11,7 @@ import 'package:modal_bottom_sheet/modal_bottom_sheet.dart';
 // Project imports:
 import '../../../../../../core/configs/config/providers.dart';
 import '../../../../../../core/configs/config/types.dart';
-import '../../../../posts/post/types.dart';
+import '../../../../../../core/posts/post/types.dart';
 import '../../types.dart';
 import '../providers/favorite_groups_filterable_notifier.dart';
 import '../providers/favorite_groups_notifier.dart';
@@ -22,7 +22,7 @@ class AddToFavgroupList extends ConsumerWidget {
     super.key,
   });
 
-  final List<DanbooruPost> posts;
+  final List<Post> posts;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

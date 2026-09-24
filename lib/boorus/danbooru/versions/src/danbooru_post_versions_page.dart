@@ -9,7 +9,7 @@ import 'package:multi_split_view/multi_split_view.dart';
 import '../../../../../core/widgets/widgets.dart';
 import '../../../../core/configs/config/providers.dart';
 import '../../../../core/images/booru_image.dart';
-import '../../posts/post/types.dart';
+import '../../../../core/posts/post/types.dart';
 import '../../users/details/routes.dart';
 import '../../users/details/types.dart';
 import 'providers/version_providers.dart';
@@ -31,12 +31,12 @@ class DanbooruPostVersionsPage extends ConsumerStatefulWidget {
   });
 
   factory DanbooruPostVersionsPage.post({
-    required DanbooruPost post,
+    required Post post,
     Key? key,
   }) => DanbooruPostVersionsPage(
     key: key,
     postId: post.id,
-    previewUrl: post.url720x720,
+    previewUrl: post.sampleImageUrl,
   );
 
   final int postId;
@@ -178,6 +178,7 @@ class _Content extends ConsumerWidget {
                   delegate: SliverChildBuilderDelegate(
                     (context, index) => TagEditHistoryCard(
                       version: data[index],
+                      config: ref.watchConfig,
                       onUserTap: () => goToUserDetailsPage(
                         ref,
                         details: UserDetails.fromCreator(data[index].updater),

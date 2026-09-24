@@ -11,11 +11,16 @@ import '../../core/http/client/providers.dart';
 import '../../core/posts/post/providers.dart';
 import '../../core/posts/post/types.dart';
 import '../../core/tags/autocompletes/types.dart';
+import 'posts/post_codec.dart';
 import 'posts/providers.dart';
 import 'tags/providers.dart';
 
 class GelbooruV1Repository extends BooruRepositoryDefault {
   const GelbooruV1Repository({required this.ref});
+
+  @override
+  BooruPostDataCodec<EmptyPostData> get postDataCodec =>
+      const GelbooruV1PostCodec();
 
   @override
   final Ref ref;

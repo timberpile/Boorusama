@@ -13,19 +13,27 @@ import '../../core/posts/details/types.dart';
 import '../../core/posts/details/widgets.dart';
 import '../../core/posts/details_parts/types.dart';
 import '../../core/posts/details_parts/widgets.dart';
+import '../../core/posts/post/providers.dart';
+import '../../core/posts/post/types.dart';
 import '../../core/search/search/routes.dart';
 import '../../core/search/search/widgets.dart';
 import 'comments/widgets.dart';
 import 'configs/widgets.dart';
 import 'favorites/widgets.dart';
 import 'home/widgets.dart';
-import 'posts/providers.dart';
+import 'posts/post_data.dart';
 import 'posts/types.dart';
 import 'posts/widgets.dart';
 import 'users/routes.dart';
 
 class EshuushuuBuilder extends BaseBooruBuilder {
   EshuushuuBuilder();
+
+  @override
+  late final postPresentation = TypedBooruPostPresentation<EshuushuuPostData>(
+    typeKey: 'eshuushuu',
+    uiBuilder: postDetailsUIBuilder,
+  );
 
   @override
   CommentPageBuilder? get commentPageBuilder =>
@@ -76,18 +84,10 @@ class EshuushuuBuilder extends BaseBooruBuilder {
       (context) => const EshuushuuFavoritesPage();
 
   @override
-  PostDetailsPageBuilder get postDetailsPageBuilder => (context, payload) {
-    final posts = payload.posts.map((e) => e as EshuushuuPost).toList();
-
-    return PostDetailsScope(
-      initialIndex: payload.initialIndex,
-      initialThumbnailUrl: payload.initialThumbnailUrl,
-      posts: posts,
-      scrollController: payload.scrollController,
-      dislclaimer: payload.dislclaimer,
-      child: const DefaultPostDetailsPage<EshuushuuPost>(),
-    );
-  };
+  PostDetailsPageBuilder get postDetailsPageBuilder =>
+      (context, payload) => MixedPostDetailsPageAdapter(
+        payload: payload,
+      );
 
   @override
   SearchPageBuilder get searchPageBuilder =>
@@ -99,13 +99,13 @@ class EshuushuuBuilder extends BaseBooruBuilder {
   final postDetailsUIBuilder = PostDetailsUIBuilder(
     preview: {
       DetailsPart.toolbar: (context) =>
-          const DefaultInheritedPostActionToolbar<EshuushuuPost>(),
+          const DefaultInheritedPostActionToolbar<Post>(),
     },
     full: {
       DetailsPart.toolbar: (context) =>
-          const DefaultInheritedPostActionToolbar<EshuushuuPost>(),
+          const DefaultInheritedPostActionToolbar<Post>(),
       DetailsPart.source: (context) =>
-          const DefaultInheritedSourceSection<EshuushuuPost>(),
+          const DefaultInheritedSourceSection<Post>(),
       DetailsPart.tags: (context) => const EshuushuuInheritedTagsTile(),
       DetailsPart.fileDetails: (context) =>
           const _EshuushuuFileDetailsSection(),
@@ -118,7 +118,7 @@ class _EshuushuuFileDetailsSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final post = InheritedPost.of<EshuushuuPost>(context);
+    final post = InheritedPost.of<Post>(context);
 
     return SliverToBoxAdapter(
       child: DefaultFileDetailsSection(
@@ -149,8 +149,7 @@ class EshuushuuSearchPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final config = ref.watchConfigSearch;
-    final postRepo = ref.watch(eshuushuuPostRepoProvider(config));
+    final postRepo = ref.watch(originAwarePostRepoProvider(ref.watchConfig));
 
     return SearchPageScaffold(
       params: params,

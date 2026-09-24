@@ -24,7 +24,7 @@ class DanbooruPostStatisticsPage extends ConsumerWidget {
     super.key,
   });
 
-  final List<DanbooruPost> posts;
+  final List<Post> posts;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

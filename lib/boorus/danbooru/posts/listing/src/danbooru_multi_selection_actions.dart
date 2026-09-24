@@ -27,10 +27,11 @@ class DanbooruMultiSelectionActions extends ConsumerWidget {
     super.key,
   });
 
-  final PostGridController<DanbooruPost> postController;
+  final PostGridController<Post> postController;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final profile = ref.watchConfig;
     final config = ref.watchConfigAuth;
     final loginDetails = ref.watch(danbooruLoginDetailsProvider(config));
     final controller = SelectionMode.of(context);
@@ -45,6 +46,7 @@ class DanbooruMultiSelectionActions extends ConsumerWidget {
                     final shouldEnd = await goToAddToFavoriteGroupSelectionPage(
                       context,
                       selectedPosts,
+                      profile,
                     );
                     if (shouldEnd != null && shouldEnd) {
                       controller.disable();
@@ -89,7 +91,7 @@ class DanbooruMultiSelectionActions extends ConsumerWidget {
 Future<bool?> goToMassEditRatingSheet(
   BuildContext context,
   WidgetRef ref,
-  List<DanbooruPost> posts,
+  List<Post> posts,
 ) {
   return Kurumi.showAppModalBottomSheet<bool?>(
     context: context,
@@ -111,7 +113,7 @@ class MassEditRatingSheet extends ConsumerWidget {
     super.key,
   });
 
-  final List<DanbooruPost> posts;
+  final List<Post> posts;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

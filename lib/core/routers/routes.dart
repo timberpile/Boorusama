@@ -10,7 +10,9 @@ import '../boorus/engine/providers.dart';
 import '../bulk_downloads/routes.dart';
 import '../changelogs/routes.dart';
 import '../configs/config/providers.dart';
+import '../configs/config/types.dart';
 import '../configs/config/routes.dart';
+import '../configs/manage/widgets.dart';
 import '../configs/create/routes.dart';
 import '../debug/routes.dart';
 import '../donate/routes.dart';
@@ -98,10 +100,17 @@ class Routes {
     name: '/artists',
     pageBuilder: largeScreenAwarePageBuilder(
       builder: (context, state) {
-        return InheritedArtistName(
+        final page = InheritedArtistName(
           artistName: state.uri.queryParameters[kArtistNameKey],
           child: const ArtistPage(),
         );
+        return switch (state.extra) {
+          final BooruConfig config => CurrentBooruConfigScope(
+            config: config,
+            child: page,
+          ),
+          _ => page,
+        };
       },
     ),
   );
@@ -111,10 +120,17 @@ class Routes {
     name: '/characters',
     pageBuilder: largeScreenAwarePageBuilder(
       builder: (context, state) {
-        return InheritedCharacterName(
+        final page = InheritedCharacterName(
           characterName: state.uri.queryParameters[kCharacterNameKey],
           child: const CharacterPage(),
         );
+        return switch (state.extra) {
+          final BooruConfig config => CurrentBooruConfigScope(
+            config: config,
+            child: page,
+          ),
+          _ => page,
+        };
       },
     ),
   );

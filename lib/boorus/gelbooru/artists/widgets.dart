@@ -7,7 +7,7 @@ import 'package:kurumi/material.dart';
 import '../../../core/artists/widgets.dart';
 import '../../../core/configs/config/providers.dart';
 import '../../../core/tags/tag/types.dart';
-import '../posts/providers.dart';
+import '../../../core/posts/post/providers.dart';
 
 class GelbooruArtistPage extends ConsumerWidget {
   const GelbooruArtistPage({
@@ -19,12 +19,12 @@ class GelbooruArtistPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final config = ref.watchConfigSearch;
+    final config = ref.watchConfig;
 
     return ArtistPageScaffold(
       artistName: artistName,
       fetcher: (page, selectedCategory) => ref
-          .read(gelbooruPostRepoProvider(config))
+          .read(originAwarePostRepoProvider(config))
           .getPosts(
             queryFromTagFilterCategory(
               category: selectedCategory,

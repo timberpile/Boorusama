@@ -37,7 +37,7 @@ class EshuushuuSearchNotifier
 
   EShuushuuClient get _client => ref.read(eshuushuuClientProvider(arg));
 
-  Future<List<EshuushuuPost>> searchByTags(
+  Future<List<Post>> searchByTags(
     List<String> tags, {
     required int page,
     int? limit,
@@ -68,7 +68,7 @@ class EshuushuuSearchNotifier
     return ids;
   }
 
-  List<EshuushuuPost> _mapToPosts(
+  List<Post> _mapToPosts(
     List<PostDto> dtos, {
     int? page,
     List<String>? tags,

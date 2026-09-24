@@ -1,0 +1,523 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark">
+    <title>Einheitliche Post-Architektur · Branch-Vergleich</title>
+    <style>
+      :root {
+        font-family: Inter, Roboto, "Segoe UI", Arial, sans-serif;
+        color: #f7f8fb;
+        background: #0c1017;
+        font-synthesis: none;
+        --surface: #151b25;
+        --surface-2: #1b2431;
+        --surface-3: #222d3d;
+        --line: #344155;
+        --muted: #a0adbf;
+        --old: #f09a72;
+        --old-soft: #38251f;
+        --new: #7ed8bd;
+        --new-soft: #17342f;
+        --shared: #9eafff;
+        --shared-soft: #242e52;
+        --warning: #f0c36a;
+        --danger: #ef7b86;
+      }
+
+      * { box-sizing: border-box; }
+      html { scroll-behavior: smooth; }
+      body { margin: 0; background: radial-gradient(circle at 50% -10%, #1a2440 0, #0c1017 34rem); }
+      button { font: inherit; cursor: pointer; }
+      button:focus-visible, a:focus-visible { outline: 2px solid #bdc7ff; outline-offset: 3px; }
+      code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+      a { color: #bdc8ff; }
+
+      .shell { width: min(1480px, 100%); margin: 0 auto; padding: 38px clamp(18px, 4vw, 60px) 80px; }
+      .eyebrow { color: #abb8ff; font-size: 11px; font-weight: 850; letter-spacing: .17em; text-transform: uppercase; }
+      .hero { display: flex; justify-content: space-between; align-items: flex-start; gap: 28px; }
+      h1 { max-width: 900px; margin: 11px 0 13px; font-size: clamp(35px, 5vw, 65px); line-height: .98; letter-spacing: -.055em; }
+      .lede { max-width: 850px; margin: 0; color: #b2bdcc; font-size: 16px; line-height: 1.6; }
+      .branch-pill { flex: none; border: 1px solid #53627d; border-radius: 999px; background: #1c2637; padding: 9px 13px; color: #dbe1ed; font: 700 11px ui-monospace, SFMono-Regular, Consolas, monospace; }
+
+      .view-switch { position: sticky; top: 10px; z-index: 20; display: flex; flex-wrap: wrap; gap: 8px; width: fit-content; margin: 28px auto 23px; padding: 7px; border: 1px solid #39465b; border-radius: 15px; background: #111823ee; box-shadow: 0 12px 35px #0008; backdrop-filter: blur(14px); }
+      .view-switch button, .layer-filter button, .post-selector button {
+        border: 1px solid transparent; border-radius: 10px; background: transparent; color: #aeb9ca; padding: 9px 13px; font-size: 12px; font-weight: 800;
+      }
+      .view-switch button[aria-selected="true"], .layer-filter button.active, .post-selector button.active { border-color: #6f80b1; background: #2b3751; color: white; }
+      .view-switch button[data-view="old"][aria-selected="true"] { border-color: #9b624c; background: var(--old-soft); }
+      .view-switch button[data-view="new"][aria-selected="true"] { border-color: #478875; background: var(--new-soft); }
+
+      .panel { border: 1px solid var(--line); border-radius: 19px; background: linear-gradient(145deg, #171e29, #111721); box-shadow: 0 20px 60px #0003; }
+      .summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 26px; }
+      .summary article { padding: 17px 18px; }
+      .summary span { display: block; color: #9ba8bc; font-size: 10px; font-weight: 850; letter-spacing: .12em; text-transform: uppercase; }
+      .summary strong { display: block; margin: 7px 0 4px; font-size: clamp(18px, 2vw, 27px); letter-spacing: -.035em; }
+      .summary p { margin: 0; color: #9faaBB; font-size: 11px; line-height: 1.45; }
+
+      section { margin-top: 25px; padding: 24px; }
+      .section-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; margin-bottom: 19px; }
+      h2 { margin: 0 0 7px; font-size: 21px; letter-spacing: -.025em; }
+      .section-head p { max-width: 860px; margin: 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
+      .section-tag { flex: none; color: #a8b5c7; font-size: 10px; font-weight: 850; letter-spacing: .12em; text-transform: uppercase; }
+
+      .comparison { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 15px; }
+      .system { min-width: 0; border: 1px solid var(--line); border-radius: 16px; overflow: hidden; background: #111722; }
+      .system-title { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 15px 17px; border-bottom: 1px solid var(--line); }
+      .system-title strong { font-size: 15px; }
+      .system-title small { color: #9aa6b7; font-size: 11px; }
+      .old-system .system-title { background: var(--old-soft); color: #ffdacc; }
+      .new-system .system-title { background: var(--new-soft); color: #c8f8e9; }
+      .system-body { padding: 15px; }
+
+      .lane { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; align-items: stretch; }
+      .node { position: relative; min-width: 0; border: 1px solid #405069; border-radius: 12px; background: var(--surface-2); padding: 13px; }
+      .node + .node::before { content: "→"; position: absolute; left: -12px; top: 37%; z-index: 2; color: #7f90aa; font-weight: 900; }
+      .node .kind { display: block; margin-bottom: 6px; color: #9faeff; font-size: 9px; font-weight: 900; letter-spacing: .11em; text-transform: uppercase; }
+      .node b { display: block; margin-bottom: 5px; font-size: 12px; overflow-wrap: anywhere; }
+      .node p { margin: 0; color: #9eabba; font-size: 10px; line-height: 1.45; overflow-wrap: anywhere; }
+      .old-system .node { border-color: #62483f; }
+      .old-system .node .kind { color: #f5ad8d; }
+      .new-system .node { border-color: #38695e; }
+      .new-system .node .kind { color: #8ae0c5; }
+      .lane-label { margin: 15px 0 8px; color: #cdd4df; font-size: 11px; font-weight: 800; }
+      .lane-label:first-child { margin-top: 0; }
+      .problem, .benefit { margin-top: 12px; border-left: 3px solid; border-radius: 0 10px 10px 0; padding: 11px 13px; font-size: 11px; line-height: 1.5; }
+      .problem { border-color: var(--old); background: #2d201d; color: #f4c9b8; }
+      .benefit { border-color: var(--new); background: #18302c; color: #c7eadf; }
+
+      .layer-filter { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 15px; }
+      .layer-filter button { border-color: #3e4b60; background: #161e2a; }
+      .layer-grid { display: grid; grid-template-columns: repeat(5, minmax(180px, 1fr)); gap: 10px; }
+      .layer-card { min-width: 0; border: 1px solid #3a485d; border-radius: 14px; background: var(--surface-2); padding: 15px; transition: opacity .2s, transform .2s, border-color .2s; }
+      .layer-card.filtered { opacity: .14; transform: scale(.985); }
+      .layer-card.highlighted { border-color: #8397dd; box-shadow: inset 0 0 0 1px #6375ad; }
+      .layer-card .number { display: grid; place-items: center; width: 25px; height: 25px; margin-bottom: 11px; border-radius: 8px; background: #2b3750; color: #c9d3ff; font-size: 11px; font-weight: 900; }
+      .layer-card h3 { margin: 0 0 8px; font-size: 14px; }
+      .layer-card p { margin: 0; color: #9eabba; font-size: 11px; line-height: 1.5; }
+      .layer-card code { color: #d7ddff; }
+      .layer-card .changed { display: inline-block; margin-top: 11px; border-radius: 999px; background: #233c37; padding: 5px 8px; color: #a6ead5; font-size: 9px; font-weight: 850; letter-spacing: .06em; text-transform: uppercase; }
+
+      .class-map { width: 100%; border-collapse: separate; border-spacing: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 14px; font-size: 12px; }
+      .class-map th, .class-map td { padding: 12px 14px; border-bottom: 1px solid #2f3b4d; text-align: left; vertical-align: top; }
+      .class-map tr:last-child td { border-bottom: 0; }
+      .class-map th { background: #1e2837; color: #cbd4e2; font-size: 10px; letter-spacing: .09em; text-transform: uppercase; }
+      .class-map td { color: #aeb9c9; line-height: 1.45; }
+      .class-map td:first-child { color: #f1b59d; }
+      .class-map td:nth-child(2) { color: #a5ead4; }
+      .class-map code { color: inherit; }
+
+      .resolver { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; align-items: stretch; }
+      .resolver .node { padding: 14px 12px; text-align: center; }
+      .resolver .node b { font-size: 11px; }
+      .resolver .node p { font-size: 9px; }
+      .resolver .fork { border-color: #765f35; background: #2d281c; }
+      .resolver .success { border-color: #367c69; background: #17352f; }
+      .resolver .fallback { border-color: #8d624e; background: #35251f; }
+
+      .viewer-grid { display: grid; grid-template-columns: minmax(320px, 1.15fr) minmax(300px, .85fr); gap: 17px; }
+      .viewer { border: 1px solid #40506b; border-radius: 17px; background: #0d131c; overflow: hidden; }
+      .viewer-bar { display: flex; justify-content: space-between; align-items: center; padding: 12px 15px; border-bottom: 1px solid #334056; background: #17202d; }
+      .viewer-bar b { font-size: 12px; }
+      .viewer-bar span { color: #91a0b5; font-size: 10px; }
+      .post-selector { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 12px; border-bottom: 1px solid #2f3a4c; }
+      .post-selector button { border-color: #3e4b60; background: #151e2a; padding: 10px 7px; }
+      .post-selector small { display: block; margin-top: 3px; color: #8996a8; font-size: 9px; font-weight: 600; }
+      .screen { min-height: 305px; padding: 20px; background: radial-gradient(circle at 50% 10%, #2a354c, #111722 62%); }
+      .media { display: grid; place-items: center; height: 142px; border: 1px solid #53627a; border-radius: 14px; background: linear-gradient(145deg, #35435c, #202b3b); color: #dfe5ee; }
+      .media span { font-size: 38px; }
+      .screen-meta { display: flex; justify-content: space-between; gap: 15px; margin-top: 14px; }
+      .screen-meta h3 { margin: 0 0 5px; font-size: 16px; }
+      .screen-meta p { margin: 0; color: #9da9ba; font-size: 10px; line-height: 1.45; }
+      .chips { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; max-width: 54%; }
+      .chip { border: 1px solid #50617a; border-radius: 999px; background: #202b3a; padding: 5px 8px; color: #ccd5e3; font-size: 9px; font-weight: 750; }
+      .warning-chip { border-color: #9f7342; background: #392d20; color: #f4d398; }
+      .context-stack { display: grid; gap: 9px; }
+      .context-row { display: grid; grid-template-columns: 126px minmax(0, 1fr); gap: 10px; align-items: center; border: 1px solid #354358; border-radius: 12px; background: #171f2b; padding: 11px 13px; }
+      .context-row span { color: #8f9db0; font-size: 9px; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; }
+      .context-row strong { color: #dbe2ec; font-size: 11px; overflow-wrap: anywhere; }
+      .context-row.global { border-color: #4f5e77; background: #1d2634; }
+      .context-note { border-left: 3px solid var(--shared); border-radius: 0 10px 10px 0; background: #202947; padding: 12px 14px; color: #cdd6ff; font-size: 11px; line-height: 1.55; }
+
+      .storage-grid { display: grid; grid-template-columns: 1fr auto 1fr; gap: 13px; align-items: center; }
+      .storage-box { border: 1px solid #3f4d62; border-radius: 14px; background: #18212e; padding: 16px; }
+      .storage-box h3 { margin: 0 0 9px; font-size: 14px; }
+      .storage-box p { margin: 0; color: #a2aec0; font-size: 11px; line-height: 1.5; }
+      .storage-box pre { margin: 13px 0 0; overflow: auto; border-radius: 10px; background: #0e141d; padding: 12px; color: #b8c5e9; font: 10px/1.55 ui-monospace, SFMono-Regular, Consolas, monospace; }
+      .big-arrow { color: #91a2dc; font-size: 28px; font-weight: 900; }
+      .credential-line { margin-top: 13px; border: 1px dashed #6b4e54; border-radius: 10px; padding: 9px 11px; color: #efa9b0; font-size: 10px; font-weight: 750; }
+
+      .safety-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+      .safety { border: 1px solid #3c4b60; border-radius: 13px; background: #19222f; padding: 15px; }
+      .safety .icon { display: grid; place-items: center; width: 29px; height: 29px; margin-bottom: 10px; border-radius: 9px; background: #273650; color: #c6d1ff; font-size: 14px; }
+      .safety h3 { margin: 0 0 6px; font-size: 13px; }
+      .safety p { margin: 0; color: #9eabba; font-size: 10px; line-height: 1.5; }
+
+      .unchanged { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+      .unchanged article { border: 1px solid #3a4659; border-radius: 12px; background: #171e29; padding: 14px; }
+      .unchanged b { display: block; margin-bottom: 6px; color: #dae0e9; font-size: 12px; }
+      .unchanged p { margin: 0; color: #96a3b4; font-size: 10px; line-height: 1.45; }
+      .footnote { margin: 24px 3px 0; color: #7f8b9d; font-size: 11px; line-height: 1.55; }
+
+      body[data-view="old"] .new-system,
+      body[data-view="new"] .old-system { display: none; }
+      body[data-view="old"] .comparison,
+      body[data-view="new"] .comparison { grid-template-columns: minmax(0, 920px); justify-content: center; }
+      body[data-view="old"] .new-only,
+      body[data-view="new"] .old-only { display: none; }
+
+      @media (max-width: 1120px) {
+        .lane, .resolver { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .node + .node::before { display: none; }
+        .layer-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        .safety-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      }
+      @media (max-width: 850px) {
+        .comparison, .viewer-grid, .storage-grid { grid-template-columns: 1fr; }
+        .big-arrow { text-align: center; transform: rotate(90deg); }
+        .summary, .unchanged { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .hero { display: block; }
+        .branch-pill { display: inline-block; margin-top: 18px; }
+      }
+      @media (max-width: 620px) {
+        .shell { padding-inline: 13px; }
+        section { padding: 17px; }
+        .summary, .layer-grid, .safety-grid, .unchanged, .lane { grid-template-columns: 1fr; }
+        .section-head { display: block; }
+        .section-tag { display: inline-block; margin-top: 9px; }
+        .post-selector { grid-template-columns: 1fr; }
+        .screen-meta { display: block; }
+        .chips { justify-content: flex-start; max-width: none; margin-top: 11px; }
+        .context-row { grid-template-columns: 1fr; gap: 4px; }
+        .class-map { font-size: 10px; }
+        .class-map th, .class-map td { padding: 9px 8px; }
+      }
+    </style>
+  </head>
+  <body data-view="compare">
+    <main class="shell">
+      <header class="hero">
+        <div>
+          <div class="eyebrow">Boorusama · Architekturübersicht</div>
+          <h1>Von parallelen Post-Systemen zu einer nativen Post-Pipeline</h1>
+          <p class="lede">Dieses Dokument zeigt die Architekturänderungen in <code>feature/bookmark-post-behavior-parity</code>. Es vergleicht die bisherige Trennung zwischen nativen Posts, Bookmarks und Feed-Posts mit dem neuen gemeinsamen Laufzeitmodell, der Snapshot-Speicherung, der profilgenauen Auflösung je Post und dem gemischten Booru-Viewer.</p>
+        </div>
+        <span class="branch-pill">feature/bookmark-post-behavior-parity</span>
+      </header>
+
+      <nav class="view-switch" aria-label="Architekturansicht auswählen">
+        <button type="button" data-view="compare" aria-selected="true">Nebeneinander</button>
+        <button type="button" data-view="old" aria-selected="false">Altes System</button>
+        <button type="button" data-view="new" aria-selected="false">Neues System</button>
+      </nav>
+
+      <div class="summary">
+        <article class="panel"><span>Einstiegspunkte</span><strong>4 → 1 Pipeline</strong><p>Suche, Server-Favoriten, Bookmarks und Feeds laufen nun im selben Laufzeitmodell zusammen.</p></article>
+        <article class="panel"><span>Post-Laufzeitmodelle</span><strong>Viele → <code>Post</code></strong><p>Engine-Daten bleiben typisiert, werden aber in einem konkreten Post statt in Unterklassen und reduzierten Kopien zusammengeführt.</p></article>
+        <article class="panel"><span>Viewer-Kontext</span><strong>Listenweit → je Seite</strong><p>Profil, Medienregeln, Details, Overlays und Aktionen folgen dem aktuell sichtbaren Post.</p></article>
+        <article class="panel"><span>Fehlerverhalten</span><strong>Absturz/Abweichung → Fallback</strong><p>Gemeinsame Cache-Daten bleiben mit einer generischen UI, einer Warnung und – wenn möglich – einer Wiederherstellung nutzbar.</p></article>
+      </div>
+
+      <section class="panel">
+        <div class="section-head">
+          <div><h2>Die grundlegende Änderung</h2><p>Das alte System hatte einen funktionsreichen Pfad für native Live-Ergebnisse und separate, reduzierte Pfade für gespeicherte Inhalte. Im neuen System bleibt die Speicherung getrennt, aber jedes dekodierte Element wird zum selben Laufzeit-<code>Post</code> und durchläuft dieselbe Darstellungs-Pipeline.</p></div>
+          <span class="section-tag">Überblick</span>
+        </div>
+        <div class="comparison">
+          <article class="system old-system">
+            <div class="system-title"><strong>Altes System</strong><small>Der Container bestimmt das Verhalten</small></div>
+            <div class="system-body">
+              <div class="lane-label">Suche und Server-Favoriten</div>
+              <div class="lane">
+                <div class="node"><span class="kind">API</span><b>Engine-DTO</b><p>Danbooru, e621, Pixiv…</p></div>
+                <div class="node"><span class="kind">Laufzeit</span><b>Engine-Untertyp von <code>Post</code></b><p>Native Felder liegen in konkreten Unterklassen.</p></div>
+                <div class="node"><span class="kind">UI</span><b>Engine-Raster</b><p>Native Overlays und Favoriten-Steuerung.</p></div>
+                <div class="node"><span class="kind">Viewer</span><b>Homogene native Seite</b><p>Exakter generischer Typ und ein Profilkontext.</p></div>
+              </div>
+              <div class="lane-label">Bookmarks und Following Feeds</div>
+              <div class="lane">
+                <div class="node"><span class="kind">Speicherung</span><b>Reduzierte Felder</b><p>URLs, Tags, IDs und ausgewählte Metadaten.</p></div>
+                <div class="node"><span class="kind">Laufzeit</span><b><code>BookmarkPost</code> / <code>CachedFeedPost</code></b><p>Engine-spezifische Daten wurden bereits verworfen.</p></div>
+                <div class="node"><span class="kind">UI</span><b>Einfache Karte</b><p>Generisches Symbol, weniger Overlays und Aktionen.</p></div>
+                <div class="node"><span class="kind">Viewer</span><b>Container-spezifische Seite</b><p>Reduzierte Details und separates Toolbar-Verhalten.</p></div>
+              </div>
+              <div class="problem">Derselbe Ursprungspost konnte je nach Zugriffsweg anders aussehen und sich anders verhalten. Ein homogener nativer Viewer konnte Posts mehrerer Engines nicht sicher gemeinsam anzeigen.</div>
+            </div>
+          </article>
+
+          <article class="system new-system">
+            <div class="system-title"><strong>Neues System</strong><small>Der aktuelle Post bestimmt das Verhalten</small></div>
+            <div class="system-body">
+              <div class="lane-label">Alle Quellen</div>
+              <div class="lane">
+                <div class="node"><span class="kind">Eingabe</span><b>API oder Snapshot</b><p>Live-Ergebnis, Bookmark oder zwischengespeicherte Feed-Zeile.</p></div>
+                <div class="node"><span class="kind">Laufzeit</span><b><code>Post</code></b><p><code>origin + core + booruData</code></p></div>
+                <div class="node"><span class="kind">Registry</span><b>Capability-Auflösung</b><p>Codec und Darstellung gehören der Engine.</p></div>
+                <div class="node"><span class="kind">UI</span><b>Gemeinsames Raster + gemischter Viewer</b><p>Native Ergänzungen werden je Post ausgewählt.</p></div>
+              </div>
+              <div class="lane-label">Nur gespeicherte Inhalte</div>
+              <div class="lane">
+                <div class="node"><span class="kind">Kodieren</span><b><code>StoredPostSnapshot</code></b><p>Versioniert, JSON-sicher, ohne Zugangsdaten.</p></div>
+                <div class="node"><span class="kind">Speichern</span><b>Bookmark-/Feed-Datensatz</b><p>Container-Identität und Zugehörigkeit bleiben außerhalb des Posts.</p></div>
+                <div class="node"><span class="kind">Dekodieren</span><b><code>Post</code></b><p>Derselbe Laufzeittyp, den Repositories zurückgeben.</p></div>
+                <div class="node"><span class="kind">Darstellen</span><b>Nativ oder generisch</b><p>Die typisierte Payload-Validierung entscheidet sicher.</p></div>
+              </div>
+              <div class="benefit">Suche, Favoriten, Bookmarks und Feeds verwenden nun dieselben Karten- und Viewer-Verträge. Container-spezifische Ergänzungen bleiben Wrapper statt alternativer Post-Modelle.</div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="panel new-only">
+        <div class="section-head">
+          <div><h2>Fünf geänderte Architekturschichten</h2><p>Wähle eine Schicht aus, um ihre Aufgabe hervorzuheben. Jede Schicht besitzt eine klare Grenze: Datenhoheit, Persistenz, Auflösung, Darstellung oder Zustandsisolation.</p></div>
+          <span class="section-tag">Neues System</span>
+        </div>
+        <div class="layer-filter" aria-label="Architekturschicht hervorheben">
+          <button type="button" data-layer="all" class="active">Alle Schichten</button>
+          <button type="button" data-layer="model">Laufzeitmodell</button>
+          <button type="button" data-layer="storage">Speicherung</button>
+          <button type="button" data-layer="resolution">Auflösung</button>
+          <button type="button" data-layer="presentation">Darstellung</button>
+          <button type="button" data-layer="scope">Profilkontext</button>
+        </div>
+        <div class="layer-grid">
+          <article class="layer-card" data-layer-card="model"><span class="number">1</span><h3>Konkreter Laufzeit-<code>Post</code></h3><p><code>PostCoreData</code> besitzt die gemeinsamen Felder. Eine typisierte <code>BooruPostData</code>-Payload besitzt Engine-spezifische Daten. <code>PostOrigin</code> identifiziert die Herkunft des Posts.</p><span class="changed">Ersetzt die Laufzeithierarchie</span></article>
+          <article class="layer-card" data-layer-card="storage"><span class="number">2</span><h3>Versionierte Snapshots</h3><p><code>StoredPostSnapshot</code> ist ein Persistenz-DTO und kein weiterer Laufzeit-Post. Engine-Codecs bewahren benutzerdefinierte Daten beim Speichern von Bookmarks und Feeds.</p><span class="changed">Ersetzt reduzierte Cache-Modelle</span></article>
+          <article class="layer-card" data-layer-card="resolution"><span class="number">3</span><h3>Engine-Capability-Registry</h3><p>Jede Engine registriert einen Codec und eine Darstellung. Die Registry prüft die Kompatibilität von Herkunft und Payload, bevor die native UI verwendet werden darf.</p><span class="changed">Ersetzt zentrale Typannahmen</span></article>
+          <article class="layer-card" data-layer-card="presentation"><span class="number">4</span><h3>Gemeinsame Karte und gemeinsamer Viewer</h3><p><code>PostGridItem</code> und <code>MixedPostDetailsPage</code> rendern jeden Container. Engines liefern Overlays, Toolbar-Teile, Wrapper und Interaktionen.</p><span class="changed">Ersetzt Container-Viewer</span></article>
+          <article class="layer-card" data-layer-card="scope"><span class="number">5</span><h3>Konfigurationskontext je Post</h3><p><code>PostPagePresentationScope</code> löst den sichtbaren Post auf und überschreibt schreibgeschützte Konfigurations-Provider lokal. Das appweit ausgewählte Profil bleibt unverändert.</p><span class="changed">Ersetzt die Abhängigkeit vom globalen Kontext</span></article>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="section-head">
+          <div><h2>Klassen- und Verantwortungsübersicht</h2><p>Dies ist keine reine Eins-zu-eins-Umbenennung. Verantwortungen, die zuvor in Post-Unterklassen oder Container-Seiten gebündelt waren, sind nun auf explizite Modell-, Codec-, Darstellungs- und Kontextverträge verteilt.</p></div>
+          <span class="section-tag">Alt → neu</span>
+        </div>
+        <table class="class-map">
+          <thead><tr><th>Alte Verantwortung</th><th>Neue Verantwortung</th><th>Warum sie verschoben wurde</th></tr></thead>
+          <tbody>
+            <tr><td><code>Post</code>-Interface + <code>SimplePost</code> + Engine-Unterklassen</td><td>Konkreter <code>Post</code> mit <code>PostCoreData</code>, <code>PostOrigin</code> und typisierter <code>BooruPostData</code></td><td>Gemeinsamer Code kann einen stabilen Laufzeittyp verwenden, ohne Engine-Daten zu verwerfen.</td></tr>
+            <tr><td><code>BookmarkPost</code></td><td><code>Bookmark</code> umschließt <code>StoredPostSnapshot</code> und den dekodierten <code>Post</code></td><td>Bookmark-Identität und Gruppen bleiben lokale Belange; die Darstellung stammt von der ursprünglichen Engine.</td></tr>
+            <tr><td><code>CachedFeedPost</code> / reduzierte Vorschaudatensätze</td><td>Feed-Zeilen speichern denselben <code>StoredPostSnapshot</code></td><td>Zwischengespeicherte Feed-Posts können dieselbe native Karten- und Viewer-Darstellung wie die Suche verwenden.</td></tr>
+            <tr><td>Exakte Kontexte wie <code>InheritedPost&lt;DanbooruPost&gt;</code></td><td>Gemeinsamer Post-Kontext plus validierter Zugriff auf typisierte Payloads</td><td>Eine einzelne geordnete Viewer-Liste kann sicher verschiedene Engines enthalten.</td></tr>
+            <tr><td>Separate native und Bookmark-/Feed-Viewer</td><td><code>MixedPostDetailsPage</code> + <code>PostPagePresentationScope</code></td><td>Ein stabiler Seitencontroller wechselt die Darstellung dynamisch, statt Viewer ineinander zu verschachteln.</td></tr>
+            <tr><td>Implizit global ausgewähltes Profil</td><td>Exaktes Ergebnis von <code>PostOriginResolver</code> und lokaler <code>CurrentBooruConfigScope</code></td><td>Aktionen und untergeordnete Routen verwenden das Konto des Posts, ohne die App-Auswahl zu verändern.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="panel new-only">
+        <div class="section-head">
+          <div><h2>Wie ein Post sein natives Verhalten auswählt</h2><p>Die Auflösung ist bewusst streng. Eine native UI wird erst ausgewählt, wenn sowohl die Profilherkunft als auch die typisierte Engine-Payload kompatibel sind. Jede fehlgeschlagene Prüfung führt zu einer sicheren generischen Darstellung.</p></div>
+          <span class="section-tag">Auflösungs-Pipeline</span>
+        </div>
+        <div class="resolver">
+          <div class="node"><span class="kind">Aktuelle Seite</span><b><code>Post</code></b><p>Gemeinsame Daten, Herkunft, benutzerdefinierte Payload.</p></div>
+          <div class="node"><span class="kind">Herkunft</span><b>Exaktes Profil auflösen</b><p>ID-Hinweis, Engine, normalisierter Host.</p></div>
+          <div class="node"><span class="kind">Registry</span><b>Capability finden</b><p>Die Engine besitzt Codec und Darstellung.</p></div>
+          <div class="node"><span class="kind">Vertrag</span><b>Payload validieren</b><p>Keine ungeprüfte Engine-Typumwandlung.</p></div>
+          <div class="node success"><span class="kind">Erfolg</span><b>Native Darstellung</b><p>Details, Overlays, Aktionen, Medienregeln.</p></div>
+          <div class="node fork"><span class="kind">Lokaler Kontext</span><b>Schreibgeschützte Konfiguration überschreiben</b><p>Provider sehen das Profil dieses Posts.</p></div>
+          <div class="node fallback"><span class="kind">Beliebiger Fehler</span><b>Generischer Fallback</b><p>Cache-Medien + Warnung + sichere Aktionen.</p></div>
+        </div>
+      </section>
+
+      <section class="panel new-only">
+        <div class="section-head">
+          <div><h2>Ein gemischter Viewer wechselt, das globale Profil nicht</h2><p>Wähle unten eine Seite aus. Der Viewer behält einen Controller und eine geordnete Liste, während der Darstellungskontext aus dem aktuell sichtbaren Post neu aufgebaut wird.</p></div>
+          <span class="section-tag">Interaktives Beispiel</span>
+        </div>
+        <div class="viewer-grid">
+          <div class="viewer">
+            <div class="viewer-bar"><b>MixedPostDetailsPage · 3 Posts</b><span>die geordnete Liste bleibt stabil</span></div>
+            <div class="post-selector" aria-label="Aktuellen Post auswählen">
+              <button type="button" data-post="danbooru" class="active">Danbooru<small>nativer Snapshot</small></button>
+              <button type="button" data-post="e621">e621<small>natives Live-Ergebnis</small></button>
+              <button type="button" data-post="legacy">Altes Bookmark<small>generischer Fallback</small></button>
+            </div>
+            <div class="screen">
+              <div class="media"><span id="media-symbol">D</span></div>
+              <div class="screen-meta">
+                <div><h3 id="viewer-title">Danbooru-Post</h3><p id="viewer-subtitle">Danbooru-Medienauflösung · natives Detail-Layout</p></div>
+                <div class="chips" id="viewer-chips"></div>
+              </div>
+            </div>
+          </div>
+          <div class="context-stack" aria-live="polite">
+            <div class="context-row global"><span>Globales App-Profil</span><strong>Gelbooru · unverändert</strong></div>
+            <div class="context-row"><span>Post-Herkunft</span><strong id="context-origin">Danbooru · danbooru.donmai.us · Profil #12</strong></div>
+            <div class="context-row"><span>Typisierte Payload</span><strong id="context-payload">DanbooruPostData</strong></div>
+            <div class="context-row"><span>Darstellung</span><strong id="context-presentation">DanbooruPostPresentation</strong></div>
+            <div class="context-row"><span>Lokaler Profilkontext</span><strong id="context-profile">Danbooru-Profil #12</strong></div>
+            <div class="context-row"><span>Server-Aktionen</span><strong id="context-actions">Favoriten, Notizen, Bewertungen, Tags, untergeordnete Routen</strong></div>
+            <div class="context-note" id="context-note">Durch Wischen wechselt der lokale Provider-Kontext zu Danbooru. Danbooru wird dadurch nicht als ausgewähltes App-Profil gespeichert.</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel new-only">
+        <div class="section-head">
+          <div><h2>Persistenz ist eine Grenze, keine zweite Post-Hierarchie</h2><p>Bookmarks und Feeds benötigen dauerhafte, JSON-sichere Daten. Suche und Server-Favoriten serialisieren Posts nur dann, wenn eine andere Funktion sie speichert.</p></div>
+          <span class="section-tag">Speicherung</span>
+        </div>
+        <div class="storage-grid">
+          <div class="storage-box">
+            <h3>Laufzeit</h3>
+            <p>Ein konkreter Post vereinfacht die gemeinsame UI und bewahrt eine typisierte Payload im Besitz der Engine.</p>
+            <pre>Post(
+  origin: PostOrigin(...),
+  core: PostCoreData(...),
+  booruData: DanbooruPostData(...),
+)</pre>
+          </div>
+          <div class="big-arrow">⇄</div>
+          <div class="storage-box">
+            <h3>Gespeicherter Snapshot</h3>
+            <p>Der Engine-Codec konvertiert nur dauerhafte Werte. Unbekannte neuere Payloads behalten gemeinsame Daten und wechseln sicher zum Fallback.</p>
+            <pre>{
+  "origin": { ... },
+  "common": { ... },
+  "custom": { ... },
+  "codecVersion": 1
+}</pre>
+            <div class="credential-line">Niemals gespeichert: Zugangsdaten, Provider, Repositories, Callbacks, Controller</div>
+          </div>
+        </div>
+        <div class="comparison" style="margin-top: 15px">
+          <article class="system old-system"><div class="system-title"><strong>Altes Verhalten gespeicherter Posts</strong><small>verlustbehaftete Konvertierung</small></div><div class="system-body"><div class="problem" style="margin-top:0">Reduzierte Bookmark-/Feed-Felder rekonstruierten ein einfacheres Laufzeitobjekt und erfanden Standardwerte. Native Daten konnten durch einen späteren Widget-Wechsel nicht wiederhergestellt werden.</div></div></article>
+          <article class="system new-system"><div class="system-title"><strong>Neues Verhalten gespeicherter Posts</strong><small>versionierte Konvertierung</small></div><div class="system-body"><div class="benefit" style="margin-top:0">Gültige Snapshots rendern die native UI ohne Abruf. Alte Bookmarks können über das exakte Profil erneut geladen und als verbesserter Snapshot gespeichert werden, ohne lokale ID oder Gruppenzugehörigkeit zu verändern.</div></div></article>
+        </div>
+      </section>
+
+      <section class="panel new-only">
+        <div class="section-head">
+          <div><h2>Neue Sicherheitsgrenzen</h2><p>Der Branch bewahrt nicht nur Felder. Er legt fest, wo Engine-spezifisches Verhalten erlaubt ist und wie Fehler auf einen einzelnen Post begrenzt bleiben.</p></div>
+          <span class="section-tag">Korrektheit</span>
+        </div>
+        <div class="safety-grid">
+          <article class="safety"><span class="icon">◎</span><h3>Exakte Herkunftsauflösung</h3><p>Profilhinweise werden nur akzeptiert, wenn Engine und Host weiterhin übereinstimmen. Mehrdeutige Profile autorisieren niemals eine destruktive Aktion.</p></article>
+          <article class="safety"><span class="icon">✓</span><h3>Payload-Validierung</h3><p>Die native Darstellung erfordert eine kompatible typisierte Payload. Unbekannte oder fehlerhafte benutzerdefinierte Daten erreichen keine ungeprüften Engine-Widgets.</p></article>
+          <article class="safety"><span class="icon">↔</span><h3>Begrenzter Provider-Zustand</h3><p>Jeder aktuelle Post stellt seinen eigenen schreibgeschützten Profilkontext bereit, einschließlich untergeordneter Routen, ohne die globale Auswahl zu verändern.</p></article>
+          <article class="safety"><span class="icon">≡</span><h3>Sichere Mehrfachaktionen</h3><p>Profilgebundene Mehrfachaktionen erscheinen nur, wenn jeder ausgewählte Post zur selben exakten, kompatiblen Darstellung gehört.</p></article>
+          <article class="safety"><span class="icon">⌛</span><h3>Stabile Bookmark-Sitzung</h3><p>Wird ein Bookmark in seinem Gruppen-Viewer entfernt, erfolgt die Änderung erst beim Schließen der Route. So verschwindet das aktuelle Medium nicht während der Betrachtung.</p></article>
+          <article class="safety"><span class="icon">!</span><h3>Sanfter Fallback und erneuter Versuch</h3><p>Fehlende Profile, Engines, Versionen oder Ursprungsposts betreffen nur diese Seite. Gemeinsame Medien und Navigation bleiben verfügbar.</p></article>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="section-head">
+          <div><h2>Was sich bewusst nicht geändert hat</h2><p>Der Umbau ersetzt die Post-Repräsentation und die Darstellungsgrenzen. Die umgebenden Bookmark- und Feed-Funktionen werden nicht neu entworfen.</p></div>
+          <span class="section-tag">Umfangsgrenzen</span>
+        </div>
+        <div class="unchanged">
+          <article><b>Bookmark-Gruppen</b><p>Lokale IDs, Zugehörigkeiten, Konfliktbehandlung, begrenzte Exporte und der Gruppenlebenszyklus bleiben im Besitz des Containers.</p></article>
+          <article><b>Feed-Semantik</b><p>Quellenzuordnung, Aktualisierungsmarken, Sortierung, Aufbewahrung, Verlauf, Seitennavigation und <code>NEW</code>-Zustand bleiben unverändert.</p></article>
+          <article><b>Engine-Verantwortung</b><p>Engines sind weiterhin für Parsing, Repositories, native Aktionen, Medienentscheidungen und ausschließlich Engine-spezifische Datenverträge verantwortlich.</p></article>
+          <article><b>Offline-Zusage</b><p>Gültige gespeicherte Snapshots können statische native UI offline rendern. Serverbasierte Aktionen und automatische Mediendownloads werden nicht offlinefähig gemacht.</p></article>
+        </div>
+      </section>
+
+      <section class="panel new-only">
+        <div class="section-head">
+          <div><h2>Performance im einmaligen Live-Vergleich</h2><p>Ein Profile-Mode-Lauf mit 1.000 abwechselnden Danbooru- und Gelbooru-v2-Bookmarks zeigte keine praktisch relevante Verzögerung beim ersten Rasterbild. Die reicheren Snapshots benötigen erwartungsgemäß mehr lokalen Speicher.</p></div>
+          <span class="section-tag">Messung</span>
+        </div>
+        <table class="class-map">
+          <thead><tr><th>Messwert</th><th>Develop</th><th>Dieser Branch</th><th>Einordnung</th></tr></thead>
+          <tbody>
+            <tr><td>Kaltes Laden der Bookmarks</td><td>18,0 ms</td><td>38,9 ms</td><td>Rund 21 ms mehr; unter der vorab gesetzten praktischen Schwelle von 100 ms.</td></tr>
+            <tr><td>Erstes Rasterbild</td><td>107,7 ms</td><td>107,2 ms</td><td>Im Messrauschen gleich.</td></tr>
+            <tr><td>Speicherbedarf (PSS)</td><td>249,4 MiB</td><td>258,1 MiB</td><td>Etwa 8,7 MiB beziehungsweise 3,5 % mehr.</td></tr>
+            <tr><td>Lokale Bookmark-Datei</td><td>1,00 MiB</td><td>3,31 MiB</td><td>Etwa 3,3-mal so groß, weil native Booru-Daten im Snapshot erhalten bleiben.</td></tr>
+          </tbody>
+        </table>
+        <div class="context-note" style="margin-top: 15px">Die Werte stammen aus einem einmaligen Emulatorvergleich und sind eine Größenordnung, kein dauerhaftes Performance-Versprechen. Die verwendete feste Post-Liste bleibt als <a href="../benchmarks/2026-09-24-bookmark-live-comparison-manifest.json">reproduzierbares 1.000-Post-Manifest</a> erhalten.</div>
+      </section>
+
+      <p class="footnote">Implementierungsreferenz: <a href="../specs/2026-09-22-unified-post-model-and-viewer-design.md">Design des einheitlichen Post-Modells und Mixed-Booru-Viewers</a>. Dieses Diagramm beschreibt die Architektur des Feature-Branches, nicht den abgebrochenen Untersuchungs-Branch zum Feed-Rendering. Das Live-Benchmark-Harness selbst war nur für den einmaligen Vergleich bestimmt und gehört nicht zum Produkt.</p>
+    </main>
+
+    <script>
+      const viewButtons = [...document.querySelectorAll('[data-view]')].filter((button) => button.tagName === 'BUTTON');
+      for (const button of viewButtons) {
+        button.addEventListener('click', () => {
+          document.body.dataset.view = button.dataset.view;
+          for (const candidate of viewButtons) {
+            candidate.setAttribute('aria-selected', String(candidate === button));
+          }
+        });
+      }
+
+      const layerButtons = [...document.querySelectorAll('[data-layer]')];
+      const layerCards = [...document.querySelectorAll('[data-layer-card]')];
+      for (const button of layerButtons) {
+        button.addEventListener('click', () => {
+          const layer = button.dataset.layer;
+          for (const candidate of layerButtons) candidate.classList.toggle('active', candidate === button);
+          for (const card of layerCards) {
+            const active = layer === 'all' || card.dataset.layerCard === layer;
+            card.classList.toggle('filtered', !active);
+            card.classList.toggle('highlighted', layer !== 'all' && active);
+          }
+        });
+      }
+
+      const posts = {
+        danbooru: {
+          symbol: 'D', title: 'Danbooru-Post', subtitle: 'Danbooru-Medienauflösung · natives Detail-Layout',
+          origin: 'Danbooru · danbooru.donmai.us · Profil #12', payload: 'DanbooruPostData',
+          presentation: 'DanbooruPostPresentation', profile: 'Danbooru-Profil #12',
+          actions: 'Favoriten, Notizen, Bewertungen, Tags, untergeordnete Routen',
+          chips: ['Künstler', 'Favorit', 'Notizen', 'Moderation'],
+          note: 'Durch Wischen wechselt der lokale Provider-Kontext zu Danbooru. Danbooru wird dadurch nicht als ausgewähltes App-Profil gespeichert.'
+        },
+        e621: {
+          symbol: 'e', title: 'e621-Post', subtitle: 'e621-Medienvarianten · native Tag-Gruppen und Beschreibung',
+          origin: 'e621 · e621.net · Profil #27', payload: 'E621PostData',
+          presentation: 'E621PostPresentation', profile: 'e621-Profil #27',
+          actions: 'Favorit, Kommentare, Quellen, native Tag-Gruppen',
+          chips: ['Kommentare', 'Quellen', 'Spezies', 'Favorit'],
+          note: 'Derselbe Seitencontroller verwendet nun die e621-Darstellung, den Repository-Zustand, die Medienregeln und die profillokalen Provider.'
+        },
+        legacy: {
+          symbol: '?', title: 'Altes Bookmark', subtitle: 'Gemeinsame Cache-Medien · generische Details',
+          origin: 'Gelbooru V2 · gelbooru.example · Profil aufgelöst', payload: 'LegacyPostData',
+          presentation: 'GenericPostPresentation', profile: 'Sicherer lokaler Profilkontext',
+          actions: 'Generisches Herunterladen/Teilen; erneuter Versuch bei vertrauenswürdiger Ursprungs-ID',
+          chips: ['Cache-Tags', 'Dateidetails', 'Warnung', 'Erneut versuchen'],
+          warning: true,
+          note: 'Die native Rekonstruktion ist nicht verfügbar, daher wechselt diese Seite sanft zum Fallback. Benachbarte Posts bleiben nativ und durch Wischen erreichbar; ein erfolgreicher erneuter Versuch verbessert nur diesen Bookmark-Snapshot.'
+        }
+      };
+
+      const postButtons = [...document.querySelectorAll('[data-post]')];
+      const fields = {
+        symbol: document.querySelector('#media-symbol'), title: document.querySelector('#viewer-title'),
+        subtitle: document.querySelector('#viewer-subtitle'), origin: document.querySelector('#context-origin'),
+        payload: document.querySelector('#context-payload'), presentation: document.querySelector('#context-presentation'),
+        profile: document.querySelector('#context-profile'), actions: document.querySelector('#context-actions'),
+        note: document.querySelector('#context-note'), chips: document.querySelector('#viewer-chips')
+      };
+
+      function selectPost(key) {
+        const post = posts[key];
+        for (const button of postButtons) button.classList.toggle('active', button.dataset.post === key);
+        for (const field of ['symbol', 'title', 'subtitle', 'origin', 'payload', 'presentation', 'profile', 'actions', 'note']) {
+          fields[field].textContent = post[field];
+        }
+        fields.chips.replaceChildren(...post.chips.map((label) => {
+          const chip = document.createElement('span');
+          chip.className = `chip${post.warning && (label === 'Warnung' || label === 'Erneut versuchen') ? ' warning-chip' : ''}`;
+          chip.textContent = label;
+          return chip;
+        }));
+      }
+
+      for (const button of postButtons) button.addEventListener('click', () => selectPost(button.dataset.post));
+      selectPost('danbooru');
+    </script>
+  </body>
+</html>

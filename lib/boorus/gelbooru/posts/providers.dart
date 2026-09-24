@@ -16,7 +16,7 @@ import 'types.dart';
 const _gelbooruSearchDepthLimit = 40000;
 
 final gelbooruPostRepoProvider =
-    Provider.family<PostRepository<GelbooruPost>, BooruConfigSearch>(
+    Provider.family<PostRepository<Post>, BooruConfigSearch>(
       (ref, config) {
         final client = ref.watch(gelbooruClientProvider(config.auth));
         final tagComposer = ref.watch(gelbooruTagQueryComposerProvider(config));
@@ -41,7 +41,7 @@ final gelbooruPostRepoProvider =
     );
 
 extension GelbooruClientX on GelbooruClient {
-  Future<PostResult<GelbooruPost>> getPostResults(
+  Future<PostResult<Post>> getPostResults(
     List<String> tags,
     int page, {
     int? limit,
@@ -50,7 +50,7 @@ extension GelbooruClientX on GelbooruClient {
     final maxPage = _gelbooruMaxAccessiblePage(limit);
 
     if (maxPage != null && page > maxPage) {
-      return <GelbooruPost>[].toResult(maxPage: maxPage);
+      return <Post>[].toResult(maxPage: maxPage);
     }
 
     final value = await getPosts(
@@ -84,10 +84,12 @@ int? _gelbooruMaxAccessiblePage(int? limit) {
   return (_gelbooruSearchDepthLimit - 1) ~/ limit;
 }
 
-final gelbooruUploaderQueryProvider =
-    Provider.family<UploaderQuery?, GelbooruPost>((ref, post) {
-      return switch (post.uploaderName) {
-        final uploader? => UserColonUploaderQuery(uploader),
-        _ => null,
-      };
-    });
+final gelbooruUploaderQueryProvider = Provider.family<UploaderQuery?, Post>((
+  ref,
+  post,
+) {
+  return switch (post.uploaderName) {
+    final uploader? => UserColonUploaderQuery(uploader),
+    _ => null,
+  };
+});

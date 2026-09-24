@@ -12,8 +12,10 @@ import 'package:intl/intl.dart';
 import 'package:boorusama/boorus/pixiv/configs/extra_data.dart';
 import 'package:boorusama/boorus/pixiv/explore/feed.dart';
 import 'package:boorusama/boorus/pixiv/explore/providers.dart';
+import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/posts/explores/types.dart';
 import 'package:boorusama/core/posts/explores/widgets.dart';
+import 'package:boorusama/core/posts/post/types.dart';
 
 void main() {
   group('JST-yesterday computation', () {
@@ -371,6 +373,7 @@ void main() {
         ..httpClientAdapter = adapter;
       repo = PixivExploreRepository(
         client: PixivClient(dio: dio, accessToken: 'token'),
+        origin: _pixivOrigin,
       );
     });
 
@@ -442,6 +445,13 @@ void main() {
     });
   });
 }
+
+final _pixivOrigin = PostOrigin.fromSource(
+  booruType: BooruType.pixiv,
+  booruId: BooruType.pixiv.id,
+  source: 'https://pixiv.example',
+  profileIdHint: 42,
+);
 
 /// Records the last request that reached the wire and answers with an
 /// empty, exhausted (`next_url: null`) page — enough for the repository's

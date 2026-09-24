@@ -17,7 +17,7 @@ import '../../../foundation/html.dart';
 import '../../../foundation/platform.dart';
 import '../posts/types.dart';
 
-E621VideoVariantType? _getVariantFromVideoUrl(String? url, E621Post post) =>
+E621VideoVariantType? _getVariantFromVideoUrl(String? url, Post post) =>
     switch (url) {
       final String url when url.isNotEmpty => () {
         for (final entry in post.videoVariants.entries) {
@@ -44,49 +44,44 @@ class E621VideoQualitySelector extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return switch (post) {
-      final E621Post p => () {
-        final config = ref.watchConfigViewer;
-        final params = VideoUrlParam(
-          post: p,
-          viewer: config,
-          auth: ref.watchConfigAuth,
-        );
-        final currentVideoUrl = ref.watch(
-          postDetailsVideoUrlProvider(params),
-        );
-        final videoUrlNotifier = ref.watch(
-          postDetailsVideoUrlProvider(params).notifier,
-        );
-        final effectiveQuality = _getVariantFromVideoUrl(currentVideoUrl, p);
-        final qualityLabel =
-            effectiveQuality?.getLabel(context) ??
-            context.t.video_player.video_qualities.auto;
+    if (post.e621Data == null) return const SizedBox.shrink();
 
-        void onQualityChanged(E621VideoVariantType quality) {
-          if (p.videoVariants[quality]?.url case final url?) {
-            videoUrlNotifier.setUrl(url);
-          }
-        }
+    final config = ref.watchConfigViewer;
+    final params = VideoUrlParam(
+      post: post,
+      viewer: config,
+      auth: ref.watchConfigAuth,
+    );
+    final currentVideoUrl = ref.watch(postDetailsVideoUrlProvider(params));
+    final videoUrlNotifier = ref.watch(
+      postDetailsVideoUrlProvider(params).notifier,
+    );
+    final effectiveQuality = _getVariantFromVideoUrl(currentVideoUrl, post);
+    final qualityLabel =
+        effectiveQuality?.getLabel(context) ??
+        context.t.video_player.video_qualities.auto;
 
-        return isDesktopPlatform() && onPushPage != null
-            ? _DesktopE621VideoQualitySelector(
-                post: p,
-                qualityLabel: qualityLabel,
-                effectiveQuality: effectiveQuality,
-                onQualityChanged: onQualityChanged,
-                onPushPage: onPushPage!,
-                onPopPage: onPopPage!,
-              )
-            : _MobileE621VideoQualitySelector(
-                post: p,
-                qualityLabel: qualityLabel,
-                effectiveQuality: effectiveQuality,
-                onQualityChanged: onQualityChanged,
-              );
-      }(),
-      _ => const SizedBox.shrink(),
-    };
+    void onQualityChanged(E621VideoVariantType quality) {
+      if (post.videoVariants[quality]?.url case final url?) {
+        videoUrlNotifier.setUrl(url);
+      }
+    }
+
+    return isDesktopPlatform() && onPushPage != null
+        ? _DesktopE621VideoQualitySelector(
+            post: post,
+            qualityLabel: qualityLabel,
+            effectiveQuality: effectiveQuality,
+            onQualityChanged: onQualityChanged,
+            onPushPage: onPushPage!,
+            onPopPage: onPopPage!,
+          )
+        : _MobileE621VideoQualitySelector(
+            post: post,
+            qualityLabel: qualityLabel,
+            effectiveQuality: effectiveQuality,
+            onQualityChanged: onQualityChanged,
+          );
   }
 }
 
@@ -100,7 +95,7 @@ class _DesktopE621VideoQualitySelector extends StatelessWidget {
     required this.onPopPage,
   });
 
-  final E621Post post;
+  final Post post;
   final String qualityLabel;
   final E621VideoVariantType? effectiveQuality;
   final void Function(E621VideoVariantType quality) onQualityChanged;
@@ -136,7 +131,7 @@ class _MobileE621VideoQualitySelector extends StatelessWidget {
     required this.onQualityChanged,
   });
 
-  final E621Post post;
+  final Post post;
   final String qualityLabel;
   final E621VideoVariantType? effectiveQuality;
   final void Function(E621VideoVariantType quality) onQualityChanged;

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 import 'package:boorusama/core/search/subscriptions/src/services/feed_history_session.dart';
 import 'package:boorusama/core/search/subscriptions/types.dart';
@@ -38,9 +39,7 @@ void main() {
         sources: sources,
         recent: [
           for (final id in [10, 9])
-            CachedFeedPost.fromPost(
-              TestSearchPost(id, now.add(Duration(seconds: id))),
-            ),
+            _post(TestSearchPost(id, now.add(Duration(seconds: id)))),
         ],
         fetchPage: (source, page) async {
           fetched.add('${source.query}:$page');
@@ -48,7 +47,7 @@ void main() {
           return PostResult<Post>(
             posts: [
               for (final id in ids)
-                TestSearchPost(id, now.add(Duration(seconds: id))),
+                _post(TestSearchPost(id, now.add(Duration(seconds: id)))),
             ],
             total: null,
             hasMore: page == 1,
@@ -90,14 +89,19 @@ void main() {
       var attempts = 0;
       final session = FeedHistorySession(
         sources: [source],
-        recent: [CachedFeedPost.fromPost(TestSearchPost(10, now))],
+        recent: [_post(TestSearchPost(10, now))],
         fetchPage: (_, page) async {
           attempts++;
           if (attempts == 1) throw StateError('Offline');
           expect(page, 1);
           return PostResult<Post>(
             posts: [
-              TestSearchPost(9, now.subtract(const Duration(seconds: 1))),
+              _post(
+                TestSearchPost(
+                  9,
+                  now.subtract(const Duration(seconds: 1)),
+                ),
+              ),
             ],
             total: null,
             hasMore: false,
@@ -125,7 +129,7 @@ void main() {
     var pageTwoAttempts = 0;
     final session = FeedHistorySession(
       sources: [source],
-      recent: [CachedFeedPost.fromPost(TestSearchPost(11, now))],
+      recent: [_post(TestSearchPost(11, now))],
       fetchPage: (_, page) async {
         if (page == 2 && pageTwoAttempts++ == 0) {
           throw StateError('Offline');
@@ -133,7 +137,12 @@ void main() {
         return PostResult<Post>(
           posts: [
             for (final id in page == 1 ? [10, 9] : [8])
-              TestSearchPost(id, now.subtract(Duration(seconds: 11 - id))),
+              _post(
+                TestSearchPost(
+                  id,
+                  now.subtract(Duration(seconds: 11 - id)),
+                ),
+              ),
           ],
           total: null,
           hasMore: page == 1,
@@ -169,7 +178,7 @@ void main() {
       ];
       final session = FeedHistorySession(
         sources: sources,
-        recent: [CachedFeedPost.fromPost(TestSearchPost(10, now))],
+        recent: [_post(TestSearchPost(10, now))],
         fetchPage: (source, _) {
           requests.add(source.id);
           if (requests.length == 3) started.complete();
@@ -181,10 +190,22 @@ void main() {
       await started.future;
       session.dispose();
       for (final reply in replies) {
-        reply.complete(const PostResult<Post>(posts: [], total: null));
+        reply.complete(
+          const PostResult<Post>(posts: [], total: null),
+        );
       }
       await expectLater(loading, throwsStateError);
       expect(requests, ['a', 'b', 'c']);
     },
   );
 }
+
+Post _post(Post post) => Post(
+  origin: PostOrigin.fromSource(
+    booruType: BooruType.unknown,
+    booruId: 0,
+    source: '',
+  ),
+  core: PostCoreData.fromPost(post),
+  booruData: const LegacyPostData(typeKey: 'test', custom: {}),
+);

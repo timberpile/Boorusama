@@ -6,10 +6,10 @@ import 'package:kurumi/material.dart';
 // Project imports:
 import '../../../core/configs/config/providers.dart';
 import '../../../core/posts/listing/widgets.dart';
+import '../../../core/posts/post/providers.dart';
 import '../../../core/tags/details/widgets.dart';
 import '../../../core/tags/tag/types.dart';
 import '../../../core/search/subscriptions/src/widgets/feed_follow_control.dart';
-import '../posts/providers.dart';
 import 'providers.dart';
 
 class E621ArtistPage extends ConsumerStatefulWidget {
@@ -30,11 +30,11 @@ class _E621ArtistPageState extends ConsumerState<E621ArtistPage> {
   @override
   Widget build(BuildContext context) {
     final artist = ref.watch(e621ArtistProvider(widget.artistName));
-    final config = ref.watchConfigSearch;
+    final config = ref.watchConfig;
 
     return PostScope(
       fetcher: (page) => ref
-          .read(e621PostRepoProvider(config))
+          .read(originAwarePostRepoProvider(config))
           .getPosts(
             queryFromTagFilterCategory(
               category: selectedCategory.value,

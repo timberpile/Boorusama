@@ -5,6 +5,7 @@ import 'package:kurumi/material.dart';
 // Project imports:
 import '../../../../../core/configs/config/providers.dart';
 import '../../../../../core/posts/listing/providers.dart';
+import '../../../../../core/posts/post/types.dart';
 import '../../../posts/details/providers.dart';
 import '../../../posts/post/types.dart';
 import '../../_shared/tag_list_notifier.dart';
@@ -21,7 +22,7 @@ class DanbooruTagEditPage extends ConsumerStatefulWidget {
     super.key,
   });
 
-  final DanbooruPost post;
+  final Post post;
 
   @override
   ConsumerState<DanbooruTagEditPage> createState() =>

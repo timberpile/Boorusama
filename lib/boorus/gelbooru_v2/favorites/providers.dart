@@ -16,10 +16,7 @@ import '../posts/types.dart';
 import '../tags/providers.dart';
 
 final gelbooruV2FavoritesPostRepoProvider =
-    Provider.family<
-      PostRepository<GelbooruV2Post>,
-      (BooruConfigSearch, String uuid)
-    >(
+    Provider.family<PostRepository<Post>, (BooruConfigSearch, String uuid)>(
       (ref, params) {
         final (config, uuid) = params;
         final client = ref.watch(gelbooruV2ClientProvider(config.auth));
@@ -53,7 +50,7 @@ final gelbooruV2FavoritesPostRepoProvider =
     );
 
 final gelbooruV2FavoriteRepoProvider =
-    Provider.family<FavoriteRepository<GelbooruV2Post>, BooruConfigAuth>(
+    Provider.family<FavoriteRepository<Post>, BooruConfigAuth>(
       (ref, config) {
         final client = ref.watch(gelbooruV2ClientProvider(config));
 

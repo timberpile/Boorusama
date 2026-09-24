@@ -17,11 +17,17 @@ import '../../core/tags/autocompletes/types.dart';
 import '../../core/tags/tag/types.dart';
 import 'client_provider.dart';
 import 'favorites/providers.dart';
+import 'posts/post_codec.dart';
+import 'posts/post_data.dart';
 import 'posts/providers.dart';
 import 'tags/providers.dart';
 
 class HydrusRepository extends BooruRepositoryDefault {
   const HydrusRepository({required this.ref});
+
+  @override
+  BooruPostDataCodec<HydrusPostData> get postDataCodec =>
+      const HydrusPostCodec();
 
   @override
   final Ref ref;

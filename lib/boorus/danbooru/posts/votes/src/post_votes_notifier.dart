@@ -115,7 +115,7 @@ class PostVotesNotifier
     return success;
   }
 
-  Future<void> getVotes(List<DanbooruPost> posts) async {
+  Future<void> getVotes(List<Post> posts) async {
     final user = await ref.read(danbooruCurrentUserProvider(arg).future);
     if (user == null) return;
 

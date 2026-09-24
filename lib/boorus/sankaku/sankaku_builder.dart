@@ -9,15 +9,23 @@ import '../../core/configs/create/widgets.dart';
 import '../../core/configs/manage/widgets.dart';
 import '../../core/downloads/filename/types.dart';
 import '../../core/posts/details/widgets.dart';
+import '../../core/posts/post/types.dart';
 import 'artists/widgets.dart';
 import 'configs/widgets.dart';
 import 'favorites/widgets.dart';
 import 'home/widgets.dart';
+import 'posts/post_data.dart';
 import 'posts/types.dart';
 import 'posts/widgets.dart';
 
 class SankakuBuilder extends BaseBooruBuilder {
   SankakuBuilder();
+
+  @override
+  late final postPresentation = TypedBooruPostPresentation<SankakuPostData>(
+    typeKey: 'sankaku',
+    uiBuilder: postDetailsUIBuilder,
+  );
 
   @override
   CreateConfigPageBuilder get createConfigPageBuilder =>
@@ -57,18 +65,10 @@ class SankakuBuilder extends BaseBooruBuilder {
       (context) => const SankakuHomePage();
 
   @override
-  PostDetailsPageBuilder get postDetailsPageBuilder => (context, payload) {
-    final posts = payload.posts.map((e) => e as SankakuPost).toList();
-
-    return PostDetailsScope(
-      initialIndex: payload.initialIndex,
-      initialThumbnailUrl: payload.initialThumbnailUrl,
-      posts: posts,
-      scrollController: payload.scrollController,
-      dislclaimer: payload.dislclaimer,
-      child: const DefaultPostDetailsPage<SankakuPost>(),
-    );
-  };
+  PostDetailsPageBuilder get postDetailsPageBuilder =>
+      (context, payload) => MixedPostDetailsPageAdapter(
+        payload: payload,
+      );
 
   @override
   ArtistPageBuilder? get artistPageBuilder =>
@@ -82,7 +82,7 @@ class SankakuBuilder extends BaseBooruBuilder {
 
   @override
   QuickFavoriteButtonBuilder get quickFavoriteButtonBuilder =>
-      (context, post) => post is SankakuPost
+      (context, post) => post.sankakuData != null
       ? SankakuQuickFavoriteButton(post: post)
       : const SizedBox.shrink();
 

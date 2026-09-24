@@ -16,7 +16,7 @@ class DanbooruPostListingContextMenu extends ConsumerWidget {
   });
 
   final int index;
-  final PostGridController<DanbooruPost> controller;
+  final PostGridController<Post> controller;
   final Widget child;
 
   @override

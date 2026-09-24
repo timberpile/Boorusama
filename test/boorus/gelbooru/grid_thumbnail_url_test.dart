@@ -3,9 +3,12 @@ import 'package:flutter_test/flutter_test.dart';
 
 // Project imports:
 import 'package:boorusama/boorus/gelbooru/common/grid_thumbnail_url.dart';
+import 'package:boorusama/boorus/gelbooru/posts/post_codec.dart';
 import 'package:boorusama/boorus/gelbooru/posts/types.dart';
+import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/images/types.dart';
 import 'package:boorusama/core/posts/listing/types.dart';
+import 'package:boorusama/core/posts/post/types.dart';
 import 'package:boorusama/core/posts/rating/types.dart';
 import 'package:boorusama/core/posts/sources/types.dart';
 
@@ -60,28 +63,31 @@ void main() {
   });
 }
 
-GelbooruPost _post({required String format}) => GelbooruPost(
-  format: format,
-  height: 720,
-  id: 1,
-  md5: 'hash',
-  originalImageUrl: 'https://example.test/video.$format',
-  rating: Rating.general,
-  sampleImageUrl: 'https://example.test/poster.jpg',
-  source: PostSource.none(),
-  tags: const {},
-  thumbnailImageUrl: 'https://example.test/thumbnail.jpg',
-  width: 1280,
-  hasComment: false,
-  hasParentOrChildren: false,
-  fileSize: 0,
-  score: 0,
-  createdAt: null,
-  parentId: null,
-  uploaderId: null,
-  uploaderName: null,
-  metadata: null,
-  status: null,
+Post _post({required String format}) => gelbooruPostFromRecord(
+  GelbooruPostRecord(
+    format: format,
+    height: 720,
+    id: 1,
+    md5: 'hash',
+    originalImageUrl: 'https://example.test/video.$format',
+    rating: Rating.general,
+    sampleImageUrl: 'https://example.test/poster.jpg',
+    source: PostSource.none(),
+    tags: const {},
+    thumbnailImageUrl: 'https://example.test/thumbnail.jpg',
+    width: 1280,
+    hasComment: false,
+    hasParentOrChildren: false,
+    fileSize: 0,
+    score: 0,
+    createdAt: null,
+    parentId: null,
+    uploaderId: null,
+    uploaderName: null,
+    metadata: null,
+    status: null,
+  ),
+  PostOrigin.forBooruType(BooruType.gelbooru),
 );
 
 GridThumbnailSettings _settings(ImageQuality quality) => GridThumbnailSettings(

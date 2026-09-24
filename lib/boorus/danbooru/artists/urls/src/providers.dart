@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Project imports:
 import '../../../../../core/configs/config/providers.dart';
+import '../../../../../core/configs/manage/providers.dart';
 import 'data/providers.dart';
 import 'types/artist_url.dart';
 
@@ -12,4 +13,4 @@ final danbooruArtistUrlProvider = FutureProvider.autoDispose
       final repo = ref.watch(danbooruArtistUrlRepoProvider(config));
 
       return repo.getArtistUrls(artistId);
-    });
+    }, dependencies: [currentReadOnlyBooruConfigAuthProvider]);

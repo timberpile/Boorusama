@@ -90,11 +90,10 @@ PostV2Dto _parsePost(String title) {
   return parseRbPostsHtml(response, const {}).posts.single;
 }
 
-GelbooruV2Post _toPost(String title) =>
-    gelbooruV2PostDtoToGelbooruPostNoMetadata(
-      _parsePost(title),
-      const GelbooruV2ImageUrlResolver(),
-    );
+Post _toPost(String title) => gelbooruV2PostDtoToGelbooruPostNoMetadata(
+  _parsePost(title),
+  const GelbooruV2ImageUrlResolver(),
+);
 
 GridThumbnailSettings _settings(ImageQuality quality) => GridThumbnailSettings(
   imageQuality: quality,

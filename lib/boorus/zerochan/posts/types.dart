@@ -1,8 +1,10 @@
+export '../../../core/posts/post/types.dart' show Post;
+
 // Project imports:
 import '../../../core/posts/post/types.dart';
 
-class ZerochanPost extends SimplePost {
-  ZerochanPost({
+class ZerochanPostRecord extends CommonPostRecord {
+  ZerochanPostRecord({
     required super.id,
     required super.thumbnailImageUrl,
     required super.sampleImageUrl,

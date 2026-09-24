@@ -30,6 +30,8 @@ import 'booru_builder_types.dart';
 abstract class BooruRepository {
   Ref get ref;
 
+  BooruPostDataCodec<BooruPostData>? get postDataCodec => null;
+
   PostCountRepository? postCount(BooruConfigSearch config);
   PostRepository<Post> post(BooruConfigSearch config);
   SearchRefreshQueryAdapter searchRefreshQueryAdapter(BooruConfigAuth config);

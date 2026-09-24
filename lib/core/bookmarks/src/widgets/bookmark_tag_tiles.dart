@@ -3,11 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kurumi/material.dart';
 
 // Project imports:
-import '../../../configs/config/providers.dart';
 import '../../../configs/config/types.dart';
+import '../../../configs/manage/providers.dart';
 import '../../../posts/details/types.dart';
 import '../../../posts/details_parts/widgets.dart';
-import '../data/bookmark_convert.dart';
+import '../../../posts/post/types.dart';
 import '../providers/local_providers.dart';
 
 class BookmarkTagTiles extends ConsumerStatefulWidget {
@@ -23,17 +23,17 @@ class _BookmarkTagTilesState extends ConsumerState<BookmarkTagTiles> {
 
   @override
   Widget build(BuildContext context) {
-    final post = InheritedPost.of<BookmarkPost>(context);
-    final originalPost = post.toOriginalPost();
-    final config = ref.watch(
-      firstMatchingConfigBySourceUrlProvider((
-        post.bookmark.booruId,
-        post.bookmark.sourceUrl,
-      )),
-    );
+    final post = InheritedPost.of<Post>(context);
+    final config = switch (const PostOriginResolver().resolve(
+      post.origin,
+      ref.watch(booruConfigProvider),
+    )) {
+      ResolvedPostOrigin(:final config) => config,
+      _ => null,
+    };
 
     if (config == null) {
-      return const DefaultInheritedBasicTagsTile<BookmarkPost>();
+      return const DefaultInheritedBasicTagsTile<Post>();
     }
 
     final params = (config.auth, post);
@@ -68,7 +68,7 @@ class _BookmarkTagTilesState extends ConsumerState<BookmarkTagTiles> {
               tags: expanded
                   ? ref.watch(bookmarkTagGroupsProvider(params)).valueOrNull
                   : null,
-              post: originalPost,
+              post: post,
               onExpand: () => setState(() => expanded = true),
               onCollapse: () {
                 // Don't set expanded to false to prevent rebuilding the tags list

@@ -3,6 +3,7 @@ import 'package:test/test.dart';
 
 // Project imports:
 import 'package:boorusama/core/configs/config/types.dart';
+import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/downloads/filename/types.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 import 'package:boorusama/core/posts/rating/types.dart';
@@ -48,30 +49,31 @@ void main() {
   });
 }
 
-class _TestPost extends SimplePost {
-  _TestPost({
-    required super.format,
-  }) : super(
-         id: 42,
-         thumbnailImageUrl: '',
-         sampleImageUrl: '',
-         originalImageUrl: '',
-         tags: const {},
-         rating: Rating.general,
-         hasComment: false,
-         isTranslated: false,
-         hasParentOrChildren: false,
-         source: PostSource.none(),
-         score: 0,
-         duration: 0,
-         fileSize: 0,
-         hasSound: null,
-         height: 100,
-         md5: '0123456789abcdef0123456789abcdef',
-         videoThumbnailUrl: '',
-         videoUrl: '',
-         width: 100,
-         uploaderId: null,
-         metadata: null,
-       );
-}
+Post _TestPost({required String format}) => Post(
+  origin: PostOrigin.forBooruType(BooruType.unknown),
+  core: PostCoreData(
+    id: 42,
+    thumbnailImageUrl: '',
+    sampleImageUrl: '',
+    originalImageUrl: '',
+    videoUrl: '',
+    videoThumbnailUrl: '',
+    width: 100,
+    height: 100,
+    format: format,
+    md5: '0123456789abcdef0123456789abcdef',
+    fileSize: 0,
+    duration: 0,
+    hasSound: null,
+    tags: const {},
+    rating: Rating.general,
+    hasComment: false,
+    isTranslated: false,
+    hasParentOrChildren: false,
+    source: PostSource.none(),
+    score: 0,
+    uploaderId: null,
+    metadata: null,
+  ),
+  booruData: const EmptyPostData(typeKey: 'test'),
+);

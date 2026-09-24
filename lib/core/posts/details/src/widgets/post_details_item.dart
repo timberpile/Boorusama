@@ -152,7 +152,7 @@ class _PostDetailsItemState<T extends Post>
       pageViewController.onTransformationChanged(details);
 
       if (startedZooming && loadOriginalOnZoom && post.hasFullView) {
-        widget.detailsController.loadOriginalImage(post.id);
+        widget.detailsController.loadOriginalImage(post);
       }
     }
 
@@ -220,12 +220,12 @@ class _PostDetailsItemState<T extends Post>
                     builder: (_, currentSettledPage, _) {
                       final isPageSettled = currentSettledPage == widget.index;
 
-                      return ValueListenableBuilder<Set<int>>(
+                      return ValueListenableBuilder<Set<String>>(
                         valueListenable:
-                            widget.detailsController.originalImagePostIds,
-                        builder: (_, originalImagePostIds, _) {
-                          final useOriginal = originalImagePostIds.contains(
-                            post.id,
+                            widget.detailsController.originalImagePostKeys,
+                        builder: (_, originalImagePostKeys, _) {
+                          final useOriginal = originalImagePostKeys.contains(
+                            postViewerIdentity(post),
                           );
 
                           return PostMedia<T>(
@@ -270,12 +270,12 @@ class _PostDetailsItemState<T extends Post>
                                 onPlayingChanged: (value) {
                                   if (value) {
                                     widget.detailsController.pauseVideo(
-                                      post.id,
+                                      post,
                                       showAnimation: true,
                                     );
                                   } else if (!value) {
                                     widget.detailsController.playVideo(
-                                      post.id,
+                                      post,
                                       showAnimation: true,
                                     );
                                   } else {

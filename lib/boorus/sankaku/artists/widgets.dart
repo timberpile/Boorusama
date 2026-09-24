@@ -5,8 +5,8 @@ import 'package:kurumi/material.dart';
 // Project imports:
 import '../../../core/artists/widgets.dart';
 import '../../../core/configs/config/providers.dart';
+import '../../../core/posts/post/providers.dart';
 import '../../../core/tags/tag/types.dart';
-import '../posts/providers.dart';
 
 class SankakuArtistPage extends ConsumerWidget {
   const SankakuArtistPage({
@@ -18,12 +18,12 @@ class SankakuArtistPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final config = ref.watchConfigSearch;
+    final config = ref.watchConfig;
 
     return ArtistPageScaffold(
       artistName: artistName,
       fetcher: (page, selectedCategory) => ref
-          .read(sankakuPostRepoProvider(config))
+          .read(originAwarePostRepoProvider(config))
           .getPosts(
             [
               artistName,

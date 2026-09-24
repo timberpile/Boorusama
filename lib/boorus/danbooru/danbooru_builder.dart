@@ -1,5 +1,4 @@
 // Package imports:
-import 'package:foundation/foundation.dart';
 import 'package:kurumi/material.dart';
 
 // Project imports:
@@ -12,8 +11,6 @@ import '../../core/downloads/filename/types.dart';
 import '../../core/home/types.dart';
 import '../../core/home/widgets.dart';
 import '../../core/posts/details/widgets.dart';
-import '../../core/posts/listing/providers.dart';
-import '../../core/posts/listing/widgets.dart';
 import '../../core/posts/statistics/types.dart';
 import '../../core/posts/statistics/widgets.dart';
 import 'artists/artist/widgets.dart';
@@ -34,6 +31,9 @@ import 'tags/tag/widgets.dart';
 
 class DanbooruBuilder extends BaseBooruBuilder {
   DanbooruBuilder();
+
+  @override
+  final postPresentation = const DanbooruPostGridPresentation();
 
   @override
   CreateConfigPageBuilder get createConfigPageBuilder =>
@@ -79,18 +79,10 @@ class DanbooruBuilder extends BaseBooruBuilder {
       );
 
   @override
-  PostDetailsPageBuilder get postDetailsPageBuilder => (context, payload) {
-    final posts = payload.posts.map((e) => e as DanbooruPost).toList();
-
-    return PostDetailsScope<DanbooruPost>(
-      initialIndex: payload.initialIndex,
-      initialThumbnailUrl: payload.initialThumbnailUrl,
-      posts: posts,
-      scrollController: payload.scrollController,
-      dislclaimer: payload.dislclaimer,
-      child: const DanbooruPostDetailsPage(),
-    );
-  };
+  PostDetailsPageBuilder get postDetailsPageBuilder =>
+      (context, payload) => MixedPostDetailsPageAdapter(
+        payload: payload,
+      );
 
   @override
   FavoritesPageBuilder? get favoritesPageBuilder =>
@@ -116,7 +108,7 @@ class DanbooruBuilder extends BaseBooruBuilder {
   PostStatisticsPageBuilder get postStatisticsPageBuilder => (context, posts) {
     try {
       return DanbooruPostStatisticsPage(
-        posts: posts.map((e) => e as DanbooruPost).toList(),
+        posts: posts.toList(),
       );
     } catch (e) {
       return PostStatisticsPage(
@@ -135,26 +127,19 @@ class DanbooruBuilder extends BaseBooruBuilder {
 
   @override
   QuickFavoriteButtonBuilder get quickFavoriteButtonBuilder =>
-      (context, post) => castOrNull<DanbooruPost>(post).toOption().fold(
-        () => const SizedBox.shrink(),
-        (post) => DanbooruQuickFavoriteButton(
+      (context, post) => post.danbooruData == null
+      ? const SizedBox.shrink()
+      : DanbooruQuickFavoriteButton(
           post: post,
-        ),
-      );
+          isBanned: post.isBanned,
+        );
 
   @override
   MultiSelectionActionsBuilder? get multiSelectionActionsBuilder =>
       (context, controller, postController) {
-        final isDanController =
-            postController is PostGridController<DanbooruPost>;
-
-        return isDanController
-            ? DanbooruMultiSelectionActions(
-                postController: postController,
-              )
-            : DefaultMultiSelectionActions(
-                postController: postController,
-              );
+        return DanbooruMultiSelectionActions(
+          postController: postController,
+        );
       };
 
   @override

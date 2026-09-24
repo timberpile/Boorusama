@@ -5,8 +5,10 @@ import 'package:foundation/foundation.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
+import 'package:scroll_to_index/scroll_to_index.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../configs/manage/providers.dart';
+import '../../../../configs/manage/widgets.dart';
 import '../../../../boorus/engine/providers.dart';
 import '../../../../errors/types.dart';
 import '../../../../posts/details/routes.dart';
@@ -95,7 +97,10 @@ class FollowingFeedsPage extends ConsumerWidget {
                                             child: AspectRatio(
                                               aspectRatio: 1,
                                               child: FeedPostThumbnail(
-                                                post: post,
+                                                post: _decodeFeedPost(
+                                                  ref,
+                                                  post,
+                                                ),
                                                 config: config.auth,
                                               ),
                                             ),
@@ -125,10 +130,6 @@ class FollowingFeedsPage extends ConsumerWidget {
                             child: const Icon(Symbols.rss_feed),
                           ),
                           onTap: () => _feedAction(context, () async {
-                            await ref
-                                .read(currentBooruConfigProvider.notifier)
-                                .update(config);
-                            if (!context.mounted) return;
                             await Navigator.of(context).push(
                               MaterialPageRoute<void>(
                                 builder: (_) => FollowingFeedPage(
@@ -351,7 +352,7 @@ class _CachedFeedGrid extends ConsumerStatefulWidget {
 }
 
 class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
-  PostGridController<CachedFeedPost>? _controller;
+  PostGridController<Post>? _controller;
   late FeedHistorySession _history;
   var _prefetchedAtLength = -1;
   var _historyStarted = false;
@@ -372,7 +373,9 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
 
   FeedHistorySession _createHistory() => FeedHistorySession(
     sources: widget.sources,
-    recent: widget.feed.posts,
+    recent: [
+      for (final post in widget.feed.posts) _decodeFeedPost(ref, post),
+    ],
     fetchPage: (source, page) async {
       final adapter = ref
           .read(booruRepoProvider(widget.config.auth))
@@ -380,7 +383,7 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
       final plan = adapter?.plan(source.query, after: null);
       if (plan case SupportedSearchRefreshQueryPlan(:final query)) {
         final result = await ref
-            .read(postRepoProvider(widget.config.search))
+            .read(originAwarePostRepoProvider(widget.config))
             .getPosts(
               query,
               page,
@@ -403,7 +406,7 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
       oldWidget.feed.sourceIds,
       widget.feed.sourceIds,
     );
-    final postsChanged = !const ListEquality<CachedFeedPost>().equals(
+    final postsChanged = !const ListEquality<StoredPostSnapshot>().equals(
       oldWidget.feed.posts,
       widget.feed.posts,
     );
@@ -443,16 +446,19 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
     unawaited(_controller?.refresh() ?? Future.value());
   }
 
-  Future<void> _openPost(int index) => _feedAction(context, () async {
-    await ref.read(currentBooruConfigProvider.notifier).update(widget.config);
-    if (!mounted) return;
+  Future<void> _openPost(
+    int index,
+    AutoScrollController scrollController,
+    Post post,
+  ) => _feedAction(context, () async {
     final controller = _controller;
     if (controller == null) return;
-    goToLazyPostDetailsPageFromController(
+    goToPostDetailsPageFromController(
       ref: ref,
       initialIndex: index,
       controller: controller,
-      configSearch: widget.config.search,
+      scrollController: scrollController,
+      initialThumbnailUrl: post.thumbnailImageUrl,
     );
   });
 
@@ -465,95 +471,125 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
   }
 
   @override
-  Widget build(BuildContext context) => PostScope<CachedFeedPost>(
-    pageMode: PageMode.infinite,
-    fetcher: (page) {
-      final history = _history;
-      return TaskEither.tryCatch(
-        () => history.load(page),
-        (error, _) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted && identical(history, _history)) {
-              setState(() => _historyError = true);
-            }
-          });
-          return AppError(
-            type: AppErrorType.loadDataFromServerFailed,
-            message: '$error',
-          );
-        },
-      );
-    },
-    builder: (context, controller) {
-      _controller = controller;
-      return Stack(
-        children: [
-          PostGrid<CachedFeedPost>(
-            controller: controller,
-            enablePullToRefresh: false,
-            itemBuilder: (context, index, scroll, useHero) {
-              if (scroll.hasClients &&
-                  scroll.offset > 0 &&
-                  controller.hasMore &&
-                  index >= controller.items.length - 100 &&
-                  _prefetchedAtLength != controller.items.length) {
-                _prefetchedAtLength = controller.items.length;
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (mounted) {
-                    setState(() => _historyStarted = true);
-                    unawaited(controller.fetchMore());
-                  }
-                });
+  Widget build(BuildContext context) => CurrentBooruConfigScope(
+    config: widget.config,
+    child: PostScope<Post>(
+      pageMode: PageMode.infinite,
+      fetcher: (page) {
+        final history = _history;
+        return TaskEither.tryCatch(
+          () => history.load(page),
+          (error, _) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted && identical(history, _history)) {
+                setState(() => _historyError = true);
               }
-              final post = controller.items.elementAt(index);
-              return InkWell(
-                onTap: () => _openPost(index),
-                child: FeedPostThumbnail(
-                  post: post,
-                  config: widget.config.auth,
-                ),
-              );
-            },
-          ),
-          if (_hasUpdates ||
-              _historyError ||
-              (widget.feed.posts.length < 12 &&
-                  !_historyStarted &&
-                  !controller.refreshing &&
-                  controller.hasMore))
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 16,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (_hasUpdates)
-                    FilledButton(
-                      onPressed: _showLatestPosts,
-                      child: Text(
-                        context.t.pinned_searches.feed_updates_available,
-                      ),
-                    ),
-                  if (_historyError)
-                    FilledButton(
-                      onPressed: _retryHistory,
-                      child: Text(context.t.generic.action.retry),
-                    ),
-                  if (widget.feed.posts.length < 12 &&
-                      !_historyStarted &&
-                      !_historyError &&
-                      !controller.refreshing &&
-                      controller.hasMore)
-                    FilledButton(
-                      onPressed: _loadOlderPosts,
-                      child: Text(context.t.pinned_searches.load_older_posts),
-                    ),
-                ],
-              ),
+            });
+            return AppError(
+              type: AppErrorType.loadDataFromServerFailed,
+              message: '$error',
+            );
+          },
+        );
+      },
+      builder: (context, controller) {
+        _controller = controller;
+        return Stack(
+          children: [
+            PostGrid<Post>(
+              controller: controller,
+              enablePullToRefresh: false,
+              itemBuilder: (context, index, scroll, useHero) {
+                if (scroll.hasClients &&
+                    scroll.offset > 0 &&
+                    controller.hasMore &&
+                    index >= controller.items.length - 100 &&
+                    _prefetchedAtLength != controller.items.length) {
+                  _prefetchedAtLength = controller.items.length;
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (mounted) {
+                      setState(() => _historyStarted = true);
+                      unawaited(controller.fetchMore());
+                    }
+                  });
+                }
+                final post = controller.items.elementAt(index);
+                final config = switch (const PostOriginResolver().resolve(
+                  post.origin,
+                  ref.watch(booruConfigProvider),
+                )) {
+                  ResolvedPostOrigin(:final config) => config,
+                  _ => null,
+                };
+                return PostGridContextMenu(
+                  controller: controller,
+                  index: index,
+                  child: DefaultImageGridItem(
+                    index: index,
+                    autoScrollController: scroll,
+                    controller: controller,
+                    useHero: useHero,
+                    config: config?.auth ?? BooruConfig.empty.auth,
+                    imageConfig: config?.auth,
+                    presentation: config == null
+                        ? const GenericPostPresentation()
+                        : null,
+                    onTap: () => _openPost(index, scroll, post),
+                  ),
+                );
+              },
             ),
-        ],
-      );
-    },
+            if (_hasUpdates ||
+                _historyError ||
+                (widget.feed.posts.length < 12 &&
+                    !_historyStarted &&
+                    !controller.refreshing &&
+                    controller.hasMore))
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 16,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_hasUpdates)
+                      FilledButton(
+                        onPressed: _showLatestPosts,
+                        child: Text(
+                          context.t.pinned_searches.feed_updates_available,
+                        ),
+                      ),
+                    if (_historyError)
+                      FilledButton(
+                        onPressed: _retryHistory,
+                        child: Text(context.t.generic.action.retry),
+                      ),
+                    if (widget.feed.posts.length < 12 &&
+                        !_historyStarted &&
+                        !_historyError &&
+                        !controller.refreshing &&
+                        controller.hasMore)
+                      FilledButton(
+                        onPressed: _loadOlderPosts,
+                        child: Text(context.t.pinned_searches.load_older_posts),
+                      ),
+                  ],
+                ),
+              ),
+          ],
+        );
+      },
+    ),
   );
+}
+
+Post _decodeFeedPost(WidgetRef ref, StoredPostSnapshot snapshot) {
+  final codec = ref
+      .read(
+        booruPostCapabilityProvider(
+          PostOrigin.fromSnapshot(snapshot.origin).booruType,
+        ),
+      )
+      ?.codec;
+  return decodeFeedPost(snapshot, dataCodec: codec);
 }

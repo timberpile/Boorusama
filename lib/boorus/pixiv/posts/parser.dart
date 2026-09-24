@@ -2,9 +2,11 @@
 import 'package:booru_clients/pixiv.dart';
 
 // Project imports:
+import '../../../core/boorus/booru/types.dart';
 import '../../../core/posts/post/types.dart';
 import '../../../core/posts/rating/types.dart';
 import '../../../core/posts/sources/types.dart';
+import 'post_codec.dart';
 import 'types.dart';
 
 /// Upper bound on pages per work used to keep synthetic ids collision-free.
@@ -14,19 +16,19 @@ import 'types.dart';
 const _kPageIndexSpace = 1000;
 
 /// Basenames Pixiv serves from `s.pximg.net` instead of the real artwork for
-/// gated/restricted works — see [PixivPost.isRestricted].
+/// gated/restricted works — see [PixivPostRecord.isRestricted].
 const _kPlaceholderBasenames = <String>{
   'limit_sanity_level_360.png',
   'limit_unviewable_360.png',
   'limit_mypixiv_360.png',
 };
 
-/// Flattens one illust into one [PixivPost] per page.
+/// Flattens one illust into one [PixivPostRecord] per page.
 ///
 /// Returns an empty list when the illust is missing an id/author, is hidden
 /// (`visible == false` or `is_muted == true`), or has no resolvable original
 /// image URL.
-List<PixivPost> illustDtoToPosts(
+List<Post> illustDtoToPosts(
   PixivIllustDto dto, {
   PostMetadata? metadata,
 }) {
@@ -71,14 +73,14 @@ List<PixivPost> illustDtoToPosts(
 }
 
 /// Flattens a page of illusts, preserving order.
-List<PixivPost> illustDtosToPosts(
+List<Post> illustDtosToPosts(
   List<PixivIllustDto> dtos, {
   PostMetadata? metadata,
 }) => [
   for (final dto in dtos) ...illustDtoToPosts(dto, metadata: metadata),
 ];
 
-PostResult<PixivPost> pixivIllustListResultToPostResult(
+PostResult<Post> pixivIllustListResultToPostResult(
   PixivIllustListResult result, {
   PostMetadata? metadata,
 }) => PostResult(
@@ -87,7 +89,7 @@ PostResult<PixivPost> pixivIllustListResultToPostResult(
   hasMore: result.hasMore,
 );
 
-PixivPost _toPost({
+Post _toPost({
   required PixivIllustDto dto,
   required int illustId,
   required int userId,
@@ -116,7 +118,7 @@ PixivPost _toPost({
   final format = extensionOf(original);
   final isRestricted = _isPlaceholder(original);
 
-  return PixivPost(
+  final record = PixivPostRecord(
     id: syntheticPostId(illustId: illustId, pageIndex: pageIndex),
     thumbnailImageUrl: thumbnailUrl,
     sampleImageUrl: sampleUrl,
@@ -154,6 +156,10 @@ PixivPost _toPost({
     seriesTitle: dto.series?.title,
     isUgoira: illustType == PixivIllustType.ugoira,
     isRestricted: isRestricted,
+  );
+  return pixivPostFromRecord(
+    record,
+    PostOrigin.forBooruType(BooruType.pixiv),
   );
 }
 
@@ -259,7 +265,7 @@ Rating pixivRatingFrom({
 
 /// A unique, stable id for one page of one work.
 ///
-/// [Post.id] is an `int` and [SimplePost] compares by it alone, while the grid
+/// [Post.id] is an `int` and [CommonPostRecord] compares by it alone, while the grid
 /// both dedupes on it and uses it as a widget key. Pages of the same work
 /// must therefore not share an id. Ids also outlive the session because
 /// bookmarks persist them, so this has to be deterministic — no `hashCode`.

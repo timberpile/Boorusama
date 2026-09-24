@@ -5,19 +5,19 @@ import 'package:flutter_test/flutter_test.dart';
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
-import 'package:mocktail/mocktail.dart';
 
 // Project imports:
+import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/posts/details_parts/src/common_post_buttons.dart';
 import 'package:boorusama/core/posts/details/src/types/post_viewer_transformation_controller.dart';
 import 'package:boorusama/core/posts/details/src/widgets/post_viewer_transformation_scope.dart';
 import 'package:boorusama/core/posts/post/types.dart';
+import 'package:boorusama/core/posts/rating/types.dart';
+import 'package:boorusama/core/posts/sources/types.dart';
 import 'package:boorusama/core/premiums/providers.dart';
 import 'package:boorusama/core/settings/providers.dart';
 import 'package:boorusama/core/settings/types.dart';
 import 'package:boorusama/core/widgets/adaptive_button_row.dart';
-
-class _MockPost extends Mock implements Post {}
 
 void main() {
   setUpAll(() async {
@@ -98,11 +98,31 @@ Future<List<ButtonData>> _buildButtons(
   required bool loadOriginalOnZoom,
   bool includeViewerTransformations = false,
 }) async {
-  final post = _MockPost();
-  when(() => post.originalImageUrl).thenReturn('https://example.com/full.jpg');
-  when(() => post.isVideo).thenReturn(false);
-  when(() => post.width).thenReturn(1000);
-  when(() => post.height).thenReturn(4000);
+  final post = Post(
+    origin: PostOrigin.forBooruType(BooruType.unknown),
+    core: PostCoreData(
+      id: 1,
+      thumbnailImageUrl: '',
+      sampleImageUrl: '',
+      originalImageUrl: 'https://example.com/full.jpg',
+      videoUrl: '',
+      videoThumbnailUrl: '',
+      width: 1000,
+      height: 4000,
+      format: 'jpg',
+      md5: '',
+      fileSize: 0,
+      duration: 0,
+      tags: const {},
+      rating: Rating.general,
+      hasComment: false,
+      isTranslated: false,
+      hasParentOrChildren: false,
+      source: PostSource.none(),
+      score: 0,
+    ),
+    booruData: const EmptyPostData(typeKey: 'test'),
+  );
 
   List<ButtonData>? buttons;
   final viewerSettings = Settings.defaultSettings.viewer.copyWith(

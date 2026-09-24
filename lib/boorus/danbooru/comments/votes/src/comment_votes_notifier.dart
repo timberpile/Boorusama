@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/comments/types.dart';
 import '../../../../../core/configs/config/providers.dart';
 import '../../../../../core/configs/config/types.dart';
+import '../../../../../core/configs/manage/providers.dart';
 import '../../comment/types.dart';
 import 'data/providers.dart';
 import 'types/danbooru_comment_vote.dart';
@@ -23,7 +24,7 @@ final danbooruCommentVoteProvider = Provider.autoDispose
       final config = ref.watchConfigAuth;
       final votes = ref.watch(danbooruCommentVotesProvider(config));
       return votes[commentId];
-    });
+    }, dependencies: [currentReadOnlyBooruConfigAuthProvider]);
 
 class CommentVotesNotifier
     extends

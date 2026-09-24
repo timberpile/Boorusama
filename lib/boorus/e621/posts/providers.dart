@@ -14,7 +14,7 @@ import 'parser.dart';
 import 'types.dart';
 
 final e621PostRepoProvider =
-    Provider.family<PostRepository<E621Post>, BooruConfigSearch>((ref, config) {
+    Provider.family<PostRepository<Post>, BooruConfigSearch>((ref, config) {
       final client = ref.watch(e621ClientProvider(config.auth));
       final tagComposer = ref.watch(legacyTagQueryComposerProvider(config));
 
@@ -70,7 +70,7 @@ final e621MediaUrlResolverProvider = Provider<MediaUrlResolver>((ref) {
   );
 });
 
-final e621UploaderQueryProvider = Provider.family<UploaderQuery?, E621Post>((
+final e621UploaderQueryProvider = Provider.family<UploaderQuery?, Post>((
   ref,
   post,
 ) {

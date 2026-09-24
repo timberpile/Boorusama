@@ -5,7 +5,9 @@ import 'package:kurumi/material.dart';
 
 // Project imports:
 import '../../../core/configs/config/providers.dart';
+import '../../../core/configs/config/types.dart';
 import '../../../core/posts/favorites/widgets.dart';
+import '../../../core/posts/post/providers.dart';
 import '../../../core/posts/post/types.dart';
 import '../client_provider.dart';
 import '../posts/parser.dart';
@@ -19,15 +21,18 @@ class AnimePicturesFavoritesPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final uid = ref.watch(uidProvider);
-    final config = ref.watchConfigAuth;
+    final config = ref.watchConfig;
 
     return FavoritesPageScaffold(
       favQueryBuilder: null,
       fetcher: (page) => TaskEither.Do(($) async {
         final result = await ref
-            .read(animePicturesClientProvider(config))
+            .read(animePicturesClientProvider(config.auth))
             .getPostsWithTotal(starsBy: uid, page: page);
-        final posts = result.posts.map(dtoToAnimePicturesPost).toList();
+        final posts = bindPostsOrigin(
+          result.posts.map(dtoToAnimePicturesPost),
+          origin: postOriginFromConfig(config),
+        );
 
         return posts.toResult(
           total: result.postsCount,

@@ -2,17 +2,19 @@
 import 'package:booru_clients/hybooru.dart';
 
 // Project imports:
+import '../../../core/boorus/booru/types.dart';
 import '../../../core/posts/post/types.dart';
 import '../../../core/posts/rating/types.dart';
 import '../../../core/posts/sources/types.dart';
+import 'post_codec.dart';
 import 'types.dart';
 
-HybooruPost postSummaryToPost(
+Post postSummaryToPost(
   PostSummaryDto e,
   PostMetadata? metadata,
   String baseUrl,
 ) {
-  return HybooruPost(
+  final record = HybooruPostRecord(
     id: e.id ?? 0,
     thumbnailImageUrl: _buildFileUrl(e, baseUrl, thumbnail: true),
     sampleImageUrl: _buildFileUrl(e, baseUrl),
@@ -38,14 +40,18 @@ HybooruPost postSummaryToPost(
     uploaderName: null,
     metadata: metadata,
   );
+  return hybooruPostFromRecord(
+    record,
+    PostOrigin.forBooruType(BooruType.hybooru),
+  );
 }
 
-HybooruPost postDtoToPost(
+Post postDtoToPost(
   PostDto e,
   PostMetadata? metadata,
   String baseUrl,
 ) {
-  return HybooruPost(
+  final record = HybooruPostRecord(
     id: e.id ?? 0,
     thumbnailImageUrl: _buildFileUrl(e, baseUrl, thumbnail: true),
     sampleImageUrl: _buildFileUrl(e, baseUrl),
@@ -70,6 +76,10 @@ HybooruPost postDtoToPost(
     uploaderId: null,
     uploaderName: null,
     metadata: metadata,
+  );
+  return hybooruPostFromRecord(
+    record,
+    PostOrigin.forBooruType(BooruType.hybooru),
   );
 }
 

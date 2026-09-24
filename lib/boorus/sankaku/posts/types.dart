@@ -1,3 +1,6 @@
+export '../../../core/posts/post/types.dart' show Post;
+export 'post_data.dart';
+
 // Package imports:
 import 'package:booru_clients/sankaku.dart';
 import 'package:equatable/equatable.dart';
@@ -7,11 +10,12 @@ import '../../../core/posts/post/types.dart';
 import '../../../core/posts/rating/types.dart';
 import '../../../core/posts/sources/types.dart';
 import '../../../core/tags/tag/types.dart';
+import 'post_data.dart';
 
-class SankakuPost extends Equatable
+class SankakuPostRecord extends Equatable
     with MediaInfoMixin, TranslatedMixin, ImageInfoMixin, VideoInfoMixin
-    implements Post {
-  SankakuPost({
+    implements PostRecord {
+  SankakuPostRecord({
     required this.id,
     required this.sankakuId,
     required this.isFavorited,
@@ -145,7 +149,7 @@ class SankakuPost extends Equatable
   final PostStatus? status;
 }
 
-class SankakuPostLinkGenerator implements PostLinkGenerator<SankakuPost> {
+class SankakuPostLinkGenerator implements PostLinkGenerator<Post> {
   SankakuPostLinkGenerator({
     required this.baseUrl,
   });
@@ -153,12 +157,9 @@ class SankakuPostLinkGenerator implements PostLinkGenerator<SankakuPost> {
   final String baseUrl;
 
   @override
-  String getLink(Post post) => switch (post) {
-    final SankakuPost post => _getLink(post),
-    _ => '',
-  };
+  String getLink(Post post) => _getLink(post);
 
-  String _getLink(SankakuPost post) {
+  String _getLink(Post post) {
     final id = _getId(post);
 
     if (id == null) return '';
@@ -170,7 +171,7 @@ class SankakuPostLinkGenerator implements PostLinkGenerator<SankakuPost> {
     return '$url/post/$id';
   }
 
-  String? _getId(SankakuPost post) {
+  String? _getId(Post post) {
     if (post.sankakuId != null) return post.sankakuId!.valueString;
     if (post.id != 0) return post.id.toString();
 

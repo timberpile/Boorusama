@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 // Project imports:
 import '../../../../../../core/configs/config/providers.dart';
 import '../../../../../../core/configs/config/types.dart';
+import '../../../../../../core/configs/manage/providers.dart';
 import '../data/providers.dart';
 import '../types/artist.dart';
 
@@ -17,6 +18,7 @@ final danbooruArtistProvider =
       String
     >(
       DanbooruArtistNotifier.new,
+      dependencies: [currentReadOnlyBooruConfigAuthProvider],
     );
 
 class DanbooruArtistNotifier

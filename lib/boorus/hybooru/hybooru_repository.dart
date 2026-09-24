@@ -13,11 +13,16 @@ import '../../core/posts/post/providers.dart';
 import '../../core/posts/post/types.dart';
 import '../../core/tags/autocompletes/types.dart';
 import '../../core/tags/tag/types.dart';
+import 'posts/post_codec.dart';
 import 'posts/providers.dart';
 import 'tags/providers.dart';
 
 class HybooruRepository extends BooruRepositoryDefault {
   const HybooruRepository({required this.ref});
+
+  @override
+  BooruPostDataCodec<EmptyPostData> get postDataCodec =>
+      const HybooruPostCodec();
 
   @override
   SearchRefreshQueryAdapter searchRefreshQueryAdapter(BooruConfigAuth config) =>

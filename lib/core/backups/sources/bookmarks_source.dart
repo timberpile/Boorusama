@@ -6,6 +6,7 @@ import 'package:material_symbols_icons/symbols.dart';
 
 // Project imports:
 import '../../../foundation/info/package_info.dart';
+import '../../boorus/engine/providers.dart';
 import '../../bookmarks/providers.dart';
 import '../../bookmarks/types.dart';
 import '../preparation/preparation_pipeline.dart';
@@ -20,7 +21,7 @@ import 'bookmark_import_planner.dart';
 import 'bookmark_import_service.dart';
 import 'json_source.dart';
 
-const kBookmarksBackupVersion = 1;
+const kBookmarksBackupVersion = 2;
 
 class BookmarksBackupSource extends JsonBackupSource<BookmarkBackupData> {
   BookmarksBackupSource(Ref ref)
@@ -105,6 +106,8 @@ class BookmarksBackupSource extends JsonBackupSource<BookmarkBackupData> {
             final resolver = ref.read(bookmarkUrlResolverProvider(booruId));
             return Bookmark.fromJson(json, imageUrlResolver: resolver);
           },
+          postDataCodec: (type) =>
+              ref.read(booruPostCapabilityProvider(type))?.codec,
         ),
         extraPayloadEncoder: (data) => data.extraFields,
         exportResultBuilder: (data) => BackupOperationResult(

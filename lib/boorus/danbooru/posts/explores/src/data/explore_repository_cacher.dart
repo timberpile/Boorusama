@@ -20,7 +20,7 @@ class ExploreRepositoryCacher implements ExploreRepository {
   final Duration mostViewedStaleDuration;
   final Duration hotStaleDuration;
 
-  final Map<String, (DateTime, List<DanbooruPost>)> _cache = {};
+  final Map<String, (DateTime, List<Post>)> _cache = {};
 
   DateTime _truncateToDate(DateTime dateTime) =>
       DateTime(dateTime.year, dateTime.month, dateTime.day);

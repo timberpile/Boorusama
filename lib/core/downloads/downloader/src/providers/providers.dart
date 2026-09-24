@@ -48,4 +48,15 @@ final downloadNotifierParamsProvider =
           logger: ref.watch(loggerProvider),
         );
       },
+      dependencies: [
+        currentReadOnlyBooruConfigProvider,
+        downloadFileUrlExtractorProvider,
+        analyticsDownloadObserverProvider,
+        downloadFilenameBuilderProvider,
+        downloadMultipleFileCheckProvider,
+        httpHeadersProvider,
+        settingsProvider,
+        downloadServiceProvider,
+        loggerProvider,
+      ],
     );

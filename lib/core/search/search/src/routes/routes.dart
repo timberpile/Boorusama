@@ -5,6 +5,8 @@ import 'package:kurumi/kurumi.dart';
 
 // Project imports:
 import '../../../../../foundation/platform.dart';
+import '../../../../configs/config/types.dart';
+import '../../../../configs/manage/widgets.dart';
 import '../../../../home/types.dart';
 import '../../../../router.dart';
 import '../pages/search_page.dart';
@@ -17,10 +19,17 @@ GoRoute searchRoutes(Ref ref) => GoRoute(
     final customHomeViewKey = ref.read(customHomeViewKeyProvider);
     final params = SearchParams.fromUri(state.uri);
 
-    final page = InheritedInitialSearchQuery(
+    final searchPage = InheritedInitialSearchQuery(
       params: params,
       child: const SearchPage(),
     );
+    final page = switch (state.extra) {
+      final BooruConfig config => CurrentBooruConfigScope(
+        config: config,
+        child: searchPage,
+      ),
+      _ => searchPage,
+    };
 
     return switch (isDesktopPlatform()) {
       true => CustomTransitionPage(

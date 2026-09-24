@@ -2,11 +2,9 @@
 import 'package:foundation/foundation.dart';
 
 // Project imports:
-import '../../../../foundation/path.dart';
+import '../../../boorus/booru/types.dart';
 import '../../../posts/position/types.dart';
 import '../../../posts/post/types.dart';
-import '../../../posts/rating/types.dart';
-import '../../../posts/sources/types.dart';
 import '../types/bookmark.dart';
 import 'hive/bookmark_hive_object.dart';
 
@@ -16,31 +14,31 @@ BookmarkGetError mapBoxErrorToBookmarkGetError(BoxError error) =>
       BoxError.unknown => BookmarkGetError.unknown,
     };
 
+Post recoverBookmarkPostOrigin(Post post, String? sourceUrl) {
+  if (post.origin.sourceHost.isNotEmpty || sourceUrl == null) return post;
+
+  return post.copyWith(
+    origin: PostOrigin.fromSource(
+      booruType: post.origin.booruType,
+      booruId: post.origin.booruId,
+      source: sourceUrl,
+      profileIdHint: post.origin.profileIdHint,
+    ),
+  );
+}
+
 Either<BookmarkGetError, List<Bookmark>> tryMapBookmarkHiveObjectsToBookmarks(
   Iterable<BookmarkHiveObject> hiveObjects,
-  ImageUrlResolver Function(int? booruId) imageUrlResolver,
-) => Either.tryCatch(
+  ImageUrlResolver Function(int? booruId) imageUrlResolver, [
+  BooruPostDataCodec? Function(BooruType type)? postDataCodec,
+]) => Either.tryCatch(
   () => hiveObjects
       .map(
-        (hiveObject) => Bookmark(
-          id: hiveObject.key,
-          booruId: hiveObject.booruId!,
-          createdAt: hiveObject.createdAt!,
-          updatedAt: hiveObject.updatedAt!,
-          thumbnailUrl: hiveObject.thumbnailUrl!,
-          sampleUrl: hiveObject.sampleUrl!,
-          originalUrl: hiveObject.originalUrl!,
-          sourceUrl: hiveObject.sourceUrl!,
-          width: hiveObject.width!,
-          height: hiveObject.height!,
-          md5: hiveObject.md5!,
-          tags: hiveObject.tags?.toSet() ?? {},
-          realSourceUrl: hiveObject.realSourceUrl,
-          format: hiveObject.format,
-          imageUrlResolver: imageUrlResolver(hiveObject.booruId),
-          postId: hiveObject.postId,
-          metadata: hiveObject.metadata ?? {},
-        ),
+        (hiveObject) => _mapBookmark(
+          hiveObject,
+          imageUrlResolver,
+          postDataCodec,
+        ).bookmark,
       )
       .toList(),
   (o, s) {
@@ -50,9 +48,46 @@ Either<BookmarkGetError, List<Bookmark>> tryMapBookmarkHiveObjectsToBookmarks(
 
 Either<BookmarkGetError, Bookmark> tryMapBookmarkHiveObjectToBookmark(
   BookmarkHiveObject hiveObject,
+  ImageUrlResolver Function(int? booruId) imageUrlResolver, [
+  BooruPostDataCodec? Function(BooruType type)? postDataCodec,
+]) => Either.tryCatch(
+  () => _mapBookmark(
+    hiveObject,
+    imageUrlResolver,
+    postDataCodec,
+  ).bookmark,
+  (o, s) => BookmarkGetError.nullField,
+);
+
+typedef BookmarkHiveMapping = ({
+  Bookmark bookmark,
+  bool needsWriteBack,
+});
+
+Either<BookmarkGetError, List<BookmarkHiveMapping>>
+tryMapBookmarkHiveObjectsWithWriteBack(
+  Iterable<BookmarkHiveObject> hiveObjects,
+  ImageUrlResolver Function(int? booruId) imageUrlResolver, [
+  BooruPostDataCodec? Function(BooruType type)? postDataCodec,
+]) => Either.tryCatch(
+  () => hiveObjects
+      .map(
+        (hiveObject) => _mapBookmark(
+          hiveObject,
+          imageUrlResolver,
+          postDataCodec,
+        ),
+      )
+      .toList(),
+  (o, s) => BookmarkGetError.nullField,
+);
+
+BookmarkHiveMapping _mapBookmark(
+  BookmarkHiveObject hiveObject,
   ImageUrlResolver Function(int? booruId) imageUrlResolver,
-) => Either.tryCatch(
-  () => Bookmark(
+  BooruPostDataCodec? Function(BooruType type)? postDataCodec,
+) {
+  final fallback = Bookmark(
     id: hiveObject.key,
     booruId: hiveObject.booruId!,
     createdAt: hiveObject.createdAt!,
@@ -70,9 +105,70 @@ Either<BookmarkGetError, Bookmark> tryMapBookmarkHiveObjectToBookmark(
     imageUrlResolver: imageUrlResolver(hiveObject.booruId),
     postId: hiveObject.postId,
     metadata: hiveObject.metadata ?? {},
-  ),
-  (o, s) => BookmarkGetError.nullField,
-);
+  );
+  if (hiveObject.snapshotSchemaVersion == null &&
+      hiveObject.postSnapshot == null) {
+    return (bookmark: fallback, needsWriteBack: true);
+  }
+  if (hiveObject.snapshotSchemaVersion != 1 ||
+      hiveObject.postSnapshot == null) {
+    return (bookmark: fallback, needsWriteBack: false);
+  }
+
+  try {
+    final snapshot = StoredPostSnapshot.fromJson(
+      Map<String, dynamic>.from(hiveObject.postSnapshot!),
+    );
+    final type = BooruType.fromLegacyId(snapshot.origin.booruTypeId);
+    final result = const StoredPostCodec().decode(
+      snapshot,
+      dataCodec: postDataCodec?.call(type),
+    );
+    return switch (result) {
+      StoredPostDecodeSuccess(:final post) => _bookmarkFromStoredSnapshot(
+        hiveObject,
+        snapshot,
+        post,
+      ),
+      StoredPostDecodeFailure() => (
+        bookmark: fallback,
+        needsWriteBack: false,
+      ),
+    };
+  } catch (_) {
+    return (bookmark: fallback, needsWriteBack: false);
+  }
+}
+
+BookmarkHiveMapping _bookmarkFromStoredSnapshot(
+  BookmarkHiveObject hiveObject,
+  StoredPostSnapshot snapshot,
+  Post post,
+) {
+  final recoveredPost = recoverBookmarkPostOrigin(post, hiveObject.sourceUrl);
+  final originWasRecovered = recoveredPost != post;
+  final recoveredSnapshot = !originWasRecovered
+      ? snapshot
+      : StoredPostSnapshot(
+          origin: recoveredPost.origin.toSnapshot(),
+          common: snapshot.common,
+          custom: snapshot.custom,
+          codecVersion: snapshot.codecVersion,
+        );
+
+  return (
+    bookmark: Bookmark.fromSnapshot(
+      id: hiveObject.key,
+      createdAt: hiveObject.createdAt!,
+      updatedAt: hiveObject.updatedAt!,
+      snapshot: recoveredSnapshot,
+      post: recoveredPost,
+      postId: hiveObject.postId,
+      sourceUrl: hiveObject.sourceUrl,
+    ),
+    needsWriteBack: originWasRecovered,
+  );
+}
 
 BookmarkHiveObject favoriteToHiveObject(Bookmark bookmark) {
   return BookmarkHiveObject(
@@ -91,94 +187,25 @@ BookmarkHiveObject favoriteToHiveObject(Bookmark bookmark) {
     format: bookmark.format,
     postId: bookmark.postId,
     metadata: bookmark.metadata,
+    snapshotSchemaVersion: 1,
+    postSnapshot: bookmark.snapshot.toJson(),
   );
-}
-
-class BookmarkPost extends SimplePost {
-  BookmarkPost({
-    required super.id,
-    required super.thumbnailImageUrl,
-    required super.sampleImageUrl,
-    required super.originalImageUrl,
-    required super.tags,
-    required super.rating,
-    required super.hasComment,
-    required super.isTranslated,
-    required super.hasParentOrChildren,
-    required super.source,
-    required super.score,
-    required super.duration,
-    required super.fileSize,
-    required super.format,
-    required super.hasSound,
-    required super.height,
-    required super.md5,
-    required super.videoThumbnailUrl,
-    required super.videoUrl,
-    required super.width,
-    required super.uploaderId,
-    required this.realSourceUrl,
-    required super.metadata,
-    required this.bookmark,
-    required this.originalPostId,
-  });
-
-  final PostSource realSourceUrl;
-  final Bookmark bookmark;
-  final int? originalPostId;
-
-  Post toOriginalPost() {
-    return bookmark.toPost(
-      overridePostId: originalPostId,
-    );
-  }
-
-  PaginationSnapshot? toPaginationSnapshot() => switch (bookmark.postId) {
-    (final postId?) => PaginationSnapshot(
-      targetId: postId,
-      tags: bookmark.metadataSearch ?? '',
-      historicalPage: bookmark.metadataPage,
-      historicalChunkSize: bookmark.metadataLimit,
-      timestamp: bookmark.createdAt,
-    ),
-    _ => null,
-  };
 }
 
 BookmarkUniqueId bookmarkIdentityForPost(Post post, int booruId) =>
-    switch (post) {
-      BookmarkPost(:final bookmark) => bookmark.uniqueId,
-      _ => BookmarkUniqueId.fromPost(post, booruId),
-    };
+    BookmarkUniqueId.fromPost(post, post.origin.booruType.id);
 
 extension BookmarkToPost on Bookmark {
-  BookmarkPost toPost({
-    int? overridePostId,
-  }) => BookmarkPost(
-    id: overridePostId ?? id,
-    thumbnailImageUrl: thumbnailUrl,
-    sampleImageUrl: sampleUrl,
-    originalImageUrl: originalUrl,
-    tags: tags,
-    rating: Rating.unknown,
-    hasComment: false,
-    isTranslated: false,
-    hasParentOrChildren: false,
-    source: PostSource.from(sourceUrl),
-    score: 0,
-    duration: kNoduration,
-    fileSize: 0,
-    format: format ?? extension(originalUrl),
-    hasSound: null,
-    height: height,
-    md5: md5,
-    videoThumbnailUrl: thumbnailUrl,
-    videoUrl: originalUrl,
-    width: width,
-    uploaderId: null,
-    realSourceUrl: PostSource.from(realSourceUrl),
-    metadata: null,
-    bookmark: this,
-    originalPostId: postId,
-  );
+  Post toPost() => post;
+
+  PaginationSnapshot? toPaginationSnapshot() => switch (postId) {
+    (final postId?) => PaginationSnapshot(
+      targetId: postId,
+      tags: metadataSearch ?? '',
+      historicalPage: metadataPage,
+      historicalChunkSize: metadataLimit,
+      timestamp: createdAt,
+    ),
+    _ => null,
+  };
 }

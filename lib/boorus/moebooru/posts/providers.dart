@@ -12,7 +12,7 @@ import 'parser.dart';
 import 'types.dart';
 
 final moebooruPostRepoProvider =
-    Provider.family<PostRepository<MoebooruPost>, BooruConfigSearch>(
+    Provider.family<PostRepository<Post>, BooruConfigSearch>(
       (ref, config) {
         final client = ref.watch(moebooruClientProvider(config.auth));
         final tagComposer = ref.watch(moebooruTagQueryComposerProvider(config));

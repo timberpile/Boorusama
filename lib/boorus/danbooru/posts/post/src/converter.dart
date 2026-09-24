@@ -2,16 +2,23 @@
 import 'package:booru_clients/danbooru.dart';
 
 // Project imports:
+import '../../../../../core/boorus/booru/types.dart';
 import '../../../../../core/posts/post/tags.dart';
 import '../../../../../core/posts/post/types.dart';
 import '../../../../../core/posts/rating/types.dart';
 import '../../../../../core/posts/sources/types.dart';
 import 'danbooru_post.dart';
+import 'danbooru_post_codec.dart';
 import 'post_variant.dart';
 
-DanbooruPost postDtoToPostNoMetadata(PostDto dto) => postDtoToPost(dto, null);
+Post postDtoToPostNoMetadata(PostDto dto) => postDtoToPost(dto, null);
 
-DanbooruPost postDtoToPost(
+Post emptyDanbooruPost() => danbooruPostFromRecord(
+  DanbooruPostRecord.empty(),
+  PostOrigin.forBooruType(BooruType.danbooru),
+);
+
+Post postDtoToPost(
   PostDto dto,
   PostMetadata? metadata,
 ) {
@@ -24,7 +31,7 @@ DanbooruPost postDtoToPost(
       fallback: () => _fallbackVariants(dto),
     );
 
-    return DanbooruPost(
+    final record = DanbooruPostRecord(
       id: dto.id!,
       thumbnailImageUrl: dto.previewFileUrl ?? '',
       sampleImageUrl: dto.largeFileUrl ?? '',
@@ -69,8 +76,12 @@ DanbooruPost postDtoToPost(
         isDeleted: dto.isDeleted,
       ),
     );
+    return danbooruPostFromRecord(
+      record,
+      PostOrigin.forBooruType(BooruType.danbooru),
+    );
   } catch (e) {
-    return DanbooruPost.empty();
+    return emptyDanbooruPost();
   }
 }
 

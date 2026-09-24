@@ -14,6 +14,7 @@ import '../../core/posts/post/types.dart';
 import '../../core/tags/autocompletes/types.dart';
 import '../../core/tags/tag/types.dart';
 import 'client_provider.dart';
+import 'posts/post_codec.dart';
 import 'posts/providers.dart';
 import 'tags/providers.dart';
 
@@ -21,6 +22,10 @@ const kNozomiCustomDownloadFileNameFormat = '{id}_{width}x{height}.{extension}';
 
 class NozomiRepository extends BooruRepositoryDefault {
   const NozomiRepository({required this.ref});
+
+  @override
+  BooruPostDataCodec<EmptyPostData> get postDataCodec =>
+      const NozomiPostCodec();
 
   @override
   final Ref ref;

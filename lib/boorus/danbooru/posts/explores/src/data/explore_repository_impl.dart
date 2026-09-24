@@ -21,10 +21,10 @@ class ExploreRepositoryApi implements ExploreRepository {
     this.shouldFilter,
   });
 
-  final PostRepository<DanbooruPost> postRepository;
+  final PostRepository<Post> postRepository;
   final danbooru.DanbooruClient client;
   final ImageListingSettings Function() settings;
-  final bool Function(DanbooruPost post)? shouldFilter;
+  final bool Function(Post post)? shouldFilter;
   final PostFetchTransformer transformer;
 
   @override

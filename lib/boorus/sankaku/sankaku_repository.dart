@@ -12,12 +12,18 @@ import '../../core/http/client/providers.dart';
 import '../../core/posts/post/types.dart';
 import '../../core/tags/autocompletes/types.dart';
 import '../../core/tags/tag/types.dart';
+import 'posts/post_codec.dart';
+import 'posts/post_data.dart';
 import 'posts/providers.dart';
 import 'posts/types.dart';
 import 'tags/providers.dart';
 
 class SankakuRepository extends BooruRepositoryDefault {
   const SankakuRepository({required this.ref});
+
+  @override
+  BooruPostDataCodec<SankakuPostData> get postDataCodec =>
+      const SankakuPostCodec();
 
   @override
   final Ref ref;
@@ -51,7 +57,7 @@ class SankakuRepository extends BooruRepositoryDefault {
 
   @override
   DownloadFilenameGenerator downloadFilenameBuilder(BooruConfigAuth config) {
-    return DownloadFileNameBuilder<SankakuPost>(
+    return DownloadFileNameBuilder<Post>(
       defaultFileNameFormat: kBoorusamaCustomDownloadFileNameFormat,
       defaultBulkDownloadFileNameFormat:
           kBoorusamaBulkDownloadCustomFileNameFormat,
@@ -60,14 +66,17 @@ class SankakuRepository extends BooruRepositoryDefault {
         WidthTokenHandler(),
         HeightTokenHandler(),
         AspectRatioTokenHandler(),
-        TokenHandler('artist', (post, config) => post.artistTags.join(' ')),
+        TokenHandler(
+          'artist',
+          (post, config) => post.artistTags?.join(' ') ?? '',
+        ),
         TokenHandler(
           'character',
-          (post, config) => post.characterTags.join(' '),
+          (post, config) => post.characterTags?.join(' ') ?? '',
         ),
         TokenHandler(
           'copyright',
-          (post, config) => post.copyrightTags.join(' '),
+          (post, config) => post.copyrightTags?.join(' ') ?? '',
         ),
         TokenHandler('general', (post, config) => post.generalTags.join(' ')),
         TokenHandler('meta', (post, config) => post.metaTags.join(' ')),

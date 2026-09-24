@@ -1,18 +1,18 @@
 // Project imports:
 import '../../../core/posts/details_parts/types.dart';
 import '../../../core/posts/details_parts/widgets.dart';
-import 'types.dart';
+import '../../../core/posts/post/types.dart';
 
 final kNozomiPostDetailsUIBuilder = PostDetailsUIBuilder(
   preview: {
     DetailsPart.toolbar: (context) =>
-        const DefaultInheritedPostActionToolbar<NozomiPost>(),
+        const DefaultInheritedPostActionToolbar<Post>(),
   },
   full: {
     DetailsPart.toolbar: (context) =>
-        const DefaultInheritedPostActionToolbar<NozomiPost>(),
-    DetailsPart.tags: (context) => const DefaultInheritedTagsTile<NozomiPost>(),
+        const DefaultInheritedPostActionToolbar<Post>(),
+    DetailsPart.tags: (context) => const DefaultInheritedTagsTile<Post>(),
     DetailsPart.fileDetails: (context) =>
-        const DefaultInheritedFileDetailsSection<NozomiPost>(),
+        const DefaultInheritedFileDetailsSection<Post>(),
   },
 );

@@ -32,7 +32,7 @@ class _ExplorePopularPageState extends ConsumerState<ExplorePopularPage> {
 
   @override
   Widget build(BuildContext context) {
-    final config = ref.watchConfigSearch;
+    final config = ref.watchConfig;
     final colorScheme = Kurumi.themeOf(context).colorScheme;
 
     return CustomContextMenuOverlay(

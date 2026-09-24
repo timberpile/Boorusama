@@ -28,12 +28,8 @@ class Shimmie2CommentPage extends ConsumerWidget {
     );
 
     return SimpleCommentPageScaffold(
-      comments: switch (post) {
-        final Shimmie2Post shimmie2Post => switch (commmentExtractor
-            .extractComments(shimmie2Post)) {
-          final CommentExtractionSuccess result => result.comments,
-          _ => [],
-        },
+      comments: switch (commmentExtractor.extractComments(post)) {
+        final CommentExtractionSuccess result => result.comments,
         _ => [],
       },
       useAppBar: useAppBar,

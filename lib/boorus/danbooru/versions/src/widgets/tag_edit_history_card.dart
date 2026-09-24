@@ -20,20 +20,20 @@ class TagEditHistoryCard extends StatelessWidget {
   const TagEditHistoryCard({
     required this.version,
     this.onUserTap,
-    this.configSearch,
+    this.config,
     super.key,
   });
 
   final DanbooruPostVersion version;
   final void Function()? onUserTap;
-  final BooruConfigSearch? configSearch;
+  final BooruConfig? config;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Kurumi.themeOf(context).colorScheme;
     final thumbnail = resolveThumbnailWithRatingFilter(
       version: version,
-      configSearch: configSearch,
+      configSearch: config?.search,
     );
 
     return Container(
@@ -56,7 +56,7 @@ class TagEditHistoryCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (thumbnail case final thumb?)
-            if (configSearch case final config?)
+            if (config case final config?)
               Consumer(
                 builder: (context, ref, _) => SizedBox(
                   width: 100,
@@ -66,7 +66,7 @@ class TagEditHistoryCard extends StatelessWidget {
                         goToSinglePostDetailsPage(
                           ref: ref,
                           postId: NumericPostId(version.postId),
-                          configSearch: config,
+                          config: config,
                         );
                       },
                       child: BooruImage(

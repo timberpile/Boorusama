@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 // Project imports:
 import '../../../../../../core/configs/config/providers.dart';
 import '../../../../../../core/configs/config/types.dart';
+import '../../../../../../core/configs/manage/providers.dart';
 import '../../../../../../core/posts/post/types.dart';
 import '../../../../posts/post/providers.dart';
 import '../../../../posts/post/types.dart';
@@ -23,7 +24,7 @@ final danbooruPoolCoverProvider = Provider.autoDispose
       final covers = ref.watch(danbooruPoolCoversProvider(config));
 
       return covers[id];
-    });
+    }, dependencies: [currentReadOnlyBooruConfigSearchProvider]);
 
 class PoolCoversNotifier
     extends FamilyNotifier<Map<PoolId, PoolCover?>, BooruConfigSearch> {
@@ -32,8 +33,7 @@ class PoolCoversNotifier
     return {};
   }
 
-  PostRepository<DanbooruPost> get postRepo =>
-      ref.watch(danbooruPostRepoProvider(arg));
+  PostRepository<Post> get postRepo => ref.watch(danbooruPostRepoProvider(arg));
 
   Future<void> load(List<DanbooruPool>? pools) async {
     if (pools == null) return;
@@ -67,12 +67,12 @@ class PoolCoversNotifier
         .run()
         .then(
           (value) => value.fold(
-            (l) => <DanbooruPost>[].toResult(),
+            (l) => <Post>[].toResult(),
             (r) => r,
           ),
         );
 
-    final postMap = <int, DanbooruPost>{
+    final postMap = <int, Post>{
       for (final post in r.posts) post.id: post,
     };
 

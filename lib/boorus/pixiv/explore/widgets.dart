@@ -7,6 +7,7 @@ import 'package:kurumi/material.dart';
 
 // Project imports:
 import '../../../core/configs/config/providers.dart';
+import '../../../core/configs/config/types.dart';
 import '../../../core/posts/explores/types.dart';
 import '../../../core/posts/explores/widgets.dart';
 import '../../../core/posts/listing/widgets.dart';
@@ -54,13 +55,13 @@ class _PixivExplorePageState extends ConsumerState<PixivExplorePage> {
 
   @override
   Widget build(BuildContext context) {
-    final config = ref.watchConfigAuth;
+    final config = ref.watchConfig;
     final accountXRestrict = PixivExtraData.fromPassHash(
-      config.passHash,
+      config.auth.passHash,
     ).xRestrict;
 
     return Scaffold(
-      body: PostScope<PixivPost>(
+      body: PostScope<Post>(
         fetcher: (page) => ref
             .read(pixivExploreRepoProvider(config))
             .getPosts(

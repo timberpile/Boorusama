@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Project imports:
 import '../../../../core/configs/config/providers.dart';
+import '../../../../core/configs/manage/providers.dart';
 import '../../../../core/tags/categories/providers.dart';
 import '../../../../core/tags/categories/types.dart';
 import '../../../../core/tags/tag/types.dart';
@@ -48,4 +49,5 @@ final danbooruAITagsProvider = FutureProvider.family<List<AITag>, int>(
 
     return tags;
   },
+  dependencies: [currentReadOnlyBooruConfigAuthProvider],
 );

@@ -50,7 +50,7 @@ class _DefaultInheritedArtistPostsSectionState<T extends Post>
 
   @override
   Widget build(BuildContext context) {
-    final post = InheritedPost.of<T>(context);
+    final post = InheritedPost.of(context);
     final auth = ref.watchConfigAuth;
 
     final thumbUrlBuilder = ref.watch(gridThumbnailUrlGeneratorProvider(auth));
@@ -84,7 +84,7 @@ class _DefaultInheritedArtistPostsSectionState<T extends Post>
                                         detailsPostsProvider(
                                           (
                                             ref.watchConfigFilter,
-                                            ref.watchConfigSearch,
+                                            ref.watchConfig,
                                             tag,
                                             widget.filterQuery ??
                                                 postFilterQueryNone,

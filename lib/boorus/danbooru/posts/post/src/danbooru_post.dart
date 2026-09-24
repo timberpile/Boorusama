@@ -10,12 +10,12 @@ import 'status.dart';
 
 export 'status.dart';
 
-typedef DanbooruPostsOrError = PostsOrErrorCore<DanbooruPost>;
+typedef DanbooruPostsOrError = PostsOrErrorCore<Post>;
 
-class DanbooruPost extends Equatable
+class DanbooruPostRecord extends Equatable
     with MediaInfoMixin, TranslatedMixin, ImageInfoMixin, VideoInfoMixin
-    implements Post, DanbooruTagDetails, PostMediaVariants {
-  DanbooruPost({
+    implements PostRecord, DanbooruTagDetails, PostMediaVariants {
+  DanbooruPostRecord({
     required this.id,
     required this.thumbnailImageUrl,
     required this.sampleImageUrl,
@@ -51,7 +51,7 @@ class DanbooruPost extends Equatable
     required this.status,
   });
 
-  factory DanbooruPost.empty() => DanbooruPost(
+  factory DanbooruPostRecord.empty() => DanbooruPostRecord(
     id: 0,
     thumbnailImageUrl: '',
     sampleImageUrl: '',
@@ -203,14 +203,14 @@ class DanbooruPost extends Equatable
 
 const kCensoredTags = ['loli', 'shota'];
 
-extension PostX on DanbooruPost {
+extension PostX on DanbooruPostRecord {
   bool get hasCensoredTags {
     final tagSet = tags.toSet();
 
     return kCensoredTags.any(tagSet.contains);
   }
 
-  DanbooruPost copyWith({
+  DanbooruPostRecord copyWith({
     int? id,
     Set<String>? tags,
     Set<String>? copyrightTags,
@@ -234,7 +234,7 @@ extension PostX on DanbooruPost {
     int? fileSize,
     double? width,
     double? height,
-  }) => DanbooruPost(
+  }) => DanbooruPostRecord(
     id: id ?? this.id,
     thumbnailImageUrl: thumbnailImageUrl,
     sampleImageUrl: sampleImageUrl ?? this.sampleImageUrl,
@@ -271,7 +271,7 @@ extension PostX on DanbooruPost {
   );
 }
 
-extension PostQualityVariantX on DanbooruPost {
+extension PostQualityVariantX on DanbooruPostRecord {
   String get url180x180 => _getOrFallback(
     PostQualityType.v180x180,
     thumbnailImageUrl,

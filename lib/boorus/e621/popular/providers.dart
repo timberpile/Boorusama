@@ -31,7 +31,7 @@ class E621PopularRepositoryApi implements E621PopularRepository {
   final e.E621Client client;
   final BooruConfigAuth booruConfig;
 
-  final Cache<List<E621Post>> _cache = Cache(
+  final Cache<List<Post>> _cache = Cache(
     maxCapacity: 5,
     staleDuration: const Duration(seconds: 10),
   );
@@ -39,7 +39,7 @@ class E621PopularRepositoryApi implements E621PopularRepository {
   String _buildKey(String date, String scale) => '$date-$scale';
 
   @override
-  PostsOrError<E621Post> getPopularPosts(DateTime date, TimeScale timeScale) =>
+  PostsOrError<Post> getPopularPosts(DateTime date, TimeScale timeScale) =>
       TaskEither.Do(($) async {
         final dateString = dateToE621Date(date);
         final timeScaleString = timeScaleToE621TimeScale(timeScale);
@@ -76,5 +76,5 @@ String dateToE621Date(DateTime date) =>
 
 String timeScaleToE621TimeScale(TimeScale timeScale) => timeScale.name;
 
-List<E621Post> filterPostWithNoImage(List<E621Post?> posts) =>
+List<Post> filterPostWithNoImage(List<Post?> posts) =>
     posts.nonNulls.where((post) => !post.hasNoImage).toList();

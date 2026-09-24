@@ -94,7 +94,7 @@ class GeneralPostContextMenu extends ConsumerWidget {
                 goToShowTaglistPage(
                   ref,
                   post,
-                  auth: booruConfig,
+                  config: ref.readConfig,
                 );
               },
             ),

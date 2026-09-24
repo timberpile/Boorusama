@@ -10,9 +10,9 @@ import '../../../posts/post/providers.dart';
 import '../../../posts/post/types.dart';
 
 mixin DanbooruFavoriteGroupPostMixin {
-  PostRepository<DanbooruPost> get postRepository;
+  PostRepository<Post> get postRepository;
 
-  Future<PostResult<DanbooruPost>> getPostsFromIdQueue(
+  Future<PostResult<Post>> getPostsFromIdQueue(
     Queue<int> queue,
     int page, {
     int limit = 20,
@@ -22,7 +22,7 @@ mixin DanbooruFavoriteGroupPostMixin {
 
     // Check if we have enough items
     if (queue.length < skip) {
-      return <DanbooruPost>[]
+      return <Post>[]
           .toResult(); // Return empty result if page is beyond available items
     }
 
@@ -35,7 +35,7 @@ mixin DanbooruFavoriteGroupPostMixin {
         .run()
         .then(
           (value) => value.fold(
-            (l) => <DanbooruPost>[].toResult(),
+            (l) => <Post>[].toResult(),
             (r) => r,
           ),
         );
@@ -59,7 +59,7 @@ mixin DanbooruFavoriteGroupPostMixin {
 class _Payload implements Comparable<_Payload> {
   _Payload(this.order, this.post);
 
-  final DanbooruPost post;
+  final Post post;
   final int order;
 
   @override

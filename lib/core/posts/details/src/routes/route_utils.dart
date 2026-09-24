@@ -59,7 +59,8 @@ void goToPostDetailsPageCore<T extends Post>({
       isDesktop: ref.context.isLargeScreen,
       hero: hero,
       initialThumbnailUrl: initialThumbnailUrl,
-      configSearch: null,
+      config: null,
+      useMixedViewer: true,
     ),
   );
 }
@@ -67,7 +68,7 @@ void goToPostDetailsPageCore<T extends Post>({
 void goToSinglePostDetailsPage<T extends Post>({
   required WidgetRef ref,
   required PostId postId,
-  required BooruConfigSearch configSearch,
+  required BooruConfig config,
 }) {
   ref.router.push(
     Uri(
@@ -81,7 +82,7 @@ void goToSinglePostDetailsPage<T extends Post>({
       isDesktop: ref.context.isLargeScreen,
       hero: false,
       initialThumbnailUrl: null,
-      configSearch: configSearch,
+      config: config,
     ),
   );
 }

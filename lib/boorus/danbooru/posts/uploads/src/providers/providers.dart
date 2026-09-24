@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 // Project imports:
 import '../../../../../../core/configs/config/providers.dart';
 import '../../../../../../core/configs/config/types.dart';
+import '../../../../../../core/configs/manage/providers.dart';
 import '../../../../client_provider.dart';
 import 'danbooru_upload_repository.dart';
 
@@ -22,4 +23,5 @@ final danbooruIqdbResultProvider = FutureProvider.autoDispose
 
         return client.iqdb(mediaAssetId: mediaAssetId);
       },
+      dependencies: [currentReadOnlyBooruConfigAuthProvider],
     );

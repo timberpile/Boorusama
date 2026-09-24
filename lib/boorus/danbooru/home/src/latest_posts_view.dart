@@ -6,9 +6,11 @@ import 'package:scroll_to_index/scroll_to_index.dart';
 // Project imports:
 import '../../../../core/announcements/widgets.dart';
 import '../../../../core/configs/config/providers.dart';
+import '../../../../core/configs/config/types.dart';
 import '../../../../core/home/widgets.dart';
 import '../../../../core/posts/count/widgets.dart';
 import '../../../../core/posts/listing/widgets.dart';
+import '../../../../core/posts/post/providers.dart';
 import '../../../../core/search/search/types.dart';
 import '../../../../core/search/selected_tags/providers.dart';
 import '../../../../core/search/selected_tags/types.dart';
@@ -18,7 +20,6 @@ import '../../../../core/tags/tag/types.dart';
 import '../../../../foundation/display.dart';
 import '../../dmails/widgets.dart';
 import '../../posts/listing/widgets.dart';
-import '../../posts/post/providers.dart';
 import '../../tags/user_metatags/providers.dart';
 import 'most_search_tag_list.dart';
 
@@ -56,8 +57,8 @@ class _LatestViewState extends ConsumerState<LatestView> {
 
   @override
   Widget build(BuildContext context) {
-    final config = ref.watchConfigSearch;
-    final postRepo = ref.watch(danbooruPostRepoProvider(config));
+    final config = ref.watchConfig;
+    final postRepo = ref.watch(originAwarePostRepoProvider(config));
     final searchBarPosition = ref.watch(searchBarPositionProvider);
     final metatagExtractor = ref.watch(
       danbooruMetatagExtractorProvider(config.auth),

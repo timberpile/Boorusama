@@ -9,11 +9,11 @@ import '../../../../boorus/hybooru/tags/providers.dart';
 import '../../../../foundation/riverpod/riverpod.dart';
 import '../../../boorus/booru/types.dart';
 import '../../../configs/config/types.dart';
+import '../../../posts/post/types.dart';
 import '../../../tags/local/providers.dart';
 import '../../../tags/tag/providers.dart';
 import '../../../tags/tag/types.dart';
 import '../../providers.dart';
-import '../data/bookmark_convert.dart';
 
 export 'bookmark_group_selectors.dart' show BookmarkSortType, filterBookmarks;
 
@@ -70,7 +70,7 @@ final availableBooruUrlsProvider = FutureProvider.autoDispose<List<String>>((
 });
 
 final bookmarkTagGroupsProvider = FutureProvider.autoDispose
-    .family<List<TagGroupItem>?, (BooruConfigAuth, BookmarkPost)>((
+    .family<List<TagGroupItem>?, (BooruConfigAuth, Post)>((
       ref,
       params,
     ) async {
@@ -108,49 +108,36 @@ final bookmarkTagExtractorProvider =
           fetcher: (post, options) {
             final tagResolver = ref.read(bookmarkTagResolverProvider(config));
 
-            if (post case final BookmarkPost bookmarkPost) {
-              final originalPostId = bookmarkPost.originalPostId;
+            final originalPostId = post.id;
 
-              if (originalPostId == null) {
-                final tags = bookmarkPost.tags;
+            //FIXME: Need a better way to handle different booru types
+            if (config.booruType == BooruType.gelbooruV2) {
+              return ref.read(
+                gelbooruV2TagsFromIdProvider((config, originalPostId)).future,
+              );
+            } else if (config.booruType == BooruType.hybooru) {
+              return ref.read(
+                hybooruTagsFromIdProvider((config, originalPostId)).future,
+              );
+            } else if (config.booruType == BooruType.zerochan) {
+              return ref.read(
+                hybooruTagsFromIdProvider((config, originalPostId)).future,
+              );
+            } else if (config.booruType == BooruType.animePictures) {
+              return ref.read(
+                animePicturesTagsFromIdProvider((
+                  config,
+                  originalPostId,
+                )).future,
+              );
+            } else if (config.booruType == BooruType.e621) {
+              final resolver = ref.read(e621TagResolverProvider(config));
 
-                return tagResolver.resolveRawTags(tags);
-              }
-
-              //FIXME: Need a better way to handle different booru types
-              if (config.booruType == BooruType.gelbooruV2) {
-                return ref.read(
-                  gelbooruV2TagsFromIdProvider((
-                    config,
-                    originalPostId,
-                  )).future,
-                );
-              } else if (config.booruType == BooruType.hybooru) {
-                return ref.read(
-                  hybooruTagsFromIdProvider((config, originalPostId)).future,
-                );
-              } else if (config.booruType == BooruType.zerochan) {
-                return ref.read(
-                  hybooruTagsFromIdProvider((config, originalPostId)).future,
-                );
-              } else if (config.booruType == BooruType.animePictures) {
-                return ref.read(
-                  animePicturesTagsFromIdProvider((
-                    config,
-                    originalPostId,
-                  )).future,
-                );
-              } else if (config.booruType == BooruType.e621) {
-                final resolver = ref.read(e621TagResolverProvider(config));
-
-                return resolver.resolveRawTags(bookmarkPost.tags);
-              } else {
-                final tags = bookmarkPost.tags;
-
-                return tagResolver.resolveRawTags(tags);
-              }
+              return resolver.resolveRawTags(post.tags);
             } else {
-              return TagExtractor.extractTagsFromGenericPost(post);
+              final tags = post.tags;
+
+              return tagResolver.resolveRawTags(tags);
             }
           },
         );

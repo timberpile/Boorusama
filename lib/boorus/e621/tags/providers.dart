@@ -66,8 +66,8 @@ final e621TagExtractorProvider = Provider.family<TagExtractor, BooruConfigAuth>(
       fetcher: (post, options) {
         final tagResolver = ref.read(e621TagResolverProvider(config));
 
-        if (post case final E621Post e621Post) {
-          final tags = _extractTagsFromPost(e621Post);
+        if (post.e621Data != null) {
+          final tags = _extractTagsFromPost(post);
 
           if (!options.fetchTagCount) {
             return tags;
@@ -82,15 +82,15 @@ final e621TagExtractorProvider = Provider.family<TagExtractor, BooruConfigAuth>(
   },
 );
 
-List<Tag> _extractTagsFromPost(E621Post post) {
+List<Tag> _extractTagsFromPost(Post post) {
   return [
-    ...post.artistTags.map(
+    ...?post.artistTags?.map(
       (e) => Tag.noCount(
         name: e,
         category: e621ArtistTagCategory,
       ),
     ),
-    ...post.characterTags.map(
+    ...?post.characterTags?.map(
       (e) => Tag.noCount(
         name: e,
         category: e621CharacterTagCategory,
@@ -102,7 +102,7 @@ List<Tag> _extractTagsFromPost(E621Post post) {
         category: e621SpeciesTagCategory,
       ),
     ),
-    ...post.copyrightTags.map(
+    ...?post.copyrightTags?.map(
       (e) => Tag.noCount(
         name: e,
         category: e621CopyrightTagCategory,

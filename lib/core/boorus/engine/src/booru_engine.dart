@@ -1,5 +1,6 @@
 // Project imports:
 import '../../booru/types.dart';
+import '../../../posts/post/types.dart';
 import 'booru_builder.dart';
 import 'booru_repository.dart';
 
@@ -13,6 +14,13 @@ class BooruEngine {
   final Booru booru;
   final BooruBuilder builder;
   final BooruRepository repository;
+
+  BooruPostCapability<BooruPostData> get postCapability =>
+      BooruPostCapability<BooruPostData>(
+        booruType: booru.type,
+        codec: repository.postDataCodec,
+        presentation: builder.postPresentation,
+      );
 }
 
 class BooruEngineRegistry {
@@ -27,6 +35,9 @@ class BooruEngineRegistry {
   BooruRepository? getRepository(BooruType type) => _engines[type]?.repository;
 
   BooruBuilder? getBuilder(BooruType type) => _engines[type]?.builder;
+
+  BooruPostCapability<BooruPostData>? getPostCapability(BooruType type) =>
+      _engines[type]?.postCapability;
 
   List<Booru> getAllBoorus() {
     return _engines.values.map((e) => e.booru).toList();

@@ -6,6 +6,7 @@ import 'package:kurumi/material.dart';
 // Project imports:
 import '../../../boorus/engine/providers.dart';
 import '../../../configs/config/types.dart';
+import '../../../configs/manage/widgets.dart';
 import '../../../posts/post/types.dart';
 import '../../../router.dart';
 import 'pages/show_tag_list_page.dart';
@@ -13,9 +14,10 @@ import 'pages/show_tag_list_page.dart';
 Future<bool?> goToShowTaglistPage(
   WidgetRef ref,
   Post post, {
-  required BooruConfigAuth auth,
+  required BooruConfig config,
   bool initiallyMultiSelectEnabled = false,
 }) {
+  final auth = config.auth;
   final booruBuilder = ref.read(booruBuilderProvider(auth));
   final viewTagListBuilder = booruBuilder?.viewTagListBuilder;
 
@@ -26,10 +28,13 @@ Future<bool?> goToShowTaglistPage(
       settings: const RouteSettings(
         name: 'view_tag_list',
       ),
-      builder: (context) => ShowTagListPage(
-        post: post,
-        initiallyMultiSelectEnabled: initiallyMultiSelectEnabled,
-        auth: auth,
+      builder: (_) => CurrentBooruConfigScope(
+        config: config,
+        child: ShowTagListPage(
+          post: post,
+          initiallyMultiSelectEnabled: initiallyMultiSelectEnabled,
+          auth: auth,
+        ),
       ),
     );
   }
@@ -40,11 +45,16 @@ Future<bool?> goToShowTaglistPage(
     settings: const RouteSettings(
       name: 'view_tag_list',
     ),
-    builder: (context) => viewTagListBuilder(
-      context,
-      post,
-      initiallyMultiSelectEnabled,
-      auth,
+    builder: (_) => CurrentBooruConfigScope(
+      config: config,
+      child: Builder(
+        builder: (context) => viewTagListBuilder(
+          context,
+          post,
+          initiallyMultiSelectEnabled,
+          auth,
+        ),
+      ),
     ),
   );
 }

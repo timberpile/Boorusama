@@ -59,6 +59,7 @@ import 'posts/favorites/providers.dart';
 import 'posts/listing/providers.dart';
 import 'posts/listing/types.dart';
 import 'posts/post/providers.dart';
+import 'posts/post/src/danbooru_post_codec.dart';
 import 'posts/post/types.dart';
 import 'posts/votes/providers.dart';
 import 'syntax/providers.dart';
@@ -70,6 +71,10 @@ class DanbooruRepository extends BooruRepositoryDefault {
   const DanbooruRepository({
     required this.ref,
   });
+
+  @override
+  BooruPostDataCodec<DanbooruPostData> get postDataCodec =>
+      const DanbooruPostCodec();
 
   @override
   SearchRefreshQueryAdapter searchRefreshQueryAdapter(BooruConfigAuth config) =>
@@ -164,7 +169,7 @@ class DanbooruRepository extends BooruRepositoryDefault {
 
   @override
   DownloadFilenameGenerator downloadFilenameBuilder(BooruConfigAuth config) {
-    return DownloadFileNameBuilder<DanbooruPost>(
+    return DownloadFileNameBuilder<Post>(
       defaultFileNameFormat: kBoorusamaCustomDownloadFileNameFormat,
       defaultBulkDownloadFileNameFormat:
           kBoorusamaBulkDownloadCustomFileNameFormat,
@@ -173,14 +178,17 @@ class DanbooruRepository extends BooruRepositoryDefault {
         WidthTokenHandler(),
         HeightTokenHandler(),
         AspectRatioTokenHandler(),
-        TokenHandler('artist', (post, config) => post.artistTags.join(' ')),
+        TokenHandler(
+          'artist',
+          (post, config) => post.artistTags?.join(' ') ?? '',
+        ),
         TokenHandler(
           'character',
-          (post, config) => post.characterTags.join(' '),
+          (post, config) => post.characterTags?.join(' ') ?? '',
         ),
         TokenHandler(
           'copyright',
-          (post, config) => post.copyrightTags.join(' '),
+          (post, config) => post.copyrightTags?.join(' ') ?? '',
         ),
         TokenHandler('general', (post, config) => post.generalTags.join(' ')),
         TokenHandler('meta', (post, config) => post.metaTags.join(' ')),
@@ -276,7 +284,7 @@ class DanbooruRepository extends BooruRepositoryDefault {
         onViewTags: () => goToShowTaglistPage(
           ref,
           post,
-          auth: ref.readConfigAuth,
+          config: ref.readConfig,
         ),
         onViewOriginal: () => goToOriginalImagePage(ref, post),
         onOpenSource: () => post.source.whenWeb(
@@ -286,7 +294,7 @@ class DanbooruRepository extends BooruRepositoryDefault {
         onToggleFavorite: () => ref.toggleFavorite(post.id),
         onUpvote: () => ref.danbooruUpvote(post.id),
         onDownvote: () => ref.danbooruDownvote(post.id),
-        onEdit: () => castOrNull<DanbooruPost>(post).toOption().fold(
+        onEdit: () => castOrNull<Post>(post).toOption().fold(
           () => false,
           (post) => ref.danbooruEdit(post),
         ),

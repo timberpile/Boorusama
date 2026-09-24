@@ -8,6 +8,7 @@ import 'package:material_symbols_icons/symbols.dart';
 // Project imports:
 import '../../../../../../core/configs/auth/widgets.dart';
 import '../../../../../../core/configs/config/providers.dart';
+import '../../../../../../core/configs/config/types.dart';
 import '../../../../../../core/images/booru_image.dart';
 import '../../../details/routes.dart';
 import '../../../favgroups/providers.dart';
@@ -34,7 +35,8 @@ class FavoriteGroupsPageInternal extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final config = ref.watchConfigSearch;
+    final profile = ref.watchConfig;
+    final config = profile.search;
     final favoriteGroups = ref.watch(danbooruFavoriteGroupsProvider(config));
 
     return Scaffold(
@@ -42,7 +44,7 @@ class FavoriteGroupsPageInternal extends ConsumerWidget {
         title: Text(context.t.favorite_groups.favorite_groups),
         actions: [
           IconButton(
-            onPressed: () => goToFavoriteGroupCreatePage(context),
+            onPressed: () => goToFavoriteGroupCreatePage(context, profile),
             icon: const Icon(Symbols.add),
           ),
         ],
@@ -96,7 +98,7 @@ class FavoriteGroupsPageInternal extends ConsumerWidget {
                         onPressed: () => showFavgroupEditSheet(
                           context,
                           group,
-                          config,
+                          profile,
                         ),
                         icon: const Icon(Symbols.more_vert),
                       ),

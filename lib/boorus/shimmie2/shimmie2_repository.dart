@@ -17,11 +17,17 @@ import '../../core/tags/autocompletes/types.dart';
 import 'comments/providers.dart';
 import 'configs/providers.dart';
 import 'favorites/providers.dart';
+import 'posts/post_codec.dart';
+import 'posts/post_data.dart';
 import 'posts/providers.dart';
 import 'tags/providers.dart';
 
 class Shimmie2Repository extends BooruRepositoryDefault {
   const Shimmie2Repository({required this.ref});
+
+  @override
+  BooruPostDataCodec<Shimmie2PostData> get postDataCodec =>
+      const Shimmie2PostCodec();
 
   @override
   SearchRefreshQueryAdapter searchRefreshQueryAdapter(BooruConfigAuth config) =>

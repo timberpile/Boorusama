@@ -2,6 +2,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Project imports:
+import '../../../../../../core/configs/config/providers.dart';
 import '../../../../../../core/router.dart';
 
 Future<String?> goToCommentCreatePage(
@@ -24,6 +25,7 @@ Future<String?> goToCommentCreatePage(
         'text': ?initialContent,
       },
     ).toString(),
+    extra: ref.readConfig,
   );
 }
 
@@ -49,5 +51,6 @@ Future<String?> goToCommentUpdatePage(
         'comment_id': commentId.toString(),
       },
     ).toString(),
+    extra: ref.readConfig,
   );
 }

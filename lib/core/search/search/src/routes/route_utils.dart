@@ -4,6 +4,7 @@ import 'package:kurumi/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 // Project imports:
+import '../../../../configs/config/providers.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../router.dart';
 import '../../../selected_tags/types.dart';
@@ -37,6 +38,7 @@ void goToSearchPage(
         _ => null,
       },
     ).toString(),
+    extra: ref.readConfig,
   );
 }
 

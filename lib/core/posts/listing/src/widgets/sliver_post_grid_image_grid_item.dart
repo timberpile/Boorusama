@@ -8,6 +8,7 @@ import 'package:selection_mode/selection_mode.dart';
 // Project imports:
 import '../../../../boorus/engine/providers.dart';
 import '../../../../configs/config/providers.dart';
+import '../../../../configs/config/types.dart';
 import '../../../../configs/gesture/types.dart';
 import '../../../../settings/providers.dart';
 import '../../../post/tags.dart';
@@ -35,6 +36,7 @@ class SliverPostGridImageGridItem<T extends Post> extends ConsumerWidget {
     required this.image,
     required this.score,
     required this.multiSelectEnabled,
+    required this.config,
     super.key,
     this.blockOverlay,
     this.leadingIcons,
@@ -50,14 +52,14 @@ class SliverPostGridImageGridItem<T extends Post> extends ConsumerWidget {
   final BlockOverlayItem? blockOverlay;
   final bool multiSelectEnabled;
   final List<Widget>? leadingIcons;
+  final BooruConfigAuth config;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final overlay = blockOverlay;
     final hideOverlay = multiSelectEnabled;
 
-    final auth = ref.watchConfigAuth;
-    final booruRepo = ref.watch(booruRepoProvider(auth));
+    final booruRepo = ref.watch(booruRepoProvider(config));
     final gestures = ref.watchPostGestures?.preview;
 
     final imageBorderRadius = ref.watch(

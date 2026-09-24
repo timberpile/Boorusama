@@ -12,6 +12,7 @@ import '../../../../core/bulk_downloads/routes.dart';
 import '../../../../core/configs/config/providers.dart';
 import '../../../../core/errors/types.dart';
 import '../../../../core/posts/listing/widgets.dart';
+import '../../../../core/posts/post/providers.dart';
 import '../../../../core/posts/pools/widgets.dart';
 import '../../../../core/search/search/routes.dart';
 import '../../../../core/settings/providers.dart';
@@ -176,11 +177,11 @@ class _SzurubooruPoolPostList extends ConsumerWidget {
     final perPage = ref.watch(
       imageListingSettingsProvider.select((value) => value.postsPerPage),
     );
-    final config = ref.watchConfigSearch;
-    final repo = ref.watch(szurubooruPostRepoProvider(config));
+    final config = ref.watchConfig;
+    final repo = ref.watch(originAwarePostRepoProvider(config));
     final order = ref.watch(szurubooruPoolDetailsOrderProvider(pool.id));
 
-    return PostScope<SzurubooruPost>(
+    return PostScope<Post>(
       key: ValueKey((pool.postIds, order)),
       fetcher: (page) => TaskEither.tryCatch(
         () => repo.fetchPostIds(
@@ -194,10 +195,10 @@ class _SzurubooruPoolPostList extends ConsumerWidget {
           message: error.toString(),
         ),
       ),
-      builder: (context, controller) => PostGrid<SzurubooruPost>(
+      builder: (context, controller) => PostGrid<Post>(
         controller: controller,
         itemBuilder: (context, index, scrollController, useHero) =>
-            DefaultImageGridItem<SzurubooruPost>(
+            DefaultImageGridItem<Post>(
               index: index,
               autoScrollController: scrollController,
               controller: controller,

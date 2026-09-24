@@ -60,6 +60,14 @@ class PostDetailsController<T extends Post> extends ChangeNotifier {
     }
   }
 
+  void replacePost(int index, T post) {
+    RangeError.checkValidIndex(index, posts, 'index');
+    posts[index] = post;
+    if (currentPage.value == index) {
+      currentPost.value = post;
+    }
+  }
+
   void onPageSettled(int page) {
     if (page == currentSettledPage.value) return;
 
@@ -71,7 +79,7 @@ class PostDetailsController<T extends Post> extends ChangeNotifier {
       _playback.resetProgress();
 
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        playVideo(post.id);
+        playVideo(post);
       });
     }
   }
@@ -86,19 +94,20 @@ class PostDetailsController<T extends Post> extends ChangeNotifier {
     scrollController?.scrollToIndex(page);
   }
 
-  final _originalImagePostIds = ValueNotifier<Set<int>>(<int>{});
+  final _originalImagePostKeys = ValueNotifier<Set<String>>(<String>{});
 
-  ValueListenable<Set<int>> get originalImagePostIds => _originalImagePostIds;
+  ValueListenable<Set<String>> get originalImagePostKeys =>
+      _originalImagePostKeys;
 
-  bool usesOriginalImage(int postId) =>
-      _originalImagePostIds.value.contains(postId);
+  bool usesOriginalImage(Post post) =>
+      _originalImagePostKeys.value.contains(postViewerIdentity(post));
 
-  void loadOriginalImage(int postId) {
-    if (usesOriginalImage(postId)) return;
+  void loadOriginalImage(Post post) {
+    if (usesOriginalImage(post)) return;
 
-    _originalImagePostIds.value = {
-      ..._originalImagePostIds.value,
-      postId,
+    _originalImagePostKeys.value = {
+      ..._originalImagePostKeys.value,
+      postViewerIdentity(post),
     };
   }
 
@@ -111,25 +120,27 @@ class PostDetailsController<T extends Post> extends ChangeNotifier {
   ValueNotifier<PlayPauseAction?> get playPauseAction => _playPauseAction;
   Stream<VideoProgress> get seekStream => _playback.seekStream;
 
-  void onCurrentPositionChanged(double current, double total, String id) {
-    if (posts.getOrNull(currentSettledPage.value ?? -1)?.id
-        case final currentId? when currentId.toString() == id) {
-      _playback.updateProgress(current, total, currentId);
+  void onCurrentPositionChanged(double current, double total, Post post) {
+    final currentPost = posts.getOrNull(currentSettledPage.value ?? -1);
+    if (currentPost != null &&
+        postViewerIdentity(currentPost) == postViewerIdentity(post)) {
+      _playback.updateProgress(current, total, postViewerIdentity(post));
     }
   }
 
-  void onVideoSeekTo(Duration position, int id) {
-    _playback.seekVideo(position, id);
+  void onVideoSeekTo(Duration position, Post post) {
+    _playback.seekVideo(position, postViewerIdentity(post));
   }
 
   Future<void> playVideo(
-    int id, {
+    Post post, {
     bool showAnimation = false,
   }) async {
-    if (currentPost.value.id == id && showAnimation) {
+    if (postViewerIdentity(currentPost.value) == postViewerIdentity(post) &&
+        showAnimation) {
       _showPlayPauseAnimation(PlayPauseAction.play);
     }
-    await _playback.playVideo(id);
+    await _playback.playVideo(postViewerIdentity(post));
   }
 
   Future<void> playCurrentVideo({
@@ -138,7 +149,7 @@ class PostDetailsController<T extends Post> extends ChangeNotifier {
     final post = currentPost.value;
 
     return playVideo(
-      post.id,
+      post,
       showAnimation: showAnimation,
     );
   }
@@ -149,19 +160,20 @@ class PostDetailsController<T extends Post> extends ChangeNotifier {
     final post = currentPost.value;
 
     return pauseVideo(
-      post.id,
+      post,
       showAnimation: showAnimation,
     );
   }
 
   Future<void> pauseVideo(
-    int id, {
+    Post post, {
     bool showAnimation = false,
   }) async {
-    if (currentPost.value.id == id && showAnimation) {
+    if (postViewerIdentity(currentPost.value) == postViewerIdentity(post) &&
+        showAnimation) {
       _showPlayPauseAnimation(PlayPauseAction.pause);
     }
-    await _playback.pauseVideo(id);
+    await _playback.pauseVideo(postViewerIdentity(post));
   }
 
   Future<void> seekFromDoubleTap(Offset tapPosition, Size viewport) async {
@@ -180,7 +192,7 @@ class PostDetailsController<T extends Post> extends ChangeNotifier {
     if (direction != null) {
       final isForward = direction == SeekDirection.forward;
       final seekPosition = _playback.seekVideoByDirection(
-        post.id,
+        postViewerIdentity(post),
         isForward,
         Duration(seconds: post.duration.round()),
         doubleTapSeekDuration,
@@ -212,16 +224,16 @@ class PostDetailsController<T extends Post> extends ChangeNotifier {
     });
   }
 
-  void onBooruVideoPlayerCreated(BooruPlayer player, int id) {
-    _playback.registerPlayer(player, id);
+  void onBooruVideoPlayerCreated(BooruPlayer player, Post post) {
+    _playback.registerPlayer(player, postViewerIdentity(post));
   }
 
-  void onBooruVideoPlayerDisposed(int id) {
-    _playback.unregisterPlayer(id);
+  void onBooruVideoPlayerDisposed(Post post) {
+    _playback.unregisterPlayer(postViewerIdentity(post));
   }
 
-  Future<void> waitForVideoCompletion(int id) async {
-    final player = _playback.getPlayer(id);
+  Future<void> waitForVideoCompletion(Post post) async {
+    final player = _playback.getPlayer(postViewerIdentity(post));
     if (player == null) return;
 
     return player.waitForCompletion();
@@ -237,7 +249,7 @@ class PostDetailsController<T extends Post> extends ChangeNotifier {
     currentPost.dispose();
     currentSettledPage.dispose();
 
-    _originalImagePostIds.dispose();
+    _originalImagePostKeys.dispose();
 
     super.dispose();
   }

@@ -19,6 +19,7 @@ void goToDanbooruWikiPage(WidgetRef ref, String wikiPageName) {
         wikiPageName,
       ],
     ).toString(),
+    extra: ref.readConfig,
   );
 }
 

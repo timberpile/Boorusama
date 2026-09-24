@@ -4,18 +4,24 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Project imports:
 import '../../../core/configs/config/providers.dart';
+import '../../../core/configs/config/types.dart';
+import '../../../core/configs/manage/providers.dart';
 import '../client_provider.dart';
 
 final moebooruFavoritesProvider =
     NotifierProvider.family<MoebooruFavoritesNotifier, Set<String>?, int>(
       MoebooruFavoritesNotifier.new,
+      dependencies: [currentReadOnlyBooruConfigAuthProvider],
     );
 
-var _cancelToken = CancelToken();
-
 class MoebooruFavoritesNotifier extends FamilyNotifier<Set<String>?, int> {
+  late BooruConfigAuth _config;
+  var _cancelToken = CancelToken();
+
   @override
   Set<String>? build(int arg) {
+    _config = ref.watchConfigAuth;
+    ref.onDispose(() => _cancelToken.cancel());
     return null;
   }
 
@@ -36,7 +42,7 @@ class MoebooruFavoritesNotifier extends FamilyNotifier<Set<String>?, int> {
     _cancelToken = CancelToken();
 
     try {
-      final client = ref.watch(moebooruClientProvider(ref.readConfigAuth));
+      final client = ref.read(moebooruClientProvider(_config));
 
       final users = await client.getFavoriteUsers(
         postId: arg,

@@ -4,6 +4,12 @@ import 'package:equatable/equatable.dart';
 // Project imports:
 import '../../../rating/types.dart';
 import '../../../sources/types.dart';
+import 'booru_post_data.dart';
+import 'post_core_data.dart';
+import 'post_media_aspect_ratios.dart';
+import 'post_media_variants.dart';
+import 'post_origin.dart';
+import 'post_record.dart';
 import '../mixins/image_info_mixin.dart';
 import '../mixins/media_info_mixin.dart';
 import '../mixins/video_info_mixin.dart';
@@ -26,28 +32,90 @@ class PostMetadata extends Equatable {
   List<Object?> get props => [page, search, limit];
 }
 
-abstract class Post
+final class Post extends Equatable
     with MediaInfoMixin, ImageInfoMixin, VideoInfoMixin
-    implements TagDetails {
-  int get id;
-  DateTime? get createdAt;
-  String get thumbnailImageUrl;
-  String get sampleImageUrl;
-  String get originalImageUrl;
-  Set<String> get tags;
-  Rating get rating;
-  bool get hasComment;
-  bool get isTranslated;
-  bool get hasParentOrChildren;
-  int? get parentId;
-  PostSource get source;
-  int get score;
-  int? get downvotes;
-  int? get uploaderId;
-  String? get uploaderName;
-  PostStatus? get status;
+    implements
+        TagDetails,
+        PostRecord,
+        PostMediaVariants,
+        PostMediaAspectRatios {
+  const Post({
+    required this.origin,
+    required this.core,
+    required this.booruData,
+  });
 
-  PostMetadata? get metadata;
+  final PostOrigin origin;
+  final PostCoreData core;
+  final BooruPostData booruData;
+
+  int get id => core.id;
+  DateTime? get createdAt => core.createdAt;
+  String get thumbnailImageUrl => core.thumbnailImageUrl;
+  String get sampleImageUrl => core.sampleImageUrl;
+  String get originalImageUrl => core.originalImageUrl;
+  @override
+  String get videoUrl => core.videoUrl;
+  @override
+  String get videoThumbnailUrl => core.videoThumbnailUrl;
+  @override
+  Map<String, String> get mediaVariants => core.mediaVariants ?? const {};
+  @override
+  double? get thumbnailAspectRatio => core.thumbnailAspectRatio;
+  @override
+  double? get sampleAspectRatio => core.sampleAspectRatio;
+  @override
+  double? get originalAspectRatio => core.originalAspectRatio;
+  @override
+  double? get videoThumbnailAspectRatio => core.videoThumbnailAspectRatio;
+  @override
+  double? get videoAspectRatio => core.videoAspectRatio;
+  @override
+  double get width => core.width;
+  @override
+  double get height => core.height;
+  @override
+  String get format => core.format;
+  @override
+  String get md5 => core.md5;
+  @override
+  int get fileSize => core.fileSize;
+  @override
+  double get duration => core.duration;
+  @override
+  bool? get hasSound => core.hasSound;
+  Set<String> get tags => core.tags;
+  @override
+  Set<String>? get artistTags => core.artistTags;
+  @override
+  Set<String>? get characterTags => core.characterTags;
+  @override
+  Set<String>? get copyrightTags => core.copyrightTags;
+  Rating get rating => core.rating;
+  bool get hasComment => core.hasComment;
+  bool get isTranslated => core.isTranslated;
+  bool get hasParentOrChildren => core.hasParentOrChildren;
+  int? get parentId => core.parentId;
+  PostSource get source => core.source;
+  int get score => core.score;
+  int? get downvotes => core.downvotes;
+  int? get uploaderId => core.uploaderId;
+  String? get uploaderName => core.uploaderName;
+  PostStatus? get status => StringPostStatus.tryParse(core.status);
+  PostMetadata? get metadata => core.metadata;
+
+  Post copyWith({
+    PostOrigin? origin,
+    PostCoreData? core,
+    BooruPostData? booruData,
+  }) => Post(
+    origin: origin ?? this.origin,
+    core: core ?? this.core,
+    booruData: booruData ?? this.booruData,
+  );
+
+  @override
+  List<Object?> get props => [origin, core, booruData];
 }
 
 abstract interface class TagDetails {

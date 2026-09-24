@@ -1,11 +1,14 @@
+export '../../../core/posts/post/types.dart' show Post;
+export 'post_data.dart';
+
 // Package imports:
 import 'package:booru_clients/shimmie2.dart';
 
 // Project imports:
 import '../../../core/posts/post/types.dart';
 
-class Shimmie2Post extends SimplePost {
-  Shimmie2Post({
+class Shimmie2PostRecord extends CommonPostRecord {
+  Shimmie2PostRecord({
     required super.id,
     required super.thumbnailImageUrl,
     required super.sampleImageUrl,

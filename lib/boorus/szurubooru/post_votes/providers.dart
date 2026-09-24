@@ -6,6 +6,7 @@ import 'package:foundation/foundation.dart';
 // Project imports:
 import '../../../core/configs/config/providers.dart';
 import '../../../core/configs/config/types.dart';
+import '../../../core/configs/manage/providers.dart';
 import '../../../core/posts/favorites/providers.dart';
 import '../../../core/posts/votes/providers.dart';
 import '../client_provider.dart';
@@ -62,7 +63,7 @@ class SzurubooruPostVotesNotifier
     removeLocalVote(postId);
   }
 
-  Future<void> getVotes(List<SzurubooruPost> posts) async {
+  Future<void> getVotes(List<Post> posts) async {
     final postIds = posts.map((post) => post.id).toList();
     final postIdsToFetch = VotesStateHelpers.filterPostIdsNeedingFetch(
       state,
@@ -91,4 +92,5 @@ final szurubooruPostVoteProvider = Provider.autoDispose
         final config = ref.watchConfigAuth;
         return ref.watch(szurubooruPostVotesProvider(config))[postId];
       },
+      dependencies: [currentReadOnlyBooruConfigAuthProvider],
     );

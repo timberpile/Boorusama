@@ -2,10 +2,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Project imports:
+import '../../../../../../core/configs/config/providers.dart';
 import '../../../../../../core/router.dart';
-import '../../../../posts/post/types.dart';
+import '../../../../../../core/posts/post/types.dart';
 
-void goToPostFavoritesDetails(WidgetRef ref, DanbooruPost post) {
+void goToPostFavoritesDetails(WidgetRef ref, Post post) {
   ref.router.push(
     Uri(
       pathSegments: [
@@ -17,10 +18,11 @@ void goToPostFavoritesDetails(WidgetRef ref, DanbooruPost post) {
         'favoriter',
       ],
     ).toString(),
+    extra: ref.readConfig,
   );
 }
 
-void goToPostVotesDetails(WidgetRef ref, DanbooruPost post) {
+void goToPostVotesDetails(WidgetRef ref, Post post) {
   ref.router.push(
     Uri(
       pathSegments: [
@@ -32,5 +34,6 @@ void goToPostVotesDetails(WidgetRef ref, DanbooruPost post) {
         'voter',
       ],
     ).toString(),
+    extra: ref.readConfig,
   );
 }

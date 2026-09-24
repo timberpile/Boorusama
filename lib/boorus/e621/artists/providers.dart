@@ -6,6 +6,7 @@ import 'package:foundation/foundation.dart';
 // Project imports:
 import '../../../core/configs/config/providers.dart';
 import '../../../core/configs/config/types.dart';
+import '../../../core/configs/manage/providers.dart';
 import '../client_provider.dart';
 import 'parser.dart';
 import 'types.dart';
@@ -16,7 +17,7 @@ final e621ArtistProvider = FutureProvider.autoDispose
       final repo = ref.read(e621ArtistRepoProvider(config));
       final artist = await repo.getArtist(name);
       return artist.getOrElse(() => const E621Artist.empty());
-    });
+    }, dependencies: [currentReadOnlyBooruConfigAuthProvider]);
 
 final e621ArtistRepoProvider =
     Provider.family<E621ArtistRepository, BooruConfigAuth>((ref, config) {

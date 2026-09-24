@@ -4,11 +4,17 @@ import '../../core/boorus/engine/types.dart';
 import '../../core/configs/config/types.dart';
 import '../../core/configs/create/widgets.dart';
 import '../../core/posts/details/widgets.dart';
-import 'posts/types.dart';
+import '../../core/posts/post/types.dart';
 import 'posts/widgets.dart';
 
 class ZerochanBuilder extends BaseBooruBuilder {
   ZerochanBuilder();
+
+  @override
+  late final postPresentation = TypedBooruPostPresentation<EmptyPostData>(
+    typeKey: 'zerochan',
+    uiBuilder: postDetailsUIBuilder,
+  );
 
   @override
   CreateConfigPageBuilder get createConfigPageBuilder =>
@@ -29,18 +35,10 @@ class ZerochanBuilder extends BaseBooruBuilder {
       );
 
   @override
-  PostDetailsPageBuilder get postDetailsPageBuilder => (context, payload) {
-    final posts = payload.posts.map((e) => e as ZerochanPost).toList();
-
-    return PostDetailsScope(
-      initialIndex: payload.initialIndex,
-      initialThumbnailUrl: payload.initialThumbnailUrl,
-      posts: posts,
-      scrollController: payload.scrollController,
-      dislclaimer: payload.dislclaimer,
-      child: const DefaultPostDetailsPage<ZerochanPost>(),
-    );
-  };
+  PostDetailsPageBuilder get postDetailsPageBuilder =>
+      (context, payload) => MixedPostDetailsPageAdapter(
+        payload: payload,
+      );
 
   @override
   final postDetailsUIBuilder = kZerochanPostDetailsUIBuilder;

@@ -6,7 +6,7 @@ import 'package:kurumi/material.dart';
 import '../../../../../core/posts/details/types.dart';
 import '../../../../../core/posts/details_parts/types.dart';
 import '../../../../../core/posts/details_parts/widgets.dart';
-import '../../post/types.dart';
+import '../../../../../core/posts/post/types.dart';
 import 'providers.dart';
 import 'widgets/danbooru_post_action_toolbar.dart';
 import 'widgets/details_widgets.dart';
@@ -45,9 +45,9 @@ class DanbooruArtistPostsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DefaultInheritedArtistPostsSection<DanbooruPost>(
+    return DefaultInheritedArtistPostsSection<Post>(
       filterQuery: CustomPostFilterQuery(
-        includeWhen: (post) => !post.isBanned,
+        includeWhen: (post) => !(post.status?.matches('banned') ?? false),
       ),
     );
   }
@@ -58,14 +58,14 @@ class DanbooruUploaderPostsSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final post = InheritedPost.of<DanbooruPost>(context);
+    final post = InheritedPost.of<Post>(context);
 
-    return UploaderPostsSection<DanbooruPost>(
+    return UploaderPostsSection<Post>(
       query: ref.watch(
         danbooruUploaderQueryProvider(post),
       ),
       filterQuery: CustomPostFilterQuery(
-        includeWhen: (post) => !post.isBanned,
+        includeWhen: (post) => !(post.status?.matches('banned') ?? false),
       ),
     );
   }

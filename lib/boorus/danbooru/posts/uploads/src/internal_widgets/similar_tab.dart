@@ -62,7 +62,7 @@ class TagEditUploadSimilar extends ConsumerWidget {
                         itemBuilder: (context, index) {
                           final post = results[index].post != null
                               ? postDtoToPostNoMetadata(results[index].post!)
-                              : DanbooruPost.empty();
+                              : emptyDanbooruPost();
 
                           final similar = results[index].score ?? 0;
 
