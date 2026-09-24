@@ -6,7 +6,7 @@ class InfiniteScrollListener extends StatefulWidget {
     required this.scrollController,
     required this.onBottomReached,
     super.key,
-    this.prefetchExtentFactor = 1,
+    this.prefetchExtentFactor = 2,
     this.child,
   });
 

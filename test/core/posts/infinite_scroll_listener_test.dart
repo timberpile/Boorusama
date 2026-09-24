@@ -10,7 +10,7 @@ void main() {
 
   for (final c in cases) {
     testWidgets(
-      'starts prefetching one viewport before the end for ${c.description}',
+      'starts prefetching two viewports before the end for ${c.description}',
       (tester) async {
         final scrollController = ScrollController();
         addTearDown(scrollController.dispose);
@@ -36,7 +36,7 @@ void main() {
 
         final position = scrollController.position;
         final prefetchOffset =
-            position.maxScrollExtent - position.viewportDimension;
+            position.maxScrollExtent - (position.viewportDimension * 2);
 
         scrollController.jumpTo(prefetchOffset - 1);
         expect(fetchCount, 0);
