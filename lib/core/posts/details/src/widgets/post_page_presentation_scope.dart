@@ -97,10 +97,12 @@ class PostPagePresentationScope extends ConsumerWidget {
     }
 
     final enginePresentation = ref.watch(
-      booruPostPresentationProvider((
-        origin: post.origin,
-        data: post.booruData,
-      )),
+      booruPostPresentationProvider(
+        PostPresentationRequest(
+          origin: post.origin,
+          data: post.booruData,
+        ),
+      ),
     );
     final presentationContext = PostPresentationContext.resolve(
       post: post,

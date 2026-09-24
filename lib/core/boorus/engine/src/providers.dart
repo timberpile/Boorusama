@@ -1,3 +1,6 @@
+// Flutter imports:
+import 'package:flutter/foundation.dart';
+
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -46,10 +49,33 @@ final booruPostCapabilityProvider =
       return ref.watch(booruEngineRegistryProvider).getPostCapability(type);
     }, name: 'booruPostCapabilityProvider');
 
-typedef PostPresentationRequest = ({
-  PostOrigin origin,
-  BooruPostData data,
-});
+@immutable
+final class PostPresentationRequest {
+  const PostPresentationRequest({
+    required this.origin,
+    required this.data,
+  });
+
+  final PostOrigin origin;
+  final BooruPostData data;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PostPresentationRequest &&
+          origin.booruType == other.origin.booruType &&
+          data.runtimeType == other.data.runtimeType &&
+          data.typeKey == other.data.typeKey &&
+          data.schemaVersion == other.data.schemaVersion;
+
+  @override
+  int get hashCode => Object.hash(
+    origin.booruType,
+    data.runtimeType,
+    data.typeKey,
+    data.schemaVersion,
+  );
+}
 
 final booruPostPresentationProvider =
     Provider.family<BooruPostPresentation, PostPresentationRequest>((

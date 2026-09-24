@@ -202,10 +202,12 @@ class PostGridItem extends ConsumerWidget {
     final resolvedPresentation = switch (presentation) {
       final presentation? => presentation,
       null => ref.watch(
-        booruPostPresentationProvider((
-          origin: post.origin,
-          data: post.booruData,
-        )),
+        booruPostPresentationProvider(
+          PostPresentationRequest(
+            origin: post.origin,
+            data: post.booruData,
+          ),
+        ),
       ),
     };
     if (!resolvedPresentation.supports(post.booruData)) {

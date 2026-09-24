@@ -270,10 +270,12 @@ class _OriginCompatibleMultiSelectionActions<T extends Post>
           if (resolvedConfig?.id != config.id) return false;
 
           final presentation = ref.watch(
-            booruPostPresentationProvider((
-              origin: post.origin,
-              data: post.booruData,
-            )),
+            booruPostPresentationProvider(
+              PostPresentationRequest(
+                origin: post.origin,
+                data: post.booruData,
+              ),
+            ),
           );
           return presentation is! GenericPostPresentation &&
               presentation.supports(post.booruData);
@@ -318,10 +320,12 @@ class PostGridContextMenu extends StatelessWidget {
         };
         final presentation = switch ((post, config)) {
           (final Post post, final BooruConfig _) => ref.watch(
-            booruPostPresentationProvider((
-              origin: post.origin,
-              data: post.booruData,
-            )),
+            booruPostPresentationProvider(
+              PostPresentationRequest(
+                origin: post.origin,
+                data: post.booruData,
+              ),
+            ),
           ),
           _ => null,
         };
