@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:kurumi/kurumi.dart';
 
 // Project imports:
 import 'package:boorusama/core/haptics/types.dart';
@@ -11,6 +12,50 @@ import 'package:boorusama/core/settings/providers.dart';
 import 'package:boorusama/core/widgets/interactive_viewer_extended.dart';
 
 void main() {
+  for (final testCase in [
+    (mode: DoubleTapZoomMode.classic, expectedScale: 1.0),
+    (mode: DoubleTapZoomMode.fitCycle, expectedScale: 18.0),
+  ]) {
+    testWidgets(
+      'uses the selected ${testCase.mode.name} double-tap zoom behavior',
+      (tester) async {
+        tester.view.devicePixelRatio = 1;
+        tester.view.physicalSize = const Size(1000, 1000);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        addTearDown(tester.view.resetPhysicalSize);
+
+        final controller = TransformationController();
+        addTearDown(controller.dispose);
+
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              hapticFeedbackLevelProvider.overrideWithValue(
+                HapticFeedbackLevel.none,
+              ),
+            ],
+            child: MaterialApp(
+              home: InteractiveViewerExtended(
+                controller: controller,
+                contentSize: const Size(1000, 6000),
+                doubleTapZoomMode: testCase.mode,
+                child: const SizedBox.expand(),
+              ),
+            ),
+          ),
+        );
+
+        await _doubleTap(tester);
+        await _doubleTap(tester);
+
+        expect(
+          controller.value.getMaxScaleOnAxis(),
+          closeTo(testCase.expectedScale, 0.001),
+        );
+      },
+    );
+  }
+
   testWidgets('forwards content-aware panning to Kurumi', (tester) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(1000, 1000);
@@ -97,4 +142,17 @@ void main() {
       },
     );
   }
+}
+
+Future<void> _doubleTap(WidgetTester tester) async {
+  final detector = tester.widget<GestureDetector>(
+    find.byWidgetPredicate(
+      (widget) => widget is GestureDetector && widget.onDoubleTap != null,
+    ),
+  );
+  detector.onDoubleTapDown!(
+    TapDownDetails(localPosition: const Offset(500, 500)),
+  );
+  detector.onDoubleTap!();
+  await tester.pumpAndSettle();
 }

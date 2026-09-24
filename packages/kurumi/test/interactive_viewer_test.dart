@@ -6,6 +6,145 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kurumi/kurumi.dart';
 
 void main() {
+  for (final testCase in [
+    (
+      name: 'tall images',
+      contentSize: const Size(1000, 6000),
+    ),
+    (
+      name: 'wide images',
+      contentSize: const Size(6000, 1000),
+    ),
+  ]) {
+    testWidgets(
+      'cycles ${testCase.name} through the other fit, detail zoom, and default fit',
+      (tester) async {
+        final controller = await _pumpViewer(
+          tester,
+          contentSize: testCase.contentSize,
+          doubleTapZoomMode: DoubleTapZoomMode.fitCycle,
+        );
+
+        await _doubleTap(tester);
+        expect(controller.value.getMaxScaleOnAxis(), closeTo(6, 0.001));
+
+        await _doubleTap(tester);
+        expect(controller.value.getMaxScaleOnAxis(), closeTo(18, 0.001));
+
+        await _doubleTap(tester);
+        expect(controller.value.isIdentity(), isTrue);
+      },
+    );
+  }
+
+  testWidgets('advances an intermediate zoom to the other dimension fit', (
+    tester,
+  ) async {
+    final controller = await _pumpViewer(
+      tester,
+      contentSize: const Size(1000, 6000),
+      doubleTapZoomMode: DoubleTapZoomMode.fitCycle,
+    );
+    controller.value = _transformation(scale: 3, x: -500, y: -500);
+    await tester.pump();
+
+    await _doubleTap(tester);
+
+    expect(controller.value.getMaxScaleOnAxis(), closeTo(6, 0.001));
+  });
+
+  testWidgets('resets a zoom below the default fit', (tester) async {
+    final controller = await _pumpViewer(
+      tester,
+      contentSize: const Size(1000, 6000),
+      doubleTapZoomMode: DoubleTapZoomMode.fitCycle,
+    );
+    controller.value = _transformation(scale: 0.8, x: 100, y: 100);
+    await tester.pump();
+
+    await _doubleTap(tester);
+
+    expect(controller.value.isIdentity(), isTrue);
+  });
+
+  testWidgets('skips a redundant second fit for matching aspect ratios', (
+    tester,
+  ) async {
+    final controller = await _pumpViewer(
+      tester,
+      contentSize: const Size(1000, 1000),
+      doubleTapZoomMode: DoubleTapZoomMode.fitCycle,
+    );
+
+    await _doubleTap(tester);
+    expect(controller.value.getMaxScaleOnAxis(), closeTo(3, 0.001));
+
+    await _doubleTap(tester);
+    expect(controller.value.isIdentity(), isTrue);
+  });
+
+  testWidgets('caps detail zoom at the viewer maximum', (tester) async {
+    final controller = await _pumpViewer(
+      tester,
+      contentSize: const Size(500, 3000),
+      doubleTapZoomMode: DoubleTapZoomMode.fitCycle,
+    );
+
+    await _doubleTap(tester);
+    await _doubleTap(tester);
+
+    expect(controller.value.getMaxScaleOnAxis(), closeTo(15, 0.001));
+  });
+
+  testWidgets('keeps the tapped image point stationary while zooming in', (
+    tester,
+  ) async {
+    final controller = await _pumpViewer(
+      tester,
+      contentSize: const Size(1000, 6000),
+      constrainPanToContent: false,
+      doubleTapZoomMode: DoubleTapZoomMode.fitCycle,
+    );
+    await _doubleTap(tester, position: const Offset(250, 400));
+    const secondTap = Offset(700, 650);
+    final scenePoint = controller.toScene(secondTap);
+
+    await _doubleTap(tester, position: secondTap);
+
+    expect(controller.toScene(secondTap).dx, closeTo(scenePoint.dx, 0.001));
+    expect(controller.toScene(secondTap).dy, closeTo(scenePoint.dy, 0.001));
+  });
+
+  testWidgets('preserves the classic zoom and reset behavior', (tester) async {
+    final controller = await _pumpViewer(
+      tester,
+      contentSize: const Size(1000, 6000),
+      doubleTapZoomMode: DoubleTapZoomMode.classic,
+    );
+
+    await _doubleTap(tester);
+    expect(controller.value.getMaxScaleOnAxis(), closeTo(6, 0.001));
+
+    await _doubleTap(tester);
+    expect(controller.value.isIdentity(), isTrue);
+  });
+
+  testWidgets('falls back to classic behavior without content dimensions', (
+    tester,
+  ) async {
+    final controller = await _pumpViewer(
+      tester,
+      contentSize: null,
+      doubleTapZoomMode: DoubleTapZoomMode.fitCycle,
+    );
+
+    await _doubleTap(tester);
+    expect(controller.value.getMaxScaleOnAxis(), closeTo(3, 0.001));
+
+    await _doubleTap(tester);
+    expect(controller.value.isIdentity(), isTrue);
+  });
+
   testWidgets(
     'centers a fitting width while preserving vertical movement',
     (tester) async {
@@ -437,6 +576,7 @@ Future<TransformationController> _pumpViewer(
   Size viewportSize = const Size(1000, 1000),
   bool constrainPanToContent = true,
   bool snapZoomToFit = false,
+  DoubleTapZoomMode doubleTapZoomMode = DoubleTapZoomMode.classic,
 }) async {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = viewportSize;
@@ -453,12 +593,27 @@ Future<TransformationController> _pumpViewer(
         contentSize: contentSize,
         constrainPanToContent: constrainPanToContent,
         snapZoomToFit: snapZoomToFit,
+        doubleTapZoomMode: doubleTapZoomMode,
         child: const SizedBox.expand(),
       ),
     ),
   );
 
   return viewerController;
+}
+
+Future<void> _doubleTap(
+  WidgetTester tester, {
+  Offset position = const Offset(500, 500),
+}) async {
+  final detector = tester.widget<GestureDetector>(
+    find.byWidgetPredicate(
+      (widget) => widget is GestureDetector && widget.onDoubleTap != null,
+    ),
+  );
+  detector.onDoubleTapDown!(TapDownDetails(localPosition: position));
+  detector.onDoubleTap!();
+  await tester.pumpAndSettle();
 }
 
 Future<void> _endInteraction(WidgetTester tester) async {

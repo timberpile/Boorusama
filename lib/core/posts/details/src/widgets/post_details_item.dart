@@ -104,6 +104,11 @@ class _PostDetailsItemState<T extends Post>
         (settings) => settings.snapZoomToFit,
       ),
     );
+    final doubleTapZoomMode = ref.watch(
+      imageViewerSettingsProvider.select(
+        (settings) => settings.doubleTapZoomMode,
+      ),
+    );
 
     final booruRepo = ref.watch(booruRepoProvider(widget.authConfig));
     final gestures = widget.gestureConfig?.fullview;
@@ -168,6 +173,9 @@ class _PostDetailsItemState<T extends Post>
           constrainPanToContent:
               widget.detailsController.currentSettledPage.value == widget.index,
           snapZoomToFit: snapZoomToFit,
+          doubleTapZoomMode: post.isVideo
+              ? DoubleTapZoomMode.classic
+              : doubleTapZoomMode,
           enable: switch (ref.watch(
             noteOverlayProvider((widget.authConfig, post)),
           )) {

@@ -167,6 +167,7 @@ class Settings extends Equatable {
       swipeMode: PostDetailsSwipeMode.defaultValue,
       loadOriginalOnZoom: false,
       snapZoomToFit: true,
+      doubleTapZoomMode: DoubleTapZoomMode.defaultValue,
       autoAdjustComicStrips: true,
       postDetailsOverlayInitialState:
           PostDetailsOverlayInitialState.defaultValue,
@@ -584,6 +585,7 @@ class ImageViewerSettings extends Equatable {
     required this.swipeMode,
     required this.loadOriginalOnZoom,
     required this.snapZoomToFit,
+    required this.doubleTapZoomMode,
     required this.autoAdjustComicStrips,
     required this.postDetailsOverlayInitialState,
     required this.slideshowDirection,
@@ -600,6 +602,7 @@ class ImageViewerSettings extends Equatable {
     : swipeMode = PostDetailsSwipeMode.parse(json['swipeMode']),
       loadOriginalOnZoom = json['loadOriginalOnZoom'] ?? false,
       snapZoomToFit = json['snapZoomToFit'] ?? true,
+      doubleTapZoomMode = DoubleTapZoomMode.parse(json['doubleTapZoomMode']),
       autoAdjustComicStrips = json['autoAdjustComicStrips'] ?? true,
       postDetailsOverlayInitialState = PostDetailsOverlayInitialState.parse(
         json['postDetailsOverlayInitialState'],
@@ -624,6 +627,7 @@ class ImageViewerSettings extends Equatable {
   final PostDetailsSwipeMode swipeMode;
   final bool loadOriginalOnZoom;
   final bool snapZoomToFit;
+  final DoubleTapZoomMode doubleTapZoomMode;
   final bool autoAdjustComicStrips;
   final PostDetailsOverlayInitialState postDetailsOverlayInitialState;
   final SlideshowDirection slideshowDirection;
@@ -639,6 +643,7 @@ class ImageViewerSettings extends Equatable {
     PostDetailsSwipeMode? swipeMode,
     bool? loadOriginalOnZoom,
     bool? snapZoomToFit,
+    DoubleTapZoomMode? doubleTapZoomMode,
     bool? autoAdjustComicStrips,
     PostDetailsOverlayInitialState? postDetailsOverlayInitialState,
     SlideshowDirection? slideshowDirection,
@@ -654,6 +659,7 @@ class ImageViewerSettings extends Equatable {
       swipeMode: swipeMode ?? this.swipeMode,
       loadOriginalOnZoom: loadOriginalOnZoom ?? this.loadOriginalOnZoom,
       snapZoomToFit: snapZoomToFit ?? this.snapZoomToFit,
+      doubleTapZoomMode: doubleTapZoomMode ?? this.doubleTapZoomMode,
       autoAdjustComicStrips:
           autoAdjustComicStrips ?? this.autoAdjustComicStrips,
       postDetailsOverlayInitialState:
@@ -677,6 +683,7 @@ class ImageViewerSettings extends Equatable {
     'swipeMode': swipeMode.toData(),
     'loadOriginalOnZoom': loadOriginalOnZoom,
     'snapZoomToFit': snapZoomToFit,
+    'doubleTapZoomMode': doubleTapZoomMode.toData(),
     'autoAdjustComicStrips': autoAdjustComicStrips,
     'postDetailsOverlayInitialState': postDetailsOverlayInitialState.toData(),
     'slideshowDirection': slideshowDirection.toData(),
@@ -694,6 +701,7 @@ class ImageViewerSettings extends Equatable {
     swipeMode,
     loadOriginalOnZoom,
     snapZoomToFit,
+    doubleTapZoomMode,
     autoAdjustComicStrips,
     postDetailsOverlayInitialState,
     slideshowDirection,

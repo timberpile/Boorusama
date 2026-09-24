@@ -534,6 +534,11 @@
       "load_original_on_zoom_description": "Automatically loads the full-resolution image when you zoom in",
       "snap_zoom_to_fit": "Snap zoom to fit",
       "snap_zoom_to_fit_description": "Snaps near-fit zoom levels to the viewport width or height when pinching ends",
+      "double_tap_zoom_behavior": "Double-tap zoom behavior",
+      "double_tap_zoom_behaviors": {
+        "fit_cycle": "Fit cycle",
+        "classic": "Classic"
+      },
       "auto_adjust_comic_strips": "Auto adjust comic strips",
       "auto_adjust_comic_strips_description": "Makes long comic strips easier to read",
       "comic_strip": "Comic Strip",
