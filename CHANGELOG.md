@@ -1,10 +1,18 @@
 # 4.5.0-timberpile.2
+- Unlock Boorusama Plus features for every installation
 - Add Pixiv support
-- Add Bookmark groups
-- Add Pinned searches
-- Add Following feeds
-- Improve post viewing with original-image zoom and comic-strip scrolling
-- Improve Android release signing and APK verification
+- Add bookmark groups for organizing and browsing saved posts
+- Add pinned searches with folders, bulk entry, cached previews, refresh status,
+  and sorting by the latest matching post
+- Add following feeds with quality-aware cached previews, incremental refresh,
+  and swipeable posts that retain their source site's details and actions
+- Let bookmark collections mix posts from different sites while retaining each
+  post's native details, favorites, votes, comments, and related actions
+- Improve image viewing with comic-strip scrolling for tall images, automatic
+  original loading on zoom, snap-to-fit, and a new double-tap zoom cycle
+- Load additional search results earlier and at a consistent scroll distance
+- Improve Gelbooru-family video thumbnail quality
+- Add new Boorusama Timber app icons
 
 # 4.5.0-timberpile.1
 - Establish the Boorusama Timber app identity and Timberpile release/update channel for this fork.
