@@ -22,6 +22,19 @@ verification details in work reports or review discussions instead.
 - Direct commits to `develop` require explicit user authorization for the current change. Authorization does not carry over to later changes.
 - An authorized direct commit may omit the GitHub issue, work branch, and pull request.
 - Keep each authorized direct change in a focused conventional commit.
+- Except for the explicitly documented `upstream/master` synchronization,
+  every local commit added to `develop` must have one parent. Never merge a
+  feature or fix branch into local `develop`; replay an authorized direct
+  change onto the latest `origin/develop` instead.
+- Before pushing local `develop`, verify that its outgoing range contains no
+  merge commits:
+
+  ```bash
+  git rev-list --min-parents=2 origin/develop..develop
+  ```
+
+  The command must produce no output. If it prints a commit, rebuild the
+  unpushed commits as a linear chain before pushing.
 - Direct commits to `master` remain prohibited.
 
 ## Features and fixes
