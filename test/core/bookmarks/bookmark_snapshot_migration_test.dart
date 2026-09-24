@@ -262,7 +262,10 @@ void main() {
     expect(reloaded.id, created.id);
     expect(reloaded.post, post);
     expect(reloaded.post.booruData, const GelbooruV2PostData(hasNotes: true));
-    expect(reloaded.snapshot.custom, {'hasNotes': true});
+    expect(reloaded.snapshot.custom, {
+      'hasNotes': true,
+      'isVideoPreview': false,
+    });
     expect(reloaded.snapshot.origin.profileIdHint, 12);
   });
 

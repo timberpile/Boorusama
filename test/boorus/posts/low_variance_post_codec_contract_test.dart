@@ -7,12 +7,10 @@ import 'package:boorusama/boorus/gelbooru/posts/types.dart';
 import 'package:boorusama/boorus/gelbooru_v1/posts/post_codec.dart';
 import 'package:boorusama/boorus/gelbooru_v1/posts/types.dart';
 import 'package:boorusama/boorus/gelbooru_v2/posts/post_codec.dart';
-import 'package:boorusama/boorus/gelbooru_v2/posts/post_data.dart';
 import 'package:boorusama/boorus/gelbooru_v2/posts/types.dart';
 import 'package:boorusama/boorus/hybooru/posts/post_codec.dart';
 import 'package:boorusama/boorus/hybooru/posts/types.dart';
 import 'package:boorusama/boorus/moebooru/posts/post_codec.dart';
-import 'package:boorusama/boorus/moebooru/posts/post_data.dart';
 import 'package:boorusama/boorus/moebooru/posts/types.dart';
 import 'package:boorusama/boorus/zerochan/posts/post_codec.dart';
 import 'package:boorusama/boorus/zerochan/posts/types.dart';
@@ -91,6 +89,30 @@ void main() {
 
     _expectCommonPost(decoded, legacy);
     expect(decoded.booruData, const GelbooruV2PostData(hasNotes: true));
+  });
+
+  test('Gelbooru V2 preserves its video preview marker through a snapshot', () {
+    final legacy = _gelbooruV2Post(isVideoPreview: true);
+    final post = gelbooruV2PostFromRecord(legacy, origin);
+    const codec = GelbooruV2PostCodec();
+
+    final decoded = _roundTrip(post, codec);
+
+    expect(
+      codec.encode(decoded.booruData as GelbooruV2PostData),
+      const {'hasNotes': true, 'isVideoPreview': true},
+    );
+  });
+
+  test('Gelbooru V2 treats old snapshots as normal image rows', () {
+    const codec = GelbooruV2PostCodec();
+
+    final decoded = codec.decode(const {'hasNotes': true}, version: 1);
+
+    expect(
+      codec.encode(decoded),
+      const {'hasNotes': true, 'isVideoPreview': false},
+    );
   });
 
   test('Moebooru preserves its large image URL through a snapshot', () {
@@ -249,7 +271,7 @@ GelbooruPostRecord _gelbooruPost() => GelbooruPostRecord(
   hasParentOrChildren: true,
   fileSize: 999,
   score: 42,
-  createdAt: DateTime.utc(2025, 5, 1),
+  createdAt: DateTime.utc(2025, 5),
   parentId: 4,
   uploaderId: 5,
   uploaderName: 'gel-user',
@@ -257,30 +279,32 @@ GelbooruPostRecord _gelbooruPost() => GelbooruPostRecord(
   status: StringPostStatus.tryParse('active'),
 );
 
-GelbooruV2PostRecord _gelbooruV2Post() => GelbooruV2PostRecord(
-  format: 'png',
-  height: 700,
-  id: 15,
-  md5: 'v2-hash',
-  originalImageUrl: 'original-v2',
-  rating: Rating.sensitive,
-  sampleImageUrl: 'sample-v2',
-  source: PostSource.none(),
-  tags: const {'translated'},
-  thumbnailImageUrl: 'thumb-v2',
-  width: 1000,
-  hasComment: false,
-  hasParentOrChildren: false,
-  fileSize: 1,
-  score: 3,
-  createdAt: null,
-  parentId: null,
-  uploaderId: null,
-  uploaderName: 'owner',
-  hasNotes: true,
-  metadata: null,
-  status: StringPostStatus.tryParse('pending'),
-);
+GelbooruV2PostRecord _gelbooruV2Post({bool isVideoPreview = false}) =>
+    GelbooruV2PostRecord(
+      format: 'png',
+      height: 700,
+      id: 15,
+      md5: 'v2-hash',
+      originalImageUrl: 'original-v2',
+      rating: Rating.sensitive,
+      sampleImageUrl: 'sample-v2',
+      source: PostSource.none(),
+      tags: const {'translated'},
+      thumbnailImageUrl: 'thumb-v2',
+      width: 1000,
+      hasComment: false,
+      hasParentOrChildren: false,
+      fileSize: 1,
+      score: 3,
+      createdAt: null,
+      parentId: null,
+      uploaderId: null,
+      uploaderName: 'owner',
+      hasNotes: true,
+      isVideoPreview: isVideoPreview,
+      metadata: null,
+      status: StringPostStatus.tryParse('pending'),
+    );
 
 MoebooruPostRecord _moebooruPost() => MoebooruPostRecord(
   id: 16,
