@@ -18,12 +18,11 @@ import '../../../../../core/images/booru_image.dart';
 import '../../../../../core/posts/listing/providers.dart';
 import '../../../../../core/posts/listing/routes.dart';
 import '../../../../../core/posts/listing/widgets.dart';
+import '../../../../../core/posts/post/providers.dart';
 import '../../../../../core/posts/post/types.dart';
 import '../../../../../core/search/search/routes.dart';
 import '../../../../../core/widgets/widgets.dart';
 import '../../../posts/listing/widgets.dart';
-import '../../../posts/post/providers.dart';
-import '../../../posts/post/types.dart';
 import '../../favgroups/providers.dart';
 import '../../favgroups/types.dart';
 import 'danbooru_favorite_group_post_mixin.dart';
@@ -47,8 +46,8 @@ class _FavoriteGroupDetailsPageState
   late var postIds = Queue<int>.from(widget.group.postIds);
 
   @override
-  PostRepository<DanbooruPost> get postRepository =>
-      ref.read(danbooruPostRepoProvider(ref.readConfigSearch));
+  PostRepository<Post> get postRepository =>
+      ref.read(originAwarePostRepoProvider(ref.readConfig));
 
   @override
   Widget build(BuildContext context) {
@@ -125,7 +124,7 @@ class _FavoriteGroupDetailsPageState
   }
 
   Widget _buildEditButton(
-    PostGridController<DanbooruPost> controller,
+    PostGridController<Post> controller,
     BooruConfigSearch config,
   ) {
     return IconButton(
@@ -179,15 +178,15 @@ class FavoriteGroupEditPage extends StatefulWidget {
     super.key,
   });
 
-  final List<DanbooruPost> posts;
-  final void Function(List<DanbooruPost> posts) onSave;
+  final List<Post> posts;
+  final void Function(List<Post> posts) onSave;
 
   @override
   State<FavoriteGroupEditPage> createState() => _FavoriteGroupEditPageState();
 }
 
 class _FavoriteGroupEditPageState extends State<FavoriteGroupEditPage> {
-  late final List<DanbooruPost> posts = widget.posts;
+  late final List<Post> posts = widget.posts;
 
   void _onReorder(int oldIndex, int newIndex) {
     final post = posts.removeAt(oldIndex);

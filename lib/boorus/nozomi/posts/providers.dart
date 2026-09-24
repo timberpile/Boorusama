@@ -15,7 +15,7 @@ import 'parser.dart';
 import 'types.dart';
 
 final nozomiPostRepoProvider =
-    Provider.family<PostRepository<NozomiPost>, BooruConfigSearch>(
+    Provider.family<PostRepository<Post>, BooruConfigSearch>(
       (ref, config) {
         return _createNozomiPostRepository(
           ref: ref,
@@ -27,7 +27,7 @@ final nozomiPostRepoProvider =
 
 final nozomiPostRepoWithOrderProvider =
     Provider.family<
-      PostRepository<NozomiPost>,
+      PostRepository<Post>,
       ({BooruConfigSearch config, NozomiPostOrder order})
     >((ref, params) {
       return _createNozomiPostRepository(
@@ -37,7 +37,7 @@ final nozomiPostRepoWithOrderProvider =
       );
     });
 
-PostRepository<NozomiPost> _createNozomiPostRepository({
+PostRepository<Post> _createNozomiPostRepository({
   required Ref ref,
   required BooruConfigSearch config,
   required NozomiPostOrder order,
@@ -45,7 +45,7 @@ PostRepository<NozomiPost> _createNozomiPostRepository({
   final client = ref.watch(nozomiClientProvider(config.auth));
   final tagComposer = ref.watch(defaultTagQueryComposerProvider(config));
 
-  return PostRepositoryBuilder<NozomiPost>(
+  return PostRepositoryBuilder<Post>(
     tagComposer: tagComposer,
     fetchSingle: (id, {options}) async {
       final numericId = id as NumericPostId?;

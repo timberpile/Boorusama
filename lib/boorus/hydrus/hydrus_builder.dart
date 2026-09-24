@@ -12,17 +12,25 @@ import '../../core/configs/config/types.dart';
 import '../../core/configs/manage/widgets.dart';
 import '../../core/configs/network/widgets.dart';
 import '../../core/posts/details/widgets.dart';
+import '../../core/posts/post/providers.dart';
+import '../../core/posts/post/types.dart';
 import '../../core/search/search/routes.dart';
 import '../../core/search/search/widgets.dart';
 import 'configs/widgets.dart';
 import 'favorites/widgets.dart';
 import 'home/widgets.dart';
-import 'posts/providers.dart';
+import 'posts/post_data.dart';
 import 'posts/types.dart';
 import 'posts/widgets.dart';
 
 class HydrusBuilder extends BaseBooruBuilder {
   HydrusBuilder();
+
+  @override
+  late final postPresentation = TypedBooruPostPresentation<HydrusPostData>(
+    typeKey: 'hydrus',
+    uiBuilder: postDetailsUIBuilder,
+  );
 
   @override
   CreateConfigPageBuilder get createConfigPageBuilder =>
@@ -58,18 +66,10 @@ class HydrusBuilder extends BaseBooruBuilder {
       );
 
   @override
-  PostDetailsPageBuilder get postDetailsPageBuilder => (context, payload) {
-    final posts = payload.posts.map((e) => e as HydrusPost).toList();
-
-    return PostDetailsScope(
-      initialIndex: payload.initialIndex,
-      initialThumbnailUrl: payload.initialThumbnailUrl,
-      posts: posts,
-      scrollController: payload.scrollController,
-      dislclaimer: payload.dislclaimer,
-      child: const DefaultPostDetailsPage<HydrusPost>(),
-    );
-  };
+  PostDetailsPageBuilder get postDetailsPageBuilder =>
+      (context, payload) => MixedPostDetailsPageAdapter(
+        payload: payload,
+      );
 
   @override
   FavoritesPageBuilder? get favoritesPageBuilder =>
@@ -116,12 +116,11 @@ class HydrusSearchPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final config = ref.watchConfigSearch;
+    final postRepo = ref.watch(originAwarePostRepoProvider(ref.watchConfig));
     return SearchPageScaffold(
       params: params,
-      fetcher: (page, controller) => ref
-          .read(hydrusPostRepoProvider(config))
-          .getPostsFromController(controller.tagSet, page),
+      fetcher: (page, controller) =>
+          postRepo.getPostsFromController(controller.tagSet, page),
     );
   }
 }

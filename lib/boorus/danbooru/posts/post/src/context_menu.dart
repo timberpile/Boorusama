@@ -18,7 +18,7 @@ import '../../../configs/providers.dart';
 import '../../../favgroups/favgroups/routes.dart';
 import '../../../versions/routes.dart';
 import '../../listing/providers.dart';
-import 'danbooru_post.dart';
+import '../../../../../core/posts/post/types.dart';
 
 class DanbooruPostContextMenu extends ConsumerWidget {
   const DanbooruPostContextMenu({
@@ -29,11 +29,12 @@ class DanbooruPostContextMenu extends ConsumerWidget {
   });
 
   final Widget child;
-  final DanbooruPost post;
+  final Post post;
   final int index;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final profile = ref.watchConfig;
     final booruConfig = ref.watchConfigAuth;
     final loginDetails = ref.watch(danbooruLoginDetailsProvider(booruConfig));
     final hasAccount = loginDetails.hasLogin();
@@ -76,6 +77,7 @@ class DanbooruPostContextMenu extends ConsumerWidget {
               goToAddToFavoriteGroupSelectionPage(
                 context,
                 [post],
+                profile,
               );
             },
           ),
@@ -103,7 +105,7 @@ class DanbooruPostContextMenu extends ConsumerWidget {
               goToShowTaglistPage(
                 ref,
                 post,
-                auth: booruConfig,
+                config: profile,
               );
             },
           ),

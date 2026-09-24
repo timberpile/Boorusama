@@ -16,10 +16,14 @@ class DanbooruPostStats extends Equatable {
     required this.resolutions,
   });
 
-  factory DanbooruPostStats.fromPosts(List<DanbooruPost> posts) {
-    final characters = posts.expand((e) => e.characterTags).toList();
+  factory DanbooruPostStats.fromPosts(List<Post> posts) {
+    final characters = posts
+        .expand((e) => e.characterTags ?? const <String>{})
+        .toList();
     final characterMap = characters.count(selector: (e) => e);
-    final copyrights = posts.expand((e) => e.copyrightTags).toList();
+    final copyrights = posts
+        .expand((e) => e.copyrightTags ?? const <String>{})
+        .toList();
     final copyrightMap = copyrights.count(selector: (e) => e);
     final fileSizes = posts.map((e) => e.fileSize.toDouble()).toList();
     final uploaders = posts.map((e) => e.uploaderId).toList();

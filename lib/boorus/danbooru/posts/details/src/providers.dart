@@ -12,23 +12,21 @@ import '../../../../../foundation/riverpod/riverpod.dart';
 import '../../../pools/pool/providers.dart';
 import '../../../pools/pool/types.dart';
 import '../../../users/creator/providers.dart';
-import '../../post/providers.dart';
-import '../../post/types.dart';
 import 'media_url_resolver.dart';
 
 final danbooruPostDetailsChildrenProvider = FutureProvider.family
-    .autoDispose<
-      List<DanbooruPost>,
-      (BooruConfigFilter, BooruConfigSearch, DanbooruPost)
-    >((ref, params) {
+    .autoDispose<List<Post>, (BooruConfigFilter, BooruConfig, Post)>((
+      ref,
+      params,
+    ) {
       ref.cacheFor(const Duration(seconds: 60));
 
-      final (filter, search, post) = params;
+      final (filter, config, post) = params;
 
       if (!post.hasParentOrChildren) return [];
 
       return ref
-          .watch(danbooruPostRepoProvider(search))
+          .watch(originAwarePostRepoProvider(config))
           .getPostsFromTagWithBlacklist(
             tag: post.relationshipQuery,
             blacklist: ref.watch(blacklistTagsProvider(filter).future),
@@ -56,12 +54,14 @@ final danbooruMediaUrlResolverProvider =
       ),
     );
 
-final danbooruUploaderQueryProvider =
-    Provider.family<UploaderQuery?, DanbooruPost>((ref, post) {
-      final uploader = ref.watch(danbooruCreatorProvider(post.uploaderId));
+final danbooruUploaderQueryProvider = Provider.family<UploaderQuery?, Post>(
+  (ref, post) {
+    final uploader = ref.watch(danbooruCreatorProvider(post.uploaderId));
 
-      return switch (uploader) {
-        final uploader? => UserColonUploaderQuery(uploader.name),
-        _ => null,
-      };
-    });
+    return switch (uploader) {
+      final uploader? => UserColonUploaderQuery(uploader.name),
+      _ => null,
+    };
+  },
+  dependencies: [danbooruCreatorProvider],
+);

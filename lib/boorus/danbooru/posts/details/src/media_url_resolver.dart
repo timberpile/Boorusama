@@ -19,7 +19,7 @@ class DanbooruMediaUrlResolver implements MediaUrlResolver {
   String resolveMediaUrl(
     Post rawPost,
     BooruConfigViewer config,
-  ) => castOrNull<DanbooruPost>(rawPost).toOption().fold(
+  ) => castOrNull<Post>(rawPost).toOption().fold(
     () => rawPost.sampleImageUrl,
     (post) => post.isGif
         ? post.sampleImageUrl

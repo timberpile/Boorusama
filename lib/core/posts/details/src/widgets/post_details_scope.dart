@@ -10,6 +10,7 @@ import '../../../details_pageview/widgets.dart';
 import '../../../post/types.dart';
 import '../types/inherited_post.dart';
 import '../types/post_details.dart';
+import '../types/post_presentation_context.dart';
 import 'post_details_controller.dart';
 import 'post_details_page_view_scope.dart';
 
@@ -77,7 +78,7 @@ class _PostDetailsLayoutSwitcherState<T extends Post>
           final currentPost = widget.posts[currentPage];
 
           if (currentPost.isVideo) {
-            await _controller.waitForVideoCompletion(currentPost.id);
+            await _controller.waitForVideoCompletion(currentPost);
           }
         }
       },
@@ -124,8 +125,8 @@ class CurrentPostScope<T extends Post> extends StatelessWidget {
   Widget build(BuildContext context) {
     return ValueListenableBuilder(
       valueListenable: post,
-      builder: (context, post, _) => InheritedPost<T>(
-        post: post,
+      builder: (context, post, _) => InheritedPost(
+        presentationContext: PostPresentationContext.generic(post),
         child: child,
       ),
     );

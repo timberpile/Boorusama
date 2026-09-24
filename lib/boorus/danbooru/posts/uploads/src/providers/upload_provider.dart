@@ -154,7 +154,7 @@ class DanbooruUploadNotifier
     state = state.copyWith(parentId: () => id);
   }
 
-  Future<DanbooruPost?> submit(DanbooruUploadPost post) async {
+  Future<Post?> submit(DanbooruUploadPost post) async {
     if (!state.canSubmit(post.pageUrl)) return null;
 
     state = state.copyWith(isSubmitting: true, error: () => null);

@@ -16,7 +16,7 @@ import '../tags/providers.dart';
 
 final moebooruDownloadFilenameGeneratorProvider =
     Provider.family<DownloadFilenameGenerator, BooruConfigAuth>((ref, config) {
-      return DownloadFileNameBuilder<MoebooruPost>(
+      return DownloadFileNameBuilder<Post>(
         defaultFileNameFormat: kDefaultCustomDownloadFileNameFormat,
         defaultBulkDownloadFileNameFormat: kDefaultCustomDownloadFileNameFormat,
         sampleData: kDanbooruPostSamples,
@@ -52,7 +52,7 @@ final class MoebooruDownloadSource implements DownloadSourceProvider {
           url: post.thumbnailImageUrl,
           name: context.t.settings.download.qualities.preview,
         ),
-      if (post case final MoebooruPost moePost)
+      if (post case final Post moePost)
         DownloadSource(
           url: moePost.largeImageUrl,
           name: context.t.settings.download.qualities.large,

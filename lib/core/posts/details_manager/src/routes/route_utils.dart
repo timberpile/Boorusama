@@ -56,7 +56,7 @@ void goToDetailsLayoutManagerForPreviewWidgets(WidgetRef ref) {
               .toBooruConfigData(),
           oldConfigId: config.id,
           onSuccess: (booruConfig) {
-            currentConfigNotifier.update(booruConfig);
+            currentConfigNotifier.updateIfCurrent(booruConfig);
           },
         );
       },
@@ -98,7 +98,7 @@ void goToDetailsLayoutManagerForFullWidgets(WidgetRef ref) {
               .toBooruConfigData(),
           oldConfigId: config.id,
           onSuccess: (booruConfig) {
-            currentConfigNotifier.update(booruConfig);
+            currentConfigNotifier.updateIfCurrent(booruConfig);
           },
         );
       },

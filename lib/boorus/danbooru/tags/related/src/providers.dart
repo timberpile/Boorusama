@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 // Project imports:
 import '../../../../../core/configs/config/providers.dart';
 import '../../../../../core/configs/config/types.dart';
+import '../../../../../core/configs/manage/providers.dart';
 import '../../../../../core/tags/categories/providers.dart';
 import '../../../../../core/tags/categories/types.dart';
 import '../../../../../core/tags/tag/types.dart';
@@ -68,7 +69,7 @@ final danbooruRelatedTagProvider = FutureProvider.autoDispose
       final relatedTag = await repo.getRelatedTag(tag);
 
       return relatedTag;
-    });
+    }, dependencies: [currentReadOnlyBooruConfigAuthProvider]);
 
 final danbooruWikiTagsProvider = FutureProvider.family<List<Tag>, String>(
   (ref, tag) async {
@@ -88,6 +89,7 @@ final danbooruWikiTagsProvider = FutureProvider.family<List<Tag>, String>(
 
     return related.wikiPageTags;
   },
+  dependencies: [currentReadOnlyBooruConfigAuthProvider],
 );
 
 final danbooruRelatedTagsProvider = FutureProvider.family<List<Tag>, String>(
@@ -113,6 +115,7 @@ final danbooruRelatedTagsProvider = FutureProvider.family<List<Tag>, String>(
 
     return tags;
   },
+  dependencies: [currentReadOnlyBooruConfigAuthProvider],
 );
 
 danbooru.TagCategory? _toDanbooruTagCategory(TagCategory? category) {

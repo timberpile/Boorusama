@@ -8,11 +8,14 @@ import 'package:kurumi/material.dart';
 // Project imports:
 import '../../../../configs/config/providers.dart';
 import '../../../../configs/config/types.dart';
+import '../../../../boorus/booru/types.dart';
 import '../../../../images/booru_image.dart';
 import '../../../../posts/details_parts/widgets.dart';
 import '../../../../posts/favorites/widgets.dart';
 import '../../../../posts/listing/widgets.dart';
 import '../../../../posts/post/types.dart';
+import '../../../../posts/rating/types.dart';
+import '../../../../posts/sources/types.dart';
 import '../../../../posts/shares/widgets.dart';
 import '../../../../posts/votes/types.dart';
 import '../../../../posts/votes/widgets.dart';
@@ -183,7 +186,42 @@ class PreviewHome extends StatelessWidget {
   }
 }
 
-final _previewPost = DemoPost();
+final _previewPost = Post(
+  origin: PostOrigin.forBooruType(BooruType.unknown),
+  core: PostCoreData(
+    id: 123,
+    thumbnailImageUrl: '',
+    sampleImageUrl: '',
+    originalImageUrl: '',
+    videoUrl: '',
+    videoThumbnailUrl: '',
+    width: 1920,
+    height: 1080,
+    format: '.jpg',
+    md5: '',
+    fileSize: 1024 * 1024 * 5,
+    duration: kNoduration,
+    tags: const {
+      'artist1',
+      'artist2',
+      'character1',
+      'character2',
+      'copy1',
+      'copy2',
+      'general1',
+      'general2',
+      'meta1',
+      'meta2',
+    },
+    rating: Rating.general,
+    hasComment: false,
+    isTranslated: false,
+    hasParentOrChildren: false,
+    source: PostSource.none(),
+    score: 56,
+  ),
+  booruData: const LegacyPostData(typeKey: 'preview', custom: {}),
+);
 
 class PreviewDetails extends StatelessWidget {
   const PreviewDetails({

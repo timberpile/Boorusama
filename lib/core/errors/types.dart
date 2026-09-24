@@ -21,7 +21,7 @@ class DefaultAppErrorTranslator implements AppErrorTranslator {
     AppError error,
   ) => switch (error.type) {
     AppErrorType.cannotReachServer =>
-      '${context.t.search.errors.cannot_reach_server}\n\n${error.message}',
+      context.t.search.errors.cannot_reach_server,
     AppErrorType.handshakeFailed => context.t.search.errors.handshake_failed,
     AppErrorType.certificateError => context.t.search.errors.certificate_error,
     AppErrorType.loadDataFromServerFailed =>

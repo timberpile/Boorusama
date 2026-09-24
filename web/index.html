@@ -31,6 +31,13 @@
 
   <title>Boorusama Timber</title>
   <link rel="manifest" href="manifest.json">
+  <script>
+    if ('{{BOORUSAMA_ICON_FLAVOR}}' === 'dev') {
+      document.querySelector('link[rel="apple-touch-icon"]').href = 'icons-dev/Icon-192.png';
+      document.querySelector('link[rel="icon"]').href = 'favicon-dev.png';
+      document.querySelector('link[rel="manifest"]').href = 'manifest-dev.json';
+    }
+  </script>
 </head>
 <body>
   <!--

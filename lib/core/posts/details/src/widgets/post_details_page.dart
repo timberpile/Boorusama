@@ -8,6 +8,7 @@ import '../../../../configs/config/providers.dart';
 import '../../../../router.dart';
 import '../../../post/types.dart';
 import '../../routes.dart';
+import 'mixed_post_details_page.dart';
 
 class CurrentPostDetailsPage<T extends Post> extends ConsumerWidget {
   const CurrentPostDetailsPage({super.key});
@@ -15,6 +16,15 @@ class CurrentPostDetailsPage<T extends Post> extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final payload = InheritedDetailsContext.of<T>(context);
+    if (payload.useMixedViewer) {
+      return MixedPostDetailsPage(
+        posts: payload.posts,
+        initialIndex: payload.initialIndex,
+        initialThumbnailUrl: payload.initialThumbnailUrl,
+        scrollController: payload.scrollController,
+        disclaimer: payload.dislclaimer,
+      );
+    }
     final booruBuilder = ref.watch(booruBuilderProvider(ref.watchConfigAuth));
     final builder = booruBuilder?.postDetailsPageBuilder;
 
@@ -31,6 +41,16 @@ class PayloadPostDetailsPage<T extends Post> extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final payload = InheritedDetailsContext.of<T>(context);
     final configSearch = payload.configSearch;
+
+    if (payload.useMixedViewer) {
+      return MixedPostDetailsPage(
+        posts: payload.posts,
+        initialIndex: payload.initialIndex,
+        initialThumbnailUrl: payload.initialThumbnailUrl,
+        scrollController: payload.scrollController,
+        disclaimer: payload.dislclaimer,
+      );
+    }
 
     if (configSearch == null) {
       return const UnimplementedPage();

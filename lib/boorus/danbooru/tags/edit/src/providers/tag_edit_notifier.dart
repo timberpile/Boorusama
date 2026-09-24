@@ -6,7 +6,7 @@ import 'package:kurumi/material.dart';
 // Project imports:
 import '../../../../../../core/posts/listing/types.dart';
 import '../../../../../../core/posts/rating/types.dart';
-import '../../../../posts/post/types.dart';
+import '../../../../../../core/posts/post/types.dart';
 import '../tag_edit_state.dart';
 
 final tagEditProvider = NotifierProvider.autoDispose
@@ -74,7 +74,7 @@ class TagEditParams extends Equatable {
   final String imageUrl;
   final GridThumbnailMedia placeholderMedia;
   final Rating? initialRating;
-  final DanbooruPost post;
+  final Post post;
 
   @override
   List<Object?> get props => [

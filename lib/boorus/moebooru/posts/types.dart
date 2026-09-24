@@ -1,3 +1,6 @@
+export '../../../core/posts/post/types.dart' show Post;
+export 'post_data.dart';
+
 // Package imports:
 import 'package:equatable/equatable.dart';
 
@@ -6,15 +9,15 @@ import '../../../core/posts/post/types.dart';
 import '../../../core/posts/rating/types.dart';
 import '../../../core/posts/sources/types.dart';
 
-class MoebooruPost extends Equatable
+class MoebooruPostRecord extends Equatable
     with
         MediaInfoMixin,
         TranslatedMixin,
         ImageInfoMixin,
         VideoInfoMixin,
-        NoTagDetailsMixin
-    implements Post {
-  MoebooruPost({
+        NoTagDetailsRecordMixin
+    implements PostRecord {
+  MoebooruPostRecord({
     required this.id,
     required this.tags,
     required this.source,

@@ -14,6 +14,7 @@ import '../../core/tags/autocompletes/types.dart';
 import '../../core/tags/tag/colors.dart';
 import '../../core/tags/tag/types.dart';
 import 'client_provider.dart';
+import 'posts/post_codec.dart';
 import 'posts/providers.dart';
 import 'tags/color.dart';
 import 'tags/providers.dart';
@@ -23,6 +24,10 @@ const kZerochanCustomDownloadFileNameFormat =
 
 class ZerochanRepository extends BooruRepositoryDefault {
   const ZerochanRepository({required this.ref});
+
+  @override
+  BooruPostDataCodec<EmptyPostData> get postDataCodec =>
+      const ZerochanPostCodec();
 
   @override
   final Ref ref;

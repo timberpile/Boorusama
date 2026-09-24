@@ -21,7 +21,7 @@ typedef GelbooruV2PostSingleFetcher =
       PostFetchOptions? options,
     });
 
-class GelbooruV2PostRepository extends PostRepositoryBuilder<GelbooruV2Post> {
+class GelbooruV2PostRepository extends PostRepositoryBuilder<Post> {
   GelbooruV2PostRepository({
     required super.getSettings,
     required super.tagComposer,
@@ -54,7 +54,7 @@ class GelbooruV2PostRepository extends PostRepositoryBuilder<GelbooruV2Post> {
          },
        );
 
-  static Future<PostResult<GelbooruV2Post>> _getPostResults(
+  static Future<PostResult<Post>> _getPostResults(
     List<String> tags,
     int page, {
     required GelbooruV2ImageUrlResolver imageUrlResolver,

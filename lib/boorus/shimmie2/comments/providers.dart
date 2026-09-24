@@ -8,6 +8,6 @@ import '../posts/types.dart';
 import 'types.dart';
 
 final shimmie2CommentExtractorProvider =
-    Provider.family<CommentExtractor<Shimmie2Post>, BooruConfigAuth>(
+    Provider.family<CommentExtractor<Post>, BooruConfigAuth>(
       (ref, config) => const Shimmie2CommentExtractor(),
     );

@@ -21,6 +21,7 @@ import '../../core/haptics/types.dart';
 import '../../core/notes/note/types.dart';
 import '../../core/posts/favorites/types.dart';
 import '../../core/posts/favorites/widgets.dart';
+import '../../core/posts/listing/types.dart';
 import '../../core/posts/post/providers.dart';
 import '../../core/posts/post/types.dart';
 import '../../core/posts/rating/types.dart';
@@ -30,10 +31,12 @@ import '../../core/tags/autocompletes/types.dart';
 import '../../core/tags/metatag/types.dart';
 import '../../core/tags/tag/types.dart';
 import 'client_provider.dart';
+import 'common/grid_thumbnail_url.dart';
 import 'comments/providers.dart';
 import 'configs/providers.dart';
 import 'favorites/providers.dart';
 import 'notes/providers.dart';
+import 'posts/post_codec.dart';
 import 'posts/providers.dart';
 import 'posts/types.dart';
 import 'syntax/providers.dart';
@@ -41,6 +44,10 @@ import 'tags/providers.dart';
 
 class GelbooruRepository extends BooruRepositoryDefault {
   const GelbooruRepository({required this.ref});
+
+  @override
+  BooruPostDataCodec<EmptyPostData> get postDataCodec =>
+      const GelbooruPostCodec();
 
   @override
   SearchRefreshQueryAdapter searchRefreshQueryAdapter(BooruConfigAuth config) =>
@@ -106,6 +113,13 @@ class GelbooruRepository extends BooruRepositoryDefault {
   @override
   ImageUrlResolver imageUrlResolver() {
     return const GelbooruImageUrlResolver();
+  }
+
+  @override
+  GridThumbnailUrlGenerator gridThumbnailUrlGenerator(BooruConfigAuth config) {
+    return const DefaultGridThumbnailUrlGenerator(
+      mediaMapper: gelbooruGridThumbnailMedia,
+    );
   }
 
   @override

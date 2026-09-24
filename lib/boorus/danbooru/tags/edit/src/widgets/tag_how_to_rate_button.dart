@@ -6,15 +6,19 @@ import 'package:path/path.dart';
 
 // Project imports:
 import '../../../../../../core/configs/config/providers.dart';
+import '../../../../../../core/configs/manage/providers.dart';
 import '../../../../../../foundation/url_launcher.dart';
 
 const _kHowToRateUrlPath = 'wiki_pages/howto:rate';
 
-final _howToRateUrlProvider = Provider<String>((ref) {
-  final config = ref.watchConfigAuth;
+final _howToRateUrlProvider = Provider<String>(
+  (ref) {
+    final config = ref.watchConfigAuth;
 
-  return join(config.url, _kHowToRateUrlPath);
-});
+    return join(config.url, _kHowToRateUrlPath);
+  },
+  dependencies: [currentReadOnlyBooruConfigAuthProvider],
+);
 
 class TagHowToRateButton extends ConsumerWidget {
   const TagHowToRateButton({

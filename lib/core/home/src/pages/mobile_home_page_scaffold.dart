@@ -48,7 +48,7 @@ class _MobileHomePageScaffoldState
 
   @override
   Widget build(BuildContext context) {
-    final postRepo = ref.watch(postRepoProvider(ref.watchConfigSearch));
+    final postRepo = ref.watch(originAwarePostRepoProvider(ref.watchConfig));
     final searchBarPosition = ref.watch(searchBarPositionProvider);
 
     return PostScope(

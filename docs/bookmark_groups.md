@@ -41,7 +41,10 @@ misleading `_dependents.isEmpty` framework assertion.
 
 Post viewer action rows align controls at the top, with a minimum 48-pixel
 control height that also centers the compact overflow button. The bookmark
-caption occupies up to two lines beneath its icon; its 112-pixel text area can
-extend beyond the adaptive row's narrower button slot. This keeps caption
-length from changing the bookmark icon's alignment with neighboring controls.
-Other adaptive rows retain their default center alignment.
+caption starts two pixels below the visible glyph and keeps two pixels below
+the text, using the lower part of the 48-pixel tap target with a compact line
+height. A wrapped caption grows the control only by the second line. Its
+112-pixel text area can extend beyond the adaptive row's narrower button slot.
+This keeps caption length from changing the bookmark icon's alignment with
+neighboring controls. Other adaptive rows retain their default center
+alignment.

@@ -50,7 +50,7 @@ class SankakuFavoritesNotifier
 
   SankakuClient get client => ref.read(sankakuClientProvider(arg));
 
-  void preload(List<SankakuPost> posts) {
+  void preload(List<Post> posts) {
     final cache = state.unlock;
 
     for (final post in posts) {
@@ -64,10 +64,8 @@ class SankakuFavoritesNotifier
     state = cache.lock;
   }
 
-  Future<void> add(SankakuPost post) async {
-    final id = post.sankakuId;
-
-    if (id == null || (state[id] ?? false)) return;
+  Future<void> add(SankakuId id) async {
+    if (state[id] ?? false) return;
 
     state = state.add(id, true);
 
@@ -77,10 +75,8 @@ class SankakuFavoritesNotifier
     }
   }
 
-  Future<void> remove(SankakuPost post) async {
-    final id = post.sankakuId;
-
-    if (id == null || state[id] == false) return;
+  Future<void> remove(SankakuId id) async {
+    if (state[id] == false) return;
 
     state = state.add(id, false);
 

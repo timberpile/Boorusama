@@ -45,6 +45,12 @@ class BookmarkLibraryState extends Equatable {
   bool isBookmarked(Post post, int booruId) =>
       bookmarks.contains(BookmarkUniqueId.fromPost(post, booruId));
 
+  Bookmark? bookmarkForPost(Post post, {int fallbackBooruId = -1}) =>
+      bookmarksByUniqueId[BookmarkUniqueId.fromPost(
+        post,
+        post.origin.booruType.id,
+      )];
+
   @override
   List<Object?> get props => [items, groups, activeTarget];
 }

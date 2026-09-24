@@ -5,7 +5,7 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Project imports:
-import '../../../configs/config/providers.dart';
+import '../../../configs/config/types.dart';
 import '../../selected_tags/selected_tag_controller.dart';
 import '../../selected_tags/types.dart';
 import 'data/providers.dart';
@@ -39,12 +39,14 @@ class SearchHistoryNotifier extends AsyncNotifier<SearchHistoryState> {
 
   Future<void> addHistoryFromController(
     SelectedTagController controller,
+    BooruConfigAuth config,
   ) async {
     final anyRaw = controller.tags.any((e) => e.isRaw);
 
     if (anyRaw) {
       await addHistory(
         controller.rawTagsString,
+        config,
       );
       return;
     }
@@ -55,11 +57,12 @@ class SearchHistoryNotifier extends AsyncNotifier<SearchHistoryState> {
 
     final json = jsonEncode(queries);
 
-    await addHistory(json, queryType: QueryType.list);
+    await addHistory(json, config, queryType: QueryType.list);
   }
 
   Future<void> addHistory(
-    String history, {
+    String history,
+    BooruConfigAuth config, {
     QueryType queryType = QueryType.simple,
   }) async {
     // ignore empty history
@@ -68,8 +71,6 @@ class SearchHistoryNotifier extends AsyncNotifier<SearchHistoryState> {
     final currentState = state.value;
 
     if (currentState == null) return;
-
-    final config = ref.readConfigAuth;
 
     final repo = await ref.read(searchHistoryRepoProvider.future);
 

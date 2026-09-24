@@ -1,3 +1,6 @@
+export '../../../core/posts/post/types.dart' show Post;
+export 'post_data.dart';
+
 // Package imports:
 import 'package:equatable/equatable.dart';
 
@@ -5,16 +8,17 @@ import 'package:equatable/equatable.dart';
 import '../../../core/posts/post/types.dart';
 import '../../../core/posts/rating/types.dart';
 import '../../../core/posts/sources/types.dart';
+import '../../gelbooru/common/video_thumbnail.dart';
 
-class GelbooruV2Post extends Equatable
+class GelbooruV2PostRecord extends Equatable
     with
         MediaInfoMixin,
         TranslatedMixin,
         ImageInfoMixin,
         VideoInfoMixin,
-        NoTagDetailsMixin
-    implements Post {
-  const GelbooruV2Post({
+        NoTagDetailsRecordMixin
+    implements PostRecord {
+  const GelbooruV2PostRecord({
     required this.format,
     required this.height,
     required this.id,
@@ -37,9 +41,10 @@ class GelbooruV2Post extends Equatable
     required this.hasNotes,
     required this.metadata,
     required this.status,
+    required this.isVideoPreview,
   }) : _sampleImageUrl = sampleImageUrl;
 
-  factory GelbooruV2Post.empty() => GelbooruV2Post(
+  factory GelbooruV2PostRecord.empty() => GelbooruV2PostRecord(
     format: '',
     height: 0,
     id: 0,
@@ -62,6 +67,7 @@ class GelbooruV2Post extends Equatable
     hasNotes: false,
     metadata: null,
     status: null,
+    isVideoPreview: false,
   );
 
   final String _sampleImageUrl;
@@ -129,7 +135,11 @@ class GelbooruV2Post extends Equatable
   @override
   String get videoUrl => originalImageUrl;
   @override
-  String get videoThumbnailUrl => thumbnailImageUrl;
+  String get videoThumbnailUrl => resolveGelbooruVideoPosterUrl(
+    sampleUrl: _sampleImageUrl,
+    videoUrl: originalImageUrl,
+    thumbnailUrl: thumbnailImageUrl,
+  );
 
   @override
   final int? parentId;
@@ -147,6 +157,8 @@ class GelbooruV2Post extends Equatable
 
   @override
   final PostStatus? status;
+
+  final bool isVideoPreview;
 }
 
 class GelbooruV2ImageUrlResolver implements ImageUrlResolver {

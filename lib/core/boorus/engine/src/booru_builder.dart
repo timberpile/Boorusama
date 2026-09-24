@@ -1,9 +1,12 @@
 // Project imports:
 import '../../../home/types.dart';
 import '../../../posts/details_parts/types.dart';
+import '../../../posts/post/types.dart';
 import 'booru_builder_types.dart';
 
 abstract class BooruBuilder {
+  BooruPostPresentation get postPresentation => const GenericPostPresentation();
+
   HomePageBuilder get homePageBuilder;
   CreateConfigPageBuilder get createConfigPageBuilder;
   UpdateConfigPageBuilder get updateConfigPageBuilder;

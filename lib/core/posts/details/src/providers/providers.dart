@@ -13,10 +13,13 @@ import '../types/media_url_resolver.dart';
 import '../types/post_filter_query.dart';
 
 final singlePostDetailsProvider = FutureProvider.autoDispose
-    .family<Post?, (PostId, BooruConfigSearch)>((ref, params) async {
+    .family<Post?, (PostId, BooruConfig)>((ref, params) async {
       final (id, config) = params;
 
-      final postRepo = ref.watch(postRepoProvider(config));
+      final postRepo = OriginAwarePostRepository.fromConfig(
+        delegate: ref.watch(postRepoProvider(config.search)),
+        config: config,
+      );
 
       final result = await postRepo.getPost(id).run();
 
@@ -26,14 +29,14 @@ final singlePostDetailsProvider = FutureProvider.autoDispose
 final detailsPostsProvider = FutureProvider.autoDispose
     .family<
       List<Post>,
-      (BooruConfigFilter, BooruConfigSearch, String?, PostFilterQuery)
+      (BooruConfigFilter, BooruConfig, String?, PostFilterQuery)
     >((ref, params) async {
       ref.cacheFor(const Duration(seconds: 30));
 
-      final (filter, search, tag, query) = params;
+      final (filter, config, tag, query) = params;
 
       final posts = await ref
-          .watch(postRepoProvider(search))
+          .watch(originAwarePostRepoProvider(config))
           .getPostsFromTagWithBlacklist(
             tag: tag,
             blacklist: ref.watch(blacklistTagsProvider(filter).future),

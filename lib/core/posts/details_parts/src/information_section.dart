@@ -32,7 +32,7 @@ class DefaultInheritedInformationSection<T extends Post>
 
   @override
   Widget build(BuildContext context) {
-    final post = InheritedPost.of<T>(context);
+    final post = InheritedPost.of(context);
 
     return SliverToBoxAdapter(
       child: SimpleInformationSection(

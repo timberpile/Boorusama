@@ -23,104 +23,104 @@ class ThemePreviewerSheet extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colorScheme = ref.watch(themePreviewerSchemeProvider);
 
-    return Container(
-      padding: const EdgeInsets.only(
-        top: 8,
+    return Material(
+      color: colorScheme.surfaceContainerLow,
+      borderRadius: const BorderRadius.vertical(
+        top: Radius.circular(24),
       ),
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerLow,
-        borderRadius: const BorderRadius.vertical(
-          top: Radius.circular(24),
+      child: Padding(
+        padding: const EdgeInsets.only(
+          top: 8,
         ),
-      ),
-      child: Column(
-        children: [
-          SizedBox(
-            height: 56,
-            child: NotificationListener<ScrollNotification>(
-              // Prevent notification from being propagated to the parent to avoid conflicts with the content scroll
-              onNotification: (_) => true,
-              child: CustomScrollView(
-                physics: const ClampingScrollPhysics(),
-                controller: scrollController,
-                slivers: [
-                  if (!context.isLargeScreen)
-                    SliverToBoxAdapter(
-                      child: Center(
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: colorScheme.hintColor,
-                            borderRadius: const BorderRadius.all(
-                              Radius.circular(10),
+        child: Column(
+          children: [
+            SizedBox(
+              height: 56,
+              child: NotificationListener<ScrollNotification>(
+                // Prevent notification from being propagated to the parent to avoid conflicts with the content scroll
+                onNotification: (_) => true,
+                child: CustomScrollView(
+                  physics: const ClampingScrollPhysics(),
+                  controller: scrollController,
+                  slivers: [
+                    if (!context.isLargeScreen)
+                      SliverToBoxAdapter(
+                        child: Center(
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: colorScheme.hintColor,
+                              borderRadius: const BorderRadius.all(
+                                Radius.circular(10),
+                              ),
                             ),
+                            height: 4,
+                            width: 40,
                           ),
-                          height: 4,
-                          width: 40,
                         ),
                       ),
-                    ),
-                  const SliverToBoxAdapter(
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(
-                        vertical: 8,
+                    const SliverToBoxAdapter(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(
+                          vertical: 8,
+                        ),
+                        child: ThemeCategoryToggleSwitch(),
                       ),
-                      child: ThemeCategoryToggleSwitch(),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Expanded(
+              child: Column(
+                children: [
+                  Container(
+                    margin: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                    ),
+                  ),
+                  Expanded(
+                    child: ScrollConfiguration(
+                      // Force MaterialScrollBehavior to make sure overscroll effect is enabled
+                      behavior: const MaterialScrollBehavior(),
+                      child: CustomScrollView(
+                        physics: const AlwaysScrollableScrollPhysics(
+                          parent: ClampingScrollPhysics(),
+                        ),
+                        slivers: [
+                          SliverList.list(
+                            children: [
+                              Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Consumer(
+                                    builder: (_, ref, _) {
+                                      final state = ref.watch(
+                                        themePreviewerProvider,
+                                      );
+
+                                      return switch (state.category) {
+                                        ThemeCategory.basic =>
+                                          const BasicColorSelector(),
+                                        ThemeCategory.builtIn =>
+                                          const BuiltInColorSelector(),
+                                        ThemeCategory.accent =>
+                                          const AccentColorSelector(),
+                                      };
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
-          ),
-          Expanded(
-            child: Column(
-              children: [
-                Container(
-                  margin: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                  ),
-                ),
-                Expanded(
-                  child: ScrollConfiguration(
-                    // Force MaterialScrollBehavior to make sure overscroll effect is enabled
-                    behavior: const MaterialScrollBehavior(),
-                    child: CustomScrollView(
-                      physics: const AlwaysScrollableScrollPhysics(
-                        parent: ClampingScrollPhysics(),
-                      ),
-                      slivers: [
-                        SliverList.list(
-                          children: [
-                            Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Consumer(
-                                  builder: (_, ref, _) {
-                                    final state = ref.watch(
-                                      themePreviewerProvider,
-                                    );
-
-                                    return switch (state.category) {
-                                      ThemeCategory.basic =>
-                                        const BasicColorSelector(),
-                                      ThemeCategory.builtIn =>
-                                        const BuiltInColorSelector(),
-                                      ThemeCategory.accent =>
-                                        const AccentColorSelector(),
-                                    };
-                                  },
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

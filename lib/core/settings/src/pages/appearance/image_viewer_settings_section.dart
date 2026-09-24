@@ -92,6 +92,22 @@ class ImageViewerSettingsSection extends ConsumerWidget {
           ),
         ),
         KurumiSwitchListTile(
+          title: Text(context.t.settings.image_viewer.snap_zoom_to_fit),
+          subtitle: Text(
+            context.t.settings.image_viewer.snap_zoom_to_fit_description,
+          ),
+          value: viewer.snapZoomToFit,
+          onChanged: (value) => onUpdate(
+            viewer.copyWith(snapZoomToFit: value),
+          ),
+        ),
+        DoubleTapZoomModeSetting(
+          value: viewer.doubleTapZoomMode,
+          onChanged: (value) => onUpdate(
+            viewer.copyWith(doubleTapZoomMode: value),
+          ),
+        ),
+        KurumiSwitchListTile(
           title: Text(
             context.t.settings.image_viewer.auto_adjust_comic_strips,
           ),
@@ -271,6 +287,37 @@ class ImageViewerSettingsSection extends ConsumerWidget {
           child: Text(context.t.settings.image_viewer.manage_cache),
         ),
       ],
+    );
+  }
+}
+
+class DoubleTapZoomModeSetting extends StatelessWidget {
+  const DoubleTapZoomModeSetting({
+    required this.value,
+    required this.onChanged,
+    super.key,
+  });
+
+  final DoubleTapZoomMode value;
+  final ValueChanged<DoubleTapZoomMode> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return KurumiSettingsTile(
+      title: Text(
+        context.t.settings.image_viewer.double_tap_zoom_behavior,
+      ),
+      selectedOption: value,
+      items: DoubleTapZoomMode.values,
+      onChanged: onChanged,
+      optionBuilder: (value) => Text(
+        switch (value) {
+          DoubleTapZoomMode.fitCycle =>
+            context.t.settings.image_viewer.double_tap_zoom_behaviors.fit_cycle,
+          DoubleTapZoomMode.classic =>
+            context.t.settings.image_viewer.double_tap_zoom_behaviors.classic,
+        },
+      ),
     );
   }
 }

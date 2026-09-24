@@ -6,15 +6,16 @@ import 'package:foundation/foundation.dart';
 // Project imports:
 import '../../../core/configs/config/types.dart';
 import '../../../core/http/client/types.dart';
+import '../../../core/posts/post/providers.dart';
 import '../../../core/posts/post/types.dart';
 import '../client_provider.dart';
 import '../posts/parser.dart';
 import 'types.dart';
 
 final moebooruPopularRepoProvider =
-    Provider.family<MoebooruPopularRepository, BooruConfigAuth>(
+    Provider.family<MoebooruPopularRepository, BooruConfig>(
       (ref, config) {
-        final client = ref.watch(moebooruClientProvider(config));
+        final client = ref.watch(moebooruClientProvider(config.auth));
 
         return MoebooruPopularRepositoryApi(
           client,
@@ -30,7 +31,7 @@ class MoebooruPopularRepositoryApi implements MoebooruPopularRepository {
   );
 
   final MoebooruClient client;
-  final BooruConfigAuth booruConfig;
+  final BooruConfig booruConfig;
 
   @override
   PostsOrError getPopularPostsByDay(DateTime dateTime) =>
@@ -41,7 +42,7 @@ class MoebooruPopularRepositoryApi implements MoebooruPopularRepository {
           ),
         );
 
-        return data.map(postDtoToPostNoMetadata).toList().toResult();
+        return _bind(data.map(postDtoToPostNoMetadata).toList().toResult());
       });
 
   @override
@@ -53,7 +54,7 @@ class MoebooruPopularRepositoryApi implements MoebooruPopularRepository {
           ),
         );
 
-        return data.map(postDtoToPostNoMetadata).toList().toResult();
+        return _bind(data.map(postDtoToPostNoMetadata).toList().toResult());
       });
 
   @override
@@ -65,7 +66,7 @@ class MoebooruPopularRepositoryApi implements MoebooruPopularRepository {
           ),
         );
 
-        return data.map(postDtoToPostNoMetadata).toList().toResult();
+        return _bind(data.map(postDtoToPostNoMetadata).toList().toResult());
       });
 
   @override
@@ -84,6 +85,11 @@ class MoebooruPopularRepositoryApi implements MoebooruPopularRepository {
           ),
         );
 
-        return data.map(postDtoToPostNoMetadata).toList().toResult();
+        return _bind(data.map(postDtoToPostNoMetadata).toList().toResult());
       });
+
+  PostResult<Post> _bind(PostResult<Post> result) => bindPostResultOrigin(
+    result,
+    origin: postOriginFromConfig(booruConfig),
+  );
 }

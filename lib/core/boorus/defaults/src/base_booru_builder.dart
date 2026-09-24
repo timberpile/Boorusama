@@ -10,6 +10,7 @@ import '../../../posts/details_parts/types.dart';
 import '../../../posts/details_parts/widgets.dart';
 import '../../../posts/favorites/widgets.dart';
 import '../../../posts/listing/widgets.dart';
+import '../../../posts/post/types.dart';
 import '../../../posts/statistics/types.dart';
 import '../../../posts/statistics/widgets.dart';
 import '../../../search/search/widgets.dart';
@@ -18,6 +19,9 @@ import '../../../tags/show/widgets.dart';
 import '../../engine/types.dart';
 
 class BaseBooruBuilder implements BooruBuilder {
+  @override
+  BooruPostPresentation get postPresentation => const GenericPostPresentation();
+
   @override
   CreateConfigPageBuilder get createConfigPageBuilder =>
       (

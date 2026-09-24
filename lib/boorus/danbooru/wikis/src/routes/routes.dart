@@ -1,4 +1,6 @@
 // Project imports:
+import '../../../../../core/configs/config/types.dart';
+import '../../../../../core/configs/manage/widgets.dart';
 import '../../../../../core/router.dart';
 import '../pages/danbooru_wiki_page.dart';
 
@@ -13,7 +15,14 @@ final danbooruWikiRoutes = GoRoute(
         return const InvalidPage(message: 'Invalid wiki title');
       }
 
-      return DanbooruWikiPage(wikiPageName: wikiPageName);
+      final page = DanbooruWikiPage(wikiPageName: wikiPageName);
+      return switch (state.extra) {
+        final BooruConfig config => CurrentBooruConfigScope(
+          config: config,
+          child: page,
+        ),
+        _ => page,
+      };
     },
   ),
 );

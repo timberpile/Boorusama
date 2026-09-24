@@ -4,29 +4,28 @@ import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 
 // Project imports:
-import '../../../../../core/configs/config/providers.dart';
 import '../../../../../core/configs/config/types.dart';
 import '../../../../../core/posts/listing/widgets.dart';
+import '../../../../../core/posts/post/types.dart';
 import '../../../../../core/posts/votes/types.dart';
 import '../../../../../core/tags/tag/types.dart';
 import '../../../../../core/themes/theme/types.dart';
-import '../../post/types.dart';
 import '../../votes/providers.dart';
 
-class DanbooruTagListPrevewTooltip extends ConsumerWidget {
+class DanbooruTagListPrevewTooltip extends StatelessWidget {
   const DanbooruTagListPrevewTooltip({
     super.key,
     required this.post,
+    required this.config,
     required this.child,
   });
 
-  final DanbooruPost post;
+  final Post post;
+  final BooruConfigAuth config;
   final Widget child;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final config = ref.watchConfigAuth;
-
+  Widget build(BuildContext context) {
     return PostListPrevewTooltip(
       overlayChildBuilder: (context, adjustedMaxWidth, adjustedMaxHeight) =>
           PostTagPreviewContainer(
@@ -36,7 +35,7 @@ class DanbooruTagListPrevewTooltip extends ConsumerWidget {
             maxHeight: adjustedMaxHeight,
             builder: (context, tags) => DanbooruPostPreviewPopover(
               tags: tags,
-              auth: ref.watchConfigAuth,
+              auth: config,
               post: post,
             ),
           ),
@@ -56,7 +55,7 @@ class DanbooruPostPreviewPopover extends ConsumerWidget {
 
   final List<Tag> tags;
   final BooruConfigAuth auth;
-  final DanbooruPost post;
+  final Post post;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -92,7 +91,7 @@ class _Votes extends ConsumerStatefulWidget {
     required this.config,
   });
 
-  final DanbooruPost post;
+  final Post post;
   final TextStyle? style;
   final BooruConfigAuth config;
 

@@ -3,16 +3,18 @@ import 'package:booru_clients/shimmie2.dart';
 import 'package:path/path.dart' show extension;
 
 // Project imports:
+import '../../../core/boorus/booru/types.dart';
 import '../../../core/posts/post/types.dart';
 import '../../../core/posts/rating/types.dart';
 import '../../../core/posts/sources/types.dart';
+import 'post_codec.dart';
 import 'types.dart';
 
-Shimmie2Post postDtoToPost(
+Post postDtoToPost(
   PostDto e,
   PostMetadata? metadata,
 ) {
-  return Shimmie2Post(
+  final record = Shimmie2PostRecord(
     id: e.id ?? 0,
     thumbnailImageUrl: e.previewUrl ?? '',
     sampleImageUrl: e.fileUrl ?? '',
@@ -74,5 +76,9 @@ Shimmie2Post postDtoToPost(
     ownerJoinDate: e.ownerJoinDate,
     votes: e.votes,
     myVote: e.myVote,
+  );
+  return shimmie2PostFromRecord(
+    record,
+    PostOrigin.forBooruType(BooruType.shimmie2),
   );
 }

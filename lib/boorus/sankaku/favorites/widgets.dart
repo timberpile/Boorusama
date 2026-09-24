@@ -6,7 +6,7 @@ import 'package:kurumi/material.dart';
 import '../../../core/configs/auth/widgets.dart';
 import '../../../core/configs/config/providers.dart';
 import '../../../core/posts/favorites/widgets.dart';
-import '../posts/providers.dart';
+import '../../../core/posts/post/providers.dart';
 
 class SankakuFavoritesPage extends ConsumerWidget {
   const SankakuFavoritesPage({super.key});
@@ -33,13 +33,13 @@ class SankakuFavoritesPageInternal extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final config = ref.watchConfigSearch;
+    final config = ref.watchConfig;
     final query = 'fav:$username';
 
     return FavoritesPageScaffold(
       favQueryBuilder: () => query,
       fetcher: (page) =>
-          ref.read(sankakuPostRepoProvider(config)).getPosts(query, page),
+          ref.read(originAwarePostRepoProvider(config)).getPosts(query, page),
     );
   }
 }

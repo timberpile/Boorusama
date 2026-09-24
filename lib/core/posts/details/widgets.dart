@@ -8,3 +8,6 @@ export 'src/widgets/post_details_actions.dart';
 export 'src/widgets/post_details_image_preloader.dart';
 export 'src/widgets/default_post_details_page.dart';
 export 'src/widgets/post_details_image.dart';
+export 'src/widgets/post_media.dart';
+export 'src/widgets/post_page_presentation_scope.dart';
+export 'src/widgets/mixed_post_details_page.dart';

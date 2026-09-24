@@ -8,13 +8,21 @@ import '../../core/home/types.dart';
 import '../../core/posts/details/widgets.dart';
 import '../../core/posts/details_parts/types.dart';
 import '../../core/posts/details_parts/widgets.dart';
+import '../../core/posts/post/types.dart';
 import 'configs/widgets.dart';
 import 'home/custom_home.dart';
 import 'home/pixiv_home_page.dart';
+import 'posts/post_data.dart';
 import 'posts/types.dart';
 
 class PixivBuilder extends BaseBooruBuilder {
   PixivBuilder();
+
+  @override
+  late final postPresentation = TypedBooruPostPresentation<PixivPostData>(
+    typeKey: 'pixiv',
+    uiBuilder: postDetailsUIBuilder,
+  );
 
   @override
   CreateConfigPageBuilder get createConfigPageBuilder =>
@@ -54,18 +62,10 @@ class PixivBuilder extends BaseBooruBuilder {
       );
 
   @override
-  PostDetailsPageBuilder get postDetailsPageBuilder => (context, payload) {
-    final posts = payload.posts.map((e) => e as PixivPost).toList();
-
-    return PostDetailsScope(
-      initialIndex: payload.initialIndex,
-      initialThumbnailUrl: payload.initialThumbnailUrl,
-      posts: posts,
-      scrollController: payload.scrollController,
-      dislclaimer: payload.dislclaimer,
-      child: const DefaultPostDetailsPage<PixivPost>(),
-    );
-  };
+  PostDetailsPageBuilder get postDetailsPageBuilder =>
+      (context, payload) => MixedPostDetailsPageAdapter(
+        payload: payload,
+      );
 
   /// Pixiv illusts carry a meaningful tag pool, so the tags section stays
   /// part of the details UI.
@@ -73,15 +73,14 @@ class PixivBuilder extends BaseBooruBuilder {
   final postDetailsUIBuilder = PostDetailsUIBuilder(
     preview: {
       DetailsPart.toolbar: (context) =>
-          const DefaultInheritedPostActionToolbar<PixivPost>(),
+          const DefaultInheritedPostActionToolbar<Post>(),
     },
     full: {
       DetailsPart.toolbar: (context) =>
-          const DefaultInheritedPostActionToolbar<PixivPost>(),
-      DetailsPart.tags: (context) =>
-          const DefaultInheritedTagsTile<PixivPost>(),
+          const DefaultInheritedPostActionToolbar<Post>(),
+      DetailsPart.tags: (context) => const DefaultInheritedTagsTile<Post>(),
       DetailsPart.fileDetails: (context) =>
-          const DefaultInheritedFileDetailsSection<PixivPost>(),
+          const DefaultInheritedFileDetailsSection<Post>(),
     },
   );
 

@@ -14,6 +14,7 @@ import 'package:selection_mode/selection_mode.dart';
 import '../../../../../foundation/utils/stream/text_editing_controller_utils.dart';
 import '../../../../analytics/providers.dart';
 import '../../../../analytics/types.dart';
+import '../../../../configs/config/providers.dart';
 import '../../../../posts/listing/providers.dart';
 import '../../../../posts/listing/types.dart';
 import '../../../../posts/listing/widgets.dart';
@@ -137,7 +138,7 @@ class _SearchPageScaffoldState<T extends Post>
       );
       ref
           .read(searchHistoryProvider.notifier)
-          .addHistoryFromController(_tagsController);
+          .addHistoryFromController(_tagsController, ref.readConfigAuth);
     } else if (widget.params.tags case final SearchTagSet tags) {
       _controller.skipToResultWithTags(
         tags,
@@ -145,7 +146,7 @@ class _SearchPageScaffoldState<T extends Post>
       );
       ref
           .read(searchHistoryProvider.notifier)
-          .addHistoryFromController(_tagsController);
+          .addHistoryFromController(_tagsController, ref.readConfigAuth);
     }
 
     _controller.textController

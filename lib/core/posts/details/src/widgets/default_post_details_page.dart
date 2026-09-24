@@ -7,13 +7,35 @@ import '../../../../boorus/engine/providers.dart';
 import '../../../../configs/config/providers.dart';
 import '../../../../notes/note/widgets.dart';
 import '../../../post/types.dart';
+import '../../routes.dart';
 import '../providers/providers.dart';
 import '../types/post_details.dart';
+import 'mixed_post_details_page.dart';
 import 'post_details_actions.dart';
 import 'post_details_image_preloader.dart';
 import 'post_details_item.dart';
 import 'post_details_notes.dart';
 import 'post_details_page_scaffold.dart';
+
+class MixedPostDetailsPageAdapter extends StatelessWidget {
+  const MixedPostDetailsPageAdapter({
+    required this.payload,
+    super.key,
+  });
+
+  final DetailsRouteContext payload;
+
+  @override
+  Widget build(BuildContext context) {
+    return MixedPostDetailsPage(
+      posts: payload.posts.cast<Post>(),
+      initialIndex: payload.initialIndex,
+      initialThumbnailUrl: payload.initialThumbnailUrl,
+      scrollController: payload.scrollController,
+      disclaimer: payload.dislclaimer,
+    );
+  }
+}
 
 class DefaultPostDetailsPage<T extends Post> extends ConsumerStatefulWidget {
   const DefaultPostDetailsPage({
@@ -38,7 +60,7 @@ class _DefaultPostDetailsPageState<T extends Post>
 
   @override
   Widget build(BuildContext context) {
-    final data = PostDetails.of<T>(context);
+    final data = PostDetails.of(context);
     final posts = data.posts;
     final controller = data.controller;
     final auth = ref.watchConfigAuth;

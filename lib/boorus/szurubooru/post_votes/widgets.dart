@@ -6,7 +6,7 @@ import 'package:kurumi/material.dart';
 import '../../../core/configs/config/providers.dart';
 import '../../../core/posts/votes/types.dart';
 import '../../../core/posts/votes/widgets.dart';
-import '../posts/types.dart';
+import '../../../core/posts/post/types.dart';
 import 'providers.dart';
 
 class SzurubooruUpvotePostButton extends ConsumerWidget {
@@ -15,7 +15,7 @@ class SzurubooruUpvotePostButton extends ConsumerWidget {
     required this.post,
   });
 
-  final SzurubooruPost post;
+  final Post post;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -41,7 +41,7 @@ class SzurubooruDownvotePostButton extends ConsumerWidget {
     required this.post,
   });
 
-  final SzurubooruPost post;
+  final Post post;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

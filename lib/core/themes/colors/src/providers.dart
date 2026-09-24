@@ -41,6 +41,7 @@ final booruChipColorsProvider = Provider<BooruChipColors>(
     );
   },
   dependencies: [
+    customColorsProvider,
     enableDynamicColoringProvider,
     colorSchemeProvider,
   ],

@@ -1,4 +1,5 @@
 // Dart imports:
+import 'dart:async';
 import 'dart:math';
 
 // Flutter imports:
@@ -21,6 +22,29 @@ const _kDoubleTapScale = 3.0;
 const _kImageExceedsContainerThreshold = 3.0;
 
 const _kContentConstraintTolerance = 0.5;
+
+const _kSnapToFitTolerance = 0.05;
+
+const _kScaleChangeTolerance = 1e-10;
+
+const _kZoomStateTolerance = 0.001;
+
+const _kSnapSettleDuration = Duration(milliseconds: 50);
+
+enum DoubleTapZoomMode {
+  classic,
+  fitCycle;
+
+  factory DoubleTapZoomMode.parse(dynamic value) => switch (value) {
+    'classic' || '0' || 0 => classic,
+    'fitCycle' || '1' || 1 => fitCycle,
+    _ => defaultValue,
+  };
+
+  static const DoubleTapZoomMode defaultValue = fitCycle;
+
+  dynamic toData() => index;
+}
 
 class KurumiTransformationDetails {
   const KurumiTransformationDetails({
@@ -109,6 +133,8 @@ class KurumiInteractiveViewer extends StatelessWidget {
     this.panEnabled = true,
     this.scaleEnabled = true,
     this.constrainPanToContent = false,
+    this.snapZoomToFit = false,
+    this.doubleTapZoomMode = DoubleTapZoomMode.classic,
   });
 
   final Widget child;
@@ -125,6 +151,8 @@ class KurumiInteractiveViewer extends StatelessWidget {
   final bool scaleEnabled;
 
   final bool constrainPanToContent;
+  final bool snapZoomToFit;
+  final DoubleTapZoomMode doubleTapZoomMode;
 
   @override
   Widget build(BuildContext context) {
@@ -140,6 +168,8 @@ class KurumiInteractiveViewer extends StatelessWidget {
       panEnabled: panEnabled,
       scaleEnabled: scaleEnabled,
       constrainPanToContent: constrainPanToContent,
+      snapZoomToFit: snapZoomToFit,
+      doubleTapZoomMode: doubleTapZoomMode,
       child: child,
     );
   }
@@ -160,6 +190,8 @@ class KurumiRawInteractiveViewer extends StatefulWidget {
     this.panEnabled = true,
     this.scaleEnabled = true,
     this.constrainPanToContent = false,
+    this.snapZoomToFit = false,
+    this.doubleTapZoomMode = DoubleTapZoomMode.classic,
   });
 
   final Widget child;
@@ -186,6 +218,8 @@ class KurumiRawInteractiveViewer extends StatefulWidget {
   final bool scaleEnabled;
 
   final bool constrainPanToContent;
+  final bool snapZoomToFit;
+  final DoubleTapZoomMode doubleTapZoomMode;
 
   @override
   State<KurumiRawInteractiveViewer> createState() =>
@@ -213,6 +247,10 @@ class _KurumiRawInteractiveViewerState extends State<KurumiRawInteractiveViewer>
   var _hasTriggeredMaxZoomHaptic = false;
 
   var _applyingContentConstraint = false;
+
+  double? _interactionStartScale;
+  var _interactionWasPinch = false;
+  Timer? _snapTimer;
 
   @override
   void initState() {
@@ -262,6 +300,10 @@ class _KurumiRawInteractiveViewerState extends State<KurumiRawInteractiveViewer>
   void _onAnimationChanged() => _controller.value = _animation.value;
 
   void _onChanged() {
+    if (_snapTimer != null) {
+      _scheduleSnap();
+    }
+
     if (_applyContentConstraint()) return;
 
     final currentScale = _controller.value.getMaxScaleOnAxis();
@@ -333,6 +375,7 @@ class _KurumiRawInteractiveViewerState extends State<KurumiRawInteractiveViewer>
 
   @override
   void dispose() {
+    _snapTimer?.cancel();
     _animationController
       ..removeListener(_onAnimationChanged)
       ..dispose();
@@ -394,13 +437,70 @@ class _KurumiRawInteractiveViewerState extends State<KurumiRawInteractiveViewer>
           transformationController: _controller,
           panEnabled: enable && widget.panEnabled,
           scaleEnabled: enable && widget.scaleEnabled,
+          onInteractionStart: enable ? _handleInteractionStart : null,
+          onInteractionUpdate: enable
+              ? (details) => _interactionWasPinch |= details.pointerCount >= 2
+              : null,
+          onInteractionEnd: enable ? (_) => _handleInteractionEnd() : null,
           child: child,
         );
       },
     );
   }
 
+  void _handleInteractionStart(ScaleStartDetails details) {
+    if (_snapTimer != null && details.pointerCount == 1) return;
+
+    _snapTimer?.cancel();
+    _snapTimer = null;
+    _interactionStartScale = _scale2D(_controller.value);
+    _interactionWasPinch = details.pointerCount >= 2;
+  }
+
+  void _handleInteractionEnd() {
+    final startScale = _interactionStartScale;
+    _interactionStartScale = null;
+    final wasPinch = _interactionWasPinch;
+    _interactionWasPinch = false;
+    if (!widget.snapZoomToFit || !wasPinch || startScale == null) return;
+
+    final currentScale = _scale2D(_controller.value);
+    if ((currentScale - startScale).abs() <= _kScaleChangeTolerance) return;
+
+    _scheduleSnap();
+  }
+
+  void _scheduleSnap() {
+    _snapTimer?.cancel();
+    _snapTimer = Timer(_kSnapSettleDuration, () {
+      _snapTimer = null;
+      if (!mounted || !widget.snapZoomToFit) return;
+
+      final snapped = _snapTransformationToViewport(
+        matrix: _controller.value,
+        contentSize: widget.contentSize,
+        containerSize: _containerSize,
+        minScale: _kFallbackMinScale,
+        maxScale: _calcMaxScale(widget.contentSize, _containerSize),
+      );
+      if (snapped != null) {
+        _controller.value = snapped;
+      }
+    });
+  }
+
   Matrix4 _calculateDoubleTapMatrix(Offset tapPosition) {
+    return switch (widget.doubleTapZoomMode) {
+      DoubleTapZoomMode.classic => _calculateClassicDoubleTapMatrix(
+        tapPosition,
+      ),
+      DoubleTapZoomMode.fitCycle => _calculateFitCycleDoubleTapMatrix(
+        tapPosition,
+      ),
+    };
+  }
+
+  Matrix4 _calculateClassicDoubleTapMatrix(Offset tapPosition) {
     // If already zoomed, reset transformation.
     if (!_controller.value.isIdentity()) {
       return Matrix4.identity();
@@ -443,6 +543,68 @@ class _KurumiRawInteractiveViewerState extends State<KurumiRawInteractiveViewer>
     );
   }
 
+  Matrix4 _calculateFitCycleDoubleTapMatrix(Offset tapPosition) {
+    final content = widget.contentSize;
+    final viewport = _containerSize;
+    if (!_isValidSize(content) || !_isValidSize(viewport)) {
+      return _calculateClassicDoubleTapMatrix(tapPosition);
+    }
+
+    final currentScale = _scale2D(_controller.value);
+    if (!currentScale.isFinite || currentScale < 1 - _scaledZoomTolerance(1)) {
+      return Matrix4.identity();
+    }
+
+    final secondFitScale = _calcOtherDimensionFitScale(
+      viewport: viewport!,
+      content: content!,
+    );
+    final maxScale = _calcMaxScale(content, viewport);
+    final secondTarget = min(secondFitScale, maxScale);
+    final detailTarget = min(
+      secondFitScale * _kDoubleTapScale,
+      maxScale,
+    );
+
+    if (_approximatelySameZoom(secondTarget, 1)) {
+      return currentScale <= 1 + _scaledZoomTolerance(1)
+          ? _calcZoomMatrixForTargetScale(
+              focalPoint: tapPosition,
+              targetScale: detailTarget,
+            )
+          : Matrix4.identity();
+    }
+
+    if (currentScale < secondTarget - _scaledZoomTolerance(secondTarget)) {
+      return _calcZoomMatrixForTargetScale(
+        focalPoint: tapPosition,
+        targetScale: secondTarget,
+      );
+    }
+
+    if (_approximatelySameZoom(currentScale, secondTarget) &&
+        detailTarget > secondTarget + _scaledZoomTolerance(secondTarget)) {
+      return _calcZoomMatrixForTargetScale(
+        focalPoint: tapPosition,
+        targetScale: detailTarget,
+      );
+    }
+
+    return Matrix4.identity();
+  }
+
+  Matrix4 _calcZoomMatrixForTargetScale({
+    required Offset focalPoint,
+    required double targetScale,
+  }) {
+    final scenePoint = _controller.toScene(focalPoint);
+
+    return Matrix4.identity()
+      ..translateByDouble(focalPoint.dx, focalPoint.dy, 0, 1)
+      ..scaleByDouble(targetScale, targetScale, targetScale, 1)
+      ..translateByDouble(-scenePoint.dx, -scenePoint.dy, 0, 1);
+  }
+
   void _handleDoubleTap() {
     if (_doubleTapDetails == null) return;
 
@@ -470,28 +632,25 @@ Matrix4 _calcZoomMatrixFromSize({
     return Matrix4.identity();
   }
 
-  // Calculate scale factors to fit width and height
-  final fitWidthScale = viewport.width / content.width;
-  final fitHeightScale = viewport.height / content.height;
-
-  // Determine current scale (content is already fit by either width or height)
-  final currentScale = fitWidthScale < fitHeightScale
-      ? fitWidthScale
-      : fitHeightScale;
-
-  // Calculate target scale (we want to fit the other dimension)
-  final targetScale = fitWidthScale > fitHeightScale
-      ? fitWidthScale
-      : fitHeightScale;
-
-  // Calculate zoom factor relative to current scale
-  final zoomFactor = targetScale / currentScale;
-
   // Create transformation matrix centered at focal point
   return _calcZoomMatrixFromZoomValue(
     focalPoint: focalPoint,
-    zoomValue: zoomFactor,
+    zoomValue: _calcOtherDimensionFitScale(
+      viewport: viewport,
+      content: content,
+    ),
   );
+}
+
+double _calcOtherDimensionFitScale({
+  required Size viewport,
+  required Size content,
+}) {
+  final fitWidthScale = viewport.width / content.width;
+  final fitHeightScale = viewport.height / content.height;
+
+  return max(fitWidthScale, fitHeightScale) /
+      min(fitWidthScale, fitHeightScale);
 }
 
 Matrix4 _calcZoomMatrixFromZoomValue({
@@ -526,6 +685,76 @@ bool _isValidSize(Size? size) =>
     size.height.isFinite &&
     size.width > 0 &&
     size.height > 0;
+
+Matrix4? _snapTransformationToViewport({
+  required Matrix4 matrix,
+  required Size? contentSize,
+  required Size? containerSize,
+  required double minScale,
+  required double maxScale,
+}) {
+  if (!_isValidSize(contentSize) || !_isValidSize(containerSize)) return null;
+
+  final content = contentSize!;
+  final container = containerSize!;
+  final currentScale = _scale2D(matrix);
+  if (!currentScale.isFinite || currentScale <= 0) return null;
+
+  final containScale = min(
+    container.width / content.width,
+    container.height / content.height,
+  );
+  final fittedSize = Size(
+    content.width * containScale,
+    content.height * containScale,
+  );
+  final widthRatio = fittedSize.width * currentScale / container.width;
+  final heightRatio = fittedSize.height * currentScale / container.height;
+  final widthQualifies = _qualifiesForSnap(widthRatio);
+  final heightQualifies = _qualifiesForSnap(heightRatio);
+  if (!widthQualifies && !heightQualifies) return null;
+
+  final targetRatio = switch ((widthQualifies, heightQualifies)) {
+    (true, true) =>
+      (widthRatio - 1).abs() <= (heightRatio - 1).abs()
+          ? widthRatio
+          : heightRatio,
+    (true, false) => widthRatio,
+    (false, true) => heightRatio,
+    _ => throw StateError('At least one dimension must qualify'),
+  };
+  final scaleFactor = 1 / targetRatio;
+  final targetScale = currentScale * scaleFactor;
+  if (targetScale < minScale || targetScale > maxScale) return null;
+
+  final center = container.center(Offset.zero);
+  final translation = matrix.getTranslation();
+
+  return matrix.clone()
+    ..setEntry(0, 0, targetScale)
+    ..setEntry(1, 1, targetScale)
+    ..setEntry(2, 2, targetScale)
+    ..setTranslationRaw(
+      center.dx + (translation.x - center.dx) * scaleFactor,
+      center.dy + (translation.y - center.dy) * scaleFactor,
+      translation.z,
+    );
+}
+
+bool _qualifiesForSnap(double ratio) =>
+    ratio >= 1 - _kSnapToFitTolerance && ratio <= 1 + _kSnapToFitTolerance;
+
+double _scale2D(Matrix4 matrix) {
+  final scaleX = matrix.entry(0, 0);
+  final scaleY = matrix.entry(1, 0);
+  return sqrt(scaleX * scaleX + scaleY * scaleY);
+}
+
+bool _approximatelySameZoom(double first, double second) =>
+    (first - second).abs() <= _scaledZoomTolerance(second);
+
+double _scaledZoomTolerance(double scale) =>
+    _kZoomStateTolerance * max(1, scale.abs());
 
 Matrix4? _constrainPanToContent({
   required Matrix4 matrix,

@@ -6,10 +6,11 @@ import 'package:kurumi/material.dart';
 // Project imports:
 import '../../../core/configs/auth/widgets.dart';
 import '../../../core/configs/config/providers.dart';
+import '../../../core/configs/config/types.dart';
 import '../../../core/posts/favorites/providers.dart';
 import '../../../core/posts/favorites/widgets.dart';
+import '../../../core/posts/post/providers.dart';
 import '../configs/providers.dart';
-import '../posts/providers.dart';
 
 class Shimmie2FavoritesPage extends ConsumerWidget {
   const Shimmie2FavoritesPage({super.key});
@@ -39,10 +40,10 @@ class Shimmie2FavoritesPageContent extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final config = ref.watchConfigSearch;
+    final config = ref.watchConfig;
     final query = username.isNotEmpty ? 'favorited_by=$username' : '';
     final notifier = ref.watch(favoritesProvider(config.auth).notifier);
-    final repo = ref.watch(shimmie2PostRepoProvider(config));
+    final repo = ref.watch(originAwarePostRepoProvider(config));
 
     return FavoritesPageScaffold(
       favQueryBuilder: () => query,

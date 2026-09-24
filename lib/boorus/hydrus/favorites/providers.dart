@@ -37,7 +37,7 @@ final ratingServiceNameProvider =
     });
 
 final hydrusFavoriteRepoProvider =
-    Provider.family<FavoriteRepository<HydrusPost>, BooruConfigAuth>(
+    Provider.family<FavoriteRepository<Post>, BooruConfigAuth>(
       (ref, config) {
         final client = ref.watch(hydrusClientProvider(config));
 

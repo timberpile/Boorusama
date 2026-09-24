@@ -11,7 +11,7 @@ import '../post_votes/providers.dart';
 import '../posts/types.dart';
 
 final szurubooruFavoriteRepoProvider =
-    Provider.family<FavoriteRepository<SzurubooruPost>, BooruConfigAuth>(
+    Provider.family<FavoriteRepository<Post>, BooruConfigAuth>(
       (ref, config) {
         final client = ref.watch(szurubooruClientProvider(config));
         final loginDetails = ref.watch(szurubooruLoginDetailsProvider(config));

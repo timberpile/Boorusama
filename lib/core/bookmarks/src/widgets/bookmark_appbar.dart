@@ -8,7 +8,7 @@ import 'package:material_symbols_icons/symbols.dart';
 // Project imports:
 import '../../../configs/config/providers.dart';
 import '../../../posts/listing/providers.dart';
-import '../data/bookmark_convert.dart';
+import '../../../posts/post/types.dart';
 import '../providers/bookmark_provider.dart';
 import '../providers/local_providers.dart';
 
@@ -19,7 +19,7 @@ class BookmarkAppBar extends ConsumerWidget {
     super.key,
   });
 
-  final PostGridController<BookmarkPost> controller;
+  final PostGridController<Post> controller;
   final String? title;
 
   @override
@@ -57,10 +57,16 @@ class BookmarkAppBar extends ConsumerWidget {
                       KurumiPopupMenuItem(
                         title: Text('Download ${posts.length} bookmarks'.hc),
                         onTap: () {
+                          final library = ref
+                              .read(bookmarkProvider)
+                              .valueOrNull;
                           ref.bookmarks.downloadBookmarks(
                             auth,
                             download,
-                            controller.items.map((e) => e.bookmark).toList(),
+                            controller.items
+                                .map((post) => library?.bookmarkForPost(post))
+                                .nonNulls
+                                .toList(),
                           );
                         },
                       ),

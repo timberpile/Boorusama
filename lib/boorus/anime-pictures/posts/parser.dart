@@ -2,16 +2,18 @@
 import 'package:booru_clients/anime_pictures.dart';
 
 // Project imports:
+import '../../../core/boorus/booru/types.dart';
 import '../../../core/posts/post/types.dart';
 import '../../../core/posts/rating/types.dart';
 import '../../../core/posts/sources/types.dart';
+import 'post_codec.dart';
 import 'types.dart';
 
-AnimePicturesPost dtoToAnimePicturesPost(
+Post dtoToAnimePicturesPost(
   PostDto e, {
   PostMetadata? metadata,
 }) {
-  return AnimePicturesPost(
+  final record = AnimePicturesPostRecord(
     id: e.id ?? 0,
     thumbnailImageUrl: e.mediumPreview ?? '',
     sampleImageUrl: e.bigPreview ?? '',
@@ -47,6 +49,10 @@ AnimePicturesPost dtoToAnimePicturesPost(
       value: e.status,
       type: e.statusType,
     ),
+  );
+  return animePicturesPostFromRecord(
+    record,
+    PostOrigin.forBooruType(BooruType.animePictures),
   );
 }
 

@@ -4,14 +4,17 @@ import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 
 // Project imports:
-import '../../../../posts/post/types.dart';
+import '../../../../../../core/configs/config/types.dart';
+import '../../../../../../core/configs/manage/widgets.dart';
+import '../../../../../../core/posts/post/types.dart';
 import '../pages/add_to_favorite_group_page.dart';
 import '../pages/create_favorite_group_sheet.dart';
 import '../types/danbooru_favorite_group.dart';
 
 Future<bool?> goToAddToFavoriteGroupSelectionPage(
   BuildContext context,
-  List<DanbooruPost> posts,
+  List<Post> posts,
+  BooruConfig config,
 ) {
   return Kurumi.showModalBottomSheet<bool>(
     context: context,
@@ -20,14 +23,18 @@ Future<bool?> goToAddToFavoriteGroupSelectionPage(
       name: 'add_to_favorite_group',
     ),
     useSafeArea: true,
-    builder: (_) => AddToFavoriteGroupPage(
-      posts: posts,
+    builder: (_) => CurrentBooruConfigScope(
+      config: config,
+      child: AddToFavoriteGroupPage(
+        posts: posts,
+      ),
     ),
   );
 }
 
 Future<Object?> goToFavoriteGroupCreatePage(
-  BuildContext context, {
+  BuildContext context,
+  BooruConfig config, {
   bool enableManualPostInput = true,
 }) {
   return Kurumi.showAppModalBottomSheet(
@@ -36,9 +43,12 @@ Future<Object?> goToFavoriteGroupCreatePage(
     routeSettings: const RouteSettings(
       name: 'favorite_group_create',
     ),
-    builder: (_) => EditFavoriteGroupSheet(
-      title: context.t.favorite_groups.create_group,
-      enableManualDataInput: enableManualPostInput,
+    builder: (_) => CurrentBooruConfigScope(
+      config: config,
+      child: EditFavoriteGroupSheet(
+        title: context.t.favorite_groups.create_group,
+        enableManualDataInput: enableManualPostInput,
+      ),
     ),
   );
 }
@@ -46,6 +56,7 @@ Future<Object?> goToFavoriteGroupCreatePage(
 Future<Object?> goToFavoriteGroupEditPage(
   BuildContext context,
   DanbooruFavoriteGroup group,
+  BooruConfig config,
 ) {
   return Kurumi.showAppModalBottomSheet(
     context: context,
@@ -53,9 +64,12 @@ Future<Object?> goToFavoriteGroupEditPage(
     routeSettings: const RouteSettings(
       name: 'favorite_group_edit',
     ),
-    builder: (_) => EditFavoriteGroupSheet(
-      initialData: group,
-      title: context.t.favorite_groups.edit_group,
+    builder: (_) => CurrentBooruConfigScope(
+      config: config,
+      child: EditFavoriteGroupSheet(
+        initialData: group,
+        title: context.t.favorite_groups.edit_group,
+      ),
     ),
   );
 }

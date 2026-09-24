@@ -10,21 +10,16 @@ abstract interface class PostMediaAspectRatios {
 }
 
 extension PostMediaAspectRatioX on Post {
-  PostMediaAspectRatios? get _mediaAspectRatios =>
-      this is PostMediaAspectRatios ? this as PostMediaAspectRatios : null;
-
   double? get effectiveThumbnailAspectRatio =>
-      _mediaAspectRatios?.thumbnailAspectRatio ?? aspectRatio;
+      thumbnailAspectRatio ?? aspectRatio;
 
-  double? get effectiveSampleAspectRatio =>
-      _mediaAspectRatios?.sampleAspectRatio ?? aspectRatio;
+  double? get effectiveSampleAspectRatio => sampleAspectRatio ?? aspectRatio;
 
   double? get effectiveOriginalAspectRatio =>
-      _mediaAspectRatios?.originalAspectRatio ?? aspectRatio;
+      originalAspectRatio ?? aspectRatio;
 
   double? get effectiveVideoThumbnailAspectRatio =>
-      _mediaAspectRatios?.videoThumbnailAspectRatio ?? aspectRatio;
+      videoThumbnailAspectRatio ?? aspectRatio;
 
-  double? get effectiveVideoAspectRatio =>
-      _mediaAspectRatios?.videoAspectRatio ?? aspectRatio;
+  double? get effectiveVideoAspectRatio => videoAspectRatio ?? aspectRatio;
 }

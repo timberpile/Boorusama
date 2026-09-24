@@ -9,6 +9,7 @@ import '../../../../../../core/artists/types.dart';
 import '../../../../../../core/configs/config/providers.dart';
 import '../../../../../../core/posts/details/types.dart';
 import '../../../../../../core/posts/details_parts/widgets.dart';
+import '../../../../../../core/posts/post/types.dart';
 import '../../../../../../core/widgets/booru_visibility_detector.dart';
 import '../../../../artists/commentaries/providers.dart';
 import '../../../../comments/comment/providers.dart';
@@ -44,7 +45,7 @@ class _DanbooruPoolTilesState extends ConsumerState<DanbooruPoolTiles> {
 
   @override
   Widget build(BuildContext context) {
-    final post = InheritedPost.of<DanbooruPost>(context);
+    final post = InheritedPost.of<Post>(context);
     final params = (ref.watchConfigAuth, post.id);
 
     return MultiSliver(
@@ -77,7 +78,7 @@ class DanbooruInformationSection extends ConsumerWidget {
   const DanbooruInformationSection({super.key});
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final post = InheritedPost.of<DanbooruPost>(context);
+    final post = InheritedPost.of<Post>(context);
 
     return SliverToBoxAdapter(
       child: SimpleInformationSection(
@@ -93,7 +94,7 @@ class DanbooruArtistInfoSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final post = InheritedPost.of<DanbooruPost>(context);
+    final post = InheritedPost.of<Post>(context);
     final params = (ref.watchConfigAuth, post.id);
 
     return SliverToBoxAdapter(
@@ -104,7 +105,7 @@ class DanbooruArtistInfoSection extends ConsumerWidget {
               data: (commentary) => commentary,
               orElse: () => const ArtistCommentary.empty(),
             ),
-        artistTags: post.artistTags,
+        artistTags: post.artistTags ?? const {},
         source: post.source,
       ),
     );
@@ -115,7 +116,7 @@ class DanbooruTagsSection extends ConsumerWidget {
   const DanbooruTagsSection({super.key});
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final post = InheritedPost.of<DanbooruPost>(context);
+    final post = InheritedPost.of<Post>(context);
 
     return SliverToBoxAdapter(
       child: DanbooruTagsTile(post: post),
@@ -127,12 +128,14 @@ class DanbooruStatsSection extends ConsumerWidget {
   const DanbooruStatsSection({super.key});
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final post = InheritedPost.of<DanbooruPost>(context);
+    final post = InheritedPost.of<Post>(context);
+    final data = InheritedPost.presentationOf(context).data<DanbooruPostData>();
     final params = (ref.watchConfigAuth, post.id);
 
     return SliverToBoxAdapter(
       child: DanbooruPostStatsTile(
         post: post,
+        data: data,
         commentCount: ref
             .watch(danbooruCommentCountProvider(params))
             .valueOrNull,
@@ -145,10 +148,11 @@ class DanbooruFileDetailsSection extends ConsumerWidget {
   const DanbooruFileDetailsSection({super.key});
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final post = InheritedPost.of<DanbooruPost>(context);
+    final post = InheritedPost.of<Post>(context);
+    final data = InheritedPost.presentationOf(context).data<DanbooruPostData>();
 
     return SliverToBoxAdapter(
-      child: DanbooruFileDetails(post: post),
+      child: DanbooruFileDetails(post: post, data: data),
     );
   }
 }
@@ -157,12 +161,12 @@ class DanbooruRelatedPostsSection2 extends ConsumerWidget {
   const DanbooruRelatedPostsSection2({super.key});
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final post = InheritedPost.of<DanbooruPost>(context);
+    final post = InheritedPost.of<Post>(context);
 
     return ref
         .watch(
           danbooruPostDetailsChildrenProvider(
-            (ref.watchConfigFilter, ref.watchConfigSearch, post),
+            (ref.watchConfigFilter, ref.watchConfig, post),
           ),
         )
         .maybeWhen(
@@ -179,8 +183,8 @@ class DanbooruCharacterListSection extends ConsumerWidget {
   const DanbooruCharacterListSection({super.key});
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final post = InheritedPost.of<DanbooruPost>(context);
+    final post = InheritedPost.of<Post>(context);
 
-    return SliverCharacterPostList(tags: post.characterTags);
+    return SliverCharacterPostList(tags: post.characterTags ?? const {});
   }
 }

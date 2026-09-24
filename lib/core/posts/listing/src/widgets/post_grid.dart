@@ -13,8 +13,12 @@ import 'package:selection_mode/selection_mode.dart';
 // Project imports:
 import '../../../../../foundation/html.dart';
 import '../../../../boorus/engine/providers.dart';
+import '../../../../boorus/engine/types.dart';
 import '../../../../configs/config/providers.dart';
+import '../../../../configs/config/types.dart';
 import '../../../../configs/create/routes.dart';
+import '../../../../configs/manage/providers.dart';
+import '../../../../configs/manage/widgets.dart';
 import '../../../../configs/search/types.dart';
 import '../../../../errors/providers.dart';
 import '../../../../settings/providers.dart';
@@ -125,11 +129,14 @@ class _PostGridState<T extends Post> extends ConsumerState<PostGrid<T>> {
 
             final multiSelectActions =
                 widget.multiSelectActions ??
-                booruBuilder?.multiSelectionActionsBuilder?.call(
-                  context,
-                  _selectionModeController,
-                  widget.controller,
-                );
+                switch (booruBuilder?.multiSelectionActionsBuilder) {
+                  final builder? => _OriginCompatibleMultiSelectionActions(
+                    selectionModeController: _selectionModeController,
+                    postController: widget.controller,
+                    builder: builder,
+                  ),
+                  null => null,
+                };
 
             return multiSelectActions ?? const SizedBox.shrink();
           },
@@ -210,7 +217,7 @@ class _PostGridState<T extends Post> extends ConsumerState<PostGrid<T>> {
 
                   if (customItem != null) return customItem;
 
-                  return GeneralPostContextMenu(
+                  return PostGridContextMenu(
                     index: index,
                     controller: widget.controller,
                     child: DefaultImageGridItem(
@@ -228,6 +235,137 @@ class _PostGridState<T extends Post> extends ConsumerState<PostGrid<T>> {
     );
   }
 }
+
+class _OriginCompatibleMultiSelectionActions<T extends Post>
+    extends ConsumerWidget {
+  const _OriginCompatibleMultiSelectionActions({
+    required this.selectionModeController,
+    required this.postController,
+    required this.builder,
+  });
+
+  final SelectionModeController selectionModeController;
+  final PostGridController<T> postController;
+  final MultiSelectionActionsBuilder builder;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final config = ref.watchConfig;
+    final configs = ref.watch(booruConfigProvider);
+
+    return ListenableBuilder(
+      listenable: selectionModeController,
+      builder: (context, _) {
+        final selectedPosts = selectionModeController
+            .selectedFrom(postController.items.toList())
+            .toList();
+        final compatible = selectedPosts.every((post) {
+          final resolvedConfig = switch (const PostOriginResolver().resolve(
+            post.origin,
+            configs,
+          )) {
+            ResolvedPostOrigin(config: final resolved) => resolved,
+            _ => null,
+          };
+          if (resolvedConfig?.id != config.id) return false;
+
+          final presentation = ref.watch(
+            booruPostPresentationProvider(
+              PostPresentationRequest(
+                origin: post.origin,
+                data: post.booruData,
+              ),
+            ),
+          );
+          return presentation is! GenericPostPresentation &&
+              presentation.supports(post.booruData);
+        });
+
+        return compatible
+            ? builder(context, selectionModeController, postController)
+            : const SizedBox.shrink();
+      },
+    );
+  }
+}
+
+class PostGridContextMenu extends StatelessWidget {
+  const PostGridContextMenu({
+    required this.controller,
+    required this.index,
+    required this.child,
+    super.key,
+  });
+
+  final PostGridController<Post> controller;
+  final int index;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => ValueListenableBuilder(
+    valueListenable: controller.itemsNotifier,
+    builder: (context, posts, _) => Consumer(
+      builder: (context, ref, _) {
+        final post = index < posts.length ? posts[index] : null;
+        final originResolution = switch (post) {
+          final Post post => const PostOriginResolver().resolve(
+            post.origin,
+            ref.watch(booruConfigProvider),
+          ),
+          _ => null,
+        };
+        final config = switch (originResolution) {
+          ResolvedPostOrigin(:final config) => config,
+          _ => null,
+        };
+        final presentation = switch ((post, config)) {
+          (final Post post, final BooruConfig _) => ref.watch(
+            booruPostPresentationProvider(
+              PostPresentationRequest(
+                origin: post.origin,
+                data: post.booruData,
+              ),
+            ),
+          ),
+          _ => null,
+        };
+
+        final contextMenuPresentation = _contextMenuPresentation(presentation);
+        final Widget menu;
+        if (post case final Post post
+            when config != null &&
+                presentation != null &&
+                contextMenuPresentation != null &&
+                presentation.supports(post.booruData)) {
+          menu = contextMenuPresentation.buildGridContextMenu(
+            context,
+            post: post,
+            index: index,
+            child: child,
+          );
+        } else {
+          menu = GeneralPostContextMenu(
+            index: index,
+            controller: controller,
+            child: child,
+          );
+        }
+
+        return CurrentBooruConfigScope(
+          config: config ?? BooruConfig.empty,
+          child: menu,
+        );
+      },
+    ),
+  );
+}
+
+BooruPostGridContextMenuPresentation? _contextMenuPresentation(
+  Object? presentation,
+) => switch (presentation) {
+  final BooruPostGridContextMenuPresentation presentation => presentation,
+  _ => null,
+};
 
 class PostGridScrollToTopButton extends StatelessWidget {
   const PostGridScrollToTopButton({

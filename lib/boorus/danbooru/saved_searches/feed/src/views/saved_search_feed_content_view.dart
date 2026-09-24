@@ -9,8 +9,8 @@ import 'package:material_symbols_icons/symbols.dart';
 // Project imports:
 import '../../../../../../core/configs/config/providers.dart';
 import '../../../../../../core/posts/listing/widgets.dart';
+import '../../../../../../core/posts/post/providers.dart';
 import '../../../../posts/listing/widgets.dart';
-import '../../../../posts/post/providers.dart';
 import '../../../saved_search/routes.dart';
 import '../../../saved_search/types.dart';
 import '../widgets/saved_search_context_menu.dart';
@@ -35,11 +35,11 @@ class _SavedSearchFeedContentViewState
 
   @override
   Widget build(BuildContext context) {
-    final config = ref.watchConfigSearch;
+    final config = ref.watchConfig;
 
     return PostScope(
       fetcher: (page) => ref
-          .read(danbooruPostRepoProvider(config))
+          .read(originAwarePostRepoProvider(config))
           .getPosts(_selectedSearch.toQuery(), page),
       builder: (context, controller) => PostGrid(
         controller: controller,

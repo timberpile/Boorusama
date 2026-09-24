@@ -3,12 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Project imports:
 import '../../../../../../core/configs/config/providers.dart';
+import '../../../../../../core/configs/manage/providers.dart';
 import '../../../../../../core/posts/post/providers.dart';
 import '../../../../../../core/posts/post/types.dart';
 import '../../../../../../core/tags/categories/types.dart';
 import '../../../../../../foundation/riverpod/riverpod.dart';
-import '../../../../posts/post/providers.dart';
-import '../../../../posts/post/types.dart';
 import '../../../../reports/providers.dart';
 import '../../../../reports/types.dart';
 import '../../../../tags/related/providers.dart';
@@ -19,7 +18,7 @@ import '../types/upload_date_range.dart';
 typedef DanbooruUserUploadParams = ({String username, int uploadCount});
 
 final danbooruUserUploadsProvider =
-    FutureProvider.family<List<DanbooruPost>, DanbooruUserUploadParams>((
+    FutureProvider.family<List<Post>, DanbooruUserUploadParams>((
       ref,
       params,
     ) async {
@@ -29,9 +28,9 @@ final danbooruUserUploadsProvider =
       final name = params.username;
 
       if (uploadCount == 0) return [];
-      final config = ref.watchConfigSearch;
+      final config = ref.watchConfig;
 
-      final repo = ref.watch(danbooruPostRepoProvider(config));
+      final repo = ref.watch(originAwarePostRepoProvider(config));
       final uploads = await repo.getPostsFromTagsOrEmpty(
         'user:$name',
         limit: 50,
@@ -39,7 +38,7 @@ final danbooruUserUploadsProvider =
       );
 
       return uploads.posts;
-    });
+    }, dependencies: [currentReadOnlyBooruConfigProvider]);
 
 final selectedUploadDateRangeSelectorTypeProvider =
     StateProvider.autoDispose<UploadDateRange>(
@@ -92,7 +91,7 @@ final userDataProvider = FutureProvider.autoDispose
       data.sort((a, b) => a.date.compareTo(b.date));
 
       return data;
-    });
+    }, dependencies: [currentReadOnlyBooruConfigAuthProvider]);
 
 final userCopyrightDataProvider =
     FutureProvider.family<DanbooruRelatedTag, DanbooruCopyrightDataParams>((
@@ -110,6 +109,6 @@ final userCopyrightDataProvider =
             order: RelatedType.frequency,
             category: TagCategory.copyright(),
           );
-    });
+    }, dependencies: [currentReadOnlyBooruConfigAuthProvider]);
 
 typedef DanbooruCopyrightDataParams = ({String username, int uploadCount});

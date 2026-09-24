@@ -6,13 +6,13 @@ class InfiniteScrollListener extends StatefulWidget {
     required this.scrollController,
     required this.onBottomReached,
     super.key,
-    this.threshold = 0.95,
+    this.prefetchExtentFactor = 2,
     this.child,
   });
 
   final ScrollController scrollController;
   final VoidCallback? onBottomReached;
-  final double threshold;
+  final double prefetchExtentFactor;
   final Widget? child;
 
   @override
@@ -49,11 +49,10 @@ class _InfiniteScrollListenerState extends State<InfiniteScrollListener> {
     if (!widget.scrollController.hasClients) return;
 
     final position = widget.scrollController.position;
-    final maxScroll = position.maxScrollExtent;
-    final currentScroll = widget.scrollController.offset;
-    final thresholdPosition = maxScroll * widget.threshold;
+    final prefetchExtent =
+        position.viewportDimension * widget.prefetchExtentFactor;
 
-    if (currentScroll >= thresholdPosition) {
+    if (position.extentAfter <= prefetchExtent) {
       callback();
     }
   }

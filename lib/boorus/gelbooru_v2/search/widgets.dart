@@ -5,10 +5,11 @@ import 'package:rich_text_controller/rich_text_controller.dart';
 
 // Project imports:
 import '../../../core/configs/config/providers.dart';
+import '../../../core/configs/config/types.dart';
+import '../../../core/posts/post/providers.dart';
 import '../../../core/search/search/routes.dart';
 import '../../../core/search/search/widgets.dart';
 import '../../../core/tags/metatag/widgets.dart';
-import '../posts/providers.dart';
 import '../tags/providers.dart';
 
 class GelbooruV2SearchPage extends ConsumerWidget {
@@ -21,8 +22,8 @@ class GelbooruV2SearchPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final config = ref.watchConfigSearch;
-    final postRepo = ref.watch(gelbooruV2PostRepoProvider(config));
+    final config = ref.watchConfig;
+    final postRepo = ref.watch(originAwarePostRepoProvider(config));
     final metatagPattern = ref.watch(
       gelbooruV2MetatagRegexProvider(config.auth),
     );

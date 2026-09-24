@@ -1,24 +1,17 @@
 // Package imports:
 import 'package:cache_manager/cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 import 'package:scroll_to_index/scroll_to_index.dart';
 import 'package:selection_mode/selection_mode.dart';
 
 // Project imports:
-import '../../../../configs/config/providers.dart';
 import '../../../../configs/config/types.dart';
-import '../../../../images/booru_image.dart';
-import '../../../../settings/providers.dart';
 import '../../../details/routes.dart';
 import '../../../post/types.dart';
 import '../../../post/widgets.dart';
-import '../../widgets.dart';
-import '../providers/providers.dart';
-import '../types/grid_thumbnail_url_generator.dart';
-import '../types/image_list_type.dart';
 import 'post_grid_controller.dart';
+import 'post_grid_item.dart';
 
 class DefaultImageGridItem<T extends Post> extends StatelessWidget {
   const DefaultImageGridItem({
@@ -33,6 +26,7 @@ class DefaultImageGridItem<T extends Post> extends StatelessWidget {
     this.imageUrl,
     this.imageCacheManager,
     this.imageConfig,
+    this.presentation,
   });
 
   final int index;
@@ -45,6 +39,7 @@ class DefaultImageGridItem<T extends Post> extends StatelessWidget {
   final ImageCacheManager? imageCacheManager;
   final BooruConfigAuth config;
   final BooruConfigAuth? imageConfig;
+  final BooruPostPresentation? presentation;
 
   @override
   Widget build(BuildContext context) {
@@ -57,132 +52,40 @@ class DefaultImageGridItem<T extends Post> extends StatelessWidget {
         builder: (_, posts, _) {
           final multiSelect = selectionModeController.isActive;
           final post = posts[index];
-          return HeroMode(
-            enabled: useHero,
-            child: KurumiHero(
-              tag: '${post.id}_hero',
-              child: ExplicitContentBlockOverlay(
-                rating: post.rating,
-                child: Builder(
-                  builder: (context) {
-                    final item = Consumer(
-                      builder: (_, ref, _) {
-                        final config = ref.watchConfigAuth;
-
-                        final gridThumbnailUrlBuilder = ref.watch(
-                          gridThumbnailUrlGeneratorProvider(config),
-                        );
-
-                        final thumbnailSettings = ref.watch(
-                          gridThumbnailSettingsProvider(config),
-                        );
-                        final media = imageUrl != null
-                            ? GridThumbnailMedia(
-                                url: imageUrl!,
-                                aspectRatio: post.aspectRatio,
-                                placeholderUrl: post.thumbnailImageUrl,
-                                placeholderAspectRatio: post.aspectRatio,
-                              )
-                            : gridThumbnailUrlBuilder.resolve(
-                                post,
-                                settings: thumbnailSettings,
-                              );
-
-                        return SliverPostGridImageGridItem(
-                          post: post,
-                          index: index,
-                          multiSelectEnabled: multiSelect,
-                          onTap:
-                              onTap ??
-                              () {
-                                goToPostDetailsPageFromController(
-                                  ref: ref,
-                                  controller: controller,
-                                  initialIndex: index,
-                                  scrollController: autoScrollController,
-                                  initialThumbnailUrl: media.url,
-                                );
-                              },
-                          quickActionButton: !multiSelect
-                              ? DefaultImagePreviewQuickActionButton(
-                                  post: post,
-                                )
-                              : null,
-                          autoScrollOptions: AutoScrollOptions(
-                            controller: autoScrollController,
-                            index: index,
-                          ),
-                          score: post.score,
-                          image: _Image(
-                            media: media,
-                            imageCacheManager: imageCacheManager,
-                            config: imageConfig,
-                          ),
-                          leadingIcons: leadingIcons,
-                        );
-                      },
-                    );
-
-                    return Consumer(
-                      builder: (_, ref, _) => DefaultTagListPrevewTooltip(
-                        post: post,
-                        config: config,
-                        child: DefaultSelectableItem(
-                          index: index,
-                          post: post,
-                          item: item,
-                          config: config,
-                          indicatorSize: ref.watch(
-                            selectionIndicatorSizeProvider,
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
+          return Consumer(
+            builder: (_, ref, _) => PostGridItem(
+              post: post,
+              index: index,
+              useHero: useHero,
+              multiSelectEnabled: multiSelect,
+              config: config,
+              imageUrl: imageUrl,
+              imageCacheManager: imageCacheManager,
+              imageConfig: imageConfig,
+              leadingIcons: leadingIcons,
+              presentation: presentation,
+              autoScrollOptions: AutoScrollOptions(
+                controller: autoScrollController,
+                index: index,
               ),
+              onTap: (media) {
+                final callback = onTap;
+                if (callback != null) {
+                  callback();
+                  return;
+                }
+                goToPostDetailsPageFromController(
+                  ref: ref,
+                  controller: controller,
+                  initialIndex: index,
+                  scrollController: autoScrollController,
+                  initialThumbnailUrl: media.url,
+                );
+              },
             ),
           );
         },
       ),
-    );
-  }
-}
-
-class _Image<T extends Post> extends ConsumerWidget {
-  const _Image({
-    required this.media,
-    super.key,
-    this.imageCacheManager,
-    this.config,
-  });
-
-  final GridThumbnailMedia media;
-  final ImageCacheManager? imageCacheManager;
-  final BooruConfigAuth? config;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final imageBorderRadius = ref.watch(
-      imageListingSettingsProvider.select((v) => v.imageBorderRadius),
-    );
-    final imageListType = ref.watch(
-      imageListingSettingsProvider.select((v) => v.imageListType),
-    );
-
-    return BooruImage(
-      config: config ?? ref.watchConfigAuth,
-      aspectRatio: media.aspectRatio,
-      imageUrl: media.url,
-      borderRadius: BorderRadius.circular(
-        imageBorderRadius,
-      ),
-      forceCover: imageListType == ImageListType.standard,
-      fit: imageListType == ImageListType.classic ? BoxFit.contain : null,
-      placeholderUrl: media.placeholderUrl,
-      placeholderAspectRatio: media.placeholderAspectRatio,
-      placeholderFit: media.placeholderFit,
-      imageCacheManager: imageCacheManager,
     );
   }
 }

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Project imports:
 import '../../../../../core/configs/config/providers.dart';
+import '../../../../../core/configs/manage/providers.dart';
 import '../../pool/providers.dart';
 import '../../pool/types.dart';
 
@@ -32,4 +33,4 @@ final poolSuggestionsProvider = FutureProvider.autoDispose
         name: query,
         order: DanbooruPoolOrder.postCount,
       );
-    });
+    }, dependencies: [currentReadOnlyBooruConfigAuthProvider]);

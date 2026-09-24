@@ -27,6 +27,16 @@ class _DanbooruCreatorPreloaderState
   @override
   void initState() {
     super.initState();
+    _loadCreators();
+  }
+
+  @override
+  void didUpdateWidget(covariant DanbooruCreatorPreloader oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.preloadable != widget.preloadable) _loadCreators();
+  }
+
+  void _loadCreators() {
     ref
         .read(danbooruCreatorsProvider(ref.readConfigAuth).notifier)
         .load(widget.preloadable.userIds);

@@ -56,6 +56,7 @@ class PostDetailsPageScaffold<T extends Post> extends ConsumerStatefulWidget {
     this.preferredParts,
     this.preferredPreviewParts,
     this.enableViewerTransformations = true,
+    this.viewerWarning,
   });
 
   final List<T> posts;
@@ -72,6 +73,7 @@ class PostDetailsPageScaffold<T extends Post> extends ConsumerStatefulWidget {
   final List<Widget> actions;
   final PostGestureHandlerBuilder? postGestureHandlerBuilder;
   final bool enableViewerTransformations;
+  final Widget? viewerWarning;
 
   @override
   ConsumerState<PostDetailsPageScaffold<T>> createState() =>
@@ -417,6 +419,11 @@ class _PostDetailPageScaffoldState<T extends Post>
                   },
                 ),
               ),
+              if (widget.viewerWarning case final warning?)
+                Align(
+                  alignment: Alignment.topCenter,
+                  child: warning,
+                ),
             ],
           ),
         ),

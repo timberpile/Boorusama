@@ -50,6 +50,12 @@ for (final c in cases) {
 - NEVER perform GitHub actions on any repository other than `timberpile/Boorusama`. Always target `timberpile/Boorusama` explicitly in GitHub CLI commands. For every other repository, provide manual instructions instead of taking action.
 - Read `docs/development_workflow.md` before starting repository changes.
 - Direct commits to `develop`, including upstream synchronization merge commits, are allowed only when the user explicitly authorizes them for the current change. This authorization does not carry over to later changes.
+- Except for an explicitly authorized `upstream/master` synchronization, keep
+  every local commit added to `develop` linear. Never merge a feature or fix
+  branch into local `develop`; use the pull request squash workflow, or replay
+  an authorized direct change onto the latest `origin/develop`. Before pushing,
+  verify that `git rev-list --min-parents=2 origin/develop..develop` prints no
+  commits.
 - Without explicit authorization for a direct `develop` commit, use the standard branch and pull-request workflow. Creating a GitHub issue is recommended.
 - Keep GitHub issue descriptions short and proportional to the issue. For a small issue, use a few concise sentences or bullets covering the problem, relevant reproduction context, and expected behavior. Avoid long paragraphs and implementation narratives unless needed to understand the issue.
 - Do not include validation reports, test counts or results, static-analysis results, testing tool logs, or development history in issue descriptions. Keep verification details in work reports or review discussions instead.

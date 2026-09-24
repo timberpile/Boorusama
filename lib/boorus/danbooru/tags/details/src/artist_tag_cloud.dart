@@ -6,6 +6,7 @@ import 'package:kurumi/material.dart';
 // Project imports:
 import '../../../../../core/configs/config/providers.dart';
 import '../../../../../core/configs/config/types.dart';
+import '../../../../../core/configs/manage/providers.dart';
 import '../../../../../core/search/search/routes.dart';
 import '../../../../../core/tags/related/widgets.dart';
 import '../../../../../core/tags/tag/providers.dart';
@@ -30,6 +31,7 @@ final danbooruRelatedTagCloudProvider = FutureProvider.autoDispose
 
         return sorted.take(_kTagCloudTotal).toList();
       },
+      dependencies: [currentReadOnlyBooruConfigAuthProvider],
     );
 
 typedef TagColorParams = ({String categories, BooruConfigAuth auth});

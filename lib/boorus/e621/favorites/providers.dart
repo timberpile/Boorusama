@@ -10,7 +10,7 @@ import '../configs/providers.dart';
 import '../posts/types.dart';
 
 final e621FavoriteRepoProvider =
-    Provider.family<FavoriteRepository<E621Post>, BooruConfigAuth>(
+    Provider.family<FavoriteRepository<Post>, BooruConfigAuth>(
       (ref, config) {
         final client = ref.watch(e621ClientProvider(config));
         final loginDetails = ref.watch(e621LoginDetailsProvider(config));

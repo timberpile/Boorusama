@@ -90,7 +90,7 @@ class CommonPostButtonsBuilder extends ConsumerWidget {
             onPressed: () => goToShowTaglistPage(
               ref,
               post,
-              auth: config,
+              config: ref.readConfig,
             ),
           ),
       if (!loadOriginalOnZoom && post.hasFullView && onLoadOriginal != null)

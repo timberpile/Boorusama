@@ -85,8 +85,8 @@ final szurubooruTagExtractorProvider =
           tagCache: ref.watch(tagCacheRepositoryProvider.future),
           sorter: TagSorter.defaults(),
           fetcher: (post, options) {
-            if (post case final SzurubooruPost szurubooruPost) {
-              return szurubooruPost.tagDetails;
+            if (post.szurubooruData != null) {
+              return post.tagDetails;
             } else {
               return TagExtractor.extractTagsFromGenericPost(post);
             }

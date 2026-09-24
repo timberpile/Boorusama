@@ -12,7 +12,7 @@ import '../widgets/modal_favorite_group_action.dart';
 void showFavgroupEditSheet(
   BuildContext context,
   DanbooruFavoriteGroup favGroup,
-  BooruConfigSearch config,
+  BooruConfig config,
 ) {
   Kurumi.showModalBottomSheet(
     context: context,
@@ -25,7 +25,7 @@ void showFavgroupEditSheet(
           favGroup: favGroup,
         ),
       ),
-      onEdit: () => goToFavoriteGroupEditPage(context, favGroup),
+      onEdit: () => goToFavoriteGroupEditPage(context, favGroup, config),
     ),
   );
 }

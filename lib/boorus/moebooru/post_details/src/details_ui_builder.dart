@@ -6,7 +6,7 @@ import 'package:kurumi/material.dart';
 import '../../../../core/posts/details/types.dart';
 import '../../../../core/posts/details_parts/types.dart';
 import '../../../../core/posts/details_parts/widgets.dart';
-import '../../posts/types.dart';
+import '../../../../core/posts/post/types.dart';
 import '../providers.dart';
 import 'widgets/comment_section.dart';
 import 'widgets/file_details_section.dart';
@@ -22,20 +22,19 @@ final moebooruPostDetailsUIBuilder = PostDetailsUIBuilder(
   full: {
     DetailsPart.info: (context) => const MoebooruInformationSection(),
     DetailsPart.toolbar: (context) => const MoebooruPostDetailsActionToolbar(),
-    DetailsPart.tags: (context) =>
-        const DefaultInheritedTagsTile<MoebooruPost>(),
+    DetailsPart.tags: (context) => const DefaultInheritedTagsTile<Post>(),
     DetailsPart.fileDetails: (context) =>
-        const DefaultInheritedFileDetailsSection<MoebooruPost>(
+        const DefaultInheritedFileDetailsSection<Post>(
           uploader: MoebooruUploaderFileDetailTile(),
         ),
     DetailsPart.artistPosts: (context) =>
-        const DefaultInheritedArtistPostsSection<MoebooruPost>(),
+        const DefaultInheritedArtistPostsSection<Post>(),
     DetailsPart.uploaderPosts: (context) =>
         const MoebooruUploaderPostsSection(),
     DetailsPart.relatedPosts: (context) => const MoebooruRelatedPostsSection(),
     DetailsPart.comments: (context) => const MoebooruCommentSection(),
     DetailsPart.characterList: (context) =>
-        const DefaultInheritedCharacterPostsSection<MoebooruPost>(),
+        const DefaultInheritedCharacterPostsSection<Post>(),
   },
 );
 
@@ -44,9 +43,9 @@ class MoebooruUploaderPostsSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final post = InheritedPost.of<MoebooruPost>(context);
+    final post = InheritedPost.of<Post>(context);
 
-    return UploaderPostsSection<MoebooruPost>(
+    return UploaderPostsSection<Post>(
       query: ref.watch(
         moebooruUploaderQueryProvider(post),
       ),

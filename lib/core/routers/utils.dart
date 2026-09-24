@@ -7,6 +7,7 @@ import '../../foundation/display.dart';
 import '../boorus/engine/providers.dart';
 import '../comments/routes.dart';
 import '../configs/config/providers.dart';
+import '../configs/config/types.dart';
 import '../posts/post/types.dart';
 import '../router.dart';
 import '../tags/favorites/providers.dart';
@@ -29,6 +30,7 @@ void goToArtistPage(
         kArtistNameKey: artistName,
       },
     ).toString(),
+    extra: ref.readConfig,
   );
 }
 
@@ -42,6 +44,7 @@ void goToCharacterPage(WidgetRef ref, String character) {
         kCharacterNameKey: character,
       },
     ).toString(),
+    extra: ref.readConfig,
   );
 }
 
@@ -62,17 +65,19 @@ Future<Object?> goToFavoriteTagImportPage(
 }
 
 void goToCommentPage(BuildContext context, WidgetRef ref, Post post) {
+  final config = ref.readConfig;
   final builder = ref
-      .read(booruBuilderProvider(ref.watchConfigAuth))
+      .read(booruBuilderProvider(config.auth))
       ?.commentPageBuilder;
 
   if (builder == null) return;
 
   showCommentPage(
     context,
+    config: config,
     settings: const RouteSettings(
       name: RouterPageConstant.comment,
     ),
-    builder: (_, useAppBar) => builder(context, useAppBar, post),
+    builder: (context, useAppBar) => builder(context, useAppBar, post),
   );
 }

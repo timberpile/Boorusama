@@ -6,8 +6,10 @@ import '../../../../boorus/engine/providers.dart';
 import '../../../../configs/config/types.dart';
 import '../types/post_link_generator.dart';
 import '../types/post_repository.dart';
+import '../types/post.dart';
 import 'post_link_generator_impl.dart';
 import 'post_repository_impl.dart';
+import 'origin_aware_post_repository.dart';
 
 final emptyPostRepoProvider = Provider<PostRepository>(
   (ref) => EmptyPostRepository(),
@@ -28,6 +30,20 @@ final postRepoProvider = Provider.family<PostRepository, BooruConfigSearch>(
     return ref.watch(emptyPostRepoProvider);
   },
 );
+
+final originAwarePostRepoProvider =
+    Provider.family<PostRepository<Post>, BooruConfig>((ref, config) {
+      final registry = ref.watch(booruEngineRegistryProvider);
+      final engine = registry.getEngine(config.auth.booruType);
+      final delegate = switch (engine) {
+        final engine? => engine.repository.post(config.search),
+        null => ref.watch(emptyPostRepoProvider),
+      };
+      return OriginAwarePostRepository(
+        delegate: delegate,
+        origin: postOriginFromConfig(config),
+      );
+    }, name: 'originAwarePostRepoProvider');
 
 final postLinkGeneratorProvider =
     Provider.family<PostLinkGenerator, BooruConfigAuth>(

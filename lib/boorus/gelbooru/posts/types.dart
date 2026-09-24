@@ -1,3 +1,5 @@
+export '../../../core/posts/post/types.dart' show Post;
+
 // Package imports:
 import 'package:equatable/equatable.dart';
 
@@ -5,16 +7,17 @@ import 'package:equatable/equatable.dart';
 import '../../../core/posts/post/types.dart';
 import '../../../core/posts/rating/types.dart';
 import '../../../core/posts/sources/types.dart';
+import '../common/video_thumbnail.dart';
 
-class GelbooruPost extends Equatable
+class GelbooruPostRecord extends Equatable
     with
         MediaInfoMixin,
         TranslatedMixin,
         ImageInfoMixin,
         VideoInfoMixin,
-        NoTagDetailsMixin
-    implements Post {
-  const GelbooruPost({
+        NoTagDetailsRecordMixin
+    implements PostRecord {
+  const GelbooruPostRecord({
     required this.format,
     required this.height,
     required this.id,
@@ -38,7 +41,7 @@ class GelbooruPost extends Equatable
     required this.status,
   }) : _sampleImageUrl = sampleImageUrl;
 
-  factory GelbooruPost.empty() => GelbooruPost(
+  factory GelbooruPostRecord.empty() => GelbooruPostRecord(
     format: '',
     height: 0,
     id: 0,
@@ -127,7 +130,11 @@ class GelbooruPost extends Equatable
   @override
   String get videoUrl => originalImageUrl;
   @override
-  String get videoThumbnailUrl => thumbnailImageUrl;
+  String get videoThumbnailUrl => resolveGelbooruVideoPosterUrl(
+    sampleUrl: _sampleImageUrl,
+    videoUrl: originalImageUrl,
+    thumbnailUrl: thumbnailImageUrl,
+  );
 
   @override
   final int? parentId;

@@ -17,6 +17,8 @@ import '../../core/tags/tag/types.dart';
 import 'client_provider.dart';
 import 'comments/providers.dart';
 import 'favorites/providers.dart';
+import 'posts/post_codec.dart';
+import 'posts/post_data.dart';
 import 'posts/providers.dart';
 import 'tags/providers.dart';
 
@@ -24,6 +26,10 @@ const kEshuushuuCustomDownloadFileNameFormat = '{id}.{extension}';
 
 class EshuushuuRepository extends BooruRepositoryDefault {
   const EshuushuuRepository({required this.ref});
+
+  @override
+  BooruPostDataCodec<EshuushuuPostData> get postDataCodec =>
+      const EshuushuuPostCodec();
 
   @override
   SearchRefreshQueryAdapter searchRefreshQueryAdapter(BooruConfigAuth config) =>

@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:boorusama/boorus/pixiv/posts/link_generator.dart';
 import 'package:boorusama/boorus/pixiv/posts/parser.dart';
 import 'package:boorusama/boorus/pixiv/posts/query.dart';
+import 'package:boorusama/boorus/pixiv/posts/types.dart';
 import 'package:boorusama/core/posts/rating/types.dart';
 
 void main() {

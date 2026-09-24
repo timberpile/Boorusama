@@ -6,10 +6,10 @@ import 'package:kurumi/material.dart';
 // Project imports:
 import '../../../../../core/configs/config/providers.dart';
 import '../../../../../core/posts/listing/widgets.dart';
+import '../../../../../core/posts/post/providers.dart';
 import '../../../../../core/tags/details/widgets.dart';
 import '../../../../../core/tags/tag/types.dart';
 import '../../../posts/listing/widgets.dart';
-import '../../../posts/post/providers.dart';
 import 'artist_tag_cloud.dart';
 
 class DanbooruTagDetailsPage extends ConsumerStatefulWidget {
@@ -35,8 +35,8 @@ class _DanbooruTagDetailsPageState
 
   @override
   Widget build(BuildContext context) {
-    final config = ref.watchConfigSearch;
-    final postRepo = ref.watch(danbooruPostRepoProvider(config));
+    final config = ref.watchConfig;
+    final postRepo = ref.watch(originAwarePostRepoProvider(config));
 
     return PostScope(
       fetcher: (page) => postRepo.getPosts(

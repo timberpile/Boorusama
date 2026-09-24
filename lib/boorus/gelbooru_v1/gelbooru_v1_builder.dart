@@ -11,7 +11,9 @@ import '../../core/configs/config/types.dart';
 import '../../core/configs/create/widgets.dart';
 import '../../core/configs/manage/widgets.dart';
 import '../../core/downloads/filename/types.dart';
+import '../../core/posts/details/widgets.dart';
 import '../../core/posts/details_parts/types.dart';
+import '../../core/posts/post/types.dart';
 import '../../core/posts/post/providers.dart';
 import '../../core/search/search/routes.dart';
 import '../../core/search/search/widgets.dart';
@@ -20,6 +22,12 @@ import 'configs/widgets.dart';
 
 class GelbooruV1Builder extends BaseBooruBuilder {
   GelbooruV1Builder();
+
+  @override
+  late final postPresentation = TypedBooruPostPresentation<EmptyPostData>(
+    typeKey: 'gelbooru_v1',
+    uiBuilder: postDetailsUIBuilder,
+  );
 
   @override
   CreateConfigPageBuilder get createConfigPageBuilder =>
@@ -65,6 +73,12 @@ class GelbooruV1Builder extends BaseBooruBuilder {
       kFallbackPostDetailsUIBuilder;
 
   @override
+  PostDetailsPageBuilder get postDetailsPageBuilder =>
+      (context, payload) => MixedPostDetailsPageAdapter(
+        payload: payload,
+      );
+
+  @override
   CreateUnknownBooruWidgetsBuilder get unknownBooruWidgetsBuilder =>
       (context) => const AnonUnknownBooruWidgets();
 }
@@ -79,7 +93,7 @@ class GelbooruV1SearchPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final postRepo = ref.watch(postRepoProvider(ref.watchConfigSearch));
+    final postRepo = ref.watch(originAwarePostRepoProvider(ref.watchConfig));
 
     return SearchPageScaffold(
       landingViewBuilder: (controller) => DefaultMobileSearchLandingView(

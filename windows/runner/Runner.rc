@@ -52,7 +52,11 @@ END
 
 // Icon with lowest ID value placed first to ensure application icon
 // remains consistent on all systems.
+#ifdef BOORUSAMA_DEV_ICON
+IDI_APP_ICON            ICON                    "resources\\app_icon_dev.ico"
+#else
 IDI_APP_ICON            ICON                    "resources\\app_icon.ico"
+#endif
 
 
 /////////////////////////////////////////////////////////////////////////////

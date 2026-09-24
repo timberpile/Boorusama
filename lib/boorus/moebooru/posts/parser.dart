@@ -2,22 +2,24 @@
 import 'package:booru_clients/moebooru.dart';
 
 // Project imports:
+import '../../../core/boorus/booru/types.dart';
 import '../../../core/posts/post/tags.dart';
 import '../../../core/posts/post/types.dart';
 import '../../../core/posts/rating/types.dart';
 import '../../../core/posts/sources/types.dart';
+import 'post_codec.dart';
 import 'types.dart';
 
-MoebooruPost postDtoToPostNoMetadata(PostDto postDto) {
+Post postDtoToPostNoMetadata(PostDto postDto) {
   return postDtoToPost(postDto, null);
 }
 
-MoebooruPost postDtoToPost(PostDto postDto, PostMetadata? metadata) {
+Post postDtoToPost(PostDto postDto, PostMetadata? metadata) {
   final hasChildren = postDto.hasChildren ?? false;
   final hasParent = postDto.parentId != null;
   final hasParentOrChildren = hasChildren || hasParent;
 
-  return MoebooruPost(
+  final record = MoebooruPostRecord(
     id: postDto.id ?? 0,
     thumbnailImageUrl: postDto.previewUrl ?? '',
     largeImageUrl: postDto.jpegUrl ?? '',
@@ -43,5 +45,9 @@ MoebooruPost postDtoToPost(PostDto postDto, PostMetadata? metadata) {
     uploaderName: postDto.author,
     metadata: metadata,
     status: StringPostStatus.tryParse(postDto.status),
+  );
+  return moebooruPostFromRecord(
+    record,
+    PostOrigin.forBooruType(BooruType.moebooru),
   );
 }

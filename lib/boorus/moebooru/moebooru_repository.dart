@@ -20,11 +20,17 @@ import 'autocompletes/providers.dart';
 import 'comments/providers.dart';
 import 'configs/providers.dart';
 import 'downloads/providers.dart';
+import 'posts/post_codec.dart';
+import 'posts/post_data.dart';
 import 'posts/providers.dart';
 import 'tags/providers.dart';
 
 class MoebooruRepository extends BooruRepositoryDefault {
   const MoebooruRepository({required this.ref});
+
+  @override
+  BooruPostDataCodec<MoebooruPostData> get postDataCodec =>
+      const MoebooruPostCodec();
 
   @override
   SearchRefreshQueryAdapter searchRefreshQueryAdapter(BooruConfigAuth config) =>

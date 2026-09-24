@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 // Project imports:
 import '../../../../../../core/configs/config/providers.dart';
 import '../../../../../../core/configs/config/types.dart';
+import '../../../../../../core/configs/manage/providers.dart';
 import '../../../../../../core/posts/post/types.dart';
 import '../../../../posts/post/providers.dart';
 import '../../../../posts/post/types.dart';
@@ -25,7 +26,7 @@ final danbooruFavoriteGroupPreviewProvider = Provider.autoDispose
       final config = ref.watchConfigSearch;
       return ref.watch(danbooruFavoriteGroupPreviewsProvider(config))[postId] ??
           '';
-    });
+    }, dependencies: [currentReadOnlyBooruConfigSearchProvider]);
 
 class FavoriteGroupPreviewsNotifier
     extends FamilyNotifier<Map<int, String>, BooruConfigSearch> {
@@ -46,7 +47,7 @@ class FavoriteGroupPreviewsNotifier
         .run()
         .then(
           (value) => value.fold(
-            (l) => <DanbooruPost>[].toResult(),
+            (l) => <Post>[].toResult(),
             (r) => r,
           ),
         );

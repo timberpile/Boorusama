@@ -1,8 +1,10 @@
+export '../../../core/posts/post/types.dart' show Post;
+
 // Project imports:
 import '../../../core/posts/post/types.dart';
 
-class HybooruPost extends SimplePost {
-  HybooruPost({
+class HybooruPostRecord extends CommonPostRecord {
+  HybooruPostRecord({
     required super.id,
     required super.thumbnailImageUrl,
     required super.sampleImageUrl,

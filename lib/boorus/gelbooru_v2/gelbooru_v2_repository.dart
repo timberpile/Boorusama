@@ -29,6 +29,7 @@ import '../../core/settings/providers.dart';
 import '../../core/tags/autocompletes/types.dart';
 import '../../core/tags/metatag/types.dart';
 import '../../core/tags/tag/types.dart';
+import '../gelbooru/common/grid_thumbnail_url.dart';
 import '../gelbooru/tags/providers.dart';
 import 'client_provider.dart';
 import 'comments/providers.dart';
@@ -36,13 +37,20 @@ import 'configs/providers.dart';
 import 'favorites/providers.dart';
 import 'gelbooru_v2_provider.dart';
 import 'notes/providers.dart';
+import 'posts/post_codec.dart';
+import 'posts/post_data.dart';
 import 'posts/providers.dart';
+import 'posts/grid_thumbnail_url.dart';
 import 'posts/types.dart';
 import 'syntax/providers.dart';
 import 'tags/providers.dart';
 
 class GelbooruV2Repository extends BooruRepositoryDefault {
   const GelbooruV2Repository({required this.ref});
+
+  @override
+  BooruPostDataCodec<GelbooruV2PostData> get postDataCodec =>
+      const GelbooruV2PostCodec();
 
   @override
   SearchRefreshQueryAdapter searchRefreshQueryAdapter(BooruConfigAuth config) {
@@ -109,7 +117,7 @@ class GelbooruV2Repository extends BooruRepositoryDefault {
 
   @override
   DownloadFilenameGenerator downloadFilenameBuilder(BooruConfigAuth config) {
-    return DownloadFileNameBuilder<GelbooruV2Post>(
+    return DownloadFileNameBuilder<Post>(
       defaultFileNameFormat: kDefaultCustomDownloadFileNameFormat,
       defaultBulkDownloadFileNameFormat: kDefaultCustomDownloadFileNameFormat,
       sampleData: kDanbooruPostSamples,
@@ -152,8 +160,12 @@ class GelbooruV2Repository extends BooruRepositoryDefault {
         false;
 
     return thumbnailOnly
-        ? const DefaultGridThumbnailUrlGenerator.thumbnailOnly()
-        : const DefaultGridThumbnailUrlGenerator();
+        ? const DefaultGridThumbnailUrlGenerator(
+            mediaMapper: gelbooruV2ThumbnailOnlyGridThumbnailMedia,
+          )
+        : const DefaultGridThumbnailUrlGenerator(
+            mediaMapper: gelbooruGridThumbnailMedia,
+          );
   }
 
   @override

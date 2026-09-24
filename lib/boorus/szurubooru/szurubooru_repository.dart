@@ -21,11 +21,17 @@ import 'comments/providers.dart';
 import 'configs/providers.dart';
 import 'favorites/providers.dart';
 import 'notes/providers.dart';
+import 'posts/post_codec.dart';
+import 'posts/post_data.dart';
 import 'posts/providers.dart';
 import 'tags/providers.dart';
 
 class SzurubooruRepository extends BooruRepositoryDefault {
   const SzurubooruRepository({required this.ref});
+
+  @override
+  BooruPostDataCodec<SzurubooruPostData> get postDataCodec =>
+      const SzurubooruPostCodec();
 
   @override
   SearchRefreshQueryAdapter searchRefreshQueryAdapter(BooruConfigAuth config) =>

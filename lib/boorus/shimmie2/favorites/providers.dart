@@ -12,7 +12,7 @@ import '../extensions/types.dart';
 import '../posts/types.dart';
 
 final shimmie2FavoriteRepoProvider =
-    Provider.family<FavoriteRepository<Shimmie2Post>, BooruConfigAuth>(
+    Provider.family<FavoriteRepository<Post>, BooruConfigAuth>(
       (ref, config) {
         final client = ref.watch(shimmie2ClientProvider(config));
 

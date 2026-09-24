@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../../core/comments/types.dart';
 import '../../../../../../core/configs/config/providers.dart';
 import '../../../../../../core/configs/config/types.dart';
+import '../../../../../../core/configs/manage/providers.dart';
 import '../../../../../../core/text_markup/providers.dart';
 import '../../../../users/user/providers.dart';
 import '../../../../users/user/types.dart';
@@ -30,7 +31,7 @@ final danbooruCommentProvider = Provider.autoDispose
     .family<List<CommentData>?, int>((ref, postId) {
       final config = ref.watchConfigAuth;
       return ref.watch(danbooruCommentsProvider(config))[postId];
-    });
+    }, dependencies: [currentReadOnlyBooruConfigAuthProvider]);
 
 class CommentsNotifier
     extends FamilyNotifier<Map<int, List<CommentData>?>, BooruConfigAuth> {

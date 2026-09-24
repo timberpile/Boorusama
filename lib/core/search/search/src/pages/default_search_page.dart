@@ -18,7 +18,7 @@ class DefaultSearchPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final postRepo = ref.watch(postRepoProvider(ref.watchConfigSearch));
+    final postRepo = ref.watch(originAwarePostRepoProvider(ref.watchConfig));
 
     return SearchPageScaffold(
       params: params,

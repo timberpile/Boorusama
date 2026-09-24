@@ -2,6 +2,8 @@
 import 'package:kurumi/cupertino.dart';
 
 // Project imports:
+import '../../../../../core/configs/config/types.dart';
+import '../../../../../core/configs/manage/widgets.dart';
 import '../../../../../core/router.dart';
 import '../../types.dart';
 import '../pool_detail_page.dart';
@@ -38,13 +40,29 @@ final szurubooruPoolRoutes = GoRoute(
 
         return largeScreenAwarePageBuilder(
           useDialog: true,
-          builder: (context, state) => SzurubooruPoolDetailPage(
-            poolId: poolId,
-            initialPool: switch (state.extra) {
-              final SzurubooruPool pool => pool,
-              _ => null,
-            },
-          ),
+          builder: (context, state) {
+            final page = SzurubooruPoolDetailPage(
+              poolId: poolId,
+              initialPool: switch (state.extra) {
+                (
+                  pool: final SzurubooruPool pool,
+                  config: final BooruConfig _,
+                ) =>
+                  pool,
+                final SzurubooruPool pool => pool,
+                _ => null,
+              },
+            );
+
+            return switch (state.extra) {
+              (
+                pool: final SzurubooruPool _,
+                config: final BooruConfig config,
+              ) =>
+                CurrentBooruConfigScope(config: config, child: page),
+              _ => page,
+            };
+          },
         )(context, state);
       },
     ),

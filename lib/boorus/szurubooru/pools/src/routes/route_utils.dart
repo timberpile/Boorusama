@@ -2,6 +2,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Project imports:
+import '../../../../../core/configs/config/providers.dart';
 import '../../../../../core/router.dart';
 import '../../types.dart';
 
@@ -23,6 +24,6 @@ void goToSzurubooruPoolDetailPage(WidgetRef ref, SzurubooruPool pool) {
         '${pool.id}',
       ],
     ).toString(),
-    extra: pool,
+    extra: (pool: pool, config: ref.readConfig),
   );
 }

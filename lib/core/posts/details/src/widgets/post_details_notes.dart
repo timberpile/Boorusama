@@ -9,6 +9,69 @@ import '../../../details_pageview/widgets.dart';
 import '../../../post/types.dart';
 import 'post_details_page_view_scope.dart';
 
+class CurrentPostDetailsNotes extends ConsumerStatefulWidget {
+  const CurrentPostDetailsNotes({
+    required this.post,
+    required this.viewerConfig,
+    required this.authConfig,
+    required this.enabled,
+    required this.child,
+    super.key,
+  });
+
+  final Post post;
+  final BooruConfigViewer viewerConfig;
+  final BooruConfigAuth authConfig;
+  final bool enabled;
+  final Widget child;
+
+  @override
+  ConsumerState<CurrentPostDetailsNotes> createState() =>
+      _CurrentPostDetailsNotesState();
+}
+
+class _CurrentPostDetailsNotesState
+    extends ConsumerState<CurrentPostDetailsNotes> {
+  @override
+  void initState() {
+    super.initState();
+    _scheduleLoad();
+  }
+
+  @override
+  void didUpdateWidget(covariant CurrentPostDetailsNotes oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.enabled &&
+        (!widget.enabled || oldWidget.authConfig != widget.authConfig)) {
+      ref.invalidate(notesProvider(oldWidget.authConfig));
+    }
+    if (widget.enabled &&
+        (!oldWidget.enabled ||
+            oldWidget.post != widget.post ||
+            oldWidget.authConfig != widget.authConfig ||
+            oldWidget.viewerConfig != widget.viewerConfig)) {
+      _scheduleLoad();
+    }
+  }
+
+  void _scheduleLoad() => WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (!mounted || !widget.enabled || !widget.viewerConfig.autoFetchNotes) {
+      return;
+    }
+    ref.read(notesProvider(widget.authConfig).notifier).load(widget.post);
+  });
+
+  @override
+  Widget build(BuildContext context) => PopScope(
+    onPopInvokedWithResult: (didPop, result) {
+      if (didPop && widget.enabled) {
+        ref.invalidate(notesProvider(widget.authConfig));
+      }
+    },
+    child: widget.child,
+  );
+}
+
 class PostDetailsNotes<T extends Post> extends ConsumerStatefulWidget {
   const PostDetailsNotes({
     required this.child,

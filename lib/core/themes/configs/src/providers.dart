@@ -19,5 +19,10 @@ final customColorsProvider = Provider<ColorSettings?>(
 
     return hasPremium ? configColors ?? settingsColors : null;
   },
+  dependencies: [
+    currentReadOnlyBooruConfigThemeProvider,
+    hasPremiumProvider,
+    settingsProvider,
+  ],
   name: 'colorsProvider',
 );

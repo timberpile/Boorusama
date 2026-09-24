@@ -34,20 +34,20 @@ final eshuushuuTagExtractorProvider =
           tagCache: ref.watch(tagCacheRepositoryProvider.future),
           sorter: TagSorter.defaults(),
           fetcher: (post, options) {
-            if (post case final EshuushuuPost eshuushuuPost) {
+            if (post.eshuushuuData != null) {
               return [
-                ...?eshuushuuPost.artist?.map(
+                ...?post.artist?.map(
                   (e) => Tag.noCount(name: e, category: TagCategory.artist()),
                 ),
-                ...?eshuushuuPost.characters?.map(
+                ...?post.characters?.map(
                   (e) =>
                       Tag.noCount(name: e, category: TagCategory.character()),
                 ),
-                ...?eshuushuuPost.sourceTags?.map(
+                ...?post.sourceTags?.map(
                   (e) =>
                       Tag.noCount(name: e, category: TagCategory.copyright()),
                 ),
-                ...?eshuushuuPost.generalTags?.map(
+                ...?post.generalTags?.map(
                   (e) => Tag.noCount(name: e, category: TagCategory.general()),
                 ),
               ];

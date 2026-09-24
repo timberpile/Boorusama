@@ -14,6 +14,8 @@ import '../../../selected_tags/types.dart';
 import '../data/providers.dart';
 import '../providers/search_subscription_selectors.dart';
 import '../providers/search_subscriptions_notifier.dart';
+import '../providers/pinned_search_sort_provider.dart';
+import '../types/pinned_search_sort.dart';
 import '../types/search_subscription.dart';
 import '../widgets/move_pin_to_folder_dialog.dart';
 import '../widgets/bulk_search_import_dialog.dart';
@@ -54,6 +56,27 @@ class _PinnedSearchesPageState extends ConsumerState<PinnedSearchesPage> {
               strings.title,
         ),
         actions: [
+          PopupMenuButton<PinnedSearchSort>(
+            tooltip: context.t.sort.sort_by,
+            icon: const Icon(Symbols.sort),
+            initialValue: ref.watch(pinnedSearchSortProvider),
+            onSelected: (sort) =>
+                ref.read(pinnedSearchSortProvider.notifier).select(sort),
+            itemBuilder: (context) => [
+              PopupMenuItem(
+                value: PinnedSearchSort.manual,
+                child: Text(strings.sort_manual),
+              ),
+              PopupMenuItem(
+                value: PinnedSearchSort.lastPostNewest,
+                child: Text(strings.sort_last_post_newest),
+              ),
+              PopupMenuItem(
+                value: PinnedSearchSort.lastPostOldest,
+                child: Text(strings.sort_last_post_oldest),
+              ),
+            ],
+          ),
           IconButton(
             tooltip: strings.bulk_add,
             icon: const Icon(Symbols.playlist_add),
@@ -157,11 +180,13 @@ class _PinnedSearchesPageState extends ConsumerState<PinnedSearchesPage> {
     final strings = context.t.pinned_searches;
     final profiles = ref.watch(booruConfigProvider);
     final activity = ref.watch(searchSubscriptionsProvider).valueOrNull;
+    final canReorder =
+        ref.watch(pinnedSearchSortProvider) == PinnedSearchSort.manual;
     final folders = widget.folderId == null
         ? activity?.organization.folders ?? []
         : [];
     return ref
-        .watch(organizedPinnedSearchesProvider(widget.folderId))
+        .watch(visiblePinnedSearchesProvider(widget.folderId))
         .when(
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (_, _) => Center(
@@ -250,8 +275,9 @@ class _PinnedSearchesPageState extends ConsumerState<PinnedSearchesPage> {
                               onOpen: _openingIds.contains(subscription.id)
                                   ? null
                                   : () => _open(subscription),
-                              canMoveUp: index > 0,
-                              canMoveDown: index < items.length - 1,
+                              canMoveUp: canReorder && index > 0,
+                              canMoveDown:
+                                  canReorder && index < items.length - 1,
                               onAction: (action) =>
                                   _onAction(action, subscription, items),
                             ),

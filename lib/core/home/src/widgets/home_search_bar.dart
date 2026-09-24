@@ -155,7 +155,7 @@ class _SliverHomeSearchBarState
   void _onSearch() {
     ref
         .read(searchHistoryProvider.notifier)
-        .addHistoryFromController(selectedTagController);
+        .addHistoryFromController(selectedTagController, ref.readConfigAuth);
     selectedTagString.value = selectedTagController.rawTagsString;
     widget.onSearch();
   }

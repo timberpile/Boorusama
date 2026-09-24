@@ -3,17 +3,21 @@ import 'package:foundation/foundation.dart';
 import 'package:hive_ce/hive.dart';
 
 // Project imports:
+import '../../../../boorus/booru/types.dart';
 import '../../../../posts/post/types.dart';
-import '../../../../posts/sources/types.dart';
 import '../../types/bookmark.dart';
 import '../../types/bookmark_repository.dart';
 import '../bookmark_convert.dart';
 import 'bookmark_hive_object.dart';
 
 class BookmarkHiveRepository implements BookmarkRepository {
-  const BookmarkHiveRepository(this._box);
+  const BookmarkHiveRepository(
+    this._box, {
+    this.postDataCodec,
+  });
 
   final Box<BookmarkHiveObject> _box;
+  final BooruPostDataCodec? Function(BooruType type)? postDataCodec;
 
   @override
   Future<Bookmark> addBookmark(
@@ -23,30 +27,25 @@ class BookmarkHiveRepository implements BookmarkRepository {
     required PostLinkGenerator Function(int? booruId) postLinkGenerator,
   }) async {
     final now = DateTime.now();
-
-    final favoriteHiveObject = BookmarkHiveObject(
-      booruId: booruId,
-      postId: post.id,
+    final sourceUrl = postLinkGenerator(booruId).getLink(post);
+    final storedPost = recoverBookmarkPostOrigin(post, sourceUrl);
+    final snapshot = const StoredPostCodec().encode(
+      storedPost,
+      dataCodec: postDataCodec?.call(storedPost.origin.booruType),
+    );
+    final bookmark = Bookmark.fromSnapshot(
+      id: -1,
       createdAt: now,
       updatedAt: now,
-      thumbnailUrl: post.thumbnailImageUrl,
-      sampleUrl: post.sampleImageUrl,
-      originalUrl: post.originalImageUrl,
-      sourceUrl: postLinkGenerator(booruId).getLink(post),
-      width: post.width,
-      height: post.height,
-      md5: post.md5,
-      tags: post.tags.toList(),
-      realSourceUrl: post.source.url,
-      format: post.format,
-      metadata: Bookmark.toMetadata(post.metadata),
+      snapshot: snapshot,
+      post: storedPost,
+      postId: storedPost.id,
+      sourceUrl: sourceUrl,
     );
+    final favoriteHiveObject = favoriteToHiveObject(bookmark);
     final id = await _box.add(favoriteHiveObject);
 
-    return tryMapBookmarkHiveObjectToBookmark(
-      favoriteHiveObject,
-      imageUrlResolver,
-    ).getOrElse((_) => Bookmark.empty).copyWith(id: id);
+    return bookmark.copyWith(id: id);
   }
 
   @override
@@ -69,12 +68,33 @@ class BookmarkHiveRepository implements BookmarkRepository {
     required ImageUrlResolver Function(int? booruId) imageUrlResolver,
   }) =>
       TaskEither.fromEither(
-        tryGetBoxValues(_box).mapLeft(mapBoxErrorToBookmarkGetError),
-      ).flatMap(
-        (objects) => TaskEither.fromEither(
-          tryMapBookmarkHiveObjectsToBookmarks(objects, imageUrlResolver),
-        ),
-      );
+            tryGetBoxValues(_box).mapLeft(mapBoxErrorToBookmarkGetError),
+          )
+          .flatMap(
+            (objects) => TaskEither.fromEither(
+              tryMapBookmarkHiveObjectsWithWriteBack(
+                objects,
+                imageUrlResolver,
+                postDataCodec,
+              ),
+            ),
+          )
+          .flatMap(
+            (mappings) => TaskEither.tryCatch(
+              () async {
+                for (final mapping in mappings) {
+                  if (mapping.needsWriteBack) {
+                    await _box.put(
+                      mapping.bookmark.id,
+                      favoriteToHiveObject(mapping.bookmark),
+                    );
+                  }
+                }
+                return [for (final mapping in mappings) mapping.bookmark];
+              },
+              (_, _) => BookmarkGetError.unknown,
+            ),
+          );
 
   @override
   Future<List<Bookmark>> addBookmarks(

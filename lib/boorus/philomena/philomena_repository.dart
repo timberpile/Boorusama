@@ -17,12 +17,18 @@ import '../../core/tags/autocompletes/types.dart';
 import '../../core/tags/tag/colors.dart';
 import 'client_provider.dart';
 import 'downloads/providers.dart';
+import 'posts/post_codec.dart';
+import 'posts/post_data.dart';
 import 'posts/providers.dart';
 import 'tags/color.dart';
 import 'tags/providers.dart';
 
 class PhilomenaRepository extends BooruRepositoryDefault {
   const PhilomenaRepository({required this.ref});
+
+  @override
+  BooruPostDataCodec<PhilomenaPostData> get postDataCodec =>
+      const PhilomenaPostCodec();
 
   @override
   SearchRefreshQueryAdapter searchRefreshQueryAdapter(BooruConfigAuth config) =>

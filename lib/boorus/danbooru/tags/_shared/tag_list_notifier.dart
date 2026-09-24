@@ -13,15 +13,15 @@ import '../../posts/post/types.dart';
 final danbooruTagListProvider =
     NotifierProviderFamily<
       DanbooruTagListNotifier,
-      IMap<int, DanbooruTagDetails>,
+      IMap<int, Post>,
       BooruConfigAuth
     >(DanbooruTagListNotifier.new);
 
 class DanbooruTagListNotifier
-    extends FamilyNotifier<IMap<int, DanbooruTagDetails>, BooruConfigAuth> {
+    extends FamilyNotifier<IMap<int, Post>, BooruConfigAuth> {
   @override
-  IMap<int, DanbooruTagDetails> build(BooruConfigAuth arg) {
-    return <int, DanbooruTagDetails>{}.lock;
+  IMap<int, Post> build(BooruConfigAuth arg) {
+    return <int, Post>{}.lock;
   }
 
   Future<void> setTags(

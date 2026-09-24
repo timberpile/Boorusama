@@ -2,17 +2,19 @@
 import 'package:booru_clients/zerochan.dart';
 
 // Project imports:
+import '../../../core/boorus/booru/types.dart';
 import '../../../core/posts/post/types.dart';
 import '../../../core/posts/rating/types.dart';
 import '../../../core/posts/sources/types.dart';
 import '../../../foundation/path.dart' as path;
+import 'post_codec.dart';
 import 'types.dart';
 
-ZerochanPost postDtoToPost(
+Post postDtoToPost(
   PostDto e,
   PostMetadata? metadata,
 ) {
-  return ZerochanPost(
+  final record = ZerochanPostRecord(
     id: e.id ?? 0,
     thumbnailImageUrl: e.thumbnail ?? '',
     sampleImageUrl: e.sampleUrl() ?? '',
@@ -37,5 +39,9 @@ ZerochanPost postDtoToPost(
     uploaderName: null,
     createdAt: null,
     metadata: metadata,
+  );
+  return zerochanPostFromRecord(
+    record,
+    PostOrigin.forBooruType(BooruType.zerochan),
   );
 }

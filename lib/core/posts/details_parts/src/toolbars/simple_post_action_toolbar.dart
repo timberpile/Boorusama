@@ -39,7 +39,7 @@ class SimplePostActionToolbar<T extends Post> extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final booruBuilder = ref.watch(booruBuilderProvider(ref.watchConfigAuth));
     final commentPageBuilder = booruBuilder?.commentPageBuilder;
-    final detailsController = PostDetails.of<T>(context).controller;
+    final detailsController = PostDetails.of(context).controller;
     final auth = ref.watchConfigAuth;
     final viewer = ref.watchConfigViewer;
     final download = ref.watchConfigDownload;
@@ -47,7 +47,7 @@ class SimplePostActionToolbar<T extends Post> extends ConsumerWidget {
     return CommonPostButtonsBuilder(
       post: post,
       onStartSlideshow: onStartSlideshow,
-      onLoadOriginal: () => detailsController.loadOriginalImage(post.id),
+      onLoadOriginal: () => detailsController.loadOriginalImage(post),
       config: auth,
       configViewer: viewer,
       builder: (context, buttons) {
@@ -103,11 +103,11 @@ class DefaultInheritedPostActionToolbar<T extends Post>
 
   @override
   Widget build(BuildContext context) {
-    final post = InheritedPost.maybeOf<T>(context);
+    final post = InheritedPost.maybeOf(context);
 
     return SliverToBoxAdapter(
       child: post != null
-          ? DefaultPostActionToolbar<T>(post: post)
+          ? DefaultPostActionToolbar<Post>(post: post)
           : const SizedBox.shrink(),
     );
   }

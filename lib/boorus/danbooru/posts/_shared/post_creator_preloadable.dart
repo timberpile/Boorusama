@@ -1,22 +1,42 @@
+// Package imports:
+import 'package:equatable/equatable.dart';
+
 // Project imports:
 import '../post/types.dart';
+import '../../../../core/posts/post/types.dart';
 
-class PostCreatorsPreloadable {
-  factory PostCreatorsPreloadable.fromPosts(List<DanbooruPost> posts) {
+class PostCreatorsPreloadable extends Equatable {
+  factory PostCreatorsPreloadable.fromPosts(List<Post> posts) {
     final ids = posts
-        .map(
-          (e) => [
-            e.uploaderId,
-            if (e.approverId != null) e.approverId!,
+        .expand(
+          (post) => [
+            if (post.uploaderId case final id?) id,
+            if (post.approverId case final id?) id,
           ],
         )
-        .expand((e) => e)
         .toSet()
         .toList();
 
     return PostCreatorsPreloadable._(ids);
   }
-  PostCreatorsPreloadable._(this.userIds);
+
+  factory PostCreatorsPreloadable.fromPost(Post post) {
+    final data = post.booruData;
+    final approverId = switch (data) {
+      DanbooruPostData(:final approverId) => approverId,
+      _ => null,
+    };
+
+    return PostCreatorsPreloadable._([
+      if (post.uploaderId case final id?) id,
+      if (approverId case final id?) id,
+    ]);
+  }
+  PostCreatorsPreloadable._(Iterable<int> userIds)
+    : userIds = (userIds.toSet().toList()..sort()).toList(growable: false);
 
   final List<int> userIds;
+
+  @override
+  List<Object?> get props => [userIds];
 }

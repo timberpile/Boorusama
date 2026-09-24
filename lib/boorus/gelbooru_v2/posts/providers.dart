@@ -16,7 +16,7 @@ import 'repo.dart';
 import 'types.dart';
 
 final gelbooruV2PostRepoProvider =
-    Provider.family<PostRepository<GelbooruV2Post>, BooruConfigSearch>(
+    Provider.family<PostRepository<Post>, BooruConfigSearch>(
       (ref, config) {
         final client = ref.watch(gelbooruV2ClientProvider(config.auth));
         final tagComposer = ref.watch(
@@ -41,7 +41,7 @@ final gelbooruV2PostRepoProvider =
     );
 
 final gelbooruV2PostProvider =
-    FutureProvider.family<Post?, (PostId, BooruConfigSearch)>((
+    FutureProvider.family<Post?, (PostId, BooruConfig)>((
       ref,
       params,
     ) async {
@@ -56,7 +56,10 @@ final gelbooruV2PostProvider =
         ref.cacheFor(Duration(seconds: cacheDuration));
       }
 
-      final postRepo = ref.watch(gelbooruV2PostRepoProvider(config));
+      final postRepo = OriginAwarePostRepository.fromConfig(
+        delegate: ref.watch(gelbooruV2PostRepoProvider(config.search)),
+        config: config,
+      );
 
       final result = await postRepo.getPost(id).run();
 
@@ -64,29 +67,30 @@ final gelbooruV2PostProvider =
     });
 
 final gelbooruV2ChildPostsProvider = FutureProvider.autoDispose
-    .family<
-      List<GelbooruV2Post>,
-      (BooruConfigFilter, BooruConfigSearch, GelbooruV2Post)
-    >((ref, params) {
-      final (filter, search, post) = params;
+    .family<List<Post>, (BooruConfigFilter, BooruConfig, Post)>(
+      (ref, params) {
+        final (filter, config, post) = params;
 
-      return ref
-          .watch(gelbooruV2PostRepoProvider(search))
-          .getPostsFromTagWithBlacklist(
-            tag: post.relationshipQuery,
-            blacklist: ref.watch(blacklistTagsProvider(filter).future),
-          );
-    });
+        return ref
+            .watch(originAwarePostRepoProvider(config))
+            .getPostsFromTagWithBlacklist(
+              tag: post.relationshipQuery,
+              blacklist: ref.watch(blacklistTagsProvider(filter).future),
+            );
+      },
+    );
 
 final gelbooruV2PostImageUrlResolverProvider =
     Provider<GelbooruV2ImageUrlResolver>(
       (ref) => const GelbooruV2ImageUrlResolver(),
     );
 
-final gelbooruV2UploaderQueryProvider =
-    Provider.family<UploaderQuery?, GelbooruV2Post>((ref, post) {
-      return switch (post.uploaderName) {
-        final uploader? => UserColonUploaderQuery(uploader),
-        _ => null,
-      };
-    });
+final gelbooruV2UploaderQueryProvider = Provider.family<UploaderQuery?, Post>((
+  ref,
+  post,
+) {
+  return switch (post.uploaderName) {
+    final uploader? => UserColonUploaderQuery(uploader),
+    _ => null,
+  };
+});

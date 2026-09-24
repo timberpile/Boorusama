@@ -9,15 +9,17 @@ import 'package:kurumi/material.dart';
 import '../../../../../core/configs/config/providers.dart';
 import '../../../../../core/posts/favorites/providers.dart';
 import '../../../../../core/posts/favorites/widgets.dart';
-import '../../post/types.dart';
+import '../../../../../core/posts/post/types.dart';
 
 class DanbooruQuickFavoriteButton extends ConsumerWidget {
   const DanbooruQuickFavoriteButton({
     required this.post,
+    required this.isBanned,
     super.key,
   });
 
-  final DanbooruPost post;
+  final Post post;
+  final bool isBanned;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -27,7 +29,7 @@ class DanbooruQuickFavoriteButton extends ConsumerWidget {
     if (!canFavorite) return const SizedBox.shrink();
 
     final notifier = ref.watch(favoritesProvider(config).notifier);
-    final isFaved = post.isBanned
+    final isFaved = isBanned
         ? false
         : ref.watch(favoriteProvider((config, post.id)));
 

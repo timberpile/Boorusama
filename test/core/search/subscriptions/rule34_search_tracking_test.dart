@@ -8,7 +8,7 @@ import 'package:boorusama/core/search/subscriptions/src/refresh/chronological_se
 import 'package:flutter_test/flutter_test.dart';
 import 'package:foundation/foundation.dart';
 
-GelbooruV2Post rule34Post(Object? uploadedAt) =>
+Post rule34Post(Object? uploadedAt) =>
     gelbooruV2PostDtoToGelbooruPostNoMetadata(
       PostV2Dto.fromJson({
         'id': 1,

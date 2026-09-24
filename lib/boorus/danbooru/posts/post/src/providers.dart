@@ -21,10 +21,10 @@ import '../../../tags/tag/providers.dart';
 import '../../../users/user/providers.dart';
 import '../../votes/providers.dart';
 import 'converter.dart';
-import 'danbooru_post.dart';
+import 'danbooru_post_data.dart';
 
 final danbooruPostRepoProvider =
-    Provider.family<PostRepository<DanbooruPost>, BooruConfigSearch>((
+    Provider.family<PostRepository<Post>, BooruConfigSearch>((
       ref,
       config,
     ) {
@@ -73,13 +73,13 @@ final danbooruPostRepoProvider =
     });
 
 typedef PostFetchTransformer =
-    Future<PostResult<DanbooruPost>> Function(
-      PostResult<DanbooruPost> posts,
+    Future<PostResult<Post>> Function(
+      PostResult<Post> posts,
     );
 
-Future<PostResult<DanbooruPost>> transformPosts(
+Future<PostResult<Post>> transformPosts(
   Ref ref,
-  PostResult<DanbooruPost> r,
+  PostResult<Post> r,
   BooruConfigSearch config,
 ) async {
   final posts = _filter(
@@ -106,7 +106,7 @@ Future<PostResult<DanbooruPost>> transformPosts(
   );
 }
 
-List<DanbooruPost> _filter(List<DanbooruPost> posts, bool hideBannedPosts) {
+List<Post> _filter(List<Post> posts, bool hideBannedPosts) {
   posts.removeWhere(
     (e) =>
         (hideBannedPosts && e.isBanned) ||
@@ -128,20 +128,17 @@ final class DanbooruDownloadSource implements DownloadSourceProvider {
           url: post.thumbnailImageUrl,
           name: context.t.settings.download.qualities.preview,
         ),
-      if (post case final DanbooruPost danPost
-          when danPost.url180x180.isNotEmpty)
+      if (post case final Post danPost when danPost.url180x180.isNotEmpty)
         DownloadSource(
           url: danPost.url180x180,
           name: '180x180',
         ),
-      if (post case final DanbooruPost danPost
-          when danPost.url360x360.isNotEmpty)
+      if (post case final Post danPost when danPost.url360x360.isNotEmpty)
         DownloadSource(
           url: danPost.url360x360,
           name: '360x360',
         ),
-      if (post case final DanbooruPost danPost
-          when danPost.url720x720.isNotEmpty)
+      if (post case final Post danPost when danPost.url720x720.isNotEmpty)
         DownloadSource(
           url: danPost.url720x720,
           name: '720x720',

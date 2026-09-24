@@ -22,6 +22,7 @@ class GridThumbnailMedia extends Equatable {
     required this.url,
     required this.aspectRatio,
     this.placeholderUrl,
+    this.fallbackUrl,
     this.placeholderAspectRatio,
     this.placeholderFit,
   });
@@ -29,6 +30,7 @@ class GridThumbnailMedia extends Equatable {
   final String url;
   final double? aspectRatio;
   final String? placeholderUrl;
+  final String? fallbackUrl;
   final double? placeholderAspectRatio;
   final BoxFit? placeholderFit;
 
@@ -37,6 +39,7 @@ class GridThumbnailMedia extends Equatable {
     url,
     aspectRatio,
     placeholderUrl,
+    fallbackUrl,
     placeholderAspectRatio,
     placeholderFit,
   ];

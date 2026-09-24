@@ -6,6 +6,7 @@ import 'package:kurumi/material.dart';
 // Project imports:
 import '../../../../../../core/configs/config/providers.dart';
 import '../../../../../../core/posts/details_parts/widgets.dart';
+import '../../../../../../core/posts/post/types.dart';
 import '../../../../../../core/search/search/routes.dart';
 import '../../../../tags/_shared/tag_list_notifier.dart';
 import '../../../../users/creator/providers.dart';
@@ -18,10 +19,12 @@ import '../../providers.dart';
 class DanbooruFileDetails extends ConsumerWidget {
   const DanbooruFileDetails({
     required this.post,
+    required this.data,
     super.key,
   });
 
-  final DanbooruPost post;
+  final Post post;
+  final DanbooruPostData? data;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -55,7 +58,7 @@ class DanbooruFileDetails extends ConsumerWidget {
         ),
       },
       customDetails: [
-        if (ref.watch(danbooruCreatorProvider(post.approverId))
+        if (ref.watch(danbooruCreatorProvider(data?.approverId))
             case final approver?)
           FileDetailTile(
             title: context.t.post.detail.approver,
