@@ -5,7 +5,6 @@ import 'package:kurumi/material.dart';
 // Project imports:
 import '../../../core/configs/auth/widgets.dart';
 import '../../../core/configs/config/providers.dart';
-import '../../../core/configs/config/types.dart';
 import '../../../core/posts/favorites/widgets.dart';
 import '../../../core/posts/post/providers.dart';
 
