@@ -23,6 +23,9 @@ import '../../../../router.dart';
 import '../../../../themes/theme/types.dart';
 import '../../../post/types.dart';
 
+const double _bookmarkCaptionTop = 38;
+const double _bookmarkCaptionBottom = 2;
+
 class BookmarkPostButton extends ConsumerWidget {
   const BookmarkPostButton({
     required this.post,
@@ -58,6 +61,7 @@ class BookmarkPostButton extends ConsumerWidget {
       message: actionLabel,
       padding: const EdgeInsets.all(8),
       child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
         onLongPressStart: isLoading
             ? null
             : (details) => showAnchoredBookmarkGroupPicker(
@@ -66,8 +70,8 @@ class BookmarkPostButton extends ConsumerWidget {
                 post: post,
                 position: details.globalPosition,
               ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+        child: Stack(
+          alignment: Alignment.topCenter,
           children: [
             IconButton(
               splashRadius: 16,
@@ -98,16 +102,26 @@ class BookmarkPostButton extends ConsumerWidget {
                 ),
               ),
             ),
-            OverflowBox(
-              fit: OverflowBoxFit.deferToChild,
-              minWidth: 112,
-              maxWidth: 112,
-              child: Text(
-                activeLabel,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: Kurumi.themeOf(context).textTheme.labelSmall,
+            Padding(
+              padding: const EdgeInsets.only(
+                top: _bookmarkCaptionTop,
+                bottom: _bookmarkCaptionBottom,
+              ),
+              child: IgnorePointer(
+                child: OverflowBox(
+                  fit: OverflowBoxFit.deferToChild,
+                  minWidth: 112,
+                  maxWidth: 112,
+                  child: Text(
+                    activeLabel,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: Kurumi.themeOf(
+                      context,
+                    ).textTheme.labelSmall?.copyWith(height: 1),
+                  ),
+                ),
               ),
             ),
           ],
