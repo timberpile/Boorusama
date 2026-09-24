@@ -26,6 +26,7 @@ class BooruImage extends ConsumerWidget {
     required this.config,
     super.key,
     this.placeholderUrl,
+    this.fallbackUrl,
     this.placeholderAspectRatio,
     this.placeholderFit,
     this.borderRadius,
@@ -45,6 +46,7 @@ class BooruImage extends ConsumerWidget {
   final BooruConfigAuth config;
   final String imageUrl;
   final String? placeholderUrl;
+  final String? fallbackUrl;
   final double? placeholderAspectRatio;
   final BoxFit? placeholderFit;
   final BorderRadius? borderRadius;
@@ -91,6 +93,7 @@ class BooruImage extends ConsumerWidget {
       dio: dio,
       imageUrl: imageUrl,
       placeholderUrl: placeholderUrl,
+      fallbackUrl: fallbackUrl,
       placeholderAspectRatio: placeholderAspectRatio,
       placeholderFit: placeholderFit,
       borderRadius: borderRadius,
@@ -118,6 +121,7 @@ class BooruRawImage extends StatelessWidget {
     required this.imageUrl,
     super.key,
     this.placeholderUrl,
+    this.fallbackUrl,
     this.placeholderAspectRatio,
     this.placeholderFit,
     this.borderRadius,
@@ -141,6 +145,7 @@ class BooruRawImage extends StatelessWidget {
   final Dio dio;
   final String imageUrl;
   final String? placeholderUrl;
+  final String? fallbackUrl;
   final double? placeholderAspectRatio;
   final BoxFit? placeholderFit;
   final BorderRadius? borderRadius;
@@ -251,9 +256,29 @@ class BooruRawImage extends StatelessWidget {
                           },
                         ),
                       ),
-                  errorWidget: ErrorPlaceholder(
-                    borderRadius: borderRadius,
-                  ),
+                  errorWidget: switch (fallbackUrl) {
+                    final String url when url.isNotEmpty && url != imageUrl =>
+                      ExtendedImage.network(
+                        url,
+                        dio: dio,
+                        headers: headers,
+                        borderRadius: borderRadius,
+                        width: width,
+                        height: height,
+                        fit: fit,
+                        fetchStrategy: _fetchStrategy,
+                        platform: Kurumi.themeOf(context).platform,
+                        androidVersion: androidVersion,
+                        cacheManager: imageCacheManager,
+                        placeholderWidget: imagePlaceHolder,
+                        errorWidget: ErrorPlaceholder(
+                          borderRadius: borderRadius,
+                        ),
+                      ),
+                    _ => ErrorPlaceholder(
+                      borderRadius: borderRadius,
+                    ),
+                  },
                 )
               : imagePlaceHolder;
         },

@@ -29,6 +29,7 @@ import '../../core/settings/providers.dart';
 import '../../core/tags/autocompletes/types.dart';
 import '../../core/tags/metatag/types.dart';
 import '../../core/tags/tag/types.dart';
+import '../gelbooru/common/grid_thumbnail_url.dart';
 import '../gelbooru/tags/providers.dart';
 import 'client_provider.dart';
 import 'comments/providers.dart';
@@ -37,6 +38,7 @@ import 'favorites/providers.dart';
 import 'gelbooru_v2_provider.dart';
 import 'notes/providers.dart';
 import 'posts/providers.dart';
+import 'posts/grid_thumbnail_url.dart';
 import 'posts/types.dart';
 import 'syntax/providers.dart';
 import 'tags/providers.dart';
@@ -152,8 +154,12 @@ class GelbooruV2Repository extends BooruRepositoryDefault {
         false;
 
     return thumbnailOnly
-        ? const DefaultGridThumbnailUrlGenerator.thumbnailOnly()
-        : const DefaultGridThumbnailUrlGenerator();
+        ? const DefaultGridThumbnailUrlGenerator(
+            mediaMapper: gelbooruV2ThumbnailOnlyGridThumbnailMedia,
+          )
+        : const DefaultGridThumbnailUrlGenerator(
+            mediaMapper: gelbooruGridThumbnailMedia,
+          );
   }
 
   @override

@@ -5,6 +5,7 @@ import 'package:equatable/equatable.dart';
 import '../../../core/posts/post/types.dart';
 import '../../../core/posts/rating/types.dart';
 import '../../../core/posts/sources/types.dart';
+import '../../gelbooru/common/video_thumbnail.dart';
 
 class GelbooruV2Post extends Equatable
     with
@@ -37,6 +38,7 @@ class GelbooruV2Post extends Equatable
     required this.hasNotes,
     required this.metadata,
     required this.status,
+    required this.isVideoPreview,
   }) : _sampleImageUrl = sampleImageUrl;
 
   factory GelbooruV2Post.empty() => GelbooruV2Post(
@@ -62,6 +64,7 @@ class GelbooruV2Post extends Equatable
     hasNotes: false,
     metadata: null,
     status: null,
+    isVideoPreview: false,
   );
 
   final String _sampleImageUrl;
@@ -129,7 +132,11 @@ class GelbooruV2Post extends Equatable
   @override
   String get videoUrl => originalImageUrl;
   @override
-  String get videoThumbnailUrl => thumbnailImageUrl;
+  String get videoThumbnailUrl => resolveGelbooruVideoPosterUrl(
+    sampleUrl: _sampleImageUrl,
+    videoUrl: originalImageUrl,
+    thumbnailUrl: thumbnailImageUrl,
+  );
 
   @override
   final int? parentId;
@@ -147,6 +154,8 @@ class GelbooruV2Post extends Equatable
 
   @override
   final PostStatus? status;
+
+  final bool isVideoPreview;
 }
 
 class GelbooruV2ImageUrlResolver implements ImageUrlResolver {

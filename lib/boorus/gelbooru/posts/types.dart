@@ -5,6 +5,7 @@ import 'package:equatable/equatable.dart';
 import '../../../core/posts/post/types.dart';
 import '../../../core/posts/rating/types.dart';
 import '../../../core/posts/sources/types.dart';
+import '../common/video_thumbnail.dart';
 
 class GelbooruPost extends Equatable
     with
@@ -127,7 +128,11 @@ class GelbooruPost extends Equatable
   @override
   String get videoUrl => originalImageUrl;
   @override
-  String get videoThumbnailUrl => thumbnailImageUrl;
+  String get videoThumbnailUrl => resolveGelbooruVideoPosterUrl(
+    sampleUrl: _sampleImageUrl,
+    videoUrl: originalImageUrl,
+    thumbnailUrl: thumbnailImageUrl,
+  );
 
   @override
   final int? parentId;

@@ -56,6 +56,7 @@ GelbooruV2Post gelbooruV2PostDtoToGelbooruPost(
     hasNotes: _checkIfHasNotes(dto),
     metadata: metadata,
     status: StringPostStatus.tryParse(dto.status),
+    isVideoPreview: dto.isVideoPreview ?? false,
   );
 }
 

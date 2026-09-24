@@ -174,6 +174,7 @@ class _Image<T extends Post> extends ConsumerWidget {
       config: config ?? ref.watchConfigAuth,
       aspectRatio: media.aspectRatio,
       imageUrl: media.url,
+      fallbackUrl: media.fallbackUrl,
       borderRadius: BorderRadius.circular(
         imageBorderRadius,
       ),

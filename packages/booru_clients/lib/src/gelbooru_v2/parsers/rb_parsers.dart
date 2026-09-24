@@ -245,6 +245,12 @@ GelbooruV2Posts parseRbPostsHtml(
         .replaceFirst('thumbnail_', '');
 
     final tags = imageElement.attributes['title'];
+    final isVideoPreview =
+        tags
+            ?.split(',')
+            .map((tag) => tag.trim().toLowerCase())
+            .contains('video') ??
+        false;
     final md5 = thumbUrl.substring(
       thumbUrl.lastIndexOf('_') + 1,
       thumbUrl.lastIndexOf('.'),
@@ -278,6 +284,7 @@ GelbooruV2Posts parseRbPostsHtml(
       hash: md5,
       rating: rating,
       score: score,
+      isVideoPreview: isVideoPreview,
     );
   }).toList();
 

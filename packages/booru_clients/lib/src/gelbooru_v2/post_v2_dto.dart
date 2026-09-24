@@ -28,6 +28,7 @@ class PostV2Dto {
     this.status,
     this.hasNotes,
     this.commentCount,
+    this.isVideoPreview,
   });
 
   factory PostV2Dto.fromJson(Map<String, dynamic> json, String baseUrl) {
@@ -148,6 +149,7 @@ class PostV2Dto {
   final String? status;
   final bool? hasNotes;
   final int? commentCount;
+  final bool? isVideoPreview;
 
   @override
   String toString() => '$id: $fileUrl';
