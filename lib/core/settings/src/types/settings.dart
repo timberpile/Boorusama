@@ -165,7 +165,7 @@ class Settings extends Equatable {
     ),
     viewer: ImageViewerSettings(
       swipeMode: PostDetailsSwipeMode.defaultValue,
-      loadOriginalOnZoom: false,
+      loadOriginalOnZoom: true,
       snapZoomToFit: true,
       doubleTapZoomMode: DoubleTapZoomMode.defaultValue,
       autoAdjustComicStrips: true,
@@ -600,7 +600,7 @@ class ImageViewerSettings extends Equatable {
 
   ImageViewerSettings.fromJson(Map<String, dynamic> json)
     : swipeMode = PostDetailsSwipeMode.parse(json['swipeMode']),
-      loadOriginalOnZoom = json['loadOriginalOnZoom'] ?? false,
+      loadOriginalOnZoom = json['loadOriginalOnZoom'] ?? true,
       snapZoomToFit = json['snapZoomToFit'] ?? true,
       doubleTapZoomMode = DoubleTapZoomMode.parse(json['doubleTapZoomMode']),
       autoAdjustComicStrips = json['autoAdjustComicStrips'] ?? true,
