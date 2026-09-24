@@ -2,11 +2,15 @@
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
+import 'package:clock/clock.dart';
+import 'package:timeago/timeago.dart' as timeago;
 
 // Project imports:
 import '../../../../configs/config/types.dart';
 import '../../../../images/booru_image.dart';
+import '../../../../widgets/time_pulse.dart';
 import '../types/search_subscription.dart';
+import '../types/pinned_search_sort.dart';
 import 'search_refresh_error_text.dart';
 
 enum PinnedSearchAction {
@@ -44,6 +48,35 @@ class PinnedSearchCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final strings = context.t.pinned_searches;
+    final lastPostAt = subscription.lastPostAt;
+
+    Widget buildLastPostText() {
+      final value = switch (lastPostAt) {
+        final timestamp? => timeago.format(
+          timestamp.toLocal(),
+          locale: context.locale.toLanguageTag(),
+          clock: clock.now().toLocal(),
+        ),
+        _ when !subscription.hasBaseline => strings.last_post_not_checked,
+        _ => strings.last_post_no_posts,
+      };
+      return Text(
+        strings.last_post.replaceAll('{time}', value),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        softWrap: false,
+        style: Theme.of(context).textTheme.bodySmall,
+      );
+    }
+
+    final lastPostWidget = switch (lastPostAt) {
+      final timestamp? => TimePulse(
+        initial: timestamp,
+        updateInterval: const Duration(minutes: 1),
+        builder: (_, _) => buildLastPostText(),
+      ),
+      _ => buildLastPostText(),
+    };
 
     return Card(
       clipBehavior: Clip.antiAlias,
@@ -130,8 +163,30 @@ class PinnedSearchCard extends StatelessWidget {
                     ],
                   ),
                 ),
-              if (ownerCaption case final caption?)
-                Text(caption, style: Theme.of(context).textTheme.bodySmall),
+              LayoutBuilder(
+                builder: (context, constraints) => Row(
+                  children: [
+                    if (ownerCaption case final caption?)
+                      Expanded(
+                        child: Text(
+                          caption,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ),
+                    if (ownerCaption != null) const SizedBox(width: 8),
+                    ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth:
+                            constraints.maxWidth *
+                            (ownerCaption == null ? 1 : 2 / 3),
+                      ),
+                      child: lastPostWidget,
+                    ),
+                  ],
+                ),
+              ),
               if (refreshing) Text(strings.refreshing),
               if (subscription.lastErrorKind case final kind?)
                 Text(

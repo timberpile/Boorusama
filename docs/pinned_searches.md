@@ -174,6 +174,19 @@ Cached browsing does not activate another profile or fetch posts. Opening a
 pin activates its owner before running the stored query and marks only that
 pin read. Unsupported pins retain their per-search explanation.
 
+Each card shows `Last post` on the same metadata row as its owner. The value is
+the upload time of the newest cached preview from the last successful check;
+rendering and sorting never fetch posts. A pin without a successful baseline
+shows `Not checked`, while a successful empty snapshot shows `No posts`.
+Refresh errors keep the prior cached value and remain visible.
+
+The collection has session-only Manual order, Last post: newest first, and Last
+post: oldest first views. The selected view is shared by Home and named folders
+until the app restarts. Date views keep searches without an upload time last,
+use manual order to break ties, leave folder rows in manual order, and disable
+Move Up and Move Down. Switching back to Manual order restores the persisted
+organization order unchanged.
+
 Manage folders provides creation, renaming, manual ordering, and deletion.
 Folder names are unique case-insensitively across the collection. Move to folder
 lists Home and all named folders; Create folder creates the destination and

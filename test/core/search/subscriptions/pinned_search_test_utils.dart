@@ -71,6 +71,7 @@ SearchSubscription pinnedFixture({
   int position = 0,
   int unreadCount = 3,
   int previewCount = 0,
+  DateTime? postCreatedAt,
   SearchRefreshErrorKind? error,
   bool checked = true,
 }) => SearchSubscription(
@@ -84,7 +85,7 @@ SearchSubscription pinnedFixture({
     for (var i = 0; i < previewCount; i++)
       SearchPostPreview(
         postId: i,
-        postCreatedAt: checkedAt,
+        postCreatedAt: postCreatedAt ?? checkedAt,
         thumbnailUrl: 'https://images.example/$i.jpg',
         sampleUrl: null,
         discoveredAt: checkedAt,
@@ -223,6 +224,7 @@ class PinnedSearchHarness {
   }
 
   Future<void> pump(WidgetTester tester, Widget child) async {
+    await ensureI18nInitialized('en-US');
     await tester.pumpWidget(
       wrap(MaterialApp(home: child, builder: themeBuilder)),
     );

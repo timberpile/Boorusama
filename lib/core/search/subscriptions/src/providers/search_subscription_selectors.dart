@@ -6,6 +6,8 @@ import '../../../../boorus/engine/providers.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../configs/manage/providers.dart';
 import '../types/search_subscription.dart';
+import '../types/pinned_search_sort.dart';
+import 'pinned_search_sort_provider.dart';
 import 'search_subscriptions_notifier.dart';
 
 final profilePinnedSearchesProvider =
@@ -78,6 +80,18 @@ final organizedPinnedSearchesProvider =
           for (final id in ids) ?byId[id],
         ]);
       }),
+    );
+
+final visiblePinnedSearchesProvider =
+    Provider.family<AsyncValue<List<SearchSubscription>>, String?>(
+      (ref, folderId) => ref
+          .watch(organizedPinnedSearchesProvider(folderId))
+          .whenData(
+            (items) => sortPinnedSearches(
+              items,
+              ref.watch(pinnedSearchSortProvider),
+            ),
+          ),
     );
 
 final pinnedSearchHasNewPostsProvider = Provider<bool>((ref) {

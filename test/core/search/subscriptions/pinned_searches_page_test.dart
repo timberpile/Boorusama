@@ -8,6 +8,7 @@ import 'package:boorusama/core/search/subscriptions/routes.dart';
 import 'package:boorusama/core/search/subscriptions/src/pages/pinned_searches_page.dart';
 import 'package:boorusama/core/search/subscriptions/src/widgets/pinned_search_card.dart';
 import 'package:boorusama/core/search/subscriptions/types.dart';
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -182,6 +183,296 @@ void main() {
     expect(harness.requests, isEmpty);
   });
 
+  testWidgets('shows the cached last post time on the profile metadata line', (
+    tester,
+  ) async {
+    await withClock(Clock.fixed(DateTime.utc(2026, 9, 14, 12)), () async {
+      initialize();
+      await harness.seed([
+        pinnedFixture(
+          previewCount: 1,
+          postCreatedAt: DateTime.utc(2026, 9, 14, 10),
+        ),
+      ]);
+      await pump(tester);
+
+      expect(find.text('Last post: 2 hours ago'), findsOneWidget);
+      expect(
+        tester.getCenter(find.text('Last post: 2 hours ago')).dy,
+        tester.getCenter(find.text('https://active.example')).dy,
+      );
+      expect(
+        tester.getTopRight(find.byType(PinnedSearchCard)).dx -
+            tester.getTopRight(find.text('Last post: 2 hours ago')).dx,
+        lessThan(32),
+      );
+      expect(harness.requests, isEmpty);
+    });
+  });
+
+  testWidgets('long profile captions truncate before the last post time', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(360, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    const longUrl = 'https://a-very-long-profile-name.example.test';
+    final profile = BooruConfig.fromJson({
+      ...BooruConfig.empty.toJson(),
+      'id': 12,
+      'url': longUrl,
+    });
+    harness = PinnedSearchHarness(profiles: [profile, otherTestProfile]);
+    addTearDown(harness.dispose);
+    harness.container
+        .read(selectedTestProfileProvider.notifier)
+        .select(profile);
+    await harness.seed([
+      pinnedFixture(
+        previewCount: 1,
+        postCreatedAt: DateTime.utc(2026, 9, 14, 10),
+      ),
+    ]);
+
+    await withClock(Clock.fixed(DateTime.utc(2026, 9, 14, 12)), () async {
+      await harness.pump(
+        tester,
+        const MediaQuery(
+          data: MediaQueryData(textScaler: TextScaler.linear(2)),
+          child: PinnedSearchesPage(),
+        ),
+      );
+    });
+
+    final caption = tester.widget<Text>(find.text(longUrl));
+    expect(caption.maxLines, 1);
+    expect(caption.overflow, TextOverflow.ellipsis);
+    expect(find.text('Last post: 2 hours ago'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('updates the relative last post time while the page stays open', (
+    tester,
+  ) async {
+    var now = DateTime.utc(2026, 9, 14, 12);
+    initialize();
+    await harness.seed([
+      pinnedFixture(
+        previewCount: 1,
+        postCreatedAt: DateTime.utc(2026, 9, 14, 10),
+      ),
+    ]);
+
+    await withClock(Clock(() => now), () async {
+      await pump(tester);
+      expect(find.text('Last post: 2 hours ago'), findsOneWidget);
+
+      now = DateTime.utc(2026, 9, 14, 13);
+      await tester.pump(const Duration(minutes: 1));
+      expect(find.text('Last post: 3 hours ago'), findsOneWidget);
+    });
+  });
+
+  for (final c in [
+    (checked: false, label: 'Last post: Not checked'),
+    (checked: true, label: 'Last post: No posts'),
+  ]) {
+    testWidgets('shows ${c.label} when no cached post time is available', (
+      tester,
+    ) async {
+      initialize();
+      await harness.seed([pinnedFixture(checked: c.checked)]);
+      await pump(tester);
+
+      expect(find.text(c.label), findsOneWidget);
+      expect(harness.requests, isEmpty);
+    });
+  }
+
+  testWidgets('keeps the cached last post time beside a refresh error', (
+    tester,
+  ) async {
+    await withClock(Clock.fixed(DateTime.utc(2026, 9, 14, 12)), () async {
+      initialize();
+      await harness.seed([
+        pinnedFixture(
+          previewCount: 1,
+          postCreatedAt: DateTime.utc(2026, 9, 14, 10),
+          error: SearchRefreshErrorKind.network,
+        ),
+      ]);
+      await pump(tester);
+
+      expect(find.text('Last post: 2 hours ago'), findsOneWidget);
+      expect(
+        find.text('Could not connect. Try refreshing again.'),
+        findsOneWidget,
+      );
+    });
+  });
+
+  testWidgets(
+    'newest post view reorders cards without changing manual order',
+    (tester) async {
+      initialize();
+      await harness.seed([
+        pinnedFixture(
+          previewCount: 1,
+          postCreatedAt: DateTime.utc(2026, 9, 12),
+        ),
+        pinnedFixture(
+          id: 'dogs',
+          name: 'Dogs',
+          query: 'dog',
+          position: 1,
+          previewCount: 1,
+          postCreatedAt: DateTime.utc(2026, 9, 13),
+        ),
+      ]);
+      await pump(tester);
+
+      await tester.tap(find.byTooltip('Sort by'));
+      await settle(tester);
+      await tester.tap(find.text('Last post: newest first'));
+      await settle(tester);
+
+      expect(
+        tester.getTopLeft(find.text('Dogs')).dy,
+        lessThan(tester.getTopLeft(find.text('Cats')).dy),
+      );
+      expect((await harness.repository.getOrganization()).homeSearchIds, [
+        'cats',
+        'dogs',
+      ]);
+      expect(harness.requests, isEmpty);
+
+      await tester.tap(find.byTooltip('Sort by'));
+      await settle(tester);
+      await tester.tap(find.text('Manual order'));
+      await settle(tester);
+      expect(
+        tester.getTopLeft(find.text('Cats')).dy,
+        lessThan(tester.getTopLeft(find.text('Dogs')).dy),
+      );
+    },
+  );
+
+  testWidgets('oldest post view keeps undated cards after dated cards', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(800, 1200));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    initialize();
+    await harness.seed([
+      pinnedFixture(name: 'Not checked', checked: false),
+      pinnedFixture(
+        id: 'newer',
+        name: 'Newer',
+        query: 'newer',
+        position: 1,
+        previewCount: 1,
+        postCreatedAt: DateTime.utc(2026, 9, 13),
+      ),
+      pinnedFixture(
+        id: 'older',
+        name: 'Older',
+        query: 'older',
+        position: 2,
+        previewCount: 1,
+        postCreatedAt: DateTime.utc(2026, 9, 12),
+      ),
+    ]);
+    await pump(tester);
+
+    await tester.tap(find.byTooltip('Sort by'));
+    await settle(tester);
+    await tester.tap(find.text('Last post: oldest first'));
+    await settle(tester);
+
+    expect(
+      tester.getTopLeft(find.text('Older')).dy,
+      lessThan(tester.getTopLeft(find.text('Newer')).dy),
+    );
+    expect(
+      tester.getTopLeft(find.text('Newer')).dy,
+      lessThan(tester.getTopLeft(find.text('Not checked')).dy),
+    );
+  });
+
+  testWidgets('date views disable manual move actions', (tester) async {
+    initialize();
+    await harness.seed([
+      pinnedFixture(
+        previewCount: 1,
+        postCreatedAt: DateTime.utc(2026, 9, 12),
+      ),
+      pinnedFixture(
+        id: 'dogs',
+        name: 'Dogs',
+        query: 'dog',
+        position: 1,
+        previewCount: 1,
+        postCreatedAt: DateTime.utc(2026, 9, 13),
+      ),
+    ]);
+    await pump(tester);
+    await tester.tap(find.byTooltip('Sort by'));
+    await settle(tester);
+    await tester.tap(find.text('Last post: newest first'));
+    await settle(tester);
+    await openMenu(tester, 'Dogs');
+
+    for (final label in ['Move up', 'Move down']) {
+      final item = tester.widget<PopupMenuItem<PinnedSearchAction>>(
+        find.ancestor(
+          of: find.text(label),
+          matching: find.byType(PopupMenuItem<PinnedSearchAction>),
+        ),
+      );
+      expect(item.enabled, isFalse);
+    }
+  });
+
+  testWidgets('selected date view carries from Home into a folder', (
+    tester,
+  ) async {
+    initialize();
+    await harness.seed([
+      pinnedFixture(
+        name: 'Newer',
+        previewCount: 1,
+        postCreatedAt: DateTime.utc(2026, 9, 13),
+      ),
+      pinnedFixture(
+        id: 'older',
+        name: 'Older',
+        query: 'older',
+        position: 1,
+        previewCount: 1,
+        postCreatedAt: DateTime.utc(2026, 9, 12),
+      ),
+    ]);
+    final notifier = harness.container.read(
+      searchSubscriptionsProvider.notifier,
+    );
+    final folder = await notifier.createSharedFolder('Favorites');
+    await notifier.movePinToSharedFolder('cats', folder.id);
+    await notifier.movePinToSharedFolder('older', folder.id);
+    await pump(tester);
+
+    await tester.tap(find.byTooltip('Sort by'));
+    await settle(tester);
+    await tester.tap(find.text('Last post: oldest first'));
+    await settle(tester);
+    await tester.tap(find.text('Favorites'));
+    await settle(tester);
+
+    expect(find.widgetWithText(AppBar, 'Favorites'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.text('Older')).dy,
+      lessThan(tester.getTopLeft(find.text('Newer')).dy),
+    );
+  });
+
   testWidgets('shows loading before cached searches become available', (
     tester,
   ) async {
@@ -268,8 +559,7 @@ void main() {
     ),
     (
       kind: SearchRefreshErrorKind.tagLimit,
-      message:
-          "This search exceeds the site's search-term limit.",
+      message: "This search exceeds the site's search-term limit.",
     ),
     (
       kind: SearchRefreshErrorKind.rateLimited,
