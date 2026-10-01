@@ -28,42 +28,14 @@ class FollowingFeedsBackupSource
         version: 1,
         appVersion: ref.read(appVersionProvider),
         extraPayloadEncoder: (_) => const {'source': 'following_feeds'},
-        dataGetter: () async {
-          final repository = await ref.read(
-            searchSubscriptionRepositoryProvider.future,
-          );
-          final profiles = {
-            for (final profile
-                in await ref.read(booruConfigRepoProvider).getAll())
-              profile.id: profile,
+        dataGetter: () => _loadFollowingFeedData(ref),
+        scopedDataGetter: (options) async {
+          final data = await _loadFollowingFeedData(ref);
+          final scope = switch (options?.scope) {
+            final FollowingFeedExportScope scope => scope,
+            _ => const FollowingFeedExportScope.all(),
           };
-          final sources = {
-            for (final source in await repository.getAll()) source.id: source,
-          };
-          return FollowingFeedBackupData(
-            feeds: [
-              for (final feed in await repository.getFeeds())
-                if (profiles[feed.profileId] case final profile?)
-                  FollowingFeedBackupRecord(
-                    id: feed.id,
-                    name: feed.name,
-                    position: feed.position,
-                    queries: [
-                      for (final id in feed.sourceIds)
-                        switch (sources[id]) {
-                          final source? => source.query,
-                          null => throw StateError('Missing feed source $id'),
-                        },
-                    ],
-                    profile: BackupProfileReference(
-                      id: profile.id,
-                      booruType: profile.auth.booruType.name,
-                      url: normalizeBackupProfileUrl(profile.url),
-                      name: profile.name,
-                    ),
-                  ),
-            ],
-          );
+          return filterFollowingFeedBackupData(data, scope);
         },
         executor: (_, _) async {},
         resultExecutor: (data, context) async {
@@ -136,6 +108,43 @@ class FollowingFeedsBackupSource
               .replaceAll('{existing}', '${result.alreadyExistedCount}')
               .replaceAll('{skipped}', '${result.skippedProfileCount ?? 0}'),
     ),
+  );
+}
+
+Future<FollowingFeedBackupData> _loadFollowingFeedData(Ref ref) async {
+  final repository = await ref.read(
+    searchSubscriptionRepositoryProvider.future,
+  );
+  final profiles = {
+    for (final profile in await ref.read(booruConfigRepoProvider).getAll())
+      profile.id: profile,
+  };
+  final sources = {
+    for (final source in await repository.getAll()) source.id: source,
+  };
+  return FollowingFeedBackupData(
+    feeds: [
+      for (final feed in await repository.getFeeds())
+        if (profiles[feed.profileId] case final profile?)
+          FollowingFeedBackupRecord(
+            id: feed.id,
+            name: feed.name,
+            position: feed.position,
+            queries: [
+              for (final id in feed.sourceIds)
+                switch (sources[id]) {
+                  final source? => source.query,
+                  null => throw StateError('Missing feed source $id'),
+                },
+            ],
+            profile: BackupProfileReference(
+              id: profile.id,
+              booruType: profile.auth.booruType.name,
+              url: normalizeBackupProfileUrl(profile.url),
+              name: profile.name,
+            ),
+          ),
+    ],
   );
 }
 

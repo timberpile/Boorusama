@@ -100,15 +100,18 @@ abstract class JsonBackupSource<T>
   );
 
   Future<shelf.Response> _serveData(shelf.Request request) async {
-    final data = await dataGetter();
-    final payload = handler.encode(data);
-    final json = converter.encode(
-      payload: payload,
-      extraFields: extraPayloadEncoder?.call(data) ?? const {},
-    );
+    final json = await encodeForExport();
     return shelf.Response.ok(
       json,
       headers: {'Content-Type': 'application/json'},
+    );
+  }
+
+  Future<String> encodeForExport({BackupExportOptions? options}) async {
+    final data = await (scopedDataGetter?.call(options) ?? dataGetter());
+    return converter.encode(
+      payload: handler.encode(data),
+      extraFields: extraPayloadEncoder?.call(data) ?? const {},
     );
   }
 
@@ -157,9 +160,8 @@ abstract class JsonBackupSource<T>
     await BackupUtils.ensureStoragePermissions(ref);
 
     final data = await (scopedDataGetter?.call(options) ?? dataGetter());
-    final payload = handler.encode(data);
     final json = converter.encode(
-      payload: payload,
+      payload: handler.encode(data),
       extraFields: extraPayloadEncoder?.call(data) ?? const {},
     );
 

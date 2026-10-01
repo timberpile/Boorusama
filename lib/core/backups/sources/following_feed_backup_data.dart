@@ -1,6 +1,21 @@
 import 'package:equatable/equatable.dart';
 
+import '../types/backup_data_source.dart';
 import 'search_backup_profile.dart';
+
+class FollowingFeedExportScope extends Equatable implements BackupExportScope {
+  const FollowingFeedExportScope.all() : feedIds = null;
+
+  FollowingFeedExportScope.selected(Iterable<String> feedIds)
+    : feedIds = Set.unmodifiable(feedIds);
+
+  final Set<String>? feedIds;
+
+  bool get isAll => feedIds == null;
+
+  @override
+  List<Object?> get props => [feedIds];
+}
 
 class FollowingFeedBackupData extends Equatable {
   FollowingFeedBackupData({required List<FollowingFeedBackupRecord> feeds})
@@ -30,3 +45,15 @@ class FollowingFeedBackupRecord extends Equatable {
   @override
   List<Object?> get props => [id, name, position, queries, profile];
 }
+
+FollowingFeedBackupData filterFollowingFeedBackupData(
+  FollowingFeedBackupData data,
+  FollowingFeedExportScope scope,
+) => scope.isAll
+    ? data
+    : FollowingFeedBackupData(
+        feeds: [
+          for (final feed in data.feeds)
+            if (scope.feedIds!.contains(feed.id)) feed,
+        ],
+      );
