@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "date": "2026-08-16T08:48:50+0200",
+  "data": [
+    {
+      "id": 1,
+      "name": "blocked, tag",
+      "isActive": true,
+      "createdDate": "2026-08-16T08:48:50+0200",
+      "updatedDate": "2026-08-16T08:48:50+0200"
+    }
+  ]
+}
