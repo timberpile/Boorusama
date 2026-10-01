@@ -341,19 +341,19 @@ void main() {
       expectedId: null,
     ),
     (
-      description: 'no profile for a missing URL',
+      description: 'the only compatible profile for a missing URL',
       profiles: [_profile(4, url: 'https://other.test')],
-      expectedId: null,
+      expectedId: 4,
     ),
     (
-      description: 'no profile for a different scheme',
+      description: 'the only compatible profile for a different scheme',
       profiles: [_profile(4, url: 'http://example.test/Posts')],
-      expectedId: null,
+      expectedId: 4,
     ),
     (
-      description: 'no profile for a different path',
+      description: 'the only compatible profile for a different path',
       profiles: [_profile(4, url: 'https://example.test/posts')],
-      expectedId: null,
+      expectedId: 4,
     ),
     (
       description: 'no profile for a different type',

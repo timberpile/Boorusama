@@ -7,6 +7,8 @@ import 'package:archive/archive_io.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 // Project imports:
+import 'package:boorusama/core/backups/export_import/models/export_selection.dart';
+import 'package:boorusama/core/backups/export_import/models/import_action.dart';
 import 'package:boorusama/core/backups/export_import/package/export_package_writer.dart';
 import 'package:boorusama/foundation/filesystem.dart';
 
@@ -25,12 +27,21 @@ void main() {
       const writer = ExportPackageWriter(fs: IoFileSystem());
       final path = await writer.write(
         ExportPackageBuild(
+          exportId: '7e307c25-7b35-46b0-ae1c-60c78f09d229',
           createdAt: DateTime.utc(2026, 10),
           appVersion: '1.2.3',
+          preset: ExportSelectionMode.full,
+          containsCredentials: true,
           sources: [
             ExportPackageSourceBuild(
               id: 'bookmarks',
               schemaVersion: 3,
+              selection: const ExportNodeSelection.all('bookmarks'),
+              recommendedAction: ImportAction.replace,
+              itemRecommendedActions: const {
+                'group-a': ImportAction.update,
+                'group-b': ImportAction.merge,
+              },
               parts: [
                 ExportPackagePartBuild(
                   path: 'sources/bookmarks/data.json',
@@ -56,6 +67,20 @@ void main() {
               as Map<String, dynamic>;
       final part =
           ((manifest['sources'] as List).single as Map)['parts'] as List;
+      expect(manifest['format'], 'boorusama-export');
+      expect(
+        manifest['exportId'],
+        '7e307c25-7b35-46b0-ae1c-60c78f09d229',
+      );
+      expect(manifest['preset'], 'full');
+      expect(manifest['containsCredentials'], isTrue);
+      final source = (manifest['sources'] as List).single as Map;
+      expect(source['selection'], {'kind': 'all'});
+      expect(source['recommendedAction'], 'replace');
+      expect(source['itemRecommendedActions'], {
+        'group-a': 'update',
+        'group-b': 'merge',
+      });
       expect((part.single as Map)['byteLength'], 11);
       expect((part.single as Map)['sha256'], hasLength(64));
       await archive.clear();
@@ -92,5 +117,46 @@ void main() {
 
     expect(File(output).existsSync(), isFalse);
     expect(File('$output.tmp').existsSync(), isFalse);
+  });
+
+  test('separate packages receive different export identities', () async {
+    const writer = ExportPackageWriter(fs: IoFileSystem());
+    final build = ExportPackageBuild(
+      createdAt: DateTime.utc(2026),
+      appVersion: '1',
+      sources: [
+        ExportPackageSourceBuild(
+          id: 'settings',
+          schemaVersion: 1,
+          parts: [
+            ExportPackagePartBuild(
+              path: 'sources/settings/data.json',
+              write: (path) => File(path).writeAsString('{}'),
+            ),
+          ],
+        ),
+      ],
+    );
+
+    final paths = [
+      await writer.write(build, '${directory.path}/first'),
+      await writer.write(build, '${directory.path}/second'),
+    ];
+    final exportIds = <String>{};
+    for (final path in paths) {
+      final input = InputFileStream(path);
+      final archive = ZipDecoder().decodeStream(input);
+      final manifest =
+          jsonDecode(
+                utf8.decode(archive.find('manifest.json')!.readBytes()!),
+              )
+              as Map<String, dynamic>;
+      exportIds.add(manifest['exportId'] as String);
+      await archive.clear();
+      await input.close();
+    }
+
+    expect(exportIds, hasLength(2));
+    expect(exportIds.every((id) => id.isNotEmpty), isTrue);
   });
 }

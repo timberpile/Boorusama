@@ -1,5 +1,6 @@
 // Project imports:
 import '../models/export_selection.dart';
+import '../models/import_action.dart';
 import '../package/export_package_writer.dart';
 import '../sources/export_import_source.dart';
 
@@ -8,11 +9,15 @@ final class ExportRequest {
     required this.selection,
     required this.outputPath,
     this.includeCredentials = false,
+    this.recommendedActions = const {},
+    this.itemRecommendedActions = const {},
   });
 
   final ExportSelection selection;
   final String outputPath;
   final bool includeCredentials;
+  final Map<String, ImportAction> recommendedActions;
+  final Map<String, Map<String, ImportAction>> itemRecommendedActions;
 }
 
 class ExportService {
@@ -42,10 +47,12 @@ class ExportService {
         request.selection.mode == ExportSelectionMode.full ||
         request.includeCredentials;
     final snapshots = <ExportSourceSnapshot>[];
+    final sourceSelections = <String, ExportNodeSelection>{};
     for (final source in selected) {
       final selection =
           request.selection.nodes[source.id] ??
           ExportNodeSelection.all(source.id);
+      sourceSelections[source.id] = selection;
       snapshots.add(
         await source.capture(
           ExportSourceRequest(
@@ -59,9 +66,20 @@ class ExportService {
       ExportPackageBuild(
         createdAt: DateTime.now().toUtc(),
         appVersion: appVersion,
-        sources: snapshots
-            .map((snapshot) => snapshot.toPackageBuild())
-            .toList(),
+        preset: request.selection.mode,
+        containsCredentials: includeCredentials,
+        sources: snapshots.map((snapshot) {
+          final payload = snapshot.toPackageBuild();
+          return ExportPackageSourceBuild(
+            id: payload.id,
+            schemaVersion: payload.schemaVersion,
+            selection: sourceSelections[payload.id],
+            recommendedAction: request.recommendedActions[payload.id],
+            itemRecommendedActions:
+                request.itemRecommendedActions[payload.id] ?? const {},
+            parts: payload.parts,
+          );
+        }).toList(),
       ),
       request.outputPath,
     );

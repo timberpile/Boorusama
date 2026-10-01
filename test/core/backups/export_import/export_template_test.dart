@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 // Project imports:
 import 'package:boorusama/core/backups/export_import/models/export_selection.dart';
 import 'package:boorusama/core/backups/export_import/models/export_template.dart';
+import 'package:boorusama/core/backups/export_import/models/import_action.dart';
 
 void main() {
   test(
@@ -17,11 +18,18 @@ void main() {
         id: 'share',
         name: 'Share',
         selection: selection,
+        itemRecommendedActions: const {
+          'bookmarks': {'group-a': ImportAction.merge},
+        },
       );
 
       final restored = ExportTemplate.fromJson(template.toJson());
       expect(restored, template);
       expect(restored.selection.sourceIds, {'bookmarks', 'settings'});
+      expect(
+        restored.itemRecommendedActions['bookmarks']?['group-a'],
+        ImportAction.merge,
+      );
       expect(
         restored.selection.nodes['bookmarks'],
         const ExportNodeSelection.all('bookmarks'),

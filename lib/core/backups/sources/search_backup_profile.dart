@@ -78,5 +78,11 @@ BooruConfig? resolveBackupProfile(
   for (final profile in matches) {
     if (profile.id == reference.id) return profile;
   }
-  return matches.length == 1 ? matches.single : null;
+  if (matches.length == 1) return matches.single;
+  final compatible = profiles
+      .where(
+        (profile) => profile.auth.booruType.name == reference.booruType,
+      )
+      .toList();
+  return compatible.length == 1 ? compatible.single : null;
 }

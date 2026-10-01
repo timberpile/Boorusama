@@ -6,9 +6,12 @@ import 'dart:io';
 import 'package:archive/archive_io.dart';
 import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
+import 'package:uuid/uuid.dart';
 
 // Project imports:
 import '../../../../foundation/filesystem.dart';
+import '../models/export_selection.dart';
+import '../models/import_action.dart';
 import '../models/package_manifest.dart';
 
 typedef ExportPartWriter = Future<void> Function(String path);
@@ -24,30 +27,43 @@ final class ExportPackageSourceBuild {
   const ExportPackageSourceBuild({
     required this.id,
     required this.schemaVersion,
+    this.selection,
+    this.recommendedAction,
+    this.itemRecommendedActions = const {},
     required this.parts,
   });
 
   final String id;
   final int schemaVersion;
+  final ExportNodeSelection? selection;
+  final ImportAction? recommendedAction;
+  final Map<String, ImportAction> itemRecommendedActions;
   final List<ExportPackagePartBuild> parts;
 }
 
 final class ExportPackageBuild {
   const ExportPackageBuild({
+    this.exportId,
     required this.createdAt,
     required this.appVersion,
+    this.preset = ExportSelectionMode.custom,
+    this.containsCredentials = false,
     required this.sources,
   });
 
+  final String? exportId;
   final DateTime createdAt;
   final String appVersion;
+  final ExportSelectionMode preset;
+  final bool containsCredentials;
   final List<ExportPackageSourceBuild> sources;
 }
 
 class ExportPackageWriter {
-  const ExportPackageWriter({required this.fs});
+  const ExportPackageWriter({required this.fs, this.uuid = const Uuid()});
 
   final AppFileSystem fs;
+  final Uuid uuid;
 
   Future<String> write(ExportPackageBuild build, String requestedPath) async {
     final outputPath = requestedPath.endsWith(kExportPackageExtension)
@@ -96,14 +112,20 @@ class ExportPackageWriter {
           ExportSourceManifest(
             id: source.id,
             schemaVersion: source.schemaVersion,
+            selection: source.selection ?? ExportNodeSelection.all(source.id),
+            recommendedAction: source.recommendedAction,
+            itemRecommendedActions: source.itemRecommendedActions,
             parts: partManifests,
           ),
         );
       }
 
       final manifest = ExportPackageManifest(
+        exportId: build.exportId ?? uuid.v4().toLowerCase(),
         createdAt: build.createdAt,
         appVersion: build.appVersion,
+        preset: build.preset,
+        containsCredentials: build.containsCredentials,
         sources: sourceManifests,
       );
       final manifestPath = p.join(stagingPath, 'manifest.json');

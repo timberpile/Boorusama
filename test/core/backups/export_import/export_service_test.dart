@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 // Project imports:
 import 'package:boorusama/core/backups/export_import/export/export_service.dart';
 import 'package:boorusama/core/backups/export_import/models/export_selection.dart';
+import 'package:boorusama/core/backups/export_import/models/import_action.dart';
 import 'package:boorusama/core/backups/export_import/package/export_package_reader.dart';
 import 'package:boorusama/core/backups/export_import/package/export_package_writer.dart';
 import 'package:boorusama/core/backups/export_import/sources/export_import_source.dart';
@@ -57,11 +58,57 @@ void main() {
         'first',
         'later',
       });
+      expect(staged.manifest.format, 'boorusama-export');
+      expect(staged.manifest.exportId, isNotEmpty);
+      expect(staged.manifest.preset, ExportSelectionMode.full);
+      expect(staged.manifest.containsCredentials, isTrue);
+      for (final source in staged.manifest.sources) {
+        expect(source.selection, ExportNodeSelection.all(source.id));
+      }
       for (final source in sources.cast<_FakeSource>()) {
         expect(source.lastRequest!.includeCredentials, isTrue);
       }
     },
   );
+
+  test('custom export records exact selections and recommendations', () async {
+    final service = ExportService(
+      sources: () => [_FakeSource('bookmarks')],
+      writer: const ExportPackageWriter(fs: IoFileSystem()),
+      appVersion: '1',
+    );
+    const selection = ExportNodeSelection.explicit('bookmarks', {'group-a'});
+
+    final path = await service.createPackage(
+      ExportRequest(
+        selection: ExportSelection.custom(const {'bookmarks': selection}),
+        outputPath: '${directory.path}/custom',
+        recommendedActions: const {'bookmarks': ImportAction.merge},
+        itemRecommendedActions: const {
+          'bookmarks': {
+            'group-a': ImportAction.update,
+            'group-b': ImportAction.merge,
+          },
+        },
+      ),
+    );
+    final staged = await const ExportPackageReader(
+      fs: IoFileSystem(),
+    ).stage(path);
+    addTearDown(staged.dispose);
+
+    expect(staged.manifest.preset, ExportSelectionMode.custom);
+    expect(staged.manifest.containsCredentials, isFalse);
+    expect(staged.manifest.sources.single.selection, selection);
+    expect(
+      staged.manifest.sources.single.recommendedAction,
+      ImportAction.merge,
+    );
+    expect(staged.manifest.sources.single.itemRecommendedActions, const {
+      'group-a': ImportAction.update,
+      'group-b': ImportAction.merge,
+    });
+  });
 
   test('a source failure publishes no package', () async {
     final source = _FakeSource('broken', fail: true);
