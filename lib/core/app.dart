@@ -14,6 +14,7 @@ import '../foundation/networking.dart';
 import '../foundation/platform.dart';
 import 'analytics/widgets.dart';
 import 'backups/auto/trigger.dart';
+import 'backups/export_import/platform/received_export_listener.dart';
 import 'router.dart';
 import 'settings/providers.dart';
 import 'search/subscriptions/src/widgets/search_refresh_lifecycle.dart';
@@ -29,8 +30,10 @@ class App extends StatelessWidget {
     return const OKToast(
       child: AnalyticsScope(
         child: AutoBackupAppLifecycle(
-          child: NetworkListener(
-            child: SearchRefreshLifecycle(child: _App()),
+          child: ReceivedExportListener(
+            child: NetworkListener(
+              child: SearchRefreshLifecycle(child: _App()),
+            ),
           ),
         ),
       ),
