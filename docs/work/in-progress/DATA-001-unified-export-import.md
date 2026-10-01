@@ -42,3 +42,11 @@ bookmark identity migration required by the design.
 
 - Approved interaction mockup and architecture are committed at `5348bbe1d`.
 - Fresh worktree generation completed and the 1,481-test baseline passed.
+- Portable bookmark identity, package contracts and safe container, source
+  export adapters, collection planning, and durable rollback are implemented.
+- Unified Full/custom export UI, local templates, receiver-editable source and
+  item actions, clipboard Base64, automatic Full exports, and Android system
+  file opening are implemented.
+- Remaining delivery work: migrate nearby transfer and legacy ZIP/JSON entry
+  routing, implement Apple incoming-document callbacks, run full-suite and
+  Maestro validation, and complete review.

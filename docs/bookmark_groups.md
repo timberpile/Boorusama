@@ -13,6 +13,14 @@ target; null means `No Group`. `All` is a view and is never an assignment target
 
 ## Backup compatibility
 
+Current export and import uses the `.bsexport` container. A Full export marks
+the bookmark source as complete and recommends category replacement. A custom
+export records whether all groups (including future groups) or exact current
+group UUIDs were selected. Per-group Update mirrors the imported name and
+membership, removing newly orphaned bookmarks; Merge preserves the local name
+and local-only membership. Import choices are validated before the durable
+package transaction starts.
+
 Bookmark backup version 3 keeps bookmark objects in the top-level `data` array
 and group objects in the top-level `groups` array. Each new bookmark row has a
 portable `(booru type, normalized site, post ID)` identity and the complete

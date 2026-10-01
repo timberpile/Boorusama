@@ -378,6 +378,12 @@ the engine registry and i18n output.
 
 ## Shared-folder backup and restore
 
+Current export and import uses `.bsexport`. Folder and feed UUIDs provide
+Update, Merge, Merge into, Copy, and Skip choices. Identical pins are matched
+by resolved profile and normalized query and are reported as already present
+instead of producing a conflict. A sole compatible local profile is selected
+automatically; ambiguous or missing mappings block import before writes.
+
 Backup version 4 stores shared folder definitions and order, folder member
 order, and Home order alongside portable profile references and independent
 pin definitions. Empty folders survive restore. Imported IDs resolve through
