@@ -108,6 +108,21 @@ void main() {
   });
 
   test(
+    'an explicit profile mapping imports without a currently loaded profile',
+    () async {
+      final repository = memorySubscriptionRepository();
+
+      await PinnedSearchImportService(repository: repository).apply(
+        PinnedSearchBackupData(records: [_record(0)]),
+        profiles: const [],
+        profileIdResolver: (_) => 77,
+      );
+
+      expect((await repository.getAll()).single.profileId, 77);
+    },
+  );
+
+  test(
     'previews unmatched pins and rejects before any writes',
     () async {
       final repository = memorySubscriptionRepository();

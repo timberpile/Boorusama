@@ -2,10 +2,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
 
+import '../../../configs/manage/providers.dart';
 import '../../sources/providers.dart';
 import '../export/export_flow_notifier.dart';
 import '../widgets/import_action_editor.dart';
 import 'import_flow_notifier.dart';
+import 'profile_dependency_planner.dart';
 
 class ImportFlowPage extends ConsumerStatefulWidget {
   const ImportFlowPage({super.key, required this.packagePath});
@@ -100,6 +102,10 @@ class _ReviewImport extends ConsumerWidget {
         source.id: source.displayName,
     };
     final labels = ref.watch(exportSelectionLabelsProvider).children;
+    final profileNames = {
+      for (final profile in ref.watch(booruConfigProvider))
+        profile.id: profile.name,
+    };
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -120,6 +126,18 @@ class _ReviewImport extends ConsumerWidget {
             itemLabel: (id) => labels[id] ?? id,
             targetLabel: (id) => labels[id] ?? id,
           ),
+        for (final mapping in state.profileMappings)
+          if (!mapping.providedByImport && mapping.candidateIds.length > 1)
+            _ProfileMappingTile(
+              mapping: mapping,
+              profileNames: profileNames,
+              onChanged: (profileId) => ref
+                  .read(importFlowProvider.notifier)
+                  .chooseProfileMapping(
+                    ProfileReferenceKey.fromReference(mapping.reference),
+                    profileId,
+                  ),
+            ),
         if (state.alreadyPresentSearches > 0)
           ListTile(
             leading: const Icon(Icons.info_outline),
@@ -179,6 +197,43 @@ class _ReviewImport extends ConsumerWidget {
       ],
     );
   }
+}
+
+class _ProfileMappingTile extends StatelessWidget {
+  const _ProfileMappingTile({
+    required this.mapping,
+    required this.profileNames,
+    required this.onChanged,
+  });
+
+  final ProfileDependencyMapping mapping;
+  final Map<int, String> profileNames;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) => Card(
+    child: ListTile(
+      title: Text(mapping.reference.name),
+      subtitle: Text(
+        '${mapping.reference.booruType} · ${mapping.reference.url}',
+      ),
+      trailing: DropdownButton<int>(
+        value: mapping.candidateIds.contains(mapping.profileId)
+            ? mapping.profileId
+            : null,
+        hint: Text(
+          context.t.settings.backup_and_restore.export_import.target,
+        ),
+        items: [
+          for (final id in mapping.candidateIds)
+            DropdownMenuItem(value: id, child: Text(profileNames[id] ?? '$id')),
+        ],
+        onChanged: (value) {
+          if (value != null) onChanged(value);
+        },
+      ),
+    ),
+  );
 }
 
 String _issueText(String code, String sourceId) => '$sourceId: $code';

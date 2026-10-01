@@ -187,6 +187,37 @@ void main() {
     expect(merged.proxySettings?.username, 'proxy-user');
     expect(merged.proxySettings?.password, 'proxy-pass');
   });
+
+  test('ambiguous profile updates require an explicit compatible target', () {
+    final item = const ImportPlanner()
+        .plan(const [
+          ImportSourcePlanningInput(
+            id: 'profiles',
+            kind: ImportSourceKind.collection,
+            items: [
+              ImportItemPlanningInput(
+                id: 'profile:99',
+                compatibleTargetIds: {'profile:4', 'profile:5'},
+                availableActions: {
+                  ImportAction.update,
+                  ImportAction.copy,
+                  ImportAction.skip,
+                },
+                targetRequiredActions: {ImportAction.update},
+                fallbackAction: ImportAction.update,
+              ),
+            ],
+          ),
+        ])
+        .sources
+        .single
+        .items
+        .single;
+
+    expect(item.defaultAction, ImportAction.update);
+    expect(item.defaultTargetId, isNull);
+    expect(item.targetRequiredActions, {ImportAction.update});
+  });
 }
 
 BooruConfig _profile(int id, String url) => BooruConfig.fromJson({

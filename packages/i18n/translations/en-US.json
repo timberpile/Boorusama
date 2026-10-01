@@ -852,7 +852,10 @@
         "cancel": "Cancel",
         "import_defaults": "Suggested import behavior",
         "import_defaults_description": "The recipient can review and change these suggestions before importing.",
-        "no_preference": "Automatic"
+        "no_preference": "Automatic",
+        "recovering_import": "Recovering an interrupted import…",
+        "recovery_required": "Import recovery required",
+        "recovery_required_description": "Boorusama could not restore {count} interrupted import transaction(s). Normal app changes remain blocked until recovery succeeds."
       },
       "auto_backup": "Auto backup",
       "auto_backup_tooltip": "Backups are created when you open the app. No backups occur when the app is closed.",

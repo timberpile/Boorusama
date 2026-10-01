@@ -108,7 +108,9 @@ class _ItemActionTile extends StatelessWidget {
               onChanged(
                 resolved.copyWith(
                   action: action,
-                  targetId: action == ImportAction.mergeIntoTarget
+                  targetId:
+                      proposed.targetRequiredActions.contains(action) ||
+                          action == ImportAction.mergeIntoTarget
                       ? resolved.targetId
                       : null,
                 ),
@@ -116,7 +118,8 @@ class _ItemActionTile extends StatelessWidget {
             }
           },
         ),
-        if (resolved.action == ImportAction.mergeIntoTarget) ...[
+        if (resolved.action == ImportAction.mergeIntoTarget ||
+            proposed.targetRequiredActions.contains(resolved.action)) ...[
           const SizedBox(height: 8),
           DropdownButtonFormField<String>(
             initialValue:

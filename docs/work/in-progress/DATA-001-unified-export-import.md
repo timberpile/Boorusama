@@ -47,6 +47,10 @@ bookmark identity migration required by the design.
 - Unified Full/custom export UI, local templates, receiver-editable source and
   item actions, clipboard Base64, automatic Full exports, and Android system
   file opening are implemented.
+- Startup now completes or blocks on durable import recovery before normal app
+  activity. Profile imports use portable matching, preserve credentials only
+  for updates, keep copies unauthenticated, and preflight dependent pins/feeds
+  against the projected post-import profile set.
 - Remaining delivery work: migrate nearby transfer and legacy ZIP/JSON entry
   routing, implement Apple incoming-document callbacks, run full-suite and
   Maestro validation, and complete review.

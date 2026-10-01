@@ -87,6 +87,49 @@ void main() {
     expect(find.text('Target'), findsOneWidget);
     expect(find.byType(DropdownButtonFormField<String>), findsOneWidget);
   });
+
+  testWidgets('shows a target picker for an ambiguous profile update', (
+    tester,
+  ) async {
+    final proposed = ProposedImportSource(
+      id: 'profiles',
+      kind: ImportSourceKind.collection,
+      selectionComplete: false,
+      availableActions: const {ImportAction.configureItems},
+      defaultAction: ImportAction.configureItems,
+      items: [
+        ProposedImportItem(
+          id: 'profile:99',
+          availableActions: const {
+            ImportAction.update,
+            ImportAction.copy,
+            ImportAction.skip,
+          },
+          defaultAction: ImportAction.update,
+          compatibleTargetIds: const {'profile:4', 'profile:5'},
+          targetRequiredActions: const {ImportAction.update},
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      _app(
+        ImportActionEditor(
+          proposed: proposed,
+          resolved: ProposedImportPlan(
+            sources: [proposed],
+          ).resolveDefaults().sources.single,
+          onChanged: (_) {},
+          sourceLabel: (_) => 'Booru profiles',
+          itemLabel: (_) => 'Remote',
+          targetLabel: (id) => id,
+        ),
+      ),
+    );
+
+    expect(find.text('Target'), findsOneWidget);
+    expect(find.byType(DropdownButtonFormField<String>), findsOneWidget);
+  });
 }
 
 Widget _app(Widget child) => TranslationProvider(

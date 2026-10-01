@@ -60,7 +60,10 @@ void main() {
       );
 
       expect(find.text(c.label), findsOneWidget);
-      expect(tester.widget<Checkbox>(find.byType(Checkbox).first).value, true);
+      expect(
+        tester.widget<Checkbox>(find.byType(Checkbox).first).value,
+        c.selection.kind == ExportNodeSelectionKind.all ? true : null,
+      );
     });
   }
 }

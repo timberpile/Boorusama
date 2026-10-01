@@ -18,6 +18,7 @@ void main() {
         id: 'share',
         name: 'Share',
         selection: selection,
+        includeCredentials: true,
         itemRecommendedActions: const {
           'bookmarks': {'group-a': ImportAction.merge},
         },
@@ -26,6 +27,7 @@ void main() {
       final restored = ExportTemplate.fromJson(template.toJson());
       expect(restored, template);
       expect(restored.selection.sourceIds, {'bookmarks', 'settings'});
+      expect(restored.includeCredentials, isTrue);
       expect(
         restored.itemRecommendedActions['bookmarks']?['group-a'],
         ImportAction.merge,
@@ -46,5 +48,20 @@ void main() {
       }),
       throwsFormatException,
     );
+  });
+
+  test('older templates default to excluding credentials', () {
+    final restored = ExportTemplate.fromJson(const {
+      'id': 'old',
+      'name': 'Old',
+      'selection': {
+        'mode': 'custom',
+        'nodes': [
+          {'nodeId': 'profiles', 'kind': 'explicit', 'childIds': <String>[]},
+        ],
+      },
+    });
+
+    expect(restored.includeCredentials, isFalse);
   });
 }

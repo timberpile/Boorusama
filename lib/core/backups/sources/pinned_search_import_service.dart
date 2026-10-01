@@ -53,10 +53,17 @@ class PinnedSearchImportService {
   PinnedSearchImportPreview preview(
     PinnedSearchBackupData data, {
     required List<BooruConfig> profiles,
+    BackupProfileIdResolver? profileIdResolver,
   }) => PinnedSearchImportPreview(
     unmatchedRecordIds: {
       for (final record in data.records)
-        if (resolveBackupProfile(record.profile, profiles) == null) record.id,
+        if (resolveBackupProfileId(
+              record.profile,
+              profiles,
+              resolver: profileIdResolver,
+            ) ==
+            null)
+          record.id,
     },
   );
 
@@ -65,8 +72,13 @@ class PinnedSearchImportService {
     required List<BooruConfig> profiles,
     bool allowMissingProfiles = false,
     Map<String, CollectionImportAction>? folderActions,
+    BackupProfileIdResolver? profileIdResolver,
   }) async {
-    final unmatched = preview(data, profiles: profiles).unmatchedRecordIds;
+    final unmatched = preview(
+      data,
+      profiles: profiles,
+      profileIdResolver: profileIdResolver,
+    ).unmatchedRecordIds;
     if (unmatched.isNotEmpty && !allowMissingProfiles) {
       throw UnmatchedPinnedSearchProfilesException(unmatched);
     }
@@ -85,24 +97,28 @@ class PinnedSearchImportService {
       for (final (_, record) in ordered)
         (
           record: record,
-          profile: resolveBackupProfile(record.profile, profiles),
+          profileId: resolveBackupProfileId(
+            record.profile,
+            profiles,
+            resolver: profileIdResolver,
+          ),
         ),
     ];
     var imported = 0;
     var existing = 0;
     var skipped = 0;
-    for (final (:record, :profile) in mapped) {
-      if (profile == null) {
+    for (final (:record, :profileId) in mapped) {
+      if (profileId == null) {
         skipped++;
         continue;
       }
       final byId = await repository.getById(record.id);
-      final byQuery = await repository.findByQuery(profile.id, record.query);
+      final byQuery = await repository.findByQuery(profileId, record.query);
       final saved =
           byQuery ??
           switch (byId) {
             final pin?
-                when pin.profileId == profile.id &&
+                when pin.profileId == profileId &&
                     !internalIds.contains(pin.id) =>
               pin,
             _ => null,
@@ -113,7 +129,7 @@ class PinnedSearchImportService {
         continue;
       }
       final created = await repository.create(
-        profileId: profile.id,
+        profileId: profileId,
         query: record.query,
         queryStructure: record.queryStructure,
         name: record.name,

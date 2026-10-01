@@ -10,6 +10,7 @@ final class ExportTemplate extends Equatable {
     required this.id,
     required this.name,
     required this.selection,
+    this.includeCredentials = false,
     this.recommendedActions = const {},
     this.itemRecommendedActions = const {},
   }) {
@@ -37,6 +38,7 @@ final class ExportTemplate extends Equatable {
       id: id,
       name: name,
       selection: ExportSelection.fromJson(selection),
+      includeCredentials: json['includeCredentials'] == true,
       recommendedActions: _actionsFromJson(json['recommendedActions']),
       itemRecommendedActions: _itemActionsFromJson(
         json['itemRecommendedActions'],
@@ -47,6 +49,7 @@ final class ExportTemplate extends Equatable {
   final String id;
   final String name;
   final ExportSelection selection;
+  final bool includeCredentials;
   final Map<String, ImportAction> recommendedActions;
   final Map<String, Map<String, ImportAction>> itemRecommendedActions;
 
@@ -54,6 +57,7 @@ final class ExportTemplate extends Equatable {
     'id': id,
     'name': name,
     'selection': selection.toJson(),
+    'includeCredentials': includeCredentials,
     'recommendedActions': {
       for (final entry in recommendedActions.entries)
         entry.key: entry.value.name,
@@ -71,6 +75,7 @@ final class ExportTemplate extends Equatable {
     id,
     name,
     selection,
+    includeCredentials,
     recommendedActions,
     itemRecommendedActions,
   ];

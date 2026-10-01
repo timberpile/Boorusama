@@ -318,6 +318,7 @@ class ExportFlowPage extends ConsumerWidget {
             id: const Uuid().v4(),
             name: name,
             selection: selection,
+            includeCredentials: flow.includeCredentials,
             recommendedActions: flow.recommendedActions,
             itemRecommendedActions: flow.itemRecommendedActions,
           ),

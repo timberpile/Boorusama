@@ -208,7 +208,7 @@ class ExportFlowNotifier extends AutoDisposeNotifier<ExportFlowState> {
     state = state.copyWith(
       isFull: false,
       nodes: template.selection.nodes,
-      includeCredentials: false,
+      includeCredentials: template.includeCredentials,
       recommendedActions: template.recommendedActions,
       itemRecommendedActions: template.itemRecommendedActions,
       status: ExportFlowStatus.choosing,

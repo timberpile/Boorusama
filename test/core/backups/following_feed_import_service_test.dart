@@ -128,6 +128,21 @@ void main() {
     },
   );
 
+  test(
+    'an explicit profile mapping imports without a currently loaded profile',
+    () async {
+      final repository = memorySubscriptionRepository();
+
+      await FollowingFeedImportService(repository: repository).apply(
+        _data([_record(0)]),
+        profiles: const [],
+        profileIdResolver: (_) => 77,
+      );
+
+      expect((await repository.getFeeds()).single.profileId, 77);
+    },
+  );
+
   test('rejects a wrong-owner UUID before changing another feed', () async {
     final repository = memorySubscriptionRepository();
     await repository.saveFeed(

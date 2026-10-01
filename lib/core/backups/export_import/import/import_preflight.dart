@@ -153,6 +153,16 @@ final class ImportPreflight {
             ),
           );
         }
+        if (item.targetRequiredActions.contains(itemResolution.action) &&
+            !item.compatibleTargetIds.contains(itemResolution.targetId)) {
+          errors.add(
+            ImportPlanIssue(
+              code: 'unresolved_item_target',
+              sourceId: source.id,
+              itemId: itemResolution.id,
+            ),
+          );
+        }
       }
     }
 

@@ -25,15 +25,20 @@ final class ProposedImportItem extends Equatable {
     required Iterable<ImportAction> availableActions,
     required this.defaultAction,
     required Iterable<String> compatibleTargetIds,
+    Iterable<ImportAction> targetRequiredActions = const {},
     this.matchingItemId,
+    this.defaultTargetId,
   }) : availableActions = Set.unmodifiable(availableActions),
-       compatibleTargetIds = Set.unmodifiable(compatibleTargetIds);
+       compatibleTargetIds = Set.unmodifiable(compatibleTargetIds),
+       targetRequiredActions = Set.unmodifiable(targetRequiredActions);
 
   final String id;
   final String? matchingItemId;
   final Set<String> compatibleTargetIds;
   final Set<ImportAction> availableActions;
+  final Set<ImportAction> targetRequiredActions;
   final ImportAction defaultAction;
+  final String? defaultTargetId;
 
   @override
   List<Object?> get props => [
@@ -41,7 +46,9 @@ final class ProposedImportItem extends Equatable {
     matchingItemId,
     compatibleTargetIds,
     availableActions,
+    targetRequiredActions,
     defaultAction,
+    defaultTargetId,
   ];
 }
 
@@ -95,7 +102,11 @@ final class ProposedImportPlan extends Equatable {
           action: source.defaultAction,
           items: [
             for (final item in source.items)
-              ResolvedImportItem(id: item.id, action: item.defaultAction),
+              ResolvedImportItem(
+                id: item.id,
+                action: item.defaultAction,
+                targetId: item.defaultTargetId,
+              ),
           ],
         ),
     ],

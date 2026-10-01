@@ -56,10 +56,17 @@ class FollowingFeedImportService {
   FollowingFeedImportPreview preview(
     FollowingFeedBackupData data, {
     required List<BooruConfig> profiles,
+    BackupProfileIdResolver? profileIdResolver,
   }) => FollowingFeedImportPreview(
     unmatchedRecordIds: {
       for (final record in data.feeds)
-        if (resolveBackupProfile(record.profile, profiles) == null) record.id,
+        if (resolveBackupProfileId(
+              record.profile,
+              profiles,
+              resolver: profileIdResolver,
+            ) ==
+            null)
+          record.id,
     },
   );
 
@@ -68,8 +75,13 @@ class FollowingFeedImportService {
     required List<BooruConfig> profiles,
     bool allowMissingProfiles = false,
     Map<String, CollectionImportAction>? feedActions,
+    BackupProfileIdResolver? profileIdResolver,
   }) async {
-    final unmatched = preview(data, profiles: profiles).unmatchedRecordIds;
+    final unmatched = preview(
+      data,
+      profiles: profiles,
+      profileIdResolver: profileIdResolver,
+    ).unmatchedRecordIds;
     if (unmatched.isNotEmpty && !allowMissingProfiles) {
       throw UnmatchedFollowingFeedProfilesException(unmatched);
     }
@@ -79,6 +91,7 @@ class FollowingFeedImportService {
         profiles: profiles,
         allowMissingProfiles: allowMissingProfiles,
         actions: feedActions,
+        profileIdResolver: profileIdResolver,
       );
     }
 
@@ -87,16 +100,20 @@ class FollowingFeedImportService {
         (
           index: index,
           record: record,
-          profile: resolveBackupProfile(record.profile, profiles),
+          profileId: resolveBackupProfileId(
+            record.profile,
+            profiles,
+            resolver: profileIdResolver,
+          ),
         ),
     ];
     final localFeeds = await repository.getFeeds();
     final localById = {for (final feed in localFeeds) feed.id: feed};
     final conflicts = <String>{};
     for (final item in mapped) {
-      final profile = item.profile;
+      final profileId = item.profileId;
       final local = localById[item.record.id];
-      if (profile != null && local != null && local.profileId != profile.id) {
+      if (profileId != null && local != null && local.profileId != profileId) {
         conflicts.add(item.record.id);
       }
     }
@@ -105,20 +122,20 @@ class FollowingFeedImportService {
     final sourcesById = {
       for (final source in await repository.getAll()) source.id: source,
     };
-    final accepted = mapped.where((item) => item.profile != null).toList();
-    final profileIds = {for (final item in accepted) item.profile!.id};
+    final accepted = mapped.where((item) => item.profileId != null).toList();
+    final profileIds = {for (final item in accepted) item.profileId!};
     final finalOrder = <int, List<String>>{};
     for (final profileId in profileIds) {
       final rows =
-          accepted.where((item) => item.profile!.id == profileId).toList()
-            ..sort((left, right) {
-              final position = left.record.position.compareTo(
-                right.record.position,
-              );
-              return position != 0
-                  ? position
-                  : left.index.compareTo(right.index);
-            });
+          accepted.where((item) => item.profileId == profileId).toList()..sort((
+            left,
+            right,
+          ) {
+            final position = left.record.position.compareTo(
+              right.record.position,
+            );
+            return position != 0 ? position : left.index.compareTo(right.index);
+          });
       final importedIds = rows.map((item) => item.record.id).toSet();
       final order = [
         for (final feed in localFeeds)
@@ -152,7 +169,7 @@ class FollowingFeedImportService {
           .toList();
       try {
         for (final item in accepted.where(
-          (item) => item.profile!.id == profileId,
+          (item) => item.profileId == profileId,
         )) {
           final record = item.record;
           final local = localById[record.id];
@@ -202,6 +219,7 @@ class FollowingFeedImportService {
     required List<BooruConfig> profiles,
     required bool allowMissingProfiles,
     required Map<String, CollectionImportAction> actions,
+    required BackupProfileIdResolver? profileIdResolver,
   }) async {
     final localFeeds = await repository.getFeeds();
     final localById = {for (final feed in localFeeds) feed.id: feed};
@@ -211,8 +229,12 @@ class FollowingFeedImportService {
     final resolved = <FollowingFeedBackupRecord>[];
     var skippedProfiles = 0;
     for (final record in data.feeds) {
-      final profile = resolveBackupProfile(record.profile, profiles);
-      if (profile == null) {
+      final profileId = resolveBackupProfileId(
+        record.profile,
+        profiles,
+        resolver: profileIdResolver,
+      );
+      if (profileId == null) {
         skippedProfiles++;
         continue;
       }
@@ -244,7 +266,7 @@ class FollowingFeedImportService {
       }) {
         throw StateError('Feed action is not applicable.');
       }
-      if (local != null && local.profileId != profile.id) {
+      if (local != null && local.profileId != profileId) {
         throw FeedBackupIdConflictException({destinationId});
       }
       final localQueries = [
@@ -263,12 +285,7 @@ class FollowingFeedImportService {
           queries: merge
               ? _orderedQueryUnion(localQueries, record.queries)
               : record.queries,
-          profile: BackupProfileReference(
-            id: profile.id,
-            booruType: profile.auth.booruType.name,
-            url: normalizeBackupProfileUrl(profile.url),
-            name: profile.name,
-          ),
+          profile: record.profile,
         ),
       );
     }
@@ -276,6 +293,7 @@ class FollowingFeedImportService {
       FollowingFeedBackupData(feeds: resolved),
       profiles: profiles,
       allowMissingProfiles: allowMissingProfiles,
+      profileIdResolver: profileIdResolver,
     );
     return FollowingFeedImportResult(
       importedCount: result.importedCount,

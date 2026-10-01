@@ -106,6 +106,45 @@ void main() {
       'insufficient_storage',
     });
   });
+
+  test('an unresolved required profile target blocks apply', () {
+    final proposed = const ImportPlanner().plan(const [
+      ImportSourcePlanningInput(
+        id: 'profiles',
+        kind: ImportSourceKind.collection,
+        items: [
+          ImportItemPlanningInput(
+            id: 'profile:99',
+            compatibleTargetIds: {'profile:4', 'profile:5'},
+            availableActions: {
+              ImportAction.update,
+              ImportAction.copy,
+              ImportAction.skip,
+            },
+            targetRequiredActions: {ImportAction.update},
+            fallbackAction: ImportAction.update,
+          ),
+        ],
+      ),
+    ]);
+
+    final result = const ImportPreflight().validate(
+      proposed: proposed,
+      resolved: proposed.resolveDefaults(),
+      sources: [
+        SourcePreflightSnapshot(
+          sourceId: 'profiles',
+          revisionToken: 'revision-1',
+        ),
+      ],
+      availableBytes: 100,
+      stagingBytes: 0,
+      warningsAcknowledged: true,
+    );
+
+    expect(result.isValid, isFalse);
+    expect(result.errors.single.code, 'unresolved_item_target');
+  });
 }
 
 ProposedImportPlan _proposed() => const ImportPlanner().plan(const [

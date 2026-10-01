@@ -7,12 +7,20 @@ final class ImportItemPlanningInput {
     this.matchingItemId,
     this.compatibleTargetIds = const {},
     this.recommendedAction,
+    this.availableActions,
+    this.targetRequiredActions = const {},
+    this.fallbackAction,
+    this.defaultTargetId,
   });
 
   final String id;
   final String? matchingItemId;
   final Set<String> compatibleTargetIds;
   final ImportAction? recommendedAction;
+  final Set<ImportAction>? availableActions;
+  final Set<ImportAction> targetRequiredActions;
+  final ImportAction? fallbackAction;
+  final String? defaultTargetId;
 }
 
 final class ImportSourcePlanningInput {
@@ -64,21 +72,26 @@ final class ImportPlanner {
       );
       final items = <ProposedImportItem>[];
       for (final item in input.items) {
-        final actions = <ImportAction>{
-          if (item.matchingItemId != null) ...{
-            ImportAction.update,
-            ImportAction.merge,
-          },
-          if (item.compatibleTargetIds.isNotEmpty) ImportAction.mergeIntoTarget,
-          ImportAction.copy,
-          ImportAction.skip,
-        };
+        final actions =
+            item.availableActions ??
+            <ImportAction>{
+              if (item.matchingItemId != null) ...{
+                ImportAction.update,
+                ImportAction.merge,
+              },
+              if (item.compatibleTargetIds.isNotEmpty)
+                ImportAction.mergeIntoTarget,
+              ImportAction.copy,
+              ImportAction.skip,
+            };
         final itemDefault = _recommendedOrFallback(
           recommendation: item.recommendedAction,
           available: actions,
-          fallback: item.matchingItemId == null
-              ? ImportAction.copy
-              : ImportAction.update,
+          fallback:
+              item.fallbackAction ??
+              (item.matchingItemId == null
+                  ? ImportAction.copy
+                  : ImportAction.update),
           onUnsupported: () => warnings.add(
             ImportPlanIssue(
               code: 'unsupported_recommended_action',
@@ -92,8 +105,10 @@ final class ImportPlanner {
             id: item.id,
             matchingItemId: item.matchingItemId,
             compatibleTargetIds: item.compatibleTargetIds,
+            targetRequiredActions: item.targetRequiredActions,
             availableActions: actions,
             defaultAction: itemDefault,
+            defaultTargetId: item.defaultTargetId,
           ),
         );
       }

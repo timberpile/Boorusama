@@ -30,6 +30,7 @@ import '../foundation/platform.dart';
 import '../foundation/utils/file_utils.dart';
 import '../foundation/vendors/google/providers.dart';
 import 'app.dart';
+import 'backups/export_import/import/import_recovery_gate.dart';
 import 'boorus/booru/providers.dart';
 import 'boorus/booru/types.dart';
 import 'boorus/engine/providers.dart';
@@ -335,7 +336,7 @@ class _BoorusamaAppState extends State<BoorusamaApp> {
               widget.cronetAvailable,
             ),
           ],
-          child: const App(),
+          child: const ImportRecoveryGate(child: App()),
         ),
       ),
     );

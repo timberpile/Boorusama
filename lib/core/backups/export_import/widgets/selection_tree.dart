@@ -65,9 +65,7 @@ class _SelectionNode extends StatelessWidget {
       (null, _) => false,
       (_, false) => true,
       (ExportNodeSelection(kind: ExportNodeSelectionKind.all), true) => true,
-      (_, true) when selectedChildren.length == descriptor.childIds.length =>
-        true,
-      _ => null,
+      (_, true) => null,
     };
     final subtitle = switch (selection?.kind) {
       ExportNodeSelectionKind.all when descriptor.isCollection =>
