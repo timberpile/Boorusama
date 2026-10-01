@@ -1,0 +1,1003 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Boorusama data export and import · Interactive mockup</title>
+  <style>
+    :root {
+      font-family: Inter, Roboto, "Segoe UI", system-ui, sans-serif;
+      color: #f5f5f8;
+      background: #101116;
+      font-synthesis: none;
+      --surface: #191b22;
+      --surface-2: #22252e;
+      --surface-3: #2b2e39;
+      --line: #3a3e4a;
+      --muted: #a9aebb;
+      --faint: #7d8391;
+      --primary: #aeb7ff;
+      --primary-bg: #343b68;
+      --danger: #ffb2b8;
+      --danger-bg: #45252c;
+      --warning: #f5c47c;
+      --warning-bg: #443420;
+      --success: #91dfbd;
+      --success-bg: #203a31;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; }
+    button, input, select { font: inherit; }
+    button { cursor: pointer; }
+    button:focus-visible, input:focus-visible, select:focus-visible {
+      outline: 2px solid var(--primary);
+      outline-offset: 2px;
+    }
+    .shell {
+      display: grid;
+      grid-template-columns: minmax(245px, 330px) minmax(340px, 410px) minmax(260px, 370px);
+      align-items: center;
+      gap: clamp(24px, 4vw, 68px);
+      max-width: 1450px;
+      min-height: 100vh;
+      margin: auto;
+      padding: 34px;
+    }
+    .eyebrow {
+      color: var(--primary);
+      font-size: 11px;
+      font-weight: 850;
+      letter-spacing: .15em;
+      text-transform: uppercase;
+    }
+    h1 { margin: 12px 0; font-size: clamp(31px, 3.5vw, 49px); line-height: 1.04; letter-spacing: -.045em; }
+    h2 { margin: 0; font-size: 19px; letter-spacing: -.02em; }
+    h3 { margin: 0; font-size: 15px; }
+    p { color: var(--muted); line-height: 1.52; }
+    .lede { margin: 0 0 25px; font-size: 14px; }
+    .scenario-list { display: grid; gap: 8px; margin-top: 14px; }
+    .scenario-list button {
+      display: grid;
+      grid-template-columns: 28px 1fr;
+      gap: 9px;
+      align-items: center;
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--surface-2);
+      color: #e8e9f1;
+      padding: 10px 12px;
+      text-align: left;
+    }
+    .scenario-list button:hover, .scenario-list button.active {
+      border-color: #8794ef;
+      background: #2b3354;
+    }
+    .scenario-list span:first-child { color: var(--primary); font-weight: 800; }
+    .scenario-list small { display: block; margin-top: 2px; color: #969dac; font-size: 11px; }
+    .note {
+      margin-top: 20px;
+      border-left: 3px solid #7f8be2;
+      border-radius: 0 10px 10px 0;
+      background: #212844;
+      padding: 11px 13px;
+      color: #dce1ff;
+      font-size: 12px;
+      line-height: 1.48;
+    }
+
+    .phone {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      height: min(850px, calc(100vh - 55px));
+      min-height: 700px;
+      overflow: hidden;
+      border: 7px solid #3a3d47;
+      border-radius: 39px;
+      background: #0d0e12;
+      box-shadow: 0 35px 95px #000a, 0 0 0 1px #606570;
+    }
+    .phone-status {
+      flex: none;
+      display: flex;
+      justify-content: space-between;
+      height: 31px;
+      padding: 8px 21px 0;
+      font-size: 12px;
+      font-weight: 750;
+    }
+    .appbar {
+      flex: none;
+      display: grid;
+      grid-template-columns: 38px 1fr 38px;
+      align-items: center;
+      min-height: 57px;
+      padding: 0 10px;
+      border-bottom: 1px solid #2b2e35;
+    }
+    .appbar strong { text-align: center; font-size: 18px; }
+    .icon-button {
+      display: grid;
+      place-items: center;
+      width: 36px;
+      height: 36px;
+      border: 0;
+      border-radius: 50%;
+      background: transparent;
+      color: #f3f4fa;
+      font-size: 23px;
+    }
+    .icon-button:hover { background: #292c34; }
+    .phone-screen { flex: 1; min-height: 0; overflow-y: auto; padding: 17px 14px 110px; }
+    .stepper { display: flex; align-items: center; gap: 6px; margin: 0 2px 17px; }
+    .stepper i { width: 7px; height: 7px; border-radius: 50%; background: #454a56; }
+    .stepper i.active { width: 22px; border-radius: 5px; background: #9ca8ff; }
+    .section-label {
+      margin: 20px 4px 8px;
+      color: #9ea5b4;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+    }
+    .intro-title { margin: 0 3px 5px; font-size: 24px; letter-spacing: -.035em; }
+    .intro-copy { margin: 0 3px 17px; color: #a8adba; font-size: 12px; }
+    .card {
+      margin: 9px 0;
+      border: 1px solid #353943;
+      border-radius: 15px;
+      background: #1d1f26;
+      overflow: hidden;
+    }
+    .card.pad { padding: 14px; }
+    .hero-card { padding: 16px; }
+    .hero-head { display: flex; align-items: flex-start; gap: 12px; }
+    .hero-icon {
+      display: grid;
+      place-items: center;
+      flex: none;
+      width: 42px;
+      height: 42px;
+      border-radius: 12px;
+      background: #343a62;
+      color: #d9ddff;
+      font-size: 21px;
+    }
+    .hero-head p { margin: 4px 0 0; font-size: 11px; }
+    .button-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
+    .button, .primary, .secondary, .quiet {
+      border: 0;
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 12px;
+      font-weight: 750;
+    }
+    .primary { background: #5965bd; color: white; }
+    .primary:hover { background: #6672ca; }
+    .primary:disabled { cursor: default; opacity: .42; }
+    .secondary { background: #303440; color: #e5e7f0; }
+    .secondary:hover { background: #3a3f4d; }
+    .quiet { background: transparent; color: #bdc6ff; }
+    .button { border: 1px solid #454b5a; background: #292d37; color: white; }
+    .wide { width: 100%; }
+    .row {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      min-height: 56px;
+      padding: 11px 13px;
+      border-bottom: 1px solid #30333b;
+    }
+    .row:last-child { border-bottom: 0; }
+    .row-body { flex: 1; min-width: 0; }
+    .row-body strong { display: block; font-size: 13px; }
+    .row-body small { display: block; margin-top: 3px; color: #999fad; font-size: 10px; line-height: 1.35; }
+    .row input[type="checkbox"] { width: 19px; height: 19px; accent-color: #9aa7ff; }
+    .category-row { display: flex; align-items: center; min-height: 58px; border-bottom: 1px solid #30333b; }
+    .category-row > label { flex: 1; border-bottom: 0; }
+    .expand-button { width: 42px; align-self: stretch; border: 0; background: transparent; color: #cbd1e5; font-size: 17px; }
+    .expand-button:hover { background: #292d36; }
+    .nested { border-bottom: 1px solid #30333b; background: #17191f; }
+    .nested .row { min-height: 50px; padding-left: 35px; }
+    .nested .row:last-child { border-bottom: 0; }
+    .count { color: #aab4ff; font-size: 11px; font-weight: 750; }
+    .badge { display: inline-block; border-radius: 999px; padding: 4px 7px; font-size: 9px; font-weight: 850; text-transform: uppercase; letter-spacing: .04em; }
+    .badge.safe { background: var(--success-bg); color: var(--success); }
+    .badge.warn { background: var(--warning-bg); color: var(--warning); }
+    .badge.block { background: var(--danger-bg); color: var(--danger); }
+    .badge.info { background: #293354; color: #bec7ff; }
+    .segment { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; margin: 10px 0 14px; padding: 3px; border-radius: 12px; background: #20232a; }
+    .segment button { border: 0; border-radius: 9px; background: transparent; color: #a7acb8; padding: 9px; font-size: 11px; font-weight: 750; }
+    .segment button.active { background: #3c446e; color: white; }
+    .info-box, .issue {
+      margin: 10px 0;
+      border: 1px solid #3b4258;
+      border-radius: 12px;
+      background: #202638;
+      padding: 11px 12px;
+      color: #cdd3e9;
+      font-size: 11px;
+      line-height: 1.48;
+    }
+    .issue.warning { border-color: #665031; background: #32291e; color: #efd5aa; }
+    .issue.blocking { border-color: #6f3943; background: #392329; color: #ffc7cc; }
+    .issue.success { border-color: #315847; background: #1f332b; color: #b9ebd3; }
+    .issue strong { display: block; margin-bottom: 3px; }
+    .mini-code { margin-top: 7px; color: #ced4ff; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 10px; }
+    .package-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+    .meta { padding: 9px; border-radius: 10px; background: #282b34; }
+    .meta span { display: block; color: #888f9d; font-size: 9px; text-transform: uppercase; }
+    .meta strong { display: block; margin-top: 3px; font-size: 11px; }
+    .choice { padding: 13px; }
+    .choice + .choice { border-top: 1px solid #323640; }
+    .choice-top { display: flex; align-items: flex-start; gap: 8px; }
+    .choice-top div { flex: 1; }
+    .choice p { margin: 4px 0 10px; font-size: 10px; }
+    .choice select {
+      width: 100%;
+      border: 1px solid #52596a;
+      border-radius: 9px;
+      background: #242731;
+      color: #f2f3fa;
+      padding: 9px;
+      font-size: 11px;
+    }
+    .choice select + select { margin-top: 8px; }
+    .example {
+      margin-top: 9px;
+      border-radius: 9px;
+      background: #17191f;
+      padding: 9px;
+      color: #aeb5c5;
+      font-size: 10px;
+      line-height: 1.5;
+    }
+    .diff-row { display: grid; grid-template-columns: 1fr auto; gap: 10px; padding: 8px 0; border-bottom: 1px solid #30333b; font-size: 11px; }
+    .diff-row:last-child { border: 0; }
+    .diff-row span:last-child { color: #c7ceff; font-weight: 750; }
+    .bottom-action {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 3;
+      padding: 12px 15px 18px;
+      border-top: 1px solid #30333a;
+      background: linear-gradient(#17191dea, #17191d 35%);
+    }
+    .bottom-action .primary { width: 100%; min-height: 44px; }
+    .bottom-action small { display: block; margin: 0 0 8px; color: #8e95a3; text-align: center; font-size: 9px; }
+    .done { display: grid; place-items: center; min-height: 570px; padding: 28px; text-align: center; }
+    .done-icon { display: grid; place-items: center; width: 68px; height: 68px; border-radius: 50%; background: var(--success-bg); color: var(--success); font-size: 32px; }
+    .done h2 { margin-top: 18px; font-size: 24px; }
+    .done p { max-width: 265px; margin: 8px auto 20px; font-size: 12px; }
+    .action-stack { display: grid; gap: 8px; margin-top: 14px; }
+    .action-stack button { width: 100%; min-height: 45px; text-align: left; }
+    .action-stack button strong, .action-stack button small { display: block; }
+    .action-stack button small { margin-top: 3px; color: #a9aebb; font-size: 9px; font-weight: 500; }
+    .action-stack button:disabled { cursor: default; opacity: .42; }
+
+    .inspector { align-self: center; }
+    .inspector-card { border: 1px solid var(--line); border-radius: 16px; background: var(--surface); padding: 17px; }
+    .inspector-card + .inspector-card { margin-top: 13px; }
+    .inspector h2 { font-size: 17px; }
+    .inspector p, .inspector li { font-size: 12px; }
+    .inspector ul { padding-left: 18px; }
+    .principle { display: flex; gap: 9px; margin-top: 12px; }
+    .principle b { display: grid; place-items: center; flex: none; width: 23px; height: 23px; border-radius: 50%; background: #30375c; color: #cbd1ff; font-size: 11px; }
+    .principle span { color: #b2b7c4; font-size: 11px; line-height: 1.45; }
+    .options { display: grid; gap: 7px; margin-top: 11px; }
+    .option {
+      display: block;
+      width: 100%;
+      border: 1px solid #3d424e;
+      border-radius: 10px;
+      background: #22252c;
+      color: #e6e8f0;
+      padding: 10px;
+      text-align: left;
+    }
+    .option:hover, .option.selected { border-color: #8996ef; background: #2b3354; }
+    .option strong { display: block; font-size: 11px; }
+    .option small { display: block; margin-top: 3px; color: #989eac; font-size: 9px; line-height: 1.4; }
+    .feedback-label { margin-top: 17px; color: #aeb7ff; font-size: 10px; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; }
+    .fine-print { margin-top: 15px; color: #757b88; font-size: 10px; line-height: 1.45; }
+    @media (max-width: 1040px) {
+      .shell { grid-template-columns: minmax(235px, .8fr) minmax(340px, 400px); }
+      .inspector { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; gap: 13px; width: 100%; }
+      .inspector-card + .inspector-card { margin-top: 0; }
+    }
+    @media (max-width: 760px) {
+      .shell { grid-template-columns: 1fr; justify-items: center; padding: 24px 16px 50px; }
+      .guide, .inspector { width: min(620px, 100%); }
+      .phone { width: min(405px, 100%); height: 790px; }
+      .inspector { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <aside class="guide">
+      <div class="eyebrow">Interactive product mockup</div>
+      <h1>One export format, from backups to shared lists.</h1>
+      <p class="lede">Try the planned flows inside the phone. Every export is a <strong>.bsexport</strong> file with complete selected data; clipboard copying is only an additional transport for small exports.</p>
+
+      <h2>Jump to a scenario</h2>
+      <div class="scenario-list" id="scenarios">
+        <button data-scenario="home" class="active"><span>01</span><span>Data hub<small>See the unified export and import entry</small></span></button>
+        <button data-scenario="restore-full"><span>02</span><span>Import a complete export<small>Exact replacement with a clean preflight</small></span></button>
+        <button data-scenario="restore-dependency"><span>03</span><span>Partial import problem<small>Profiles would orphan an unselected feed</small></span></button>
+        <button data-scenario="share-update"><span>04</span><span>Update a shared list<small>Same UUID, replace its membership</small></span></button>
+        <button data-scenario="share-merge"><span>05</span><span>Merge into another list<small>Keep the destination UUID and other items</small></span></button>
+        <button data-scenario="export-delivery"><span>06</span><span>Export delivery<small>The file remains available beside clipboard copying</small></span></button>
+        <button data-scenario="clipboard-fallback"><span>07</span><span>Clipboard fallback<small>No recognized export was detected</small></span></button>
+        <button data-scenario="template-save"><span>08</span><span>Save an export template<small>Reuse a custom selection without exporting the template</small></span></button>
+      </div>
+      <div class="note">This is a behavior mockup. Visual styling is intentionally close enough to the app to judge hierarchy, but it is not proposed production polish.</div>
+    </aside>
+
+    <section class="phone" aria-label="Boorusama data transfer prototype">
+      <div class="phone-status"><span>9:41</span><span>▰ ▰ ◕</span></div>
+      <div class="appbar">
+        <button class="icon-button" id="back" aria-label="Back">‹</button>
+        <strong id="title">Data</strong>
+        <button class="icon-button" id="reset" aria-label="Reset">↻</button>
+      </div>
+      <div class="phone-screen" id="screen"></div>
+      <div class="bottom-action" id="bottom-action" hidden></div>
+    </section>
+
+    <aside class="inspector">
+      <section class="inspector-card">
+        <div class="eyebrow">Rules demonstrated</div>
+        <div class="principle"><b>1</b><span>A complete export can replace selected data as a personal backup; shared collections can instead be updated or merged.</span></div>
+        <div class="principle"><b>2</b><span>Shared collections are matched by stable UUID. Individual bookmarks use engine, site, and post ID.</span></div>
+        <div class="principle"><b>3</b><span>Every conflict and dependency is resolved before the first persistent write.</span></div>
+        <div class="principle"><b>4</b><span>A .bsexport file is always available. Small exports can additionally be copied as the exact file encoded in Base64.</span></div>
+        <div class="principle"><b>5</b><span>Exported bookmarks include their stored post details. There is no identity-only bookmark mode.</span></div>
+        <div class="principle"><b>6</b><span>A checked collection includes future user-created items; an indeterminate collection is fixed even if every current item is selected. New app-defined export entries never enter existing templates.</span></div>
+        <div class="principle"><b>7</b><span>Full export includes profile credentials automatically. Choose data keeps credentials as a separate toggle.</span></div>
+        <div class="principle"><b>8</b><span>Templates are local recipes and are not included in any .bsexport. Full export is a built-in preset, not a user template.</span></div>
+      </section>
+
+      <section class="inspector-card">
+        <div class="eyebrow">Decisions applied</div>
+        <p>Your current choices are reflected in the phone mockup. Click another option if you want to revise one.</p>
+
+        <div class="feedback-label">Meaning of “full export”</div>
+        <div class="options">
+          <button class="option" data-choice="full-export-share-safe" onclick="toggleSelect(this)"><strong>Only share-safe data</strong><small>Collections and portable references; no secrets or private history.</small></button>
+          <button class="option selected" data-choice="full-export-everything" onclick="toggleSelect(this)"><strong>Everything, with warnings</strong><small>Allow settings and private data when explicitly confirmed.</small></button>
+        </div>
+
+        <div class="feedback-label">Same UUID default</div>
+        <div class="options">
+          <button class="option selected" data-choice="same-id-update-default" onclick="toggleSelect(this)"><strong>Default to Update</strong><small>The ID says it is the same logical list; the user can switch to Merge.</small></button>
+          <button class="option" data-choice="same-id-always-ask" onclick="toggleSelect(this)"><strong>Always require a choice</strong><small>Safer, but repetitive for routine updates.</small></button>
+        </div>
+
+        <div class="feedback-label">Removed group members</div>
+        <div class="options">
+          <button class="option" data-choice="removed-becomes-ungrouped" onclick="toggleSelect(this)"><strong>Keep as ungrouped</strong><small>Removed bookmarks remain in the library.</small></button>
+          <button class="option selected" data-choice="removed-delete-if-unused" onclick="toggleSelect(this)"><strong>Delete if unused</strong><small>Behaves like manually removing the bookmark from its final group.</small></button>
+        </div>
+        <div class="fine-print">The browser records these clicks only for this design-feedback session.</div>
+      </section>
+    </aside>
+  </main>
+
+  <script>
+    window.toggleSelect = window.toggleSelect || function (element) {
+      const container = element.closest('.options');
+      container?.querySelectorAll('.option').forEach(option => option.classList.remove('selected'));
+      element.classList.add('selected');
+    };
+
+    const sources = [
+      ['profiles', 'Booru profiles', '3 profiles'],
+      ['settings', 'Settings', 'Appearance, behavior, viewer'],
+      ['favorite_tags', 'Favorite tags', '24 tags'],
+      ['blacklisted_tags', 'Blacklist', '11 rules'],
+      ['search_histories', 'Search history', 'SQLite database'],
+      ['downloads', 'Download history', 'SQLite database'],
+      ['bookmarks', 'Bookmarks', '142 posts · 3 groups'],
+      ['pinned_searches', 'Pinned searches', '6 searches · 2 folders'],
+      ['following_feeds', 'Following feeds', '2 feeds']
+    ];
+
+    const state = {
+      view: 'home',
+      history: [],
+      restoreSelected: new Set(sources.map(source => source[0])),
+      shareScope: 'choose',
+      shareSelected: new Set(['group-inspiration', 'pins-daily', 'feed-artists']),
+      shareAllCategories: new Set(),
+      includeCredentials: false,
+      templateName: 'Shared collections',
+      templates: [
+        {id: 'family-mirror', name: 'Family mirror', detail: '2 fixed groups · all pinned searches · credentials excluded'}
+      ],
+      groupAction: 'update',
+      feedAction: 'update',
+      groupTarget: 'reference',
+      feedTarget: 'general',
+      profileMapping: '7',
+      privateConfirmed: false,
+      exportDeliveryMessage: '',
+      clipboardHasExport: true,
+      restoreCollectionMode: {
+        bookmarks: 'replace',
+        pinned_searches: 'replace',
+        following_feeds: 'replace'
+      },
+      restoreItemActions: {
+        'restore-group-inspiration': 'update',
+        'restore-group-cats': 'merge',
+        'restore-group-none': 'update',
+        'restore-pins-daily': 'update',
+        'restore-feed-artists': 'update'
+      },
+      expandedCategories: new Set(['bookmarks', 'pins']),
+      activeScenario: 'home'
+    };
+
+    const screen = document.getElementById('screen');
+    const title = document.getElementById('title');
+    const bottom = document.getElementById('bottom-action');
+    const back = document.getElementById('back');
+
+    const esc = value => String(value).replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+    const checked = value => value ? 'checked' : '';
+
+    function setBottom(label, action, note = '', disabled = false) {
+      bottom.hidden = false;
+      bottom.innerHTML = `${note ? `<small>${esc(note)}</small>` : ''}<button class="primary" data-action="${action}" ${disabled ? 'disabled' : ''}>${esc(label)}</button>`;
+    }
+
+    function hideBottom() {
+      bottom.hidden = true;
+      bottom.innerHTML = '';
+    }
+
+    function steps(active, total = 4) {
+      return `<div class="stepper">${Array.from({length: total}, (_, index) => `<i class="${index === active ? 'active' : ''}"></i>`).join('')}</div>`;
+    }
+
+    function navigate(view, push = true) {
+      if (push && state.view !== view) state.history.push(state.view);
+      state.view = view;
+      render();
+    }
+
+    function sourceRows({locked = false, selectedLabel = 'Included', unselectedLabel = 'Skipped'} = {}) {
+      return sources.map(([id, name, detail]) => {
+        const selected = state.restoreSelected.has(id);
+        return `<label class="row"><input type="checkbox" data-restore-source="${id}" ${checked(selected)} ${locked ? 'disabled' : ''}><span class="row-body"><strong>${esc(name)}</strong><small>${esc(detail)}</small></span><span class="count">${selected ? selectedLabel : unselectedLabel}</span></label>`;
+      }).join('');
+    }
+
+    function renderHome() {
+      title.textContent = 'Data';
+      hideBottom();
+      screen.innerHTML = `
+        <h2 class="intro-title">Export or import your data</h2>
+        <p class="intro-copy">Use the same .bsexport format for personal backups, selected collections, and sharing with other users.</p>
+        <section class="card hero-card">
+          <div class="hero-head"><span class="hero-icon">⇄</span><div><h3>Export & import</h3><p>Create a complete backup or share selected data. Imports can replace, update, or merge where appropriate.</p></div></div>
+          <div class="button-row"><button class="primary" data-nav="share-export">Export data</button><button class="secondary" data-nav="import-pick">Import data</button></div>
+        </section>
+        <div class="info-box"><strong>One portable container</strong><br>All exports use .bsexport and include complete data for every selected item.</div>`;
+    }
+
+    function renderImportPick() {
+      title.textContent = 'Import data';
+      hideBottom();
+      const clipboardCopy = state.clipboardHasExport
+        ? '<strong>Import from clipboard</strong><small>collections.bsexport · 286 KB · Boorusama export detected</small>'
+        : '<strong>Import from clipboard</strong><small>No export detected · tap to inspect the latest clipboard entry</small>';
+      screen.innerHTML = `
+        ${steps(0)}
+        <h2 class="intro-title">Open an export</h2>
+        <p class="intro-copy">Choose a .bsexport file, or import the latest clipboard entry.</p>
+        <button class="card row wide" data-action="pick-export" style="color:inherit;text-align:left">
+          <span class="hero-icon">＋</span><span class="row-body"><strong>Choose .bsexport file…</strong><small>Files or another storage provider</small></span><span>›</span>
+        </button>
+        <button class="card row wide" data-action="import-clipboard" style="color:inherit;text-align:left">
+          <span class="hero-icon">▣</span><span class="row-body">${clipboardCopy}</span>${state.clipboardHasExport ? '<span class="badge safe">Ready</span>' : '<span>›</span>'}
+        </button>
+        <div class="fine-print">Clipboard detection uses application/vnd.boorusama.export metadata. The clipboard contents are read only after you tap Import from clipboard.</div>`;
+    }
+
+    function renderRestoreSelect() {
+      title.textContent = 'Import data';
+      const all = state.restoreSelected.size === sources.length;
+      screen.innerHTML = `
+        ${steps(0)}
+        <h2 class="intro-title">Review the export</h2>
+        <p class="intro-copy">Created 21 Sep 2026 with Boorusama 4.2.0.</p>
+        <section class="card pad">
+          <div class="choice-top"><div><h3>boorusama-complete-2026-09-21.bsexport</h3><p>Complete export</p></div><span class="badge safe">Valid</span></div>
+          <div class="package-meta"><div class="meta"><span>Coverage</span><strong>All data</strong></div><div class="meta"><span>Categories</span><strong>9 of 9</strong></div></div>
+        </section>
+        <div class="section-label">Choose data</div>
+        <div class="card">${sourceRows()}</div>
+        <div class="info-box">${all ? 'Everything in the export is selected. Replacement and merge behavior is chosen next.' : 'Skipped categories remain exactly as they are now.'}</div>`;
+      setBottom('Choose import actions', 'restore-actions', 'No app data has been changed');
+    }
+
+    function actionOptions(value, options) {
+      return options.map(([key, label]) => `<option value="${key}" ${value === key ? 'selected' : ''}>${esc(label)}</option>`).join('');
+    }
+
+    function renderRestoreActions() {
+      title.textContent = 'Import choices';
+      const collection = (id, title, detail, items) => {
+        if (!state.restoreSelected.has(id)) return '';
+        const mode = state.restoreCollectionMode[id];
+        return `<section class="card">
+          <div class="choice"><div class="choice-top"><div><h3>${esc(title)}</h3><p>${esc(detail)}</p></div><span class="badge ${mode === 'replace' ? 'warn' : 'info'}">${mode === 'replace' ? 'Replace' : mode === 'items' ? 'Custom' : 'Skip'}</span></div>
+            <select data-restore-collection="${id}">${actionOptions(mode, [['replace', 'Replace entire category'], ['items', 'Configure items individually'], ['skip', 'Skip category']])}</select>
+          </div>
+          ${mode === 'items' ? items.map(([itemId, name, itemDetail, options]) => `<div class="choice"><div class="choice-top"><div><h3>${esc(name)}</h3><p>${esc(itemDetail)}</p></div></div><select data-restore-item="${itemId}">${actionOptions(state.restoreItemActions[itemId], options)}</select></div>`).join('') : ''}
+        </section>`;
+      };
+      const sharedActions = [['update', 'Update matching item'], ['merge', 'Merge with matching item'], ['copy', 'Import as a new copy'], ['skip', 'Skip']];
+      const collectionIds = new Set(['bookmarks', 'pinned_searches', 'following_feeds']);
+      const wholeSources = sources.filter(([id]) => state.restoreSelected.has(id) && !collectionIds.has(id)).map(([, name]) => name);
+      screen.innerHTML = `
+        ${steps(1)}
+        <h2 class="intro-title">Choose how data should change</h2>
+        <p class="intro-copy">This complete export recommends replacement for an easy personal restore. Expand only the categories you want to handle differently.</p>
+        <div class="section-label">Whole data sources</div>
+        <section class="card">
+          <div class="row"><span class="row-body"><strong>${esc(wholeSources.join(', ') || 'None selected')}</strong><small>Complete selected sources from the export</small></span><span class="count">${wholeSources.length > 0 ? 'Replace' : 'Skip'}</span></div>
+        </section>
+        <div class="section-label">Collections</div>
+        ${collection('bookmarks', 'Bookmark groups', '3 groups · current default restores the complete bookmark library', [
+          ['restore-group-inspiration', 'Inspiration', 'Same UUID exists locally', sharedActions],
+          ['restore-group-cats', 'Cats', 'Same UUID exists locally', sharedActions],
+          ['restore-group-none', 'No group', 'Ungrouped bookmarks', [['update', 'Update ungrouped bookmarks'], ['merge', 'Merge with ungrouped bookmarks'], ['skip', 'Skip']]]
+        ])}
+        ${collection('pinned_searches', 'Pinned searches', '2 folders · 6 searches', [
+          ['restore-pins-daily', 'Folder · Daily checks', '4 searches · one already present', sharedActions]
+        ])}
+        ${collection('following_feeds', 'Following feeds', '2 feeds', [
+          ['restore-feed-artists', 'Favorite artists', 'Same UUID exists locally', sharedActions]
+        ])}
+        <div class="info-box">Identical pinned searches are reused automatically and do not require an action.</div>`;
+      setBottom('Analyze import', 'restore-analyze', 'No app data has been changed');
+    }
+
+    function renderRestoreReview() {
+      title.textContent = 'Import check';
+      const dependency = state.restoreSelected.has('profiles') && !state.restoreSelected.has('following_feeds');
+      const collectionResult = (id, label) => switchValue(state.restoreCollectionMode[id], {
+        replace: `Replace complete ${label}`,
+        items: 'Use individual item actions',
+        skip: 'No changes'
+      });
+      screen.innerHTML = `
+        ${steps(2)}
+        <h2 class="intro-title">${dependency ? 'One problem needs attention' : 'Ready to import'}</h2>
+        <p class="intro-copy">The app analyzed the complete result before changing anything.</p>
+        ${dependency ? `
+          <div class="issue blocking"><strong>Following feed would lose its profile</strong>“Favorite artists” uses Gelbooru, but Following Feeds is not selected and Profiles would remove that profile.</div>
+          <section class="card pad"><h3>Resolve this problem</h3><p style="font-size:11px">Include Following Feeds so both sources come from the same export.</p><button class="button wide" data-action="include-feeds">Include Following Feeds</button></section>
+        ` : `
+          <div class="issue success"><strong>All checks passed</strong></div>
+          <section class="card pad">
+            <h3>Planned changes</h3>
+            <div class="diff-row"><span>Profiles and settings</span><span>Replace selected sources</span></div>
+            ${state.restoreSelected.has('bookmarks') ? `<div class="diff-row"><span>Bookmarks</span><span>${esc(collectionResult('bookmarks', 'bookmark library'))}</span></div>` : ''}
+            ${state.restoreSelected.has('pinned_searches') ? `<div class="diff-row"><span>Pinned searches</span><span>${esc(collectionResult('pinned_searches', 'pinned searches'))}</span></div>` : ''}
+            ${state.restoreSelected.has('following_feeds') ? `<div class="diff-row"><span>Following feeds</span><span>${esc(collectionResult('following_feeds', 'feeds'))}</span></div>` : ''}
+          </section>
+          <div class="issue warning"><strong>Replacement actions remove absent data</strong>When a category is set to Replace, its current contents are removed and the exported contents take their place. Categories and individual items set to Skip are unchanged.</div>
+        `}`;
+      setBottom(dependency ? 'Resolve before importing' : 'Import selected data', dependency ? 'noop' : 'restore-complete', 'Still no app data changed', dependency);
+    }
+
+    function renderShareExport() {
+      title.textContent = 'Export data';
+      const all = state.shareScope === 'all';
+      const category = (id, name, detail, items, {sensitive = false, extra = ''} = {}) => {
+        const expanded = state.expandedCategories.has(id);
+        const ids = items.map(item => item[0]);
+        const dynamicAll = all || state.shareAllCategories.has(id);
+        const selectedCount = ids.filter(itemId => state.shareSelected.has(itemId)).length;
+        const partial = !dynamicAll && selectedCount > 0;
+        const selectionDetail = dynamicAll
+          ? `All · includes future ${name.toLowerCase()}`
+          : partial
+          ? `${selectedCount} of ${ids.length} selected · fixed selection`
+          : detail;
+        return `<div class="category-row"><label class="row"><input type="checkbox" data-share-category="${id}" data-category-items="${ids.join(',')}" data-indeterminate="${partial}" ${checked(dynamicAll)} ${all ? 'disabled' : ''}><span class="row-body"><strong>${esc(name)}</strong><small>${esc(selectionDetail)}</small></span>${sensitive ? '<span class="badge warn">Private</span>' : ''}</label><button class="expand-button" data-expand-category="${id}" aria-label="${expanded ? 'Collapse' : 'Expand'} ${esc(name)}">${expanded ? '⌃' : '⌄'}</button></div>${expanded ? `<div class="nested">${items.map(([itemId, itemName, itemDetail]) => `<label class="row"><input type="checkbox" data-share-item="${itemId}" data-share-parent="${id}" data-category-items="${ids.join(',')}" ${checked(dynamicAll || state.shareSelected.has(itemId))} ${all ? 'disabled' : ''}><span class="row-body"><strong>${esc(itemName)}</strong><small>${esc(itemDetail)}</small></span></label>`).join('')}${extra}</div>` : ''}`;
+      };
+      const profilesSelected = all || state.shareAllCategories.has('profiles') || ['profile-rule34', 'profile-gelbooru', 'profile-danbooru'].some(id => state.shareSelected.has(id));
+      const credentialsIncluded = all || state.includeCredentials;
+      const credentialsRow = `<label class="row"><input type="checkbox" data-include-credentials ${checked(credentialsIncluded)} ${all || !profilesSelected ? 'disabled' : ''}><span class="row-body"><strong>Include credentials</strong><small>${all ? 'Enabled automatically for a complete personal backup' : 'Optional passwords, API keys, and login data'}</small></span><span class="badge warn">Private</span></label>`;
+      const templateRows = state.templates.map(template => `<div class="row"><span class="row-body"><strong>${esc(template.name)}</strong><small>${esc(template.detail)}</small></span><button class="quiet" data-action="run-template" data-template-id="${esc(template.id)}">Export</button><button class="icon-button" aria-label="More options for ${esc(template.name)}">⋮</button></div>`).join('');
+      screen.innerHTML = `
+        ${steps(0, 3)}
+        <h2 class="intro-title">What do you want to export?</h2>
+        <p class="intro-copy">Choose individual collections for sharing, or export everything as a personal backup.</p>
+        <div class="section-label">Saved templates</div>
+        <div class="card">${templateRows}</div>
+        <div class="fine-print">Templates stay on this device and are never added to a .bsexport.</div>
+        <div class="section-label">New export</div>
+        <div class="segment"><button data-share-scope="all" class="${all ? 'active' : ''}">Full export</button><button data-share-scope="choose" class="${!all ? 'active' : ''}">Choose data</button></div>
+        ${all ? '<div class="issue warning"><strong>Full export includes private data</strong>Profile credentials, settings, search history, and download history are included. You will confirm this on the next screen.</div>' : ''}
+        <div class="card">
+          ${category('bookmarks', 'Bookmark groups', '3 groups · 142 bookmarks', [
+            ['group-inspiration', 'Inspiration', '28 bookmarks'],
+            ['group-cats', 'Cats', '41 bookmarks'],
+            ['group-none', 'No group', '12 bookmarks']
+          ])}
+          ${category('pins', 'Pinned searches', '2 folders · 6 searches', [
+            ['pins-daily', 'Folder · Daily checks', '4 searches'],
+            ['pin-cats', 'Search · cats rating:s', 'Gelbooru'],
+            ['pin-landscape', 'Search · landscape order:score', 'Danbooru']
+          ])}
+          ${category('feeds', 'Following feeds', '2 feeds', [
+            ['feed-artists', 'Favorite artists', '3 search sources'],
+            ['feed-characters', 'Character designs', '1 search source']
+          ])}
+          ${category('tags', 'Tags and filters', 'Favorites and blacklist', [
+            ['favorite-tags', 'Favorite tags', '24 tags'],
+            ['blacklist', 'Blacklist', '11 rules']
+          ])}
+          ${category('profiles', 'Booru profiles', '3 profiles · credentials separate', [
+            ['profile-rule34', 'rule34.xxx', 'Gelbooru profile'],
+            ['profile-gelbooru', 'gelbooru.com', 'Gelbooru profile'],
+            ['profile-danbooru', 'danbooru.donmai.us', 'Danbooru profile']
+          ], {sensitive: credentialsIncluded, extra: credentialsRow})}
+          ${category('private', 'Settings and private data', 'Histories and app settings', [
+            ['settings', 'Settings', 'App and viewer preferences'],
+            ['search-history', 'Search history', 'Private activity'],
+            ['download-history', 'Download history', 'Private activity']
+          ], {sensitive: true})}
+        </div>
+        <div class="info-box"><strong>Selection meaning in saved templates</strong><br>Checked means all current and future user-created items inside this known collection. Indeterminate means only the explicit identities. Entirely new export entries are always excluded from existing templates.</div>`;
+      screen.querySelectorAll('[data-indeterminate="true"]').forEach(input => { input.indeterminate = true; });
+      const selectionSummary = state.shareAllCategories.size === 0
+        ? `${state.shareSelected.size} fixed selections`
+        : `${state.shareAllCategories.size} all categories · ${state.shareSelected.size} fixed selections`;
+      setBottom('Review export', 'share-export-review', all ? 'All data · credentials included' : selectionSummary);
+    }
+
+    function renderShareExportReview() {
+      title.textContent = 'Review export';
+      const all = state.shareScope === 'all';
+      const credentialsIncluded = all || state.includeCredentials;
+      const privateItemsSelected = all || credentialsIncluded || state.shareAllCategories.has('private') || ['settings', 'search-history', 'download-history'].some(id => state.shareSelected.has(id));
+      screen.innerHTML = `
+        ${steps(1, 3)}
+        <h2 class="intro-title">Ready to export</h2>
+        <p class="intro-copy">${all ? 'This complete export can replace selected data when it is imported.' : 'The recipient can choose how each matching list is handled.'}</p>
+        <section class="card pad">
+          <div class="choice-top"><div><h3>${all ? 'Full export · 9 categories' : 'Selected data export'}</h3><p>${all ? 'Includes settings, profiles, credentials, and private histories' : `Credentials ${credentialsIncluded ? 'included' : 'excluded'} · complete bookmark details included`}</p></div><span class="badge info">Export</span></div>
+          <div class="package-meta"><div class="meta"><span>File</span><strong>.bsexport</strong></div><div class="meta"><span>Identities</span><strong>Preserved</strong></div></div>
+        </section>
+        ${privateItemsSelected ? `<label class="issue warning" style="display:flex;gap:10px;align-items:flex-start"><input type="checkbox" data-private-confirm ${checked(state.privateConfirmed)} style="width:19px;height:19px;accent-color:#9aa7ff"><span><strong>This export contains private data</strong>Only send it to someone you trust.${credentialsIncluded ? ' Profile credentials are included.' : ''}</span></label>` : ''}
+        <div class="card">
+          <div class="row"><span class="row-body"><strong>Bookmark identity example</strong><small>rule34.xxx · post 812</small></span><span class="badge safe">Stable</span></div>
+          <div class="row"><span class="row-body"><strong>Bookmark post details</strong><small>Stored thumbnails, URLs, tags, and post data are included</small></span><span class="badge safe">Included</span></div>
+        </div>
+        ${!all ? '<button class="secondary wide" data-action="open-template-save">Save this configuration as a template…</button>' : ''}
+        <div class="info-box">The export is always created as a .bsexport file. Clipboard copying, when available, contains that exact file encoded as Base64.</div>`;
+      setBottom('Create .bsexport', 'share-export-create', privateItemsSelected && !state.privateConfirmed ? 'Confirm the private-data warning first' : 'Complete bookmark details included', privateItemsSelected && !state.privateConfirmed);
+    }
+
+    function renderExportReady() {
+      title.textContent = 'Export ready';
+      hideBottom();
+      const all = state.shareScope === 'all';
+      const credentialsIncluded = all || state.includeCredentials;
+      const clipboardAvailable = !credentialsIncluded && !all;
+      screen.innerHTML = `
+        ${steps(2, 3)}
+        <h2 class="intro-title">Your .bsexport is ready</h2>
+        <p class="intro-copy">Save it for yourself or send the same file to another Boorusama user.</p>
+        <section class="card pad">
+          <div class="choice-top"><div><h3>${all ? 'boorusama-complete-2026-10-01.bsexport' : 'collections-2026-10-01.bsexport'}</h3><p>${all ? '18.4 MB · complete export' : '286 KB · 3 shared lists'}</p></div><span class="badge safe">Ready</span></div>
+          <div class="package-meta"><div class="meta"><span>Bookmarks</span><strong>Post details included</strong></div><div class="meta"><span>Format</span><strong>.bsexport</strong></div></div>
+        </section>
+        <div class="action-stack">
+          <button class="primary" data-action="save-export-file"><strong>Save .bsexport file</strong><small>Choose a folder or storage provider</small></button>
+          <button class="secondary" data-action="share-export-file"><strong>Share .bsexport file</strong><small>Send the file through another app</small></button>
+          <button class="secondary" data-action="copy-export-clipboard" ${clipboardAvailable ? '' : 'disabled'}><strong>Copy as Base64</strong><small>${clipboardAvailable ? 'application/vnd.boorusama.export · exact .bsexport bytes' : 'Unavailable because this export is too large or contains credentials'}</small></button>
+        </div>
+        ${state.exportDeliveryMessage ? `<div class="issue success"><strong>${esc(state.exportDeliveryMessage)}</strong></div>` : ''}
+        <div class="fine-print">The file options remain available regardless of whether clipboard copying is available.</div>`;
+    }
+
+    function templateDetail() {
+      const dynamic = state.shareAllCategories.size;
+      const fixed = state.shareSelected.size;
+      return `${dynamic} all collections · ${fixed} fixed items · credentials ${state.includeCredentials ? 'included' : 'excluded'} · new export entries excluded`;
+    }
+
+    function saveTemplate() {
+      const name = state.templateName.trim() || 'Untitled template';
+      const existing = state.templates.find(template => template.name === name);
+      const template = {id: existing?.id ?? `template-${state.templates.length + 1}`, name, detail: templateDetail()};
+      if (existing) Object.assign(existing, template);
+      else state.templates.push(template);
+    }
+
+    function renderTemplateSave() {
+      title.textContent = 'Save template';
+      hideBottom();
+      screen.innerHTML = `
+        ${steps(2, 3)}
+        <h2 class="intro-title">Reuse this export</h2>
+        <p class="intro-copy">The template stores this selection and its recommended import actions, not a copy of the exported data.</p>
+        <section class="card pad">
+          <label><span class="section-label" style="display:block;margin:0 0 7px">Template name</span><input data-template-name value="${esc(state.templateName)}" style="width:100%;border:1px solid #52596a;border-radius:9px;background:#242731;color:white;padding:10px"></label>
+          <div class="package-meta"><div class="meta"><span>Selection</span><strong>${esc(templateDetail())}</strong></div><div class="meta"><span>Storage</span><strong>This device only</strong></div></div>
+        </section>
+        <div class="info-box"><strong>Future behavior</strong><br>New bookmark groups follow an “All bookmark groups” rule. New app-defined export entries remain excluded. Templates are not included in Full export.</div>
+        <div class="action-stack">
+          <button class="secondary" data-action="save-template-only"><strong>Save only</strong><small>Return to the export screen</small></button>
+          <button class="primary" data-action="save-template-export"><strong>Save & export</strong><small>Create the .bsexport now</small></button>
+        </div>`;
+    }
+
+    function renderShareSelect() {
+      title.textContent = 'Import shared data';
+      screen.innerHTML = `
+        ${steps(0)}
+        <h2 class="intro-title">Choose what to import</h2>
+        <p class="intro-copy">Nothing is applied until after you choose actions and the complete import has been analyzed.</p>
+        <section class="card pad">
+          <div class="choice-top"><div><h3>Alex's collections.bsexport</h3><p>Shared today</p></div><span class="badge safe">Valid</span></div>
+          <div class="package-meta"><div class="meta"><span>Purpose</span><strong>Shared data</strong></div><div class="meta"><span>Items</span><strong>3 lists</strong></div></div>
+        </section>
+        <div class="card">
+          <label class="row"><input type="checkbox" checked><span class="row-body"><strong>Bookmark group · Inspiration</strong><small>28 bookmarks · same group ID exists locally</small></span><span class="badge warn">Match</span></label>
+          <label class="row"><input type="checkbox" checked><span class="row-body"><strong>Pinned folder · Daily checks</strong><small>4 searches · one semantic duplicate</small></span><span class="badge warn">Check</span></label>
+          <label class="row"><input type="checkbox" checked><span class="row-body"><strong>Feed · Favorite artists</strong><small>3 sources · same feed ID exists locally</small></span><span class="badge warn">Match</span></label>
+        </div>`;
+      setBottom('Choose import actions', 'share-conflicts', '3 selected · no app data changed');
+    }
+
+    function groupExample() {
+      return switchValue(state.groupAction, {
+        update: 'Local G: [A, C] · Incoming G: [A, B] → G becomes [A, B]. C is deleted if it belongs to no other group; it never becomes ungrouped automatically.',
+        merge: 'Local G: [A, C] · Incoming G: [A, B] → G becomes [A, B, C].',
+        target: `Incoming G: [A, B] is added to “${state.groupTarget === 'favorites' ? 'Favorites' : 'Reference'}”. That destination keeps its own UUID and existing members.`,
+        copy: 'A new local UUID is generated. Existing group G is unchanged.',
+        skip: 'No bookmark membership or group name changes.'
+      });
+    }
+
+    function feedExample() {
+      return switchValue(state.feedAction, {
+        update: 'Local F: [cats, birds] · Incoming F: [cats, dogs] → F becomes [cats, dogs].',
+        merge: 'Local F: [cats, birds] · Incoming F: [cats, dogs] → F becomes [cats, birds, dogs].',
+        target: `Incoming queries are added to “${state.feedTarget === 'discoveries' ? 'Discoveries' : 'General feed'}”; that destination keeps its UUID and name.`,
+        copy: 'A new feed UUID is generated and both feeds remain.',
+        skip: 'The local feed is unchanged.'
+      });
+    }
+
+    function switchValue(key, values) { return values[key] ?? ''; }
+
+    function renderShareConflicts() {
+      title.textContent = 'Import choices';
+      const mapped = state.profileMapping !== '';
+      const hasGroupMatch = true;
+      const hasGroupTargets = true;
+      const hasFeedMatch = true;
+      const hasFeedTargets = true;
+      screen.innerHTML = `
+        ${steps(1)}
+        <h2 class="intro-title">Choose how lists should change</h2>
+        <p class="intro-copy">Stable IDs reveal updates. Content matches without the same ID are shown separately.</p>
+        <section class="card">
+          <div class="choice"><div class="choice-top"><div><h3>Bookmark group · Inspiration</h3><p>Same UUID on both devices</p></div><span class="badge warn">Match</span></div>
+            <select data-conflict="group">${hasGroupMatch ? `<option value="update" ${state.groupAction === 'update' ? 'selected' : ''}>Update matching group</option><option value="merge" ${state.groupAction === 'merge' ? 'selected' : ''}>Merge with matching group</option>` : ''}${hasGroupTargets ? `<option value="target" ${state.groupAction === 'target' ? 'selected' : ''}>Merge into another group…</option>` : ''}<option value="copy" ${state.groupAction === 'copy' ? 'selected' : ''}>Import as a new copy</option><option value="skip" ${state.groupAction === 'skip' ? 'selected' : ''}>Skip</option></select>
+            ${state.groupAction === 'target' ? `<select data-group-target aria-label="Destination bookmark group"><option value="reference" ${state.groupTarget === 'reference' ? 'selected' : ''}>Reference · 14 bookmarks</option><option value="favorites" ${state.groupTarget === 'favorites' ? 'selected' : ''}>Favorites · 9 bookmarks</option></select>` : ''}
+            <div class="example">${esc(groupExample())}</div>
+          </div>
+          <div class="choice"><div class="choice-top"><div><h3>Pinned searches</h3><p>One search with the same profile and normalized query is already present.</p></div><span class="badge safe">1 ignored</span></div>
+            <div class="example">The matching search is reused automatically. No choice is required.</div>
+          </div>
+          <div class="choice"><div class="choice-top"><div><h3>Feed · Favorite artists</h3><p>Same UUID · definitions differ</p></div><span class="badge warn">F</span></div>
+            <select data-conflict="feed">${hasFeedMatch ? `<option value="update" ${state.feedAction === 'update' ? 'selected' : ''}>Update matching feed</option><option value="merge" ${state.feedAction === 'merge' ? 'selected' : ''}>Merge with matching feed</option>` : ''}${hasFeedTargets ? `<option value="target" ${state.feedAction === 'target' ? 'selected' : ''}>Merge into another feed…</option>` : ''}<option value="copy" ${state.feedAction === 'copy' ? 'selected' : ''}>Import as a new copy</option><option value="skip" ${state.feedAction === 'skip' ? 'selected' : ''}>Skip</option></select>
+            ${state.feedAction === 'target' ? `<select data-feed-target aria-label="Destination feed"><option value="general" ${state.feedTarget === 'general' ? 'selected' : ''}>General feed · 5 sources</option><option value="discoveries" ${state.feedTarget === 'discoveries' ? 'selected' : ''}>Discoveries · 2 sources</option></select>` : ''}
+            <div class="example">${esc(feedExample())}</div>
+          </div>
+        </section>
+        <div class="section-label">Profile</div>
+        <section class="card pad">
+          <div class="choice-top"><div><h3>Gelbooru · gelbooru.com</h3><p>Exactly one compatible local profile was found and selected automatically.</p></div><span class="badge safe">Auto-matched</span></div>
+          <select data-profile-map style="width:100%;margin-top:10px;border:1px solid #52596a;border-radius:9px;background:#242731;color:white;padding:9px;font-size:11px"><option value="7" ${state.profileMapping === '7' ? 'selected' : ''}>My Gelbooru profile</option><option value="create" ${state.profileMapping === 'create' ? 'selected' : ''}>Create a profile without credentials</option></select>
+        </section>`;
+      setBottom('Analyze import', 'share-analyze', mapped ? 'Choices complete · no app data changed' : 'Resolve the missing profile first', !mapped);
+    }
+
+    function renderShareReview() {
+      title.textContent = 'Import check';
+      const groupTarget = state.groupTarget === 'favorites' ? 'Favorites' : 'Reference';
+      const feedTarget = state.feedTarget === 'discoveries' ? 'Discoveries' : 'General feed';
+      const groupResult = switchValue(state.groupAction, {update:'Update group to 28 bookmarks', merge:'Add 2 unique bookmarks', target:`Add 28 bookmarks to ${groupTarget}`, copy:'Create 1 new group', skip:'No bookmark-group changes'});
+      const feedResult = switchValue(state.feedAction, {update:'Update feed to 3 sources', merge:'Add 1 unique feed source', target:`Merge 2 sources into ${feedTarget}`, copy:'Create 1 new feed', skip:'No feed changes'});
+      screen.innerHTML = `
+        ${steps(2)}
+        <h2 class="intro-title">Ready to import</h2>
+        <p class="intro-copy">The plan was rebuilt using your choices and the current local data.</p>
+        <div class="issue success"><strong>All checks passed</strong></div>
+        <section class="card pad">
+          <h3>Planned changes</h3>
+          <div class="diff-row"><span>Bookmark group</span><span>${esc(groupResult)}</span></div>
+          <div class="diff-row"><span>Existing bookmarks</span><span>6 reused by post identity</span></div>
+          <div class="diff-row"><span>Legacy snapshots</span><span>2 upgraded</span></div>
+          <div class="diff-row"><span>Pinned searches</span><span>1 already present · no change</span></div>
+          <div class="diff-row"><span>Following feed</span><span>${esc(feedResult)}</span></div>
+        </section>
+        <div class="info-box"><strong>No unrelated data changes</strong><br>Settings, histories, downloads, other groups, other pins, and other feeds are outside this plan.</div>`;
+      setBottom('Apply import', 'share-complete', 'No app data has been changed');
+    }
+
+    function renderDone(kind) {
+      title.textContent = 'Import complete';
+      hideBottom();
+      const copy = {
+        restore: ['Export imported', 'Selected categories now exactly match the export. The rollback checkpoint was removed after verification.'],
+        share: ['Shared data imported', 'The approved updates and merges were applied as one recoverable operation.']
+      }[kind];
+      screen.innerHTML = `<div class="done"><div><div class="done-icon">✓</div><h2>${copy[0]}</h2><p>${copy[1]}</p><button class="secondary" data-nav="home">Back to Data</button></div></div>`;
+    }
+
+    function render() {
+      back.hidden = state.view === 'home';
+      document.querySelectorAll('#scenarios button').forEach(button => button.classList.toggle('active', button.dataset.scenario === state.activeScenario));
+      switch (state.view) {
+        case 'home': renderHome(); break;
+        case 'import-pick': renderImportPick(); break;
+        case 'restore-select': renderRestoreSelect(); break;
+        case 'restore-actions': renderRestoreActions(); break;
+        case 'restore-review': renderRestoreReview(); break;
+        case 'share-export': renderShareExport(); break;
+        case 'share-export-review': renderShareExportReview(); break;
+        case 'export-ready': renderExportReady(); break;
+        case 'template-save': renderTemplateSave(); break;
+        case 'share-select': renderShareSelect(); break;
+        case 'share-conflicts': renderShareConflicts(); break;
+        case 'share-review': renderShareReview(); break;
+        case 'done-restore': renderDone('restore'); break;
+        case 'done-share': renderDone('share'); break;
+      }
+    }
+
+    function loadScenario(name) {
+      state.activeScenario = name;
+      state.history = [];
+      if (name === 'home') state.view = 'home';
+      if (name === 'home') state.clipboardHasExport = true;
+      if (name === 'restore-full') {
+        state.restoreSelected = new Set(sources.map(source => source[0]));
+        state.restoreCollectionMode = {bookmarks: 'replace', pinned_searches: 'replace', following_feeds: 'replace'};
+        state.view = 'restore-actions';
+      }
+      if (name === 'restore-dependency') {
+        state.restoreSelected = new Set(['profiles', 'bookmarks', 'pinned_searches']);
+        state.view = 'restore-review';
+      }
+      if (name === 'share-update') {
+        state.groupAction = 'update'; state.feedAction = 'update'; state.profileMapping = '7'; state.view = 'share-conflicts';
+      }
+      if (name === 'share-merge') {
+        state.groupAction = 'target'; state.feedAction = 'merge'; state.profileMapping = '7'; state.view = 'share-conflicts';
+      }
+      if (name === 'export-delivery') {
+        state.shareScope = 'choose'; state.includeCredentials = false; state.exportDeliveryMessage = ''; state.view = 'export-ready';
+      }
+      if (name === 'clipboard-fallback') {
+        state.clipboardHasExport = false; state.view = 'import-pick';
+      }
+      if (name === 'template-save') {
+        state.shareScope = 'choose'; state.includeCredentials = false; state.templateName = 'Shared collections'; state.view = 'template-save';
+      }
+      render();
+    }
+
+    document.addEventListener('click', event => {
+      const nav = event.target.closest('[data-nav]');
+      if (nav) navigate(nav.dataset.nav);
+      const action = event.target.closest('[data-action]');
+      if (action && !action.disabled) {
+        if (action.dataset.action === 'pick-export') navigate('restore-select');
+        if (action.dataset.action === 'import-clipboard') navigate('share-select');
+        if (action.dataset.action === 'restore-actions') navigate('restore-actions');
+        if (action.dataset.action === 'restore-analyze') navigate('restore-review');
+        if (action.dataset.action === 'include-feeds') { state.restoreSelected.add('following_feeds'); render(); }
+        if (action.dataset.action === 'restore-complete') navigate('done-restore');
+        if (action.dataset.action === 'share-export-review') navigate('share-export-review');
+        if (action.dataset.action === 'open-template-save') navigate('template-save');
+        if (action.dataset.action === 'save-template-only') { saveTemplate(); navigate('share-export'); }
+        if (action.dataset.action === 'save-template-export') { saveTemplate(); state.exportDeliveryMessage = ''; navigate('export-ready'); }
+        if (action.dataset.action === 'run-template') {
+          state.shareScope = 'choose';
+          state.shareSelected = new Set(['group-inspiration', 'group-cats']);
+          state.shareAllCategories = new Set(['pins']);
+          state.includeCredentials = false;
+          state.privateConfirmed = false;
+          navigate('share-export-review');
+        }
+        if (action.dataset.action === 'share-export-create') { state.exportDeliveryMessage = ''; navigate('export-ready'); }
+        if (action.dataset.action === 'save-export-file') { state.exportDeliveryMessage = '.bsexport file saved'; render(); }
+        if (action.dataset.action === 'share-export-file') { state.exportDeliveryMessage = '.bsexport file opened in the system share sheet'; render(); }
+        if (action.dataset.action === 'copy-export-clipboard') { state.exportDeliveryMessage = '.bsexport copied as Base64'; render(); }
+        if (action.dataset.action === 'share-conflicts') navigate('share-conflicts');
+        if (action.dataset.action === 'share-analyze') navigate('share-review');
+        if (action.dataset.action === 'share-complete') navigate('done-share');
+      }
+      const shareScope = event.target.closest('[data-share-scope]');
+      if (shareScope) { state.shareScope = shareScope.dataset.shareScope; state.privateConfirmed = false; render(); }
+      const expansion = event.target.closest('[data-expand-category]');
+      if (expansion) {
+        const category = expansion.dataset.expandCategory;
+        state.expandedCategories.has(category) ? state.expandedCategories.delete(category) : state.expandedCategories.add(category);
+        render();
+      }
+      const scenario = event.target.closest('[data-scenario]');
+      if (scenario) loadScenario(scenario.dataset.scenario);
+    });
+
+    document.addEventListener('change', event => {
+      if (event.target.matches('[data-restore-source]')) {
+        event.target.checked ? state.restoreSelected.add(event.target.dataset.restoreSource) : state.restoreSelected.delete(event.target.dataset.restoreSource);
+        render();
+      }
+      if (event.target.matches('[data-share-item]')) {
+        state.privateConfirmed = false;
+        const parent = event.target.dataset.shareParent;
+        const itemIds = event.target.dataset.categoryItems.split(',');
+        if (state.shareAllCategories.has(parent)) {
+          state.shareAllCategories.delete(parent);
+          itemIds.forEach(itemId => state.shareSelected.add(itemId));
+        }
+        event.target.checked ? state.shareSelected.add(event.target.dataset.shareItem) : state.shareSelected.delete(event.target.dataset.shareItem);
+        if (parent === 'profiles' && !itemIds.some(itemId => state.shareSelected.has(itemId))) state.includeCredentials = false;
+        render();
+      }
+      if (event.target.matches('[data-share-category]')) {
+        state.privateConfirmed = false;
+        const itemIds = event.target.dataset.categoryItems.split(',');
+        const category = event.target.dataset.shareCategory;
+        if (event.target.checked) {
+          state.shareAllCategories.add(category);
+          itemIds.forEach(itemId => state.shareSelected.delete(itemId));
+        } else {
+          state.shareAllCategories.delete(category);
+          itemIds.forEach(itemId => state.shareSelected.delete(itemId));
+          if (category === 'profiles') state.includeCredentials = false;
+        }
+        render();
+      }
+      if (event.target.matches('[data-include-credentials]')) { state.includeCredentials = event.target.checked; state.privateConfirmed = false; render(); }
+      if (event.target.matches('[data-restore-collection]')) { state.restoreCollectionMode[event.target.dataset.restoreCollection] = event.target.value; render(); }
+      if (event.target.matches('[data-restore-item]')) { state.restoreItemActions[event.target.dataset.restoreItem] = event.target.value; render(); }
+      if (event.target.matches('[data-private-confirm]')) { state.privateConfirmed = event.target.checked; render(); }
+      if (event.target.matches('[data-conflict="group"]')) { state.groupAction = event.target.value; render(); }
+      if (event.target.matches('[data-conflict="feed"]')) { state.feedAction = event.target.value; render(); }
+      if (event.target.matches('[data-group-target]')) { state.groupTarget = event.target.value; render(); }
+      if (event.target.matches('[data-feed-target]')) { state.feedTarget = event.target.value; render(); }
+      if (event.target.matches('[data-profile-map]')) { state.profileMapping = event.target.value; render(); }
+      if (event.target.matches('[data-template-name]')) state.templateName = event.target.value;
+    });
+
+    back.addEventListener('click', () => {
+      state.view = state.history.pop() ?? 'home';
+      render();
+    });
+    document.getElementById('reset').addEventListener('click', () => loadScenario('home'));
+    render();
+  </script>
+</body>
+</html>
