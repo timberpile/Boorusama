@@ -11,7 +11,7 @@ final class ExportPartManifest extends Equatable {
     required this.sha256,
     required this.byteLength,
   }) {
-    if (!_isSafeRelativePath(path)) {
+    if (!isSafeExportPartPath(path)) {
       throw ArgumentError.value(path, 'path', 'Must be a safe relative path');
     }
     if (!RegExp(r'^[a-fA-F0-9]{64}$').hasMatch(sha256)) {
@@ -26,18 +26,19 @@ final class ExportPartManifest extends Equatable {
     final path = json['path'];
     final sha256 = json['sha256'];
     final byteLength = json['byteLength'];
-    if (path is! String || sha256 is! String || byteLength is! int) {
+    if (path is! String ||
+        sha256 is! String ||
+        byteLength is! int ||
+        !isSafeExportPartPath(path) ||
+        !RegExp(r'^[a-fA-F0-9]{64}$').hasMatch(sha256) ||
+        byteLength < 0) {
       throw const FormatException('Invalid export part manifest');
     }
-    try {
-      return ExportPartManifest(
-        path: path,
-        sha256: sha256.toLowerCase(),
-        byteLength: byteLength,
-      );
-    } on ArgumentError {
-      throw const FormatException('Invalid export part manifest');
-    }
+    return ExportPartManifest(
+      path: path,
+      sha256: sha256.toLowerCase(),
+      byteLength: byteLength,
+    );
   }
 
   final String path;
@@ -69,23 +70,24 @@ final class ExportSourceManifest extends Equatable {
     final id = json['id'];
     final schemaVersion = json['schemaVersion'];
     final rawParts = json['parts'];
-    if (id is! String || schemaVersion is! int || rawParts is! List<dynamic>) {
+    if (id is! String ||
+        schemaVersion is! int ||
+        rawParts is! List<dynamic> ||
+        id.isEmpty ||
+        schemaVersion < 1 ||
+        rawParts.isEmpty) {
       throw const FormatException('Invalid export source manifest');
     }
-    try {
-      return ExportSourceManifest(
-        id: id,
-        schemaVersion: schemaVersion,
-        parts: rawParts.map((raw) {
-          if (raw is! Map<String, dynamic>) {
-            throw const FormatException('Invalid export part manifest');
-          }
-          return ExportPartManifest.fromJson(raw);
-        }).toList(),
-      );
-    } on ArgumentError {
-      throw const FormatException('Invalid export source manifest');
-    }
+    return ExportSourceManifest(
+      id: id,
+      schemaVersion: schemaVersion,
+      parts: rawParts.map((raw) {
+        if (raw is! Map<String, dynamic>) {
+          throw const FormatException('Invalid export part manifest');
+        }
+        return ExportPartManifest.fromJson(raw);
+      }).toList(),
+    );
   }
 
   final String id;
@@ -122,28 +124,30 @@ final class ExportPackageManifest extends Equatable {
     if (formatVersion is! int ||
         rawCreatedAt is! String ||
         appVersion is! String ||
-        rawSources is! List<dynamic>) {
+        rawSources is! List<dynamic> ||
+        formatVersion != kExportPackageFormatVersion ||
+        appVersion.isEmpty) {
       throw const FormatException('Invalid export package manifest');
     }
     final createdAt = DateTime.tryParse(rawCreatedAt);
     if (createdAt == null) {
       throw const FormatException('Invalid export package manifest');
     }
-    try {
-      return ExportPackageManifest(
-        formatVersion: formatVersion,
-        createdAt: createdAt.toUtc(),
-        appVersion: appVersion,
-        sources: rawSources.map((raw) {
-          if (raw is! Map<String, dynamic>) {
-            throw const FormatException('Invalid export source manifest');
-          }
-          return ExportSourceManifest.fromJson(raw);
-        }).toList(),
-      );
-    } on ArgumentError {
-      throw const FormatException('Invalid export package manifest');
+    final sources = rawSources.map((raw) {
+      if (raw is! Map<String, dynamic>) {
+        throw const FormatException('Invalid export source manifest');
+      }
+      return ExportSourceManifest.fromJson(raw);
+    }).toList();
+    if (sources.map((source) => source.id).toSet().length != sources.length) {
+      throw const FormatException('Repeated export source manifest');
     }
+    return ExportPackageManifest(
+      formatVersion: formatVersion,
+      createdAt: createdAt.toUtc(),
+      appVersion: appVersion,
+      sources: sources,
+    );
   }
 
   final int formatVersion;
@@ -162,7 +166,7 @@ final class ExportPackageManifest extends Equatable {
   List<Object> get props => [formatVersion, createdAt, appVersion, sources];
 }
 
-bool _isSafeRelativePath(String path) {
+bool isSafeExportPartPath(String path) {
   if (path.isEmpty || path.startsWith('/') || path.contains(r'\')) return false;
   final segments = path.split('/');
   return segments.every(

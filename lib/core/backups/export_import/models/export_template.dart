@@ -24,18 +24,17 @@ final class ExportTemplate extends Equatable {
     final selection = json['selection'];
     if (id is! String ||
         name is! String ||
-        selection is! Map<String, dynamic>) {
+        selection is! Map<String, dynamic> ||
+        id.trim().isEmpty ||
+        name.trim().isEmpty ||
+        selection['mode'] != 'custom') {
       throw const FormatException('Invalid export template');
     }
-    try {
-      return ExportTemplate(
-        id: id,
-        name: name,
-        selection: ExportSelection.fromJson(selection),
-      );
-    } on ArgumentError {
-      throw const FormatException('Invalid export template');
-    }
+    return ExportTemplate(
+      id: id,
+      name: name,
+      selection: ExportSelection.fromJson(selection),
+    );
   }
 
   final String id;

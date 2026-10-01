@@ -49,7 +49,7 @@ void main() {
 ExportTemplate _template(String id, String name) => ExportTemplate(
   id: id,
   name: name,
-  selection: ExportSelection.custom({
-    'bookmarks': const ExportNodeSelection.all('bookmarks'),
+  selection: ExportSelection.custom(const {
+    'bookmarks': ExportNodeSelection.all('bookmarks'),
   }),
 );

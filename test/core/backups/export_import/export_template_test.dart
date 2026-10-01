@@ -9,9 +9,9 @@ void main() {
   test(
     'template freezes app sources but keeps dynamic collection selection',
     () {
-      final selection = ExportSelection.custom({
-        'bookmarks': const ExportNodeSelection.all('bookmarks'),
-        'settings': const ExportNodeSelection.leaf('settings'),
+      final selection = ExportSelection.custom(const {
+        'bookmarks': ExportNodeSelection.all('bookmarks'),
+        'settings': ExportNodeSelection.leaf('settings'),
       });
       final template = ExportTemplate(
         id: 'share',
@@ -31,7 +31,7 @@ void main() {
 
   test('template rejects a full selection that could gain app sources', () {
     expect(
-      () => ExportTemplate.fromJson({
+      () => ExportTemplate.fromJson(const {
         'id': 'bad',
         'name': 'Bad',
         'selection': {'mode': 'full'},
