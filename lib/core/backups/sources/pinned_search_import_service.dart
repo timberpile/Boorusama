@@ -54,15 +54,17 @@ class PinnedSearchImportService {
     PinnedSearchBackupData data, {
     required List<BooruConfig> profiles,
     BackupProfileIdResolver? profileIdResolver,
+    Map<String, ImportAction>? recordActions,
   }) => PinnedSearchImportPreview(
     unmatchedRecordIds: {
       for (final record in data.records)
-        if (resolveBackupProfileId(
-              record.profile,
-              profiles,
-              resolver: profileIdResolver,
-            ) ==
-            null)
+        if (recordActions?[record.id] != ImportAction.skip &&
+            resolveBackupProfileId(
+                  record.profile,
+                  profiles,
+                  resolver: profileIdResolver,
+                ) ==
+                null)
           record.id,
     },
   );
@@ -72,12 +74,14 @@ class PinnedSearchImportService {
     required List<BooruConfig> profiles,
     bool allowMissingProfiles = false,
     Map<String, CollectionImportAction>? folderActions,
+    Map<String, ImportAction>? recordActions,
     BackupProfileIdResolver? profileIdResolver,
   }) async {
     final unmatched = preview(
       data,
       profiles: profiles,
       profileIdResolver: profileIdResolver,
+      recordActions: recordActions,
     ).unmatchedRecordIds;
     if (unmatched.isNotEmpty && !allowMissingProfiles) {
       throw UnmatchedPinnedSearchProfilesException(unmatched);
@@ -108,6 +112,7 @@ class PinnedSearchImportService {
     var existing = 0;
     var skipped = 0;
     for (final (:record, :profileId) in mapped) {
+      if (recordActions?[record.id] == ImportAction.skip) continue;
       if (profileId == null) {
         skipped++;
         continue;

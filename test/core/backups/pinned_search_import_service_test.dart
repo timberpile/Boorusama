@@ -246,6 +246,68 @@ void main() {
   );
 
   test(
+    'skips only the individually skipped searches during folder import',
+    () async {
+      final repository = memorySubscriptionRepository();
+      final existing = await repository.create(
+        profileId: 4,
+        query: '  cat   rating:safe ',
+        name: 'Local cat',
+        id: _id(8),
+      );
+      const folderId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+      final cat = _record(0);
+      final dog = PinnedSearchBackupRecord(
+        id: _id(1),
+        name: 'Dog',
+        query: 'dog',
+        position: 1,
+        profile: cat.profile,
+      );
+
+      final result = await PinnedSearchImportService(repository: repository)
+          .apply(
+            PinnedSearchBackupData(
+              records: [
+                PinnedSearchBackupRecord(
+                  id: cat.id,
+                  name: cat.name,
+                  query: 'cat rating:safe',
+                  position: cat.position,
+                  profile: cat.profile,
+                ),
+                dog,
+              ],
+              folders: [
+                PinnedSearchFolderBackupRecord(
+                  id: folderId,
+                  name: 'Animals',
+                  position: 0,
+                  searchIds: [cat.id, dog.id],
+                ),
+              ],
+            ),
+            profiles: [_profile(4)],
+            recordActions: {dog.id: ImportAction.skip},
+            folderActions: {
+              folderId: const CollectionImportAction(
+                itemId: folderId,
+                action: ImportAction.copy,
+              ),
+            },
+          );
+
+      expect(result.alreadyExistedCount, 1);
+      expect(result.importedCount, 0);
+      expect(await repository.getAll(), [existing]);
+      expect(
+        (await repository.getOrganization()).folders.single.searchIds,
+        [existing.id],
+      );
+    },
+  );
+
+  test(
     'appends pin-only imports after unlisted local pins with future timestamps',
     () async {
       final repository = memorySubscriptionRepository();

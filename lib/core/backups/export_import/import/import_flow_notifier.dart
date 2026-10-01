@@ -31,7 +31,6 @@ import '../../sources/sqlite_source.dart';
 import '../../types/backup_data_source.dart';
 import '../models/export_selection.dart';
 import '../models/import_action.dart';
-import '../package/export_package_reader.dart';
 import '../package/staged_export_package.dart';
 import 'import_coordinator.dart';
 import 'collection_import_action.dart';
@@ -40,6 +39,7 @@ import 'import_plan.dart';
 import 'import_planner.dart';
 import 'import_preflight.dart';
 import 'import_transaction.dart';
+import 'legacy_import_stager.dart';
 import 'profile_import_projection.dart';
 import 'profile_dependency_planner.dart';
 
@@ -86,8 +86,17 @@ final class ImportFlowState {
   );
 }
 
-final exportPackageReaderProvider = Provider<ExportPackageReader>((ref) {
-  return ExportPackageReader(fs: ref.watch(appFileSystemProvider));
+final importPackageStagerProvider = Provider<LegacyImportStager>((ref) {
+  return LegacyImportStager(
+    fs: ref.watch(appFileSystemProvider),
+    sources: [
+      for (final source in ref.watch(exportImportSourcesProvider))
+        LegacyImportSourceDescriptor(
+          id: source.id,
+          schemaVersion: source.schemaVersion,
+        ),
+    ],
+  );
 });
 
 final importFlowProvider =
@@ -117,7 +126,7 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
     state = const ImportFlowState(status: ImportFlowStatus.checking);
     try {
       await _package?.dispose();
-      final package = await ref.read(exportPackageReaderProvider).stage(path);
+      final package = await ref.read(importPackageStagerProvider).stage(path);
       _package = package;
       _stagingBytes = package.manifest.sources.fold(
         0,
@@ -166,10 +175,26 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
         final descriptor = descriptors[manifest.id];
         final isCollection = descriptor?.isCollection ?? false;
         final localIds = descriptor?.childIds ?? const <String>{};
-        final incomingIds = switch (selection.kind) {
-          ExportNodeSelectionKind.all => const <String>{},
-          ExportNodeSelectionKind.explicit => selection.childIds,
-        };
+        final incomingIds = _incomingItemIds(
+          wrapper.preparedData,
+          selection,
+        );
+        final alreadyPresentSearchIds = <String>{};
+        if (wrapper.preparedData case final PinnedSearchBackupData data) {
+          final repository = await ref.read(
+            searchSubscriptionRepositoryProvider.future,
+          );
+          final profiles = ref.read(booruConfigProvider);
+          for (final record in data.records) {
+            final profile = resolveBackupProfile(record.profile, profiles);
+            if (profile != null &&
+                await repository.findByQuery(profile.id, record.query) !=
+                    null) {
+              alreadyPresentSearchIds.add(record.id);
+            }
+          }
+          alreadyPresentSearches += alreadyPresentSearchIds.length;
+        }
         final items = switch (wrapper.preparedData) {
           final List<BooruConfig> profiles => _profilePlanningItems(
             profiles,
@@ -179,12 +204,23 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
           _ => [
             for (final itemId in incomingIds)
               if (!(manifest.id == 'pinned_searches' &&
-                  itemId.startsWith('search:')))
+                  itemId.startsWith('search:') &&
+                  alreadyPresentSearchIds.contains(itemId.substring(7))))
                 ImportItemPlanningInput(
                   id: itemId,
                   matchingItemId: localIds.contains(itemId) ? itemId : null,
                   compatibleTargetIds: localIds.difference({itemId}),
                   recommendedAction: manifest.itemRecommendedActions[itemId],
+                  availableActions:
+                      manifest.id == 'pinned_searches' &&
+                          itemId.startsWith('search:')
+                      ? const {ImportAction.copy, ImportAction.skip}
+                      : null,
+                  fallbackAction:
+                      manifest.id == 'pinned_searches' &&
+                          itemId.startsWith('search:')
+                      ? ImportAction.copy
+                      : null,
                 ),
           ],
         };
@@ -199,20 +235,6 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
             items: items,
           ),
         );
-        if (wrapper.preparedData case final PinnedSearchBackupData data) {
-          final repository = await ref.read(
-            searchSubscriptionRepositoryProvider.future,
-          );
-          final profiles = ref.read(booruConfigProvider);
-          for (final record in data.records) {
-            final profile = resolveBackupProfile(record.profile, profiles);
-            if (profile != null &&
-                await repository.findByQuery(profile.id, record.query) !=
-                    null) {
-              alreadyPresentSearches++;
-            }
-          }
-        }
         wrappers[source.id] = wrapper;
         preflightSnapshots.add(
           SourcePreflightSnapshot(
@@ -401,6 +423,28 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
     warningsAcknowledged: _warningsAcknowledged,
   );
 }
+
+Set<String> _incomingItemIds(
+  Object? data,
+  ExportNodeSelection selection,
+) => switch (selection.kind) {
+  ExportNodeSelectionKind.explicit => selection.childIds,
+  ExportNodeSelectionKind.all => switch (data) {
+    final BookmarkBackupData bookmarks => {
+      'ungrouped',
+      for (final group in bookmarks.groups)
+        if (group.id case final id?) 'group:$id',
+    },
+    final PinnedSearchBackupData searches => {
+      for (final folder in searches.folders) 'folder:${folder.id}',
+      for (final record in searches.records) 'search:${record.id}',
+    },
+    final FollowingFeedBackupData feeds => {
+      for (final feed in feeds.feeds) 'feed:${feed.id}',
+    },
+    _ => const <String>{},
+  },
+};
 
 List<ImportItemPlanningInput> _profilePlanningItems(
   List<BooruConfig> imported,
@@ -628,7 +672,12 @@ final class PackageTransactionSource implements ImportTransactionSource {
         folder.id,
     };
     final actions = <String, CollectionImportAction>{};
+    final recordActions = <String, ImportAction>{};
     for (final item in resolution.items) {
+      if (item.id.startsWith('search:')) {
+        recordActions[item.id.substring(7)] = item.action;
+        continue;
+      }
       if (!item.id.startsWith('folder:')) continue;
       final id = item.id.substring(7);
       actions[id] = CollectionImportAction(
@@ -651,6 +700,7 @@ final class PackageTransactionSource implements ImportTransactionSource {
                 data,
                 profiles: ref.read(booruConfigProvider),
                 folderActions: actions,
+                recordActions: recordActions,
                 profileIdResolver: profileIdResolver ?? _profileId,
               ),
         );
