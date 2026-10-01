@@ -1,6 +1,8 @@
 import 'package:boorusama/core/backups/sources/following_feed_backup_data.dart';
 import 'package:boorusama/core/backups/sources/following_feed_import_service.dart';
 import 'package:boorusama/core/backups/sources/search_backup_profile.dart';
+import 'package:boorusama/core/backups/export_import/import/collection_import_action.dart';
+import 'package:boorusama/core/backups/export_import/models/import_action.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/search/subscriptions/types.dart';
@@ -11,6 +13,55 @@ import 'package:flutter_test/flutter_test.dart';
 import '../search/subscriptions/subscription_test_utils.dart';
 
 void main() {
+  for (final testCase in [
+    (
+      action: ImportAction.update,
+      expectedName: 'Remote',
+      expectedQueries: ['dog', 'bird'],
+    ),
+    (
+      action: ImportAction.merge,
+      expectedName: 'Local',
+      expectedQueries: ['cat', 'dog', 'bird'],
+    ),
+  ]) {
+    test(
+      '${testCase.action.name} applies the expected feed definition',
+      () async {
+        final repository = memorySubscriptionRepository();
+        await repository.saveFeed(
+          profileId: 4,
+          name: 'Local',
+          queries: ['cat', 'dog'],
+          id: _id(0),
+        );
+
+        await FollowingFeedImportService(repository: repository).apply(
+          _data([
+            _record(0, name: 'Remote', queries: ['dog', 'bird']),
+          ]),
+          profiles: [_profile(4)],
+          feedActions: {
+            _id(0): CollectionImportAction(
+              itemId: _id(0),
+              action: testCase.action,
+            ),
+          },
+        );
+
+        final feed = (await repository.getFeeds()).single;
+        final searches = {
+          for (final search in await repository.getAll()) search.id: search,
+        };
+        expect(feed.name, testCase.expectedName);
+        expect(
+          feed.sourceIds.map((id) => searches[id]!.query),
+          testCase.expectedQueries,
+        );
+      },
+    );
+  }
+
   test(
     'replaces changed queries and preserves an unchanged source state',
     () async {

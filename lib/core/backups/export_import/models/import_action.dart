@@ -1,4 +1,12 @@
-enum ImportAction { update, merge, replace, skip, copy, mergeIntoTarget }
+enum ImportAction {
+  update,
+  merge,
+  replace,
+  configureItems,
+  skip,
+  copy,
+  mergeIntoTarget,
+}
 
 ImportAction importActionFromJson(Object? value) => switch (value) {
   final String name => ImportAction.values.firstWhere(

@@ -1,5 +1,7 @@
 import 'package:equatable/equatable.dart';
 
+import '../export_import/import/collection_import_action.dart';
+import '../export_import/models/import_action.dart';
 import '../../configs/config/types.dart';
 import '../../search/subscriptions/types.dart';
 import 'following_feed_backup_data.dart';
@@ -65,10 +67,19 @@ class FollowingFeedImportService {
     FollowingFeedBackupData data, {
     required List<BooruConfig> profiles,
     bool allowMissingProfiles = false,
+    Map<String, CollectionImportAction>? feedActions,
   }) async {
     final unmatched = preview(data, profiles: profiles).unmatchedRecordIds;
     if (unmatched.isNotEmpty && !allowMissingProfiles) {
       throw UnmatchedFollowingFeedProfilesException(unmatched);
+    }
+    if (feedActions != null) {
+      return _applyActions(
+        data,
+        profiles: profiles,
+        allowMissingProfiles: allowMissingProfiles,
+        actions: feedActions,
+      );
     }
 
     final mapped = [
@@ -185,6 +196,93 @@ class FollowingFeedImportService {
       skippedProfileCount: mapped.length - accepted.length,
     );
   }
+
+  Future<FollowingFeedImportResult> _applyActions(
+    FollowingFeedBackupData data, {
+    required List<BooruConfig> profiles,
+    required bool allowMissingProfiles,
+    required Map<String, CollectionImportAction> actions,
+  }) async {
+    final localFeeds = await repository.getFeeds();
+    final localById = {for (final feed in localFeeds) feed.id: feed};
+    final sourcesById = {
+      for (final source in await repository.getAll()) source.id: source,
+    };
+    final resolved = <FollowingFeedBackupRecord>[];
+    var skippedProfiles = 0;
+    for (final record in data.feeds) {
+      final profile = resolveBackupProfile(record.profile, profiles);
+      if (profile == null) {
+        skippedProfiles++;
+        continue;
+      }
+      final resolution = actions[record.id];
+      if (resolution == null || resolution.action == ImportAction.skip) {
+        continue;
+      }
+      final destinationId = switch (resolution.action) {
+        ImportAction.mergeIntoTarget => resolution.targetId,
+        ImportAction.copy =>
+          resolution.destinationId ??
+              (localById.containsKey(record.id) ? null : record.id),
+        ImportAction.update ||
+        ImportAction.merge ||
+        ImportAction.replace => record.id,
+        _ => null,
+      };
+      if (destinationId == null) {
+        throw StateError('Feed target is unresolved.');
+      }
+      final local = localById[destinationId];
+      if (switch (resolution.action) {
+        ImportAction.update ||
+        ImportAction.merge ||
+        ImportAction.replace => local == null,
+        ImportAction.mergeIntoTarget => local == null,
+        ImportAction.copy => local != null,
+        _ => true,
+      }) {
+        throw StateError('Feed action is not applicable.');
+      }
+      if (local != null && local.profileId != profile.id) {
+        throw FeedBackupIdConflictException({destinationId});
+      }
+      final localQueries = [
+        for (final id in local?.sourceIds ?? const <String>[])
+          if (sourcesById[id] case final source?) source.query,
+      ];
+      final merge = {
+        ImportAction.merge,
+        ImportAction.mergeIntoTarget,
+      }.contains(resolution.action);
+      resolved.add(
+        FollowingFeedBackupRecord(
+          id: destinationId,
+          name: merge ? local!.name : record.name,
+          position: merge ? local!.position : record.position,
+          queries: merge
+              ? _orderedQueryUnion(localQueries, record.queries)
+              : record.queries,
+          profile: BackupProfileReference(
+            id: profile.id,
+            booruType: profile.auth.booruType.name,
+            url: normalizeBackupProfileUrl(profile.url),
+            name: profile.name,
+          ),
+        ),
+      );
+    }
+    final result = await apply(
+      FollowingFeedBackupData(feeds: resolved),
+      profiles: profiles,
+      allowMissingProfiles: allowMissingProfiles,
+    );
+    return FollowingFeedImportResult(
+      importedCount: result.importedCount,
+      alreadyExistedCount: result.alreadyExistedCount,
+      skippedProfileCount: result.skippedProfileCount + skippedProfiles,
+    );
+  }
 }
 
 bool _sameQueries(List<String> left, List<String> right) =>
@@ -192,3 +290,14 @@ bool _sameQueries(List<String> left, List<String> right) =>
     [
       for (var i = 0; i < left.length; i++) left[i] == right[i],
     ].every((same) => same);
+
+List<String> _orderedQueryUnion(
+  Iterable<String> current,
+  Iterable<String> imported,
+) {
+  final seen = <String>{};
+  return [
+    for (final query in [...current, ...imported])
+      if (seen.add(normalizeSearchIdentity(query))) query,
+  ];
+}

@@ -1,6 +1,8 @@
 import 'package:boorusama/core/backups/sources/pinned_search_backup_data.dart';
 import 'package:boorusama/core/backups/sources/search_backup_profile.dart';
 import 'package:boorusama/core/backups/sources/pinned_search_import_service.dart';
+import 'package:boorusama/core/backups/export_import/import/collection_import_action.dart';
+import 'package:boorusama/core/backups/export_import/models/import_action.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/search/subscriptions/types.dart';
@@ -9,6 +11,73 @@ import 'package:flutter_test/flutter_test.dart';
 import '../search/subscriptions/subscription_test_utils.dart';
 
 void main() {
+  for (final testCase in [
+    (
+      action: ImportAction.update,
+      expectedName: 'Remote',
+      expectedIds: [_id(1), _id(2)],
+    ),
+    (
+      action: ImportAction.merge,
+      expectedName: 'Local',
+      expectedIds: [_id(0), _id(1), _id(2)],
+    ),
+  ]) {
+    test(
+      '${testCase.action.name} applies the expected folder definition',
+      () async {
+        const folderId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+        final repository = memorySubscriptionRepository();
+        for (final index in [0, 1, 2]) {
+          await repository.create(
+            profileId: 4,
+            query: _record(index).query,
+            name: null,
+            id: _id(index),
+          );
+        }
+        await repository.replaceOrganization(
+          SearchOrganization(
+            folders: [
+              SharedSearchFolder(
+                id: folderId,
+                name: 'Local',
+                searchIds: [_id(0), _id(1)],
+              ),
+            ],
+            homeSearchIds: [_id(2)],
+          ),
+        );
+        final data = PinnedSearchBackupData(
+          records: [_record(1), _record(2)],
+          folders: [
+            PinnedSearchFolderBackupRecord(
+              id: folderId,
+              name: 'Remote',
+              position: 0,
+              searchIds: [_id(1), _id(2)],
+            ),
+          ],
+        );
+
+        await PinnedSearchImportService(repository: repository).apply(
+          data,
+          profiles: [_profile(4)],
+          folderActions: {
+            folderId: CollectionImportAction(
+              itemId: folderId,
+              action: testCase.action,
+            ),
+          },
+        );
+
+        final folder = (await repository.getOrganization()).folders.single;
+        expect(folder.name, testCase.expectedName);
+        expect(folder.searchIds, testCase.expectedIds);
+      },
+    );
+  }
+
   test('folder imports remap profiles and remain idempotent', () async {
     final repository = memorySubscriptionRepository();
     final record = _record(0);
