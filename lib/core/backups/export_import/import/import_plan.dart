@@ -123,6 +123,12 @@ final class ResolvedImportItem extends Equatable {
         targetId: targetId ?? this.targetId,
       );
 
+  Map<String, Object?> toJson() => {
+    'id': id,
+    'action': action.name,
+    'targetId': targetId,
+  };
+
   @override
   List<Object?> get props => [id, action, targetId];
 }
@@ -147,6 +153,12 @@ final class ResolvedImportSource extends Equatable {
     items: items ?? this.items,
   );
 
+  Map<String, Object> toJson() => {
+    'id': id,
+    'action': action.name,
+    'items': items.map((item) => item.toJson()).toList(),
+  };
+
   @override
   List<Object?> get props => [id, action, items];
 }
@@ -164,6 +176,10 @@ final class ResolvedImportPlan extends Equatable {
             if (source.id == replacement.id) replacement else source,
         ],
       );
+
+  Map<String, Object> toJson() => {
+    'sources': sources.map((source) => source.toJson()).toList(),
+  };
 
   @override
   List<Object?> get props => [sources];
