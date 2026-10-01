@@ -13,10 +13,17 @@ target; null means `No Group`. `All` is a view and is never an assignment target
 
 ## Backup compatibility
 
-Bookmark backup version 1 keeps bookmark objects in the top-level `data` array
-and group objects in the top-level `groups` array. Group `bookmarkIds` are
+Bookmark backup version 3 keeps bookmark objects in the top-level `data` array
+and group objects in the top-level `groups` array. Each new bookmark row has a
+portable `(booru type, normalized site, post ID)` identity and the complete
+stored post snapshot. Media URLs and profile IDs are not identity. Group
+`bookmarkIds` are
 file-local references into `data`; they must be resolved through
 `Bookmark.uniqueId` and must never be treated as keys in the receiving Hive box.
+
+Versions 1 and 2 remain import-only legacy formats. They are decoded with their
+historic fields before being mapped into current bookmark records; new exports
+never use their media-URL identity.
 
 Legacy group objects have `name` and `bookmarkIds` but no `id`. Every legacy
 group receives a fresh GUID on every import, even when its name matches a local

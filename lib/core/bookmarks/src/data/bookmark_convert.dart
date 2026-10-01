@@ -6,6 +6,7 @@ import '../../../boorus/booru/types.dart';
 import '../../../posts/position/types.dart';
 import '../../../posts/post/types.dart';
 import '../types/bookmark.dart';
+import '../types/bookmark_identity.dart';
 import 'hive/bookmark_hive_object.dart';
 
 BookmarkGetError mapBoxErrorToBookmarkGetError(BoxError error) =>
@@ -193,7 +194,7 @@ BookmarkHiveObject favoriteToHiveObject(Bookmark bookmark) {
 }
 
 BookmarkUniqueId bookmarkIdentityForPost(Post post, int booruId) =>
-    BookmarkUniqueId.fromPost(post, post.origin.booruType.id);
+    BookmarkUniqueId.fromPost(post);
 
 extension BookmarkToPost on Bookmark {
   Post toPost() => post;

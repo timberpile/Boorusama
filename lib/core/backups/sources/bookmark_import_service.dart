@@ -64,7 +64,7 @@ class BookmarkImportService {
       }
       final localIds = {
         for (final bookmark in [...oldBookmarks, ...addedBookmarks])
-          bookmark.uniqueId: bookmark.id,
+          bookmark.transferIdentity: bookmark.id,
       };
 
       for (final imported in plan.groups) {

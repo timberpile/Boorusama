@@ -25,7 +25,7 @@ class BookmarkBackupCodec extends JsonHandler<BookmarkBackupData> {
   BookmarkBackupData parse(ExportDataPayload metadata) {
     final bookmarks = <Bookmark>[];
     final bookmarkIds = <int>{};
-    final bookmarkIdentities = <BookmarkUniqueId>{};
+    final bookmarkIdentities = <Object>{};
     for (final (index, value) in metadata.data.indexed) {
       if (value is! Map<String, dynamic>) {
         throw InvalidBackupFormatException('data[$index] must be an object');
@@ -34,6 +34,7 @@ class BookmarkBackupCodec extends JsonHandler<BookmarkBackupData> {
         final bookmark = switch (metadata.version) {
           1 => _parseVersion1Bookmark(value, index),
           2 => _parseVersion2Bookmark(value, index),
+          3 => _parseVersion3Bookmark(value, index),
           _ => throw InvalidBackupFormatException(
             'Unsupported bookmark backup version ${metadata.version}',
           ),
@@ -43,7 +44,11 @@ class BookmarkBackupCodec extends JsonHandler<BookmarkBackupData> {
             'data[$index].id is repeated',
           );
         }
-        if (!bookmarkIdentities.add(bookmark.uniqueId)) {
+        final identity = switch (metadata.version) {
+          1 || 2 => (bookmark.booruId, bookmark.originalUrl),
+          _ => bookmark.identity,
+        };
+        if (!bookmarkIdentities.add(identity)) {
           throw InvalidBackupFormatException(
             'data[$index] repeats a bookmark identity',
           );
@@ -111,6 +116,7 @@ class BookmarkBackupCodec extends JsonHandler<BookmarkBackupData> {
           'updatedAt': bookmark.updatedAt.toIso8601String(),
           'snapshot': bookmark.snapshot.toJson(),
           'postId': bookmark.postId,
+          'identity': bookmark.identity.toJson(),
         },
       )
       .toList();
@@ -156,6 +162,23 @@ class BookmarkBackupCodec extends JsonHandler<BookmarkBackupData> {
         'data[$index].snapshot is invalid',
       ),
     };
+  }
+
+  Bookmark _parseVersion3Bookmark(Map<String, dynamic> value, int index) {
+    final rawIdentity = value['identity'];
+    if (rawIdentity is! Map<String, dynamic>) {
+      throw InvalidBackupFormatException(
+        'data[$index].identity is invalid',
+      );
+    }
+    final bookmark = _parseVersion2Bookmark(value, index);
+    final identity = BookmarkIdentity.fromJson(rawIdentity);
+    if (bookmark.postId == null || identity != bookmark.identity) {
+      throw InvalidBackupFormatException(
+        'data[$index].identity does not match its snapshot',
+      );
+    }
+    return bookmark;
   }
 }
 

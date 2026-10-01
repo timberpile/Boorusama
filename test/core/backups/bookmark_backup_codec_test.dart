@@ -34,7 +34,7 @@ void main() {
     },
   );
 
-  test('version 2 preserves the complete snapshot and group references', () {
+  test('version 3 preserves the complete snapshot and portable identity', () {
     final post = _nativePost();
     final snapshot = const StoredPostCodec().encode(
       post,
@@ -67,13 +67,18 @@ void main() {
         'updatedAt': '2026-02-03T00:00:00.000Z',
         'snapshot': snapshot.toJson(),
         'postId': 42,
+        'identity': {
+          'booruType': 'gelbooruV2',
+          'site': 'gelbooru.example',
+          'postId': 42,
+        },
       },
     ]);
 
     final restored = codec.parse(
       decodeData(
         data: jsonEncode({
-          'version': 2,
+          'version': 3,
           'data': encoded,
           ...data.extraFields,
         }),
@@ -83,6 +88,23 @@ void main() {
     expect(restored.bookmarks.single, nativeBookmark);
     expect(restored.bookmarks.single.post, post);
     expect(restored.groups, data.groups);
+  });
+
+  test('rejects version 3 bookmarks without a portable identity', () {
+    final row = _version2Row(_legacyBookmark(postId: 91));
+    row['postId'] = 91;
+
+    expect(
+      () => codec.parse(
+        decodeData(
+          data: jsonEncode({
+            'version': 3,
+            'data': [row],
+          }),
+        ),
+      ),
+      throwsA(isA<InvalidBackupFormatException>()),
+    );
   });
 
   test('version 2 preserves an explicit null legacy post identity', () {
