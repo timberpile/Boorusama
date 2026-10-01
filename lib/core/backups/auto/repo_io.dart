@@ -8,6 +8,7 @@ import 'package:path/path.dart' as p;
 // Project imports:
 import '../../../foundation/filesystem.dart';
 import '../../downloads/path/types.dart';
+import '../export_import/models/package_manifest.dart';
 import 'service.dart';
 import 'types.dart';
 
@@ -24,9 +25,10 @@ class AutoBackupRepositoryIo implements AutoBackupRepository {
 
   @override
   Future<String> getBackupDirectoryPath(String? userSelectedPath) async {
-    final downloadsPath = await _getDownloadDirectoryPath(_fs);
-
-    final baseDir = userSelectedPath ?? downloadsPath;
+    final baseDir = switch (userSelectedPath) {
+      final String path => path,
+      null => await _getDownloadDirectoryPath(_fs),
+    };
 
     final backupDirPath = p.join(baseDir, AutoBackupService.backupFolderName);
     await _fs.createDirectory(backupDirPath, recursive: true);
@@ -71,10 +73,15 @@ class AutoBackupRepositoryIo implements AutoBackupRepository {
   }
 
   @override
-  List<String> listZipFiles(String backupDirPath) {
+  List<String> listBackupFiles(String backupDirPath) {
     return _fs
         .listDirectorySync(backupDirPath)
-        .where((e) => e.isFile && e.path.endsWith('.zip'))
+        .where(
+          (e) =>
+              e.isFile &&
+              (e.path.endsWith('.zip') ||
+                  e.path.endsWith(kExportPackageExtension)),
+        )
         .map((e) => p.basename(e.path))
         .toList();
   }

@@ -9,14 +9,14 @@ import '../../../foundation/info/device_info.dart';
 import '../../../foundation/loggers.dart';
 import '../../../foundation/platform.dart';
 import '../../downloads/path/types.dart';
+import '../export_import/export/export_flow_notifier.dart';
 import '../sources/providers.dart';
-import '../zip/bulk_backup_service.dart';
 import 'repo.dart';
 import 'service.dart';
 
 final autoBackupServiceProvider = Provider<AutoBackupService>((ref) {
   return AutoBackupService(
-    bulkBackupService: ref.watch(bulkBackupServiceProvider),
+    exportService: ref.watch(exportServiceProvider),
     logger: ref.watch(loggerProvider),
     registry: ref.watch(backupRegistryProvider),
     repository: ref.watch(autoBackupRepositoryProvider),
