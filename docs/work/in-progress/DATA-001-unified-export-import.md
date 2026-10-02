@@ -40,17 +40,23 @@ bookmark identity migration required by the design.
 
 ## Progress
 
-- Approved interaction mockup and architecture are committed at `5348bbe1d`.
-- Fresh worktree generation completed and the 1,481-test baseline passed.
-- Portable bookmark identity, package contracts and safe container, source
-  export adapters, collection planning, and durable rollback are implemented.
-- Unified Full/custom export UI, local templates, receiver-editable source and
-  item actions, clipboard Base64, automatic Full exports, and Android system
-  file opening are implemented.
-- Startup now completes or blocks on durable import recovery before normal app
-  activity. Profile imports use portable matching, preserve credentials only
-  for updates, keep copies unauthenticated, and preflight dependent pins/feeds
-  against the projected post-import profile set.
-- Remaining delivery work: migrate nearby transfer and legacy ZIP/JSON entry
-  routing, implement Apple incoming-document callbacks, run full-suite and
-  Maestro validation, and complete review.
+- Portable bookmark identity, bounded package I/O, source adapters, collection
+  actions, profile dependency mapping, complete preflight, and durable rollback
+  recovery are implemented.
+- Full/custom export, credentials control, local templates, clipboard Base64,
+  automatic exports, nearby transfer, legacy import staging, and Android/Apple
+  incoming-document bridges all use the unified package flow.
+- Focused backup tests passed with 302 tests. The complete Flutter suite passed
+  with 1,596 tests. Scoped analysis over every changed production area and
+  changed tests completed with no issues; the repository-wide analyzer retains
+  only the pre-existing baseline findings on `develop`.
+- Android Dev APK build and install succeeded. Maestro verified Full and custom
+  selection behavior, template persistence across restart, `.bsexport` save,
+  system-picker import, concise preflight, durable apply, and a safe settings
+  import reaching “Import complete.”
+- File association and incoming-document contracts are covered by Android,
+  iOS, and macOS configuration/service tests. Apple runtime validation remains
+  unavailable from this Linux workspace.
+- Final review identified remaining merge blockers around branch ancestry,
+  credential disclosure, payload-selection closure, exact destructive change
+  summaries, durable/shared transaction serialization, and nearby navigation.

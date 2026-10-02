@@ -88,7 +88,7 @@ void main() {
         ],
         child: OKToast(
           child: TranslationProvider(
-            child: MaterialApp(home: ExportFlowPage()),
+            child: const MaterialApp(home: ExportFlowPage()),
           ),
         ),
       ),
