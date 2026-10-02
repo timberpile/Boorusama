@@ -899,7 +899,9 @@
     "failed_to_remove": "Failed to remove tag",
     "blacklisted_header_title": "Blacklisted",
     "disable_all": "Disable all",
-    "reenable_all": "Re-enable all"
+    "reenable_all": "Re-enable all",
+    "show_filters": "Show filters",
+    "hide_filters": "Hide filters"
   },
   "download": {
     "download": "Download",
