@@ -146,7 +146,8 @@
     },
     "action": {
       "view_comments": "Kommentare anzeigen",
-      "add_to_favorite_group": "Zur Gruppe hinzufügen",
+      "add_to_favorite_group": "Zur Konto-Favoritengruppe hinzufügen",
+      "edit_rating": "Bewertung bearbeiten",
       "view_in_browser": "In Browser anzeigen",
       "view_original": "Original anzeigen",
       "load_original": "Original laden",
@@ -726,7 +727,7 @@
     "empty_group_notice": "Keine Gruppen vorhanden",
     "create_group": "Gruppe erstellen",
     "edit_group": "Gruppe bearbeiten",
-    "add_to_group_dialog_title": "Zu Gruppe hinzufügen",
+    "add_to_group_dialog_title": "Zur Konto-Favoritengruppe hinzufügen",
     "add_to": "Hinzufügen zu",
     "create": "Erstellen",
     "private": "Privat",

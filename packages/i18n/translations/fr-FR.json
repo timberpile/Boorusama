@@ -68,7 +68,8 @@
     },
     "action": {
       "view_comments": "Afficher les commentaires",
-      "add_to_favorite_group": "Ajouter à un groupe de favoris",
+      "add_to_favorite_group": "Ajouter au groupe de favoris du compte",
+      "edit_rating": "Modifier l'évaluation",
       "view_in_browser": "Afficher dans le navigateur",
       "view_original": "Voir l'original"
     }
@@ -355,7 +356,7 @@
     "empty_group_notice": "Aucun groupe de favoris",
     "create_group": "Créer un groupe",
     "edit_group": "Éditer un groupe",
-    "add_to_group_dialog_title": "Ajouter à un groupe de favoris",
+    "add_to_group_dialog_title": "Ajouter au groupe de favoris du compte",
     "add_to": "Ajouter à",
     "create": "Créer",
     "private": "Privé",

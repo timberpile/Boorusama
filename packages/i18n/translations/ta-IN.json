@@ -146,7 +146,8 @@
     },
     "action": {
       "view_comments": "கருத்துகளைக் காண்க",
-      "add_to_favorite_group": "பிடித்த குழுவில் சேர்க்கவும்",
+      "add_to_favorite_group": "கணக்கின் பிடித்த குழுவில் சேர்க்கவும்",
+      "edit_rating": "மதிப்பீட்டைத் திருத்து",
       "view_in_browser": "உலாவியில் காண்க",
       "view_original": "அசல் காண்க",
       "share": "பங்கு",
@@ -729,7 +730,7 @@
     "empty_group_notice": "பிடித்த குழுக்கள் இல்லை",
     "create_group": "குழுவை உருவாக்கவும்",
     "edit_group": "குழு திருத்து",
-    "add_to_group_dialog_title": "பிடித்த குழுவில் சேர்க்கவும்",
+    "add_to_group_dialog_title": "கணக்கின் பிடித்த குழுவில் சேர்க்கவும்",
     "add_to": "சேர்க்கவும்",
     "create": "உருவாக்கு",
     "private": "தனிப்பட்ட",

@@ -148,7 +148,8 @@
     },
     "action": {
       "view_comments": "Подивитися коментарі",
-      "add_to_favorite_group": "Додати в улюблене",
+      "add_to_favorite_group": "Додати до групи обраного облікового запису",
+      "edit_rating": "Змінити рейтинг",
       "share": "Поділитися",
       "bookmark": "Закладка",
       "favorite": "Улюблене",
@@ -730,7 +731,7 @@
     "empty_group_notice": "Немає улюблених груп",
     "create_group": "Створити групу",
     "edit_group": "Редагувати групу",
-    "add_to_group_dialog_title": "Додати до улюбленої групи",
+    "add_to_group_dialog_title": "Додати до групи обраного облікового запису",
     "add_to": "Додати до",
     "create": "Створити",
     "private": "Private",

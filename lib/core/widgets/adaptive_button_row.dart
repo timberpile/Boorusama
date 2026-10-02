@@ -14,6 +14,7 @@ class ButtonData extends KurumiButtonData {
     required super.widget,
     required super.title,
     super.onTap,
+    super.enabled,
     super.required = false,
     super.placement = ButtonPlacement.flexible,
   });

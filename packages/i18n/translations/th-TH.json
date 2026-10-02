@@ -147,7 +147,8 @@
     },
     "action": {
       "view_comments": "ดูความคิดเห็น",
-      "add_to_favorite_group": "เพิ่มเข้าในกลุ่มรายการโปรด",
+      "add_to_favorite_group": "เพิ่มเข้าในกลุ่มรายการโปรดของบัญชี",
+      "edit_rating": "แก้ไขเรตติ้ง",
       "share": "แบ่งปัน",
       "bookmark": "บุ๊กมาร์ก",
       "favorite": "รายการโปรด",
@@ -730,7 +731,7 @@
     "empty_group_notice": "ไม่มีกลุ่มรายการโปรด",
     "create_group": "สร้างกลุ่มรายการโปรด",
     "edit_group": "แก้ไขกลุ่ม",
-    "add_to_group_dialog_title": "เพิ่มเข้าไว้ในกลุ่มรายการโปรด",
+    "add_to_group_dialog_title": "เพิ่มเข้าในกลุ่มรายการโปรดของบัญชี",
     "add_to": "เพิ่มเข้าไปที่",
     "create": "สร้าง",
     "private": "ส่วนตัว",

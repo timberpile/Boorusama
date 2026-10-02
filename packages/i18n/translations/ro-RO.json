@@ -67,7 +67,8 @@
     },
     "action": {
       "view_comments": "Vizualizați comentariile",
-      "add_to_favorite_group": "Adăugați la grupul de favorite",
+      "add_to_favorite_group": "Adăugați la grupul de favorite al contului",
+      "edit_rating": "Editează evaluarea",
       "view_in_browser": "Vizualizați în browser",
       "view_original": "Vizualizați originalul"
     }
@@ -337,7 +338,7 @@
     "empty_group_notice": "Nu există grupuri favorite",
     "create_group": "Creați grup",
     "edit_group": "Editați grup",
-    "add_to_group_dialog_title": "Adăugați la grupul favorit",
+    "add_to_group_dialog_title": "Adăugați la grupul de favorite al contului",
     "add_to": "Adăugați la",
     "create": "Creați",
     "private": "Privat",
