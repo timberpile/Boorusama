@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:boorusama/core/backups/export_import/import/import_item_labels.dart';
+import 'package:boorusama/core/backups/export_import/sources/export_selection_ids.dart';
 import 'package:boorusama/core/backups/sources/following_feed_backup_data.dart';
 import 'package:boorusama/core/backups/sources/pinned_search_backup_data.dart';
 import 'package:boorusama/core/backups/sources/search_backup_profile.dart';
@@ -39,13 +40,29 @@ void main() {
           searchIds: ['search-id'],
         ),
       ],
+      homeSearchIds: ['unnamed-id'],
     );
 
-    expect(importItemLabels(data), {
+    final result = importItemPresentation('pinned_searches', data);
+
+    expect(result.labels, {
       'folder:folder-id': 'References',
       'search:search-id': 'Landscapes',
       'search:unnamed-id': 'blue sky',
     });
+    expect(result.descriptor.rootNodes.first.id, 'folder:folder-id');
+    expect(
+      result.descriptor.rootNodes.first.children.map((node) => node.id),
+      ['search:search-id'],
+    );
+    expect(
+      result.descriptor.rootNodes.last.id,
+      ExportSelectionIds.pinnedSearchHome,
+    );
+    expect(
+      result.presentation.items['search:search-id']?.trailingLabel,
+      'Example',
+    );
   });
 
   test('uses imported feed names in the review', () {
@@ -61,6 +78,13 @@ void main() {
       ],
     );
 
-    expect(importItemLabels(data), {'feed:feed-id': 'Daily art'});
+    final result = importItemPresentation('following_feeds', data);
+
+    expect(result.labels, {'feed:feed-id': 'Daily art'});
+    expect(result.descriptor.childIds, {'feed:feed-id'});
+    expect(
+      result.presentation.items['feed:feed-id']?.trailingLabel,
+      'Example',
+    );
   });
 }

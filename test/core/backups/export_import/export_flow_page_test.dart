@@ -403,6 +403,10 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Suggested import behavior'));
     await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const ValueKey('recommendation:bookmarks')),
+    );
+    await tester.pumpAndSettle();
 
     expect(find.byType(DropdownButton<ImportAction?>), findsNothing);
     expect(
@@ -410,6 +414,91 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets(
+    'suggested actions reveal selected items through their hierarchy',
+    (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            exportImportSourcesProvider.overrideWithValue(
+              const [_FakePinnedSearchSource()],
+            ),
+            exportSelectionPresentationProvider.overrideWithValue(
+              const ExportSelectionPresentation(
+                items: {
+                  'folder:one': ExportItemPresentation(label: 'Landscapes'),
+                  'search:one': ExportItemPresentation(
+                    label: 'Blue sky',
+                    trailingLabel: 'Profile A',
+                  ),
+                  'search:two': ExportItemPresentation(
+                    label: 'Sunset',
+                    trailingLabel: 'Profile B',
+                  ),
+                },
+              ),
+            ),
+            exportTemplatesProvider.overrideWith(_FakeTemplatesNotifier.new),
+          ],
+          child: TranslationProvider(
+            child: const MaterialApp(home: ExportFlowPage()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Custom export'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(Checkbox).first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Suggested import behavior'));
+      await tester.pumpAndSettle();
+
+      final recommendations = find.byKey(
+        const ValueKey('recommendation:pinned_searches'),
+      );
+      expect(
+        find.descendant(
+          of: recommendations,
+          matching: find.text('Landscapes'),
+        ),
+        findsNothing,
+      );
+      await tester.tap(recommendations);
+      await tester.pumpAndSettle();
+      final folder = find.descendant(
+        of: recommendations,
+        matching: find.text('Landscapes'),
+      );
+      expect(folder, findsOneWidget);
+      expect(
+        find.descendant(of: recommendations, matching: find.text('Blue sky')),
+        findsNothing,
+      );
+
+      await tester.tap(folder);
+      await tester.pumpAndSettle();
+      expect(
+        find.descendant(of: recommendations, matching: find.text('Blue sky')),
+        findsWidgets,
+      );
+      expect(
+        find.descendant(of: recommendations, matching: find.text('Sunset')),
+        findsWidgets,
+      );
+      expect(
+        find.descendant(of: recommendations, matching: find.text('Profile A')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: recommendations, matching: find.text('Profile B')),
+        findsOneWidget,
+      );
+    },
+  );
 
   testWidgets('ready exports summarize the selection and allow editing', (
     tester,
@@ -520,6 +609,39 @@ class _FakeCollectionSource implements ExportImportSource {
       const ExportSelectionDescriptor.collection(
         id: 'bookmarks',
         childIds: {'one'},
+      );
+
+  @override
+  Future<ExportSourceSnapshot> capture(ExportSourceRequest request) {
+    throw UnimplementedError();
+  }
+}
+
+class _FakePinnedSearchSource implements ExportImportSource {
+  const _FakePinnedSearchSource();
+
+  @override
+  String get id => 'pinned_searches';
+
+  @override
+  int get priority => 0;
+
+  @override
+  int get schemaVersion => 1;
+
+  @override
+  ExportSelectionDescriptor get selectionDescriptor =>
+      const ExportSelectionDescriptor.collection(
+        id: 'pinned_searches',
+        children: [
+          ExportSelectionNode(
+            id: 'folder:one',
+            children: [
+              ExportSelectionNode(id: 'search:one'),
+              ExportSelectionNode(id: 'search:two'),
+            ],
+          ),
+        ],
       );
 
   @override

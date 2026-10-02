@@ -60,6 +60,7 @@ final class ImportFlowState {
     this.preflight,
     this.profileMappings = const [],
     this.itemLabels = const {},
+    this.itemPresentations = const {},
     this.alreadyPresentSearches = 0,
     this.createdAt,
     this.exporterVersion,
@@ -75,6 +76,7 @@ final class ImportFlowState {
   final ImportPreflightResult? preflight;
   final List<ProfileDependencyMapping> profileMappings;
   final Map<String, String> itemLabels;
+  final Map<String, ImportItemPresentationResult> itemPresentations;
   final int alreadyPresentSearches;
   final DateTime? createdAt;
   final String? exporterVersion;
@@ -88,6 +90,7 @@ final class ImportFlowState {
     ImportPreflightResult? preflight,
     List<ProfileDependencyMapping>? profileMappings,
     Map<String, String>? itemLabels,
+    Map<String, ImportItemPresentationResult>? itemPresentations,
     int? alreadyPresentSearches,
     DateTime? createdAt,
     String? exporterVersion,
@@ -100,6 +103,7 @@ final class ImportFlowState {
     preflight: preflight ?? this.preflight,
     profileMappings: profileMappings ?? this.profileMappings,
     itemLabels: itemLabels ?? this.itemLabels,
+    itemPresentations: itemPresentations ?? this.itemPresentations,
     alreadyPresentSearches:
         alreadyPresentSearches ?? this.alreadyPresentSearches,
     createdAt: createdAt ?? this.createdAt,
@@ -182,6 +186,7 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
       final planning = <ImportSourcePlanningInput>[];
       final preflightSnapshots = <SourcePreflightSnapshot>[];
       final itemLabels = <String, String>{};
+      final itemPresentations = <String, ImportItemPresentationResult>{};
       var alreadyPresentSearches = 0;
       var containsCredentials = package.manifest.containsCredentials ?? false;
       for (final manifest in package.manifest.sources) {
@@ -219,7 +224,12 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
               await wrapper.measureRollback();
               return wrapper.revisionToken();
             });
-        itemLabels.addAll(importItemLabels(wrapper.preparedData));
+        final itemPresentation = importItemPresentation(
+          manifest.id,
+          wrapper.preparedData,
+        );
+        itemLabels.addAll(itemPresentation.labels);
+        itemPresentations[manifest.id] = itemPresentation;
         final selection =
             manifest.selection ?? ExportNodeSelection.all(manifest.id);
         final integrityIssues = const ImportSourceIntegrityValidator().validate(
@@ -366,6 +376,7 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
         ),
         profileMappings: dependencies.mappings,
         itemLabels: Map.unmodifiable(itemLabels),
+        itemPresentations: Map.unmodifiable(itemPresentations),
         alreadyPresentSearches: alreadyPresentSearches,
         createdAt: package.manifest.createdAt,
         exporterVersion: package.manifest.appVersion,

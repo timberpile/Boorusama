@@ -5,6 +5,7 @@ import 'package:kurumi/material.dart';
 import '../../../configs/manage/providers.dart';
 import '../../sources/providers.dart';
 import '../export/export_flow_notifier.dart';
+import '../models/export_item_presentation.dart';
 import '../models/import_action.dart';
 import '../widgets/import_action_editor.dart';
 import 'import_flow_notifier.dart';
@@ -142,6 +143,12 @@ class _ReviewImport extends ConsumerWidget {
               state.itemLabels[id] ?? localLabels[id],
             ),
             targetLabel: (id) => localLabels[id] ?? id,
+            itemTree: state.itemPresentations[source.id]?.descriptor,
+            itemPresentation: _localizedImportPresentation(
+              context,
+              state.itemPresentations[source.id]?.presentation ??
+                  const ExportSelectionPresentation(items: {}),
+            ),
           ),
         if (resolved.sources.any(
           (source) => source.action == ImportAction.replace,
@@ -477,6 +484,20 @@ String _localizedItemLabel(
 ) => id == 'ungrouped'
     ? context.t.settings.backup_and_restore.export_import.sources.ungrouped
     : fallback ?? id;
+
+ExportSelectionPresentation _localizedImportPresentation(
+  BuildContext context,
+  ExportSelectionPresentation presentation,
+) => ExportSelectionPresentation(
+  items: {
+    ...presentation.items,
+    'ungrouped': ExportItemPresentation(
+      label:
+          context.t.settings.backup_and_restore.export_import.sources.ungrouped,
+    ),
+    'home': ExportItemPresentation(label: context.t.pinned_searches.home),
+  },
+);
 
 String _localizedSourceLabel(BuildContext context, String id) => switch (id) {
   'profiles' =>

@@ -14,6 +14,7 @@ import '../models/export_item_presentation.dart';
 import '../models/export_template.dart';
 import '../models/import_action.dart';
 import '../widgets/import_action_editor.dart';
+import '../widgets/import_recommendation_tree.dart';
 import '../widgets/selection_tree.dart';
 import '../widgets/private_export_confirmation.dart';
 import 'export_flow_notifier.dart';
@@ -123,7 +124,7 @@ class ExportFlowPage extends ConsumerWidget {
               _ImportDefaults(
                 descriptors: notifier.descriptors,
                 state: state,
-                labels: ref.watch(exportSelectionLabelsProvider),
+                presentation: presentation,
                 onChanged: notifier.setItemRecommendedAction,
               ),
               SwitchListTile(
@@ -329,28 +330,23 @@ class _ImportDefaults extends StatelessWidget {
   const _ImportDefaults({
     required this.descriptors,
     required this.state,
-    required this.labels,
+    required this.presentation,
     required this.onChanged,
   });
 
   final List<ExportSelectionDescriptor> descriptors;
   final ExportFlowState state;
-  final ExportSelectionLabels labels;
+  final ExportSelectionPresentation presentation;
   final void Function(String, String, ImportAction?) onChanged;
 
   @override
   Widget build(BuildContext context) {
-    final selectedItems = <(String, String)>[];
-    for (final descriptor in descriptors.where((item) => item.isCollection)) {
-      final selection = state.nodes[descriptor.id];
-      final ids = switch (selection?.kind) {
-        ExportNodeSelectionKind.all => descriptor.childIds,
-        ExportNodeSelectionKind.explicit => selection!.childIds,
-        null => const <String>{},
-      };
-      selectedItems.addAll(ids.map((id) => (descriptor.id, id)));
+    if (!descriptors.any(
+      (descriptor) =>
+          descriptor.isCollection && state.nodes.containsKey(descriptor.id),
+    )) {
+      return const SizedBox.shrink();
     }
-    if (selectedItems.isEmpty) return const SizedBox.shrink();
     return ExpansionTile(
       title: Text(
         context.t.settings.backup_and_restore.export_import.import_defaults,
@@ -364,27 +360,34 @@ class _ImportDefaults extends StatelessWidget {
             .import_defaults_description,
       ),
       children: [
-        for (final (sourceId, itemId) in selectedItems)
-          KurumiSettingsTile<_ImportDefaultChoice>(
-            title: Text(_childLabel(context, labels, sourceId, itemId)),
-            selectedOption: _ImportDefaultChoice.fromAction(
-              state.itemRecommendedActions[sourceId]?[itemId],
-            ),
-            items: _ImportDefaultChoice.values,
-            onChanged: (choice) => onChanged(sourceId, itemId, choice.action),
-            optionBuilder: (choice) => Text(
-              switch (choice.action) {
-                final action? => importActionLabel(context, action),
-                null =>
-                  context
-                      .t
-                      .settings
-                      .backup_and_restore
-                      .export_import
-                      .no_preference,
-              },
-            ),
-          ),
+        ImportRecommendationTree(
+          descriptors: descriptors,
+          selections: state.nodes,
+          presentation: presentation,
+          sourceLabel: (id) => _sourceLabel(context, id),
+          itemBuilder: (context, sourceId, itemId, item) =>
+              KurumiSettingsTile<_ImportDefaultChoice>(
+                title: ImportItemLabel(item: item),
+                selectedOption: _ImportDefaultChoice.fromAction(
+                  state.itemRecommendedActions[sourceId]?[itemId],
+                ),
+                items: _ImportDefaultChoice.values,
+                onChanged: (choice) =>
+                    onChanged(sourceId, itemId, choice.action),
+                optionBuilder: (choice) => Text(
+                  switch (choice.action) {
+                    final action? => importActionLabel(context, action),
+                    null =>
+                      context
+                          .t
+                          .settings
+                          .backup_and_restore
+                          .export_import
+                          .no_preference,
+                  },
+                ),
+              ),
+        ),
       ],
     );
   }
@@ -688,24 +691,6 @@ String _sourceLabel(BuildContext context, String id) => switch (id) {
     context.t.settings.backup_and_restore.export_import.sources.following_feeds,
   _ => id,
 };
-
-String _childLabel(
-  BuildContext context,
-  ExportSelectionLabels labels,
-  String sourceId,
-  String childId,
-) {
-  if (sourceId == 'bookmarks' && childId == 'ungrouped') {
-    return context
-        .t
-        .settings
-        .backup_and_restore
-        .export_import
-        .sources
-        .ungrouped;
-  }
-  return labels.children[childId] ?? childId;
-}
 
 ExportSelectionPresentation _localizedPresentation(
   BuildContext context,

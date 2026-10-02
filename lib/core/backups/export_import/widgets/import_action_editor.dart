@@ -3,7 +3,10 @@ import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 
 import '../import/import_plan.dart';
+import '../models/export_item_presentation.dart';
+import '../models/export_selection.dart';
 import '../models/import_action.dart';
+import 'import_recommendation_tree.dart';
 
 class ImportActionEditor extends StatelessWidget {
   const ImportActionEditor({
@@ -14,6 +17,8 @@ class ImportActionEditor extends StatelessWidget {
     required this.sourceLabel,
     required this.itemLabel,
     required this.targetLabel,
+    this.itemTree,
+    this.itemPresentation = const ExportSelectionPresentation(items: {}),
   });
 
   final ProposedImportSource proposed;
@@ -22,6 +27,8 @@ class ImportActionEditor extends StatelessWidget {
   final String Function(String) sourceLabel;
   final String Function(String) itemLabel;
   final String Function(String) targetLabel;
+  final ExportSelectionDescriptor? itemTree;
+  final ExportSelectionPresentation itemPresentation;
 
   @override
   Widget build(BuildContext context) {
@@ -41,44 +48,71 @@ class ImportActionEditor extends StatelessWidget {
             ),
           ),
           if (resolved.action == ImportAction.configureItems)
-            for (final item in proposed.items)
-              _ItemActionTile(
-                proposed: item,
-                resolved:
-                    resolvedItems[item.id] ??
-                    ResolvedImportItem(
-                      id: item.id,
-                      action: item.defaultAction,
-                    ),
-                itemLabel: itemLabel,
-                targetLabel: targetLabel,
-                onChanged: (updated) => onChanged(
-                  resolved.copyWith(
-                    items: [
-                      for (final current in resolved.items)
-                        if (current.id == updated.id) updated else current,
-                    ],
-                  ),
+            if (itemTree case final tree?)
+              ImportItemTree(
+                descriptor: tree,
+                itemIds: proposed.items.map((item) => item.id).toSet(),
+                presentation: itemPresentation,
+                fallbackPresentation: (id) => ExportItemPresentation(
+                  label: itemLabel(id),
                 ),
-              ),
+                itemBuilder: (context, itemId, presentation) =>
+                    _buildItemAction(
+                      proposedById[itemId]!,
+                      resolvedItems,
+                      presentation,
+                    ),
+              )
+            else
+              for (final item in proposed.items)
+                _buildItemAction(
+                  item,
+                  resolvedItems,
+                  ExportItemPresentation(label: itemLabel(item.id)),
+                ),
         ],
       ),
     );
   }
+
+  Map<String, ProposedImportItem> get proposedById => {
+    for (final item in proposed.items) item.id: item,
+  };
+
+  Widget _buildItemAction(
+    ProposedImportItem item,
+    Map<String, ResolvedImportItem> resolvedItems,
+    ExportItemPresentation presentation,
+  ) => _ItemActionTile(
+    proposed: item,
+    resolved:
+        resolvedItems[item.id] ??
+        ResolvedImportItem(id: item.id, action: item.defaultAction),
+    itemTitle: ImportItemLabel(item: presentation),
+    targetLabel: targetLabel,
+    onChanged: (updated) => onChanged(
+      resolved.copyWith(
+        items: [
+          for (final current in resolved.items)
+            if (current.id == updated.id) updated else current,
+        ],
+      ),
+    ),
+  );
 }
 
 class _ItemActionTile extends StatelessWidget {
   const _ItemActionTile({
     required this.proposed,
     required this.resolved,
-    required this.itemLabel,
+    required this.itemTitle,
     required this.targetLabel,
     required this.onChanged,
   });
 
   final ProposedImportItem proposed;
   final ResolvedImportItem resolved;
-  final String Function(String) itemLabel;
+  final Widget itemTitle;
   final String Function(String) targetLabel;
   final ValueChanged<ResolvedImportItem> onChanged;
 
@@ -89,7 +123,7 @@ class _ItemActionTile extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         KurumiSettingsTile<ImportAction>(
-          title: Text(itemLabel(proposed.id)),
+          title: itemTitle,
           selectedOption: resolved.action,
           items: proposed.availableActions.toList(),
           onChanged: (action) => onChanged(

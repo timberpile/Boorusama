@@ -6,6 +6,8 @@ import 'package:kurumi/kurumi.dart';
 import 'package:boorusama/core/backups/export_import/import/import_plan.dart';
 import 'package:boorusama/core/backups/export_import/import/import_flow_page.dart';
 import 'package:boorusama/core/backups/export_import/import/import_preflight.dart';
+import 'package:boorusama/core/backups/export_import/models/export_item_presentation.dart';
+import 'package:boorusama/core/backups/export_import/models/export_selection.dart';
 import 'package:boorusama/core/backups/export_import/models/import_action.dart';
 import 'package:boorusama/core/backups/export_import/widgets/import_action_editor.dart';
 
@@ -135,6 +137,73 @@ void main() {
     expect(find.text('Target'), findsOneWidget);
     expect(find.byType(DropdownButtonFormField<String>), findsOneWidget);
   });
+
+  testWidgets(
+    'groups incoming item actions and preserves unknown fallback rows',
+    (
+      tester,
+    ) async {
+      final proposed = ProposedImportSource(
+        id: 'pinned_searches',
+        kind: ImportSourceKind.collection,
+        selectionComplete: false,
+        availableActions: const {ImportAction.configureItems},
+        defaultAction: ImportAction.configureItems,
+        items: [
+          for (final id in ['folder:one', 'search:one', 'search:unknown'])
+            ProposedImportItem(
+              id: id,
+              availableActions: const {ImportAction.copy, ImportAction.skip},
+              defaultAction: ImportAction.copy,
+              compatibleTargetIds: const {},
+            ),
+        ],
+      );
+      await tester.pumpWidget(
+        _app(
+          ImportActionEditor(
+            proposed: proposed,
+            resolved: ProposedImportPlan(
+              sources: [proposed],
+            ).resolveDefaults().sources.single,
+            onChanged: (_) {},
+            sourceLabel: (_) => 'Pinned searches',
+            itemLabel: (id) => id == 'search:unknown' ? 'Unknown search' : id,
+            targetLabel: (id) => id,
+            itemTree: const ExportSelectionDescriptor.collection(
+              id: 'pinned_searches',
+              children: [
+                ExportSelectionNode(
+                  id: 'folder:one',
+                  children: [ExportSelectionNode(id: 'search:one')],
+                ),
+              ],
+            ),
+            itemPresentation: const ExportSelectionPresentation(
+              items: {
+                'folder:one': ExportItemPresentation(label: 'Landscapes'),
+                'search:one': ExportItemPresentation(
+                  label: 'Blue sky',
+                  trailingLabel: 'Profile A',
+                ),
+              },
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Landscapes'), findsOneWidget);
+      expect(find.text('Blue sky'), findsNothing);
+      expect(find.text('Unknown search'), findsOneWidget);
+
+      await tester.tap(find.text('Landscapes'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Blue sky'), findsWidgets);
+      expect(find.text('Profile A'), findsOneWidget);
+      expect(find.byType(KurumiSettingsTile<ImportAction>), findsNWidgets(4));
+    },
+  );
 
   testWidgets('failed imports show a friendly recovery action', (
     tester,
