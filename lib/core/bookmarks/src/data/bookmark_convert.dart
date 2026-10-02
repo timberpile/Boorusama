@@ -6,7 +6,6 @@ import '../../../boorus/booru/types.dart';
 import '../../../posts/position/types.dart';
 import '../../../posts/post/types.dart';
 import '../types/bookmark.dart';
-import '../types/bookmark_identity.dart';
 import 'hive/bookmark_hive_object.dart';
 
 BookmarkGetError mapBoxErrorToBookmarkGetError(BoxError error) =>
