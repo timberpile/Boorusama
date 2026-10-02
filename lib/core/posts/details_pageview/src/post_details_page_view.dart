@@ -28,6 +28,11 @@ enum ViewMode {
   vertical,
 }
 
+const _kBottomPreviewSwipeThreshold = 32.0;
+const _kBottomPreviewVerticalDominance = 1.5;
+const _kExpandedMediaSwipeThreshold = 32.0;
+const _kExpandedMediaVerticalDominance = 1.5;
+
 class PostDetailsPageView extends StatefulWidget {
   const PostDetailsPageView({
     required this.sheetBuilder,
@@ -89,6 +94,7 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
   final _interacting = ValueNotifier(false);
   var _freestyleMoveStartOffset = Offset.zero;
   var _freestyleMoveScale = 1.0;
+  var _handledExpandedMediaSwipe = false;
 
   late final PostDetailsPageViewController _controller;
 
@@ -456,30 +462,35 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
               valueListenable: _controller.forceHideBottomSheet,
               builder: (_, hide, _) => hide
                   ? const SizedBox.shrink()
-                  : _bottomInfoAnimController != null
-                  ? SlideTransition(
-                      position: Tween(
-                        begin: const Offset(0, 1),
-                        end: Offset.zero,
-                      ).animate(_bottomInfoAnimController),
-                      child: ColoredBox(
-                        color: Kurumi.themeOf(context).colorScheme.surface,
-                        child: FadeTransition(
-                          opacity:
-                              Tween(
-                                begin: 0.0,
-                                end: 1.0,
-                              ).animate(
-                                CurvedAnimation(
-                                  parent: _bottomInfoAnimController,
-                                  curve: Curves.easeInCubic,
+                  : _BottomPreviewSwipeDetector(
+                      onSwipeUp: _expandFromBottomPreview,
+                      child: _bottomInfoAnimController != null
+                          ? SlideTransition(
+                              position: Tween(
+                                begin: const Offset(0, 1),
+                                end: Offset.zero,
+                              ).animate(_bottomInfoAnimController),
+                              child: ColoredBox(
+                                color: Kurumi.themeOf(
+                                  context,
+                                ).colorScheme.surface,
+                                child: FadeTransition(
+                                  opacity:
+                                      Tween(
+                                        begin: 0.0,
+                                        end: 1.0,
+                                      ).animate(
+                                        CurvedAnimation(
+                                          parent: _bottomInfoAnimController,
+                                          curve: Curves.easeInCubic,
+                                        ),
+                                      ),
+                                  child: bottomSheet,
                                 ),
                               ),
-                          child: bottomSheet,
-                        ),
-                      ),
-                    )
-                  : bottomSheet,
+                            )
+                          : bottomSheet,
+                    ),
             ),
           ),
         Align(
@@ -504,6 +515,14 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
         ),
       ],
     );
+  }
+
+  void _expandFromBottomPreview() {
+    if (_controller.isExpanded || _controller.animating.value) return;
+
+    _controller
+      ..hideBottomSheet()
+      ..expandToSnapPoint();
   }
 
   Widget _buildBottomDisplacement() {
@@ -647,7 +666,18 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
                         ),
                       child: childAb,
                     ),
-                    child: widget.itemBuilder(context, index),
+                    child: isSmall
+                        ? _ExpandedMediaSwipeDetector(
+                            controller: _controller,
+                            onSwipeDown: () {
+                              _handledExpandedMediaSwipe = true;
+                              _controller.resetSheet();
+                            },
+                            onSwipeEnded: () =>
+                                _handledExpandedMediaSwipe = false,
+                            child: widget.itemBuilder(context, index),
+                          )
+                        : widget.itemBuilder(context, index),
                   ),
                 ),
               ),
@@ -672,6 +702,7 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
   }
 
   void _onVerticalDragUpdate(DragUpdateDetails details) {
+    if (_handledExpandedMediaSwipe) return;
     _controller.dragUpdate(details);
 
     if (_controller.freestyleMoving.value) {
@@ -705,6 +736,10 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
 
   void _onVerticalDragEnd(DragEndDetails details) {
     _controller.pulling.value = false;
+    if (_handledExpandedMediaSwipe) {
+      _handledExpandedMediaSwipe = false;
+      return;
+    }
 
     // Check if drag distance exceeds threshold for dismissal
     if (_controller.freestyleMoveOffset.value.dy.abs() >
@@ -757,6 +792,231 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
     animController.forward().then((_) {
       animController.dispose();
     });
+  }
+}
+
+class _ExpandedMediaSwipeDetector extends StatefulWidget {
+  const _ExpandedMediaSwipeDetector({
+    required this.controller,
+    required this.onSwipeDown,
+    required this.onSwipeEnded,
+    required this.child,
+  });
+
+  final PostDetailsPageViewController controller;
+  final VoidCallback onSwipeDown;
+  final VoidCallback onSwipeEnded;
+  final Widget child;
+
+  @override
+  State<_ExpandedMediaSwipeDetector> createState() =>
+      _ExpandedMediaSwipeDetectorState();
+}
+
+class _ExpandedMediaSwipeDetectorState
+    extends State<_ExpandedMediaSwipeDetector> {
+  final _pointers = <int>{};
+  int? _activePointer;
+  Offset? _startPosition;
+  var _cancelled = false;
+  var _swipeHandled = false;
+
+  bool get _canSwipe =>
+      widget.controller.isExpanded &&
+      !widget.controller.zoom.value &&
+      !widget.controller.animating.value;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.sheetState.addListener(_onEligibilityChanged);
+    widget.controller.zoom.addListener(_onEligibilityChanged);
+  }
+
+  @override
+  void dispose() {
+    widget.controller.sheetState.removeListener(_onEligibilityChanged);
+    widget.controller.zoom.removeListener(_onEligibilityChanged);
+    super.dispose();
+  }
+
+  void _onEligibilityChanged() {
+    if (_pointers.isNotEmpty && !_canSwipe) {
+      _cancelled = true;
+      _activePointer = null;
+      _startPosition = null;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Listener(
+    onPointerDown: _onPointerDown,
+    onPointerMove: _onPointerMove,
+    onPointerUp: _onPointerEnd,
+    onPointerCancel: _onPointerEnd,
+    child: widget.child,
+  );
+
+  void _onPointerDown(PointerDownEvent event) {
+    _pointers.add(event.pointer);
+    if (_pointers.length > 1 || !_canSwipe) {
+      _cancelled = true;
+      _activePointer = null;
+      _startPosition = null;
+      return;
+    }
+
+    _activePointer = event.pointer;
+    _startPosition = event.position;
+    _cancelled = false;
+  }
+
+  void _onPointerMove(PointerMoveEvent event) {
+    if (_cancelled || event.pointer != _activePointer) return;
+    if (!_canSwipe) {
+      _onEligibilityChanged();
+      return;
+    }
+
+    final startPosition = _startPosition;
+    if (startPosition == null) return;
+
+    final offset = event.position - startPosition;
+    if (offset.dy < _kExpandedMediaSwipeThreshold ||
+        offset.dy < offset.dx.abs() * _kExpandedMediaVerticalDominance) {
+      return;
+    }
+
+    _cancelled = true;
+    _swipeHandled = true;
+    _activePointer = null;
+    _startPosition = null;
+    widget.onSwipeDown();
+  }
+
+  void _onPointerEnd(PointerEvent event) {
+    _pointers.remove(event.pointer);
+    if (_pointers.isEmpty) {
+      _activePointer = null;
+      _startPosition = null;
+      _cancelled = false;
+      if (_swipeHandled) {
+        _swipeHandled = false;
+        scheduleMicrotask(widget.onSwipeEnded);
+      }
+    }
+  }
+}
+
+class _BottomPreviewSwipeDetector extends StatefulWidget {
+  const _BottomPreviewSwipeDetector({
+    required this.onSwipeUp,
+    required this.child,
+  });
+
+  final VoidCallback onSwipeUp;
+  final Widget child;
+
+  @override
+  State<_BottomPreviewSwipeDetector> createState() =>
+      _BottomPreviewSwipeDetectorState();
+}
+
+class _BottomPreviewSwipeDetectorState
+    extends State<_BottomPreviewSwipeDetector> {
+  final _pointers = <int>{};
+  int? _activePointer;
+  Offset? _startPosition;
+  Offset? _currentPosition;
+  var _cancelled = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Listener(
+      onPointerDown: _onPointerDown,
+      onPointerMove: _onPointerMove,
+      onPointerUp: _onPointerUp,
+      onPointerCancel: _onPointerCancel,
+      child: widget.child,
+    );
+  }
+
+  void _onPointerDown(PointerDownEvent event) {
+    _pointers.add(event.pointer);
+
+    if (_pointers.length > 1) {
+      _cancelled = true;
+      return;
+    }
+
+    _activePointer = event.pointer;
+    _startPosition = event.position;
+    _currentPosition = event.position;
+    _cancelled = false;
+  }
+
+  void _onPointerMove(PointerMoveEvent event) {
+    if (event.pointer != _activePointer || _cancelled) return;
+
+    _currentPosition = event.position;
+    if (_isQualifyingSwipe()) {
+      _clearCandidate();
+      widget.onSwipeUp();
+    }
+  }
+
+  void _onPointerUp(PointerUpEvent event) {
+    _pointers.remove(event.pointer);
+    if (event.pointer != _activePointer) {
+      if (_pointers.isEmpty) _resetGesture();
+      return;
+    }
+
+    final cancelled = _cancelled;
+    final isQualifyingSwipe = _isQualifyingSwipe();
+    _clearCandidate();
+    if (_pointers.isEmpty) _cancelled = false;
+
+    if (!cancelled && isQualifyingSwipe) widget.onSwipeUp();
+  }
+
+  bool _isQualifyingSwipe() {
+    final startPosition = _startPosition;
+    final currentPosition = _currentPosition;
+    if (_cancelled || startPosition == null || currentPosition == null) {
+      return false;
+    }
+
+    final offset = currentPosition - startPosition;
+    final upwardDistance = -offset.dy;
+    final isUpward = upwardDistance >= _kBottomPreviewSwipeThreshold;
+    final isVertical =
+        upwardDistance >= offset.dx.abs() * _kBottomPreviewVerticalDominance;
+
+    return isUpward && isVertical;
+  }
+
+  void _onPointerCancel(PointerCancelEvent event) {
+    _pointers.remove(event.pointer);
+    if (event.pointer == _activePointer) {
+      _clearCandidate();
+    }
+
+    if (_pointers.isEmpty) {
+      _resetGesture();
+    }
+  }
+
+  void _clearCandidate() {
+    _activePointer = null;
+    _startPosition = null;
+    _currentPosition = null;
+  }
+
+  void _resetGesture() {
+    _pointers.clear();
+    _clearCandidate();
+    _cancelled = false;
   }
 }
 
