@@ -82,7 +82,11 @@ class EditBooruConfigNotifier
         ? null
         : configs.firstWhereOrNull((e) => e.id == arg.id);
 
-    return (config ?? defaultConfig).toBooruConfigData();
+    return (config ?? defaultConfig)
+        .copyWith(
+          name: arg.isNew ? arg.initialName : null,
+        )
+        .toBooruConfigData();
   }
 
   void updateLogin(

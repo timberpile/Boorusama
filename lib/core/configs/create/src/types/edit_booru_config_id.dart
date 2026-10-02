@@ -10,42 +10,48 @@ class EditBooruConfigId extends Equatable {
     required this.id,
     required this.booruType,
     required this.url,
+    this.initialName,
   });
 
   const EditBooruConfigId.newId({
     required BooruType booruType,
     required String url,
-  }) : this(id: -1, booruType: booruType, url: url);
+    String? initialName,
+  }) : this(
+         id: -1,
+         booruType: booruType,
+         url: url,
+         initialName: initialName,
+       );
 
   EditBooruConfigId.fromConfig(
     BooruConfig config,
   ) : id = config.id,
       booruType = config.auth.booruType,
-      url = config.url;
+      url = config.url,
+      initialName = null;
 
-  static EditBooruConfigId? fromUri(Uri uri) => switch (uri.queryParameters) {
-    {
-      'type': final typeStr,
-      'url': final url,
-      'id': final idStr,
-    } =>
-      switch ((
-        int.tryParse(typeStr),
-        int.tryParse(idStr),
-      )) {
-        (final type?, final id?) => EditBooruConfigId(
-          id: id,
-          booruType: BooruType.fromLegacyId(type),
-          url: url,
-        ),
-        _ => null,
-      },
-    _ => null,
-  };
+  static EditBooruConfigId? fromUri(Uri uri) {
+    final parameters = uri.queryParameters;
+    final type = int.tryParse(parameters['type'] ?? '');
+    final id = int.tryParse(parameters['id'] ?? '');
+    final url = parameters['url'];
+
+    return switch ((type, id, url)) {
+      (final type?, final id?, final url?) => EditBooruConfigId(
+        id: id,
+        booruType: BooruType.fromLegacyId(type),
+        url: url,
+        initialName: parameters['name'],
+      ),
+      _ => null,
+    };
+  }
 
   final int id;
   final BooruType booruType;
   final String url;
+  final String? initialName;
 
   bool get isNew => id == -1;
 
@@ -53,8 +59,9 @@ class EditBooruConfigId extends Equatable {
     'type': booruType.id.toString(),
     'url': url,
     'id': id.toString(),
+    'name': ?initialName,
   };
 
   @override
-  List<Object> get props => [id, booruType, url];
+  List<Object?> get props => [id, booruType, url, initialName];
 }

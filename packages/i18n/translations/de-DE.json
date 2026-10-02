@@ -790,6 +790,9 @@
     "month": "Monat"
   },
   "booru": {
+    "quick_setup": {
+      "account_required": "Benutzerkonto erforderlich"
+    },
     "booru_engine_input_label": "Booru Engine (*)",
     "config_name_label": "Konfigurationsname (*)",
     "site_url_label": "Seiten-URL",
