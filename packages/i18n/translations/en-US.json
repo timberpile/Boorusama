@@ -813,8 +813,6 @@
         "review_import": "Review import",
         "valid": "Valid",
         "all_checks_passed": "All checks passed",
-        "planned_changes": "Planned changes",
-        "planned_changes_summary": "{created} new · {updated} updated · {deleted} removed · {preserved} kept · {unchanged} unchanged",
         "replace": "Replace",
         "replace_explanation_title": "What Replace does",
         "replace_explanation": "Replace makes the selected category match this export. Current items in that category that are absent from the export are removed. Skipped categories and items are unchanged. Boorusama creates a rollback checkpoint before applying anything.",

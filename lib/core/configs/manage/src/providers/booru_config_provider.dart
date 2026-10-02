@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:foundation/foundation.dart';
 
 // Project imports:
+import '../../../../../foundation/data_mutation_coordinator.dart';
 import '../../../../../foundation/loggers.dart';
 import '../../../../../foundation/utils/collection_utils.dart';
 import '../../../../analytics/analytics_interface.dart';
@@ -338,6 +339,26 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
   }
 
   Future<void> add({
+    required BooruConfigData data,
+    BooruConfig? initialConfig,
+    void Function(String message)? onFailure,
+    void Function(BooruConfig booruConfig)? onSuccess,
+    bool setAsCurrent = false,
+    bool? isCopy,
+  }) => ref
+      .read(dataMutationCoordinatorProvider)
+      .runExclusive(
+        () => _addConfig(
+          data: data,
+          initialConfig: initialConfig,
+          onFailure: onFailure,
+          onSuccess: onSuccess,
+          setAsCurrent: setAsCurrent,
+          isCopy: isCopy,
+        ),
+      );
+
+  Future<void> _addConfig({
     required BooruConfigData data,
     BooruConfig? initialConfig,
     void Function(String message)? onFailure,

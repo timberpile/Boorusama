@@ -59,8 +59,12 @@ final class ImportTransaction {
       for (final sourcePlan in selectedPlans) {
         final path = '${store.rollbackPath(transactionId, sourcePlan.id)}.data';
         await sources[sourcePlan.id]!.captureRollback(path);
+        await fs.syncFile(path);
         rollbackHashes[sourcePlan.id] = await _digest(path);
       }
+      await fs.syncDirectory(
+        '${store.transactionPath(transactionId)}/rollback',
+      );
       journal = journal.copyWith(
         state: ImportJournalState.prepared,
         rollbackHashes: rollbackHashes,

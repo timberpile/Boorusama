@@ -88,4 +88,47 @@ void main() {
     expect(source.applyCount, 0);
     expect(source.value, 'old:first');
   });
+
+  test(
+    'rollback data is durable before the transaction becomes prepared',
+    () async {
+      final recordingFs = _RecordingFileSystem();
+      final recordingStore = ImportJournalStore(
+        fs: recordingFs,
+        rootPath: directory.path,
+      );
+      final source = FakeImportSource('first', recordingFs);
+
+      await ImportTransaction(store: recordingStore, fs: recordingFs).execute(
+        transactionId: 'durable',
+        plan: buildValidatedPlan(['first']),
+        sources: {'first': source},
+      );
+
+      final rollbackSync = recordingFs.syncs.indexWhere(
+        (entry) => entry.endsWith('/rollback/first.data'),
+      );
+      final rollbackDirectorySync = recordingFs.syncs.indexWhere(
+        (entry) => entry.endsWith('/rollback'),
+        rollbackSync + 1,
+      );
+      final preparedJournalSync = recordingFs.syncs.indexWhere(
+        (entry) => entry.endsWith('/journal.json.tmp'),
+        rollbackDirectorySync + 1,
+      );
+      expect(rollbackSync, greaterThanOrEqualTo(0));
+      expect(rollbackDirectorySync, greaterThan(rollbackSync));
+      expect(preparedJournalSync, greaterThan(rollbackDirectorySync));
+    },
+  );
+}
+
+final class _RecordingFileSystem extends IoFileSystem {
+  final syncs = <String>[];
+
+  @override
+  Future<void> syncFile(String path) async => syncs.add(path);
+
+  @override
+  Future<void> syncDirectory(String path) async => syncs.add(path);
 }

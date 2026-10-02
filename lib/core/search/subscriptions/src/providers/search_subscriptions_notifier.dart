@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 // Project imports:
+import '../../../../../foundation/data_mutation_coordinator.dart';
 import '../../../../boorus/engine/providers.dart';
 import '../../../../configs/manage/providers.dart';
 import '../../../../configs/config/types.dart';
@@ -778,7 +779,11 @@ class SearchSubscriptionsNotifier
     }
   }
 
-  Future<T> _serialize<T>(Future<T> Function() operation) {
+  Future<T> _serialize<T>(Future<T> Function() operation) => ref
+      .read(dataMutationCoordinatorProvider)
+      .runExclusive(() => _serializeLocally(operation));
+
+  Future<T> _serializeLocally<T>(Future<T> Function() operation) {
     final completer = Completer<T>();
     _mutationTail = _mutationTail.catchError((_) {}).then((_) async {
       try {

@@ -8,6 +8,7 @@ import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
 
 // Project imports:
+import '../../../../foundation/data_mutation_coordinator.dart';
 import '../../../boorus/booru/types.dart';
 import '../../../boorus/engine/providers.dart';
 import '../../../configs/config/types.dart';
@@ -159,7 +160,11 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     return saved;
   });
 
-  Future<T> _serialize<T>(Future<T> Function() operation) {
+  Future<T> _serialize<T>(Future<T> Function() operation) => ref
+      .read(dataMutationCoordinatorProvider)
+      .runExclusive(() => _serializeLocally(operation));
+
+  Future<T> _serializeLocally<T>(Future<T> Function() operation) {
     final completer = Completer<T>();
     _mutationTail = _mutationTail.catchError((_) {}).then((_) async {
       try {

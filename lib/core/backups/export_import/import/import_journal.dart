@@ -114,8 +114,13 @@ final class ImportJournalStore {
   ) async {
     final path = transactionPath(transactionId);
     await fs.createDirectory('$path/rollback', recursive: true);
+    await fs.syncDirectory(rootPath);
+    await fs.syncDirectory(path);
+    await fs.syncDirectory('$path/rollback');
     final planJson = jsonEncode(plan.plan.toJson());
     await fs.writeString('$path/plan.json', planJson);
+    await fs.syncFile('$path/plan.json');
+    await fs.syncDirectory(path);
     final journal = ImportJournal(
       transactionId: transactionId,
       planHash: sha256.convert(utf8.encode(planJson)).toString(),
@@ -131,12 +136,16 @@ final class ImportJournalStore {
     final temporary = '$path/journal.json.tmp';
     final backup = '$path/journal.json.bak';
     await fs.writeString(temporary, jsonEncode(journal.toJson()));
+    await fs.syncFile(temporary);
     if (await fs.fileExists('$path/journal.json')) {
       if (await fs.fileExists(backup)) await fs.deleteFile(backup);
       await fs.renameFile('$path/journal.json', backup);
+      await fs.syncDirectory(path);
     }
     await fs.renameFile(temporary, '$path/journal.json');
+    await fs.syncDirectory(path);
     if (await fs.fileExists(backup)) await fs.deleteFile(backup);
+    await fs.syncDirectory(path);
   }
 
   Future<ImportJournal> read(String transactionId) async {
@@ -178,6 +187,7 @@ final class ImportJournalStore {
     final path = transactionPath(transactionId);
     if (await fs.directoryExists(path)) {
       await fs.deleteDirectory(path, recursive: true);
+      await fs.syncDirectory(rootPath);
     }
   }
 }

@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kurumi/material.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../../foundation/data_mutation_coordinator.dart';
 import '../../../../foundation/filesystem.dart';
 import '../../../../foundation/utils/file_utils.dart';
 import '../../../configs/config/types.dart';
@@ -123,6 +124,10 @@ final importFlowProvider =
     NotifierProvider.autoDispose<ImportFlowNotifier, ImportFlowState>(
       ImportFlowNotifier.new,
     );
+
+final importCoordinatorProvider = Provider<ImportCoordinator>(
+  (ref) => ImportCoordinator(),
+);
 
 class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
   StagedExportPackage? _package;
@@ -445,29 +450,33 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
     if (validated == null) return;
     state = state.copyWith(status: ImportFlowStatus.importing);
     try {
-      for (final sourcePlan in validated.plan.sources) {
-        if (sourcePlan.action != ImportAction.skip) {
-          await _sources[sourcePlan.id]!.prepare(context);
+      await ref.read(dataMutationCoordinatorProvider).runExclusive(() async {
+        for (final sourcePlan in validated.plan.sources) {
+          if (sourcePlan.action != ImportAction.skip) {
+            await _sources[sourcePlan.id]!.prepare(context);
+          }
         }
-      }
-      final fs = ref.read(appFileSystemProvider);
-      final root = await fs.getAppStoragePath();
-      final coordinator = ImportCoordinator(
-        transaction: ImportTransaction(
-          store: ImportJournalStore(
-            fs: fs,
-            rootPath: '$root/import_transactions',
-          ),
-          fs: fs,
-        ),
-        sources: () => Map.unmodifiable(_sources),
-      );
-      await coordinator.apply(validated);
-      for (final sourcePlan in validated.plan.sources) {
-        if (sourcePlan.action != ImportAction.skip) {
-          await _sources[sourcePlan.id]!.restart();
+        final fs = ref.read(appFileSystemProvider);
+        final root = await fs.getAppStoragePath();
+        await ref
+            .read(importCoordinatorProvider)
+            .apply(
+              plan: validated,
+              transaction: ImportTransaction(
+                store: ImportJournalStore(
+                  fs: fs,
+                  rootPath: '$root/import_transactions',
+                ),
+                fs: fs,
+              ),
+              sources: Map.unmodifiable(_sources),
+            );
+        for (final sourcePlan in validated.plan.sources) {
+          if (sourcePlan.action != ImportAction.skip) {
+            await _sources[sourcePlan.id]!.restart();
+          }
         }
-      }
+      });
       state = state.copyWith(status: ImportFlowStatus.complete);
     } catch (error) {
       state = state.copyWith(status: ImportFlowStatus.error, error: error);

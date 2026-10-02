@@ -28,6 +28,8 @@ abstract interface class AppFileSystem {
 
   Future<void> renameFile(String source, String destination);
 
+  Future<void> syncFile(String path);
+
   Future<int> fileSize(String path);
   int fileSizeSync(String path);
 
@@ -46,6 +48,8 @@ abstract interface class AppFileSystem {
   bool directoryExistsSync(String path);
 
   Future<void> createDirectory(String path, {bool recursive = false});
+
+  Future<void> syncDirectory(String path);
 
   Future<void> deleteDirectory(String path, {bool recursive = false});
   void deleteDirectorySync(String path, {bool recursive = false});
