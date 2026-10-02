@@ -12,6 +12,7 @@ import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
+import java.security.MessageDigest
 import java.util.UUID
 import java.util.concurrent.Executors
 
@@ -60,10 +61,8 @@ class ReceivedExportChannel(
         val uri = intent?.exportUri() ?: return
         if (intent.type != EXPORT_MIME_TYPE || uri.scheme != ContentResolver.SCHEME_CONTENT) return
 
-        val id = UUID.randomUUID().toString()
-
         executor.execute {
-            val event = stage(id, uri)
+            val event = stage(uri)
             if (event == null) return@execute
             mainHandler.post { publish(event) }
         }
@@ -73,17 +72,38 @@ class ReceivedExportChannel(
         executor.shutdown()
     }
 
-    private fun stage(id: String, uri: Uri): Map<String, String>? {
+    private fun stage(uri: Uri): Map<String, String>? {
         val directory = File(context.cacheDir, "received_exports")
         if (!directory.exists() && !directory.mkdirs()) return null
         val pending = File(directory, "${UUID.randomUUID()}.part")
-        val completed = File(directory, "${UUID.randomUUID()}.bsexport")
 
         return try {
+            val digest = MessageDigest.getInstance("SHA-256")
+            var byteCount = 0L
             context.contentResolver.openInputStream(uri)?.use { input ->
-                pending.outputStream().use(input::copyTo)
+                pending.outputStream().use { output ->
+                    val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                    while (true) {
+                        val count = input.read(buffer)
+                        if (count < 0) break
+                        byteCount += count
+                        if (byteCount > MAX_EXPORT_BYTES) {
+                            throw IllegalArgumentException("Received export is too large")
+                        }
+                        digest.update(buffer, 0, count)
+                        output.write(buffer, 0, count)
+                    }
+                }
             } ?: return null
-            if (!pending.renameTo(completed)) return null
+            val id = digest.digest().joinToString("") { byte ->
+                "%02x".format(byte.toInt() and 0xff)
+            }
+            val completed = File(directory, "$id.bsexport")
+            if (completed.exists()) {
+                pending.delete()
+            } else if (!pending.renameTo(completed)) {
+                return null
+            }
             mapOf(
                 "id" to id,
                 "path" to completed.absolutePath,
@@ -134,6 +154,7 @@ class ReceivedExportChannel(
 
     companion object {
         const val EXPORT_MIME_TYPE = "application/vnd.boorusama.export"
+        private const val MAX_EXPORT_BYTES = 512L * 1024 * 1024
         private const val EVENT_CHANNEL_NAME = "com.timberpile.boorusama/received_exports"
         private const val METHOD_CHANNEL_NAME =
             "com.timberpile.boorusama/received_exports_methods"

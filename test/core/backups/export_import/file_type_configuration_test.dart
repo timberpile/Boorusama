@@ -47,6 +47,17 @@ void main() {
     expect(manifest, isNot(contains('application/octet-stream')));
   });
 
+  test('Android bounds received files and deduplicates by content digest', () {
+    final channel = File(
+      'android/app/src/main/kotlin/com/timberpile/boorusama/ReceivedExportChannel.kt',
+    ).readAsStringSync();
+
+    expect(channel, contains('MAX_EXPORT_BYTES'));
+    expect(channel, contains('MessageDigest.getInstance("SHA-256")'));
+    expect(channel, contains('byteCount > MAX_EXPORT_BYTES'));
+    expect(channel, contains(r'File(directory, "$id.bsexport")'));
+  });
+
   for (final plistPath in [
     'ios/Runner/Info.plist',
     'macos/Runner/Info.plist',
@@ -63,6 +74,31 @@ void main() {
       expect(plist, contains('<string>public.data</string>'));
     });
   }
+
+  test(
+    'Apple runners forward opened exports and expose the custom clipboard type',
+    () {
+      final ios = File('ios/Runner/AppDelegate.swift').readAsStringSync();
+      final macosDelegate = File(
+        'macos/Runner/AppDelegate.swift',
+      ).readAsStringSync();
+      final macosWindow = File(
+        'macos/Runner/MainFlutterWindow.swift',
+      ).readAsStringSync();
+
+      expect(ios, contains('open url: URL'));
+      expect(ios, contains('ReceivedExportChannel'));
+      expect(ios, contains('com.timberpile.boorusama.export'));
+      expect(ios, contains('com.timberpile.boorusama/export_clipboard'));
+      expect(macosDelegate, contains('openFiles filenames'));
+      expect(macosWindow, contains('ReceivedExportChannel'));
+      expect(macosWindow, contains('com.timberpile.boorusama.export'));
+      expect(
+        macosWindow,
+        contains('com.timberpile.boorusama/export_clipboard'),
+      );
+    },
+  );
 
   test(
     'package validation does not depend on the filename extension',

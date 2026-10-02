@@ -21,6 +21,8 @@ class ReceivedExportListener extends ConsumerStatefulWidget {
 class _ReceivedExportListenerState
     extends ConsumerState<ReceivedExportListener> {
   StreamSubscription<ReceivedExport>? _subscription;
+  final _pending = <ReceivedExport>[];
+  var _opening = false;
 
   @override
   void initState() {
@@ -34,28 +36,50 @@ class _ReceivedExportListenerState
     );
     if (!mounted) return;
     _subscription = service.exports.listen(
-      (export) => unawaited(_openWhenNavigatorIsReady(export.path)),
+      _enqueue,
     );
   }
 
-  Future<void> _openWhenNavigatorIsReady(String path) async {
-    while (mounted) {
-      final navigator = navigatorKey.currentState;
-      if (navigator != null) {
+  void _enqueue(ReceivedExport export) {
+    _pending.add(export);
+    if (!_opening) unawaited(_drain());
+  }
+
+  Future<void> _drain() async {
+    _opening = true;
+    try {
+      while (mounted && _pending.isNotEmpty) {
+        final export = _pending.removeAt(0);
+        while (mounted && navigatorKey.currentState == null) {
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+        }
+        final navigator = navigatorKey.currentState;
+        if (!mounted || navigator == null) break;
         await navigator.push<void>(
           MaterialPageRoute(
-            builder: (_) => ImportFlowPage(packagePath: path),
+            builder: (_) => ImportFlowPage(
+              packagePath: export.path,
+              disposeInput: () => _deleteReceivedFile(export.path),
+            ),
           ),
         );
-        return;
       }
-      await Future<void>.delayed(const Duration(milliseconds: 50));
+    } finally {
+      _opening = false;
     }
+  }
+
+  Future<void> _deleteReceivedFile(String path) async {
+    final fs = ref.read(appFileSystemProvider);
+    if (await fs.fileExists(path)) await fs.deleteFile(path);
   }
 
   @override
   void dispose() {
     unawaited(_subscription?.cancel());
+    for (final export in _pending) {
+      unawaited(_deleteReceivedFile(export.path));
+    }
     super.dispose();
   }
 
