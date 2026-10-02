@@ -12,6 +12,7 @@ abstract interface class ImportTransactionSource {
   Future<String> revisionToken();
   Future<void> captureRollback(String outputPath);
   Future<void> apply(ResolvedImportSource plan);
+  Future<void> durableSync();
   Future<void> restore(String rollbackPath);
 }
 
@@ -90,6 +91,7 @@ final class ImportTransaction {
         );
         await store.write(journal);
         await sources[sourcePlan.id]!.apply(sourcePlan);
+        await sources[sourcePlan.id]!.durableSync();
         journal = journal.copyWith(
           state: ImportJournalState.applied,
           completedSourceIds: [...journal.completedSourceIds, sourcePlan.id],
@@ -139,6 +141,7 @@ final class ImportTransaction {
           throw StateError('Rollback payload failed verification: $id');
         }
         await source.restore(path);
+        await source.durableSync();
       } catch (error) {
         errors.add(error);
       }

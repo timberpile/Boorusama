@@ -32,7 +32,12 @@ void main() {
         sources: {'first': first, 'second': second},
       );
 
-      expect(log, ['apply:first', 'apply:second']);
+      expect(log, [
+        'apply:first',
+        'sync:first',
+        'apply:second',
+        'sync:second',
+      ]);
       expect(first.value, 'imported:first');
       expect(second.value, 'imported:second');
       expect(
@@ -60,9 +65,12 @@ void main() {
 
       expect(log, [
         'apply:first',
+        'sync:first',
         'apply:second',
         'restore:second',
+        'sync:second',
         'restore:first',
+        'sync:first',
       ]);
       expect(first.value, 'old:first');
       expect(second.value, 'old:second');

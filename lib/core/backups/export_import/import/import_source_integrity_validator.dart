@@ -28,8 +28,12 @@ final class ImportSourceIntegrityValidator {
     }
 
     final itemIds = importedItemIds(data);
+    final selectableItemIds = {
+      ...itemIds,
+      if (data is BookmarkBackupData) 'ungrouped',
+    };
     if (selection.kind == ExportNodeSelectionKind.explicit) {
-      for (final id in selection.childIds.difference(itemIds)) {
+      for (final id in selection.childIds.difference(selectableItemIds)) {
         issues.add(
           ImportPlanIssue(
             code: 'unknown_selected_item',

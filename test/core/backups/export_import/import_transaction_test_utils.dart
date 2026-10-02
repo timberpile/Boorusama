@@ -52,6 +52,9 @@ final class FakeImportSource implements ImportTransactionSource {
       fs.writeString(outputPath, value);
 
   @override
+  Future<void> durableSync() async => log?.add('sync:$id');
+
+  @override
   Future<String> revisionToken() async => revision;
 
   @override

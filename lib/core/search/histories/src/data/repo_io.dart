@@ -5,9 +5,11 @@ import 'package:path/path.dart' show join;
 // Project imports:
 import '../../../../../foundation/database/providers.dart';
 import '../../../../../foundation/database/utils.dart';
+import '../../../../../foundation/data_mutation_coordinator.dart';
 import '../../../../../foundation/filesystem.dart';
 import '../../../../../foundation/loggers.dart';
 import '../types/search_history_repository.dart';
+import 'coordinated_search_history_repository.dart';
 import 'repo_empty.dart';
 import 'repo_sqlite.dart';
 
@@ -37,7 +39,10 @@ final searchHistoryRepoProvider = FutureProvider<SearchHistoryRepository>(
     });
 
     try {
-      return SearchHistoryRepositorySqlite(db: db)..initialize();
+      return CoordinatedSearchHistoryRepository(
+        SearchHistoryRepositorySqlite(db: db)..initialize(),
+        ref.watch(dataMutationCoordinatorProvider),
+      );
     } on Exception catch (e) {
       logger
         ..error(

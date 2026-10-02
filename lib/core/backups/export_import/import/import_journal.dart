@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
 import 'package:equatable/equatable.dart';
+import 'package:path/path.dart' as p;
 
 import '../../../../foundation/filesystem.dart';
 import 'import_preflight.dart';
@@ -114,6 +115,7 @@ final class ImportJournalStore {
   ) async {
     final path = transactionPath(transactionId);
     await fs.createDirectory('$path/rollback', recursive: true);
+    await fs.syncDirectory(p.dirname(rootPath));
     await fs.syncDirectory(rootPath);
     await fs.syncDirectory(path);
     await fs.syncDirectory('$path/rollback');

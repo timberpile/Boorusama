@@ -68,4 +68,19 @@ void main() {
     expect(await repository.restore(replacement), isNull);
     expect(await repository.getFirst(original.name), original);
   });
+
+  test('replacement exactly matches imported tags and metadata', () async {
+    await repository.create(name: 'local_only');
+    final imported = FavoriteTag(
+      name: 'imported',
+      createdAt: DateTime.utc(2020),
+      updatedAt: DateTime.utc(2021),
+      labels: const ['shared'],
+    );
+
+    await repository.replaceAll([imported]);
+
+    expect(await repository.getAll(), [imported]);
+    expect(await repository.getFirst('local_only'), isNull);
+  });
 }

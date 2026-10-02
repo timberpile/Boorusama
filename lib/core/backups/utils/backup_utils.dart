@@ -1,5 +1,6 @@
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path/path.dart' as p;
 
 // Project imports:
 import '../../../foundation/filesystem.dart';
@@ -30,12 +31,14 @@ class BackupUtils {
 
     try {
       await fs.copyFile(sourcePath, tempPath);
+      await fs.syncFile(tempPath);
 
       if (fs.fileExistsSync(destPath)) {
         await fs.deleteFile(destPath);
       }
 
       await fs.renameFile(tempPath, destPath);
+      await fs.syncDirectory(p.dirname(destPath));
     } catch (e) {
       if (fs.fileExistsSync(tempPath)) {
         await fs.deleteFile(tempPath);

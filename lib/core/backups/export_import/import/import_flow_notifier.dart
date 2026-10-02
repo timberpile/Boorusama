@@ -30,6 +30,7 @@ import '../../sources/providers.dart';
 import '../../sources/search_backup_profile.dart';
 import '../../sources/sqlite_source.dart';
 import '../../types/backup_data_source.dart';
+import '../../utils/backup_utils.dart';
 import '../models/export_selection.dart';
 import '../models/import_action.dart';
 import '../package/staged_export_package.dart';
@@ -200,7 +201,7 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
           incomingPath: incomingPath,
           fs: ref.read(appFileSystemProvider),
           ref: ref,
-          credentialsIncluded: package.manifest.containsCredentials ?? true,
+          credentialsIncluded: package.manifest.containsCredentials ?? false,
         );
         await wrapper.prepare(null);
         final actualCredentials = switch (wrapper.preparedData) {
@@ -852,6 +853,22 @@ final class PackageTransactionSource implements ImportTransactionSource {
   }
 
   @override
+  Future<void> durableSync() async {
+    final root = await fs.getAppStoragePath();
+    if (!await fs.directoryExists(root)) return;
+    final entries = await fs.listDirectory(root, recursive: true);
+    for (final entry in entries.where((entry) => entry.isFile)) {
+      await fs.syncFile(entry.path);
+    }
+    final directories = entries.where((entry) => entry.isDirectory).toList()
+      ..sort((a, b) => b.path.length.compareTo(a.path.length));
+    for (final directory in directories) {
+      await fs.syncDirectory(directory.path);
+    }
+    await fs.syncDirectory(root);
+  }
+
+  @override
   Future<void> apply(ResolvedImportSource plan) async {
     final preparedData = _preparation?.preparedData;
     if (id == 'profiles' && preparedData is List<BooruConfig>) {
@@ -1193,7 +1210,7 @@ final class PackageTransactionSource implements ImportTransactionSource {
         if (await fs.fileSize(rollbackPath) == 0) {
           if (await fs.fileExists(dbPath)) await fs.deleteFile(dbPath);
         } else {
-          await fs.copyFile(rollbackPath, dbPath);
+          await BackupUtils.replaceFile(fs, rollbackPath, dbPath);
         }
         sqliteSource.onImportComplete();
       default:

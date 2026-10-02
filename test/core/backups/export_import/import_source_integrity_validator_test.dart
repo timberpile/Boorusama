@@ -150,4 +150,19 @@ void main() {
 
     expect(issues, isEmpty);
   });
+
+  test('allows an explicitly selected empty ungrouped boundary', () {
+    final issues = validator.validate(
+      sourceId: 'bookmarks',
+      packageSchemaVersion: 1,
+      supportedSchemaVersion: 1,
+      selection: const ExportNodeSelection.explicit('bookmarks', {
+        'ungrouped',
+      }),
+      itemRecommendations: const {},
+      data: const BookmarkBackupData(bookmarks: [], groups: []),
+    );
+
+    expect(issues, isEmpty);
+  });
 }

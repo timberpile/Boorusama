@@ -121,5 +121,7 @@ abstract class FavoriteTagRepository {
 
   Future<List<FavoriteTag>> createFrom(List<FavoriteTag> tags);
 
+  Future<void> replaceAll(List<FavoriteTag> tags);
+
   Future<FavoriteTag?> updateFirst(String name, FavoriteTag tag);
 }

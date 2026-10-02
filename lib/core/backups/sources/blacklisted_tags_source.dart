@@ -31,7 +31,7 @@ class BlacklistedTagsBackupSource
         },
         executor: (tags, _) async {
           final repo = await ref.read(globalBlacklistedTagRepoProvider.future);
-          await repo.addTags(tags);
+          await repo.replaceAll(tags);
           ref.invalidate(globalBlacklistedTagsProvider);
         },
         handler: ListHandler<BlacklistedTag>(
