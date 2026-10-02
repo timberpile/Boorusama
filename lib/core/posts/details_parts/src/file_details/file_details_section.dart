@@ -109,6 +109,13 @@ class FileDetailsSection extends StatelessWidget {
             title: context.t.post.detail.file_format,
             valueLabel: format,
           ),
+          if (post.createdAt case final createdAt?)
+            FileDetailTile(
+              title: context.t.post.detail.upload_date,
+              valueLabel: createdAt.fuzzify(
+                locale: Localizations.localeOf(context),
+              ),
+            ),
           if (post.isVideo && post.duration > 0)
             FileDetailTile(
               title: context.t.post.detail.duration,

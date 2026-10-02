@@ -251,6 +251,7 @@
       "resolution": "Resolution",
       "rating": "Rating",
       "file_format": "File format",
+      "upload_date": "Upload date",
       "duration": "Duration",
       "uploader": "Uploader",
       "approver": "Approver",

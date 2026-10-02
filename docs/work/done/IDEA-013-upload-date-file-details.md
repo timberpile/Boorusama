@@ -1,0 +1,25 @@
+# IDEA-013: Upload date in file details
+
+- Priority: Normal
+- Affected feature/branch: Shared post file details / `feature/upload-date-file-details`
+- Agent/session: `/root/implement_13`
+- Problem: Shared file details do not display the post upload date, even when `Post.createdAt` is available.
+- Expected behavior: Show a localized upload-date row when `Post.createdAt` is non-null and omit the row when it is unavailable.
+- Acceptance criteria:
+  - [x] The shared file details show a localized upload date for a post with `createdAt`.
+  - [x] The upload-date row is absent when `createdAt` is null.
+  - [x] Focused widget coverage verifies both states.
+  - [x] Focused and full relevant verification pass with no analyzer findings beyond the 227-info base baseline.
+- Relevant context: Use the existing shared `FileDetailsSection`, localized labels through `context.t`, and established localized date formatting. Preserve existing file detail behavior.
+- Dependencies: None.
+- Progress: Implemented the optional upload-date row using the existing localized relative-date formatter. Added English base translation and focused widget tests.
+- Verification evidence:
+  - TDD red: after fresh-worktree generation, `fvm flutter test test/core/posts/details/file_details_upload_date_test.dart` failed because `Upload date` was absent; the null-date case passed.
+  - TDD green: the same focused command passed both widget tests after implementation.
+  - Full suite: first `fvm flutter test` run had one failure (`Session Resume should mark dry run session as pending when interrupted`, 1,485 tests passed). Its isolated rerun passed. Second full run had two failures in `test/bulk_downloads/providers/downloads/session_test.dart` (`Session Cancellation should cancel only the specified session mid-download` and the same resume test); both exact isolated reruns passed. These failures are unrelated to file details and appear timing-sensitive.
+  - Final gate rerun: the focused upload-date widget command passed both tests, and a subsequent `fvm flutter test` completed with `All tests passed!` (1,486 tests). The earlier session/download failures did not recur.
+  - `./gen.sh` passed.
+  - `fvm flutter analyze --no-pub` reported 227 issues, equal to the base baseline. Targeted `fvm flutter analyze --no-pub lib/core/posts/details_parts/src/file_details/file_details_section.dart test/core/posts/details/file_details_upload_date_test.dart` reported no issues.
+  - Final gate analyzer rerun: `fvm flutter analyze --no-pub` reported `227 issues found` (exit 1 for the repository's info findings, matching the base count).
+  - `fvm dart format` on both touched Dart files reported no changes; `git diff --check` passed.
+- Handover notes: Scoped changes committed on `feature/upload-date-file-details`; no push, merge, or branch deletion performed.
