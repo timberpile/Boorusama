@@ -247,13 +247,14 @@ class SearchSubscriptionHiveObjectAdapter
           .cast<RecentSearchPostHiveObject>(),
       feedId: fields[12] as String?,
       runtimeRevision: fields[13] == null ? 0 : (fields[13] as num).toInt(),
+      queryStructure: fields[15] as Object?,
     );
   }
 
   @override
   void write(BinaryWriter writer, SearchSubscriptionHiveObject obj) {
     writer
-      ..writeByte(15)
+      ..writeByte(16)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -283,7 +284,9 @@ class SearchSubscriptionHiveObjectAdapter
       ..writeByte(13)
       ..write(obj.runtimeRevision)
       ..writeByte(14)
-      ..write(obj.highestSeenPostId);
+      ..write(obj.highestSeenPostId)
+      ..writeByte(15)
+      ..write(obj.queryStructure);
   }
 
   @override

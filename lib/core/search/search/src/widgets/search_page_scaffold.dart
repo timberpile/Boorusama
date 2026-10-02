@@ -190,6 +190,9 @@ class _SearchPageScaffoldState<T extends Post>
                           ),
                           _PinSearchAction(
                             query: value,
+                            queryStructure: _typedQueryStructure(
+                              _tagsController.tags,
+                            ),
                             onFeedback: (message) =>
                                 _pinFeedback.value = message,
                           ),
@@ -244,10 +247,20 @@ class _SearchPageScaffoldState<T extends Post>
   }
 }
 
+SearchQueryStructure? _typedQueryStructure(List<TagSearchItem> tags) =>
+    tags.isNotEmpty && tags.every((tag) => !tag.isRaw)
+    ? SearchQueryStructure.typedTags(tags.map((tag) => tag.toString()))
+    : null;
+
 class _PinSearchAction extends ConsumerStatefulWidget {
-  const _PinSearchAction({required this.query, required this.onFeedback});
+  const _PinSearchAction({
+    required this.query,
+    required this.queryStructure,
+    required this.onFeedback,
+  });
 
   final String query;
+  final SearchQueryStructure? queryStructure;
   final ValueChanged<String?> onFeedback;
 
   @override
@@ -322,6 +335,7 @@ class _PinSearchActionState extends ConsumerState<_PinSearchAction> {
           final result = await notifier.pin(
             profileId: profileId,
             query: query,
+            queryStructure: widget.queryStructure,
             name: name,
             folderId: folderId,
           );

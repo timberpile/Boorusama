@@ -112,6 +112,7 @@ class PinnedSearchImportService {
       final created = await repository.create(
         profileId: profile.id,
         query: record.query,
+        queryStructure: record.queryStructure,
         name: record.name,
         id: byId == null ? record.id : null,
       );

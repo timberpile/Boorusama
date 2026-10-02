@@ -93,10 +93,12 @@ SearchSubscription pinnedFixture({
   DateTime? postCreatedAt,
   SearchRefreshErrorKind? error,
   bool checked = true,
+  SearchQueryStructure? queryStructure,
 }) => SearchSubscription(
   id: id,
   profileId: profileId,
   query: query,
+  queryStructure: queryStructure,
   name: name,
   position: position,
   createdAt: checkedAt,

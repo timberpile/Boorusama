@@ -1308,6 +1308,93 @@ void main() {
   });
 
   test(
+    'typed query structure survives Hive reopening and runtime mutations',
+    () async {
+      final source = await repository.create(
+        profileId: 4,
+        query: 'cat rating:safe',
+        queryStructure: SearchQueryStructure.typedTags(const [
+          'cat',
+          'rating:safe',
+        ]),
+        name: null,
+        id: 'structured',
+        createdAt: createdAt,
+      );
+      await repository.commitRefresh(
+        commit(
+          subscriptionId: source.id,
+          expectedCheckpoint: null,
+          startedAt: createdAt.add(const Duration(hours: 1)),
+          baseline: true,
+          discoveredPosts: const [],
+        ),
+      );
+      await box.close();
+      box = await Hive.openBox<SearchSubscriptionHiveObject>(boxName);
+      repository = HiveSearchSubscriptionRepository(box: box);
+
+      expect(
+        (await repository.getById(source.id))?.queryStructure,
+        SearchQueryStructure.typedTags(const ['cat', 'rating:safe']),
+      );
+    },
+  );
+
+  for (final c in [
+    (
+      description: 'different typed tag',
+      query: 'dog',
+      tags: <String>['cat'],
+    ),
+    (
+      description: 'aggregate typed tag',
+      query: 'cat dog',
+      tags: <String>['cat dog'],
+    ),
+    (
+      description: 'tab-separated typed tag',
+      query: 'cat dog',
+      tags: <String>['cat\tdog'],
+    ),
+    (
+      description: 'newline-separated typed tag',
+      query: 'cat dog',
+      tags: <String>['cat\ndog'],
+    ),
+  ]) {
+    test(
+      'a ${c.description} from Hive reopens through the raw fallback',
+      () async {
+        final object = SearchSubscriptionHiveObject(
+          id: 'invalid-structure',
+          profileId: 4,
+          query: c.query,
+          queryStructure: {'kind': 'typed_tags', 'tags': c.tags},
+          name: null,
+          position: 0,
+          createdAt: createdAt,
+          lastAttemptAt: null,
+          lastSuccessfulCheckAt: null,
+          unreadCount: 0,
+          lastErrorKind: null,
+          previews: const [],
+          recentPostIdentities: const [],
+        );
+        await box.put(object.id, object);
+        await box.close();
+        box = await Hive.openBox<SearchSubscriptionHiveObject>(boxName);
+        repository = HiveSearchSubscriptionRepository(box: box);
+
+        final restored = await repository.getById(object.id);
+
+        expect(restored?.query, c.query);
+        expect(restored?.queryStructure, isNull);
+      },
+    );
+  }
+
+  test(
     'loads legacy unread counts as NEW while preserving persisted fields',
     () async {
       final object = SearchSubscriptionHiveObject(
@@ -1352,6 +1439,7 @@ void main() {
       expect(restored?.hasNewPosts, isTrue);
       expect(restored?.unreadCount, 1);
       expect(restored?.lastErrorKind, SearchRefreshErrorKind.other);
+      expect(restored?.queryStructure, isNull);
     },
   );
 }

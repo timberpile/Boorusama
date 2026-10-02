@@ -15,6 +15,7 @@ import 'package:boorusama/core/posts/listing/providers.dart';
 import 'package:boorusama/core/search/search/src/routes/params.dart';
 import 'package:boorusama/core/search/search/src/widgets/search_controller.dart';
 import 'package:boorusama/core/search/search/src/widgets/search_page_scaffold.dart';
+import 'package:boorusama/core/search/selected_tags/types.dart';
 import 'package:boorusama/core/search/subscriptions/providers.dart';
 import 'package:boorusama/core/search/subscriptions/src/data/providers.dart';
 import 'package:boorusama/core/search/subscriptions/src/data/hive/search_subscription_hive_object.dart';
@@ -173,6 +174,16 @@ void main() {
 
   Future<void> load(WidgetTester tester, [String value = query]) async {
     controller.skipToResultWithTag(value);
+    await tester.pump();
+    await tester.runAsync(() => postController.value!.refresh());
+    await tester.pump(const Duration(milliseconds: 500));
+  }
+
+  Future<void> loadSpecificTags(
+    WidgetTester tester,
+    List<String> tags,
+  ) async {
+    controller.skipToResultWithTags(SearchTagSet.fromList(tags));
     await tester.pump();
     await tester.runAsync(() => postController.value!.refresh());
     await tester.pump(const Duration(milliseconds: 500));
@@ -484,6 +495,49 @@ void main() {
       );
     },
   );
+
+  testWidgets(
+    'pinning specific tags preserves their structure beside the canonical query',
+    (tester) async {
+      await initialize();
+      await pump(tester);
+      await loadSpecificTags(tester, const ['cat', 'rating:safe']);
+
+      await submit(tester, 'Cats');
+
+      final saved = (await repository.getAll()).single;
+      expect(saved.query, 'cat rating:safe');
+      expect(
+        saved.queryStructure,
+        SearchQueryStructure.typedTags(const ['cat', 'rating:safe']),
+      );
+      snapshot.complete(Either.of(const PostResult(posts: [], total: 0)));
+      await tester.pump();
+    },
+  );
+
+  testWidgets('pinning a mixed query keeps the raw-query fallback', (
+    tester,
+  ) async {
+    await initialize();
+    await pump(tester);
+    controller.skipToResultWithTags(SearchTagSet.fromList(const ['cat']));
+    controller.tagsController.addTag(
+      const TagSearchItem.raw(tag: 'rating:safe order:score'),
+    );
+    controller.search();
+    await tester.pump();
+    await tester.runAsync(() => postController.value!.refresh());
+    await tester.pump(const Duration(milliseconds: 500));
+
+    await submit(tester, 'Mixed');
+
+    final saved = (await repository.getAll()).single;
+    expect(saved.query, 'cat rating:safe order:score');
+    expect(saved.queryStructure, isNull);
+    snapshot.complete(Either.of(const PostResult(posts: [], total: 0)));
+    await tester.pump();
+  });
 
   testWidgets(
     'renames an existing pin without duplicating it or fetching again',

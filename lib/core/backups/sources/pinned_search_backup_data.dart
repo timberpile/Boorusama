@@ -1,5 +1,8 @@
 // Package imports:
 import 'package:equatable/equatable.dart';
+
+// Project imports:
+import '../../search/subscriptions/types.dart';
 import 'search_backup_profile.dart';
 
 class PinnedSearchBackupData extends Equatable {
@@ -22,6 +25,7 @@ class PinnedSearchBackupRecord extends Equatable {
     required this.id,
     required this.name,
     required this.query,
+    this.queryStructure,
     required this.position,
     required this.profile,
   });
@@ -29,11 +33,19 @@ class PinnedSearchBackupRecord extends Equatable {
   final String id;
   final String? name;
   final String query;
+  final SearchQueryStructure? queryStructure;
   final int position;
   final BackupProfileReference profile;
 
   @override
-  List<Object?> get props => [id, name, query, position, profile];
+  List<Object?> get props => [
+    id,
+    name,
+    query,
+    queryStructure,
+    position,
+    profile,
+  ];
 }
 
 class PinnedSearchFolderBackupRecord extends Equatable {

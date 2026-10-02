@@ -510,6 +510,49 @@ void main() {
       expect(pin.lastErrorKind, isNull);
     },
   );
+
+  test(
+    'imports typed tags without upgrading a matching legacy pin',
+    () async {
+      final repository = memorySubscriptionRepository();
+      final legacy = await repository.create(
+        profileId: 4,
+        query: 'cat rating:safe',
+        name: null,
+      );
+      final structured = PinnedSearchBackupRecord(
+        id: _id(0),
+        name: 'Cats',
+        query: 'cat rating:safe',
+        queryStructure: SearchQueryStructure.typedTags(const [
+          'cat',
+          'rating:safe',
+        ]),
+        position: 0,
+        profile: _record(0).profile,
+      );
+      final service = PinnedSearchImportService(repository: repository);
+
+      final duplicateResult = await service.apply(
+        PinnedSearchBackupData(records: [structured]),
+        profiles: [_profile(4)],
+      );
+
+      expect(duplicateResult.alreadyExistedCount, 1);
+      expect((await repository.getById(legacy.id))?.queryStructure, isNull);
+
+      await repository.delete(legacy.id);
+      final importResult = await service.apply(
+        PinnedSearchBackupData(records: [structured]),
+        profiles: [_profile(4)],
+      );
+      expect(importResult.importedCount, 1);
+      expect(
+        (await repository.getAll()).single.queryStructure,
+        structured.queryStructure,
+      );
+    },
+  );
 }
 
 String _id(int value) => '550e8400-e29b-41d4-a716-44665544000$value';

@@ -25,9 +25,19 @@ A subscription belongs to exactly one `BooruConfig.id`. Post IDs are meaningful
 only within that ownership. Duplicate detection collapses surrounding and
 repeated query whitespace within the profile, without changing case or term
 order. The executable query keeps its original content after outer whitespace
-is trimmed, and cannot be edited after pinning. Renaming and reordering retain
-runtime state. Blank custom names persist as `null`, so the label falls back
-to the stored query.
+is trimmed, and cannot be edited after pinning. New pins whose selected tags
+are all specific tags also store their ordered tag list separately. This
+optional structure is presentation input only: refresh and duplicate identity
+continue to use the executable query. Raw or mixed searches, legacy records,
+and missing, malformed, unknown, or canonically mismatched structure data reopen
+as one raw query. Structure matching uses the same specific-tag conversion as
+search execution before comparing the existing normalized query identity, so
+tag order and single-tag space-to-underscore normalization retain their normal
+meaning. Each stored atom must also remain one token under the existing query
+parser after supported literal spaces are protected; tabs, newlines, and other
+query separators therefore fall back to the raw canonical query.
+Renaming and reordering retain runtime state. Blank custom names persist as
+`null`, so the label falls back to the stored query.
 
 The legacy Hive `unreadCount` field is retained for compatibility, but positive
 values load as 1 and are displayed as NEW. No exact count is computed. NEW is
@@ -139,9 +149,10 @@ The `pinned_searches` and `following_feeds` backup sources run after profiles.
 Each exports a separate JSON format with source-specific `source` and `version: 1`
 headers. Pinned Searches exports independent pins, shared folders, Home order,
 UUIDs, optional names, immutable queries, relative ordering, and profile
-references. Following Feeds exports feed UUIDs, names, order, exact query lists,
-and profile references. Internal searches used by feeds never appear in the
-Pinned Searches export.
+references. A supported optional typed-tag structure is included when present;
+older source-version-1 backups without it remain valid. Following Feeds exports
+feed UUIDs, names, order, exact query lists, and profile references. Internal
+searches used by feeds never appear in the Pinned Searches export.
 Previews, recent IDs, NEW state, checkpoints, attempts, errors, and creation
 timestamps are excluded. Portable profile URLs retain scheme, host, port, and
 path, lowercase the host, remove all terminal slashes, and strip user info,

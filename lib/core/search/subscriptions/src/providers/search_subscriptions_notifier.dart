@@ -486,6 +486,7 @@ class SearchSubscriptionsNotifier
   pin({
     required int profileId,
     required String query,
+    SearchQueryStructure? queryStructure,
     required String? name,
     String? folderId,
   }) async {
@@ -495,6 +496,7 @@ class SearchSubscriptionsNotifier
         null => await repository.create(
           profileId: profileId,
           query: query,
+          queryStructure: queryStructure,
           name: name,
         ),
         final saved when name != null => await repository.rename(

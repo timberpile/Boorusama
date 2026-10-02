@@ -77,6 +77,7 @@ class PinnedSearchesBackupSource
                     id: subscription.id,
                     name: subscription.name,
                     query: subscription.query,
+                    queryStructure: subscription.queryStructure,
                     position: subscription.position,
                     profile: BackupProfileReference(
                       id: profile.id,

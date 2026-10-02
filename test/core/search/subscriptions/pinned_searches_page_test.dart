@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/images/booru_image.dart';
 import 'package:boorusama/core/router.dart';
+import 'package:boorusama/core/search/search/src/routes/params.dart';
 import 'package:boorusama/core/search/subscriptions/providers.dart';
 import 'package:boorusama/core/search/subscriptions/routes.dart';
 import 'package:boorusama/core/search/subscriptions/src/pages/pinned_searches_page.dart';
@@ -644,6 +645,90 @@ void main() {
       expect(openedUri!.queryParameters['query_type'], 'simple');
     },
   );
+
+  testWidgets(
+    'opens a structured pin as separate specific tags',
+    (tester) async {
+      initialize();
+      await harness.seed([
+        pinnedFixture(
+          query: 'cat rating:safe',
+          queryStructure: SearchQueryStructure.typedTags(const [
+            'cat',
+            'rating:safe',
+          ]),
+        ),
+      ]);
+      await pumpRouter(tester);
+
+      await tester.tap(find.text('Cats'));
+      await settle(tester);
+      await settle(tester);
+
+      expect(openedUri!.path, '/search');
+      expect(openedUri!.queryParameters['query'], isNull);
+      expect(openedUri!.queryParameters['tags'], '["cat","rating:safe"]');
+      expect(openedUri!.queryParameters['query_type'], 'list');
+      expect(
+        SearchParams.fromUri(openedUri!).tags?.tags.map((tag) => tag.isRaw),
+        [false, false],
+      );
+    },
+  );
+
+  testWidgets(
+    'opens a mismatched typed payload as the exact stored raw query',
+    (tester) async {
+      initialize();
+      await harness.seed([
+        pinnedFixture(
+          query: 'dog  order:score',
+          queryStructure: SearchQueryStructure.typedTags(const [
+            'cat',
+            'order:score',
+          ]),
+        ),
+      ]);
+      await pumpRouter(tester);
+
+      await tester.tap(find.text('Cats'));
+      await settle(tester);
+      await settle(tester);
+
+      expect(openedUri!.path, '/search');
+      expect(openedUri!.queryParameters['query'], 'dog  order:score');
+      expect(openedUri!.queryParameters['tags'], isNull);
+      expect(openedUri!.queryParameters['query_type'], 'simple');
+    },
+  );
+
+  for (final c in [
+    (description: 'tab', typedTag: 'cat\tdog'),
+    (description: 'newline', typedTag: 'cat\ndog'),
+  ]) {
+    testWidgets(
+      'opens a ${c.description}-separated typed payload as raw',
+      (tester) async {
+        initialize();
+        await harness.seed([
+          pinnedFixture(
+            query: 'cat dog',
+            queryStructure: SearchQueryStructure.typedTags([c.typedTag]),
+          ),
+        ]);
+        await pumpRouter(tester);
+
+        await tester.tap(find.text('Cats'));
+        await settle(tester);
+        await settle(tester);
+
+        expect(openedUri!.path, '/search');
+        expect(openedUri!.queryParameters['query'], 'cat dog');
+        expect(openedUri!.queryParameters['tags'], isNull);
+        expect(openedUri!.queryParameters['query_type'], 'simple');
+      },
+    );
+  }
 
   testWidgets(
     'keeps the card unread and stays on the page when mark-read fails',

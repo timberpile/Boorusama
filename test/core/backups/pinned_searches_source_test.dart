@@ -308,7 +308,13 @@ void main() {
     await harness.profiles.addAll([_profile]);
     final profile = (await harness.profiles.getAll()).single;
     await harness.repository.restoreForProfile(profile.id, [
-      _runtimePin(profile.id),
+      _runtimePin(
+        profile.id,
+        queryStructure: SearchQueryStructure.typedTags(const [
+          'cat',
+          'rating:safe',
+        ]),
+      ),
     ]);
 
     final response = await harness.source.capabilities.server.export(
@@ -322,6 +328,10 @@ void main() {
         'id': _id,
         'name': 'Cats',
         'query': 'cat  rating:safe',
+        'queryStructure': {
+          'kind': 'typed_tags',
+          'tags': ['cat', 'rating:safe'],
+        },
         'position': 0,
         'profile': {
           'id': profile.id,
@@ -1447,10 +1457,14 @@ FollowingFeedBackupData _feedData({
   ],
 );
 
-SearchSubscription _runtimePin(int profileId) => SearchSubscription(
+SearchSubscription _runtimePin(
+  int profileId, {
+  SearchQueryStructure? queryStructure,
+}) => SearchSubscription(
   id: _id,
   profileId: profileId,
   query: 'cat  rating:safe',
+  queryStructure: queryStructure,
   name: 'Cats',
   position: 0,
   createdAt: DateTime.utc(2026),

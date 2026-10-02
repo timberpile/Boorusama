@@ -24,6 +24,7 @@ abstract interface class SearchSubscriptionRepository {
   Future<SearchSubscription> create({
     required int profileId,
     required String query,
+    SearchQueryStructure? queryStructure,
     required String? name,
     String? id,
     DateTime? createdAt,

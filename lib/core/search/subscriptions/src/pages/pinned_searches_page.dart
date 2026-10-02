@@ -298,7 +298,20 @@ class _PinnedSearchesPageState extends ConsumerState<PinnedSearchesPage> {
         await ref.read(currentBooruConfigProvider.notifier).update(owner);
         if (!mounted) return;
       }
-      goToSearchPage(ref, tag: subscription.query, queryType: QueryType.simple);
+      switch (subscription.queryStructure) {
+        case final structure?:
+          goToSearchPage(
+            ref,
+            tags: SearchTagSet.fromList(structure.typedTags),
+            queryType: QueryType.list,
+          );
+        case null:
+          goToSearchPage(
+            ref,
+            tag: subscription.query,
+            queryType: QueryType.simple,
+          );
+      }
     } catch (_) {
       if (mounted) {
         Kurumi.showErrorToast(
