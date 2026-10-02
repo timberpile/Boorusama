@@ -423,13 +423,7 @@ class _SearchPageScaffoldState<T extends Post>
                 controller,
               ),
             SliverToBoxAdapter(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  widget.resultHeader,
-                  const Spacer(),
-                ],
-              ),
+              child: widget.resultHeader,
             ),
           ],
         ),

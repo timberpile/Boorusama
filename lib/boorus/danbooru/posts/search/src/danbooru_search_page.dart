@@ -6,7 +6,6 @@ import 'package:rich_text_controller/rich_text_controller.dart';
 // Project imports:
 import '../../../../../core/configs/config/providers.dart';
 import '../../../../../core/configs/config/types.dart';
-import '../../../../../core/posts/count/widgets.dart';
 import '../../../../../core/posts/post/providers.dart';
 import '../../../../../core/search/search/routes.dart';
 import '../../../../../core/search/search/widgets.dart';
@@ -96,21 +95,6 @@ class _DanbooruSearchPageState extends ConsumerState<DanbooruSearchPage> {
                       searchController.search();
                     },
                   ),
-                ),
-              ),
-              SliverToBoxAdapter(
-                child: Row(
-                  children: [
-                    ValueListenableBuilder(
-                      valueListenable: selectedTagString,
-                      builder: (context, selectedTags, _) =>
-                          ResultHeaderWithProvider(
-                            selectedTagsString: selectedTags,
-                            onRefresh: null,
-                          ),
-                    ),
-                    const Spacer(),
-                  ],
                 ),
               ),
             ];

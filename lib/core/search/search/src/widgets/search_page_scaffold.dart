@@ -94,6 +94,7 @@ class _SearchPageScaffoldState<T extends Post>
   late final SelectionModeController _searchModeController;
 
   late final ValueNotifier<PostGridController<T>?> _postController;
+  final _pinFeedback = ValueNotifier<String?>(null);
 
   @override
   void initState() {
@@ -128,6 +129,7 @@ class _SearchPageScaffoldState<T extends Post>
     _controller.dispose();
     _searchModeController.dispose();
     _postController.dispose();
+    _pinFeedback.dispose();
     super.dispose();
   }
 
@@ -160,19 +162,65 @@ class _SearchPageScaffoldState<T extends Post>
         builder: (context, value, _) => ValueListenableBuilder(
           valueListenable: _postController,
           builder: (context, postController, child) => postController != null
-              ? Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    ResultHeaderFromController(
-                      controller: postController,
-                      onRefresh: null,
-                      hasCount:
-                          ref.watchConfigAuth.booruType.postCountMethod ==
-                          PostCountMethod.search,
-                    ),
-                    _PinSearchAction(query: value),
-                    FeedFollowButton(query: value),
-                  ],
+              ? LayoutBuilder(
+                  builder: (context, constraints) => Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: switch (ref
+                                .watchConfigAuth
+                                .booruType
+                                .postCountMethod) {
+                              PostCountMethod.endpoint =>
+                                ResultHeaderWithProvider(
+                                  selectedTagsString: value,
+                                  onRefresh: null,
+                                ),
+                              PostCountMethod.search =>
+                                ResultHeaderFromController(
+                                  controller: postController,
+                                  onRefresh: null,
+                                  hasCount: true,
+                                ),
+                              PostCountMethod.notSupported =>
+                                const SizedBox.shrink(),
+                            },
+                          ),
+                          _PinSearchAction(
+                            query: value,
+                            onFeedback: (message) =>
+                                _pinFeedback.value = message,
+                          ),
+                          ConstrainedBox(
+                            constraints: BoxConstraints(
+                              maxWidth: constraints.maxWidth * 0.55,
+                            ),
+                            child: FeedFollowButton(query: value),
+                          ),
+                        ],
+                      ),
+                      ValueListenableBuilder(
+                        valueListenable: _pinFeedback,
+                        builder: (context, error, _) => switch (error) {
+                          final message? when value.trim().isNotEmpty =>
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                              ),
+                              child: Text(
+                                message,
+                                style: TextStyle(
+                                  color: Theme.of(context).colorScheme.error,
+                                ),
+                              ),
+                            ),
+                          _ => const SizedBox.shrink(),
+                        },
+                      ),
+                    ],
+                  ),
                 )
               : const SizedBox.shrink(),
         ),
@@ -197,9 +245,10 @@ class _SearchPageScaffoldState<T extends Post>
 }
 
 class _PinSearchAction extends ConsumerStatefulWidget {
-  const _PinSearchAction({required this.query});
+  const _PinSearchAction({required this.query, required this.onFeedback});
 
   final String query;
+  final ValueChanged<String?> onFeedback;
 
   @override
   ConsumerState<_PinSearchAction> createState() => _PinSearchActionState();
@@ -208,7 +257,6 @@ class _PinSearchAction extends ConsumerStatefulWidget {
 class _PinSearchActionState extends ConsumerState<_PinSearchAction> {
   var _busy = false;
   var _saved = false;
-  String? _error;
   ({int profileId, String query})? _pendingPin;
 
   SearchSubscription? _findPin(
@@ -227,7 +275,7 @@ class _PinSearchActionState extends ConsumerState<_PinSearchAction> {
   }
 
   void _feedback(String message) {
-    setState(() => _error = message);
+    widget.onFeedback(message);
   }
 
   Future<void> _manage(int profileId, SearchSubscription? existing) async {
@@ -236,10 +284,8 @@ class _PinSearchActionState extends ConsumerState<_PinSearchAction> {
       return;
     }
     final query = widget.query;
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
+    setState(() => _busy = true);
+    widget.onFeedback(null);
     try {
       final folders =
           ref
@@ -321,27 +367,14 @@ class _PinSearchActionState extends ConsumerState<_PinSearchAction> {
         }
       }
     });
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        IconButton(
-          tooltip: existing == null
-              ? context.t.pinned_searches.pin_title
-              : context.t.pinned_searches.manage_title,
-          icon: Icon(Symbols.push_pin, fill: existing == null ? 0 : 1),
-          onPressed: _busy || !subscriptions.hasValue
-              ? null
-              : () => _manage(profileId, existing),
-        ),
-        if (_error case final error?)
-          SizedBox(
-            width: 160,
-            child: Text(
-              error,
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
-            ),
-          ),
-      ],
+    return IconButton(
+      tooltip: existing == null
+          ? context.t.pinned_searches.pin_title
+          : context.t.pinned_searches.manage_title,
+      icon: Icon(Symbols.push_pin, fill: existing == null ? 0 : 1),
+      onPressed: _busy || !subscriptions.hasValue
+          ? null
+          : () => _manage(profileId, existing),
     );
   }
 }

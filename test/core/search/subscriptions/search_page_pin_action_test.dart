@@ -2,11 +2,14 @@ import 'dart:async';
 
 import 'package:boorusama/core/analytics/providers.dart';
 import 'package:boorusama/core/blacklists/providers.dart';
+import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/boorus/engine/providers.dart';
 import 'package:boorusama/core/boorus/engine/types.dart';
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/configs/manage/providers.dart';
 import 'package:boorusama/core/errors/types.dart';
+import 'package:boorusama/core/posts/count/providers.dart';
+import 'package:boorusama/core/posts/count/src/post_count_repository.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 import 'package:boorusama/core/posts/listing/providers.dart';
 import 'package:boorusama/core/search/search/src/routes/params.dart';
@@ -32,7 +35,8 @@ import 'package:kurumi/kurumi.dart';
 import 'subscription_test_utils.dart';
 
 void main() {
-  const config = BooruConfig.empty;
+  var config = BooruConfig.empty;
+  var searchResultCount = 0;
   const query = 'cat  rating:safe';
   late _FailingBox box;
   late SearchSubscriptionRepository repository;
@@ -42,7 +46,23 @@ void main() {
   late Completer<Either<BooruError, PostResult<Post>>> snapshot;
   var snapshotCalls = 0;
 
-  Future<void> initialize({bool supported = true}) async {
+  Future<void> initialize({
+    bool supported = true,
+    BooruType? booruType,
+    int? endpointCount,
+    Future<int?> Function()? countFetcher,
+    int resultCount = 0,
+    bool showListConfiguration = true,
+  }) async {
+    searchResultCount = resultCount;
+    config = switch (booruType) {
+      final type? => BooruConfig.defaultConfig(
+        booruType: type,
+        url: 'https://example.com',
+        customDownloadFileNameFormat: null,
+      ),
+      null => BooruConfig.empty,
+    };
     box = _FailingBox();
     repository = HiveSearchSubscriptionRepository(
       box: box,
@@ -69,9 +89,18 @@ void main() {
           () => SettingsNotifier(Settings.defaultSettings),
         ),
         imageListingSettingsProvider.overrideWithValue(
-          Settings.defaultSettings.listing,
+          Settings.defaultSettings.listing.copyWith(
+            showPostListConfigHeader: showListConfiguration,
+          ),
         ),
         booruEngineRegistryProvider.overrideWithValue(BooruEngineRegistry()),
+        if (endpointCount != null || countFetcher != null)
+          postCountRepoProvider.overrideWith(
+            (ref, _) => PostCountRepositoryBuilder(
+              countTags: (_) =>
+                  countFetcher?.call() ?? Future.value(endpointCount),
+            ),
+          ),
         analyticsProvider.overrideWith((ref) => null),
         blacklistTagsProvider.overrideWith((ref, config) => {}),
         blacklistTagEntriesProvider.overrideWith((ref, config) => {}),
@@ -101,7 +130,7 @@ void main() {
     addTearDown(container.dispose);
   }
 
-  Future<void> pump(WidgetTester tester) async {
+  Future<void> pump(WidgetTester tester, {double textScale = 1}) async {
     await container.read(searchSubscriptionsProvider.future);
     await tester.pumpWidget(
       UncontrolledProviderScope(
@@ -110,13 +139,19 @@ void main() {
           child: MaterialApp(
             builder: (context, child) => KurumiTheme(
               data: KurumiThemeData.fromMaterial(Theme.of(context)),
-              child: child!,
+              child: MediaQuery(
+                data: MediaQuery.of(context).copyWith(
+                  textScaler: TextScaler.linear(textScale),
+                ),
+                child: child!,
+              ),
             ),
             home: Scaffold(
               body: SearchPageScaffold<Post>(
                 params: const SearchParams(),
-                fetcher: (_, _) =>
-                    TaskEither.of(const PostResult(posts: <Post>[], total: 0)),
+                fetcher: (_, _) => TaskEither.of(
+                  PostResult(posts: const <Post>[], total: searchResultCount),
+                ),
                 landingViewBuilder: (_) => const SizedBox.shrink(),
                 searchRegionBuilder: (posts, value) {
                   postController = posts;
@@ -158,6 +193,179 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
   }
+
+  final layouts = [
+    (width: 800.0, textScale: 1.0),
+    (width: 320.0, textScale: 1.0),
+    (width: 320.0, textScale: 2.0),
+    (width: 240.0, textScale: 2.0),
+  ];
+  final countSources = [
+    (type: BooruType.danbooru, source: 'endpoint', endpointCount: 12345),
+    (type: BooruType.gelbooru, source: 'search', endpointCount: null),
+  ];
+  for (final source in countSources) {
+    for (final layout in layouts) {
+      testWidgets(
+        'keeps the ${source.source} result count and search actions on one row at ${layout.width} width and ${layout.textScale}x text',
+        (tester) async {
+          await tester.binding.setSurfaceSize(Size(layout.width, 900));
+          addTearDown(() => tester.binding.setSurfaceSize(null));
+          await initialize(
+            booruType: source.type,
+            endpointCount: source.endpointCount,
+            resultCount: 12345,
+            showListConfiguration: false,
+          );
+          await pump(tester, textScale: layout.textScale);
+          await load(tester);
+          await tester.runAsync(() async {});
+          await tester.pump();
+          final count = find.text('12345 Results');
+          final pin = find.byTooltip('Pin Search');
+          final follow = find.widgetWithText(TextButton, 'Follow');
+          expect(count, findsOneWidget);
+          expect(pin, findsOneWidget);
+          expect(follow, findsOneWidget);
+          final countBounds = tester.getRect(count);
+          final pinBounds = tester.getRect(pin);
+          final followBounds = tester.getRect(follow);
+          expect(countBounds.center.dy, closeTo(pinBounds.center.dy, 1));
+          expect(followBounds.center.dy, closeTo(pinBounds.center.dy, 1));
+          expect(countBounds.right, lessThanOrEqualTo(pinBounds.left));
+          expect(pinBounds.right, lessThanOrEqualTo(followBounds.left));
+          expect(followBounds.right, lessThanOrEqualTo(layout.width));
+          expect(tester.takeException(), isNull);
+        },
+      );
+    }
+  }
+
+  final countStates = [
+    (state: 'loading', visible: 'Searching...'),
+    (state: 'empty', visible: 'No result'),
+    (state: 'unavailable', visible: null),
+    (state: 'failed', visible: null),
+  ];
+  for (final c in countStates) {
+    testWidgets('keeps search actions available when the count is ${c.state}', (
+      tester,
+    ) async {
+      await tester.binding.setSurfaceSize(const Size(320, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await initialize(
+        booruType: BooruType.danbooru,
+        showListConfiguration: false,
+        countFetcher: () => switch (c.state) {
+          'loading' => Completer<int?>().future,
+          'empty' => Future.value(0),
+          'failed' => Future.error(Exception('Count unavailable')),
+          _ => Future.value(),
+        },
+      );
+      await pump(tester, textScale: 2);
+      await load(tester);
+      await tester.runAsync(() async {});
+      await tester.pump();
+      if (c.visible case final label?) {
+        expect(find.text(label), findsOneWidget);
+      } else {
+        expect(find.text('Searching...'), findsNothing);
+        expect(find.text('No result'), findsNothing);
+      }
+      final pin = find.byTooltip('Pin Search');
+      final follow = find.widgetWithText(TextButton, 'Follow');
+      expect(
+        tester
+            .widget<IconButton>(
+              find.ancestor(of: pin, matching: find.byType(IconButton)),
+            )
+            .onPressed,
+        isNotNull,
+      );
+      expect(tester.widget<TextButton>(follow).onPressed, isNotNull);
+      expect(tester.getCenter(pin).dy, closeTo(tester.getCenter(follow).dy, 1));
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets('keeps saved and followed searches manageable in the same row', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(320, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await initialize(
+      booruType: BooruType.danbooru,
+      endpointCount: 12345,
+      showListConfiguration: false,
+    );
+    await repository.create(profileId: config.id, query: query, name: null);
+    await repository.saveFeed(
+      profileId: config.id,
+      name: 'Cats',
+      queries: [query],
+    );
+    await pump(tester, textScale: 2);
+    await load(tester);
+    await tester.runAsync(() async {});
+    await tester.pump();
+    final count = find.text('12345 Results');
+    final pin = find.byTooltip('Manage Pinned Search');
+    final follow = find.widgetWithText(TextButton, 'Following');
+    expect(count, findsOneWidget);
+    expect(pin, findsOneWidget);
+    expect(follow, findsOneWidget);
+    expect(tester.getCenter(count).dy, closeTo(tester.getCenter(pin).dy, 1));
+    expect(tester.getCenter(follow).dy, closeTo(tester.getCenter(pin).dy, 1));
+    await tester.tap(follow);
+    await tester.pump();
+    await tester.runAsync(() async {});
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.text('Cats'), findsOneWidget);
+    expect(
+      tester
+          .widget<CheckboxListTile>(
+            find.widgetWithText(CheckboxListTile, 'Cats'),
+          )
+          .value,
+      isTrue,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('keeps the header row aligned above unsupported pin feedback', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(320, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await initialize(
+      booruType: BooruType.danbooru,
+      endpointCount: 12345,
+      supported: false,
+      showListConfiguration: false,
+    );
+    await pump(tester, textScale: 2);
+    await load(tester);
+    await tester.runAsync(() async {});
+    await tester.pump();
+    await tester.tap(find.byTooltip('Pin Search'));
+    await tester.pump();
+    final count = find.text('12345 Results');
+    final pin = find.byTooltip('Pin Search');
+    final follow = find.widgetWithText(TextButton, 'Follow');
+    final error = find.text(
+      'Pinned searches are not supported for this profile.',
+    );
+    expect(error, findsOneWidget);
+    expect(tester.getCenter(count).dy, closeTo(tester.getCenter(pin).dy, 1));
+    expect(tester.getCenter(follow).dy, closeTo(tester.getCenter(pin).dy, 1));
+    expect(
+      tester.getRect(error).top,
+      greaterThanOrEqualTo(tester.getRect(pin).bottom),
+    );
+    expect(tester.getRect(error).right, lessThanOrEqualTo(320));
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets(
     'pinning lists shared folders and saves into a folder containing another owner',
@@ -213,6 +421,12 @@ void main() {
       await initialize(supported: false);
       await pump(tester);
       await load(tester);
+      expect(
+        tester
+            .widget<TextButton>(find.widgetWithText(TextButton, 'Follow'))
+            .onPressed,
+        isNull,
+      );
       await tester.tap(find.byTooltip('Pin Search'));
       await tester.pump();
       expect(
@@ -231,10 +445,13 @@ void main() {
     await initialize();
     await pump(tester);
     expect(find.byTooltip('Pin Search'), findsNothing);
+    expect(find.text('Follow'), findsNothing);
     await load(tester, '   ');
     expect(find.byTooltip('Pin Search'), findsNothing);
+    expect(find.text('Follow'), findsNothing);
     await load(tester);
     expect(find.byTooltip('Pin Search'), findsOneWidget);
+    expect(find.text('Follow'), findsOneWidget);
     expect(find.text('Engine header'), findsOneWidget);
   });
 

@@ -220,6 +220,13 @@ and pin action visible with a localized explanation. Routine check times are
 available through Info; successful pinning is silent and errors remain inline
 in their originating search view.
 
+The search result count shares the Pin Search/Follow header. Its source follows
+the engine's count capability: endpoint counts use the existing count repository,
+while search-response counts use the post controller. Engine-specific extra
+headers must not add another result-count row. Count loading, absence, or failure
+does not change action availability. The row constrains count and Follow widths
+and allows text to wrap so enlarged text can increase its height.
+
 
 Widget tests that seed an AsyncNotifier before mounting the first frame should
 use `tester.runAsync`; directly awaiting its future in the fake async zone can
