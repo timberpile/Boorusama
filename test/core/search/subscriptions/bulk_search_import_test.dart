@@ -87,7 +87,14 @@ void main() {
     });
     await harness.pump(tester, PinnedSearchesPage(folderId: folderId));
 
-    await tester.tap(find.byTooltip('Add searches'));
+    await tester.tap(
+      find.descendant(
+        of: find.byType(AppBar),
+        matching: find.byTooltip('More'),
+      ),
+    );
+    await settle(tester);
+    await tester.tap(find.text('Add searches'));
     await settle(tester);
     await tester.enterText(find.byType(TextField).last, 'cat\ndog');
     await tester.pump();

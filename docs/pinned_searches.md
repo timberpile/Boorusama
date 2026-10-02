@@ -198,12 +198,17 @@ use manual order to break ties, leave folder rows in manual order, and disable
 Move Up and Move Down. Switching back to Manual order restores the persisted
 organization order unchanged.
 
-Manage folders provides creation, renaming, manual ordering, and deletion.
-Folder names are unique case-insensitively across the collection. Move to folder
-lists Home and all named folders; Create folder creates the destination and
-moves the selected pin only when the operation succeeds. Deleting a folder
-requires confirmation and unpins every member, across profiles. Cancel leaves
-both folder and pins intact. Empty folders also require confirmation.
+Folder cards provide refresh, rename, manual ordering, and deletion through
+their overflow menus; folder creation is available from the root page overflow.
+There is no separate folder-management page. Each card can show up to four
+cached thumbnails, chosen deterministically as the first preview from each of
+the first four members with previews in folder order. Rendering these previews
+does not refresh searches. Folder names are unique case-insensitively across
+the collection. Move to folder lists Home and all named folders; Create folder
+creates the destination and moves the selected pin only when the operation
+succeeds. Deleting a folder requires confirmation and unpins every member,
+across profiles. Cancel leaves both folder and pins intact. Empty folders also
+require confirmation.
 
 One JSON Hive value, `search:organization`, stores ordered folders, each
 folder's ordered independent pin IDs, and ordered Home IDs. Subscription
@@ -218,8 +223,10 @@ memberships, preserving shared folders and other owners' pins.
 
 Folder NEW aggregates member pins. Refresh Folder resolves each member's owner
 and query adapter, uses existing refresh priority and the shared request gate,
-and does not change the active profile. Root Refresh All visits supported
-profiles sequentially. Results remain separate per search.
+and does not change the active profile. Both the opened-folder action and its
+root card are disabled when the folder is missing or empty, has no supported
+members, or any member is already refreshing. Root Refresh All visits
+supported profiles sequentially. Results remain separate per search.
 
 Supported engines explicitly opt in to timestamp tracking; the repository
 default is unsupported. Refreshes use each engine's default post order without

@@ -60,7 +60,14 @@ void main() {
       expect(find.text('Other search'), findsOneWidget);
       expect(find.byType(ExpansionTile), findsNothing);
       expect(find.text('Unfiled'), findsNothing);
-      expect(find.byTooltip('Manage folders'), findsOneWidget);
+      expect(find.byTooltip('Manage folders'), findsNothing);
+      expect(
+        find.descendant(
+          of: find.byType(AppBar),
+          matching: find.byTooltip('More'),
+        ),
+        findsOneWidget,
+      );
       expect(find.text('https://active.example'), findsOneWidget);
       expect(find.text('https://other.example'), findsOneWidget);
       expect(harness.container.read(currentBooruConfigProvider).id, 12);
@@ -138,7 +145,14 @@ void main() {
         await harness.container.read(searchSubscriptionsProvider.future);
       });
       await harness.pump(tester, const PinnedSearchesPage());
-      await tester.tap(find.byTooltip('Refresh All'));
+      await tester.tap(
+        find.descendant(
+          of: find.byType(AppBar),
+          matching: find.byTooltip('More'),
+        ),
+      );
+      await settle(tester);
+      await tester.tap(find.text('Refresh All'));
       await drain(tester);
       expect(harness.requests.map((r) => r.profileId), [12, 99]);
       expect(harness.container.read(currentBooruConfigProvider).id, 12);

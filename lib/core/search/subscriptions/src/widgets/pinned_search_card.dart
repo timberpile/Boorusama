@@ -23,12 +23,101 @@ enum PinnedSearchAction {
   delete,
 }
 
+const pinnedSearchCardContentPadding = EdgeInsets.fromLTRB(8, 4, 8, 8);
+const pinnedSearchCardPreviewPadding = EdgeInsets.only(top: 3, bottom: 4);
+const pinnedSearchCardThumbnailPadding = EdgeInsets.all(1);
+const pinnedSearchCardMetadataGap = 4.0;
+
+class PinnedSearchLastPost extends StatelessWidget {
+  const PinnedSearchLastPost({
+    required this.lastPostAt,
+    required this.hasBaseline,
+    super.key,
+  });
+
+  final DateTime? lastPostAt;
+  final bool hasBaseline;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget buildText() {
+      final strings = context.t.pinned_searches;
+      final value = switch (lastPostAt) {
+        final timestamp? => timeago.format(
+          timestamp.toLocal(),
+          locale: context.locale.toLanguageTag(),
+          clock: clock.now().toLocal(),
+        ),
+        _ when !hasBaseline => strings.last_post_not_checked,
+        _ => strings.last_post_no_posts,
+      };
+      return Text(
+        strings.last_post.replaceAll('{time}', value),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        softWrap: false,
+        style: Theme.of(context).textTheme.bodySmall,
+      );
+    }
+
+    return switch (lastPostAt) {
+      final timestamp? => TimePulse(
+        initial: timestamp,
+        updateInterval: const Duration(minutes: 1),
+        builder: (_, _) => buildText(),
+      ),
+      _ => buildText(),
+    };
+  }
+}
+
+class PinnedSearchCardMetadata extends StatelessWidget {
+  const PinnedSearchCardMetadata({
+    required this.lastPostAt,
+    required this.hasBaseline,
+    this.leading,
+    super.key,
+  });
+
+  final String? leading;
+  final DateTime? lastPostAt;
+  final bool hasBaseline;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) => Row(
+      children: [
+        if (leading case final text?)
+          Expanded(
+            child: Text(
+              text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
+        if (leading != null) const SizedBox(width: pinnedSearchCardMetadataGap),
+        ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: constraints.maxWidth * (leading == null ? 1 : 2 / 3),
+          ),
+          child: PinnedSearchLastPost(
+            lastPostAt: lastPostAt,
+            hasBaseline: hasBaseline,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
 class PinnedSearchCard extends StatelessWidget {
   const PinnedSearchCard({
     required this.subscription,
     required this.config,
     required this.refreshing,
     required this.onOpen,
+    required this.showMoveActions,
     required this.canMoveUp,
     required this.canMoveDown,
     required this.onAction,
@@ -41,6 +130,7 @@ class PinnedSearchCard extends StatelessWidget {
   final BooruConfigAuth config;
   final bool refreshing;
   final VoidCallback? onOpen;
+  final bool showMoveActions;
   final bool canMoveUp;
   final bool canMoveDown;
   final ValueChanged<PinnedSearchAction> onAction;
@@ -48,42 +138,13 @@ class PinnedSearchCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final strings = context.t.pinned_searches;
-    final lastPostAt = subscription.lastPostAt;
-
-    Widget buildLastPostText() {
-      final value = switch (lastPostAt) {
-        final timestamp? => timeago.format(
-          timestamp.toLocal(),
-          locale: context.locale.toLanguageTag(),
-          clock: clock.now().toLocal(),
-        ),
-        _ when !subscription.hasBaseline => strings.last_post_not_checked,
-        _ => strings.last_post_no_posts,
-      };
-      return Text(
-        strings.last_post.replaceAll('{time}', value),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        softWrap: false,
-        style: Theme.of(context).textTheme.bodySmall,
-      );
-    }
-
-    final lastPostWidget = switch (lastPostAt) {
-      final timestamp? => TimePulse(
-        initial: timestamp,
-        updateInterval: const Duration(minutes: 1),
-        builder: (_, _) => buildLastPostText(),
-      ),
-      _ => buildLastPostText(),
-    };
 
     return Card(
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onOpen,
         child: Padding(
-          padding: const EdgeInsets.all(12),
+          padding: pinnedSearchCardContentPadding,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -118,16 +179,18 @@ class PinnedSearchCard extends StatelessWidget {
                         value: PinnedSearchAction.rename,
                         child: Text(strings.rename),
                       ),
-                      PopupMenuItem(
-                        value: PinnedSearchAction.moveUp,
-                        enabled: canMoveUp,
-                        child: Text(strings.move_up),
-                      ),
-                      PopupMenuItem(
-                        value: PinnedSearchAction.moveDown,
-                        enabled: canMoveDown,
-                        child: Text(strings.move_down),
-                      ),
+                      if (showMoveActions)
+                        PopupMenuItem(
+                          value: PinnedSearchAction.moveUp,
+                          enabled: canMoveUp,
+                          child: Text(strings.move_up),
+                        ),
+                      if (showMoveActions)
+                        PopupMenuItem(
+                          value: PinnedSearchAction.moveDown,
+                          enabled: canMoveDown,
+                          child: Text(strings.move_down),
+                        ),
                       PopupMenuItem(
                         value: PinnedSearchAction.moveFolder,
                         child: Text(strings.move_to_folder),
@@ -144,13 +207,13 @@ class PinnedSearchCard extends StatelessWidget {
                 Text(subscription.query),
               if (subscription.previews.isNotEmpty)
                 Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  padding: pinnedSearchCardPreviewPadding,
                   child: Row(
                     children: [
                       for (final preview in subscription.previews.take(4))
                         Expanded(
                           child: Padding(
-                            padding: const EdgeInsets.all(2),
+                            padding: pinnedSearchCardThumbnailPadding,
                             child: BooruImage(
                               imageUrl: preview.thumbnailUrl,
                               config: config,
@@ -163,29 +226,10 @@ class PinnedSearchCard extends StatelessWidget {
                     ],
                   ),
                 ),
-              LayoutBuilder(
-                builder: (context, constraints) => Row(
-                  children: [
-                    if (ownerCaption case final caption?)
-                      Expanded(
-                        child: Text(
-                          caption,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                      ),
-                    if (ownerCaption != null) const SizedBox(width: 8),
-                    ConstrainedBox(
-                      constraints: BoxConstraints(
-                        maxWidth:
-                            constraints.maxWidth *
-                            (ownerCaption == null ? 1 : 2 / 3),
-                      ),
-                      child: lastPostWidget,
-                    ),
-                  ],
-                ),
+              PinnedSearchCardMetadata(
+                leading: ownerCaption,
+                lastPostAt: subscription.lastPostAt,
+                hasBaseline: subscription.hasBaseline,
               ),
               if (refreshing) Text(strings.refreshing),
               if (subscription.lastErrorKind case final kind?)

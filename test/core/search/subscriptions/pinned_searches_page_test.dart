@@ -31,11 +31,31 @@ void main() {
   Future<void> pump(WidgetTester tester) =>
       harness.pump(tester, const PinnedSearchesPage());
 
-  IconButton refreshAllButton(WidgetTester tester) => tester.widget<IconButton>(
-    find.byWidgetPredicate(
-      (widget) => widget is IconButton && widget.tooltip == 'Refresh All',
-    ),
+  Finder pageOverflow() => find.descendant(
+    of: find.byType(AppBar),
+    matching: find.byTooltip('More'),
   );
+
+  Future<void> openPageMenu(WidgetTester tester) async {
+    await tester.tap(pageOverflow());
+    await settle(tester);
+  }
+
+  Future<void> choosePageAction(WidgetTester tester, String label) async {
+    await openPageMenu(tester);
+    await tester.tap(find.text(label));
+    await settle(tester);
+  }
+
+  PopupMenuItem refreshAllItem(WidgetTester tester) =>
+      tester.widget<PopupMenuItem>(
+        find.ancestor(
+          of: find.text('Refresh All'),
+          matching: find.byWidgetPredicate(
+            (widget) => widget is PopupMenuItem,
+          ),
+        ),
+      );
 
   Future<void> openMenu(WidgetTester tester, [String name = 'Cats']) async {
     final card = find.ancestor(
@@ -168,9 +188,68 @@ void main() {
       expect(find.text('Cats'), findsOneWidget);
       expect(harness.requests, isEmpty);
       expect((await harness.repository.getAll()).single.id, 'cats');
-      expect(refreshAllButton(tester).onPressed, isNull);
+      await openPageMenu(tester);
+      expect(refreshAllItem(tester).enabled, isFalse);
     },
   );
+
+  testWidgets(
+    'Home keeps Sort dedicated and places maintenance actions in More',
+    (
+      tester,
+    ) async {
+      initialize();
+      await harness.seed([pinnedFixture()]);
+      await pump(tester);
+
+      expect(find.byTooltip('Sort by'), findsOneWidget);
+      expect(find.byTooltip('Add searches'), findsNothing);
+      expect(find.byTooltip('Refresh settings'), findsNothing);
+      expect(find.byTooltip('Manage folders'), findsNothing);
+      expect(find.byTooltip('Refresh All'), findsNothing);
+
+      await openPageMenu(tester);
+      for (final label in [
+        'Add searches',
+        'Create folder',
+        'Refresh All',
+      ]) {
+        expect(find.text(label), findsOneWidget);
+      }
+      expect(find.text('Refresh settings'), findsNothing);
+      expect(find.text('Refresh Folder'), findsNothing);
+    },
+  );
+
+  testWidgets('a folder keeps Sort dedicated and exposes only folder actions', (
+    tester,
+  ) async {
+    initialize();
+    await harness.seed([pinnedFixture(query: 'cat')]);
+    await harness.container.read(searchSubscriptionsProvider.future);
+    final notifier = harness.container.read(
+      searchSubscriptionsProvider.notifier,
+    );
+    final folder = await notifier.createSharedFolder('Animals');
+    await notifier.movePinToSharedFolder('cats', folder.id);
+    await harness.pump(tester, PinnedSearchesPage(folderId: folder.id));
+
+    expect(find.byTooltip('Sort by'), findsOneWidget);
+    await openPageMenu(tester);
+    for (final label in ['Add searches', 'Refresh Folder']) {
+      expect(find.text(label), findsOneWidget);
+    }
+    for (final label in [
+      'Create folder',
+      'Refresh settings',
+      'Refresh All',
+    ]) {
+      expect(find.text(label), findsNothing);
+    }
+    await tester.tap(find.text('Refresh Folder'));
+    await drain(tester);
+    expect(harness.requests, [(profileId: 12, query: 'cat')]);
+  });
 
   testWidgets('routine check details are available through Info only', (
     tester,
@@ -410,7 +489,40 @@ void main() {
     );
   });
 
-  testWidgets('date views disable manual move actions', (tester) async {
+  testWidgets(
+    'manual view keeps move actions and disables impossible directions',
+    (tester) async {
+      initialize();
+      await harness.seed([
+        pinnedFixture(),
+        pinnedFixture(id: 'dogs', name: 'Dogs', query: 'dog', position: 1),
+      ]);
+      await pump(tester);
+
+      for (final c in [
+        (name: 'Cats', moveUp: false, moveDown: true),
+        (name: 'Dogs', moveUp: true, moveDown: false),
+      ]) {
+        await openMenu(tester, c.name);
+        for (final action in [
+          (label: 'Move up', enabled: c.moveUp),
+          (label: 'Move down', enabled: c.moveDown),
+        ]) {
+          final item = tester.widget<PopupMenuItem<PinnedSearchAction>>(
+            find.ancestor(
+              of: find.text(action.label),
+              matching: find.byType(PopupMenuItem<PinnedSearchAction>),
+            ),
+          );
+          expect(item.enabled, action.enabled);
+        }
+        await tester.tapAt(const Offset(1, 1));
+        await settle(tester);
+      }
+    },
+  );
+
+  testWidgets('date views omit manual move actions', (tester) async {
     initialize();
     await harness.seed([
       pinnedFixture(
@@ -434,13 +546,7 @@ void main() {
     await openMenu(tester, 'Dogs');
 
     for (final label in ['Move up', 'Move down']) {
-      final item = tester.widget<PopupMenuItem<PinnedSearchAction>>(
-        find.ancestor(
-          of: find.text(label),
-          matching: find.byType(PopupMenuItem<PinnedSearchAction>),
-        ),
-      );
-      expect(item.enabled, isFalse);
+      expect(find.text(label), findsNothing);
     }
   });
 
@@ -851,20 +957,26 @@ void main() {
         ),
       ]);
       await pump(tester);
-      await tester.tap(find.byTooltip('Refresh All'));
-      await settle(tester);
+      await choosePageAction(tester, 'Refresh All');
       expect(harness.requests.map((r) => r.profileId), [12]);
-      expect(refreshAllButton(tester).onPressed, isNull);
+      await openPageMenu(tester);
+      expect(refreshAllItem(tester).enabled, isFalse);
+      await tester.tapAt(const Offset(1, 1));
+      await settle(tester);
       harness.container
           .read(selectedTestProfileProvider.notifier)
           .select(otherTestProfile);
       await pump(tester);
-      expect(refreshAllButton(tester).onPressed, isNull);
+      await openPageMenu(tester);
+      expect(refreshAllItem(tester).enabled, isFalse);
+      await tester.tapAt(const Offset(1, 1));
+      await settle(tester);
       harness.refreshGate!.complete();
       await settle(tester);
       await drain(tester);
       expect(harness.requests.map((r) => r.profileId), [12, 99]);
-      expect(refreshAllButton(tester).onPressed, isNotNull);
+      await openPageMenu(tester);
+      expect(refreshAllItem(tester).enabled, isTrue);
       expect(
         (await harness.repository.getById('other'))!.lastSuccessfulCheckAt,
         isNotNull,
