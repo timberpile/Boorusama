@@ -133,13 +133,10 @@ class _ImportTreeNode extends StatelessWidget {
     return ExpansionTile(
       key: ValueKey('import-tree:${node.id}'),
       tilePadding: _importTreePadding(depth),
-      title: ImportItemLabel(item: item),
+      title: itemIds.contains(node.id)
+          ? itemBuilder(context, node.id, item)
+          : ImportItemLabel(item: item),
       children: [
-        if (itemIds.contains(node.id))
-          Padding(
-            padding: _importTreePadding(depth + 1),
-            child: itemBuilder(context, node.id, item),
-          ),
         for (final child in node.children)
           if (_visibleNode(child, itemIds) case final visible?)
             _ImportTreeNode(

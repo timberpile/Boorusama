@@ -10,11 +10,33 @@ import 'package:archive/archive_io.dart';
 
 // Project imports:
 import 'package:boorusama/core/backups/export_import/package/export_package_reader.dart';
+import 'package:boorusama/core/backups/utils/backup_file_picker.dart';
 import 'package:boorusama/foundation/filesystem.dart';
 
 void main() {
   const mimeType = 'application/vnd.boorusama.export';
   const uti = 'com.timberpile.boorusama.export';
+
+  test('file selection accepts export containers but rejects loose JSON', () {
+    const extensions = ['bsexport', 'zip'];
+
+    expect(
+      BackupFilePicker.hasAllowedExtension('shared.BSEXPORT', extensions),
+      isTrue,
+    );
+    expect(
+      BackupFilePicker.hasAllowedExtension('shared.zip', extensions),
+      isTrue,
+    );
+    expect(
+      BackupFilePicker.hasAllowedExtension('bookmarks.json', extensions),
+      isFalse,
+    );
+    expect(
+      BackupFilePicker.hasAllowedExtension('bookmarks', extensions),
+      isFalse,
+    );
+  });
 
   test('Android opens and receives only the custom export MIME type', () {
     final manifest = File(

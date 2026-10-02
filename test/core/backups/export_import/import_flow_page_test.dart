@@ -224,6 +224,7 @@ void main() {
       await tester.tap(find.text('Landscapes'));
       await tester.pumpAndSettle();
 
+      expect(find.text('Landscapes'), findsOneWidget);
       expect(find.text('Blue sky'), findsWidgets);
       expect(
         find.text('A very long profile name that must fit'),

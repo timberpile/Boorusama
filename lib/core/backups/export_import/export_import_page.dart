@@ -49,8 +49,20 @@ class ExportImportPage extends ConsumerWidget {
                 androidDeviceInfo: ref
                     .read(deviceInfoProvider)
                     .androidDeviceInfo,
-                allowedExtensions: const ['bsexport', 'zip', 'json'],
-                onPick: (path) => _openImport(context, path),
+                allowedExtensions: const ['bsexport', 'zip'],
+                onPick: (path) {
+                  if (!BackupFilePicker.hasAllowedExtension(path, const [
+                    'bsexport',
+                    'zip',
+                  ])) {
+                    Kurumi.showErrorToast(
+                      context,
+                      strings.invalid_export_friendly,
+                    );
+                    return;
+                  }
+                  _openImport(context, path);
+                },
               ),
             ),
           ),
