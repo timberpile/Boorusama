@@ -57,6 +57,14 @@ changes the read-only profile and presentation for each active post. It does
 not change the globally selected profile. Media resolution is also scoped per
 page so adjacent posts from different engines cannot inherit stale settings.
 
+For sites whose listings expose only thumbnails, keep that thumbnail as the
+provisional media URL instead of deriving an original path that the listing
+cannot prove. The engine presentation may resolve only the post the user opens
+and replace it in the existing details controller. Listing metadata marks the
+snapshot as unresolved; a successful single-post fetch has no listing metadata
+and must not be fetched again. If resolution fails, the provisional thumbnail
+remains available.
+
 Providers that use `ref.watchConfig*` below this per-page scope must declare
 the matching `currentReadOnlyBooruConfig*Provider` as a Riverpod dependency.
 Providers that watch one of those scoped providers must declare that provider

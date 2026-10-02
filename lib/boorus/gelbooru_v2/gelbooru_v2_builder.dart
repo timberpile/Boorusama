@@ -14,6 +14,7 @@ import 'configs/widgets.dart';
 import 'favorites/widgets.dart';
 import 'home/types.dart';
 import 'home/widgets.dart';
+import 'posts/full_post_loader.dart';
 import 'posts/post_data.dart';
 import 'posts/types.dart';
 import 'posts/widgets.dart';
@@ -27,6 +28,8 @@ class GelbooruV2Builder extends BaseBooruBuilder {
   late final postPresentation = TypedBooruPostPresentation<GelbooruV2PostData>(
     typeKey: 'gelbooru_v2',
     uiBuilder: postDetailsUIBuilder,
+    detailsWrapperBuilder: ({required post, required child}) =>
+        GelbooruV2FullPostLoader(post: post, child: child),
   );
 
   @override
