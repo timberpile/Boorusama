@@ -26,8 +26,10 @@ void main() {
     await service.copy(source, containsCredentials: false);
     final restored = await service.importToTemporaryFile();
 
-    expect(await fs.readBytes(restored), await fs.readBytes(source));
+    expect(await fs.readBytes(restored.path), await fs.readBytes(source));
     expect(clipboard.value, startsWith(kExportClipboardPrefix));
+    await restored.dispose();
+    expect(await fs.directoryExists(restored.directoryPath), isFalse);
   });
 
   test(

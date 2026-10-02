@@ -38,6 +38,27 @@ final class ImportSourceIntegrityValidator {
           ),
         );
       }
+      final allowedIds = {...selection.childIds};
+      if (data case final PinnedSearchBackupData searches) {
+        final selectedFolderIds = selection.childIds
+            .where((id) => id.startsWith('folder:'))
+            .map((id) => id.substring(7))
+            .toSet();
+        for (final folder in searches.folders) {
+          if (selectedFolderIds.contains(folder.id)) {
+            allowedIds.addAll(folder.searchIds.map((id) => 'search:$id'));
+          }
+        }
+      }
+      for (final id in itemIds.difference(allowedIds)) {
+        issues.add(
+          ImportPlanIssue(
+            code: 'unselected_payload_item',
+            sourceId: sourceId,
+            itemId: id,
+          ),
+        );
+      }
     }
     for (final id in itemRecommendations.keys.toSet().difference(itemIds)) {
       issues.add(
@@ -74,7 +95,12 @@ Set<String> importedItemIds(Object? data) => switch (data) {
     for (final profile in profiles) 'profile:${profile.id}',
   },
   final BookmarkBackupData bookmarks => {
-    'ungrouped',
+    if (bookmarks.bookmarks.any(
+      (bookmark) => !bookmarks.groups.any(
+        (group) => group.bookmarkIds.contains(bookmark.id),
+      ),
+    ))
+      'ungrouped',
     for (final group in bookmarks.groups)
       if (group.id case final id?) 'group:$id',
   },

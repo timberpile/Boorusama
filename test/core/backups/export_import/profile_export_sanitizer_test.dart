@@ -66,4 +66,19 @@ void main() {
     });
     expect(result['credentialsIncluded'], isTrue);
   });
+
+  test('detects credentials from parsed profile data', () {
+    final profile = BooruConfig.fromJson({
+      ...BooruConfig.empty.toJson(),
+      'id': 1,
+      'booruId': 1,
+      'booruIdHint': 1,
+      'name': 'Profile',
+      'url': 'https://example.com',
+      'apiKey': 'secret',
+    });
+
+    expect(profileContainsCredentials(profile), isTrue);
+    expect(profileContainsCredentials(BooruConfig.empty), isFalse);
+  });
 }

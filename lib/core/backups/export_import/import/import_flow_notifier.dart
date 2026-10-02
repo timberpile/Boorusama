@@ -32,6 +32,7 @@ import '../../types/backup_data_source.dart';
 import '../models/export_selection.dart';
 import '../models/import_action.dart';
 import '../package/staged_export_package.dart';
+import '../sources/profile_export_sanitizer.dart';
 import 'import_coordinator.dart';
 import 'collection_import_action.dart';
 import 'import_change_summarizer.dart';
@@ -57,6 +58,9 @@ final class ImportFlowState {
     this.profileMappings = const [],
     this.itemLabels = const {},
     this.alreadyPresentSearches = 0,
+    this.createdAt,
+    this.exporterVersion,
+    this.containsCredentials = false,
     this.error,
   });
 
@@ -69,6 +73,9 @@ final class ImportFlowState {
   final List<ProfileDependencyMapping> profileMappings;
   final Map<String, String> itemLabels;
   final int alreadyPresentSearches;
+  final DateTime? createdAt;
+  final String? exporterVersion;
+  final bool containsCredentials;
   final Object? error;
 
   ImportFlowState copyWith({
@@ -79,6 +86,9 @@ final class ImportFlowState {
     List<ProfileDependencyMapping>? profileMappings,
     Map<String, String>? itemLabels,
     int? alreadyPresentSearches,
+    DateTime? createdAt,
+    String? exporterVersion,
+    bool? containsCredentials,
     Object? error,
   }) => ImportFlowState(
     status: status ?? this.status,
@@ -89,6 +99,9 @@ final class ImportFlowState {
     itemLabels: itemLabels ?? this.itemLabels,
     alreadyPresentSearches:
         alreadyPresentSearches ?? this.alreadyPresentSearches,
+    createdAt: createdAt ?? this.createdAt,
+    exporterVersion: exporterVersion ?? this.exporterVersion,
+    containsCredentials: containsCredentials ?? this.containsCredentials,
     error: error,
   );
 }
@@ -165,6 +178,7 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
       final changeFacts = <String, ImportSourceChangeFacts>{};
       final itemLabels = <String, String>{};
       var alreadyPresentSearches = 0;
+      var containsCredentials = package.manifest.containsCredentials ?? false;
       for (final manifest in package.manifest.sources) {
         final source = registry.getSource(manifest.id);
         if (source == null) {
@@ -184,6 +198,15 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
           credentialsIncluded: package.manifest.containsCredentials ?? true,
         );
         await wrapper.prepare(null);
+        final actualCredentials = switch (wrapper.preparedData) {
+          final List<BooruConfig> profiles => profiles.any(
+            profileContainsCredentials,
+          ),
+          _ => false,
+        };
+        containsCredentials = containsCredentials || actualCredentials;
+        wrapper.credentialsIncluded =
+            wrapper.credentialsIncluded || actualCredentials;
         await wrapper.measureRollback();
         itemLabels.addAll(importItemLabels(wrapper.preparedData));
         final selection =
@@ -196,6 +219,15 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
           itemRecommendations: manifest.itemRecommendedActions,
           data: wrapper.preparedData,
         );
+        if (actualCredentials &&
+            package.manifest.containsCredentials == false) {
+          integrityIssues.add(
+            ImportPlanIssue(
+              code: 'credential_flag_mismatch',
+              sourceId: manifest.id,
+            ),
+          );
+        }
         final descriptor = descriptors[manifest.id];
         final isCollection = descriptor?.isCollection ?? false;
         final localIds = descriptor?.childIds ?? const <String>{};
@@ -307,7 +339,20 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
       _sources = wrappers;
       _preflightSnapshots = preflightSnapshots;
       _changeFacts = changeFacts;
-      final proposed = const ImportPlanner().plan(planning);
+      final planned = const ImportPlanner().plan(planning);
+      final proposed = containsCredentials
+          ? ProposedImportPlan(
+              sources: planned.sources,
+              warnings: [
+                ...planned.warnings,
+                const ImportPlanIssue(
+                  code: 'credentials_included',
+                  sourceId: 'profiles',
+                ),
+              ],
+              errors: planned.errors,
+            )
+          : planned;
       final resolved = proposed.resolveDefaults();
       final dependencies = _profileDependencies(resolved);
       state = ImportFlowState(
@@ -322,6 +367,9 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
         profileMappings: dependencies.mappings,
         itemLabels: Map.unmodifiable(itemLabels),
         alreadyPresentSearches: alreadyPresentSearches,
+        createdAt: package.manifest.createdAt,
+        exporterVersion: package.manifest.appVersion,
+        containsCredentials: containsCredentials,
       );
     } catch (error) {
       state = ImportFlowState(status: ImportFlowStatus.error, error: error);
@@ -719,7 +767,7 @@ final class PackageTransactionSource implements ImportTransactionSource {
   final String? incomingPath;
   final AppFileSystem fs;
   final Ref ref;
-  final bool credentialsIncluded;
+  bool credentialsIncluded;
   Map<ProfileReferenceKey, int> profileMappings = const {};
   List<BooruConfig> additionalProfiles = const [];
   ImportPreparation? _preparation;

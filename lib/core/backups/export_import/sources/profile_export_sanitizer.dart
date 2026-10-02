@@ -1,6 +1,8 @@
 // Dart imports:
 import 'dart:convert';
 
+import '../../../configs/config/types.dart';
+
 final class ProfileExportSanitizer {
   const ProfileExportSanitizer();
 
@@ -56,3 +58,12 @@ Map<String, dynamic> _copyMap(Map<String, dynamic> source) => source.map(
     _ => value,
   }),
 );
+
+bool profileContainsCredentials(BooruConfig profile) =>
+    _hasValue(profile.apiKey) ||
+    _hasValue(profile.login) ||
+    _hasValue(profile.passHash) ||
+    _hasValue(profile.proxySettings?.username) ||
+    _hasValue(profile.proxySettings?.password);
+
+bool _hasValue(String? value) => value != null && value.isNotEmpty;

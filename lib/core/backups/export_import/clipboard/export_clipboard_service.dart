@@ -58,7 +58,7 @@ final class ExportClipboardService {
 
   Future<bool> detect() => clipboard.containsExport();
 
-  Future<String> importToTemporaryFile() async {
+  Future<ClipboardExportFile> importToTemporaryFile() async {
     final value = await clipboard.read();
     if (value == null || !value.startsWith(kExportClipboardPrefix)) {
       throw const FormatException('Clipboard does not contain an export');
@@ -72,6 +72,24 @@ final class ExportClipboardService {
     final directory = await fs.createTempDirectory('boorusama_clipboard_');
     final path = '$directory/clipboard.bsexport';
     await fs.writeBytes(path, bytes);
-    return path;
+    return ClipboardExportFile(path: path, directoryPath: directory, fs: fs);
+  }
+}
+
+final class ClipboardExportFile {
+  const ClipboardExportFile({
+    required this.path,
+    required this.directoryPath,
+    required this.fs,
+  });
+
+  final String path;
+  final String directoryPath;
+  final AppFileSystem fs;
+
+  Future<void> dispose() async {
+    if (await fs.directoryExists(directoryPath)) {
+      await fs.deleteDirectory(directoryPath, recursive: true);
+    }
   }
 }

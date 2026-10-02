@@ -21,12 +21,18 @@ String importIssueMessage(
       strings.unknown_selected_item
           .replaceAll('{source}', source)
           .replaceAll('{item}', item),
+    'unselected_payload_item' =>
+      strings.unselected_payload_item
+          .replaceAll('{source}', source)
+          .replaceAll('{item}', item),
     'unknown_recommended_item' =>
       strings.unknown_recommended_item
           .replaceAll('{source}', source)
           .replaceAll('{item}', item),
     'missing_bookmark_reference' =>
       strings.missing_bookmark_reference.replaceAll('{item}', item),
+    'credentials_included' => strings.credentials_included,
+    'credential_flag_mismatch' => strings.credential_flag_mismatch,
     'unsupported_recommended_action' =>
       strings.unsupported_recommendation.replaceAll('{item}', item),
     'invalid_source_action' => strings.invalid_source_action.replaceAll(

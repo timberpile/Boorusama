@@ -128,6 +128,25 @@ class _ReviewImport extends ConsumerWidget {
           ),
           style: Theme.of(context).textTheme.titleLarge,
         ),
+        if (state.createdAt case final createdAt?)
+          ListTile(
+            leading: const Icon(Icons.info_outline),
+            title: Text(strings.export_details),
+            subtitle: Text(
+              strings.export_details_summary
+                  .replaceAll('{version}', state.exporterVersion ?? '—')
+                  .replaceAll('{date}', createdAt.toLocal().toString()),
+            ),
+          ),
+        if (state.containsCredentials)
+          ListTile(
+            leading: Icon(
+              Icons.lock_outline,
+              color: Theme.of(context).colorScheme.error,
+            ),
+            title: Text(strings.credentials_warning_title),
+            subtitle: Text(strings.credentials_warning_description),
+          ),
         const SizedBox(height: 12),
         for (final source in proposed.sources)
           ImportActionEditor(
