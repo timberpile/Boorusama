@@ -548,6 +548,55 @@ void main() {
   );
 
   test(
+    'replacement reuses matching searches and removes only absent searches',
+    () async {
+      final repository = memorySubscriptionRepository();
+      final existing = await repository.create(
+        profileId: 4,
+        query: 'cat tag_0',
+        name: 'Local name',
+        id: _id(9),
+      );
+      await repository.create(
+        profileId: 4,
+        query: 'remove me',
+        name: null,
+        id: _id(8),
+      );
+      await repository.recordRefreshFailure(
+        existing.id,
+        expectedCreatedAt: existing.createdAt,
+        attemptedAt: DateTime.utc(2026),
+        kind: SearchRefreshErrorKind.network,
+      );
+      const folderId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+
+      await PinnedSearchImportService(repository: repository).replace(
+        PinnedSearchBackupData(
+          records: [_record(0)],
+          folders: [
+            PinnedSearchFolderBackupRecord(
+              id: folderId,
+              name: 'Animals',
+              position: 0,
+              searchIds: [_id(0)],
+            ),
+          ],
+        ),
+        profiles: [_profile(4)],
+      );
+
+      final searches = await repository.getAll();
+      expect(searches, hasLength(1));
+      expect(searches.single.id, existing.id);
+      expect(searches.single.lastErrorKind, SearchRefreshErrorKind.network);
+      final folder = (await repository.getOrganization()).folders.single;
+      expect(folder.id, folderId);
+      expect(folder.searchIds, [existing.id]);
+    },
+  );
+
+  test(
     'reuses a query repeated inside an import only within its profile',
     () async {
       final repository = memorySubscriptionRepository();

@@ -40,6 +40,7 @@ import 'collection_import_action.dart';
 import 'import_change_summarizer.dart';
 import 'import_item_labels.dart';
 import 'import_source_integrity_validator.dart';
+import 'import_source_durability.dart';
 import 'import_journal.dart';
 import 'import_plan.dart';
 import 'import_planner.dart';
@@ -854,18 +855,15 @@ final class PackageTransactionSource implements ImportTransactionSource {
 
   @override
   Future<void> durableSync() async {
-    final root = await fs.getAppStoragePath();
-    if (!await fs.directoryExists(root)) return;
-    final entries = await fs.listDirectory(root, recursive: true);
-    for (final entry in entries.where((entry) => entry.isFile)) {
-      await fs.syncFile(entry.path);
+    final durability = ImportSourceDurability(fs);
+    switch (source) {
+      case final JsonBackupSource _:
+        await durability.syncHiveSource(id);
+      case final SqliteBackupSource sqliteSource:
+        await durability.syncSqliteSource(await sqliteSource.dbPathGetter());
+      default:
+        throw StateError('Unsupported import source: $id');
     }
-    final directories = entries.where((entry) => entry.isDirectory).toList()
-      ..sort((a, b) => b.path.length.compareTo(a.path.length));
-    for (final directory in directories) {
-      await fs.syncDirectory(directory.path);
-    }
-    await fs.syncDirectory(root);
   }
 
   @override
@@ -928,24 +926,7 @@ final class PackageTransactionSource implements ImportTransactionSource {
       await ref
           .read(searchSubscriptionsProvider.notifier)
           .runSerializedMutation((repository) async {
-            final internalIds = {
-              for (final feed in await repository.getFeeds()) ...feed.sourceIds,
-            };
-            for (final search in await repository.getAll()) {
-              if (!internalIds.contains(search.id)) {
-                await repository.delete(search.id);
-              }
-            }
-            final current = await repository.getOrganization();
-            await repository.replaceOrganization(
-              SearchOrganization(
-                folders: const [],
-                homeSearchIds: current.homeSearchIds
-                    .where(internalIds.contains)
-                    .toList(),
-              ),
-            );
-            await PinnedSearchImportService(repository: repository).apply(
+            await PinnedSearchImportService(repository: repository).replace(
               data,
               profiles: ref.read(booruConfigProvider),
               profileIdResolver: profileIdResolver ?? _profileId,
@@ -1005,10 +986,7 @@ final class PackageTransactionSource implements ImportTransactionSource {
       await ref
           .read(searchSubscriptionsProvider.notifier)
           .runSerializedMutation((repository) async {
-            for (final feed in await repository.getFeeds()) {
-              await repository.deleteFeed(feed.id);
-            }
-            await FollowingFeedImportService(repository: repository).apply(
+            await FollowingFeedImportService(repository: repository).replace(
               data,
               profiles: ref.read(booruConfigProvider),
               profileIdResolver: profileIdResolver ?? _profileId,

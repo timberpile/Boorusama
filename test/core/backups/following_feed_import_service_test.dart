@@ -107,6 +107,48 @@ void main() {
   );
 
   test(
+    'whole replacement keeps matching source state and removes absent feeds',
+    () async {
+      final repository = memorySubscriptionRepository();
+      final retained = await repository.saveFeed(
+        profileId: 4,
+        name: 'Cats',
+        queries: ['cat'],
+        id: _id(0),
+      );
+      await repository.saveFeed(
+        profileId: 4,
+        name: 'Remove',
+        queries: ['dog'],
+        id: _id(1),
+      );
+      final source = (await repository.getAll()).firstWhere(
+        (search) => retained.sourceIds.contains(search.id),
+      );
+      await repository.recordRefreshFailure(
+        source.id,
+        expectedCreatedAt: source.createdAt,
+        attemptedAt: DateTime.utc(2026),
+        kind: SearchRefreshErrorKind.network,
+      );
+
+      await FollowingFeedImportService(repository: repository).replace(
+        _data([
+          _record(0, name: 'Cats', queries: ['cat']),
+        ]),
+        profiles: [_profile(4)],
+      );
+
+      final feeds = await repository.getFeeds();
+      expect(feeds.map((feed) => feed.id), [_id(0)]);
+      final searches = await repository.getAll();
+      expect(searches, hasLength(1));
+      expect(searches.single.id, source.id);
+      expect(searches.single.lastErrorKind, SearchRefreshErrorKind.network);
+    },
+  );
+
+  test(
     'keeps same-named feeds separate and repeated imports idempotent',
     () async {
       final repository = memorySubscriptionRepository();

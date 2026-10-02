@@ -70,6 +70,72 @@ class FollowingFeedImportService {
     },
   );
 
+  Future<FollowingFeedImportResult> replace(
+    FollowingFeedBackupData data, {
+    required List<BooruConfig> profiles,
+    BackupProfileIdResolver? profileIdResolver,
+  }) async {
+    final mapped = [
+      for (final record in data.feeds)
+        (
+          record: record,
+          profileId: resolveBackupProfileId(
+            record.profile,
+            profiles,
+            resolver: profileIdResolver,
+          ),
+        ),
+    ];
+    final unmatched = {
+      for (final item in mapped)
+        if (item.profileId == null) item.record.id,
+    };
+    if (unmatched.isNotEmpty) {
+      throw UnmatchedFollowingFeedProfilesException(unmatched);
+    }
+
+    final desiredProfileById = {
+      for (final item in mapped) item.record.id: item.profileId!,
+    };
+    for (final feed in await repository.getFeeds()) {
+      final desiredProfile = desiredProfileById[feed.id];
+      if (desiredProfile != null && desiredProfile != feed.profileId) {
+        await repository.deleteFeed(feed.id);
+      }
+    }
+    final result = await apply(
+      data,
+      profiles: profiles,
+      profileIdResolver: profileIdResolver,
+    );
+    final desiredIds = desiredProfileById.keys.toSet();
+    for (final feed in await repository.getFeeds()) {
+      if (!desiredIds.contains(feed.id)) await repository.deleteFeed(feed.id);
+    }
+
+    for (final profileId in desiredProfileById.values.toSet()) {
+      final records =
+          mapped.where((item) => item.profileId == profileId).toList()
+            ..sort((left, right) {
+              final byPosition = left.record.position.compareTo(
+                right.record.position,
+              );
+              return byPosition != 0
+                  ? byPosition
+                  : data.feeds
+                        .indexOf(left.record)
+                        .compareTo(
+                          data.feeds.indexOf(right.record),
+                        );
+            });
+      await repository.setFeedOrder(
+        profileId,
+        [for (final item in records) item.record.id],
+      );
+    }
+    return result;
+  }
+
   Future<FollowingFeedImportResult> apply(
     FollowingFeedBackupData data, {
     required List<BooruConfig> profiles,

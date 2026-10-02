@@ -69,6 +69,66 @@ class PinnedSearchImportService {
     },
   );
 
+  Future<PinnedSearchImportResult> replace(
+    PinnedSearchBackupData data, {
+    required List<BooruConfig> profiles,
+    BackupProfileIdResolver? profileIdResolver,
+  }) async {
+    final previousOrganization = await repository.getOrganization();
+    final internalIds = {
+      for (final feed in await repository.getFeeds()) ...feed.sourceIds,
+    };
+    final result = await apply(
+      data,
+      profiles: profiles,
+      profileIdResolver: profileIdResolver,
+    );
+    final importedByBackupId = <String, String>{};
+    for (final record in data.records) {
+      final profileId = resolveBackupProfileId(
+        record.profile,
+        profiles,
+        resolver: profileIdResolver,
+      );
+      if (profileId == null) continue;
+      final saved = await repository.findByQuery(profileId, record.query);
+      if (saved != null && !internalIds.contains(saved.id)) {
+        importedByBackupId[record.id] = saved.id;
+      }
+    }
+    final retainedIds = {...internalIds, ...importedByBackupId.values};
+    for (final search in await repository.getAll()) {
+      if (!retainedIds.contains(search.id)) await repository.delete(search.id);
+    }
+
+    final assigned = <String>{};
+    List<String> mapped(Iterable<String> ids) => [
+      for (final id in ids)
+        if (importedByBackupId[id] case final savedId?)
+          if (assigned.add(savedId)) savedId,
+    ];
+
+    final folders = data.folders.toList()
+      ..sort((left, right) => left.position.compareTo(right.position));
+    await repository.replaceOrganization(
+      SearchOrganization(
+        folders: [
+          for (final folder in folders)
+            SharedSearchFolder(
+              id: folder.id,
+              name: folder.name,
+              searchIds: mapped(folder.searchIds),
+            ),
+        ],
+        homeSearchIds: [
+          ...previousOrganization.homeSearchIds.where(internalIds.contains),
+          ...mapped(data.homeSearchIds),
+        ],
+      ),
+    );
+    return result;
+  }
+
   Future<PinnedSearchImportResult> apply(
     PinnedSearchBackupData data, {
     required List<BooruConfig> profiles,

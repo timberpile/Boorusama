@@ -18,6 +18,7 @@ import '../foundation/app_update/providers.dart';
 import '../foundation/boot.dart';
 import '../foundation/boot/failsafe.dart';
 import '../foundation/boot/providers.dart';
+import '../foundation/data_mutation_coordinator.dart';
 import '../foundation/display_mode.dart';
 import '../foundation/filesystem.dart';
 import '../foundation/iap/iap.dart';
@@ -37,6 +38,7 @@ import 'boorus/engine/providers.dart';
 import 'boorus/engine/types.dart';
 import 'cache/providers.dart';
 import 'configs/config/data.dart';
+import 'configs/config/src/data/coordinated_booru_config_repository.dart';
 import 'configs/config/types.dart';
 import 'configs/manage/providers.dart';
 import 'developer_options/providers.dart';
@@ -321,7 +323,12 @@ class _BoorusamaAppState extends State<BoorusamaApp> {
               () => SettingsNotifier(data.settings),
             ),
             initialSettingsProvider.overrideWithValue(data.settings),
-            booruConfigRepoProvider.overrideWithValue(result.booruUserRepo),
+            booruConfigRepoProvider.overrideWith(
+              (ref) => CoordinatedBooruConfigRepository(
+                result.booruUserRepo,
+                ref.watch(dataMutationCoordinatorProvider),
+              ),
+            ),
             booruConfigProvider.overrideWith(
               () => BooruConfigNotifier(initialConfigs: data.configs),
             ),
