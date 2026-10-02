@@ -5,6 +5,7 @@ import 'package:kurumi/material.dart';
 import '../../../configs/manage/providers.dart';
 import '../../sources/providers.dart';
 import '../export/export_flow_notifier.dart';
+import '../models/import_action.dart';
 import '../widgets/import_action_editor.dart';
 import 'import_flow_notifier.dart';
 import 'import_issue_message.dart';
@@ -136,6 +137,14 @@ class _ReviewImport extends ConsumerWidget {
             sourceLabel: (id) => sourceNames[id] ?? id,
             itemLabel: (id) => state.itemLabels[id] ?? localLabels[id] ?? id,
             targetLabel: (id) => localLabels[id] ?? id,
+          ),
+        if (resolved.sources.any(
+          (source) => source.action == ImportAction.replace,
+        ))
+          ListTile(
+            leading: const Icon(Icons.sync_alt),
+            title: Text(strings.replace_explanation_title),
+            subtitle: Text(strings.replace_explanation),
           ),
         for (final mapping in state.profileMappings)
           if (!mapping.providedByImport &&

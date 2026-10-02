@@ -183,16 +183,17 @@ class ExportFlowPage extends ConsumerWidget {
                   const SizedBox(width: 12),
                   Expanded(
                     child: FilledButton(
+                      key: const ValueKey('create-custom-export'),
                       onPressed: state.nodes.isEmpty
                           ? null
-                          : () => _saveAndExport(context, ref),
+                          : () => _createExport(context, ref),
                       child: Text(
                         context
                             .t
                             .settings
                             .backup_and_restore
                             .export_import
-                            .save_and_export,
+                            .create_export,
                       ),
                     ),
                   ),
@@ -263,9 +264,11 @@ class ExportFlowPage extends ConsumerWidget {
     } catch (_) {}
   }
 
-  Future<String?> _promptTemplateName(BuildContext context) async {
+  Future<({String name, bool export})?> _promptTemplateSave(
+    BuildContext context,
+  ) async {
     final controller = TextEditingController();
-    final result = await showDialog<String>(
+    final result = await showDialog<({String name, bool export})>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(
@@ -290,25 +293,46 @@ class ExportFlowPage extends ConsumerWidget {
               context.t.settings.backup_and_restore.export_import.cancel,
             ),
           ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, controller.text.trim()),
+          TextButton(
+            onPressed: () => Navigator.pop(
+              context,
+              (name: controller.text.trim(), export: false),
+            ),
             child: Text(
-              context.t.settings.backup_and_restore.export_import.save,
+              context.t.settings.backup_and_restore.export_import.save_only,
+            ),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(
+              context,
+              (name: controller.text.trim(), export: true),
+            ),
+            child: Text(
+              context
+                  .t
+                  .settings
+                  .backup_and_restore
+                  .export_import
+                  .save_and_export,
             ),
           ),
         ],
       ),
     );
     controller.dispose();
-    return switch (result?.trim()) {
-      null || '' => null,
-      final name => name,
+    return switch (result) {
+      null => null,
+      (:final name, :final export) when name.trim().isNotEmpty => (
+        name: name.trim(),
+        export: export,
+      ),
+      _ => null,
     };
   }
 
-  Future<bool> _saveTemplate(BuildContext context, WidgetRef ref) async {
-    final name = await _promptTemplateName(context);
-    if (name == null) return false;
+  Future<void> _saveTemplate(BuildContext context, WidgetRef ref) async {
+    final save = await _promptTemplateSave(context);
+    if (save == null) return;
     final selection = ref.read(exportFlowProvider.notifier).selection();
     final flow = ref.read(exportFlowProvider);
     await ref
@@ -316,7 +340,7 @@ class ExportFlowPage extends ConsumerWidget {
         .save(
           ExportTemplate(
             id: const Uuid().v4(),
-            name: name,
+            name: save.name,
             selection: selection,
             includeCredentials: flow.includeCredentials,
             recommendedActions: flow.recommendedActions,
@@ -329,11 +353,7 @@ class ExportFlowPage extends ConsumerWidget {
         context.t.settings.backup_and_restore.export_import.saved_template,
       );
     }
-    return true;
-  }
-
-  Future<void> _saveAndExport(BuildContext context, WidgetRef ref) async {
-    if (await _saveTemplate(context, ref) && context.mounted) {
+    if (save.export && context.mounted) {
       await _createExport(context, ref);
     }
   }
