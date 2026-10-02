@@ -16,7 +16,6 @@ import '../../../bookmarks/providers.dart';
 import '../../../bookmarks/types.dart';
 import '../../../posts/post/types.dart';
 import '../../../search/subscriptions/providers.dart';
-import '../../../search/subscriptions/types.dart';
 import '../../preparation/version_checking.dart';
 import '../../sources/bookmark_backup_data.dart';
 import '../../sources/bookmark_import_planner.dart';
@@ -37,8 +36,8 @@ import '../package/staged_export_package.dart';
 import '../sources/profile_export_sanitizer.dart';
 import 'import_coordinator.dart';
 import 'collection_import_action.dart';
-import 'import_change_summarizer.dart';
 import 'import_item_labels.dart';
+import 'import_planned_change_projector.dart';
 import 'import_source_integrity_validator.dart';
 import 'import_source_durability.dart';
 import 'import_journal.dart';
@@ -138,7 +137,6 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
   var _availableBytes = 1 << 62;
   var _stagingBytes = 0;
   List<SourcePreflightSnapshot> _preflightSnapshots = const [];
-  Map<String, ImportSourceChangeFacts> _changeFacts = const {};
   final Map<ProfileReferenceKey, int> _profileChoices = {};
   final Set<ProfileReferenceKey> _createdProfileChoices = {};
 
@@ -182,7 +180,6 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
       final wrappers = <String, PackageTransactionSource>{};
       final planning = <ImportSourcePlanningInput>[];
       final preflightSnapshots = <SourcePreflightSnapshot>[];
-      final changeFacts = <String, ImportSourceChangeFacts>{};
       final itemLabels = <String, String>{};
       var alreadyPresentSearches = 0;
       var containsCredentials = package.manifest.containsCredentials ?? false;
@@ -214,7 +211,13 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
         containsCredentials = containsCredentials || actualCredentials;
         wrapper.credentialsIncluded =
             wrapper.credentialsIncluded || actualCredentials;
-        await wrapper.measureRollback();
+        final capturedRevision = await ref
+            .read(dataMutationCoordinatorProvider)
+            .runExclusive(() async {
+              await wrapper.captureLocalSnapshot();
+              await wrapper.measureRollback();
+              return wrapper.revisionToken();
+            });
         itemLabels.addAll(importItemLabels(wrapper.preparedData));
         final selection =
             manifest.selection ?? ExportNodeSelection.all(manifest.id);
@@ -284,18 +287,6 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
                 ),
           ],
         };
-        changeFacts[source.id] = ImportSourceChangeFacts(
-          sourceId: source.id,
-          incomingIds: switch (wrapper.preparedData) {
-            final List<BooruConfig> _ => items.map((item) => item.id).toSet(),
-            _ => incomingIds,
-          },
-          existingIds: localIds,
-          identicalIds: {
-            for (final id in alreadyPresentSearchIds) 'search:$id',
-          },
-          isSingleValue: !isCollection,
-        );
         planning.add(
           ImportSourcePlanningInput(
             id: manifest.id,
@@ -311,7 +302,7 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
         preflightSnapshots.add(
           SourcePreflightSnapshot(
             sourceId: source.id,
-            revisionToken: await wrapper.revisionToken(),
+            revisionToken: capturedRevision,
             rollbackBytes: wrapper.preflightRollbackBytes,
             errors: integrityIssues,
           ),
@@ -329,23 +320,24 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
           ref: ref,
           credentialsIncluded: false,
         );
-        await wrapper.measureRollback();
+        final capturedRevision = await ref
+            .read(dataMutationCoordinatorProvider)
+            .runExclusive(() async {
+              await wrapper.captureLocalSnapshot();
+              await wrapper.measureRollback();
+              return wrapper.revisionToken();
+            });
         wrappers[source.id] = wrapper;
         preflightSnapshots.add(
           SourcePreflightSnapshot(
             sourceId: source.id,
-            revisionToken: await wrapper.revisionToken(),
+            revisionToken: capturedRevision,
             rollbackBytes: wrapper.preflightRollbackBytes,
           ),
-        );
-        changeFacts[source.id] = ImportSourceChangeFacts(
-          sourceId: source.id,
-          existingIds: descriptors[source.id]?.childIds ?? const {},
         );
       }
       _sources = wrappers;
       _preflightSnapshots = preflightSnapshots;
-      _changeFacts = changeFacts;
       final planned = const ImportPlanner().plan(planning);
       final proposed = containsCredentials
           ? ProposedImportPlan(
@@ -519,19 +511,11 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
         SourcePreflightSnapshot(
           sourceId: snapshot.sourceId,
           revisionToken: snapshot.revisionToken,
-          summary: switch ((
-            resolvedById[snapshot.sourceId],
-            _changeFacts[snapshot.sourceId],
-          )) {
-            (final source?, final facts?) =>
-              const ImportChangeSummarizer().summarize(
-                source: source,
-                facts: facts,
-                additionalCreated: snapshot.sourceId == 'profiles'
-                    ? dependencies.createdProfiles.length
-                    : 0,
-              ),
-            _ => snapshot.summary,
+          summary: switch (resolvedById[snapshot.sourceId]) {
+            final resolution? => _sources[snapshot.sourceId]!.plannedChanges(
+              resolution,
+            ),
+            null => snapshot.summary,
           },
           warnings: snapshot.warnings,
           errors: snapshot.errors,
@@ -782,7 +766,8 @@ final class PackageTransactionSource implements ImportTransactionSource {
   Map<ProfileReferenceKey, int> profileMappings = const {};
   List<BooruConfig> additionalProfiles = const [];
   ImportPreparation? _preparation;
-  var preflightRevision = '';
+  Object? _localSnapshot;
+  Object? _incomingComparable;
   var preflightRollbackBytes = 0;
 
   Object? get preparedData => _preparation?.preparedData;
@@ -796,13 +781,124 @@ final class PackageTransactionSource implements ImportTransactionSource {
       throw StateError('Source $id cannot import files');
     }
     final path = incomingPath;
-    if (path == null && id == 'profiles') {
-      preflightRevision = await revisionToken();
-      return;
-    }
+    if (path == null && id == 'profiles') return;
     if (path == null) throw StateError('Source $id has no incoming payload');
     _preparation = await capability.prepareImport(path, context);
-    preflightRevision = await revisionToken();
+  }
+
+  Future<void> captureLocalSnapshot() async {
+    switch (id) {
+      case 'profiles':
+        _localSnapshot = (await ref.read(booruConfigRepoProvider).getAll())
+            .toList();
+      case 'bookmarks':
+        final bookmarkRepository = await ref.read(bookmarkRepoProvider.future);
+        final groupRepository = await ref.read(
+          bookmarkGroupRepoProvider.future,
+        );
+        ImageUrlResolver resolver(int? booruId) =>
+            ref.read(bookmarkUrlResolverProvider(booruId));
+        _localSnapshot = BookmarkImportLocalSnapshot(
+          bookmarks: await bookmarkRepository.getAllBookmarksOrThrow(
+            imageUrlResolver: resolver,
+          ),
+          groups: await groupRepository.getGroups(),
+        );
+      case 'pinned_searches':
+        final repository = await ref.read(
+          searchSubscriptionRepositoryProvider.future,
+        );
+        _localSnapshot = PinnedSearchImportLocalSnapshot(
+          searches: await repository.getAll(),
+          organization: await repository.getOrganization(),
+          feeds: await repository.getFeeds(),
+        );
+      case 'following_feeds':
+        final repository = await ref.read(
+          searchSubscriptionRepositoryProvider.future,
+        );
+        _localSnapshot = FollowingFeedImportLocalSnapshot(
+          searches: await repository.getAll(),
+          feeds: await repository.getFeeds(),
+        );
+      default:
+        switch (source) {
+          case final JsonBackupSource jsonSource:
+            _localSnapshot = jsonSource.handler.encode(
+              await jsonSource.dataGetter(),
+            );
+            _incomingComparable = jsonSource.handler.encode(preparedData);
+          case final SqliteBackupSource sqliteSource:
+            _localSnapshot = (await _fileDigest(
+              await sqliteSource.dbPathGetter(),
+            )).toString();
+            _incomingComparable = (await _fileDigest(incomingPath!)).toString();
+          default:
+            throw StateError('Unsupported import source: $id');
+        }
+    }
+  }
+
+  PlannedChangeSummary plannedChanges(ResolvedImportSource resolution) {
+    const projector = ImportPlannedChangeProjector();
+    return switch ((id, _localSnapshot, preparedData)) {
+      (
+        'profiles',
+        final List<BooruConfig> local,
+        final List<BooruConfig> data,
+      ) =>
+        projector.profiles(
+          local: local,
+          imported: data,
+          resolution: resolution,
+          credentialsIncluded: credentialsIncluded,
+          additionalProfiles: additionalProfiles,
+        ),
+      ('profiles', final List<BooruConfig> local, null) => projector.profiles(
+        local: local,
+        imported: const [],
+        resolution: resolution,
+        credentialsIncluded: credentialsIncluded,
+        additionalProfiles: additionalProfiles,
+      ),
+      (
+        'bookmarks',
+        final BookmarkImportLocalSnapshot local,
+        final BookmarkBackupData data,
+      ) =>
+        projector.bookmarks(
+          local: local,
+          incoming: data,
+          resolution: resolution,
+        ),
+      (
+        'pinned_searches',
+        final PinnedSearchImportLocalSnapshot local,
+        final PinnedSearchBackupData data,
+      ) =>
+        projector.pinnedSearches(
+          local: local,
+          incoming: data,
+          resolution: resolution,
+          profileMappings: profileMappings,
+        ),
+      (
+        'following_feeds',
+        final FollowingFeedImportLocalSnapshot local,
+        final FollowingFeedBackupData data,
+      ) =>
+        projector.followingFeeds(
+          local: local,
+          incoming: data,
+          resolution: resolution,
+          profileMappings: profileMappings,
+        ),
+      _ => projector.scalar(
+        local: _localSnapshot,
+        incoming: _incomingComparable,
+        resolution: resolution,
+      ),
+    };
   }
 
   @override
