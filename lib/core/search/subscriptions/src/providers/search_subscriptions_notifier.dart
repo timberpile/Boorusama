@@ -489,8 +489,17 @@ class SearchSubscriptionsNotifier
     SearchQueryStructure? queryStructure,
     required String? name,
     String? folderId,
+    String? newFolderName,
   }) async {
     final subscription = await _mutate((repository) async {
+      if (newFolderName case final folderName?) {
+        return repository.savePinInNewFolder(
+          profileId: profileId,
+          query: query,
+          name: name,
+          folderName: folderName,
+        );
+      }
       final existing = await repository.findByQuery(profileId, query);
       final subscription = switch (existing) {
         null => await repository.create(
@@ -541,6 +550,22 @@ class SearchSubscriptionsNotifier
   Future<void> rename(String id, String? name) async {
     await _mutate((repository) => repository.rename(id, name));
   }
+
+  Future<SearchSubscription> savePinInNewFolder({
+    required int profileId,
+    required String query,
+    required String? name,
+    required String folderName,
+    String? existingPinId,
+  }) => _mutate(
+    (repository) => repository.savePinInNewFolder(
+      profileId: profileId,
+      query: query,
+      name: name,
+      folderName: folderName,
+      existingPinId: existingPinId,
+    ),
+  );
 
   Future<void> reorder(int profileId, int oldIndex, int newIndex) async {
     await _mutate(

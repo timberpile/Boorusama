@@ -210,6 +210,17 @@ succeeds. Deleting a folder requires confirmation and unpins every member,
 across profiles. Cancel leaves both folder and pins intact. Empty folders also
 require confirmation.
 
+The pin dialog lists `[Home]`, `[New]`, then existing folders. Selecting `[New]`
+only changes the destination. Pin/Save opens Create folder above the still-open
+pin form; Cancel returns to that form with its name and New selection intact.
+Accepting a folder name
+commits the pin and its new folder membership together in one serialized
+repository operation. Duplicate names are checked against current storage at
+confirmation. Ordinary storage failures compensate both writes; cancellation
+never persists the pending folder. Validation/storage failures keep the pin
+form open for retry or a different destination. An initial preview failure keeps the saved
+pin and its folder, just as it does for Home and existing destinations.
+
 One JSON Hive value, `search:organization`, stores ordered folders, each
 folder's ordered independent pin IDs, and ordered Home IDs. Subscription
 aggregates still own profile IDs, queries, and refresh state. Missing IDs are

@@ -451,6 +451,93 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
   }
 
   @override
+  Future<SearchSubscription> savePinInNewFolder({
+    required int profileId,
+    required String query,
+    required String? name,
+    required String folderName,
+    String? existingPinId,
+  }) => _serialize(() async {
+    final storage = _organizationBox;
+    if (storage == null) throw StateError('Organization storage unavailable');
+    final identity = normalizeSearchIdentity(query);
+    if (identity.isEmpty) throw const FormatException('Empty pin query');
+    final current = _organization();
+    final folder = SharedSearchFolder(
+      id: _uuid.v4(),
+      name: folderName,
+      searchIds: const [],
+    );
+    if (current.folders.any(
+      (f) => f.name.toLowerCase() == folder.name.toLowerCase(),
+    )) {
+      throw StateError('Duplicate shared search folder');
+    }
+    final subscriptions = _subscriptionsForProfile(profileId).toList();
+    final existing = subscriptions.firstWhereOrNull(
+      (pin) => existingPinId == null
+          ? normalizeSearchIdentity(pin.query) == identity
+          : pin.id == existingPinId &&
+                normalizeSearchIdentity(pin.query) == identity,
+    );
+    if (existingPinId != null && existing == null) {
+      throw StateError('Independent pinned search not found');
+    }
+    final subscription = switch (existing) {
+      final pin? => name == null ? pin : pin.copyWithName(name),
+      null => SearchSubscription.create(
+        id: _uuid.v4(),
+        profileId: profileId,
+        query: query,
+        name: name,
+        position: subscriptions.fold(
+          0,
+          (next, pin) => pin.position >= next ? pin.position + 1 : next,
+        ),
+        createdAt: DateTime.now().toUtc(),
+      ),
+    };
+    final next = SearchOrganization(
+      folders: [
+        for (final old in current.folders)
+          SharedSearchFolder(
+            id: old.id,
+            name: old.name,
+            searchIds: old.searchIds.where((id) => id != subscription.id),
+          ),
+        SharedSearchFolder(
+          id: folder.id,
+          name: folder.name,
+          searchIds: [subscription.id],
+        ),
+      ],
+      homeSearchIds: current.homeSearchIds.where((id) => id != subscription.id),
+    );
+    final previousPin = _box.get(subscription.id);
+    final previousOrganization = storage.get('search:organization');
+    try {
+      await _box.put(subscription.id, _toObject(subscription));
+      await storage.put('search:organization', next.toJson());
+    } catch (_) {
+      if (previousPin case final pin?) {
+        await _box.put(subscription.id, pin);
+      } else {
+        await _box.delete(subscription.id);
+      }
+      // A write can report failure after changing storage.
+      if (storage.get('search:organization') != previousOrganization) {
+        if (previousOrganization case final value?) {
+          await storage.put('search:organization', value);
+        } else {
+          await storage.delete('search:organization');
+        }
+      }
+      rethrow;
+    }
+    return subscription;
+  });
+
+  @override
   Future<List<SearchSubscription>> reorder(
     int profileId,
     int oldIndex,

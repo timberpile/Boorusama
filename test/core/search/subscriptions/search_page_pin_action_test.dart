@@ -17,6 +17,7 @@ import 'package:boorusama/core/search/search/src/widgets/search_controller.dart'
 import 'package:boorusama/core/search/search/src/widgets/search_page_scaffold.dart';
 import 'package:boorusama/core/search/selected_tags/types.dart';
 import 'package:boorusama/core/search/subscriptions/providers.dart';
+import 'package:boorusama/core/search/subscriptions/src/widgets/pin_search_dialog.dart';
 import 'package:boorusama/core/search/subscriptions/src/data/providers.dart';
 import 'package:boorusama/core/search/subscriptions/src/data/hive/search_subscription_hive_object.dart';
 import 'package:boorusama/core/search/subscriptions/src/data/hive/search_subscription_repository_hive.dart';
@@ -27,6 +28,7 @@ import 'package:boorusama/core/search/subscriptions/types.dart';
 import 'package:boorusama/core/settings/providers.dart';
 import 'package:boorusama/core/settings/src/types/settings.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:foundation/foundation.dart';
@@ -40,6 +42,7 @@ void main() {
   var searchResultCount = 0;
   const query = 'cat  rating:safe';
   late _FailingBox box;
+  late _FailingOrganizationBox organizationBox;
   late SearchSubscriptionRepository repository;
   late SearchPageController controller;
   late ValueNotifier<PostGridController<Post>?> postController;
@@ -65,9 +68,10 @@ void main() {
       null => BooruConfig.empty,
     };
     box = _FailingBox();
+    organizationBox = _FailingOrganizationBox();
     repository = HiveSearchSubscriptionRepository(
       box: box,
-      organizationBox: MemoryBox<dynamic>(),
+      organizationBox: organizationBox,
     );
     snapshot = Completer();
     snapshotCalls = 0;
@@ -378,6 +382,483 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('Home and New precede existing folders in the destination menu', (
+    tester,
+  ) async {
+    await initialize();
+    await repository.replaceOrganization(
+      SearchOrganization(
+        folders: [
+          SharedSearchFolder(id: 'z', name: 'Zebra', searchIds: const []),
+          SharedSearchFolder(id: 'a', name: 'Animals', searchIds: const []),
+        ],
+        homeSearchIds: const [],
+      ),
+    );
+    await pump(tester);
+    await load(tester);
+    await tester.tap(find.byTooltip('Pin Search'));
+    await pumpTransitions(tester);
+    final folderField = tester.widget<DropdownButtonFormField<Object>>(
+      find.byType(DropdownButtonFormField<Object>),
+    );
+    expect(folderField.decoration.labelText, 'Folder');
+    await tester.tap(find.byType(DropdownButtonFormField<Object>));
+    await pumpTransitions(tester);
+    final home = tester.getCenter(find.text('[Home]').last).dy;
+    final newFolder = tester.getCenter(find.text('[New]').last).dy;
+    final zebra = tester.getCenter(find.text('Zebra').last).dy;
+    final animals = tester.getCenter(find.text('Animals').last).dy;
+    expect(home, lessThan(newFolder));
+    expect(newFolder, lessThan(zebra));
+    expect(zebra, lessThan(animals));
+  });
+
+  for (final c in [(width: 800.0, scale: 1.0), (width: 360.0, scale: 2.0)]) {
+    testWidgets(
+      'the destination has form spacing at ${c.width}px and ${c.scale}x text',
+      (tester) async {
+        tester.view.physicalSize = Size(c.width, 800);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        await initialize();
+        await pump(tester, textScale: c.scale);
+        await load(tester);
+        await tester.tap(find.byTooltip('Pin Search'));
+        await pumpTransitions(tester);
+        final name = tester.getRect(find.byType(TextField));
+        final destination = tester.getRect(
+          find.byType(DropdownButtonFormField<Object>),
+        );
+        expect(destination.top - name.bottom, greaterThanOrEqualTo(16));
+        expect(tester.takeException(), isNull);
+        await tester.tap(find.byType(DropdownButtonFormField<Object>));
+        await pumpTransitions(tester);
+        await tester.tap(find.text('[New]').last);
+        await pumpTransitions(tester);
+        expect(find.text('Create folder'), findsNothing);
+        await tester.tap(find.text('Pin'));
+        await pumpTransitions(tester);
+        expect(find.text('Create folder'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+        await tester.tap(find.text('Cancel').last);
+        await pumpTransitions(tester);
+        expect(find.text('[New]'), findsOneWidget);
+        await tester.tap(find.byType(DropdownButtonFormField<Object>));
+        await pumpTransitions(tester);
+        await tester.tap(find.text('[Home]').last);
+        await pumpTransitions(tester);
+        await tester.tap(find.text('Pin'));
+        await pumpTransitions(tester);
+        expect((await repository.getAll()).single.query, query);
+        snapshot.complete(
+          Either.of(const PostResult(posts: <Post>[], total: 0)),
+        );
+        await pumpTransitions(tester);
+      },
+    );
+  }
+
+  testWidgets(
+    'Pin opens a stacked folder dialog and accepting saves its member',
+    (tester) async {
+      await initialize();
+      await pump(tester);
+      await load(tester);
+      await chooseNewFolder(tester);
+      expect(find.text('Create folder'), findsNothing);
+      final pinDialog = tester.state(find.byType(PinSearchDialog));
+      await tester.tap(find.text('Pin'));
+      await pumpTransitions(tester);
+      expect(find.text('Create folder'), findsOneWidget);
+      expect(pinDialog.mounted, isTrue);
+      expect((await repository.getOrganization()).folders, isEmpty);
+      await acceptFolder(tester, '  Animals  ');
+      expect(find.byType(PinSearchDialog), findsNothing);
+      final pin = (await repository.getAll()).single;
+      final folder = (await repository.getOrganization()).folders.single;
+      expect(folder.name, 'Animals');
+      expect(folder.searchIds, [pin.id]);
+      expect((await repository.getOrganization()).homeSearchIds, isEmpty);
+      expect(snapshotCalls, 1);
+      snapshot.complete(Either.of(const PostResult(posts: <Post>[], total: 0)));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+    },
+  );
+
+  for (final c in [
+    (dialog: 'folder name', cancelName: true),
+    (dialog: 'pin', cancelName: false),
+  ]) {
+    testWidgets(
+      'canceling the ${c.dialog} dialog leaves no folder or pin',
+      (tester) async {
+        await initialize();
+        await pump(tester);
+        await load(tester);
+        await chooseNewFolder(tester);
+        await tester.enterText(find.byType(TextField), 'My cats');
+        if (c.cancelName) {
+          final pinDialog = tester.state(find.byType(PinSearchDialog));
+          await tester.tap(find.text('Pin'));
+          await pumpTransitions(tester);
+          await tester.enterText(find.byType(TextField).last, 'Animals');
+          await tester.tap(find.text('Cancel').last);
+          await pumpTransitions(tester);
+          expect(tester.state(find.byType(PinSearchDialog)), same(pinDialog));
+          expect(find.text('[New]'), findsOneWidget);
+          expect(
+            tester.widget<TextField>(find.byType(TextField)).controller!.text,
+            'My cats',
+          );
+          expect(await repository.getAll(), isEmpty);
+          expect((await repository.getOrganization()).folders, isEmpty);
+        }
+        await tester.tap(find.text('Cancel'));
+        await pumpTransitions(tester);
+        expect((await repository.getOrganization()).folders, isEmpty);
+        expect(await repository.getAll(), isEmpty);
+        expect(snapshotCalls, 0);
+      },
+    );
+  }
+
+  testWidgets(
+    'tapping outside the idle pin form still cancels without writes',
+    (tester) async {
+      await initialize();
+      await pump(tester);
+      await load(tester);
+      await chooseNewFolder(tester);
+      await tester.tapAt(const Offset(5, 5));
+      await pumpTransitions(tester);
+      expect(find.byType(PinSearchDialog), findsNothing);
+      expect(await repository.getAll(), isEmpty);
+      expect((await repository.getOrganization()).folders, isEmpty);
+    },
+  );
+
+  testWidgets('an empty new folder name cannot be accepted', (tester) async {
+    await initialize();
+    await pump(tester);
+    await load(tester);
+    await chooseNewFolder(tester);
+    await tester.tap(find.text('Pin'));
+    await pumpTransitions(tester);
+    await tester.enterText(find.byType(TextField).last, '   ');
+    expect(
+      tester
+          .widget<FilledButton>(find.widgetWithText(FilledButton, 'Save'))
+          .onPressed,
+      isNull,
+    );
+    expect((await repository.getOrganization()).folders, isEmpty);
+    await tester.tap(find.text('Cancel').last);
+    await pumpTransitions(tester);
+    await tester.tap(find.text('Cancel'));
+    await pumpTransitions(tester);
+  });
+
+  for (final action in ['outside tap', 'back', 'escape']) {
+    testWidgets(
+      'an in-flight folder save cannot dismiss with $action or resubmit the pin form',
+      (tester) async {
+        await initialize();
+        await pump(tester);
+        await load(tester);
+        await chooseNewFolder(tester);
+        await tester.tap(find.text('Pin'));
+        await pumpTransitions(tester);
+        final write = Completer<void>();
+        addTearDown(() {
+          if (!write.isCompleted) write.complete();
+        });
+        box.beforeWrite = write;
+        await acceptFolder(tester, 'Animals');
+        expect(find.byType(PinSearchDialog), findsOneWidget);
+        switch (action) {
+          case 'outside tap':
+            await tester.tapAt(const Offset(5, 5));
+          case 'back':
+            await tester.binding.handlePopRoute();
+          case 'escape':
+            await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+        }
+        await pumpTransitions(tester);
+        expect(find.byType(PinSearchDialog), findsOneWidget);
+        expect(
+          tester
+              .widget<FilledButton>(find.widgetWithText(FilledButton, 'Pin'))
+              .onPressed,
+          isNull,
+        );
+        expect(box.values, isEmpty);
+        write.complete();
+        await pumpTransitions(tester);
+        final pin = (await repository.getAll()).single;
+        expect((await repository.getOrganization()).folders.single.searchIds, [
+          pin.id,
+        ]);
+        expect(find.byType(PinSearchDialog), findsNothing);
+        snapshot.complete(
+          Either.of(const PostResult(posts: <Post>[], total: 0)),
+        );
+        await pumpTransitions(tester);
+      },
+    );
+  }
+
+  testWidgets(
+    'a folder created while its name dialog is open prevents a duplicate',
+    (tester) async {
+      await initialize();
+      await pump(tester);
+      await load(tester);
+      await chooseNewFolder(tester);
+      await tester.tap(find.text('Pin'));
+      await pumpTransitions(tester);
+      await container
+          .read(searchSubscriptionsProvider.notifier)
+          .createSharedFolder('ANIMALS');
+      await acceptFolder(tester, 'Animals');
+      expect(await repository.getAll(), isEmpty);
+      expect(
+        (await repository.getOrganization()).folders.single.name,
+        'ANIMALS',
+      );
+      expect(find.byType(PinSearchDialog), findsOneWidget);
+      expect(find.text('[New]'), findsOneWidget);
+      expect(
+        find.text('Could not save the pinned search. Try again.'),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets('a new-folder preview failure keeps the saved folder and pin', (
+    tester,
+  ) async {
+    await initialize();
+    await pump(tester);
+    await load(tester);
+    await chooseNewFolder(tester);
+    await tester.tap(find.text('Pin'));
+    await pumpTransitions(tester);
+    await acceptFolder(tester, 'Animals');
+    final pin = (await repository.getAll()).single;
+    snapshot.completeError(Exception('offline'));
+    await pumpTransitions(tester);
+    await tester.pump(const Duration(seconds: 5));
+    await pumpTransitions(tester);
+    expect((await repository.getAll()).single.id, pin.id);
+    expect((await repository.getOrganization()).folders.single.searchIds, [
+      pin.id,
+    ]);
+    expect(
+      find.text(
+        'Search pinned, but its preview could not be loaded. Refresh it later.',
+      ),
+      findsOneWidget,
+    );
+  });
+
+  for (final c in [
+    (
+      failure: 'duplicate name',
+      duplicate: true,
+      failPin: false,
+      failFolder: false,
+      failAfterWrite: false,
+    ),
+    (
+      failure: 'pin storage',
+      duplicate: false,
+      failPin: true,
+      failFolder: false,
+      failAfterWrite: false,
+    ),
+    (
+      failure: 'folder storage',
+      duplicate: false,
+      failPin: false,
+      failFolder: true,
+      failAfterWrite: false,
+    ),
+    (
+      failure: 'folder storage after write',
+      duplicate: false,
+      failPin: false,
+      failFolder: false,
+      failAfterWrite: true,
+    ),
+  ]) {
+    testWidgets('${c.failure} failure leaves no new folder or pin', (
+      tester,
+    ) async {
+      await initialize();
+      if (c.duplicate) {
+        await repository.replaceOrganization(
+          SearchOrganization(
+            folders: [
+              SharedSearchFolder(
+                id: 'existing',
+                name: 'ANIMALS',
+                searchIds: const [],
+              ),
+            ],
+            homeSearchIds: const [],
+          ),
+        );
+      }
+      final before = await repository.getOrganization();
+      await pump(tester);
+      await load(tester);
+      await chooseNewFolder(tester);
+      box.failWrites = c.failPin;
+      organizationBox.failWrites = c.failFolder;
+      organizationBox.failAfterWrite = c.failAfterWrite;
+      await tester.tap(find.text('Pin'));
+      await pumpTransitions(tester);
+      await acceptFolder(tester, 'Animals');
+      expect(find.byType(PinSearchDialog), findsOneWidget);
+      expect(find.text('[New]'), findsOneWidget);
+      expect(await repository.getAll(), isEmpty);
+      expect(await repository.getOrganization(), before);
+      expect(snapshotCalls, 0);
+      expect(
+        find.text('Could not save the pinned search. Try again.'),
+        findsOneWidget,
+      );
+      box.failWrites = false;
+      organizationBox.failWrites = false;
+      await tester.tap(find.byType(DropdownButtonFormField<Object>));
+      await pumpTransitions(tester);
+      await tester.tap(find.text('[Home]').last);
+      await pumpTransitions(tester);
+      await tester.tap(find.text('Pin'));
+      await pumpTransitions(tester);
+      final pin = (await repository.getAll()).single;
+      expect((await repository.getOrganization()).homeSearchIds, [pin.id]);
+      expect((await repository.getOrganization()).folders, before.folders);
+      snapshot.complete(Either.of(const PostResult(posts: <Post>[], total: 0)));
+      await pumpTransitions(tester);
+    });
+  }
+
+  testWidgets('changing a draft destination back to Home creates no folder', (
+    tester,
+  ) async {
+    await initialize();
+    await pump(tester);
+    await load(tester);
+    await chooseNewFolder(tester);
+    await tester.tap(find.byType(DropdownButtonFormField<Object>));
+    await pumpTransitions(tester);
+    await tester.tap(find.text('[Home]').last);
+    await pumpTransitions(tester);
+    await tester.tap(find.text('Pin'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    final pin = (await repository.getAll()).single;
+    final organization = await repository.getOrganization();
+    expect(organization.folders, isEmpty);
+    expect(organization.homeSearchIds, [pin.id]);
+    snapshot.complete(Either.of(const PostResult(posts: <Post>[], total: 0)));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+  });
+
+  testWidgets(
+    'saving an existing pin in a new folder retains its identity without another preview',
+    (tester) async {
+      await initialize();
+      final pin = await repository.create(
+        profileId: config.id,
+        query: query,
+        name: 'Cats',
+      );
+      await pump(tester);
+      await load(tester);
+      await chooseNewFolder(tester, existing: true);
+      await tester.tap(find.text('Save'));
+      await pumpTransitions(tester);
+      await acceptFolder(tester, 'Animals');
+      expect((await repository.getAll()).single.id, pin.id);
+      expect((await repository.getOrganization()).folders.single.searchIds, [
+        pin.id,
+      ]);
+      expect(snapshotCalls, 0);
+    },
+  );
+
+  testWidgets(
+    'a deleted existing pin is not recreated when its draft folder is saved',
+    (tester) async {
+      await initialize();
+      final pin = await repository.create(
+        profileId: config.id,
+        query: query,
+        name: 'Cats',
+      );
+      await pump(tester);
+      await load(tester);
+      await chooseNewFolder(tester, existing: true);
+      await tester.tap(find.text('Save'));
+      await pumpTransitions(tester);
+      await container.read(searchSubscriptionsProvider.notifier).delete(pin.id);
+      await acceptFolder(tester, 'Animals');
+      expect(await repository.getAll(), isEmpty);
+      expect((await repository.getOrganization()).folders, isEmpty);
+      expect(snapshotCalls, 0);
+      expect(
+        find.text('Could not save the pinned search. Try again.'),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
+    'a failed new-folder save restores an existing pin and its original destination',
+    (tester) async {
+      await initialize();
+      final pin = await repository.create(
+        profileId: config.id,
+        query: query,
+        name: 'Cats',
+      );
+      await repository.replaceOrganization(
+        SearchOrganization(
+          folders: [
+            SharedSearchFolder(
+              id: 'old',
+              name: 'Original',
+              searchIds: [pin.id],
+            ),
+          ],
+          homeSearchIds: const [],
+        ),
+      );
+      final before = await repository.getOrganization();
+      await pump(tester);
+      await load(tester);
+      await chooseNewFolder(tester, existing: true);
+      await tester.enterText(find.byType(TextField), 'Renamed cats');
+      organizationBox.failAfterWrite = true;
+      await tester.tap(find.text('Save'));
+      await pumpTransitions(tester);
+      await acceptFolder(tester, 'Animals');
+      expect((await repository.getAll()).single, pin);
+      expect(await repository.getOrganization(), before);
+      expect(snapshotCalls, 0);
+      expect(
+        find.text('Could not save the pinned search. Try again.'),
+        findsOneWidget,
+      );
+    },
+  );
+
   testWidgets(
     'pinning lists shared folders and saves into a folder containing another owner',
     (tester) async {
@@ -405,7 +886,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
       expect(find.text('[Home]'), findsOneWidget);
-      await tester.tap(find.byType(DropdownButton<String>));
+      await tester.tap(find.byType(DropdownButtonFormField<Object>));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
       await tester.tap(find.text('Shared animals').last);
@@ -705,6 +1186,36 @@ void main() {
   );
 }
 
+Future<void> chooseNewFolder(
+  WidgetTester tester, {
+  bool existing = false,
+}) async {
+  await tester.tap(
+    find.byTooltip(existing ? 'Manage Pinned Search' : 'Pin Search'),
+  );
+  await pumpTransitions(tester);
+  expect(find.text('Create folder'), findsNothing);
+  await tester.tap(find.byType(DropdownButtonFormField<Object>));
+  await pumpTransitions(tester);
+  await tester.tap(find.text('[New]').last);
+  await pumpTransitions(tester);
+}
+
+Future<void> acceptFolder(
+  WidgetTester tester,
+  String name,
+) async {
+  await tester.enterText(find.byType(TextField).last, name);
+  await tester.pump();
+  await tester.tap(find.text('Save').last);
+  await pumpTransitions(tester);
+}
+
+Future<void> pumpTransitions(WidgetTester tester) async {
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 500));
+}
+
 class _RepositoryNotifier extends SearchSubscriptionRepositoryNotifier {
   _RepositoryNotifier(this.repository);
   final SearchSubscriptionRepository repository;
@@ -714,9 +1225,25 @@ class _RepositoryNotifier extends SearchSubscriptionRepositoryNotifier {
 
 class _FailingBox extends MemorySubscriptionBox {
   var failWrites = false;
+  Completer<void>? beforeWrite;
   @override
   Future<void> put(dynamic key, SearchSubscriptionHiveObject value) async {
     if (failWrites) throw StateError('disk full');
+    await beforeWrite?.future;
     await super.put(key, value);
+  }
+}
+
+class _FailingOrganizationBox extends MemoryBox<dynamic> {
+  var failWrites = false;
+  var failAfterWrite = false;
+  @override
+  Future<void> put(dynamic key, dynamic value) async {
+    if (failWrites) throw StateError('disk full');
+    await super.put(key, value);
+    if (failAfterWrite) {
+      failAfterWrite = false;
+      throw StateError('disk full after write');
+    }
   }
 }

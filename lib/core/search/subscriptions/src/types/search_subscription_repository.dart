@@ -30,6 +30,13 @@ abstract interface class SearchSubscriptionRepository {
     DateTime? createdAt,
   });
   Future<SearchSubscription> rename(String id, String? name);
+  Future<SearchSubscription> savePinInNewFolder({
+    required int profileId,
+    required String query,
+    required String? name,
+    required String folderName,
+    String? existingPinId,
+  });
   Future<List<SearchSubscription>> reorder(
     int profileId,
     int oldIndex,

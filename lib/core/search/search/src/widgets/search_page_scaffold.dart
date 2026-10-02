@@ -27,6 +27,7 @@ import '../../../subscriptions/providers.dart';
 import '../../../subscriptions/types.dart';
 import '../../../subscriptions/widgets.dart';
 import '../../../subscriptions/src/widgets/pin_search_folder_picker.dart';
+import '../../../subscriptions/src/widgets/search_folder_dialog.dart';
 import '../../../subscriptions/src/widgets/feed_follow_control.dart';
 import '../routes/params.dart';
 import '../types/search_bar_position.dart';
@@ -313,6 +314,9 @@ class _PinSearchActionState extends ConsumerState<_PinSearchAction> {
           )
           .firstOrNull
           ?.id;
+      var isNewFolder = false;
+      SearchSubscription? savedNewPin;
+      final notifier = ref.read(searchSubscriptionsProvider.notifier);
       final name = await showPinSearchDialog(
         context,
         query: query,
@@ -320,11 +324,44 @@ class _PinSearchActionState extends ConsumerState<_PinSearchAction> {
         isPinned: existing != null,
         extra: PinSearchFolderPicker(
           initialFolderId: folderId,
-          onSelected: (value) => folderId = value,
+          onSelected: (id, isNew) {
+            folderId = id;
+            isNewFolder = isNew;
+          },
         ),
+        onSubmit: (dialogContext, name) async {
+          if (!isNewFolder) return true;
+          final folderName = await showSearchFolderNameDialog(dialogContext);
+          if (folderName == null || !mounted) return false;
+          if (existing == null) {
+            _pendingPin = (profileId: profileId, query: query);
+          }
+          try {
+            savedNewPin = await notifier.savePinInNewFolder(
+              profileId: profileId,
+              query: query,
+              name: name,
+              folderName: folderName,
+              existingPinId: existing?.id,
+            );
+            return true;
+          } catch (_) {
+            _pendingPin = null;
+            _saved = false;
+            rethrow;
+          }
+        },
       );
       if (!mounted || name == null) return;
-      final notifier = ref.read(searchSubscriptionsProvider.notifier);
+      if (savedNewPin case final pin?) {
+        if (existing == null) {
+          final refresh = await notifier.refresh(pin.id);
+          if (mounted && refresh is SearchRefreshFailed) {
+            _feedback(context.t.pinned_searches.snapshot_failed);
+          }
+        }
+        return;
+      }
       switch (existing) {
         case final pin?:
           await notifier.rename(pin.id, name);

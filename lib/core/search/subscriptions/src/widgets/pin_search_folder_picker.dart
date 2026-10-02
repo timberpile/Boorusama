@@ -2,7 +2,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
 import '../providers/search_subscriptions_notifier.dart';
-import 'search_folder_dialog.dart';
 
 class PinSearchFolderPicker extends ConsumerStatefulWidget {
   const PinSearchFolderPicker({
@@ -11,14 +10,16 @@ class PinSearchFolderPicker extends ConsumerStatefulWidget {
     super.key,
   });
   final String? initialFolderId;
-  final ValueChanged<String?> onSelected;
+  final void Function(String? folderId, bool isNewFolder) onSelected;
   @override
   ConsumerState<PinSearchFolderPicker> createState() =>
       _PinSearchFolderPickerState();
 }
 
 class _PinSearchFolderPickerState extends ConsumerState<PinSearchFolderPicker> {
+  static final _newFolderValue = Object();
   late String? _selected = widget.initialFolderId;
+  var _isNewFolder = false;
   @override
   Widget build(BuildContext context) {
     final folders =
@@ -28,49 +29,41 @@ class _PinSearchFolderPickerState extends ConsumerState<PinSearchFolderPicker> {
             ?.organization
             .folders ??
         [];
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        DropdownButton<String>(
-          isExpanded: true,
-          value: folders.any((f) => f.id == _selected) ? _selected : '',
-          items: [
-            DropdownMenuItem(
-              value: '',
-              child: Text(context.t.pinned_searches.home),
-            ),
-            for (final f in folders)
-              DropdownMenuItem(value: f.id, child: Text(f.name)),
-          ],
-          onChanged: (value) {
-            setState(() => _selected = value == '' ? null : value);
-            widget.onSelected(_selected);
-          },
+    return DropdownButtonFormField<Object>(
+      isExpanded: true,
+      decoration: InputDecoration(labelText: context.t.pinned_searches.folder),
+      initialValue: _isNewFolder
+          ? _newFolderValue
+          : folders.any((f) => f.id == _selected)
+          ? _selected
+          : '',
+      items: [
+        DropdownMenuItem(
+          value: '',
+          child: Text(context.t.pinned_searches.home),
         ),
-        TextButton(
-          onPressed: () async {
-            final name = await showSearchFolderNameDialog(context);
-            if (name == null || !mounted) return;
-            try {
-              final folder = await ref
-                  .read(searchSubscriptionsProvider.notifier)
-                  .createSharedFolder(name);
-              if (!mounted) return;
-              setState(() => _selected = folder.id);
-              widget.onSelected(folder.id);
-            } catch (_) {
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(context.t.pinned_searches.operation_failed),
-                  ),
-                );
-              }
-            }
-          },
-          child: Text(context.t.pinned_searches.create_folder),
+        DropdownMenuItem(
+          value: _newFolderValue,
+          child: Text(context.t.pinned_searches.new_folder),
         ),
+        for (final f in folders)
+          DropdownMenuItem(value: f.id, child: Text(f.name)),
       ],
+      selectedItemBuilder: (_) => [
+        Text(context.t.pinned_searches.home),
+        Text(context.t.pinned_searches.new_folder),
+        for (final f in folders) Text(f.name),
+      ],
+      onChanged: (value) {
+        setState(() {
+          _selected = switch (value) {
+            final String id when id.isNotEmpty => id,
+            _ => null,
+          };
+          _isNewFolder = value == _newFolderValue;
+        });
+        widget.onSelected(_selected, _isNewFolder);
+      },
     );
   }
 }
