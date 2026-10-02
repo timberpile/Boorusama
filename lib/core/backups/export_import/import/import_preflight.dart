@@ -80,20 +80,29 @@ final class ImportPreflightResult extends Equatable {
     required Iterable<ImportPlanIssue> warnings,
     required Iterable<ImportPlanIssue> errors,
     required this.summary,
+    Map<String, PlannedChangeSummary> sourceSummaries = const {},
     this.validatedPlan,
   }) : warnings = List.unmodifiable(warnings),
-       errors = List.unmodifiable(errors);
+       errors = List.unmodifiable(errors),
+       sourceSummaries = Map.unmodifiable(sourceSummaries);
 
   final List<ImportPlanIssue> warnings;
   final List<ImportPlanIssue> errors;
   final PlannedChangeSummary summary;
+  final Map<String, PlannedChangeSummary> sourceSummaries;
   final ValidatedImportPlan? validatedPlan;
 
   bool get isValid => errors.isEmpty && validatedPlan != null;
   bool get requiresWarningAcknowledgement => warnings.isNotEmpty;
 
   @override
-  List<Object?> get props => [warnings, errors, summary, validatedPlan];
+  List<Object?> get props => [
+    warnings,
+    errors,
+    summary,
+    sourceSummaries,
+    validatedPlan,
+  ];
 }
 
 final class ImportPreflight {
@@ -110,6 +119,7 @@ final class ImportPreflight {
     final warnings = [...proposed.warnings];
     final errors = [...proposed.errors];
     var summary = const PlannedChangeSummary();
+    final sourceSummaries = <String, PlannedChangeSummary>{};
     final revisions = <String, String>{};
     var rollbackBytes = 0;
 
@@ -170,6 +180,7 @@ final class ImportPreflight {
       warnings.addAll(source.warnings);
       errors.addAll(source.errors);
       summary += source.summary;
+      sourceSummaries[source.sourceId] = source.summary;
       rollbackBytes += source.rollbackBytes;
       if (revisions[source.sourceId] != null) {
         errors.add(
@@ -211,6 +222,7 @@ final class ImportPreflight {
       warnings: warnings,
       errors: errors,
       summary: summary,
+      sourceSummaries: sourceSummaries,
       validatedPlan: errors.isEmpty
           ? ValidatedImportPlan(
               plan: resolved,

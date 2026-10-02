@@ -48,8 +48,28 @@ void main() {
 
     expect(
       summary,
-      const PlannedChangeSummary(created: 1, updated: 3, preserved: 1),
+      const PlannedChangeSummary(
+        created: 1,
+        updated: 3,
+        preserved: 1,
+      ),
     );
+  });
+
+  test('identical imported items remain visible as no-op changes', () {
+    final summary = const ImportChangeSummarizer().summarize(
+      source: ResolvedImportSource(
+        id: 'pinned_searches',
+        action: ImportAction.configureItems,
+        items: const [],
+      ),
+      facts: const ImportSourceChangeFacts(
+        sourceId: 'pinned_searches',
+        identicalIds: {'search:one', 'search:two'},
+      ),
+    );
+
+    expect(summary, const PlannedChangeSummary(unchanged: 2));
   });
 
   test('skipping a source preserves every existing item', () {

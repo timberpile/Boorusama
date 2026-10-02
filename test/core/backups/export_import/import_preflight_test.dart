@@ -28,6 +28,12 @@ void main() {
     expect(result.errors, isEmpty);
     expect(result.warnings, isEmpty);
     expect(result.summary, const PlannedChangeSummary(created: 2, updated: 1));
+    expect(
+      result.sourceSummaries,
+      const {
+        'bookmarks': PlannedChangeSummary(created: 2, updated: 1),
+      },
+    );
   });
 
   test('warnings must be acknowledged before a plan is valid', () {

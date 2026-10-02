@@ -9,6 +9,8 @@ import '../models/import_action.dart';
 import '../widgets/import_action_editor.dart';
 import 'import_flow_notifier.dart';
 import 'import_issue_message.dart';
+import 'import_plan.dart';
+import 'import_preflight.dart';
 import 'profile_dependency_planner.dart';
 
 class ImportFlowPage extends ConsumerStatefulWidget {
@@ -192,6 +194,33 @@ class _ReviewImport extends ConsumerWidget {
               ),
             ),
           ),
+        if (preflight.sourceSummaries.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Text(
+            strings.planned_changes,
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          for (final source in resolved.sources)
+            if (preflight.sourceSummaries[source.id] case final summary?)
+              if (_hasReviewedEffect(source, summary))
+                ListTile(
+                  leading: const Icon(Icons.fact_check_outlined),
+                  title: Text(sourceNames[source.id] ?? source.id),
+                  subtitle: Text(
+                    _plannedChangeDescription(
+                      source,
+                      summary,
+                      containsCredentials: state.containsCredentials,
+                      summaryTemplate: strings.planned_change_summary,
+                      credentialsReplaced: strings.profile_credentials_replaced,
+                      credentialsPreserved:
+                          strings.profile_credentials_preserved,
+                      bookmarkOrphanPolicy: strings.bookmark_orphan_policy,
+                      ungroupedRemovalPolicy: strings.ungrouped_removal_policy,
+                    ),
+                  ),
+                ),
+        ],
         const SizedBox(height: 16),
         if (preflight.warnings.isEmpty && preflight.errors.isEmpty)
           ListTile(
@@ -255,6 +284,56 @@ class _ReviewImport extends ConsumerWidget {
       ],
     );
   }
+}
+
+bool _hasReviewedEffect(
+  ResolvedImportSource source,
+  PlannedChangeSummary summary,
+) =>
+    source.action != ImportAction.skip ||
+    summary.created > 0 ||
+    summary.updated > 0 ||
+    summary.deleted > 0 ||
+    summary.unchanged > 0;
+
+String _plannedChangeDescription(
+  ResolvedImportSource source,
+  PlannedChangeSummary summary, {
+  required bool containsCredentials,
+  required String summaryTemplate,
+  required String credentialsReplaced,
+  required String credentialsPreserved,
+  required String bookmarkOrphanPolicy,
+  required String ungroupedRemovalPolicy,
+}) {
+  final base = summaryTemplate
+      .replaceAll('{created}', '${summary.created}')
+      .replaceAll('{updated}', '${summary.updated}')
+      .replaceAll('{deleted}', '${summary.deleted}')
+      .replaceAll('{preserved}', '${summary.preserved}')
+      .replaceAll('{unchanged}', '${summary.unchanged}');
+  final details = <String>[base];
+  if (source.id == 'profiles' && (summary.created > 0 || summary.updated > 0)) {
+    if (containsCredentials) {
+      details.add(credentialsReplaced);
+    } else if (summary.updated > 0) {
+      details.add(credentialsPreserved);
+    }
+  }
+  if (source.id == 'bookmarks' &&
+      source.items.any(
+        (item) =>
+            item.id.startsWith('group:') && item.action == ImportAction.update,
+      )) {
+    details.add(bookmarkOrphanPolicy);
+  }
+  if (source.id == 'bookmarks' &&
+      source.items.any(
+        (item) => item.id == 'ungrouped' && item.action == ImportAction.update,
+      )) {
+    details.add(ungroupedRemovalPolicy);
+  }
+  return details.join('\n');
 }
 
 class _ProfileMappingTile extends StatelessWidget {

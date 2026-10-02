@@ -59,7 +59,7 @@ final class ImportChangeSummarizer {
     var created = additionalCreated;
     var updated = 0;
     var preserved = 0;
-    var unchanged = 0;
+    var unchanged = facts.identicalIds.length;
     for (final item in source.items) {
       switch (item.action) {
         case ImportAction.copy:
