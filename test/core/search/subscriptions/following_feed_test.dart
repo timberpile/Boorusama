@@ -19,6 +19,7 @@ import 'package:boorusama/core/router.dart';
 import 'package:boorusama/core/search/subscriptions/providers.dart';
 import 'package:boorusama/core/search/subscriptions/types.dart';
 import 'package:boorusama/core/search/subscriptions/src/pages/following_feeds_page.dart';
+import 'package:boorusama/core/search/subscriptions/src/pages/following_feed_management_page.dart';
 import 'package:boorusama/core/search/subscriptions/src/pages/pinned_searches_page.dart';
 import 'package:boorusama/core/search/subscriptions/src/widgets/feed_post_thumbnail.dart';
 import 'package:boorusama/core/settings/src/types/settings.dart';
@@ -499,7 +500,7 @@ void main() {
   ) async {
     await tester.runAsync(() async {
       final feed = await harness.repository.saveFeed(
-        profileId: 12,
+        profileId: 99,
         name: 'Animals',
         queries: ['cat'],
       );
@@ -524,6 +525,10 @@ void main() {
       await harness.container.read(searchSubscriptionsProvider.future);
     });
     await harness.pump(tester, const FollowingFeedsPage());
+    expect(
+      find.ancestor(of: find.text('Animals'), matching: find.byType(Card)),
+      findsOneWidget,
+    );
     final images = tester.widgetList<BooruImage>(find.byType(BooruImage));
     expect(images.map((image) => image.imageUrl), [
       'https://example.com/5-thumb.jpg',
@@ -531,7 +536,184 @@ void main() {
       'https://example.com/3-thumb.jpg',
       'https://example.com/2-thumb.jpg',
     ]);
-    expect(images.every((image) => image.config == testProfile.auth), isTrue);
+    expect(
+      images.every((image) => image.config == otherTestProfile.auth),
+      isTrue,
+    );
+    expect(
+      harness.container.read(currentReadOnlyBooruConfigProvider).id,
+      12,
+    );
+    expect(harness.requests, isEmpty);
+  });
+
+  testWidgets('new feed cards announce new posts and clear NEW when opened', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    late SearchFollowingFeed feed;
+    await tester.runAsync(() async {
+      feed = await harness.repository.saveFeed(
+        profileId: 12,
+        name: 'Animals',
+        queries: ['cat'],
+      );
+      final source = (await harness.repository.getById(feed.sourceIds.single))!;
+      await harness.seed([
+        pinnedFixture(id: source.id, query: 'cat', name: null, unreadCount: 1),
+      ]);
+      await harness.container.read(searchSubscriptionsProvider.future);
+    });
+    await harness.pump(tester, const FollowingFeedsPage());
+
+    expect(find.text('NEW'), findsOneWidget);
+    expect(
+      find.bySemanticsLabel(RegExp('New posts available')),
+      findsOneWidget,
+    );
+    semantics.dispose();
+    await tester.tap(find.text('Animals'));
+    await tester.pumpAndSettle();
+    await drain(tester);
+
+    expect(find.byType(FollowingFeedPage), findsOneWidget);
+    expect(
+      (await harness.repository.getById(feed.sourceIds.single))!.hasNewPosts,
+      isFalse,
+    );
+    expect(harness.requests, isEmpty);
+    await tester.tap(find.byTooltip('Back'));
+    await tester.pumpAndSettle();
+    expect(find.text('NEW'), findsNothing);
+  });
+
+  for (final checked in [false, true]) {
+    testWidgets(
+      '${checked ? 'checked empty' : 'never checked'} feed cards omit previews without fetching posts',
+      (tester) async {
+        await tester.runAsync(() async {
+          final feed = await harness.repository.saveFeed(
+            profileId: 99,
+            name: 'Birds',
+            queries: ['bird'],
+          );
+          if (checked) {
+            final source = (await harness.repository.getById(
+              feed.sourceIds.single,
+            ))!;
+            await harness.repository.commitRefresh(
+              SearchRefreshCommit(
+                subscriptionId: source.id,
+                expectedCreatedAt: source.createdAt,
+                expectedCheckpoint: null,
+                startedAt: checkedAt,
+                identityRetentionBoundary: checkedAt,
+                baseline: true,
+                discoveredPosts: const [],
+              ),
+            );
+          }
+          await harness.container.read(searchSubscriptionsProvider.future);
+        });
+        await harness.pump(tester, const FollowingFeedsPage());
+
+        expect(
+          find.ancestor(of: find.text('Birds'), matching: find.byType(Card)),
+          findsOneWidget,
+        );
+        expect(find.text('https://other.example'), findsOneWidget);
+        expect(find.byType(BooruImage), findsNothing);
+        expect(find.text('NEW'), findsNothing);
+        expect(harness.requests, isEmpty);
+      },
+    );
+  }
+
+  testWidgets('feed card overflow preserves editing and confirmed deletion', (
+    tester,
+  ) async {
+    await tester.runAsync(() async {
+      await harness.repository.saveFeed(
+        profileId: 12,
+        name: 'Animals',
+        queries: ['cat'],
+      );
+      await harness.container.read(searchSubscriptionsProvider.future);
+    });
+    await harness.pump(tester, const FollowingFeedsPage());
+    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Edit feed'));
+    await tester.pumpAndSettle();
+    expect(find.byType(FollowingFeedManagementPage), findsOneWidget);
+    expect(find.text('cat'), findsOneWidget);
+    await tester.tap(find.byTooltip('Back'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(find.text('Animals'), findsOneWidget);
+    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'Delete'));
+    await drain(tester);
+    await tester.pumpAndSettle();
+    expect(find.text('Animals'), findsNothing);
+    expect(await harness.repository.getFeeds(), isEmpty);
+    expect(harness.requests, isEmpty);
+  });
+
+  testWidgets('feed cards fit narrow screens with enlarged text', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(280, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.runAsync(() async {
+      final feed = await harness.repository.saveFeed(
+        profileId: 12,
+        name: 'A feed with a very long descriptive title',
+        queries: ['cat'],
+      );
+      final source = (await harness.repository.getById(feed.sourceIds.single))!;
+      await harness.repository.commitRefresh(
+        SearchRefreshCommit(
+          subscriptionId: source.id,
+          expectedCreatedAt: source.createdAt,
+          expectedCheckpoint: null,
+          startedAt: checkedAt,
+          identityRetentionBoundary: checkedAt,
+          baseline: true,
+          discoveredPosts: const [],
+          feedPosts: [
+            for (var i = 0; i < 4; i++)
+              feedPostSnapshotFromPost(TestSearchPost(i, checkedAt)),
+          ],
+        ),
+      );
+      await harness.seed([
+        pinnedFixture(id: source.id, query: 'cat', name: null, unreadCount: 1),
+      ]);
+      await harness.container.read(searchSubscriptionsProvider.future);
+    });
+    await harness.pump(
+      tester,
+      const MediaQuery(
+        data: MediaQueryData(textScaler: TextScaler.linear(2)),
+        child: FollowingFeedsPage(),
+      ),
+    );
+    expect(find.byType(Card), findsOneWidget);
+    expect(find.text('NEW'), findsOneWidget);
+    expect(find.byType(BooruImage), findsNWidgets(4));
+    expect(find.byType(PopupMenuButton<String>), findsOneWidget);
+    expect(tester.takeException(), isNull);
     expect(harness.requests, isEmpty);
   });
 

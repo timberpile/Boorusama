@@ -11,6 +11,7 @@ import 'dart:typed_data';
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/configs/manage/providers.dart';
 import 'package:boorusama/core/developer_options/providers.dart';
+import 'package:boorusama/core/errors/types.dart';
 import 'package:boorusama/core/downloads/downloader/providers.dart';
 import 'package:boorusama/core/downloads/downloader/types.dart';
 import 'package:boorusama/core/http/client/providers.dart';
@@ -70,6 +71,9 @@ class TestAutomaticSearchRefreshNetworkAllowed extends Notifier<bool> {
   void setAllowed(bool allowed) => state = allowed;
 }
 
+final testRefreshNetworkAllowedProvider =
+    testAutomaticSearchRefreshNetworkAllowedProvider;
+
 final testProfile = BooruConfig.fromJson({
   ...BooruConfig.empty.toJson(),
   'id': 12,
@@ -124,17 +128,26 @@ class PinnedSearchHarness {
     this.repositoryReady,
     this.loadImages = false,
     this.supported = true,
+    Settings? settings,
     ImageListingSettings? listingSettings,
     Clock clock = const Clock(),
     SearchRefreshScheduler? scheduler,
     bool networkAllowed = false,
+    Future<Either<BooruError, PostResult<Post>>> Function(
+      BooruConfig config,
+      String query,
+      int page,
+      int? limit,
+    )?
+    fetchPosts,
     List<BooruConfig>? profiles,
     BooruPostCapability<BooruPostData>? postCapability,
     BooruBuilder? Function(BooruConfigAuth config)? booruBuilder,
   }) {
+    final initialSettings = settings ?? Settings.defaultSettings;
     repository = HiveSearchSubscriptionRepository(
       box: box,
-      organizationBox: MemoryBox<dynamic>(),
+      organizationBox: organizationBox,
     );
     container = ProviderContainer(
       overrides: [
@@ -142,7 +155,7 @@ class PinnedSearchHarness {
           ConsoleLogger(options: const ConsoleLoggerOptions.defaults()),
         ),
         settingsNotifierProvider.overrideWith(
-          () => SettingsNotifier(Settings.defaultSettings),
+          () => SettingsNotifier(initialSettings),
         ),
         settingsRepoProvider.overrideWithValue(
           SettingsRepositoryHive(Future.value(MemoryBox<dynamic>())),
@@ -201,6 +214,9 @@ class PinnedSearchHarness {
                     query: query,
                   ));
                   await refreshGate?.future;
+                  if (fetchPosts != null) {
+                    return fetchPosts(config, query, page, limit);
+                  }
                   return Either.of(const PostResult(posts: <Post>[], total: 0));
                 },
               ),
@@ -240,12 +256,16 @@ class PinnedSearchHarness {
         routerProvider.overrideWith((_) => router),
       ],
     );
+    container
+        .read(testRefreshNetworkAllowedProvider.notifier)
+        .setAllowed(networkAllowed);
   }
 
   final Completer<void>? repositoryReady;
   final bool loadImages;
   final bool supported;
   final box = ControlledSubscriptionBox();
+  final organizationBox = MemoryBox<dynamic>();
   late final SearchSubscriptionRepository repository;
   late final ProviderContainer container;
   late GoRouter router;

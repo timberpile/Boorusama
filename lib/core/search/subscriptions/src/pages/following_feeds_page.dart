@@ -20,17 +20,41 @@ import '../../../../posts/post/providers.dart';
 import '../refresh/search_refresh_query_adapter.dart';
 import '../services/feed_history_session.dart';
 import '../providers/search_subscriptions_notifier.dart';
+import '../providers/search_refresh_coordinator.dart';
 import '../types/search_following_feed.dart';
 import '../types/search_subscription.dart';
 import '../types/search_refresh.dart';
 import '../widgets/feed_post_thumbnail.dart';
+import '../widgets/feed_last_checked.dart';
 import 'following_feed_management_page.dart';
 
-class FollowingFeedsPage extends ConsumerWidget {
+class FollowingFeedsPage extends ConsumerStatefulWidget {
   const FollowingFeedsPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<FollowingFeedsPage> createState() => _FollowingFeedsPageState();
+}
+
+class _FollowingFeedsPageState extends ConsumerState<FollowingFeedsPage> {
+  late final SearchRefreshCoordinator _coordinator;
+
+  @override
+  void initState() {
+    super.initState();
+    _coordinator = ref.read(searchRefreshCoordinatorProvider.notifier);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _coordinator.setFeedsOverviewActive(true);
+    });
+  }
+
+  @override
+  void dispose() {
+    _coordinator.setFeedsOverviewActive(false);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final profiles = ref.watch(booruConfigProvider);
     final byProfileId = {for (final profile in profiles) profile.id: profile};
     final strings = context.t.pinned_searches;
@@ -78,125 +102,159 @@ class FollowingFeedsPage extends ConsumerWidget {
                               search.lastErrorKind ==
                                   SearchRefreshErrorKind.rateLimited,
                         );
-                        return ListTile(
-                          title: Text(feed.name),
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              if (feed.posts.isNotEmpty)
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 8,
+                        final overflow = PopupMenuButton<String>(
+                          icon: const Icon(Symbols.more_vert),
+                          onSelected: (action) async {
+                            if (action == 'edit') {
+                              await Navigator.of(context).push(
+                                MaterialPageRoute<void>(
+                                  builder: (_) => FollowingFeedManagementPage(
+                                    feedId: feed.id,
                                   ),
-                                  child: Row(
-                                    children: [
-                                      for (final post in feed.posts.take(4))
-                                        Expanded(
-                                          child: Padding(
-                                            padding: const EdgeInsets.all(2),
-                                            child: AspectRatio(
-                                              aspectRatio: 1,
-                                              child: FeedPostThumbnail(
-                                                post: _decodeFeedPost(
-                                                  ref,
-                                                  post,
-                                                ),
-                                                config: config.auth,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      for (
-                                        var i = feed.posts.length;
-                                        i < 4;
-                                        i++
-                                      )
-                                        const Spacer(),
-                                    ],
-                                  ),
-                                ),
-                              Text(caption),
-                              if (rateLimited)
-                                Text(
-                                  strings.error_rate_limited,
-                                  style: TextStyle(
-                                    color: Theme.of(context).colorScheme.error,
-                                  ),
-                                ),
-                            ],
-                          ),
-                          leading: Badge(
-                            isLabelVisible: hasNew,
-                            child: const Icon(Symbols.rss_feed),
-                          ),
-                          onTap: () => _feedAction(context, () async {
-                            await Navigator.of(context).push(
-                              MaterialPageRoute<void>(
-                                builder: (_) => FollowingFeedPage(
-                                  feedId: feed.id,
-                                  profileId: feed.profileId,
-                                ),
-                              ),
-                            );
-                          }),
-                          trailing: PopupMenuButton<String>(
-                            onSelected: (action) async {
-                              if (action == 'edit') {
-                                await Navigator.of(context).push(
-                                  MaterialPageRoute<void>(
-                                    builder: (_) => FollowingFeedManagementPage(
-                                      feedId: feed.id,
-                                    ),
-                                  ),
-                                );
-                                return;
-                              }
-                              final accepted = await showDialog<bool>(
-                                context: context,
-                                builder: (context) => AlertDialog(
-                                  title: Text(strings.delete_feed),
-                                  content: Text(
-                                    strings.delete_feed_confirmation,
-                                  ),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () =>
-                                          Navigator.pop(context, false),
-                                      child: Text(
-                                        context.t.generic.action.cancel,
-                                      ),
-                                    ),
-                                    TextButton(
-                                      onPressed: () =>
-                                          Navigator.pop(context, true),
-                                      child: Text(
-                                        context.t.generic.action.delete,
-                                      ),
-                                    ),
-                                  ],
                                 ),
                               );
-                              if ((accepted ?? false) && context.mounted) {
-                                await _feedAction(
-                                  context,
-                                  () => ref
-                                      .read(
-                                        searchSubscriptionsProvider.notifier,
-                                      )
-                                      .deleteFeed(feed.id),
-                                );
-                              }
-                            },
-                            itemBuilder: (context) => [
-                              PopupMenuItem(
-                                value: 'edit',
-                                child: Text(strings.edit_feed),
+                              return;
+                            }
+                            final accepted = await showDialog<bool>(
+                              context: context,
+                              builder: (context) => AlertDialog(
+                                title: Text(strings.delete_feed),
+                                content: Text(
+                                  strings.delete_feed_confirmation,
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.pop(context, false),
+                                    child: Text(
+                                      context.t.generic.action.cancel,
+                                    ),
+                                  ),
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.pop(context, true),
+                                    child: Text(
+                                      context.t.generic.action.delete,
+                                    ),
+                                  ),
+                                ],
                               ),
-                              PopupMenuItem(
-                                value: 'delete',
-                                child: Text(context.t.generic.action.delete),
+                            );
+                            if ((accepted ?? false) && context.mounted) {
+                              await _feedAction(
+                                context,
+                                () => ref
+                                    .read(
+                                      searchSubscriptionsProvider.notifier,
+                                    )
+                                    .deleteFeed(feed.id),
+                              );
+                            }
+                          },
+                          itemBuilder: (context) => [
+                            PopupMenuItem(
+                              value: 'edit',
+                              child: Text(strings.edit_feed),
+                            ),
+                            PopupMenuItem(
+                              value: 'delete',
+                              child: Text(context.t.generic.action.delete),
+                            ),
+                          ],
+                        );
+                        return Card(
+                          clipBehavior: Clip.antiAlias,
+                          child: InkWell(
+                            onTap: () => _feedAction(context, () async {
+                              await Navigator.of(context).push(
+                                MaterialPageRoute<void>(
+                                  builder: (_) => FollowingFeedPage(
+                                    feedId: feed.id,
+                                    profileId: feed.profileId,
+                                  ),
+                                ),
+                              );
+                            }),
+                            child: Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          feed.name,
+                                          style: Theme.of(
+                                            context,
+                                          ).textTheme.titleMedium,
+                                        ),
+                                      ),
+                                      if (hasNew)
+                                        Semantics(
+                                          label: strings.new_posts,
+                                          excludeSemantics: true,
+                                          child: Badge(
+                                            label: Text(strings.new_badge),
+                                          ),
+                                        ),
+                                      overflow,
+                                    ],
+                                  ),
+                                  if (feed.posts.isNotEmpty)
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 8,
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          for (final post in feed.posts.take(4))
+                                            Expanded(
+                                              child: Padding(
+                                                padding: const EdgeInsets.all(
+                                                  2,
+                                                ),
+                                                child: AspectRatio(
+                                                  aspectRatio: 1,
+                                                  child: FeedPostThumbnail(
+                                                    post: _decodeFeedPost(
+                                                      ref,
+                                                      post,
+                                                    ),
+                                                    config: config.auth,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          for (
+                                            var i = feed.posts.length;
+                                            i < 4;
+                                            i++
+                                          )
+                                            const Spacer(),
+                                        ],
+                                      ),
+                                    ),
+                                  Text(
+                                    caption,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodySmall,
+                                  ),
+                                  if (rateLimited)
+                                    Text(
+                                      strings.error_rate_limited,
+                                      style: TextStyle(
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.error,
+                                      ),
+                                    ),
+                                ],
                               ),
-                            ],
+                            ),
                           ),
                         );
                       },
@@ -314,13 +372,7 @@ class _FollowingFeedPageState extends ConsumerState<FollowingFeedPage> {
                       color: Theme.of(context).colorScheme.error,
                     ),
                   ),
-                if (lastChecked.isNotEmpty)
-                  Text(
-                    strings.last_checked.replaceAll(
-                      '{date}',
-                      lastChecked.first.toLocal().toString(),
-                    ),
-                  ),
+                FeedLastChecked(checkedAt: lastChecked.firstOrNull),
                 Expanded(
                   child: feed.posts.isEmpty
                       ? Center(child: Text(strings.feed_posts_empty))

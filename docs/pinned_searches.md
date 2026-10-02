@@ -296,6 +296,24 @@ new member checks that source directly and does not create NEW before that
 search discovers new posts. Pinned Searches' Refresh All checks independent
 pins only.
 
+Opening the Following Feeds overview initializes member searches that have
+neither a persisted successful check nor a persisted attempt. A shared member
+is checked once, independently of whether scheduled refresh is enabled.
+Initialization repeats the scheduler's bounded batches with its normal spacing
+until every eligible member has been attempted. It shares the request gate and
+foreground Wi-Fi/Ethernet policy; pausing or losing allowed connectivity stops
+new requests and resuming/recovery continues untouched members while the
+overview remains mounted. Failed and successfully empty searches are not
+initialized again on reopen. The opened feed's oldest successful source check
+uses the registered locale-aware relative-time formatter also used by pinned
+search cards, including singular units and older dates. Feeds without successful
+checks show Never checked.
+Session suppression starts only when the shared request gate permits the check
+to begin. A queued request discarded while foreground/network policy is paused
+remains eligible after recovery, even during the inter-batch spacing delay.
+Once a check starts, session suppression also prevents a failed persistence
+operation from creating a repeated request loop.
+
 Changing a profile's engine or normalized site URL retains its feed definitions
 and search queries but clears post caches, previews, NEW/error state, and refresh
 checkpoints and highest observed IDs. The persisted runtime revision rejects
