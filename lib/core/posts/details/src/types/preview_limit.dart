@@ -57,6 +57,39 @@ class UnlimitedPreview extends PreviewLimit {
   const UnlimitedPreview();
 }
 
+class BatchedPreview extends PreviewLimit {
+  const BatchedPreview(this.batchSize);
+
+  final int batchSize;
+
+  int calculateItemCount(int totalCount, {int expandCount = 0}) {
+    final limit = batchSize * (expandCount + 1);
+
+    return totalCount < limit ? totalCount : limit;
+  }
+
+  int? calculateProgressiveLimit({
+    required int totalCount,
+    required int expandCount,
+  }) {
+    final displayCount = calculateItemCount(
+      totalCount,
+      expandCount: expandCount,
+    );
+
+    return displayCount < totalCount ? displayCount : null;
+  }
+}
+
+class FixedCountPreview extends PreviewLimit {
+  const FixedCountPreview(this.maxItems);
+
+  final int maxItems;
+
+  int calculateItemCount(int totalCount) =>
+      totalCount < maxItems ? totalCount : maxItems;
+}
+
 class PreviewGridState {
   const PreviewGridState({
     required this.displayCount,
