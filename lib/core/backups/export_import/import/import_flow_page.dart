@@ -136,7 +136,8 @@ class _ReviewImport extends ConsumerWidget {
             targetLabel: (id) => labels[id] ?? id,
           ),
         for (final mapping in state.profileMappings)
-          if (!mapping.providedByImport && mapping.candidateIds.length > 1)
+          if (!mapping.providedByImport &&
+              (!mapping.isResolved || mapping.createdFromReference))
             _ProfileMappingTile(
               mapping: mapping,
               profileNames: profileNames,
@@ -145,6 +146,11 @@ class _ReviewImport extends ConsumerWidget {
                   .chooseProfileMapping(
                     ProfileReferenceKey.fromReference(mapping.reference),
                     profileId,
+                  ),
+              onCreate: () => ref
+                  .read(importFlowProvider.notifier)
+                  .createProfileFor(
+                    ProfileReferenceKey.fromReference(mapping.reference),
                   ),
             ),
         if (state.alreadyPresentSearches > 0)
@@ -213,11 +219,13 @@ class _ProfileMappingTile extends StatelessWidget {
     required this.mapping,
     required this.profileNames,
     required this.onChanged,
+    required this.onCreate,
   });
 
   final ProfileDependencyMapping mapping;
   final Map<int, String> profileNames;
   final ValueChanged<int> onChanged;
+  final VoidCallback onCreate;
 
   @override
   Widget build(BuildContext context) => Card(
@@ -226,20 +234,46 @@ class _ProfileMappingTile extends StatelessWidget {
       subtitle: Text(
         '${mapping.reference.booruType} · ${mapping.reference.url}',
       ),
-      trailing: DropdownButton<int>(
-        value: mapping.candidateIds.contains(mapping.profileId)
-            ? mapping.profileId
-            : null,
-        hint: Text(
-          context.t.settings.backup_and_restore.export_import.target,
-        ),
-        items: [
-          for (final id in mapping.candidateIds)
-            DropdownMenuItem(value: id, child: Text(profileNames[id] ?? '$id')),
+      trailing: Wrap(
+        spacing: 8,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          if (mapping.candidateIds.isNotEmpty && !mapping.createdFromReference)
+            DropdownButton<int>(
+              value: mapping.candidateIds.contains(mapping.profileId)
+                  ? mapping.profileId
+                  : null,
+              hint: Text(
+                context.t.settings.backup_and_restore.export_import.target,
+              ),
+              items: [
+                for (final id in mapping.candidateIds)
+                  DropdownMenuItem(
+                    value: id,
+                    child: Text(profileNames[id] ?? '$id'),
+                  ),
+              ],
+              onChanged: (value) {
+                if (value != null) onChanged(value);
+              },
+            ),
+          if (mapping.createdFromReference)
+            Text(
+              context.t.settings.backup_and_restore.export_import.new_profile,
+            )
+          else
+            TextButton(
+              onPressed: onCreate,
+              child: Text(
+                context
+                    .t
+                    .settings
+                    .backup_and_restore
+                    .export_import
+                    .create_profile,
+              ),
+            ),
         ],
-        onChanged: (value) {
-          if (value != null) onChanged(value);
-        },
       ),
     ),
   );

@@ -71,6 +71,25 @@ void main() {
     expect(result.errors.single.code, 'unresolved_profile_dependency');
     expect(result.profileIdFor(remote), isNull);
   });
+
+  test('a missing dependency can create an unauthenticated local profile', () {
+    final key = ProfileReferenceKey.fromReference(remote);
+    final result = const ProfileDependencyPlanner().plan(
+      references: [remote],
+      localProfiles: [_profile(40, 'https://other.example')],
+      createFromReferences: {key},
+    );
+
+    expect(result.errors, isEmpty);
+    expect(result.mappings.single.createdFromReference, isTrue);
+    expect(result.profileIdFor(remote), 41);
+    expect(result.createdProfiles.single.id, 41);
+    expect(result.createdProfiles.single.name, 'Remote');
+    expect(result.createdProfiles.single.url, 'https://remote.example');
+    expect(result.createdProfiles.single.apiKey, isNull);
+    expect(result.createdProfiles.single.login, isNull);
+    expect(result.createdProfiles.single.passHash, isNull);
+  });
 }
 
 ResolvedImportSource _profileResolution(int id, ImportAction action) =>

@@ -849,6 +849,8 @@
         "choose_action": "Choose how to import",
         "recommended": "Recommended",
         "target": "Target",
+        "create_profile": "Create profile",
+        "new_profile": "New profile",
         "cancel": "Cancel",
         "import_defaults": "Suggested import behavior",
         "import_defaults_description": "The recipient can review and change these suggestions before importing.",

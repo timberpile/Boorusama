@@ -112,6 +112,7 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
   var _stagingBytes = 0;
   List<SourcePreflightSnapshot> _preflightSnapshots = const [];
   final Map<ProfileReferenceKey, int> _profileChoices = {};
+  final Set<ProfileReferenceKey> _createdProfileChoices = {};
 
   @override
   ImportFlowState build() {
@@ -134,6 +135,7 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
             total + source.parts.fold(0, (sum, part) => sum + part.byteLength),
       );
       _profileChoices.clear();
+      _createdProfileChoices.clear();
       final disk = await DiskSpaceInfo.fromTempDir(
         ref.read(appFileSystemProvider),
       );
@@ -244,6 +246,28 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
           ),
         );
       }
+      if (wrappers['profiles'] == null) {
+        final source = registry.getSource('profiles');
+        if (source == null) {
+          throw StateError('Profile import source is unavailable');
+        }
+        final wrapper = PackageTransactionSource(
+          source: source,
+          incomingPath: null,
+          fs: ref.read(appFileSystemProvider),
+          ref: ref,
+          credentialsIncluded: false,
+        );
+        await wrapper.measureRollback();
+        wrappers[source.id] = wrapper;
+        preflightSnapshots.add(
+          SourcePreflightSnapshot(
+            sourceId: source.id,
+            revisionToken: await wrapper.revisionToken(),
+            rollbackBytes: wrapper.preflightRollbackBytes,
+          ),
+        );
+      }
       _sources = wrappers;
       _preflightSnapshots = preflightSnapshots;
       final proposed = const ImportPlanner().plan(planning);
@@ -283,7 +307,25 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
   }
 
   void chooseProfileMapping(ProfileReferenceKey key, int profileId) {
+    _createdProfileChoices.remove(key);
     _profileChoices[key] = profileId;
+    final proposed = state.proposed;
+    final resolved = state.resolved;
+    if (proposed == null || resolved == null) return;
+    final dependencies = _profileDependencies(resolved);
+    state = state.copyWith(
+      profileMappings: dependencies.mappings,
+      preflight: _preflightWithDependencies(
+        proposed,
+        resolved,
+        dependencies,
+      ),
+    );
+  }
+
+  void createProfileFor(ProfileReferenceKey key) {
+    _profileChoices.remove(key);
+    _createdProfileChoices.add(key);
     final proposed = state.proposed;
     final resolved = state.resolved;
     if (proposed == null || resolved == null) return;
@@ -363,10 +405,18 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
     }
     for (final source in _sources.values) {
       source.profileMappings = resolvedMappings;
+      if (source.id == 'profiles') {
+        source.additionalProfiles = dependencies.createdProfiles;
+      }
     }
-    return _preflight(
+    final (effectiveProposed, effectiveResolved) = _withDependencyProfiles(
       proposed,
       resolved,
+      dependencies.createdProfiles,
+    );
+    return _preflight(
+      effectiveProposed,
+      effectiveResolved,
       [
         ..._preflightSnapshots,
         if (dependencies.errors.isNotEmpty)
@@ -391,13 +441,33 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
     if (resolvedById['pinned_searches']?.action != ImportAction.skip) {
       switch (_sources['pinned_searches']?.preparedData) {
         case final PinnedSearchBackupData data:
-          references.addAll(data.records.map((record) => record.profile));
+          final resolution = resolvedById['pinned_searches']!;
+          references.addAll(
+            data.records
+                .where(
+                  (record) => _includesDependencyItem(
+                    resolution,
+                    'search:${record.id}',
+                  ),
+                )
+                .map((record) => record.profile),
+          );
       }
     }
     if (resolvedById['following_feeds']?.action != ImportAction.skip) {
       switch (_sources['following_feeds']?.preparedData) {
         case final FollowingFeedBackupData data:
-          references.addAll(data.feeds.map((feed) => feed.profile));
+          final resolution = resolvedById['following_feeds']!;
+          references.addAll(
+            data.feeds
+                .where(
+                  (feed) => _includesDependencyItem(
+                    resolution,
+                    'feed:${feed.id}',
+                  ),
+                )
+                .map((feed) => feed.profile),
+          );
       }
     }
     return const ProfileDependencyPlanner().plan(
@@ -407,6 +477,84 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
       profileResolution: resolvedById['profiles'],
       credentialsIncluded: _sources['profiles']?.credentialsIncluded ?? false,
       choices: _profileChoices,
+      createFromReferences: _createdProfileChoices,
+    );
+  }
+
+  bool _includesDependencyItem(
+    ResolvedImportSource source,
+    String itemId,
+  ) {
+    if (source.action == ImportAction.replace) return true;
+    for (final item in source.items) {
+      if (item.id == itemId) return item.action != ImportAction.skip;
+    }
+    return false;
+  }
+
+  (
+    ProposedImportPlan,
+    ResolvedImportPlan,
+  )
+  _withDependencyProfiles(
+    ProposedImportPlan proposed,
+    ResolvedImportPlan resolved,
+    List<BooruConfig> createdProfiles,
+  ) {
+    if (createdProfiles.isEmpty) return (proposed, resolved);
+    ProposedImportSource? proposedProfiles;
+    for (final source in proposed.sources) {
+      if (source.id == 'profiles') proposedProfiles = source;
+    }
+    ResolvedImportSource? resolvedProfiles;
+    for (final source in resolved.sources) {
+      if (source.id == 'profiles') resolvedProfiles = source;
+    }
+    final effectiveProposedProfiles =
+        proposedProfiles ??
+        ProposedImportSource(
+          id: 'profiles',
+          kind: ImportSourceKind.collection,
+          selectionComplete: false,
+          availableActions: const {
+            ImportAction.configureItems,
+            ImportAction.skip,
+          },
+          defaultAction: ImportAction.configureItems,
+          items: const [],
+        );
+    final effectiveResolvedProfiles = switch (resolvedProfiles) {
+      null => ResolvedImportSource(
+        id: 'profiles',
+        action: ImportAction.configureItems,
+        items: const [],
+      ),
+      final source when source.action == ImportAction.skip => source.copyWith(
+        action: ImportAction.configureItems,
+        items: [
+          for (final item in source.items)
+            item.copyWith(action: ImportAction.skip),
+        ],
+      ),
+      final source => source,
+    };
+    return (
+      ProposedImportPlan(
+        sources: [
+          effectiveProposedProfiles,
+          for (final source in proposed.sources)
+            if (source.id != 'profiles') source,
+        ],
+        warnings: proposed.warnings,
+        errors: proposed.errors,
+      ),
+      ResolvedImportPlan(
+        sources: [
+          effectiveResolvedProfiles,
+          for (final source in resolved.sources)
+            if (source.id != 'profiles') source,
+        ],
+      ),
     );
   }
 
@@ -522,6 +670,7 @@ final class PackageTransactionSource implements ImportTransactionSource {
   final Ref ref;
   final bool credentialsIncluded;
   Map<ProfileReferenceKey, int> profileMappings = const {};
+  List<BooruConfig> additionalProfiles = const [];
   ImportPreparation? _preparation;
   var preflightRevision = '';
   var preflightRollbackBytes = 0;
@@ -537,6 +686,10 @@ final class PackageTransactionSource implements ImportTransactionSource {
       throw StateError('Source $id cannot import files');
     }
     final path = incomingPath;
+    if (path == null && id == 'profiles') {
+      preflightRevision = await revisionToken();
+      return;
+    }
     if (path == null) throw StateError('Source $id has no incoming payload');
     _preparation = await capability.prepareImport(path, context);
     preflightRevision = await revisionToken();
@@ -597,6 +750,10 @@ final class PackageTransactionSource implements ImportTransactionSource {
       await _applyProfiles(preparedData, plan);
       return;
     }
+    if (id == 'profiles' && additionalProfiles.isNotEmpty) {
+      await _applyProfiles(const [], plan);
+      return;
+    }
     if (id == 'bookmarks' && preparedData is BookmarkBackupData) {
       await _applyBookmarks(preparedData, plan);
       return;
@@ -624,8 +781,16 @@ final class PackageTransactionSource implements ImportTransactionSource {
       resolution: resolution,
       credentialsIncluded: credentialsIncluded,
     );
+    final projected = projection.profiles.toList();
+    final usedIds = projected.map((profile) => profile.id).toSet();
+    for (final profile in additionalProfiles) {
+      if (!usedIds.add(profile.id)) {
+        throw StateError('Created profile ID is no longer available');
+      }
+      projected.add(profile);
+    }
     await repository.clear();
-    await repository.addAll(projection.profiles);
+    await repository.addAll(projected);
     await ref.read(booruConfigProvider.notifier).fetch();
   }
 
