@@ -62,6 +62,7 @@ class _SourceTile extends StatelessWidget {
     if (!descriptor.isCollection) {
       return CheckboxListTile(
         key: ValueKey(descriptor.id),
+        contentPadding: _treeTilePadding(0),
         value: selection != null,
         onChanged: (_) => onToggleSource(descriptor),
         title: Text(sourceLabel),
@@ -104,11 +105,13 @@ class _SourceTile extends StatelessWidget {
 
     return ExpansionTile(
       key: ValueKey(descriptor.id),
+      tilePadding: _treeTilePadding(0),
       initiallyExpanded: selection != null,
       leading: Checkbox(
         tristate: true,
         value: value,
         onChanged: (_) => onToggleSource(descriptor),
+        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
       ),
       title: Text(sourceLabel),
       subtitle: subtitle == null ? null : Text(subtitle),
@@ -160,10 +163,7 @@ class _SelectionNodeTile extends StatelessWidget {
     if (!node.isCollection) {
       return CheckboxListTile(
         key: ValueKey('${descriptor.id}:${node.id}'),
-        contentPadding: EdgeInsetsDirectional.only(
-          start: 16.0 * (depth + 1),
-          end: 16,
-        ),
+        contentPadding: _treeTilePadding(depth),
         value: effectiveIds.contains(node.id),
         onChanged: (_) => onToggle(descriptor, node),
         title: title,
@@ -200,32 +200,31 @@ class _SelectionNodeTile extends StatelessWidget {
       _ => null,
     };
 
-    return Padding(
-      padding: EdgeInsetsDirectional.only(start: 16.0 * depth),
-      child: ExpansionTile(
-        key: ValueKey('${descriptor.id}:${node.id}'),
-        initiallyExpanded: rawIds.intersection(node.descendantIds).isNotEmpty,
-        leading: Checkbox(
-          tristate: true,
-          value: value,
-          onChanged: (_) => onToggle(descriptor, node),
-        ),
-        title: title,
-        subtitle: subtitle == null ? null : Text(subtitle),
-        children: [
-          for (final child in node.children)
-            _SelectionNodeTile(
-              descriptor: descriptor,
-              node: child,
-              selection: selection,
-              effectiveIds: effectiveIds,
-              rawIds: rawIds,
-              presentation: presentation,
-              depth: depth + 1,
-              onToggle: onToggle,
-            ),
-        ],
+    return ExpansionTile(
+      key: ValueKey('${descriptor.id}:${node.id}'),
+      tilePadding: _treeTilePadding(depth),
+      initiallyExpanded: rawIds.intersection(node.descendantIds).isNotEmpty,
+      leading: Checkbox(
+        tristate: true,
+        value: value,
+        onChanged: (_) => onToggle(descriptor, node),
+        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
       ),
+      title: title,
+      subtitle: subtitle == null ? null : Text(subtitle),
+      children: [
+        for (final child in node.children)
+          _SelectionNodeTile(
+            descriptor: descriptor,
+            node: child,
+            selection: selection,
+            effectiveIds: effectiveIds,
+            rawIds: rawIds,
+            presentation: presentation,
+            depth: depth + 1,
+            onToggle: onToggle,
+          ),
+      ],
     );
   }
 }
@@ -237,29 +236,41 @@ class _ItemLabel extends StatelessWidget {
   final String? trailingLabel;
 
   @override
-  Widget build(BuildContext context) => Row(
-    children: [
-      Expanded(
-        flex: 2,
-        child: Text(label, maxLines: 2, overflow: TextOverflow.ellipsis),
-      ),
-      if (trailingLabel case final trailing?) ...[
-        const SizedBox(width: 12),
-        Flexible(
-          child: Text(
-            trailing,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.end,
-            style: TextStyle(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
+  Widget build(BuildContext context) {
+    final trailing = trailingLabel;
+    if (trailing == null) {
+      return Text(label, maxLines: 2, overflow: TextOverflow.ellipsis);
+    }
+    final theme = Theme.of(context);
+    return LayoutBuilder(
+      builder: (context, constraints) => Row(
+        children: [
+          Expanded(
+            child: Text(label, maxLines: 2, overflow: TextOverflow.ellipsis),
+          ),
+          const SizedBox(width: 8),
+          ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: constraints.maxWidth * 0.5),
+            child: Text(
+              trailing,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.end,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant.withValues(
+                  alpha: 0.72,
+                ),
+              ),
             ),
           ),
-        ),
-      ],
-    ],
-  );
+        ],
+      ),
+    );
+  }
 }
+
+EdgeInsetsDirectional _treeTilePadding(int depth) =>
+    EdgeInsetsDirectional.only(start: 8.0 * (depth + 1), end: 8);
 
 Set<String> _leafIds(ExportSelectionNode node) => node.children.isEmpty
     ? {node.id}

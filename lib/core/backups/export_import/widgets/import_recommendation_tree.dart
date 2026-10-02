@@ -40,6 +40,7 @@ class ImportRecommendationTree extends StatelessWidget {
           if (descriptor.isCollection)
             ExpansionTile(
               key: ValueKey('recommendation:${descriptor.id}'),
+              tilePadding: _importTreePadding(0),
               title: Text(sourceLabel(descriptor.id)),
               children: [
                 ImportItemTree(
@@ -87,12 +88,17 @@ class ImportItemTree extends StatelessWidget {
               itemIds: itemIds,
               presentation: presentation,
               itemBuilder: itemBuilder,
+              depth: 1,
             ),
         for (final id in itemIds.difference(treeIds))
-          itemBuilder(
-            context,
-            id,
-            fallbackPresentation?.call(id) ?? ExportItemPresentation(label: id),
+          Padding(
+            padding: _importTreePadding(1),
+            child: itemBuilder(
+              context,
+              id,
+              fallbackPresentation?.call(id) ??
+                  ExportItemPresentation(label: id),
+            ),
           ),
       ],
     );
@@ -105,25 +111,35 @@ class _ImportTreeNode extends StatelessWidget {
     required this.itemIds,
     required this.presentation,
     required this.itemBuilder,
+    required this.depth,
   });
 
   final ExportSelectionNode node;
   final Set<String> itemIds;
   final ExportSelectionPresentation presentation;
   final ImportItemBuilder itemBuilder;
+  final int depth;
 
   @override
   Widget build(BuildContext context) {
     final item =
         presentation.items[node.id] ?? ExportItemPresentation(label: node.id);
     if (!node.isCollection) {
-      return itemBuilder(context, node.id, item);
+      return Padding(
+        padding: _importTreePadding(depth),
+        child: itemBuilder(context, node.id, item),
+      );
     }
     return ExpansionTile(
       key: ValueKey('import-tree:${node.id}'),
+      tilePadding: _importTreePadding(depth),
       title: ImportItemLabel(item: item),
       children: [
-        if (itemIds.contains(node.id)) itemBuilder(context, node.id, item),
+        if (itemIds.contains(node.id))
+          Padding(
+            padding: _importTreePadding(depth + 1),
+            child: itemBuilder(context, node.id, item),
+          ),
         for (final child in node.children)
           if (_visibleNode(child, itemIds) case final visible?)
             _ImportTreeNode(
@@ -131,6 +147,7 @@ class _ImportTreeNode extends StatelessWidget {
               itemIds: itemIds,
               presentation: presentation,
               itemBuilder: itemBuilder,
+              depth: depth + 1,
             ),
       ],
     );
@@ -143,29 +160,45 @@ class ImportItemLabel extends StatelessWidget {
   final ExportItemPresentation item;
 
   @override
-  Widget build(BuildContext context) => Row(
-    children: [
-      Expanded(
-        flex: 2,
-        child: Text(item.label, maxLines: 2, overflow: TextOverflow.ellipsis),
-      ),
-      if (item.trailingLabel case final trailing?) ...[
-        const SizedBox(width: 12),
-        Flexible(
-          child: Text(
-            trailing,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.end,
-            style: TextStyle(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
+  Widget build(BuildContext context) {
+    final trailing = item.trailingLabel;
+    if (trailing == null) {
+      return Text(item.label, maxLines: 2, overflow: TextOverflow.ellipsis);
+    }
+    final theme = Theme.of(context);
+    return LayoutBuilder(
+      builder: (context, constraints) => Row(
+        children: [
+          Expanded(
+            child: Text(
+              item.label,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
-        ),
-      ],
-    ],
-  );
+          const SizedBox(width: 8),
+          ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: constraints.maxWidth * 0.5),
+            child: Text(
+              trailing,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.end,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant.withValues(
+                  alpha: 0.72,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
+
+EdgeInsetsDirectional _importTreePadding(int depth) =>
+    EdgeInsetsDirectional.only(start: 12.0 + 8 * depth, end: 12);
 
 ExportSelectionNode? _visibleNode(
   ExportSelectionNode node,

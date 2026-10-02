@@ -120,6 +120,90 @@ void main() {
     expect(find.byType(CheckboxListTile), findsOneWidget);
   });
 
+  testWidgets('tree rows use compact and consistent indentation', (
+    tester,
+  ) async {
+    const nested = ExportSelectionDescriptor.collection(
+      id: 'pinned_searches',
+      children: [
+        ExportSelectionNode(
+          id: 'folder:one',
+          children: [
+            ExportSelectionNode(id: 'search:one'),
+            ExportSelectionNode(
+              id: 'folder:two',
+              children: [ExportSelectionNode(id: 'search:two')],
+            ),
+          ],
+        ),
+      ],
+    );
+    await tester.pumpWidget(
+      _app(
+        ExportSelectionTree(
+          descriptors: const [
+            ExportSelectionDescriptor.leaf(id: 'settings'),
+            nested,
+          ],
+          selections: const {
+            'settings': ExportNodeSelection.leaf('settings'),
+            'pinned_searches': ExportNodeSelection.explicit(
+              'pinned_searches',
+              {'search:one', 'search:two'},
+            ),
+          },
+          onToggleSource: (_) {},
+          onToggleNode: (_, _) {},
+          sourceLabel: (id) => id,
+          presentation: const ExportSelectionPresentation(items: {}),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    double checkboxX(String key) {
+      final tileFinder = find.byKey(ValueKey(key));
+      final tile = tester.widget(tileFinder);
+      return switch (tile) {
+        ExpansionTile(:final leading) =>
+          tester.getTopLeft(find.byWidget(leading!)).dx,
+        CheckboxListTile() =>
+          tester
+              .getTopLeft(
+                find
+                    .descendant(
+                      of: tileFinder,
+                      matching: find.byType(Checkbox),
+                    )
+                    .first,
+              )
+              .dx,
+        _ => throw StateError('Unsupported tile ${tile.runtimeType}'),
+      };
+    }
+
+    final rootLeafX = checkboxX('settings');
+    final rootCollectionX = checkboxX('pinned_searches');
+    final firstLevelCollectionX = checkboxX('pinned_searches:folder:one');
+    final secondLevelLeafX = checkboxX('pinned_searches:search:one');
+    final secondLevelCollectionX = checkboxX('pinned_searches:folder:two');
+    final thirdLevelLeafX = checkboxX('pinned_searches:search:two');
+
+    expect(rootCollectionX, rootLeafX);
+    expect(secondLevelCollectionX, secondLevelLeafX);
+    expect(
+      tester.getTopLeft(find.text('pinned_searches')).dx,
+      tester.getTopLeft(find.text('settings')).dx,
+    );
+    expect(
+      tester.getTopLeft(find.text('folder:two')).dx,
+      tester.getTopLeft(find.text('search:one')).dx,
+    );
+    expect(firstLevelCollectionX - rootCollectionX, 8);
+    expect(secondLevelCollectionX - firstLevelCollectionX, 8);
+    expect(thirdLevelLeafX - secondLevelCollectionX, 8);
+  });
+
   testWidgets('empty dynamic folders retain expansion semantics', (
     tester,
   ) async {
@@ -335,11 +419,20 @@ void main() {
         );
     final expectedColor = Theme.of(
       tester.element(find.text('A very long profile name that must fit')),
-    ).colorScheme.onSurfaceVariant;
+    ).colorScheme.onSurfaceVariant.withValues(alpha: 0.72);
     expect(
       profileTexts.map((text) => text.style?.color),
       everyElement(expectedColor),
     );
+    expect(
+      profileTexts.map((text) => text.style?.fontSize),
+      everyElement(
+        Theme.of(
+          tester.element(find.text('A very long profile name that must fit')),
+        ).textTheme.bodySmall?.fontSize,
+      ),
+    );
+    expect(profileTexts.map((text) => text.maxLines), everyElement(1));
     expect(tester.takeException(), isNull);
   });
 

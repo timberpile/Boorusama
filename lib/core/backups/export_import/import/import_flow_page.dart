@@ -105,7 +105,7 @@ class _ReviewImport extends ConsumerWidget {
         profile.id: profile.name,
     };
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 16),
       children: [
         Text(
           strings.import_category_count(n: proposed.sources.length),

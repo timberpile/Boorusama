@@ -34,9 +34,11 @@ class ImportActionEditor extends StatelessWidget {
   Widget build(BuildContext context) {
     final resolvedItems = {for (final item in resolved.items) item.id: item};
     return Card(
+      margin: const EdgeInsets.symmetric(vertical: 4),
       child: Column(
         children: [
           KurumiSettingsTile<ImportAction>(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
             title: Text(sourceLabel(proposed.id)),
             selectedOption: resolved.action,
             items: proposed.availableActions.toList(),
@@ -65,10 +67,13 @@ class ImportActionEditor extends StatelessWidget {
               )
             else
               for (final item in proposed.items)
-                _buildItemAction(
-                  item,
-                  resolvedItems,
-                  ExportItemPresentation(label: itemLabel(item.id)),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: _buildItemAction(
+                    item,
+                    resolvedItems,
+                    ExportItemPresentation(label: itemLabel(item.id)),
+                  ),
                 ),
         ],
       ),
@@ -118,7 +123,7 @@ class _ItemActionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+    padding: const EdgeInsets.only(top: 4, bottom: 12),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [

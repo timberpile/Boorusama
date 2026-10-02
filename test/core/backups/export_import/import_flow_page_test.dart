@@ -49,11 +49,35 @@ void main() {
       ),
     );
 
-    expect(find.text('Import as a new copy'), findsOneWidget);
-    expect(find.text('Update matching item'), findsNothing);
-    expect(find.text('Merge into another item…'), findsNothing);
+    expect(find.text('New copy'), findsOneWidget);
+    expect(find.text('Update'), findsNothing);
+    expect(find.text('Merge into'), findsNothing);
     expect(find.byType(DropdownButton<ImportAction>), findsNothing);
     expect(find.byType(KurumiSettingsTile<ImportAction>), findsNWidgets(2));
+  });
+
+  testWidgets('uses concise import action names', (tester) async {
+    await tester.pumpWidget(
+      _app(
+        Builder(
+          builder: (context) => Column(
+            children: [
+              for (final action in const [
+                ImportAction.update,
+                ImportAction.merge,
+                ImportAction.mergeIntoTarget,
+                ImportAction.copy,
+              ])
+                Text(importActionLabel(context, action)),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    for (final label in ['Update', 'Merge', 'Merge into', 'New copy']) {
+      expect(find.text(label), findsOneWidget);
+    }
   });
 
   testWidgets('shows merge target only after merge into is selected', (
@@ -205,6 +229,12 @@ void main() {
         find.text('A very long profile name that must fit'),
         findsOneWidget,
       );
+      final folderX = tester.getTopLeft(find.text('Landscapes').first).dx;
+      final searchX = tester.getTopLeft(find.text('Blue sky').first).dx;
+      expect(searchX - folderX, 8);
+      final cardX = tester.getTopLeft(find.byType(Card).first).dx;
+      final categoryX = tester.getTopLeft(find.text('Pinned searches')).dx;
+      expect(categoryX - cardX, greaterThanOrEqualTo(12));
       expect(find.byType(KurumiSettingsTile<ImportAction>), findsNWidgets(4));
       expect(tester.takeException(), isNull);
     },
@@ -231,6 +261,18 @@ void main() {
     );
 
     expect(find.text('A very long profile name that must fit'), findsOneWidget);
+    final profile = tester.widget<Text>(
+      find.text('A very long profile name that must fit'),
+    );
+    final theme = Theme.of(
+      tester.element(find.text('A very long profile name that must fit')),
+    );
+    expect(profile.maxLines, 1);
+    expect(profile.style?.fontSize, theme.textTheme.bodySmall?.fontSize);
+    expect(
+      profile.style?.color,
+      theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.72),
+    );
     expect(tester.takeException(), isNull);
   });
 
