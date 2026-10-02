@@ -362,8 +362,29 @@ void main() {
     await tester.scrollUntilVisible(find.text('Save as template'), 500);
     await tester.tap(find.text('Save as template'));
     await tester.pumpAndSettle();
+    final dialog = find.byType(AlertDialog);
+    expect(
+      find.descendant(of: dialog, matching: find.text('Save as template')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: dialog, matching: find.text('Cancel')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: dialog, matching: find.text('Save')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: dialog, matching: find.text('Save only')),
+      findsNothing,
+    );
+    expect(
+      find.descendant(of: dialog, matching: find.text('Save & export')),
+      findsNothing,
+    );
     await tester.enterText(find.byType(TextField), 'QA bookmarks');
-    await tester.tap(find.text('Save only'));
+    await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
 
     expect(find.text('QA bookmarks'), findsOneWidget);

@@ -42,7 +42,6 @@ final class LegacyImportStager {
       final extension = p.extension(path).toLowerCase();
       if (extension == '.bsexport') rethrow;
       final converted = switch (extension) {
-        '.json' => await _convertJson(path),
         '.zip' => await _convertZip(path),
         _ => null,
       };
@@ -53,26 +52,6 @@ final class LegacyImportStager {
         await converted.dispose();
       }
     }
-  }
-
-  Future<_ConvertedLegacyPackage?> _convertJson(String path) async {
-    final content = await fs.readString(path);
-    final decoded = _jsonObject(content);
-    final source = _identifyJsonSource(path, decoded);
-    if (source == null) return null;
-    final createdAt = switch (decoded?['date']) {
-      final String value => DateTime.tryParse(value),
-      _ => null,
-    };
-    final appVersion = switch (decoded?['exportVersion']) {
-      final String value when value.trim().isNotEmpty => value,
-      _ => 'legacy',
-    };
-    return _writeConverted(
-      createdAt: createdAt ?? DateTime.now().toUtc(),
-      appVersion: appVersion,
-      payloads: [(source: source, path: path)],
-    );
   }
 
   Future<_ConvertedLegacyPackage?> _convertZip(String path) async {
@@ -215,32 +194,6 @@ final class LegacyImportStager {
         await fs.deleteDirectory(directory, recursive: true);
       }
       rethrow;
-    }
-  }
-
-  LegacyImportSourceDescriptor? _identifyJsonSource(
-    String path,
-    Map<String, dynamic>? json,
-  ) {
-    final byId = {for (final source in sources) source.id: source};
-    if (json?['source'] case final String id) {
-      if (byId[id] case final source?) return source;
-    }
-    final name = p.basename(path);
-    for (final source in sources) {
-      if (name.startsWith('boorusama_${source.id}_')) return source;
-    }
-    return null;
-  }
-
-  Map<String, dynamic>? _jsonObject(String content) {
-    try {
-      return switch (jsonDecode(content)) {
-        final Map<String, dynamic> value => value,
-        _ => null,
-      };
-    } catch (_) {
-      return null;
     }
   }
 

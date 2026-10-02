@@ -18,6 +18,8 @@ final class PlannedChangeSummary extends Equatable {
   final int preserved;
   final int unchanged;
 
+  bool get hasMutations => created > 0 || updated > 0 || deleted > 0;
+
   PlannedChangeSummary operator +(PlannedChangeSummary other) =>
       PlannedChangeSummary(
         created: created + other.created,
@@ -93,7 +95,8 @@ final class ImportPreflightResult extends Equatable {
   final ValidatedImportPlan? validatedPlan;
 
   bool get isValid => errors.isEmpty && validatedPlan != null;
-  bool get requiresWarningAcknowledgement => warnings.isNotEmpty;
+  bool get requiresWarningAcknowledgement =>
+      warnings.isNotEmpty && summary.hasMutations;
 
   @override
   List<Object?> get props => [
@@ -212,7 +215,7 @@ final class ImportPreflight {
         ),
       );
     }
-    if (warnings.isNotEmpty && !warningsAcknowledged) {
+    if (warnings.isNotEmpty && summary.hasMutations && !warningsAcknowledged) {
       errors.add(
         const ImportPlanIssue(
           code: 'warnings_not_acknowledged',

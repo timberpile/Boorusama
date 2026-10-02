@@ -232,16 +232,15 @@ class ExportFlowPage extends ConsumerWidget {
     } catch (_) {}
   }
 
-  Future<({String name, bool export})?> _promptTemplateSave(
-    BuildContext context,
-  ) => showDialog<({String name, bool export})>(
-    context: context,
-    builder: (_) => const _TemplateSaveDialog(),
-  );
+  Future<String?> _promptTemplateSave(BuildContext context) =>
+      showDialog<String>(
+        context: context,
+        builder: (_) => const _TemplateSaveDialog(),
+      );
 
   Future<void> _saveTemplate(BuildContext context, WidgetRef ref) async {
-    final save = await _promptTemplateSave(context);
-    if (save == null) return;
+    final name = await _promptTemplateSave(context);
+    if (name == null) return;
     final selection = ref.read(exportFlowProvider.notifier).selection();
     final flow = ref.read(exportFlowProvider);
     await ref
@@ -249,7 +248,7 @@ class ExportFlowPage extends ConsumerWidget {
         .save(
           ExportTemplate(
             id: const Uuid().v4(),
-            name: save.name,
+            name: name,
             selection: selection,
             includeCredentials: flow.includeCredentials,
             recommendedActions: flow.recommendedActions,
@@ -261,9 +260,6 @@ class ExportFlowPage extends ConsumerWidget {
         context,
         context.t.settings.backup_and_restore.export_import.saved_template,
       );
-    }
-    if (save.export && context.mounted) {
-      await _createExport(context, ref);
     }
   }
 }
@@ -305,24 +301,18 @@ class _TemplateSaveDialogState extends State<_TemplateSaveDialog> {
         ),
       ),
       TextButton(
-        onPressed: () => _submit(context, export: false),
+        onPressed: () => _submit(context),
         child: Text(
-          context.t.settings.backup_and_restore.export_import.save_only,
-        ),
-      ),
-      FilledButton(
-        onPressed: () => _submit(context, export: true),
-        child: Text(
-          context.t.settings.backup_and_restore.export_import.save_and_export,
+          context.t.settings.backup_and_restore.export_import.save,
         ),
       ),
     ],
   );
 
-  void _submit(BuildContext context, {required bool export}) {
+  void _submit(BuildContext context) {
     final name = _controller.text.trim();
     if (name.isEmpty) return;
-    Navigator.pop(context, (name: name, export: export));
+    Navigator.pop(context, name);
   }
 }
 

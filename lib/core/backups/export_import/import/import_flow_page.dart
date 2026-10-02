@@ -191,7 +191,7 @@ class _ReviewImport extends ConsumerWidget {
           ),
           for (final source in resolved.sources)
             if (preflight.sourceSummaries[source.id] case final summary?)
-              if (importHasChanges(summary))
+              if (summary.hasMutations)
                 ListTile(
                   leading: const Icon(Icons.fact_check_outlined),
                   title: Text(sourceNames[source.id] ?? source.id),
@@ -212,7 +212,7 @@ class _ReviewImport extends ConsumerWidget {
                   ),
                 ),
           if (preflight.sourceSummaries.values
-                  .where((summary) => !importHasChanges(summary))
+                  .where((summary) => !summary.hasMutations)
                   .length
               case final unchangedCount when unchangedCount > 0)
             ListTile(
@@ -226,6 +226,48 @@ class _ReviewImport extends ConsumerWidget {
             leading: const Icon(Icons.check_circle_outline),
             title: Text(strings.all_checks_passed),
           ),
+        ImportReviewValidation(
+          preflight: preflight,
+          sourceNames: sourceNames,
+          itemLabels: {...localLabels, ...state.itemLabels},
+          onWarningsAcknowledged: ref
+              .read(importFlowProvider.notifier)
+              .acknowledgeWarnings,
+          onApply: () => ref.read(importFlowProvider.notifier).apply(context),
+          onDone: () => Navigator.of(context).maybePop(),
+        ),
+      ],
+    );
+  }
+}
+
+class ImportReviewValidation extends StatelessWidget {
+  const ImportReviewValidation({
+    super.key,
+    required this.preflight,
+    required this.sourceNames,
+    required this.itemLabels,
+    required this.onWarningsAcknowledged,
+    required this.onApply,
+    required this.onDone,
+  });
+
+  final ImportPreflightResult preflight;
+  final Map<String, String> sourceNames;
+  final Map<String, String> itemLabels;
+  final ValueChanged<bool> onWarningsAcknowledged;
+  final VoidCallback onApply;
+  final VoidCallback onDone;
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = context.t.settings.backup_and_restore.export_import;
+    final visibleErrors = preflight.errors
+        .where((issue) => issue.code != 'warnings_not_acknowledged')
+        .toList();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
         if (preflight.warnings.isNotEmpty) ...[
           Text(
             strings.warnings,
@@ -239,64 +281,54 @@ class _ReviewImport extends ConsumerWidget {
                   context,
                   issue,
                   sourceNames: sourceNames,
-                  itemLabels: {...localLabels, ...state.itemLabels},
+                  itemLabels: itemLabels,
                 ),
               ),
             ),
-          CheckboxListTile(
-            value: !preflight.errors.any(
-              (issue) => issue.code == 'warnings_not_acknowledged',
+          if (preflight.requiresWarningAcknowledgement)
+            CheckboxListTile(
+              value: !preflight.errors.any(
+                (issue) => issue.code == 'warnings_not_acknowledged',
+              ),
+              onChanged: (value) => onWarningsAcknowledged(value ?? false),
+              title: Text(strings.acknowledge_warnings),
             ),
-            onChanged: (value) => ref
-                .read(importFlowProvider.notifier)
-                .acknowledgeWarnings(value ?? false),
-            title: Text(strings.acknowledge_warnings),
-          ),
         ],
-        if (preflight.errors.isNotEmpty) ...[
+        if (visibleErrors.isNotEmpty) ...[
           Text(strings.errors, style: Theme.of(context).textTheme.titleMedium),
-          for (final issue in preflight.errors)
-            if (issue.code != 'warnings_not_acknowledged')
-              ListTile(
-                leading: Icon(
-                  Icons.error_outline,
-                  color: Theme.of(context).colorScheme.error,
-                ),
-                title: Text(
-                  importIssueMessage(
-                    context,
-                    issue,
-                    sourceNames: sourceNames,
-                    itemLabels: {...localLabels, ...state.itemLabels},
-                  ),
+          for (final issue in visibleErrors)
+            ListTile(
+              leading: Icon(
+                Icons.error_outline,
+                color: Theme.of(context).colorScheme.error,
+              ),
+              title: Text(
+                importIssueMessage(
+                  context,
+                  issue,
+                  sourceNames: sourceNames,
+                  itemLabels: itemLabels,
                 ),
               ),
+            ),
         ],
         const SizedBox(height: 20),
-        if (preflight.isValid && !importHasChanges(preflight.summary)) ...[
+        if (preflight.isValid && !preflight.summary.hasMutations) ...[
           ListTile(
             leading: const Icon(Icons.info_outline),
             title: Text(strings.nothing_to_import),
           ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).maybePop(),
-            child: Text(strings.done),
-          ),
+          FilledButton(onPressed: onDone, child: Text(strings.done)),
         ] else
           FilledButton(
             key: const ValueKey('apply-import'),
-            onPressed: preflight.isValid
-                ? () => ref.read(importFlowProvider.notifier).apply(context)
-                : null,
+            onPressed: preflight.isValid ? onApply : null,
             child: Text(strings.apply_import),
           ),
       ],
     );
   }
 }
-
-bool importHasChanges(PlannedChangeSummary summary) =>
-    summary.created > 0 || summary.updated > 0 || summary.deleted > 0;
 
 class ImportCompletionView extends StatelessWidget {
   const ImportCompletionView({super.key, required this.onDone, this.summary});
@@ -317,7 +349,7 @@ class ImportCompletionView extends StatelessWidget {
             context.t.settings.backup_and_restore.export_import.import_complete,
             style: Theme.of(context).textTheme.headlineSmall,
           ),
-          if (summary case final summary? when importHasChanges(summary)) ...[
+          if (summary case final summary? when summary.hasMutations) ...[
             const SizedBox(height: 8),
             Text(
               plannedChangeCountLabels(

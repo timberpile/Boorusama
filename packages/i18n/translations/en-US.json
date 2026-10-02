@@ -792,8 +792,6 @@
         "all_current": "All current",
         "selected_count": "{selected} of {total} selected",
         "save_template": "Save as template",
-        "save_only": "Save only",
-        "save_and_export": "Save & export",
         "template_name": "Template name",
         "saved_templates": "Saved templates",
         "templates_local_only": "Saved on this device only.",
@@ -854,7 +852,7 @@
         "copied": "Export copied to the clipboard",
         "no_data_selected": "Choose at least one data category."
         ,"delete_template": "Delete template"
-        ,"name_template": "Name this template"
+        ,"name_template": "Save as template"
         ,"saved_template": "Template saved"
         ,"select_export_type": "Select export type"
         ,"sources": {

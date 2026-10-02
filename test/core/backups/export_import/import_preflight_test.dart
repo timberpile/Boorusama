@@ -36,7 +36,7 @@ void main() {
     );
   });
 
-  test('warnings must be acknowledged before a plan is valid', () {
+  test('warnings must be acknowledged before a mutating plan is valid', () {
     final proposed = _proposed();
     const warning = ImportPlanIssue(
       code: 'private_data',
@@ -50,6 +50,7 @@ void main() {
           sourceId: 'bookmarks',
           revisionToken: 'revision-1',
           warnings: const [warning],
+          summary: const PlannedChangeSummary(updated: 1),
         ),
       ],
       availableBytes: 100,
@@ -64,6 +65,7 @@ void main() {
           sourceId: 'bookmarks',
           revisionToken: 'revision-1',
           warnings: const [warning],
+          summary: const PlannedChangeSummary(updated: 1),
         ),
       ],
       availableBytes: 100,
@@ -74,6 +76,32 @@ void main() {
     expect(blocked.isValid, isFalse);
     expect(blocked.errors.single.code, 'warnings_not_acknowledged');
     expect(accepted.isValid, isTrue);
+  });
+
+  test('warning-only no-op plans are valid without acknowledgement', () {
+    final proposed = _proposed();
+    final result = const ImportPreflight().validate(
+      proposed: proposed,
+      resolved: proposed.resolveDefaults(),
+      sources: [
+        SourcePreflightSnapshot(
+          sourceId: 'bookmarks',
+          revisionToken: 'revision-1',
+          warnings: const [
+            ImportPlanIssue(code: 'private_data', sourceId: 'profiles'),
+          ],
+          summary: const PlannedChangeSummary(unchanged: 1),
+        ),
+      ],
+      availableBytes: 100,
+      stagingBytes: 0,
+      warningsAcknowledged: false,
+    );
+
+    expect(result.summary.hasMutations, isFalse);
+    expect(result.requiresWarningAcknowledgement, isFalse);
+    expect(result.isValid, isTrue);
+    expect(result.errors, isEmpty);
   });
 
   test('invalid merge targets and insufficient storage block apply', () {

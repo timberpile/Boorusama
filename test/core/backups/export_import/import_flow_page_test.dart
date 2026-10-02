@@ -251,10 +251,67 @@ void main() {
 
   test('only mutations count as import work', () {
     expect(
-      importHasChanges(const PlannedChangeSummary(unchanged: 4, preserved: 2)),
+      const PlannedChangeSummary(
+        unchanged: 4,
+        preserved: 2,
+      ).hasMutations,
       false,
     );
-    expect(importHasChanges(const PlannedChangeSummary(updated: 1)), true);
+    expect(const PlannedChangeSummary(updated: 1).hasMutations, true);
+  });
+
+  testWidgets('warning-only no-op shows Done without empty problems', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _app(
+        ImportReviewValidation(
+          preflight: _result(
+            warnings: const [
+              ImportPlanIssue(code: 'private_data', sourceId: 'profiles'),
+            ],
+            validated: true,
+          ),
+          sourceNames: const {'profiles': 'Booru profiles'},
+          itemLabels: const {},
+          onWarningsAcknowledged: (_) {},
+          onApply: () {},
+          onDone: () {},
+        ),
+      ),
+    );
+
+    expect(find.text('Warnings'), findsOneWidget);
+    expect(find.text('I understand these warnings'), findsNothing);
+    expect(find.text('Problems to resolve'), findsNothing);
+    expect(find.text('Nothing to import'), findsOneWidget);
+    expect(find.text('Done'), findsOneWidget);
+  });
+
+  testWidgets('real errors keep a no-op plan blocked', (tester) async {
+    await tester.pumpWidget(
+      _app(
+        ImportReviewValidation(
+          preflight: _result(
+            errors: const [
+              ImportPlanIssue(code: 'invalid_source_action', sourceId: 'x'),
+            ],
+          ),
+          sourceNames: const {'x': 'Settings'},
+          itemLabels: const {},
+          onWarningsAcknowledged: (_) {},
+          onApply: () {},
+          onDone: () {},
+        ),
+      ),
+    );
+
+    expect(find.text('Problems to resolve'), findsOneWidget);
+    expect(find.text('Nothing to import'), findsNothing);
+    expect(
+      tester.widget<FilledButton>(find.byType(FilledButton)).onPressed,
+      isNull,
+    );
   });
 
   test('planned changes omit zero and unchanged counters', () {
@@ -271,4 +328,21 @@ void main() {
 
 Widget _app(Widget child) => TranslationProvider(
   child: MaterialApp(home: Scaffold(body: child)),
+);
+
+ImportPreflightResult _result({
+  List<ImportPlanIssue> warnings = const [],
+  List<ImportPlanIssue> errors = const [],
+  bool validated = false,
+}) => ImportPreflightResult(
+  warnings: warnings,
+  errors: errors,
+  summary: const PlannedChangeSummary(unchanged: 1),
+  validatedPlan: validated
+      ? ValidatedImportPlan(
+          plan: ResolvedImportPlan(sources: const []),
+          revisionTokens: const {},
+          summary: const PlannedChangeSummary(unchanged: 1),
+        )
+      : null,
 );

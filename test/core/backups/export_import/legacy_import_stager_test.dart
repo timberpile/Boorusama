@@ -25,7 +25,7 @@ void main() {
 
   tearDown(() => directory.delete(recursive: true));
 
-  test('converts a named legacy JSON export into a staged package', () async {
+  test('rejects a loose legacy JSON export', () async {
     final payload = jsonEncode({
       'version': 2,
       'date': '2025-01-02T03:04:05.000Z',
@@ -35,19 +35,9 @@ void main() {
     final path = '${directory.path}/boorusama_bookmarks_2025.01.02.json';
     await File(path).writeAsString(payload);
 
-    final staged = await stager.stage(path);
-    addTearDown(staged.dispose);
-
-    expect(staged.manifest.sources.single.id, 'bookmarks');
-    expect(
-      staged.manifest.sources.single.recommendedAction,
-      ImportAction.replace,
-    );
-    expect(
-      await File(
-        staged.pathFor(staged.manifest.sources.single.parts.single.path),
-      ).readAsString(),
-      payload,
+    await expectLater(
+      stager.stage(path),
+      throwsA(isA<ExportPackageException>()),
     );
   });
 
