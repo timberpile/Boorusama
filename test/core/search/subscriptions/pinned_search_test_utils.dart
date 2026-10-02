@@ -138,7 +138,6 @@ class PinnedSearchHarness {
     );
     container = ProviderContainer(
       overrides: [
-        settingsProvider.overrideWithValue(Settings.defaultSettings),
         loggerProvider.overrideWithValue(
           ConsoleLogger(options: const ConsoleLoggerOptions.defaults()),
         ),

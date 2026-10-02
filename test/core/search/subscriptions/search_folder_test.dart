@@ -369,6 +369,7 @@ void main() {
       await settle(tester);
       await tester.tap(find.text('Updates first'));
       await settle(tester);
+      await drain(tester);
 
       await openFolderMenu(tester, folderId);
       for (final label in ['Move up', 'Move down']) {

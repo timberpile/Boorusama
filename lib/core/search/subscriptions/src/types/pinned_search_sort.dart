@@ -1,6 +1,16 @@
 import 'search_subscription.dart';
 
-enum PinnedSearchSort { manual, updatesFirst, lastPostOldest }
+enum PinnedSearchSort {
+  manual,
+  updatesFirst,
+  lastPostOldest;
+
+  static PinnedSearchSort parse(Object? value) => switch (value) {
+    'updatesFirst' => updatesFirst,
+    'lastPostOldest' => lastPostOldest,
+    _ => manual,
+  };
+}
 
 extension SearchSubscriptionLastPost on SearchSubscription {
   DateTime? get lastPostAt {

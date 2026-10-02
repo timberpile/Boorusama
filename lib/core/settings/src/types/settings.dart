@@ -69,6 +69,7 @@ class Settings extends Equatable {
     required this.autoBackup,
     required this.videoCacheMaxSize,
     this.searchRefresh = const SearchRefreshSettings(),
+    this.pinnedSearchSort = 'manual',
   });
 
   Settings.fromJson(Map<String, dynamic> json)
@@ -141,6 +142,11 @@ class Settings extends Equatable {
           json['swipeAreaToOpenSidebarPercentage'] ?? 5,
       autoBackup = AutoBackupSettings.parse(json['autoBackup']),
       searchRefresh = SearchRefreshSettings.parse(json['searchRefresh']),
+      pinnedSearchSort = switch (json['pinnedSearchSort']) {
+        'updatesFirst' => 'updatesFirst',
+        'lastPostOldest' => 'lastPostOldest',
+        _ => 'manual',
+      },
       videoCacheMaxSize = switch (json['videoCacheMaxSize']) {
         final v? => CacheSize.tryParse(v) ?? CacheSize.oneGigabyte,
         _ => CacheSize.oneGigabyte,
@@ -282,6 +288,7 @@ class Settings extends Equatable {
 
   final AutoBackupSettings autoBackup;
   final SearchRefreshSettings searchRefresh;
+  final String pinnedSearchSort;
 
   final CacheSize videoCacheMaxSize;
 
@@ -323,6 +330,7 @@ class Settings extends Equatable {
     HapticFeedbackLevel? hapticFeedbackLevel,
     AutoBackupSettings? autoBackup,
     SearchRefreshSettings? searchRefresh,
+    String? pinnedSearchSort,
     CacheSize? videoCacheMaxSize,
   }) => Settings(
     listing: listing ?? this.listing,
@@ -381,6 +389,7 @@ class Settings extends Equatable {
     hapticFeedbackLevel: hapticFeedbackLevel ?? this.hapticFeedbackLevel,
     autoBackup: autoBackup ?? this.autoBackup,
     searchRefresh: searchRefresh ?? this.searchRefresh,
+    pinnedSearchSort: pinnedSearchSort ?? this.pinnedSearchSort,
     videoCacheMaxSize: videoCacheMaxSize ?? this.videoCacheMaxSize,
   );
 
@@ -426,6 +435,7 @@ class Settings extends Equatable {
       'hapticFeedbackLevel': hapticFeedbackLevel.toData(),
       'autoBackup': autoBackup.toJson(),
       'searchRefresh': searchRefresh.toJson(),
+      'pinnedSearchSort': pinnedSearchSort,
       'videoCacheMaxSize': videoCacheMaxSize.displayString(),
     };
   }
@@ -468,6 +478,7 @@ class Settings extends Equatable {
     hapticFeedbackLevel,
     autoBackup,
     searchRefresh,
+    pinnedSearchSort,
     videoCacheMaxSize,
   ];
 
