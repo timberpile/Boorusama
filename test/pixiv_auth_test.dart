@@ -291,6 +291,25 @@ void main() {
       expect(repo.byId(1).apiKey, 'refresh-a');
       expect(repo.byId(2).apiKey, 'refresh-b');
     });
+
+    test('does not replace credentials imported during a refresh', () async {
+      await repo.update(
+        1,
+        repo.byId(1).toBooruConfigData().copyWith(apiKey: 'imported-token'),
+      );
+
+      await persistPixivRotatedToken(
+        repo: repo,
+        configId: 1,
+        expectedRefreshToken: 'refresh-a',
+        tokens: const PixivTokens(
+          accessToken: 'access',
+          refreshToken: 'rotated-old-account-token',
+        ),
+      );
+
+      expect(repo.byId(1).apiKey, 'imported-token');
+    });
   });
 
   group('attaching the live bearer token to a request', () {

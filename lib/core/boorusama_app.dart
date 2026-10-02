@@ -38,7 +38,6 @@ import 'boorus/engine/providers.dart';
 import 'boorus/engine/types.dart';
 import 'cache/providers.dart';
 import 'configs/config/data.dart';
-import 'configs/config/src/data/coordinated_booru_config_repository.dart';
 import 'configs/config/types.dart';
 import 'configs/manage/providers.dart';
 import 'developer_options/providers.dart';

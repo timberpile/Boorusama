@@ -50,6 +50,7 @@ final pixivDioProvider = Provider.family<Dio, BooruConfigAuth>((ref, config) {
   final loggerService = ref.watch(loggerProvider);
 
   final refreshToken = config.apiKey;
+  var expectedPersistedRefreshToken = refreshToken;
 
   // FIX 6c: the config id is resolved ONCE here, at Dio build time, and
   // closed over by the callbacks below. Matching on `url` + `login` the way
@@ -89,11 +90,17 @@ final pixivDioProvider = Provider.family<Dio, BooruConfigAuth>((ref, config) {
           return;
         }
 
+        final expectedRefreshToken = expectedPersistedRefreshToken;
+        if (tokens.refreshToken case final String rotated
+            when rotated.isNotEmpty) {
+          expectedPersistedRefreshToken = rotated;
+        }
         unawaited(
           persistPixivRotatedToken(
             repo: ref.read(booruConfigRepoProvider),
             configId: configId,
             tokens: tokens,
+            expectedRefreshToken: expectedRefreshToken,
             onLog: (message) => loggerService.info(_kLogService, message),
           ),
         );
@@ -173,6 +180,7 @@ Future<void> persistPixivRotatedToken({
   required BooruConfigRepository repo,
   required int configId,
   required PixivTokens tokens,
+  String? expectedRefreshToken,
   void Function(String message)? onLog,
   DateTime? now,
 }) async {
@@ -183,35 +191,39 @@ Future<void> persistPixivRotatedToken({
     return;
   }
 
-  final configs = await repo.getAll();
-  final current = configs.firstWhereOrNull((c) => c.id == configId);
+  final updated = await updateBooruConfigAtomically(
+    repository: repo,
+    id: configId,
+    transform: (current) {
+      if (expectedRefreshToken != null &&
+          current.apiKey != expectedRefreshToken) {
+        return null;
+      }
+      final stored = PixivExtraData.fromPassHash(current.passHash);
+      final user = tokens.user;
+      final expiresIn = tokens.expiresIn;
+      final extraData = PixivExtraData(
+        userId: user?.id ?? stored.userId,
+        userName: user?.name ?? stored.userName,
+        isPremium: user?.isPremium ?? stored.isPremium,
+        xRestrict: user?.xRestrict ?? stored.xRestrict,
+        tokenExpiry: expiresIn == null
+            ? stored.tokenExpiry
+            : (now ?? DateTime.now()).add(Duration(seconds: expiresIn)),
+      );
+      return current.toBooruConfigData().copyWith(
+        apiKey: refreshToken,
+        passHash: () => extraData.toPassHash(),
+      );
+    },
+  );
 
-  if (current == null) {
-    onLog?.call('Config $configId no longer exists; nothing persisted');
+  if (updated == null) {
+    onLog?.call(
+      'Config $configId changed or no longer exists; nothing persisted',
+    );
     return;
   }
-
-  final stored = PixivExtraData.fromPassHash(current.passHash);
-  final user = tokens.user;
-  final expiresIn = tokens.expiresIn;
-
-  final extraData = PixivExtraData(
-    userId: user?.id ?? stored.userId,
-    userName: user?.name ?? stored.userName,
-    isPremium: user?.isPremium ?? stored.isPremium,
-    xRestrict: user?.xRestrict ?? stored.xRestrict,
-    tokenExpiry: expiresIn == null
-        ? stored.tokenExpiry
-        : (now ?? DateTime.now()).add(Duration(seconds: expiresIn)),
-  );
-
-  await repo.update(
-    configId,
-    current.toBooruConfigData().copyWith(
-      apiKey: refreshToken,
-      passHash: () => extraData.toPassHash(),
-    ),
-  );
 
   onLog?.call('Persisted rotated refresh token for config $configId');
 }

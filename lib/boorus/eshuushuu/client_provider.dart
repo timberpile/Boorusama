@@ -1,3 +1,6 @@
+// Dart imports:
+import 'dart:async';
+
 // Package imports:
 import 'package:booru_clients/eshuushuu.dart';
 import 'package:collection/collection.dart';
@@ -35,6 +38,13 @@ final eshuushuuDioProvider = Provider.family<Dio, BooruConfigAuth>((
   final loggerService = ref.watch(loggerProvider);
 
   final refreshToken = config.apiKey;
+  var expectedPersistedRefreshToken = refreshToken;
+  final configId = ref
+      .read(booruConfigProvider)
+      .firstWhereOrNull(
+        (stored) => BooruConfigAuth.fromConfig(stored) == config,
+      )
+      ?.id;
 
   return newDio(
     options: DioOptions(
@@ -63,17 +73,12 @@ final eshuushuuDioProvider = Provider.family<Dio, BooruConfigAuth>((
           onAuthFailed: () {
             showSessionExpiredDialog(
               onReLogin: () {
-                final currentConfig = ref
-                    .read(booruConfigProvider)
-                    .firstWhereOrNull(
-                      (c) => c.url == config.url && c.login == config.login,
-                    );
-                if (currentConfig != null) {
+                if (configId != null) {
                   ref
                       .read(routerProvider)
                       .push(
                         Uri(
-                          path: '/boorus/${currentConfig.id}/update',
+                          path: '/boorus/$configId/update',
                           queryParameters: {'q': 'auth'},
                         ).toString(),
                       );
@@ -82,30 +87,38 @@ final eshuushuuDioProvider = Provider.family<Dio, BooruConfigAuth>((
             );
           },
           onTokenRefreshed: (tokens) {
-            final currentConfig = ref
-                .read(booruConfigProvider)
-                .firstWhereOrNull(
-                  (c) => c.url == config.url && c.login == config.login,
-                );
-            if (currentConfig != null) {
-              loggerService.info(
-                'Auth',
-                'Persisting rotated refresh token for config ${currentConfig.id}',
-              );
-              ref
-                  .read(booruConfigRepoProvider)
-                  .update(
-                    currentConfig.id,
-                    currentConfig
-                        .copyWith(apiKey: tokens.refreshToken)
-                        .toBooruConfigData(),
-                  );
-            } else {
+            if (configId == null) {
               loggerService.warn(
                 'Auth',
-                'Could not find config to persist rotated refresh token',
+                'No config id resolved; rotated refresh token not persisted',
               );
+              return;
             }
+            final expectedRefreshToken = expectedPersistedRefreshToken;
+            expectedPersistedRefreshToken = tokens.refreshToken;
+            unawaited(
+              updateBooruConfigAtomically(
+                repository: ref.read(booruConfigRepoProvider),
+                id: configId,
+                transform: (current) => current.apiKey == expectedRefreshToken
+                    ? current.toBooruConfigData().copyWith(
+                        apiKey: tokens.refreshToken,
+                      )
+                    : null,
+              ).then((updated) {
+                if (updated == null) {
+                  loggerService.warn(
+                    'Auth',
+                    'Config $configId changed or no longer exists; token not persisted',
+                  );
+                } else {
+                  loggerService.info(
+                    'Auth',
+                    'Persisted rotated refresh token for config $configId',
+                  );
+                }
+              }),
+            );
           },
         ),
     ],

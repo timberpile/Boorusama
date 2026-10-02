@@ -48,6 +48,7 @@ import 'import_transaction.dart';
 import 'legacy_import_stager.dart';
 import 'profile_import_projection.dart';
 import 'profile_dependency_planner.dart';
+import 'search_runtime_snapshot.dart';
 
 enum ImportFlowStatus { idle, checking, review, importing, complete, error }
 
@@ -768,6 +769,7 @@ final class PackageTransactionSource implements ImportTransactionSource {
   ImportPreparation? _preparation;
   Object? _localSnapshot;
   Object? _incomingComparable;
+  SearchRuntimeSnapshot? _searchRuntimeSnapshot;
   var preflightRollbackBytes = 0;
 
   Object? get preparedData => _preparation?.preparedData;
@@ -805,21 +807,17 @@ final class PackageTransactionSource implements ImportTransactionSource {
           groups: await groupRepository.getGroups(),
         );
       case 'pinned_searches':
-        final repository = await ref.read(
-          searchSubscriptionRepositoryProvider.future,
-        );
+        final snapshot = await _captureSearchRuntimeSnapshot();
         _localSnapshot = PinnedSearchImportLocalSnapshot(
-          searches: await repository.getAll(),
-          organization: await repository.getOrganization(),
-          feeds: await repository.getFeeds(),
+          searches: snapshot.searches,
+          organization: snapshot.organization,
+          feeds: snapshot.feeds,
         );
       case 'following_feeds':
-        final repository = await ref.read(
-          searchSubscriptionRepositoryProvider.future,
-        );
+        final snapshot = await _captureSearchRuntimeSnapshot();
         _localSnapshot = FollowingFeedImportLocalSnapshot(
-          searches: await repository.getAll(),
-          feeds: await repository.getFeeds(),
+          searches: snapshot.searches,
+          feeds: snapshot.feeds,
         );
       default:
         switch (source) {
@@ -837,6 +835,17 @@ final class PackageTransactionSource implements ImportTransactionSource {
             throw StateError('Unsupported import source: $id');
         }
     }
+  }
+
+  Future<SearchRuntimeSnapshot> _captureSearchRuntimeSnapshot() async {
+    final existing = _searchRuntimeSnapshot;
+    if (existing != null) return existing;
+    final repository = await ref.read(
+      searchSubscriptionRepositoryProvider.future,
+    );
+    return _searchRuntimeSnapshot = await SearchRuntimeSnapshotService(
+      repository,
+    ).capture();
   }
 
   PlannedChangeSummary plannedChanges(ResolvedImportSource resolution) {
@@ -921,6 +930,13 @@ final class PackageTransactionSource implements ImportTransactionSource {
   }
 
   Future<void> measureRollback() async {
+    if (_isSearchRuntimeSource) {
+      final snapshot = await _captureSearchRuntimeSnapshot();
+      preflightRollbackBytes = utf8
+          .encode(const SearchRuntimeSnapshotCodec().encode(snapshot))
+          .length;
+      return;
+    }
     preflightRollbackBytes = switch (source) {
       final JsonBackupSource jsonSource =>
         utf8.encode(await jsonSource.encodeForExport()).length,
@@ -934,6 +950,19 @@ final class PackageTransactionSource implements ImportTransactionSource {
 
   @override
   Future<void> captureRollback(String outputPath) async {
+    if (_isSearchRuntimeSource) {
+      final repository = await ref.read(
+        searchSubscriptionRepositoryProvider.future,
+      );
+      final snapshot = await SearchRuntimeSnapshotService(
+        repository,
+      ).capture();
+      await fs.writeString(
+        outputPath,
+        const SearchRuntimeSnapshotCodec().encode(snapshot),
+      );
+      return;
+    }
     switch (source) {
       case final JsonBackupSource jsonSource:
         await fs.writeString(outputPath, await jsonSource.encodeForExport());
@@ -1250,6 +1279,18 @@ final class PackageTransactionSource implements ImportTransactionSource {
 
   @override
   Future<void> restore(String rollbackPath) async {
+    if (_isSearchRuntimeSource) {
+      final snapshot = const SearchRuntimeSnapshotCodec().decode(
+        await fs.readString(rollbackPath),
+      );
+      await ref
+          .read(searchSubscriptionsProvider.notifier)
+          .runSerializedMutation(
+            (repository) =>
+                SearchRuntimeSnapshotService(repository).restore(snapshot),
+          );
+      return;
+    }
     switch (source) {
       case final JsonBackupSource jsonSource:
         final preparation = await jsonSource.capabilities.file!.prepareImport(
@@ -1291,6 +1332,9 @@ final class PackageTransactionSource implements ImportTransactionSource {
         throw StateError('Unsupported import source: $id');
     }
   }
+
+  bool get _isSearchRuntimeSource =>
+      id == 'pinned_searches' || id == 'following_feeds';
 
   Future<void> restart() => _preparation?.restartApp?.call() ?? Future.value();
 }
