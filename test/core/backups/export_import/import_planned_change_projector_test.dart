@@ -256,6 +256,43 @@ void main() {
     },
   );
 
+  test('pinned search projection waits for unresolved profile mapping', () {
+    final summary = projector.pinnedSearches(
+      local: PinnedSearchImportLocalSnapshot(
+        searches: const [],
+        organization: SearchOrganization(
+          folders: const [],
+          homeSearchIds: const [],
+        ),
+        feeds: const [],
+      ),
+      incoming: const PinnedSearchBackupData(
+        records: [
+          PinnedSearchBackupRecord(
+            id: 'remote-cat',
+            name: null,
+            query: 'cat',
+            position: 0,
+            profile: _profileReference,
+          ),
+        ],
+      ),
+      profileMappings: const {},
+      resolution: ResolvedImportSource(
+        id: 'pinned_searches',
+        action: ImportAction.configureItems,
+        items: const [
+          ResolvedImportItem(
+            id: 'search:remote-cat',
+            action: ImportAction.copy,
+          ),
+        ],
+      ),
+    );
+
+    expect(summary, isNull);
+  });
+
   test('pinned replace reuses semantic matches before deleting extras', () {
     final summary = projector.pinnedSearches(
       local: PinnedSearchImportLocalSnapshot(
@@ -425,6 +462,36 @@ void main() {
       );
     },
   );
+
+  test('feed projection waits for unresolved profile mapping', () {
+    final summary = projector.followingFeeds(
+      local: FollowingFeedImportLocalSnapshot(
+        searches: [],
+        feeds: [],
+      ),
+      incoming: FollowingFeedBackupData(
+        feeds: [
+          FollowingFeedBackupRecord(
+            id: 'feed',
+            name: 'Feed',
+            position: 0,
+            queries: const ['cat'],
+            profile: _profileReference,
+          ),
+        ],
+      ),
+      profileMappings: const {},
+      resolution: ResolvedImportSource(
+        id: 'following_feeds',
+        action: ImportAction.configureItems,
+        items: const [
+          ResolvedImportItem(id: 'feed:feed', action: ImportAction.copy),
+        ],
+      ),
+    );
+
+    expect(summary, isNull);
+  });
 
   test('feed replace retains compatible feeds and removes absent orphans', () {
     final cat = _search(id: 'cat-source', query: 'cat');

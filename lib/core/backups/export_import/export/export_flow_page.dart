@@ -14,6 +14,7 @@ import '../models/export_template.dart';
 import '../models/import_action.dart';
 import '../widgets/import_action_editor.dart';
 import '../widgets/selection_tree.dart';
+import '../widgets/private_export_confirmation.dart';
 import 'export_flow_notifier.dart';
 
 final exportClipboardServiceProvider = Provider<ExportClipboardService>((ref) {
@@ -222,42 +223,8 @@ class ExportFlowPage extends ConsumerWidget {
   Future<void> _createExport(BuildContext context, WidgetRef ref) async {
     final state = ref.read(exportFlowProvider);
     if (state.isFull) {
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: Text(
-            context
-                .t
-                .settings
-                .backup_and_restore
-                .export_import
-                .private_confirmation_title,
-          ),
-          content: Text(
-            context
-                .t
-                .settings
-                .backup_and_restore
-                .export_import
-                .private_confirmation_body,
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: Text(
-                context.t.settings.backup_and_restore.export_import.cancel,
-              ),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: Text(
-                context.t.settings.backup_and_restore.export_import.kContinue,
-              ),
-            ),
-          ],
-        ),
-      );
-      if (confirmed != true) return;
+      final confirmed = await confirmPrivateExport(context);
+      if (!confirmed) return;
     }
     try {
       await ref.read(exportFlowProvider.notifier).createExport();
@@ -398,38 +365,50 @@ class _ImportDefaults extends StatelessWidget {
       ),
       children: [
         for (final (sourceId, itemId) in selectedItems)
-          ListTile(
+          KurumiSettingsTile<_ImportDefaultChoice>(
             title: Text(_childLabel(context, labels, sourceId, itemId)),
-            trailing: DropdownButton<ImportAction?>(
-              value: state.itemRecommendedActions[sourceId]?[itemId],
-              items: [
-                DropdownMenuItem<ImportAction?>(
-                  child: Text(
-                    context
-                        .t
-                        .settings
-                        .backup_and_restore
-                        .export_import
-                        .no_preference,
-                  ),
-                ),
-                for (final action in const [
-                  ImportAction.update,
-                  ImportAction.merge,
-                  ImportAction.copy,
-                  ImportAction.skip,
-                ])
-                  DropdownMenuItem<ImportAction?>(
-                    value: action,
-                    child: Text(importActionLabel(context, action)),
-                  ),
-              ],
-              onChanged: (action) => onChanged(sourceId, itemId, action),
+            selectedOption: _ImportDefaultChoice.fromAction(
+              state.itemRecommendedActions[sourceId]?[itemId],
+            ),
+            items: _ImportDefaultChoice.values,
+            onChanged: (choice) => onChanged(sourceId, itemId, choice.action),
+            optionBuilder: (choice) => Text(
+              switch (choice.action) {
+                final action? => importActionLabel(context, action),
+                null =>
+                  context
+                      .t
+                      .settings
+                      .backup_and_restore
+                      .export_import
+                      .no_preference,
+              },
             ),
           ),
       ],
     );
   }
+}
+
+enum _ImportDefaultChoice {
+  automatic(null),
+  update(ImportAction.update),
+  merge(ImportAction.merge),
+  copy(ImportAction.copy),
+  skip(ImportAction.skip);
+
+  const _ImportDefaultChoice(this.action);
+
+  factory _ImportDefaultChoice.fromAction(ImportAction? action) =>
+      switch (action) {
+        ImportAction.update => update,
+        ImportAction.merge => merge,
+        ImportAction.copy => copy,
+        ImportAction.skip => skip,
+        _ => automatic,
+      };
+
+  final ImportAction? action;
 }
 
 class _TemplatePicker extends ConsumerWidget {
@@ -453,6 +432,15 @@ class _TemplatePicker extends ConsumerWidget {
                       .backup_and_restore
                       .export_import
                       .saved_templates,
+                ),
+                Text(
+                  context
+                      .t
+                      .settings
+                      .backup_and_restore
+                      .export_import
+                      .templates_local_only,
+                  style: Theme.of(context).textTheme.bodySmall,
                 ),
                 const SizedBox(height: 8),
                 Wrap(
@@ -508,6 +496,13 @@ class _ExportReady extends ConsumerWidget {
               context.t.settings.backup_and_restore.export_import.export_ready,
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.headlineSmall,
+            ),
+            const SizedBox(height: 12),
+            ExportReadySummary(
+              state: state,
+              descriptors: ref.read(exportFlowProvider.notifier).descriptors,
+              sourceLabel: (id) => _sourceLabel(context, id),
+              onEdit: ref.read(exportFlowProvider.notifier).editSelection,
             ),
             const SizedBox(height: 24),
             FilledButton.icon(
@@ -595,6 +590,74 @@ class _ExportReady extends ConsumerWidget {
         }
       },
     );
+  }
+}
+
+class ExportReadySummary extends StatelessWidget {
+  const ExportReadySummary({
+    super.key,
+    required this.state,
+    required this.descriptors,
+    required this.sourceLabel,
+    required this.onEdit,
+  });
+
+  final ExportFlowState state;
+  final List<ExportSelectionDescriptor> descriptors;
+  final String Function(String) sourceLabel;
+  final VoidCallback onEdit;
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = context.t.settings.backup_and_restore.export_import;
+    return Column(
+      children: [
+        Text(
+          state.isFull ? strings.full_export : strings.custom_export,
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        if (state.isFull)
+          Text(strings.full_export_description, textAlign: TextAlign.center)
+        else
+          for (final descriptor in descriptors)
+            if (state.nodes[descriptor.id] case final selection?)
+              Text(
+                _selectionSummary(
+                  context,
+                  descriptor,
+                  selection,
+                  sourceLabel(descriptor.id),
+                ),
+              ),
+        TextButton.icon(
+          onPressed: onEdit,
+          icon: const Icon(Icons.edit_outlined),
+          label: Text(strings.edit_selection),
+        ),
+      ],
+    );
+  }
+
+  String _selectionSummary(
+    BuildContext context,
+    ExportSelectionDescriptor descriptor,
+    ExportNodeSelection selection,
+    String label,
+  ) {
+    final strings = context.t.settings.backup_and_restore.export_import;
+    if (!descriptor.isCollection) {
+      return strings.source_selected
+          .replaceAll('{source}', label)
+          .replaceAll('{selection}', strings.selected);
+    }
+    if (selection.kind == ExportNodeSelectionKind.all) {
+      return strings.source_selected
+          .replaceAll('{source}', label)
+          .replaceAll('{selection}', strings.all_including_future);
+    }
+    return strings.source_selected_count
+        .replaceAll('{source}', label)
+        .replaceAll('{count}', '${selection.childIds.length}');
   }
 }
 

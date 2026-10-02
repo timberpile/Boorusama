@@ -4,14 +4,18 @@ import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 
 import '../../../foundation/info/device_info.dart';
+import '../auto/widgets.dart';
 import '../transfer/route_utils.dart';
 import '../transfer/sync_data_page.dart';
 import '../utils/backup_file_picker.dart';
 import 'export/export_flow_page.dart';
 import 'import/import_flow_page.dart';
+import 'widgets/private_export_confirmation.dart';
 
 class ExportImportPage extends ConsumerWidget {
-  const ExportImportPage({super.key});
+  const ExportImportPage({super.key, this.includeAutomaticExports = false});
+
+  final bool includeAutomaticExports;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -78,10 +82,7 @@ class ExportImportPage extends ConsumerWidget {
                       if (context.mounted) {
                         Kurumi.showErrorToast(
                           context,
-                          strings.invalid_export.replaceAll(
-                            '{error}',
-                            error.toString(),
-                          ),
+                          strings.invalid_export_friendly,
                         );
                       }
                     }
@@ -97,10 +98,15 @@ class ExportImportPage extends ConsumerWidget {
               title: Text(context.t.settings.backup_and_restore.send),
               subtitle: Text(strings.nearby_send_description),
               trailing: const Icon(Icons.chevron_right),
-              onTap: () => goToSyncDataPage(
-                context,
-                mode: TransferMode.export,
-              ),
+              onTap: () async {
+                final confirmed = await confirmPrivateExport(
+                  context,
+                  confirmLabel: strings.start_sending,
+                );
+                if (confirmed && context.mounted) {
+                  goToSyncDataPage(context, mode: TransferMode.export);
+                }
+              },
             ),
           ),
           Card(
@@ -115,6 +121,27 @@ class ExportImportPage extends ConsumerWidget {
               ),
             ),
           ),
+          if (includeAutomaticExports) ...[
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Text(
+                  context.t.settings.backup_and_restore.auto_backup,
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(width: 8),
+                Tooltip(
+                  message:
+                      context.t.settings.backup_and_restore.auto_backup_tooltip,
+                  triggerMode: TooltipTriggerMode.tap,
+                  showDuration: const Duration(seconds: 5),
+                  child: const Icon(Icons.info_outline),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            const AutoBackupSection(),
+          ],
         ],
       ),
     );

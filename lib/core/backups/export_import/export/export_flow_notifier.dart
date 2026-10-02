@@ -216,6 +216,11 @@ class ExportFlowNotifier extends AutoDisposeNotifier<ExportFlowState> {
     );
   }
 
+  void editSelection() => state = state.copyWith(
+    status: ExportFlowStatus.choosing,
+    clearResult: true,
+  );
+
   ExportSelection selection() => state.isFull
       ? ExportSelection.full(_Catalog(descriptors))
       : ExportSelection.custom(state.nodes);

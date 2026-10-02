@@ -67,28 +67,12 @@ class _ImportFlowPageState extends ConsumerState<ImportFlowPage> {
             ],
           ),
         ),
-        ImportFlowStatus.complete => Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.check_circle_outline, size: 72),
-              const SizedBox(height: 12),
-              Text(
-                strings.import_complete,
-                style: Theme.of(context).textTheme.headlineSmall,
-              ),
-            ],
-          ),
+        ImportFlowStatus.complete => ImportCompletionView(
+          summary: state.preflight?.summary,
+          onDone: () => Navigator.of(context).maybePop(),
         ),
-        ImportFlowStatus.error => Padding(
-          padding: const EdgeInsets.all(24),
-          child: Text(
-            strings.invalid_export.replaceAll(
-              '{error}',
-              state.error.toString(),
-            ),
-            style: TextStyle(color: Theme.of(context).colorScheme.error),
-          ),
+        ImportFlowStatus.error => ImportErrorView(
+          onChooseAnother: () => Navigator.of(context).maybePop(),
         ),
         ImportFlowStatus.review => _ReviewImport(state: state),
       },
@@ -112,7 +96,7 @@ class _ReviewImport extends ConsumerWidget {
     };
     final sourceNames = {
       for (final source in ref.read(backupRegistryProvider).getAllSources())
-        source.id: source.displayName,
+        source.id: _localizedSourceLabel(context, source.id),
     };
     final localLabels = ref.watch(exportSelectionLabelsProvider).children;
     final profileNames = {
@@ -123,10 +107,7 @@ class _ReviewImport extends ConsumerWidget {
       padding: const EdgeInsets.all(16),
       children: [
         Text(
-          strings.import_summary.replaceAll(
-            '{count}',
-            '${proposed.sources.length}',
-          ),
+          strings.import_category_count(n: proposed.sources.length),
           style: Theme.of(context).textTheme.titleLarge,
         ),
         if (state.createdAt case final createdAt?)
@@ -136,7 +117,7 @@ class _ReviewImport extends ConsumerWidget {
             subtitle: Text(
               strings.export_details_summary
                   .replaceAll('{version}', state.exporterVersion ?? '—')
-                  .replaceAll('{date}', createdAt.toLocal().toString()),
+                  .replaceAll('{date}', _formatExportDate(context, createdAt)),
             ),
           ),
         if (state.containsCredentials)
@@ -155,7 +136,11 @@ class _ReviewImport extends ConsumerWidget {
             resolved: resolvedById[source.id]!,
             onChanged: ref.read(importFlowProvider.notifier).replaceSource,
             sourceLabel: (id) => sourceNames[id] ?? id,
-            itemLabel: (id) => state.itemLabels[id] ?? localLabels[id] ?? id,
+            itemLabel: (id) => _localizedItemLabel(
+              context,
+              id,
+              state.itemLabels[id] ?? localLabels[id],
+            ),
             targetLabel: (id) => localLabels[id] ?? id,
           ),
         if (resolved.sources.any(
@@ -188,10 +173,7 @@ class _ReviewImport extends ConsumerWidget {
           ListTile(
             leading: const Icon(Icons.info_outline),
             title: Text(
-              strings.already_present.replaceAll(
-                '{count}',
-                '${state.alreadyPresentSearches}',
-              ),
+              strings.searches_already_present(n: state.alreadyPresentSearches),
             ),
           ),
         if (preflight.sourceSummaries.isNotEmpty) ...[
@@ -202,7 +184,7 @@ class _ReviewImport extends ConsumerWidget {
           ),
           for (final source in resolved.sources)
             if (preflight.sourceSummaries[source.id] case final summary?)
-              if (_hasReviewedEffect(source, summary))
+              if (importHasChanges(summary))
                 ListTile(
                   leading: const Icon(Icons.fact_check_outlined),
                   title: Text(sourceNames[source.id] ?? source.id),
@@ -211,7 +193,9 @@ class _ReviewImport extends ConsumerWidget {
                       source,
                       summary,
                       containsCredentials: state.containsCredentials,
-                      summaryTemplate: strings.planned_change_summary,
+                      createdTemplate: strings.created_count,
+                      updatedTemplate: strings.updated_count,
+                      deletedTemplate: strings.deleted_count,
                       credentialsReplaced: strings.profile_credentials_replaced,
                       credentialsPreserved:
                           strings.profile_credentials_preserved,
@@ -220,6 +204,14 @@ class _ReviewImport extends ConsumerWidget {
                     ),
                   ),
                 ),
+          if (preflight.sourceSummaries.values
+                  .where((summary) => !importHasChanges(summary))
+                  .length
+              case final unchangedCount when unchangedCount > 0)
+            ListTile(
+              leading: const Icon(Icons.check_circle_outline),
+              title: Text(strings.categories_unchanged(n: unchangedCount)),
+            ),
         ],
         const SizedBox(height: 16),
         if (preflight.warnings.isEmpty && preflight.errors.isEmpty)
@@ -274,45 +266,166 @@ class _ReviewImport extends ConsumerWidget {
               ),
         ],
         const SizedBox(height: 20),
-        FilledButton(
-          key: const ValueKey('apply-import'),
-          onPressed: preflight.isValid
-              ? () => ref.read(importFlowProvider.notifier).apply(context)
-              : null,
-          child: Text(strings.apply_import),
-        ),
+        if (preflight.isValid && !importHasChanges(preflight.summary)) ...[
+          ListTile(
+            leading: const Icon(Icons.info_outline),
+            title: Text(strings.nothing_to_import),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).maybePop(),
+            child: Text(strings.done),
+          ),
+        ] else
+          FilledButton(
+            key: const ValueKey('apply-import'),
+            onPressed: preflight.isValid
+                ? () => ref.read(importFlowProvider.notifier).apply(context)
+                : null,
+            child: Text(strings.apply_import),
+          ),
       ],
     );
   }
 }
 
-bool _hasReviewedEffect(
-  ResolvedImportSource source,
-  PlannedChangeSummary summary,
-) =>
-    source.action != ImportAction.skip ||
-    summary.created > 0 ||
-    summary.updated > 0 ||
-    summary.deleted > 0 ||
-    summary.unchanged > 0;
+bool importHasChanges(PlannedChangeSummary summary) =>
+    summary.created > 0 || summary.updated > 0 || summary.deleted > 0;
+
+class ImportCompletionView extends StatelessWidget {
+  const ImportCompletionView({super.key, required this.onDone, this.summary});
+
+  final VoidCallback onDone;
+  final PlannedChangeSummary? summary;
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.check_circle_outline, size: 72),
+          const SizedBox(height: 12),
+          Text(
+            context.t.settings.backup_and_restore.export_import.import_complete,
+            style: Theme.of(context).textTheme.headlineSmall,
+          ),
+          if (summary case final summary? when importHasChanges(summary)) ...[
+            const SizedBox(height: 8),
+            Text(
+              plannedChangeCountLabels(
+                summary,
+                createdTemplate: context
+                    .t
+                    .settings
+                    .backup_and_restore
+                    .export_import
+                    .created_count,
+                updatedTemplate: context
+                    .t
+                    .settings
+                    .backup_and_restore
+                    .export_import
+                    .updated_count,
+                deletedTemplate: context
+                    .t
+                    .settings
+                    .backup_and_restore
+                    .export_import
+                    .deleted_count,
+              ).join(' · '),
+              textAlign: TextAlign.center,
+            ),
+          ],
+          const SizedBox(height: 20),
+          FilledButton(
+            onPressed: onDone,
+            child: Text(
+              context.t.settings.backup_and_restore.export_import.done,
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class ImportErrorView extends StatelessWidget {
+  const ImportErrorView({super.key, required this.onChooseAnother});
+
+  final VoidCallback onChooseAnother;
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.error_outline,
+            size: 72,
+            color: Theme.of(context).colorScheme.error,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            context
+                .t
+                .settings
+                .backup_and_restore
+                .export_import
+                .invalid_export_title,
+            style: Theme.of(context).textTheme.headlineSmall,
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            context
+                .t
+                .settings
+                .backup_and_restore
+                .export_import
+                .invalid_export_description,
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 20),
+          FilledButton(
+            onPressed: onChooseAnother,
+            child: Text(
+              context
+                  .t
+                  .settings
+                  .backup_and_restore
+                  .export_import
+                  .choose_another_export,
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
 
 String _plannedChangeDescription(
   ResolvedImportSource source,
   PlannedChangeSummary summary, {
   required bool containsCredentials,
-  required String summaryTemplate,
+  required String createdTemplate,
+  required String updatedTemplate,
+  required String deletedTemplate,
   required String credentialsReplaced,
   required String credentialsPreserved,
   required String bookmarkOrphanPolicy,
   required String ungroupedRemovalPolicy,
 }) {
-  final base = summaryTemplate
-      .replaceAll('{created}', '${summary.created}')
-      .replaceAll('{updated}', '${summary.updated}')
-      .replaceAll('{deleted}', '${summary.deleted}')
-      .replaceAll('{preserved}', '${summary.preserved}')
-      .replaceAll('{unchanged}', '${summary.unchanged}');
-  final details = <String>[base];
+  final details = <String>[
+    plannedChangeCountLabels(
+      summary,
+      createdTemplate: createdTemplate,
+      updatedTemplate: updatedTemplate,
+      deletedTemplate: deletedTemplate,
+    ).join(' · '),
+  ];
   if (source.id == 'profiles' && (summary.created > 0 || summary.updated > 0)) {
     if (containsCredentials) {
       details.add(credentialsReplaced);
@@ -335,6 +448,63 @@ String _plannedChangeDescription(
   }
   return details.join('\n');
 }
+
+List<String> plannedChangeCountLabels(
+  PlannedChangeSummary summary, {
+  required String createdTemplate,
+  required String updatedTemplate,
+  required String deletedTemplate,
+}) => [
+  if (summary.created > 0)
+    createdTemplate.replaceAll('{count}', '${summary.created}'),
+  if (summary.updated > 0)
+    updatedTemplate.replaceAll('{count}', '${summary.updated}'),
+  if (summary.deleted > 0)
+    deletedTemplate.replaceAll('{count}', '${summary.deleted}'),
+];
+
+String _formatExportDate(BuildContext context, DateTime createdAt) {
+  final local = createdAt.toLocal();
+  final localizations = MaterialLocalizations.of(context);
+  return '${localizations.formatMediumDate(local)} '
+      '${localizations.formatTimeOfDay(TimeOfDay.fromDateTime(local))}';
+}
+
+String _localizedItemLabel(
+  BuildContext context,
+  String id,
+  String? fallback,
+) => id == 'ungrouped'
+    ? context.t.settings.backup_and_restore.export_import.sources.ungrouped
+    : fallback ?? id;
+
+String _localizedSourceLabel(BuildContext context, String id) => switch (id) {
+  'profiles' =>
+    context.t.settings.backup_and_restore.export_import.sources.profiles,
+  'settings' =>
+    context.t.settings.backup_and_restore.export_import.sources.settings,
+  'favorite_tags' =>
+    context.t.settings.backup_and_restore.export_import.sources.favorite_tags,
+  'search_histories' =>
+    context.t.settings.backup_and_restore.export_import.sources.search_history,
+  'downloads' =>
+    context.t.settings.backup_and_restore.export_import.sources.downloads,
+  'blacklisted_tags' =>
+    context
+        .t
+        .settings
+        .backup_and_restore
+        .export_import
+        .sources
+        .blacklisted_tags,
+  'bookmarks' =>
+    context.t.settings.backup_and_restore.export_import.sources.bookmarks,
+  'pinned_searches' =>
+    context.t.settings.backup_and_restore.export_import.sources.pinned_searches,
+  'following_feeds' =>
+    context.t.settings.backup_and_restore.export_import.sources.following_feeds,
+  _ => id,
+};
 
 class _ProfileMappingTile extends StatelessWidget {
   const _ProfileMappingTile({

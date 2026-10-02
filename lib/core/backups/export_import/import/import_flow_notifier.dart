@@ -848,7 +848,7 @@ final class PackageTransactionSource implements ImportTransactionSource {
     ).capture();
   }
 
-  PlannedChangeSummary plannedChanges(ResolvedImportSource resolution) {
+  PlannedChangeSummary? plannedChanges(ResolvedImportSource resolution) {
     const projector = ImportPlannedChangeProjector();
     return switch ((id, _localSnapshot, preparedData)) {
       (

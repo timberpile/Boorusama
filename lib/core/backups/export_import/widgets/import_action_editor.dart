@@ -1,4 +1,5 @@
 import 'package:i18n/i18n.dart';
+import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 
 import '../import/import_plan.dart';
@@ -26,46 +27,41 @@ class ImportActionEditor extends StatelessWidget {
   Widget build(BuildContext context) {
     final resolvedItems = {for (final item in resolved.items) item.id: item};
     return Card(
-      child: ExpansionTile(
-        initiallyExpanded: true,
-        title: Text(sourceLabel(proposed.id)),
-        trailing: DropdownButton<ImportAction>(
-          value: resolved.action,
-          items: [
-            for (final action in proposed.availableActions)
-              DropdownMenuItem(
-                value: action,
-                child: Text(importActionLabel(context, action)),
-              ),
-          ],
-          onChanged: (action) {
-            if (action != null) onChanged(resolved.copyWith(action: action));
-          },
-        ),
-        children: resolved.action == ImportAction.configureItems
-            ? [
-                for (final item in proposed.items)
-                  _ItemActionTile(
-                    proposed: item,
-                    resolved:
-                        resolvedItems[item.id] ??
-                        ResolvedImportItem(
-                          id: item.id,
-                          action: item.defaultAction,
-                        ),
-                    itemLabel: itemLabel,
-                    targetLabel: targetLabel,
-                    onChanged: (updated) => onChanged(
-                      resolved.copyWith(
-                        items: [
-                          for (final current in resolved.items)
-                            if (current.id == updated.id) updated else current,
-                        ],
-                      ),
+      child: Column(
+        children: [
+          KurumiSettingsTile<ImportAction>(
+            title: Text(sourceLabel(proposed.id)),
+            selectedOption: resolved.action,
+            items: proposed.availableActions.toList(),
+            onChanged: (action) => onChanged(
+              resolved.copyWith(action: action),
+            ),
+            optionBuilder: (action) => Text(
+              importActionLabel(context, action),
+            ),
+          ),
+          if (resolved.action == ImportAction.configureItems)
+            for (final item in proposed.items)
+              _ItemActionTile(
+                proposed: item,
+                resolved:
+                    resolvedItems[item.id] ??
+                    ResolvedImportItem(
+                      id: item.id,
+                      action: item.defaultAction,
                     ),
+                itemLabel: itemLabel,
+                targetLabel: targetLabel,
+                onChanged: (updated) => onChanged(
+                  resolved.copyWith(
+                    items: [
+                      for (final current in resolved.items)
+                        if (current.id == updated.id) updated else current,
+                    ],
                   ),
-              ]
-            : const [],
+                ),
+              ),
+        ],
       ),
     );
   }
@@ -92,31 +88,23 @@ class _ItemActionTile extends StatelessWidget {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(itemLabel(proposed.id)),
-        const SizedBox(height: 6),
-        DropdownButtonFormField<ImportAction>(
-          initialValue: resolved.action,
-          items: [
-            for (final action in proposed.availableActions)
-              DropdownMenuItem(
-                value: action,
-                child: Text(importActionLabel(context, action)),
-              ),
-          ],
-          onChanged: (action) {
-            if (action != null) {
-              onChanged(
-                resolved.copyWith(
-                  action: action,
-                  targetId:
-                      proposed.targetRequiredActions.contains(action) ||
-                          action == ImportAction.mergeIntoTarget
-                      ? resolved.targetId
-                      : null,
-                ),
-              );
-            }
-          },
+        KurumiSettingsTile<ImportAction>(
+          title: Text(itemLabel(proposed.id)),
+          selectedOption: resolved.action,
+          items: proposed.availableActions.toList(),
+          onChanged: (action) => onChanged(
+            resolved.copyWith(
+              action: action,
+              targetId:
+                  proposed.targetRequiredActions.contains(action) ||
+                      action == ImportAction.mergeIntoTarget
+                  ? resolved.targetId
+                  : null,
+            ),
+          ),
+          optionBuilder: (action) => Text(
+            importActionLabel(context, action),
+          ),
         ),
         if (resolved.action == ImportAction.mergeIntoTarget ||
             proposed.targetRequiredActions.contains(resolved.action)) ...[

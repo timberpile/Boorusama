@@ -293,7 +293,7 @@ final class ImportPlannedChangeProjector {
     );
   }
 
-  PlannedChangeSummary pinnedSearches({
+  PlannedChangeSummary? pinnedSearches({
     required PinnedSearchImportLocalSnapshot local,
     required PinnedSearchBackupData incoming,
     required ResolvedImportSource resolution,
@@ -317,6 +317,17 @@ final class ImportPlannedChangeProjector {
       return PlannedChangeSummary(preserved: localEntities.length);
     }
 
+    final items = {for (final item in resolution.items) item.id: item};
+    final requiresUnmappedProfile = incoming.records.any(
+      (record) =>
+          (resolution.action == ImportAction.replace ||
+              items['search:${record.id}']?.action != ImportAction.skip) &&
+          !profileMappings.containsKey(
+            ProfileReferenceKey.fromReference(record.profile),
+          ),
+    );
+    if (requiresUnmappedProfile) return null;
+
     final searches = <String, SearchSubscription>{
       for (final search in local.searches) search.id: search,
     };
@@ -326,7 +337,6 @@ final class ImportPlannedChangeProjector {
       folders = [];
       home = home.where(internalIds.contains).toList();
     }
-    final items = {for (final item in resolution.items) item.id: item};
     final importedByBackupId = <String, String>{};
     final touched = <Object>{};
     final createdIds = <String>[];
@@ -450,7 +460,7 @@ final class ImportPlannedChangeProjector {
     );
   }
 
-  PlannedChangeSummary followingFeeds({
+  PlannedChangeSummary? followingFeeds({
     required FollowingFeedImportLocalSnapshot local,
     required FollowingFeedBackupData incoming,
     required ResolvedImportSource resolution,
@@ -477,6 +487,15 @@ final class ImportPlannedChangeProjector {
     final feeds = {for (final feed in local.feeds) feed.id: feed};
     final touched = <Object>{};
     final items = {for (final item in resolution.items) item.id: item};
+    final requiresUnmappedProfile = incoming.feeds.any((record) {
+      final item = items['feed:${record.id}'];
+      return (resolution.action == ImportAction.replace ||
+              (item != null && item.action != ImportAction.skip)) &&
+          !profileMappings.containsKey(
+            ProfileReferenceKey.fromReference(record.profile),
+          );
+    });
+    if (requiresUnmappedProfile) return null;
     final desired =
         <({int index, int profileId, FollowingFeedBackupRecord record})>[];
     for (final (index, record) in incoming.feeds.indexed) {
@@ -778,9 +797,12 @@ void _deleteFeed(
   final referencedElsewhere = {
     for (final other in feeds.values) ...other.sourceIds,
   };
-  feed.sourceIds.toSet().difference(referencedElsewhere).forEach(
-    searches.remove,
-  );
+  feed.sourceIds
+      .toSet()
+      .difference(referencedElsewhere)
+      .forEach(
+        searches.remove,
+      );
 }
 
 int _profileId(

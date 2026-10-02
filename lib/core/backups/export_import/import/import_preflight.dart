@@ -44,7 +44,7 @@ final class SourcePreflightSnapshot extends Equatable {
 
   final String sourceId;
   final String revisionToken;
-  final PlannedChangeSummary summary;
+  final PlannedChangeSummary? summary;
   final List<ImportPlanIssue> warnings;
   final List<ImportPlanIssue> errors;
   final int rollbackBytes;
@@ -179,8 +179,10 @@ final class ImportPreflight {
     for (final source in sources) {
       warnings.addAll(source.warnings);
       errors.addAll(source.errors);
-      summary += source.summary;
-      sourceSummaries[source.sourceId] = source.summary;
+      if (source.summary case final sourceSummary?) {
+        summary += sourceSummary;
+        sourceSummaries[source.sourceId] = sourceSummary;
+      }
       rollbackBytes += source.rollbackBytes;
       if (revisions[source.sourceId] != null) {
         errors.add(
