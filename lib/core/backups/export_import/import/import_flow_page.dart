@@ -7,6 +7,7 @@ import '../../sources/providers.dart';
 import '../export/export_flow_notifier.dart';
 import '../widgets/import_action_editor.dart';
 import 'import_flow_notifier.dart';
+import 'import_issue_message.dart';
 import 'import_preflight.dart';
 import 'profile_dependency_planner.dart';
 
@@ -197,7 +198,14 @@ class _ReviewImport extends ConsumerWidget {
           for (final issue in preflight.warnings)
             ListTile(
               leading: const Icon(Icons.warning_amber),
-              title: Text(_issueText(issue.code, issue.sourceId)),
+              title: Text(
+                importIssueMessage(
+                  context,
+                  issue,
+                  sourceNames: sourceNames,
+                  itemLabels: {...localLabels, ...state.itemLabels},
+                ),
+              ),
             ),
           CheckboxListTile(
             value: !preflight.errors.any(
@@ -218,7 +226,14 @@ class _ReviewImport extends ConsumerWidget {
                   Icons.error_outline,
                   color: Theme.of(context).colorScheme.error,
                 ),
-                title: Text(_issueText(issue.code, issue.sourceId)),
+                title: Text(
+                  importIssueMessage(
+                    context,
+                    issue,
+                    sourceNames: sourceNames,
+                    itemLabels: {...localLabels, ...state.itemLabels},
+                  ),
+                ),
               ),
         ],
         const SizedBox(height: 20),
@@ -298,8 +313,6 @@ class _ProfileMappingTile extends StatelessWidget {
     ),
   );
 }
-
-String _issueText(String code, String sourceId) => '$sourceId: $code';
 
 bool _hasPlannedChanges(PlannedChangeSummary summary) =>
     summary.created > 0 ||

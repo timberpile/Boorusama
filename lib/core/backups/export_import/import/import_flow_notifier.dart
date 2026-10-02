@@ -36,6 +36,7 @@ import 'import_coordinator.dart';
 import 'collection_import_action.dart';
 import 'import_change_summarizer.dart';
 import 'import_item_labels.dart';
+import 'import_source_integrity_validator.dart';
 import 'import_journal.dart';
 import 'import_plan.dart';
 import 'import_planner.dart';
@@ -148,11 +149,14 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
       );
       _availableBytes = disk.freeSpace > 0 ? disk.freeSpace : 1 << 62;
       final registry = ref.read(backupRegistryProvider);
+      final exportSources = ref.read(exportImportSourcesProvider);
+      final sourcesById = {
+        for (final source in exportSources) source.id: source,
+      };
       final descriptors = {
-        for (final descriptor
-            in ref
-                .read(exportImportSourcesProvider)
-                .map((s) => s.selectionDescriptor))
+        for (final descriptor in exportSources.map(
+          (s) => s.selectionDescriptor,
+        ))
           descriptor.id: descriptor,
       };
       final wrappers = <String, PackageTransactionSource>{};
@@ -184,13 +188,18 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
         itemLabels.addAll(importItemLabels(wrapper.preparedData));
         final selection =
             manifest.selection ?? ExportNodeSelection.all(manifest.id);
+        final integrityIssues = const ImportSourceIntegrityValidator().validate(
+          sourceId: manifest.id,
+          packageSchemaVersion: manifest.schemaVersion,
+          supportedSchemaVersion: sourcesById[manifest.id]!.schemaVersion,
+          selection: selection,
+          itemRecommendations: manifest.itemRecommendedActions,
+          data: wrapper.preparedData,
+        );
         final descriptor = descriptors[manifest.id];
         final isCollection = descriptor?.isCollection ?? false;
         final localIds = descriptor?.childIds ?? const <String>{};
-        final incomingIds = _incomingItemIds(
-          wrapper.preparedData,
-          selection,
-        );
+        final incomingIds = _incomingItemIds(wrapper.preparedData, selection);
         final alreadyPresentSearchIds = <String>{};
         if (wrapper.preparedData case final PinnedSearchBackupData data) {
           final repository = await ref.read(
@@ -265,6 +274,7 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
             sourceId: source.id,
             revisionToken: await wrapper.revisionToken(),
             rollbackBytes: wrapper.preflightRollbackBytes,
+            errors: integrityIssues,
           ),
         );
       }
@@ -632,21 +642,7 @@ Set<String> _incomingItemIds(
   ExportNodeSelection selection,
 ) => switch (selection.kind) {
   ExportNodeSelectionKind.explicit => selection.childIds,
-  ExportNodeSelectionKind.all => switch (data) {
-    final BookmarkBackupData bookmarks => {
-      'ungrouped',
-      for (final group in bookmarks.groups)
-        if (group.id case final id?) 'group:$id',
-    },
-    final PinnedSearchBackupData searches => {
-      for (final folder in searches.folders) 'folder:${folder.id}',
-      for (final record in searches.records) 'search:${record.id}',
-    },
-    final FollowingFeedBackupData feeds => {
-      for (final feed in feeds.feeds) 'feed:${feed.id}',
-    },
-    _ => const <String>{},
-  },
+  ExportNodeSelectionKind.all => importedItemIds(data),
 };
 
 List<ImportItemPlanningInput> _profilePlanningItems(

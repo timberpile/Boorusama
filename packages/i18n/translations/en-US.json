@@ -859,7 +859,22 @@
         "no_preference": "Automatic",
         "recovering_import": "Recovering an interrupted import…",
         "recovery_required": "Import recovery required",
-        "recovery_required_description": "Boorusama could not restore {count} interrupted import transaction(s). Normal app changes remain blocked until recovery succeeds."
+        "recovery_required_description": "Boorusama could not restore {count} interrupted import transaction(s). Normal app changes remain blocked until recovery succeeds.",
+        "issues": {
+          "unsupported_source_version": "{source} was created by a newer version of Boorusama.",
+          "unknown_selected_item": "{item} is selected but missing from {source}.",
+          "unknown_recommended_item": "An import suggestion refers to missing item {item} in {source}.",
+          "missing_bookmark_reference": "{item} refers to bookmark data missing from the export.",
+          "unsupported_recommendation": "The suggested action for {item} is unavailable. A safe alternative was selected.",
+          "invalid_source_action": "Choose a valid action for {source}.",
+          "invalid_item_action": "Choose a valid action for {item}.",
+          "invalid_target": "Choose a valid target for {item}.",
+          "insufficient_storage": "There is not enough free storage to import safely and keep a rollback checkpoint.",
+          "unresolved_profile_dependency": "Choose or create a profile for the selected searches and feeds.",
+          "unresolved_profile_import": "Choose a valid import action and target for {item}.",
+          "incomplete_checks": "Boorusama could not complete all safety checks for {source}.",
+          "unknown_problem": "Boorusama found a problem with {source}."
+        }
       },
       "auto_backup": "Auto backup",
       "auto_backup_tooltip": "Backups are created when you open the app. No backups occur when the app is closed.",
