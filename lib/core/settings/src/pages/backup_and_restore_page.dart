@@ -21,7 +21,7 @@ class _BackupAndRestorePageState extends ConsumerState<BackupAndRestorePage> {
   @override
   Widget build(BuildContext context) {
     return SettingsPageScaffold(
-      title: Text(context.t.settings.backup_and_restore.backup_and_restore),
+      title: Text(context.t.settings.backup_and_restore.export_import.title),
       padding: const EdgeInsets.symmetric(horizontal: 8),
       children: const [
         BackupSettingsSection(),

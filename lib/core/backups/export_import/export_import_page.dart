@@ -59,9 +59,7 @@ class ExportImportPage extends ConsumerWidget {
                   leading: Icon(
                     detected ? Icons.content_paste_go : Icons.content_paste,
                   ),
-                  title: Text(
-                    detected ? strings.import_clipboard : strings.paste_base64,
-                  ),
+                  title: Text(strings.import_clipboard),
                   subtitle: detected ? Text(strings.clipboard_detected) : null,
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () async {
