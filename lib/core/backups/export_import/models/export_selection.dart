@@ -7,22 +7,75 @@ abstract interface class ExportSourceCatalog {
 
 enum ExportNodeSelectionKind { all, explicit }
 
+final class ExportSelectionNode extends Equatable {
+  const ExportSelectionNode({required this.id, this.children = const []});
+
+  final String id;
+  final List<ExportSelectionNode> children;
+
+  bool get isCollection => children.isNotEmpty;
+
+  Set<String> get allIds => {
+    id,
+    for (final child in children) ...child.allIds,
+  };
+
+  Set<String> get descendantIds => {
+    for (final child in children) ...child.allIds,
+  };
+
+  ExportSelectionNode? find(String nodeId) {
+    if (id == nodeId) return this;
+    for (final child in children) {
+      if (child.find(nodeId) case final match?) return match;
+    }
+    return null;
+  }
+
+  bool contains(String nodeId) => find(nodeId) != null;
+
+  @override
+  List<Object?> get props => [id, children];
+}
+
 final class ExportSelectionDescriptor extends Equatable {
   const ExportSelectionDescriptor.leaf({required this.id})
-    : childIds = const {};
+    : children = const [],
+      _legacyChildIds = const {};
 
   const ExportSelectionDescriptor.collection({
     required this.id,
-    required this.childIds,
-  });
+    this.children = const [],
+    Set<String> childIds = const {},
+  }) : _legacyChildIds = childIds;
 
   final String id;
-  final Set<String> childIds;
+  final List<ExportSelectionNode> children;
+  final Set<String> _legacyChildIds;
+
+  List<ExportSelectionNode> get rootNodes => [
+    ...children,
+    for (final childId in _legacyChildIds)
+      if (!children.any((node) => node.contains(childId)))
+        ExportSelectionNode(id: childId),
+  ];
+
+  Set<String> get childIds => {
+    ..._legacyChildIds,
+    for (final child in children) ...child.allIds,
+  };
 
   bool get isCollection => childIds.isNotEmpty;
 
+  ExportSelectionNode? findNode(String nodeId) {
+    for (final child in rootNodes) {
+      if (child.find(nodeId) case final match?) return match;
+    }
+    return null;
+  }
+
   @override
-  List<Object> get props => [id, childIds];
+  List<Object> get props => [id, rootNodes];
 }
 
 final class ExportNodeSelection extends Equatable {
@@ -66,9 +119,10 @@ final class ExportNodeSelection extends Equatable {
     if (!descriptor.isCollection) return {nodeId};
     return switch (kind) {
       ExportNodeSelectionKind.all => Set.unmodifiable(descriptor.childIds),
-      ExportNodeSelectionKind.explicit => Set.unmodifiable(
-        childIds.intersection(descriptor.childIds),
-      ),
+      ExportNodeSelectionKind.explicit => Set.unmodifiable({
+        for (final childId in childIds)
+          if (descriptor.findNode(childId) case final node?) ...node.allIds,
+      }),
     };
   }
 

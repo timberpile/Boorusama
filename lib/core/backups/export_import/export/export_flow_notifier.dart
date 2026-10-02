@@ -158,15 +158,39 @@ class ExportFlowNotifier extends AutoDisposeNotifier<ExportFlowState> {
   }
 
   void toggleChild(ExportSelectionDescriptor descriptor, String childId) {
+    final node = descriptor.findNode(childId);
+    if (node != null) toggleNode(descriptor, node);
+  }
+
+  void toggleNode(
+    ExportSelectionDescriptor descriptor,
+    ExportSelectionNode node,
+  ) {
     final current = state.nodes[descriptor.id];
     final selected = switch (current?.kind) {
-      ExportNodeSelectionKind.all => descriptor.childIds.toSet(),
+      ExportNodeSelectionKind.all => {
+        for (final root in descriptor.rootNodes) root.id,
+      },
       ExportNodeSelectionKind.explicit => current!.childIds.toSet(),
       null => <String>{},
     };
-    selected.contains(childId)
-        ? selected.remove(childId)
-        : selected.add(childId);
+    final effective = current?.resolve(descriptor) ?? const <String>{};
+    if (effective.intersection(node.allIds).isNotEmpty) {
+      final roots = switch (current?.kind) {
+        ExportNodeSelectionKind.all => descriptor.rootNodes,
+        _ => [
+          for (final id in selected)
+            if (descriptor.findNode(id) case final selectedNode?) selectedNode,
+        ],
+      };
+      selected
+        ..clear()
+        ..addAll(_excludingNode(roots, node.id));
+    } else {
+      selected
+        ..removeAll(node.descendantIds)
+        ..add(node.id);
+    }
     final nodes = {...state.nodes};
     if (selected.isEmpty) {
       nodes.remove(descriptor.id);
@@ -177,6 +201,28 @@ class ExportFlowNotifier extends AutoDisposeNotifier<ExportFlowState> {
       );
     }
     state = state.copyWith(nodes: nodes, clearResult: true);
+  }
+
+  Set<String> _excludingNode(
+    Iterable<ExportSelectionNode> selectedRoots,
+    String excludedId,
+  ) => {
+    for (final root in selectedRoots)
+      ..._selectedRootsWithout(root, excludedId),
+  };
+
+  Iterable<String> _selectedRootsWithout(
+    ExportSelectionNode node,
+    String excludedId,
+  ) sync* {
+    if (node.id == excludedId) return;
+    if (!node.contains(excludedId)) {
+      yield node.id;
+      return;
+    }
+    for (final child in node.children) {
+      yield* _selectedRootsWithout(child, excludedId);
+    }
   }
 
   void setIncludeCredentials(bool value) {
