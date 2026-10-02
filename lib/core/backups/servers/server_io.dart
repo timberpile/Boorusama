@@ -13,13 +13,14 @@ import '../../../foundation/info/device_info.dart';
 import '../../../foundation/info/package_info.dart';
 import '../../../foundation/loggers.dart';
 import '../../../foundation/networking.dart';
-import '../sources/providers.dart';
+import '../export_import/nearby/nearby_transfer_service.dart';
+import '../export_import/nearby/providers.dart';
 import '../types.dart';
 
 const _kServerName = 'App Server';
 
 final dataSyncServerProvider = Provider<AppServerInterface>((ref) {
-  final registry = ref.watch(backupRegistryProvider);
+  final nearbyExport = ref.watch(nearbyExportServiceProvider);
 
   final config = ServerConfig(
     logger: ref.watch(loggerProvider),
@@ -30,8 +31,7 @@ final dataSyncServerProvider = Provider<AppServerInterface>((ref) {
     },
     routes: {
       'health': (request) => Response(204),
-      for (final source in registry.getAllSources())
-        source.id: source.capabilities.server.export,
+      'export': (_) => _serveNearbyExport(nearbyExport),
     },
   );
 
@@ -53,6 +53,27 @@ final dataSyncServerProvider = Provider<AppServerInterface>((ref) {
 
   return server;
 });
+
+Future<Response> _serveNearbyExport(NearbyExportService service) async {
+  final package = await service.createFullPackage();
+  final byteLength = await package.fs.fileSize(package.path);
+  return Response.ok(
+    _readAndDispose(package),
+    headers: {
+      HttpHeaders.contentTypeHeader: 'application/vnd.boorusama.export',
+      HttpHeaders.contentLengthHeader: '$byteLength',
+      'content-disposition': 'attachment; filename="boorusama_export.bsexport"',
+    },
+  );
+}
+
+Stream<List<int>> _readAndDispose(NearbyExportPackage package) async* {
+  try {
+    yield* package.fs.openRead(package.path);
+  } finally {
+    await package.dispose();
+  }
+}
 
 class AppServer implements AppServerInterface {
   AppServer(this._config);

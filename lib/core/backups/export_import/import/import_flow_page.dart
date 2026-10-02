@@ -10,9 +10,14 @@ import 'import_flow_notifier.dart';
 import 'profile_dependency_planner.dart';
 
 class ImportFlowPage extends ConsumerStatefulWidget {
-  const ImportFlowPage({super.key, required this.packagePath});
+  const ImportFlowPage({
+    super.key,
+    required this.packagePath,
+    this.disposeInput,
+  });
 
   final String packagePath;
+  final Future<void> Function()? disposeInput;
 
   @override
   ConsumerState<ImportFlowPage> createState() => _ImportFlowPageState();
@@ -22,9 +27,13 @@ class _ImportFlowPageState extends ConsumerState<ImportFlowPage> {
   @override
   void initState() {
     super.initState();
-    Future.microtask(
-      () => ref.read(importFlowProvider.notifier).load(widget.packagePath),
-    );
+    Future.microtask(() async {
+      try {
+        await ref.read(importFlowProvider.notifier).load(widget.packagePath);
+      } finally {
+        await widget.disposeInput?.call();
+      }
+    });
   }
 
   @override
