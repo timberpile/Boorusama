@@ -1,4 +1,8 @@
 {
+  "pinned_searches": {
+    "sort_updates_first": "التحديثات أولًا",
+    "sort_last_post_oldest": "أقدم المنشورات أولًا"
+  },
   "generic": {
     "done": "تم",
     "errors": {

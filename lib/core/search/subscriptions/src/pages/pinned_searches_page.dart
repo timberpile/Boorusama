@@ -94,8 +94,8 @@ class _PinnedSearchesPageState extends ConsumerState<PinnedSearchesPage> {
                 child: Text(strings.sort_manual),
               ),
               PopupMenuItem(
-                value: PinnedSearchSort.lastPostNewest,
-                child: Text(strings.sort_last_post_newest),
+                value: PinnedSearchSort.updatesFirst,
+                child: Text(strings.sort_updates_first),
               ),
               PopupMenuItem(
                 value: PinnedSearchSort.lastPostOldest,

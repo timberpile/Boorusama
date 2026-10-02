@@ -191,12 +191,15 @@ rendering and sorting never fetch posts. A pin without a successful baseline
 shows `Not checked`, while a successful empty snapshot shows `No posts`.
 Refresh errors keep the prior cached value and remain visible.
 
-The collection has session-only Manual order, Last post: newest first, and Last
-post: oldest first views. The selected view is shared by Home and named folders
-until the app restarts. Date views keep searches without an upload time last,
-use manual order to break ties, leave folder rows in manual order, and disable
-Move Up and Move Down. Switching back to Manual order restores the persisted
-organization order unchanged.
+The collection has session-only Manual order, Updates first, and Oldest post
+first views. Updates first places cached NEW searches before read searches,
+then sorts each group by its newest cached last-post time. Searches without an
+upload time follow dated searches within their group; manual order breaks equal
+or missing-time ties. The selected view is shared by Home and named folders
+until the app restarts. Folder rows stay in manual order, and sorted views
+disable Move Up and Move Down. Switching back to Manual order restores the
+persisted organization order unchanged. Sorting reads cached state only and
+does not fetch posts or write organization order.
 
 Folder cards provide refresh, rename, manual ordering, and deletion through
 their overflow menus; folder creation is available from the root page overflow.

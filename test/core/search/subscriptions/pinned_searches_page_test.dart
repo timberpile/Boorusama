@@ -402,11 +402,12 @@ void main() {
   });
 
   testWidgets(
-    'newest post view reorders cards without changing manual order',
+    'updates view reorders read Home cards without changing manual order',
     (tester) async {
       initialize();
       await harness.seed([
         pinnedFixture(
+          unreadCount: 0,
           previewCount: 1,
           postCreatedAt: DateTime.utc(2026, 9, 12),
         ),
@@ -415,6 +416,7 @@ void main() {
           name: 'Dogs',
           query: 'dog',
           position: 1,
+          unreadCount: 0,
           previewCount: 1,
           postCreatedAt: DateTime.utc(2026, 9, 13),
         ),
@@ -423,7 +425,25 @@ void main() {
 
       await tester.tap(find.byTooltip('Sort by'));
       await settle(tester);
-      await tester.tap(find.text('Last post: newest first'));
+      expect(find.byType(PopupMenuItem<PinnedSearchSort>), findsNWidgets(3));
+      expect(
+        tester
+            .widgetList<PopupMenuItem<PinnedSearchSort>>(
+              find.byType(PopupMenuItem<PinnedSearchSort>),
+            )
+            .map((item) => item.value),
+        [
+          PinnedSearchSort.manual,
+          PinnedSearchSort.updatesFirst,
+          PinnedSearchSort.lastPostOldest,
+        ],
+      );
+      expect(find.text('Manual order'), findsOneWidget);
+      expect(find.text('Updates first'), findsOneWidget);
+      expect(find.text('Oldest post first'), findsOneWidget);
+      expect(find.text('Unseen first'), findsNothing);
+      expect(find.text('Newest post first'), findsNothing);
+      await tester.tap(find.text('Updates first'));
       await settle(tester);
 
       expect(
@@ -446,6 +466,142 @@ void main() {
       );
     },
   );
+
+  testWidgets('updates view groups NEW Home cards before read cards', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(800, 1200));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    initialize();
+    await harness.seed([
+      pinnedFixture(
+        name: 'Read first',
+        unreadCount: 0,
+        previewCount: 1,
+        postCreatedAt: DateTime.utc(2026, 9, 14),
+      ),
+      pinnedFixture(
+        id: 'new',
+        name: 'NEW second',
+        query: 'new',
+        unreadCount: 1,
+        position: 1,
+        previewCount: 1,
+        postCreatedAt: DateTime.utc(2026, 9, 11),
+      ),
+      pinnedFixture(
+        id: 'new-tie',
+        name: 'NEW third',
+        query: 'newer',
+        unreadCount: 1,
+        position: 2,
+        previewCount: 1,
+        postCreatedAt: DateTime.utc(2026, 9, 12),
+      ),
+      pinnedFixture(
+        id: 'read-last',
+        name: 'Read last',
+        query: 'read',
+        unreadCount: 0,
+        position: 3,
+        previewCount: 1,
+        postCreatedAt: DateTime.utc(2026, 9, 10),
+      ),
+    ]);
+    await pump(tester);
+
+    await tester.tap(find.byTooltip('Sort by'));
+    await settle(tester);
+    await tester.tap(find.text('Updates first'));
+    await settle(tester);
+
+    expect(
+      tester.getTopLeft(find.text('NEW third')).dy,
+      lessThan(tester.getTopLeft(find.text('NEW second')).dy),
+    );
+    expect(
+      tester.getTopLeft(find.text('NEW second')).dy,
+      lessThan(tester.getTopLeft(find.text('Read first')).dy),
+    );
+    expect(
+      tester.getTopLeft(find.text('Read first')).dy,
+      lessThan(tester.getTopLeft(find.text('Read last')).dy),
+    );
+    expect((await harness.repository.getOrganization()).homeSearchIds, [
+      'cats',
+      'new',
+      'new-tie',
+      'read-last',
+    ]);
+    expect(harness.requests, isEmpty);
+  });
+
+  testWidgets('updates view is shared with folders and sorts their cards', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(800, 1200));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    initialize();
+    await harness.seed([
+      pinnedFixture(
+        name: 'Read',
+        unreadCount: 0,
+        previewCount: 1,
+        postCreatedAt: DateTime.utc(2026, 9, 14),
+      ),
+      pinnedFixture(
+        id: 'new',
+        name: 'New',
+        query: 'new',
+        unreadCount: 1,
+        position: 1,
+        previewCount: 1,
+        postCreatedAt: DateTime.utc(2026, 9, 11),
+      ),
+      pinnedFixture(
+        id: 'newer',
+        name: 'Newer',
+        query: 'newer',
+        unreadCount: 1,
+        position: 2,
+        previewCount: 1,
+        postCreatedAt: DateTime.utc(2026, 9, 12),
+      ),
+    ]);
+    final notifier = harness.container.read(
+      searchSubscriptionsProvider.notifier,
+    );
+    final folder = await notifier.createSharedFolder('Favorites');
+    await notifier.movePinToSharedFolder('cats', folder.id);
+    await notifier.movePinToSharedFolder('new', folder.id);
+    await notifier.movePinToSharedFolder('newer', folder.id);
+    await pump(tester);
+
+    await tester.tap(find.byTooltip('Sort by'));
+    await settle(tester);
+    await tester.tap(find.text('Updates first'));
+    await settle(tester);
+    await tester.tap(find.text('Favorites'));
+    await settle(tester);
+
+    expect(
+      tester.getTopLeft(find.text('Newer')).dy,
+      lessThan(tester.getTopLeft(find.text('New')).dy),
+    );
+    expect(
+      tester.getTopLeft(find.text('New')).dy,
+      lessThan(tester.getTopLeft(find.text('Read')).dy),
+    );
+    expect(
+      (await harness.repository.getOrganization()).folders.single.searchIds,
+      [
+        'cats',
+        'new',
+        'newer',
+      ],
+    );
+    expect(harness.requests, isEmpty);
+  });
 
   testWidgets('oldest post view keeps undated cards after dated cards', (
     tester,
@@ -476,7 +632,7 @@ void main() {
 
     await tester.tap(find.byTooltip('Sort by'));
     await settle(tester);
-    await tester.tap(find.text('Last post: oldest first'));
+    await tester.tap(find.text('Oldest post first'));
     await settle(tester);
 
     expect(
@@ -541,7 +697,7 @@ void main() {
     await pump(tester);
     await tester.tap(find.byTooltip('Sort by'));
     await settle(tester);
-    await tester.tap(find.text('Last post: newest first'));
+    await tester.tap(find.text('Updates first'));
     await settle(tester);
     await openMenu(tester, 'Dogs');
 
@@ -579,7 +735,7 @@ void main() {
 
     await tester.tap(find.byTooltip('Sort by'));
     await settle(tester);
-    await tester.tap(find.text('Last post: oldest first'));
+    await tester.tap(find.text('Oldest post first'));
     await settle(tester);
     await tester.tap(find.text('Favorites'));
     await settle(tester);

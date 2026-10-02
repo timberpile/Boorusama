@@ -351,7 +351,7 @@ void main() {
   );
 
   testWidgets(
-    'date views omit move actions from folder cards and searches inside folders',
+    'sorted views omit move actions from folder cards and searches inside folders',
     (tester) async {
       late String folderId;
       await tester.runAsync(() async {
@@ -367,7 +367,7 @@ void main() {
       await harness.pump(tester, const PinnedSearchesPage());
       await tester.tap(find.byTooltip('Sort by'));
       await settle(tester);
-      await tester.tap(find.text('Last post: newest first'));
+      await tester.tap(find.text('Updates first'));
       await settle(tester);
 
       await openFolderMenu(tester, folderId);

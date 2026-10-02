@@ -1,4 +1,8 @@
 {
+  "pinned_searches": {
+    "sort_updates_first": "업데이트된 검색 먼저",
+    "sort_last_post_oldest": "가장 오래된 게시물 먼저"
+  },
   "generic": {
     "done": "완료",
     "errors": {

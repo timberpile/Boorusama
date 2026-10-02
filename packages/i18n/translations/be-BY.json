@@ -1,4 +1,8 @@
 {
+  "pinned_searches": {
+    "sort_updates_first": "Абнаўленні спачатку",
+    "sort_last_post_oldest": "Найстарэйшыя допісы спачатку"
+  },
   "generic": {
     "done": "Зроблена",
     "errors": {

@@ -1,4 +1,8 @@
 {
+  "pinned_searches": {
+    "sort_updates_first": "Mises à jour d’abord",
+    "sort_last_post_oldest": "Publications les plus anciennes d’abord"
+  },
   "generic": {
     "done": "Terminé",
     "errors": {

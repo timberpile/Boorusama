@@ -1,4 +1,8 @@
 {
+  "pinned_searches": {
+    "sort_updates_first": "Pembaruan terlebih dahulu",
+    "sort_last_post_oldest": "Postingan terlama terlebih dahulu"
+  },
   "generic": {
     "done": "Selesai",
     "errors": {

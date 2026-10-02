@@ -1,4 +1,8 @@
 {
+  "pinned_searches": {
+    "sort_updates_first": "Обновления сначала",
+    "sort_last_post_oldest": "Сначала старые публикации"
+  },
   "generic": {
     "done": "Выполнено",
     "errors": {

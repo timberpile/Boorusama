@@ -1,4 +1,8 @@
 {
+  "pinned_searches": {
+    "sort_updates_first": "Bản cập nhật trước",
+    "sort_last_post_oldest": "Bài đăng cũ nhất trước"
+  },
   "generic": {
     "done": "Xong",
     "errors": {

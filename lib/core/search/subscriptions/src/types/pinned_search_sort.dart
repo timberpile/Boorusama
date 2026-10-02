@@ -1,6 +1,6 @@
 import 'search_subscription.dart';
 
-enum PinnedSearchSort { manual, lastPostNewest, lastPostOldest }
+enum PinnedSearchSort { manual, updatesFirst, lastPostOldest }
 
 extension SearchSubscriptionLastPost on SearchSubscription {
   DateTime? get lastPostAt {
@@ -25,12 +25,17 @@ List<SearchSubscription> sortPinnedSearches(
 
   final indexed = items.indexed.toList()
     ..sort((left, right) {
+      if (sort == PinnedSearchSort.updatesFirst) {
+        if (left.$2.hasNewPosts != right.$2.hasNewPosts) {
+          return left.$2.hasNewPosts ? -1 : 1;
+        }
+      }
       final dateOrder = switch ((left.$2.lastPostAt, right.$2.lastPostAt)) {
         (null, null) => 0,
         (null, _) => 1,
         (_, null) => -1,
         (final leftDate?, final rightDate?) => switch (sort) {
-          PinnedSearchSort.lastPostNewest => rightDate.compareTo(leftDate),
+          PinnedSearchSort.updatesFirst => rightDate.compareTo(leftDate),
           PinnedSearchSort.lastPostOldest => leftDate.compareTo(rightDate),
           PinnedSearchSort.manual => 0,
         },

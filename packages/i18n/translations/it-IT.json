@@ -1,4 +1,8 @@
 {
+  "pinned_searches": {
+    "sort_updates_first": "Aggiornamenti prima",
+    "sort_last_post_oldest": "Post meno recenti prima"
+  },
   "generic": {
     "done": "Finito",
     "errors": {

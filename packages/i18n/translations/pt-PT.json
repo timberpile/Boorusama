@@ -1,4 +1,8 @@
 {
+  "pinned_searches": {
+    "sort_updates_first": "Atualizações primeiro",
+    "sort_last_post_oldest": "Publicações mais antigas primeiro"
+  },
   "post": {
     "action": {
       "view_comments": "Ver comentários",

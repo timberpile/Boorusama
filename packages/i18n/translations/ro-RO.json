@@ -1,4 +1,8 @@
 {
+  "pinned_searches": {
+    "sort_updates_first": "Actualizările primele",
+    "sort_last_post_oldest": "Cele mai vechi postări primele"
+  },
   "generic": {
     "done": "Terminat",
     "errors": {
