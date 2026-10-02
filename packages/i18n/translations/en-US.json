@@ -810,6 +810,8 @@
         "review_import": "Review import",
         "valid": "Valid",
         "all_checks_passed": "All checks passed",
+        "planned_changes": "Planned changes",
+        "planned_changes_summary": "{created} new · {updated} updated · {deleted} removed · {preserved} kept · {unchanged} unchanged",
         "replace": "Replace",
         "configure_items": "Configure items individually",
         "skip": "Skip",

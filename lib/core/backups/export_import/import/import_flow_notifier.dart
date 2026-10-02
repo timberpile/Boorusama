@@ -34,6 +34,7 @@ import '../models/import_action.dart';
 import '../package/staged_export_package.dart';
 import 'import_coordinator.dart';
 import 'collection_import_action.dart';
+import 'import_change_summarizer.dart';
 import 'import_journal.dart';
 import 'import_plan.dart';
 import 'import_planner.dart';
@@ -111,6 +112,7 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
   var _availableBytes = 1 << 62;
   var _stagingBytes = 0;
   List<SourcePreflightSnapshot> _preflightSnapshots = const [];
+  Map<String, ImportSourceChangeFacts> _changeFacts = const {};
   final Map<ProfileReferenceKey, int> _profileChoices = {};
   final Set<ProfileReferenceKey> _createdProfileChoices = {};
 
@@ -151,6 +153,7 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
       final wrappers = <String, PackageTransactionSource>{};
       final planning = <ImportSourcePlanningInput>[];
       final preflightSnapshots = <SourcePreflightSnapshot>[];
+      final changeFacts = <String, ImportSourceChangeFacts>{};
       var alreadyPresentSearches = 0;
       for (final manifest in package.manifest.sources) {
         final source = registry.getSource(manifest.id);
@@ -226,6 +229,18 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
                 ),
           ],
         };
+        changeFacts[source.id] = ImportSourceChangeFacts(
+          sourceId: source.id,
+          incomingIds: switch (wrapper.preparedData) {
+            final List<BooruConfig> _ => items.map((item) => item.id).toSet(),
+            _ => incomingIds,
+          },
+          existingIds: localIds,
+          identicalIds: {
+            for (final id in alreadyPresentSearchIds) 'search:$id',
+          },
+          isSingleValue: !isCollection,
+        );
         planning.add(
           ImportSourcePlanningInput(
             id: manifest.id,
@@ -267,9 +282,14 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
             rollbackBytes: wrapper.preflightRollbackBytes,
           ),
         );
+        changeFacts[source.id] = ImportSourceChangeFacts(
+          sourceId: source.id,
+          existingIds: descriptors[source.id]?.childIds ?? const {},
+        );
       }
       _sources = wrappers;
       _preflightSnapshots = preflightSnapshots;
+      _changeFacts = changeFacts;
       final proposed = const ImportPlanner().plan(planning);
       final resolved = proposed.resolveDefaults();
       final dependencies = _profileDependencies(resolved);
@@ -414,11 +434,38 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
       resolved,
       dependencies.createdProfiles,
     );
+    final resolvedById = {
+      for (final source in effectiveResolved.sources) source.id: source,
+    };
+    final snapshots = [
+      for (final snapshot in _preflightSnapshots)
+        SourcePreflightSnapshot(
+          sourceId: snapshot.sourceId,
+          revisionToken: snapshot.revisionToken,
+          summary: switch ((
+            resolvedById[snapshot.sourceId],
+            _changeFacts[snapshot.sourceId],
+          )) {
+            (final source?, final facts?) =>
+              const ImportChangeSummarizer().summarize(
+                source: source,
+                facts: facts,
+                additionalCreated: snapshot.sourceId == 'profiles'
+                    ? dependencies.createdProfiles.length
+                    : 0,
+              ),
+            _ => snapshot.summary,
+          },
+          warnings: snapshot.warnings,
+          errors: snapshot.errors,
+          rollbackBytes: snapshot.rollbackBytes,
+        ),
+    ];
     return _preflight(
       effectiveProposed,
       effectiveResolved,
       [
-        ..._preflightSnapshots,
+        ...snapshots,
         if (dependencies.errors.isNotEmpty)
           SourcePreflightSnapshot(
             sourceId: 'profile_dependencies',

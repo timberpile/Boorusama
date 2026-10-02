@@ -7,6 +7,7 @@ import '../../sources/providers.dart';
 import '../export/export_flow_notifier.dart';
 import '../widgets/import_action_editor.dart';
 import 'import_flow_notifier.dart';
+import 'import_preflight.dart';
 import 'profile_dependency_planner.dart';
 
 class ImportFlowPage extends ConsumerStatefulWidget {
@@ -169,6 +170,25 @@ class _ReviewImport extends ConsumerWidget {
             leading: const Icon(Icons.check_circle_outline),
             title: Text(strings.all_checks_passed),
           ),
+        if (_hasPlannedChanges(preflight.summary))
+          ListTile(
+            leading: const Icon(Icons.rule_outlined),
+            title: Text(strings.planned_changes),
+            subtitle: Text(
+              strings.planned_changes_summary
+                  .replaceAll('{created}', '${preflight.summary.created}')
+                  .replaceAll('{updated}', '${preflight.summary.updated}')
+                  .replaceAll('{deleted}', '${preflight.summary.deleted}')
+                  .replaceAll(
+                    '{preserved}',
+                    '${preflight.summary.preserved}',
+                  )
+                  .replaceAll(
+                    '{unchanged}',
+                    '${preflight.summary.unchanged}',
+                  ),
+            ),
+          ),
         if (preflight.warnings.isNotEmpty) ...[
           Text(
             strings.warnings,
@@ -280,3 +300,10 @@ class _ProfileMappingTile extends StatelessWidget {
 }
 
 String _issueText(String code, String sourceId) => '$sourceId: $code';
+
+bool _hasPlannedChanges(PlannedChangeSummary summary) =>
+    summary.created > 0 ||
+    summary.updated > 0 ||
+    summary.deleted > 0 ||
+    summary.preserved > 0 ||
+    summary.unchanged > 0;
