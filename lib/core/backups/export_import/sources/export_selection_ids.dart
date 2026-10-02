@@ -2,6 +2,7 @@ final class ExportSelectionIds {
   const ExportSelectionIds._();
 
   static const ungroupedBookmarks = 'ungrouped';
+  static const pinnedSearchHome = 'home';
 
   static String bookmarkGroup(String id) => 'group:$id';
 

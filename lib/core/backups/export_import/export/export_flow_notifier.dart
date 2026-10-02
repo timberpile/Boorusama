@@ -10,6 +10,7 @@ import '../../../configs/manage/providers.dart';
 import '../../../search/subscriptions/providers.dart';
 import '../../sources/providers.dart';
 import '../models/export_selection.dart';
+import '../models/export_item_presentation.dart';
 import '../models/export_template.dart';
 import '../models/import_action.dart';
 import '../package/export_package_writer.dart';
@@ -22,26 +23,51 @@ final class ExportSelectionLabels {
   final Map<String, String> children;
 }
 
+final exportSelectionPresentationProvider =
+    Provider<ExportSelectionPresentation>((ref) {
+      final items = <String, ExportItemPresentation>{};
+      final profileNames = {
+        for (final profile in ref.watch(booruConfigProvider))
+          profile.id: profile.name,
+      };
+      for (final profile in ref.watch(booruConfigProvider)) {
+        items['profile:${profile.id}'] = ExportItemPresentation(
+          label: profile.name,
+        );
+      }
+      for (final group
+          in ref.watch(bookmarkProvider).valueOrNull?.groups ?? const []) {
+        items['group:${group.id}'] = ExportItemPresentation(label: group.name);
+      }
+      final searches = ref.watch(searchSubscriptionsProvider).valueOrNull;
+      for (final folder in searches?.organization.folders ?? const []) {
+        items['folder:${folder.id}'] = ExportItemPresentation(
+          label: folder.name,
+        );
+      }
+      for (final search in searches?.subscriptions ?? const []) {
+        items['search:${search.id}'] = ExportItemPresentation(
+          label: search.displayName,
+          trailingLabel: profileNames[search.profileId],
+        );
+      }
+      for (final feed in searches?.feeds ?? const []) {
+        items['feed:${feed.id}'] = ExportItemPresentation(
+          label: feed.name,
+          trailingLabel: profileNames[feed.profileId],
+        );
+      }
+      return ExportSelectionPresentation(items: Map.unmodifiable(items));
+    });
+
 final exportSelectionLabelsProvider = Provider<ExportSelectionLabels>((ref) {
-  final labels = <String, String>{};
-  for (final profile in ref.watch(booruConfigProvider)) {
-    labels['profile:${profile.id}'] = profile.name;
-  }
-  for (final group
-      in ref.watch(bookmarkProvider).valueOrNull?.groups ?? const []) {
-    labels['group:${group.id}'] = group.name;
-  }
-  final searches = ref.watch(searchSubscriptionsProvider).valueOrNull;
-  for (final folder in searches?.organization.folders ?? const []) {
-    labels['folder:${folder.id}'] = folder.name;
-  }
-  for (final search in searches?.subscriptions ?? const []) {
-    labels['search:${search.id}'] = search.displayName;
-  }
-  for (final feed in searches?.feeds ?? const []) {
-    labels['feed:${feed.id}'] = feed.name;
-  }
-  return ExportSelectionLabels(children: Map.unmodifiable(labels));
+  final presentation = ref.watch(exportSelectionPresentationProvider);
+  return ExportSelectionLabels(
+    children: Map.unmodifiable({
+      for (final entry in presentation.items.entries)
+        entry.key: entry.value.label,
+    }),
+  );
 });
 
 enum ExportFlowStatus { choosing, creating, ready, error }
@@ -179,8 +205,7 @@ class ExportFlowNotifier extends AutoDisposeNotifier<ExportFlowState> {
       final roots = switch (current?.kind) {
         ExportNodeSelectionKind.all => descriptor.rootNodes,
         _ => [
-          for (final id in selected)
-            if (descriptor.findNode(id) case final selectedNode?) selectedNode,
+          for (final id in selected) ?descriptor.findNode(id),
         ],
       };
       selected

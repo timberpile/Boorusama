@@ -151,6 +151,136 @@ void main() {
     expect(issues, isEmpty);
   });
 
+  test('allows structural folders for selected searches and Home payloads', () {
+    const data = PinnedSearchBackupData(
+      records: [
+        PinnedSearchBackupRecord(
+          id: 'folder-member',
+          name: null,
+          query: 'one',
+          position: 0,
+          profile: BackupProfileReference(
+            id: 1,
+            booruType: 'danbooru',
+            url: 'https://example.com',
+            name: 'Example',
+          ),
+        ),
+        PinnedSearchBackupRecord(
+          id: 'home-member',
+          name: null,
+          query: 'two',
+          position: 1,
+          profile: BackupProfileReference(
+            id: 1,
+            booruType: 'danbooru',
+            url: 'https://example.com',
+            name: 'Example',
+          ),
+        ),
+      ],
+      folders: [
+        PinnedSearchFolderBackupRecord(
+          id: 'folder',
+          name: 'Folder',
+          position: 0,
+          searchIds: ['folder-member'],
+        ),
+      ],
+      homeSearchIds: ['home-member'],
+    );
+
+    final selectedSearchIssues = validator.validate(
+      sourceId: 'pinned_searches',
+      packageSchemaVersion: 1,
+      supportedSchemaVersion: 1,
+      selection: const ExportNodeSelection.explicit('pinned_searches', {
+        'search:folder-member',
+      }),
+      itemRecommendations: const {},
+      data: const PinnedSearchBackupData(
+        records: [
+          PinnedSearchBackupRecord(
+            id: 'folder-member',
+            name: null,
+            query: 'one',
+            position: 0,
+            profile: BackupProfileReference(
+              id: 1,
+              booruType: 'danbooru',
+              url: 'https://example.com',
+              name: 'Example',
+            ),
+          ),
+        ],
+        folders: [
+          PinnedSearchFolderBackupRecord(
+            id: 'folder',
+            name: 'Folder',
+            position: 0,
+            searchIds: ['folder-member'],
+          ),
+        ],
+      ),
+    );
+    final selectedHomeIssues = validator.validate(
+      sourceId: 'pinned_searches',
+      packageSchemaVersion: 1,
+      supportedSchemaVersion: 1,
+      selection: const ExportNodeSelection.explicit('pinned_searches', {
+        'home',
+      }),
+      itemRecommendations: const {},
+      data: PinnedSearchBackupData(
+        records: [data.records.last],
+        homeSearchIds: const ['home-member'],
+      ),
+    );
+
+    expect(selectedSearchIssues, isEmpty);
+    expect(selectedHomeIssues, isEmpty);
+  });
+
+  test('Home selection still rejects records outside Home', () {
+    const profile = BackupProfileReference(
+      id: 1,
+      booruType: 'danbooru',
+      url: 'https://example.com',
+      name: 'Example',
+    );
+    final issues = validator.validate(
+      sourceId: 'pinned_searches',
+      packageSchemaVersion: 1,
+      supportedSchemaVersion: 1,
+      selection: const ExportNodeSelection.explicit('pinned_searches', {
+        'home',
+      }),
+      itemRecommendations: const {},
+      data: const PinnedSearchBackupData(
+        records: [
+          PinnedSearchBackupRecord(
+            id: 'home-member',
+            name: null,
+            query: 'one',
+            position: 0,
+            profile: profile,
+          ),
+          PinnedSearchBackupRecord(
+            id: 'unrelated',
+            name: null,
+            query: 'two',
+            position: 1,
+            profile: profile,
+          ),
+        ],
+        homeSearchIds: ['home-member'],
+      ),
+    );
+
+    expect(issues.single.code, 'unselected_payload_item');
+    expect(issues.single.itemId, 'search:unrelated');
+  });
+
   test('allows an explicitly selected empty ungrouped boundary', () {
     final issues = validator.validate(
       sourceId: 'bookmarks',

@@ -152,6 +152,7 @@ void main() {
       PinnedSearchExportScope.selected(
         searchIds: const ['three'],
         folderIds: const ['folder'],
+        includeHome: false,
       ),
     );
 
@@ -159,6 +160,74 @@ void main() {
     expect(result.folders.single.searchIds, ['one', 'two']);
     expect(result.homeSearchIds, ['three']);
   });
+
+  test('selected searches retain only their containing folder structure', () {
+    final data = PinnedSearchBackupData(
+      records: [_pinned('one'), _pinned('two'), _pinned('home')],
+      folders: const [
+        PinnedSearchFolderBackupRecord(
+          id: 'folder',
+          name: 'Folder',
+          position: 0,
+          searchIds: ['one', 'two'],
+        ),
+      ],
+      homeSearchIds: const ['home'],
+    );
+
+    final result = filterPinnedSearchBackupData(
+      data,
+      PinnedSearchExportScope.selected(
+        searchIds: const ['two'],
+        folderIds: const [],
+        includeHome: false,
+      ),
+    );
+
+    expect(result.records.map((record) => record.id), ['two']);
+    expect(result.folders, const [
+      PinnedSearchFolderBackupRecord(
+        id: 'folder',
+        name: 'Folder',
+        position: 0,
+        searchIds: ['two'],
+      ),
+    ]);
+    expect(result.homeSearchIds, isEmpty);
+  });
+
+  test(
+    'Home selection follows current members while explicit searches do not',
+    () {
+      final data = PinnedSearchBackupData(
+        records: [_pinned('one'), _pinned('two'), _pinned('stale-safe')],
+        homeSearchIds: const ['one', 'two'],
+      );
+
+      final dynamicHome = filterPinnedSearchBackupData(
+        data,
+        PinnedSearchExportScope.selected(
+          searchIds: const [],
+          folderIds: const [],
+          includeHome: true,
+        ),
+      );
+      final explicitHomeMember = filterPinnedSearchBackupData(
+        data,
+        PinnedSearchExportScope.selected(
+          searchIds: const ['one', 'missing'],
+          folderIds: const ['missing'],
+          includeHome: false,
+        ),
+      );
+
+      expect(dynamicHome.records.map((record) => record.id), ['one', 'two']);
+      expect(dynamicHome.homeSearchIds, ['one', 'two']);
+      expect(explicitHomeMember.records.map((record) => record.id), ['one']);
+      expect(explicitHomeMember.homeSearchIds, ['one']);
+      expect(explicitHomeMember.folders, isEmpty);
+    },
+  );
 
   test('explicit following feed selection excludes every other feed', () {
     final data = FollowingFeedBackupData(
@@ -190,6 +259,7 @@ void main() {
       ExportSelectionIds.profileId(ExportSelectionIds.profile(42)),
       42,
     );
+    expect(ExportSelectionIds.pinnedSearchHome, 'home');
     expect(ExportSelectionIds.profileId('search:42'), isNull);
   });
 }

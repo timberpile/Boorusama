@@ -95,6 +95,32 @@ final exportImportSourcesProvider = Provider<List<ExportImportSource>>((ref) {
   final internalSearchIds = <String>{
     for (final feed in searches?.feeds ?? const []) ...feed.sourceIds,
   };
+  final selectableSearches = {
+    for (final search in searches?.subscriptions ?? const [])
+      if (!internalSearchIds.contains(search.id)) search.id: search,
+  };
+  final pinnedSearchChildren = <ExportSelectionNode>[
+    for (final folder in searches?.organization.folders ?? const [])
+      ExportSelectionNode(
+        id: ExportSelectionIds.pinnedSearchFolder(folder.id),
+        children: [
+          for (final id in folder.searchIds)
+            if (selectableSearches.containsKey(id))
+              ExportSelectionNode(id: ExportSelectionIds.pinnedSearch(id)),
+        ],
+      ),
+    if ((searches?.organization.homeSearchIds ?? const []).any(
+      selectableSearches.containsKey,
+    ))
+      ExportSelectionNode(
+        id: ExportSelectionIds.pinnedSearchHome,
+        children: [
+          for (final id in searches?.organization.homeSearchIds ?? const [])
+            if (selectableSearches.containsKey(id))
+              ExportSelectionNode(id: ExportSelectionIds.pinnedSearch(id)),
+        ],
+      ),
+  ];
 
   return [
     LegacyJsonSourceAdapter(
@@ -149,13 +175,7 @@ final exportImportSourcesProvider = Provider<List<ExportImportSource>>((ref) {
       source: ref.watch(pinnedSearchesBackupSourceProvider),
       descriptor: ExportSelectionDescriptor.collection(
         id: 'pinned_searches',
-        childIds: {
-          for (final folder in searches?.organization.folders ?? const [])
-            ExportSelectionIds.pinnedSearchFolder(folder.id),
-          for (final search in searches?.subscriptions ?? const [])
-            if (!internalSearchIds.contains(search.id))
-              ExportSelectionIds.pinnedSearch(search.id),
-        },
+        children: pinnedSearchChildren,
       ),
       scopeBuilder: (selection) => switch (selection.kind) {
         ExportNodeSelectionKind.all => const PinnedSearchExportScope.all(),
@@ -166,6 +186,9 @@ final exportImportSourcesProvider = Provider<List<ExportImportSource>>((ref) {
           folderIds: selection.childIds
               .map(ExportSelectionIds.pinnedSearchFolderId)
               .whereType<String>(),
+          includeHome: selection.childIds.contains(
+            ExportSelectionIds.pinnedSearchHome,
+          ),
         ),
       },
     ),

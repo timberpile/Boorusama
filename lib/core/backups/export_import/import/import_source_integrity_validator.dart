@@ -31,6 +31,7 @@ final class ImportSourceIntegrityValidator {
     final selectableItemIds = {
       ...itemIds,
       if (data is BookmarkBackupData) 'ungrouped',
+      if (data is PinnedSearchBackupData) 'home',
     };
     if (selection.kind == ExportNodeSelectionKind.explicit) {
       for (final id in selection.childIds.difference(selectableItemIds)) {
@@ -52,6 +53,16 @@ final class ImportSourceIntegrityValidator {
           if (selectedFolderIds.contains(folder.id)) {
             allowedIds.addAll(folder.searchIds.map((id) => 'search:$id'));
           }
+          if (folder.searchIds.any(
+            (id) => selection.childIds.contains('search:$id'),
+          )) {
+            allowedIds.add('folder:${folder.id}');
+          }
+        }
+        if (selection.childIds.contains('home')) {
+          allowedIds.addAll(
+            searches.homeSearchIds.map((id) => 'search:$id'),
+          );
         }
       }
       for (final id in itemIds.difference(allowedIds)) {
