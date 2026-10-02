@@ -273,6 +273,10 @@ void main() {
   testWidgets('searches and feeds show subdued trailing profile names', (
     tester,
   ) async {
+    tester.view.physicalSize = const Size(320, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     const descriptors = [
       ExportSelectionDescriptor.collection(
         id: 'pinned_searches',
@@ -293,11 +297,11 @@ void main() {
         'folder:one': ExportItemPresentation(label: 'Folder'),
         'search:one': ExportItemPresentation(
           label: 'Landscape',
-          trailingLabel: 'Profile A',
+          trailingLabel: 'A very long profile name that must fit',
         ),
         'feed:one': ExportItemPresentation(
           label: 'Landscape',
-          trailingLabel: 'Profile B',
+          trailingLabel: 'Another very long profile name that must fit',
         ),
       },
     );
@@ -322,16 +326,21 @@ void main() {
     await tester.tap(find.text('Folder'));
     await tester.pumpAndSettle();
     expect(find.text('Landscape'), findsNWidgets(2));
-    final profileTexts = ['Profile A', 'Profile B'].map(
-      (label) => tester.widget<Text>(find.text(label)),
-    );
+    final profileTexts =
+        [
+          'A very long profile name that must fit',
+          'Another very long profile name that must fit',
+        ].map(
+          (label) => tester.widget<Text>(find.text(label)),
+        );
     final expectedColor = Theme.of(
-      tester.element(find.text('Profile A')),
+      tester.element(find.text('A very long profile name that must fit')),
     ).colorScheme.onSurfaceVariant;
     expect(
       profileTexts.map((text) => text.style?.color),
       everyElement(expectedColor),
     );
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('saving a template returns to the export form without errors', (

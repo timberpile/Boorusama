@@ -17,7 +17,7 @@ import flutter_local_notifications
     if #available(iOS 10.0, *) {
       UNUserNotificationCenter.current().delegate = self as UNUserNotificationCenterDelegate
     }
-    if let url = launchOptions?[.url] as? URL {
+    if let url = launchOptions?[.url] as? URL, isExportFileURL(url) {
       pendingExportURLs.append(url)
     }
 
@@ -48,12 +48,19 @@ import flutter_local_notifications
     open url: URL,
     options: [UIApplication.OpenURLOptionsKey: Any] = [:]
   ) -> Bool {
+    guard isExportFileURL(url) else {
+      return super.application(app, open: url, options: options)
+    }
     if let channel = receivedExportChannel {
       channel.receive(url)
     } else {
       pendingExportURLs.append(url)
     }
     return true
+  }
+
+  private func isExportFileURL(_ url: URL) -> Bool {
+    url.isFileURL && url.pathExtension.lowercased() == "bsexport"
   }
 }
 

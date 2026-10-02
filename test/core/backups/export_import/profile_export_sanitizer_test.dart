@@ -44,6 +44,18 @@ void main() {
     });
   });
 
+  test('credential-free profiles remove URL credentials and query secrets', () {
+    final sanitized = const ProfileExportSanitizer().sanitizeJson(
+      {
+        ...BooruConfig.empty.toJson(),
+        'url': 'https://alice:secret@EXAMPLE.com/posts/?token=private#part',
+      },
+      includeCredentials: false,
+    );
+
+    expect(sanitized['url'], 'https://example.com/posts');
+  });
+
   test('credential-enabled profiles retain every credential', () {
     final json = <String, dynamic>{
       'apiKey': 'key',

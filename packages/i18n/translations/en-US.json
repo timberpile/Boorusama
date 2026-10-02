@@ -899,6 +899,7 @@
         "recovery_required": "Import recovery required",
         "recovery_required_description": "Boorusama could not restore {count} interrupted import transaction(s). Normal app changes remain blocked until recovery succeeds.",
         "issues": {
+          "unsupported_source": "{source} is not supported by this version of Boorusama and will be skipped.",
           "unsupported_source_version": "{source} was created by a newer version of Boorusama.",
           "unknown_selected_item": "{item} is selected but missing from {source}.",
           "unselected_payload_item": "{item} is present in {source} but was not declared for import.",

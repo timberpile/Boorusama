@@ -501,7 +501,7 @@ void main() {
   });
 
   test(
-    'preserves existing ID and normalized-query matches across repeated imports',
+    'preserves query matches without reusing an ID collision',
     () async {
       final repository = memorySubscriptionRepository();
       final existingId = await repository.create(
@@ -528,8 +528,8 @@ void main() {
       expect(
         first,
         const PinnedSearchImportResult(
-          importedCount: 1,
-          alreadyExistedCount: 2,
+          importedCount: 2,
+          alreadyExistedCount: 1,
           skippedProfileCount: 0,
         ),
       );
@@ -543,9 +543,42 @@ void main() {
       );
       expect(await repository.getAll(), afterFirst);
       expect(afterFirst.take(2), [existingId, existingQuery]);
+      expect(afterFirst, hasLength(4));
+      expect(
+        afterFirst.singleWhere((search) => search.query == 'cat  tag_0').id,
+        isNot(existingId.id),
+      );
       expect(afterFirst.last.id, _id(2));
     },
   );
+
+  test('an ID collision with a different query creates a new search', () async {
+    final repository = memorySubscriptionRepository();
+    final local = await repository.create(
+      profileId: 4,
+      query: 'local query',
+      name: 'Local',
+      id: _id(0),
+    );
+
+    final result = await PinnedSearchImportService(repository: repository)
+        .apply(
+          PinnedSearchBackupData(records: [_record(0, query: 'remote query')]),
+          profiles: [_profile(4)],
+        );
+
+    final searches = await repository.getAll();
+    expect(result.importedCount, 1);
+    expect(searches, hasLength(2));
+    expect(
+      searches.singleWhere((search) => search.id == local.id).query,
+      'local query',
+    );
+    expect(
+      searches.singleWhere((search) => search.id != local.id).query,
+      'remote query',
+    );
+  });
 
   test(
     'replacement reuses matching searches and removes only absent searches',

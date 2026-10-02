@@ -65,7 +65,7 @@ final class ImportPlannedChangeProjector {
         : const PlannedChangeSummary(updated: 1);
   }
 
-  PlannedChangeSummary profiles({
+  PlannedChangeSummary? profiles({
     required List<BooruConfig> local,
     required List<BooruConfig> imported,
     required ResolvedImportSource resolution,
@@ -78,12 +78,17 @@ final class ImportPlannedChangeProjector {
     if (resolution.action == ImportAction.skip) {
       return PlannedChangeSummary(preserved: localEntities.length);
     }
-    final projection = const ProfileImportProjector().project(
-      imported: imported,
-      local: local,
-      resolution: resolution,
-      credentialsIncluded: credentialsIncluded,
-    );
+    final ProfileImportProjection projection;
+    try {
+      projection = const ProfileImportProjector().project(
+        imported: imported,
+        local: local,
+        resolution: resolution,
+        credentialsIncluded: credentialsIncluded,
+      );
+    } on UnresolvedProfileImportException {
+      return null;
+    }
     final projected = projection.profiles.toList();
     final usedIds = projected.map((profile) => profile.id).toSet();
     for (final profile in additionalProfiles) {
@@ -312,6 +317,9 @@ final class ImportPlannedChangeProjector {
         _key('pinned-search', entry.key): _SearchValue.from(entry.value),
       for (final (position, folder) in localFolders.indexed)
         _key('pinned-folder', folder.id): _FolderValue.from(folder, position),
+      _key('pinned-home', 'home'): _HomeValue(
+        local.organization.homeSearchIds,
+      ),
     };
     if (resolution.action == ImportAction.skip) {
       return PlannedChangeSummary(preserved: localEntities.length);
@@ -358,14 +366,7 @@ final class ImportPlannedChangeProjector {
             search.profileId == profileId &&
             normalizeSearchIdentity(search.query) == normalized,
       );
-      final byId = searches[record.id];
-      final saved =
-          byQuery ??
-          (byId != null &&
-                  byId.profileId == profileId &&
-                  !internalIds.contains(byId.id)
-              ? byId
-              : null);
+      final saved = byQuery;
       if (saved != null) {
         importedByBackupId[record.id] = saved.id;
         touched.add(_key('pinned-search', saved.id));
@@ -453,6 +454,7 @@ final class ImportPlannedChangeProjector {
           _key('pinned-search', entry.key): _SearchValue.from(entry.value),
         for (final (position, folder) in folders.indexed)
           _key('pinned-folder', folder.id): _FolderValue.from(folder, position),
+        _key('pinned-home', 'home'): _HomeValue(home),
       },
       touched: resolution.action == ImportAction.replace
           ? {...localEntities.keys, ...touched}
@@ -967,6 +969,16 @@ final class _FolderValue extends Equatable {
 
   @override
   List<Object> get props => [name, searchIds, position];
+}
+
+final class _HomeValue extends Equatable {
+  _HomeValue(Iterable<String> searchIds)
+    : searchIds = List.unmodifiable(searchIds);
+
+  final List<String> searchIds;
+
+  @override
+  List<Object> get props => [searchIds];
 }
 
 final class _FeedValue extends Equatable {

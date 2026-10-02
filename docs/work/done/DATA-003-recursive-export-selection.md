@@ -45,9 +45,10 @@ rejected, and import review never presents an empty problem section.
 
 ## Completion evidence
 
-- `fvm flutter analyze --no-pub lib/core/backups/export_import lib/core/backups/sources test/core/backups/export_import`: no issues.
-- `fvm flutter test --no-pub test/core/backups/export_import`: 149 tests passed.
-- `fvm flutter test --no-pub`: 1,659 tests passed.
+- Targeted `fvm flutter analyze --no-pub` across the changed export/import,
+  source, and test paths: no issues.
+- `fvm flutter test --no-pub test/core/backups`: 368 tests passed.
+- `fvm flutter test --no-pub`: 1,669 tests passed.
 - `./gen.sh`: completed successfully after the translation changes.
 - `fvm flutter build apk --debug --flavor dev --target-platform android-x64`: built `app-dev-debug.apk` successfully.
 - `adb -s emulator-5556 install -r build/app/outputs/flutter-apk/app-dev-debug.apk`: installed successfully.
@@ -59,6 +60,9 @@ rejected, and import review never presents an empty problem section.
 - Maestro verified that `Save as template` opens a dialog containing only
   `Cancel` and `Save`; saving `Task 6 UI check` returned to Create export and
   made the new template available there.
+- After the final review fixes, Maestro again verified both the export tree and
+  Suggested import behavior hierarchy, including the right-aligned two-line
+  `Donmai Fixture` profile label beside `Quoted "title"` and `Automatic`.
 - `git diff --check`: no whitespace errors.
 - `git rev-list --min-parents=2 origin/develop..HEAD`: no merge commits.
 

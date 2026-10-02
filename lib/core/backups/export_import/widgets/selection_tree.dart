@@ -239,14 +239,21 @@ class _ItemLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Row(
     children: [
-      Expanded(child: Text(label)),
+      Expanded(
+        flex: 2,
+        child: Text(label, maxLines: 2, overflow: TextOverflow.ellipsis),
+      ),
       if (trailingLabel case final trailing?) ...[
         const SizedBox(width: 12),
-        Text(
-          trailing,
-          textAlign: TextAlign.end,
-          style: TextStyle(
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
+        Flexible(
+          child: Text(
+            trailing,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.end,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
         ),
       ],

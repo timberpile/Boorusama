@@ -251,7 +251,12 @@ void main() {
 
       expect(
         summary,
-        const PlannedChangeSummary(created: 1, updated: 1, unchanged: 1),
+        const PlannedChangeSummary(
+          created: 1,
+          updated: 1,
+          preserved: 1,
+          unchanged: 1,
+        ),
       );
     },
   );
@@ -288,6 +293,120 @@ void main() {
           ),
         ],
       ),
+    );
+
+    expect(summary, isNull);
+  });
+
+  test(
+    'pinned search projection treats a changed query with the same ID as new',
+    () {
+      final summary = projector.pinnedSearches(
+        local: PinnedSearchImportLocalSnapshot(
+          searches: [_search(id: 'same-id', query: 'local query')],
+          organization: SearchOrganization(
+            folders: const [],
+            homeSearchIds: const ['same-id'],
+          ),
+          feeds: const [],
+        ),
+        incoming: const PinnedSearchBackupData(
+          records: [
+            PinnedSearchBackupRecord(
+              id: 'same-id',
+              name: null,
+              query: 'remote query',
+              position: 0,
+              profile: _profileReference,
+            ),
+          ],
+          homeSearchIds: ['same-id'],
+        ),
+        profileMappings: {
+          ProfileReferenceKey.fromReference(_profileReference): 1,
+        },
+        resolution: ResolvedImportSource(
+          id: 'pinned_searches',
+          action: ImportAction.configureItems,
+          items: const [
+            ResolvedImportItem(id: 'search:same-id', action: ImportAction.copy),
+          ],
+        ),
+      );
+
+      expect(
+        summary,
+        const PlannedChangeSummary(created: 1, updated: 1, preserved: 1),
+      );
+    },
+  );
+
+  test(
+    'pinned search projection reports Home membership and order changes',
+    () {
+      final first = _search(id: 'first', query: 'first');
+      final second = _search(id: 'second', query: 'second');
+      final summary = projector.pinnedSearches(
+        local: PinnedSearchImportLocalSnapshot(
+          searches: [first, second],
+          organization: SearchOrganization(
+            folders: const [],
+            homeSearchIds: const ['first', 'second'],
+          ),
+          feeds: const [],
+        ),
+        incoming: const PinnedSearchBackupData(
+          records: [
+            PinnedSearchBackupRecord(
+              id: 'first',
+              name: null,
+              query: 'first',
+              position: 0,
+              profile: _profileReference,
+            ),
+            PinnedSearchBackupRecord(
+              id: 'second',
+              name: null,
+              query: 'second',
+              position: 1,
+              profile: _profileReference,
+            ),
+          ],
+          homeSearchIds: ['second', 'first'],
+        ),
+        profileMappings: {
+          ProfileReferenceKey.fromReference(_profileReference): 1,
+        },
+        resolution: ResolvedImportSource(
+          id: 'pinned_searches',
+          action: ImportAction.configureItems,
+          items: const [
+            ResolvedImportItem(id: 'search:first', action: ImportAction.copy),
+            ResolvedImportItem(id: 'search:second', action: ImportAction.copy),
+          ],
+        ),
+      );
+
+      expect(summary?.hasMutations, isTrue);
+      expect(summary?.updated, 1);
+    },
+  );
+
+  test('ambiguous profile projection remains reviewable without a target', () {
+    final summary = projector.profiles(
+      local: [
+        _profile(id: 4, url: 'https://same.example'),
+        _profile(id: 5, url: 'https://same.example'),
+      ],
+      imported: [_profile(id: 99, url: 'https://same.example')],
+      resolution: ResolvedImportSource(
+        id: 'profiles',
+        action: ImportAction.configureItems,
+        items: const [
+          ResolvedImportItem(id: 'profile:99', action: ImportAction.update),
+        ],
+      ),
+      credentialsIncluded: false,
     );
 
     expect(summary, isNull);
@@ -339,7 +458,12 @@ void main() {
 
     expect(
       summary,
-      const PlannedChangeSummary(created: 1, deleted: 2, unchanged: 1),
+      const PlannedChangeSummary(
+        created: 1,
+        updated: 1,
+        deleted: 2,
+        unchanged: 1,
+      ),
     );
   });
 
@@ -402,7 +526,7 @@ void main() {
       ),
     );
 
-    expect(summary, const PlannedChangeSummary(created: 4));
+    expect(summary, const PlannedChangeSummary(created: 4, preserved: 1));
   });
 
   test(

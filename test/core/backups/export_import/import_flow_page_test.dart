@@ -10,6 +10,7 @@ import 'package:boorusama/core/backups/export_import/models/export_item_presenta
 import 'package:boorusama/core/backups/export_import/models/export_selection.dart';
 import 'package:boorusama/core/backups/export_import/models/import_action.dart';
 import 'package:boorusama/core/backups/export_import/widgets/import_action_editor.dart';
+import 'package:boorusama/core/backups/export_import/widgets/import_recommendation_tree.dart';
 
 void main() {
   testWidgets('shows only actions that are valid for an imported item', (
@@ -184,7 +185,7 @@ void main() {
                 'folder:one': ExportItemPresentation(label: 'Landscapes'),
                 'search:one': ExportItemPresentation(
                   label: 'Blue sky',
-                  trailingLabel: 'Profile A',
+                  trailingLabel: 'A very long profile name that must fit',
                 ),
               },
             ),
@@ -200,10 +201,38 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Blue sky'), findsWidgets);
-      expect(find.text('Profile A'), findsOneWidget);
+      expect(
+        find.text('A very long profile name that must fit'),
+        findsOneWidget,
+      );
       expect(find.byType(KurumiSettingsTile<ImportAction>), findsNWidgets(4));
+      expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('long import profile labels fit narrow rows', (tester) async {
+    tester.view.physicalSize = const Size(320, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      _app(
+        const SizedBox(
+          width: 220,
+          child: ImportItemLabel(
+            item: ExportItemPresentation(
+              label: 'A pinned search with a deliberately long title',
+              trailingLabel: 'A very long profile name that must fit',
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('A very long profile name that must fit'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('failed imports show a friendly recovery action', (
     tester,

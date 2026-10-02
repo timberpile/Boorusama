@@ -30,6 +30,8 @@ final class ImportSourcePlanningInput {
     this.selectionComplete = true,
     this.items = const [],
     this.recommendedAction,
+    this.availableActions,
+    this.fallbackAction,
   });
 
   final String id;
@@ -37,6 +39,8 @@ final class ImportSourcePlanningInput {
   final bool selectionComplete;
   final List<ImportItemPlanningInput> items;
   final ImportAction? recommendedAction;
+  final Set<ImportAction>? availableActions;
+  final ImportAction? fallbackAction;
 }
 
 final class ImportPlanner {
@@ -46,23 +50,27 @@ final class ImportPlanner {
     final warnings = <ImportPlanIssue>[];
     final sources = <ProposedImportSource>[];
     for (final input in inputs) {
-      final sourceActions = switch (input.kind) {
-        ImportSourceKind.value => const {
-          ImportAction.replace,
-          ImportAction.skip,
-        },
-        ImportSourceKind.collection => {
-          if (input.selectionComplete) ImportAction.replace,
-          ImportAction.configureItems,
-          ImportAction.skip,
-        },
-      };
+      final sourceActions =
+          input.availableActions ??
+          switch (input.kind) {
+            ImportSourceKind.value => const {
+              ImportAction.replace,
+              ImportAction.skip,
+            },
+            ImportSourceKind.collection => {
+              if (input.selectionComplete) ImportAction.replace,
+              ImportAction.configureItems,
+              ImportAction.skip,
+            },
+          };
       final sourceDefault = _recommendedOrFallback(
         recommendation: input.recommendedAction,
         available: sourceActions,
-        fallback: input.kind == ImportSourceKind.collection
-            ? ImportAction.configureItems
-            : ImportAction.replace,
+        fallback:
+            input.fallbackAction ??
+            (input.kind == ImportSourceKind.collection
+                ? ImportAction.configureItems
+                : ImportAction.replace),
         onUnsupported: () => warnings.add(
           ImportPlanIssue(
             code: 'unsupported_recommended_action',

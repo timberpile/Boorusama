@@ -188,11 +188,27 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
       final itemLabels = <String, String>{};
       final itemPresentations = <String, ImportItemPresentationResult>{};
       var alreadyPresentSearches = 0;
+      final unsupportedSourceIssues = <ImportPlanIssue>[];
       var containsCredentials = package.manifest.containsCredentials ?? false;
       for (final manifest in package.manifest.sources) {
         final source = registry.getSource(manifest.id);
         if (source == null) {
-          throw StateError('Import source is unavailable: ${manifest.id}');
+          planning.add(
+            ImportSourcePlanningInput(
+              id: manifest.id,
+              kind: ImportSourceKind.value,
+              recommendedAction: ImportAction.skip,
+              availableActions: const {ImportAction.skip},
+              fallbackAction: ImportAction.skip,
+            ),
+          );
+          unsupportedSourceIssues.add(
+            ImportPlanIssue(
+              code: 'unsupported_source',
+              sourceId: manifest.id,
+            ),
+          );
+          continue;
         }
         if (manifest.parts.length != 1) {
           throw FormatException(
@@ -355,6 +371,7 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
               sources: planned.sources,
               warnings: [
                 ...planned.warnings,
+                ...unsupportedSourceIssues,
                 const ImportPlanIssue(
                   code: 'credentials_included',
                   sourceId: 'profiles',
@@ -362,7 +379,11 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
               ],
               errors: planned.errors,
             )
-          : planned;
+          : ProposedImportPlan(
+              sources: planned.sources,
+              warnings: [...planned.warnings, ...unsupportedSourceIssues],
+              errors: planned.errors,
+            );
       final resolved = proposed.resolveDefaults();
       final dependencies = _profileDependencies(resolved);
       state = ImportFlowState(
@@ -949,8 +970,11 @@ final class PackageTransactionSource implements ImportTransactionSource {
       return;
     }
     preflightRollbackBytes = switch (source) {
-      final JsonBackupSource jsonSource =>
-        utf8.encode(await jsonSource.encodeForExport()).length,
+      final JsonBackupSource jsonSource => await () async {
+        final encoded = await jsonSource.encodeForExport();
+        await jsonSource.validateEncodedImport(encoded);
+        return utf8.encode(encoded).length;
+      }(),
       final SqliteBackupSource sqliteSource => await () async {
         final path = await sqliteSource.dbPathGetter();
         return await fs.fileExists(path) ? await fs.fileSize(path) : 0;
@@ -976,7 +1000,9 @@ final class PackageTransactionSource implements ImportTransactionSource {
     }
     switch (source) {
       case final JsonBackupSource jsonSource:
-        await fs.writeString(outputPath, await jsonSource.encodeForExport());
+        final encoded = await jsonSource.encodeForExport();
+        await jsonSource.validateEncodedImport(encoded);
+        await fs.writeString(outputPath, encoded);
       case final SqliteBackupSource sqliteSource:
         final dbPath = await sqliteSource.dbPathGetter();
         if (await fs.fileExists(dbPath)) {

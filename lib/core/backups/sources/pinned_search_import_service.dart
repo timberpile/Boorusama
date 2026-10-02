@@ -147,9 +147,6 @@ class PinnedSearchImportService {
       throw UnmatchedPinnedSearchProfilesException(unmatched);
     }
     final previousOrganization = await repository.getOrganization();
-    final internalIds = {
-      for (final feed in await repository.getFeeds()) ...feed.sourceIds,
-    };
     final createdIds = <String>[];
     final importedByBackupId = <String, String>{};
     final ordered = data.records.indexed.toList()
@@ -179,15 +176,7 @@ class PinnedSearchImportService {
       }
       final byId = await repository.getById(record.id);
       final byQuery = await repository.findByQuery(profileId, record.query);
-      final saved =
-          byQuery ??
-          switch (byId) {
-            final pin?
-                when pin.profileId == profileId &&
-                    !internalIds.contains(pin.id) =>
-              pin,
-            _ => null,
-          };
+      final saved = byQuery;
       if (saved != null) {
         importedByBackupId[record.id] = saved.id;
         existing++;

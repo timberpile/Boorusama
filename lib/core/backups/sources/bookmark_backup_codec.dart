@@ -46,7 +46,7 @@ class BookmarkBackupCodec extends JsonHandler<BookmarkBackupData> {
         }
         final identity = switch (metadata.version) {
           1 || 2 => (bookmark.booruId, bookmark.originalUrl),
-          _ => bookmark.identity,
+          _ => bookmark.transferIdentity,
         };
         if (!bookmarkIdentities.add(identity)) {
           throw InvalidBackupFormatException(
@@ -116,7 +116,13 @@ class BookmarkBackupCodec extends JsonHandler<BookmarkBackupData> {
           'updatedAt': bookmark.updatedAt.toIso8601String(),
           'snapshot': bookmark.snapshot.toJson(),
           'postId': bookmark.postId,
-          'identity': bookmark.identity.toJson(),
+          'identity': switch (bookmark.transferIdentity) {
+            final BookmarkIdentity identity => identity.toJson(),
+            LegacyBookmarkIdentity(:final booruId, :final url) => {
+              'booruId': booruId,
+              'url': url,
+            },
+          },
         },
       )
       .toList();
@@ -172,14 +178,33 @@ class BookmarkBackupCodec extends JsonHandler<BookmarkBackupData> {
       );
     }
     final bookmark = _parseVersion2Bookmark(value, index);
-    final identity = BookmarkIdentity.fromJson(rawIdentity);
-    if (bookmark.postId == null || identity != bookmark.identity) {
+    final identity = _parseVersion3Identity(rawIdentity, index);
+    if (identity != bookmark.transferIdentity) {
       throw InvalidBackupFormatException(
         'data[$index].identity does not match its snapshot',
       );
     }
     return bookmark;
   }
+}
+
+BookmarkUniqueId _parseVersion3Identity(
+  Map<String, dynamic> value,
+  int index,
+) {
+  try {
+    if (value.containsKey('booruType')) {
+      return BookmarkIdentity.fromJson(value);
+    }
+    final booruId = value['booruId'];
+    final url = value['url'];
+    if (booruId is int && url is String && url.isNotEmpty) {
+      return LegacyBookmarkIdentity(booruId: booruId, url: url);
+    }
+  } catch (_) {
+    // The normalized error below keeps malformed external data opaque.
+  }
+  throw InvalidBackupFormatException('data[$index].identity is invalid');
 }
 
 int? _legacyVersion2PostId(Post post) => switch (post.booruData) {

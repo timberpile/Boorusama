@@ -29,6 +29,23 @@ void main() {
     expect(source.defaultAction, ImportAction.configureItems);
   });
 
+  test('unsupported sources remain visible and can only be skipped', () {
+    final source = const ImportPlanner()
+        .plan(const [
+          ImportSourcePlanningInput(
+            id: 'future_source',
+            kind: ImportSourceKind.value,
+            availableActions: {ImportAction.skip},
+            fallbackAction: ImportAction.skip,
+          ),
+        ])
+        .sources
+        .single;
+
+    expect(source.availableActions, {ImportAction.skip});
+    expect(source.defaultAction, ImportAction.skip);
+  });
+
   test('same identity defaults to update and exposes matching actions', () {
     final item = const ImportPlanner()
         .plan(const [

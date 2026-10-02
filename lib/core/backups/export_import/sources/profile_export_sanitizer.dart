@@ -24,6 +24,9 @@ final class ProfileExportSanitizer {
       'refreshToken',
       'cookie',
     ].forEach(result.remove);
+    if (result['url'] case final String url) {
+      result['url'] = normalizeBooruSiteUrl(url);
+    }
     if (result['proxySettings'] case final Map proxy) {
       final sanitizedProxy = Map<String, dynamic>.from(proxy)
         ..remove('username')

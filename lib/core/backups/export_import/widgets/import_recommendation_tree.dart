@@ -145,15 +145,24 @@ class ImportItemLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Row(
     children: [
-      Expanded(child: Text(item.label)),
-      if (item.trailingLabel case final trailing?)
-        Text(
-          trailing,
-          textAlign: TextAlign.end,
-          style: TextStyle(
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
+      Expanded(
+        flex: 2,
+        child: Text(item.label, maxLines: 2, overflow: TextOverflow.ellipsis),
+      ),
+      if (item.trailingLabel case final trailing?) ...[
+        const SizedBox(width: 12),
+        Flexible(
+          child: Text(
+            trailing,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.end,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
         ),
+      ],
     ],
   );
 }

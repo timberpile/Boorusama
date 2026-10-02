@@ -87,6 +87,11 @@ void main() {
       ).readAsStringSync();
 
       expect(ios, contains('open url: URL'));
+      expect(ios, contains('isExportFileURL'));
+      expect(
+        ios,
+        contains('return super.application(app, open: url, options: options)'),
+      );
       expect(ios, contains('ReceivedExportChannel'));
       expect(ios, contains('com.timberpile.boorusama.export'));
       expect(ios, contains('com.timberpile.boorusama/export_clipboard'));

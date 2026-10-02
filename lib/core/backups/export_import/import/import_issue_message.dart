@@ -15,6 +15,10 @@ String importIssueMessage(
       ? source
       : itemLabels[issue.itemId] ?? issue.itemId!;
   return switch (issue.code) {
+    'unsupported_source' => strings.unsupported_source.replaceAll(
+      '{source}',
+      source,
+    ),
     'unsupported_source_version' =>
       strings.unsupported_source_version.replaceAll('{source}', source),
     'unknown_selected_item' =>

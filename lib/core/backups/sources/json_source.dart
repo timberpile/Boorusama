@@ -126,6 +126,10 @@ abstract class JsonBackupSource<T>
     });
   }
 
+  Future<void> validateEncodedImport(String encoded) async {
+    await _noContextPrepare(encoded);
+  }
+
   Future<ImportPreparation> _prepareServerImport(
     String serverUrl,
     BuildContext? uiContext,

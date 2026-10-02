@@ -124,6 +124,49 @@ void main() {
     expect(restored.bookmarks.single.postId, isNull);
   });
 
+  test('version 3 round trips a legacy bookmark without a post identity', () {
+    final legacyBookmark = _legacyBookmark(postId: null);
+    final data = BookmarkBackupData(
+      bookmarks: [legacyBookmark],
+      groups: const [],
+    );
+
+    final restored = codec.parse(
+      decodeData(
+        data: jsonEncode({
+          'version': 3,
+          'data': codec.encode(data),
+        }),
+      ),
+    );
+
+    expect(restored.bookmarks.single.postId, isNull);
+    expect(
+      restored.bookmarks.single.transferIdentity,
+      legacyBookmark.transferIdentity,
+    );
+  });
+
+  test('version 3 rejects duplicate legacy bookmark identities', () {
+    final first = _legacyBookmark(postId: null);
+    final data = BookmarkBackupData(
+      bookmarks: [first, first.copyWith(id: 502)],
+      groups: const [],
+    );
+
+    expect(
+      () => codec.parse(
+        decodeData(
+          data: jsonEncode({
+            'version': 3,
+            'data': codec.encode(data),
+          }),
+        ),
+      ),
+      throwsA(isA<InvalidBackupFormatException>()),
+    );
+  });
+
   test('old version 2 legacy snapshots have no trusted post identity', () {
     final legacyBookmark = _legacyBookmark(postId: null);
 
