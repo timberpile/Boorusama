@@ -10,6 +10,7 @@ import '../../../../foundation/filesystem.dart';
 import '../../../../foundation/picker.dart';
 import '../clipboard/export_clipboard_service.dart';
 import '../models/export_selection.dart';
+import '../models/export_item_presentation.dart';
 import '../models/export_template.dart';
 import '../models/import_action.dart';
 import '../widgets/import_action_editor.dart';
@@ -31,6 +32,10 @@ class ExportFlowPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(exportFlowProvider);
     final notifier = ref.read(exportFlowProvider.notifier);
+    final presentation = _localizedPresentation(
+      context,
+      ref.watch(exportSelectionPresentationProvider),
+    );
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -111,14 +116,9 @@ class ExportFlowPage extends ConsumerWidget {
                 descriptors: notifier.descriptors,
                 selections: state.nodes,
                 onToggleSource: notifier.toggleSource,
-                onToggleChild: notifier.toggleChild,
+                onToggleNode: notifier.toggleNode,
                 sourceLabel: (id) => _sourceLabel(context, id),
-                childLabel: (sourceId, childId) => _childLabel(
-                  context,
-                  ref.watch(exportSelectionLabelsProvider),
-                  sourceId,
-                  childId,
-                ),
+                presentation: presentation,
               ),
               _ImportDefaults(
                 descriptors: notifier.descriptors,
@@ -706,3 +706,17 @@ String _childLabel(
   }
   return labels.children[childId] ?? childId;
 }
+
+ExportSelectionPresentation _localizedPresentation(
+  BuildContext context,
+  ExportSelectionPresentation presentation,
+) => ExportSelectionPresentation(
+  items: {
+    ...presentation.items,
+    'ungrouped': ExportItemPresentation(
+      label:
+          context.t.settings.backup_and_restore.export_import.sources.ungrouped,
+    ),
+    'home': ExportItemPresentation(label: context.t.pinned_searches.home),
+  },
+);

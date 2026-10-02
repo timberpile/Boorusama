@@ -7,6 +7,7 @@ import 'package:kurumi/kurumi.dart';
 
 import 'package:boorusama/core/backups/export_import/export/export_flow_notifier.dart';
 import 'package:boorusama/core/backups/export_import/export/export_flow_page.dart';
+import 'package:boorusama/core/backups/export_import/models/export_item_presentation.dart';
 import 'package:boorusama/core/backups/export_import/models/export_selection.dart';
 import 'package:boorusama/core/backups/export_import/models/export_template.dart';
 import 'package:boorusama/core/backups/export_import/models/import_action.dart';
@@ -31,9 +32,9 @@ void main() {
             'bookmarks': ExportNodeSelection.explicit('bookmarks', {'one'}),
           },
           onToggleSource: (_) {},
-          onToggleChild: (_, _) {},
+          onToggleNode: (_, _) {},
           sourceLabel: (_) => 'Bookmark groups',
-          childLabel: (_, id) => id,
+          presentation: const ExportSelectionPresentation(items: {}),
         ),
       ),
     );
@@ -48,7 +49,7 @@ void main() {
     ),
     (
       selection: ExportNodeSelection.explicit('bookmarks', {'one', 'two'}),
-      label: 'All current items',
+      label: 'All current',
     ),
   ];
   for (final c in cases) {
@@ -61,9 +62,9 @@ void main() {
             descriptors: const [descriptor],
             selections: {'bookmarks': c.selection},
             onToggleSource: (_) {},
-            onToggleChild: (_, _) {},
+            onToggleNode: (_, _) {},
             sourceLabel: (_) => 'Bookmark groups',
-            childLabel: (_, id) => id,
+            presentation: const ExportSelectionPresentation(items: {}),
           ),
         ),
       );
@@ -87,9 +88,9 @@ void main() {
             'bookmarks': ExportNodeSelection.explicit('bookmarks', {'one'}),
           },
           onToggleSource: (_) {},
-          onToggleChild: (_, _) {},
+          onToggleNode: (_, _) {},
           sourceLabel: (_) => 'Bookmark groups',
-          childLabel: (_, id) => id,
+          presentation: const ExportSelectionPresentation(items: {}),
         ),
       ),
     );
@@ -108,15 +109,229 @@ void main() {
           ],
           selections: const {},
           onToggleSource: (_) {},
-          onToggleChild: (_, _) {},
+          onToggleNode: (_, _) {},
           sourceLabel: (_) => 'Settings',
-          childLabel: (_, id) => id,
+          presentation: const ExportSelectionPresentation(items: {}),
         ),
       ),
     );
 
     expect(find.byType(ExpansionTile), findsNothing);
     expect(find.byType(CheckboxListTile), findsOneWidget);
+  });
+
+  testWidgets('empty dynamic folders retain expansion semantics', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _app(
+        ExportSelectionTree(
+          descriptors: const [
+            ExportSelectionDescriptor.collection(
+              id: 'pinned_searches',
+              children: [
+                ExportSelectionNode(
+                  id: 'folder:empty',
+                  canHaveChildren: true,
+                ),
+              ],
+            ),
+          ],
+          selections: const {},
+          onToggleSource: (_) {},
+          onToggleNode: (_, _) {},
+          sourceLabel: (_) => 'Pinned searches',
+          presentation: const ExportSelectionPresentation(
+            items: {
+              'folder:empty': ExportItemPresentation(label: 'Empty folder'),
+            },
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Pinned searches'));
+    await tester.pumpAndSettle();
+    expect(find.byType(ExpansionTile), findsNWidgets(2));
+    expect(find.text('Empty folder'), findsOneWidget);
+  });
+
+  testWidgets('recursive collections expose partial state at every depth', (
+    tester,
+  ) async {
+    const recursive = ExportSelectionDescriptor.collection(
+      id: 'pinned_searches',
+      children: [
+        ExportSelectionNode(
+          id: 'folder:top',
+          children: [
+            ExportSelectionNode(
+              id: 'folder:nested',
+              children: [
+                ExportSelectionNode(
+                  id: 'folder:deep',
+                  children: [
+                    ExportSelectionNode(id: 'search:selected'),
+                    ExportSelectionNode(id: 'search:other'),
+                  ],
+                ),
+              ],
+            ),
+            ExportSelectionNode(id: 'search:outside'),
+          ],
+        ),
+      ],
+    );
+    const presentation = ExportSelectionPresentation(
+      items: {
+        'folder:top': ExportItemPresentation(label: 'Top'),
+        'folder:nested': ExportItemPresentation(label: 'Nested'),
+        'folder:deep': ExportItemPresentation(label: 'Deep'),
+        'search:selected': ExportItemPresentation(label: 'Selected'),
+        'search:other': ExportItemPresentation(label: 'Other'),
+        'search:outside': ExportItemPresentation(label: 'Outside'),
+      },
+    );
+
+    await tester.pumpWidget(
+      _app(
+        ExportSelectionTree(
+          descriptors: const [recursive],
+          selections: const {
+            'pinned_searches': ExportNodeSelection.explicit(
+              'pinned_searches',
+              {'search:selected'},
+            ),
+          },
+          onToggleSource: (_) {},
+          onToggleNode: (_, _) {},
+          sourceLabel: (_) => 'Pinned searches',
+          presentation: presentation,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Top'), findsOneWidget);
+    expect(find.text('Nested'), findsOneWidget);
+    expect(find.text('Deep'), findsOneWidget);
+    expect(find.text('Selected'), findsOneWidget);
+    expect(find.text('1 of 3 selected'), findsNWidgets(2));
+    expect(find.text('1 of 2 selected'), findsNWidgets(2));
+    expect(
+      tester
+          .widgetList<Checkbox>(find.byType(Checkbox))
+          .take(4)
+          .map(
+            (checkbox) => checkbox.value,
+          ),
+      everyElement(isNull),
+    );
+  });
+
+  testWidgets('container IDs and explicit leaves retain distinct summaries', (
+    tester,
+  ) async {
+    const nested = ExportSelectionDescriptor.collection(
+      id: 'bookmarks',
+      children: [
+        ExportSelectionNode(
+          id: 'group:one',
+          children: [
+            ExportSelectionNode(id: 'bookmark:a'),
+            ExportSelectionNode(id: 'bookmark:b'),
+          ],
+        ),
+      ],
+    );
+
+    Future<void> pump(Set<String> ids) => tester.pumpWidget(
+      _app(
+        ExportSelectionTree(
+          descriptors: const [nested],
+          selections: {
+            'bookmarks': ExportNodeSelection.explicit('bookmarks', ids),
+          },
+          onToggleSource: (_) {},
+          onToggleNode: (_, _) {},
+          sourceLabel: (_) => 'Bookmark groups',
+          presentation: const ExportSelectionPresentation(items: {}),
+        ),
+      ),
+    );
+
+    await pump({'bookmark:a', 'bookmark:b'});
+    await tester.pumpAndSettle();
+    expect(find.text('All current'), findsNWidgets(2));
+
+    await pump({'group:one'});
+    await tester.pumpAndSettle();
+    expect(find.text('All, including future items'), findsOneWidget);
+    expect(find.text('All current'), findsOneWidget);
+  });
+
+  testWidgets('searches and feeds show subdued trailing profile names', (
+    tester,
+  ) async {
+    const descriptors = [
+      ExportSelectionDescriptor.collection(
+        id: 'pinned_searches',
+        children: [
+          ExportSelectionNode(
+            id: 'folder:one',
+            children: [ExportSelectionNode(id: 'search:one')],
+          ),
+        ],
+      ),
+      ExportSelectionDescriptor.collection(
+        id: 'following_feeds',
+        children: [ExportSelectionNode(id: 'feed:one')],
+      ),
+    ];
+    const presentation = ExportSelectionPresentation(
+      items: {
+        'folder:one': ExportItemPresentation(label: 'Folder'),
+        'search:one': ExportItemPresentation(
+          label: 'Landscape',
+          trailingLabel: 'Profile A',
+        ),
+        'feed:one': ExportItemPresentation(
+          label: 'Landscape',
+          trailingLabel: 'Profile B',
+        ),
+      },
+    );
+
+    await tester.pumpWidget(
+      _app(
+        ExportSelectionTree(
+          descriptors: descriptors,
+          selections: const {
+            'pinned_searches': ExportNodeSelection.all('pinned_searches'),
+            'following_feeds': ExportNodeSelection.all('following_feeds'),
+          },
+          onToggleSource: (_) {},
+          onToggleNode: (_, _) {},
+          sourceLabel: (id) => id,
+          presentation: presentation,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Folder'));
+    await tester.pumpAndSettle();
+    expect(find.text('Landscape'), findsNWidgets(2));
+    final profileTexts = ['Profile A', 'Profile B'].map(
+      (label) => tester.widget<Text>(find.text(label)),
+    );
+    final expectedColor = Theme.of(
+      tester.element(find.text('Profile A')),
+    ).colorScheme.onSurfaceVariant;
+    expect(
+      profileTexts.map((text) => text.style?.color),
+      everyElement(expectedColor),
+    );
   });
 
   testWidgets('saving a template returns to the export form without errors', (
@@ -126,8 +341,8 @@ void main() {
       ProviderScope(
         overrides: [
           exportImportSourcesProvider.overrideWithValue(const [_FakeSource()]),
-          exportSelectionLabelsProvider.overrideWithValue(
-            const ExportSelectionLabels(children: {}),
+          exportSelectionPresentationProvider.overrideWithValue(
+            const ExportSelectionPresentation(items: {}),
           ),
           exportTemplatesProvider.overrideWith(_FakeTemplatesNotifier.new),
         ],
@@ -166,8 +381,12 @@ void main() {
           exportImportSourcesProvider.overrideWithValue(
             const [_FakeCollectionSource()],
           ),
-          exportSelectionLabelsProvider.overrideWithValue(
-            const ExportSelectionLabels(children: {'one': 'Favorites'}),
+          exportSelectionPresentationProvider.overrideWithValue(
+            const ExportSelectionPresentation(
+              items: {
+                'one': ExportItemPresentation(label: 'Favorites'),
+              },
+            ),
           ),
           exportTemplatesProvider.overrideWith(_FakeTemplatesNotifier.new),
         ],

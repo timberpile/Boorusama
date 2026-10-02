@@ -8,12 +8,17 @@ abstract interface class ExportSourceCatalog {
 enum ExportNodeSelectionKind { all, explicit }
 
 final class ExportSelectionNode extends Equatable {
-  const ExportSelectionNode({required this.id, this.children = const []});
+  const ExportSelectionNode({
+    required this.id,
+    this.children = const [],
+    this.canHaveChildren = false,
+  });
 
   final String id;
   final List<ExportSelectionNode> children;
+  final bool canHaveChildren;
 
-  bool get isCollection => children.isNotEmpty;
+  bool get isCollection => canHaveChildren || children.isNotEmpty;
 
   Set<String> get allIds => {
     id,
@@ -35,7 +40,7 @@ final class ExportSelectionNode extends Equatable {
   bool contains(String nodeId) => find(nodeId) != null;
 
   @override
-  List<Object?> get props => [id, children];
+  List<Object?> get props => [id, children, canHaveChildren];
 }
 
 final class ExportSelectionDescriptor extends Equatable {

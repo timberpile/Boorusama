@@ -789,7 +789,7 @@
         "include_credentials": "Include profile credentials",
         "include_credentials_description": "Includes profile login, API keys, hashes, and proxy credentials.",
         "all_including_future": "All, including future items",
-        "all_current": "All current items",
+        "all_current": "All current",
         "selected_count": "{selected} of {total} selected",
         "save_template": "Save as template",
         "save_only": "Save only",

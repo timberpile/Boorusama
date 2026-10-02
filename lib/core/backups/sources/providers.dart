@@ -103,6 +103,7 @@ final exportImportSourcesProvider = Provider<List<ExportImportSource>>((ref) {
     for (final folder in searches?.organization.folders ?? const [])
       ExportSelectionNode(
         id: ExportSelectionIds.pinnedSearchFolder(folder.id),
+        canHaveChildren: true,
         children: [
           for (final id in folder.searchIds)
             if (selectableSearches.containsKey(id))
@@ -114,6 +115,7 @@ final exportImportSourcesProvider = Provider<List<ExportImportSource>>((ref) {
     ))
       ExportSelectionNode(
         id: ExportSelectionIds.pinnedSearchHome,
+        canHaveChildren: true,
         children: [
           for (final id in searches?.organization.homeSearchIds ?? const [])
             if (selectableSearches.containsKey(id))
