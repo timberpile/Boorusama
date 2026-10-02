@@ -19,7 +19,6 @@ import '../types/pinned_search_sort.dart';
 import '../types/search_subscription.dart';
 import '../widgets/move_pin_to_folder_dialog.dart';
 import '../widgets/bulk_search_import_dialog.dart';
-import '../widgets/search_refresh_settings_dialog.dart';
 import '../widgets/pin_search_dialog.dart';
 import '../widgets/pinned_search_card.dart';
 import 'search_folder_management_page.dart';
@@ -82,12 +81,6 @@ class _PinnedSearchesPageState extends ConsumerState<PinnedSearchesPage> {
             icon: const Icon(Symbols.playlist_add),
             onPressed: eligibleProfiles.isEmpty ? null : () => _bulkAdd(),
           ),
-          if (widget.folderId == null)
-            IconButton(
-              tooltip: strings.refresh_settings,
-              icon: const Icon(Symbols.settings),
-              onPressed: () => showSearchRefreshSettingsDialog(context),
-            ),
           if (widget.folderId == null)
             IconButton(
               tooltip: strings.manage_folders,

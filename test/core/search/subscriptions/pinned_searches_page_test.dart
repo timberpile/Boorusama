@@ -183,6 +183,17 @@ void main() {
     expect(harness.requests, isEmpty);
   });
 
+  testWidgets('does not expose settings for disabled automatic refresh', (
+    tester,
+  ) async {
+    initialize();
+    await harness.seed([pinnedFixture()]);
+    await pump(tester);
+
+    expect(find.byTooltip('Refresh settings'), findsNothing);
+    expect(find.text('Automatic refresh'), findsNothing);
+  });
+
   testWidgets('shows the cached last post time on the profile metadata line', (
     tester,
   ) async {

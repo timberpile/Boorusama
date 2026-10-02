@@ -47,11 +47,27 @@ import 'subscription_test_utils.dart';
 final selectedTestProfileProvider =
     NotifierProvider<SelectedTestProfile, BooruConfig>(SelectedTestProfile.new);
 
+final testAutomaticSearchRefreshNetworkAllowedProvider =
+    NotifierProvider<TestAutomaticSearchRefreshNetworkAllowed, bool>(
+      TestAutomaticSearchRefreshNetworkAllowed.new,
+    );
+
 class SelectedTestProfile extends Notifier<BooruConfig> {
   @override
   BooruConfig build() => testProfile;
 
   void select(BooruConfig config) => state = config;
+}
+
+class TestAutomaticSearchRefreshNetworkAllowed extends Notifier<bool> {
+  TestAutomaticSearchRefreshNetworkAllowed([this.initialValue = false]);
+
+  final bool initialValue;
+
+  @override
+  bool build() => initialValue;
+
+  void setAllowed(bool allowed) => state = allowed;
 }
 
 final testProfile = BooruConfig.fromJson({
@@ -132,8 +148,13 @@ class PinnedSearchHarness {
         ),
         initialSettingsBooruConfigProvider.overrideWithValue(testProfile),
         analyticsProvider.overrideWith((ref) => Future.value()),
-        automaticSearchRefreshNetworkAllowedProvider.overrideWithValue(
-          networkAllowed,
+        testAutomaticSearchRefreshNetworkAllowedProvider.overrideWith(
+          () => TestAutomaticSearchRefreshNetworkAllowed(networkAllowed),
+        ),
+        automaticSearchRefreshNetworkAllowedProvider.overrideWith(
+          (ref) => ref.watch(
+            testAutomaticSearchRefreshNetworkAllowedProvider,
+          ),
         ),
         searchRefreshCoordinatorProvider.overrideWith(
           () => SearchRefreshCoordinator(scheduler: scheduler),

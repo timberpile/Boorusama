@@ -7,50 +7,76 @@ import 'pinned_search_test_utils.dart';
 import 'package:boorusama/core/search/subscriptions/providers.dart';
 
 void main() {
-  for (final networkAllowed in [true, false]) {
-    testWidgets(
-      'foreground scheduling respects network permission $networkAllowed and pause/resume',
-      (tester) async {
-        var now = checkedAt.add(const Duration(minutes: 6));
-        final clock = Clock(() => now);
-        final harness = PinnedSearchHarness(
+  testWidgets(
+    'launch, elapsed foreground time, and resume do not refresh searches',
+    (tester) async {
+      var now = checkedAt.add(const Duration(days: 1));
+      final clock = Clock(() => now);
+      final harness = PinnedSearchHarness(
+        clock: clock,
+        networkAllowed: true,
+        scheduler: SearchRefreshScheduler(
           clock: clock,
-          networkAllowed: networkAllowed,
-          scheduler: SearchRefreshScheduler(
-            clock: clock,
-            spacing: Duration.zero,
-          ),
-        );
-        addTearDown(harness.dispose);
-        await tester.runAsync(() async {
-          await harness.seed([pinnedFixture(query: 'cat')]);
-          await harness.container.read(searchSubscriptionsProvider.future);
-        });
-        tester.binding.handleAppLifecycleStateChanged(
-          AppLifecycleState.resumed,
-        );
-        await harness.pump(
-          tester,
-          const SearchRefreshLifecycle(
-            child: Scaffold(body: Text('App open')),
-          ),
-        );
-        await drainRefresh(tester);
-        expect(harness.requests.length, networkAllowed ? 1 : 0);
-        tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
-        now = now.add(const Duration(minutes: 6));
-        await tester.pump(const Duration(minutes: 6));
-        await drainRefresh(tester);
-        expect(harness.requests.length, networkAllowed ? 1 : 0);
-        tester.binding.handleAppLifecycleStateChanged(
-          AppLifecycleState.resumed,
-        );
-        await drainRefresh(tester);
-        expect(harness.requests.length, networkAllowed ? 2 : 0);
-        await tester.pumpWidget(const SizedBox.shrink());
-      },
+          spacing: Duration.zero,
+        ),
+      );
+      addTearDown(harness.dispose);
+      await tester.runAsync(() async {
+        await harness.seed([pinnedFixture(query: 'cat')]);
+        await harness.container.read(searchSubscriptionsProvider.future);
+      });
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await harness.pump(
+        tester,
+        const SearchRefreshLifecycle(
+          child: Scaffold(body: Text('App open')),
+        ),
+      );
+      await drainRefresh(tester);
+      now = now.add(const Duration(days: 1));
+      await tester.pump(const Duration(minutes: 2));
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await drainRefresh(tester);
+
+      expect(harness.requests, isEmpty);
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
+
+  testWidgets('connectivity recovery does not refresh searches', (
+    tester,
+  ) async {
+    final clock = Clock.fixed(checkedAt.add(const Duration(days: 1)));
+    final harness = PinnedSearchHarness(
+      clock: clock,
+      scheduler: SearchRefreshScheduler(
+        clock: clock,
+        spacing: Duration.zero,
+      ),
     );
-  }
+    addTearDown(harness.dispose);
+    await tester.runAsync(() async {
+      await harness.seed([pinnedFixture(query: 'cat')]);
+      await harness.container.read(searchSubscriptionsProvider.future);
+    });
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await harness.pump(
+      tester,
+      const SearchRefreshLifecycle(
+        child: Scaffold(body: Text('App open')),
+      ),
+    );
+    await drainRefresh(tester);
+
+    harness.container
+        .read(testAutomaticSearchRefreshNetworkAllowedProvider.notifier)
+        .setAllowed(true);
+    await drainRefresh(tester);
+
+    expect(harness.requests, isEmpty);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
 }
 
 Future<void> drainRefresh(WidgetTester tester) async {

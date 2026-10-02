@@ -233,21 +233,13 @@ use `tester.runAsync`; directly awaiting its future in the fake async zone can
 wait for scheduled Riverpod work that has not yet been pumped. Text controllers
 belong to dialog State so they survive the route's closing animation.
 
-Automatic refresh defaults to enabled every five minutes. A search is eligible
-only when its last successful check is strictly older than the interval. The
-foreground coordinator checks eligibility on launch/resume, network recovery,
-and every minute; it stops scheduling when inactive or paused. It accepts Wi-Fi
-or Ethernet, and pauses on mobile-only, offline, or unknown connectivity. The
-existing mobile-data preference controls downloads rather than general network
-refresh, so it is not reused. Manual refresh remains available.
-
-Each automatic run starts at most ten newest-page checks, sequentially with
-one-second spacing, and starts no further checks after twenty seconds. An
-already-started request may finish after that deadline or after pausing. The
-budget counts search checks, not a universal HTTP count: engines may first
-resolve tags. Never-checked searches precede the oldest successful checks;
-failed checks back off for five, ten, twenty, then thirty minutes. Checkpoints
-and cached results survive errors. No OS background worker is registered.
+Automatic refresh is disabled. Launching or resuming the app, recovering
+connectivity, and leaving the app open do not schedule search checks. Manual
+per-search, folder, feed-source, and Refresh All actions remain available. The
+existing scheduler implementation and persisted `searchRefresh` settings are
+retained as dormant migration context; the UI does not expose those inactive
+settings. A conservative daily-scale replacement with shared site throttling is
+tracked in [PS-031](work/ready/PS-031-conservative-automatic-refresh.md).
 
 Following Feeds is a separate navigation feature. A feed belongs to one profile
 and stores the IDs of the tracked searches that supply it. Search records have
@@ -264,8 +256,8 @@ profile caption. Artist Follow/Following shows how many feeds contain the exact
 artist tag. Feed management lists its member searches for direct opening and
 manual refresh.
 
-Feeds use the same chronological scanner and foreground refresh scheduler as
-independent pins. A feed has NEW if any member search has NEW. Opening it marks
+Feeds use the same chronological scanner as independent pins through explicit
+refresh actions. A feed has NEW if any member search has NEW. Opening it marks
 only its members read; opening a member may also clear its feed's NEW. Adding a
 new member checks that source directly and does not create NEW before that
 search discovers new posts. Pinned Searches' Refresh All checks independent
@@ -310,8 +302,8 @@ unsupported engine data stays in the sequence with cached media and generic
 presentation. Near the end of the loaded posts, the viewer asks the grid to
 load more history. Removing a source clears the recent
 snapshot so posts exclusive to that source do not remain visible. Unchanged
-source checkpoints persist. All refresh entry points share a three-request
-concurrency gate; automatic work remains sequential.
+source checkpoints persist. All explicit refresh entry points share a
+three-request concurrency gate.
 
 Backup version 3 stores feed names and source query definitions, excluding
 runtime cache and checkpoints. Restore creates internal source searches and
