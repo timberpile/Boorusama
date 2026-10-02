@@ -750,7 +750,7 @@ final class PackageTransactionSource implements ImportTransactionSource {
   Future<String> revisionToken() async {
     final digest = switch (source) {
       final JsonBackupSource jsonSource => sha256.convert(
-        utf8.encode(await jsonSource.encodeForExport()),
+        utf8.encode(await jsonSource.encodeRevisionSnapshot()),
       ),
       final SqliteBackupSource sqliteSource => await _fileDigest(
         await sqliteSource.dbPathGetter(),

@@ -1,3 +1,6 @@
+// Dart imports:
+import 'dart:convert';
+
 // Package imports:
 import 'package:coreutils/coreutils.dart';
 import 'package:dio/dio.dart';
@@ -113,6 +116,14 @@ abstract class JsonBackupSource<T>
       payload: handler.encode(data),
       extraFields: extraPayloadEncoder?.call(data) ?? const {},
     );
+  }
+
+  Future<String> encodeRevisionSnapshot() async {
+    final data = await dataGetter();
+    return jsonEncode({
+      ...extraPayloadEncoder?.call(data) ?? const <String, dynamic>{},
+      'data': handler.encode(data),
+    });
   }
 
   Future<ImportPreparation> _prepareServerImport(
