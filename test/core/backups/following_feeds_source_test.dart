@@ -143,6 +143,7 @@ void main() {
             '550e8400-e29b-41d4-a716-446655440001',
             profileId: 9,
             url: 'https://missing.test',
+            booruType: 'e621',
           ),
         ],
       );
@@ -205,6 +206,7 @@ void main() {
             '550e8400-e29b-41d4-a716-446655440001',
             profileId: 9,
             url: 'https://missing.test',
+            booruType: 'e621',
           ),
         ],
       );
@@ -227,6 +229,7 @@ FollowingFeedBackupRecord _record(
   String id, {
   required int profileId,
   required String url,
+  String booruType = 'danbooru',
 }) => FollowingFeedBackupRecord(
   id: id,
   name: 'Animals',
@@ -234,7 +237,7 @@ FollowingFeedBackupRecord _record(
   queries: const ['cat'],
   profile: BackupProfileReference(
     id: profileId,
-    booruType: 'danbooru',
+    booruType: booruType,
     url: url,
     name: 'Remote',
   ),
