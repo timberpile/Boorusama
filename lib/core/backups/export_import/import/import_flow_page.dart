@@ -111,7 +111,7 @@ class _ReviewImport extends ConsumerWidget {
       for (final source in ref.read(backupRegistryProvider).getAllSources())
         source.id: source.displayName,
     };
-    final labels = ref.watch(exportSelectionLabelsProvider).children;
+    final localLabels = ref.watch(exportSelectionLabelsProvider).children;
     final profileNames = {
       for (final profile in ref.watch(booruConfigProvider))
         profile.id: profile.name,
@@ -133,8 +133,8 @@ class _ReviewImport extends ConsumerWidget {
             resolved: resolvedById[source.id]!,
             onChanged: ref.read(importFlowProvider.notifier).replaceSource,
             sourceLabel: (id) => sourceNames[id] ?? id,
-            itemLabel: (id) => labels[id] ?? id,
-            targetLabel: (id) => labels[id] ?? id,
+            itemLabel: (id) => state.itemLabels[id] ?? localLabels[id] ?? id,
+            targetLabel: (id) => localLabels[id] ?? id,
           ),
         for (final mapping in state.profileMappings)
           if (!mapping.providedByImport &&

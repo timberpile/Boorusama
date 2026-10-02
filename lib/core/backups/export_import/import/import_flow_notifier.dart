@@ -35,6 +35,7 @@ import '../package/staged_export_package.dart';
 import 'import_coordinator.dart';
 import 'collection_import_action.dart';
 import 'import_change_summarizer.dart';
+import 'import_item_labels.dart';
 import 'import_journal.dart';
 import 'import_plan.dart';
 import 'import_planner.dart';
@@ -53,6 +54,7 @@ final class ImportFlowState {
     this.resolved,
     this.preflight,
     this.profileMappings = const [],
+    this.itemLabels = const {},
     this.alreadyPresentSearches = 0,
     this.error,
   });
@@ -64,6 +66,7 @@ final class ImportFlowState {
   final ResolvedImportPlan? resolved;
   final ImportPreflightResult? preflight;
   final List<ProfileDependencyMapping> profileMappings;
+  final Map<String, String> itemLabels;
   final int alreadyPresentSearches;
   final Object? error;
 
@@ -73,6 +76,7 @@ final class ImportFlowState {
     ResolvedImportPlan? resolved,
     ImportPreflightResult? preflight,
     List<ProfileDependencyMapping>? profileMappings,
+    Map<String, String>? itemLabels,
     int? alreadyPresentSearches,
     Object? error,
   }) => ImportFlowState(
@@ -81,6 +85,7 @@ final class ImportFlowState {
     resolved: resolved ?? this.resolved,
     preflight: preflight ?? this.preflight,
     profileMappings: profileMappings ?? this.profileMappings,
+    itemLabels: itemLabels ?? this.itemLabels,
     alreadyPresentSearches:
         alreadyPresentSearches ?? this.alreadyPresentSearches,
     error: error,
@@ -154,6 +159,7 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
       final planning = <ImportSourcePlanningInput>[];
       final preflightSnapshots = <SourcePreflightSnapshot>[];
       final changeFacts = <String, ImportSourceChangeFacts>{};
+      final itemLabels = <String, String>{};
       var alreadyPresentSearches = 0;
       for (final manifest in package.manifest.sources) {
         final source = registry.getSource(manifest.id);
@@ -175,6 +181,7 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
         );
         await wrapper.prepare(null);
         await wrapper.measureRollback();
+        itemLabels.addAll(importItemLabels(wrapper.preparedData));
         final selection =
             manifest.selection ?? ExportNodeSelection.all(manifest.id);
         final descriptor = descriptors[manifest.id];
@@ -303,6 +310,7 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
           dependencies,
         ),
         profileMappings: dependencies.mappings,
+        itemLabels: Map.unmodifiable(itemLabels),
         alreadyPresentSearches: alreadyPresentSearches,
       );
     } catch (error) {
