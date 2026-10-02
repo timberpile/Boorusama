@@ -22,7 +22,7 @@ class ExportTemplateRepository {
         if (value is! Map) {
           throw const FormatException('Invalid stored export template');
         }
-        return ExportTemplate.fromJson(Map<String, dynamic>.from(value));
+        return ExportTemplate.fromJson(_normalizeMap(value));
       }),
     );
   }
@@ -52,3 +52,22 @@ class ExportTemplateRepository {
     templates.map((template) => template.toJson()).toList(),
   );
 }
+
+Map<String, dynamic> _normalizeMap(Map<dynamic, dynamic> value) {
+  final normalized = <String, dynamic>{};
+  for (final entry in value.entries) {
+    final key = entry.key;
+    if (key is! String) {
+      throw const FormatException('Invalid stored export template key');
+    }
+    normalized[key] = _normalizeValue(entry.value);
+  }
+  return normalized;
+}
+
+dynamic _normalizeValue(dynamic value) => switch (value) {
+  null => null,
+  Map<dynamic, dynamic>() => _normalizeMap(value),
+  List<dynamic>() => value.map(_normalizeValue).toList(growable: false),
+  _ => value,
+};

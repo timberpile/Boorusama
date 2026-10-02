@@ -44,6 +44,16 @@ void main() {
       expect(repository.load(), [second]);
     },
   );
+
+  test('loads templates after the database is reopened', () async {
+    final template = _template('saved', 'Saved template');
+    await ExportTemplateRepository(box).save(template);
+
+    await box.close();
+    box = await Hive.openBox<dynamic>('settings');
+
+    expect(ExportTemplateRepository(box).load(), [template]);
+  });
 }
 
 ExportTemplate _template(String id, String name) => ExportTemplate(

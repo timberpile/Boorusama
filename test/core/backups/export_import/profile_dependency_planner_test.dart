@@ -90,6 +90,26 @@ void main() {
     expect(result.createdProfiles.single.login, isNull);
     expect(result.createdProfiles.single.passHash, isNull);
   });
+
+  test('an unsupported profile type is rejected during preflight', () {
+    const unsupported = BackupProfileReference(
+      id: 13,
+      booruType: 'future_engine',
+      url: 'https://future.example',
+      name: 'Future',
+    );
+    final result = const ProfileDependencyPlanner().plan(
+      references: const [unsupported],
+      localProfiles: const [],
+      createFromReferences: {
+        ProfileReferenceKey.fromReference(unsupported),
+      },
+    );
+
+    expect(result.errors.single.code, 'unsupported_profile_type');
+    expect(result.profileIdFor(unsupported), isNull);
+    expect(result.createdProfiles, isEmpty);
+  });
 }
 
 ResolvedImportSource _profileResolution(int id, ImportAction action) =>

@@ -266,69 +266,10 @@ class ExportFlowPage extends ConsumerWidget {
 
   Future<({String name, bool export})?> _promptTemplateSave(
     BuildContext context,
-  ) async {
-    final controller = TextEditingController();
-    final result = await showDialog<({String name, bool export})>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(
-          context.t.settings.backup_and_restore.export_import.name_template,
-        ),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: InputDecoration(
-            labelText: context
-                .t
-                .settings
-                .backup_and_restore
-                .export_import
-                .template_name,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              context.t.settings.backup_and_restore.export_import.cancel,
-            ),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(
-              context,
-              (name: controller.text.trim(), export: false),
-            ),
-            child: Text(
-              context.t.settings.backup_and_restore.export_import.save_only,
-            ),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(
-              context,
-              (name: controller.text.trim(), export: true),
-            ),
-            child: Text(
-              context
-                  .t
-                  .settings
-                  .backup_and_restore
-                  .export_import
-                  .save_and_export,
-            ),
-          ),
-        ],
-      ),
-    );
-    controller.dispose();
-    return switch (result) {
-      null => null,
-      (:final name, :final export) when name.trim().isNotEmpty => (
-        name: name.trim(),
-        export: export,
-      ),
-      _ => null,
-    };
-  }
+  ) => showDialog<({String name, bool export})>(
+    context: context,
+    builder: (_) => const _TemplateSaveDialog(),
+  );
 
   Future<void> _saveTemplate(BuildContext context, WidgetRef ref) async {
     final save = await _promptTemplateSave(context);
@@ -356,6 +297,64 @@ class ExportFlowPage extends ConsumerWidget {
     if (save.export && context.mounted) {
       await _createExport(context, ref);
     }
+  }
+}
+
+class _TemplateSaveDialog extends StatefulWidget {
+  const _TemplateSaveDialog();
+
+  @override
+  State<_TemplateSaveDialog> createState() => _TemplateSaveDialogState();
+}
+
+class _TemplateSaveDialogState extends State<_TemplateSaveDialog> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: Text(
+      context.t.settings.backup_and_restore.export_import.name_template,
+    ),
+    content: TextField(
+      controller: _controller,
+      autofocus: true,
+      decoration: InputDecoration(
+        labelText:
+            context.t.settings.backup_and_restore.export_import.template_name,
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: Text(
+          context.t.settings.backup_and_restore.export_import.cancel,
+        ),
+      ),
+      TextButton(
+        onPressed: () => _submit(context, export: false),
+        child: Text(
+          context.t.settings.backup_and_restore.export_import.save_only,
+        ),
+      ),
+      FilledButton(
+        onPressed: () => _submit(context, export: true),
+        child: Text(
+          context.t.settings.backup_and_restore.export_import.save_and_export,
+        ),
+      ),
+    ],
+  );
+
+  void _submit(BuildContext context, {required bool export}) {
+    final name = _controller.text.trim();
+    if (name.isEmpty) return;
+    Navigator.pop(context, (name: name, export: export));
   }
 }
 
@@ -606,7 +605,7 @@ String _sourceLabel(BuildContext context, String id) => switch (id) {
     context.t.settings.backup_and_restore.export_import.sources.settings,
   'favorite_tags' =>
     context.t.settings.backup_and_restore.export_import.sources.favorite_tags,
-  'search_history' =>
+  'search_histories' =>
     context.t.settings.backup_and_restore.export_import.sources.search_history,
   'downloads' =>
     context.t.settings.backup_and_restore.export_import.sources.downloads,

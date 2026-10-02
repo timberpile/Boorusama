@@ -164,7 +164,25 @@ final class ProfileDependencyPlanner {
       }
 
       if (createFromReferences.contains(entry.key)) {
-        final created = _createProfile(entry.value, nextProfileId++);
+        final created = _createProfile(entry.value, nextProfileId);
+        if (created == null) {
+          mappings.add(
+            ProfileDependencyMapping(
+              reference: entry.value,
+              candidateIds: const {},
+              providedByImport: false,
+            ),
+          );
+          errors.add(
+            ImportPlanIssue(
+              code: 'unsupported_profile_type',
+              sourceId: 'profiles',
+              itemId: entry.key.exportedId.toString(),
+            ),
+          );
+          continue;
+        }
+        nextProfileId++;
         projected = [...projected, created];
         createdProfiles.add(created);
         mappings.add(
@@ -212,16 +230,14 @@ final class ProfileDependencyPlanner {
     );
   }
 
-  BooruConfig _createProfile(BackupProfileReference reference, int id) {
+  BooruConfig? _createProfile(BackupProfileReference reference, int id) {
     final type = BooruYamlConfigs.values
         .map((config) => config.type)
         .firstWhere(
           (type) => type.name == reference.booruType,
           orElse: () => BooruType.unknown,
         );
-    if (type == BooruType.unknown) {
-      throw StateError('Unsupported booru type: ${reference.booruType}');
-    }
+    if (type == BooruType.unknown) return null;
     return BooruConfig.fromJson({
       ...BooruConfig.empty.toJson(),
       'id': id,
