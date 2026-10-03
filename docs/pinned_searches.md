@@ -25,19 +25,29 @@ A subscription belongs to exactly one `BooruConfig.id`. Post IDs are meaningful
 only within that ownership. Duplicate detection collapses surrounding and
 repeated query whitespace within the profile, without changing case or term
 order. The executable query keeps its original content after outer whitespace
-is trimmed, and cannot be edited after pinning. New pins whose selected tags
-are all specific tags also store their ordered tag list separately. This
-optional structure is presentation input only: refresh and duplicate identity
-continue to use the executable query. Raw or mixed searches, legacy records,
-and missing, malformed, unknown, or canonically mismatched structure data reopen
-as one raw query. Structure matching uses the same specific-tag conversion as
-search execution before comparing the existing normalized query identity, so
-tag order and single-tag space-to-underscore normalization retain their normal
-meaning. Each stored atom must also remain one token under the existing query
-parser after supported literal spaces are protected; tabs, newlines, and other
-query separators therefore fall back to the raw canonical query.
-Renaming and reordering retain runtime state. Blank custom names persist as
-`null`, so the label falls back to the stored query.
+is trimmed. New pins whose selected tags are all specific tags also store
+their ordered tag list separately. This optional structure is presentation
+input only: refresh and duplicate identity continue to use the executable
+query. Raw or mixed searches, legacy records, and missing, malformed, unknown,
+or canonically mismatched structure data reopen as one raw query. Structure
+matching uses the same specific-tag conversion as search execution before
+comparing the existing normalized query identity, so tag order and single-tag
+space-to-underscore normalization retain their normal meaning. Each stored
+atom must also remain one token under the existing query parser after
+supported literal spaces are protected; tabs, newlines, and other query
+separators therefore fall back to the raw canonical query.
+
+Editing a pin can change its optional name, exact query, and owning profile
+while retaining its UUID and shared-folder or Home position. Name-only edits
+and reordering retain runtime state. A query or profile edit advances the
+runtime revision and atomically saves a cleared runtime aggregate before a
+new no-NEW baseline starts; failed baselines retain the edited definition as
+Not checked with a retryable error. A normalized profile/query collision with
+another independent pin blocks the edit without changing either record. Feed
+sources are separate records and cannot be edited through the pin editor.
+A profile-only edit retains valid typed-tag presentation; editing the query
+clears that structure so opening the pin uses the exact edited query. Blank
+custom names persist as `null`, so the label follows the stored query.
 
 The legacy Hive `unreadCount` field is retained for compatibility, but positive
 values load as 1 and are displayed as NEW. No exact count is computed. NEW is
@@ -128,9 +138,11 @@ failures and publishes per-search outcomes and batch progress. Batch calls are
 serialized; transient progress records its owning profile.
 
 The repository rejects a successful refresh if the subscription was deleted,
-its captured `createdAt` changed, or its expected checkpoint no longer matches.
-Failure recording also checks existence and `createdAt`. This prevents an old
-request from mutating a newly imported definition that reuses the same UUID.
+its captured `createdAt` or runtime revision changed, or its expected checkpoint
+no longer matches. Failure recording also checks existence, `createdAt`, and
+runtime revision. This prevents an old request from mutating a newly imported
+definition or an edited definition that reuses the same UUID. Editing detaches
+an old coalesced refresh so the new definition can start its own baseline.
 Runtime deletion compensation preserves the original aggregate and creation
 timestamp; backup import creates a new timestamp.
 

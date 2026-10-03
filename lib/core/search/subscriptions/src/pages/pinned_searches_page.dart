@@ -18,10 +18,12 @@ import '../providers/pinned_search_sort_provider.dart';
 import '../types/pinned_search_sort.dart';
 import '../types/search_organization.dart';
 import '../types/search_subscription.dart';
+import '../types/search_refresh.dart';
 import '../widgets/bulk_search_import_dialog.dart';
 import '../widgets/move_pin_to_folder_dialog.dart';
-import '../widgets/pin_search_dialog.dart';
+import '../widgets/edit_pinned_search_dialog.dart';
 import '../widgets/pinned_search_card.dart';
+import '../widgets/pinned_search_profile_caption.dart';
 import '../widgets/pinned_search_folder_card.dart';
 import '../widgets/search_folder_dialog.dart';
 
@@ -314,14 +316,10 @@ class _PinnedSearchesPageState extends ConsumerState<PinnedSearchesPage> {
                           final owner = profiles.singleWhere(
                             (c) => c.id == subscription.profileId,
                           );
-                          final caption = owner.name.isEmpty
-                              ? owner.url
-                              : profiles
-                                        .where((c) => c.name == owner.name)
-                                        .length ==
-                                    1
-                              ? owner.name
-                              : '${owner.name} · ${owner.url}';
+                          final caption = pinnedSearchProfileCaption(
+                            owner,
+                            profiles,
+                          );
                           return Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 12),
                             child: PinnedSearchCard(
@@ -376,7 +374,9 @@ class _PinnedSearchesPageState extends ConsumerState<PinnedSearchesPage> {
         );
       case PinnedSearchAction.delete:
         await _deleteFolder(folder);
-      case PinnedSearchAction.info || PinnedSearchAction.moveFolder:
+      case PinnedSearchAction.info ||
+          PinnedSearchAction.moveFolder ||
+          PinnedSearchAction.edit:
         return;
     }
   }
@@ -490,6 +490,8 @@ class _PinnedSearchesPageState extends ConsumerState<PinnedSearchesPage> {
     List<SearchSubscription> group,
   ) async {
     switch (action) {
+      case PinnedSearchAction.rename:
+        return;
       case PinnedSearchAction.info:
         await showDialog<void>(
           context: context,
@@ -541,19 +543,32 @@ class _PinnedSearchesPageState extends ConsumerState<PinnedSearchesPage> {
               .read(searchSubscriptionsProvider.notifier)
               .refresh(subscription.id),
         );
-      case PinnedSearchAction.rename:
-        final name = await showPinSearchDialog(
+      case PinnedSearchAction.edit:
+        final profiles = ref.read(booruConfigProvider);
+        final result = await showEditPinnedSearchDialog(
           context,
-          query: subscription.query,
-          initialName: subscription.name,
-          isPinned: true,
-        );
-        if (name == null || !mounted) return;
-        await _runAction(
-          () => ref
+          subscription: subscription,
+          profiles: profiles,
+          trackingSupported: (auth) =>
+              ref.read(pinnedSearchTrackingSupportedProvider(auth)),
+          onSave: (profileId, query, name) => ref
               .read(searchSubscriptionsProvider.notifier)
-              .rename(subscription.id, name),
+              .edit(
+                subscription.id,
+                profileId: profileId,
+                query: query,
+                name: name,
+              ),
         );
+        if (!mounted || result == null) return;
+        if (result.refresh case SearchRefreshFailed(
+          :final kind,
+        ) when kind != SearchRefreshErrorKind.unsupported) {
+          Kurumi.showErrorToast(
+            context,
+            context.t.pinned_searches.edit_baseline_failed,
+          );
+        }
       case PinnedSearchAction.moveUp || PinnedSearchAction.moveDown:
         await _runAction(
           () => ref

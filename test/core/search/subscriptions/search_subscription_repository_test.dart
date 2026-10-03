@@ -84,6 +84,201 @@ void main() {
   }
 
   test(
+    'editing a query resets runtime while retaining identity and placement',
+    () async {
+      final original = await repository.create(
+        profileId: 12,
+        query: 'cat',
+        name: 'Cats',
+      );
+      final folder = SharedSearchFolder(
+        id: 'favorites',
+        name: 'Favorites',
+        searchIds: [original.id],
+      );
+      await repository.replaceOrganization(
+        SearchOrganization(folders: [folder], homeSearchIds: const []),
+      );
+      await repository.commitRefresh(
+        SearchRefreshCommit(
+          subscriptionId: original.id,
+          expectedCreatedAt: original.createdAt,
+          expectedCheckpoint: null,
+          startedAt: createdAt,
+          identityRetentionBoundary: createdAt,
+          baseline: true,
+          discoveredPosts: [preview(7, createdAt)],
+        ),
+      );
+      await repository.recordRefreshFailure(
+        original.id,
+        expectedCreatedAt: original.createdAt,
+        attemptedAt: createdAt.add(const Duration(minutes: 1)),
+        kind: SearchRefreshErrorKind.network,
+      );
+      final edited =
+          await (repository as dynamic).edit(
+                original.id,
+                profileId: 12,
+                query: 'dog',
+                name: 'Dogs',
+              )
+              as SearchSubscription;
+
+      expect(edited.id, original.id);
+      expect(edited.createdAt, original.createdAt);
+      expect(edited.position, original.position);
+      expect(edited.runtimeRevision, original.runtimeRevision + 1);
+      expect(edited.query, 'dog');
+      expect(edited.name, 'Dogs');
+      expect(edited.lastSuccessfulCheckAt, isNull);
+      expect(edited.lastAttemptAt, isNull);
+      expect(edited.highestSeenPostId, isNull);
+      expect(edited.lastErrorKind, isNull);
+      expect(edited.previews, isEmpty);
+      expect(edited.recentPostIdentities, isEmpty);
+      expect(edited.hasNewPosts, isFalse);
+      expect((await repository.getOrganization()).folders.single.searchIds, [
+        original.id,
+      ]);
+    },
+  );
+
+  test('name-only edits retain all runtime data', () async {
+    final source = SearchSubscription(
+      id: 'name-only',
+      profileId: 12,
+      query: 'cat',
+      name: 'Cats',
+      position: 3,
+      createdAt: createdAt,
+      previews: [preview(7, createdAt)],
+      recentPostIdentities: [
+        RecentSearchPostIdentity(postId: 7, postCreatedAt: createdAt),
+      ],
+      unreadCount: 1,
+      lastAttemptAt: createdAt,
+      lastSuccessfulCheckAt: createdAt,
+      highestSeenPostId: 7,
+      lastErrorKind: SearchRefreshErrorKind.network,
+      runtimeRevision: 4,
+    );
+    await repository.restoreForProfile(12, [source]);
+    final updated = await repository.edit(
+      source.id,
+      profileId: 12,
+      query: 'cat',
+      name: 'Kittens',
+    );
+    expect(updated.name, 'Kittens');
+    expect(updated.runtimeRevision, 4);
+    expect(updated.previews, source.previews);
+    expect(updated.recentPostIdentities, source.recentPostIdentities);
+    expect(updated.hasNewPosts, isTrue);
+    expect(updated.lastAttemptAt, source.lastAttemptAt);
+    expect(updated.lastSuccessfulCheckAt, source.lastSuccessfulCheckAt);
+    expect(updated.highestSeenPostId, 7);
+    expect(updated.lastErrorKind, SearchRefreshErrorKind.network);
+  });
+
+  test(
+    'a normalized collision blocks edits without changing either pin',
+    () async {
+      final first = await repository.create(
+        profileId: 12,
+        query: 'cat',
+        name: 'Cats',
+      );
+      final second = await repository.create(
+        profileId: 12,
+        query: 'dog  rating:safe',
+        name: 'Dogs',
+      );
+      await expectLater(
+        repository.edit(
+          first.id,
+          profileId: 12,
+          query: ' dog\t rating:safe ',
+          name: 'Changed',
+        ),
+        throwsA(isA<DuplicatePinnedSearchException>()),
+      );
+      expect(await repository.getById(first.id), first);
+      expect(await repository.getById(second.id), second);
+      final moved = await repository.edit(
+        first.id,
+        profileId: 13,
+        query: 'dog rating:safe',
+        name: null,
+      );
+      expect(moved.profileId, 13);
+      expect(moved.displayName, 'dog rating:safe');
+    },
+  );
+
+  test(
+    'editing an independent pin leaves the matching feed source alone',
+    () async {
+      final pin = await repository.create(
+        profileId: 12,
+        query: 'cat',
+        name: null,
+      );
+      final feed = await repository.saveFeed(
+        profileId: 12,
+        name: 'Animals',
+        queries: ['cat'],
+      );
+      final source = (await repository.getById(feed.sourceIds.single))!;
+      await repository.edit(
+        pin.id,
+        profileId: 12,
+        query: 'dog',
+        name: null,
+      );
+      expect(await repository.getById(source.id), source);
+      expect((await repository.getFeeds()).single, feed);
+      await expectLater(
+        repository.edit(
+          source.id,
+          profileId: 12,
+          query: 'bird',
+          name: null,
+        ),
+        throwsStateError,
+      );
+    },
+  );
+
+  test('an old refresh cannot commit after a material edit', () async {
+    final pin = await repository.create(
+      profileId: 12,
+      query: 'cat',
+      name: null,
+    );
+    final edited = await repository.edit(
+      pin.id,
+      profileId: 12,
+      query: 'dog',
+      name: null,
+    );
+    final stale = await repository.commitRefresh(
+      SearchRefreshCommit(
+        subscriptionId: pin.id,
+        expectedCreatedAt: pin.createdAt,
+        expectedRevision: pin.runtimeRevision,
+        expectedCheckpoint: null,
+        startedAt: createdAt,
+        identityRetentionBoundary: createdAt,
+        baseline: true,
+        discoveredPosts: [preview(7, createdAt)],
+      ),
+    );
+    expect(stale, isNull);
+    expect(await repository.getById(pin.id), edited);
+  });
+
+  test(
     'feed ownership and materialized results survive closing both Hive boxes',
     () async {
       final pin = await repository.create(
@@ -1306,6 +1501,38 @@ void main() {
 
     expect(await repository.getById(source.id), captured);
   });
+
+  test(
+    'editing only the profile keeps typed search navigation while a query edit clears it',
+    () async {
+      final structure = SearchQueryStructure.typedTags(const [
+        'cat',
+        'rating:safe',
+      ]);
+      final pin = await repository.create(
+        profileId: 4,
+        query: 'cat rating:safe',
+        queryStructure: structure,
+        name: null,
+      );
+
+      final moved = await repository.edit(
+        pin.id,
+        profileId: 5,
+        query: pin.query,
+        name: null,
+      );
+      expect(moved.queryStructure, structure);
+
+      final changed = await repository.edit(
+        pin.id,
+        profileId: 5,
+        query: 'dog',
+        name: null,
+      );
+      expect(changed.queryStructure, isNull);
+    },
+  );
 
   test(
     'typed query structure survives Hive reopening and runtime mutations',

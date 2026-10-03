@@ -110,6 +110,241 @@ void main() {
     await settle(tester);
   }
 
+  for (final location in ['Home', 'folder']) {
+    testWidgets('a pin in $location offers Edit without a separate Rename', (
+      tester,
+    ) async {
+      initialize();
+      await harness.seed([pinnedFixture()]);
+      final notifier = harness.container.read(
+        searchSubscriptionsProvider.notifier,
+      );
+      final folder = await notifier.createSharedFolder('Favorites');
+      if (location == 'folder') {
+        await notifier.movePinToSharedFolder('cats', folder.id);
+        await harness.pump(tester, PinnedSearchesPage(folderId: folder.id));
+      } else {
+        await pump(tester);
+      }
+
+      await openMenu(tester);
+      expect(find.text('Edit'), findsOneWidget);
+      expect(find.text('Rename'), findsNothing);
+
+      if (location == 'Home') {
+        await tester.tapAt(const Offset(5, 5));
+        await settle(tester);
+        final folderCard = find.byKey(
+          ValueKey('pinned-search-folder-${folder.id}'),
+        );
+        await tester.tap(
+          find.descendant(
+            of: folderCard,
+            matching: find.byType(PopupMenuButton<PinnedSearchAction>),
+          ),
+        );
+        await settle(tester);
+        expect(find.text('Rename'), findsOneWidget);
+        expect(find.text('Edit'), findsNothing);
+      }
+    });
+  }
+
+  testWidgets('editing a pin changes its query and profile in its folder', (
+    tester,
+  ) async {
+    initialize();
+    await harness.seed([pinnedFixture()]);
+    final notifier = harness.container.read(
+      searchSubscriptionsProvider.notifier,
+    );
+    final folder = await notifier.createSharedFolder('Favorites');
+    await notifier.movePinToSharedFolder('cats', folder.id);
+    await harness.pump(tester, PinnedSearchesPage(folderId: folder.id));
+
+    await choose(tester, 'Edit');
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Name (optional)'),
+      'Dogs',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Exact query'),
+      'dog',
+    );
+    await tester.tap(find.byType(DropdownButtonFormField<int>));
+    await settle(tester);
+    await tester.tap(find.text('https://other.example').last);
+    await settle(tester);
+    await tester.tap(find.text('Save'));
+    await settle(tester);
+    await drain(tester);
+
+    final edited = (await harness.repository.getById('cats'))!;
+    expect(edited.name, 'Dogs');
+    expect(edited.query, 'dog');
+    expect(edited.profileId, 99);
+    expect(
+      (await harness.repository.getOrganization()).folders.single.searchIds,
+      ['cats'],
+    );
+    expect(harness.requests, contains((profileId: 99, query: 'dog')));
+  });
+
+  testWidgets('the editor distinguishes profiles with the same name', (
+    tester,
+  ) async {
+    harness = PinnedSearchHarness(
+      profiles: [
+        testProfile.copyWith(name: 'Shared'),
+        otherTestProfile.copyWith(name: 'Shared'),
+      ],
+    );
+    addTearDown(harness.dispose);
+    await harness.seed([pinnedFixture()]);
+    await pump(tester);
+
+    await choose(tester, 'Edit');
+    await tester.tap(find.byType(DropdownButtonFormField<int>));
+    await settle(tester);
+    expect(find.text('Shared · https://active.example'), findsWidgets);
+    await tester.tap(find.text('Shared · https://other.example').last);
+    await settle(tester);
+    await tester.tap(find.text('Save'));
+    await drain(tester);
+    await settle(tester);
+
+    expect(find.text('Edit Pinned Search'), findsNothing);
+    expect((await harness.repository.getById('cats'))!.profileId, 99);
+    expect(find.text('Shared · https://other.example'), findsOneWidget);
+  });
+
+  testWidgets('barrier and Back cannot dismiss an editor during save', (
+    tester,
+  ) async {
+    initialize();
+    await harness.seed([pinnedFixture()]);
+    await pump(tester);
+    await choose(tester, 'Edit');
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Exact query'),
+      'dog',
+    );
+    final releaseSave = Completer<void>();
+    harness.box.writeGate = releaseSave;
+    await tester.tap(find.text('Save'));
+    await tester.pump();
+
+    await tester.tapAt(const Offset(5, 5));
+    await settle(tester);
+    expect(find.text('Edit Pinned Search'), findsOneWidget);
+    await tester.binding.handlePopRoute();
+    await settle(tester);
+    expect(find.text('Edit Pinned Search'), findsOneWidget);
+
+    releaseSave.complete();
+    await drain(tester);
+    await settle(tester);
+    expect(find.text('Edit Pinned Search'), findsNothing);
+    expect((await harness.repository.getById('cats'))!.query, 'dog');
+  });
+
+  testWidgets('a colliding edit stays open and writes nothing', (tester) async {
+    initialize();
+    await harness.seed([
+      pinnedFixture(),
+      pinnedFixture(
+        id: 'dogs',
+        name: 'Dogs',
+        query: 'dog rating:safe',
+        position: 1,
+      ),
+    ]);
+    await pump(tester);
+
+    await choose(tester, 'Edit');
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Exact query'),
+      ' dog  rating:safe ',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Name (optional)'),
+      'Changed',
+    );
+    await tester.tap(find.text('Save'));
+    await settle(tester);
+
+    expect(
+      find.text('Another pin already uses this query in the selected profile.'),
+      findsOneWidget,
+    );
+    expect(find.text('Edit Pinned Search'), findsOneWidget);
+    expect((await harness.repository.getById('cats'))!.name, 'Cats');
+    expect(
+      (await harness.repository.getById('cats'))!.query,
+      'cat  rating:safe order:score',
+    );
+    expect(
+      (await harness.repository.getById('dogs'))!.query,
+      'dog rating:safe',
+    );
+    expect(harness.requests, isEmpty);
+    await tester.tap(find.text('Cancel'));
+    await settle(tester);
+    expect(find.text('Edit Pinned Search'), findsNothing);
+  });
+
+  testWidgets(
+    'a failed edit save keeps the editor open and the pin unchanged',
+    (
+      tester,
+    ) async {
+      initialize();
+      await harness.seed([pinnedFixture()]);
+      await pump(tester);
+      await choose(tester, 'Edit');
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Exact query'),
+        'dog',
+      );
+      harness.box.failWrites = true;
+      await tester.tap(find.text('Save'));
+      await settle(tester);
+
+      expect(
+        find.text('Could not save the pinned search. Try again.'),
+        findsOneWidget,
+      );
+      expect(find.text('Edit Pinned Search'), findsOneWidget);
+      expect(
+        (await harness.repository.getById('cats'))!.query,
+        'cat  rating:safe order:score',
+      );
+      expect(harness.requests, isEmpty);
+    },
+  );
+
+  testWidgets('an unsupported profile warns before an edit is saved', (
+    tester,
+  ) async {
+    harness = PinnedSearchHarness(supported: false);
+    addTearDown(harness.dispose);
+    await harness.seed([pinnedFixture()]);
+    await pump(tester);
+    await choose(tester, 'Edit');
+    expect(
+      find.text(
+        'New-post tracking is unavailable for this profile. The search can still open normally.',
+      ),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('Cancel'));
+    await settle(tester);
+    expect(
+      (await harness.repository.getById('cats'))!.query,
+      'cat  rating:safe order:score',
+    );
+  });
+
   for (final scenario in ['existing', 'home', 'create', 'cancel', 'failure']) {
     testWidgets(
       'moving a pin to $scenario preserves its owner and commits only on success',
@@ -1012,18 +1247,27 @@ void main() {
   );
 
   testWidgets(
-    'renaming to blank restores the query label without changing unread',
+    'editing the name to blank restores the query label without changing unread',
     (tester) async {
       initialize();
       await harness.seed([pinnedFixture()]);
       await pump(tester);
-      await choose(tester, 'Rename');
+      await choose(tester, 'Edit');
       expect(
-        tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        tester
+            .widget<TextField>(
+              find.widgetWithText(TextField, 'Name (optional)'),
+            )
+            .controller!
+            .text,
         'Cats',
       );
-      await tester.enterText(find.byType(TextField), '   ');
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Name (optional)'),
+        '   ',
+      );
       await tester.tap(find.text('Save'));
+      await drain(tester);
       await settle(tester);
       expect(find.text('Cats'), findsNothing);
       expect(find.text('cat  rating:safe order:score'), findsOneWidget);

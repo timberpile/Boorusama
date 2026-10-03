@@ -54,6 +54,29 @@ import '../search/subscriptions/subscription_test_utils.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  test('export after an edit contains only the new pin definition', () async {
+    final harness = _Harness();
+    addTearDown(harness.container.dispose);
+    await harness.profiles.addAll([_profile]);
+    final pin = await harness.repository.create(
+      profileId: _profile.id,
+      query: 'cat',
+      name: 'Cats',
+    );
+    await harness.repository.edit(
+      pin.id,
+      profileId: _profile.id,
+      query: 'dog',
+      name: 'Dogs',
+    );
+
+    final data = await harness.source.dataGetter();
+    expect(data.records, hasLength(1));
+    expect(data.records.single.id, pin.id);
+    expect(data.records.single.query, 'dog');
+    expect(data.records.single.name, 'Dogs');
+  });
+
   for (final action in ['cancel', 'dismiss', 'accept', 'change profiles']) {
     testWidgets('standalone unmatched imports $action before writing', (
       tester,

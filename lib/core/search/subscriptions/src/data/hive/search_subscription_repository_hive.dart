@@ -366,19 +366,23 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
   }
 
   @override
-  Future<SearchSubscription?> findByQuery(int profileId, String query) {
-    return _read(() {
-      final normalizedQuery = normalizeSearchIdentity(query);
-      final internalIds = _feedSourceIds();
-      for (final subscription in _subscriptions()) {
-        if (subscription.profileId == profileId &&
-            !internalIds.contains(subscription.id) &&
-            normalizeSearchIdentity(subscription.query) == normalizedQuery) {
-          return subscription;
-        }
-      }
-      return null;
-    });
+  Future<SearchSubscription?> findByQuery(int profileId, String query) =>
+      _read(() => _findIndependentByQuery(profileId, query));
+
+  SearchSubscription? _findIndependentByQuery(
+    int profileId,
+    String query, {
+    String? excludingId,
+  }) {
+    final normalizedQuery = normalizeSearchIdentity(query);
+    final internalIds = _feedSourceIds();
+    return _subscriptions().firstWhereOrNull(
+      (subscription) =>
+          subscription.id != excludingId &&
+          subscription.profileId == profileId &&
+          !internalIds.contains(subscription.id) &&
+          normalizeSearchIdentity(subscription.query) == normalizedQuery,
+    );
   }
 
   @override
@@ -397,12 +401,7 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
       }
       final subscriptions = _subscriptions().toList();
       final internalIds = _feedSourceIds();
-      if (subscriptions.any(
-        (subscription) =>
-            subscription.profileId == profileId &&
-            !internalIds.contains(subscription.id) &&
-            normalizeSearchIdentity(subscription.query) == normalizedQuery,
-      )) {
+      if (_findIndependentByQuery(profileId, query) != null) {
         throw StateError(
           'Pinned search query already exists for this profile.',
         );
@@ -438,6 +437,55 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
       return _toSubscription(object);
     });
   }
+
+  @override
+  Future<SearchSubscription> edit(
+    String id, {
+    required int profileId,
+    required String query,
+    required String? name,
+  }) => _serialize(() async {
+    final current = _toSubscription(_requireObject(id));
+    if (_feedSourceIds().contains(current.id)) {
+      throw StateError('Feed sources cannot be edited as pinned searches.');
+    }
+    final trimmedQuery = query.trim();
+    final normalizedQuery = normalizeSearchIdentity(trimmedQuery);
+    if (normalizedQuery.isEmpty) {
+      throw const FormatException('Pinned search queries cannot be empty.');
+    }
+    if (_findIndependentByQuery(
+          profileId,
+          trimmedQuery,
+          excludingId: current.id,
+        ) !=
+        null) {
+      throw DuplicatePinnedSearchException();
+    }
+
+    final material =
+        current.profileId != profileId || current.query != trimmedQuery;
+    final updated = material
+        ? SearchSubscription(
+            id: current.id,
+            profileId: profileId,
+            query: trimmedQuery,
+            queryStructure: current.query == trimmedQuery
+                ? current.queryStructure
+                : null,
+            name: name,
+            position: current.position,
+            createdAt: current.createdAt,
+            runtimeRevision: current.runtimeRevision + 1,
+            previews: const [],
+            recentPostIdentities: const [],
+            unreadCount: 0,
+          )
+        : current.copyWithName(name);
+    final object = _toObject(updated);
+    await _box.put(object.id, object);
+    return _toSubscription(object);
+  });
 
   @override
   Future<SearchSubscription> rename(String id, String? name) {

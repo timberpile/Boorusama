@@ -547,6 +547,39 @@ class SearchSubscriptionsNotifier
     );
   }
 
+  Future<({SearchSubscription subscription, SearchRefreshOutcome? refresh})>
+  edit(
+    String id, {
+    required int profileId,
+    required String query,
+    required String? name,
+  }) async {
+    final result = await _mutate((repository) async {
+      if (!ref.read(booruConfigProvider).any((c) => c.id == profileId)) {
+        throw MissingPinnedSearchProfileException();
+      }
+      await _requireIndependentPin(repository, id);
+      final previous = (await repository.getById(id))!;
+      final material =
+          previous.profileId != profileId || previous.query != query.trim();
+      final edited = await repository.edit(
+        id,
+        profileId: profileId,
+        query: query,
+        name: name,
+      );
+      return (subscription: edited, material: material);
+    });
+    if (!result.material) {
+      return (subscription: result.subscription, refresh: null);
+    }
+    unawaited(_inFlight.remove(id));
+    return (
+      subscription: result.subscription,
+      refresh: await refresh(id),
+    );
+  }
+
   Future<void> rename(String id, String? name) async {
     await _mutate((repository) => repository.rename(id, name));
   }
@@ -581,10 +614,17 @@ class SearchSubscriptionsNotifier
       _mutate((repository) => repository.delete(id));
 
   Future<SearchRefreshOutcome> refresh(String id, {bool Function()? canStart}) {
-    return _inFlight[id] ??= _refresh(id, canStart).whenComplete(() {
-      _inFlight.remove(id);
+    final existing = _inFlight[id];
+    if (existing != null) return existing;
+    late final Future<SearchRefreshOutcome> request;
+    request = _refresh(id, canStart).whenComplete(() {
+      if (identical(_inFlight[id], request)) {
+        _inFlight.remove(id);
+      }
       _publishActivity();
     });
+    _inFlight[id] = request;
+    return request;
   }
 
   Future<SearchRefreshOutcome> _refresh(String id, bool Function()? canStart) =>

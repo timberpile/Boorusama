@@ -155,6 +155,109 @@ void main() {
   );
 
   test(
+    'an edit starts a new baseline while the previous refresh is in flight',
+    () async {
+      await seed('old');
+      await container.read(searchSubscriptionsProvider.future);
+      final oldStarted = Completer<void>();
+      final oldRelease = Completer<void>();
+      posts = TestSearchPostRepository((query, _, _) async {
+        if (query == 'old') {
+          oldStarted.complete();
+          await oldRelease.future;
+          return Either.of(
+            PostResult(posts: [TestSearchPost(1, checkpoint)], total: 1),
+          );
+        }
+        return Either.of(
+          PostResult(posts: [TestSearchPost(2, checkpoint)], total: 1),
+        );
+      });
+
+      final previous = notifier().refresh('old');
+      await oldStarted.future;
+      final editing = (notifier() as dynamic).edit(
+        'old',
+        profileId: config.id,
+        query: 'new',
+        name: null,
+      );
+      final result = await editing.timeout(const Duration(seconds: 5));
+      expect(result.refresh, isA<SearchRefreshSucceeded>());
+      expect((result.refresh as SearchRefreshSucceeded).baseline, isTrue);
+      oldRelease.complete();
+      expect(await previous, const SearchRefreshDiscarded());
+      final saved = (await repository.getById('old'))!;
+      expect(saved.query, 'new');
+      expect(saved.previews.single.postId, 2);
+      expect(saved.hasNewPosts, isFalse);
+    },
+  );
+
+  test('a missing profile blocks the edit before any write', () async {
+    final original = await seed('old', checkedAt: checkpoint, unread: 1);
+    await container.read(searchSubscriptionsProvider.future);
+    await expectLater(
+      notifier().edit(
+        original.id,
+        profileId: 999,
+        query: 'new',
+        name: 'New',
+      ),
+      throwsA(isA<MissingPinnedSearchProfileException>()),
+    );
+    expect(await repository.getById(original.id), original);
+  });
+
+  test('name-only edits do not start a baseline request', () async {
+    final original = await seed('old', checkedAt: checkpoint, unread: 1);
+    await container.read(searchSubscriptionsProvider.future);
+    var requested = false;
+    posts = TestSearchPostRepository((_, _, _) async {
+      requested = true;
+      return Either.of(const PostResult(posts: [], total: 0));
+    });
+    final result = await notifier().edit(
+      original.id,
+      profileId: config.id,
+      query: original.query,
+      name: 'New name',
+    );
+    expect(result.refresh, isNull);
+    expect(requested, isFalse);
+    expect(snapshot().subscriptions.single.name, 'New name');
+    expect(snapshot().subscriptions.single.hasNewPosts, isTrue);
+    expect(snapshot().subscriptions.single.lastSuccessfulCheckAt, checkpoint);
+  });
+
+  test(
+    'a failed edit baseline leaves the new query saved and not checked',
+    () async {
+      final original = await seed('old', checkedAt: checkpoint, unread: 1);
+      await container.read(searchSubscriptionsProvider.future);
+      posts = TestSearchPostRepository(
+        (_, _, _) async =>
+            Either.left(ServerError(httpStatusCode: 503, message: 'offline')),
+      );
+      final result = await notifier().edit(
+        original.id,
+        profileId: config.id,
+        query: 'new',
+        name: null,
+      );
+      expect(
+        result.refresh,
+        const SearchRefreshFailed(SearchRefreshErrorKind.network),
+      );
+      final saved = (await repository.getById(original.id))!;
+      expect(saved.query, 'new');
+      expect(saved.lastSuccessfulCheckAt, isNull);
+      expect(saved.lastErrorKind, SearchRefreshErrorKind.network);
+      expect(saved.hasNewPosts, isFalse);
+    },
+  );
+
+  test(
     'reuses duplicate queries and applies an optional replacement name',
     () async {
       await Future.wait([

@@ -17,6 +17,7 @@ enum PinnedSearchAction {
   info,
   refresh,
   rename,
+  edit,
   moveUp,
   moveDown,
   moveFolder,
@@ -176,8 +177,8 @@ class PinnedSearchCard extends StatelessWidget {
                         child: Text(strings.refresh),
                       ),
                       PopupMenuItem(
-                        value: PinnedSearchAction.rename,
-                        child: Text(strings.rename),
+                        value: PinnedSearchAction.edit,
+                        child: Text(context.t.generic.action.edit),
                       ),
                       if (showMoveActions)
                         PopupMenuItem(

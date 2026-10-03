@@ -4,6 +4,10 @@ import 'search_following_feed.dart';
 import 'search_organization.dart';
 import 'search_subscription.dart';
 
+final class DuplicatePinnedSearchException implements Exception {}
+
+final class MissingPinnedSearchProfileException implements Exception {}
+
 abstract interface class SearchSubscriptionRepository {
   Future<List<SearchSubscription>> getAll();
   Future<List<SearchFollowingFeed>> getFeeds();
@@ -28,6 +32,12 @@ abstract interface class SearchSubscriptionRepository {
     required String? name,
     String? id,
     DateTime? createdAt,
+  });
+  Future<SearchSubscription> edit(
+    String id, {
+    required int profileId,
+    required String query,
+    required String? name,
   });
   Future<SearchSubscription> rename(String id, String? name);
   Future<SearchSubscription> savePinInNewFolder({
