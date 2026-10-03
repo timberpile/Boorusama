@@ -1,13 +1,13 @@
 # Development workflow
 
-The standard development workflow uses pull requests to retain review and test
-context. GitHub issues are recommended when useful, but repository queue
-tickets do not require them. The coordinating agent delegates every queue
-ticket's implementation to a subagent, with one dedicated worktree and branch
-per ticket. A ticket reaches `develop` through a user-approved squash merge,
-producing one commit; intermediate commits on its branch are allowed. Direct
-commits to `develop` are a separately authorized exception for non-ticket
-changes only.
+Small and medium features and fixes reach local `develop` as one descriptive
+Conventional Commit after review and explicit approval. Pull requests are for
+genuinely large branches that need GitHub review and test context; they use
+squash merging with a descriptive commit title. GitHub issues are recommended
+when useful, but repository queue tickets do not require them. The coordinating
+agent delegates every queue ticket's implementation to a subagent, with one
+dedicated worktree and branch per ticket. Intermediate commits on that branch
+are allowed. Publication to a remote remains a separate authorized action.
 
 In a fresh Git worktree, run `fvm dart pub get` from
 `packages/boorusama_cli` before the first `./gen.sh`; the generator imports the
@@ -67,18 +67,23 @@ Do not include validation reports, test counts or results, static-analysis
 results, testing tool logs, or development history in issue descriptions. Keep
 verification details in work reports or review discussions instead.
 
-## Direct commits to develop
+## Single-commit integration on develop
 
-- Direct commits to `develop` are not an alternative for queue tickets. For
-  other changes they require explicit user authorization for the current
-  change; authorization does not carry over to later changes.
-- An authorized direct commit may omit the GitHub issue, work branch, and pull request.
-- Keep each authorized direct change in a focused conventional commit with a
+- Small and medium features and fixes, including queue tickets, use one local
+  commit on `develop` after verification and explicit user approval. A pull
+  request is not required. Integrate an isolated ticket branch with a squash or
+  equivalent replay, checking that unrelated changes are not staged.
+- An authorized non-ticket change may omit the GitHub issue, work branch, and
+  pull request. Authorization for a direct change does not carry over to later
+  changes.
+- Give every single-parent feature or fix commit a specific Conventional
+  Commit summary, such as `feat(dev): reserve emulators across agent sessions`.
+  Do not use `Merge branch '<branch-name>'` for a squash commit. Keep the
   summary only, without a commit description.
 - Except for the explicitly documented `upstream/master` synchronization,
   every local commit added to `develop` must have one parent. Never merge a
-  feature or fix branch into local `develop`; replay an authorized direct
-  change onto the latest `origin/develop` instead.
+  feature or fix branch into local `develop` with a merge commit; squash or
+  replay its approved change onto current local `develop` instead.
 - Before pushing local `develop`, verify that its outgoing range contains no
   merge commits:
 
@@ -96,16 +101,18 @@ verification details in work reports or review discussions instead.
    claims it under `docs/work/in-progress/`, and assigns implementation to a
    subagent. Record the branch, dedicated worktree, and implementer in the
    ticket. The coordinator reviews the result; the implementer may work on
-   its assigned ticket directly without delegating it again.
-2. Fetch the latest `origin/develop` and create a new branch and worktree for
-   that ticket. Do not switch a shared or dirty primary checkout just to
-   start ticket work, and do not reuse a worktree or branch across tickets.
-   For example:
+   its assigned ticket directly without delegating it again. Choose the local
+   single-commit path for small or medium work. Use a pull request only when
+   the branch is genuinely large enough to need GitHub review context.
+2. Create a dedicated branch and worktree. Base local single-commit work on
+   current local `develop`; fetch and base a large pull-request branch on
+   latest `origin/develop`. Do not switch a shared or dirty primary checkout
+   just to start ticket work, and do not reuse a worktree or branch across
+   tickets. For local work, for example:
 
    ```bash
-   git fetch origin
    git worktree add -b feature/<short-description> \
-     .worktrees/<short-description> origin/develop
+     .worktrees/<short-description> develop
    ```
 
    Use `feature/<issue-id>-<short-description>` or
@@ -117,18 +124,25 @@ verification details in work reports or review discussions instead.
    conventional commit summaries without descriptions. The coordinator
    checks the acceptance criteria and evidence before presenting it for user
    review. Do not mark the ticket done without verified criteria.
-4. Push the branch and open a pull request targeting `develop` for review.
-   Its title is exactly `Merge branch '<branch-name>'`. When a GitHub issue
-   exists, include `Closes #<issue-id>` in the body; otherwise omit it. Keep
-   the body to a few concise end-state bullets, without test reports,
-   development history, or exhaustive file lists.
-5. Wait for required checks and explicit user approval. Do not enable
+4. For small or medium work, present the verified result for user review.
+   After explicit approval, stage only that ticket's change on current local
+   `develop`, verify the combined result, and create one single-parent commit
+   with a specific Conventional Commit summary. Confirm the resulting tree and
+   ticket status. Keep remote publication and branch cleanup separately
+   authorized.
+5. For a genuinely large branch, obtain authorization to publish, then push
+   it and open a pull request targeting `develop` with a specific technical
+   title. When a GitHub issue exists,
+   include `Closes #<issue-id>` in the body; otherwise omit it. Keep the body
+   to a few concise end-state bullets, without test reports, development
+   history, or exhaustive file lists.
+6. Wait for required checks and explicit user approval. Do not enable
    auto-merge. If review changes are needed, the implementer updates the same
    branch/worktree and the coordinator presents it again.
-6. After approval, manually squash-merge the pull request into `develop` as
-   one commit titled `Merge branch '<branch-name>'`. Do not merge the feature
-   branch into local `develop` or edit the resulting squash commit title.
-7. Verify the pull request merged and its remote branch was deleted. Then
+7. After approval, manually squash-merge the pull request into `develop` as
+   one commit with a specific Conventional Commit title describing the change.
+   Do not use `Merge branch '<branch-name>'` for this single-parent commit.
+8. Verify the pull request merged and its remote branch was deleted. Then
    synchronize `develop`, remove the ticket's local worktree, and delete its
    local branch. A squash does not make the branch's commits ancestors of
    `develop`; if normal local branch deletion refuses, force-delete only the
@@ -193,16 +207,16 @@ The merge commit has the previous `develop` tip and the incorporated `upstream/m
 
 ## Protected branches
 
-Direct pushes to `develop` are permitted only under the explicit-authorization rule above. Force pushes and deletion remain prohibited for `develop`.
+Pushing local `develop` requires separate explicit authorization; approval for a local commit does not authorize a push. Force pushes and deletion remain prohibited for `develop`.
 
 Direct pushes, force pushes, and deletion are prohibited for `master`, including for repository administrators.
 
-- Feature and fix pull requests target `develop`.
+- Large feature and fix pull requests target `develop`.
 - Only `develop` may be promoted to `master`.
 - A promotion uses a merged commit titled `Merge branch 'develop'`. Linking a release-tracking issue is recommended, but not required.
-- Feature and fix pull requests use squash merging. Upstream synchronization uses an explicitly authorized local merge commit pushed directly to `develop`. Rebase merging and automatic merging remain disabled.
+- Large feature and fix pull requests use squash merging with a descriptive Conventional Commit title. Upstream synchronization uses an explicitly authorized local merge commit pushed directly to `develop`. Rebase merging and automatic merging remain disabled.
 
-The pull request policy workflow validates the base and source branches. Issue references remain optional. The squash commit title must be set when merging; repository settings delete merged remote branches.
+The pull request policy workflow validates the base and source branches. Issue references remain optional. Set the descriptive squash commit title when merging; repository settings delete merged remote branches.
 
 The workflow checks out the policy script from the pull request's base commit. Keep its invocation compatible with the version on `develop` while changing the policy, or the change's own pull request can fail before the new script is merged.
 
@@ -219,7 +233,7 @@ gh pr create \
   --repo timberpile/Boorusama \
   --base develop \
   --head feature/42-load-original-on-zoom \
-  --title "Merge branch 'feature/42-load-original-on-zoom'" \
+  --title "feat(posts): load original media on zoom" \
   --body 'Closes #42'
 ```
 
@@ -230,7 +244,7 @@ gh pr merge \
   --repo timberpile/Boorusama \
   --squash \
   --delete-branch \
-  --subject "Merge branch 'feature/42-load-original-on-zoom'"
+  --subject "feat(posts): load original media on zoom"
 ```
 
 After confirming the merge and remote branch deletion, synchronize `develop`

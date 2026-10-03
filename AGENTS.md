@@ -17,15 +17,16 @@
   implement its assigned ticket directly; this rule does not require recursive
   delegation. If subagents are unavailable, report the blocker rather than
   implementing the ticket in the coordinator's place.
-- Give every ticket its own worktree and branch based on the latest
+- Give every ticket its own worktree and branch. Base local single-commit work
+  on current local `develop`; base large pull requests on latest
   `origin/develop`. Never reuse a ticket's branch or worktree for another
   ticket. Claim the ticket before implementation, record the agent/session,
   worktree, and branch, and do not take over another claim without coordination.
-- Verify the acceptance criteria and prepare the result for user review. Only
-  after the user's explicit approval, manually squash-merge the ticket's pull
-  request into `develop` as one commit. Do not directly commit a ticket to
-  `develop` or enable auto-merge. After verifying the merge and remote branch
-  deletion, remove that ticket's local worktree and branch.
+- Verify the acceptance criteria and prepare the result for user review. After
+  explicit approval, integrate small or medium work as one descriptive
+  Conventional Commit on local `develop`. Use a pull request and squash merge
+  for a genuinely large branch. Do not enable auto-merge. Follow the
+  development workflow for publication and cleanup.
 - Follow the queue's status and evidence rules. A ticket does not authorize
   unrelated work, publication, or delivery.
 
