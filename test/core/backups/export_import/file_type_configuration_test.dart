@@ -69,6 +69,29 @@ void main() {
     expect(manifest, isNot(contains('application/octet-stream')));
   });
 
+  test('Android opens exports through a separate app-task receiver', () {
+    final manifest = File(
+      'android/app/src/main/AndroidManifest.xml',
+    ).readAsStringSync();
+    final mainActivity = RegExp(
+      r'<activity(?=[^>]*android:name="\.MainActivity")[^>]*>.*?</activity>',
+      dotAll: true,
+    ).firstMatch(manifest)?.group(0);
+    final exportReceiver = RegExp(
+      r'<activity(?=[^>]*android:name="\.ExportOpenActivity")[^>]*>.*?</activity>',
+      dotAll: true,
+    ).firstMatch(manifest)?.group(0);
+
+    expect(exportReceiver, isNotNull);
+    expect(exportReceiver, contains('android.intent.action.VIEW'));
+    expect(exportReceiver, contains('android.intent.action.SEND'));
+    expect(exportReceiver, contains(mimeType));
+    expect(mainActivity, contains('android:launchMode="singleTop"'));
+    expect(mainActivity, contains('android:scheme="boorusama"'));
+    expect(mainActivity, isNot(contains(mimeType)));
+    expect(mainActivity, isNot(contains('android:taskAffinity=""')));
+  });
+
   test('Android bounds received files and deduplicates by content digest', () {
     final channel = File(
       'android/app/src/main/kotlin/com/timberpile/boorusama/ReceivedExportChannel.kt',

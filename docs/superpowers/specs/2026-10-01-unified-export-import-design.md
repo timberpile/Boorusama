@@ -445,9 +445,14 @@ available in both cases.
 Android registers `ACTION_VIEW` and `ACTION_SEND` filters for the custom MIME
 type and accepts a readable `content:` URI. Export sharing grants temporary
 read permission and supplies the custom MIME type through the existing file
-provider. The activity copies the received stream into app-private staging
-before review because URI access can be transient. It handles both cold-start
-and `singleTop` delivery.
+provider. An invisible exported activity receives file intents and forwards the
+URI, with its read grant, into Boorusama's own task. The Flutter activity never
+receives the `content:` URI as navigation data; its file channel copies the
+stream into app-private staging before review because URI access can be
+transient. The receiver must create URI ClipData without querying the external
+provider for its MIME type, and dismiss malformed or ungranted intents without
+crashing. The handoff handles both cold-start and `singleTop` delivery. Keep
+the Flutter activity in `singleTop` mode because `singleTask` disrupts billing.
 
 Android attachment handlers are primarily matched by MIME type, and messaging
 or file-manager apps can replace an unknown type with
