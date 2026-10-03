@@ -48,13 +48,28 @@ void main() {
 
   test('surviving bookmark selections are remapped by identity', () {
     final first = Bookmark.empty
-        .copyWith(id: 1, originalUrl: 'https://example.com/first.jpg')
+        .copyWith(
+          id: 1,
+          originalUrl: 'https://example.com/first.jpg',
+          sourceUrl: 'https://example.com',
+          postId: () => 1,
+        )
         .toPost();
     final second = Bookmark.empty
-        .copyWith(id: 2, originalUrl: 'https://example.com/second.jpg')
+        .copyWith(
+          id: 2,
+          originalUrl: 'https://example.com/second.jpg',
+          sourceUrl: 'https://example.com',
+          postId: () => 2,
+        )
         .toPost();
     final third = Bookmark.empty
-        .copyWith(id: 3, originalUrl: 'https://example.com/third.jpg')
+        .copyWith(
+          id: 3,
+          originalUrl: 'https://example.com/third.jpg',
+          sourceUrl: 'https://example.com',
+          postId: () => 3,
+        )
         .toPost();
 
     final identities = selectedBookmarkIdentities(
@@ -67,6 +82,16 @@ void main() {
     final indices = bookmarkSelectionIndices([third, second], identities);
 
     expect(indices, [0]);
+  });
+
+  test('posts without upstream IDs never share a preserved selection', () {
+    final first = Bookmark.empty.toPost();
+    final second = Bookmark.empty.copyWith(id: -2).toPost();
+
+    final identities = selectedBookmarkIdentities([first, second], {0});
+
+    expect(identities, isEmpty);
+    expect(bookmarkSelectionIndices([second], identities), isEmpty);
   });
 
   test(

@@ -919,6 +919,7 @@
   "bookmark": {
     "added": "Lesezeichen hinzugefügt",
     "failed_to_add": "Lesezeichen konnte nicht hinzugefügt werden",
+    "missing_post_identity": "Dieser Post hat keine stabile ID und kann nicht als Lesezeichen gespeichert werden",
     "many_added": "{0} Lesezeichen hinzugefügt",
     "failed_to_add_many": "Lesezeichen konnten nicht hinzugefügt werden",
     "removed": "Lesezeichen entfernt",

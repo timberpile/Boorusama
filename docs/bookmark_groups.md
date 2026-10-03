@@ -17,8 +17,8 @@ Current export and import uses the `.bsexport` container. A Full export marks
 the bookmark source as complete and recommends category replacement. A custom
 export records whether all groups (including future groups) or exact current
 group UUIDs were selected. Per-group Update mirrors the imported name and
-membership, removing newly orphaned bookmarks; Merge preserves the local name
-and local-only membership. Import choices are validated before the durable
+membership, removing newly orphaned bookmarks; Merge uses the imported name
+and keeps local-only memberships. Import choices are validated before the durable
 package transaction starts.
 
 Package imports write bookmark repositories directly, bypassing the bookmark
@@ -26,21 +26,24 @@ provider mutation methods. After the durable transaction commits, the import
 flow must await a provider reload before showing completion; otherwise the
 group browser can keep displaying its stale pre-import snapshot.
 
-Bookmark backup version 3 keeps bookmark objects in the top-level `data` array
-and group objects in the top-level `groups` array. Each new bookmark row has a
-portable `(booru type, normalized site, post ID)` identity and the complete
-stored post snapshot. Media URLs and profile IDs are not identity. Group
-`bookmarkIds` are
-file-local references into `data`; they must be resolved through
-`Bookmark.uniqueId` and must never be treated as keys in the receiving Hive box.
+Bookmark backup version 4 stores bookmarks in the top-level `data` array and
+groups in the top-level `groups` array. Each bookmark carries its full post
+snapshot and canonical `(site namespace, upstream post key)` identity. The site
+namespace is the lowercase host plus non-default port and installation path;
+scheme, credentials, query, fragment, and trailing slash do not affect it.
+The post key is a stable upstream ID, or a work/page key for Pixiv. Engine and
+profile metadata, media URLs, and local Hive keys are not identity components.
+The importer verifies each serialized identity against its decoded snapshot
+before any repository mutation. Group `bookmarkIds` refer to file-local bookmark
+IDs in `data` and are resolved to local keys during import.
 
-Versions 1 and 2 remain import-only legacy formats. They are decoded with their
-historic fields before being mapped into current bookmark records; new exports
-never use their media-URL identity.
+Versions 1 through 3 are unsupported after this breaking schema change. Old
+local bookmark rows are ignored on ordinary loading, with no URL fallback.
+Posts without a stable upstream ID cannot be bookmarked; bookmark actions show
+an explanatory error instead.
 
-Legacy group objects have `name` and `bookmarkIds` but no `id`. Every legacy
-group receives a fresh GUID on every import, even when its name matches a local
-group. New exports additionally include `id`.
+Group objects carry a UUID `id`, name, and `bookmarkIds`. The UUID identifies a
+group for import conflicts; the name remains a display label.
 
 Only matching GUIDs conflict. Merge and Replace both use the imported display
 name. Merge unions memberships, while Replace uses exactly the imported

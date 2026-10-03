@@ -17,6 +17,7 @@ void main() {
   final bookmarks = [
     Bookmark.empty.copyWith(
       id: 1,
+      postId: () => 1,
       originalUrl: 'https://example.com/1.jpg',
       sourceUrl: 'https://one.example/posts/1',
       createdAt: DateTime.utc(2026),
@@ -24,6 +25,7 @@ void main() {
     ),
     Bookmark.empty.copyWith(
       id: 2,
+      postId: () => 2,
       originalUrl: 'https://example.com/2.jpg',
       sourceUrl: 'https://two.example/posts/2',
       createdAt: DateTime.utc(2026, 1, 2),
@@ -31,6 +33,7 @@ void main() {
     ),
     Bookmark.empty.copyWith(
       id: 3,
+      postId: () => 3,
       originalUrl: 'https://example.com/3.jpg',
       sourceUrl: 'https://one.example/posts/3',
       createdAt: DateTime.utc(2026, 1, 3),
@@ -57,6 +60,25 @@ void main() {
       activeTarget: activeTarget ?? BookmarkTarget.group(firstGroupId),
     );
   }
+
+  test('unkeyable stored rows never make other posts appear bookmarked', () {
+    final invalid = Bookmark.empty.copyWith(
+      id: 77,
+      sourceUrl: 'https://booru.example',
+      postId: () => 0,
+    );
+    final state = BookmarkLibraryState(
+      bookmarks: [invalid],
+      groups: [
+        BookmarkGroup(id: firstGroupId, name: 'Old', bookmarkIds: const {77}),
+      ],
+      activeTarget: const BookmarkTarget.ungrouped(),
+    );
+
+    expect(state.isBookmarked(invalid.post, invalid.booruId), isFalse);
+    expect(state.bookmarksByUniqueId, isEmpty);
+    expect(state.membershipsFor(invalid.uniqueId), isEmpty);
+  });
 
   final viewCases = [
     (view: const BookmarkView.all(), expected: [1, 2, 3]),
@@ -95,6 +117,8 @@ void main() {
         6,
         (index) => Bookmark.empty.copyWith(
           id: index + 1,
+          sourceUrl: 'https://preview.example',
+          postId: () => index + 1,
           originalUrl: 'https://example.com/$index.jpg',
           createdAt: DateTime.utc(2026, 1, index + 1),
         ),

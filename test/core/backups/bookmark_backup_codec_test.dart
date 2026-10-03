@@ -9,448 +9,238 @@ import 'package:boorusama/boorus/gelbooru_v2/posts/post_codec.dart';
 import 'package:boorusama/boorus/gelbooru_v2/posts/post_data.dart';
 import 'package:boorusama/core/backups/sources/bookmark_backup_codec.dart';
 import 'package:boorusama/core/backups/sources/bookmark_backup_data.dart';
-import 'package:boorusama/core/backups/utils/data_converter.dart';
 import 'package:boorusama/core/backups/types.dart';
+import 'package:boorusama/core/backups/utils/data_converter.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/bookmarks/types.dart';
 import 'package:boorusama/core/posts/post/types.dart';
+import '../../profile_uuid_utils.dart';
 import 'package:boorusama/core/posts/rating/types.dart';
 import 'package:boorusama/core/posts/sources/types.dart';
 
 void main() {
   const groupId = '550e8400-e29b-41d4-a716-446655440000';
-  final bookmark = Bookmark.empty.copyWith(
-    id: 12,
-    originalUrl: 'https://example.com/12.jpg',
-  );
   final codec = BookmarkBackupCodec(
-    bookmarkParser: (json) => Bookmark.fromJson(
-      json,
-      imageUrlResolver: const DefaultImageUrlResolver(),
-    ),
     postDataCodec: (type) => switch (type) {
       BooruType.gelbooruV2 => const GelbooruV2PostCodec(),
       _ => null,
     },
   );
 
-  test('version 3 preserves the complete snapshot and portable identity', () {
-    final post = _nativePost();
-    final snapshot = const StoredPostCodec().encode(
-      post,
-      dataCodec: const GelbooruV2PostCodec(),
-    );
-    final nativeBookmark = Bookmark.fromSnapshot(
-      id: 12,
-      createdAt: DateTime.utc(2026, 1, 2),
-      updatedAt: DateTime.utc(2026, 2, 3),
-      snapshot: snapshot,
-      post: post,
-      postId: post.id,
-    );
+  test('version 4 round trips the complete snapshot, identity and group', () {
+    final bookmark = _nativeBookmark(localId: 12);
     final data = BookmarkBackupData(
-      bookmarks: [nativeBookmark],
+      bookmarks: [bookmark],
       groups: const [
-        BookmarkGroupBackup(
-          id: groupId,
-          name: 'Native',
-          bookmarkIds: [12],
-        ),
+        BookmarkGroupBackup(id: groupId, name: 'Native', bookmarkIds: [12]),
       ],
     );
-
     final encoded = codec.encode(data);
+
     expect(encoded, [
       {
         'localId': 12,
         'createdAt': '2026-01-02T00:00:00.000Z',
         'updatedAt': '2026-02-03T00:00:00.000Z',
-        'snapshot': snapshot.toJson(),
+        'snapshot': bookmark.snapshot.toJson(),
         'postId': 42,
-        'identity': {
-          'booruType': 'gelbooruV2',
-          'site': 'gelbooru.example',
-          'postId': 42,
-        },
+        'identity': {'site': 'gelbooru.example/board', 'postKey': 'id:42'},
       },
     ]);
-
     final restored = codec.parse(
       decodeData(
         data: jsonEncode({
-          'version': 3,
+          'version': 4,
           'data': encoded,
           ...data.extraFields,
         }),
       ),
     );
 
-    expect(restored.bookmarks.single, nativeBookmark);
-    expect(restored.bookmarks.single.post, post);
+    expect(restored.bookmarks.single, bookmark);
     expect(restored.groups, data.groups);
   });
 
-  test('rejects version 3 bookmarks without a portable identity', () {
-    final row = _version2Row(_legacyBookmark(postId: 91));
-    row['postId'] = 91;
+  test('rejects an identity that differs from the decoded snapshot', () {
+    final row = _row(codec, _nativeBookmark(localId: 12));
+    row['identity'] = {'site': 'other.example', 'postKey': 'id:42'};
 
     expect(
-      () => codec.parse(
-        decodeData(
-          data: jsonEncode({
-            'version': 3,
-            'data': [row],
-          }),
-        ),
-      ),
+      () => codec.parse(_payload([row])),
       throwsA(isA<InvalidBackupFormatException>()),
     );
   });
 
-  test('version 2 preserves an explicit null legacy post identity', () {
-    final legacyBookmark = _legacyBookmark(postId: null);
-    final encoded = codec.encode(
-      BookmarkBackupData(bookmarks: [legacyBookmark], groups: const []),
-    );
-
-    expect(encoded.single, containsPair('postId', null));
-
-    final restored = codec.parse(
-      decodeData(
-        data: jsonEncode({'version': 2, 'data': encoded}),
-      ),
-    );
-
-    expect(restored.bookmarks.single.postId, isNull);
-  });
-
-  test('version 3 round trips a legacy bookmark without a post identity', () {
-    final legacyBookmark = _legacyBookmark(postId: null);
-    final data = BookmarkBackupData(
-      bookmarks: [legacyBookmark],
-      groups: const [],
-    );
-
-    final restored = codec.parse(
-      decodeData(
-        data: jsonEncode({
-          'version': 3,
-          'data': codec.encode(data),
-        }),
-      ),
-    );
-
-    expect(restored.bookmarks.single.postId, isNull);
-    expect(
-      restored.bookmarks.single.transferIdentity,
-      legacyBookmark.transferIdentity,
-    );
-  });
-
-  test('version 3 rejects duplicate legacy bookmark identities', () {
-    final first = _legacyBookmark(postId: null);
-    final data = BookmarkBackupData(
-      bookmarks: [first, first.copyWith(id: 502)],
-      groups: const [],
-    );
-
-    expect(
-      () => codec.parse(
-        decodeData(
-          data: jsonEncode({
-            'version': 3,
-            'data': codec.encode(data),
-          }),
-        ),
-      ),
-      throwsA(isA<InvalidBackupFormatException>()),
-    );
-  });
-
-  test('old version 2 legacy snapshots have no trusted post identity', () {
-    final legacyBookmark = _legacyBookmark(postId: null);
-
-    final restored = codec.parse(
-      _version2Payload(_version2Row(legacyBookmark)),
-    );
-
-    expect(restored.bookmarks.single.postId, isNull);
-  });
-
-  test('old version 2 native snapshots retain their post identity', () {
-    final post = _nativePost();
-    final nativeBookmark = Bookmark.fromSnapshot(
-      id: 12,
-      createdAt: DateTime.utc(2026, 1, 2),
-      updatedAt: DateTime.utc(2026, 2, 3),
-      snapshot: const StoredPostCodec().encode(
-        post,
-        dataCodec: const GelbooruV2PostCodec(),
-      ),
-      post: post,
-      postId: post.id,
-    );
-
-    final restored = codec.parse(
-      _version2Payload(_version2Row(nativeBookmark)),
-    );
-
-    expect(restored.bookmarks.single.postId, 42);
-  });
-
-  test('old version 2 unknown snapshots have no trusted post identity', () {
-    final legacyBookmark = _legacyBookmark(postId: null);
-    final row = _version2Row(legacyBookmark);
-    row['snapshot'] = {
-      ...legacyBookmark.snapshot.toJson(),
-      'codecVersion': 99,
-      'custom': const {'future': true},
+  test('rejects an upstream key that differs from the decoded snapshot', () {
+    final row = _row(codec, _nativeBookmark(localId: 12));
+    row['identity'] = {
+      'site': 'gelbooru.example/board',
+      'postKey': 'id:43',
     };
 
-    final restored = codec.parse(_version2Payload(row));
-
-    expect(restored.bookmarks.single.post.booruData, isA<UnknownPostData>());
-    expect(restored.bookmarks.single.postId, isNull);
+    expect(
+      () => codec.parse(_payload([row])),
+      throwsA(isA<InvalidBackupFormatException>()),
+    );
   });
 
-  for (final malformedPostId in ['42', 42.0, false, <String, Object?>{}]) {
-    test('rejects version 2 post identity represented by $malformedPostId', () {
-      final row = _version2Row(_legacyBookmark(postId: null));
-      row['postId'] = malformedPostId;
-
-      expect(
-        () => codec.parse(_version2Payload(row)),
-        throwsA(isA<InvalidBackupFormatException>()),
-      );
-    });
-  }
-
-  test('version 1 imports only legacy fields without invented native data', () {
-    final restored = codec.parse(
-      decodeData(
-        data: jsonEncode({
-          'version': 1,
-          'data': [bookmark.toJson()],
-        }),
+  test('rejects older bookmark source versions before import', () {
+    expect(
+      () => codec.parse(
+        decodeData(data: jsonEncode({'version': 3, 'data': []})),
       ),
+      throwsA(isA<InvalidBackupFormatException>()),
     );
-
-    final imported = restored.bookmarks.single;
-    expect(imported.post.booruData, isA<LegacyPostData>());
-    expect(imported.snapshot.custom, isEmpty);
   });
 
-  test('imports the legacy group shape without an ID', () {
-    final payload = decodeData(
-      data: jsonEncode({
-        'version': 1,
-        'data': [bookmark.toJson()],
-        'groups': [
-          {
-            'name': 'Shared',
-            'bookmarkIds': [12],
-          },
-        ],
-      }),
+  test('rejects an omitted portable identity', () {
+    final row = _row(codec, _nativeBookmark(localId: 12))..remove('identity');
+
+    expect(
+      () => codec.parse(_payload([row])),
+      throwsA(isA<InvalidBackupFormatException>()),
     );
-
-    final data = codec.parse(payload);
-
-    expect(data.groups.single.id, isNull);
-    expect(data.groups.single.name, 'Shared');
-    expect(data.groups.single.bookmarkIds, [12]);
   });
 
-  test('preserves and emits a canonical group ID', () {
-    final payload = decodeData(
-      data: jsonEncode({
-        'version': 1,
-        'data': [bookmark.toJson()],
-        'groups': [
-          {
-            'id': groupId.toUpperCase(),
-            'name': 'Shared',
-            'bookmarkIds': [12, 12],
-          },
-        ],
-      }),
+  test('rejects repeated upstream identities despite different local IDs', () {
+    final first = _nativeBookmark(localId: 12);
+    final second = first.copyWith(id: 13);
+
+    expect(
+      () => codec.parse(_payload([_row(codec, first), _row(codec, second)])),
+      throwsA(isA<InvalidBackupFormatException>()),
     );
-
-    final data = codec.parse(payload);
-
-    expect(data.groups.single.id, groupId);
-    expect(data.groups.single.bookmarkIds, [12]);
-    expect(data.extraFields['groups'], [
-      {
-        'id': groupId,
-        'name': 'Shared',
-        'bookmarkIds': [12],
-      },
-    ]);
   });
 
-  for (final groups in [
-    [
-      {'id': 'bad', 'name': 'Shared', 'bookmarkIds': <int>[]},
-    ],
-    [
-      {'id': groupId, 'name': 'One', 'bookmarkIds': <int>[]},
-      {'id': groupId, 'name': 'Two', 'bookmarkIds': <int>[]},
-    ],
-  ]) {
-    test('rejects malformed or repeated supplied group IDs', () {
-      final payload = decodeData(
-        data: jsonEncode({'version': 1, 'data': [], 'groups': groups}),
-      );
-      expect(
-        () => codec.parse(payload),
-        throwsA(isA<InvalidBackupFormatException>()),
-      );
-    });
-  }
+  test('rejects repeated file-local row IDs despite different posts', () {
+    final first = _nativeBookmark(localId: 12);
+    final second = _nativeBookmark(localId: 12, postId: 43);
 
-  final duplicateBookmarkCases = [
-    (
-      description: 'file-local bookmark IDs',
-      bookmarks: [
-        bookmark,
-        bookmark.copyWith(originalUrl: 'https://example.com/other.jpg'),
-      ],
-    ),
-    (
-      description: 'bookmark identities',
-      bookmarks: [bookmark, bookmark.copyWith(id: 13)],
-    ),
-  ];
-  for (final testCase in duplicateBookmarkCases) {
-    test('rejects duplicate ${testCase.description}', () {
-      final payload = decodeData(
-        data: jsonEncode({
-          'version': 1,
-          'data': testCase.bookmarks.map((item) => item.toJson()).toList(),
-        }),
-      );
-
-      expect(
-        () => codec.parse(payload),
-        throwsA(isA<InvalidBackupFormatException>()),
-      );
-    });
-  }
-
-  for (final tags in [
-    123,
-    [1, 'tag'],
-    '{"tag": true}',
-  ]) {
-    test('rejects malformed bookmark tags represented by $tags', () {
-      final malformed = bookmark.toJson()..['tags'] = tags;
-      final payload = decodeData(
-        data: jsonEncode({
-          'version': 1,
-          'data': [malformed],
-        }),
-      );
-
-      expect(
-        () => codec.parse(payload),
-        throwsA(isA<InvalidBackupFormatException>()),
-      );
-    });
-  }
-
-  test('accepts the legacy JSON-string tag representation', () {
-    final legacy = bookmark.toJson()..['tags'] = '["one", "two"]';
-    final payload = decodeData(
-      data: jsonEncode({
-        'version': 1,
-        'data': [legacy],
-      }),
+    expect(
+      () => codec.parse(_payload([_row(codec, first), _row(codec, second)])),
+      throwsA(isA<InvalidBackupFormatException>()),
     );
-
-    expect(codec.parse(payload).bookmarks.single.tags, {'one', 'two'});
   });
 
-  test('rejects an explicit null groups field', () {
-    final payload = decodeData(
-      data: jsonEncode({
-        'version': 1,
-        'data': [bookmark.toJson()],
-        'groups': null,
-      }),
+  test('rejects an export row without a trusted upstream post ID', () {
+    final legacy = Bookmark(
+      id: 501,
+      booruId: BooruType.gelbooruV2.id,
+      createdAt: DateTime.utc(2025),
+      updatedAt: DateTime.utc(2025, 1, 2),
+      thumbnailUrl: 'thumbnail',
+      sampleUrl: 'sample',
+      originalUrl: 'original',
+      sourceUrl: 'https://gelbooru.example/board',
+      width: 100,
+      height: 100,
+      md5: 'md5',
+      tags: const {},
+      realSourceUrl: null,
+      format: 'jpg',
+      imageUrlResolver: const DefaultImageUrlResolver(),
+      postId: null,
+      metadata: const {},
     );
 
     expect(
-      () => codec.parse(payload),
+      () => codec.encode(
+        BookmarkBackupData(bookmarks: [legacy], groups: const []),
+      ),
+      throwsA(isA<InvalidBackupFormatException>()),
+    );
+  });
+
+  test('preserves and validates a canonical group UUID', () {
+    final data = codec.parse(
+      decodeData(
+        data: jsonEncode({
+          'version': 4,
+          'data': [],
+          'groups': [
+            {
+              'id': groupId.toUpperCase(),
+              'name': 'Shared',
+              'bookmarkIds': [12, 12],
+            },
+          ],
+        }),
+      ),
+    );
+    expect(data.groups.single.id, groupId);
+    expect(data.groups.single.bookmarkIds, [12]);
+
+    expect(
+      () => codec.parse(
+        decodeData(
+          data: jsonEncode({
+            'version': 4,
+            'data': [],
+            'groups': [
+              {'id': 'bad', 'name': 'Shared', 'bookmarkIds': <int>[]},
+            ],
+          }),
+        ),
+      ),
       throwsA(isA<InvalidBackupFormatException>()),
     );
   });
 }
 
-Post _nativePost() => Post(
-  origin: PostOrigin.fromSource(
-    booruType: BooruType.gelbooruV2,
-    booruId: BooruType.gelbooruV2.id,
-    source: 'https://gelbooru.example',
-    profileIdHint: '00000000-0000-4000-8000-000000000011',
-  ),
-  core: PostCoreData(
-    id: 42,
-    createdAt: DateTime.utc(2025, 12, 31),
-    thumbnailImageUrl: 'https://img.example/thumbnail.jpg',
-    sampleImageUrl: 'https://img.example/sample.jpg',
-    originalImageUrl: 'https://img.example/original.jpg',
-    videoUrl: '',
-    videoThumbnailUrl: '',
-    mediaVariants: const {'180x180': 'https://img.example/180.jpg'},
-    width: 100,
-    height: 200,
-    format: 'jpg',
-    md5: 'native-md5',
-    fileSize: 123,
-    duration: 0,
-    tags: const {'cat', 'blue_eyes'},
-    artistTags: const {'artist'},
-    rating: Rating.general,
-    hasComment: true,
-    isTranslated: false,
-    hasParentOrChildren: false,
-    source: PostSource.from('https://source.example/work'),
-    score: 9,
-  ),
-  booruData: const GelbooruV2PostData(hasNotes: true),
-);
+Map<String, dynamic> _row(BookmarkBackupCodec codec, Bookmark bookmark) =>
+    codec
+            .encode(
+              BookmarkBackupData(bookmarks: [bookmark], groups: const []),
+            )
+            .single
+        as Map<String, dynamic>;
 
-Bookmark _legacyBookmark({required int? postId}) => Bookmark(
-  id: 501,
-  booruId: BooruType.gelbooruV2.id,
-  createdAt: DateTime.utc(2025),
-  updatedAt: DateTime.utc(2025, 1, 2),
-  thumbnailUrl: 'thumbnail-91',
-  sampleUrl: 'sample-91',
-  originalUrl: 'original-91',
-  sourceUrl: 'https://gelbooru.example/posts/91',
-  width: 100,
-  height: 100,
-  md5: 'legacy-91',
-  tags: const {'cached'},
-  realSourceUrl: null,
-  format: 'jpg',
-  imageUrlResolver: const DefaultImageUrlResolver(),
-  postId: postId,
-  metadata: const {},
-);
+ExportDataPayload _payload(List<Map<String, dynamic>> rows) =>
+    decodeData(data: jsonEncode({'version': 4, 'data': rows}));
 
-Map<String, dynamic> _version2Row(Bookmark bookmark) => {
-  'localId': bookmark.localId,
-  'createdAt': bookmark.createdAt.toIso8601String(),
-  'updatedAt': bookmark.updatedAt.toIso8601String(),
-  'snapshot': bookmark.snapshot.toJson(),
-};
-
-ExportDataPayload _version2Payload(Map<String, dynamic> row) => decodeData(
-  data: jsonEncode({
-    'version': 2,
-    'data': [row],
-  }),
-);
+Bookmark _nativeBookmark({required int localId, int postId = 42}) {
+  final post = Post(
+    origin: PostOrigin.fromSource(
+      booruType: BooruType.gelbooruV2,
+      booruId: BooruType.gelbooruV2.id,
+      source: 'https://gelbooru.example/board/',
+      profileIdHint: profileUuid(17),
+    ),
+    core: PostCoreData(
+      id: postId,
+      createdAt: DateTime.utc(2025, 12, 31),
+      thumbnailImageUrl: 'https://img.example/thumbnail.jpg',
+      sampleImageUrl: 'https://img.example/sample.jpg',
+      originalImageUrl: 'https://img.example/original.jpg',
+      videoUrl: '',
+      videoThumbnailUrl: '',
+      mediaVariants: const {'180x180': 'https://img.example/180.jpg'},
+      width: 100,
+      height: 200,
+      format: 'jpg',
+      md5: 'native-md5',
+      fileSize: 123,
+      duration: 0,
+      tags: const {'cat', 'blue_eyes'},
+      artistTags: const {'artist'},
+      rating: Rating.general,
+      hasComment: true,
+      isTranslated: false,
+      hasParentOrChildren: false,
+      source: PostSource.from('https://source.example/work'),
+      score: 9,
+    ),
+    booruData: const GelbooruV2PostData(hasNotes: true),
+  );
+  return Bookmark.fromSnapshot(
+    id: localId,
+    createdAt: DateTime.utc(2026, 1, 2),
+    updatedAt: DateTime.utc(2026, 2, 3),
+    snapshot: const StoredPostCodec().encode(
+      post,
+      dataCodec: const GelbooruV2PostCodec(),
+    ),
+    post: post,
+    postId: post.id,
+  );
+}

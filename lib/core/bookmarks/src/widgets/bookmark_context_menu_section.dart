@@ -155,6 +155,13 @@ class _BookmarkContextGroupPage extends StatelessWidget {
           _added();
         case BookmarkToggleOutcome.removed:
           _removed();
+        case BookmarkToggleOutcome.missingPostIdentity:
+          if (navigator.mounted) {
+            Kurumi.showErrorToast(
+              navigator.context,
+              navigator.context.t.bookmark.missing_post_identity,
+            );
+          }
         case BookmarkToggleOutcome.unavailable || BookmarkToggleOutcome.failed:
           _error();
       }

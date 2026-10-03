@@ -26,9 +26,10 @@ class BookmarkHiveRepository implements BookmarkRepository {
     required ImageUrlResolver Function(int? booruId) imageUrlResolver,
     required PostLinkGenerator Function(int? booruId) postLinkGenerator,
   }) async {
+    BookmarkIdentity.fromPost(post);
     final now = DateTime.now();
     final sourceUrl = postLinkGenerator(booruId).getLink(post);
-    final storedPost = recoverBookmarkPostOrigin(post, sourceUrl);
+    final storedPost = post;
     final snapshot = const StoredPostCodec().encode(
       storedPost,
       dataCodec: postDataCodec?.call(storedPost.origin.booruType),
@@ -68,33 +69,16 @@ class BookmarkHiveRepository implements BookmarkRepository {
     required ImageUrlResolver Function(int? booruId) imageUrlResolver,
   }) =>
       TaskEither.fromEither(
-            tryGetBoxValues(_box).mapLeft(mapBoxErrorToBookmarkGetError),
-          )
-          .flatMap(
-            (objects) => TaskEither.fromEither(
-              tryMapBookmarkHiveObjectsWithWriteBack(
-                objects,
-                imageUrlResolver,
-                postDataCodec,
-              ),
-            ),
-          )
-          .flatMap(
-            (mappings) => TaskEither.tryCatch(
-              () async {
-                for (final mapping in mappings) {
-                  if (mapping.needsWriteBack) {
-                    await _box.put(
-                      mapping.bookmark.id,
-                      favoriteToHiveObject(mapping.bookmark),
-                    );
-                  }
-                }
-                return [for (final mapping in mappings) mapping.bookmark];
-              },
-              (_, _) => BookmarkGetError.unknown,
-            ),
-          );
+        tryGetBoxValues(_box).mapLeft(mapBoxErrorToBookmarkGetError),
+      ).flatMap(
+        (objects) => TaskEither.fromEither(
+          tryMapBookmarkHiveObjectsToBookmarks(
+            objects,
+            imageUrlResolver,
+            postDataCodec,
+          ),
+        ),
+      );
 
   @override
   Future<List<Bookmark>> addBookmarks(
@@ -103,7 +87,11 @@ class BookmarkHiveRepository implements BookmarkRepository {
     required ImageUrlResolver Function(int? booruId) imageUrlResolver,
     required PostLinkGenerator Function(int? booruId) postLinkGenerator,
   }) {
-    final futures = posts.map(
+    final postList = posts.toList();
+    for (final post in postList) {
+      BookmarkIdentity.fromPost(post);
+    }
+    final futures = postList.map(
       (post) => addBookmark(
         booruId,
         post,

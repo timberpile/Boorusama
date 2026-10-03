@@ -16,12 +16,37 @@ void main() {
   const groupId = '550e8400-e29b-41d4-a716-446655440000';
   final first = Bookmark.empty.copyWith(
     id: 10,
+    sourceUrl: 'https://example.com',
+    postId: () => 10,
     originalUrl: 'https://example.com/first.jpg',
   );
   final second = Bookmark.empty.copyWith(
     id: 20,
+    sourceUrl: 'https://example.com',
+    postId: () => 20,
     originalUrl: 'https://example.com/second.jpg',
   );
+
+  test('rejects an unkeyable incoming bookmark before group planning', () {
+    final invalid = Bookmark.empty.copyWith(
+      id: 0,
+      sourceUrl: 'https://example.com',
+    );
+
+    expect(
+      () => const BookmarkImportPlanner().plan(
+        data: BookmarkBackupData(
+          bookmarks: [invalid],
+          groups: const [
+            BookmarkGroupBackup(id: groupId, name: 'Invalid', bookmarkIds: [0]),
+          ],
+        ),
+        currentBookmarks: const [],
+        currentGroups: const [],
+      ),
+      throwsFormatException,
+    );
+  });
 
   test('legacy groups with matching names always receive new IDs', () {
     final plan = const BookmarkImportPlanner().plan(
@@ -73,6 +98,27 @@ void main() {
     );
   });
 
+  test('keeps same-ID posts from two installations separate on import', () {
+    final current = _nativeBookmark(
+      id: 1,
+      originalUrl: 'https://img.example/shared.jpg',
+      site: 'https://booru.example/first',
+    );
+    final incoming = _nativeBookmark(
+      id: 2,
+      originalUrl: 'https://img.example/shared.jpg',
+      site: 'https://booru.example/second',
+    );
+
+    final plan = const BookmarkImportPlanner().plan(
+      data: BookmarkBackupData(bookmarks: [incoming], groups: const []),
+      currentBookmarks: [current],
+      currentGroups: const [],
+    );
+
+    expect(plan.missingBookmarks, [incoming]);
+  });
+
   test('reuses a site post after its media URL changes', () {
     final current = _nativeBookmark(
       id: 1,
@@ -93,12 +139,16 @@ void main() {
   });
 }
 
-Bookmark _nativeBookmark({required int id, required String originalUrl}) {
+Bookmark _nativeBookmark({
+  required int id,
+  required String originalUrl,
+  String site = 'https://gelbooru.example',
+}) {
   final post = Post(
     origin: PostOrigin.fromSource(
       booruType: BooruType.gelbooruV2,
       booruId: BooruType.gelbooruV2.id,
-      source: 'https://gelbooru.example',
+      source: site,
     ),
     core: PostCoreData(
       id: 42,

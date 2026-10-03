@@ -68,6 +68,8 @@ void main() {
         final local = Bookmark.empty.copyWith(
           id: 1,
           originalUrl: 'https://example.com/local.jpg',
+          sourceUrl: 'https://example.com',
+          postId: () => 1,
         );
         await bookmarks.addBookmarkWithBookmarks([local]);
         final storedLocal = (await _load(bookmarks)).single;
@@ -76,6 +78,8 @@ void main() {
         final imported = Bookmark.empty.copyWith(
           id: 200,
           originalUrl: 'https://example.com/imported.jpg',
+          sourceUrl: 'https://example.com',
+          postId: () => 200,
         );
         final plan = const BookmarkImportPlanner()
             .plan(
@@ -115,10 +119,14 @@ void main() {
     final removed = Bookmark.empty.copyWith(
       id: 1,
       originalUrl: 'https://example.com/removed.jpg',
+      sourceUrl: 'https://example.com',
+      postId: () => 1,
     );
     final kept = Bookmark.empty.copyWith(
       id: 2,
       originalUrl: 'https://example.com/kept.jpg',
+      sourceUrl: 'https://example.com',
+      postId: () => 2,
     );
     await bookmarks.addBookmarkWithBookmarks([removed, kept]);
     final stored = await _load(bookmarks);
@@ -165,14 +173,16 @@ void main() {
       final shared = Bookmark.empty.copyWith(
         id: 1,
         originalUrl: 'https://example.com/shared.jpg',
+        sourceUrl: 'https://example.com',
+        postId: () => 1,
       );
       await bookmarks.addBookmarkWithBookmarks([shared]);
       final stored = (await _load(bookmarks)).single;
       await groups.createGroup('Updated', id: groupId);
-    const otherGroupId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
-    await groups.createGroup('Other', id: otherGroupId);
+      const otherGroupId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+      await groups.createGroup('Other', id: otherGroupId);
       await groups.addBookmarks(groupId, {stored.id});
-    await groups.addBookmarks(otherGroupId, {stored.id});
+      await groups.addBookmarks(otherGroupId, {stored.id});
       final plan = const BookmarkImportPlanner()
           .plan(
             data: const BookmarkBackupData(
@@ -197,7 +207,7 @@ void main() {
       ).apply(plan);
 
       expect(await _load(bookmarks), [stored]);
-    expect((await groups.getGroup(otherGroupId))?.bookmarkIds, {stored.id});
+      expect((await groups.getGroup(otherGroupId))?.bookmarkIds, {stored.id});
     },
   );
 
@@ -234,10 +244,14 @@ void main() {
       Bookmark.empty.copyWith(
         id: 100,
         originalUrl: 'https://example.com/first.jpg',
+        sourceUrl: 'https://example.com',
+        postId: () => 100,
       ),
       Bookmark.empty.copyWith(
         id: 101,
         originalUrl: 'https://example.com/second.jpg',
+        sourceUrl: 'https://example.com',
+        postId: () => 101,
       ),
     ];
     final plan = BookmarkImportPlan(

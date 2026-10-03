@@ -29,12 +29,25 @@ void main() {
   late BookmarkGroupRepositoryHive groupRepository;
   late BookmarkLibraryService service;
   late List<int> clearedBookmarkIds;
+  final fixturePostIds = <String, int>{};
+
+  Bookmark fixtureBookmark(String path) {
+    final postId = fixturePostIds.putIfAbsent(
+      path,
+      () => fixturePostIds.length + 1,
+    );
+    return Bookmark.empty.copyWith(
+      originalUrl: 'https://example.com/$path.jpg',
+      sourceUrl: 'https://example.com',
+      postId: () => postId,
+    );
+  }
 
   ImageUrlResolver resolver(int? _) => const DefaultImageUrlResolver();
 
   Future<Bookmark> storeBookmark(String path) async {
     await bookmarkRepository.addBookmarkWithBookmarks([
-      Bookmark.empty.copyWith(originalUrl: 'https://example.com/$path.jpg'),
+      fixtureBookmark(path),
     ]);
     return (await service.load(
       const BookmarkTarget.ungrouped(),
@@ -42,6 +55,7 @@ void main() {
   }
 
   setUp(() async {
+    fixturePostIds.clear();
     tempDirectory = await Directory.systemTemp.createTemp(
       'bookmark_library_service_test_',
     );
@@ -169,9 +183,7 @@ void main() {
       await expectLater(
         service.addBookmarkToGroup(
           groupId: firstGroupId,
-          createBookmarkIdentity: Bookmark.empty
-              .copyWith(originalUrl: 'https://example.com/new.jpg')
-              .uniqueId,
+          createBookmarkIdentity: fixtureBookmark('new').uniqueId,
           createBookmark: () => storeBookmark('new'),
         ),
         throwsStateError,
@@ -213,9 +225,7 @@ void main() {
   test(
     'single addition recovers a bookmark whose creation committed before failure',
     () async {
-      final source = Bookmark.empty.copyWith(
-        originalUrl: 'https://example.com/committed-bookmark-create.jpg',
-      );
+      final source = fixtureBookmark('committed-bookmark-create');
       await groupRepository.createGroup('First', id: firstGroupId);
 
       final changed = await service.addBookmarkToGroup(

@@ -1,6 +1,3 @@
-// Dart imports:
-import 'dart:convert';
-
 // Package imports:
 import 'package:uuid/uuid.dart';
 
@@ -13,16 +10,17 @@ import '../utils/json_handler.dart';
 import 'bookmark_backup_data.dart';
 
 class BookmarkBackupCodec extends JsonHandler<BookmarkBackupData> {
-  BookmarkBackupCodec({
-    required this.bookmarkParser,
-    this.postDataCodec,
-  });
+  BookmarkBackupCodec({this.postDataCodec});
 
-  final Bookmark Function(Map<String, dynamic>) bookmarkParser;
   final BooruPostDataCodec? Function(BooruType type)? postDataCodec;
 
   @override
   BookmarkBackupData parse(ExportDataPayload metadata) {
+    if (metadata.version != 4) {
+      throw InvalidBackupFormatException(
+        'Unsupported bookmark backup version ${metadata.version}',
+      );
+    }
     final bookmarks = <Bookmark>[];
     final bookmarkIds = <int>{};
     final bookmarkIdentities = <Object>{};
@@ -31,23 +29,13 @@ class BookmarkBackupCodec extends JsonHandler<BookmarkBackupData> {
         throw InvalidBackupFormatException('data[$index] must be an object');
       }
       try {
-        final bookmark = switch (metadata.version) {
-          1 => _parseVersion1Bookmark(value, index),
-          2 => _parseVersion2Bookmark(value, index),
-          3 => _parseVersion3Bookmark(value, index),
-          _ => throw InvalidBackupFormatException(
-            'Unsupported bookmark backup version ${metadata.version}',
-          ),
-        };
+        final bookmark = _parseVersion4Bookmark(value, index);
         if (!bookmarkIds.add(bookmark.id)) {
           throw InvalidBackupFormatException(
             'data[$index].id is repeated',
           );
         }
-        final identity = switch (metadata.version) {
-          1 || 2 => (bookmark.booruId, bookmark.originalUrl),
-          _ => bookmark.transferIdentity,
-        };
+        final identity = bookmark.identity;
         if (!bookmarkIdentities.add(identity)) {
           throw InvalidBackupFormatException(
             'data[$index] repeats a bookmark identity',
@@ -108,45 +96,40 @@ class BookmarkBackupCodec extends JsonHandler<BookmarkBackupData> {
   }
 
   @override
-  List<dynamic> encode(BookmarkBackupData data) => data.bookmarks
-      .map(
-        (bookmark) => {
-          'localId': bookmark.localId,
-          'createdAt': bookmark.createdAt.toIso8601String(),
-          'updatedAt': bookmark.updatedAt.toIso8601String(),
-          'snapshot': bookmark.snapshot.toJson(),
-          'postId': bookmark.postId,
-          'identity': switch (bookmark.transferIdentity) {
-            final BookmarkIdentity identity => identity.toJson(),
-            LegacyBookmarkIdentity(:final booruId, :final url) => {
-              'booruId': booruId,
-              'url': url,
-            },
-          },
-        },
-      )
-      .toList();
+  List<dynamic> encode(BookmarkBackupData data) =>
+      data.bookmarks.map(_encodeBookmark).toList();
 
-  Bookmark _parseVersion1Bookmark(Map<String, dynamic> value, int index) {
-    _validateVersion1Bookmark(value, index);
-    return bookmarkParser(value);
+  Map<String, Object?> _encodeBookmark(Bookmark bookmark) {
+    final identity = BookmarkIdentity.tryFromPost(bookmark.post);
+    if (bookmark.postId == null ||
+        bookmark.postId != bookmark.post.id ||
+        identity == null) {
+      throw const InvalidBackupFormatException(
+        'Bookmark has no stable upstream identity',
+      );
+    }
+    return {
+      'localId': bookmark.localId,
+      'createdAt': bookmark.createdAt.toIso8601String(),
+      'updatedAt': bookmark.updatedAt.toIso8601String(),
+      'snapshot': bookmark.snapshot.toJson(),
+      'postId': bookmark.postId,
+      'identity': identity.toJson(),
+    };
   }
 
-  Bookmark _parseVersion2Bookmark(Map<String, dynamic> value, int index) {
+  Bookmark _parseSnapshotBookmark(Map<String, dynamic> value, int index) {
     final localId = value['localId'];
     final createdAt = value['createdAt'];
     final updatedAt = value['updatedAt'];
     final rawSnapshot = value['snapshot'];
-    final hasPostId = value.containsKey('postId');
-    final rawPostId = value['postId'];
+    final postId = value['postId'];
     if (localId is! int ||
         createdAt is! String ||
         updatedAt is! String ||
-        rawSnapshot is! Map<String, dynamic>) {
+        rawSnapshot is! Map<String, dynamic> ||
+        postId is! int) {
       throw InvalidBackupFormatException('data[$index] is invalid');
-    }
-    if (hasPostId && rawPostId != null && rawPostId is! int) {
-      throw InvalidBackupFormatException('data[$index].postId is invalid');
     }
 
     final snapshot = StoredPostSnapshot.fromJson(rawSnapshot);
@@ -162,7 +145,7 @@ class BookmarkBackupCodec extends JsonHandler<BookmarkBackupData> {
         updatedAt: DateTime.parse(updatedAt),
         snapshot: snapshot,
         post: post,
-        postId: hasPostId ? rawPostId as int? : _legacyVersion2PostId(post),
+        postId: postId,
       ),
       StoredPostDecodeFailure() => throw InvalidBackupFormatException(
         'data[$index].snapshot is invalid',
@@ -170,105 +153,20 @@ class BookmarkBackupCodec extends JsonHandler<BookmarkBackupData> {
     };
   }
 
-  Bookmark _parseVersion3Bookmark(Map<String, dynamic> value, int index) {
+  Bookmark _parseVersion4Bookmark(Map<String, dynamic> value, int index) {
     final rawIdentity = value['identity'];
-    if (rawIdentity is! Map<String, dynamic>) {
-      throw InvalidBackupFormatException(
-        'data[$index].identity is invalid',
-      );
+    if (rawIdentity is! Map<String, dynamic> || value['postId'] is! int) {
+      throw InvalidBackupFormatException('data[$index].identity is invalid');
     }
-    final bookmark = _parseVersion2Bookmark(value, index);
-    final identity = _parseVersion3Identity(rawIdentity, index);
-    if (identity != bookmark.transferIdentity) {
+    final bookmark = _parseSnapshotBookmark(value, index);
+    final identity = BookmarkIdentity.fromJson(rawIdentity);
+    if (rawIdentity['site'] != identity.site ||
+        bookmark.postId != bookmark.post.id ||
+        identity != BookmarkIdentity.tryFromPost(bookmark.post)) {
       throw InvalidBackupFormatException(
         'data[$index].identity does not match its snapshot',
       );
     }
     return bookmark;
-  }
-}
-
-BookmarkUniqueId _parseVersion3Identity(
-  Map<String, dynamic> value,
-  int index,
-) {
-  try {
-    if (value.containsKey('booruType')) {
-      return BookmarkIdentity.fromJson(value);
-    }
-    final booruId = value['booruId'];
-    final url = value['url'];
-    if (booruId is int && url is String && url.isNotEmpty) {
-      return LegacyBookmarkIdentity(booruId: booruId, url: url);
-    }
-  } catch (_) {
-    // The normalized error below keeps malformed external data opaque.
-  }
-  throw InvalidBackupFormatException('data[$index].identity is invalid');
-}
-
-int? _legacyVersion2PostId(Post post) => switch (post.booruData) {
-  LegacyPostData() || UnknownPostData() => null,
-  _ => post.id,
-};
-
-void _validateVersion1Bookmark(Map<String, dynamic> value, int index) {
-  final requiredInts = ['id', 'booruId'];
-  final requiredStrings = [
-    'createdAt',
-    'updatedAt',
-    'thumbnailUrl',
-    'sampleUrl',
-    'originalUrl',
-    'sourceUrl',
-    'md5',
-  ];
-  for (final field in requiredInts) {
-    if (value[field] is! int) {
-      throw InvalidBackupFormatException('data[$index].$field is invalid');
-    }
-  }
-  for (final field in requiredStrings) {
-    if (value[field] is! String) {
-      throw InvalidBackupFormatException('data[$index].$field is invalid');
-    }
-  }
-  for (final field in ['width', 'height']) {
-    if (value[field] is! num) {
-      throw InvalidBackupFormatException('data[$index].$field is invalid');
-    }
-  }
-  final tags = switch (value['tags']) {
-    final List<dynamic> tags => tags,
-    final String encoded => switch (jsonDecode(encoded)) {
-      final List<dynamic> tags => tags,
-      _ => throw InvalidBackupFormatException(
-        'data[$index].tags is invalid',
-      ),
-    },
-    _ => throw InvalidBackupFormatException('data[$index].tags is invalid'),
-  };
-  if (tags.any((tag) => tag is! String)) {
-    throw InvalidBackupFormatException('data[$index].tags is invalid');
-  }
-  if (value['realSourceUrl'] case final realSourceUrl?
-      when realSourceUrl is! String) {
-    throw InvalidBackupFormatException(
-      'data[$index].realSourceUrl is invalid',
-    );
-  }
-  if (value['format'] case final format? when format is! String) {
-    throw InvalidBackupFormatException('data[$index].format is invalid');
-  }
-  if (value['postId'] case final postId? when postId is! int) {
-    throw InvalidBackupFormatException('data[$index].postId is invalid');
-  }
-  if (value['metadata'] case final metadata?) {
-    if (metadata is! Map<String, dynamic> ||
-        metadata.values.any(
-          (entry) => entry is! String && entry is! num && entry is! bool,
-        )) {
-      throw InvalidBackupFormatException('data[$index].metadata is invalid');
-    }
   }
 }

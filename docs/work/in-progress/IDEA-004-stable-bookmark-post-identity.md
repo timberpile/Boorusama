@@ -1,5 +1,6 @@
 # Identify bookmarks by site and upstream post
 
+Claim: coordinator `/root`, 2026-10-03; implementer `/root/audit_bookmark_identity`; branch `feature/idea-004-bookmark-identity`; worktree `/home/timber/code/Boorusama/.worktrees/idea-004-bookmark-identity`.
 Priority: High
 Affected feature: Bookmarks, profile-independent lookup, backup/import
 
@@ -32,3 +33,11 @@ The same post on the same booru installation appears as one bookmark through any
 Required before IDEA-010's cross-profile Favorites fetch; IDEA-015 must preserve it. Independent of IDEA-002 profile UUIDs. A legacy converter is deliberately out of scope.
 
 - [Bookmark architecture](../../bookmark_groups.md)
+
+## Implementation progress and verification (2026-10-03)
+
+- Bookmark identity now uses the normalized installation namespace and an upstream post key. The namespace retains a case-sensitive installation path, a non-default port, and IPv6 brackets. Engine and profile metadata are excluded.
+- Native Sankaku string/numeric IDs and Pixiv work/page IDs supply keys where the shared numeric `Post.id` is not the upstream key. Missing or invalid upstream IDs remain browsable but cannot be bookmarked; actions show a specific message and direct batch writes preflight before mutation.
+- Current Hive bookmark rows persist a post snapshot with stable identity; ordinary loading ignores older URL-only rows. Bookmark export source version 4 includes the site/post key and verifies it against the decoded snapshot before import planning. Versions 1–3 are unsupported under the approved breaking change.
+- `fvm dart pub get` in `packages/boorusama_cli` and `./gen.sh` succeeded. `fvm flutter test --no-pub` passed 1,963 tests on the complete code change. After a lint-only selection expression cleanup, its focused file passed 8 tests. `fvm flutter analyze --no-pub` exited 0 with 241 repository diagnostics (no errors; remaining warnings are in unrelated backup test files). `git diff --check` passed.
+- Android UI was not exercised; no emulator was claimed. The branch remains isolated for coordinator review and integration.

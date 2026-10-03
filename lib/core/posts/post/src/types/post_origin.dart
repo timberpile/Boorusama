@@ -95,12 +95,15 @@ String normalizePostSourceHost(String source) {
 
   final withScheme = trimmed.contains('://') ? trimmed : 'https://$trimmed';
   final uri = Uri.tryParse(withScheme);
-  if (uri == null || uri.host.isEmpty) return trimmed.toLowerCase();
+  if (uri == null || uri.host.isEmpty) return '';
 
-  final host = uri.host.toLowerCase();
+  final rawHost = uri.host.toLowerCase();
+  final host = rawHost.contains(':') ? '[$rawHost]' : rawHost;
   final isDefaultPort =
       (uri.scheme.toLowerCase() == 'https' && uri.port == 443) ||
       (uri.scheme.toLowerCase() == 'http' && uri.port == 80);
 
-  return uri.hasPort && !isDefaultPort ? '$host:${uri.port}' : host;
+  final authority = uri.hasPort && !isDefaultPort ? '$host:${uri.port}' : host;
+  final path = uri.path.replaceFirst(RegExp(r'/+$'), '');
+  return '$authority$path';
 }
