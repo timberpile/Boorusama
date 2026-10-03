@@ -893,6 +893,7 @@
         "acknowledge_warnings": "I understand these warnings",
         "importing": "Importing…",
         "import_complete": "Import complete",
+        "bookmark_refresh_failed": "Bookmarks could not refresh. Reopen the app to see them.",
         "nothing_to_import": "Nothing to import",
         "done": "Done",
         "searches_already_present": {

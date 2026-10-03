@@ -321,6 +321,25 @@ void main() {
     expect(find.text('Created 1 · Updated 2'), findsOneWidget);
   });
 
+  testWidgets('completed imports explain when bookmarks could not refresh', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _app(
+        ImportCompletionView(
+          onDone: () {},
+          bookmarkRefreshFailed: true,
+        ),
+      ),
+    );
+
+    expect(find.text('Import complete'), findsOneWidget);
+    expect(
+      find.text('Bookmarks could not refresh. Reopen the app to see them.'),
+      findsOneWidget,
+    );
+  });
+
   test('only mutations count as import work', () {
     expect(
       const PlannedChangeSummary(

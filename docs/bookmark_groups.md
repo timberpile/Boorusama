@@ -21,6 +21,11 @@ membership, removing newly orphaned bookmarks; Merge preserves the local name
 and local-only membership. Import choices are validated before the durable
 package transaction starts.
 
+Package imports write bookmark repositories directly, bypassing the bookmark
+provider mutation methods. After the durable transaction commits, the import
+flow must await a provider reload before showing completion; otherwise the
+group browser can keep displaying its stale pre-import snapshot.
+
 Bookmark backup version 3 keeps bookmark objects in the top-level `data` array
 and group objects in the top-level `groups` array. Each new bookmark row has a
 portable `(booru type, normalized site, post ID)` identity and the complete

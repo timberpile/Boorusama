@@ -65,6 +65,7 @@ final class ImportFlowState {
     this.createdAt,
     this.exporterVersion,
     this.containsCredentials = false,
+    this.bookmarkRefreshFailed = false,
     this.error,
   });
 
@@ -81,6 +82,7 @@ final class ImportFlowState {
   final DateTime? createdAt;
   final String? exporterVersion;
   final bool containsCredentials;
+  final bool bookmarkRefreshFailed;
   final Object? error;
 
   ImportFlowState copyWith({
@@ -95,6 +97,7 @@ final class ImportFlowState {
     DateTime? createdAt,
     String? exporterVersion,
     bool? containsCredentials,
+    bool? bookmarkRefreshFailed,
     Object? error,
   }) => ImportFlowState(
     status: status ?? this.status,
@@ -109,6 +112,7 @@ final class ImportFlowState {
     createdAt: createdAt ?? this.createdAt,
     exporterVersion: exporterVersion ?? this.exporterVersion,
     containsCredentials: containsCredentials ?? this.containsCredentials,
+    bookmarkRefreshFailed: bookmarkRefreshFailed ?? this.bookmarkRefreshFailed,
     error: error,
   );
 }
@@ -504,7 +508,11 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
           }
         }
       });
-      state = state.copyWith(status: ImportFlowStatus.complete);
+      state = state.copyWith(
+        status: ImportFlowStatus.complete,
+        bookmarkRefreshFailed:
+            _sources['bookmarks']?.bookmarkRefreshFailed ?? false,
+      );
     } catch (error) {
       state = state.copyWith(status: ImportFlowStatus.error, error: error);
     }
@@ -803,6 +811,7 @@ final class PackageTransactionSource implements ImportTransactionSource {
   Object? _incomingComparable;
   SearchRuntimeSnapshot? _searchRuntimeSnapshot;
   var preflightRollbackBytes = 0;
+  var bookmarkRefreshFailed = false;
 
   Object? get preparedData => _preparation?.preparedData;
 
@@ -1373,5 +1382,14 @@ final class PackageTransactionSource implements ImportTransactionSource {
   bool get _isSearchRuntimeSource =>
       id == 'pinned_searches' || id == 'following_feeds';
 
-  Future<void> restart() => _preparation?.restartApp?.call() ?? Future.value();
+  Future<void> restart() async {
+    await _preparation?.restartApp?.call();
+    if (id != 'bookmarks') return;
+    bookmarkRefreshFailed = false;
+    try {
+      await ref.read(bookmarkProvider.notifier).syncActiveTargetFromSettings();
+    } catch (_) {
+      bookmarkRefreshFailed = true;
+    }
+  }
 }

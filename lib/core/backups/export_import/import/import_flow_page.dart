@@ -71,6 +71,7 @@ class _ImportFlowPageState extends ConsumerState<ImportFlowPage> {
           ),
           ImportFlowStatus.complete => ImportCompletionView(
             summary: state.preflight?.summary,
+            bookmarkRefreshFailed: state.bookmarkRefreshFailed,
             onDone: () => Navigator.of(context).maybePop(),
           ),
           ImportFlowStatus.error => ImportErrorView(
@@ -351,10 +352,16 @@ class ImportReviewValidation extends StatelessWidget {
 }
 
 class ImportCompletionView extends StatelessWidget {
-  const ImportCompletionView({super.key, required this.onDone, this.summary});
+  const ImportCompletionView({
+    super.key,
+    required this.onDone,
+    this.summary,
+    this.bookmarkRefreshFailed = false,
+  });
 
   final VoidCallback onDone;
   final PlannedChangeSummary? summary;
+  final bool bookmarkRefreshFailed;
 
   @override
   Widget build(BuildContext context) => Center(
@@ -393,6 +400,18 @@ class ImportCompletionView extends StatelessWidget {
                     .export_import
                     .completed_deleted_count,
               ).join(' · '),
+              textAlign: TextAlign.center,
+            ),
+          ],
+          if (bookmarkRefreshFailed) ...[
+            const SizedBox(height: 12),
+            Text(
+              context
+                  .t
+                  .settings
+                  .backup_and_restore
+                  .export_import
+                  .bookmark_refresh_failed,
               textAlign: TextAlign.center,
             ),
           ],
