@@ -23,6 +23,39 @@ Verify the test exit code and unchanged checkout before attributing this
 message to concurrent source edits; repeating the build alone does not fix
 the dependency URI classification.
 
+## Exclusive Android emulator procedure
+
+The host-wide, standard-library CLI is `python3 scripts/emulator_lease.py`.
+Its `claim`, `renew`, `release`, and `status` commands use one lease file per
+exact emulator serial in `/tmp/boorusama-emulator-leases-<uid>`. A claim records
+an owner session/worktree label, a hash of a unique token, and a 30-minute
+expiration. The raw token appears only in the successful claim output.
+`status` and a busy claim report the owner and expiration without revealing the
+token. The owner must retain the token returned by its claim.
+
+1. Discover available serials with `adb devices -l`. Choose one exact
+   `emulator-NNNN` serial; discovery does not reserve it.
+2. Run `python3 scripts/emulator_lease.py claim emulator-NNNN --owner
+   "<agent-session> <worktree-path>"`. Proceed only when the command succeeds.
+   If it says `busy`, leave that serial alone. `python3 scripts/emulator_lease.py
+   status emulator-NNNN` can inspect a lease without changing it.
+3. Immediately before **every** device-affecting command or Maestro call, run
+   `python3 scripts/emulator_lease.py renew emulator-NNNN --token <token>`.
+   Stop using the emulator if renewal fails. Each individual operation must
+   finish in less than 20 minutes; split longer Maestro flows into steps and
+   renew between steps. A device-free APK build does not need a lease.
+4. Set `device_id: "emulator-NNNN"` on every Maestro call. Use
+   `adb -s emulator-NNNN ...` for every ADB device command and
+   `fvm flutter ... -d emulator-NNNN` for Flutter device commands. Do not use a
+   busy device as an implicit fallback.
+5. After the final operation, run `python3 scripts/emulator_lease.py release
+   emulator-NNNN --token <token>`.
+
+The lease is a coordination mechanism among compliant sessions on the same
+host and OS user. It does not lock the emulator itself. A short `flock` guards
+each lease update, while expiration recovers abandoned reservations. Since no
+heartbeat runs in the background, renew before each bounded operation.
+
 ## Issue descriptions
 
 Keep issue descriptions short and proportional to the problem. Small issues

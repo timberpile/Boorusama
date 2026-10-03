@@ -29,6 +29,14 @@
 - Follow the queue's status and evidence rules. A ticket does not authorize
   unrelated work, publication, or delivery.
 
+## Android emulator ownership
+
+- Before using an emulator, claim its exact serial and renew before each device
+  operation; release it afterward. Follow the [exclusive Android emulator
+  procedure](docs/development_workflow.md#exclusive-android-emulator-procedure),
+  including the under-20-minute operation limit, explicit device targeting,
+  and the rule never to use a busy device.
+
 ## Repository and credentials
 
 - Use `gh` for GitHub work. Never perform GitHub actions on a repository other
