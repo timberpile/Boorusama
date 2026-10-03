@@ -19,6 +19,7 @@
 .idea/
 .codex/
 .worktrees/
+.superpowers/
 
 # Visual Studio Code related
 .classpath

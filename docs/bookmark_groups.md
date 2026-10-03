@@ -13,10 +13,30 @@ target; null means `No Group`. `All` is a view and is never an assignment target
 
 ## Backup compatibility
 
-Bookmark backup version 1 keeps bookmark objects in the top-level `data` array
-and group objects in the top-level `groups` array. Group `bookmarkIds` are
+Current export and import uses the `.bsexport` container. A Full export marks
+the bookmark source as complete and recommends category replacement. A custom
+export records whether all groups (including future groups) or exact current
+group UUIDs were selected. Per-group Update mirrors the imported name and
+membership, removing newly orphaned bookmarks; Merge preserves the local name
+and local-only membership. Import choices are validated before the durable
+package transaction starts.
+
+Package imports write bookmark repositories directly, bypassing the bookmark
+provider mutation methods. After the durable transaction commits, the import
+flow must await a provider reload before showing completion; otherwise the
+group browser can keep displaying its stale pre-import snapshot.
+
+Bookmark backup version 3 keeps bookmark objects in the top-level `data` array
+and group objects in the top-level `groups` array. Each new bookmark row has a
+portable `(booru type, normalized site, post ID)` identity and the complete
+stored post snapshot. Media URLs and profile IDs are not identity. Group
+`bookmarkIds` are
 file-local references into `data`; they must be resolved through
 `Bookmark.uniqueId` and must never be treated as keys in the receiving Hive box.
+
+Versions 1 and 2 remain import-only legacy formats. They are decoded with their
+historic fields before being mapped into current bookmark records; new exports
+never use their media-URL identity.
 
 Legacy group objects have `name` and `bookmarkIds` but no `id`. Every legacy
 group receives a fresh GUID on every import, even when its name matches a local

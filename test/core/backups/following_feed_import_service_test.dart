@@ -1,6 +1,8 @@
 import 'package:boorusama/core/backups/sources/following_feed_backup_data.dart';
 import 'package:boorusama/core/backups/sources/following_feed_import_service.dart';
 import 'package:boorusama/core/backups/sources/search_backup_profile.dart';
+import 'package:boorusama/core/backups/export_import/import/collection_import_action.dart';
+import 'package:boorusama/core/backups/export_import/models/import_action.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/search/subscriptions/types.dart';
@@ -11,6 +13,55 @@ import 'package:flutter_test/flutter_test.dart';
 import '../search/subscriptions/subscription_test_utils.dart';
 
 void main() {
+  for (final testCase in [
+    (
+      action: ImportAction.update,
+      expectedName: 'Remote',
+      expectedQueries: ['dog', 'bird'],
+    ),
+    (
+      action: ImportAction.merge,
+      expectedName: 'Local',
+      expectedQueries: ['cat', 'dog', 'bird'],
+    ),
+  ]) {
+    test(
+      '${testCase.action.name} applies the expected feed definition',
+      () async {
+        final repository = memorySubscriptionRepository();
+        await repository.saveFeed(
+          profileId: 4,
+          name: 'Local',
+          queries: ['cat', 'dog'],
+          id: _id(0),
+        );
+
+        await FollowingFeedImportService(repository: repository).apply(
+          _data([
+            _record(0, name: 'Remote', queries: ['dog', 'bird']),
+          ]),
+          profiles: [_profile(4)],
+          feedActions: {
+            _id(0): CollectionImportAction(
+              itemId: _id(0),
+              action: testCase.action,
+            ),
+          },
+        );
+
+        final feed = (await repository.getFeeds()).single;
+        final searches = {
+          for (final search in await repository.getAll()) search.id: search,
+        };
+        expect(feed.name, testCase.expectedName);
+        expect(
+          feed.sourceIds.map((id) => searches[id]!.query),
+          testCase.expectedQueries,
+        );
+      },
+    );
+  }
+
   test(
     'replaces changed queries and preserves an unchanged source state',
     () async {
@@ -56,6 +107,48 @@ void main() {
   );
 
   test(
+    'whole replacement keeps matching source state and removes absent feeds',
+    () async {
+      final repository = memorySubscriptionRepository();
+      final retained = await repository.saveFeed(
+        profileId: 4,
+        name: 'Cats',
+        queries: ['cat'],
+        id: _id(0),
+      );
+      await repository.saveFeed(
+        profileId: 4,
+        name: 'Remove',
+        queries: ['dog'],
+        id: _id(1),
+      );
+      final source = (await repository.getAll()).firstWhere(
+        (search) => retained.sourceIds.contains(search.id),
+      );
+      await repository.recordRefreshFailure(
+        source.id,
+        expectedCreatedAt: source.createdAt,
+        attemptedAt: DateTime.utc(2026),
+        kind: SearchRefreshErrorKind.network,
+      );
+
+      await FollowingFeedImportService(repository: repository).replace(
+        _data([
+          _record(0, name: 'Cats', queries: ['cat']),
+        ]),
+        profiles: [_profile(4)],
+      );
+
+      final feeds = await repository.getFeeds();
+      expect(feeds.map((feed) => feed.id), [_id(0)]);
+      final searches = await repository.getAll();
+      expect(searches, hasLength(1));
+      expect(searches.single.id, source.id);
+      expect(searches.single.lastErrorKind, SearchRefreshErrorKind.network);
+    },
+  );
+
+  test(
     'keeps same-named feeds separate and repeated imports idempotent',
     () async {
       final repository = memorySubscriptionRepository();
@@ -74,6 +167,21 @@ void main() {
         _id(0),
         _id(1),
       ]);
+    },
+  );
+
+  test(
+    'an explicit profile mapping imports without a currently loaded profile',
+    () async {
+      final repository = memorySubscriptionRepository();
+
+      await FollowingFeedImportService(repository: repository).apply(
+        _data([_record(0)]),
+        profiles: const [],
+        profileIdResolver: (_) => 77,
+      );
+
+      expect((await repository.getFeeds()).single.profileId, 77);
     },
   );
 

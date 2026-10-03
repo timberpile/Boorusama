@@ -18,6 +18,7 @@ import '../foundation/app_update/providers.dart';
 import '../foundation/boot.dart';
 import '../foundation/boot/failsafe.dart';
 import '../foundation/boot/providers.dart';
+import '../foundation/data_mutation_coordinator.dart';
 import '../foundation/display_mode.dart';
 import '../foundation/filesystem.dart';
 import '../foundation/iap/iap.dart';
@@ -30,6 +31,7 @@ import '../foundation/platform.dart';
 import '../foundation/utils/file_utils.dart';
 import '../foundation/vendors/google/providers.dart';
 import 'app.dart';
+import 'backups/export_import/import/import_recovery_gate.dart';
 import 'boorus/booru/providers.dart';
 import 'boorus/booru/types.dart';
 import 'boorus/engine/providers.dart';
@@ -320,7 +322,12 @@ class _BoorusamaAppState extends State<BoorusamaApp> {
               () => SettingsNotifier(data.settings),
             ),
             initialSettingsProvider.overrideWithValue(data.settings),
-            booruConfigRepoProvider.overrideWithValue(result.booruUserRepo),
+            booruConfigRepoProvider.overrideWith(
+              (ref) => CoordinatedBooruConfigRepository(
+                result.booruUserRepo,
+                ref.watch(dataMutationCoordinatorProvider),
+              ),
+            ),
             booruConfigProvider.overrideWith(
               () => BooruConfigNotifier(initialConfigs: data.configs),
             ),
@@ -335,7 +342,7 @@ class _BoorusamaAppState extends State<BoorusamaApp> {
               widget.cronetAvailable,
             ),
           ],
-          child: const App(),
+          child: const ImportRecoveryGate(child: App()),
         ),
       ),
     );

@@ -27,6 +27,11 @@ class BackupProfileReference extends Equatable {
   List<Object?> get props => [id, booruType, url, name];
 }
 
+typedef BackupProfileIdResolver =
+    int? Function(
+      BackupProfileReference reference,
+    );
+
 String normalizeBackupProfileUrl(String url) => normalizeBooruSiteUrl(url);
 
 BackupProfileReference parseBackupProfile(Object? raw, String field) {
@@ -78,5 +83,18 @@ BooruConfig? resolveBackupProfile(
   for (final profile in matches) {
     if (profile.id == reference.id) return profile;
   }
-  return matches.length == 1 ? matches.single : null;
+  if (matches.length == 1) return matches.single;
+  final compatible = profiles
+      .where(
+        (profile) => profile.auth.booruType.name == reference.booruType,
+      )
+      .toList();
+  return compatible.length == 1 ? compatible.single : null;
 }
+
+int? resolveBackupProfileId(
+  BackupProfileReference reference,
+  List<BooruConfig> profiles, {
+  BackupProfileIdResolver? resolver,
+}) =>
+    resolver?.call(reference) ?? resolveBackupProfile(reference, profiles)?.id;

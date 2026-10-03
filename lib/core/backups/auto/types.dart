@@ -173,7 +173,7 @@ abstract class AutoBackupRepository {
   Future<AutoBackupManifest> loadManifest(String backupDirPath);
   Future<void> saveManifest(String backupDirPath, AutoBackupManifest manifest);
   Future<void> deleteFile(String filePath);
-  List<String> listZipFiles(String backupDirPath);
+  List<String> listBackupFiles(String backupDirPath);
   bool fileExists(String filePath);
   Future<int> getFileSize(String filePath);
 }

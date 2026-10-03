@@ -193,7 +193,7 @@ BookmarkHiveObject favoriteToHiveObject(Bookmark bookmark) {
 }
 
 BookmarkUniqueId bookmarkIdentityForPost(Post post, int booruId) =>
-    BookmarkUniqueId.fromPost(post, post.origin.booruType.id);
+    BookmarkUniqueId.fromPost(post);
 
 extension BookmarkToPost on Bookmark {
   Post toPost() => post;

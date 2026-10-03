@@ -1,0 +1,67 @@
+// Package imports:
+import 'package:flutter_test/flutter_test.dart';
+
+// Project imports:
+import 'package:boorusama/core/backups/export_import/models/export_selection.dart';
+import 'package:boorusama/core/backups/export_import/models/export_template.dart';
+import 'package:boorusama/core/backups/export_import/models/import_action.dart';
+
+void main() {
+  test(
+    'template freezes app sources but keeps dynamic collection selection',
+    () {
+      final selection = ExportSelection.custom(const {
+        'bookmarks': ExportNodeSelection.all('bookmarks'),
+        'settings': ExportNodeSelection.leaf('settings'),
+      });
+      final template = ExportTemplate(
+        id: 'share',
+        name: 'Share',
+        selection: selection,
+        includeCredentials: true,
+        itemRecommendedActions: const {
+          'bookmarks': {'group-a': ImportAction.merge},
+        },
+      );
+
+      final restored = ExportTemplate.fromJson(template.toJson());
+      expect(restored, template);
+      expect(restored.selection.sourceIds, {'bookmarks', 'settings'});
+      expect(restored.includeCredentials, isTrue);
+      expect(
+        restored.itemRecommendedActions['bookmarks']?['group-a'],
+        ImportAction.merge,
+      );
+      expect(
+        restored.selection.nodes['bookmarks'],
+        const ExportNodeSelection.all('bookmarks'),
+      );
+    },
+  );
+
+  test('template rejects a full selection that could gain app sources', () {
+    expect(
+      () => ExportTemplate.fromJson(const {
+        'id': 'bad',
+        'name': 'Bad',
+        'selection': {'mode': 'full'},
+      }),
+      throwsFormatException,
+    );
+  });
+
+  test('older templates default to excluding credentials', () {
+    final restored = ExportTemplate.fromJson(const {
+      'id': 'old',
+      'name': 'Old',
+      'selection': {
+        'mode': 'custom',
+        'nodes': [
+          {'nodeId': 'profiles', 'kind': 'explicit', 'childIds': <String>[]},
+        ],
+      },
+    });
+
+    expect(restored.includeCredentials, isFalse);
+  });
+}

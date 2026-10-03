@@ -5,6 +5,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Project imports:
+import '../../../../foundation/data_mutation_coordinator.dart';
 import '../../../../foundation/loggers/providers.dart';
 import '../../../analytics/providers.dart';
 import '../../../analytics/types.dart';
@@ -40,7 +41,11 @@ class SettingsNotifier extends Notifier<Settings> {
     return updateSettings(newSettings);
   }
 
-  Future<bool> updateSettings(Settings settings) async {
+  Future<bool> updateSettings(Settings settings) => ref
+      .read(dataMutationCoordinatorProvider)
+      .runExclusive(() => _updateSettings(settings));
+
+  Future<bool> _updateSettings(Settings settings) async {
     final currentSettings = state;
     final success = await ref.read(settingsRepoProvider).save(settings);
 

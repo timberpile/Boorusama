@@ -17,17 +17,19 @@ class BookmarkImportPlanner {
     required List<BookmarkGroup> currentGroups,
   }) {
     final currentBookmarkIds = currentBookmarks
-        .map((bookmark) => bookmark.uniqueId)
+        .map((bookmark) => bookmark.transferIdentity)
         .toSet();
     final importedByLocalId = {
-      for (final bookmark in data.bookmarks) bookmark.id: bookmark.uniqueId,
+      for (final bookmark in data.bookmarks)
+        bookmark.id: bookmark.transferIdentity,
     };
     final currentGroupIds = currentGroups.map((group) => group.id).toSet();
     return BookmarkImportPlan(
       bookmarks: List.unmodifiable(data.bookmarks),
       missingBookmarks: data.bookmarks
           .where(
-            (bookmark) => !currentBookmarkIds.contains(bookmark.uniqueId),
+            (bookmark) =>
+                !currentBookmarkIds.contains(bookmark.transferIdentity),
           )
           .toList(),
       groups: [

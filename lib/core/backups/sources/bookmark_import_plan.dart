@@ -2,6 +2,7 @@
 import 'package:equatable/equatable.dart';
 
 // Project imports:
+import '../export_import/models/import_action.dart';
 import '../../bookmarks/types.dart';
 
 enum BookmarkGroupConflictChoice { merge, replace, cancel }
@@ -13,6 +14,9 @@ class BookmarkGroupImport extends Equatable {
     required this.bookmarkIds,
     required this.conflicts,
     this.choice,
+    this.action,
+    this.targetId,
+    this.destinationId,
   });
 
   final String id;
@@ -20,6 +24,19 @@ class BookmarkGroupImport extends Equatable {
   final Set<BookmarkUniqueId> bookmarkIds;
   final bool conflicts;
   final BookmarkGroupConflictChoice? choice;
+  final ImportAction? action;
+  final String? targetId;
+  final String? destinationId;
+
+  ImportAction? get resolvedAction =>
+      action ??
+      switch (choice) {
+        BookmarkGroupConflictChoice.merge => ImportAction.merge,
+        BookmarkGroupConflictChoice.replace => ImportAction.update,
+        BookmarkGroupConflictChoice.cancel => ImportAction.skip,
+        null when !conflicts => ImportAction.copy,
+        null => null,
+      };
 
   BookmarkGroupImport resolve(BookmarkGroupConflictChoice choice) =>
       BookmarkGroupImport(
@@ -28,10 +45,37 @@ class BookmarkGroupImport extends Equatable {
         bookmarkIds: bookmarkIds,
         conflicts: conflicts,
         choice: choice,
+        action: action,
+        targetId: targetId,
+        destinationId: destinationId,
       );
 
+  BookmarkGroupImport resolveAction(
+    ImportAction action, {
+    String? targetId,
+    String? destinationId,
+  }) => BookmarkGroupImport(
+    id: id,
+    name: name,
+    bookmarkIds: bookmarkIds,
+    conflicts: conflicts,
+    choice: choice,
+    action: action,
+    targetId: targetId,
+    destinationId: destinationId,
+  );
+
   @override
-  List<Object?> get props => [id, name, bookmarkIds, conflicts, choice];
+  List<Object?> get props => [
+    id,
+    name,
+    bookmarkIds,
+    conflicts,
+    choice,
+    action,
+    targetId,
+    destinationId,
+  ];
 }
 
 class BookmarkImportPlan extends Equatable {
@@ -49,7 +93,7 @@ class BookmarkImportPlan extends Equatable {
       groups.where((group) => group.conflicts).toList();
 
   bool get isResolved => groups.every(
-    (group) => !group.conflicts || group.choice != null,
+    (group) => group.resolvedAction != null,
   );
 
   BookmarkImportPlan resolve(Map<String, BookmarkGroupConflictChoice> choices) {
@@ -62,6 +106,16 @@ class BookmarkImportPlan extends Equatable {
       ],
     );
   }
+
+  BookmarkImportPlan resolveActions(
+    Map<String, BookmarkGroupImport> resolvedGroups,
+  ) => BookmarkImportPlan(
+    bookmarks: bookmarks,
+    missingBookmarks: missingBookmarks,
+    groups: [
+      for (final group in groups) resolvedGroups[group.id] ?? group,
+    ],
+  );
 
   @override
   List<Object?> get props => [bookmarks, missingBookmarks, groups];

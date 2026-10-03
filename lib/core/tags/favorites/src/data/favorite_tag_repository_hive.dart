@@ -112,4 +112,13 @@ class FavoriteTagRepositoryHive implements FavoriteTagRepository {
 
     return data;
   }
+
+  @override
+  Future<void> replaceAll(List<FavoriteTag> tags) async {
+    await box.clear();
+    await box.putAll({
+      for (final tag in tags) tag.name: favoriteTagToFavoriteTagHiveObject(tag),
+    });
+    await box.flush();
+  }
 }

@@ -14,6 +14,7 @@ import 'package:path_provider/path_provider.dart';
 
 // Project imports:
 import 'app_file_system.dart';
+import 'durable_sync.dart';
 
 const _kAppTemporaryDirectoryName = String.fromEnvironment('APP_NAME');
 
@@ -111,12 +112,47 @@ class IoFileSystem implements AppFileSystem {
       File(source).copy(destination);
 
   @override
+  Future<bool> copyFileIfAbsent(String source, String destination) async {
+    final target = File(destination);
+    try {
+      await target.create(exclusive: true);
+    } on FileSystemException {
+      if (await target.exists()) return false;
+      rethrow;
+    }
+
+    try {
+      await File(source).copy(destination);
+      return true;
+    } catch (_) {
+      try {
+        await target.delete();
+      } catch (_) {}
+      rethrow;
+    }
+  }
+
+  @override
   void copyFileSync(String source, String destination) =>
       File(source).copySync(destination);
 
   @override
   Future<void> renameFile(String source, String destination) =>
       File(source).rename(destination);
+
+  @override
+  Future<void> syncFile(String path) async {
+    if (Platform.isWindows) {
+      final file = await File(path).open(mode: FileMode.append);
+      try {
+        await file.flush();
+      } finally {
+        await file.close();
+      }
+      return;
+    }
+    syncPosixPath(path, readWrite: true);
+  }
 
   @override
   Future<int> fileSize(String path) => File(path).length();
@@ -157,6 +193,12 @@ class IoFileSystem implements AppFileSystem {
   @override
   Future<void> createDirectory(String path, {bool recursive = false}) =>
       Directory(path).create(recursive: recursive);
+
+  @override
+  Future<void> syncDirectory(String path) async {
+    if (Platform.isWindows) return;
+    syncPosixPath(path);
+  }
 
   @override
   Future<void> deleteDirectory(String path, {bool recursive = false}) =>

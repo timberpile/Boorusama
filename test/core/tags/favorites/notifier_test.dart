@@ -45,6 +45,13 @@ class InMemoryFavoriteTagRepository implements FavoriteTagRepository {
   }
 
   @override
+  Future<void> replaceAll(List<FavoriteTag> tags) async {
+    _tags
+      ..clear()
+      ..addAll(tags);
+  }
+
+  @override
   Future<FavoriteTag?> deleteFirst(String name) async {
     final index = _tags.indexWhere((tag) => tag.name == name);
     if (index == -1) return null;

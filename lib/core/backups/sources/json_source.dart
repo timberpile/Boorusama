@@ -1,3 +1,6 @@
+// Dart imports:
+import 'dart:convert';
+
 // Package imports:
 import 'package:coreutils/coreutils.dart';
 import 'package:dio/dio.dart';
@@ -100,16 +103,31 @@ abstract class JsonBackupSource<T>
   );
 
   Future<shelf.Response> _serveData(shelf.Request request) async {
-    final data = await dataGetter();
-    final payload = handler.encode(data);
-    final json = converter.encode(
-      payload: payload,
-      extraFields: extraPayloadEncoder?.call(data) ?? const {},
-    );
+    final json = await encodeForExport();
     return shelf.Response.ok(
       json,
       headers: {'Content-Type': 'application/json'},
     );
+  }
+
+  Future<String> encodeForExport({BackupExportOptions? options}) async {
+    final data = await (scopedDataGetter?.call(options) ?? dataGetter());
+    return converter.encode(
+      payload: handler.encode(data),
+      extraFields: extraPayloadEncoder?.call(data) ?? const {},
+    );
+  }
+
+  Future<String> encodeRevisionSnapshot() async {
+    final data = await dataGetter();
+    return jsonEncode({
+      ...extraPayloadEncoder?.call(data) ?? const <String, dynamic>{},
+      'data': handler.encode(data),
+    });
+  }
+
+  Future<void> validateEncodedImport(String encoded) async {
+    await _noContextPrepare(encoded);
   }
 
   Future<ImportPreparation> _prepareServerImport(
@@ -157,9 +175,8 @@ abstract class JsonBackupSource<T>
     await BackupUtils.ensureStoragePermissions(ref);
 
     final data = await (scopedDataGetter?.call(options) ?? dataGetter());
-    final payload = handler.encode(data);
     final json = converter.encode(
-      payload: payload,
+      payload: handler.encode(data),
       extraFields: extraPayloadEncoder?.call(data) ?? const {},
     );
 

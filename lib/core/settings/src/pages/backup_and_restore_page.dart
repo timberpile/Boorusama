@@ -1,31 +1,18 @@
-// Package imports:
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
 
 // Project imports:
-import '../../../backups/widgets.dart';
-import '../widgets/settings_page_scaffold.dart';
+import '../../../backups/export_import/export_import_page.dart';
 
-class BackupAndRestorePage extends ConsumerStatefulWidget {
+class BackupAndRestorePage extends StatelessWidget {
   const BackupAndRestorePage({
     super.key,
+    this.includeAutomaticExports = true,
   });
 
-  @override
-  ConsumerState<BackupAndRestorePage> createState() =>
-      _BackupAndRestorePageState();
-}
+  final bool includeAutomaticExports;
 
-class _BackupAndRestorePageState extends ConsumerState<BackupAndRestorePage> {
   @override
-  Widget build(BuildContext context) {
-    return SettingsPageScaffold(
-      title: Text(context.t.settings.backup_and_restore.backup_and_restore),
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      children: const [
-        BackupSettingsSection(),
-      ],
-    );
-  }
+  Widget build(BuildContext context) => ExportImportPage(
+    includeAutomaticExports: includeAutomaticExports,
+  );
 }

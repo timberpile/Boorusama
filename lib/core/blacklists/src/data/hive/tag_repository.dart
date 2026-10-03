@@ -59,6 +59,15 @@ class HiveBlacklistedTagRepository implements GlobalBlacklistedTagRepository {
   }
 
   @override
+  Future<void> replaceAll(List<BlacklistedTag> tags) async {
+    await _box.clear();
+    await _box.putAll({
+      for (final tag in tags) tag.id: convertToHiveObject(tag),
+    });
+    await _box.flush();
+  }
+
+  @override
   Future<void> removeTag(int tagId) async {
     await _box.delete(tagId);
   }

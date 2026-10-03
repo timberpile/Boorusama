@@ -1,5 +1,7 @@
 import 'package:equatable/equatable.dart';
 
+import '../export_import/import/collection_import_action.dart';
+import '../export_import/models/import_action.dart';
 import '../../configs/config/types.dart';
 import '../../search/subscriptions/types.dart';
 import 'following_feed_backup_data.dart';
@@ -54,21 +56,109 @@ class FollowingFeedImportService {
   FollowingFeedImportPreview preview(
     FollowingFeedBackupData data, {
     required List<BooruConfig> profiles,
+    BackupProfileIdResolver? profileIdResolver,
   }) => FollowingFeedImportPreview(
     unmatchedRecordIds: {
       for (final record in data.feeds)
-        if (resolveBackupProfile(record.profile, profiles) == null) record.id,
+        if (resolveBackupProfileId(
+              record.profile,
+              profiles,
+              resolver: profileIdResolver,
+            ) ==
+            null)
+          record.id,
     },
   );
+
+  Future<FollowingFeedImportResult> replace(
+    FollowingFeedBackupData data, {
+    required List<BooruConfig> profiles,
+    BackupProfileIdResolver? profileIdResolver,
+  }) async {
+    final mapped = [
+      for (final record in data.feeds)
+        (
+          record: record,
+          profileId: resolveBackupProfileId(
+            record.profile,
+            profiles,
+            resolver: profileIdResolver,
+          ),
+        ),
+    ];
+    final unmatched = {
+      for (final item in mapped)
+        if (item.profileId == null) item.record.id,
+    };
+    if (unmatched.isNotEmpty) {
+      throw UnmatchedFollowingFeedProfilesException(unmatched);
+    }
+
+    final desiredProfileById = {
+      for (final item in mapped) item.record.id: item.profileId!,
+    };
+    for (final feed in await repository.getFeeds()) {
+      final desiredProfile = desiredProfileById[feed.id];
+      if (desiredProfile != null && desiredProfile != feed.profileId) {
+        await repository.deleteFeed(feed.id);
+      }
+    }
+    final result = await apply(
+      data,
+      profiles: profiles,
+      profileIdResolver: profileIdResolver,
+    );
+    final desiredIds = desiredProfileById.keys.toSet();
+    for (final feed in await repository.getFeeds()) {
+      if (!desiredIds.contains(feed.id)) await repository.deleteFeed(feed.id);
+    }
+
+    for (final profileId in desiredProfileById.values.toSet()) {
+      final records =
+          mapped.where((item) => item.profileId == profileId).toList()
+            ..sort((left, right) {
+              final byPosition = left.record.position.compareTo(
+                right.record.position,
+              );
+              return byPosition != 0
+                  ? byPosition
+                  : data.feeds
+                        .indexOf(left.record)
+                        .compareTo(
+                          data.feeds.indexOf(right.record),
+                        );
+            });
+      await repository.setFeedOrder(
+        profileId,
+        [for (final item in records) item.record.id],
+      );
+    }
+    return result;
+  }
 
   Future<FollowingFeedImportResult> apply(
     FollowingFeedBackupData data, {
     required List<BooruConfig> profiles,
     bool allowMissingProfiles = false,
+    Map<String, CollectionImportAction>? feedActions,
+    BackupProfileIdResolver? profileIdResolver,
   }) async {
-    final unmatched = preview(data, profiles: profiles).unmatchedRecordIds;
+    final unmatched = preview(
+      data,
+      profiles: profiles,
+      profileIdResolver: profileIdResolver,
+    ).unmatchedRecordIds;
     if (unmatched.isNotEmpty && !allowMissingProfiles) {
       throw UnmatchedFollowingFeedProfilesException(unmatched);
+    }
+    if (feedActions != null) {
+      return _applyActions(
+        data,
+        profiles: profiles,
+        allowMissingProfiles: allowMissingProfiles,
+        actions: feedActions,
+        profileIdResolver: profileIdResolver,
+      );
     }
 
     final mapped = [
@@ -76,16 +166,20 @@ class FollowingFeedImportService {
         (
           index: index,
           record: record,
-          profile: resolveBackupProfile(record.profile, profiles),
+          profileId: resolveBackupProfileId(
+            record.profile,
+            profiles,
+            resolver: profileIdResolver,
+          ),
         ),
     ];
     final localFeeds = await repository.getFeeds();
     final localById = {for (final feed in localFeeds) feed.id: feed};
     final conflicts = <String>{};
     for (final item in mapped) {
-      final profile = item.profile;
+      final profileId = item.profileId;
       final local = localById[item.record.id];
-      if (profile != null && local != null && local.profileId != profile.id) {
+      if (profileId != null && local != null && local.profileId != profileId) {
         conflicts.add(item.record.id);
       }
     }
@@ -94,20 +188,20 @@ class FollowingFeedImportService {
     final sourcesById = {
       for (final source in await repository.getAll()) source.id: source,
     };
-    final accepted = mapped.where((item) => item.profile != null).toList();
-    final profileIds = {for (final item in accepted) item.profile!.id};
+    final accepted = mapped.where((item) => item.profileId != null).toList();
+    final profileIds = {for (final item in accepted) item.profileId!};
     final finalOrder = <int, List<String>>{};
     for (final profileId in profileIds) {
       final rows =
-          accepted.where((item) => item.profile!.id == profileId).toList()
-            ..sort((left, right) {
-              final position = left.record.position.compareTo(
-                right.record.position,
-              );
-              return position != 0
-                  ? position
-                  : left.index.compareTo(right.index);
-            });
+          accepted.where((item) => item.profileId == profileId).toList()..sort((
+            left,
+            right,
+          ) {
+            final position = left.record.position.compareTo(
+              right.record.position,
+            );
+            return position != 0 ? position : left.index.compareTo(right.index);
+          });
       final importedIds = rows.map((item) => item.record.id).toSet();
       final order = [
         for (final feed in localFeeds)
@@ -141,7 +235,7 @@ class FollowingFeedImportService {
           .toList();
       try {
         for (final item in accepted.where(
-          (item) => item.profile!.id == profileId,
+          (item) => item.profileId == profileId,
         )) {
           final record = item.record;
           final local = localById[record.id];
@@ -185,6 +279,94 @@ class FollowingFeedImportService {
       skippedProfileCount: mapped.length - accepted.length,
     );
   }
+
+  Future<FollowingFeedImportResult> _applyActions(
+    FollowingFeedBackupData data, {
+    required List<BooruConfig> profiles,
+    required bool allowMissingProfiles,
+    required Map<String, CollectionImportAction> actions,
+    required BackupProfileIdResolver? profileIdResolver,
+  }) async {
+    final localFeeds = await repository.getFeeds();
+    final localById = {for (final feed in localFeeds) feed.id: feed};
+    final sourcesById = {
+      for (final source in await repository.getAll()) source.id: source,
+    };
+    final resolved = <FollowingFeedBackupRecord>[];
+    var skippedProfiles = 0;
+    for (final record in data.feeds) {
+      final profileId = resolveBackupProfileId(
+        record.profile,
+        profiles,
+        resolver: profileIdResolver,
+      );
+      if (profileId == null) {
+        skippedProfiles++;
+        continue;
+      }
+      final resolution = actions[record.id];
+      if (resolution == null || resolution.action == ImportAction.skip) {
+        continue;
+      }
+      final destinationId = switch (resolution.action) {
+        ImportAction.mergeIntoTarget => resolution.targetId,
+        ImportAction.copy =>
+          resolution.destinationId ??
+              (localById.containsKey(record.id) ? null : record.id),
+        ImportAction.update ||
+        ImportAction.merge ||
+        ImportAction.replace => record.id,
+        _ => null,
+      };
+      if (destinationId == null) {
+        throw StateError('Feed target is unresolved.');
+      }
+      final local = localById[destinationId];
+      if (switch (resolution.action) {
+        ImportAction.update ||
+        ImportAction.merge ||
+        ImportAction.replace => local == null,
+        ImportAction.mergeIntoTarget => local == null,
+        ImportAction.copy => local != null,
+        _ => true,
+      }) {
+        throw StateError('Feed action is not applicable.');
+      }
+      if (local != null && local.profileId != profileId) {
+        throw FeedBackupIdConflictException({destinationId});
+      }
+      final localQueries = [
+        for (final id in local?.sourceIds ?? const <String>[])
+          if (sourcesById[id] case final source?) source.query,
+      ];
+      final merge = {
+        ImportAction.merge,
+        ImportAction.mergeIntoTarget,
+      }.contains(resolution.action);
+      resolved.add(
+        FollowingFeedBackupRecord(
+          id: destinationId,
+          name: merge ? local!.name : record.name,
+          position: merge ? local!.position : record.position,
+          queries: merge
+              ? _orderedQueryUnion(localQueries, record.queries)
+              : record.queries,
+          profile: record.profile,
+        ),
+      );
+    }
+    final result = await apply(
+      FollowingFeedBackupData(feeds: resolved),
+      profiles: profiles,
+      allowMissingProfiles: allowMissingProfiles,
+      profileIdResolver: profileIdResolver,
+    );
+    return FollowingFeedImportResult(
+      importedCount: result.importedCount,
+      alreadyExistedCount: result.alreadyExistedCount,
+      skippedProfileCount: result.skippedProfileCount + skippedProfiles,
+    );
+  }
 }
 
 bool _sameQueries(List<String> left, List<String> right) =>
@@ -192,3 +374,14 @@ bool _sameQueries(List<String> left, List<String> right) =>
     [
       for (var i = 0; i < left.length; i++) left[i] == right[i],
     ].every((same) => same);
+
+List<String> _orderedQueryUnion(
+  Iterable<String> current,
+  Iterable<String> imported,
+) {
+  final seen = <String>{};
+  return [
+    for (final query in [...current, ...imported])
+      if (seen.add(normalizeSearchIdentity(query))) query,
+  ];
+}
