@@ -7,8 +7,10 @@ import 'package:boorusama/core/backups/export_import/nearby/nearby_transfer_serv
 import 'package:boorusama/core/backups/export_import/package/export_package_reader.dart';
 import 'package:boorusama/core/backups/export_import/package/export_package_writer.dart';
 import 'package:boorusama/core/backups/export_import/sources/export_import_source.dart';
+import 'package:boorusama/core/backups/servers/server_io.dart';
 import 'package:boorusama/foundation/filesystem.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:path/path.dart' as p;
 
 void main() {
   late Directory directory;
@@ -34,6 +36,12 @@ void main() {
     );
 
     final package = await service.createFullPackage();
+    expect(
+      p.basename(package.path),
+      matches(
+        RegExp(r'^boorusama-\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}Z\.bsexport$'),
+      ),
+    );
     final staged = await const ExportPackageReader(
       fs: IoFileSystem(),
     ).stage(package.path);
@@ -52,6 +60,32 @@ void main() {
 
     await package.dispose();
     expect(File(package.path).existsSync(), isFalse);
+  });
+
+  test('nearby HTTP response advertises its dated export filename', () async {
+    final sources = [_Source('profiles')];
+    final service = NearbyExportService(
+      exportService: ExportService(
+        sources: () => sources,
+        writer: const ExportPackageWriter(fs: IoFileSystem()),
+        appVersion: '1.0.0',
+      ),
+      catalog: NearbyExportCatalog([
+        for (final source in sources) source.selectionDescriptor,
+      ]),
+      fs: const IoFileSystem(),
+    );
+
+    final response = await serveNearbyExport(service);
+    expect(
+      response.headers['content-disposition'],
+      matches(
+        RegExp(
+          r'^attachment; filename="boorusama-\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}Z\.bsexport"$',
+        ),
+      ),
+    );
+    await response.read().drain<void>();
   });
 }
 

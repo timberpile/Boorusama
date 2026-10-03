@@ -2,7 +2,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
-import 'package:path/path.dart' as p;
 import 'package:share_plus/share_plus.dart';
 import 'package:uuid/uuid.dart';
 
@@ -17,6 +16,7 @@ import '../widgets/import_action_editor.dart';
 import '../widgets/import_recommendation_tree.dart';
 import '../widgets/selection_tree.dart';
 import '../widgets/private_export_confirmation.dart';
+import 'export_filename.dart';
 import 'export_flow_notifier.dart';
 
 final exportClipboardServiceProvider = Provider<ExportClipboardService>((ref) {
@@ -572,11 +572,8 @@ class _ExportReady extends ConsumerWidget {
     return pickDirectoryPathToastOnError(
       context: context,
       onPick: (directory) async {
-        final filename =
-            'boorusama-${DateTime.now().toUtc().toIso8601String().replaceAll(':', '-')}.bsexport';
-        await ref
-            .read(appFileSystemProvider)
-            .copyFile(source, p.join(directory, filename));
+        final fs = ref.read(appFileSystemProvider);
+        await copyExportToDirectory(fs, source, directory);
         if (context.mounted) {
           Kurumi.showSuccessToast(
             context,

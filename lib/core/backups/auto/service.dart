@@ -3,12 +3,14 @@ import 'package:path/path.dart' as p;
 
 // Project imports:
 import '../../../foundation/loggers.dart';
+import '../export_import/export/export_filename.dart';
 import '../export_import/export/export_service.dart';
 import '../export_import/models/export_selection.dart';
-import '../export_import/models/package_manifest.dart';
 import '../types/backup_registry.dart';
 import '../zip/types.dart';
 import 'types.dart';
+
+DateTime _systemNow() => DateTime.now();
 
 class AutoBackupService {
   const AutoBackupService({
@@ -16,17 +18,34 @@ class AutoBackupService {
     required this.logger,
     required this.registry,
     required this.repository,
+    this.now = _systemNow,
   });
 
   final ExportService exportService;
   final Logger logger;
   final BackupRegistry registry;
   final AutoBackupRepository repository;
+  final DateTime Function() now;
 
   static const manifestFileName = 'auto_backup_manifest.json';
   static const backupFolderName = 'boorusama_auto_backups';
+  static var _pendingBackup = Future<void>.value();
 
   Future<BulkExportResult> performBackup(
+    AutoBackupSettings settings, {
+    void Function(double progress)? onProgress,
+  }) {
+    final next = _pendingBackup.then(
+      (_) => _performBackup(settings, onProgress: onProgress),
+    );
+    _pendingBackup = next.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace _) {},
+    );
+    return next;
+  }
+
+  Future<BulkExportResult> _performBackup(
     AutoBackupSettings settings, {
     void Function(double progress)? onProgress,
   }) async {
@@ -40,14 +59,15 @@ class AutoBackupService {
     }
 
     onProgress?.call(0);
+    final outputPath = nextAvailableExportPath(
+      backupDirPath,
+      exportFileName(now()),
+      repository.fileExists,
+    );
     final filePath = await exportService.createPackage(
       ExportRequest(
         selection: selection,
-        outputPath: p.join(
-          backupDirPath,
-          'boorusama_backup_${DateTime.now().toUtc().microsecondsSinceEpoch}'
-          '$kExportPackageExtension',
-        ),
+        outputPath: outputPath,
       ),
     );
     onProgress?.call(1);

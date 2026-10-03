@@ -24,6 +24,7 @@ abstract interface class AppFileSystem {
   Future<void> deleteFile(String path);
 
   Future<void> copyFile(String source, String destination);
+  Future<bool> copyFileIfAbsent(String source, String destination);
   void copyFileSync(String source, String destination);
 
   Future<void> renameFile(String source, String destination);

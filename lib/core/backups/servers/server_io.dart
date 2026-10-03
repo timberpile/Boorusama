@@ -5,6 +5,7 @@ import 'dart:io';
 // Package imports:
 import 'package:bonsoir/bonsoir.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path/path.dart' as p;
 import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart';
 
@@ -31,7 +32,7 @@ final dataSyncServerProvider = Provider<AppServerInterface>((ref) {
     },
     routes: {
       'health': (request) => Response(204),
-      'export': (_) => _serveNearbyExport(nearbyExport),
+      'export': (_) => serveNearbyExport(nearbyExport),
     },
   );
 
@@ -54,7 +55,7 @@ final dataSyncServerProvider = Provider<AppServerInterface>((ref) {
   return server;
 });
 
-Future<Response> _serveNearbyExport(NearbyExportService service) async {
+Future<Response> serveNearbyExport(NearbyExportService service) async {
   final package = await service.createFullPackage();
   final byteLength = await package.fs.fileSize(package.path);
   return Response.ok(
@@ -62,7 +63,8 @@ Future<Response> _serveNearbyExport(NearbyExportService service) async {
     headers: {
       HttpHeaders.contentTypeHeader: 'application/vnd.boorusama.export',
       HttpHeaders.contentLengthHeader: '$byteLength',
-      'content-disposition': 'attachment; filename="boorusama_export.bsexport"',
+      'content-disposition':
+          'attachment; filename="${p.basename(package.path)}"',
     },
   );
 }

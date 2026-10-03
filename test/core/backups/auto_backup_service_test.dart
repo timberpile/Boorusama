@@ -45,7 +45,12 @@ void main() {
     addTearDown(staged.dispose);
 
     expect(result.success, isTrue);
-    expect(result.filePath, endsWith('.bsexport'));
+    expect(
+      p.basename(result.filePath),
+      matches(
+        RegExp(r'^boorusama-\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}Z\.bsexport$'),
+      ),
+    );
     expect(staged.manifest.sources.map((source) => source.id), {
       'first',
       'second',
@@ -102,6 +107,61 @@ void main() {
     expect(File(previousPath).existsSync(), isFalse);
     expect(File(result.filePath).existsSync(), isTrue);
   });
+
+  test(
+    'automatic export uses the next suffix when names are occupied',
+    () async {
+      final sources = [_FakeSource('source')];
+      final service = AutoBackupService(
+        exportService: _exportService(sources),
+        logger: const _Logger(),
+        registry: _registryFor(sources),
+        repository: const _OccupiedExportNameRepository(),
+      );
+
+      final result = await service.performBackup(
+        AutoBackupSettings(userSelectedPath: directory.path),
+      );
+
+      expect(
+        p.basename(result.filePath),
+        matches(
+          RegExp(
+            r'^boorusama-\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}Z-3\.bsexport$',
+          ),
+        ),
+      );
+      expect(File(result.filePath).existsSync(), isTrue);
+    },
+  );
+
+  test('overlapping automatic exports keep separate packages', () async {
+    final sources = [_FakeSource('source')];
+    final service = AutoBackupService(
+      exportService: _exportService(sources),
+      logger: const _Logger(),
+      registry: _registryFor(sources),
+      repository: repository,
+      now: () => DateTime.utc(2026, 10, 3, 12, 5, 6),
+    );
+    final settings = AutoBackupSettings(
+      maxBackups: 2,
+      userSelectedPath: directory.path,
+    );
+
+    final results = await Future.wait([
+      service.performBackup(settings),
+      service.performBackup(settings),
+    ]);
+
+    expect(results.map((result) => p.basename(result.filePath)).toSet(), {
+      'boorusama-2026-10-03_12-05-06Z.bsexport',
+      'boorusama-2026-10-03_12-05-06Z-2.bsexport',
+    });
+    for (final result in results) {
+      expect(File(result.filePath).existsSync(), isTrue);
+    }
+  });
 }
 
 BackupRegistry _registryFor(List<_FakeSource> sources) {
@@ -110,6 +170,21 @@ BackupRegistry _registryFor(List<_FakeSource> sources) {
     registry.registerDescriptor(source.selectionDescriptor);
   }
   return registry;
+}
+
+final class _OccupiedExportNameRepository extends AutoBackupRepositoryIo {
+  const _OccupiedExportNameRepository() : super(const IoFileSystem());
+
+  @override
+  bool fileExists(String path) {
+    final name = p.basename(path);
+    if (RegExp(
+      r'^boorusama-\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}Z(?:-2)?\.bsexport$',
+    ).hasMatch(name)) {
+      return true;
+    }
+    return super.fileExists(path);
+  }
 }
 
 ExportService _exportService(List<_FakeSource> sources) => ExportService(

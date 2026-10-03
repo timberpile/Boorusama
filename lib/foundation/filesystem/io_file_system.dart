@@ -112,6 +112,27 @@ class IoFileSystem implements AppFileSystem {
       File(source).copy(destination);
 
   @override
+  Future<bool> copyFileIfAbsent(String source, String destination) async {
+    final target = File(destination);
+    try {
+      await target.create(exclusive: true);
+    } on FileSystemException {
+      if (await target.exists()) return false;
+      rethrow;
+    }
+
+    try {
+      await File(source).copy(destination);
+      return true;
+    } catch (_) {
+      try {
+        await target.delete();
+      } catch (_) {}
+      rethrow;
+    }
+  }
+
+  @override
   void copyFileSync(String source, String destination) =>
       File(source).copySync(destination);
 

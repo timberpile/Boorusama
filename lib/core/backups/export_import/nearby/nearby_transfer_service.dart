@@ -1,6 +1,8 @@
 import 'package:dio/dio.dart';
+import 'package:path/path.dart' as p;
 
 import '../../../../foundation/filesystem.dart';
+import '../export/export_filename.dart';
 import '../export/export_service.dart';
 import '../models/export_selection.dart';
 
@@ -35,11 +37,12 @@ final class NearbyExportService {
 
   Future<NearbyExportPackage> createFullPackage() async {
     final directory = await fs.createTempDirectory('boorusama_nearby_');
+    final outputPath = p.join(directory, exportFileName(DateTime.now()));
     try {
       final path = await exportService.createPackage(
         ExportRequest(
           selection: ExportSelection.full(catalog),
-          outputPath: '$directory/boorusama_export.bsexport',
+          outputPath: outputPath,
         ),
       );
       return NearbyExportPackage(

@@ -347,6 +347,11 @@ semantics exposes only Replace and Skip.
 - Apple UTI: `com.timberpile.boorusama.export`
 - Container: ZIP
 
+Saved, directly shared, automatic, and Nearby export files use
+`boorusama-YYYY-MM-DD_HH-mm-ssZ.bsexport` (UTC). Saving or automatically
+exporting into a directory with an existing name adds `-2`, `-3`, and so on
+before the extension rather than overwriting the existing file.
+
 The archive is an implementation container, not a user-visible ZIP export.
 Renaming a legacy `.zip` does not make it a valid `.bsexport`.
 

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_ce/hive.dart';
+import 'package:path/path.dart' as p;
 
 import '../../../../foundation/filesystem.dart';
 import '../../../../foundation/info/package_info.dart';
@@ -15,6 +16,7 @@ import '../models/export_template.dart';
 import '../models/import_action.dart';
 import '../package/export_package_writer.dart';
 import '../template_repository.dart';
+import 'export_filename.dart';
 import 'export_service.dart';
 
 final class ExportSelectionLabels {
@@ -308,12 +310,13 @@ class ExportFlowNotifier extends AutoDisposeNotifier<ExportFlowState> {
       final directory = await ref
           .read(appFileSystemProvider)
           .createTempDirectory('boorusama_export_');
+      final outputPath = p.join(directory, exportFileName(DateTime.now()));
       final path = await ref
           .read(exportServiceProvider)
           .createPackage(
             ExportRequest(
               selection: selection(),
-              outputPath: '$directory/boorusama_export.bsexport',
+              outputPath: outputPath,
               includeCredentials: state.includeCredentials,
               recommendedActions: state.isFull
                   ? {
