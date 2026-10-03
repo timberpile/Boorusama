@@ -18,8 +18,13 @@ When asked to work through the queue, select an eligible task from `ready/`.
 Choose High priority before Normal, then Low; break ties by filename. Resolve
 dependencies first. If a legacy document lacks priority, treat it as Normal.
 Move the file to `in-progress/` before starting and record your agent/session
-and work branch. Claims are visible within a shared checkout; agents in separate
-worktrees must coordinate before claiming the same task.
+and work branch. The coordinating agent claims the ticket before implementation
+and delegates its implementation to a subagent in that ticket's dedicated
+worktree and branch. Record the implementer/session and worktree as soon as
+assigned. The implementer may complete its assigned ticket directly; this
+delegation rule does not recursively apply to it. A claim in one worktree is
+not automatically visible in another, so the coordinator must synchronize
+claims and prevent duplicate work across checkouts.
 
 Record progress and verification in the task file. For blocked work, explain
 what must change before it can resume. Recheck historical blockers rather than
@@ -33,6 +38,7 @@ Task files should contain:
 - Expected behavior and observable acceptance criteria.
 - Relevant documentation, constraints, and dependencies.
 - Agent/session and work branch when claimed.
+- Dedicated worktree and implementer when assigned.
 - Progress, blockers, and completion evidence as applicable.
 
 Consult [AGENTS.md](../../AGENTS.md) and the
