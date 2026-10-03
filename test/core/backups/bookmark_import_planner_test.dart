@@ -79,7 +79,7 @@ void main() {
           BookmarkGroupBackup(
             id: groupId,
             name: 'Imported name',
-            bookmarkIds: [10, 999],
+            bookmarkIds: [10],
           ),
         ],
       ),

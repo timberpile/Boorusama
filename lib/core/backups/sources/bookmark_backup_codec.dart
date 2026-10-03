@@ -22,7 +22,7 @@ class BookmarkBackupCodec extends JsonHandler<BookmarkBackupData> {
       );
     }
     final bookmarks = <Bookmark>[];
-    final bookmarkIds = <int>{};
+    final fileBookmarkIds = <int>{};
     final bookmarkIdentities = <Object>{};
     for (final (index, value) in metadata.data.indexed) {
       if (value is! Map<String, dynamic>) {
@@ -30,7 +30,7 @@ class BookmarkBackupCodec extends JsonHandler<BookmarkBackupData> {
       }
       try {
         final bookmark = _parseVersion4Bookmark(value, index);
-        if (!bookmarkIds.add(bookmark.id)) {
+        if (!fileBookmarkIds.add(bookmark.id)) {
           throw InvalidBackupFormatException(
             'data[$index].id is repeated',
           );
@@ -73,6 +73,11 @@ class BookmarkBackupCodec extends JsonHandler<BookmarkBackupData> {
           bookmarkIds.any((id) => id is! int)) {
         throw InvalidBackupFormatException(
           'groups[$index].bookmarkIds is invalid',
+        );
+      }
+      if (bookmarkIds.any((id) => !fileBookmarkIds.contains(id))) {
+        throw InvalidBackupFormatException(
+          'groups[$index].bookmarkIds references an absent bookmark',
         );
       }
       final id = switch (rawId) {

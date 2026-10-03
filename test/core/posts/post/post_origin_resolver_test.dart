@@ -41,6 +41,23 @@ void main() {
     );
   });
 
+  test('preserves an explicit nondefault port through snapshot reload', () {
+    final source = PostOrigin.fromSource(
+      booruType: BooruType.danbooru,
+      booruId: BooruType.danbooru.id,
+      source: 'http://example.com:443/board/',
+    );
+    final reloaded = PostOrigin.fromSnapshot(source.toSnapshot());
+
+    expect(source.sourceHost, 'example.com:443/board');
+    expect(reloaded.sourceHost, source.sourceHost);
+    expect(normalizePostSourceHost('example.com:443/board'), source.sourceHost);
+    expect(
+      normalizePostSourceHost('https://example.com:443/board'),
+      'example.com/board',
+    );
+  });
+
   test('keeps encoded and case-sensitive installation paths distinct', () {
     expect(
       normalizePostSourceHost('https://example.com/Art%20Box/'),

@@ -61,6 +61,28 @@ void main() {
     expect(restored.groups, data.groups);
   });
 
+  test('rejects group references to bookmarks absent from the package', () {
+    final row = _row(codec, _nativeBookmark(localId: 12));
+    final payload = decodeData(
+      data: jsonEncode({
+        'version': 4,
+        'data': [row],
+        'groups': [
+          {
+            'id': groupId,
+            'name': 'Shared',
+            'bookmarkIds': [12, 999],
+          },
+        ],
+      }),
+    );
+
+    expect(
+      () => codec.parse(payload),
+      throwsA(isA<InvalidBackupFormatException>()),
+    );
+  });
+
   test('rejects an identity that differs from the decoded snapshot', () {
     final row = _row(codec, _nativeBookmark(localId: 12));
     row['identity'] = {'site': 'other.example', 'postKey': 'id:42'};
@@ -152,11 +174,12 @@ void main() {
   });
 
   test('preserves and validates a canonical group UUID', () {
+    final row = _row(codec, _nativeBookmark(localId: 12));
     final data = codec.parse(
       decodeData(
         data: jsonEncode({
           'version': 4,
-          'data': [],
+          'data': [row],
           'groups': [
             {
               'id': groupId.toUpperCase(),

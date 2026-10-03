@@ -31,16 +31,22 @@ groups in the top-level `groups` array. Each bookmark carries its full post
 snapshot and canonical `(site namespace, upstream post key)` identity. The site
 namespace is the lowercase host plus non-default port and installation path;
 scheme, credentials, query, fragment, and trailing slash do not affect it.
+Full URLs discard only the port default for their own scheme. Stored, scheme-less
+namespaces retain an explicit port, including `:80` or `:443`, so reloading
+cannot merge an HTTP `:443` installation with the HTTPS default. Changing an
+unusual installation between those two forms changes its namespace.
 The post key is a stable upstream ID, or a work/page key for Pixiv. Engine and
 profile metadata, media URLs, and local Hive keys are not identity components.
 The importer verifies each serialized identity against its decoded snapshot
 before any repository mutation. Group `bookmarkIds` refer to file-local bookmark
-IDs in `data` and are resolved to local keys during import.
+IDs in `data`; references absent from `data` are rejected before import
+planning. Valid references are resolved to local keys during import.
 
 Versions 1 through 3 are unsupported after this breaking schema change. Old
 local bookmark rows are ignored on ordinary loading, with no URL fallback.
 Posts without a stable upstream ID cannot be bookmarked; bookmark actions show
-an explanatory error instead.
+an explanatory error instead. Native Sankaku string IDs are preserved in
+post snapshots and decoded from Hive's untyped nested map values on reload.
 
 Group objects carry a UUID `id`, name, and `bookmarkIds`. The UUID identifies a
 group for import conflicts; the name remains a display label.

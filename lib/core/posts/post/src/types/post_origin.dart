@@ -93,17 +93,29 @@ String normalizePostSourceHost(String source) {
   final trimmed = source.trim();
   if (trimmed.isEmpty) return '';
 
-  final withScheme = trimmed.contains('://') ? trimmed : 'https://$trimmed';
+  final hasScheme = trimmed.contains('://');
+  final withScheme = hasScheme ? trimmed : 'https://$trimmed';
   final uri = Uri.tryParse(withScheme);
   if (uri == null || uri.host.isEmpty) return '';
 
   final rawHost = uri.host.toLowerCase();
   final host = rawHost.contains(':') ? '[$rawHost]' : rawHost;
   final isDefaultPort =
-      (uri.scheme.toLowerCase() == 'https' && uri.port == 443) ||
-      (uri.scheme.toLowerCase() == 'http' && uri.port == 80);
+      hasScheme &&
+      ((uri.scheme.toLowerCase() == 'https' && uri.port == 443) ||
+          (uri.scheme.toLowerCase() == 'http' && uri.port == 80));
 
-  final authority = uri.hasPort && !isDefaultPort ? '$host:${uri.port}' : host;
+  // Uri discards an explicitly written port when it matches the scheme default.
+  final canonicalAuthority = hasScheme
+      ? null
+      : trimmed.split(RegExp('[/?#]')).first;
+  final hasExplicitPort =
+      uri.hasPort ||
+      (canonicalAuthority != null &&
+          RegExp(r':\d+$').hasMatch(canonicalAuthority));
+  final authority = hasExplicitPort && !isDefaultPort
+      ? '$host:${uri.port}'
+      : host;
   final path = uri.path.replaceFirst(RegExp(r'/+$'), '');
   return '$authority$path';
 }

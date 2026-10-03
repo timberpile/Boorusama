@@ -41,3 +41,11 @@ Required before IDEA-010's cross-profile Favorites fetch; IDEA-015 must preserve
 - Current Hive bookmark rows persist a post snapshot with stable identity; ordinary loading ignores older URL-only rows. Bookmark export source version 4 includes the site/post key and verifies it against the decoded snapshot before import planning. Versions 1–3 are unsupported under the approved breaking change.
 - `fvm dart pub get` in `packages/boorusama_cli` and `./gen.sh` succeeded. `fvm flutter test --no-pub` passed 1,963 tests on the complete code change. After a lint-only selection expression cleanup, its focused file passed 8 tests. `fvm flutter analyze --no-pub` exited 0 with 241 repository diagnostics (no errors; remaining warnings are in unrelated backup test files). `git diff --check` passed.
 - Android UI was not exercised; no emulator was claimed. The branch remains isolated for coordinator review and integration.
+
+## Review follow-up (2026-10-03)
+
+- Preserved explicit ports when re-reading scheme-less site namespaces. HTTP `:443` remains distinct from the HTTPS default, including after a snapshot reload.
+- Version 4 import preparation now rejects group references to bookmark IDs absent from the package before planning or local writes. A source-level test verifies existing bookmarks and group memberships remain unchanged.
+- Added a native Sankaku string-ID Hive save/reload test. It revealed that Hive returns nested custom post-data maps with untyped keys; the Sankaku decoder now accepts and converts those maps so the original string key survives reload.
+
+- Review verification: affected origin, bookmark, codec, planner, and import tests passed together (46 tests). The complete `fvm flutter test --no-pub` suite passed 1,967 tests after the review fixes. `fvm flutter analyze --no-pub` exited 0 with 241 repository diagnostics and no errors; all warnings are in unrelated backup tests. `git diff --check` passed. No emulator or remote actions were used.

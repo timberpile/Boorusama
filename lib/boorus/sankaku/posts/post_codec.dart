@@ -137,6 +137,6 @@ List<Object?> _list(Object? value) => switch (value) {
 };
 
 Map<String, Object?> _map(Object? value) => switch (value) {
-  final Map<String, Object?> map => map,
+  final Map map => Map<String, Object?>.from(map),
   _ => throw const FormatException('Invalid map'),
 };
