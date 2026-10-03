@@ -685,6 +685,7 @@ class _SliverGrid<T extends Post> extends ConsumerWidget {
       itemBuilder: itemBuilder,
       postController: postController,
       errorTranslator: appErrorTranslator,
+      showRule34ChallengeRecovery: Uri.tryParse(auth.url)?.host == 'rule34.xxx',
       padding: EdgeInsets.symmetric(
         horizontal: imageGridPadding,
       ),

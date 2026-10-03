@@ -20,7 +20,7 @@ import 'package:boorusama/core/posts/post/types.dart';
 void main() {
   setUpAll(() => ensureI18nInitialized('en-US'));
 
-  testWidgets('403 shows a concise error and a working Retry action', (
+  testWidgets('Rule34 403 shows a concise error and a working Retry action', (
     tester,
   ) async {
     var fetchCount = 0;
@@ -60,6 +60,7 @@ void main() {
                   postController: controller,
                   itemBuilder: (_, _) => const SizedBox(),
                   errorTranslator: DefaultAppErrorTranslator(),
+                  showRule34ChallengeRecovery: true,
                 ),
               ],
             ),
@@ -76,5 +77,53 @@ void main() {
     await tester.tap(find.text('Retry'));
     await tester.pump(const Duration(milliseconds: 20));
     expect(fetchCount, 1);
+  });
+
+  testWidgets('another site keeps its existing 403 details without Retry', (
+    tester,
+  ) async {
+    final controller = PostGridController<Post>(
+      fetcher: (_) => TaskEither.right(const PostResult(posts: [], total: 0)),
+      blacklistedTagsFetcher: () async => const {},
+      mountedChecker: () => true,
+      duplicateTracker: PostDuplicateTracker(),
+      onError: (_) {},
+    );
+    addTearDown(controller.dispose);
+    controller.errors.value = ServerError(
+      httpStatusCode: 403,
+      message: '<html>Site-specific denial</html>',
+    );
+
+    await tester.pumpWidget(
+      TranslationProvider(
+        child: MaterialApp(
+          theme: Kurumi.themeFrom(
+            KurumiThemeMode.light,
+            colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
+            systemDarkMode: false,
+          ),
+          builder: (context, child) => KurumiTheme(
+            data: KurumiThemeData.fromMaterial(Theme.of(context)),
+            child: child!,
+          ),
+          home: Scaffold(
+            body: CustomScrollView(
+              slivers: [
+                SliverPostGrid<Post>(
+                  postController: controller,
+                  itemBuilder: (_, _) => const SizedBox(),
+                  errorTranslator: DefaultAppErrorTranslator(),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('403'), findsOneWidget);
+    expect(find.text('<html>Site-specific denial</html>'), findsOneWidget);
+    expect(find.text('Retry'), findsNothing);
   });
 }

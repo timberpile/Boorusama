@@ -30,6 +30,7 @@ class SliverPostGrid<T extends Post> extends StatelessWidget {
     this.postsPerPage,
     this.httpErrorActionBuilder,
     this.httpHandshakeErrorActionBuilder,
+    this.showRule34ChallengeRecovery = false,
   });
 
   final PostGridController<T> postController;
@@ -50,6 +51,7 @@ class SliverPostGrid<T extends Post> extends StatelessWidget {
   httpHandshakeErrorActionBuilder;
 
   final AppErrorTranslator errorTranslator;
+  final bool showRule34ChallengeRecovery;
 
   @override
   Widget build(BuildContext context) {
@@ -99,7 +101,7 @@ class SliverPostGrid<T extends Post> extends StatelessWidget {
                     if (httpErrorActionBuilder != null &&
                         e.httpStatusCode != null)
                       httpErrorActionBuilder!(context, e.httpStatusCode!),
-                    if (e.httpStatusCode != 403)
+                    if (!showRule34ChallengeRecovery || e.httpStatusCode != 403)
                       Container(
                         padding: EdgeInsets.symmetric(
                           vertical: e.isServerError ? 4 : 24,
@@ -134,7 +136,9 @@ class SliverPostGrid<T extends Post> extends StatelessWidget {
                           },
                         ),
                       ),
-                    if (e.isServerError || e.httpStatusCode == 403)
+                    if (e.isServerError ||
+                        (showRule34ChallengeRecovery &&
+                            e.httpStatusCode == 403))
                       FilledButton(
                         onPressed: _onErrorRetry,
                         child: Text(context.t.generic.action.retry),
