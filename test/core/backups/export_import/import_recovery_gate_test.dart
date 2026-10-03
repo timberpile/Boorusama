@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -7,6 +9,36 @@ import 'package:boorusama/core/backups/export_import/import/import_recovery_gate
 import 'package:boorusama/core/backups/export_import/import/import_recovery_service.dart';
 
 void main() {
+  testWidgets('ordinary startup does not claim an import is recovering', (
+    tester,
+  ) async {
+    final pending = Completer<ImportRecoveryResult>();
+    await tester.pumpWidget(
+      TranslationProvider(
+        child: ProviderScope(
+          overrides: [
+            importRecoveryProvider.overrideWith(
+              () => _PendingRecoveryNotifier(pending.future),
+            ),
+          ],
+          child: const ImportRecoveryGate(
+            child: MaterialApp(home: Text('App ready')),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Recovering an interrupted import…'), findsNothing);
+    pending.complete(
+      ImportRecoveryResult(
+        recoveredTransactionIds: [],
+        failures: {},
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('App ready'), findsOneWidget);
+  });
+
   testWidgets('startup continues only after pending imports recover', (
     tester,
   ) async {
@@ -63,4 +95,13 @@ class _FakeRecoveryNotifier extends ImportRecoveryNotifier {
 
   @override
   Future<ImportRecoveryResult> build() async => result;
+}
+
+class _PendingRecoveryNotifier extends ImportRecoveryNotifier {
+  _PendingRecoveryNotifier(this.pending);
+
+  final Future<ImportRecoveryResult> pending;
+
+  @override
+  Future<ImportRecoveryResult> build() => pending;
 }

@@ -834,6 +834,19 @@
         "created_count": "Create {count}",
         "updated_count": "Update {count}",
         "deleted_count": "Remove {count}",
+        "completed_created_count": "Created {count}",
+        "completed_updated_count": "Updated {count}",
+        "completed_deleted_count": "Removed {count}",
+        "change_entities": {
+          "bookmark": {"one": "bookmark", "other": "bookmarks"},
+          "bookmark_group": {"one": "group", "other": "groups"},
+          "pinned_search": {"one": "search", "other": "searches"},
+          "pinned_folder": {"one": "folder", "other": "folders"},
+          "feed": {"one": "feed", "other": "feeds"},
+          "feed_search": {"one": "feed search", "other": "feed searches"},
+          "profile": {"one": "profile", "other": "profiles"},
+          "home_arrangement": "Home arrangement"
+        },
         "categories_unchanged": {
           "one": "$n category unchanged",
           "other": "$n categories unchanged"
@@ -905,6 +918,7 @@
           "unselected_payload_item": "{item} is present in {source} but was not declared for import.",
           "unknown_recommended_item": "An import suggestion refers to missing item {item} in {source}.",
           "missing_bookmark_reference": "{item} refers to bookmark data missing from the export.",
+          "duplicate_profile_id": "{item} has a duplicate profile ID in the export.",
           "credentials_included": "This export contains profile credentials. Review profile actions before importing.",
           "credential_flag_mismatch": "The profile data contains credentials that were not declared by the export.",
           "unsupported_recommendation": "The suggested action for {item} is unavailable. A safe alternative was selected.",

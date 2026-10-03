@@ -826,21 +826,31 @@ PlannedChangeSummary _summarize({
   var deleted = 0;
   var preserved = 0;
   var unchanged = 0;
+  final entitySummaries = <String, PlannedChangeSummary>{};
   final keys = {...local.keys, ...projected.keys};
   for (final key in keys) {
     final hadLocal = local.containsKey(key);
     final hasProjected = projected.containsKey(key);
+    final PlannedChangeSummary change;
     if (!hadLocal) {
       created++;
+      change = const PlannedChangeSummary(created: 1);
     } else if (!hasProjected) {
       deleted++;
+      change = const PlannedChangeSummary(deleted: 1);
     } else if (local[key] != projected[key]) {
       updated++;
+      change = const PlannedChangeSummary(updated: 1);
     } else if (touched.contains(key)) {
       unchanged++;
+      change = const PlannedChangeSummary(unchanged: 1);
     } else {
       preserved++;
+      change = const PlannedChangeSummary(preserved: 1);
     }
+    final type = (key as _EntityKey).type;
+    entitySummaries[type] =
+        (entitySummaries[type] ?? const PlannedChangeSummary()) + change;
   }
   return PlannedChangeSummary(
     created: created,
@@ -848,6 +858,7 @@ PlannedChangeSummary _summarize({
     deleted: deleted,
     preserved: preserved,
     unchanged: unchanged,
+    entitySummaries: Map.unmodifiable(entitySummaries),
   );
 }
 

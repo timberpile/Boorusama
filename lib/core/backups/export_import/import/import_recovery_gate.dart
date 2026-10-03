@@ -79,24 +79,8 @@ class _RecoveryLoadingApp extends StatelessWidget {
     localizationsDelegates: context.localizationDelegates,
     supportedLocales: context.supportedLocales,
     locale: context.locale,
-    home: Scaffold(
-      body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const CircularProgressIndicator(),
-            const SizedBox(height: 16),
-            Text(
-              context
-                  .t
-                  .settings
-                  .backup_and_restore
-                  .export_import
-                  .recovering_import,
-            ),
-          ],
-        ),
-      ),
+    home: const Scaffold(
+      body: Center(child: CircularProgressIndicator()),
     ),
   );
 }

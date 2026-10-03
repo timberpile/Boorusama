@@ -47,36 +47,38 @@ class _ImportFlowPageState extends ConsumerState<ImportFlowPage> {
     final strings = context.t.settings.backup_and_restore.export_import;
     return Scaffold(
       appBar: AppBar(title: Text(strings.review_import)),
-      body: switch (state.status) {
-        ImportFlowStatus.idle || ImportFlowStatus.checking => Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const CircularProgressIndicator(),
-              const SizedBox(height: 12),
-              Text(strings.review_import),
-            ],
+      body: SafeArea(
+        child: switch (state.status) {
+          ImportFlowStatus.idle || ImportFlowStatus.checking => Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const CircularProgressIndicator(),
+                const SizedBox(height: 12),
+                Text(strings.review_import),
+              ],
+            ),
           ),
-        ),
-        ImportFlowStatus.importing => Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const CircularProgressIndicator(),
-              const SizedBox(height: 12),
-              Text(strings.importing),
-            ],
+          ImportFlowStatus.importing => Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const CircularProgressIndicator(),
+                const SizedBox(height: 12),
+                Text(strings.importing),
+              ],
+            ),
           ),
-        ),
-        ImportFlowStatus.complete => ImportCompletionView(
-          summary: state.preflight?.summary,
-          onDone: () => Navigator.of(context).maybePop(),
-        ),
-        ImportFlowStatus.error => ImportErrorView(
-          onChooseAnother: () => Navigator.of(context).maybePop(),
-        ),
-        ImportFlowStatus.review => _ReviewImport(state: state),
-      },
+          ImportFlowStatus.complete => ImportCompletionView(
+            summary: state.preflight?.summary,
+            onDone: () => Navigator.of(context).maybePop(),
+          ),
+          ImportFlowStatus.error => ImportErrorView(
+            onChooseAnother: () => Navigator.of(context).maybePop(),
+          ),
+          ImportFlowStatus.review => _ReviewImport(state: state),
+        },
+      ),
     );
   }
 }
@@ -199,6 +201,24 @@ class _ReviewImport extends ConsumerWidget {
                     _plannedChangeDescription(
                       source,
                       summary,
+                      entityNouns: {
+                        'bookmark': (count) =>
+                            strings.change_entities.bookmark(n: count),
+                        'bookmark-group': (count) =>
+                            strings.change_entities.bookmark_group(n: count),
+                        'pinned-search': (count) =>
+                            strings.change_entities.pinned_search(n: count),
+                        'pinned-folder': (count) =>
+                            strings.change_entities.pinned_folder(n: count),
+                        'feed': (count) =>
+                            strings.change_entities.feed(n: count),
+                        'feed-search': (count) =>
+                            strings.change_entities.feed_search(n: count),
+                        'profile': (count) =>
+                            strings.change_entities.profile(n: count),
+                      },
+                      homeArrangementLabel:
+                          strings.change_entities.home_arrangement,
                       containsCredentials: state.containsCredentials,
                       createdTemplate: strings.created_count,
                       updatedTemplate: strings.updated_count,
@@ -359,19 +379,19 @@ class ImportCompletionView extends StatelessWidget {
                     .settings
                     .backup_and_restore
                     .export_import
-                    .created_count,
+                    .completed_created_count,
                 updatedTemplate: context
                     .t
                     .settings
                     .backup_and_restore
                     .export_import
-                    .updated_count,
+                    .completed_updated_count,
                 deletedTemplate: context
                     .t
                     .settings
                     .backup_and_restore
                     .export_import
-                    .deleted_count,
+                    .completed_deleted_count,
               ).join(' · '),
               textAlign: TextAlign.center,
             ),
@@ -448,6 +468,8 @@ class ImportErrorView extends StatelessWidget {
 String _plannedChangeDescription(
   ResolvedImportSource source,
   PlannedChangeSummary summary, {
+  required Map<String, String Function(int)> entityNouns,
+  required String homeArrangementLabel,
   required bool containsCredentials,
   required String createdTemplate,
   required String updatedTemplate,
@@ -458,11 +480,13 @@ String _plannedChangeDescription(
   required String ungroupedRemovalPolicy,
 }) {
   final details = <String>[
-    plannedChangeCountLabels(
+    plannedSourceChangeLabels(
       summary,
       createdTemplate: createdTemplate,
       updatedTemplate: updatedTemplate,
       deletedTemplate: deletedTemplate,
+      entityNouns: entityNouns,
+      homeArrangementLabel: homeArrangementLabel,
     ).join(' · '),
   ];
   if (source.id == 'profiles' && (summary.created > 0 || summary.updated > 0)) {
@@ -486,6 +510,51 @@ String _plannedChangeDescription(
     details.add(ungroupedRemovalPolicy);
   }
   return details.join('\n');
+}
+
+List<String> plannedSourceChangeLabels(
+  PlannedChangeSummary summary, {
+  required String createdTemplate,
+  required String updatedTemplate,
+  required String deletedTemplate,
+  required Map<String, String Function(int)> entityNouns,
+  required String homeArrangementLabel,
+}) {
+  if (summary.entitySummaries.isEmpty) {
+    return plannedChangeCountLabels(
+      summary,
+      createdTemplate: createdTemplate,
+      updatedTemplate: updatedTemplate,
+      deletedTemplate: deletedTemplate,
+    );
+  }
+  final labels = <String>[];
+  for (final entity in const [
+    'bookmark',
+    'bookmark-group',
+    'pinned-search',
+    'pinned-folder',
+    'pinned-home',
+    'feed',
+    'feed-search',
+    'profile',
+  ]) {
+    final changes = summary.entitySummaries[entity];
+    if (changes == null) continue;
+    final noun = entityNouns[entity];
+    for (final (count, template) in [
+      (changes.created, createdTemplate),
+      (changes.updated, updatedTemplate),
+      (changes.deleted, deletedTemplate),
+    ]) {
+      if (count == 0) continue;
+      final name = entity == 'pinned-home'
+          ? homeArrangementLabel
+          : '$count ${noun?.call(count) ?? entity}';
+      labels.add(template.replaceAll('{count}', name));
+    }
+  }
+  return labels;
 }
 
 List<String> plannedChangeCountLabels(

@@ -35,6 +35,8 @@ String importIssueMessage(
           .replaceAll('{item}', item),
     'missing_bookmark_reference' =>
       strings.missing_bookmark_reference.replaceAll('{item}', item),
+    'duplicate_profile_id' =>
+      strings.duplicate_profile_id.replaceAll('{item}', item),
     'credentials_included' => strings.credentials_included,
     'credential_flag_mismatch' => strings.credential_flag_mismatch,
     'unsupported_recommended_action' =>

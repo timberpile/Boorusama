@@ -56,25 +56,34 @@ final class ProfileImportProjector {
   }) {
     final result = <BooruConfig>[];
     final destinationIds = <int, int>{};
-    final usedIds = <int>{};
-    var nextId = _nextId([...local, ...imported]);
-    for (final profile in imported) {
+    final matches = <_ProfileMatch>[];
+    final reservedMatches = <int, int>{};
+    final reservedIds = <int>{};
+    for (final (index, profile) in imported.indexed) {
       final match = _match(profile, local);
       if (match.isAmbiguous && !credentialsIncluded) {
         throw UnresolvedProfileImportException(profile.id);
       }
-      final destinationId = switch (match.profile) {
-        final profile? => profile.id,
-        null when !usedIds.contains(profile.id) => profile.id,
-        null => nextId++,
-      };
+      matches.add(match);
+      if (match.profile case final existing?) {
+        if (reservedIds.add(existing.id)) {
+          reservedMatches[index] = existing.id;
+        }
+      }
+    }
+    final usedIds = {...reservedIds};
+    var nextId = _nextId([...local, ...imported]);
+    for (final (index, profile) in imported.indexed) {
+      final matchedId = reservedMatches[index];
+      final destinationId = matchedId ??
+          (usedIds.contains(profile.id) ? nextId++ : profile.id);
       usedIds.add(destinationId);
       destinationIds[profile.id] = destinationId;
       result.add(
         _withId(
           _credentialsForUpdate(
             imported: profile,
-            existing: match.profile,
+            existing: matchedId == null ? null : matches[index].profile,
             credentialsIncluded: credentialsIncluded,
           ),
           destinationId,

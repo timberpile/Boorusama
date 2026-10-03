@@ -318,7 +318,7 @@ void main() {
       ),
     );
 
-    expect(find.text('Create 1 · Update 2'), findsOneWidget);
+    expect(find.text('Created 1 · Updated 2'), findsOneWidget);
   });
 
   test('only mutations count as import work', () {
@@ -395,6 +395,48 @@ void main() {
     );
 
     expect(labels, ['Create 2', 'Remove 1']);
+  });
+
+  test('planned changes distinguish bookmarks from groups', () {
+    final labels = plannedSourceChangeLabels(
+      const PlannedChangeSummary(
+        created: 11,
+        entitySummaries: {
+          'bookmark': PlannedChangeSummary(created: 10),
+          'bookmark-group': PlannedChangeSummary(created: 1),
+        },
+      ),
+      createdTemplate: 'Create {count}',
+      updatedTemplate: 'Update {count}',
+      deletedTemplate: 'Remove {count}',
+      entityNouns: {
+        'bookmark': (count) => count == 1 ? 'bookmark' : 'bookmarks',
+        'bookmark-group': (count) => count == 1 ? 'group' : 'groups',
+      },
+      homeArrangementLabel: 'Home arrangement',
+    );
+
+    expect(labels, ['Create 10 bookmarks', 'Create 1 group']);
+  });
+
+  test('planned changes identify Home organization separately', () {
+    final labels = plannedSourceChangeLabels(
+      const PlannedChangeSummary(
+        created: 131,
+        updated: 1,
+        entitySummaries: {
+          'pinned-search': PlannedChangeSummary(created: 131),
+          'pinned-home': PlannedChangeSummary(updated: 1),
+        },
+      ),
+      createdTemplate: 'Create {count}',
+      updatedTemplate: 'Update {count}',
+      deletedTemplate: 'Remove {count}',
+      entityNouns: {'pinned-search': (count) => 'searches'},
+      homeArrangementLabel: 'Home arrangement',
+    );
+
+    expect(labels, ['Create 131 searches', 'Update Home arrangement']);
   });
 }
 

@@ -6,9 +6,38 @@ import 'package:boorusama/core/backups/export_import/models/import_action.dart';
 import 'package:boorusama/core/backups/sources/bookmark_backup_data.dart';
 import 'package:boorusama/core/backups/sources/pinned_search_backup_data.dart';
 import 'package:boorusama/core/backups/sources/search_backup_profile.dart';
+import 'package:boorusama/core/configs/config/types.dart';
 
 void main() {
   const validator = ImportSourceIntegrityValidator();
+
+  test('rejects duplicate exported profile IDs before import', () {
+    final profiles = [
+      BooruConfig.fromJson({
+        ...BooruConfig.empty.toJson(),
+        'id': 7,
+        'name': 'First',
+        'url': 'https://first.example',
+      }),
+      BooruConfig.fromJson({
+        ...BooruConfig.empty.toJson(),
+        'id': 7,
+        'name': 'Second',
+        'url': 'https://second.example',
+      }),
+    ];
+    final issues = validator.validate(
+      sourceId: 'profiles',
+      packageSchemaVersion: 1,
+      supportedSchemaVersion: 1,
+      selection: const ExportNodeSelection.all('profiles'),
+      itemRecommendations: const {},
+      data: profiles,
+    );
+
+    expect(issues.single.code, 'duplicate_profile_id');
+    expect(issues.single.itemId, 'profile:7');
+  });
 
   test('rejects a source schema newer than the app understands', () {
     final issues = validator.validate(

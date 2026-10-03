@@ -10,6 +10,7 @@ final class PlannedChangeSummary extends Equatable {
     this.deleted = 0,
     this.preserved = 0,
     this.unchanged = 0,
+    this.entitySummaries = const {},
   });
 
   final int created;
@@ -17,6 +18,7 @@ final class PlannedChangeSummary extends Equatable {
   final int deleted;
   final int preserved;
   final int unchanged;
+  final Map<String, PlannedChangeSummary> entitySummaries;
 
   bool get hasMutations => created > 0 || updated > 0 || deleted > 0;
 
@@ -27,10 +29,25 @@ final class PlannedChangeSummary extends Equatable {
         deleted: deleted + other.deleted,
         preserved: preserved + other.preserved,
         unchanged: unchanged + other.unchanged,
+        entitySummaries: {
+          for (final key in {
+            ...entitySummaries.keys,
+            ...other.entitySummaries.keys,
+          })
+            key: (entitySummaries[key] ?? const PlannedChangeSummary()) +
+                (other.entitySummaries[key] ?? const PlannedChangeSummary()),
+        },
       );
 
   @override
-  List<Object?> get props => [created, updated, deleted, preserved, unchanged];
+  List<Object?> get props => [
+    created,
+    updated,
+    deleted,
+    preserved,
+    unchanged,
+    entitySummaries,
+  ];
 }
 
 final class SourcePreflightSnapshot extends Equatable {

@@ -85,6 +85,22 @@ final class ImportSourceIntegrityValidator {
       );
     }
 
+    if (data case final List<BooruConfig> profiles) {
+      final seenIds = <int>{};
+      final duplicateIds = <int>{};
+      for (final profile in profiles) {
+        if (!seenIds.add(profile.id)) duplicateIds.add(profile.id);
+      }
+      for (final id in duplicateIds) {
+        issues.add(
+          ImportPlanIssue(
+            code: 'duplicate_profile_id',
+            sourceId: sourceId,
+            itemId: 'profile:$id',
+          ),
+        );
+      }
+    }
     if (data case final BookmarkBackupData bookmarks) {
       final bookmarkIds = bookmarks.bookmarks
           .map((bookmark) => bookmark.id)

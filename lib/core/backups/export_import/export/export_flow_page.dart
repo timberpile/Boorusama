@@ -43,181 +43,183 @@ class ExportFlowPage extends ConsumerWidget {
           context.t.settings.backup_and_restore.export_import.create_export,
         ),
       ),
-      body: switch (state.status) {
-        ExportFlowStatus.ready => _ExportReady(state: state),
-        ExportFlowStatus.creating => const Center(
-          child: CircularProgressIndicator(),
-        ),
-        _ => ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            Text(
-              context
-                  .t
-                  .settings
-                  .backup_and_restore
-                  .export_import
-                  .select_export_type,
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 12),
-            RadioGroup<bool>(
-              groupValue: state.isFull,
-              onChanged: (value) => (value ?? false)
-                  ? notifier.useFullExport()
-                  : notifier.useCustomExport(),
-              child: Column(
-                children: [
-                  RadioListTile<bool>(
-                    value: true,
-                    title: Text(
-                      context
-                          .t
-                          .settings
-                          .backup_and_restore
-                          .export_import
-                          .full_export,
-                    ),
-                    subtitle: Text(
-                      context
-                          .t
-                          .settings
-                          .backup_and_restore
-                          .export_import
-                          .full_export_description,
-                    ),
-                  ),
-                  RadioListTile<bool>(
-                    value: false,
-                    title: Text(
-                      context
-                          .t
-                          .settings
-                          .backup_and_restore
-                          .export_import
-                          .custom_export,
-                    ),
-                    subtitle: Text(
-                      context
-                          .t
-                          .settings
-                          .backup_and_restore
-                          .export_import
-                          .custom_export_description,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            if (!state.isFull) ...[
-              const SizedBox(height: 12),
-              const _TemplatePicker(),
-              const Divider(),
-              ExportSelectionTree(
-                descriptors: notifier.descriptors,
-                selections: state.nodes,
-                onToggleSource: notifier.toggleSource,
-                onToggleNode: notifier.toggleNode,
-                sourceLabel: (id) => _sourceLabel(context, id),
-                presentation: presentation,
-              ),
-              _ImportDefaults(
-                descriptors: notifier.descriptors,
-                state: state,
-                presentation: presentation,
-                onChanged: notifier.setItemRecommendedAction,
-              ),
-              SwitchListTile(
-                value: state.includeCredentials,
-                onChanged: state.nodes.containsKey('profiles')
-                    ? notifier.setIncludeCredentials
-                    : null,
-                title: Text(
-                  context
-                      .t
-                      .settings
-                      .backup_and_restore
-                      .export_import
-                      .include_credentials,
-                ),
-                subtitle: Text(
-                  context
-                      .t
-                      .settings
-                      .backup_and_restore
-                      .export_import
-                      .include_credentials_description,
-                ),
-              ),
-            ],
-            if (state.error != null) ...[
-              const SizedBox(height: 8),
+      body: SafeArea(
+        child: switch (state.status) {
+          ExportFlowStatus.ready => _ExportReady(state: state),
+          ExportFlowStatus.creating => const Center(
+            child: CircularProgressIndicator(),
+          ),
+          _ => ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
               Text(
                 context
                     .t
                     .settings
                     .backup_and_restore
                     .export_import
-                    .export_failed
-                    .replaceAll('{error}', state.error.toString()),
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
+                    .select_export_type,
+                style: Theme.of(context).textTheme.titleLarge,
               ),
-            ],
-            const SizedBox(height: 20),
-            if (!state.isFull)
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: state.nodes.isEmpty
-                          ? null
-                          : () => _saveTemplate(context, ref),
-                      child: Text(
+              const SizedBox(height: 12),
+              RadioGroup<bool>(
+                groupValue: state.isFull,
+                onChanged: (value) => (value ?? false)
+                    ? notifier.useFullExport()
+                    : notifier.useCustomExport(),
+                child: Column(
+                  children: [
+                    RadioListTile<bool>(
+                      value: true,
+                      title: Text(
                         context
                             .t
                             .settings
                             .backup_and_restore
                             .export_import
-                            .save_template,
+                            .full_export,
                       ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: FilledButton(
-                      key: const ValueKey('create-custom-export'),
-                      onPressed: state.nodes.isEmpty
-                          ? null
-                          : () => _createExport(context, ref),
-                      child: Text(
+                      subtitle: Text(
                         context
                             .t
                             .settings
                             .backup_and_restore
                             .export_import
-                            .create_export,
+                            .full_export_description,
                       ),
                     ),
+                    RadioListTile<bool>(
+                      value: false,
+                      title: Text(
+                        context
+                            .t
+                            .settings
+                            .backup_and_restore
+                            .export_import
+                            .custom_export,
+                      ),
+                      subtitle: Text(
+                        context
+                            .t
+                            .settings
+                            .backup_and_restore
+                            .export_import
+                            .custom_export_description,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (!state.isFull) ...[
+                const SizedBox(height: 12),
+                const _TemplatePicker(),
+                const Divider(),
+                ExportSelectionTree(
+                  descriptors: notifier.descriptors,
+                  selections: state.nodes,
+                  onToggleSource: notifier.toggleSource,
+                  onToggleNode: notifier.toggleNode,
+                  sourceLabel: (id) => _sourceLabel(context, id),
+                  presentation: presentation,
+                ),
+                _ImportDefaults(
+                  descriptors: notifier.descriptors,
+                  state: state,
+                  presentation: presentation,
+                  onChanged: notifier.setItemRecommendedAction,
+                ),
+                SwitchListTile(
+                  value: state.includeCredentials,
+                  onChanged: state.nodes.containsKey('profiles')
+                      ? notifier.setIncludeCredentials
+                      : null,
+                  title: Text(
+                    context
+                        .t
+                        .settings
+                        .backup_and_restore
+                        .export_import
+                        .include_credentials,
                   ),
-                ],
-              )
-            else
-              FilledButton.icon(
-                key: const ValueKey('create-full-export'),
-                onPressed: () => _createExport(context, ref),
-                icon: const Icon(Icons.archive_outlined),
-                label: Text(
+                  subtitle: Text(
+                    context
+                        .t
+                        .settings
+                        .backup_and_restore
+                        .export_import
+                        .include_credentials_description,
+                  ),
+                ),
+              ],
+              if (state.error != null) ...[
+                const SizedBox(height: 8),
+                Text(
                   context
                       .t
                       .settings
                       .backup_and_restore
                       .export_import
-                      .create_export,
+                      .export_failed
+                      .replaceAll('{error}', state.error.toString()),
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
                 ),
-              ),
-          ],
-        ),
-      },
+              ],
+              const SizedBox(height: 20),
+              if (!state.isFull)
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: state.nodes.isEmpty
+                            ? null
+                            : () => _saveTemplate(context, ref),
+                        child: Text(
+                          context
+                              .t
+                              .settings
+                              .backup_and_restore
+                              .export_import
+                              .save_template,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: FilledButton(
+                        key: const ValueKey('create-custom-export'),
+                        onPressed: state.nodes.isEmpty
+                            ? null
+                            : () => _createExport(context, ref),
+                        child: Text(
+                          context
+                              .t
+                              .settings
+                              .backup_and_restore
+                              .export_import
+                              .create_export,
+                        ),
+                      ),
+                    ),
+                  ],
+                )
+              else
+                FilledButton.icon(
+                  key: const ValueKey('create-full-export'),
+                  onPressed: () => _createExport(context, ref),
+                  icon: const Icon(Icons.archive_outlined),
+                  label: Text(
+                    context
+                        .t
+                        .settings
+                        .backup_and_restore
+                        .export_import
+                        .create_export,
+                  ),
+                ),
+            ],
+          ),
+        },
+      ),
     );
   }
 

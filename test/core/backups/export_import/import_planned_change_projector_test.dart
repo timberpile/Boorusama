@@ -73,7 +73,10 @@ void main() {
         ),
       );
 
-      expect(summary, const PlannedChangeSummary(created: 1, updated: 1));
+      _expectTotals(
+        summary,
+        const PlannedChangeSummary(created: 1, updated: 1),
+      );
     },
   );
 
@@ -100,7 +103,7 @@ void main() {
         ),
       );
 
-      expect(summary, const PlannedChangeSummary(unchanged: 1));
+      _expectTotals(summary, const PlannedChangeSummary(unchanged: 1));
     },
   );
 
@@ -146,7 +149,7 @@ void main() {
       );
 
       expect(
-        summary,
+        _totals(summary),
         const PlannedChangeSummary(
           created: 1,
           updated: 1,
@@ -183,7 +186,9 @@ void main() {
       ),
     );
 
-    expect(summary, const PlannedChangeSummary(created: 11));
+    _expectTotals(summary, const PlannedChangeSummary(created: 11));
+    expect(summary.entitySummaries['bookmark']?.created, 10);
+    expect(summary.entitySummaries['bookmark-group']?.created, 1);
   });
 
   test(
@@ -250,7 +255,7 @@ void main() {
       );
 
       expect(
-        summary,
+        _totals(summary),
         const PlannedChangeSummary(
           created: 1,
           updated: 1,
@@ -335,7 +340,7 @@ void main() {
       );
 
       expect(
-        summary,
+        _totals(summary),
         const PlannedChangeSummary(created: 1, updated: 1, preserved: 1),
       );
     },
@@ -389,6 +394,7 @@ void main() {
 
       expect(summary?.hasMutations, isTrue);
       expect(summary?.updated, 1);
+      expect(summary?.entitySummaries['pinned-home']?.updated, 1);
     },
   );
 
@@ -457,7 +463,7 @@ void main() {
     );
 
     expect(
-      summary,
+      _totals(summary),
       const PlannedChangeSummary(
         created: 1,
         updated: 1,
@@ -526,7 +532,12 @@ void main() {
       ),
     );
 
-    expect(summary, const PlannedChangeSummary(created: 4, preserved: 1));
+    _expectTotals(
+      summary,
+      const PlannedChangeSummary(created: 4, preserved: 1),
+    );
+    expect(summary?.entitySummaries['pinned-search']?.created, 3);
+    expect(summary?.entitySummaries['pinned-folder']?.created, 1);
   });
 
   test(
@@ -576,7 +587,7 @@ void main() {
       );
 
       expect(
-        summary,
+        _totals(summary),
         const PlannedChangeSummary(
           created: 1,
           updated: 1,
@@ -657,11 +668,27 @@ void main() {
     );
 
     expect(
-      summary,
+      _totals(summary),
       const PlannedChangeSummary(deleted: 2, unchanged: 2),
     );
   });
 }
+
+void _expectTotals(
+  PlannedChangeSummary? actual,
+  PlannedChangeSummary expected,
+) {
+  expect(_totals(actual), expected);
+}
+
+PlannedChangeSummary _totals(PlannedChangeSummary? summary) =>
+    PlannedChangeSummary(
+      created: summary!.created,
+      updated: summary.updated,
+      deleted: summary.deleted,
+      preserved: summary.preserved,
+      unchanged: summary.unchanged,
+    );
 
 ResolvedImportSource _source(String id, ImportAction action) =>
     ResolvedImportSource(id: id, action: action, items: const []);

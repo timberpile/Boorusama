@@ -38,4 +38,31 @@ void main() {
     );
     expect(message, isNot(contains('unknown_selected_item')));
   });
+
+  testWidgets('explains a duplicate profile ID before import', (tester) async {
+    late String message;
+    await tester.pumpWidget(
+      TranslationProvider(
+        child: MaterialApp(
+          home: Builder(
+            builder: (context) {
+              message = importIssueMessage(
+                context,
+                const ImportPlanIssue(
+                  code: 'duplicate_profile_id',
+                  sourceId: 'profiles',
+                  itemId: 'profile:7',
+                ),
+                sourceNames: const {'profiles': 'Booru profiles'},
+                itemLabels: const {'profile:7': 'Rule34'},
+              );
+              return const SizedBox();
+            },
+          ),
+        ),
+      ),
+    );
+
+    expect(message, 'Rule34 has a duplicate profile ID in the export.');
+  });
 }

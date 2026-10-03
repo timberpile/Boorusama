@@ -28,6 +28,43 @@ void main() {
     expect(result.projectedProfiles.single.id, 12);
   });
 
+  test('replacement remaps dependent references when exported IDs collide', () {
+    const rule34 = BackupProfileReference(
+      id: 0,
+      booruType: 'danbooru',
+      url: 'https://rule34.xxx',
+      name: 'Rule34',
+    );
+    const safebooru = BackupProfileReference(
+      id: 5,
+      booruType: 'danbooru',
+      url: 'https://safebooru.donmai.us',
+      name: 'Safebooru',
+    );
+    final result = const ProfileDependencyPlanner().plan(
+      references: const [rule34, safebooru],
+      localProfiles: [_profile(0, 'https://safebooru.donmai.us')],
+      importedProfiles: [
+        _profile(0, 'https://rule34.xxx'),
+        _profile(5, 'https://safebooru.donmai.us'),
+      ],
+      profileResolution: ResolvedImportSource(
+        id: 'profiles',
+        action: ImportAction.replace,
+        items: const [],
+      ),
+    );
+
+    expect(result.errors, isEmpty);
+    expect(result.projectedProfiles, hasLength(2));
+    expect(
+      result.projectedProfiles.map((profile) => profile.id).toSet(),
+      hasLength(2),
+    );
+    expect(result.profileIdFor(rule34), isNot(0));
+    expect(result.profileIdFor(safebooru), 0);
+  });
+
   test('an ambiguous dependency requires a local profile choice', () {
     final profiles = [
       _profile(4, 'https://one.example'),

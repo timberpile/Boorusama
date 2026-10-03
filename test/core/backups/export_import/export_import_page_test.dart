@@ -11,6 +11,32 @@ import 'package:boorusama/foundation/filesystem.dart';
 import 'package:boorusama/core/settings/src/pages/backup_and_restore_page.dart';
 
 void main() {
+  testWidgets('export and import actions are inside the system safe area', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          exportClipboardServiceProvider.overrideWithValue(
+            const ExportClipboardService(
+              fs: IoFileSystem(),
+              clipboard: _EmptyClipboard(),
+            ),
+          ),
+        ],
+        child: TranslationProvider(
+          child: const MaterialApp(home: ExportImportPage()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.ancestor(of: find.byType(ListView), matching: find.byType(SafeArea)),
+      findsOneWidget,
+    );
+  });
+
   testWidgets(
     'clipboard action stays named as an import when none is detected',
     (

@@ -77,6 +77,33 @@ void main() {
     expect(result.profiles.last.apiKey, isNull);
   });
 
+  test('replacement keeps a new profile when its ID belongs to a later site match', () {
+    final result = const ProfileImportProjector().project(
+      imported: [
+        _profile(0, 'https://rule34.xxx', name: 'Rule34'),
+        _profile(5, 'https://safebooru.donmai.us', name: 'Safebooru'),
+      ],
+      local: [
+        _profile(0, 'https://safebooru.donmai.us', name: 'Default'),
+      ],
+      resolution: ResolvedImportSource(
+        id: 'profiles',
+        action: ImportAction.replace,
+        items: const [],
+      ),
+      credentialsIncluded: true,
+    );
+
+    expect(result.profiles, hasLength(2));
+    expect(result.profiles.map((profile) => profile.id).toSet(), hasLength(2));
+    expect(result.profiles.singleWhere((profile) => profile.name == 'Rule34').id,
+        isNot(0));
+    expect(result.profiles.singleWhere((profile) => profile.name == 'Safebooru').id,
+        0);
+    expect(result.destinationIds[0], isNot(0));
+    expect(result.destinationIds[5], 0);
+  });
+
   test('portable unique match updates a profile with a different local ID', () {
     final result = const ProfileImportProjector().project(
       imported: [_profile(99, 'https://same.example', name: 'Updated')],
