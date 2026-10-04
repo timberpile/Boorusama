@@ -7,18 +7,24 @@ import 'profile_mapping.dart';
 final class UnresolvedProfileImportException implements Exception {
   const UnresolvedProfileImportException(this.exportedProfileId);
 
-  final int exportedProfileId;
+  final String exportedProfileId;
+}
+
+final class ConflictingProfileIdentityException implements Exception {
+  const ConflictingProfileIdentityException(this.profileId);
+
+  final String profileId;
 }
 
 final class ProfileImportProjection {
   ProfileImportProjection({
     required Iterable<BooruConfig> profiles,
-    required Map<int, int> destinationIds,
+    required Map<String, String> destinationIds,
   }) : profiles = List.unmodifiable(profiles),
        destinationIds = Map.unmodifiable(destinationIds);
 
   final List<BooruConfig> profiles;
-  final Map<int, int> destinationIds;
+  final Map<String, String> destinationIds;
 }
 
 final class ProfileImportProjector {
@@ -29,113 +35,93 @@ final class ProfileImportProjector {
     required List<BooruConfig> local,
     required ResolvedImportSource resolution,
     required bool credentialsIncluded,
+    Map<String, String> copyIds = const {},
   }) {
     if (resolution.action == ImportAction.skip) {
       return ProfileImportProjection(profiles: local, destinationIds: const {});
     }
+    final seen = <String>{};
+    for (final profile in imported) {
+      if (!seen.add(profile.id)) {
+        throw ConflictingProfileIdentityException(profile.id);
+      }
+      _existingById(profile, local);
+    }
     return switch (resolution.action) {
-      ImportAction.replace => _replace(
-        imported: imported,
-        local: local,
-        credentialsIncluded: credentialsIncluded,
-      ),
+      ImportAction.replace => _replace(imported, local, credentialsIncluded),
       ImportAction.configureItems => _configure(
-        imported: imported,
-        local: local,
-        resolution: resolution,
-        credentialsIncluded: credentialsIncluded,
+        imported,
+        local,
+        resolution,
+        credentialsIncluded,
+        copyIds,
       ),
       _ => throw StateError('Unsupported profile import action'),
     };
   }
 
-  ProfileImportProjection _replace({
-    required List<BooruConfig> imported,
-    required List<BooruConfig> local,
-    required bool credentialsIncluded,
-  }) {
-    final result = <BooruConfig>[];
-    final destinationIds = <int, int>{};
-    final matches = <_ProfileMatch>[];
-    final reservedMatches = <int, int>{};
-    final reservedIds = <int>{};
-    for (final (index, profile) in imported.indexed) {
-      final match = _match(profile, local);
-      if (match.isAmbiguous && !credentialsIncluded) {
-        throw UnresolvedProfileImportException(profile.id);
-      }
-      matches.add(match);
-      if (match.profile case final existing?) {
-        if (reservedIds.add(existing.id)) {
-          reservedMatches[index] = existing.id;
-        }
-      }
-    }
-    final usedIds = {...reservedIds};
-    var nextId = _nextId([...local, ...imported]);
-    for (final (index, profile) in imported.indexed) {
-      final matchedId = reservedMatches[index];
-      final destinationId = matchedId ??
-          (usedIds.contains(profile.id) ? nextId++ : profile.id);
-      usedIds.add(destinationId);
-      destinationIds[profile.id] = destinationId;
-      result.add(
-        _withId(
-          _credentialsForUpdate(
-            imported: profile,
-            existing: matchedId == null ? null : matches[index].profile,
-            credentialsIncluded: credentialsIncluded,
-          ),
-          destinationId,
+  ProfileImportProjection _replace(
+    List<BooruConfig> imported,
+    List<BooruConfig> local,
+    bool credentialsIncluded,
+  ) {
+    final profiles = [
+      for (final profile in imported)
+        _credentialsForUpdate(
+          imported: profile,
+          existing: _existingById(profile, local),
+          credentialsIncluded: credentialsIncluded,
         ),
-      );
-    }
+    ];
     return ProfileImportProjection(
-      profiles: result,
-      destinationIds: destinationIds,
+      profiles: profiles,
+      destinationIds: {for (final profile in imported) profile.id: profile.id},
     );
   }
 
-  ProfileImportProjection _configure({
-    required List<BooruConfig> imported,
-    required List<BooruConfig> local,
-    required ResolvedImportSource resolution,
-    required bool credentialsIncluded,
-  }) {
+  ProfileImportProjection _configure(
+    List<BooruConfig> imported,
+    List<BooruConfig> local,
+    ResolvedImportSource resolution,
+    bool credentialsIncluded,
+    Map<String, String> copyIds,
+  ) {
     final result = local.toList();
     final actions = {for (final item in resolution.items) item.id: item};
-    final destinationIds = <int, int>{};
-    var nextId = _nextId([...local, ...imported]);
+    final destinationIds = <String, String>{};
     for (final profile in imported) {
       final item = actions['profile:${profile.id}'];
       if (item == null || item.action == ImportAction.skip) continue;
       switch (item.action) {
         case ImportAction.copy:
-          final usedIds = result.map((profile) => profile.id).toSet();
-          final destinationId = usedIds.contains(profile.id)
-              ? nextId++
-              : profile.id;
-          result.add(_withId(profile, destinationId));
-          destinationIds[profile.id] = destinationId;
+          final copyId = copyIds[profile.id] ?? createProfileId();
+          if (!isCanonicalProfileId(copyId) ||
+              result.any((value) => value.id == copyId)) {
+            throw ConflictingProfileIdentityException(copyId);
+          }
+          result.add(_withId(profile, copyId));
+          destinationIds[profile.id] = copyId;
         case ImportAction.update:
-          final targetId = _targetId(item.targetId);
-          final match = targetId == null
-              ? _match(profile, result)
-              : _matchTarget(profile, result, targetId);
-          final existing = match.profile;
+          final targetId = _targetId(item.targetId) ?? profile.id;
+          final existing = result
+              .where((value) => value.id == targetId)
+              .firstOrNull;
           if (existing == null) {
             throw UnresolvedProfileImportException(profile.id);
           }
-          final index = result.indexWhere((value) => value.id == existing.id);
+          if (!_compatible(profile, existing)) {
+            throw ConflictingProfileIdentityException(profile.id);
+          }
+          final index = result.indexWhere((value) => value.id == targetId);
           result[index] = _withId(
             _credentialsForUpdate(
               imported: profile,
               existing: existing,
               credentialsIncluded: credentialsIncluded,
             ),
-            existing.id,
+            targetId,
           );
-          destinationIds[profile.id] = existing.id;
+          destinationIds[profile.id] = targetId;
         case ImportAction.replace ||
             ImportAction.configureItems ||
             ImportAction.merge ||
@@ -150,23 +136,21 @@ final class ProfileImportProjector {
     );
   }
 
-  _ProfileMatch _match(BooruConfig imported, List<BooruConfig> local) {
-    final candidates = portableProfileMatches(imported, local);
-    final sameId = candidates.where((profile) => profile.id == imported.id);
-    if (sameId.length == 1) return _ProfileMatch(sameId.single, false);
-    if (candidates.length == 1) return _ProfileMatch(candidates.single, false);
-    return _ProfileMatch(null, candidates.length > 1);
+  BooruConfig? _existingById(BooruConfig imported, List<BooruConfig> local) {
+    for (final profile in local) {
+      if (profile.id != imported.id) continue;
+      if (!_compatible(imported, profile)) {
+        throw ConflictingProfileIdentityException(imported.id);
+      }
+      return profile;
+    }
+    return null;
   }
 
-  _ProfileMatch _matchTarget(
-    BooruConfig imported,
-    List<BooruConfig> local,
-    int targetId,
-  ) {
-    final candidates = portableProfileMatches(imported, local);
-    final target = candidates.where((profile) => profile.id == targetId);
-    return _ProfileMatch(target.length == 1 ? target.single : null, false);
-  }
+  bool _compatible(BooruConfig imported, BooruConfig local) =>
+      imported.auth.booruType == local.auth.booruType &&
+      normalizeBackupProfileUrl(imported.url) ==
+          normalizeBackupProfileUrl(local.url);
 
   BooruConfig _credentialsForUpdate({
     required BooruConfig imported,
@@ -180,20 +164,14 @@ final class ProfileImportProjector {
           credentialsIncluded: credentialsIncluded,
         );
 
-  BooruConfig _withId(BooruConfig profile, int id) =>
+  BooruConfig _withId(BooruConfig profile, String id) =>
       BooruConfig.fromJson({...profile.toJson(), 'id': id});
 
-  int _nextId(Iterable<BooruConfig> profiles) =>
-      profiles.fold<int>(
-        0,
-        (value, profile) => profile.id > value ? profile.id : value,
-      ) +
-      1;
-
-  int? _targetId(String? value) => switch (value) {
-    final String value when value.startsWith('profile:') => int.tryParse(
+  String? _targetId(String? value) => switch (value) {
+    final String value
+        when value.startsWith('profile:') &&
+            isCanonicalProfileId(value.substring('profile:'.length)) =>
       value.substring('profile:'.length),
-    ),
     _ => null,
   };
 }
@@ -208,10 +186,3 @@ List<BooruConfig> portableProfileMatches(
             normalizeBackupProfileUrl(imported.url))
       profile,
 ];
-
-final class _ProfileMatch {
-  const _ProfileMatch(this.profile, this.isAmbiguous);
-
-  final BooruConfig? profile;
-  final bool isAmbiguous;
-}

@@ -15,13 +15,13 @@ void main() {
     final profiles = [
       BooruConfig.fromJson({
         ...BooruConfig.empty.toJson(),
-        'id': 7,
+        'id': '00000000-0000-4000-8000-000000000007',
         'name': 'First',
         'url': 'https://first.example',
       }),
       BooruConfig.fromJson({
         ...BooruConfig.empty.toJson(),
-        'id': 7,
+        'id': '00000000-0000-4000-8000-000000000007',
         'name': 'Second',
         'url': 'https://second.example',
       }),
@@ -36,7 +36,10 @@ void main() {
     );
 
     expect(issues.single.code, 'duplicate_profile_id');
-    expect(issues.single.itemId, 'profile:7');
+    expect(
+      issues.single.itemId,
+      'profile:00000000-0000-4000-8000-000000000007',
+    );
   });
 
   test('rejects a source schema newer than the app understands', () {
@@ -106,7 +109,7 @@ void main() {
           query: 'one',
           position: 0,
           profile: BackupProfileReference(
-            id: 1,
+            id: '00000000-0000-4000-8000-000000000001',
             booruType: 'danbooru',
             url: 'https://example.com',
             name: 'Example',
@@ -118,7 +121,7 @@ void main() {
           query: 'two',
           position: 1,
           profile: BackupProfileReference(
-            id: 1,
+            id: '00000000-0000-4000-8000-000000000001',
             booruType: 'danbooru',
             url: 'https://example.com',
             name: 'Example',
@@ -150,7 +153,7 @@ void main() {
           query: 'one',
           position: 0,
           profile: BackupProfileReference(
-            id: 1,
+            id: '00000000-0000-4000-8000-000000000001',
             booruType: 'danbooru',
             url: 'https://example.com',
             name: 'Example',
@@ -189,7 +192,7 @@ void main() {
           query: 'one',
           position: 0,
           profile: BackupProfileReference(
-            id: 1,
+            id: '00000000-0000-4000-8000-000000000001',
             booruType: 'danbooru',
             url: 'https://example.com',
             name: 'Example',
@@ -201,7 +204,7 @@ void main() {
           query: 'two',
           position: 1,
           profile: BackupProfileReference(
-            id: 1,
+            id: '00000000-0000-4000-8000-000000000001',
             booruType: 'danbooru',
             url: 'https://example.com',
             name: 'Example',
@@ -235,7 +238,7 @@ void main() {
             query: 'one',
             position: 0,
             profile: BackupProfileReference(
-              id: 1,
+              id: '00000000-0000-4000-8000-000000000001',
               booruType: 'danbooru',
               url: 'https://example.com',
               name: 'Example',
@@ -272,7 +275,7 @@ void main() {
 
   test('Home selection still rejects records outside Home', () {
     const profile = BackupProfileReference(
-      id: 1,
+      id: '00000000-0000-4000-8000-000000000001',
       booruType: 'danbooru',
       url: 'https://example.com',
       name: 'Example',

@@ -16,7 +16,7 @@ showEditPinnedSearchDialog(
   required Future<
     ({SearchSubscription subscription, SearchRefreshOutcome? refresh})
   >
-  Function(int profileId, String query, String? name)
+  Function(String profileId, String query, String? name)
   onSave,
 }) => showDialog(
   context: context,
@@ -44,7 +44,7 @@ class EditPinnedSearchDialog extends StatefulWidget {
   final Future<
     ({SearchSubscription subscription, SearchRefreshOutcome? refresh})
   >
-  Function(int profileId, String query, String? name)
+  Function(String profileId, String query, String? name)
   onSave;
 
   @override
@@ -56,7 +56,7 @@ enum _EditError { duplicate, missingProfile, saveFailed }
 class _EditPinnedSearchDialogState extends State<EditPinnedSearchDialog> {
   late final _name = TextEditingController(text: widget.subscription.name);
   late final _query = TextEditingController(text: widget.subscription.query);
-  late int? _profileId = widget.subscription.profileId;
+  late String? _profileId = widget.subscription.profileId;
   _EditError? _error;
   var _saving = false;
 
@@ -138,7 +138,7 @@ class _EditPinnedSearchDialogState extends State<EditPinnedSearchDialog> {
                   onChanged: (_) => setState(() => _error = null),
                 ),
                 const SizedBox(height: 12),
-                DropdownButtonFormField<int>(
+                DropdownButtonFormField<String>(
                   isExpanded: true,
                   initialValue: selected?.id,
                   decoration: InputDecoration(labelText: strings.edit_profile),

@@ -1,3 +1,4 @@
+import '../../profile_uuid_utils.dart';
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -20,7 +21,10 @@ void main() {
     });
     await entered.future;
 
-    final write = repository.update(1, BooruConfig.empty.toBooruConfigData());
+    final write = repository.update(
+      profileUuid(1),
+      BooruConfig.empty.toBooruConfigData(),
+    );
     await Future<void>.delayed(Duration.zero);
     expect(delegate.updateCalls, 0);
 
@@ -39,7 +43,7 @@ void main() {
       final delegate = _RecordingRepository(
         profile: BooruConfig.fromJson({
           ...BooruConfig.empty.toJson(),
-          'id': 1,
+          'id': profileUuid(1),
           'url': 'https://before.example',
           'apiKey': 'old-token',
         }),
@@ -61,7 +65,7 @@ void main() {
 
       final tokenUpdate = updateBooruConfigAtomically(
         repository: repository,
-        id: 1,
+        id: profileUuid(1),
         transform: (current) =>
             current.toBooruConfigData().copyWith(apiKey: 'rotated-token'),
       );
@@ -85,7 +89,10 @@ final class _RecordingRepository implements BooruConfigRepository {
   var updateCalls = 0;
 
   @override
-  Future<BooruConfig?> update(int id, BooruConfigData booruConfigData) async {
+  Future<BooruConfig?> update(
+    String id,
+    BooruConfigData booruConfigData,
+  ) async {
     updateCalls++;
     if (profile?.id != id) return null;
     return profile = booruConfigData.toBooruConfig(id: id);

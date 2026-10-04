@@ -76,19 +76,19 @@ final testRefreshNetworkAllowedProvider =
 
 final testProfile = BooruConfig.fromJson({
   ...BooruConfig.empty.toJson(),
-  'id': 12,
+  'id': '00000000-0000-4000-8000-00000000000c',
   'url': 'https://active.example',
 });
 final otherTestProfile = BooruConfig.fromJson({
   ...BooruConfig.empty.toJson(),
-  'id': 99,
+  'id': '00000000-0000-4000-8000-000000000063',
   'url': 'https://other.example',
 });
 final checkedAt = DateTime.utc(2026, 9, 14, 10);
 
 SearchSubscription pinnedFixture({
   String id = 'cats',
-  int profileId = 12,
+  String profileId = '00000000-0000-4000-8000-00000000000c',
   String query = 'cat  rating:safe order:score',
   String? name = 'Cats',
   int position = 0,
@@ -210,7 +210,9 @@ class PinnedSearchHarness {
               resolvePostRepository: (config) => TestSearchPostRepository(
                 (query, page, limit) async {
                   requests.add((
-                    profileId: config.auth.url == testProfile.url ? 12 : 99,
+                    profileId: config.auth.url == testProfile.url
+                        ? '00000000-0000-4000-8000-00000000000c'
+                        : '00000000-0000-4000-8000-000000000063',
                     query: query,
                   ));
                   await refreshGate?.future;
@@ -270,7 +272,7 @@ class PinnedSearchHarness {
   late final ProviderContainer container;
   late GoRouter router;
   Completer<void>? refreshGate;
-  final requests = <({int profileId, String query})>[];
+  final requests = <({String profileId, String query})>[];
 
   Future<void> seed(List<SearchSubscription> items) async {
     for (final profileId in items.map((item) => item.profileId).toSet()) {

@@ -11,7 +11,7 @@ import 'pinned_search_sort_provider.dart';
 import 'search_subscriptions_notifier.dart';
 
 final profilePinnedSearchesProvider =
-    Provider.family<AsyncValue<List<SearchSubscription>>, int>((
+    Provider.family<AsyncValue<List<SearchSubscription>>, String>((
       ref,
       profileId,
     ) {
@@ -32,7 +32,7 @@ final profilePinnedSearchesProvider =
       });
     });
 
-final profilePinnedSearchHasNewPostsProvider = Provider.family<bool, int>((
+final profilePinnedSearchHasNewPostsProvider = Provider.family<bool, String>((
   ref,
   profileId,
 ) {

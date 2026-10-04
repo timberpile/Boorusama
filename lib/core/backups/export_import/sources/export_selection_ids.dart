@@ -12,7 +12,7 @@ final class ExportSelectionIds {
 
   static String followingFeed(String id) => 'feed:$id';
 
-  static String profile(int id) => 'profile:$id';
+  static String profile(String id) => 'profile:$id';
 
   static String? bookmarkGroupId(String childId) => _value(childId, 'group:');
 
@@ -23,8 +23,7 @@ final class ExportSelectionIds {
 
   static String? followingFeedId(String childId) => _value(childId, 'feed:');
 
-  static int? profileId(String childId) =>
-      int.tryParse(_value(childId, 'profile:') ?? '');
+  static String? profileId(String childId) => _value(childId, 'profile:');
 
   static String? _value(String childId, String prefix) {
     if (!childId.startsWith(prefix) || childId.length == prefix.length) {

@@ -135,7 +135,7 @@ void main() {
         url: 'https://other.example',
         customDownloadFileNameFormat: null,
       ).toJson(),
-      'id': 99,
+      'id': '00000000-0000-4000-8000-000000000063',
     });
 
     await tester.pumpWidget(
@@ -304,7 +304,7 @@ final _config = BooruConfig.fromJson({
     url: 'https://gelbooru.example',
     customDownloadFileNameFormat: null,
   ).toJson(),
-  'id': 12,
+  'id': '00000000-0000-4000-8000-00000000000c',
 });
 
 Post _nativePost({int id = 1}) => _post(

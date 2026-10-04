@@ -1,3 +1,4 @@
+import '../../../profile_uuid_utils.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:boorusama/core/backups/export_import/import/import_plan.dart';
@@ -121,12 +122,12 @@ void main() {
     },
   );
 
-  test('a sole compatible profile is selected automatically', () {
+  test('a sole compatible profile still needs an explicit mapping', () {
     final mapping = const ProfileMapper()
         .map(
           const [
             BackupProfileReference(
-              id: 99,
+              id: '00000000-0000-4000-8000-000000000063',
               booruType: 'danbooru',
               url: 'https://remote.example',
               name: 'Remote',
@@ -136,8 +137,9 @@ void main() {
         )
         .single;
 
-    expect(mapping.state, ProfileMappingState.automatic);
-    expect(mapping.localProfileId, 4);
+    expect(mapping.state, ProfileMappingState.ambiguous);
+    expect(mapping.localProfileId, isNull);
+    expect(mapping.candidateIds, {profileUuid(4)});
   });
 
   test('several compatible profiles remain unresolved', () {
@@ -145,7 +147,7 @@ void main() {
         .map(
           const [
             BackupProfileReference(
-              id: 99,
+              id: '00000000-0000-4000-8000-000000000063',
               booruType: 'danbooru',
               url: 'https://remote.example',
               name: 'Remote',
@@ -160,7 +162,7 @@ void main() {
 
     expect(mapping.state, ProfileMappingState.ambiguous);
     expect(mapping.localProfileId, isNull);
-    expect(mapping.candidateIds, {4, 5});
+    expect(mapping.candidateIds, {profileUuid(4), profileUuid(5)});
   });
 
   test('credential-free profile updates preserve local secrets', () {
@@ -239,7 +241,7 @@ void main() {
 
 BooruConfig _profile(int id, String url) => BooruConfig.fromJson({
   ...BooruConfig.empty.toJson(),
-  'id': id,
+  'id': profileUuid(id),
   'booruIdHint': BooruType.danbooru.id,
   'url': url,
   'name': 'Local',

@@ -30,9 +30,13 @@ void main() {
       final harness = _Harness();
       addTearDown(harness.container.dispose);
       await harness.profiles.addAll([_profile]);
-      await harness.repository.create(profileId: 4, query: 'bird', name: null);
+      await harness.repository.create(
+        profileId: '00000000-0000-4000-8000-000000000004',
+        query: 'bird',
+        name: null,
+      );
       await harness.repository.saveFeed(
-        profileId: 4,
+        profileId: '00000000-0000-4000-8000-000000000004',
         name: 'Animals',
         queries: ['dog', 'cat'],
         id: _id,
@@ -79,7 +83,7 @@ void main() {
     addTearDown(harness.container.dispose);
     await harness.profiles.addAll([_profile]);
     final feed = await harness.repository.saveFeed(
-      profileId: 4,
+      profileId: '00000000-0000-4000-8000-000000000004',
       name: 'Animals',
       queries: ['cat'],
     );
@@ -95,12 +99,12 @@ void main() {
       addTearDown(harness.container.dispose);
       await harness.profiles.addAll([_profile]);
       final pin = await harness.repository.create(
-        profileId: 4,
+        profileId: '00000000-0000-4000-8000-000000000004',
         query: 'cat',
         name: 'Pinned cat',
       );
       await harness.repository.saveFeed(
-        profileId: 4,
+        profileId: '00000000-0000-4000-8000-000000000004',
         name: 'Old',
         queries: ['cat'],
         id: _id,
@@ -113,7 +117,7 @@ void main() {
             position: 0,
             queries: const ['cat', 'dog'],
             profile: const BackupProfileReference(
-              id: 4,
+              id: '00000000-0000-4000-8000-000000000004',
               booruType: 'danbooru',
               url: 'https://example.test',
               name: 'Example',
@@ -138,10 +142,14 @@ void main() {
       final context = await _pumpContext(tester, harness);
       final data = FollowingFeedBackupData(
         feeds: [
-          _record(_id, profileId: 4, url: 'https://example.test'),
+          _record(
+            _id,
+            profileId: '00000000-0000-4000-8000-000000000004',
+            url: 'https://example.test',
+          ),
           _record(
             '550e8400-e29b-41d4-a716-446655440001',
-            profileId: 9,
+            profileId: '00000000-0000-4000-8000-000000000009',
             url: 'https://missing.test',
             booruType: 'e621',
           ),
@@ -193,7 +201,7 @@ void main() {
   });
 
   testWidgets(
-    'a new ambiguous profile while the warning is open cancels before writes',
+    'a newly matching UUID while the warning is open cancels before writes',
     (tester) async {
       final harness = _Harness();
       addTearDown(harness.container.dispose);
@@ -201,10 +209,14 @@ void main() {
       final context = await _pumpContext(tester, harness);
       final data = FollowingFeedBackupData(
         feeds: [
-          _record(_id, profileId: 99, url: 'https://example.test'),
+          _record(
+            _id,
+            profileId: '00000000-0000-4000-8000-000000000063',
+            url: 'https://example.test',
+          ),
           _record(
             '550e8400-e29b-41d4-a716-446655440001',
-            profileId: 9,
+            profileId: '00000000-0000-4000-8000-000000000009',
             url: 'https://missing.test',
             booruType: 'e621',
           ),
@@ -215,7 +227,9 @@ void main() {
           .then<void>((_) {}, onError: (Object e) => error = e);
       await tester.pumpAndSettle();
       expect(find.text('Skip unmatched records?'), findsOneWidget);
-      await harness.profiles.addAll([_profileWithId(5)]);
+      await harness.profiles.addAll([
+        _profileWithId('00000000-0000-4000-8000-000000000063'),
+      ]);
       await tester.tap(find.text('Skip and import'));
       await tester.pumpAndSettle();
       await pending;
@@ -227,7 +241,7 @@ void main() {
 
 FollowingFeedBackupRecord _record(
   String id, {
-  required int profileId,
+  required String profileId,
   required String url,
   String booruType = 'danbooru',
 }) => FollowingFeedBackupRecord(
@@ -277,13 +291,13 @@ const _id = '550e8400-e29b-41d4-a716-446655440000';
 
 final _profile = BooruConfig.fromJson({
   ...BooruConfig.empty.toJson(),
-  'id': 4,
+  'id': '00000000-0000-4000-8000-000000000004',
   'booruIdHint': BooruType.danbooru.id,
   'url': 'https://example.test',
   'name': 'Example',
 });
 
-BooruConfig _profileWithId(int id) => BooruConfig.fromJson({
+BooruConfig _profileWithId(String id) => BooruConfig.fromJson({
   ..._profile.toJson(),
   'id': id,
 });
@@ -324,7 +338,7 @@ class _RepositoryNotifier extends SearchSubscriptionRepositoryNotifier {
 }
 
 class _ProfileBox implements Box<String> {
-  final _items = <int, String>{};
+  final _items = <String, String>{};
   @override
   Iterable<dynamic> get keys => _items.keys;
   @override
@@ -332,7 +346,7 @@ class _ProfileBox implements Box<String> {
       _items[key] ?? defaultValue;
   @override
   Future<void> put(dynamic key, String value) async {
-    _items[key as int] = value;
+    _items[key as String] = value;
   }
 
   @override

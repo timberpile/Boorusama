@@ -2,7 +2,6 @@
 import 'dart:convert';
 
 // Package imports:
-import 'package:foundation/foundation.dart';
 import 'package:hive_ce/hive.dart';
 
 // Project imports:
@@ -11,6 +10,7 @@ import '../../../../downloads/filename/types.dart';
 import '../types/booru_config.dart';
 import '../types/booru_config_data.dart';
 import '../types/booru_config_repository.dart';
+import '../types/profile_id.dart';
 import 'booru_config_converter.dart';
 
 class HiveBooruConfigRepository implements BooruConfigRepository {
@@ -38,7 +38,8 @@ class HiveBooruConfigRepository implements BooruConfigRepository {
   Future<BooruConfig?> add(BooruConfigData booruConfigData) async {
     final json = booruConfigData.toJson();
     final jsonString = jsonEncode(json);
-    final id = await box.add(jsonString);
+    final id = createProfileId();
+    await box.put(id, jsonString);
 
     return booruConfigData.toBooruConfig(
       id: id,
@@ -54,13 +55,14 @@ class HiveBooruConfigRepository implements BooruConfigRepository {
   Future<List<BooruConfig>> getAll() async {
     return box.keys
         .map((e) {
+          if (!isCanonicalProfileId(e)) return null;
           final jsonString = box.get(e);
           if (jsonString == null) return null;
           final json = jsonDecode(jsonString);
           final booruConfigData = BooruConfigData.fromJson(json);
 
           return booruConfigData.toBooruConfig(
-            id: castOrNull<int>(e),
+            id: e as String,
           );
         })
         .nonNulls
@@ -68,7 +70,10 @@ class HiveBooruConfigRepository implements BooruConfigRepository {
   }
 
   @override
-  Future<BooruConfig?> update(int id, BooruConfigData booruConfigData) async {
+  Future<BooruConfig?> update(
+    String id,
+    BooruConfigData booruConfigData,
+  ) async {
     final json = booruConfigData.toJson();
     final jsonString = jsonEncode(json);
 

@@ -392,7 +392,7 @@ Post _nativePost() => Post(
     booruType: BooruType.gelbooruV2,
     booruId: BooruType.gelbooruV2.id,
     source: 'https://gelbooru.example',
-    profileIdHint: 17,
+    profileIdHint: '00000000-0000-4000-8000-000000000011',
   ),
   core: PostCoreData(
     id: 42,

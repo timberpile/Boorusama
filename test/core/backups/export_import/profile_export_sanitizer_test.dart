@@ -9,7 +9,7 @@ void main() {
   test('credential-free profiles remove login and proxy secrets', () {
     final json = BooruConfig.empty.toJson()
       ..addAll({
-        'id': 1,
+        'id': '00000000-0000-4000-8000-000000000001',
         'booruId': 23,
         'booruIdHint': 23,
         'name': 'Profile',
@@ -82,7 +82,7 @@ void main() {
   test('detects credentials from parsed profile data', () {
     final profile = BooruConfig.fromJson({
       ...BooruConfig.empty.toJson(),
-      'id': 1,
+      'id': '00000000-0000-4000-8000-000000000001',
       'booruId': 1,
       'booruIdHint': 1,
       'name': 'Profile',

@@ -59,7 +59,7 @@ void main() {
     bool showListConfiguration = true,
   }) async {
     searchResultCount = resultCount;
-    config = switch (booruType) {
+    final template = switch (booruType) {
       final type? => BooruConfig.defaultConfig(
         booruType: type,
         url: 'https://example.com',
@@ -67,6 +67,10 @@ void main() {
       ),
       null => BooruConfig.empty,
     };
+    config = BooruConfig.fromJson({
+      ...template.toJson(),
+      'id': '00000000-0000-4000-8000-00000000000c',
+    });
     box = _FailingBox();
     organizationBox = _FailingOrganizationBox();
     repository = HiveSearchSubscriptionRepository(
@@ -864,7 +868,7 @@ void main() {
     (tester) async {
       await initialize();
       final other = await repository.create(
-        profileId: 99,
+        profileId: '00000000-0000-4000-8000-000000000063',
         query: 'dog',
         name: 'Dog',
       );
@@ -952,7 +956,7 @@ void main() {
     (tester) async {
       await initialize();
       await repository.create(
-        profileId: 99,
+        profileId: '00000000-0000-4000-8000-000000000063',
         query: query,
         name: 'Other profile',
       );
@@ -1063,7 +1067,7 @@ void main() {
           name: 'Cats',
         );
         final other = await repository.create(
-          profileId: 99,
+          profileId: '00000000-0000-4000-8000-000000000063',
           query: 'dog',
           name: 'Dogs',
         );

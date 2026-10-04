@@ -71,6 +71,7 @@ final class ImportPlannedChangeProjector {
     required ResolvedImportSource resolution,
     required bool credentialsIncluded,
     List<BooruConfig> additionalProfiles = const [],
+    Map<String, String> copyIds = const {},
   }) {
     final localEntities = <Object, Object?>{
       for (final profile in local) _key('profile', profile.id): profile,
@@ -85,8 +86,11 @@ final class ImportPlannedChangeProjector {
         local: local,
         resolution: resolution,
         credentialsIncluded: credentialsIncluded,
+        copyIds: copyIds,
       );
     } on UnresolvedProfileImportException {
+      return null;
+    } on ConflictingProfileIdentityException {
       return null;
     }
     final projected = projection.profiles.toList();
@@ -106,14 +110,13 @@ final class ImportPlannedChangeProjector {
         if (item.action == ImportAction.skip) continue;
         final importedId = _idWithoutPrefix(item.id, 'profile:');
         final destinationId = switch (item.targetId) {
-          final target? => int.tryParse(_idWithoutPrefix(target, 'profile:')),
-          null => int.tryParse(importedId),
+          final target? => _idWithoutPrefix(target, 'profile:'),
+          null => importedId,
         };
-        final projectedId = int.tryParse(importedId);
-        final actualId = projectedId == null
-            ? destinationId
-            : projection.destinationIds[projectedId] ?? destinationId;
-        if (actualId != null) touched.add(_key('profile', actualId));
+        final projectedId = importedId;
+        final actualId =
+            projection.destinationIds[projectedId] ?? destinationId;
+        touched.add(_key('profile', actualId));
       }
       touched.addAll(
         additionalProfiles.map((profile) => _key('profile', profile.id)),
@@ -302,7 +305,7 @@ final class ImportPlannedChangeProjector {
     required PinnedSearchImportLocalSnapshot local,
     required PinnedSearchBackupData incoming,
     required ResolvedImportSource resolution,
-    required Map<ProfileReferenceKey, int> profileMappings,
+    required Map<ProfileReferenceKey, String> profileMappings,
   }) {
     final internalIds = {
       for (final feed in local.feeds) ...feed.sourceIds,
@@ -466,7 +469,7 @@ final class ImportPlannedChangeProjector {
     required FollowingFeedImportLocalSnapshot local,
     required FollowingFeedBackupData incoming,
     required ResolvedImportSource resolution,
-    required Map<ProfileReferenceKey, int> profileMappings,
+    required Map<ProfileReferenceKey, String> profileMappings,
   }) {
     final originalInternalIds = {
       for (final feed in local.feeds) ...feed.sourceIds,
@@ -499,7 +502,7 @@ final class ImportPlannedChangeProjector {
     });
     if (requiresUnmappedProfile) return null;
     final desired =
-        <({int index, int profileId, FollowingFeedBackupRecord record})>[];
+        <({int index, String profileId, FollowingFeedBackupRecord record})>[];
     for (final (index, record) in incoming.feeds.indexed) {
       if (resolution.action == ImportAction.replace) {
         final profileId = _profileId(record.profile, profileMappings);
@@ -554,11 +557,11 @@ final class ImportPlannedChangeProjector {
       ));
     }
 
-    final profileIds = <int>{};
+    final profileIds = <String>{};
     for (final item in desired) {
       profileIds.add(item.profileId);
     }
-    final finalOrder = <int, List<String>>{};
+    final finalOrder = <String, List<String>>{};
     for (final profileId in profileIds) {
       final rows =
           desired
@@ -735,7 +738,7 @@ final class ImportPlannedChangeProjector {
 
 Set<String> _saveFeed({
   required FollowingFeedBackupRecord record,
-  required int profileId,
+  required String profileId,
   required Map<String, SearchFollowingFeed> feeds,
   required Map<String, SearchSubscription> searches,
 }) {
@@ -807,9 +810,9 @@ void _deleteFeed(
       );
 }
 
-int _profileId(
+String _profileId(
   BackupProfileReference reference,
-  Map<ProfileReferenceKey, int> mappings,
+  Map<ProfileReferenceKey, String> mappings,
 ) {
   final id = mappings[ProfileReferenceKey.fromReference(reference)];
   if (id == null) throw StateError('Profile mapping is unresolved');
@@ -951,7 +954,7 @@ final class _SearchValue extends Equatable {
     position: search.position,
   );
 
-  final int profileId;
+  final String profileId;
   final String query;
   final String? name;
   final int position;
@@ -1014,7 +1017,7 @@ final class _FeedValue extends Equatable {
     ],
   );
 
-  final int profileId;
+  final String profileId;
   final String name;
   final int position;
   final List<String> queries;

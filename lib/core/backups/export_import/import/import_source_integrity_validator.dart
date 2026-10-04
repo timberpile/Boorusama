@@ -86,8 +86,8 @@ final class ImportSourceIntegrityValidator {
     }
 
     if (data case final List<BooruConfig> profiles) {
-      final seenIds = <int>{};
-      final duplicateIds = <int>{};
+      final seenIds = <String>{};
+      final duplicateIds = <String>{};
       for (final profile in profiles) {
         if (!seenIds.add(profile.id)) duplicateIds.add(profile.id);
       }

@@ -34,7 +34,7 @@ class EffectiveTagPreview extends ConsumerWidget {
       alwaysIncludeTags: () => tags,
     );
 
-    final config = effectiveConfigData.toBooruConfig(id: -1);
+    final config = effectiveConfigData.toBooruConfig(id: '');
 
     if (config == null) return const SizedBox.shrink();
 

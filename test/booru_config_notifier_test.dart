@@ -1,3 +1,4 @@
+import 'profile_uuid_utils.dart';
 // Dart imports:
 import 'dart:async';
 
@@ -40,7 +41,7 @@ class InMemoryBooruConfigRepository implements BooruConfigRepository {
 
   @override
   Future<BooruConfig?> add(BooruConfigData booruConfigData) {
-    final id = _configs.isEmpty ? 1 : _configs.last.id + 1;
+    final id = profileUuid(_configs.length + 1);
     final config = booruConfigData.toBooruConfig(id: id);
 
     if (config == null) return Future.value();
@@ -51,19 +52,8 @@ class InMemoryBooruConfigRepository implements BooruConfigRepository {
 
   @override
   Future<List<BooruConfig>> addAll(List<BooruConfig> booruConfigs) {
-    final ids = _configs.map((e) => e.id).toList();
-    final newConfigs = booruConfigs
-        .map((e) {
-          final data = e.toBooruConfigData();
-          final id = ids.isEmpty ? 1 : ids.last + 1;
-          return data.toBooruConfig(id: id);
-        })
-        .nonNulls
-        .toList();
-
-    _configs.addAll(newConfigs);
-
-    return Future.value(newConfigs);
+    _configs.addAll(booruConfigs);
+    return Future.value(booruConfigs);
   }
 
   @override
@@ -87,7 +77,7 @@ class InMemoryBooruConfigRepository implements BooruConfigRepository {
   }
 
   @override
-  Future<BooruConfig?> update(int id, BooruConfigData booruConfigData) {
+  Future<BooruConfig?> update(String id, BooruConfigData booruConfigData) {
     if (failNextUpdate) {
       failNextUpdate = false;
       return Future.value();
@@ -145,8 +135,8 @@ class RecordingSearchSubscriptionRepository
 
   final List<SearchSubscription> _subscriptions;
   final List<SearchFollowingFeed> _feeds;
-  final deletedProfileIds = <int>[];
-  final restoredProfileIds = <int>[];
+  final deletedProfileIds = <String>[];
+  final restoredProfileIds = <String>[];
   List<SearchSubscription>? restoredSubscriptions;
   Error? deleteFailure;
   Error? invalidateFailure;
@@ -172,7 +162,7 @@ class RecordingSearchSubscriptionRepository
   Future<List<SearchFollowingFeed>> getFeeds() async => _feeds.toList();
   @override
   Future<void> restoreFeeds(
-    int profileId,
+    String profileId,
     List<SearchFollowingFeed> feeds,
   ) async {
     _feeds.removeWhere((feed) => feed.profileId == profileId);
@@ -204,7 +194,7 @@ class RecordingSearchSubscriptionRepository
   }
 
   @override
-  Future<void> deleteForProfile(int profileId) async {
+  Future<void> deleteForProfile(String profileId) async {
     deletedProfileIds.add(profileId);
     if (deleteFailure case final error?) {
       throw error;
@@ -232,7 +222,7 @@ class RecordingSearchSubscriptionRepository
   }
 
   @override
-  Future<void> invalidateRuntimeForProfile(int profileId) async {
+  Future<void> invalidateRuntimeForProfile(String profileId) async {
     if (invalidateFailure case final error?) throw error;
     invalidationStarted?.complete();
     await releaseInvalidation?.future;
@@ -261,7 +251,7 @@ class RecordingSearchSubscriptionRepository
 
   @override
   Future<void> restoreForProfile(
-    int profileId,
+    String profileId,
     List<SearchSubscription> subscriptions,
   ) async {
     restoredProfileIds.add(profileId);
@@ -334,12 +324,12 @@ void main() {
 
   SearchSubscription subscriptionFor(
     String id,
-    int profileId, {
+    int profileSeed, {
     int position = 0,
   }) {
     return SearchSubscription.create(
       id: id,
-      profileId: profileId,
+      profileId: profileUuid(profileSeed),
       query: 'query-$id',
       name: 'Saved $id',
       position: position,
@@ -385,7 +375,11 @@ void main() {
 
           expect(
             listEquals(
-              [configData.toBooruConfig(id: 1)],
+              [
+                configData.toBooruConfig(
+                  id: '00000000-0000-4000-8000-000000000001',
+                ),
+              ],
               newData,
             ),
             isTrue,
@@ -418,7 +412,7 @@ void main() {
 
           expect(
             settings.booruConfigIdOrders,
-            '1',
+            profileUuid(1),
           );
         },
       );
@@ -438,7 +432,7 @@ void main() {
 
           expect(
             container.read(currentBooruConfigProvider).id,
-            2,
+            profileUuid(2),
           );
         },
       );
@@ -454,7 +448,7 @@ void main() {
 
           expect(
             currentConfig.id,
-            1,
+            profileUuid(1),
           );
         },
       );
@@ -472,7 +466,7 @@ void main() {
       RecordingSearchSubscriptionRepository repository() {
         final source = SearchSubscription(
           id: 'source',
-          profileId: 1,
+          profileId: '00000000-0000-4000-8000-000000000001',
           query: 'artist',
           position: 0,
           createdAt: checkedAt,
@@ -485,7 +479,7 @@ void main() {
         );
         final unrelated = SearchSubscription.create(
           id: 'unrelated',
-          profileId: 2,
+          profileId: '00000000-0000-4000-8000-000000000002',
           query: 'cat',
           name: null,
           position: 0,
@@ -496,7 +490,7 @@ void main() {
           feeds: [
             SearchFollowingFeed(
               id: 'feed',
-              profileId: 1,
+              profileId: '00000000-0000-4000-8000-000000000001',
               name: 'Artists',
               sourceIds: const ['source'],
               posts: [
@@ -521,7 +515,7 @@ void main() {
 
           await notifier.update(
             booruConfigData: original.copyWith(url: 'https://site-b.example'),
-            oldConfigId: 1,
+            oldConfigId: '00000000-0000-4000-8000-000000000001',
           );
 
           final source = searches.remaining.singleWhere(
@@ -562,7 +556,7 @@ void main() {
               url: 'https://site-a.example/',
               name: 'Renamed',
             ),
-            oldConfigId: 1,
+            oldConfigId: '00000000-0000-4000-8000-000000000001',
           );
 
           expect(
@@ -591,7 +585,7 @@ void main() {
 
           await notifier.update(
             booruConfigData: original.copyWith(url: 'https://site-b.example'),
-            oldConfigId: 1,
+            oldConfigId: '00000000-0000-4000-8000-000000000001',
             onFailure: errors.add,
           );
 
@@ -617,7 +611,7 @@ void main() {
 
         await notifier.update(
           booruConfigData: original.copyWith(url: 'https://site-b.example'),
-          oldConfigId: 1,
+          oldConfigId: '00000000-0000-4000-8000-000000000001',
           onFailure: errors.add,
         );
 
@@ -650,7 +644,7 @@ void main() {
 
           await notifier.update(
             booruConfigData: original.copyWith(url: 'https://site-b.example'),
-            oldConfigId: 1,
+            oldConfigId: '00000000-0000-4000-8000-000000000001',
           );
 
           expect((await configs.getAll()).single.url, 'https://site-b.example');
@@ -678,7 +672,7 @@ void main() {
         await notifier.add(data: original);
         final updating = notifier.update(
           booruConfigData: original.copyWith(url: 'https://site-b.example'),
-          oldConfigId: 1,
+          oldConfigId: '00000000-0000-4000-8000-000000000001',
         );
         await searches.invalidationStarted!.future;
         Future<SearchRefreshOutcome>? refreshing;
@@ -727,7 +721,11 @@ void main() {
           test(
             'should clear all configs',
             () async {
-              await notifier().delete(config1.toBooruConfig(id: 1)!);
+              await notifier().delete(
+                config1.toBooruConfig(
+                  id: '00000000-0000-4000-8000-000000000001',
+                )!,
+              );
 
               final newConfigs = container.read(booruConfigProvider);
 
@@ -741,7 +739,11 @@ void main() {
           test(
             'should clear the order',
             () async {
-              await notifier().delete(config1.toBooruConfig(id: 1)!);
+              await notifier().delete(
+                config1.toBooruConfig(
+                  id: '00000000-0000-4000-8000-000000000001',
+                )!,
+              );
 
               final settings = container.read(settingsProvider);
 
@@ -755,7 +757,11 @@ void main() {
           test(
             'should clear the current config',
             () async {
-              await notifier().delete(config1.toBooruConfig(id: 1)!);
+              await notifier().delete(
+                config1.toBooruConfig(
+                  id: '00000000-0000-4000-8000-000000000001',
+                )!,
+              );
 
               final currentConfig = container.read(currentBooruConfigProvider);
 
@@ -795,7 +801,11 @@ void main() {
                   );
                   await notifier().add(data: config3);
 
-                  await notifier().delete(config1.toBooruConfig(id: 1)!);
+                  await notifier().delete(
+                    config1.toBooruConfig(
+                      id: '00000000-0000-4000-8000-000000000001',
+                    )!,
+                  );
                 },
               );
 
@@ -807,8 +817,12 @@ void main() {
                   expect(
                     listEquals(
                       [
-                        config2.toBooruConfig(id: 2),
-                        config3.toBooruConfig(id: 3),
+                        config2.toBooruConfig(
+                          id: '00000000-0000-4000-8000-000000000002',
+                        ),
+                        config3.toBooruConfig(
+                          id: '00000000-0000-4000-8000-000000000003',
+                        ),
                       ],
                       newConfigs,
                     ),
@@ -824,7 +838,7 @@ void main() {
 
                   expect(
                     settings.booruConfigIdOrders,
-                    '2 3',
+                    '${profileUuid(2)} ${profileUuid(3)}',
                   );
                 },
               );
@@ -846,7 +860,11 @@ void main() {
                   );
                   await notifier().add(data: config3);
 
-                  await notifier().delete(config2.toBooruConfig(id: 2)!);
+                  await notifier().delete(
+                    config2.toBooruConfig(
+                      id: '00000000-0000-4000-8000-000000000002',
+                    )!,
+                  );
                 },
               );
 
@@ -858,8 +876,12 @@ void main() {
                   expect(
                     listEquals(
                       [
-                        config1.toBooruConfig(id: 1),
-                        config3.toBooruConfig(id: 3),
+                        config1.toBooruConfig(
+                          id: '00000000-0000-4000-8000-000000000001',
+                        ),
+                        config3.toBooruConfig(
+                          id: '00000000-0000-4000-8000-000000000003',
+                        ),
                       ],
                       newConfigs,
                     ),
@@ -875,7 +897,7 @@ void main() {
 
                   expect(
                     settings.booruConfigIdOrders,
-                    '1 3',
+                    '${profileUuid(1)} ${profileUuid(3)}',
                   );
                 },
               );
@@ -889,7 +911,7 @@ void main() {
 
                   expect(
                     currentConfig.id,
-                    1,
+                    profileUuid(1),
                   );
                 },
               );
@@ -912,12 +934,14 @@ void main() {
         final notifier = container.read(booruConfigProvider.notifier);
         await notifier.add(data: config);
 
-        await notifier.delete(config.toBooruConfig(id: 1)!);
+        await notifier.delete(
+          config.toBooruConfig(id: '00000000-0000-4000-8000-000000000001')!,
+        );
 
-        expect(searchRepository.deletedProfileIds, [1]);
+        expect(searchRepository.deletedProfileIds, [profileUuid(1)]);
         expect(
           searchRepository.remaining.every(
-            (subscription) => subscription.profileId != 1,
+            (subscription) => subscription.profileId != profileUuid(1),
           ),
           isTrue,
         );
@@ -941,12 +965,14 @@ void main() {
         await notifier.add(data: config2, setAsCurrent: true);
         await notifier.add(data: config3);
 
-        await notifier.delete(config2.toBooruConfig(id: 2)!);
+        await notifier.delete(
+          config2.toBooruConfig(id: '00000000-0000-4000-8000-000000000002')!,
+        );
 
-        expect(searchRepository.deletedProfileIds, [2]);
+        expect(searchRepository.deletedProfileIds, [profileUuid(2)]);
         expect(
           searchRepository.remaining.every(
-            (subscription) => subscription.profileId != 2,
+            (subscription) => subscription.profileId != profileUuid(2),
           ),
           isTrue,
         );
@@ -970,12 +996,14 @@ void main() {
         await notifier.add(data: config2, setAsCurrent: true);
         await notifier.add(data: config3);
 
-        await notifier.delete(config1.toBooruConfig(id: 1)!);
+        await notifier.delete(
+          config1.toBooruConfig(id: '00000000-0000-4000-8000-000000000001')!,
+        );
 
-        expect(searchRepository.deletedProfileIds, [1]);
+        expect(searchRepository.deletedProfileIds, [profileUuid(1)]);
         expect(
           searchRepository.remaining.every(
-            (subscription) => subscription.profileId != 1,
+            (subscription) => subscription.profileId != profileUuid(1),
           ),
           isTrue,
         );
@@ -1000,7 +1028,9 @@ void main() {
           await notifier.add(data: config2);
           await container.read(searchSubscriptionsProvider.future);
 
-          await notifier.delete(config1.toBooruConfig(id: 1)!);
+          await notifier.delete(
+            config1.toBooruConfig(id: '00000000-0000-4000-8000-000000000001')!,
+          );
 
           expect(
             container
@@ -1031,13 +1061,13 @@ void main() {
           final failures = <String>[];
 
           await notifier.delete(
-            config.toBooruConfig(id: 1)!,
+            config.toBooruConfig(id: '00000000-0000-4000-8000-000000000001')!,
             onFailure: failures.add,
           );
 
           expect(
             container.read(booruConfigProvider).map((config) => config.id),
-            [1],
+            [profileUuid(1)],
           );
           expect(searchRepository.remaining, [pinnedSearch]);
           expect(failures, ['Bad state: search deletion failed']);
@@ -1090,16 +1120,16 @@ void main() {
           final failures = <String>[];
 
           await notifier.delete(
-            config.toBooruConfig(id: 1)!,
+            config.toBooruConfig(id: '00000000-0000-4000-8000-000000000001')!,
             onFailure: failures.add,
           );
 
           expect(
             container.read(booruConfigProvider).map((config) => config.id),
-            [1],
+            [profileUuid(1)],
           );
-          expect(searchRepository.deletedProfileIds, [1]);
-          expect(searchRepository.restoredProfileIds, [1]);
+          expect(searchRepository.deletedProfileIds, [profileUuid(1)]);
+          expect(searchRepository.restoredProfileIds, [profileUuid(1)]);
           expect(searchRepository.restoredSubscriptions, pinnedSearches);
           expect(searchRepository.restoredOrganization, organization);
           expect(
@@ -1149,15 +1179,15 @@ void main() {
           final failures = <String>[];
 
           await notifier.delete(
-            config2.toBooruConfig(id: 2)!,
+            config2.toBooruConfig(id: '00000000-0000-4000-8000-000000000002')!,
             onFailure: failures.add,
           );
 
           expect(
             (await configRepository.getAll()).map((config) => config.id),
-            [1, 2, 3],
+            [profileUuid(1), profileUuid(2), profileUuid(3)],
           );
-          expect(searchRepository.restoredProfileIds, [2]);
+          expect(searchRepository.restoredProfileIds, [profileUuid(2)]);
           expect(searchRepository.restoredSubscriptions, pinnedSearches);
           expect(
             searchRepository.remaining,

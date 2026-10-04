@@ -450,7 +450,7 @@ final _pixivOrigin = PostOrigin.fromSource(
   booruType: BooruType.pixiv,
   booruId: BooruType.pixiv.id,
   source: 'https://pixiv.example',
-  profileIdHint: 42,
+  profileIdHint: '00000000-0000-4000-8000-00000000002a',
 );
 
 /// Records the last request that reached the wire and answers with an

@@ -1,3 +1,4 @@
+import '../../profile_uuid_utils.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -210,7 +211,10 @@ void main() {
         } else {
           final result = await importing;
           expect(result.imported, ['pinned_searches']);
-          expect((await harness.repository.getAll()).single.profileId, 4);
+          expect(
+            (await harness.repository.getAll()).single.profileId,
+            profileUuid(4),
+          );
         }
         expect(await harness.profiles.getAll(), before);
       },
@@ -228,7 +232,10 @@ void main() {
           await harness.profiles.addAll([
             _replacement(id: 8, url: 'https://old.test'),
           ]);
-          await harness.repository.restoreForProfile(8, [_runtimePin(8)]);
+          await harness.repository.restoreForProfile(
+            '00000000-0000-4000-8000-000000000008',
+            [_runtimePin('00000000-0000-4000-8000-000000000008')],
+          );
           await harness.container.read(searchSubscriptionsProvider.future);
           return harness;
         }))!;
@@ -294,8 +301,13 @@ void main() {
           } else {
             expect(error, isNull);
             expect(otherWrites, 1);
-            expect((await harness.profiles.getAll()).map((p) => p.id), [4]);
-            expect((await harness.repository.getAll()).single.profileId, 4);
+            expect((await harness.profiles.getAll()).map((p) => p.id), [
+              profileUuid(4),
+            ]);
+            expect(
+              (await harness.repository.getAll()).single.profileId,
+              profileUuid(4),
+            );
           }
         });
         await tester.pump();
@@ -389,7 +401,7 @@ void main() {
               as BooruConfigsBackupSource;
       await profilesSource.executor([_profile], null);
       final profile = (await harness.profiles.getAll()).single;
-      expect(profile.id, 4);
+      expect(profile.id, profileUuid(4));
       final result = await harness.source.resultExecutor!(_data(), null);
 
       expect(result?.pinnedSearchCount, 1);
@@ -427,10 +439,13 @@ void main() {
               '?api_key=private-token#private-fragment',
         ),
       ]);
-      await exporter.repository.restoreForProfile(4, [_runtimePin(4)]);
+      await exporter.repository.restoreForProfile(
+        '00000000-0000-4000-8000-000000000004',
+        [_runtimePin('00000000-0000-4000-8000-000000000004')],
+      );
       await importer.profiles.addAll([
         _replacement(
-          id: 8,
+          id: 4,
           url:
               'https://local-user:local-password@example.test:8443/Posts'
               '?other_key=local-token#local-fragment',
@@ -453,7 +468,10 @@ void main() {
       final result = await importer.source.resultExecutor!(parsed, null);
       expect(result?.pinnedSearchCount, 1);
       expect(result?.skippedProfileCount, 0);
-      expect((await importer.repository.getAll()).single.profileId, 8);
+      expect(
+        (await importer.repository.getAll()).single.profileId,
+        profileUuid(4),
+      );
     },
   );
 
@@ -468,7 +486,10 @@ void main() {
         final harness = _Harness();
         addTearDown(harness.container.dispose);
         await harness.profiles.addAll([_replacement(url: c.url)]);
-        await harness.repository.restoreForProfile(4, [_runtimePin(4)]);
+        await harness.repository.restoreForProfile(
+          '00000000-0000-4000-8000-000000000004',
+          [_runtimePin('00000000-0000-4000-8000-000000000004')],
+        );
         final response = await harness.source.capabilities.server.export(
           shelf.Request(
             'GET',
@@ -484,7 +505,10 @@ void main() {
 
         expect(result?.pinnedSearchCount, 1);
         expect(result?.skippedProfileCount, 0);
-        expect((await harness.repository.getAll()).single.profileId, 4);
+        expect(
+          (await harness.repository.getAll()).single.profileId,
+          profileUuid(4),
+        );
       },
     );
   }
@@ -563,8 +587,11 @@ void main() {
       final harness = _Harness();
       addTearDown(harness.container.dispose);
       await harness.profiles.addAll([_profile]);
-      final pin = _runtimePin(4);
-      await harness.repository.restoreForProfile(4, [pin]);
+      final pin = _runtimePin('00000000-0000-4000-8000-000000000004');
+      await harness.repository.restoreForProfile(
+        '00000000-0000-4000-8000-000000000004',
+        [pin],
+      );
       await harness.container.read(searchSubscriptionsProvider.future);
       final source =
           harness.container.read(booruConfigsBackupSourceProvider)
@@ -599,7 +626,7 @@ void main() {
         await harness.profiles.addAll([_profile]);
         final oldPin = await harness.repository.create(
           id: _id,
-          profileId: 4,
+          profileId: '00000000-0000-4000-8000-000000000004',
           query: 'cat',
           name: null,
           createdAt: DateTime.utc(2026),
@@ -647,7 +674,7 @@ void main() {
               query: 'cat',
               position: 0,
               profile: BackupProfileReference(
-                id: 4,
+                id: '00000000-0000-4000-8000-000000000004',
                 booruType: 'danbooru',
                 url: replacement.url,
                 name: replacement.name,
@@ -700,8 +727,11 @@ void main() {
     addTearDown(harness.container.dispose);
     await harness.profiles.addAll([_profile]);
     final oldProfiles = await harness.profiles.getAll();
-    final pin = _runtimePin(4);
-    await harness.repository.restoreForProfile(4, [pin]);
+    final pin = _runtimePin('00000000-0000-4000-8000-000000000004');
+    await harness.repository.restoreForProfile(
+      '00000000-0000-4000-8000-000000000004',
+      [pin],
+    );
     box.failNextDelete = true;
     final source =
         harness.container.read(booruConfigsBackupSourceProvider)
@@ -723,14 +753,20 @@ void main() {
       addTearDown(harness.container.dispose);
       await harness.profiles.addAll([_profile, _replacement(id: 5)]);
       final oldProfiles = await harness.profiles.getAll();
-      await harness.repository.restoreForProfile(4, [_runtimePin(4)]);
+      await harness.repository.restoreForProfile(
+        '00000000-0000-4000-8000-000000000004',
+        [_runtimePin('00000000-0000-4000-8000-000000000004')],
+      );
       final other = await harness.repository.create(
-        profileId: 5,
+        profileId: '00000000-0000-4000-8000-000000000005',
         query: 'dog',
         name: 'Dogs',
       );
       final homePins = <SearchSubscription>[];
-      for (final profileId in [4, 5]) {
+      for (final profileId in [
+        '00000000-0000-4000-8000-000000000004',
+        '00000000-0000-4000-8000-000000000005',
+      ]) {
         homePins.add(
           await harness.repository.create(
             profileId: profileId,
@@ -1021,7 +1057,7 @@ void main() {
       await harness.profiles.addAll([_profile, otherProfile]);
       final conflictId = _feedData().feeds.single.id;
       await harness.repository.saveFeed(
-        profileId: 9,
+        profileId: '00000000-0000-4000-8000-000000000009',
         name: 'Local',
         queries: ['bird'],
         id: conflictId,
@@ -1197,7 +1233,7 @@ void main() {
         if (action == 'late cancel') {
           expect(state.step, ImportStep.done);
           expect(state.reloadPayload?.configs.map((profile) => profile.id), [
-            4,
+            profileUuid(4),
           ]);
           expect(
             state.tasks
@@ -1237,7 +1273,9 @@ void main() {
         );
         final pins = await tester.runAsync(harness.repository.getAll);
         expect(pins!.map((pin) => pin.id), [_id]);
-        expect(state.reloadPayload?.configs.map((config) => config.id), [4]);
+        expect(state.reloadPayload?.configs.map((config) => config.id), [
+          profileUuid(4),
+        ]);
         expect(context.mounted, isTrue);
       },
     );
@@ -1271,7 +1309,9 @@ void main() {
       await preparation.executeImport();
     });
     await tester.pump();
-    expect((await harness.profiles.getAll()).map((profile) => profile.id), [4]);
+    expect((await harness.profiles.getAll()).map((profile) => profile.id), [
+      profileUuid(4),
+    ]);
     expect(context.mounted, isFalse);
   });
 }
@@ -1406,7 +1446,7 @@ void _renderPendingFrame(WidgetTester tester) {
 const _id = '550e8400-e29b-41d4-a716-446655440000';
 final _profile = BooruConfig.fromJson({
   ...BooruConfig.empty.toJson(),
-  'id': 4,
+  'id': '00000000-0000-4000-8000-000000000004',
   'booruId': BooruType.danbooru.id,
   'booruIdHint': BooruType.danbooru.id,
   'url': 'https://EXAMPLE.test/',
@@ -1421,7 +1461,7 @@ BooruConfig _replacement({
   String url = 'https://example.test',
 }) => BooruConfig.fromJson({
   ..._profile.toJson(),
-  'id': id,
+  'id': profileUuid(id),
   'booruId': type.id,
   'booruIdHint': type.id,
   'url': url,
@@ -1438,7 +1478,7 @@ PinnedSearchBackupData _data({
       query: 'cat  rating:safe',
       position: 0,
       profile: BackupProfileReference(
-        id: 4,
+        id: '00000000-0000-4000-8000-000000000004',
         booruType: 'danbooru',
         url: 'https://example.test',
         name: 'Example',
@@ -1451,7 +1491,7 @@ PinnedSearchBackupData _data({
         query: 'dog',
         position: 0,
         profile: BackupProfileReference(
-          id: 5,
+          id: '00000000-0000-4000-8000-000000000005',
           booruType: 'gelbooru',
           url: 'https://missing.test',
           name: 'Missing',
@@ -1462,7 +1502,7 @@ PinnedSearchBackupData _data({
 
 FollowingFeedBackupData _feedData({
   String id = '550e8400-e29b-41d4-a716-446655440009',
-  int profileId = 4,
+  String profileId = '00000000-0000-4000-8000-000000000004',
 }) => FollowingFeedBackupData(
   feeds: [
     FollowingFeedBackupRecord(
@@ -1473,7 +1513,9 @@ FollowingFeedBackupData _feedData({
       profile: BackupProfileReference(
         id: profileId,
         booruType: 'danbooru',
-        url: profileId == 4 ? 'https://example.test' : 'https://other.test',
+        url: profileId == '00000000-0000-4000-8000-000000000004'
+            ? 'https://example.test'
+            : 'https://other.test',
         name: 'Example',
       ),
     ),
@@ -1481,7 +1523,7 @@ FollowingFeedBackupData _feedData({
 );
 
 SearchSubscription _runtimePin(
-  int profileId, {
+  String profileId, {
   SearchQueryStructure? queryStructure,
 }) => SearchSubscription(
   id: _id,
@@ -1559,7 +1601,7 @@ class _RepositoryNotifier extends SearchSubscriptionRepositoryNotifier {
 }
 
 class _ProfileBox implements Box<String> {
-  final _items = <int, String>{};
+  final _items = <Object, String>{};
   var _nextKey = 20;
   var failNextWrite = false;
   @override
@@ -1574,7 +1616,7 @@ class _ProfileBox implements Box<String> {
       failNextWrite = false;
       throw StateError('profile write failed');
     }
-    _items[key as int] = value;
+    _items[key as String] = value;
   }
 
   @override

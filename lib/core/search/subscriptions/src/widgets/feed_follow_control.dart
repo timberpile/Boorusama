@@ -14,7 +14,7 @@ import '../types/search_subscription.dart';
 
 List<SearchFollowingFeed> followedFeedsForQuery(
   SearchSubscriptionsState state,
-  int profileId,
+  String profileId,
   String query,
 ) {
   final identity = normalizeSearchIdentity(query);
@@ -94,7 +94,7 @@ class FeedFollowButton extends ConsumerWidget {
 
 Future<void> showFeedMembershipPicker(
   BuildContext context, {
-  required int profileId,
+  required String profileId,
   required String query,
 }) => showDialog<void>(
   context: context,
@@ -104,7 +104,7 @@ Future<void> showFeedMembershipPicker(
 class _FeedMembershipDialog extends ConsumerStatefulWidget {
   const _FeedMembershipDialog({required this.profileId, required this.query});
 
-  final int profileId;
+  final String profileId;
   final String query;
 
   @override
@@ -226,7 +226,7 @@ class _FeedMembershipDialogState extends ConsumerState<_FeedMembershipDialog> {
 class _CreateFeedDialog extends ConsumerStatefulWidget {
   const _CreateFeedDialog({required this.profileId, required this.query});
 
-  final int profileId;
+  final String profileId;
   final String query;
 
   @override

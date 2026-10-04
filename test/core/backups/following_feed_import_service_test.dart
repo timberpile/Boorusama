@@ -1,3 +1,4 @@
+import '../../profile_uuid_utils.dart';
 import 'package:boorusama/core/backups/sources/following_feed_backup_data.dart';
 import 'package:boorusama/core/backups/sources/following_feed_import_service.dart';
 import 'package:boorusama/core/backups/sources/search_backup_profile.dart';
@@ -30,7 +31,7 @@ void main() {
       () async {
         final repository = memorySubscriptionRepository();
         await repository.saveFeed(
-          profileId: 4,
+          profileId: '00000000-0000-4000-8000-000000000004',
           name: 'Local',
           queries: ['cat', 'dog'],
           id: _id(0),
@@ -67,7 +68,7 @@ void main() {
     () async {
       final repository = memorySubscriptionRepository();
       final previous = await repository.saveFeed(
-        profileId: 4,
+        profileId: '00000000-0000-4000-8000-000000000004',
         name: 'Old',
         queries: ['cat', 'dog'],
         id: _id(0),
@@ -111,13 +112,13 @@ void main() {
     () async {
       final repository = memorySubscriptionRepository();
       final retained = await repository.saveFeed(
-        profileId: 4,
+        profileId: '00000000-0000-4000-8000-000000000004',
         name: 'Cats',
         queries: ['cat'],
         id: _id(0),
       );
       await repository.saveFeed(
-        profileId: 4,
+        profileId: '00000000-0000-4000-8000-000000000004',
         name: 'Remove',
         queries: ['dog'],
         id: _id(1),
@@ -178,17 +179,17 @@ void main() {
       await FollowingFeedImportService(repository: repository).apply(
         _data([_record(0)]),
         profiles: const [],
-        profileIdResolver: (_) => 77,
+        profileIdResolver: (_) => '00000000-0000-4000-8000-00000000004d',
       );
 
-      expect((await repository.getFeeds()).single.profileId, 77);
+      expect((await repository.getFeeds()).single.profileId, profileUuid(77));
     },
   );
 
   test('rejects a wrong-owner UUID before changing another feed', () async {
     final repository = memorySubscriptionRepository();
     await repository.saveFeed(
-      profileId: 9,
+      profileId: '00000000-0000-4000-8000-000000000009',
       name: 'Other profile',
       queries: ['bird'],
       id: _id(1),
@@ -208,7 +209,10 @@ void main() {
   test('previews ambiguous profiles and skips only approved records', () async {
     final repository = memorySubscriptionRepository();
     final service = FollowingFeedImportService(repository: repository);
-    final missing = _record(1, profileId: 99);
+    final missing = _record(
+      1,
+      profileId: '00000000-0000-4000-8000-000000000063',
+    );
     final data = _data([_record(0), missing]);
     final profiles = [_profile(4), _profile(9), _profile(10)];
     expect(service.preview(data, profiles: profiles).unmatchedRecordIds, {
@@ -234,7 +238,7 @@ void main() {
       final repository = memorySubscriptionRepository();
       for (final index in [0, 1, 2]) {
         await repository.saveFeed(
-          profileId: 4,
+          profileId: '00000000-0000-4000-8000-000000000004',
           name: 'Local $index',
           queries: ['local_$index'],
           id: _id(index),
@@ -267,7 +271,7 @@ void main() {
       organizationBox: MemoryBox<dynamic>(),
     );
     final old = await repository.saveFeed(
-      profileId: 4,
+      profileId: '00000000-0000-4000-8000-000000000004',
       name: 'Old',
       queries: ['cat'],
       id: _id(0),
@@ -295,12 +299,12 @@ void main() {
       organizationBox: organizationBox,
     );
     final first = await repository.saveFeed(
-      profileId: 4,
+      profileId: '00000000-0000-4000-8000-000000000004',
       name: 'First',
       queries: ['cat'],
     );
     final second = await repository.saveFeed(
-      profileId: 4,
+      profileId: '00000000-0000-4000-8000-000000000004',
       name: 'Second',
       queries: ['dog'],
     );
@@ -308,7 +312,10 @@ void main() {
     organizationBox.failNextPutAll = true;
 
     await expectLater(
-      repository.setFeedOrder(4, [second.id, first.id]),
+      repository.setFeedOrder('00000000-0000-4000-8000-000000000004', [
+        second.id,
+        first.id,
+      ]),
       throwsStateError,
     );
     expect(await repository.getFeeds(), before);
@@ -323,7 +330,7 @@ void main() {
         organizationBox: organizationBox,
       );
       final saved = await repository.saveFeed(
-        profileId: 4,
+        profileId: '00000000-0000-4000-8000-000000000004',
         name: 'Old',
         queries: ['cat'],
         id: _id(0),
@@ -333,7 +340,9 @@ void main() {
           feedPostSnapshotFromPost(TestSearchPost(42, DateTime.utc(2026))),
         ],
       );
-      await repository.restoreFeeds(4, [old]);
+      await repository.restoreFeeds('00000000-0000-4000-8000-000000000004', [
+        old,
+      ]);
       final beforeSearches = await repository.getAll();
       organizationBox.failNextPutAll = true;
 
@@ -389,7 +398,7 @@ FollowingFeedBackupRecord _record(
   String name = 'Animals',
   List<String> queries = const ['cat'],
   int position = 0,
-  int profileId = 4,
+  String profileId = '00000000-0000-4000-8000-000000000004',
 }) => FollowingFeedBackupRecord(
   id: _id(index),
   name: name,
@@ -398,7 +407,7 @@ FollowingFeedBackupRecord _record(
   profile: BackupProfileReference(
     id: profileId,
     booruType: 'danbooru',
-    url: profileId == 99
+    url: profileId == profileUuid(99)
         ? 'https://ambiguous.test/Posts'
         : 'https://example.test/Posts',
     name: 'Remote',
@@ -409,7 +418,7 @@ String _id(int index) => '550e8400-e29b-41d4-a716-44665544000$index';
 
 BooruConfig _profile(int id) => BooruConfig.fromJson({
   ...BooruConfig.empty.toJson(),
-  'id': id,
+  'id': profileUuid(id),
   'booruIdHint': BooruType.danbooru.id,
   'url': id == 9 || id == 10
       ? 'https://ambiguous.test/Posts'

@@ -44,6 +44,7 @@ import 'developer_options/providers.dart';
 import 'developer_options/src/developer_options_repository.dart';
 import 'developer_options/types.dart';
 import 'hive/hive_registrar.g.dart';
+import 'hive/search_subscription_hive_adapter.dart';
 import 'http/client/types.dart';
 import 'images/providers.dart';
 import 'settings/providers.dart';
@@ -110,7 +111,8 @@ class _BoorusamaAppState extends State<BoorusamaApp> {
       logger.debugBoot('Initialize Hive');
       Hive
         ..init(dbDirectoryPath)
-        ..registerAdapters();
+        ..registerAdapters()
+        ..registerAdapter(SearchSubscriptionHiveObjectAdapter());
 
       logger.debugBoot('Load app info');
       final appInfo = await getAppInfo();

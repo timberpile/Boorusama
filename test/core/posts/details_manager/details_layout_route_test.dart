@@ -1,3 +1,4 @@
+import '../../../profile_uuid_utils.dart';
 import 'dart:async';
 
 import 'package:boorusama/core/boorus/booru/types.dart';
@@ -234,7 +235,7 @@ class _RecordingBooruConfigNotifier extends BooruConfigNotifier {
   @override
   Future<void> update({
     required BooruConfigData booruConfigData,
-    required int oldConfigId,
+    required String oldConfigId,
     void Function(String message)? onFailure,
     void Function(BooruConfig booruConfig)? onSuccess,
   }) async {
@@ -281,7 +282,7 @@ BooruConfig _config({required int id, required String url}) =>
         url: url,
         customDownloadFileNameFormat: null,
       ).toJson(),
-      'id': id,
+      'id': profileUuid(id),
     });
 
 class _EditorHarness {

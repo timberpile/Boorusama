@@ -5,8 +5,8 @@ import 'package:flutter/foundation.dart';
 import '../../../config/types.dart';
 
 BooruConfig? getConfigFromLink(
-  BooruConfig? Function(int id) findConfigById,
-  int currentConfigId,
+  BooruConfig? Function(String id) findConfigById,
+  String currentConfigId,
   String? path,
 ) {
   final uri = path != null ? Uri.parse(path) : null;
@@ -23,7 +23,7 @@ BooruConfig? getConfigFromLink(
   _print('Deep link is booru config deep link');
 
   final configIdString = uri.queryParameters['cid'];
-  final configId = configIdString != null ? int.tryParse(configIdString) : null;
+  final configId = isCanonicalProfileId(configIdString) ? configIdString : null;
 
   if (configId == null) return null;
 

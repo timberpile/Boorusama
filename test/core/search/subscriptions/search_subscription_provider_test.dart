@@ -105,7 +105,7 @@ void main() {
       searchSubscriptionRepositoryProvider.future,
     );
     await first.create(
-      profileId: 4,
+      profileId: '00000000-0000-4000-8000-000000000004',
       query: 'first',
       name: null,
       id: 'first',
@@ -115,7 +115,7 @@ void main() {
       searchSubscriptionRepositoryProvider.future,
     );
     final second = await rebuilt.create(
-      profileId: 4,
+      profileId: '00000000-0000-4000-8000-000000000004',
       query: 'second',
       name: null,
       id: 'second',
@@ -163,7 +163,7 @@ void main() {
           .read(searchSubscriptionRepositoryProvider.future)
           .timeout(const Duration(seconds: 1));
       final created = await rebuilt.create(
-        profileId: 4,
+        profileId: '00000000-0000-4000-8000-000000000004',
         query: 'retry',
         name: null,
         id: 'retry',

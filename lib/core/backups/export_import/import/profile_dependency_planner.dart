@@ -21,7 +21,7 @@ final class ProfileReferenceKey extends Equatable {
         url: normalizeBackupProfileUrl(reference.url),
       );
 
-  final int exportedId;
+  final String exportedId;
   final String booruType;
   final String url;
 
@@ -32,15 +32,15 @@ final class ProfileReferenceKey extends Equatable {
 final class ProfileDependencyMapping extends Equatable {
   ProfileDependencyMapping({
     required this.reference,
-    required Iterable<int> candidateIds,
+    required Iterable<String> candidateIds,
     this.profileId,
     required this.providedByImport,
     this.createdFromReference = false,
   }) : candidateIds = Set.unmodifiable(candidateIds);
 
   final BackupProfileReference reference;
-  final Set<int> candidateIds;
-  final int? profileId;
+  final Set<String> candidateIds;
+  final String? profileId;
   final bool providedByImport;
   final bool createdFromReference;
 
@@ -72,7 +72,7 @@ final class ProfileDependencyPlan extends Equatable {
   final List<ImportPlanIssue> errors;
   final List<BooruConfig> createdProfiles;
 
-  int? profileIdFor(BackupProfileReference reference) {
+  String? profileIdFor(BackupProfileReference reference) {
     final key = ProfileReferenceKey.fromReference(reference);
     for (final mapping in mappings) {
       if (ProfileReferenceKey.fromReference(mapping.reference) == key) {
@@ -100,11 +100,12 @@ final class ProfileDependencyPlanner {
     List<BooruConfig> importedProfiles = const [],
     ResolvedImportSource? profileResolution,
     bool credentialsIncluded = false,
-    Map<ProfileReferenceKey, int> choices = const {},
+    Map<String, String> copyIds = const {},
+    Map<ProfileReferenceKey, String> choices = const {},
     Set<ProfileReferenceKey> createFromReferences = const {},
   }) {
     var projected = localProfiles;
-    var destinationIds = const <int, int>{};
+    var destinationIds = const <String, String>{};
     final errors = <ImportPlanIssue>[];
     if (importedProfiles.isNotEmpty && profileResolution != null) {
       try {
@@ -113,9 +114,18 @@ final class ProfileDependencyPlanner {
           local: localProfiles,
           resolution: profileResolution,
           credentialsIncluded: credentialsIncluded,
+          copyIds: copyIds,
         );
         projected = projection.profiles;
         destinationIds = projection.destinationIds;
+      } on ConflictingProfileIdentityException catch (error) {
+        errors.add(
+          ImportPlanIssue(
+            code: 'profile_identity_conflict',
+            sourceId: 'profiles',
+            itemId: 'profile:${error.profileId}',
+          ),
+        );
       } on UnresolvedProfileImportException catch (error) {
         errors.add(
           ImportPlanIssue(
@@ -137,13 +147,31 @@ final class ProfileDependencyPlanner {
     };
     final mappings = <ProfileDependencyMapping>[];
     final createdProfiles = <BooruConfig>[];
-    var nextProfileId =
-        projected.fold<int>(
-          0,
-          (largest, profile) => profile.id > largest ? profile.id : largest,
-        ) +
-        1;
     for (final entry in uniqueReferences.entries) {
+      final matchingId = projected
+          .where(
+            (profile) => profile.id == entry.key.exportedId,
+          )
+          .firstOrNull;
+      if (matchingId != null &&
+          (matchingId.auth.booruType.name != entry.key.booruType ||
+              normalizeBackupProfileUrl(matchingId.url) != entry.key.url)) {
+        errors.add(
+          ImportPlanIssue(
+            code: 'profile_identity_conflict',
+            sourceId: 'profiles',
+            itemId: 'profile:${entry.key.exportedId}',
+          ),
+        );
+        mappings.add(
+          ProfileDependencyMapping(
+            reference: entry.value,
+            candidateIds: const {},
+            providedByImport: false,
+          ),
+        );
+        continue;
+      }
       final imported = importedById[entry.key.exportedId];
       final importedDestination = destinationIds[entry.key.exportedId];
       final suppliedByImport =
@@ -163,8 +191,8 @@ final class ProfileDependencyPlanner {
         continue;
       }
 
-      if (createFromReferences.contains(entry.key)) {
-        final created = _createProfile(entry.value, nextProfileId);
+      if (createFromReferences.contains(entry.key) && matchingId == null) {
+        final created = _createProfile(entry.value, entry.value.id);
         if (created == null) {
           mappings.add(
             ProfileDependencyMapping(
@@ -182,7 +210,6 @@ final class ProfileDependencyPlanner {
           );
           continue;
         }
-        nextProfileId++;
         projected = [...projected, created];
         createdProfiles.add(created);
         mappings.add(
@@ -230,7 +257,7 @@ final class ProfileDependencyPlanner {
     );
   }
 
-  BooruConfig? _createProfile(BackupProfileReference reference, int id) {
+  BooruConfig? _createProfile(BackupProfileReference reference, String id) {
     final type = BooruYamlConfigs.values
         .map((config) => config.type)
         .firstWhere(

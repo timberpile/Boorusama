@@ -46,7 +46,7 @@ class SearchSubscriptionsState extends Equatable {
   final Set<String> refreshingIds;
   final int batchCompleted;
   final int batchTotal;
-  final int? batchProfileId;
+  final String? batchProfileId;
   final List<SearchFollowingFeed> feeds;
   final SearchOrganization organization;
 
@@ -69,13 +69,13 @@ class SearchSubscriptionsNotifier
 
   final SearchRefreshService? _refreshService;
   final Map<String, Future<SearchRefreshOutcome>> _inFlight = {};
-  final Map<int, int> _pausedProfileRefreshes = {};
+  final Map<String, int> _pausedProfileRefreshes = {};
   final _requestGate = SearchRefreshRequestGate();
   Future<void> _mutationTail = Future.value();
   Future<void> _batchTail = Future.value();
   var _batchCompleted = 0;
   var _batchTotal = 0;
-  int? _batchProfileId;
+  String? _batchProfileId;
   var _disposed = false;
   List<SearchFollowingFeed> _feeds = const [];
   var _organization = SearchOrganization(
@@ -116,7 +116,7 @@ class SearchSubscriptionsNotifier
       );
 
   Future<SearchFollowingFeed> saveFeed({
-    required int profileId,
+    required String profileId,
     required String name,
     required List<String> queries,
     String? id,
@@ -162,7 +162,7 @@ class SearchSubscriptionsNotifier
   });
 
   Future<int> bulkPinToFolder({
-    required int profileId,
+    required String profileId,
     required String? folderId,
     required String rawQueries,
   }) => _mutate((repository) async {
@@ -227,7 +227,7 @@ class SearchSubscriptionsNotifier
     return created.length;
   });
 
-  void _validateFeedQueries(int profileId, List<String> queries) {
+  void _validateFeedQueries(String profileId, List<String> queries) {
     final config = ref
         .read(booruConfigProvider)
         .where((c) => c.id == profileId)
@@ -248,7 +248,7 @@ class SearchSubscriptionsNotifier
 
   Future<SearchFollowingFeed?> setFeedFollowing({
     required String feedId,
-    required int profileId,
+    required String profileId,
     required String query,
     required bool following,
   }) => _mutate((repository) async {
@@ -485,7 +485,7 @@ class SearchSubscriptionsNotifier
 
   Future<({SearchSubscription subscription, SearchRefreshOutcome refresh})>
   pin({
-    required int profileId,
+    required String profileId,
     required String query,
     SearchQueryStructure? queryStructure,
     required String? name,
@@ -551,7 +551,7 @@ class SearchSubscriptionsNotifier
   Future<({SearchSubscription subscription, SearchRefreshOutcome? refresh})>
   edit(
     String id, {
-    required int profileId,
+    required String profileId,
     required String query,
     required String? name,
   }) async {
@@ -586,7 +586,7 @@ class SearchSubscriptionsNotifier
   }
 
   Future<SearchSubscription> savePinInNewFolder({
-    required int profileId,
+    required String profileId,
     required String query,
     required String? name,
     required String folderName,
@@ -601,7 +601,7 @@ class SearchSubscriptionsNotifier
     ),
   );
 
-  Future<void> reorder(int profileId, int oldIndex, int newIndex) async {
+  Future<void> reorder(String profileId, int oldIndex, int newIndex) async {
     await _mutate(
       (repository) => repository.reorder(profileId, oldIndex, newIndex),
     );
@@ -659,7 +659,7 @@ class SearchSubscriptionsNotifier
     }
   }
 
-  Future<List<SearchRefreshOutcome>> refreshAll(int profileId) {
+  Future<List<SearchRefreshOutcome>> refreshAll(String profileId) {
     final completer = Completer<List<SearchRefreshOutcome>>();
     _batchTail = _batchTail.catchError((_) {}).then((_) async {
       try {
@@ -671,7 +671,7 @@ class SearchSubscriptionsNotifier
     return completer.future;
   }
 
-  Future<List<SearchRefreshOutcome>> _refreshAll(int profileId) async {
+  Future<List<SearchRefreshOutcome>> _refreshAll(String profileId) async {
     await future;
     final repository = await _repository;
     final feedSourceIds = {
@@ -759,7 +759,7 @@ class SearchSubscriptionsNotifier
   });
 
   Future<T> runWithProfileRefreshPaused<T>(
-    int profileId,
+    String profileId,
     Future<T> Function() operation,
   ) async {
     _pausedProfileRefreshes.update(

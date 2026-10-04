@@ -1,3 +1,4 @@
+import '../../../profile_uuid_utils.dart';
 import 'package:boorusama/core/backups/export_import/import/import_plan.dart';
 import 'package:boorusama/core/backups/export_import/import/import_planned_change_projector.dart';
 import 'package:boorusama/core/backups/export_import/import/import_preflight.dart';
@@ -65,9 +66,9 @@ void main() {
           action: ImportAction.configureItems,
           items: const [
             ResolvedImportItem(
-              id: 'profile:1',
+              id: 'profile:00000000-0000-4000-8000-000000000001',
               action: ImportAction.update,
-              targetId: 'profile:10',
+              targetId: 'profile:00000000-0000-4000-8000-00000000000a',
             ),
           ],
         ),
@@ -95,9 +96,9 @@ void main() {
           action: ImportAction.configureItems,
           items: const [
             ResolvedImportItem(
-              id: 'profile:1',
+              id: 'profile:00000000-0000-4000-8000-000000000001',
               action: ImportAction.update,
-              targetId: 'profile:10',
+              targetId: 'profile:00000000-0000-4000-8000-00000000000a',
             ),
           ],
         ),
@@ -239,7 +240,8 @@ void main() {
         ),
         incoming: incoming,
         profileMappings: {
-          ProfileReferenceKey.fromReference(_profileReference): 1,
+          ProfileReferenceKey.fromReference(_profileReference):
+              '00000000-0000-4000-8000-000000000001',
         },
         resolution: ResolvedImportSource(
           id: 'pinned_searches',
@@ -328,7 +330,8 @@ void main() {
           homeSearchIds: ['same-id'],
         ),
         profileMappings: {
-          ProfileReferenceKey.fromReference(_profileReference): 1,
+          ProfileReferenceKey.fromReference(_profileReference):
+              '00000000-0000-4000-8000-000000000001',
         },
         resolution: ResolvedImportSource(
           id: 'pinned_searches',
@@ -380,7 +383,8 @@ void main() {
           homeSearchIds: ['second', 'first'],
         ),
         profileMappings: {
-          ProfileReferenceKey.fromReference(_profileReference): 1,
+          ProfileReferenceKey.fromReference(_profileReference):
+              '00000000-0000-4000-8000-000000000001',
         },
         resolution: ResolvedImportSource(
           id: 'pinned_searches',
@@ -409,7 +413,10 @@ void main() {
         id: 'profiles',
         action: ImportAction.configureItems,
         items: const [
-          ResolvedImportItem(id: 'profile:99', action: ImportAction.update),
+          ResolvedImportItem(
+            id: 'profile:00000000-0000-4000-8000-000000000063',
+            action: ImportAction.update,
+          ),
         ],
       ),
       credentialsIncluded: false,
@@ -457,7 +464,8 @@ void main() {
         ],
       ),
       profileMappings: {
-        ProfileReferenceKey.fromReference(_profileReference): 1,
+        ProfileReferenceKey.fromReference(_profileReference):
+            '00000000-0000-4000-8000-000000000001',
       },
       resolution: _source('pinned_searches', ImportAction.replace),
     );
@@ -518,7 +526,8 @@ void main() {
         ],
       ),
       profileMappings: {
-        ProfileReferenceKey.fromReference(_profileReference): 1,
+        ProfileReferenceKey.fromReference(_profileReference):
+            '00000000-0000-4000-8000-000000000001',
       },
       resolution: ResolvedImportSource(
         id: 'pinned_searches',
@@ -543,16 +552,20 @@ void main() {
   test(
     'feed projection reuses internal searches and preserves shared rows',
     () {
-      final cat = _search(id: 'cat-source', query: 'cat', profileId: 42);
+      final cat = _search(
+        id: 'cat-source',
+        query: 'cat',
+        profileId: '00000000-0000-4000-8000-00000000002a',
+      );
       final first = SearchFollowingFeed(
         id: 'first',
-        profileId: 42,
+        profileId: '00000000-0000-4000-8000-00000000002a',
         name: 'First',
         sourceIds: const ['cat-source'],
       );
       final second = SearchFollowingFeed(
         id: 'second',
-        profileId: 42,
+        profileId: '00000000-0000-4000-8000-00000000002a',
         name: 'Second',
         sourceIds: const ['cat-source'],
         position: 1,
@@ -575,7 +588,8 @@ void main() {
           ],
         ),
         profileMappings: {
-          ProfileReferenceKey.fromReference(_profileReference): 42,
+          ProfileReferenceKey.fromReference(_profileReference):
+              '00000000-0000-4000-8000-00000000002a',
         },
         resolution: ResolvedImportSource(
           id: 'following_feeds',
@@ -637,13 +651,13 @@ void main() {
         feeds: [
           SearchFollowingFeed(
             id: 'kept',
-            profileId: 1,
+            profileId: '00000000-0000-4000-8000-000000000001',
             name: 'Kept',
             sourceIds: const ['cat-source'],
           ),
           SearchFollowingFeed(
             id: 'removed',
-            profileId: 1,
+            profileId: '00000000-0000-4000-8000-000000000001',
             name: 'Removed',
             sourceIds: const ['dog-source'],
             position: 1,
@@ -662,7 +676,8 @@ void main() {
         ],
       ),
       profileMappings: {
-        ProfileReferenceKey.fromReference(_profileReference): 1,
+        ProfileReferenceKey.fromReference(_profileReference):
+            '00000000-0000-4000-8000-000000000001',
       },
       resolution: _source('following_feeds', ImportAction.replace),
     );
@@ -694,7 +709,7 @@ ResolvedImportSource _source(String id, ImportAction action) =>
     ResolvedImportSource(id: id, action: action, items: const []);
 
 const _profileReference = BackupProfileReference(
-  id: 1,
+  id: '00000000-0000-4000-8000-000000000001',
   booruType: 'gelbooruV2',
   url: 'https://example.com',
   name: 'Example',
@@ -707,7 +722,7 @@ BooruConfig _profile({
   String? apiKey,
 }) => BooruConfig.fromJson({
   ...BooruConfig.empty.toJson(),
-  'id': id,
+  'id': profileUuid(id),
   'booruId': 1,
   'booruIdHint': 1,
   'name': name,
@@ -738,7 +753,7 @@ Bookmark _bookmark({required int localId, required int postId}) => Bookmark(
 SearchSubscription _search({
   required String id,
   required String query,
-  int profileId = 1,
+  String profileId = '00000000-0000-4000-8000-000000000001',
 }) => SearchSubscription.create(
   id: id,
   profileId: profileId,

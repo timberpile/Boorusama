@@ -13,14 +13,14 @@ void main() {
     final first = BookmarkIdentity.fromPost(
       _post(
         source: 'https://Gelbooru.Example/posts/42',
-        profileId: 7,
+        profileId: '00000000-0000-4000-8000-000000000007',
         originalUrl: 'https://cdn-one.example/42.jpg',
       ),
     );
     final second = BookmarkIdentity.fromPost(
       _post(
         source: 'gelbooru.example',
-        profileId: 99,
+        profileId: '00000000-0000-4000-8000-000000000063',
         originalUrl: 'https://cdn-two.example/changed-42.jpg',
       ),
     );
@@ -33,10 +33,16 @@ void main() {
 
   test('keeps equal engine post IDs distinct on different sites', () {
     final gelbooru = BookmarkIdentity.fromPost(
-      _post(source: 'https://gelbooru.com', profileId: 1),
+      _post(
+        source: 'https://gelbooru.com',
+        profileId: '00000000-0000-4000-8000-000000000001',
+      ),
     );
     final rule34 = BookmarkIdentity.fromPost(
-      _post(source: 'https://rule34.xxx', profileId: 2),
+      _post(
+        source: 'https://rule34.xxx',
+        profileId: '00000000-0000-4000-8000-000000000002',
+      ),
     );
 
     expect(gelbooru, isNot(rule34));
@@ -45,7 +51,7 @@ void main() {
 
 Post _post({
   required String source,
-  required int profileId,
+  required String profileId,
   String originalUrl = 'https://img.example/42.jpg',
 }) => Post(
   origin: PostOrigin.fromSource(

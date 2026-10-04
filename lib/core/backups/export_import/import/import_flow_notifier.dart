@@ -146,8 +146,9 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
   var _availableBytes = 1 << 62;
   var _stagingBytes = 0;
   List<SourcePreflightSnapshot> _preflightSnapshots = const [];
-  final Map<ProfileReferenceKey, int> _profileChoices = {};
+  final Map<ProfileReferenceKey, String> _profileChoices = {};
   final Set<ProfileReferenceKey> _createdProfileChoices = {};
+  final Map<String, String> _copyProfileIds = {};
 
   @override
   ImportFlowState build() {
@@ -171,6 +172,7 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
       );
       _profileChoices.clear();
       _createdProfileChoices.clear();
+      _copyProfileIds.clear();
       final disk = await DiskSpaceInfo.fromTempDir(
         ref.read(appFileSystemProvider),
       );
@@ -428,7 +430,7 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
     );
   }
 
-  void chooseProfileMapping(ProfileReferenceKey key, int profileId) {
+  void chooseProfileMapping(ProfileReferenceKey key, String profileId) {
     _createdProfileChoices.remove(key);
     _profileChoices[key] = profileId;
     final proposed = state.proposed;
@@ -523,7 +525,7 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
     ResolvedImportPlan resolved,
     ProfileDependencyPlan dependencies,
   ) {
-    final resolvedMappings = <ProfileReferenceKey, int>{};
+    final resolvedMappings = <ProfileReferenceKey, String>{};
     for (final mapping in dependencies.mappings) {
       final id = mapping.profileId;
       if (id != null) {
@@ -536,6 +538,7 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
     for (final source in _sources.values) {
       source.profileMappings = resolvedMappings;
       if (source.id == 'profiles') {
+        source.copyProfileIds = Map.unmodifiable(_copyProfileIds);
         source.additionalProfiles = dependencies.createdProfiles;
       }
     }
@@ -619,11 +622,21 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
           );
       }
     }
+    final profileResolution = resolvedById['profiles'];
+    if (profileResolution != null) {
+      for (final item in profileResolution.items) {
+        if (item.action != ImportAction.copy || !item.id.startsWith('profile:'))
+          continue;
+        final exportedId = item.id.substring('profile:'.length);
+        _copyProfileIds.putIfAbsent(exportedId, createProfileId);
+      }
+    }
     return const ProfileDependencyPlanner().plan(
       references: references,
       localProfiles: ref.read(booruConfigProvider),
       importedProfiles: importedProfiles,
-      profileResolution: resolvedById['profiles'],
+      profileResolution: profileResolution,
+      copyIds: _copyProfileIds,
       credentialsIncluded: _sources['profiles']?.credentialsIncluded ?? false,
       choices: _profileChoices,
       createFromReferences: _createdProfileChoices,
@@ -804,7 +817,8 @@ final class PackageTransactionSource implements ImportTransactionSource {
   final AppFileSystem fs;
   final Ref ref;
   bool credentialsIncluded;
-  Map<ProfileReferenceKey, int> profileMappings = const {};
+  Map<ProfileReferenceKey, String> profileMappings = const {};
+  Map<String, String> copyProfileIds = const {};
   List<BooruConfig> additionalProfiles = const [];
   ImportPreparation? _preparation;
   Object? _localSnapshot;
@@ -903,6 +917,7 @@ final class PackageTransactionSource implements ImportTransactionSource {
           resolution: resolution,
           credentialsIncluded: credentialsIncluded,
           additionalProfiles: additionalProfiles,
+          copyIds: copyProfileIds,
         ),
       ('profiles', final List<BooruConfig> local, null) => projector.profiles(
         local: local,
@@ -910,6 +925,7 @@ final class PackageTransactionSource implements ImportTransactionSource {
         resolution: resolution,
         credentialsIncluded: credentialsIncluded,
         additionalProfiles: additionalProfiles,
+        copyIds: copyProfileIds,
       ),
       (
         'bookmarks',
@@ -1069,11 +1085,18 @@ final class PackageTransactionSource implements ImportTransactionSource {
   ) async {
     if (resolution.action == ImportAction.skip) return;
     final repository = ref.read(booruConfigRepoProvider);
+    for (final item in resolution.items) {
+      if (item.action == ImportAction.copy &&
+          !copyProfileIds.containsKey(item.id.substring('profile:'.length))) {
+        throw StateError('Profile copy ID missing from approved preflight');
+      }
+    }
     final projection = const ProfileImportProjector().project(
       imported: imported,
       local: (await repository.getAll()).toList(),
       resolution: resolution,
       credentialsIncluded: credentialsIncluded,
+      copyIds: copyProfileIds,
     );
     final projected = projection.profiles.toList();
     final usedIds = projected.map((profile) => profile.id).toSet();
@@ -1206,7 +1229,7 @@ final class PackageTransactionSource implements ImportTransactionSource {
     final id => id,
   };
 
-  int? _profileId(BackupProfileReference profile) =>
+  String? _profileId(BackupProfileReference profile) =>
       profileMappings[ProfileReferenceKey.fromReference(profile)];
 
   Future<void> _applyBookmarks(

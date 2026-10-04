@@ -1,5 +1,6 @@
 # Replace local profile IDs with UUIDs end-to-end
 
+Claim: coordinator `/root`, 2026-10-03; implementer `/root/audit_profile_ids`; branch `feature/idea-002-profile-uuids`; worktree `/home/timber/code/Boorusama/.worktrees/idea-002-profile-uuids`.
 Priority: Normal
 Affected feature: Profiles, settings, cached posts, Pinned Searches, Following Feeds, import/export
 
@@ -31,3 +32,21 @@ Creating a profile assigns one canonical lowercase UUID. Editing keeps it; dupli
 
 The completed audit estimated a small storage increase for repeated UUID hints but did not benchmark runtime cost. This ticket is independent of IDEA-004 and must agree with the in-progress export rewrite. Two independently created same-site profiles are not assumed to be the same account.
 
+
+## Implementation evidence (2026-10-03)
+
+- Profile records and Hive keys now use canonical lowercase UUIDs. New and duplicated profiles receive distinct IDs; edits keep the ID. Current selection/order, routes, pins, feeds, cached post origin hints, and export/import references use that ID.
+- Import preflight rejects a UUID reused for another engine or site. A different UUID needs an explicit mapping even for the same site. Copy allocates its destination UUID during the import review, then uses it for the planned summary, dependent pins/feeds, and apply. A later independent Copy allocates another UUID.
+- Old integer profile keys and integer-owned pin/feed rows are ignored when loading; an old archive with numeric profile references fails format validation before writes. These rows are not migrated.
+- Full Flutter suite: 1,976 tests passed on 2026-10-03, including the 827-test relevant migration scope, old-row safety, and conflict preflight. The Dart analyzer reported no errors; its remaining diagnostics are warnings and informational lints.
+
+### 500-post cache measurement
+
+The same feed fixture held 500 full cached post snapshots, two source IDs, representative media URLs, tags, dimensions, and variants. Each measurement JSON-encoded the feed once, counted UTF-8 bytes, then ran five JSON decode plus `SearchFollowingFeed.fromJson` loads in one test process and reported their median. The pre-change run used integer profile ID 17; the post-change isolated run used a canonical UUID in the feed and each post origin hint.
+
+| Representation | Serialized bytes | Median load time |
+| --- | ---: | ---: |
+| Integer profile ID | 377,968 | 66,795 µs |
+| UUID profile ID | 395,504 | 15,926 µs |
+
+The UUID representation adds 17,536 bytes (4.64%) to this 500-post cache. Timings vary substantially across separate Flutter test runs, so the measured drop is not evidence of a speedup. The storage increase is small enough to retain the repeated origin hints needed for cached-post resolution.

@@ -18,7 +18,7 @@ class EditBooruConfigId extends Equatable {
     required String url,
     String? initialName,
   }) : this(
-         id: -1,
+         id: '',
          booruType: booruType,
          url: url,
          initialName: initialName,
@@ -34,7 +34,8 @@ class EditBooruConfigId extends Equatable {
   static EditBooruConfigId? fromUri(Uri uri) {
     final parameters = uri.queryParameters;
     final type = int.tryParse(parameters['type'] ?? '');
-    final id = int.tryParse(parameters['id'] ?? '');
+    final rawId = parameters['id'];
+    final id = rawId == '' || isCanonicalProfileId(rawId) ? rawId : null;
     final url = parameters['url'];
 
     return switch ((type, id, url)) {
@@ -48,12 +49,12 @@ class EditBooruConfigId extends Equatable {
     };
   }
 
-  final int id;
+  final String id;
   final BooruType booruType;
   final String url;
   final String? initialName;
 
-  bool get isNew => id == -1;
+  bool get isNew => id.isEmpty;
 
   Map<String, String> toQueryParameters() => {
     'type': booruType.id.toString(),

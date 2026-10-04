@@ -211,7 +211,10 @@ void main() {
                     {
                       ..._row(),
                       'id': 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
-                      'profile': {..._profile(), 'id': 99},
+                      'profile': {
+                        ..._profile(),
+                        'id': '00000000-0000-4000-8000-000000000063',
+                      },
                     },
                   ],
                 ),
@@ -278,7 +281,7 @@ void main() {
             query: 'cat  rating:safe',
             position: 0,
             profile: BackupProfileReference(
-              id: 4,
+              id: '00000000-0000-4000-8000-000000000004',
               booruType: 'danbooru',
               url: 'https://example.test/Posts',
               name: 'Example',
@@ -447,7 +450,7 @@ void main() {
             query: 'cat',
             position: 0,
             profile: BackupProfileReference(
-              id: 4,
+              id: '00000000-0000-4000-8000-000000000004',
               booruType: 'danbooru',
               url:
                   'https://private-user:private-password@EXAMPLE.test:8443/Path/'
@@ -627,7 +630,7 @@ void main() {
 const _id = '550e8400-e29b-41d4-a716-446655440000';
 
 Map<String, dynamic> _profile() => {
-  'id': 4,
+  'id': '00000000-0000-4000-8000-000000000004',
   'booruType': 'danbooru',
   'url': 'https://EXAMPLE.test/Posts/',
   'name': 'Example',

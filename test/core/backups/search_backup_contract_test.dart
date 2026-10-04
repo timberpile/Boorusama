@@ -1,3 +1,4 @@
+import '../../profile_uuid_utils.dart';
 import 'package:boorusama/core/backups/sources/search_backup_envelope.dart';
 import 'package:boorusama/core/backups/sources/search_backup_profile.dart';
 import 'package:boorusama/core/backups/types.dart';
@@ -88,21 +89,21 @@ void main() {
   );
 
   const reference = BackupProfileReference(
-    id: 4,
+    id: '00000000-0000-4000-8000-000000000004',
     booruType: 'danbooru',
     url: 'https://EXAMPLE.test/Posts/',
     name: 'Remote',
   );
   for (final c in [
     (
-      name: 'matching ID among duplicate sites',
+      name: 'matching UUID among duplicate sites',
       profiles: [_profile(9), _profile(4)],
-      expectedId: 4,
+      expectedId: profileUuid(4),
     ),
     (
-      name: 'unique site after an ID change',
+      name: 'same site with a different UUID needs an explicit mapping',
       profiles: [_profile(9)],
-      expectedId: 9,
+      expectedId: null,
     ),
     (
       name: 'ambiguous site without the original ID',
@@ -122,7 +123,7 @@ void main() {
 
   test('parses a portable profile URL without credentials or query data', () {
     final parsed = parseBackupProfile({
-      'id': 4,
+      'id': '00000000-0000-4000-8000-000000000004',
       'booruType': 'danbooru',
       'url': 'https://user:secret@EXAMPLE.test/Posts/?token=private',
       'name': 'Remote',
@@ -134,7 +135,7 @@ void main() {
   test('rejects an invalid portable profile reference', () {
     expect(
       () => parseBackupProfile({
-        'id': 4,
+        'id': '00000000-0000-4000-8000-000000000004',
         'booruType': 'danbooru',
         'url': 'javascript:alert(1)',
         'name': 'Remote',
@@ -156,7 +157,7 @@ ExportDataPayload _payload({String? source, int version = 1}) =>
 BooruConfig _profile(int id, {BooruType type = BooruType.danbooru}) =>
     BooruConfig.fromJson({
       ...BooruConfig.empty.toJson(),
-      'id': id,
+      'id': profileUuid(id),
       'booruIdHint': type.id,
       'url': 'https://example.test/Posts',
       'name': 'Local',

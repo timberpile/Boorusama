@@ -36,7 +36,7 @@ class SearchSubscription extends Equatable {
 
   factory SearchSubscription.create({
     required String id,
-    required int profileId,
+    required String profileId,
     required String query,
     required String? name,
     required int position,
@@ -58,7 +58,7 @@ class SearchSubscription extends Equatable {
   }
 
   final String id;
-  final int profileId;
+  final String profileId;
   final String query;
   final SearchQueryStructure? queryStructure;
   final String? name;

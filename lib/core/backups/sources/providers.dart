@@ -137,7 +137,9 @@ final exportImportSourcesProvider = Provider<List<ExportImportSource>>((ref) {
       scopeBuilder: (selection) => switch (selection.kind) {
         ExportNodeSelectionKind.all => const ProfileExportScope.all(),
         ExportNodeSelectionKind.explicit => ProfileExportScope.selected(
-          selection.childIds.map(ExportSelectionIds.profileId).whereType<int>(),
+          selection.childIds
+              .map(ExportSelectionIds.profileId)
+              .whereType<String>(),
         ),
       },
       transformer: const ProfileExportSanitizer().sanitizeExportJson,

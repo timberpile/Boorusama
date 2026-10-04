@@ -125,10 +125,10 @@ void main() {
   });
 
   test(
-    'keeps legacy profile creation links without a suggested name valid',
+    'keeps profile creation links without a suggested name valid',
     () {
       final editId = EditBooruConfigId.fromUri(
-        Uri.parse('/boorus/add?type=20&url=https://danbooru.donmai.us/&id=-1'),
+        Uri.parse('/boorus/add?type=20&url=https://danbooru.donmai.us/&id='),
       );
 
       expect(editId?.booruType, BooruType.danbooru);

@@ -171,7 +171,7 @@ void main() {
       find.widgetWithText(TextField, 'Exact query'),
       'dog',
     );
-    await tester.tap(find.byType(DropdownButtonFormField<int>));
+    await tester.tap(find.byType(DropdownButtonFormField<String>));
     await settle(tester);
     await tester.tap(find.text('https://other.example').last);
     await settle(tester);
@@ -182,12 +182,18 @@ void main() {
     final edited = (await harness.repository.getById('cats'))!;
     expect(edited.name, 'Dogs');
     expect(edited.query, 'dog');
-    expect(edited.profileId, 99);
+    expect(edited.profileId, '00000000-0000-4000-8000-000000000063');
     expect(
       (await harness.repository.getOrganization()).folders.single.searchIds,
       ['cats'],
     );
-    expect(harness.requests, contains((profileId: 99, query: 'dog')));
+    expect(
+      harness.requests,
+      contains((
+        profileId: '00000000-0000-4000-8000-000000000063',
+        query: 'dog',
+      )),
+    );
   });
 
   testWidgets('the editor distinguishes profiles with the same name', (
@@ -204,7 +210,7 @@ void main() {
     await pump(tester);
 
     await choose(tester, 'Edit');
-    await tester.tap(find.byType(DropdownButtonFormField<int>));
+    await tester.tap(find.byType(DropdownButtonFormField<String>));
     await settle(tester);
     expect(find.text('Shared · https://active.example'), findsWidgets);
     await tester.tap(find.text('Shared · https://other.example').last);
@@ -214,7 +220,10 @@ void main() {
     await settle(tester);
 
     expect(find.text('Edit Pinned Search'), findsNothing);
-    expect((await harness.repository.getById('cats'))!.profileId, 99);
+    expect(
+      (await harness.repository.getById('cats'))!.profileId,
+      '00000000-0000-4000-8000-000000000063',
+    );
     expect(find.text('Shared · https://other.example'), findsOneWidget);
   });
 
@@ -352,7 +361,11 @@ void main() {
         initialize();
         await harness.seed([
           pinnedFixture(),
-          pinnedFixture(id: 'dogs', profileId: 99, name: 'Dogs'),
+          pinnedFixture(
+            id: 'dogs',
+            profileId: '00000000-0000-4000-8000-000000000063',
+            name: 'Dogs',
+          ),
         ]);
         await harness.container.read(searchSubscriptionsProvider.future);
         final notifier = harness.container.read(
@@ -390,7 +403,10 @@ void main() {
         final destination = organization.folders
             .where((f) => f.searchIds.contains('cats'))
             .firstOrNull;
-        expect((await harness.repository.getById('cats'))!.profileId, 12);
+        expect(
+          (await harness.repository.getById('cats'))!.profileId,
+          '00000000-0000-4000-8000-00000000000c',
+        );
         switch (scenario) {
           case 'existing':
             expect(destination?.id, otherFolder.id);
@@ -483,7 +499,9 @@ void main() {
     }
     await tester.tap(find.text('Refresh Folder'));
     await drain(tester);
-    expect(harness.requests, [(profileId: 12, query: 'cat')]);
+    expect(harness.requests, [
+      (profileId: '00000000-0000-4000-8000-00000000000c', query: 'cat'),
+    ]);
   });
 
   testWidgets('routine check details are available through Info only', (
@@ -544,7 +562,7 @@ void main() {
     const longUrl = 'https://a-very-long-profile-name.example.test';
     final profile = BooruConfig.fromJson({
       ...BooruConfig.empty.toJson(),
-      'id': 12,
+      'id': '00000000-0000-4000-8000-00000000000c',
       'url': longUrl,
     });
     harness = PinnedSearchHarness(profiles: [profile, otherTestProfile]);
@@ -1022,7 +1040,7 @@ void main() {
       ),
       pinnedFixture(
         id: 'other',
-        profileId: 99,
+        profileId: '00000000-0000-4000-8000-000000000063',
         name: 'Other profile',
         query: 'other',
         unreadCount: 90,
@@ -1282,7 +1300,12 @@ void main() {
       initialize();
       await harness.seed([
         pinnedFixture(),
-        pinnedFixture(id: 'dogs', name: 'Dogs', query: 'dog', profileId: 99),
+        pinnedFixture(
+          id: 'dogs',
+          name: 'Dogs',
+          query: 'dog',
+          profileId: '00000000-0000-4000-8000-000000000063',
+        ),
       ]);
       await pump(tester);
       await choose(tester, 'Move down');
@@ -1294,7 +1317,10 @@ void main() {
         'dogs',
         'cats',
       ]);
-      expect((await harness.repository.getById('dogs'))!.profileId, 99);
+      expect(
+        (await harness.repository.getById('dogs'))!.profileId,
+        '00000000-0000-4000-8000-000000000063',
+      );
       await choose(tester, 'Move up');
       expect((await harness.repository.getOrganization()).homeSearchIds, [
         'cats',
@@ -1330,12 +1356,18 @@ void main() {
     harness.refreshGate = Completer<void>();
     await harness.seed([
       pinnedFixture(query: 'cat'),
-      pinnedFixture(id: 'other', profileId: 99, name: 'Other'),
+      pinnedFixture(
+        id: 'other',
+        profileId: '00000000-0000-4000-8000-000000000063',
+        name: 'Other',
+      ),
     ]);
     await pump(tester);
     await choose(tester, 'Refresh');
     expect(find.text('Refreshing…'), findsOneWidget);
-    expect(harness.requests.map((request) => request.profileId), [12]);
+    expect(harness.requests.map((request) => request.profileId), [
+      '00000000-0000-4000-8000-00000000000c',
+    ]);
     harness.refreshGate!.complete();
     await settle(tester);
     expect(find.text('Refreshing…'), findsNothing);
@@ -1350,7 +1382,7 @@ void main() {
         pinnedFixture(checked: false, query: 'cat'),
         pinnedFixture(
           id: 'other',
-          profileId: 99,
+          profileId: '00000000-0000-4000-8000-000000000063',
           name: 'Other',
           query: 'dog',
           checked: false,
@@ -1358,7 +1390,9 @@ void main() {
       ]);
       await pump(tester);
       await choosePageAction(tester, 'Refresh All');
-      expect(harness.requests.map((r) => r.profileId), [12]);
+      expect(harness.requests.map((r) => r.profileId), [
+        '00000000-0000-4000-8000-00000000000c',
+      ]);
       await openPageMenu(tester);
       expect(refreshAllItem(tester).enabled, isFalse);
       await tester.tapAt(const Offset(1, 1));
@@ -1374,7 +1408,10 @@ void main() {
       harness.refreshGate!.complete();
       await settle(tester);
       await drain(tester);
-      expect(harness.requests.map((r) => r.profileId), [12, 99]);
+      expect(harness.requests.map((r) => r.profileId), [
+        '00000000-0000-4000-8000-00000000000c',
+        '00000000-0000-4000-8000-000000000063',
+      ]);
       await openPageMenu(tester);
       expect(refreshAllItem(tester).enabled, isTrue);
       expect(

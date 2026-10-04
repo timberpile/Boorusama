@@ -1,3 +1,4 @@
+import '../../profile_uuid_utils.dart';
 import 'package:boorusama/core/backups/sources/pinned_search_backup_data.dart';
 import 'package:boorusama/core/backups/sources/search_backup_profile.dart';
 import 'package:boorusama/core/backups/sources/pinned_search_import_service.dart';
@@ -30,7 +31,7 @@ void main() {
         final repository = memorySubscriptionRepository();
         for (final index in [0, 1, 2]) {
           await repository.create(
-            profileId: 4,
+            profileId: '00000000-0000-4000-8000-000000000004',
             query: _record(index).query,
             name: null,
             id: _id(index),
@@ -99,8 +100,16 @@ void main() {
       ],
     );
     final service = PinnedSearchImportService(repository: repository);
-    await service.apply(data, profiles: [_profile(9)]);
-    await service.apply(data, profiles: [_profile(9)]);
+    await service.apply(
+      data,
+      profiles: [_profile(9)],
+      profileIdResolver: (_) => profileUuid(9),
+    );
+    await service.apply(
+      data,
+      profiles: [_profile(9)],
+      profileIdResolver: (_) => profileUuid(9),
+    );
     final folders = (await repository.getOrganization()).folders;
     expect(folders.length, 2);
     expect(folders.first.searchIds, [(await repository.getAll()).single.id]);
@@ -115,10 +124,10 @@ void main() {
       await PinnedSearchImportService(repository: repository).apply(
         PinnedSearchBackupData(records: [_record(0)]),
         profiles: const [],
-        profileIdResolver: (_) => 77,
+        profileIdResolver: (_) => '00000000-0000-4000-8000-00000000004d',
       );
 
-      expect((await repository.getAll()).single.profileId, 77);
+      expect((await repository.getAll()).single.profileId, profileUuid(77));
     },
   );
 
@@ -127,7 +136,10 @@ void main() {
     () async {
       final repository = memorySubscriptionRepository();
       final service = PinnedSearchImportService(repository: repository);
-      final missing = _record(1, profileId: 99);
+      final missing = _record(
+        1,
+        profileId: '00000000-0000-4000-8000-000000000063',
+      );
       final data = PinnedSearchBackupData(
         records: [_record(0), missing],
         folders: const [
@@ -167,7 +179,7 @@ void main() {
   test('restores mixed profiles and mapped query IDs in saved order', () async {
     final repository = memorySubscriptionRepository();
     final existing = await repository.create(
-      profileId: 9,
+      profileId: '00000000-0000-4000-8000-000000000009',
       query: _record(0).query,
       name: null,
       id: _id(9),
@@ -178,7 +190,7 @@ void main() {
       query: 'dog',
       position: 0,
       profile: const BackupProfileReference(
-        id: 99,
+        id: '00000000-0000-4000-8000-000000000063',
         booruType: 'danbooru',
         url: 'https://other.test',
         name: 'Other',
@@ -198,12 +210,22 @@ void main() {
     );
     final service = PinnedSearchImportService(repository: repository);
     final profiles = [_profile(9), _profile(88, url: 'https://other.test')];
-    await service.apply(data, profiles: profiles);
+    await service.apply(
+      data,
+      profiles: profiles,
+      profileIdResolver: (reference) =>
+          reference.id == profileUuid(99) ? profileUuid(88) : profileUuid(9),
+    );
     final organization = await repository.getOrganization();
     expect(organization.folders.single.searchIds, [dog.id, existing.id]);
     expect(organization.homeSearchIds, [_id(3), _id(2)]);
-    expect((await repository.getById(dog.id))!.profileId, 88);
-    await service.apply(data, profiles: profiles);
+    expect((await repository.getById(dog.id))!.profileId, profileUuid(88));
+    await service.apply(
+      data,
+      profiles: profiles,
+      profileIdResolver: (reference) =>
+          reference.id == profileUuid(99) ? profileUuid(88) : profileUuid(9),
+    );
     expect(await repository.getOrganization(), organization);
   });
 
@@ -212,13 +234,13 @@ void main() {
     () async {
       final repository = memorySubscriptionRepository();
       await repository.create(
-        profileId: 4,
+        profileId: '00000000-0000-4000-8000-000000000004',
         query: _record(0).query,
         name: null,
         id: _id(0),
       );
       await repository.create(
-        profileId: 4,
+        profileId: '00000000-0000-4000-8000-000000000004',
         query: 'local',
         name: null,
         id: _id(9),
@@ -250,7 +272,7 @@ void main() {
     () async {
       final repository = memorySubscriptionRepository();
       final existing = await repository.create(
-        profileId: 4,
+        profileId: '00000000-0000-4000-8000-000000000004',
         query: '  cat   rating:safe ',
         name: 'Local cat',
         id: _id(8),
@@ -312,7 +334,7 @@ void main() {
     () async {
       final repository = memorySubscriptionRepository();
       await repository.create(
-        profileId: 4,
+        profileId: '00000000-0000-4000-8000-000000000004',
         query: 'local',
         name: null,
         id: _id(9),
@@ -335,7 +357,7 @@ void main() {
       final repository = memorySubscriptionRepository();
       for (final index in [0, 1, 2, 3]) {
         await repository.create(
-          profileId: 4,
+          profileId: '00000000-0000-4000-8000-000000000004',
           query: _record(index).query,
           name: null,
           id: _id(index),
@@ -392,25 +414,25 @@ void main() {
       expectedId: 4,
     ),
     (
-      description: 'a unique URL when the original ID changed',
+      description: 'no automatic mapping to a unique URL with another UUID',
       profiles: [_profile(9)],
-      expectedId: 9,
+      expectedId: null,
     ),
     (
-      description: 'a unique URL when the original ID has another URL',
+      description: 'no mapping when same UUID has another URL',
       profiles: [
         _profile(4, url: 'https://other.test'),
         _profile(9),
       ],
-      expectedId: 9,
+      expectedId: null,
     ),
     (
-      description: 'a unique URL when the original ID has another type',
+      description: 'no mapping when same UUID has another engine',
       profiles: [
         _profile(4, type: BooruType.gelbooru),
         _profile(9),
       ],
-      expectedId: 9,
+      expectedId: null,
     ),
     (
       description: 'no profile for an ambiguous URL',
@@ -418,19 +440,22 @@ void main() {
       expectedId: null,
     ),
     (
-      description: 'the only compatible profile for a missing URL',
+      description:
+          'no automatic mapping to the only compatible profile for a missing URL',
       profiles: [_profile(4, url: 'https://other.test')],
-      expectedId: 4,
+      expectedId: null,
     ),
     (
-      description: 'the only compatible profile for a different scheme',
+      description:
+          'no automatic mapping to the only compatible profile for a different scheme',
       profiles: [_profile(4, url: 'http://example.test/Posts')],
-      expectedId: 4,
+      expectedId: null,
     ),
     (
-      description: 'the only compatible profile for a different path',
+      description:
+          'no automatic mapping to the only compatible profile for a different path',
       profiles: [_profile(4, url: 'https://example.test/posts')],
-      expectedId: 4,
+      expectedId: null,
     ),
     (
       description: 'no profile for a different type',
@@ -462,17 +487,17 @@ void main() {
       );
       expect(
         (await repository.getAll()).map((pin) => pin.profileId),
-        c.expectedId == null ? isEmpty : [c.expectedId],
+        c.expectedId == null ? isEmpty : [profileUuid(c.expectedId!)],
       );
     });
   }
 
   test('appends after existing positions in stable imported order', () async {
     final repository = memorySubscriptionRepository();
-    await repository.restoreForProfile(4, [
+    await repository.restoreForProfile('00000000-0000-4000-8000-000000000004', [
       SearchSubscription.create(
         id: _id(9),
-        profileId: 4,
+        profileId: '00000000-0000-4000-8000-000000000004',
         query: 'existing',
         name: null,
         position: 8,
@@ -505,13 +530,13 @@ void main() {
     () async {
       final repository = memorySubscriptionRepository();
       final existingId = await repository.create(
-        profileId: 4,
+        profileId: '00000000-0000-4000-8000-000000000004',
         query: 'original',
         name: 'Local name',
         id: _id(0),
       );
       final existingQuery = await repository.create(
-        profileId: 4,
+        profileId: '00000000-0000-4000-8000-000000000004',
         query: 'cat tag_1',
         name: null,
         id: _id(9),
@@ -555,7 +580,7 @@ void main() {
   test('an ID collision with a different query creates a new search', () async {
     final repository = memorySubscriptionRepository();
     final local = await repository.create(
-      profileId: 4,
+      profileId: '00000000-0000-4000-8000-000000000004',
       query: 'local query',
       name: 'Local',
       id: _id(0),
@@ -585,13 +610,13 @@ void main() {
     () async {
       final repository = memorySubscriptionRepository();
       final existing = await repository.create(
-        profileId: 4,
+        profileId: '00000000-0000-4000-8000-000000000004',
         query: 'cat tag_0',
         name: 'Local name',
         id: _id(9),
       );
       await repository.create(
-        profileId: 4,
+        profileId: '00000000-0000-4000-8000-000000000004',
         query: 'remove me',
         name: null,
         id: _id(8),
@@ -639,7 +664,11 @@ void main() {
               records: [
                 _record(0, query: 'cat  rating:safe'),
                 _record(1, query: ' cat\trating:safe '),
-                _record(2, query: 'cat rating:safe', profileId: 5),
+                _record(
+                  2,
+                  query: 'cat rating:safe',
+                  profileId: '00000000-0000-4000-8000-000000000005',
+                ),
               ],
             ),
             profiles: [_profile(4), _profile(5)],
@@ -652,7 +681,10 @@ void main() {
           skippedProfileCount: 0,
         ),
       );
-      expect((await repository.getAll()).map((pin) => pin.profileId), [4, 5]);
+      expect((await repository.getAll()).map((pin) => pin.profileId), [
+        profileUuid(4),
+        profileUuid(5),
+      ]);
     },
   );
 
@@ -664,7 +696,7 @@ void main() {
         final String collisionId;
         if (feedOwned) {
           final feed = await repository.saveFeed(
-            profileId: 4,
+            profileId: '00000000-0000-4000-8000-000000000004',
             name: 'Feed',
             queries: ['original'],
           );
@@ -673,7 +705,7 @@ void main() {
               .id;
         } else {
           collisionId = (await repository.create(
-            profileId: 9,
+            profileId: '00000000-0000-4000-8000-000000000009',
             query: 'original',
             name: null,
             id: _id(0),
@@ -702,7 +734,10 @@ void main() {
         final result = await service.apply(data, profiles: [_profile(4)]);
         expect(result.importedCount, 1);
         expect(await repository.getById(collisionId), original);
-        final pin = (await repository.findByQuery(4, 'cat'))!;
+        final pin = (await repository.findByQuery(
+          '00000000-0000-4000-8000-000000000004',
+          'cat',
+        ))!;
         expect(pin.id, isNot(collisionId));
         expect((await repository.getOrganization()).folders.single.searchIds, [
           pin.id,
@@ -744,7 +779,7 @@ void main() {
     () async {
       final repository = memorySubscriptionRepository();
       final legacy = await repository.create(
-        profileId: 4,
+        profileId: '00000000-0000-4000-8000-000000000004',
         query: 'cat rating:safe',
         name: null,
       );
@@ -791,7 +826,7 @@ BooruConfig _profile(
   BooruType type = BooruType.danbooru,
 }) => BooruConfig.fromJson({
   ...BooruConfig.empty.toJson(),
-  'id': id,
+  'id': profileUuid(id),
   'booruIdHint': type.id,
   'url': url,
   'name': 'Local profile',
@@ -801,7 +836,7 @@ PinnedSearchBackupRecord _record(
   int index, {
   int position = 0,
   String? query,
-  int profileId = 4,
+  String profileId = '00000000-0000-4000-8000-000000000004',
 }) => PinnedSearchBackupRecord(
   id: _id(index),
   name: 'Cats $index',

@@ -164,7 +164,7 @@ final pixivDioProvider = Provider.family<Dio, BooruConfigAuth>((ref, config) {
 /// the provider family it identifies — two records that compare equal would
 /// share one Dio anyway — and unlike a `url` + `login` match it cannot
 /// confuse two Pixiv profiles, whose identity lives in `passHash`.
-int? resolvePixivConfigId(List<BooruConfig> configs, BooruConfigAuth auth) =>
+String? resolvePixivConfigId(List<BooruConfig> configs, BooruConfigAuth auth) =>
     configs.firstWhereOrNull((c) => BooruConfigAuth.fromConfig(c) == auth)?.id;
 
 /// Persists a rotated refresh token (and the account metadata that came with
@@ -178,7 +178,7 @@ int? resolvePixivConfigId(List<BooruConfig> configs, BooruConfigAuth auth) =>
 /// and immediately trigger another refresh.
 Future<void> persistPixivRotatedToken({
   required BooruConfigRepository repo,
-  required int configId,
+  required String configId,
   required PixivTokens tokens,
   String? expectedRefreshToken,
   void Function(String message)? onLog,

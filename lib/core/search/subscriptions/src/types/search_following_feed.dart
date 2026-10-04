@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 
 import '../../../../boorus/booru/types.dart';
+import '../../../../configs/config/types.dart';
 import '../../../../posts/post/types.dart';
 import '../../../../posts/rating/types.dart';
 import '../../../../posts/sources/types.dart';
@@ -20,7 +21,7 @@ class SearchFollowingFeed extends Equatable {
        posts = List.unmodifiable(posts.take(followingFeedRetention));
   factory SearchFollowingFeed.fromJson(Map json) {
     final profileId = switch (json['profileId']) {
-      final int value => value,
+      final String value when isCanonicalProfileId(value) => value,
       _ => throw const FormatException('Invalid feed profile'),
     };
     return SearchFollowingFeed(
@@ -51,7 +52,7 @@ class SearchFollowingFeed extends Equatable {
     );
   }
   final String id;
-  final int profileId;
+  final String profileId;
   final String name;
   final int position;
   final List<String> sourceIds;
@@ -109,7 +110,7 @@ StoredPostSnapshot feedPostSnapshotFromPost(
 
 StoredPostSnapshot feedPostSnapshotFromJson(
   Map json, {
-  int? profileId,
+  String? profileId,
 }) {
   if (json case {
     'snapshotSchemaVersion': 1,
@@ -141,7 +142,7 @@ StoredPostSnapshot feedPostSnapshotFromJson(
     Post(
       origin: PostOrigin.fromSource(
         booruType: BooruType.unknown,
-        booruId: profileId ?? 0,
+        booruId: 0,
         source: '',
         profileIdHint: profileId,
       ),
