@@ -1,6 +1,6 @@
 # Profile UUID implementation plan
 
-The approved behavior is in [IDEA-002](../../work/in-progress/IDEA-002-replace-profile-ids-with-uuids.md). This plan is for the isolated `feature/idea-002-profile-uuids` branch. Existing integer profile data and archives need no migration, but unsupported archives must fail before import writes. Engine IDs, remote post IDs, and Hive row keys unrelated to profiles stay numeric.
+The approved behavior is in [IDEA-002](../../work/done/IDEA-002-replace-profile-ids-with-uuids.md). This plan is for the isolated `feature/idea-002-profile-uuids` branch. Existing integer profile data and archives need no migration, but unsupported archives must fail before import writes. Engine IDs, remote post IDs, and Hive row keys unrelated to profiles stay numeric.
 
 ## 1. Canonical profile identity and storage
 

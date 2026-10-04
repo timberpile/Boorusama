@@ -51,3 +51,9 @@ The same feed fixture held 500 full cached post snapshots, two source IDs, repre
 | UUID profile ID | 395,504 | 15,926 µs |
 
 The UUID representation adds 17,536 bytes (4.64%) to this 500-post cache. Timings vary substantially across separate Flutter test runs, so the measured drop is not evidence of a speedup. The storage increase is small enough to retain the repeated origin hints needed for cached-post resolution.
+
+## Completion review (2026-10-04)
+
+- Independent review found that an existing empty profile box would incorrectly regain a default profile on restart. The bootstrap now distinguishes a new box, a legacy-only box, and an intentionally empty existing box. Both restart cases pass focused tests.
+- Focused profile tests and analysis of the two changed files passed after that fix. The complete 1,976-test suite passed before the focused bootstrap correction; it was not rerun afterward. The analyzer has no errors; its 12 warnings are pre-existing casts in backup tests.
+- The local feature branch is ready for integration review. No remote action or profile UI emulator check was performed.
