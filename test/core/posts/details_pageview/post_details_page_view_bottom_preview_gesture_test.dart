@@ -437,6 +437,76 @@ void main() {
     expect(controlTaps, 1);
     expect(controller.sheetState.value, SheetState.expanded);
   });
+
+  testWidgets('adding posts during an edge slide keeps the current post', (
+    tester,
+  ) async {
+    final count = ValueNotifier(2);
+    addTearDown(count.dispose);
+    final controller = _controller(
+      viewMode: ViewMode.vertical,
+      disableAnimation: false,
+    );
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      ValueListenableBuilder(
+        valueListenable: count,
+        builder: (_, itemCount, _) => _TestApp(
+          controller: controller,
+          itemCount: itemCount,
+          viewMode: ViewMode.vertical,
+          disableAnimation: false,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final navigation = tester.widget<ZoomPageNavigationScope>(
+      find.byType(ZoomPageNavigationScope).first,
+    );
+    navigation.onEdgeNext!();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 40));
+    expect(_isPageFaded(tester, controller), isTrue);
+    expect(controller.page, 0);
+
+    controller.totalPage = 3;
+    count.value = 3;
+    await tester.pump();
+    expect(_isPageFaded(tester, controller), isFalse);
+    await tester.pump(const Duration(milliseconds: 250));
+    expect(controller.page, 0);
+  });
+
+  testWidgets('closing the viewer during an edge slide leaves no animation', (
+    tester,
+  ) async {
+    final controller = _controller(
+      viewMode: ViewMode.vertical,
+      disableAnimation: false,
+    );
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      _TestApp(
+        controller: controller,
+        viewMode: ViewMode.vertical,
+        disableAnimation: false,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final navigation = tester.widget<ZoomPageNavigationScope>(
+      find.byType(ZoomPageNavigationScope).first,
+    );
+    navigation.onEdgeNext!();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 40));
+    expect(_isPageFaded(tester, controller), isTrue);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 250));
+    expect(tester.takeException(), isNull);
+  });
 }
 
 PostDetailsPageViewController _controller({
@@ -450,6 +520,21 @@ PostDetailsPageViewController _controller({
   disableAnimation: disableAnimation,
   viewMode: viewMode,
 );
+
+bool _isPageFaded(
+  WidgetTester tester,
+  PostDetailsPageViewController controller,
+) {
+  final pageView = find.byWidgetPredicate(
+    (widget) =>
+        widget is PageView && widget.controller == controller.pageController,
+  );
+  return tester
+      .widgetList<Opacity>(
+        find.ancestor(of: pageView, matching: find.byType(Opacity)),
+      )
+      .any((opacity) => opacity.opacity < 1);
+}
 
 Future<void> _dragBottomPreview(
   WidgetTester tester,
@@ -481,6 +566,7 @@ Future<void> _expandDetails(
 class _TestApp extends StatelessWidget {
   const _TestApp({
     required this.controller,
+    this.itemCount = 2,
     this.viewMode = ViewMode.horizontal,
     this.disableAnimation = true,
     this.isLargeScreen = false,
@@ -491,6 +577,7 @@ class _TestApp extends StatelessWidget {
   });
 
   final PostDetailsPageViewController controller;
+  final int itemCount;
   final ViewMode viewMode;
   final bool disableAnimation;
   final bool isLargeScreen;
@@ -513,7 +600,7 @@ class _TestApp extends StatelessWidget {
           checkIfLargeScreen: () => isLargeScreen,
           disableAnimation: disableAnimation,
           viewMode: viewMode,
-          itemCount: 2,
+          itemCount: itemCount,
           itemBuilder: (context, index) => GestureDetector(
             key: Key('viewer-page-$index'),
             behavior: HitTestBehavior.opaque,

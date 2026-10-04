@@ -17,6 +17,7 @@ import '../../../details_parts/types.dart';
 import '../../../details_parts/widgets.dart';
 import '../../../post/types.dart';
 import '../providers/providers.dart';
+import '../routes/post_details_live_source.dart';
 import '../types/inherited_post.dart';
 import '../types/post_details.dart';
 import 'post_details_actions.dart';
@@ -56,6 +57,7 @@ class MixedPostDetailsPage extends StatefulWidget {
     required this.disclaimer,
     this.fallbackUiBuilderDecorator,
     this.postRecoveryBuilder,
+    this.liveSource,
     super.key,
   }) : assert(posts.length > 0, 'Mixed viewer requires at least one post'),
        assert(
@@ -71,13 +73,130 @@ class MixedPostDetailsPage extends StatefulWidget {
   final PostDetailsUIBuilder Function(PostDetailsUIBuilder, Post)?
   fallbackUiBuilderDecorator;
   final PostRecoveryBuilder? postRecoveryBuilder;
+  final PostDetailsLiveSource? liveSource;
 
   @override
   State<MixedPostDetailsPage> createState() => _MixedPostDetailsPageState();
 }
 
 class _MixedPostDetailsPageState extends State<MixedPostDetailsPage> {
+  static const _emptyPageBudget = 3;
+  static const _emptyPageCooldown = Duration(milliseconds: 150);
+
   late final List<Post> _posts = widget.posts.toList();
+  late final Set<String> _knownPosts = {
+    for (final post in _posts) postViewerIdentity(post),
+  };
+  late int _currentIndex = widget.initialIndex;
+  var _searchingForVisiblePost = false;
+  var _needsManualLoadMore = false;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.liveSource?.changes.addListener(_onLiveSourceChanged);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _loadNearEnd(widget.initialIndex);
+    });
+  }
+
+  @override
+  void dispose() {
+    widget.liveSource?.changes.removeListener(_onLiveSourceChanged);
+    super.dispose();
+  }
+
+  void _onLiveSourceChanged() {
+    final source = widget.liveSource;
+    if (source == null) return;
+    final added = [
+      for (final post in source.posts())
+        if (_knownPosts.add(postViewerIdentity(post))) post,
+    ];
+    setState(() {
+      _posts.addAll(added);
+      if (added.isNotEmpty) _needsManualLoadMore = false;
+    });
+  }
+
+  void _loadNearEnd(int index) {
+    final pageChanged = index != _currentIndex;
+    _currentIndex = index;
+    if (_needsManualLoadMore && !pageChanged) return;
+    if (_needsManualLoadMore) {
+      setState(() => _needsManualLoadMore = false);
+    }
+    _startNearEndLoad();
+  }
+
+  void _startNearEndLoad({bool allowFailed = false}) {
+    final source = widget.liveSource;
+    if (source == null ||
+        !source.hasMore() ||
+        (_searchingForVisiblePost || (source.failed() && !allowFailed)) ||
+        _currentIndex < _posts.length - 2) {
+      return;
+    }
+    setState(() => _searchingForVisiblePost = true);
+    unawaited(_fetchUntilVisible(source));
+  }
+
+  Future<void> _fetchUntilVisible(PostDetailsLiveSource source) async {
+    final initialCount = _posts.length;
+    var attempts = 0;
+    var interrupted = false;
+    try {
+      while (_isActiveRoute &&
+          attempts < _emptyPageBudget &&
+          source.hasMore() &&
+          _currentIndex >= _posts.length - 2) {
+        attempts++;
+        try {
+          await source.fetchMore();
+        } catch (_) {
+          interrupted = true;
+          break;
+        }
+        if (!_isActiveRoute ||
+            _posts.length > initialCount ||
+            source.failed() ||
+            !source.hasMore() ||
+            _currentIndex < _posts.length - 2) {
+          break;
+        }
+        if (attempts < _emptyPageBudget) {
+          await Future<void>.delayed(_emptyPageCooldown);
+        }
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _searchingForVisiblePost = false;
+          _needsManualLoadMore =
+              (attempts == _emptyPageBudget ||
+                  interrupted ||
+                  !_isActiveRoute) &&
+              _posts.length == initialCount &&
+              source.hasMore() &&
+              !source.failed() &&
+              _currentIndex >= _posts.length - 2;
+        });
+      }
+    }
+  }
+
+  void _retryLoading() {
+    _startNearEndLoad(allowFailed: true);
+  }
+
+  void _continueLoading() {
+    if (!_needsManualLoadMore) return;
+    setState(() => _needsManualLoadMore = false);
+    _startNearEndLoad();
+  }
+
+  bool get _isActiveRoute =>
+      mounted && (ModalRoute.of(context)?.isCurrent ?? true);
 
   @override
   Widget build(BuildContext context) => PostDetailsScope<Post>(
@@ -89,6 +208,16 @@ class _MixedPostDetailsPageState extends State<MixedPostDetailsPage> {
     child: _MixedPostDetailsView(
       fallbackUiBuilderDecorator: widget.fallbackUiBuilderDecorator,
       postRecoveryBuilder: widget.postRecoveryBuilder,
+      nextLoading:
+          _searchingForVisiblePost || (widget.liveSource?.loading() ?? false),
+      nextFailed:
+          (widget.liveSource?.hasMore() ?? false) &&
+          (widget.liveSource?.failed() ?? false),
+      nextCanLoad:
+          _needsManualLoadMore && (widget.liveSource?.hasMore() ?? false),
+      onRetryNext: _retryLoading,
+      onLoadMoreNext: _continueLoading,
+      onPageChanged: _loadNearEnd,
     ),
   );
 }
@@ -97,11 +226,23 @@ class _MixedPostDetailsView extends ConsumerStatefulWidget {
   const _MixedPostDetailsView({
     required this.fallbackUiBuilderDecorator,
     required this.postRecoveryBuilder,
+    required this.nextLoading,
+    required this.nextFailed,
+    required this.nextCanLoad,
+    required this.onRetryNext,
+    required this.onLoadMoreNext,
+    required this.onPageChanged,
   });
 
   final PostDetailsUIBuilder Function(PostDetailsUIBuilder, Post)?
   fallbackUiBuilderDecorator;
   final PostRecoveryBuilder? postRecoveryBuilder;
+  final bool nextLoading;
+  final bool nextFailed;
+  final bool nextCanLoad;
+  final VoidCallback onRetryNext;
+  final VoidCallback onLoadMoreNext;
+  final ValueChanged<int> onPageChanged;
 
   @override
   ConsumerState<_MixedPostDetailsView> createState() =>
@@ -188,6 +329,12 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
       isInitPage: _isInitPage,
       controller: controller,
       posts: posts,
+      nextLoading: widget.nextLoading,
+      nextFailed: widget.nextFailed,
+      nextCanLoad: widget.nextCanLoad,
+      onRetryNext: widget.onRetryNext,
+      onLoadMoreNext: widget.onLoadMoreNext,
+      onPageChanged: widget.onPageChanged,
       postGestureHandlerBuilder: booruRepo?.handlePostGesture,
       uiBuilder: uiBuilder,
       gestureConfig: gestures,

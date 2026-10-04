@@ -1,5 +1,6 @@
 // Package imports:
 import 'package:cache_manager/cache_manager.dart';
+import 'package:extended_image/extended_image.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:foundation/foundation.dart';
 import 'package:kurumi/kurumi.dart';
@@ -29,6 +30,7 @@ class PostDetailsImage<T extends Post> extends StatelessWidget {
     super.key,
     this.heroTag,
     this.imageCacheManager,
+    this.imageController,
   });
 
   final BooruConfigAuth config;
@@ -37,6 +39,7 @@ class PostDetailsImage<T extends Post> extends StatelessWidget {
   final double? Function(T post)? mediaAspectRatioBuilder;
   final PostDetailsPlaceholderMediaBuilder<T>? placeholderMediaBuilder;
   final ImageCacheManager? imageCacheManager;
+  final ExtendedImageController? imageController;
   final T post;
 
   @override
@@ -58,6 +61,7 @@ class PostDetailsImage<T extends Post> extends StatelessWidget {
                     mediaAspectRatioBuilder: mediaAspectRatioBuilder,
                     placeholderMediaBuilder: placeholderMediaBuilder,
                     imageCacheManager: imageCacheManager,
+                    imageController: imageController,
                   ),
                   ..._buildNotes(ref),
                 ],
@@ -72,6 +76,7 @@ class PostDetailsImage<T extends Post> extends StatelessWidget {
             mediaAspectRatioBuilder: mediaAspectRatioBuilder,
             placeholderMediaBuilder: placeholderMediaBuilder,
             imageCacheManager: imageCacheManager,
+            imageController: imageController,
           );
   }
 
@@ -115,6 +120,7 @@ class RawPostDetailsImage<T extends Post> extends ConsumerWidget {
     this.mediaAspectRatioBuilder,
     this.placeholderMediaBuilder,
     this.imageCacheManager,
+    this.imageController,
     this.fit,
   });
 
@@ -124,6 +130,7 @@ class RawPostDetailsImage<T extends Post> extends ConsumerWidget {
   final double? Function(T post)? mediaAspectRatioBuilder;
   final PostDetailsPlaceholderMediaBuilder<T>? placeholderMediaBuilder;
   final ImageCacheManager? imageCacheManager;
+  final ExtendedImageController? imageController;
   final T post;
   final BoxFit? fit;
 
@@ -181,6 +188,7 @@ class RawPostDetailsImage<T extends Post> extends ConsumerWidget {
       forceLoadPlaceholder: true,
       hideMismatchedPlaceholder: true,
       imageCacheManager: imageCacheManager,
+      controller: imageController,
     );
 
     return KurumiHero(

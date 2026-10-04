@@ -7,8 +7,10 @@ import '../../../../../foundation/display.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../router.dart';
 import '../../../listing/providers.dart';
+import '../../../listing/src/types/page_mode.dart';
 import '../../../post/types.dart';
 import 'details_route_context.dart';
+import 'post_details_live_source.dart';
 
 void goToPostDetailsPageFromPosts<T extends Post>({
   required WidgetRef ref,
@@ -38,6 +40,15 @@ void goToPostDetailsPageFromController<T extends Post>({
   scrollController: scrollController,
   initialThumbnailUrl: initialThumbnailUrl,
   hero: true,
+  liveSource: PostDetailsLiveSource(
+    changes: controller,
+    posts: () => controller.items,
+    hasMore: () =>
+        controller.pageMode == PageMode.infinite && controller.hasMore,
+    loading: () => controller.loadingMore,
+    failed: () => controller.errors.value != null,
+    fetchMore: controller.fetchMore,
+  ),
 );
 
 void goToPostDetailsPageCore<T extends Post>({
@@ -47,6 +58,7 @@ void goToPostDetailsPageCore<T extends Post>({
   required bool hero,
   required String? initialThumbnailUrl,
   AutoScrollController? scrollController,
+  PostDetailsLiveSource? liveSource,
 }) {
   ref.router.push(
     Uri(
@@ -61,6 +73,7 @@ void goToPostDetailsPageCore<T extends Post>({
       initialThumbnailUrl: initialThumbnailUrl,
       config: null,
       useMixedViewer: true,
+      liveSource: liveSource,
     ),
   );
 }

@@ -2,6 +2,7 @@
 import 'dart:async';
 
 // Package imports:
+import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -19,6 +20,7 @@ import 'post_details_page_view_controller.dart';
 import 'post_details_shortcuts.dart';
 import 'sheet_state_storage.dart';
 import 'side_sheet.dart';
+import 'zoom_page_navigation_scope.dart';
 
 // Dart imports:
 // ignore_for_file: prefer_int_literals
@@ -55,6 +57,11 @@ class PostDetailsPageView extends StatefulWidget {
     this.disableAnimation = false,
     this.viewMode = ViewMode.horizontal,
     this.mainContentBuilder,
+    this.nextLoading = false,
+    this.nextFailed = false,
+    this.nextCanLoad = false,
+    this.onRetryNext,
+    this.onLoadMoreNext,
   });
 
   final Widget Function(BuildContext, ScrollController? scrollController)
@@ -80,6 +87,11 @@ class PostDetailsPageView extends StatefulWidget {
   final bool disableAnimation;
   final bool Function() checkIfLargeScreen;
   final ViewMode viewMode;
+  final bool nextLoading;
+  final bool nextFailed;
+  final bool nextCanLoad;
+  final VoidCallback? onRetryNext;
+  final VoidCallback? onLoadMoreNext;
 
   // Terrible hack to allow wrapping main content with MouseRegion from outside
   final Widget Function(BuildContext context, Widget child)? mainContentBuilder;
@@ -95,6 +107,13 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
   var _freestyleMoveStartOffset = Offset.zero;
   var _freestyleMoveScale = 1.0;
   var _handledExpandedMediaSwipe = false;
+
+  static const _edgeSlideDistance = 24.0;
+  static const _edgeSlideHalfDuration = Duration(milliseconds: 100);
+  late final _edgeSlideController = AnimationController(vsync: this);
+  int? _edgeExpectedPage;
+  double? _edgeDragDirection;
+  var _edgeSlideSerial = 0;
 
   late final PostDetailsPageViewController _controller;
 
@@ -213,6 +232,86 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
     }
   }
 
+  @override
+  void didUpdateWidget(PostDetailsPageView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.itemCount != widget.itemCount ||
+        oldWidget.viewMode != widget.viewMode ||
+        oldWidget.disableAnimation != widget.disableAnimation) {
+      _cancelEdgeSlide();
+    }
+  }
+
+  void _cancelEdgeSlide() {
+    if (_edgeExpectedPage == null) return;
+    _edgeSlideSerial++;
+    _edgeSlideController.stop();
+    _edgeExpectedPage = null;
+    _edgeDragDirection = null;
+    _edgeSlideController.value = 0;
+  }
+
+  void _navigateFromEdge(int source, int target) {
+    if (!mounted ||
+        _edgeExpectedPage != null ||
+        (target - source).abs() != 1 ||
+        target < 0 ||
+        target >= widget.itemCount ||
+        _controller.page != source ||
+        !_controller.pageController.hasClients) {
+      return;
+    }
+
+    final precisePage = _controller.pageController.page;
+    if (precisePage == null || (precisePage - source).abs() > 0.001) {
+      return;
+    }
+
+    if (widget.disableAnimation) {
+      _controller.jumpToPage(target);
+      return;
+    }
+
+    final isRtl = Directionality.of(context) == TextDirection.rtl;
+    _edgeDragDirection = (target > source ? -1.0 : 1.0) * (isRtl ? -1 : 1);
+    _edgeExpectedPage = source;
+    _edgeSlideController.value = 0;
+    final serial = ++_edgeSlideSerial;
+    unawaited(_animateEdgeSlide(source, target, serial));
+  }
+
+  Future<void> _animateEdgeSlide(int source, int target, int serial) async {
+    try {
+      await _edgeSlideController
+          .animateTo(
+            0.5,
+            duration: _edgeSlideHalfDuration,
+            curve: Curves.easeOut,
+          )
+          .orCancel;
+      if (!mounted ||
+          serial != _edgeSlideSerial ||
+          _controller.page != source ||
+          target >= widget.itemCount) {
+        return;
+      }
+
+      _edgeExpectedPage = target;
+      _controller.jumpToPage(target);
+      await _edgeSlideController
+          .animateTo(
+            1,
+            duration: _edgeSlideHalfDuration,
+            curve: Curves.easeOut,
+          )
+          .orCancel;
+    } on TickerCanceled {
+      // The route or page changed while the slide was running.
+    } finally {
+      if (mounted && serial == _edgeSlideSerial) _cancelEdgeSlide();
+    }
+  }
+
   void _onPop() {
     if (Kurumi.enableHeroTransition && !widget.disableAnimation) {
       _controller.forceHideOverlay.value = true;
@@ -232,6 +331,11 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
 
   void _onPageChanged() {
     final page = _controller.pageController.page;
+    if (_edgeExpectedPage case final expected?) {
+      if (page == null || (page - expected).abs() > 0.001) {
+        _cancelEdgeSlide();
+      }
+    }
 
     _controller.precisePage.value = page;
 
@@ -336,6 +440,7 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
     _pointerCount.dispose();
     _interacting.dispose();
     _isSheetAnimating.dispose();
+    _edgeSlideController.dispose();
 
     _overlayCurvedAnimation?.dispose();
     _overlayAnimController?.dispose();
@@ -568,17 +673,49 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
       builder: (_, state, _) {
         final blockSwipe = !swipe || state.isExpanded || interacting;
 
-        return PageView.builder(
-          scrollDirection: useVerticalLayout ? Axis.vertical : Axis.horizontal,
-          onPageChanged: blockSwipe && !isPortrait
-              ? (_) => _controller.startCooldownTimer()
-              : null,
-          controller: _controller.pageController,
-          physics: blockSwipe || widget.itemCount < 2
-              ? const NeverScrollableScrollPhysics()
-              : const _PostDetailsPagePhysics(),
-          itemCount: widget.itemCount,
-          itemBuilder: (context, index) => _buildItem(index, blockSwipe),
+        return AnimatedBuilder(
+          animation: _edgeSlideController,
+          builder: (context, child) {
+            final dragDirection = _edgeDragDirection;
+            final isSliding = dragDirection != null;
+
+            final value = _edgeSlideController.value;
+            final outgoing = value <= 0.5;
+            final progress = outgoing ? value * 2 : (value - 0.5) * 2;
+            final offset = outgoing
+                ? _edgeSlideDistance * progress * (dragDirection ?? 0)
+                : -_edgeSlideDistance * (1 - progress) * (dragDirection ?? 0);
+            final opacity = isSliding
+                ? (outgoing ? 1 - progress : progress)
+                : 1.0;
+
+            return ClipRect(
+              child: IgnorePointer(
+                ignoring: isSliding,
+                child: Opacity(
+                  opacity: opacity,
+                  child: Transform.translate(
+                    offset: Offset(offset, 0),
+                    child: child,
+                  ),
+                ),
+              ),
+            );
+          },
+          child: PageView.builder(
+            scrollDirection: useVerticalLayout
+                ? Axis.vertical
+                : Axis.horizontal,
+            onPageChanged: blockSwipe && !isPortrait
+                ? (_) => _controller.startCooldownTimer()
+                : null,
+            controller: _controller.pageController,
+            physics: blockSwipe || widget.itemCount < 2
+                ? const NeverScrollableScrollPhysics()
+                : const _PostDetailsPagePhysics(),
+            itemCount: widget.itemCount,
+            itemBuilder: (context, index) => _buildItem(index, blockSwipe),
+          ),
         );
       },
     );
@@ -615,6 +752,55 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
     }
 
     final isSmall = !isLargeScreen;
+
+    final lastKnownPage = widget.itemCount - 1;
+    final loadingNext = widget.nextLoading && index == lastKnownPage;
+    final failedNext =
+        !loadingNext && widget.nextFailed && index == lastKnownPage;
+    final loadMoreNext =
+        !loadingNext &&
+        !failedNext &&
+        widget.nextCanLoad &&
+        index == lastKnownPage;
+
+    final navigation = ZoomPageNavigationScope(
+      previousLabel: context.t.infinite_scroll.previous_page,
+      nextLabel: failedNext
+          ? context.t.generic.action.retry
+          : loadMoreNext
+          ? context.t.infinite_scroll.load_more
+          : context.t.infinite_scroll.next_page,
+      onPrevious: index > 0
+          ? () => _controller.previousPage(duration: Duration.zero)
+          : null,
+      onEdgePrevious: index > 0
+          ? () => _navigateFromEdge(index, index - 1)
+          : null,
+      previousActionId: index > 0 ? (index - 1, widget.itemCount) : null,
+      nextEdgeAction: failedNext
+          ? ZoomPageEdgeAction.retry
+          : loadMoreNext
+          ? ZoomPageEdgeAction.loadMore
+          : ZoomPageEdgeAction.page,
+      nextActionId: failedNext
+          ? ('retry', widget.onRetryNext)
+          : loadMoreNext
+          ? ('load-more', widget.onLoadMoreNext)
+          : loadingNext || index >= lastKnownPage
+          ? null
+          : (index + 1, widget.itemCount),
+      onNext: failedNext
+          ? widget.onRetryNext
+          : loadMoreNext
+          ? widget.onLoadMoreNext
+          : loadingNext || index >= lastKnownPage
+          ? null
+          : () => _controller.nextPage(duration: Duration.zero),
+      onEdgeNext: index < lastKnownPage
+          ? () => _navigateFromEdge(index, index + 1)
+          : null,
+      child: widget.itemBuilder(context, index),
+    );
 
     return Stack(
       children: [
@@ -675,9 +861,9 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
                             },
                             onSwipeEnded: () =>
                                 _handledExpandedMediaSwipe = false,
-                            child: widget.itemBuilder(context, index),
+                            child: navigation,
                           )
-                        : widget.itemBuilder(context, index),
+                        : navigation,
                   ),
                 ),
               ),

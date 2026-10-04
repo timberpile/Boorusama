@@ -21,7 +21,7 @@ void main() {
   });
 
   testWidgets(
-    'positions a detected comic strip only on its first settled load',
+    'reapplies comic fit at the top on each return to a settled post',
     (
       tester,
     ) async {
@@ -57,8 +57,15 @@ void main() {
       settledPage.value = 0;
       await tester.pump();
 
-      expect(transformationController.value, Matrix4.identity());
-      expect(startedCount, 1);
+      expect(
+        transformationController.value.getMaxScaleOnAxis(),
+        closeTo(3.2, 0.001),
+      );
+      expect(
+        transformationController.value.getTranslation().y,
+        closeTo(0, 0.001),
+      );
+      expect(startedCount, 2);
     },
   );
 
@@ -224,6 +231,12 @@ Future<void> _pumpAutoStarter(
   final controller = PostViewerTransformationController(
     transformationController,
   );
+  void onPageSettled() {
+    if (settledPage.value case final page?) controller.onPageSettled(page);
+  }
+
+  settledPage.addListener(onPageSettled);
+  addTearDown(() => settledPage.removeListener(onPageSettled));
 
   return tester.pumpWidget(
     BooruLocalization(

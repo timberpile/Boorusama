@@ -35,7 +35,7 @@ class PostDetailsPageViewController extends ChangeNotifier {
        _initialSlideshowOptions = slideshowOptions;
 
   final int initialPage;
-  final int totalPage;
+  int totalPage;
   final bool initialHideOverlay;
   final double maxSize;
   final double thresholdSizeToExpand;
@@ -517,12 +517,12 @@ class PostDetailsPageViewController extends ChangeNotifier {
 
     zoom.value = isZoomed;
     if (isZoomed) {
-      if (!initialHideOverlay) {
+      if (!initialHideOverlay && !useVerticalLayout) {
         hideAllUI();
       }
       disableAllSwiping();
     } else {
-      if (!initialHideOverlay) {
+      if (!initialHideOverlay && !useVerticalLayout) {
         showAllUI();
       }
       enableAllSwiping();

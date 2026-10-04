@@ -31,11 +31,13 @@ void main() {
     expect(tallerStarted, isTrue);
   });
 
-  test('automatically starts a detected comic strip only once per post', () {
+  test('automatically starts a detected comic strip once per page visit', () {
     final transformationController = _transformationController();
     final controller = PostViewerTransformationController(
       transformationController,
     )..viewportSize = viewportSize;
+
+    controller.onPageSettled(0);
 
     final firstStarted = controller.tryAutoStartComicStrip(
       postId: 1,
@@ -43,6 +45,7 @@ void main() {
       enabled: true,
     );
     transformationController.value = Matrix4.identity();
+    controller.onPageSettled(0);
     final secondStarted = controller.tryAutoStartComicStrip(
       postId: 1,
       contentSize: const Size(1000, 4001),
@@ -54,7 +57,7 @@ void main() {
     expect(transformationController.value, Matrix4.identity());
   });
 
-  test('settling a different page resets zoom without repeating a post', () {
+  test('reapplies comic fit when returning to a settled post', () {
     final transformationController = _transformationController();
     final controller = PostViewerTransformationController(
       transformationController,
@@ -80,9 +83,44 @@ void main() {
         contentSize: const Size(1000, 4001),
         enabled: true,
       ),
-      isFalse,
+      isTrue,
     );
+    expect(
+      transformationController.value.getMaxScaleOnAxis(),
+      closeTo(2.0005, 0.001),
+    );
+  });
+
+  test('fits different settled posts with the same numeric ID', () {
+    final transformationController = _transformationController();
+    final controller = PostViewerTransformationController(
+      transformationController,
+    )..viewportSize = viewportSize;
+
+    controller.onPageSettled(0);
+    expect(
+      controller.tryAutoStartComicStrip(
+        postId: 42,
+        contentSize: const Size(1000, 4001),
+        enabled: true,
+      ),
+      isTrue,
+    );
+
+    controller.onPageSettled(1);
     expect(transformationController.value, Matrix4.identity());
+    expect(
+      controller.tryAutoStartComicStrip(
+        postId: 42,
+        contentSize: const Size(1000, 5000),
+        enabled: true,
+      ),
+      isTrue,
+    );
+    expect(
+      transformationController.value.getMaxScaleOnAxis(),
+      closeTo(2.5, 0.001),
+    );
   });
 
   test(

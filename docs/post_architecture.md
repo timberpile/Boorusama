@@ -65,6 +65,60 @@ snapshot as unresolved; a successful single-post fetch has no listing metadata
 and must not be fetched again. If resolution fails, the provisional thumbnail
 remains available.
 
+The ordinary `/details` route keeps one mixed viewer and one details/page
+controller for the selected post sequence. When opened from a grid controller,
+it also receives an append-only live source: newly loaded `Post` objects extend
+the same list held by those controllers, preserving the current page and
+source-specific presentation. The grid controller's debounced `fetchMore()`
+future resolves after the actual request and filtering complete, and its
+loading/error/final state drives the zoomed navigation action. Fixed-list
+entry points retain snapshot behavior. The separate `LazyPostDetailsPager`
+route is not used for normal grid navigation.
+
+The shared details controller must receive the same swipe mode as the page
+viewer. The image transform, not the post swipe mode, determines whether zoom
+navigation is needed: Auto Comic and manual zoom both disable page swipes.
+The image retains pan and pinch ownership. A single horizontal-dominant drag
+can navigate only after reaching the displayed image's left or right clamp
+edge and moving a further 96 logical pixels outward; it commits one page on
+pointer release. A 30dp hollow progress ring appears at the relevant viewport
+edge during a valid pull, reaches full opacity at half progress, and remains
+armed at full progress until release. Unavailable actions have no ring; Retry
+and Load more use distinct icons and localized semantic labels. The ring does
+not intercept touch or depend on toolbar visibility. Vertical scroll,
+multi-touch, reversal, and cancellation hide the ring without navigating.
+Localized screen-reader custom actions expose the same bounded Previous, Next,
+Retry, and Load-more callbacks. A crossing move counts only the distance
+left after the image's actual pan reaches its clamp; an initial gesture move
+that does not pan the image cannot bank progress. Flutter may deliver several
+pointer moves before running microtasks, so a pending move is finalized when the
+next move arrives, after the image has applied the earlier pan. The 96-pixel threshold
+measures net outward displacement, so small inward corrections cannot add
+progress. A cumulative retreat of more than 2 pixels
+from the pointer's farthest outward position cancels that drag permanently,
+even when the retreat arrives in many small move events. An active drag is
+also cancelled when its bounded navigation action or current media state
+changes, including a fetch completing while the finger is held. The handoff is
+available only after the primary still
+image actually decodes; blocked, empty, loading, and failed media placeholders
+remain non-navigable even if their viewer transform is zoomed.
+Existing desktop navigation controls remain. The usual first/last-page bounds
+and pending-load behavior still apply.
+Auto Comic fits a qualifying post once per settled page visit, not once per
+viewer lifetime: leaving clears the visit guard, so returning re-applies
+fit-to-width and top positioning without retriggering on same-page rebuilds.
+
+A nonempty server page may contribute no visible posts after duplicate or
+blacklist filtering. Near the end of the mixed viewer, the route checks the
+visible append result after each completed fetch and continues through at most
+three such pages per trigger, with a short cooldown. If more pages remain after
+that budget, a further outward edge drag or screen-reader `Load more` action
+can continue manually. A visible append, fetch error, final page, or route exit
+stops the automatic chain; retry and manual continuation use the same grid
+fetch path.
+If the grid already has a debounced `fetchMore()` pending when the route opens,
+the route joins that same Future before deciding whether another page is needed.
+
 Providers that use `ref.watchConfig*` below this per-page scope must declare
 the matching `currentReadOnlyBooruConfig*Provider` as a Riverpod dependency.
 Providers that watch one of those scoped providers must declare that provider

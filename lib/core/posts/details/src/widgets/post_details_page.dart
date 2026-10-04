@@ -23,6 +23,7 @@ class CurrentPostDetailsPage<T extends Post> extends ConsumerWidget {
         initialThumbnailUrl: payload.initialThumbnailUrl,
         scrollController: payload.scrollController,
         disclaimer: payload.dislclaimer,
+        liveSource: payload.liveSource,
       );
     }
     final booruBuilder = ref.watch(booruBuilderProvider(ref.watchConfigAuth));
@@ -49,6 +50,7 @@ class PayloadPostDetailsPage<T extends Post> extends ConsumerWidget {
         initialThumbnailUrl: payload.initialThumbnailUrl,
         scrollController: payload.scrollController,
         disclaimer: payload.dislclaimer,
+        liveSource: payload.liveSource,
       );
     }
 

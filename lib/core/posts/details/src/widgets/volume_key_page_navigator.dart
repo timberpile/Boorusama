@@ -20,7 +20,7 @@ class VolumeKeyPageNavigator with KeyboardListenerMixin {
   static var _hasInitialized = false;
 
   final PostDetailsPageViewController pageViewController;
-  final int totalPosts;
+  final int Function() totalPosts;
   final ValueNotifier<bool> visibilityNotifier;
 
   final bool Function() enableVolumeKeyViewerNavigation;
@@ -71,7 +71,7 @@ class VolumeKeyPageNavigator with KeyboardListenerMixin {
   }
 
   Future<void> _nextPage() async {
-    if (pageViewController.page < totalPosts - 1) {
+    if (pageViewController.page < totalPosts() - 1) {
       await pageViewController.nextPage(
         duration: Duration.zero,
       );

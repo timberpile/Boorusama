@@ -76,6 +76,7 @@ class PostGridController<T extends Post> extends ChangeNotifier {
   int _page = _kFirstPage;
   var _hasMore = true;
   var _loading = false;
+  Completer<void>? _pendingFetchMore;
   var _refreshing = false;
   var _preserveSelectionOnRefresh = false;
   var _refreshPending = false;
@@ -91,6 +92,7 @@ class PostGridController<T extends Post> extends ChangeNotifier {
 
   bool get hasMore => _hasMore;
   bool get loading => _loading;
+  bool get loadingMore => _loading || (_debounceTimer?.isActive ?? false);
   bool get refreshing => _refreshing;
   bool get preserveSelectionOnRefresh => _preserveSelectionOnRefresh;
   int get page => pageNotifier.value;
@@ -381,14 +383,12 @@ class PostGridController<T extends Post> extends ChangeNotifier {
   // Loads more items
   Future<void> fetchMore({
     VoidCallback? onNoMoreData,
-  }) async {
-    if (_loading ||
-        !_hasMore ||
-        (_debounceTimer != null && _debounceTimer!.isActive)) {
-      return;
-    }
+  }) {
+    if (_pendingFetchMore case final pending?) return pending.future;
+    if (_loading || !_hasMore) return Future.value();
 
     _debounceTimer?.cancel();
+    final pending = _pendingFetchMore = Completer<void>();
     _debounceTimer = Timer(debounceDuration, () async {
       _loading = true;
       if (_pageMode == PageMode.infinite) {
@@ -396,18 +396,34 @@ class PostGridController<T extends Post> extends ChangeNotifier {
       }
       notifyListeners();
 
-      final newItems = await _fetchPosts(_page);
-      _hasMore = newItems.posts.isNotEmpty;
-      if (_hasMore) {
-        await _addAll(newItems.posts);
-      } else {
-        onNoMoreData?.call();
+      try {
+        final newItems = await _fetchPosts(_page);
+        if (errors.value != null) {
+          if (_pageMode == PageMode.infinite) _setPage(_page - 1);
+          return;
+        }
+        _hasMore = newItems.posts.isNotEmpty;
+        if (_hasMore) {
+          await _addAll(newItems.posts);
+        } else {
+          onNoMoreData?.call();
+        }
+        count.value = newItems.total;
+        maxPage.value = newItems.maxPage;
+      } catch (error) {
+        if (_pageMode == PageMode.infinite) _setPage(_page - 1);
+        if (!_disposed) {
+          errors.value = UnknownError(error: error, message: error.toString());
+        }
+      } finally {
+        _loading = false;
+        _pendingFetchMore = null;
+        if (!_disposed) notifyListeners();
+        if (!pending.isCompleted) pending.complete();
       }
-      _loading = false;
-      count.value = newItems.total;
-      maxPage.value = newItems.maxPage;
-      notifyListeners();
     });
+    notifyListeners();
+    return pending.future;
   }
 
   // Jump to a specific page without knowing the total pages and allowing page skips
@@ -545,6 +561,8 @@ class PostGridController<T extends Post> extends ChangeNotifier {
     _refreshing = false;
     _eventController.close();
     _debounceTimer?.cancel();
+    _pendingFetchMore?.complete();
+    _pendingFetchMore = null;
 
     itemsNotifier.dispose();
     count.dispose();

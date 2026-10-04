@@ -17,6 +17,90 @@ import 'package:boorusama/core/posts/post/types.dart';
 
 void main() {
   test(
+    'a debounced fetch completes only after the new posts are available',
+    () async {
+      final pending = Completer<PostResult<Post>>();
+      final controller = PostGridController<Post>(
+        fetcher: (page) => page == 1
+            ? TaskEither.right(
+                PostResult(posts: [Bookmark.empty.toPost()], total: 1),
+              )
+            : TaskEither.tryCatch(
+                () => pending.future,
+                (error, _) => UnknownError(error: error, message: 'failed'),
+              ),
+        blacklistedTagsFetcher: () async => const {},
+        mountedChecker: () => true,
+        duplicateTracker: PostDuplicateTracker(),
+        onError: (_) {},
+        debounceDuration: Duration.zero,
+      );
+      addTearDown(controller.dispose);
+      await controller.refresh();
+
+      var completed = false;
+      final fetch = controller.fetchMore().then((_) => completed = true);
+      await Future<void>.delayed(Duration.zero);
+      try {
+        expect(completed, isFalse);
+        expect(controller.items.length, 1);
+      } finally {
+        pending.complete(
+          PostResult(
+            posts: [Bookmark.empty.copyWith(id: 2, postId: () => 2).toPost()],
+            total: 2,
+          ),
+        );
+        await fetch;
+        await Future<void>.delayed(Duration.zero);
+      }
+      expect(controller.items.length, 2);
+    },
+  );
+
+  test(
+    'a throwing fetch can retry the same page without losing known posts',
+    () async {
+      var attempts = 0;
+      final requestedPages = <int>[];
+      final controller = PostGridController<Post>(
+        fetcher: (page) {
+          if (page == 1) {
+            return TaskEither.right(
+              PostResult(posts: [Bookmark.empty.toPost()], total: 1),
+            );
+          }
+          requestedPages.add(page);
+          attempts++;
+          if (attempts == 1) throw StateError('offline');
+          return TaskEither.right(
+            PostResult(
+              posts: [Bookmark.empty.copyWith(id: 2, postId: () => 2).toPost()],
+              total: 2,
+            ),
+          );
+        },
+        blacklistedTagsFetcher: () async => const {},
+        mountedChecker: () => true,
+        duplicateTracker: PostDuplicateTracker(),
+        onError: (_) {},
+        debounceDuration: Duration.zero,
+      );
+      addTearDown(controller.dispose);
+      await controller.refresh();
+
+      await controller.fetchMore();
+      expect(controller.items.length, 1);
+      expect(controller.hasMore, isTrue);
+      expect(controller.errors.value, isNotNull);
+
+      await controller.fetchMore();
+      expect(requestedPages, [2, 2]);
+      expect(controller.items.length, 2);
+    },
+  );
+
+  test(
     'a preserving refresh exposes its selection policy only while loading',
     () async {
       late PostGridController<Post> controller;
