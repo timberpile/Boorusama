@@ -107,7 +107,7 @@ void main() {
     );
     final decoded = (result as StoredPostDecodeSuccess).post;
 
-    expect(decoded.origin.sourceHost, 'e621.net');
+    expect(decoded.origin.sourceHost, 'e621.net/posts/1');
     expect(decoded.origin.profileIdHint, isNull);
     expect(decoded.createdAt, isNull);
     expect(decoded.artistTags, isNull);

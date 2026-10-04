@@ -1,0 +1,56 @@
+# Identify bookmarks by site and upstream post
+
+Claim: coordinator `/root`, 2026-10-03; implementer `/root/audit_bookmark_identity`; branch `feature/idea-004-bookmark-identity`; worktree `/home/timber/code/Boorusama/.worktrees/idea-004-bookmark-identity`.
+Priority: High
+Affected feature: Bookmarks, profile-independent lookup, backup/import
+
+## Problem
+
+Bookmark equality must represent an upstream post across profiles without colliding with another installation or changing when a media URL changes. The current identity does not reliably provide that portable post identity.
+
+## Expected behavior
+
+The same post on the same booru installation appears as one bookmark through any profile. Different installations may use the same engine and numeric post ID without sharing a bookmark. Two posts stay distinct even when they point to the same image or video.
+
+## Decisions and edge cases
+
+- Canonical identity is `(normalized site namespace, stable upstream post key)`. Lowercase the host, retain non-default port and installation path, and ignore scheme, credentials, query, fragment, and trailing slash.
+- Every supported engine supplies a stable post key: upstream post ID or a documented compound key such as work plus page. Never substitute media URL, Hive row key, clock value, or generated UUID.
+- Engine and profile ID are interpretation/resolution metadata, not equality components. CDN URL change, profile rename/deletion/recreation, and HTTP-to-HTTPS change do not affect membership. A genuinely moved installation is a new namespace until a separate alias design exists.
+- A breaking bookmark schema change is permitted. Old bookmarks need not load. Normal reads have no legacy URL fallback. If preserving old data becomes necessary, define a separate explicit converter task.
+- Local integer bookmark row keys stay internal. New backup/import records carry site namespace and post key.
+
+## Acceptance criteria
+
+- Two profiles on one normalized site/post resolve to one bookmark; the same engine/post ID on two installations resolves to two.
+- Two posts using one media URL remain separate; changing only engine metadata does not change bookmark membership.
+- Profile rename, deletion/recreation, HTTP-to-HTTPS change, and media URL change do not orphan the bookmark.
+- New backup/import round-trips site namespace and stable post key without relying on local row keys or media URLs.
+- Stable-key tests cover supported engines, including compound keys where needed. Normal loading includes no legacy URL fallback or converter.
+
+## Context and dependencies
+
+Required before IDEA-010's cross-profile Favorites fetch; IDEA-015 must preserve it. Independent of IDEA-002 profile UUIDs. A legacy converter is deliberately out of scope.
+
+- [Bookmark architecture](../../bookmark_groups.md)
+
+## Implementation progress and verification (2026-10-03)
+
+- Bookmark identity now uses the normalized installation namespace and an upstream post key. The namespace retains a case-sensitive installation path, a non-default port, and IPv6 brackets. Engine and profile metadata are excluded.
+- Native Sankaku string/numeric IDs and Pixiv work/page IDs supply keys where the shared numeric `Post.id` is not the upstream key. Missing or invalid upstream IDs remain browsable but cannot be bookmarked; actions show a specific message and direct batch writes preflight before mutation.
+- Current Hive bookmark rows persist a post snapshot with stable identity; ordinary loading ignores older URL-only rows. Bookmark export source version 4 includes the site/post key and verifies it against the decoded snapshot before import planning. Versions 1–3 are unsupported under the approved breaking change.
+- `fvm dart pub get` in `packages/boorusama_cli` and `./gen.sh` succeeded. `fvm flutter test --no-pub` passed 1,963 tests on the complete code change. After a lint-only selection expression cleanup, its focused file passed 8 tests. `fvm flutter analyze --no-pub` exited 0 with 241 repository diagnostics (no errors; remaining warnings are in unrelated backup test files). `git diff --check` passed.
+- Android UI was not exercised; no emulator was claimed. The branch remains isolated for coordinator review and integration.
+
+## Review follow-up (2026-10-03)
+
+- Preserved explicit ports when re-reading scheme-less site namespaces. HTTP `:443` remains distinct from the HTTPS default, including after a snapshot reload.
+- Version 4 import preparation now rejects group references to bookmark IDs absent from the package before planning or local writes. A source-level test verifies existing bookmarks and group memberships remain unchanged.
+- Added a native Sankaku string-ID Hive save/reload test. It revealed that Hive returns nested custom post-data maps with untyped keys; the Sankaku decoder now accepts and converts those maps so the original string key survives reload.
+
+- Review verification: affected origin, bookmark, codec, planner, and import tests passed together (46 tests). The complete `fvm flutter test --no-pub` suite passed 1,967 tests after the review fixes. `fvm flutter analyze --no-pub` exited 0 with 241 repository diagnostics and no errors; all warnings are in unrelated backup tests. `git diff --check` passed. No emulator or remote actions were used.
+
+## Completion review (2026-10-04)
+
+- Independent review findings about explicit ports, orphan group references, and native Sankaku reload were fixed and covered by focused tests. The complete 1,967-test suite and targeted coordinator tests passed after the fixes.
+- The local feature branch is ready for integration review. Android UI and remote checks were not performed. Truly keyless posts cannot be bookmarked and receive a localized message.

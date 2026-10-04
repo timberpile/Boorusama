@@ -14,36 +14,16 @@ BookmarkGetError mapBoxErrorToBookmarkGetError(BoxError error) =>
       BoxError.unknown => BookmarkGetError.unknown,
     };
 
-Post recoverBookmarkPostOrigin(Post post, String? sourceUrl) {
-  if (post.origin.sourceHost.isNotEmpty || sourceUrl == null) return post;
-
-  return post.copyWith(
-    origin: PostOrigin.fromSource(
-      booruType: post.origin.booruType,
-      booruId: post.origin.booruId,
-      source: sourceUrl,
-      profileIdHint: post.origin.profileIdHint,
-    ),
-  );
-}
-
 Either<BookmarkGetError, List<Bookmark>> tryMapBookmarkHiveObjectsToBookmarks(
   Iterable<BookmarkHiveObject> hiveObjects,
   ImageUrlResolver Function(int? booruId) imageUrlResolver, [
   BooruPostDataCodec? Function(BooruType type)? postDataCodec,
 ]) => Either.tryCatch(
   () => hiveObjects
-      .map(
-        (hiveObject) => _mapBookmark(
-          hiveObject,
-          imageUrlResolver,
-          postDataCodec,
-        ).bookmark,
-      )
+      .where((row) => row.snapshotSchemaVersion == 2)
+      .map((row) => _mapBookmark(row, postDataCodec))
       .toList(),
-  (o, s) {
-    return BookmarkGetError.nullField;
-  },
+  (_, _) => BookmarkGetError.nullField,
 );
 
 Either<BookmarkGetError, Bookmark> tryMapBookmarkHiveObjectToBookmark(
@@ -51,126 +31,47 @@ Either<BookmarkGetError, Bookmark> tryMapBookmarkHiveObjectToBookmark(
   ImageUrlResolver Function(int? booruId) imageUrlResolver, [
   BooruPostDataCodec? Function(BooruType type)? postDataCodec,
 ]) => Either.tryCatch(
-  () => _mapBookmark(
-    hiveObject,
-    imageUrlResolver,
-    postDataCodec,
-  ).bookmark,
-  (o, s) => BookmarkGetError.nullField,
+  () => _mapBookmark(hiveObject, postDataCodec),
+  (_, _) => BookmarkGetError.nullField,
 );
 
-typedef BookmarkHiveMapping = ({
-  Bookmark bookmark,
-  bool needsWriteBack,
-});
-
-Either<BookmarkGetError, List<BookmarkHiveMapping>>
-tryMapBookmarkHiveObjectsWithWriteBack(
-  Iterable<BookmarkHiveObject> hiveObjects,
-  ImageUrlResolver Function(int? booruId) imageUrlResolver, [
-  BooruPostDataCodec? Function(BooruType type)? postDataCodec,
-]) => Either.tryCatch(
-  () => hiveObjects
-      .map(
-        (hiveObject) => _mapBookmark(
-          hiveObject,
-          imageUrlResolver,
-          postDataCodec,
-        ),
-      )
-      .toList(),
-  (o, s) => BookmarkGetError.nullField,
-);
-
-BookmarkHiveMapping _mapBookmark(
-  BookmarkHiveObject hiveObject,
-  ImageUrlResolver Function(int? booruId) imageUrlResolver,
+Bookmark _mapBookmark(
+  BookmarkHiveObject row,
   BooruPostDataCodec? Function(BooruType type)? postDataCodec,
 ) {
-  final fallback = Bookmark(
-    id: hiveObject.key,
-    booruId: hiveObject.booruId!,
-    createdAt: hiveObject.createdAt!,
-    updatedAt: hiveObject.updatedAt!,
-    thumbnailUrl: hiveObject.thumbnailUrl!,
-    sampleUrl: hiveObject.sampleUrl!,
-    originalUrl: hiveObject.originalUrl!,
-    sourceUrl: hiveObject.sourceUrl!,
-    width: hiveObject.width!,
-    height: hiveObject.height!,
-    md5: hiveObject.md5!,
-    tags: hiveObject.tags?.toSet() ?? {},
-    realSourceUrl: hiveObject.realSourceUrl,
-    format: hiveObject.format,
-    imageUrlResolver: imageUrlResolver(hiveObject.booruId),
-    postId: hiveObject.postId,
-    metadata: hiveObject.metadata ?? {},
+  if (row.snapshotSchemaVersion != 2 || row.postSnapshot == null) {
+    throw const FormatException('Unsupported bookmark row');
+  }
+  final snapshot = StoredPostSnapshot.fromJson(
+    Map<String, dynamic>.from(row.postSnapshot!),
   );
-  if (hiveObject.snapshotSchemaVersion == null &&
-      hiveObject.postSnapshot == null) {
-    return (bookmark: fallback, needsWriteBack: true);
-  }
-  if (hiveObject.snapshotSchemaVersion != 1 ||
-      hiveObject.postSnapshot == null) {
-    return (bookmark: fallback, needsWriteBack: false);
-  }
-
-  try {
-    final snapshot = StoredPostSnapshot.fromJson(
-      Map<String, dynamic>.from(hiveObject.postSnapshot!),
-    );
-    final type = BooruType.fromLegacyId(snapshot.origin.booruTypeId);
-    final result = const StoredPostCodec().decode(
-      snapshot,
-      dataCodec: postDataCodec?.call(type),
-    );
-    return switch (result) {
-      StoredPostDecodeSuccess(:final post) => _bookmarkFromStoredSnapshot(
-        hiveObject,
-        snapshot,
-        post,
-      ),
-      StoredPostDecodeFailure() => (
-        bookmark: fallback,
-        needsWriteBack: false,
-      ),
-    };
-  } catch (_) {
-    return (bookmark: fallback, needsWriteBack: false);
-  }
-}
-
-BookmarkHiveMapping _bookmarkFromStoredSnapshot(
-  BookmarkHiveObject hiveObject,
-  StoredPostSnapshot snapshot,
-  Post post,
-) {
-  final recoveredPost = recoverBookmarkPostOrigin(post, hiveObject.sourceUrl);
-  final originWasRecovered = recoveredPost != post;
-  final recoveredSnapshot = !originWasRecovered
-      ? snapshot
-      : StoredPostSnapshot(
-          origin: recoveredPost.origin.toSnapshot(),
-          common: snapshot.common,
-          custom: snapshot.custom,
-          codecVersion: snapshot.codecVersion,
-        );
-
-  return (
-    bookmark: Bookmark.fromSnapshot(
-      id: hiveObject.key,
-      createdAt: hiveObject.createdAt!,
-      updatedAt: hiveObject.updatedAt!,
-      snapshot: recoveredSnapshot,
-      post: recoveredPost,
-      postId: hiveObject.postId,
-      sourceUrl: hiveObject.sourceUrl,
-    ),
-    needsWriteBack: originWasRecovered,
+  final type = BooruType.fromLegacyId(snapshot.origin.booruTypeId);
+  final decoded = const StoredPostCodec().decode(
+    snapshot,
+    dataCodec: postDataCodec?.call(type),
   );
+  if (decoded case StoredPostDecodeSuccess(:final post)) {
+    if (row.postId != post.id ||
+        BookmarkIdentity.tryFromPost(post) == null ||
+        row.createdAt == null ||
+        row.updatedAt == null) {
+      throw const FormatException('Invalid bookmark snapshot identity');
+    }
+    return Bookmark.fromSnapshot(
+      id: row.key,
+      createdAt: row.createdAt!,
+      updatedAt: row.updatedAt!,
+      snapshot: snapshot,
+      post: post,
+      postId: row.postId,
+      sourceUrl: row.sourceUrl,
+    );
+  }
+  throw const FormatException('Invalid bookmark snapshot');
 }
 
 BookmarkHiveObject favoriteToHiveObject(Bookmark bookmark) {
+  bookmark.transferIdentity;
   return BookmarkHiveObject(
     booruId: bookmark.booruId,
     createdAt: bookmark.createdAt,
@@ -187,7 +88,7 @@ BookmarkHiveObject favoriteToHiveObject(Bookmark bookmark) {
     format: bookmark.format,
     postId: bookmark.postId,
     metadata: bookmark.metadata,
-    snapshotSchemaVersion: 1,
+    snapshotSchemaVersion: 2,
     postSnapshot: bookmark.snapshot.toJson(),
   );
 }

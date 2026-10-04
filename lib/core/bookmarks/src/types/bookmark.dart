@@ -156,11 +156,13 @@ class Bookmark extends Equatable with ImageInfoMixin, TagListCheckMixin {
   bool get isVideo => post.isVideo;
 
   BookmarkIdentity get identity => BookmarkIdentity.fromPost(post);
-  BookmarkUniqueId get uniqueId => BookmarkUniqueId.fromPost(post);
-  BookmarkUniqueId get transferIdentity => switch (postId) {
-    null => uniqueId,
-    _ => identity,
-  };
+  BookmarkUniqueId get uniqueId => postId == null || postId != post.id
+      ? const UnbookmarkablePostIdentity()
+      : BookmarkUniqueId.fromPost(post);
+  BookmarkIdentity get transferIdentity {
+    if (uniqueId case final BookmarkIdentity identity) return identity;
+    throw const FormatException('Bookmark has no stable upstream identity');
+  }
 
   static final empty = Bookmark(
     id: -1,

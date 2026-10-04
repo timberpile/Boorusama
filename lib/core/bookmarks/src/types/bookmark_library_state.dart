@@ -14,14 +14,20 @@ class BookmarkLibraryState extends Equatable {
     required List<BookmarkGroup> groups,
     required BookmarkTarget activeTarget,
   }) : items = List.unmodifiable(bookmarks),
-       bookmarks = bookmarks.map((bookmark) => bookmark.uniqueId).toISet(),
+       bookmarks = bookmarks
+           .where((bookmark) => bookmark.uniqueId is BookmarkIdentity)
+           .map((bookmark) => bookmark.uniqueId)
+           .toISet(),
        groups = List.unmodifiable(groups),
        activeTarget = _effectiveTarget(groups, activeTarget),
        bookmarksById = Map.unmodifiable({
-         for (final bookmark in bookmarks) bookmark.id: bookmark,
+         for (final bookmark in bookmarks)
+           if (bookmark.uniqueId is BookmarkIdentity) bookmark.id: bookmark,
        }),
        bookmarksByUniqueId = Map.unmodifiable({
-         for (final bookmark in bookmarks) bookmark.uniqueId: bookmark,
+         for (final bookmark in bookmarks)
+           if (bookmark.uniqueId is BookmarkIdentity)
+             bookmark.uniqueId: bookmark,
        }),
        groupsById = Map.unmodifiable({
          for (final group in groups) group.id: group,
@@ -79,6 +85,7 @@ Map<BookmarkUniqueId, Set<String>> _buildMemberships(
 
   return {
     for (final bookmark in bookmarks)
-      bookmark.uniqueId: Set.unmodifiable(byBookmarkKey[bookmark.id] ?? {}),
+      if (bookmark.uniqueId is BookmarkIdentity)
+        bookmark.uniqueId: Set.unmodifiable(byBookmarkKey[bookmark.id] ?? {}),
   };
 }

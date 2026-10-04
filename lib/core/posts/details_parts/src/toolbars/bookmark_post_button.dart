@@ -231,6 +231,11 @@ extension BookmarkPostX on WidgetRef {
         Kurumi.showSuccessToast(context, context.t.bookmark.removed);
       case BookmarkToggleOutcome.unavailable:
         await showBookmarkGroupPicker(context, config: config, post: post);
+      case BookmarkToggleOutcome.missingPostIdentity:
+        Kurumi.showErrorToast(
+          context,
+          context.t.bookmark.missing_post_identity,
+        );
       case BookmarkToggleOutcome.failed:
         Kurumi.showErrorToast(context, context.t.bookmark.failed_to_add);
     }

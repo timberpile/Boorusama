@@ -17,6 +17,8 @@ void main() {
   final config = BooruConfig.empty.auth;
   final bookmark = Bookmark.empty.copyWith(
     originalUrl: 'https://example.com/deferred.jpg',
+    sourceUrl: 'https://example.com',
+    postId: () => 1,
   );
   final post = bookmark.toPost();
   final library = BookmarkLibraryState(
@@ -135,6 +137,8 @@ void main() {
       );
       final addedBookmark = Bookmark.empty.copyWith(
         originalUrl: 'https://example.com/added.jpg',
+        sourceUrl: 'https://example.com',
+        postId: () => 2,
       );
       final addedPost = addedBookmark.toPost();
       final emptyLibrary = BookmarkLibraryState(

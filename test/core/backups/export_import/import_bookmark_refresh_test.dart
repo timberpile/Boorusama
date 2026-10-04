@@ -7,6 +7,7 @@ import 'package:hive_ce/hive.dart';
 
 import 'package:boorusama/core/backups/export_import/import/import_flow_notifier.dart';
 import 'package:boorusama/core/backups/sources/providers.dart';
+import 'package:boorusama/core/backups/types.dart';
 import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_group_hive_object.dart';
 import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_group_repository_hive.dart';
 import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_hive_object.dart';
@@ -14,6 +15,7 @@ import 'package:boorusama/core/bookmarks/src/data/hive/repository.dart';
 import 'package:boorusama/core/bookmarks/src/data/providers.dart';
 import 'package:boorusama/core/bookmarks/src/providers/bookmark_provider.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark.dart';
+import 'package:boorusama/core/bookmarks/src/types/bookmark_repository.dart';
 import 'package:boorusama/core/hive/hive_adapters.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 import 'package:boorusama/core/settings/providers.dart';
@@ -80,6 +82,46 @@ void main() {
     addTearDown(container.dispose);
     return container;
   }
+
+  test(
+    'invalid group references fail preparation without changing local data',
+    () async {
+      final saved = (await bookmarkRepository.addBookmarkWithBookmarks([
+        _bookmark(1),
+      ])).single;
+      await groupRepository.createGroup('Local', id: groupId);
+      await groupRepository.addBookmarks(groupId, {saved.id});
+      final container = createContainer();
+      final source = container.read(bookmarksBackupSourceProvider);
+      final encoded = source.converter.encode(
+        payload: const [],
+        extraFields: {
+          'groups': [
+            {
+              'id': groupId,
+              'name': 'Imported',
+              'bookmarkIds': [999],
+            },
+          ],
+        },
+      );
+
+      await expectLater(
+        source.validateEncodedImport(encoded),
+        throwsA(isA<InvalidBackupFormatException>()),
+      );
+      expect(
+        await bookmarkRepository.getAllBookmarksOrThrow(
+          imageUrlResolver: (_) => const DefaultImageUrlResolver(),
+        ),
+        [saved],
+      );
+      expect((await groupRepository.getGroup(groupId))?.name, 'Local');
+      expect((await groupRepository.getGroup(groupId))?.bookmarkIds, {
+        saved.id,
+      });
+    },
+  );
 
   test(
     'a newly imported group is visible when import completion is shown',
@@ -155,6 +197,8 @@ void main() {
 
 Bookmark _bookmark(int id) => Bookmark.empty.copyWith(
   originalUrl: 'https://example.com/post/$id',
+  sourceUrl: 'https://example.com',
+  postId: () => id,
 );
 
 class _TestSettingsNotifier extends SettingsNotifier {

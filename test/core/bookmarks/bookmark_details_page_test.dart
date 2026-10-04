@@ -513,7 +513,7 @@ Bookmark _legacyBookmark({int? postId = 91}) => Bookmark(
   thumbnailUrl: 'thumbnail-91',
   sampleUrl: 'sample-91',
   originalUrl: 'original-91',
-  sourceUrl: '${_config.url}/posts/91',
+  sourceUrl: _config.url,
   width: 100,
   height: 100,
   md5: 'legacy-91',

@@ -1468,6 +1468,7 @@
     "title": "Bookmarks",
     "added": "Bookmark added",
     "failed_to_add": "Failed to add bookmark",
+    "missing_post_identity": "This post has no stable ID and cannot be bookmarked",
     "many_added": "{0} bookmarks added",
     "failed_to_add_many": "Failed to add bookmarks",
     "removed": "Bookmark removed",
