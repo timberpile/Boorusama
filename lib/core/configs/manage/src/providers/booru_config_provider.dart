@@ -200,13 +200,13 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
 
   Future<void> update({
     required BooruConfigData booruConfigData,
-    required int oldConfigId,
+    required String oldConfigId,
     void Function(String message)? onFailure,
     void Function(BooruConfig booruConfig)? onSuccess,
   }) async {
     try {
       // Validate inputs
-      if (oldConfigId < 0) {
+      if (!isCanonicalProfileId(oldConfigId)) {
         _logError('Invalid config id: $oldConfigId');
         onFailure?.call('Unable to find this account');
         return;
@@ -420,7 +420,7 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
     }
   }
 
-  Future<void> updateOrder(List<int> configIds) async {
+  Future<void> updateOrder(List<String> configIds) async {
     final notifier = ref.read(settingsNotifierProvider.notifier);
 
     await notifier.updateWith(
@@ -445,7 +445,7 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
     updateOrder(newOrders);
   }
 
-  BooruConfig? findConfigById(int id) {
+  BooruConfig? findConfigById(String id) {
     return state.firstWhereOrNull((config) => config.id == id);
   }
 

@@ -63,7 +63,9 @@ void main() {
         for (var i = 0; i < 14; i++)
           pinnedFixture(
             id: 'source-${i.toString().padLeft(2, '0')}',
-            profileId: i < 7 ? 12 : 99,
+            profileId: i < 7
+                ? '00000000-0000-4000-8000-00000000000c'
+                : '00000000-0000-4000-8000-000000000063',
             query: 'artist_$i',
             checked: false,
             unreadCount: 0,
@@ -88,7 +90,7 @@ void main() {
         [
           SearchFollowingFeed(
             id: 'first',
-            profileId: 12,
+            profileId: '00000000-0000-4000-8000-00000000000c',
             name: 'First',
             sourceIds: [
               ...members.take(7).map((s) => s.id),
@@ -98,13 +100,13 @@ void main() {
           ),
           SearchFollowingFeed(
             id: 'shared',
-            profileId: 12,
+            profileId: '00000000-0000-4000-8000-00000000000c',
             name: 'Shared',
             sourceIds: [members.first.id],
           ),
           SearchFollowingFeed(
             id: 'other',
-            profileId: 99,
+            profileId: '00000000-0000-4000-8000-000000000063',
             name: 'Other',
             sourceIds: members.skip(7).map((s) => s.id).toList(),
           ),
@@ -117,8 +119,8 @@ void main() {
       expect(calls.map((c) => c.query), members.map((s) => s.query));
       expect(calls.every((c) => c.page == 1 && c.limit == 50), isTrue);
       expect(harness.requests.map((r) => r.profileId), [
-        ...List.filled(7, 12),
-        ...List.filled(7, 99),
+        ...List.filled(7, '00000000-0000-4000-8000-00000000000c'),
+        ...List.filled(7, '00000000-0000-4000-8000-000000000063'),
       ]);
       for (final member in members) {
         expect(
@@ -149,7 +151,7 @@ void main() {
       await seedFeeds(tester, harness, sources, [
         SearchFollowingFeed(
           id: 'feed',
-          profileId: 12,
+          profileId: '00000000-0000-4000-8000-00000000000c',
           name: 'Feed',
           sourceIds: const ['a', 'b'],
         ),
@@ -189,7 +191,7 @@ void main() {
         [
           SearchFollowingFeed(
             id: 'feed',
-            profileId: 12,
+            profileId: '00000000-0000-4000-8000-00000000000c',
             name: 'Feed',
             sourceIds: const ['a', 'b', 'c', 'd'],
           ),
@@ -225,7 +227,7 @@ void main() {
         [
           SearchFollowingFeed(
             id: 'feed',
-            profileId: 12,
+            profileId: '00000000-0000-4000-8000-00000000000c',
             name: 'Feed',
             sourceIds: const ['a'],
           ),
@@ -254,7 +256,7 @@ void main() {
         [
           SearchFollowingFeed(
             id: 'feed',
-            profileId: 12,
+            profileId: '00000000-0000-4000-8000-00000000000c',
             name: 'Feed',
             sourceIds: const ['a'],
           ),
@@ -268,7 +270,7 @@ void main() {
           .read(searchSubscriptionsProvider.notifier)
           .setFeedFollowing(
             feedId: 'feed',
-            profileId: 12,
+            profileId: '00000000-0000-4000-8000-00000000000c',
             query: 'b',
             following: true,
           );
@@ -302,7 +304,7 @@ void main() {
       [
         SearchFollowingFeed(
           id: 'feed',
-          profileId: 12,
+          profileId: '00000000-0000-4000-8000-00000000000c',
           name: 'Feed',
           sourceIds: const ['a', 'b'],
         ),
@@ -332,7 +334,7 @@ void main() {
         [
           SearchFollowingFeed(
             id: 'feed',
-            profileId: 12,
+            profileId: '00000000-0000-4000-8000-00000000000c',
             name: 'Feed',
             sourceIds: const ['a', 'b'],
           ),
@@ -378,7 +380,7 @@ void main() {
           [
             SearchFollowingFeed(
               id: 'feed',
-              profileId: 12,
+              profileId: '00000000-0000-4000-8000-00000000000c',
               name: 'Feed',
               sourceIds: const ['a'],
             ),
@@ -458,7 +460,7 @@ void main() {
         [
           SearchFollowingFeed(
             id: 'feed',
-            profileId: 12,
+            profileId: '00000000-0000-4000-8000-00000000000c',
             name: 'Feed',
             sourceIds: const ['a'],
           ),
@@ -503,7 +505,7 @@ void main() {
           [
             SearchFollowingFeed(
               id: 'feed',
-              profileId: 12,
+              profileId: '00000000-0000-4000-8000-00000000000c',
               name: 'Feed',
               sourceIds: const ['cats'],
             ),
@@ -515,7 +517,10 @@ void main() {
           );
           await harness.pump(
             tester,
-            const FollowingFeedPage(feedId: 'feed', profileId: 12),
+            const FollowingFeedPage(
+              feedId: 'feed',
+              profileId: '00000000-0000-4000-8000-00000000000c',
+            ),
           );
           expect(find.text('Last checked: ${date.label}'), findsOneWidget);
           expect(find.textContaining('2026-09-14'), findsNothing);
@@ -562,7 +567,7 @@ void main() {
       [
         SearchFollowingFeed(
           id: 'feed',
-          profileId: 12,
+          profileId: '00000000-0000-4000-8000-00000000000c',
           name: 'Feed',
           sourceIds: const ['cats'],
         ),
@@ -573,7 +578,10 @@ void main() {
     );
     await harness.pump(
       tester,
-      const FollowingFeedPage(feedId: 'feed', profileId: 12),
+      const FollowingFeedPage(
+        feedId: 'feed',
+        profileId: '00000000-0000-4000-8000-00000000000c',
+      ),
     );
     expect(find.text('Never checked'), findsOneWidget);
   });

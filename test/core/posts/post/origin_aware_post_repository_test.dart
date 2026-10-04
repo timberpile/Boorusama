@@ -17,7 +17,7 @@ void main() {
     booruType: BooruType.gelbooru,
     booruId: BooruType.gelbooru.id,
     source: 'https://gelbooru.example',
-    profileIdHint: 42,
+    profileIdHint: '00000000-0000-4000-8000-00000000002a',
   );
   final first = _post(2);
   final second = _post(1);

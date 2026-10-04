@@ -94,7 +94,7 @@ final class SearchRuntimeSnapshotCodec {
       throw const FormatException('Invalid runtime search');
     }
     final id = _requiredString(value, 'id');
-    final profileId = _requiredInt(value, 'profileId');
+    final profileId = _requiredString(value, 'profileId');
     final query = _requiredString(value, 'query');
     final position = _requiredInt(value, 'position');
     final createdAt = _requiredDate(value, 'createdAt');
@@ -224,7 +224,7 @@ final class SearchRuntimeSnapshotService {
       await repository.delete(search.id);
     }
 
-    final searchesByProfile = <int, List<SearchSubscription>>{};
+    final searchesByProfile = <String, List<SearchSubscription>>{};
     for (final search in snapshot.searches) {
       searchesByProfile.putIfAbsent(search.profileId, () => []).add(search);
     }
@@ -232,7 +232,7 @@ final class SearchRuntimeSnapshotService {
       await repository.restoreForProfile(entry.key, entry.value);
     }
 
-    final feedsByProfile = <int, List<SearchFollowingFeed>>{};
+    final feedsByProfile = <String, List<SearchFollowingFeed>>{};
     for (final feed in snapshot.feeds) {
       feedsByProfile.putIfAbsent(feed.profileId, () => []).add(feed);
     }

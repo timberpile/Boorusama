@@ -7,6 +7,7 @@ import 'package:hive_ce/hive.dart';
 import 'package:uuid/uuid.dart';
 
 // Project imports:
+import '../../../../../configs/config/src/types/profile_id.dart';
 import '../../types/search_post_preview.dart';
 import '../../types/search_refresh.dart';
 import '../../types/search_following_feed.dart';
@@ -36,7 +37,7 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
       for (final value in _organizationBox?.values ?? const [])
         if (value case final Map json
             when json['id'] is String &&
-                json['profileId'] is int &&
+                isCanonicalProfileId(json['profileId']) &&
                 json['name'] is String)
           SearchFollowingFeed.fromJson({
             ...json,
@@ -73,7 +74,7 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
 
   @override
   Future<SearchFollowingFeed> saveFeed({
-    required int profileId,
+    required String profileId,
     required String name,
     required List<String> queries,
     String? id,
@@ -196,7 +197,7 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
   });
 
   @override
-  Future<void> setFeedOrder(int profileId, List<String> orderedIds) =>
+  Future<void> setFeedOrder(String profileId, List<String> orderedIds) =>
       _serialize(() async {
         final storage = _organizationBox;
         if (storage == null) throw StateError('Feed storage unavailable');
@@ -223,23 +224,25 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
       });
 
   @override
-  Future<void> restoreFeeds(int profileId, List<SearchFollowingFeed> feeds) =>
-      _serialize(() async {
-        if (feeds.any((f) => f.profileId != profileId)) {
-          throw StateError('Invalid feed ownership');
-        }
-        await _organizationBox?.deleteAll(
-          _feeds()
-              .where((f) => f.profileId == profileId)
-              .map((f) => 'feed:${f.id}'),
-        );
-        await _organizationBox?.putAll({
-          for (final f in feeds) 'feed:${f.id}': f.toJson(),
-        });
-      });
+  Future<void> restoreFeeds(
+    String profileId,
+    List<SearchFollowingFeed> feeds,
+  ) => _serialize(() async {
+    if (feeds.any((f) => f.profileId != profileId)) {
+      throw StateError('Invalid feed ownership');
+    }
+    await _organizationBox?.deleteAll(
+      _feeds()
+          .where((f) => f.profileId == profileId)
+          .map((f) => 'feed:${f.id}'),
+    );
+    await _organizationBox?.putAll({
+      for (final f in feeds) 'feed:${f.id}': f.toJson(),
+    });
+  });
 
   @override
-  Future<void> invalidateRuntimeForProfile(int profileId) =>
+  Future<void> invalidateRuntimeForProfile(String profileId) =>
       _serialize(() async {
         final originals = {
           for (final object in _box.values)
@@ -366,11 +369,11 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
   }
 
   @override
-  Future<SearchSubscription?> findByQuery(int profileId, String query) =>
+  Future<SearchSubscription?> findByQuery(String profileId, String query) =>
       _read(() => _findIndependentByQuery(profileId, query));
 
   SearchSubscription? _findIndependentByQuery(
-    int profileId,
+    String profileId,
     String query, {
     String? excludingId,
   }) {
@@ -387,7 +390,7 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
 
   @override
   Future<SearchSubscription> create({
-    required int profileId,
+    required String profileId,
     required String query,
     SearchQueryStructure? queryStructure,
     required String? name,
@@ -441,7 +444,7 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
   @override
   Future<SearchSubscription> edit(
     String id, {
-    required int profileId,
+    required String profileId,
     required String query,
     required String? name,
   }) => _serialize(() async {
@@ -500,7 +503,7 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
 
   @override
   Future<SearchSubscription> savePinInNewFolder({
-    required int profileId,
+    required String profileId,
     required String query,
     required String? name,
     required String folderName,
@@ -587,7 +590,7 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
 
   @override
   Future<List<SearchSubscription>> reorder(
-    int profileId,
+    String profileId,
     int oldIndex,
     int newIndex,
   ) {
@@ -804,7 +807,7 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
   }
 
   @override
-  Future<void> deleteForProfile(int profileId) {
+  Future<void> deleteForProfile(String profileId) {
     return _serialize(() async {
       final keys = _box.values
           .where((object) => object.profileId == profileId)
@@ -845,7 +848,7 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
 
   @override
   Future<void> restoreForProfile(
-    int profileId,
+    String profileId,
     List<SearchSubscription> subscriptions,
   ) {
     return _serialize(() async {
@@ -888,7 +891,10 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
   }
 
   Iterable<SearchSubscription> _subscriptions() {
-    return _box.values.map(_toSubscription).toList()
+    return _box.values
+        .where((object) => isCanonicalProfileId(object.profileId))
+        .map(_toSubscription)
+        .toList()
       ..sort(_compareSubscriptions);
   }
 
@@ -962,7 +968,7 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
     }
   }
 
-  Iterable<SearchSubscription> _subscriptionsForProfile(int profileId) {
+  Iterable<SearchSubscription> _subscriptionsForProfile(String profileId) {
     final internalIds = _feedSourceIds();
     return _subscriptions().where(
       (subscription) =>
@@ -979,7 +985,7 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
     return object;
   }
 
-  Future<void> _writeContiguousPositions(int profileId) async {
+  Future<void> _writeContiguousPositions(String profileId) async {
     final objects = <String, SearchSubscriptionHiveObject>{
       for (final (index, subscription) in _subscriptionsForProfile(
         profileId,

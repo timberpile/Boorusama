@@ -1,3 +1,4 @@
+import '../../../profile_uuid_utils.dart';
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -20,7 +21,7 @@ void main() {
               booruType: BooruType.danbooru,
               booruId: BooruType.danbooru.id,
               source: 'https://danbooru.donmai.us/posts/$i',
-              profileIdHint: i,
+              profileIdHint: profileUuid(i),
             ),
             data: LegacyPostData(
               typeKey: 'legacy_danbooru',

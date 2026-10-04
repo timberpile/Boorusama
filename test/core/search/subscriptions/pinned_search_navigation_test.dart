@@ -102,7 +102,11 @@ void main() {
             position: 1,
             unreadCount: 5,
           ),
-          pinnedFixture(id: 'other', profileId: 99, unreadCount: 90),
+          pinnedFixture(
+            id: 'other',
+            profileId: '00000000-0000-4000-8000-000000000063',
+            unreadCount: 90,
+          ),
         ]);
         await harness.pump(
           tester,

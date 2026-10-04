@@ -13,7 +13,7 @@ void main() {
   }) {
     return SearchSubscription(
       id: id,
-      profileId: 7,
+      profileId: '00000000-0000-4000-8000-000000000007',
       query: 'cat_girl order:id',
       position: 0,
       createdAt: now,
@@ -29,7 +29,7 @@ void main() {
     () {
       final unnamed = SearchSubscription.create(
         id: 'unnamed',
-        profileId: 7,
+        profileId: '00000000-0000-4000-8000-000000000007',
         query: '  cat_girl   order:id  ',
         name: '   ',
         position: 0,
@@ -51,7 +51,7 @@ void main() {
       () {
         final item = SearchSubscription(
           id: 'direct-${testCase.description}',
-          profileId: 7,
+          profileId: '00000000-0000-4000-8000-000000000007',
           query: 'cat_girl order:id',
           name: testCase.name,
           position: 0,
@@ -148,7 +148,7 @@ void main() {
       final structure = SearchQueryStructure.typedTags(c.tags);
       final item = SearchSubscription.create(
         id: c.description,
-        profileId: 7,
+        profileId: '00000000-0000-4000-8000-000000000007',
         query: c.query,
         queryStructure: structure,
         name: null,
@@ -177,7 +177,7 @@ void main() {
     final discoveredPosts = [preview];
     final item = SearchSubscription(
       id: 'immutable',
-      profileId: 7,
+      profileId: '00000000-0000-4000-8000-000000000007',
       query: 'cat_girl order:id',
       position: 0,
       createdAt: now,

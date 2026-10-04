@@ -26,10 +26,10 @@ import 'search_backup_profile.dart';
 class ProfileExportScope extends Equatable implements BackupExportScope {
   const ProfileExportScope.all() : profileIds = null;
 
-  ProfileExportScope.selected(Iterable<int> profileIds)
+  ProfileExportScope.selected(Iterable<String> profileIds)
     : profileIds = Set.unmodifiable(profileIds);
 
-  final Set<int>? profileIds;
+  final Set<String>? profileIds;
 
   bool get isAll => profileIds == null;
 

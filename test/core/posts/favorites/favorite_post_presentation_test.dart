@@ -81,7 +81,10 @@ void main() {
     expect(find.text('native context menu'), findsOneWidget);
     final card = tester.widget<PostGridItem>(find.byType(PostGridItem));
     expect(card.post, isA<Post>());
-    expect(card.post.origin.profileIdHint, 42);
+    expect(
+      card.post.origin.profileIdHint,
+      '00000000-0000-4000-8000-00000000002a',
+    );
 
     await tester.tap(find.byType(ImageGridItem));
     await tester.pumpAndSettle();
@@ -146,7 +149,7 @@ final _config = BooruConfig.fromJson({
     url: 'https://gelbooru.example',
     customDownloadFileNameFormat: null,
   ).toJson(),
-  'id': 42,
+  'id': '00000000-0000-4000-8000-00000000002a',
 });
 
 final _origin = PostOrigin.fromSource(

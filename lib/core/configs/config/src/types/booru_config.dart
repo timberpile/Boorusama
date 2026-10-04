@@ -23,6 +23,7 @@ import 'always_included_tags.dart';
 import 'booru_config_repository.dart';
 import 'granular_rating_filter.dart';
 import 'profile_icon_configs.dart';
+import 'profile_id.dart';
 import 'types.dart';
 
 export 'always_included_tags.dart';
@@ -67,7 +68,7 @@ class BooruConfig extends Equatable {
 
   factory BooruConfig.fromJson(Map<String, dynamic> json) {
     return BooruConfig(
-      id: json['id'] as int,
+      id: readProfileId(json['id']),
       booruId: json['booruId'] as int,
       booruIdHint: json['booruIdHint'] as int,
       apiKey: json['apiKey'] as String?,
@@ -132,7 +133,7 @@ class BooruConfig extends Equatable {
   }
 
   static const empty = BooruConfig(
-    id: -2,
+    id: '',
     booruId: -1,
     booruIdHint: -1,
     apiKey: null,
@@ -168,7 +169,7 @@ class BooruConfig extends Equatable {
     required String url,
     required String? customDownloadFileNameFormat,
   }) => BooruConfig(
-    id: -1,
+    id: '',
     booruId: booruType.id,
     booruIdHint: booruType.id,
     apiKey: null,
@@ -198,7 +199,7 @@ class BooruConfig extends Equatable {
     tooltipDisplayMode: null,
   );
 
-  final int id;
+  final String id;
   final int booruId;
   final int booruIdHint;
   final String url;
@@ -666,7 +667,7 @@ mixin BooruConfigSearchFilterMixin {
 }
 
 extension BooruConfigX on BooruConfig {
-  bool isDefault() => id == -1;
+  bool isDefault() => id.isEmpty;
 
   ImageQuickActionType get defaultPreviewImageButtonActionType =>
       switch (defaultPreviewImageButtonAction) {

@@ -1,3 +1,4 @@
+import '../../../profile_uuid_utils.dart';
 // Package imports:
 import 'package:flutter_test/flutter_test.dart';
 
@@ -9,6 +10,18 @@ import 'package:boorusama/core/posts/post/types.dart';
 
 void main() {
   const resolver = PostOriginResolver();
+
+  test('old numeric cached profile hints are discarded safely', () {
+    final snapshot = PostOriginSnapshot.fromJson({
+      'booruTypeId': BooruType.danbooru.id,
+      'booruId': 20,
+      'sourceHost': 'danbooru.donmai.us',
+      'profileIdHint': 12,
+    });
+
+    expect(snapshot.profileIdHint, isNull);
+    expect(snapshot.toJson(), isNot(contains('profileIdHint')));
+  });
 
   test('a matching profile hint resolves that exact profile', () {
     final expected = _config(
@@ -22,7 +35,7 @@ void main() {
         booruType: BooruType.danbooru,
         booruId: 20,
         source: 'https://danbooru.donmai.us/posts/4',
-        profileIdHint: 2,
+        profileIdHint: '00000000-0000-4000-8000-000000000002',
       ),
       [
         _config(
@@ -49,7 +62,7 @@ void main() {
         booruType: BooruType.e621,
         booruId: 25,
         source: 'https://E621.NET:443/posts/4',
-        profileIdHint: 404,
+        profileIdHint: '00000000-0000-4000-8000-000000000194',
       ),
       [expected],
     );
@@ -88,7 +101,7 @@ void main() {
         booruType: BooruType.pixiv,
         booruId: 37,
         source: 'https://www.pixiv.net/',
-        profileIdHint: 3,
+        profileIdHint: '00000000-0000-4000-8000-000000000003',
       ),
       configs: <BooruConfig>[],
     ),
@@ -146,4 +159,4 @@ BooruConfig _config({
   customBulkDownloadFileNameFormat: null,
   imageDetaisQuality: null,
   videoQuality: null,
-).toBooruConfig(id: id)!;
+).toBooruConfig(id: profileUuid(id))!;

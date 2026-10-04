@@ -9,18 +9,18 @@ final class ProfileMapping extends Equatable {
   ProfileMapping({
     required this.reference,
     required this.state,
-    required Iterable<int> candidateIds,
+    required Iterable<String> candidateIds,
     this.localProfileId,
   }) : candidateIds = Set.unmodifiable(candidateIds);
 
   final BackupProfileReference reference;
   final ProfileMappingState state;
-  final Set<int> candidateIds;
-  final int? localProfileId;
+  final Set<String> candidateIds;
+  final String? localProfileId;
 
   bool get isResolved => localProfileId != null;
 
-  ProfileMapping choose(int profileId) {
+  ProfileMapping choose(String profileId) {
     if (!candidateIds.contains(profileId)) {
       throw ArgumentError.value(profileId, 'profileId');
     }
@@ -55,29 +55,36 @@ final class ProfileMapper {
     BackupProfileReference reference,
     List<BooruConfig> profiles,
   ) {
-    final normalizedUrl = normalizeBackupProfileUrl(reference.url);
-    final exact = profiles
+    final sameId = profiles
+        .where((profile) => profile.id == reference.id)
+        .toList();
+    if (sameId.length == 1 &&
+        sameId.single.auth.booruType.name == reference.booruType &&
+        normalizeBackupProfileUrl(sameId.single.url) ==
+            normalizeBackupProfileUrl(reference.url)) {
+      return ProfileMapping(
+        reference: reference,
+        state: ProfileMappingState.automatic,
+        candidateIds: {reference.id},
+        localProfileId: reference.id,
+      );
+    }
+    final sameSite = profiles
         .where(
           (profile) =>
               profile.auth.booruType.name == reference.booruType &&
-              normalizeBackupProfileUrl(profile.url) == normalizedUrl,
+              normalizeBackupProfileUrl(profile.url) ==
+                  normalizeBackupProfileUrl(reference.url),
         )
         .toList();
-    final sameId = exact
-        .where((profile) => profile.id == reference.id)
-        .toList();
-    if (sameId.length == 1) return _automatic(reference, sameId.single.id);
-    if (exact.length == 1) return _automatic(reference, exact.single.id);
-    if (exact.length > 1) {
-      return _unresolved(reference, exact, ProfileMappingState.ambiguous);
+    if (sameSite.isNotEmpty) {
+      return _unresolved(reference, sameSite, ProfileMappingState.ambiguous);
     }
-
     final compatible = profiles
-        .where((profile) => profile.auth.booruType.name == reference.booruType)
+        .where(
+          (profile) => profile.auth.booruType.name == reference.booruType,
+        )
         .toList();
-    if (compatible.length == 1) {
-      return _automatic(reference, compatible.single.id);
-    }
     return _unresolved(
       reference,
       compatible,
@@ -86,14 +93,6 @@ final class ProfileMapper {
           : ProfileMappingState.ambiguous,
     );
   }
-
-  ProfileMapping _automatic(BackupProfileReference reference, int id) =>
-      ProfileMapping(
-        reference: reference,
-        state: ProfileMappingState.automatic,
-        candidateIds: {id},
-        localProfileId: id,
-      );
 
   ProfileMapping _unresolved(
     BackupProfileReference reference,

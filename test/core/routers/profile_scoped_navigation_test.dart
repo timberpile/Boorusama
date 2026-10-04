@@ -266,7 +266,7 @@ final _pageConfig = BooruConfig.fromJson({
     url: 'https://page.example',
     customDownloadFileNameFormat: null,
   ).toJson(),
-  'id': 42,
+  'id': '00000000-0000-4000-8000-00000000002a',
 });
 
 final _szurubooruPageConfig = BooruConfig.fromJson({
@@ -275,5 +275,5 @@ final _szurubooruPageConfig = BooruConfig.fromJson({
     url: 'https://szurubooru.example',
     customDownloadFileNameFormat: null,
   ).toJson(),
-  'id': 43,
+  'id': '00000000-0000-4000-8000-00000000002b',
 });

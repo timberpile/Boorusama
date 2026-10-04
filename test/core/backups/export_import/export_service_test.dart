@@ -256,8 +256,10 @@ void main() {
       'folder-id',
     );
     expect(
-      ExportSelectionIds.profileId(ExportSelectionIds.profile(42)),
-      42,
+      ExportSelectionIds.profileId(
+        ExportSelectionIds.profile('00000000-0000-4000-8000-00000000002a'),
+      ),
+      '00000000-0000-4000-8000-00000000002a',
     );
     expect(ExportSelectionIds.pinnedSearchHome, 'home');
     expect(ExportSelectionIds.profileId('search:42'), isNull);
@@ -265,7 +267,7 @@ void main() {
 }
 
 const _profile = BackupProfileReference(
-  id: 1,
+  id: '00000000-0000-4000-8000-000000000001',
   booruType: 'gelbooruV2',
   url: 'https://example.com',
   name: 'Example',

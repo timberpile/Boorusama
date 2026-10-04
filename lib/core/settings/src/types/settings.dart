@@ -13,6 +13,7 @@ import '../../../../foundation/caching/types.dart';
 import '../../../analytics/types.dart';
 import '../../../backups/auto/types.dart';
 import '../../../configs/gesture/types.dart';
+import '../../../configs/config/types.dart';
 import '../../../downloads/downloader/types.dart';
 import '../../../haptics/types.dart';
 import '../../../home/types.dart';
@@ -90,7 +91,10 @@ class Settings extends Equatable {
       ),
       downloadQuality = DownloadQuality.parse(json['downloadQuality']),
       autoFocusSearchBar = json['autoFocusSearchBar'] ?? true,
-      currentBooruConfigId = json['currentBooruConfigId'],
+      currentBooruConfigId = switch (json['currentBooruConfigId']) {
+        final String id when isCanonicalProfileId(id) => id,
+        _ => '',
+      },
       booruConfigIdOrders = json['booruConfigIdOrders'] != null
           ? castOrFallback<String>(json['booruConfigIdOrders'], '')
           : '',
@@ -195,7 +199,7 @@ class Settings extends Equatable {
     downloadPath: null,
     imageQualityInFullView: ImageQuality.defaultValue,
     autoFocusSearchBar: true,
-    currentBooruConfigId: -1,
+    currentBooruConfigId: '',
     booruConfigIdOrders: '',
     downloadQuality: DownloadQuality.defaultValue,
     enableIncognitoModeForKeyboard: false,
@@ -238,7 +242,7 @@ class Settings extends Equatable {
 
   final bool autoFocusSearchBar;
 
-  final int currentBooruConfigId;
+  final String currentBooruConfigId;
 
   final String booruConfigIdOrders;
 
@@ -301,7 +305,7 @@ class Settings extends Equatable {
     String? downloadPath,
     ImageQuality? imageQualityInFullView,
     bool? autoFocusSearchBar,
-    int? currentBooruConfigId,
+    String? currentBooruConfigId,
     String? booruConfigIdOrders,
     DownloadQuality? downloadQuality,
     bool? enableIncognitoModeForKeyboard,
@@ -482,11 +486,14 @@ class Settings extends Equatable {
     videoCacheMaxSize,
   ];
 
-  List<int> get booruConfigIdOrderList {
+  List<String> get booruConfigIdOrderList {
     try {
       if (booruConfigIdOrders.isEmpty) return [];
 
-      return booruConfigIdOrders.split(' ').map(int.parse).toList();
+      return booruConfigIdOrders
+          .split(' ')
+          .where(isCanonicalProfileId)
+          .toList();
     } catch (e) {
       return [];
     }

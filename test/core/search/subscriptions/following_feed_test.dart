@@ -43,7 +43,7 @@ void main() {
     () async {
       await harness.seed([pinnedFixture(query: 'cat')]);
       final feed = await harness.repository.saveFeed(
-        profileId: 12,
+        profileId: '00000000-0000-4000-8000-00000000000c',
         name: 'Animals',
         queries: ['cat', 'dog'],
       );
@@ -64,12 +64,12 @@ void main() {
     () async {
       await harness.seed([pinnedFixture(query: 'cat')]);
       final first = await harness.repository.saveFeed(
-        profileId: 12,
+        profileId: '00000000-0000-4000-8000-00000000000c',
         name: 'First',
         queries: ['cat'],
       );
       final second = await harness.repository.saveFeed(
-        profileId: 12,
+        profileId: '00000000-0000-4000-8000-00000000000c',
         name: 'Second',
         queries: ['cat'],
       );
@@ -94,19 +94,19 @@ void main() {
     );
     await harness.container.read(searchSubscriptionsProvider.future);
     final first = await notifier.saveFeed(
-      profileId: 12,
+      profileId: '00000000-0000-4000-8000-00000000000c',
       name: 'First',
       queries: ['cat'],
     );
     final second = await notifier.saveFeed(
-      profileId: 12,
+      profileId: '00000000-0000-4000-8000-00000000000c',
       name: 'Second',
       queries: ['cat'],
     );
 
     final expanded = await notifier.setFeedFollowing(
       feedId: first.id,
-      profileId: 12,
+      profileId: '00000000-0000-4000-8000-00000000000c',
       query: 'dog',
       following: true,
     );
@@ -118,7 +118,7 @@ void main() {
 
     final reduced = await notifier.setFeedFollowing(
       feedId: first.id,
-      profileId: 12,
+      profileId: '00000000-0000-4000-8000-00000000000c',
       query: 'cat',
       following: false,
     );
@@ -143,7 +143,7 @@ void main() {
       );
       await harness.container.read(searchSubscriptionsProvider.future);
       final feed = await notifier.saveFeed(
-        profileId: 12,
+        profileId: '00000000-0000-4000-8000-00000000000c',
         name: 'Animals',
         queries: ['cat', 'dog'],
       );
@@ -181,7 +181,7 @@ void main() {
       );
       await harness.container.read(searchSubscriptionsProvider.future);
       final feed = await notifier.saveFeed(
-        profileId: 12,
+        profileId: '00000000-0000-4000-8000-00000000000c',
         name: 'Animals',
         queries: ['dog'],
       );
@@ -212,7 +212,7 @@ void main() {
       );
       await harness.container.read(searchSubscriptionsProvider.future);
       final feed = await notifier.saveFeed(
-        profileId: 12,
+        profileId: '00000000-0000-4000-8000-00000000000c',
         name: 'Animals',
         queries: ['cat', 'dog', 'cat'],
       );
@@ -231,7 +231,10 @@ void main() {
         ['cats'],
       );
       expect(
-        await harness.repository.findByQuery(12, 'cat'),
+        await harness.repository.findByQuery(
+          '00000000-0000-4000-8000-00000000000c',
+          'cat',
+        ),
         pinnedFixture(query: 'cat'),
       );
       await notifier.markFeedRead(feed.id);
@@ -246,7 +249,7 @@ void main() {
     'feed snapshots persist chronological deduplicated results and failures keep the cache',
     () async {
       final feed = await harness.repository.saveFeed(
-        profileId: 12,
+        profileId: '00000000-0000-4000-8000-00000000000c',
         name: 'Animals',
         queries: ['cat', 'dog'],
       );
@@ -293,7 +296,9 @@ void main() {
         (await harness.repository.getFeeds()).single.toJson(),
       );
       expect(restored, (await harness.repository.getFeeds()).single);
-      await harness.repository.deleteForProfile(12);
+      await harness.repository.deleteForProfile(
+        '00000000-0000-4000-8000-00000000000c',
+      );
       expect(await harness.repository.getFeeds(), isEmpty);
       expect(await harness.repository.getAll(), isEmpty);
     },
@@ -316,7 +321,7 @@ void main() {
     () async {
       await harness.seed([pinnedFixture(query: 'cat')]);
       final feed = await harness.repository.saveFeed(
-        profileId: 12,
+        profileId: '00000000-0000-4000-8000-00000000000c',
         name: 'Animals',
         queries: ['cat', 'dog'],
       );
@@ -330,7 +335,7 @@ void main() {
         kind: SearchRefreshErrorKind.network,
       );
       final updatedFeed = await harness.repository.saveFeed(
-        profileId: 12,
+        profileId: '00000000-0000-4000-8000-00000000000c',
         name: 'Renamed',
         queries: ['cat', 'bird'],
         id: feed.id,
@@ -347,7 +352,7 @@ void main() {
       expect((await harness.repository.getFeeds()).single.name, 'Renamed');
       await expectLater(
         harness.repository.saveFeed(
-          profileId: 99,
+          profileId: '00000000-0000-4000-8000-000000000063',
           name: 'Wrong',
           queries: ['cat'],
           id: feed.id,
@@ -361,12 +366,12 @@ void main() {
     'adding a member clears cached feed posts and retains shared source state',
     () async {
       final first = await harness.repository.saveFeed(
-        profileId: 12,
+        profileId: '00000000-0000-4000-8000-00000000000c',
         name: 'First',
         queries: ['cat'],
       );
       final second = await harness.repository.saveFeed(
-        profileId: 12,
+        profileId: '00000000-0000-4000-8000-00000000000c',
         name: 'Second',
         queries: ['cat'],
       );
@@ -388,7 +393,7 @@ void main() {
       expect((await harness.repository.getFeeds()).first.posts, isNotEmpty);
 
       final updated = await harness.repository.saveFeed(
-        profileId: 12,
+        profileId: '00000000-0000-4000-8000-00000000000c',
         name: 'First',
         queries: ['cat', 'dog'],
         id: first.id,
@@ -400,7 +405,7 @@ void main() {
         isNotNull,
       );
       await harness.repository.saveFeed(
-        profileId: 12,
+        profileId: '00000000-0000-4000-8000-00000000000c',
         name: 'First',
         queries: ['dog'],
         id: first.id,
@@ -420,25 +425,28 @@ void main() {
     'feed ordering rejects incomplete IDs without changing saved order',
     () async {
       final first = await harness.repository.saveFeed(
-        profileId: 12,
+        profileId: '00000000-0000-4000-8000-00000000000c',
         name: 'First',
         queries: ['cat'],
       );
       final second = await harness.repository.saveFeed(
-        profileId: 12,
+        profileId: '00000000-0000-4000-8000-00000000000c',
         name: 'Second',
         queries: ['dog'],
       );
       final third = await harness.repository.saveFeed(
-        profileId: 12,
+        profileId: '00000000-0000-4000-8000-00000000000c',
         name: 'Third',
         queries: ['bird'],
       );
-      await harness.repository.setFeedOrder(12, [
-        third.id,
-        first.id,
-        second.id,
-      ]);
+      await harness.repository.setFeedOrder(
+        '00000000-0000-4000-8000-00000000000c',
+        [
+          third.id,
+          first.id,
+          second.id,
+        ],
+      );
       expect((await harness.repository.getFeeds()).map((feed) => feed.id), [
         third.id,
         first.id,
@@ -453,7 +461,10 @@ void main() {
         ],
       );
       await expectLater(
-        harness.repository.setFeedOrder(12, [first.id, second.id]),
+        harness.repository.setFeedOrder(
+          '00000000-0000-4000-8000-00000000000c',
+          [first.id, second.id],
+        ),
         throwsFormatException,
       );
       expect((await harness.repository.getFeeds()).map((feed) => feed.id), [
@@ -470,12 +481,12 @@ void main() {
       await tester.runAsync(() async {
         await harness.seed([pinnedFixture(query: 'cat')]);
         await harness.repository.saveFeed(
-          profileId: 12,
+          profileId: '00000000-0000-4000-8000-00000000000c',
           name: 'Animals',
           queries: ['cat', 'dog'],
         );
         await harness.repository.saveFeed(
-          profileId: 99,
+          profileId: '00000000-0000-4000-8000-000000000063',
           name: 'Birds',
           queries: ['bird'],
         );
@@ -500,7 +511,7 @@ void main() {
   ) async {
     await tester.runAsync(() async {
       final feed = await harness.repository.saveFeed(
-        profileId: 99,
+        profileId: '00000000-0000-4000-8000-000000000063',
         name: 'Animals',
         queries: ['cat'],
       );
@@ -542,7 +553,7 @@ void main() {
     );
     expect(
       harness.container.read(currentReadOnlyBooruConfigProvider).id,
-      12,
+      '00000000-0000-4000-8000-00000000000c',
     );
     expect(harness.requests, isEmpty);
   });
@@ -554,7 +565,7 @@ void main() {
     late SearchFollowingFeed feed;
     await tester.runAsync(() async {
       feed = await harness.repository.saveFeed(
-        profileId: 12,
+        profileId: '00000000-0000-4000-8000-00000000000c',
         name: 'Animals',
         queries: ['cat'],
       );
@@ -593,7 +604,7 @@ void main() {
       (tester) async {
         await tester.runAsync(() async {
           final feed = await harness.repository.saveFeed(
-            profileId: 99,
+            profileId: '00000000-0000-4000-8000-000000000063',
             name: 'Birds',
             queries: ['bird'],
           );
@@ -634,7 +645,7 @@ void main() {
   ) async {
     await tester.runAsync(() async {
       await harness.repository.saveFeed(
-        profileId: 12,
+        profileId: '00000000-0000-4000-8000-00000000000c',
         name: 'Animals',
         queries: ['cat'],
       );
@@ -677,7 +688,7 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
     await tester.runAsync(() async {
       final feed = await harness.repository.saveFeed(
-        profileId: 12,
+        profileId: '00000000-0000-4000-8000-00000000000c',
         name: 'A feed with a very long descriptive title',
         queries: ['cat'],
       );
@@ -728,7 +739,7 @@ void main() {
     );
     await tester.runAsync(() async {
       final feed = await harness.repository.saveFeed(
-        profileId: 12,
+        profileId: '00000000-0000-4000-8000-00000000000c',
         name: 'Animals',
         queries: ['cat'],
       );
@@ -1160,7 +1171,7 @@ void main() {
   ) async {
     await tester.runAsync(() async {
       final feed = await harness.repository.saveFeed(
-        profileId: 12,
+        profileId: '00000000-0000-4000-8000-00000000000c',
         name: 'Animals',
         queries: ['cat'],
       );
@@ -1223,12 +1234,12 @@ final _feedConfig = BooruConfig.fromJson({
     url: 'https://gelbooru.example',
     customDownloadFileNameFormat: null,
   ).toJson(),
-  'id': 99,
+  'id': '00000000-0000-4000-8000-000000000063',
 });
 
 final _otherFeedConfig = BooruConfig.fromJson({
   ..._feedConfig.toJson(),
-  'id': 100,
+  'id': '00000000-0000-4000-8000-000000000064',
 });
 
 const _feedCapability = BooruPostCapability<BooruPostData>(

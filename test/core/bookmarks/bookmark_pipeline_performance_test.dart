@@ -108,7 +108,7 @@ Post _post(int id) => Post(
     booruType: BooruType.gelbooruV2,
     booruId: BooruType.gelbooruV2.id,
     source: 'https://gelbooru.example/index.php?page=post&s=view&id=$id',
-    profileIdHint: 21,
+    profileIdHint: '00000000-0000-4000-8000-000000000015',
   ),
   core: PostCoreData(
     id: id,

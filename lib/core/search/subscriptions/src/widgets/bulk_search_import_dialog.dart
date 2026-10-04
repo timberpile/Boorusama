@@ -7,9 +7,9 @@ import '../providers/search_subscriptions_notifier.dart';
 Future<int?> showBulkSearchImportDialog(
   BuildContext context, {
   required String destination,
-  required Future<int> Function(int? profileId, String rawQueries) onAdd,
+  required Future<int> Function(String? profileId, String rawQueries) onAdd,
   List<BooruConfig> profiles = const [],
-  int? initialProfileId,
+  String? initialProfileId,
 }) => showDialog<int>(
   context: context,
   builder: (_) => BulkSearchImportDialog(
@@ -30,9 +30,9 @@ class BulkSearchImportDialog extends StatefulWidget {
   });
 
   final String destination;
-  final Future<int> Function(int? profileId, String rawQueries) onAdd;
+  final Future<int> Function(String? profileId, String rawQueries) onAdd;
   final List<BooruConfig> profiles;
-  final int? initialProfileId;
+  final String? initialProfileId;
 
   @override
   State<BulkSearchImportDialog> createState() => _BulkSearchImportDialogState();
@@ -40,7 +40,7 @@ class BulkSearchImportDialog extends StatefulWidget {
 
 class _BulkSearchImportDialogState extends State<BulkSearchImportDialog> {
   final _queries = TextEditingController();
-  late int? _profileId =
+  late String? _profileId =
       widget.profiles.any(
         (profile) => profile.id == widget.initialProfileId,
       )
@@ -90,7 +90,7 @@ class _BulkSearchImportDialogState extends State<BulkSearchImportDialog> {
               ),
               if (widget.profiles.isNotEmpty) ...[
                 const SizedBox(height: 16),
-                DropdownButtonFormField<int>(
+                DropdownButtonFormField<String>(
                   initialValue: _profileId,
                   decoration: InputDecoration(labelText: strings.bulk_profile),
                   items: [

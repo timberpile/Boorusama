@@ -57,7 +57,7 @@ PinnedSearchFolderLastPost selectPinnedSearchFolderLastPost({
 List<PinnedSearchFolderPreview> selectPinnedSearchFolderPreviews({
   required SharedSearchFolder folder,
   required Map<String, SearchSubscription> subscriptions,
-  required Map<int, BooruConfig> profiles,
+  required Map<String, BooruConfig> profiles,
 }) {
   final previews = <PinnedSearchFolderPreview>[];
   for (final id in folder.searchIds) {
@@ -82,7 +82,7 @@ bool canRefreshPinnedSearchFolder({
   required SharedSearchFolder? folder,
   required Iterable<SearchSubscription> subscriptions,
   required Set<String> refreshingIds,
-  required Set<int> refreshableProfileIds,
+  required Set<String> refreshableProfileIds,
 }) {
   if (folder == null || folder.searchIds.isEmpty) return false;
   final memberIds = folder.searchIds.toSet();

@@ -48,7 +48,7 @@ void main() {
           pinnedFixture(query: 'cat'),
           pinnedFixture(
             id: 'other',
-            profileId: 99,
+            profileId: '00000000-0000-4000-8000-000000000063',
             name: 'Other search',
             query: 'dog',
           ),
@@ -70,7 +70,10 @@ void main() {
       );
       expect(find.text('https://active.example'), findsOneWidget);
       expect(find.text('https://other.example'), findsOneWidget);
-      expect(harness.container.read(currentBooruConfigProvider).id, 12);
+      expect(
+        harness.container.read(currentBooruConfigProvider).id,
+        '00000000-0000-4000-8000-00000000000c',
+      );
       expect(harness.requests, isEmpty);
     },
   );
@@ -85,14 +88,14 @@ void main() {
           pinnedFixture(query: 'cat'),
           pinnedFixture(
             id: 'other',
-            profileId: 99,
+            profileId: '00000000-0000-4000-8000-000000000063',
             name: 'Other search',
             query: 'dog',
           ),
         ]);
         await harness.container.read(searchSubscriptionsProvider.future);
       });
-      int? owner;
+      String? owner;
       harness.router = GoRouter(
         routes: [
           GoRoute(path: '/', builder: (_, _) => const PinnedSearchesPage()),
@@ -119,7 +122,7 @@ void main() {
       await settle(tester);
       await tester.tap(find.text('Other search'));
       await drain(tester);
-      expect(owner, 99);
+      expect(owner, '00000000-0000-4000-8000-000000000063');
       expect(find.text('Opened dog'), findsOneWidget);
       final saved = await tester.runAsync(() => harness.repository.getAll());
       expect(saved!.singleWhere((s) => s.id == 'cats').hasNewPosts, true);
@@ -137,7 +140,7 @@ void main() {
           pinnedFixture(query: 'cat'),
           pinnedFixture(
             id: 'other',
-            profileId: 99,
+            profileId: '00000000-0000-4000-8000-000000000063',
             name: 'Other search',
             query: 'dog',
           ),
@@ -154,8 +157,14 @@ void main() {
       await settle(tester);
       await tester.tap(find.text('Refresh All'));
       await drain(tester);
-      expect(harness.requests.map((r) => r.profileId), [12, 99]);
-      expect(harness.container.read(currentBooruConfigProvider).id, 12);
+      expect(harness.requests.map((r) => r.profileId), [
+        '00000000-0000-4000-8000-00000000000c',
+        '00000000-0000-4000-8000-000000000063',
+      ]);
+      expect(
+        harness.container.read(currentBooruConfigProvider).id,
+        '00000000-0000-4000-8000-00000000000c',
+      );
     },
   );
 }

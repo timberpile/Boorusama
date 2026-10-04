@@ -190,7 +190,7 @@ class FollowingFeedImportService {
     };
     final accepted = mapped.where((item) => item.profileId != null).toList();
     final profileIds = {for (final item in accepted) item.profileId!};
-    final finalOrder = <int, List<String>>{};
+    final finalOrder = <String, List<String>>{};
     for (final profileId in profileIds) {
       final rows =
           accepted.where((item) => item.profileId == profileId).toList()..sort((

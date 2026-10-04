@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:boorusama/core/backups/sources/bookmark_backup_codec.dart';
 import 'package:boorusama/core/backups/sources/pinned_search_backup_codec.dart';
+import 'package:boorusama/core/backups/types/types.dart';
 import 'package:boorusama/core/backups/utils/data_converter.dart';
 import 'package:boorusama/core/backups/utils/json_handler.dart';
 import 'package:boorusama/core/blacklists/types.dart';
@@ -70,29 +71,17 @@ void main() {
     expect(tag.updatedDate, tag.createdDate);
   });
 
-  test('pinned-search artifact preserves order and complete membership', () {
+  test('old pinned-search artifact rejects its integer profile ID', () {
     final payload = decodeData(
       data: _fixture('boorusama_pinned_searches.json'),
     );
-    final data = PinnedSearchBackupCodec().parse(payload);
 
     expect(payload.version, 1);
     expect(payload.extraFields['source'], 'pinned_searches');
-    expect(data.folders, hasLength(1));
-    expect(data.records, hasLength(1));
-    expect(data.homeSearchIds, isEmpty);
-    final folder = data.folders.single;
-    final search = data.records.single;
-    expect(folder.position, 0);
-    expect(folder.name, 'Folder, café');
-    expect(folder.searchIds, [search.id]);
-    expect(search.position, 0);
-    expect(search.name, 'Quoted "title"');
-    expect(search.query, 'rating:general');
-    expect(search.profile.id, 2);
-    expect(search.profile.booruType, 'danbooru');
-    expect(search.profile.url, 'https://danbooru.donmai.us');
-    expect(search.profile.name, 'Donmai Fixture');
+    expect(
+      () => PinnedSearchBackupCodec().parse(payload),
+      throwsA(isA<InvalidBackupFormatException>()),
+    );
   });
 }
 

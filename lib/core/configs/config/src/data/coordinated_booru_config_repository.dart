@@ -29,12 +29,12 @@ final class CoordinatedBooruConfigRepository implements BooruConfigRepository {
 
   @override
   Future<BooruConfig?> update(
-    int id,
+    String id,
     BooruConfigData booruConfigData,
   ) => coordinator.runExclusive(() => delegate.update(id, booruConfigData));
 
   Future<BooruConfig?> updateAtomically(
-    int id,
+    String id,
     BooruConfigData? Function(BooruConfig current) transform,
   ) => coordinator.runExclusive(() async {
     final current = await _findById(delegate, id);
@@ -47,7 +47,7 @@ final class CoordinatedBooruConfigRepository implements BooruConfigRepository {
 
 Future<BooruConfig?> updateBooruConfigAtomically({
   required BooruConfigRepository repository,
-  required int id,
+  required String id,
   required BooruConfigData? Function(BooruConfig current) transform,
 }) async {
   if (repository case final CoordinatedBooruConfigRepository coordinated) {
@@ -62,7 +62,7 @@ Future<BooruConfig?> updateBooruConfigAtomically({
 
 Future<BooruConfig?> _findById(
   BooruConfigRepository repository,
-  int id,
+  String id,
 ) async {
   for (final config in await repository.getAll()) {
     if (config.id == id) return config;

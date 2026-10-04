@@ -1,3 +1,4 @@
+import '../../../profile_uuid_utils.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:boorusama/core/backups/export_import/import/import_plan.dart';
@@ -22,15 +23,21 @@ void main() {
     );
 
     expect(
-      result.profiles.singleWhere((profile) => profile.id == 8).name,
+      result.profiles
+          .singleWhere((profile) => profile.id == profileUuid(8))
+          .name,
       'Imported',
     );
     expect(
-      result.profiles.singleWhere((profile) => profile.id == 8).apiKey,
+      result.profiles
+          .singleWhere((profile) => profile.id == profileUuid(8))
+          .apiKey,
       'exact-secret',
     );
     expect(
-      result.profiles.singleWhere((profile) => profile.id == 4).apiKey,
+      result.profiles
+          .singleWhere((profile) => profile.id == profileUuid(4))
+          .apiKey,
       'first-secret',
     );
   });
@@ -45,11 +52,15 @@ void main() {
 
     expect(result.profiles, hasLength(2));
     expect(
-      result.profiles.singleWhere((profile) => profile.id == 4).apiKey,
+      result.profiles
+          .singleWhere((profile) => profile.id == profileUuid(4))
+          .apiKey,
       'local-secret',
     );
     expect(
-      result.profiles.singleWhere((profile) => profile.id != 4).apiKey,
+      result.profiles
+          .singleWhere((profile) => profile.id != profileUuid(4))
+          .apiKey,
       isNull,
     );
   });
@@ -72,51 +83,46 @@ void main() {
       credentialsIncluded: false,
     );
 
-    expect(result.profiles.map((profile) => profile.id), [8, 12]);
+    expect(result.profiles.map((profile) => profile.id), [
+      profileUuid(8),
+      profileUuid(12),
+    ]);
     expect(result.profiles.first.apiKey, 'kept-secret');
     expect(result.profiles.last.apiKey, isNull);
   });
 
-  test('replacement keeps a new profile when its ID belongs to a later site match', () {
-    final result = const ProfileImportProjector().project(
-      imported: [
-        _profile(0, 'https://rule34.xxx', name: 'Rule34'),
-        _profile(5, 'https://safebooru.donmai.us', name: 'Safebooru'),
-      ],
-      local: [
-        _profile(0, 'https://safebooru.donmai.us', name: 'Default'),
-      ],
-      resolution: ResolvedImportSource(
-        id: 'profiles',
-        action: ImportAction.replace,
-        items: const [],
+  test('replacement rejects an existing UUID assigned to another site', () {
+    expect(
+      () => const ProfileImportProjector().project(
+        imported: [
+          _profile(0, 'https://rule34.xxx', name: 'Rule34'),
+          _profile(5, 'https://safebooru.donmai.us', name: 'Safebooru'),
+        ],
+        local: [_profile(0, 'https://safebooru.donmai.us')],
+        resolution: ResolvedImportSource(
+          id: 'profiles',
+          action: ImportAction.replace,
+          items: const [],
+        ),
+        credentialsIncluded: true,
       ),
-      credentialsIncluded: true,
+      throwsA(isA<ConflictingProfileIdentityException>()),
     );
-
-    expect(result.profiles, hasLength(2));
-    expect(result.profiles.map((profile) => profile.id).toSet(), hasLength(2));
-    expect(result.profiles.singleWhere((profile) => profile.name == 'Rule34').id,
-        isNot(0));
-    expect(result.profiles.singleWhere((profile) => profile.name == 'Safebooru').id,
-        0);
-    expect(result.destinationIds[0], isNot(0));
-    expect(result.destinationIds[5], 0);
   });
 
-  test('portable unique match updates a profile with a different local ID', () {
+  test('explicit target updates a same-site profile with another UUID', () {
     final result = const ProfileImportProjector().project(
       imported: [_profile(99, 'https://same.example', name: 'Updated')],
       local: [_profile(4, 'https://same.example', apiKey: 'secret')],
-      resolution: _configured(99, ImportAction.update),
+      resolution: _configured(99, ImportAction.update, target: 4),
       credentialsIncluded: false,
     );
 
     expect(result.profiles, hasLength(1));
-    expect(result.profiles.single.id, 4);
+    expect(result.profiles.single.id, profileUuid(4));
     expect(result.profiles.single.name, 'Updated');
     expect(result.profiles.single.apiKey, 'secret');
-    expect(result.destinationIds, {99: 4});
+    expect(result.destinationIds, {profileUuid(99): profileUuid(4)});
   });
 
   test('ambiguous portable update stays unresolved', () {
@@ -135,14 +141,21 @@ void main() {
   });
 }
 
-ResolvedImportSource _configured(int exportedId, ImportAction action) =>
-    ResolvedImportSource(
-      id: 'profiles',
-      action: ImportAction.configureItems,
-      items: [
-        ResolvedImportItem(id: 'profile:$exportedId', action: action),
-      ],
-    );
+ResolvedImportSource _configured(
+  int exportedId,
+  ImportAction action, {
+  int? target,
+}) => ResolvedImportSource(
+  id: 'profiles',
+  action: ImportAction.configureItems,
+  items: [
+    ResolvedImportItem(
+      id: 'profile:${profileUuid(exportedId)}',
+      action: action,
+      targetId: target == null ? null : 'profile:${profileUuid(target)}',
+    ),
+  ],
+);
 
 BooruConfig _profile(
   int id,
@@ -151,7 +164,7 @@ BooruConfig _profile(
   String? apiKey,
 }) => BooruConfig.fromJson({
   ...BooruConfig.empty.toJson(),
-  'id': id,
+  'id': profileUuid(id),
   'booruIdHint': BooruType.danbooru.id,
   'url': url,
   'name': name,

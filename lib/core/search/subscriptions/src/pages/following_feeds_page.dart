@@ -289,7 +289,7 @@ class FollowingFeedPage extends ConsumerStatefulWidget {
     super.key,
   });
   final String feedId;
-  final int profileId;
+  final String profileId;
   @override
   ConsumerState<FollowingFeedPage> createState() => _FollowingFeedPageState();
 }

@@ -23,7 +23,7 @@ void main() {
     final checkedAt = DateTime.utc(2026, 10, 2, 8);
     final independent = SearchSubscription(
       id: 'independent',
-      profileId: 4,
+      profileId: '00000000-0000-4000-8000-000000000004',
       query: 'rating:safe cats',
       name: 'Cats',
       position: 0,
@@ -52,7 +52,7 @@ void main() {
     );
     final feedSource = SearchSubscription(
       id: 'feed-source',
-      profileId: 4,
+      profileId: '00000000-0000-4000-8000-000000000004',
       query: 'landscape',
       position: 0,
       createdAt: checkedAt.subtract(const Duration(days: 2)),
@@ -64,11 +64,14 @@ void main() {
       highestSeenPostId: 100,
       runtimeRevision: 3,
     );
-    await repository.restoreForProfile(4, [independent, feedSource]);
-    await repository.restoreFeeds(4, [
+    await repository.restoreForProfile('00000000-0000-4000-8000-000000000004', [
+      independent,
+      feedSource,
+    ]);
+    await repository.restoreFeeds('00000000-0000-4000-8000-000000000004', [
       SearchFollowingFeed(
         id: 'feed',
-        profileId: 4,
+        profileId: '00000000-0000-4000-8000-000000000004',
         name: 'Landscapes',
         sourceIds: const ['feed-source'],
         posts: [

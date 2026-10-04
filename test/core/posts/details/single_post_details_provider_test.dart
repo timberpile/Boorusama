@@ -22,7 +22,7 @@ void main() {
         url: 'https://direct.example',
         customDownloadFileNameFormat: null,
       ).toJson(),
-      'id': 42,
+      'id': '00000000-0000-4000-8000-00000000002a',
     });
     final container = ProviderContainer(
       overrides: [
@@ -36,7 +36,7 @@ void main() {
     );
 
     expect(post?.origin.sourceHost, 'direct.example');
-    expect(post?.origin.profileIdHint, 42);
+    expect(post?.origin.profileIdHint, '00000000-0000-4000-8000-00000000002a');
   });
 }
 

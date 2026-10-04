@@ -29,7 +29,7 @@ class SearchSubscriptionHiveObject extends HiveObject {
   int runtimeRevision;
   Object? queryStructure;
   String id;
-  int profileId;
+  String profileId;
   String query;
   String? name;
   int position;

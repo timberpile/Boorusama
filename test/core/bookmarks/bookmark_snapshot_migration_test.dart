@@ -215,7 +215,7 @@ void main() {
         booruType: BooruType.gelbooruV2,
         booruId: 37,
         source: 'https://gelbooru.example',
-        profileIdHint: 12,
+        profileIdHint: '00000000-0000-4000-8000-00000000000c',
       ),
       core: PostCoreData(
         id: 91,
@@ -266,7 +266,10 @@ void main() {
       'hasNotes': true,
       'isVideoPreview': false,
     });
-    expect(reloaded.snapshot.origin.profileIdHint, 12);
+    expect(
+      reloaded.snapshot.origin.profileIdHint,
+      '00000000-0000-4000-8000-00000000000c',
+    );
   });
 
   test(
@@ -412,7 +415,7 @@ Post _nativePost() => Post(
     booruType: BooruType.gelbooruV2,
     booruId: 37,
     source: 'https://gelbooru.example',
-    profileIdHint: 12,
+    profileIdHint: '00000000-0000-4000-8000-00000000000c',
   ),
   core: PostCoreData(
     id: 91,

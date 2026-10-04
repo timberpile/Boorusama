@@ -13,7 +13,7 @@ void main() {
     SearchRefreshErrorKind? error,
   }) => SearchSubscription(
     id: id,
-    profileId: 1,
+    profileId: '00000000-0000-4000-8000-000000000001',
     query: 'cat',
     position: 0,
     createdAt: start,

@@ -18,7 +18,10 @@ import 'package:foundation/foundation.dart';
 import 'subscription_test_utils.dart';
 
 void main() {
-  const config = BooruConfig.empty;
+  final config = BooruConfig.fromJson({
+    ...BooruConfig.empty.toJson(),
+    'id': '00000000-0000-4000-8000-00000000000c',
+  });
   final checkpoint = DateTime.utc(2026, 9, 14, 8);
   final startedAt = DateTime.utc(2026, 9, 14, 9);
   late SearchSubscriptionRepository repository;
@@ -32,7 +35,7 @@ void main() {
 
   Future<SearchSubscription> seed(
     String id, {
-    int? profileId,
+    String? profileId,
     DateTime? checkedAt,
     int unread = 0,
   }) async {
@@ -200,7 +203,7 @@ void main() {
     await expectLater(
       notifier().edit(
         original.id,
-        profileId: 999,
+        profileId: '00000000-0000-4000-8000-0000000003e7',
         query: 'new',
         name: 'New',
       ),
@@ -279,7 +282,11 @@ void main() {
     () async {
       await seed('first', checkedAt: checkpoint, unread: 3);
       await seed('second', checkedAt: checkpoint, unread: 2);
-      await seed('other', profileId: config.id + 1, unread: 9);
+      await seed(
+        'other',
+        profileId: '00000000-0000-4000-8000-000000000063',
+        unread: 9,
+      );
       await container.read(searchSubscriptionsProvider.future);
       expect(
         container.read(profilePinnedSearchHasNewPostsProvider(config.id)),
@@ -315,7 +322,11 @@ void main() {
         isFalse,
       );
       expect(
-        container.read(profilePinnedSearchHasNewPostsProvider(config.id + 1)),
+        container.read(
+          profilePinnedSearchHasNewPostsProvider(
+            '00000000-0000-4000-8000-000000000063',
+          ),
+        ),
         isTrue,
       );
     },
@@ -324,7 +335,7 @@ void main() {
   test('reorders only the requested profile in published state', () async {
     await seed('first');
     await seed('second');
-    await seed('other', profileId: config.id + 1);
+    await seed('other', profileId: '00000000-0000-4000-8000-000000000063');
     await notifier().reorder(config.id, 1, 0);
     expect(
       container
@@ -335,7 +346,11 @@ void main() {
     );
     expect(
       container
-          .read(profilePinnedSearchesProvider(config.id + 1))
+          .read(
+            profilePinnedSearchesProvider(
+              '00000000-0000-4000-8000-000000000063',
+            ),
+          )
           .requireValue
           .single
           .id,
@@ -392,7 +407,7 @@ void main() {
         'later',
         checkedAt: checkpoint.add(const Duration(minutes: 2)),
       );
-      await seed('other', profileId: config.id + 1);
+      await seed('other', profileId: '00000000-0000-4000-8000-000000000063');
       final starts = <String>[];
       final releases = <String, Completer<void>>{};
       final initialWorkers = Completer<void>();

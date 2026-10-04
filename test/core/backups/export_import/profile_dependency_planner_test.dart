@@ -1,3 +1,4 @@
+import '../../../profile_uuid_utils.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:boorusama/core/backups/export_import/import/import_plan.dart';
@@ -9,7 +10,7 @@ import 'package:boorusama/core/configs/config/types.dart';
 
 void main() {
   const remote = BackupProfileReference(
-    id: 12,
+    id: '00000000-0000-4000-8000-00000000000c',
     booruType: 'danbooru',
     url: 'https://remote.example',
     name: 'Remote',
@@ -24,30 +25,23 @@ void main() {
     );
 
     expect(result.errors, isEmpty);
-    expect(result.profileIdFor(remote), 12);
-    expect(result.projectedProfiles.single.id, 12);
+    final copiedId = result.profileIdFor(remote);
+    expect(isCanonicalProfileId(copiedId), isTrue);
+    expect(copiedId, isNot(remote.id));
+    expect(result.projectedProfiles.single.id, copiedId);
   });
 
-  test('replacement remaps dependent references when exported IDs collide', () {
+  test('replacement rejects a UUID used by a different site', () {
     const rule34 = BackupProfileReference(
-      id: 0,
+      id: '00000000-0000-4000-8000-000000000000',
       booruType: 'danbooru',
       url: 'https://rule34.xxx',
       name: 'Rule34',
     );
-    const safebooru = BackupProfileReference(
-      id: 5,
-      booruType: 'danbooru',
-      url: 'https://safebooru.donmai.us',
-      name: 'Safebooru',
-    );
     final result = const ProfileDependencyPlanner().plan(
-      references: const [rule34, safebooru],
+      references: const [rule34],
       localProfiles: [_profile(0, 'https://safebooru.donmai.us')],
-      importedProfiles: [
-        _profile(0, 'https://rule34.xxx'),
-        _profile(5, 'https://safebooru.donmai.us'),
-      ],
+      importedProfiles: [_profile(0, 'https://rule34.xxx')],
       profileResolution: ResolvedImportSource(
         id: 'profiles',
         action: ImportAction.replace,
@@ -55,14 +49,10 @@ void main() {
       ),
     );
 
-    expect(result.errors, isEmpty);
-    expect(result.projectedProfiles, hasLength(2));
     expect(
-      result.projectedProfiles.map((profile) => profile.id).toSet(),
-      hasLength(2),
+      result.errors.map((issue) => issue.code),
+      contains('profile_identity_conflict'),
     );
-    expect(result.profileIdFor(rule34), isNot(0));
-    expect(result.profileIdFor(safebooru), 0);
   });
 
   test('an ambiguous dependency requires a local profile choice', () {
@@ -78,23 +68,30 @@ void main() {
     final resolved = const ProfileDependencyPlanner().plan(
       references: [remote],
       localProfiles: profiles,
-      choices: {ProfileReferenceKey.fromReference(remote): 5},
+      choices: {
+        ProfileReferenceKey.fromReference(remote):
+            '00000000-0000-4000-8000-000000000005',
+      },
     );
 
     expect(unresolved.errors.single.code, 'unresolved_profile_dependency');
-    expect(unresolved.mappings.single.candidateIds, {4, 5});
+    expect(unresolved.mappings.single.candidateIds, {
+      profileUuid(4),
+      profileUuid(5),
+    });
     expect(resolved.errors, isEmpty);
-    expect(resolved.profileIdFor(remote), 5);
+    expect(resolved.profileIdFor(remote), profileUuid(5));
   });
 
-  test('one compatible local profile is selected automatically', () {
+  test('one compatible local profile requires an explicit choice', () {
     final result = const ProfileDependencyPlanner().plan(
       references: [remote],
       localProfiles: [_profile(4, 'https://different.example')],
     );
 
-    expect(result.errors, isEmpty);
-    expect(result.profileIdFor(remote), 4);
+    expect(result.errors.single.code, 'unresolved_profile_dependency');
+    expect(result.profileIdFor(remote), isNull);
+    expect(result.mappings.single.candidateIds, {profileUuid(4)});
   });
 
   test('a skipped imported profile does not satisfy dependencies', () {
@@ -119,8 +116,8 @@ void main() {
 
     expect(result.errors, isEmpty);
     expect(result.mappings.single.createdFromReference, isTrue);
-    expect(result.profileIdFor(remote), 41);
-    expect(result.createdProfiles.single.id, 41);
+    expect(result.profileIdFor(remote), remote.id);
+    expect(result.createdProfiles.single.id, remote.id);
     expect(result.createdProfiles.single.name, 'Remote');
     expect(result.createdProfiles.single.url, 'https://remote.example');
     expect(result.createdProfiles.single.apiKey, isNull);
@@ -130,7 +127,7 @@ void main() {
 
   test('an unsupported profile type is rejected during preflight', () {
     const unsupported = BackupProfileReference(
-      id: 13,
+      id: '00000000-0000-4000-8000-00000000000d',
       booruType: 'future_engine',
       url: 'https://future.example',
       name: 'Future',
@@ -153,12 +150,14 @@ ResolvedImportSource _profileResolution(int id, ImportAction action) =>
     ResolvedImportSource(
       id: 'profiles',
       action: ImportAction.configureItems,
-      items: [ResolvedImportItem(id: 'profile:$id', action: action)],
+      items: [
+        ResolvedImportItem(id: 'profile:${profileUuid(id)}', action: action),
+      ],
     );
 
 BooruConfig _profile(int id, String url) => BooruConfig.fromJson({
   ...BooruConfig.empty.toJson(),
-  'id': id,
+  'id': profileUuid(id),
   'booruIdHint': BooruType.danbooru.id,
   'url': url,
   'name': 'Remote',

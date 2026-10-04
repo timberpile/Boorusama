@@ -87,7 +87,7 @@ void main() {
     'editing a query resets runtime while retaining identity and placement',
     () async {
       final original = await repository.create(
-        profileId: 12,
+        profileId: '00000000-0000-4000-8000-00000000000c',
         query: 'cat',
         name: 'Cats',
       );
@@ -119,7 +119,7 @@ void main() {
       final edited =
           await (repository as dynamic).edit(
                 original.id,
-                profileId: 12,
+                profileId: '00000000-0000-4000-8000-00000000000c',
                 query: 'dog',
                 name: 'Dogs',
               )
@@ -147,7 +147,7 @@ void main() {
   test('name-only edits retain all runtime data', () async {
     final source = SearchSubscription(
       id: 'name-only',
-      profileId: 12,
+      profileId: '00000000-0000-4000-8000-00000000000c',
       query: 'cat',
       name: 'Cats',
       position: 3,
@@ -163,10 +163,12 @@ void main() {
       lastErrorKind: SearchRefreshErrorKind.network,
       runtimeRevision: 4,
     );
-    await repository.restoreForProfile(12, [source]);
+    await repository.restoreForProfile('00000000-0000-4000-8000-00000000000c', [
+      source,
+    ]);
     final updated = await repository.edit(
       source.id,
-      profileId: 12,
+      profileId: '00000000-0000-4000-8000-00000000000c',
       query: 'cat',
       name: 'Kittens',
     );
@@ -185,19 +187,19 @@ void main() {
     'a normalized collision blocks edits without changing either pin',
     () async {
       final first = await repository.create(
-        profileId: 12,
+        profileId: '00000000-0000-4000-8000-00000000000c',
         query: 'cat',
         name: 'Cats',
       );
       final second = await repository.create(
-        profileId: 12,
+        profileId: '00000000-0000-4000-8000-00000000000c',
         query: 'dog  rating:safe',
         name: 'Dogs',
       );
       await expectLater(
         repository.edit(
           first.id,
-          profileId: 12,
+          profileId: '00000000-0000-4000-8000-00000000000c',
           query: ' dog\t rating:safe ',
           name: 'Changed',
         ),
@@ -207,11 +209,11 @@ void main() {
       expect(await repository.getById(second.id), second);
       final moved = await repository.edit(
         first.id,
-        profileId: 13,
+        profileId: '00000000-0000-4000-8000-00000000000d',
         query: 'dog rating:safe',
         name: null,
       );
-      expect(moved.profileId, 13);
+      expect(moved.profileId, '00000000-0000-4000-8000-00000000000d');
       expect(moved.displayName, 'dog rating:safe');
     },
   );
@@ -220,19 +222,19 @@ void main() {
     'editing an independent pin leaves the matching feed source alone',
     () async {
       final pin = await repository.create(
-        profileId: 12,
+        profileId: '00000000-0000-4000-8000-00000000000c',
         query: 'cat',
         name: null,
       );
       final feed = await repository.saveFeed(
-        profileId: 12,
+        profileId: '00000000-0000-4000-8000-00000000000c',
         name: 'Animals',
         queries: ['cat'],
       );
       final source = (await repository.getById(feed.sourceIds.single))!;
       await repository.edit(
         pin.id,
-        profileId: 12,
+        profileId: '00000000-0000-4000-8000-00000000000c',
         query: 'dog',
         name: null,
       );
@@ -241,7 +243,7 @@ void main() {
       await expectLater(
         repository.edit(
           source.id,
-          profileId: 12,
+          profileId: '00000000-0000-4000-8000-00000000000c',
           query: 'bird',
           name: null,
         ),
@@ -252,13 +254,13 @@ void main() {
 
   test('an old refresh cannot commit after a material edit', () async {
     final pin = await repository.create(
-      profileId: 12,
+      profileId: '00000000-0000-4000-8000-00000000000c',
       query: 'cat',
       name: null,
     );
     final edited = await repository.edit(
       pin.id,
-      profileId: 12,
+      profileId: '00000000-0000-4000-8000-00000000000c',
       query: 'dog',
       name: null,
     );
@@ -282,12 +284,12 @@ void main() {
     'feed ownership and materialized results survive closing both Hive boxes',
     () async {
       final pin = await repository.create(
-        profileId: 12,
+        profileId: '00000000-0000-4000-8000-00000000000c',
         query: 'cat',
         name: null,
       );
       final feed = await repository.saveFeed(
-        profileId: 12,
+        profileId: '00000000-0000-4000-8000-00000000000c',
         name: 'Animals',
         queries: ['cat'],
       );
@@ -319,7 +321,13 @@ void main() {
         feedPostId((await repository.getFeeds()).single.posts.single),
         7,
       );
-      expect((await repository.findByQuery(12, 'cat'))!.id, pin.id);
+      expect(
+        (await repository.findByQuery(
+          '00000000-0000-4000-8000-00000000000c',
+          'cat',
+        ))!.id,
+        pin.id,
+      );
       await repository.deleteFeed(feed.id);
       expect((await repository.getAll()).single.id, pin.id);
     },
@@ -329,7 +337,7 @@ void main() {
     'legacy feed membership migrates from search records to the feed',
     () async {
       final source = await repository.create(
-        profileId: 12,
+        profileId: '00000000-0000-4000-8000-00000000000c',
         query: 'cat',
         name: null,
       );
@@ -337,7 +345,7 @@ void main() {
       await box.put(source.id, legacy);
       await organizationBox.put('feed:legacy', {
         'id': 'legacy',
-        'profileId': 12,
+        'profileId': '00000000-0000-4000-8000-00000000000c',
         'name': 'Cats',
         'position': 0,
       });
@@ -358,7 +366,7 @@ void main() {
       () async {
         final creation = Stopwatch()..start();
         final feed = await repository.saveFeed(
-          profileId: 12,
+          profileId: '00000000-0000-4000-8000-00000000000c',
           name: 'Large feed',
           queries: [for (var i = 0; i < sourceCount; i++) 'source_$i'],
         );
@@ -407,7 +415,7 @@ void main() {
         );
         await expectLater(
           repository.saveFeed(
-            profileId: 12,
+            profileId: '00000000-0000-4000-8000-00000000000c',
             name: 'Too large',
             queries: [
               for (var i = 0; i <= followingFeedSourceLimit; i++) 'overflow_$i',
@@ -445,19 +453,19 @@ void main() {
     'site changes clear cached runtime and reject old refresh results',
     () async {
       final pin = await repository.create(
-        profileId: 12,
+        profileId: '00000000-0000-4000-8000-00000000000c',
         query: 'cat',
         name: null,
         createdAt: createdAt,
       );
       final unrelated = await repository.create(
-        profileId: 99,
+        profileId: '00000000-0000-4000-8000-000000000063',
         query: 'dog',
         name: null,
         createdAt: createdAt,
       );
       final feed = await repository.saveFeed(
-        profileId: 12,
+        profileId: '00000000-0000-4000-8000-00000000000c',
         name: 'Artists',
         queries: ['artist'],
       );
@@ -484,7 +492,9 @@ void main() {
       expect((await repository.getFeeds()).single.posts, hasLength(1));
       expect((await repository.getById(source.id))!.previews, isNotEmpty);
 
-      await repository.invalidateRuntimeForProfile(12);
+      await repository.invalidateRuntimeForProfile(
+        '00000000-0000-4000-8000-00000000000c',
+      );
 
       final reset = (await repository.getById(source.id))!;
       expect(reset.createdAt, source.createdAt);
@@ -523,14 +533,14 @@ void main() {
 
   test('site reset preserves the order of unlisted pinned searches', () async {
     await repository.create(
-      profileId: 12,
+      profileId: '00000000-0000-4000-8000-00000000000c',
       query: 'first',
       name: null,
       id: 'z',
       createdAt: createdAt,
     );
     await repository.create(
-      profileId: 12,
+      profileId: '00000000-0000-4000-8000-00000000000c',
       query: 'second',
       name: null,
       id: 'a',
@@ -538,7 +548,9 @@ void main() {
     );
     final before = (await repository.getOrganization()).homeSearchIds;
 
-    await repository.invalidateRuntimeForProfile(12);
+    await repository.invalidateRuntimeForProfile(
+      '00000000-0000-4000-8000-00000000000c',
+    );
 
     expect((await repository.getOrganization()).homeSearchIds, before);
   });
@@ -547,7 +559,7 @@ void main() {
     'folders survive reopening and deleting a pin removes its membership',
     () async {
       final search = await repository.create(
-        profileId: 12,
+        profileId: '00000000-0000-4000-8000-00000000000c',
         query: 'cat',
         name: null,
       );
@@ -577,7 +589,7 @@ void main() {
         (await repository.getOrganization()).folders.single.searchIds,
         isEmpty,
       );
-      await repository.deleteForProfile(12);
+      await repository.deleteForProfile('00000000-0000-4000-8000-00000000000c');
       expect(
         (await repository.getOrganization()).folders.single.searchIds,
         isEmpty,
@@ -589,28 +601,28 @@ void main() {
     'stores one ordered organization across profiles and recovers unlisted pins in Home',
     () async {
       final cat = await repository.create(
-        profileId: 12,
+        profileId: '00000000-0000-4000-8000-00000000000c',
         query: 'cat',
         name: null,
         id: 'cat',
         createdAt: DateTime.utc(2026, 9, 14),
       );
       final dog = await repository.create(
-        profileId: 99,
+        profileId: '00000000-0000-4000-8000-000000000063',
         query: 'dog',
         name: null,
         id: 'dog',
         createdAt: DateTime.utc(2026, 9, 15),
       );
       final bird = await repository.create(
-        profileId: 12,
+        profileId: '00000000-0000-4000-8000-00000000000c',
         query: 'bird',
         name: null,
         id: 'bird',
         createdAt: DateTime.utc(2026, 9, 16),
       );
       final feed = await repository.saveFeed(
-        profileId: 12,
+        profileId: '00000000-0000-4000-8000-00000000000c',
         name: 'Feed',
         queries: ['fish'],
       );
@@ -643,7 +655,11 @@ void main() {
         (await repository.getAll())
             .where((search) => !feed.sourceIds.contains(search.id))
             .map((search) => search.profileId),
-        [12, 12, 99],
+        [
+          '00000000-0000-4000-8000-00000000000c',
+          '00000000-0000-4000-8000-00000000000c',
+          '00000000-0000-4000-8000-000000000063',
+        ],
       );
       expect((await repository.getOrganization()).homeSearchIds, [bird.id]);
 
@@ -691,14 +707,14 @@ void main() {
 
   test('preserves explicit Home order after reopening Hive storage', () async {
     final first = await repository.create(
-      profileId: 12,
+      profileId: '00000000-0000-4000-8000-00000000000c',
       query: 'first',
       name: null,
       id: 'first',
       createdAt: DateTime.utc(2026, 9, 14),
     );
     final second = await repository.create(
-      profileId: 99,
+      profileId: '00000000-0000-4000-8000-000000000063',
       query: 'second',
       name: null,
       id: 'second',
@@ -735,7 +751,7 @@ void main() {
     'stores a blank name as null and finds the same normalized query',
     () async {
       final created = await repository.create(
-        profileId: 4,
+        profileId: '00000000-0000-4000-8000-000000000004',
         query: '  cat   rating:safe  ',
         name: ' ',
         createdAt: DateTime.utc(2026),
@@ -743,7 +759,10 @@ void main() {
 
       expect(created.name, isNull);
       expect(
-        (await repository.findByQuery(4, 'cat rating:safe'))?.id,
+        (await repository.findByQuery(
+          '00000000-0000-4000-8000-000000000004',
+          'cat rating:safe',
+        ))?.id,
         created.id,
       );
     },
@@ -753,7 +772,7 @@ void main() {
     'prevents duplicate normalized queries only within one profile',
     () async {
       await repository.create(
-        profileId: 4,
+        profileId: '00000000-0000-4000-8000-000000000004',
         query: 'cat   rating:safe',
         name: null,
         id: 'first',
@@ -762,7 +781,7 @@ void main() {
 
       await expectLater(
         repository.create(
-          profileId: 4,
+          profileId: '00000000-0000-4000-8000-000000000004',
           query: ' cat rating:safe ',
           name: null,
           id: 'duplicate',
@@ -771,41 +790,45 @@ void main() {
         throwsStateError,
       );
       final otherProfile = await repository.create(
-        profileId: 5,
+        profileId: '00000000-0000-4000-8000-000000000005',
         query: 'cat rating:safe',
         name: null,
         id: 'other-profile',
         createdAt: createdAt,
       );
 
-      expect(otherProfile.profileId, 5);
+      expect(otherProfile.profileId, '00000000-0000-4000-8000-000000000005');
     },
   );
 
   test('reorders one profile into contiguous positions', () async {
     final first = await repository.create(
-      profileId: 4,
+      profileId: '00000000-0000-4000-8000-000000000004',
       query: 'first',
       name: null,
       id: 'first',
       createdAt: createdAt,
     );
     final second = await repository.create(
-      profileId: 4,
+      profileId: '00000000-0000-4000-8000-000000000004',
       query: 'second',
       name: null,
       id: 'second',
       createdAt: createdAt,
     );
     await repository.create(
-      profileId: 5,
+      profileId: '00000000-0000-4000-8000-000000000005',
       query: 'other',
       name: null,
       id: 'other',
       createdAt: createdAt,
     );
 
-    final reordered = await repository.reorder(4, 1, 0);
+    final reordered = await repository.reorder(
+      '00000000-0000-4000-8000-000000000004',
+      1,
+      0,
+    );
 
     expect(reordered.map((item) => item.id), [second.id, first.id]);
     expect(reordered.map((item) => item.position), [0, 1]);
@@ -814,7 +837,7 @@ void main() {
 
   test('keeps the four newest previews after a refresh', () async {
     final subscription = await repository.create(
-      profileId: 4,
+      profileId: '00000000-0000-4000-8000-000000000004',
       query: 'cat',
       name: null,
       id: 'previews',
@@ -843,7 +866,7 @@ void main() {
     'deduplicates overlapping identities before detecting new uploads',
     () async {
       final subscription = await repository.create(
-        profileId: 4,
+        profileId: '00000000-0000-4000-8000-000000000004',
         query: 'cat',
         name: null,
         id: 'overlap',
@@ -886,7 +909,7 @@ void main() {
 
   test('old matches prune identities without setting NEW', () async {
     final subscription = await repository.create(
-      profileId: 4,
+      profileId: '00000000-0000-4000-8000-000000000004',
       query: 'cat',
       name: null,
       id: 'retention',
@@ -938,7 +961,7 @@ void main() {
     'repeated snapshots retain only the newest bounded identity window',
     () async {
       final subscription = await repository.create(
-        profileId: 4,
+        profileId: '00000000-0000-4000-8000-000000000004',
         query: 'cat',
         name: null,
         id: 'bounded',
@@ -980,7 +1003,7 @@ void main() {
 
   test('commits a baseline with no unread posts', () async {
     final subscription = await repository.create(
-      profileId: 4,
+      profileId: '00000000-0000-4000-8000-000000000004',
       query: 'cat',
       name: null,
       id: 'baseline',
@@ -1004,7 +1027,7 @@ void main() {
 
   test('the highest observed post ID survives reopening storage', () async {
     final subscription = await repository.create(
-      profileId: 4,
+      profileId: '00000000-0000-4000-8000-000000000004',
       query: 'cat',
       name: null,
       id: 'id-checkpoint',
@@ -1048,7 +1071,7 @@ void main() {
         'old',
         SearchSubscriptionHiveObject(
           id: 'old',
-          profileId: 4,
+          profileId: '00000000-0000-4000-8000-000000000004',
           query: 'cat',
           name: null,
           position: 0,
@@ -1078,7 +1101,7 @@ void main() {
 
   test('rejects a refresh whose checkpoint has become stale', () async {
     final subscription = await repository.create(
-      profileId: 4,
+      profileId: '00000000-0000-4000-8000-000000000004',
       query: 'cat',
       name: null,
       id: 'stale',
@@ -1118,7 +1141,7 @@ void main() {
       'rejects an old ${c.description} after recreating the same subscription ID',
       () async {
         final original = await repository.create(
-          profileId: 4,
+          profileId: '00000000-0000-4000-8000-000000000004',
           query: 'cat',
           name: null,
           id: 'reused',
@@ -1133,7 +1156,7 @@ void main() {
         );
         await repository.delete(original.id);
         final restored = await repository.create(
-          profileId: 4,
+          profileId: '00000000-0000-4000-8000-000000000004',
           query: 'cat',
           name: null,
           id: original.id,
@@ -1156,7 +1179,7 @@ void main() {
 
   test('preserves refresh state when recording a failure', () async {
     final subscription = await repository.create(
-      profileId: 4,
+      profileId: '00000000-0000-4000-8000-000000000004',
       query: 'cat',
       name: null,
       id: 'failure',
@@ -1189,7 +1212,7 @@ void main() {
     'commits new discoveries without overwriting a concurrent mark read',
     () async {
       final subscription = await repository.create(
-        profileId: 4,
+        profileId: '00000000-0000-4000-8000-000000000004',
         query: 'cat',
         name: null,
         id: 'mark-read',
@@ -1241,14 +1264,14 @@ void main() {
 
   test('deletes only the requested subscription', () async {
     final first = await repository.create(
-      profileId: 4,
+      profileId: '00000000-0000-4000-8000-000000000004',
       query: 'first',
       name: null,
       id: 'first',
       createdAt: createdAt,
     );
     await repository.create(
-      profileId: 4,
+      profileId: '00000000-0000-4000-8000-000000000004',
       query: 'second',
       name: null,
       id: 'second',
@@ -1265,44 +1288,47 @@ void main() {
     'deletes subscriptions for one profile without affecting another',
     () async {
       await repository.create(
-        profileId: 4,
+        profileId: '00000000-0000-4000-8000-000000000004',
         query: 'first',
         name: null,
         id: 'first',
         createdAt: createdAt,
       );
       await repository.create(
-        profileId: 5,
+        profileId: '00000000-0000-4000-8000-000000000005',
         query: 'second',
         name: null,
         id: 'second',
         createdAt: createdAt,
       );
 
-      await repository.deleteForProfile(4);
+      await repository.deleteForProfile('00000000-0000-4000-8000-000000000004');
 
       expect(await repository.getById('first'), isNull);
-      expect((await repository.getById('second'))?.profileId, 5);
+      expect(
+        (await repository.getById('second'))?.profileId,
+        '00000000-0000-4000-8000-000000000005',
+      );
     },
   );
 
   test('removes only deleted profile pins from shared folders', () async {
     final cat = await repository.create(
-      profileId: 12,
+      profileId: '00000000-0000-4000-8000-00000000000c',
       query: 'cat',
       name: null,
       id: 'cat',
       createdAt: createdAt,
     );
     final dog = await repository.create(
-      profileId: 99,
+      profileId: '00000000-0000-4000-8000-000000000063',
       query: 'dog',
       name: null,
       id: 'dog',
       createdAt: createdAt,
     );
     final home = await repository.create(
-      profileId: 99,
+      profileId: '00000000-0000-4000-8000-000000000063',
       query: 'bird',
       name: null,
       id: 'bird',
@@ -1321,7 +1347,7 @@ void main() {
       ),
     );
 
-    await repository.deleteForProfile(12);
+    await repository.deleteForProfile('00000000-0000-4000-8000-00000000000c');
 
     expect(
       await repository.getOrganization(),
@@ -1342,21 +1368,21 @@ void main() {
     'deleting a shared folder unpins its members and keeps Home pins',
     () async {
       final cat = await repository.create(
-        profileId: 12,
+        profileId: '00000000-0000-4000-8000-00000000000c',
         query: 'cat',
         name: null,
         id: 'cat',
         createdAt: createdAt,
       );
       final dog = await repository.create(
-        profileId: 99,
+        profileId: '00000000-0000-4000-8000-000000000063',
         query: 'dog',
         name: null,
         id: 'dog',
         createdAt: createdAt,
       );
       final home = await repository.create(
-        profileId: 99,
+        profileId: '00000000-0000-4000-8000-000000000063',
         query: 'bird',
         name: null,
         id: 'bird',
@@ -1395,14 +1421,14 @@ void main() {
         organizationBox: organization,
       );
       final cat = await failingRepository.create(
-        profileId: 12,
+        profileId: '00000000-0000-4000-8000-00000000000c',
         query: 'cat',
         name: null,
         id: 'cat',
         createdAt: createdAt,
       );
       final dog = await failingRepository.create(
-        profileId: 99,
+        profileId: '00000000-0000-4000-8000-000000000063',
         query: 'dog',
         name: null,
         id: 'dog',
@@ -1444,14 +1470,14 @@ void main() {
         organizationBox: organization,
       );
       final cat = await failingRepository.create(
-        profileId: 12,
+        profileId: '00000000-0000-4000-8000-00000000000c',
         query: 'cat',
         name: null,
         id: 'cat',
         createdAt: createdAt,
       );
       final dog = await failingRepository.create(
-        profileId: 12,
+        profileId: '00000000-0000-4000-8000-00000000000c',
         query: 'dog',
         name: null,
         id: 'dog',
@@ -1479,7 +1505,7 @@ void main() {
 
   test('restores exact captured aggregates for one profile', () async {
     final source = await repository.create(
-      profileId: 4,
+      profileId: '00000000-0000-4000-8000-000000000004',
       query: 'first',
       name: ' First ',
       id: 'first',
@@ -1495,9 +1521,11 @@ void main() {
         discoveredPosts: [preview(1, checkpoint)],
       ),
     );
-    await repository.deleteForProfile(4);
+    await repository.deleteForProfile('00000000-0000-4000-8000-000000000004');
 
-    await repository.restoreForProfile(4, [captured!]);
+    await repository.restoreForProfile('00000000-0000-4000-8000-000000000004', [
+      captured!,
+    ]);
 
     expect(await repository.getById(source.id), captured);
   });
@@ -1510,7 +1538,7 @@ void main() {
         'rating:safe',
       ]);
       final pin = await repository.create(
-        profileId: 4,
+        profileId: '00000000-0000-4000-8000-000000000004',
         query: 'cat rating:safe',
         queryStructure: structure,
         name: null,
@@ -1518,7 +1546,7 @@ void main() {
 
       final moved = await repository.edit(
         pin.id,
-        profileId: 5,
+        profileId: '00000000-0000-4000-8000-000000000005',
         query: pin.query,
         name: null,
       );
@@ -1526,7 +1554,7 @@ void main() {
 
       final changed = await repository.edit(
         pin.id,
-        profileId: 5,
+        profileId: '00000000-0000-4000-8000-000000000005',
         query: 'dog',
         name: null,
       );
@@ -1538,7 +1566,7 @@ void main() {
     'typed query structure survives Hive reopening and runtime mutations',
     () async {
       final source = await repository.create(
-        profileId: 4,
+        profileId: '00000000-0000-4000-8000-000000000004',
         query: 'cat rating:safe',
         queryStructure: SearchQueryStructure.typedTags(const [
           'cat',
@@ -1595,7 +1623,7 @@ void main() {
       () async {
         final object = SearchSubscriptionHiveObject(
           id: 'invalid-structure',
-          profileId: 4,
+          profileId: '00000000-0000-4000-8000-000000000004',
           query: c.query,
           queryStructure: {'kind': 'typed_tags', 'tags': c.tags},
           name: null,
@@ -1626,7 +1654,7 @@ void main() {
     () async {
       final object = SearchSubscriptionHiveObject(
         id: 'round-trip',
-        profileId: 4,
+        profileId: '00000000-0000-4000-8000-000000000004',
         query: 'cat rating:safe',
         name: 'Cats',
         position: 2,

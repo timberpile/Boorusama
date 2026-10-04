@@ -44,12 +44,12 @@ void main() {
       'height': 200,
       'format': 'jpg',
       'mediaVariants': const {'180x180': 'small'},
-    }, profileId: 17);
+    }, profileId: '00000000-0000-4000-8000-000000000011');
 
     final post = decodeFeedPost(snapshot);
     expect(feedPostId(snapshot), 42);
     expect(post.origin.booruType, BooruType.unknown);
-    expect(post.origin.profileIdHint, 17);
+    expect(post.origin.profileIdHint, '00000000-0000-4000-8000-000000000011');
     expect(post.booruData, isA<LegacyPostData>());
     expect(post.mediaVariants, {'180x180': 'small'});
     expect(feedPostSnapshotToJson(snapshot).keys, {
@@ -87,7 +87,7 @@ Post _post(BooruPostData data) => Post(
     booruType: BooruType.gelbooruV2,
     booruId: 23,
     source: 'https://gelbooru.example',
-    profileIdHint: 17,
+    profileIdHint: '00000000-0000-4000-8000-000000000011',
   ),
   core: PostCoreData(
     id: 42,

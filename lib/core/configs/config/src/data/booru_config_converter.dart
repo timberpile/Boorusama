@@ -10,7 +10,7 @@ import '../types/booru_config_data.dart';
 import '../types/granular_rating_filter.dart';
 
 extension BooruConfigDataConverter on BooruConfigData? {
-  BooruConfig? toBooruConfig({required int? id}) {
+  BooruConfig? toBooruConfig({required String? id}) {
     final booruConfigData = this;
 
     if (booruConfigData == null || id == null) return null;

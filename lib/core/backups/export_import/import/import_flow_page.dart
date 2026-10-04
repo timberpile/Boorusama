@@ -656,8 +656,8 @@ class _ProfileMappingTile extends StatelessWidget {
   });
 
   final ProfileDependencyMapping mapping;
-  final Map<int, String> profileNames;
-  final ValueChanged<int> onChanged;
+  final Map<String, String> profileNames;
+  final ValueChanged<String> onChanged;
   final VoidCallback onCreate;
 
   @override
@@ -672,7 +672,7 @@ class _ProfileMappingTile extends StatelessWidget {
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
           if (mapping.candidateIds.isNotEmpty && !mapping.createdFromReference)
-            DropdownButton<int>(
+            DropdownButton<String>(
               value: mapping.candidateIds.contains(mapping.profileId)
                   ? mapping.profileId
                   : null,

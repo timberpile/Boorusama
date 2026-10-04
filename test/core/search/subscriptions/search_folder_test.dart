@@ -72,7 +72,7 @@ void main() {
     bool checked = true,
   }) => SearchSubscription(
     id: id,
-    profileId: 12,
+    profileId: '00000000-0000-4000-8000-00000000000c',
     query: id,
     name: id,
     position: 0,
@@ -99,7 +99,7 @@ void main() {
       final dogs = pinnedFixture(
         id: 'dogs',
         name: 'Dogs',
-        profileId: 99,
+        profileId: '00000000-0000-4000-8000-000000000063',
         query: 'dog',
       );
       await harness.seed([cats, dogs]);
@@ -202,7 +202,7 @@ void main() {
           pinnedFixture(query: 'cat'),
           pinnedFixture(
             id: 'dogs',
-            profileId: 99,
+            profileId: '00000000-0000-4000-8000-000000000063',
             name: 'Dogs',
             query: 'dog',
           ),
@@ -240,8 +240,8 @@ void main() {
       );
       await chooseFolderAction(tester, folderId, 'Refresh');
       expect(harness.requests, [
-        (profileId: 12, query: 'cat'),
-        (profileId: 99, query: 'dog'),
+        (profileId: '00000000-0000-4000-8000-00000000000c', query: 'cat'),
+        (profileId: '00000000-0000-4000-8000-000000000063', query: 'dog'),
       ]);
       await chooseFolderAction(tester, folderId, 'Rename');
       await tester.enterText(find.byType(TextField), 'Pets');
@@ -397,7 +397,7 @@ void main() {
     (tester) async {
       SearchSubscription fixture({
         required String id,
-        required int profileId,
+        required String profileId,
         required List<String> thumbnails,
       }) => SearchSubscription(
         id: id,
@@ -424,18 +424,22 @@ void main() {
       final items = [
         fixture(
           id: 'first',
-          profileId: 12,
+          profileId: '00000000-0000-4000-8000-00000000000c',
           thumbnails: ['https://images.example/first.jpg'],
         ),
-        fixture(id: 'empty', profileId: 12, thumbnails: []),
+        fixture(
+          id: 'empty',
+          profileId: '00000000-0000-4000-8000-00000000000c',
+          thumbnails: [],
+        ),
         fixture(
           id: 'second',
-          profileId: 99,
+          profileId: '00000000-0000-4000-8000-000000000063',
           thumbnails: ['https://images.example/second.jpg'],
         ),
         fixture(
           id: 'third',
-          profileId: 12,
+          profileId: '00000000-0000-4000-8000-00000000000c',
           thumbnails: [
             'https://images.example/third.jpg',
             'https://images.example/third-extra.jpg',
@@ -443,12 +447,12 @@ void main() {
         ),
         fixture(
           id: 'fourth',
-          profileId: 99,
+          profileId: '00000000-0000-4000-8000-000000000063',
           thumbnails: ['https://images.example/fourth.jpg'],
         ),
         fixture(
           id: 'excluded',
-          profileId: 12,
+          profileId: '00000000-0000-4000-8000-00000000000c',
           thumbnails: ['https://images.example/excluded.jpg'],
         ),
       ];
@@ -850,7 +854,9 @@ void main() {
           () => Future<void>.delayed(const Duration(milliseconds: 10)),
         );
       }
-      expect(harness.requests, [(profileId: 12, query: 'cat')]);
+      expect(harness.requests, [
+        (profileId: '00000000-0000-4000-8000-00000000000c', query: 'cat'),
+      ]);
       await tester.pump();
 
       await openFolderMenu(tester, folderId);
@@ -923,7 +929,11 @@ void main() {
 
   test('refreshing a shared folder uses each pin owner', () async {
     final cats = pinnedFixture(query: 'cat');
-    final dogs = pinnedFixture(id: 'dogs', profileId: 99, query: 'dog');
+    final dogs = pinnedFixture(
+      id: 'dogs',
+      profileId: '00000000-0000-4000-8000-000000000063',
+      query: 'dog',
+    );
     await harness.seed([cats, dogs]);
     final notifier = harness.container.read(
       searchSubscriptionsProvider.notifier,
@@ -936,8 +946,8 @@ void main() {
     await notifier.refreshSharedFolder(folder.id);
 
     expect(harness.requests, [
-      (profileId: 12, query: 'cat'),
-      (profileId: 99, query: 'dog'),
+      (profileId: '00000000-0000-4000-8000-00000000000c', query: 'cat'),
+      (profileId: '00000000-0000-4000-8000-000000000063', query: 'dog'),
     ]);
   });
 

@@ -8,7 +8,7 @@ import 'package:boorusama/core/backups/sources/search_backup_profile.dart';
 
 void main() {
   const profile = BackupProfileReference(
-    id: 1,
+    id: '00000000-0000-4000-8000-000000000001',
     booruType: 'gelbooruV2',
     url: 'https://example.com',
     name: 'Example',

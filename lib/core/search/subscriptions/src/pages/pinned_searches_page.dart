@@ -144,7 +144,7 @@ class _PinnedSearchesPageState extends ConsumerState<PinnedSearchesPage> {
 
   Future<void> _onPageAction(
     _PinnedSearchPageAction action, {
-    required List<int> eligibleProfiles,
+    required List<String> eligibleProfiles,
   }) async {
     switch (action) {
       case _PinnedSearchPageAction.bulkAdd:
@@ -211,7 +211,7 @@ class _PinnedSearchesPageState extends ConsumerState<PinnedSearchesPage> {
     );
   }
 
-  Widget _allProfilesBody(Set<int> refreshableProfileIds) {
+  Widget _allProfilesBody(Set<String> refreshableProfileIds) {
     final strings = context.t.pinned_searches;
     final profiles = ref.watch(booruConfigProvider);
     final activity = ref.watch(searchSubscriptionsProvider).valueOrNull;
@@ -465,7 +465,7 @@ class _PinnedSearchesPageState extends ConsumerState<PinnedSearchesPage> {
     }
   }
 
-  Future<void> _refreshProfiles(List<int> profileIds) async {
+  Future<void> _refreshProfiles(List<String> profileIds) async {
     setState(() => _refreshingAllProfiles = true);
     try {
       for (final id in profileIds) {
@@ -477,7 +477,7 @@ class _PinnedSearchesPageState extends ConsumerState<PinnedSearchesPage> {
     }
   }
 
-  Future<void> _refreshAll(int profileId) async {
+  Future<void> _refreshAll(String profileId) async {
     await _runAction(
       () =>
           ref.read(searchSubscriptionsProvider.notifier).refreshAll(profileId),

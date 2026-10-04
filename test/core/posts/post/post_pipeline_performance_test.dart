@@ -1,3 +1,4 @@
+import '../../../profile_uuid_utils.dart';
 // Dart imports:
 import 'dart:convert';
 import 'dart:io';
@@ -77,7 +78,7 @@ void main() {
           booruType: BooruType.danbooru,
           booruId: BooruType.danbooru.id,
           source: 'https://profile-${i % configs.length}.example/posts/$i',
-          profileIdHint: i % configs.length,
+          profileIdHint: profileUuid(i % configs.length),
         ),
     ];
     const resolver = PostOriginResolver();
@@ -194,7 +195,7 @@ Post _post(int id) {
       source: isDanbooru
           ? 'https://danbooru.donmai.us/posts/$id'
           : 'https://e621.net/posts/$id',
-      profileIdHint: isDanbooru ? 12 : 27,
+      profileIdHint: profileUuid(isDanbooru ? 12 : 27),
     ),
     core: PostCoreData(
       id: id,
@@ -299,4 +300,4 @@ BooruConfig _config({required int id, required String url}) =>
       customBulkDownloadFileNameFormat: null,
       imageDetaisQuality: null,
       videoQuality: null,
-    ).toBooruConfig(id: id)!;
+    ).toBooruConfig(id: profileUuid(id))!;

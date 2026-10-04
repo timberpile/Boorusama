@@ -271,11 +271,11 @@ class _PinSearchAction extends ConsumerStatefulWidget {
 class _PinSearchActionState extends ConsumerState<_PinSearchAction> {
   var _busy = false;
   var _saved = false;
-  ({int profileId, String query})? _pendingPin;
+  ({String profileId, String query})? _pendingPin;
 
   SearchSubscription? _findPin(
     List<SearchSubscription> subscriptions,
-    int profileId,
+    String profileId,
     String query,
   ) {
     final identity = normalizeSearchIdentity(query);
@@ -292,7 +292,7 @@ class _PinSearchActionState extends ConsumerState<_PinSearchAction> {
     widget.onFeedback(message);
   }
 
-  Future<void> _manage(int profileId, SearchSubscription? existing) async {
+  Future<void> _manage(String profileId, SearchSubscription? existing) async {
     if (!ref.read(pinnedSearchTrackingSupportedProvider(ref.readConfigAuth))) {
       _feedback(context.t.pinned_searches.profile_unsupported);
       return;
