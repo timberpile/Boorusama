@@ -15,7 +15,6 @@ import '../../../widgets/adaptive_button_row.dart';
 import '../../details_manager/routes.dart';
 import '../../post/providers.dart';
 import '../../post/types.dart';
-import 'toolbars/copy_post_button.dart';
 
 class CommonPostButtonsBuilder extends ConsumerWidget {
   const CommonPostButtonsBuilder({
@@ -41,7 +40,6 @@ class CommonPostButtonsBuilder extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final config = this.config;
-    final configViewer = this.configViewer;
 
     final postLinkGenerator = config != null
         ? ref.watch(postLinkGeneratorProvider(config))
@@ -58,22 +56,6 @@ class CommonPostButtonsBuilder extends ConsumerWidget {
     );
 
     final commonButtons = [
-      if (copy)
-        if (config != null && configViewer != null)
-          ButtonData(
-            widget: CopyPostButton(
-              post: post,
-              config: config,
-              configViewer: configViewer,
-            ),
-            title: 'Copy'.hc,
-            onTap: () => showPostCopySheet(
-              context,
-              post: post,
-              config: config,
-              configViewer: configViewer,
-            ),
-          ),
       if (postLinkGenerator != null && config != null)
         if (!hasStrictSFW)
           SimpleButtonData(

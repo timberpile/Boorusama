@@ -2,7 +2,6 @@
 import 'package:cache_manager/cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
-import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -43,23 +42,21 @@ class SharePostButton extends ConsumerWidget {
           downloadFilenameBuilderProvider(auth),
         );
 
-    return KurumiTooltip(
-      message: context.t.post.action.share,
-      child: IconButton(
-        splashRadius: 16,
-        onPressed: () => ref
-            .read(shareProvider)
-            .sharePost(
-              post,
-              auth,
-              context: context,
-              configViewer: configViewer,
-              download: download,
-              filenameBuilder: effectiveDownloadFilenameBuilder,
-              imageCacheManager: imageCacheManager ?? defaultImageCacheManager,
-            ),
-        icon: const Icon(Symbols.share),
-      ),
+    return IconButton(
+      tooltip: context.t.post.action.share,
+      splashRadius: 16,
+      onPressed: () => ref
+          .read(shareProvider)
+          .sharePost(
+            post,
+            auth,
+            context: context,
+            configViewer: configViewer,
+            download: download,
+            filenameBuilder: effectiveDownloadFilenameBuilder,
+            imageCacheManager: imageCacheManager ?? defaultImageCacheManager,
+          ),
+      icon: const Icon(Symbols.share),
     );
   }
 }

@@ -84,6 +84,7 @@ dependencies:
   flutter:
     sdk: flutter
   flutter_displaymode: ^0.7.0
+  flutter_libavif: ^0.1.1
   flutter_html: ^3.0.0-beta.2
   flutter_local_notifications: ^22.0.1
   flutter_markdown_plus: ^1.0.12
@@ -134,6 +135,7 @@ dependencies:
   share_handler: ^0.0.20
   share_plus: ^13.2.0
   shelf: ^1.4.1
+  image: ^4.9.1
   selection_mode: ^0.0.6
   sliver_tools: ^0.2.12
   smooth_page_indicator: ^2.0.1
@@ -167,7 +169,6 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   hive_ce_generator: ^1.9.3
-  image: ^4.9.1
   import_sorter: ^4.6.0
   mocktail: ^1.0.4
   test: ^1.25.2

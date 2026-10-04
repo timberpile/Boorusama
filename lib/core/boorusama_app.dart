@@ -47,6 +47,7 @@ import 'hive/hive_registrar.g.dart';
 import 'hive/search_subscription_hive_adapter.dart';
 import 'http/client/types.dart';
 import 'images/providers.dart';
+import 'posts/shares/src/share_media_preparation.dart';
 import 'settings/providers.dart';
 import 'settings/src/types/settings_repository.dart';
 import 'settings/types.dart';
@@ -97,6 +98,11 @@ class _BoorusamaAppState extends State<BoorusamaApp> {
 
     try {
       logger.debugBoot('App Start up');
+      try {
+        await cleanupExpiredShareFiles(await fs.getTemporaryPath());
+      } catch (_) {
+        // A cache cleanup failure must not prevent the app from starting.
+      }
 
       logger.debugBoot('Configure display mode');
       await DisplayModeService().preferHighRefreshRate(logger: logger);

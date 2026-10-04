@@ -6,6 +6,12 @@ abstract class ImageCacheManager {
   /// Retrieves the cached file path for the given key
   FutureOr<String?> getCachedFilePath(String key, {Duration? maxAge});
 
+  /// Returns the destination for an atomic cache-file replacement.
+  FutureOr<String?> getCacheFilePathForKey(String key);
+
+  /// Replaces a cache file from a complete staged file in the same directory.
+  Future<void> replaceCachedFile(String key, String stagedFilePath);
+
   /// Retrieves cached file data for the given key
   FutureOr<Uint8List?> getCachedFileBytes(String key, {Duration? maxAge});
 

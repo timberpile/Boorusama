@@ -133,3 +133,44 @@ recovery callback.
 
 Container-owned state stays outside the post presentation. Examples are a
 feed's `NEW` marker and bookmark-group actions.
+
+## Shared post sharing
+
+The Share sheet builds Image from the active viewer URL. Original and Video
+use the engine's original-download extractor, which may resolve a different
+URL and cookie from the preview stored on the post. Image and Original remain
+separate even when their resolved URLs coincide. Media preparation uses the
+profile's existing HTTP client and headers. Image and Original use the normal
+viewer cache entry for their URL, downloading into that entry on a miss; Android
+Copy and Share pass that cached file to the platform with an explicit MIME type.
+Video uses separate temporary staging. None of these actions writes to the
+durable Save destination or exposes credentials through the shared URI.
+
+For Share Original, a missing stored original URL cannot be satisfied by the
+generic `UrlInsidePostExtractor`: its download fallback may select Sample or
+Thumbnail. The Original action stays unavailable in that case. An engine
+extractor can opt into lazy Original availability through
+`ExactOriginalUrlExtractor` only when it resolves an exact upstream original.
+
+For Share Video, a preview-only post is likewise unavailable: the generic
+extractor can fall back to a thumbnail for `quality: original`. Share
+qualifies a direct video URL by its media extension (or a video-format post
+with an extensionless `videoUrl`) and bypasses that fallback. Engines may
+implement `ExactVideoUrlExtractor` to keep a genuinely lazy original video
+available. A URL appearing in a preview field is rejected only when it has no
+independent original/video provenance: E621 and Gelbooru V2 can store the
+same full MP4 in both Original and Sample. Non-video extensions remain
+rejected.
+
+The Share sheet omits a separate File name row. Original shows dimensions and
+file size from the existing post when those values are positive. It shows a
+file type only when the stored original URL has a recognized extension that
+agrees with the post format. Image shows those same details only when its
+viewer-selected URL equals the stored original URL and does not appear in any
+sample, thumbnail, or video-thumbnail field. Anime Pictures can store a preview
+URL as both Sample and Original while resolving the true original separately;
+that Image variant must not inherit original dimensions or size. Missing values
+stay hidden. Opening the sheet does not request additional metadata.
+
+Future item 07 coordination must classify Share preparation as media transfer,
+not API metadata traffic; this flow defines no new request rate policy.

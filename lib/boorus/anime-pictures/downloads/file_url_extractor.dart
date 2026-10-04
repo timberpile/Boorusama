@@ -8,12 +8,15 @@ import '../../../foundation/caching.dart';
 
 class AnimePicturesDownloadFileUrlExtractor
     with SimpleCacheMixin<DownloadUrlData>
-    implements DownloadFileUrlExtractor {
+    implements DownloadFileUrlExtractor, ExactOriginalUrlExtractor {
   AnimePicturesDownloadFileUrlExtractor({
     required this.client,
   });
 
   final AnimePicturesClient client;
+
+  @override
+  bool canResolveExactOriginal(Post post) => true;
 
   @override
   Future<DownloadUrlData?> getDownloadFileUrl({

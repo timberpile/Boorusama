@@ -9,6 +9,7 @@ import '../../../core/posts/details/types.dart';
 import '../../../core/posts/details_parts/types.dart';
 import '../../../core/posts/details_parts/widgets.dart';
 import '../../../core/posts/post/types.dart';
+import '../../../core/posts/shares/widgets.dart';
 import '../../../core/widgets/adaptive_button_row.dart';
 import '../../../core/widgets/booru_menu_button_row.dart';
 import '../favorites/providers.dart';
@@ -62,6 +63,15 @@ class HydrusPostActionToolbar extends ConsumerWidget {
                 required: true,
                 widget: DownloadPostButton(post: post),
                 title: context.t.download.download,
+              ),
+              ButtonData(
+                widget: SharePostButton(
+                  post: post,
+                  auth: config,
+                  configViewer: ref.watchConfigViewer,
+                  download: ref.watchConfigDownload,
+                ),
+                title: context.t.post.action.share,
               ),
               ...buttons,
             ],

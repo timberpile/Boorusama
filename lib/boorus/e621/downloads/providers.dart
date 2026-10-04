@@ -10,7 +10,6 @@ import '../../../core/configs/config/types.dart';
 import '../../../core/downloads/filename/types.dart';
 import '../../../core/downloads/urls/providers.dart';
 import '../../../core/downloads/urls/types.dart';
-import '../../../core/posts/post/types.dart';
 import '../posts/types.dart';
 
 final e621DownloadFilenameGeneratorProvider =
@@ -89,8 +88,24 @@ const kE621PostSamples = [
   },
 ];
 
-final class E621DownloadFileUrlExtractor implements DownloadFileUrlExtractor {
+final class E621DownloadFileUrlExtractor
+    implements DownloadFileUrlExtractor, ExactVideoUrlExtractor {
   const E621DownloadFileUrlExtractor();
+
+  @override
+  bool canResolveExactVideo(Post post) {
+    final url = post.videoVariants[E621VideoVariantType.original]?.url;
+    final uri = Uri.tryParse(url ?? '');
+    final path = uri?.path.toLowerCase() ?? '';
+    return post.isVideo &&
+        uri != null &&
+        (uri.scheme == 'http' || uri.scheme == 'https') &&
+        uri.host.isNotEmpty &&
+        (path.endsWith('.mp4') ||
+            path.endsWith('.webm') ||
+            path.endsWith('.mov') ||
+            path.endsWith('.m4v'));
+  }
 
   @override
   Future<DownloadUrlData?> getDownloadFileUrl({

@@ -17,6 +17,7 @@ class MainActivity: FlutterFragmentActivity() {
         val messenger = flutterEngine.dartExecutor.binaryMessenger
         MediaScannerChannel(applicationContext, messenger).register()
         registerExportClipboardChannel(messenger)
+        ImageClipboardChannel(applicationContext, messenger)
         receivedExportChannel = ReceivedExportChannel(applicationContext, messenger).also {
             it.register()
             it.receive(intent)

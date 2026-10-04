@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart';
 import 'package:cache_manager/cache_manager.dart';
 import 'package:extended_image/extended_image.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path/path.dart' as p;
 
 // Project imports:
 import '../../../../foundation/filesystem.dart';
@@ -96,6 +97,26 @@ class BookmarkImageCacheManager implements ImageCacheManager {
   @override
   FutureOr<String?> getCachedFilePath(String key, {Duration? maxAge}) {
     return _getCachedFile(key, maxAge: maxAge);
+  }
+
+  @override
+  Future<String?> getCacheFilePathForKey(String key) async {
+    if (key.contains('/') || key.contains('\\')) {
+      throw ArgumentError.value(key, 'key');
+    }
+    return join(await getCacheDirectory(), key);
+  }
+
+  @override
+  Future<void> replaceCachedFile(String key, String stagedFilePath) async {
+    final target = await getCacheFilePathForKey(key);
+    final staged = stagedFilePath;
+    if (target == null ||
+        p.dirname(staged) != p.dirname(target) ||
+        p.normalize(staged) == p.normalize(target)) {
+      throw ArgumentError.value(stagedFilePath, 'stagedFilePath');
+    }
+    await _fs.renameFile(staged, target);
   }
 
   String? _getValidFile(String cacheDirPath, String key, Duration? maxAge) {

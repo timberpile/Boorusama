@@ -107,7 +107,7 @@
             android:value="true" />
 
         <provider
-            android:name="androidx.core.content.FileProvider"
+            android:name=".BoorusamaFileProvider"
             android:authorities="${applicationId}.provider"
             android:exported="false"
             android:grantUriPermissions="true">

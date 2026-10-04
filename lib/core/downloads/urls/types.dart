@@ -31,6 +31,14 @@ abstract interface class DownloadFileUrlExtractor {
   });
 }
 
+abstract interface class ExactOriginalUrlExtractor {
+  bool canResolveExactOriginal(Post post);
+}
+
+abstract interface class ExactVideoUrlExtractor {
+  bool canResolveExactVideo(Post post);
+}
+
 abstract interface class DownloadSourceProvider {
   List<DownloadSource> getDownloadSources(BuildContext context, Post post);
 }

@@ -6,6 +6,7 @@ import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 import 'package:oktoast/oktoast.dart';
 import 'package:pasteboard/pasteboard.dart';
+import 'platform.dart';
 
 // Project imports:
 
@@ -15,12 +16,29 @@ abstract class AppClipboard {
   static const _exportChannel = MethodChannel(
     'com.timberpile.boorusama/export_clipboard',
   );
+  static const _imageFileChannel = MethodChannel('boorusama/image_clipboard');
 
   static Future<void> copy(String text) =>
       Clipboard.setData(ClipboardData(text: text));
 
   static Future<void> copyImageBytes(Uint8List bytes) =>
       Pasteboard.writeImage(bytes);
+  static Future<void> copyImageFile(String path, String mimeType) async {
+    if (isAndroid()) {
+      await _imageFileChannel.invokeMethod<void>('copyImageFile', {
+        'path': path,
+        'mimeType': mimeType,
+      });
+    } else if (!await Pasteboard.writeFiles([path])) {
+      throw UnsupportedError('File clipboard is unavailable');
+    }
+  }
+
+  static Future<void> shareImageFile(String path, String mimeType) =>
+      _imageFileChannel.invokeMethod<void>('shareImageFile', {
+        'path': path,
+        'mimeType': mimeType,
+      });
 
   static Future<String?> paste(String format) async {
     final data = await Clipboard.getData(format);
