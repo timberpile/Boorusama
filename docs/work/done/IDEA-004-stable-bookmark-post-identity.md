@@ -49,3 +49,8 @@ Required before IDEA-010's cross-profile Favorites fetch; IDEA-015 must preserve
 - Added a native Sankaku string-ID Hive save/reload test. It revealed that Hive returns nested custom post-data maps with untyped keys; the Sankaku decoder now accepts and converts those maps so the original string key survives reload.
 
 - Review verification: affected origin, bookmark, codec, planner, and import tests passed together (46 tests). The complete `fvm flutter test --no-pub` suite passed 1,967 tests after the review fixes. `fvm flutter analyze --no-pub` exited 0 with 241 repository diagnostics and no errors; all warnings are in unrelated backup tests. `git diff --check` passed. No emulator or remote actions were used.
+
+## Completion review (2026-10-04)
+
+- Independent review findings about explicit ports, orphan group references, and native Sankaku reload were fixed and covered by focused tests. The complete 1,967-test suite and targeted coordinator tests passed after the fixes.
+- The local feature branch is ready for integration review. Android UI and remote checks were not performed. Truly keyless posts cannot be bookmarked and receive a localized message.

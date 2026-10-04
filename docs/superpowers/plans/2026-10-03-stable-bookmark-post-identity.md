@@ -8,7 +8,7 @@
 
 **Tech Stack:** Dart, Flutter, Hive, `.bsexport` source codecs.
 
-**Spec:** `docs/work/in-progress/IDEA-004-stable-bookmark-post-identity.md`
+**Spec:** `docs/work/done/IDEA-004-stable-bookmark-post-identity.md`
 
 ## Global Constraints
 
