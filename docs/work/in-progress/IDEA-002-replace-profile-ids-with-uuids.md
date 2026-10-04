@@ -38,6 +38,7 @@ The completed audit estimated a small storage increase for repeated UUID hints b
 - Profile records and Hive keys now use canonical lowercase UUIDs. New and duplicated profiles receive distinct IDs; edits keep the ID. Current selection/order, routes, pins, feeds, cached post origin hints, and export/import references use that ID.
 - Import preflight rejects a UUID reused for another engine or site. A different UUID needs an explicit mapping even for the same site. Copy allocates its destination UUID during the import review, then uses it for the planned summary, dependent pins/feeds, and apply. A later independent Copy allocates another UUID.
 - Old integer profile keys and integer-owned pin/feed rows are ignored when loading; an old archive with numeric profile references fails format validation before writes. These rows are not migrated.
+- Startup seeds a UUID profile for a new box or a box containing only unsupported old rows; an existing empty box after the user deletes the last profile stays empty on restart. Focused restart tests cover both cases.
 - Full Flutter suite: 1,976 tests passed on 2026-10-03, including the 827-test relevant migration scope, old-row safety, and conflict preflight. The Dart analyzer reported no errors; its remaining diagnostics are warnings and informational lints.
 
 ### 500-post cache measurement

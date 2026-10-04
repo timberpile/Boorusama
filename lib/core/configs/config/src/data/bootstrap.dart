@@ -16,10 +16,13 @@ Future<BooruConfigRepository> createBooruConfigsRepo({
 }) async {
   logger.debugBoot('Initialize booru config box');
 
+  final isNewBox = !await Hive.boxExists('booru_configs');
   final booruConfigBox = await Hive.openBox<String>('booru_configs');
 
   final booruUserRepo = HiveBooruConfigRepository(box: booruConfigBox);
-  if (onCreateNew != null && (await booruUserRepo.getAll()).isEmpty) {
+  final hasOnlyUnsupportedRows =
+      booruConfigBox.isNotEmpty && (await booruUserRepo.getAll()).isEmpty;
+  if (onCreateNew != null && (isNewBox || hasOnlyUnsupportedRows)) {
     logger.debugBoot('Add default booru config');
 
     final defaultData = BooruConfigData.fromJson(
