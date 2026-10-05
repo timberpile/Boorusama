@@ -83,7 +83,8 @@ final class AnimeBoxesCsvReader {
           folders.add(
             AnimeBoxesPinFolder(
               id: _requiredString(row, 2, 'folder ID', 'Home Pins'),
-              name: query.title,
+              // Type-4 folder labels are stored in text, unlike search titles.
+              name: query.text,
               query: query.text,
               disableAutoLoad: query.disableAutoLoad,
               includeBlacklisted: query.includeBlacklisted,

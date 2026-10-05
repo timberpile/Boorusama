@@ -9,5 +9,5 @@
 #Tag Blacklist
 3,"blocked, tag",11,,,,,
 #Home Pins
-4,,11111111-1111-4111-8111-111111111111,,4,"{""disableAutoLoad"":false,""extraParams"":{},""includeBlacklisted"":false,""initialPage"":1,""text"":"""",""title"":""Folder, café""}",,,,,
+4,,11111111-1111-4111-8111-111111111111,,4,"{""disableAutoLoad"":false,""extraParams"":{},""includeBlacklisted"":false,""initialPage"":1,""text"":""Folder, café"",""title"":""""}",,,,,
 4,11111111-1111-4111-8111-111111111111,22222222-2222-4222-8222-222222222222,https://danbooru.donmai.us,3,"{""disableAutoLoad"":true,""extraParams"":{},""includeBlacklisted"":true,""initialPage"":2,""text"":""rating:general"",""title"":""Quoted \""title\""""}",,,,,

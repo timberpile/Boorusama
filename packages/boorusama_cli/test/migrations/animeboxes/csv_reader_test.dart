@@ -97,7 +97,7 @@ void main() {
     final folder = source.folders.single;
     expect(folder.id, '11111111-1111-4111-8111-111111111111');
     expect(folder.name, 'Folder, café');
-    expect(folder.query, '');
+    expect(folder.query, 'Folder, café');
 
     final search = source.pinnedSearches.single;
     expect(search.folderId, folder.id);
@@ -108,6 +108,17 @@ void main() {
     expect(search.disableAutoLoad, isTrue);
     expect(search.includeBlacklisted, isTrue);
     expect(search.initialPage, 2);
+  });
+
+  test('reads folder labels from text without changing search titles', () {
+    final fixture = _completeFixture().replaceFirst(
+      '""text"":""Folder, café"",""title"":""""',
+      '""text"":""Folder text"",""title"":""""',
+    );
+    final source = const AnimeBoxesCsvReader().parse(fixture);
+    expect(source.folders.single.name, 'Folder text');
+    expect(source.pinnedSearches.single.name, 'Quoted "title"');
+    expect(source.pinnedSearches.single.query, 'rating:general');
   });
 
   for (final marker in [

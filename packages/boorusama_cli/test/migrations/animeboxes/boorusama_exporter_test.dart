@@ -11,6 +11,47 @@ import 'package:test/test.dart';
 import 'package:archive/archive.dart';
 
 void main() {
+  test(
+    'preserves source folder labels and deterministic unnamed/duplicate names',
+    () {
+      final document = _document(
+        fixture: File(
+          'test/migrations/animeboxes/fixtures/folder_names.csv',
+        ).readAsStringSync(),
+      );
+      expect(document.pinnedSearchFolders.map((folder) => folder.name), [
+        'Folder, café',
+        'Folder, café',
+        '   ',
+      ]);
+      final artifacts = const BoorusamaMigrationExporter().export(document);
+      final rows =
+          (jsonDecode(artifacts.pinnedSearches) as Map)['data'] as List;
+      final folders = rows.where((row) => row['kind'] == 'folder').toList();
+      expect(folders.map((row) => row['id']), [
+        for (var index = 0; index < 3; index++)
+          'c0000000-0000-4000-8000-00000000000$index',
+      ]);
+      expect(folders.map((row) => row['position']), [0, 1, 2]);
+      expect(folders.map((row) => row['searchIds']), [
+        for (var index = 0; index < 3; index++)
+          ['d0000000-0000-4000-8000-00000000000$index'],
+      ]);
+      expect(
+        rows.where((row) => row['kind'] == 'folder').map((row) => row['name']),
+        ['Folder, café', 'Folder, café (2)', 'Imported folder 3'],
+      );
+      expect(
+        rows.where((row) => row['kind'] == 'search').map((row) => row['query']),
+        [
+          'synthetic_query_0 order:score',
+          'synthetic_query_1 order:score',
+          'synthetic_query_2 order:score',
+        ],
+      );
+    },
+  );
+
   test('exports canonical v4 bookmarks with stable group membership', () {
     final document = _document(fixture: _completeFixture());
     final artifacts = const BoorusamaMigrationExporter().export(document);

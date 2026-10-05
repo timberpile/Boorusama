@@ -68,6 +68,27 @@ void main() {
         'packages/boorusama_cli/test/migrations/animeboxes/fixtures/complete.csv',
       ).readAsStringSync(),
     );
+    final namedInput = File('${fixtures.path}/folder_names.csv');
+    await namedInput.writeAsString(
+      File(
+        'packages/boorusama_cli/test/migrations/animeboxes/fixtures/folder_names.csv',
+      ).readAsStringSync(),
+    );
+    final namedNormalized = '${fixtures.path}/folder_names.json';
+    await _cli([
+      'normalize',
+      '--input',
+      namedInput.path,
+      '--output',
+      namedNormalized,
+    ]);
+    await _cli([
+      'export',
+      '--input',
+      namedNormalized,
+      '--output-dir',
+      '${fixtures.path}/named',
+    ]);
     final normalized = '${fixtures.path}/normalized.json';
     await _cli(['normalize', '--input', input.path, '--output', normalized]);
     final original =
@@ -143,6 +164,68 @@ void main() {
     }
   });
   tearDownAll(() => fixtures.delete(recursive: true));
+
+  testWidgets(
+    'imports actual source folder labels, duplicates, and unnamed folders',
+    (tester) async {
+      late BuildContext context;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (value) {
+              context = value;
+              return const SizedBox();
+            },
+          ),
+        ),
+      );
+      await tester.runAsync(() async {
+        final harness = await _Harness.create(populated: false);
+        try {
+          final notifier = harness.container.read(importFlowProvider.notifier);
+          await notifier.load('${fixtures.path}/named/animeboxes.bsexport');
+          var state = harness.container.read(importFlowProvider);
+          expect(state.status, ImportFlowStatus.review);
+          notifier.chooseProfileMapping(
+            ProfileReferenceKey.fromReference(
+              state.profileMappings.single.reference,
+            ),
+            _localProfileId,
+          );
+          expect(
+            harness.container.read(importFlowProvider).preflight!.isValid,
+            true,
+          );
+          await notifier.apply(context);
+          state = harness.container.read(importFlowProvider);
+          expect(
+            state.status,
+            ImportFlowStatus.complete,
+            reason: '${state.error}',
+          );
+          final organization = await harness.searches.getOrganization();
+          expect(organization.folders.map((folder) => folder.name), [
+            'Folder, café',
+            'Folder, café (2)',
+            'Imported folder 3',
+          ]);
+          expect(
+            organization.folders.map((folder) => folder.searchIds.length),
+            [1, 1, 1],
+          );
+          final pins = await harness.searches.getAll();
+          expect(pins.map((pin) => pin.query), [
+            'synthetic_query_0 order:score',
+            'synthetic_query_1 order:score',
+            'synthetic_query_2 order:score',
+          ]);
+          expect(pins.map((pin) => pin.name), everyElement('Quoted "title"'));
+        } finally {
+          await harness.close();
+        }
+      });
+    },
+  );
 
   test(
     'CLI packages pass current reader, codecs, and source integrity checks',

@@ -100,6 +100,14 @@ host-based source matching to avoid silently choosing one installation. Multiple
 accounts at the same site, including HTTP/HTTPS default-port forms, remain
 supported and require explicit profile review.
 
+Type-4 folder names come from the folder's `SourceQuery.text`, which
+AnimeBoxes uses in its folder label and rename field. `SourceQuery.title`
+remains the separate optional display name for ordinary pinned searches.
+Blank folder text receives the defined `Imported folder N` fallback; duplicate
+folder labels receive deterministic numeric suffixes. Existing normalized JSON
+created before this correction cannot recover omitted folder labels: normalize
+the original CSV again before exporting a package.
+
 Pinned queries preserve the main search text followed by AnimeBoxes
 `extra_tags`, which already contains its selected extra filters and ordering
 terms. These terms are appended once; UI selector fields such as

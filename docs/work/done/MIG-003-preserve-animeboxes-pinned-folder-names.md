@@ -27,3 +27,13 @@ Follow [development workflow](../../development_workflow.md) and [engineering gu
 ## Claim
 
 Claimed 2026-10-05 by coordinator `/root`; implementer `/root/mig003_names`; branch `fix/mig-003-folder-names`; dedicated worktree `/home/timber/code/Boorusama/.worktrees/mig-003-folder-names`. Implementation and review pending.
+
+## Coordinated review status (2026-10-05)
+
+Implementation: `a25610e85`. Independent review approved; converter and production apply checks pass. The supplied original private CSV retains all six folder names, identities, order, and membership; no private contents were committed.
+
+Combined verification is isolated in `.worktrees/nine-release-fixes-review` on `review/nine-release-fixes`. The final combined serial Flutter suite passed all 2,206 tests (exit 0); the unchanged current CLI implementation passed all 239 tests. The final Dev APK built successfully. Analysis of 29 changed Dart files found no errors or warnings; two unchanged baseline const-style informational lints remain. Development integration, publication, and cleanup have not been performed. Keep this ticket in progress pending final combined checks and its remaining acceptance evidence.
+
+## User approval and delivery (2026-10-05)
+
+User tested conversion and explicitly approved integration. On develop all six CLI-to-app contract tests passed. CLI suite passed 238 tests with one 30-second timeout in the timezone subprocess test; that isolated test then passed in 14 seconds without source changes. All 239 CLI cases are therefore verified. Ticket completed; remote publication is not authorized.
