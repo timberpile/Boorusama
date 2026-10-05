@@ -22,4 +22,12 @@ Approved by the user on 2026-10-05. Relevant code: `lib/core/backups/export_impo
 
 Related documentation: [unified import design](../../superpowers/specs/2026-10-01-unified-export-import-design.md), [IDEA-002](../done/IDEA-002-replace-profile-ids-with-uuids.md), [development workflow](../../development_workflow.md), and [engineering guidelines](../../engineering_guidelines.md).
 
-Limit changes to mapping defaults and continued editability. Dialog layout and repeated dependency messages are separate workitems to be clarified. This ticket is unclaimed; implementation must use its own branch/worktree and an implementer subagent.
+Limit changes to mapping defaults and continued editability. Dialog layout and repeated dependency messages are separate workitems to be clarified. Implementation uses its dedicated branch/worktree and an implementer subagent.
+
+## Claim and progress
+
+- Claimed 2026-10-05 by coordinator `/root/import_coordinator`; session rooted at `/root`.
+- Branch: `fix/data-007-import-profile-mappings`.
+- Worktree: `/home/timber/code/Boorusama/.worktrees/data-007-import-profile-mappings`.
+- Implementer: `/root/import_coordinator/data007` (assigned).
+- Status: implementation pending; no integration or publication authorized.

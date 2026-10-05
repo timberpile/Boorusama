@@ -19,4 +19,4 @@ Open an existing profile for editing. Instead of the editor, the page shows “B
 
 Fix the edit-route regression and inspect directly related edit navigation for remaining integer assumptions. Do not introduce legacy integer-ID migration or expand into an unrelated profile redesign. Related completed work: [IDEA-002](../done/IDEA-002-replace-profile-ids-with-uuids.md) and [UUID implementation plan](../../superpowers/plans/2026-10-03-profile-uuids.md).
 
-Follow [development workflow](../../development_workflow.md) and [engineering guidelines](../../engineering_guidelines.md). Implementation must be claimed and delegated in its own branch/worktree. This ticket is unclaimed; no implementation has started.
+Follow [development workflow](../../development_workflow.md) and [engineering guidelines](../../engineering_guidelines.md). Implementation must be claimed and delegated in its own branch/worktree. Claimed 2026-10-05 by coordinator `/root`; implementer `/root/profile_edit`; branch `fix/profile-001-uuid-edit-route`; dedicated worktree `/home/timber/code/Boorusama/.worktrees/profile-001-uuid-edit-route`. Implementation and review pending.
