@@ -16,6 +16,61 @@ void main() {
     name: 'Remote',
   );
 
+  test(
+    'unresolved issues retain distinct references and selected dependent kinds',
+    () {
+      const other = BackupProfileReference(
+        id: '00000000-0000-4000-8000-000000000020',
+        booruType: 'danbooru',
+        url: 'https://other.example',
+        name: 'Remote',
+      );
+      const third = BackupProfileReference(
+        id: '00000000-0000-4000-8000-000000000021',
+        booruType: 'danbooru',
+        url: 'https://remote.example',
+        name: 'Remote',
+      );
+      final result = const ProfileDependencyPlanner().plan(
+        references: [remote, remote, other, third],
+        localProfiles: const [],
+        dependentSources: {
+          ProfileReferenceKey.fromReference(remote): {'pinned_searches'},
+          ProfileReferenceKey.fromReference(other): {'following_feeds'},
+          ProfileReferenceKey.fromReference(third): {
+            'pinned_searches',
+            'following_feeds',
+          },
+        },
+      );
+      expect(result.errors, hasLength(3));
+      expect(
+        result.errors.map((e) => e.profileDependency!.label).toSet(),
+        hasLength(3),
+      );
+      expect(result.errors.first.profileDependency!.sourceIds, {
+        'pinned_searches',
+      });
+      final resolved = const ProfileDependencyPlanner().plan(
+        references: [remote, other, third],
+        localProfiles: [
+          _profile(1, 'https://local-one.example'),
+          _profile(2, 'https://local-two.example'),
+        ],
+        choices: {
+          ProfileReferenceKey.fromReference(other): _profile(
+            1,
+            'https://local-one.example',
+          ).id,
+        },
+      );
+      expect(resolved.errors.map((e) => e.profileDependency!.reference.id), [
+        remote.id,
+        third.id,
+      ]);
+    },
+  );
+
   test('an imported profile satisfies dependencies on a fresh device', () {
     final result = const ProfileDependencyPlanner().plan(
       references: [remote],

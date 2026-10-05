@@ -97,6 +97,7 @@ final class ProfileDependencyPlanner {
   ProfileDependencyPlan plan({
     required Iterable<BackupProfileReference> references,
     required List<BooruConfig> localProfiles,
+    Map<ProfileReferenceKey, Set<String>> dependentSources = const {},
     List<BooruConfig> importedProfiles = const [],
     ResolvedImportSource? profileResolution,
     bool credentialsIncluded = false,
@@ -205,7 +206,7 @@ final class ProfileDependencyPlanner {
             ImportPlanIssue(
               code: 'unsupported_profile_type',
               sourceId: 'profiles',
-              itemId: entry.key.exportedId.toString(),
+              itemId: entry.key.exportedId,
             ),
           );
           continue;
@@ -244,7 +245,14 @@ final class ProfileDependencyPlanner {
           ImportPlanIssue(
             code: 'unresolved_profile_dependency',
             sourceId: 'profiles',
-            itemId: entry.key.exportedId.toString(),
+            itemId: entry.key.exportedId,
+            profileDependency: ProfileDependencyIssueContext(
+              reference: entry.value,
+              label: _referenceLabel(entry.value, uniqueReferences.values),
+              sourceIds:
+                  dependentSources[entry.key] ??
+                  const {'pinned_searches', 'following_feeds'},
+            ),
           ),
         );
       }
@@ -255,6 +263,24 @@ final class ProfileDependencyPlanner {
       errors: errors,
       createdProfiles: createdProfiles,
     );
+  }
+
+  String _referenceLabel(
+    BackupProfileReference reference,
+    Iterable<BackupProfileReference> references,
+  ) {
+    final sameName = references
+        .where((other) => other.name == reference.name)
+        .toList();
+    final name = reference.name.trim().isEmpty ? reference.url : reference.name;
+    if (sameName.length < 2) return name;
+    final site = normalizeBackupProfileUrl(reference.url);
+    final sameSite = sameName.where(
+      (other) => normalizeBackupProfileUrl(other.url) == site,
+    );
+    return sameSite.length > 1
+        ? '$name ($site; ${reference.id})'
+        : '$name ($site)';
   }
 
   BooruConfig? _createProfile(BackupProfileReference reference, String id) {

@@ -1,0 +1,256 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:boorusama/core/search/subscriptions/src/data/providers.dart';
+import 'package:boorusama/core/search/subscriptions/types.dart';
+import 'package:boorusama/core/backups/export_import/import/import_flow_notifier.dart';
+import 'package:boorusama/core/backups/export_import/import/import_plan.dart';
+import 'package:boorusama/core/backups/export_import/import/profile_dependency_planner.dart';
+import 'package:boorusama/core/backups/export_import/models/export_selection.dart';
+import 'package:boorusama/core/backups/export_import/models/import_action.dart';
+import 'package:boorusama/core/backups/export_import/package/export_package_writer.dart';
+import 'package:boorusama/core/backups/export_import/sources/legacy_json_source_adapter.dart';
+import 'package:boorusama/core/backups/sources/providers.dart';
+import 'package:boorusama/core/backups/sources/search_backup_profile.dart';
+import 'package:boorusama/core/backups/types/backup_registry.dart';
+import 'package:boorusama/core/boorus/booru/types.dart';
+import 'package:boorusama/core/configs/config/types.dart';
+import 'package:boorusama/core/configs/manage/providers.dart';
+import 'package:boorusama/foundation/filesystem.dart';
+import 'package:boorusama/foundation/info/package_info.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+import '../../search/subscriptions/subscription_test_utils.dart';
+
+const firstId = '00000000-0000-4000-8000-000000000001';
+const secondId = '00000000-0000-4000-8000-000000000002';
+const remoteId = '00000000-0000-4000-8000-000000000003';
+const pinId = '00000000-0000-4000-8000-000000000004';
+const feedId = '00000000-0000-4000-8000-000000000005';
+const reference = BackupProfileReference(
+  id: remoteId,
+  booruType: 'danbooru',
+  url: 'https://same.example',
+  name: 'Remote',
+);
+
+void main() {
+  testWidgets(
+    'skipping dependent categories adjusts profile problems and resolving a mapping clears them without writes',
+    (tester) async {
+      final directory = Directory.systemTemp.createTempSync('data009_flow_');
+      final fs = _TestFileSystem(directory.path);
+      final repository = memorySubscriptionRepository();
+      final profiles = [_profile(firstId), _profile(secondId)];
+      final container = ProviderContainer(
+        overrides: [
+          appFileSystemProvider.overrideWithValue(fs),
+          appVersionProvider.overrideWith((ref) => null),
+          booruConfigProvider.overrideWith(
+            () => BooruConfigNotifier(initialConfigs: profiles),
+          ),
+          booruConfigRepoProvider.overrideWithValue(_Profiles(profiles)),
+          searchSubscriptionRepositoryProvider.overrideWith(
+            () => _SearchRepository(repository),
+          ),
+          backupRegistryProvider.overrideWith(
+            (ref) => BackupRegistry()
+              ..register(ref.read(booruConfigsBackupSourceProvider))
+              ..register(ref.read(pinnedSearchesBackupSourceProvider))
+              ..register(ref.read(followingFeedsBackupSourceProvider)),
+          ),
+          exportImportSourcesProvider.overrideWith(
+            (ref) => [
+              LegacyJsonSourceAdapter(
+                source: ref.read(pinnedSearchesBackupSourceProvider),
+                descriptor: const ExportSelectionDescriptor.collection(
+                  id: 'pinned_searches',
+                ),
+              ),
+              LegacyJsonSourceAdapter(
+                source: ref.read(followingFeedsBackupSourceProvider),
+                descriptor: const ExportSelectionDescriptor.collection(
+                  id: 'following_feeds',
+                ),
+              ),
+            ],
+          ),
+        ],
+      );
+      final subscription = container.listen(importFlowProvider, (_, _) {});
+      addTearDown(() {
+        subscription.close();
+        container.dispose();
+        directory.deleteSync(recursive: true);
+      });
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+            const MethodChannel('disk_space_2'),
+            (_) async => 100000.0,
+          );
+      addTearDown(
+        () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(
+              const MethodChannel('disk_space_2'),
+              null,
+            ),
+      );
+      await tester.runAsync(() async {
+        await repository.create(
+          profileId: firstId,
+          query: 'cat',
+          name: null,
+          id: pinId,
+        );
+        final before = (await repository.getAll()).toList();
+        final path = await const ExportPackageWriter(fs: IoFileSystem()).write(
+          ExportPackageBuild(
+            createdAt: DateTime.utc(2026, 10),
+            appVersion: '1.0.0',
+            sources: [
+              _source('pinned_searches', [
+                {
+                  'kind': 'search',
+                  'id': pinId,
+                  'name': null,
+                  'query': 'cat',
+                  'position': 0,
+                  'profile': reference.toJson(),
+                },
+                {'kind': 'organization', 'homeSearchIds': []},
+              ]),
+              _source('following_feeds', [
+                {
+                  'kind': 'feed',
+                  'id': feedId,
+                  'name': 'Feed',
+                  'queries': ['dog'],
+                  'position': 0,
+                  'profile': reference.toJson(),
+                },
+              ]),
+            ],
+          ),
+          '${directory.path}/mapping',
+        );
+        final notifier = container.read(importFlowProvider.notifier);
+        await notifier.load(path);
+        expect(
+          container.read(importFlowProvider).status,
+          ImportFlowStatus.review,
+          reason: '${container.read(importFlowProvider).error}',
+        );
+        final key = ProfileReferenceKey.fromReference(reference);
+        ImportPlanIssue dependencyProblem() => container
+            .read(importFlowProvider)
+            .preflight!
+            .errors
+            .singleWhere(
+              (issue) => issue.code == 'unresolved_profile_dependency',
+            );
+        expect(dependencyProblem().profileDependency!.sourceIds, {
+          'pinned_searches',
+          'following_feeds',
+        });
+        final originalSources = container
+            .read(importFlowProvider)
+            .resolved!
+            .sources;
+        final pinSource = originalSources.singleWhere(
+          (source) => source.id == 'pinned_searches',
+        );
+        final feeds = originalSources.singleWhere(
+          (source) => source.id == 'following_feeds',
+        );
+        notifier.replaceSource(pinSource.copyWith(action: ImportAction.skip));
+        expect(dependencyProblem().profileDependency!.sourceIds, {
+          'following_feeds',
+        });
+        notifier.replaceSource(feeds.copyWith(action: ImportAction.skip));
+        expect(
+          container
+              .read(importFlowProvider)
+              .preflight!
+              .errors
+              .where((issue) => issue.code == 'unresolved_profile_dependency'),
+          isEmpty,
+        );
+        notifier.replaceSource(pinSource);
+        expect(dependencyProblem().profileDependency!.sourceIds, {
+          'pinned_searches',
+        });
+        notifier.replaceSource(feeds);
+        notifier.chooseProfileMapping(key, firstId);
+        expect(
+          container
+              .read(importFlowProvider)
+              .preflight!
+              .errors
+              .where((issue) => issue.code == 'unresolved_profile_dependency'),
+          isEmpty,
+        );
+        expect(await repository.getAll(), before);
+        expect(await repository.getFeeds(), isEmpty);
+      });
+    },
+  );
+}
+
+ExportPackageSourceBuild _source(String id, List<Map<String, Object?>> rows) =>
+    ExportPackageSourceBuild(
+      id: id,
+      schemaVersion: 1,
+      selection: ExportNodeSelection.explicit(id, {
+        id == 'pinned_searches' ? 'search:$pinId' : 'feed:$feedId',
+      }),
+      recommendedAction: ImportAction.configureItems,
+      parts: [
+        ExportPackagePartBuild(
+          path: 'sources/$id/data.json',
+          write: (path) => File(path).writeAsString(
+            jsonEncode({
+              'version': 1,
+              'source': id,
+              'date': '2026-10-05T00:00:00.000Z',
+              'exportVersion': '1.0.0',
+              'data': rows,
+            }),
+          ),
+        ),
+      ],
+    );
+BooruConfig _profile(String id) => BooruConfig.fromJson({
+  ...BooruConfig.empty.toJson(),
+  'id': id,
+  'booruId': BooruType.danbooru.id,
+  'booruIdHint': BooruType.danbooru.id,
+  'url': reference.url,
+  'name': id == firstId ? 'First' : 'Second',
+});
+
+class _Profiles implements BooruConfigRepository {
+  _Profiles(this.profiles);
+  final List<BooruConfig> profiles;
+  @override
+  Future<List<BooruConfig>> getAll() async => profiles;
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _TestFileSystem extends IoFileSystem {
+  _TestFileSystem(this.root);
+  final String root;
+  @override
+  Future<String?> getTemporaryPath() async => root;
+  @override
+  Future<String> getAppStoragePath() async => root;
+}
+
+class _SearchRepository extends SearchSubscriptionRepositoryNotifier {
+  _SearchRepository(this.repository);
+  final SearchSubscriptionRepository repository;
+  @override
+  Future<SearchSubscriptionRepository> build() async => repository;
+}

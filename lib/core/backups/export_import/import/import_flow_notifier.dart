@@ -593,49 +593,62 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
       _ => const <BooruConfig>[],
     };
     final references = <BackupProfileReference>[];
+    final dependentSources = <ProfileReferenceKey, Set<String>>{};
+    void addReference(BackupProfileReference reference, String sourceId) {
+      references.add(reference);
+      dependentSources
+          .putIfAbsent(ProfileReferenceKey.fromReference(reference), () => {})
+          .add(sourceId);
+    }
+
     if (resolvedById['pinned_searches']?.action != ImportAction.skip) {
       switch (_sources['pinned_searches']?.preparedData) {
         case final PinnedSearchBackupData data:
           final resolution = resolvedById['pinned_searches']!;
-          references.addAll(
-            data.records
-                .where(
-                  (record) => _includesDependencyItem(
-                    resolution,
-                    'search:${record.id}',
-                  ),
-                )
-                .map((record) => record.profile),
-          );
+          final selected = data.records
+              .where(
+                (record) => _includesDependencyItem(
+                  resolution,
+                  'search:${record.id}',
+                ),
+              )
+              .map((record) => record.profile);
+          for (final reference in selected) {
+            addReference(reference, 'pinned_searches');
+          }
       }
     }
     if (resolvedById['following_feeds']?.action != ImportAction.skip) {
       switch (_sources['following_feeds']?.preparedData) {
         case final FollowingFeedBackupData data:
           final resolution = resolvedById['following_feeds']!;
-          references.addAll(
-            data.feeds
-                .where(
-                  (feed) => _includesDependencyItem(
-                    resolution,
-                    'feed:${feed.id}',
-                  ),
-                )
-                .map((feed) => feed.profile),
-          );
+          final selected = data.feeds
+              .where(
+                (feed) => _includesDependencyItem(
+                  resolution,
+                  'feed:${feed.id}',
+                ),
+              )
+              .map((feed) => feed.profile);
+          for (final reference in selected) {
+            addReference(reference, 'following_feeds');
+          }
       }
     }
     final profileResolution = resolvedById['profiles'];
     if (profileResolution != null) {
       for (final item in profileResolution.items) {
-        if (item.action != ImportAction.copy || !item.id.startsWith('profile:'))
+        if (item.action != ImportAction.copy ||
+            !item.id.startsWith('profile:')) {
           continue;
+        }
         final exportedId = item.id.substring('profile:'.length);
         _copyProfileIds.putIfAbsent(exportedId, createProfileId);
       }
     }
     return const ProfileDependencyPlanner().plan(
       references: references,
+      dependentSources: dependentSources,
       localProfiles: ref.read(booruConfigProvider),
       importedProfiles: importedProfiles,
       profileResolution: profileResolution,

@@ -965,7 +965,9 @@
           "invalid_item_action": "Choose a valid action for {item}.",
           "invalid_target": "Choose a valid target for {item}.",
           "insufficient_storage": "There is not enough free storage to import safely and keep a rollback checkpoint.",
-          "unresolved_profile_dependency": "Choose or create a profile for the selected searches and feeds.",
+          "unresolved_profile_dependency": "{profile}: Choose a target profile or create a new profile for the selected searches and feeds.",
+          "unresolved_profile_searches": "{profile}: Choose a target profile or create a new profile for the selected searches.",
+          "unresolved_profile_feeds": "{profile}: Choose a target profile or create a new profile for the selected feeds.",
           "unresolved_profile_import": "Choose a valid import action and target for {item}.",
           "incomplete_checks": "Boorusama could not complete all safety checks for {source}.",
           "unknown_problem": "Boorusama found a problem with {source}."

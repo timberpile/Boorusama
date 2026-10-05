@@ -35,8 +35,10 @@ String importIssueMessage(
           .replaceAll('{item}', item),
     'missing_bookmark_reference' =>
       strings.missing_bookmark_reference.replaceAll('{item}', item),
-    'duplicate_profile_id' =>
-      strings.duplicate_profile_id.replaceAll('{item}', item),
+    'duplicate_profile_id' => strings.duplicate_profile_id.replaceAll(
+      '{item}',
+      item,
+    ),
     'credentials_included' => strings.credentials_included,
     'credential_flag_mismatch' => strings.credential_flag_mismatch,
     'unsupported_recommended_action' =>
@@ -52,7 +54,20 @@ String importIssueMessage(
     'invalid_merge_target' || 'unresolved_item_target' =>
       strings.invalid_target.replaceAll('{item}', item),
     'insufficient_storage' => strings.insufficient_storage,
-    'unresolved_profile_dependency' => strings.unresolved_profile_dependency,
+    'unresolved_profile_dependency' => switch (issue.profileDependency) {
+      final dependency? => (switch ((
+        dependency.sourceIds.contains('pinned_searches'),
+        dependency.sourceIds.contains('following_feeds'),
+      )) {
+        (true, false) => strings.unresolved_profile_searches,
+        (false, true) => strings.unresolved_profile_feeds,
+        _ => strings.unresolved_profile_dependency,
+      }).replaceAll('{profile}', dependency.label),
+      null => strings.unresolved_profile_dependency.replaceAll(
+        '{profile}',
+        item,
+      ),
+    },
     'unresolved_profile_import' => strings.unresolved_profile_import.replaceAll(
       '{item}',
       item,

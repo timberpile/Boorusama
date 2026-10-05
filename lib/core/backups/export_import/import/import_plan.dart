@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 
 import '../models/import_action.dart';
+import '../../sources/search_backup_profile.dart';
 
 enum ImportSourceKind { value, collection }
 
@@ -9,14 +10,31 @@ final class ImportPlanIssue extends Equatable {
     required this.code,
     required this.sourceId,
     this.itemId,
+    this.profileDependency,
   });
 
   final String code;
   final String sourceId;
   final String? itemId;
+  final ProfileDependencyIssueContext? profileDependency;
 
   @override
-  List<Object?> get props => [code, sourceId, itemId];
+  List<Object?> get props => [code, sourceId, itemId, profileDependency];
+}
+
+final class ProfileDependencyIssueContext extends Equatable {
+  ProfileDependencyIssueContext({
+    required this.reference,
+    required this.label,
+    required Iterable<String> sourceIds,
+  }) : sourceIds = Set.unmodifiable(sourceIds);
+
+  final BackupProfileReference reference;
+  final String label;
+  final Set<String> sourceIds;
+
+  @override
+  List<Object> get props => [reference, label, sourceIds];
 }
 
 final class ProposedImportItem extends Equatable {
