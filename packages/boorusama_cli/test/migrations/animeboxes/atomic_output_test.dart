@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 
 import 'package:boorusama_cli/src/migrations/animeboxes/atomic_output.dart';
 import 'package:test/test.dart';
@@ -63,30 +64,33 @@ void main() {
     expect(await _temporarySiblings(temporaryDirectory), isEmpty);
   });
 
-  test('atomically writes all four artifacts without a temp sibling', () async {
-    final target = Directory('${temporaryDirectory.path}/artifacts');
-    final files = _artifacts();
+  test(
+    'atomically writes the package and report without a temp sibling',
+    () async {
+      final target = Directory('${temporaryDirectory.path}/artifacts');
+      final files = _artifacts();
 
-    await const AtomicMigrationOutput().writeDirectory(
-      target: target,
-      files: files,
-    );
-
-    expect(
-      await target
-          .list()
-          .map((entity) => entity.uri.pathSegments.last)
-          .toList(),
-      unorderedEquals(AtomicMigrationOutput.artifactNames),
-    );
-    for (final entry in files.entries) {
-      expect(
-        await File('${target.path}/${entry.key}').readAsString(),
-        entry.value,
+      await const AtomicMigrationOutput().writeDirectory(
+        target: target,
+        files: files,
       );
-    }
-    expect(await _temporarySiblings(temporaryDirectory), isEmpty);
-  });
+
+      expect(
+        await target
+            .list()
+            .map((entity) => entity.uri.pathSegments.last)
+            .toList(),
+        unorderedEquals(AtomicMigrationOutput.artifactNames),
+      );
+      for (final entry in files.entries) {
+        expect(
+          await File('${target.path}/${entry.key}').readAsBytes(),
+          entry.value,
+        );
+      }
+      expect(await _temporarySiblings(temporaryDirectory), isEmpty);
+    },
+  );
 
   test('leaves an existing directory byte-for-byte unchanged', () async {
     final target = await Directory(
@@ -110,7 +114,7 @@ void main() {
 
   test('rejects an invalid artifact filename before any write', () async {
     final target = Directory('${temporaryDirectory.path}/artifacts');
-    final files = _artifacts()..['../escape.json'] = 'secret';
+    final files = _artifacts()..['../escape.json'] = utf8.encode('secret');
 
     await expectLater(
       const AtomicMigrationOutput().writeDirectory(
@@ -129,11 +133,9 @@ void main() {
   });
 }
 
-Map<String, String> _artifacts() => {
-  AtomicMigrationOutput.bookmarksFilename: 'bookmarks',
-  AtomicMigrationOutput.blacklistedTagsFilename: 'blacklist',
-  AtomicMigrationOutput.pinnedSearchesFilename: 'pinned',
-  AtomicMigrationOutput.reportFilename: 'report',
+Map<String, List<int>> _artifacts() => {
+  AtomicMigrationOutput.packageFilename: [0, 255, 42],
+  AtomicMigrationOutput.reportFilename: utf8.encode('report'),
 };
 
 Future<List<FileSystemEntity>> _temporarySiblings(Directory directory) =>

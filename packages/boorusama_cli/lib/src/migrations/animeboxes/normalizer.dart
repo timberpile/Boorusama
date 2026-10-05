@@ -1,6 +1,7 @@
 import 'errors.dart';
 import 'normalized_types.dart';
 import 'sensitive_data.dart';
+import 'site_identity.dart';
 import 'source_types.dart';
 
 final class AnimeBoxesNormalizer {
@@ -12,6 +13,16 @@ final class AnimeBoxesNormalizer {
 
     final profilesByHost = <String, NormalizedAnimeBoxesProfile>{};
     for (final profile in profiles) {
+      final existing = profilesByHost[profile.host];
+      if (existing != null &&
+          migrationSiteNamespace(existing.url) !=
+              migrationSiteNamespace(profile.url)) {
+        throw const AnimeBoxesFormatException(
+          'ambiguous_site_profiles',
+          'Profiles on one host use different site URLs.',
+          section: 'Servers',
+        );
+      }
       profilesByHost.putIfAbsent(profile.host, () => profile);
     }
 
@@ -24,7 +35,9 @@ final class AnimeBoxesNormalizer {
       );
       final host = Uri.parse(pageUrl).host;
       final profile = profilesByHost[host];
-      if (profile == null) {
+      if (profile == null ||
+          migrationSiteNamespace(profile.url) !=
+              migrationSiteNamespace(pageUrl, includePath: false)) {
         throw AnimeBoxesFormatException(
           'unmatched_profile',
           'A favorite does not match a configured profile.',
@@ -402,7 +415,8 @@ NormalizedAnimeBoxesPinnedSearch _normalizeSearch(
   final profile = profilesByHost[host];
   if (profile == null ||
       profile.engine.name != mapping.engine.name ||
-      profile.engine.typeId != mapping.engine.typeId) {
+      profile.engine.typeId != mapping.engine.typeId ||
+      migrationSiteNamespace(profile.url) != migrationSiteNamespace(url)) {
     throw AnimeBoxesFormatException(
       'unmatched_profile',
       'A pinned search does not match a configured profile.',

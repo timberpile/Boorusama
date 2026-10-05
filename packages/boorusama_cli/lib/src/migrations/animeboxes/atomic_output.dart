@@ -4,15 +4,11 @@ import 'dart:math';
 final class AtomicMigrationOutput {
   const AtomicMigrationOutput();
 
-  static const bookmarksFilename = 'boorusama_bookmarks.json';
-  static const blacklistedTagsFilename = 'boorusama_blacklisted_tags.json';
-  static const pinnedSearchesFilename = 'boorusama_pinned_searches.json';
+  static const packageFilename = 'animeboxes.bsexport';
   static const reportFilename = 'conversion_report.json';
 
   static const artifactNames = {
-    bookmarksFilename,
-    blacklistedTagsFilename,
-    pinnedSearchesFilename,
+    packageFilename,
     reportFilename,
   };
 
@@ -37,7 +33,7 @@ final class AtomicMigrationOutput {
 
   Future<void> writeDirectory({
     required Directory target,
-    required Map<String, String> files,
+    required Map<String, List<int>> files,
   }) async {
     _validateArtifactNames(files.keys);
     _requireWritableTarget(target.path);
@@ -45,7 +41,7 @@ final class AtomicMigrationOutput {
     try {
       await temporary.create();
       for (final entry in files.entries) {
-        await File('${temporary.path}/${entry.key}').writeAsString(
+        await File('${temporary.path}/${entry.key}').writeAsBytes(
           entry.value,
           flush: true,
         );

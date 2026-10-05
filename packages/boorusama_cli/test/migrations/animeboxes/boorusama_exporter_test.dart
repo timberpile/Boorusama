@@ -4,62 +4,359 @@ import 'dart:io';
 import 'package:boorusama_cli/src/migrations/animeboxes/boorusama_exporter.dart';
 import 'package:boorusama_cli/src/migrations/animeboxes/csv_reader.dart';
 import 'package:boorusama_cli/src/migrations/animeboxes/errors.dart';
+import 'package:boorusama_cli/src/migrations/animeboxes/document_codec.dart';
 import 'package:boorusama_cli/src/migrations/animeboxes/normalizer.dart';
 import 'package:boorusama_cli/src/migrations/animeboxes/normalized_types.dart';
 import 'package:test/test.dart';
+import 'package:archive/archive.dart';
 
 void main() {
-  test('exports deterministic production backup envelopes', () {
-    final source = const AnimeBoxesCsvReader().parse(
-      File(
-        'test/migrations/animeboxes/fixtures/complete.csv',
-      ).readAsStringSync(),
-    );
-    final document = const AnimeBoxesNormalizer().normalize(source);
-
+  test('exports canonical v4 bookmarks with stable group membership', () {
+    final document = _document(fixture: _completeFixture());
     final artifacts = const BoorusamaMigrationExporter().export(document);
-
+    final envelope = jsonDecode(artifacts.bookmarks) as Map<String, dynamic>;
+    expect(envelope['version'], 4);
+    final bookmark = (envelope['data'] as List).single as Map;
+    expect(bookmark['identity'], {
+      'site': 'danbooru.donmai.us',
+      'postKey': 'id:42',
+    });
+    final group = (envelope['groups'] as List).single as Map;
+    expect(group['id'], matches(RegExp(r'^[0-9a-f-]{36}$')));
+    expect(group['name'], 'AnimeBoxes');
+    expect(group['bookmarkIds'], [1]);
     expect(
+      const BoorusamaMigrationExporter().export(document).bookmarks,
       artifacts.bookmarks,
-      _golden('boorusama_bookmarks.json'),
-    );
-    expect(
-      artifacts.blacklistedTags,
-      _golden('boorusama_blacklisted_tags.json'),
-    );
-    expect(
-      artifacts.pinnedSearches,
-      _golden('boorusama_pinned_searches.json'),
     );
   });
 
-  test('exports all bookmarks in a fresh AnimeBoxes group', () {
+  test('Home searches are selected without an ignored Home action row', () {
+    final document = _document(
+      fixture: _completeFixture().replaceFirst(
+        '4,11111111-1111-4111-8111-111111111111,22222222-',
+        '4,,22222222-',
+      ),
+    );
+    final artifacts = const BoorusamaMigrationExporter().export(document);
+    final zip = ZipDecoder().decodeBytes(artifacts.packageBytes);
+    final manifest =
+        jsonDecode(utf8.decode(zip.findFile('manifest.json')!.content)) as Map;
+    final pins =
+        (manifest['sources'] as List).singleWhere(
+              (source) => source['id'] == 'pinned_searches',
+            )
+            as Map;
+    expect((pins['selection'] as Map)['childIds'], isNot(contains('home')));
+  });
+
+  test(
+    'preserves an extras-only effective query and stable profile reference',
+    () {
+      const exporter = BoorusamaMigrationExporter();
+      Map search(NormalizedAnimeBoxesDocument document) {
+        final rows =
+            (jsonDecode(exporter.export(document).pinnedSearches)
+                    as Map)['data']
+                as List;
+        return rows.singleWhere((row) => row['kind'] == 'search') as Map;
+      }
+
+      final original = search(
+        _pinnedDocument([('tag_one', <String, Object?>{})]),
+      );
+      final combined = search(
+        _pinnedDocument([
+          (
+            '',
+            {
+              'extra_tags': 'is:sfw order:score',
+              'danbooru2_is_has': 'is:sfw',
+              'danbooru2_order': 'order:score',
+            },
+          ),
+        ]),
+      );
+      expect(combined['query'], 'is:sfw order:score');
+      expect(combined['profile'], original['profile']);
+    },
+  );
+
+  test(
+    'retains same-text searches with different effective filters in source order',
+    () {
+      final artifacts = const BoorusamaMigrationExporter().export(
+        _pinnedDocument([
+          (' tag_one ', {'extra_tags': ' rating:general '}),
+          ('tag_one', {'extra_tags': 'rating:explicit'}),
+        ]),
+      );
+      final rows =
+          (jsonDecode(artifacts.pinnedSearches) as Map)['data'] as List;
+      final searches = rows.where((row) => row['kind'] == 'search').toList();
+      expect(searches.map((row) => row['query']), [
+        'tag_one   rating:general',
+        'tag_one rating:explicit',
+      ]);
+      expect(searches.map((row) => row['position']), [0, 1]);
+      expect(searches.map((row) => row['id']).toSet(), hasLength(2));
+      final report = jsonDecode(artifacts.report) as Map;
+      expect(
+        (report['diagnostics'] as List).where(
+          (row) => row['code'] == 'pinned_search_settings_not_exported',
+        ),
+        isEmpty,
+      );
+    },
+  );
+
+  test(
+    'reports repeated effective identities while retaining every definition',
+    () {
+      final artifacts = const BoorusamaMigrationExporter().export(
+        _pinnedDocument([
+          ('synthetic_private_query', {'extra_tags': 'order:score'}),
+          (' synthetic_private_query ', {'extra_tags': ' order:score '}),
+        ]),
+      );
+      final rows =
+          (jsonDecode(artifacts.pinnedSearches) as Map)['data'] as List;
+      expect(rows.where((row) => row['kind'] == 'search'), hasLength(2));
+      final report = jsonDecode(artifacts.report) as Map;
+      expect(
+        (report['diagnostics'] as List).singleWhere(
+          (row) => row['code'] == 'duplicate_pinned_query_identity',
+        )['count'],
+        1,
+      );
+      expect(artifacts.report, isNot(contains('synthetic_private_query')));
+    },
+  );
+
+  test('reports unknown settings without dropping the effective query', () {
+    final artifacts = const BoorusamaMigrationExporter().export(
+      _pinnedDocument([
+        ('tag_one', {'extra_tags': 'order:score', 'unknown_ui_setting': true}),
+      ]),
+    );
+    final report = jsonDecode(artifacts.report) as Map;
+    expect(
+      (report['diagnostics'] as List).singleWhere(
+        (row) => row['code'] == 'pinned_search_settings_not_exported',
+      )['count'],
+      1,
+    );
+    final rows = (jsonDecode(artifacts.pinnedSearches) as Map)['data'] as List;
+    expect(
+      rows.singleWhere((row) => row['kind'] == 'search')['query'],
+      'tag_one order:score',
+    );
+  });
+
+  for (final extra in [
+    <String, Object?>{},
+    {'extra_tags': ''},
+    {'extra_tags': '   '},
+  ]) {
+    test(
+      'rejects a genuinely empty effective query (${extra.isEmpty
+          ? 'absent extras'
+          : extra['extra_tags'] == ''
+          ? 'empty extras'
+          : 'whitespace extras'})',
+      () {
+        expect(
+          () => const BoorusamaMigrationExporter().export(
+            _pinnedDocument([
+              ('   ', extra),
+            ]),
+          ),
+          throwsA(
+            isA<AnimeBoxesFormatException>().having(
+              (error) => error.code,
+              'code',
+              'empty_pinned_search_query',
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  for (final value in [
+    null,
+    42,
+    ['order:score'],
+    {'filter': 'rating:general'},
+  ]) {
+    test('rejects malformed extra tags of type ${value.runtimeType}', () {
+      expect(
+        () => const BoorusamaMigrationExporter().export(
+          _pinnedDocument([
+            ('tag_one', {'extra_tags': value}),
+          ]),
+        ),
+        throwsA(
+          isA<AnimeBoxesFormatException>().having(
+            (error) => error.code,
+            'code',
+            'invalid_pinned_search_extra_tags',
+          ),
+        ),
+      );
+    });
+  }
+
+  test('retains distinct upstream posts sharing one media URL', () {
     final first = _document(fixture: _completeFixture());
     final second = _document(
-      fixture: _completeFixture().replaceAll('42', '43'),
+      fixture: _completeFixture().replaceFirst(
+        '2,42,https://danbooru.donmai.us/posts/42',
+        '2,43,https://danbooru.donmai.us/posts/43',
+      ),
     );
-    final document = NormalizedAnimeBoxesDocument(
-      source: first.source,
-      profiles: first.profiles,
-      searchHistory: first.searchHistory,
-      bookmarks: [...first.bookmarks, ...second.bookmarks],
-      blacklist: first.blacklist,
-      pinnedSearchFolders: first.pinnedSearchFolders,
-      diagnostics: first.diagnostics,
-    );
-
+    final document = _withBookmarks(first, [
+      ...first.bookmarks,
+      ...second.bookmarks,
+    ]);
     final envelope =
         jsonDecode(
               const BoorusamaMigrationExporter().export(document).bookmarks,
             )
             as Map<String, dynamic>;
-
-    expect(envelope['groups'], [
-      {
-        'name': 'AnimeBoxes',
-        'bookmarkIds': [1, 2],
-      },
+    expect((envelope['data'] as List).map((row) => row['identity']), [
+      {'site': 'danbooru.donmai.us', 'postKey': 'id:42'},
+      {'site': 'danbooru.donmai.us', 'postKey': 'id:43'},
     ]);
+    expect((envelope['groups'] as List).single['bookmarkIds'], [1, 2]);
+  });
+
+  test(
+    'exports deterministic UUID references independent of account names',
+    () {
+      Map profile(String fixture) {
+        final envelope =
+            jsonDecode(
+                  const BoorusamaMigrationExporter()
+                      .export(_document(fixture: fixture))
+                      .pinnedSearches,
+                )
+                as Map;
+        return (envelope['data'] as List).singleWhere(
+              (row) => row['kind'] == 'search',
+            )['profile']
+            as Map;
+      }
+
+      final first = profile(_completeFixture());
+      expect(first['id'], matches(RegExp(r'^[0-9a-f-]{36}$')));
+      expect(
+        first['id'],
+        profile(
+          _completeFixture().replaceAll('Donmai Fixture', 'Renamed'),
+        )['id'],
+      );
+    },
+  );
+
+  test(
+    'profile reference UUIDs use the current portable URL normalization',
+    () {
+      final document = _document(fixture: _completeFixture());
+      Map reference(NormalizedAnimeBoxesDocument input) {
+        final data =
+            jsonDecode(
+                  const BoorusamaMigrationExporter()
+                      .export(input)
+                      .pinnedSearches,
+                )
+                as Map;
+        return (data['data'] as List).singleWhere(
+              (row) => row['kind'] == 'search',
+            )['profile']
+            as Map;
+      }
+
+      final first = reference(document);
+      final json =
+          jsonDecode(const AnimeBoxesDocumentCodec().encode(document)) as Map;
+      (json['profiles'] as List).single['url'] =
+          'https://DANBOORU.DONMAI.US///';
+      final second = reference(
+        const AnimeBoxesDocumentCodec().decode(jsonEncode(json)),
+      );
+      expect(second['id'], first['id']);
+      expect(second['url'], 'https://danbooru.donmai.us');
+    },
+  );
+
+  for (final port in [':8443', ':443']) {
+    test(
+      'keeps the $port site namespace in bookmark identity and snapshot',
+      () {
+        final document = _document(
+          fixture: _completeFixture().replaceAll(
+            'https://danbooru.donmai.us',
+            'http://danbooru.donmai.us$port',
+          ),
+        );
+        final envelope =
+            jsonDecode(
+                  const BoorusamaMigrationExporter().export(document).bookmarks,
+                )
+                as Map;
+        final row = (envelope['data'] as List).single as Map;
+        expect(row['identity'], {
+          'site': 'danbooru.donmai.us$port',
+          'postKey': 'id:42',
+        });
+        expect(
+          row['snapshot']['origin']['sourceHost'],
+          'danbooru.donmai.us$port',
+        );
+      },
+    );
+  }
+
+  test(
+    'rejects normalized bookmark pages that conflict with their profile site',
+    () {
+      final document = _document(fixture: _completeFixture());
+      final json =
+          jsonDecode(const AnimeBoxesDocumentCodec().encode(document)) as Map;
+      (json['bookmarks'] as List).single['postUrl'] =
+          'https://danbooru.donmai.us:8443/posts/42';
+      final input = const AnimeBoxesDocumentCodec().decode(jsonEncode(json));
+      expect(
+        () => const BoorusamaMigrationExporter().export(input),
+        throwsA(
+          isA<AnimeBoxesFormatException>().having(
+            (error) => error.code,
+            'code',
+            'invalid_profile_reference',
+          ),
+        ),
+      );
+    },
+  );
+
+  test('rejects normalized pins that conflict with their profile site', () {
+    final document = _document(fixture: _completeFixture());
+    final json =
+        jsonDecode(const AnimeBoxesDocumentCodec().encode(document)) as Map;
+    (json['pinnedSearchFolders'] as List).single['searches'][0]['url'] =
+        'https://danbooru.donmai.us:8443';
+    final input = const AnimeBoxesDocumentCodec().decode(jsonEncode(json));
+    expect(
+      () => const BoorusamaMigrationExporter().export(input),
+      throwsA(
+        isA<AnimeBoxesFormatException>().having(
+          (error) => error.code,
+          'code',
+          'invalid_profile_reference',
+        ),
+      ),
+    );
   });
 
   test('reports only aggregate source, retained, and output counts', () {
@@ -201,43 +498,28 @@ void main() {
     expect(diagnostic['count'], 1);
   });
 
-  test(
-    'rejects bookmark identities that the production codec would repeat',
-    () {
-      final first = _document(fixture: _completeFixture());
-      final second = _document(
-        fixture: _completeFixture().replaceAll(
-          'danbooru.donmai.us',
-          'donmai.moe',
+  test('rejects repeated canonical identities even when media differs', () {
+    final first = _document(fixture: _completeFixture());
+    final second = _document(
+      fixture: _completeFixture().replaceAll(
+        'original-42.webm',
+        'other-media.webm',
+      ),
+    );
+    expect(
+      () => const BoorusamaMigrationExporter().export(
+        _withBookmarks(first, [...first.bookmarks, ...second.bookmarks]),
+      ),
+      throwsA(
+        isA<AnimeBoxesFormatException>().having(
+          (error) => error.code,
+          'code',
+          'duplicate_bookmark_output_identity',
         ),
-      );
-      final document = NormalizedAnimeBoxesDocument(
-        source: first.source,
-        profiles: first.profiles,
-        searchHistory: first.searchHistory,
-        bookmarks: [...first.bookmarks, ...second.bookmarks],
-        blacklist: first.blacklist,
-        pinnedSearchFolders: first.pinnedSearchFolders,
-        diagnostics: first.diagnostics,
-      );
-
-      expect(
-        () => const BoorusamaMigrationExporter().export(document),
-        throwsA(
-          isA<AnimeBoxesFormatException>().having(
-            (error) => error.code,
-            'code',
-            'duplicate_bookmark_output_identity',
-          ),
-        ),
-      );
-    },
-  );
+      ),
+    );
+  });
 }
-
-String _golden(String name) => File(
-  'test/migrations/animeboxes/fixtures/$name',
-).readAsStringSync();
 
 String _completeFixture() => File(
   'test/migrations/animeboxes/fixtures/complete.csv',
@@ -253,4 +535,42 @@ Map<String, dynamic> _bookmarkCommon(String artifact) {
   final row = (envelope['data'] as List).single as Map<String, dynamic>;
   final snapshot = row['snapshot'] as Map<String, dynamic>;
   return snapshot['common'] as Map<String, dynamic>;
+}
+
+NormalizedAnimeBoxesDocument _withBookmarks(
+  NormalizedAnimeBoxesDocument first,
+  List<NormalizedAnimeBoxesBookmark> bookmarks,
+) => NormalizedAnimeBoxesDocument(
+  source: first.source,
+  profiles: first.profiles,
+  searchHistory: first.searchHistory,
+  bookmarks: bookmarks,
+  blacklist: first.blacklist,
+  pinnedSearchFolders: first.pinnedSearchFolders,
+  diagnostics: first.diagnostics,
+);
+
+NormalizedAnimeBoxesDocument _pinnedDocument(
+  List<(String, Map<String, Object?>)> inputs,
+) {
+  const codec = AnimeBoxesDocumentCodec();
+  final json =
+      jsonDecode(codec.encode(_document(fixture: _completeFixture()))) as Map;
+  final group = (json['pinnedSearchFolders'] as List).single as Map;
+  final template = (group['searches'] as List).single as Map;
+  group['searches'] = [
+    for (final (index, input) in inputs.indexed)
+      {
+        ...template,
+        'id':
+            '22222222-2222-4222-8222-${(index + 1).toString().padLeft(12, '0')}',
+        'query': input.$1,
+        'extraParams': input.$2,
+        'position': index,
+        'disableAutoLoad': false,
+        'includeBlacklisted': false,
+        'initialPage': 0,
+      },
+  ];
+  return codec.decode(jsonEncode(json));
 }

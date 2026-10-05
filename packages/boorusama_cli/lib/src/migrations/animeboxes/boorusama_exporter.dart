@@ -1,8 +1,12 @@
 import 'dart:convert';
 
+import 'package:uuid/uuid.dart';
+
 import 'conversion_report.dart';
 import 'errors.dart';
+import 'migration_package.dart';
 import 'normalized_types.dart';
+import 'site_identity.dart';
 
 final class BoorusamaMigrationArtifacts {
   const BoorusamaMigrationArtifacts({
@@ -16,13 +20,19 @@ final class BoorusamaMigrationArtifacts {
   final String blacklistedTags;
   final String pinnedSearches;
   final String report;
+
+  List<int> get packageBytes => encodeMigrationPackage(
+    bookmarks: bookmarks,
+    blacklistedTags: blacklistedTags,
+    pinnedSearches: pinnedSearches,
+  );
 }
 
 final class BoorusamaMigrationExporter {
   const BoorusamaMigrationExporter();
 
   BoorusamaMigrationArtifacts export(NormalizedAnimeBoxesDocument document) {
-    _validateBookmarkIdentities(document.bookmarks);
+    _validateBookmarkIdentities(document);
     final pinned = _encodePinnedSearches(document);
     final report = AnimeBoxesConversionReport.fromDocument(
       document,
@@ -38,11 +48,11 @@ final class BoorusamaMigrationExporter {
 }
 
 void _validateBookmarkIdentities(
-  List<NormalizedAnimeBoxesBookmark> bookmarks,
+  NormalizedAnimeBoxesDocument document,
 ) {
-  final identities = <(int, String)>{};
-  for (final bookmark in bookmarks) {
-    if (!identities.add((bookmark.engine.typeId, bookmark.original.url))) {
+  final identities = <(String, int)>{};
+  for (final bookmark in document.bookmarks) {
+    if (!identities.add((_bookmarkSite(bookmark, document), bookmark.postId))) {
       throw const AnimeBoxesFormatException(
         'duplicate_bookmark_output_identity',
         'Bookmarks repeat a Boorusama output identity.',
@@ -52,18 +62,49 @@ void _validateBookmarkIdentities(
   }
 }
 
+String _bookmarkSite(
+  NormalizedAnimeBoxesBookmark bookmark,
+  NormalizedAnimeBoxesDocument document,
+) {
+  final profile = document.profiles
+      .where(
+        (profile) => profile.sourceId == bookmark.sourceProfileId,
+      )
+      .singleOrNull;
+  if (profile == null ||
+      profile.host != bookmark.host ||
+      profile.engine.typeId != bookmark.engine.typeId ||
+      migrationSiteNamespace(profile.url) !=
+          migrationSiteNamespace(bookmark.postUrl, includePath: false)) {
+    throw const AnimeBoxesFormatException(
+      'invalid_profile_reference',
+      'A bookmark has an invalid profile reference.',
+      section: 'Favorites',
+    );
+  }
+  return migrationSiteNamespace(profile.url);
+}
+
 Map<String, Object?> _bookmarkEnvelope(
   NormalizedAnimeBoxesDocument document,
 ) => {
   'groups': [
     {
+      'id': const Uuid().v5(
+        migrationUuidNamespace,
+        jsonEncode([
+          'bookmark-group',
+          for (final bookmark in document.bookmarks)
+            [_bookmarkSite(bookmark, document), bookmark.postId],
+        ]),
+      ),
       'name': 'AnimeBoxes',
       'bookmarkIds': [
         for (final (index, _) in document.bookmarks.indexed) index + 1,
       ],
     },
   ],
-  'version': 2,
+  'version': 4,
   'date': document.source.exportedAt.raw,
   'data': [
     for (final (index, bookmark) in document.bookmarks.indexed)
@@ -71,21 +112,29 @@ Map<String, Object?> _bookmarkEnvelope(
         'localId': index + 1,
         'createdAt': bookmark.dateAdded.raw,
         'updatedAt': bookmark.dateAdded.raw,
-        'snapshot': _bookmarkSnapshot(bookmark),
+        'snapshot': _bookmarkSnapshot(
+          bookmark,
+          _bookmarkSite(bookmark, document),
+        ),
         'postId': bookmark.postId,
+        'identity': {
+          'site': _bookmarkSite(bookmark, document),
+          'postKey': 'id:${bookmark.postId}',
+        },
       },
   ],
 };
 
 Map<String, Object?> _bookmarkSnapshot(
   NormalizedAnimeBoxesBookmark bookmark,
+  String site,
 ) {
   final isVideo = const {'mp4', 'webm', 'zip'}.contains(bookmark.format);
   return {
     'origin': {
       'booruTypeId': bookmark.engine.typeId,
       'booruId': bookmark.engine.typeId,
-      'sourceHost': bookmark.host,
+      'sourceHost': site,
     },
     'common': {
       'schemaVersion': 1,
@@ -178,13 +227,35 @@ _PinnedExport _encodePinnedSearches(NormalizedAnimeBoxesDocument document) {
   final allSearches = [
     for (final group in document.pinnedSearchFolders) ...group.searches,
   ]..sort((left, right) => left.position.compareTo(right.position));
+  final effectiveQueries = {
+    for (final search in allSearches)
+      search.id: _effectivePinnedSearchQuery(search),
+  };
+  final identities = <(int, String)>{};
+  final repeatedPositions = <int>[];
+  for (final search in allSearches) {
+    final query = effectiveQueries[search.id]!.split(RegExp(r'\s+')).join(' ');
+    if (!identities.add((search.sourceProfileId, query))) {
+      repeatedPositions.add(search.position);
+    }
+  }
+  if (repeatedPositions.isNotEmpty) {
+    diagnostics.add(
+      AnimeBoxesDiagnostic(
+        code: 'duplicate_pinned_query_identity',
+        count: repeatedPositions.length,
+        section: 'Home Pins',
+        sourcePositions: repeatedPositions,
+      ),
+    );
+  }
   final searchesWithUnsupportedSettings = allSearches
       .where(
         (search) =>
             search.disableAutoLoad ||
             search.includeBlacklisted ||
             search.initialPage != 0 ||
-            search.extraParams.isNotEmpty,
+            search.extraParams.keys.any((key) => key != 'extra_tags'),
       )
       .toList();
   if (searchesWithUnsupportedSettings.isNotEmpty) {
@@ -219,7 +290,7 @@ _PinnedExport _encodePinnedSearches(NormalizedAnimeBoxesDocument document) {
             'kind': 'search',
             'id': search.id,
             'name': search.name,
-            'query': search.query,
+            'query': effectiveQueries[search.id],
             'position': search.position,
             'profile': _profileReference(search, profiles),
           },
@@ -236,6 +307,31 @@ _PinnedExport _encodePinnedSearches(NormalizedAnimeBoxesDocument document) {
   );
 }
 
+String _effectivePinnedSearchQuery(NormalizedAnimeBoxesPinnedSearch search) {
+  final extraTags = search.extraParams['extra_tags'];
+  if (search.extraParams.containsKey('extra_tags') && extraTags is! String) {
+    throw const AnimeBoxesFormatException(
+      'invalid_pinned_search_extra_tags',
+      'Pinned-search extra tags must be text.',
+      section: 'Home Pins',
+    );
+  }
+  // AnimeBoxes appends this already-combined filter text, not its UI selectors.
+  final query = switch (extraTags) {
+    final String tags when tags.trim().isNotEmpty =>
+      '${search.query} $tags'.trim(),
+    _ => search.query.trim(),
+  };
+  if (query.isEmpty) {
+    throw const AnimeBoxesFormatException(
+      'empty_pinned_search_query',
+      'A pinned search query cannot be exported.',
+      section: 'Home Pins',
+    );
+  }
+  return query;
+}
+
 Map<String, Object?> _profileReference(
   NormalizedAnimeBoxesPinnedSearch search,
   Map<int, NormalizedAnimeBoxesProfile> profiles,
@@ -244,24 +340,27 @@ Map<String, Object?> _profileReference(
   if (profile == null ||
       profile.host != search.host ||
       profile.engine.name != search.engine.name ||
-      profile.engine.typeId != search.engine.typeId) {
+      profile.engine.typeId != search.engine.typeId ||
+      migrationSiteNamespace(profile.url) !=
+          migrationSiteNamespace(search.url)) {
     throw const AnimeBoxesFormatException(
       'invalid_profile_reference',
       'A pinned search has an invalid profile reference.',
       section: 'Home Pins',
     );
   }
-  if (search.query.trim().isEmpty) {
-    throw const AnimeBoxesFormatException(
-      'empty_pinned_search_query',
-      'A pinned search query cannot be exported.',
-      section: 'Home Pins',
-    );
-  }
   return {
-    'id': profile.sourceId,
+    'id': const Uuid().v5(
+      migrationUuidNamespace,
+      jsonEncode([
+        'profile',
+        profile.sourceId,
+        profile.engine.name,
+        migrationProfileUrl(profile.url),
+      ]),
+    ),
     'booruType': profile.engine.name,
-    'url': profile.url,
+    'url': migrationProfileUrl(profile.url),
     'name': profile.name,
   };
 }

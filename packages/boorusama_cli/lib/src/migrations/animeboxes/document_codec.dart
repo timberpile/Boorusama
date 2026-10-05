@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'errors.dart';
 import 'normalized_types.dart';
 import 'sensitive_data.dart';
+import 'site_identity.dart';
 
 final class AnimeBoxesDocumentCodec {
   const AnimeBoxesDocumentCodec();
@@ -277,7 +278,7 @@ NormalizedAnimeBoxesProfile _decodeProfile(
     'credentialsPresent',
     'sourcePosition',
   }, path);
-  final url = _url(json['url'], '$path.url');
+  final url = _siteUrl(json['url'], '$path.url');
   final host = _host(json['host'], '$path.host');
   if (Uri.parse(url).host != host) _invalid('$path.host');
   return NormalizedAnimeBoxesProfile(
@@ -532,7 +533,7 @@ NormalizedAnimeBoxesPinnedSearch _decodePinnedSearch(
     'initialPage',
     'extraParams',
   }, path);
-  final url = _url(json['url'], '$path.url');
+  final url = _siteUrl(json['url'], '$path.url');
   final host = _host(json['host'], '$path.host');
   if (Uri.parse(url).host != host) _invalid('$path.host');
   final extraParams = _object(json['extraParams'], '$path.extraParams');
@@ -754,6 +755,15 @@ String _url(Object? value, String path) {
     _invalid(path);
   }
   return raw;
+}
+
+String _siteUrl(Object? value, String path) {
+  final raw = _url(value, path);
+  final uri = Uri.parse(raw);
+  if (uri.hasQuery || uri.hasFragment || uri.userInfo.isNotEmpty) {
+    _invalid(path);
+  }
+  return migrationProfileUrl(raw);
 }
 
 String _host(Object? value, String path) {

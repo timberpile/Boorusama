@@ -1,5 +1,7 @@
 import 'dart:io';
+import 'dart:convert';
 
+import 'package:archive/archive.dart';
 import 'package:args/command_runner.dart';
 import 'package:boorusama_cli/src/command/animeboxes_command.dart';
 import 'package:boorusama_cli/src/migrations/animeboxes/atomic_output.dart';
@@ -63,7 +65,45 @@ void main() {
     expect(harness.errors, isEmpty);
   });
 
-  test('export creates all four deterministic artifacts', () async {
+  test('package bytes remain identical across time zones', () async {
+    final harness = _Harness();
+    final input = await _writeInput(temporaryDirectory, _completeFixture());
+    final normalized = File('${temporaryDirectory.path}/normalized.json');
+    await harness.runner.run([
+      'animeboxes',
+      'normalize',
+      '--input',
+      input.path,
+      '--output',
+      normalized.path,
+    ]);
+    final packages = <List<int>>[];
+    for (final timezone in ['UTC', 'Europe/Vienna', 'America/Los_Angeles']) {
+      final output = Directory('${temporaryDirectory.path}/${packages.length}');
+      final result = await Process.run(
+        Platform.resolvedExecutable,
+        [
+          'run',
+          'bin/boorusama.dart',
+          'animeboxes',
+          'export',
+          '--input',
+          normalized.path,
+          '--output-dir',
+          output.path,
+        ],
+        environment: {'TZ': timezone},
+      );
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      packages.add(
+        await File('${output.path}/animeboxes.bsexport').readAsBytes(),
+      );
+    }
+    expect(packages[1], orderedEquals(packages[0]));
+    expect(packages[2], orderedEquals(packages[0]));
+  });
+
+  test('export creates only one migration package and a safe report', () async {
     final harness = _Harness();
     final input = await _writeInput(temporaryDirectory, _completeFixture());
     final normalized = File('${temporaryDirectory.path}/normalized.json');
@@ -92,7 +132,7 @@ void main() {
           .list()
           .map((entity) => entity.uri.pathSegments.last)
           .toList(),
-      unorderedEquals(AtomicMigrationOutput.artifactNames),
+      unorderedEquals({'animeboxes.bsexport', 'conversion_report.json'}),
     );
     expect(harness.errors, isEmpty);
   });
@@ -223,7 +263,14 @@ void main() {
       for (final directory in outputs)
         ...(await directory.list().toList()).whereType<File>(),
     ]) {
-      emitted.write(await file.readAsString());
+      final bytes = await file.readAsBytes();
+      if (file.path.endsWith('.bsexport')) {
+        for (final entry in ZipDecoder().decodeBytes(bytes).files) {
+          emitted.write(String.fromCharCodes(entry.readBytes()!));
+        }
+      } else {
+        emitted.write(String.fromCharCodes(bytes));
+      }
     }
     for (final secret in [
       'fixture-user-never-serialize',
@@ -235,6 +282,123 @@ void main() {
     }
     expect(await _temporaryEntities(temporaryDirectory), isEmpty);
   });
+
+  for (final target in ['profile', 'pin']) {
+    test(
+      'rejects credential-bearing normalized $target URLs before output writes',
+      () async {
+        const secret = 'synthetic-site-url-secret-never-emit';
+        final harness = _Harness();
+        final input = await _writeInput(temporaryDirectory, _completeFixture());
+        final normalized = File('${temporaryDirectory.path}/normalized.json');
+        await harness.runner.run([
+          'animeboxes',
+          'normalize',
+          '--input',
+          input.path,
+          '--output',
+          normalized.path,
+        ]);
+        final document = jsonDecode(await normalized.readAsString()) as Map;
+        final profileOrPin = target == 'profile'
+            ? (document['profiles'] as List).single
+            : (document['pinnedSearchFolders'] as List).single['searches'][0];
+        profileOrPin['url'] = 'https://danbooru.donmai.us?api_key=$secret';
+        await normalized.writeAsString(jsonEncode(document));
+        final destination = await Directory(
+          '${temporaryDirectory.path}/artifacts',
+        ).create();
+        final marker = File('${destination.path}/keep.txt');
+        await marker.writeAsString('unchanged');
+        expect(
+          await harness.runner.run([
+            'animeboxes',
+            'export',
+            '--input',
+            normalized.path,
+            '--output-dir',
+            destination.path,
+          ]),
+          2,
+        );
+        expect(await marker.readAsString(), 'unchanged');
+        expect(await destination.list().length, 1);
+        expect(
+          [...harness.output, ...harness.errors].join('\n'),
+          isNot(contains(secret)),
+        );
+        expect(await _temporaryEntities(temporaryDirectory), isEmpty);
+      },
+    );
+  }
+
+  for (final invalid in [
+    (
+      query: 'tag_one',
+      extra: <String, Object?>{
+        'extra_tags': ['synthetic-query-never-log'],
+      },
+    ),
+    (query: '   ', extra: <String, Object?>{'extra_tags': '   '}),
+  ]) {
+    test(
+      'invalid effective query preserves destinations (${invalid.query.trim().isEmpty ? 'empty' : 'malformed'})',
+      () async {
+        final harness = _Harness();
+        final input = await _writeInput(temporaryDirectory, _completeFixture());
+        final normalized = File('${temporaryDirectory.path}/normalized.json');
+        await harness.runner.run([
+          'animeboxes',
+          'normalize',
+          '--input',
+          input.path,
+          '--output',
+          normalized.path,
+        ]);
+        final document = jsonDecode(await normalized.readAsString()) as Map;
+        final pin =
+            (document['pinnedSearchFolders'] as List).single['searches'][0]
+                as Map;
+        pin['query'] = invalid.query;
+        pin['extraParams'] = invalid.extra;
+        await normalized.writeAsString(jsonEncode(document));
+        final output = '${temporaryDirectory.path}/artifacts';
+        expect(
+          await harness.runner.run([
+            'animeboxes',
+            'export',
+            '--input',
+            normalized.path,
+            '--output-dir',
+            output,
+          ]),
+          2,
+        );
+        expect(Directory(output).existsSync(), false);
+        final destination = await Directory(output).create();
+        final marker = File('${destination.path}/keep.txt');
+        await marker.writeAsString('unchanged');
+        expect(
+          await harness.runner.run([
+            'animeboxes',
+            'export',
+            '--input',
+            normalized.path,
+            '--output-dir',
+            output,
+          ]),
+          2,
+        );
+        expect(await marker.readAsString(), 'unchanged');
+        expect(await destination.list().length, 1);
+        expect(
+          [...harness.output, ...harness.errors].join('\n'),
+          isNot(contains('synthetic-query-never-log')),
+        );
+        expect(await _temporaryEntities(temporaryDirectory), isEmpty);
+      },
+    );
+  }
 
   test('invalid normalized input leaves no artifact directory', () async {
     const secret = 'fixture-normalized-secret-never-report';

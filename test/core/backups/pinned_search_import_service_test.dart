@@ -79,6 +79,77 @@ void main() {
     );
   }
 
+  for (final matchingId in [false, true]) {
+    test(
+      'Copy allocates a unique folder name for a ${matchingId ? 'matching ID' : 'different ID with the same name'}',
+      () async {
+        const incomingId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+        const oldId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+        const copyId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+        final repository = memorySubscriptionRepository();
+        final local = await repository.create(
+          profileId: profileUuid(4),
+          query: 'local_only',
+          name: null,
+        );
+        await repository.replaceOrganization(
+          SearchOrganization(
+            folders: [
+              SharedSearchFolder(
+                id: matchingId ? incomingId : oldId,
+                name: 'Animals',
+                searchIds: [local.id],
+              ),
+              SharedSearchFolder(
+                id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+                name: 'ANIMALS (2)',
+                searchIds: const [],
+              ),
+            ],
+            homeSearchIds: const [],
+          ),
+        );
+        final data = PinnedSearchBackupData(
+          records: [_record(1)],
+          folders: [
+            PinnedSearchFolderBackupRecord(
+              id: incomingId,
+              name: 'Animals',
+              position: 0,
+              searchIds: [_id(1)],
+            ),
+          ],
+        );
+        await PinnedSearchImportService(repository: repository).apply(
+          data,
+          profiles: [_profile(4)],
+          folderActions: {
+            incomingId: CollectionImportAction(
+              itemId: incomingId,
+              action: ImportAction.copy,
+              destinationId: matchingId ? copyId : null,
+            ),
+          },
+        );
+        final folders = (await repository.getOrganization()).folders;
+        expect(folders.first.name, 'Animals (3)');
+        expect(folders.first.searchIds, [_id(1)]);
+        expect(
+          folders
+              .singleWhere(
+                (folder) => folder.id == (matchingId ? incomingId : oldId),
+              )
+              .searchIds,
+          [local.id],
+        );
+        expect(
+          folders.map((folder) => folder.name.toLowerCase()).toSet(),
+          hasLength(3),
+        );
+      },
+    );
+  }
+
   test('folder imports remap profiles and remain idempotent', () async {
     final repository = memorySubscriptionRepository();
     final record = _record(0);

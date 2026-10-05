@@ -398,3 +398,25 @@ any source imports, including profiles. Matching uses the selected backup's
 profiles when present, otherwise current profiles. Cancel or headless import
 with unmatched records aborts before writes. Approval is revalidated against
 the actual profiles before pin execution; changed unmatched records abort.
+
+## Migration package imports
+
+Current AnimeBoxes migration packages use explicit folder/search selection
+with ordered Home membership and require profile UUID mapping before writes. Collection actions remain
+available even when there are no local pins or folders. New-copy imports
+allocate folder names using the repository's case-insensitive uniqueness rule
+with numeric suffixes, and use the same name allocation in change previews and
+application. If a source profile UUID already resolves locally, repeat review
+recognizes existing queries and skips those searches. When a fresh source UUID
+is explicitly mapped to an existing profile, selected queries can reuse pins.
+A reused pin has one organization destination: copying an imported folder moves
+its selected pins into that copy while preserving local-only pins in the old
+folder. Merge retains local-only membership in the chosen folder.
+
+AnimeBoxes queries combine their main text with `extra_tags` before query
+identity reuse. Filter-only queries therefore remain valid, while different
+extra filters remain distinct. Repeated effective queries retain their UUID
+definitions in the package but reuse one local pin per mapped profile; the
+selected Home membership takes precedence, then the first selected imported
+folder retains its membership. The conversion report gives an
+aggregate duplicate count without exposing query values.

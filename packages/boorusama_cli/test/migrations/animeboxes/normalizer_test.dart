@@ -37,6 +37,85 @@ void main() {
     }
   });
 
+  test(
+    'rejects same-host profiles on different ports before host matching',
+    () {
+      final fixture = _completeFixture();
+      final server = fixture
+          .split('\n')
+          .singleWhere((line) => line.startsWith('0,2,'));
+      final other = server
+          .replaceFirst('0,2,', '0,3,')
+          .replaceAll(
+            'https://danbooru.donmai.us',
+            'https://danbooru.donmai.us:8443',
+          );
+      final source = const AnimeBoxesCsvReader().parse(
+        fixture.replaceFirst('#History', '$other\n#History'),
+      );
+      expect(
+        () => const AnimeBoxesNormalizer().normalize(source),
+        throwsA(
+          isA<AnimeBoxesFormatException>().having(
+            (error) => error.code,
+            'code',
+            'ambiguous_site_profiles',
+          ),
+        ),
+      );
+    },
+  );
+
+  test('retains same-site accounts across HTTP and HTTPS default ports', () {
+    final fixture = _completeFixture();
+    final server = fixture
+        .split('\n')
+        .singleWhere((line) => line.startsWith('0,2,'));
+    final other = server
+        .replaceFirst('0,2,', '0,3,')
+        .replaceAll(
+          'https://danbooru.donmai.us',
+          'http://danbooru.donmai.us:80',
+        );
+    final source = const AnimeBoxesCsvReader().parse(
+      fixture.replaceFirst('#History', '$other\n#History'),
+    );
+    expect(
+      const AnimeBoxesNormalizer().normalize(source).profiles,
+      hasLength(2),
+    );
+  });
+
+  test('rejects a bookmark page on a different port from its profile', () {
+    final source = const AnimeBoxesCsvReader().parse(
+      _completeFixture().replaceFirst(
+        'https://danbooru.donmai.us/posts/42',
+        'https://danbooru.donmai.us:8443/posts/42',
+      ),
+    );
+    expect(
+      () => const AnimeBoxesNormalizer().normalize(source),
+      throwsA(
+        isA<AnimeBoxesFormatException>().having(
+          (error) => error.code,
+          'code',
+          'unmatched_profile',
+        ),
+      ),
+    );
+  });
+
+  test('rejects a pinned search on a different port from its profile', () {
+    final source = _parsedFixture();
+    final input = _copyExport(source, pinnedSearches: [
+      _copySearch(source.pinnedSearches.single, url: 'https://danbooru.donmai.us:8443'),
+    ]);
+    expect(() => const AnimeBoxesNormalizer().normalize(input),
+      throwsA(isA<AnimeBoxesFormatException>().having(
+        (error) => error.code, 'code', 'unmatched_profile',
+      )));
+  });
+
   for (final c in [
     (
       host: 'danbooru.donmai.us',

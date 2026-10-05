@@ -272,7 +272,10 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
           );
         }
         final descriptor = descriptors[manifest.id];
-        final isCollection = descriptor?.isCollection ?? false;
+        final isCollection = switch (wrapper.preparedData) {
+          BookmarkBackupData() || PinnedSearchBackupData() => true,
+          _ => descriptor?.isCollection ?? false,
+        };
         final localIds = descriptor?.childIds ?? const <String>{};
         final incomingIds = _incomingItemIds(wrapper.preparedData, selection);
         final alreadyPresentSearchIds = <String>{};

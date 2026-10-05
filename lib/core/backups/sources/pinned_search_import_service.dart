@@ -8,6 +8,7 @@ import '../export_import/models/import_action.dart';
 import '../../configs/config/types.dart';
 import '../../search/subscriptions/types.dart';
 import 'pinned_search_backup_data.dart';
+import 'pinned_search_import_names.dart';
 import 'search_backup_profile.dart';
 
 class PinnedSearchImportResult extends Equatable {
@@ -310,6 +311,13 @@ SearchOrganization _applyFolderActions({
   final home = mapped(imported.homeSearchIds);
   final ordered = imported.folders.toList()
     ..sort((left, right) => left.position.compareTo(right.position));
+  final reservedNames = {
+    for (final folder in folders) folder.name.toLowerCase(),
+    for (final record in ordered)
+      if (actions[record.id]?.action != ImportAction.copy &&
+          actions[record.id]?.action != ImportAction.skip)
+        record.name.toLowerCase(),
+  };
   final operations = <({int position, SharedSearchFolder folder})>[];
   final removedIds = <String>{};
   for (final record in ordered) {
@@ -341,7 +349,7 @@ SearchOrganization _applyFolderActions({
       ),
       ImportAction.copy => SharedSearchFolder(
         id: targetId,
-        name: record.name,
+        name: allocatePinnedFolderCopyName(record.name, reservedNames),
         searchIds: members,
       ),
       _ => throw StateError('Folder action is not applicable.'),

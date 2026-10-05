@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
@@ -129,7 +130,8 @@ final class _AnimeBoxesExportCommand extends Command<int> {
   String get name => 'export';
 
   @override
-  String get description => 'Create Boorusama backups from normalized JSON.';
+  String get description =>
+      'Create a Boorusama migration package from normalized JSON.';
 
   @override
   String get invocation =>
@@ -148,12 +150,8 @@ final class _AnimeBoxesExportCommand extends Command<int> {
       await _atomicOutput.writeDirectory(
         target: output,
         files: {
-          AtomicMigrationOutput.bookmarksFilename: artifacts.bookmarks,
-          AtomicMigrationOutput.blacklistedTagsFilename:
-              artifacts.blacklistedTags,
-          AtomicMigrationOutput.pinnedSearchesFilename:
-              artifacts.pinnedSearches,
-          AtomicMigrationOutput.reportFilename: artifacts.report,
+          AtomicMigrationOutput.packageFilename: artifacts.packageBytes,
+          AtomicMigrationOutput.reportFilename: utf8.encode(artifacts.report),
         },
       );
       _output(_countSummary('Exported AnimeBoxes data', document));

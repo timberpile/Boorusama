@@ -7,6 +7,7 @@ import '../../../search/subscriptions/types.dart';
 import '../../sources/bookmark_backup_data.dart';
 import '../../sources/following_feed_backup_data.dart';
 import '../../sources/pinned_search_backup_data.dart';
+import '../../sources/pinned_search_import_names.dart';
 import '../../sources/search_backup_profile.dart';
 import '../models/import_action.dart';
 import 'import_plan.dart';
@@ -661,6 +662,13 @@ final class ImportPlannedChangeProjector {
   final home = mapped(incoming.homeSearchIds);
   final ordered = incoming.folders.toList()
     ..sort((left, right) => left.position.compareTo(right.position));
+  final reservedNames = {
+    for (final folder in folders) folder.name.toLowerCase(),
+    for (final record in ordered)
+      if (actions[record.id]?.action != ImportAction.copy &&
+          actions[record.id]?.action != ImportAction.skip)
+        record.name.toLowerCase(),
+  };
   final operations = <({int position, SharedSearchFolder folder})>[];
   final removedIds = <String>{};
   for (final (index, record) in ordered.indexed) {
@@ -695,7 +703,7 @@ final class ImportPlannedChangeProjector {
       ),
       ImportAction.copy => SharedSearchFolder(
         id: targetId,
-        name: record.name,
+        name: allocatePinnedFolderCopyName(record.name, reservedNames),
         searchIds: members,
       ),
       _ => throw StateError('Folder action is not applicable'),
