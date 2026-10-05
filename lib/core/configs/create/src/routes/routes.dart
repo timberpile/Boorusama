@@ -49,7 +49,7 @@ GoRoute updateBooruConfigRoutes(Ref ref) => GoRoute(
   pageBuilder: largeScreenAwarePageBuilder(
     useDialog: true,
     builder: (context, state) {
-      final id = state.pathParameters['id']?.toInt();
+      final id = state.pathParameters['id'];
       final q = state.uri.queryParameters['q'];
       final config = ref
           .read(booruConfigProvider)
