@@ -20,7 +20,7 @@ The reported Android screenshot shows profile information, target selection, and
 
 Layout approved by the user on 2026-10-05: information above; target selector “or” Create profile below; vertical fallback when needed. The screenshot contains rule34.xxx, danbooru.donmai.us, and gelbooru.com cards illustrating excessive URL wrapping.
 
-Relevant code: `lib/core/backups/export_import/import/import_flow_page.dart`, profile mapping card. Coordinate with [DATA-012](../in-progress/DATA-012-default-and-edit-import-profile-mappings.md), which changes mapping defaults and continued editability. Repeated dependency messages are a separate workitem; this ticket does not change compatibility or planning rules.
+Relevant code: `lib/core/backups/export_import/import/import_flow_page.dart`, profile mapping card. Coordinate with [DATA-012](DATA-012-default-and-edit-import-profile-mappings.md), which changes mapping defaults and continued editability. Repeated dependency messages are a separate workitem; this ticket does not change compatibility or planning rules.
 
 Follow [development workflow](../../development_workflow.md) and [engineering guidelines](../../engineering_guidelines.md). Implementation is delegated in its dedicated branch/worktree.
 

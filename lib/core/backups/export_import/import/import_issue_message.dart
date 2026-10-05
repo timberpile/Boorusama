@@ -55,18 +55,26 @@ String importIssueMessage(
       strings.invalid_target.replaceAll('{item}', item),
     'insufficient_storage' => strings.insufficient_storage,
     'unresolved_profile_dependency' => switch (issue.profileDependency) {
-      final dependency? => (switch ((
-        dependency.sourceIds.contains('pinned_searches'),
-        dependency.sourceIds.contains('following_feeds'),
-      )) {
-        (true, false) => strings.unresolved_profile_searches,
-        (false, true) => strings.unresolved_profile_feeds,
-        _ => strings.unresolved_profile_dependency,
-      }).replaceAll('{profile}', dependency.label),
-      null => strings.unresolved_profile_dependency.replaceAll(
-        '{profile}',
-        item,
-      ),
+      final dependency? =>
+        (dependency.missingProfile
+                ? strings.missing_profile_site
+                : strings.unresolved_profile_site)
+            .replaceAll(
+              '{site}',
+              dependency.label.isEmpty
+                  ? strings.unknown_site
+                  : dependency.label,
+            )
+            .replaceAll(
+              '{sources}',
+              dependency.sourceIds
+                  .map((id) => sourceNames[id] ?? id)
+                  .join(', '),
+            ),
+      null =>
+        strings.unresolved_profile_site
+            .replaceAll('{site}', item)
+            .replaceAll('{sources}', source),
     },
     'unresolved_profile_import' => strings.unresolved_profile_import.replaceAll(
       '{item}',

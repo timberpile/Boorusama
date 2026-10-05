@@ -4,7 +4,6 @@ import 'dart:io';
 import 'package:boorusama/core/search/subscriptions/src/data/providers.dart';
 import 'package:boorusama/core/search/subscriptions/types.dart';
 import 'package:boorusama/core/backups/export_import/import/import_flow_notifier.dart';
-import 'package:boorusama/core/backups/export_import/import/import_plan.dart';
 import 'package:boorusama/core/backups/export_import/import/profile_dependency_planner.dart';
 import 'package:boorusama/core/backups/export_import/models/export_selection.dart';
 import 'package:boorusama/core/backups/export_import/models/import_action.dart';
@@ -18,6 +17,7 @@ import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/configs/manage/providers.dart';
 import 'package:boorusama/foundation/filesystem.dart';
 import 'package:boorusama/foundation/info/package_info.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -38,9 +38,9 @@ const reference = BackupProfileReference(
 
 void main() {
   testWidgets(
-    'skipping dependent categories adjusts profile problems and resolving a mapping clears them without writes',
+    'changing a reviewed mapping replans pins and applies final pin and feed ownership without preview writes',
     (tester) async {
-      final directory = Directory.systemTemp.createTempSync('data009_flow_');
+      final directory = Directory.systemTemp.createTempSync('data007_flow_');
       final fs = _TestFileSystem(directory.path);
       final repository = memorySubscriptionRepository();
       final profiles = [_profile(firstId), _profile(secondId)];
@@ -97,6 +97,17 @@ void main() {
               null,
             ),
       );
+      late BuildContext context;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (value) {
+              context = value;
+              return const SizedBox();
+            },
+          ),
+        ),
+      );
       await tester.runAsync(() async {
         await repository.create(
           profileId: firstId,
@@ -143,56 +154,43 @@ void main() {
           reason: '${container.read(importFlowProvider).error}',
         );
         final key = ProfileSiteKey.fromReference(reference);
-        ImportPlanIssue dependencyProblem() => container
-            .read(importFlowProvider)
-            .preflight!
-            .errors
-            .singleWhere(
-              (issue) => issue.code == 'unresolved_profile_dependency',
-            );
-        expect(dependencyProblem().profileDependency!.sourceIds, {
-          'pinned_searches',
-          'following_feeds',
-        });
-        final originalSources = container
-            .read(importFlowProvider)
-            .resolved!
-            .sources;
-        final pinSource = originalSources.singleWhere(
-          (source) => source.id == 'pinned_searches',
-        );
-        final feeds = originalSources.singleWhere(
-          (source) => source.id == 'following_feeds',
-        );
-        notifier.replaceSource(pinSource.copyWith(action: ImportAction.skip));
-        expect(dependencyProblem().profileDependency!.sourceIds, {
-          'following_feeds',
-        });
-        notifier.replaceSource(feeds.copyWith(action: ImportAction.skip));
-        expect(
-          container
-              .read(importFlowProvider)
-              .preflight!
-              .errors
-              .where((issue) => issue.code == 'unresolved_profile_dependency'),
-          isEmpty,
-        );
-        notifier.replaceSource(pinSource);
-        expect(dependencyProblem().profileDependency!.sourceIds, {
-          'pinned_searches',
-        });
-        notifier.replaceSource(feeds);
         notifier.chooseProfileMapping(key, firstId);
+        notifier.acknowledgeWarnings(true);
+        final first = container.read(importFlowProvider).preflight!;
+        expect(first.isValid, isTrue, reason: '${first.errors}');
+        notifier.chooseProfileMapping(key, secondId);
+        final changed = container.read(importFlowProvider);
+        expect(changed.profileMappings.single.profileId, secondId);
+        expect(identical(changed.preflight, first), isFalse);
         expect(
-          container
-              .read(importFlowProvider)
-              .preflight!
-              .errors
-              .where((issue) => issue.code == 'unresolved_profile_dependency'),
-          isEmpty,
+          identical(changed.preflight!.validatedPlan, first.validatedPlan),
+          isFalse,
+        );
+        expect(
+          changed.preflight!.sourceSummaries['pinned_searches']!.created,
+          greaterThan(first.sourceSummaries['pinned_searches']!.created),
         );
         expect(await repository.getAll(), before);
         expect(await repository.getFeeds(), isEmpty);
+        await notifier.apply(context);
+        expect(
+          container.read(importFlowProvider).status,
+          ImportFlowStatus.complete,
+          reason: '${container.read(importFlowProvider).error}',
+        );
+        final pins = await repository.getAll();
+        expect(
+          pins
+              .where((search) => search.query == 'cat')
+              .map((search) => search.profileId),
+          containsAll([firstId, secondId]),
+        );
+        final feed = (await repository.getFeeds()).single;
+        expect(feed.profileId, secondId);
+        for (final id in feed.sourceIds) {
+          expect((await repository.getById(id))!.profileId, secondId);
+        }
+        expect(profiles.map((profile) => profile.id), [firstId, secondId]);
       });
     },
   );

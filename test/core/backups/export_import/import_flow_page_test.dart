@@ -1,3 +1,12 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:boorusama/core/backups/export_import/import/import_flow_notifier.dart';
+import 'package:boorusama/core/backups/export_import/import/profile_dependency_planner.dart';
+import 'package:boorusama/core/backups/export_import/export/export_flow_notifier.dart';
+import 'package:boorusama/core/backups/sources/providers.dart';
+import 'package:boorusama/core/backups/sources/search_backup_profile.dart';
+import 'package:boorusama/core/backups/types/backup_registry.dart';
+import 'package:boorusama/core/configs/manage/providers.dart';
+import 'package:boorusama/core/configs/config/types.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:i18n/src/gen/strings.g.dart' show TranslationProvider;
@@ -13,6 +22,144 @@ import 'package:boorusama/core/backups/export_import/widgets/import_action_edito
 import 'package:boorusama/core/backups/export_import/widgets/import_recommendation_tree.dart';
 
 void main() {
+  for (final count in [0, 1, 2]) {
+    testWidgets(
+      'shared review shows one site selector only for $count candidates',
+      (tester) async {
+        const first = '00000000-0000-4000-8000-000000000001';
+        const second = '00000000-0000-4000-8000-000000000002';
+        const reference = BackupProfileReference(
+          id: '00000000-0000-4000-8000-000000000003',
+          booruType: 'danbooru',
+          url: 'https://site.example',
+          name: 'Exported account',
+        );
+        final mapping = ProfileDependencyMapping(
+          reference: reference,
+          candidateIds: [if (count > 0) first, if (count > 1) second],
+          profileId: count == 1 ? first : null,
+          providedByImport: false,
+        );
+        final notifier = _MappingReviewNotifier(
+          mapping,
+          profileNames: const {second: 'Imported account'},
+          preflight: _result(
+            errors: [
+              if (count != 1)
+                ImportPlanIssue(
+                  code: 'unresolved_profile_dependency',
+                  sourceId: 'profiles',
+                  profileDependency: ProfileDependencyIssueContext(
+                    reference: reference,
+                    label: 'site.example',
+                    missingProfile: count == 0,
+                    sourceIds: const {
+                      'bookmarks',
+                      'pinned_searches',
+                      'following_feeds',
+                    },
+                  ),
+                ),
+            ],
+          ),
+        );
+        await tester.pumpWidget(_mappingApp(notifier));
+        await tester.pumpAndSettle();
+        expect(find.text('Create profile'), findsNothing);
+        expect(
+          find.byType(DropdownButton<String>),
+          count == 2 ? findsOneWidget : findsNothing,
+        );
+        if (count == 0) {
+          expect(find.textContaining('site.example'), findsOneWidget);
+          expect(find.textContaining('profile management'), findsOneWidget);
+        }
+        if (count == 2) {
+          expect(find.text('Select a matching profile'), findsOneWidget);
+          expect(find.text('site.example'), findsOneWidget);
+          expect(find.textContaining('profile management'), findsNothing);
+          expect(
+            tester
+                .widget<FilledButton>(
+                  find.byKey(const ValueKey('apply-import')),
+                )
+                .onPressed,
+            isNull,
+          );
+          await tester.tap(find.byType(DropdownButton<String>));
+          await tester.pumpAndSettle();
+          expect(find.text('Imported account'), findsOneWidget);
+          await tester.tap(find.text('Imported account'));
+          await tester.pumpAndSettle();
+          expect(notifier.chosen, second);
+          expect(find.byType(DropdownButton<String>), findsOneWidget);
+          expect(find.text('Imported account'), findsOneWidget);
+        }
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  testWidgets('resolved dependency mappings stay visible and editable', (
+    tester,
+  ) async {
+    const first = '00000000-0000-4000-8000-000000000001';
+    const second = '00000000-0000-4000-8000-000000000002';
+    const reference = BackupProfileReference(
+      id: first,
+      booruType: 'danbooru',
+      url: 'https://same.example',
+      name: 'Incoming',
+    );
+    final notifier = _MappingReviewNotifier(
+      ProfileDependencyMapping(
+        reference: reference,
+        candidateIds: const {first, second},
+        profileId: first,
+        providedByImport: false,
+      ),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          importFlowProvider.overrideWith(() => notifier),
+          backupRegistryProvider.overrideWithValue(BackupRegistry()),
+          exportSelectionLabelsProvider.overrideWithValue(
+            const ExportSelectionLabels(children: {}),
+          ),
+          booruConfigProvider.overrideWith(
+            () => BooruConfigNotifier(
+              initialConfigs: [
+                BooruConfig.fromJson({
+                  ...BooruConfig.empty.toJson(),
+                  'id': first,
+                  'name': 'First',
+                }),
+                BooruConfig.fromJson({
+                  ...BooruConfig.empty.toJson(),
+                  'id': second,
+                  'name': 'Second',
+                }),
+              ],
+            ),
+          ),
+        ],
+        child: _app(const ImportFlowPage(packagePath: 'unused')),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('same.example'), findsOneWidget);
+    expect(find.text('First'), findsOneWidget);
+    expect(find.text('Create profile'), findsNothing);
+    await tester.tap(find.byType(DropdownButton<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Second').last);
+    await tester.pumpAndSettle();
+    expect(notifier.chosen, second);
+    expect(find.byType(DropdownButton<String>), findsOneWidget);
+    expect(find.text('Second'), findsOneWidget);
+  });
+
   testWidgets('shows only actions that are valid for an imported item', (
     tester,
   ) async {
@@ -478,4 +625,61 @@ ImportPreflightResult _result({
           summary: const PlannedChangeSummary(unchanged: 1),
         )
       : null,
+);
+
+class _MappingReviewNotifier extends ImportFlowNotifier {
+  _MappingReviewNotifier(
+    this.mapping, {
+    this.preflight,
+    this.profileNames = const {},
+  });
+  final ImportPreflightResult? preflight;
+  final Map<String, String> profileNames;
+  ProfileDependencyMapping mapping;
+  String? chosen;
+  @override
+  ImportFlowState build() => _review();
+  @override
+  Future<void> load(String path) async {}
+  ImportFlowState _review() => ImportFlowState(
+    status: ImportFlowStatus.review,
+    proposed: ProposedImportPlan(sources: const []),
+    resolved: ResolvedImportPlan(sources: const []),
+    preflight: preflight ?? _result(),
+    profileMappings: [mapping],
+    profileNames: profileNames,
+  );
+  @override
+  void chooseProfileMapping(ProfileSiteKey key, String profileId) {
+    chosen = profileId;
+    mapping = ProfileDependencyMapping(
+      reference: mapping.reference,
+      candidateIds: mapping.candidateIds,
+      profileId: profileId,
+      providedByImport: false,
+    );
+    state = _review();
+  }
+}
+
+Widget _mappingApp(_MappingReviewNotifier notifier) => ProviderScope(
+  overrides: [
+    importFlowProvider.overrideWith(() => notifier),
+    backupRegistryProvider.overrideWithValue(BackupRegistry()),
+    exportSelectionLabelsProvider.overrideWithValue(
+      const ExportSelectionLabels(children: {}),
+    ),
+    booruConfigProvider.overrideWith(
+      () => BooruConfigNotifier(
+        initialConfigs: [
+          BooruConfig.fromJson({
+            ...BooruConfig.empty.toJson(),
+            'id': '00000000-0000-4000-8000-000000000001',
+            'name': 'First account',
+          }),
+        ],
+      ),
+    ),
+  ],
+  child: _app(const ImportFlowPage(packagePath: 'unused')),
 );

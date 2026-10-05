@@ -85,31 +85,28 @@ void main() {
         );
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
-        final information = tester.getRect(find.text(incoming));
+        final information = tester.getRect(
+          find.text('danbooru.donmai.us/a/representative/long/path'),
+        );
         final selector = tester.getRect(find.byType(DropdownButton<String>));
         expect(information.width, greaterThan(scenario.width - 80));
         expect(selector.top, greaterThan(information.bottom));
-        expect(find.text('or'), findsOneWidget);
-        final create = tester.getRect(
-          find.widgetWithText(TextButton, 'Create profile'),
-        );
-        if (scenario.width < 400) {
-          expect(create.top, greaterThan(selector.bottom));
-        } else {
-          expect(create.top, lessThan(selector.bottom));
-        }
+        expect(find.text('or'), findsNothing);
+        expect(find.text('Create profile'), findsNothing);
         final semantics = tester.ensureSemantics();
         await tester.pump();
         expect(
-          find.bySemanticsLabel(RegExp('Target: $incoming')),
+          find.bySemanticsLabel(
+            RegExp('Target: danbooru.donmai.us/a/representative/long/path'),
+          ),
           findsOneWidget,
         );
         semantics.dispose();
         await tester.tap(find.byType(DropdownButton<String>));
         await tester.pumpAndSettle();
-        expect(find.textContaining('https://first.example'), findsOneWidget);
+        expect(find.text('Same long target profile name (1)'), findsOneWidget);
         expect(tester.takeException(), isNull);
-        await tester.tap(find.textContaining('https://second.example').last);
+        await tester.tap(find.text('Same long target profile name (2)').last);
         await tester.pumpAndSettle();
         expect(notifier.chosen, second);
         expect(tester.takeException(), isNull);
@@ -140,7 +137,7 @@ class _MappingReviewNotifier extends ImportFlowNotifier {
     profileMappings: [mapping],
   );
   @override
-  void chooseProfileMapping(ProfileReferenceKey key, String profileId) {
+  void chooseProfileMapping(ProfileSiteKey key, String profileId) {
     chosen = profileId;
     mapping = ProfileDependencyMapping(
       reference: mapping.reference,

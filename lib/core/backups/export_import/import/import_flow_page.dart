@@ -103,13 +103,16 @@ class _ReviewImport extends ConsumerWidget {
         source.id: _localizedSourceLabel(context, source.id),
     };
     final localLabels = ref.watch(exportSelectionLabelsProvider).children;
-    final profiles = ref.watch(booruConfigProvider);
+    final names = {
+      for (final profile in ref.watch(booruConfigProvider))
+        profile.id: profile.name,
+      ...state.profileNames,
+    };
     final profileNames = {
-      for (final profile in profiles)
-        profile.id:
-            profiles.where((other) => other.name == profile.name).length > 1
-            ? '${profile.name} · ${profile.url}'
-            : profile.name,
+      for (final (index, entry) in names.entries.indexed)
+        entry.key: names.values.where((name) => name == entry.value).length > 1
+            ? '${entry.value} (${index + 1})'
+            : entry.value,
     };
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 16),
@@ -166,21 +169,15 @@ class _ReviewImport extends ConsumerWidget {
             subtitle: Text(strings.replace_explanation),
           ),
         for (final mapping in state.profileMappings)
-          if (!mapping.providedByImport &&
-              (!mapping.isResolved || mapping.createdFromReference))
+          if (mapping.candidateIds.length > 1)
             _ProfileMappingTile(
               mapping: mapping,
               profileNames: profileNames,
               onChanged: (profileId) => ref
                   .read(importFlowProvider.notifier)
                   .chooseProfileMapping(
-                    ProfileReferenceKey.fromReference(mapping.reference),
+                    mapping.siteKey,
                     profileId,
-                  ),
-              onCreate: () => ref
-                  .read(importFlowProvider.notifier)
-                  .createProfileFor(
-                    ProfileReferenceKey.fromReference(mapping.reference),
                   ),
             ),
         if (state.alreadyPresentSearches > 0)
@@ -253,6 +250,10 @@ class _ReviewImport extends ConsumerWidget {
           ),
         ImportReviewValidation(
           preflight: preflight,
+          profileSelectors: {
+            for (final mapping in state.profileMappings)
+              if (mapping.candidateIds.length > 1) mapping.siteKey,
+          },
           sourceNames: sourceNames,
           itemLabels: {...localLabels, ...state.itemLabels},
           onWarningsAcknowledged: ref
@@ -270,6 +271,7 @@ class ImportReviewValidation extends StatelessWidget {
   const ImportReviewValidation({
     super.key,
     required this.preflight,
+    this.profileSelectors = const {},
     required this.sourceNames,
     required this.itemLabels,
     required this.onWarningsAcknowledged,
@@ -278,6 +280,7 @@ class ImportReviewValidation extends StatelessWidget {
   });
 
   final ImportPreflightResult preflight;
+  final Set<ProfileSiteKey> profileSelectors;
   final Map<String, String> sourceNames;
   final Map<String, String> itemLabels;
   final ValueChanged<bool> onWarningsAcknowledged;
@@ -288,7 +291,17 @@ class ImportReviewValidation extends StatelessWidget {
   Widget build(BuildContext context) {
     final strings = context.t.settings.backup_and_restore.export_import;
     final visibleErrors = preflight.errors
-        .where((issue) => issue.code != 'warnings_not_acknowledged')
+        .where(
+          (issue) =>
+              issue.code != 'warnings_not_acknowledged' &&
+              !(issue.code == 'unresolved_profile_dependency' &&
+                  issue.profileDependency != null &&
+                  profileSelectors.contains(
+                    ProfileSiteKey.fromReference(
+                      issue.profileDependency!.reference,
+                    ),
+                  )),
+        )
         .toList();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -656,119 +669,48 @@ class _ProfileMappingTile extends StatelessWidget {
     required this.mapping,
     required this.profileNames,
     required this.onChanged,
-    required this.onCreate,
   });
 
   final ProfileDependencyMapping mapping;
   final Map<String, String> profileNames;
   final ValueChanged<String> onChanged;
-  final VoidCallback onCreate;
 
   @override
   Widget build(BuildContext context) {
     final strings = context.t.settings.backup_and_restore.export_import;
-    final hasSelector =
-        mapping.candidateIds.isNotEmpty && !mapping.createdFromReference;
-    final selector = Semantics(
-      label: '${strings.target}: ${mapping.reference.name}',
-      child: DropdownButton<String>(
-        isExpanded: true,
-        itemHeight: null,
-        value: mapping.candidateIds.contains(mapping.profileId)
-            ? mapping.profileId
-            : null,
-        hint: Text(strings.target),
-        items: [
-          for (final id in mapping.candidateIds)
-            DropdownMenuItem(
-              value: id,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Text(profileNames[id] ?? id),
-              ),
-            ),
-        ],
-        onChanged: (value) {
-          if (value != null) onChanged(value);
-        },
-      ),
-    );
-    final create = TextButton(
-      onPressed: onCreate,
-      child: Text(strings.create_profile),
-    );
+    final site = mapping.siteKey.site;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
-              mapping.reference.name,
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 4),
-            Text('${mapping.reference.booruType} · ${mapping.reference.url}'),
+            Text(site, style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 12),
-            if (mapping.createdFromReference)
-              Text(strings.new_profile)
-            else if (!hasSelector)
-              Align(alignment: AlignmentDirectional.centerStart, child: create)
-            else
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final style = Theme.of(context).textTheme.labelLarge!;
-                  final scaler = MediaQuery.textScalerOf(context);
-                  final actionWidth =
-                      (TextPainter(
-                        text: TextSpan(
-                          text: strings.create_profile,
-                          style: style,
-                        ),
-                        textDirection: Directionality.of(context),
-                        textScaler: scaler,
-                      )..layout()).width +
-                      32;
-                  final orWidth = (TextPainter(
-                    text: TextSpan(text: strings.or, style: style),
-                    textDirection: Directionality.of(context),
-                    textScaler: scaler,
-                  )..layout()).width;
-                  final vertical =
-                      constraints.maxWidth <
-                      actionWidth + orWidth + 32 + scaler.scale(180);
-                  return vertical
-                      ? Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            selector,
-                            Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 8),
-                              child: Text(
-                                strings.or,
-                                textAlign: TextAlign.center,
-                              ),
-                            ),
-                            Align(
-                              alignment: AlignmentDirectional.centerStart,
-                              child: create,
-                            ),
-                          ],
-                        )
-                      : Row(
-                          children: [
-                            Expanded(child: selector),
-                            Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                              ),
-                              child: Text(strings.or),
-                            ),
-                            create,
-                          ],
-                        );
+            Semantics(
+              label: '${strings.target}: $site',
+              child: DropdownButton<String>(
+                isExpanded: true,
+                itemHeight: null,
+                value: mapping.candidateIds.contains(mapping.profileId)
+                    ? mapping.profileId
+                    : null,
+                hint: Text(strings.issues.select_profile_target),
+                items: [
+                  for (final id in mapping.candidateIds)
+                    DropdownMenuItem(
+                      value: id,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Text(profileNames[id] ?? id),
+                      ),
+                    ),
+                ],
+                onChanged: (value) {
+                  if (value != null) onChanged(value);
                 },
               ),
+            ),
           ],
         ),
       ),

@@ -187,7 +187,7 @@ void main() {
           var state = harness.container.read(importFlowProvider);
           expect(state.status, ImportFlowStatus.review);
           notifier.chooseProfileMapping(
-            ProfileReferenceKey.fromReference(
+            ProfileSiteKey.fromReference(
               state.profileMappings.single.reference,
             ),
             _localProfileId,
@@ -635,23 +635,19 @@ void main() {
                   .action,
               ImportAction.skip,
             );
-            expect(state.profileMappings.single.profileId, isNull);
+            expect(state.profileMappings.single.profileId, _localProfileId);
             expect(state.profileMappings.single.candidateIds, {
               _localProfileId,
             });
-            expect(state.preflight!.isValid, false);
-            expect(
-              state.preflight!.errors.map((error) => error.code),
-              contains('unresolved_profile_dependency'),
-            );
-            await notifier.apply(context);
+            expect(state.preflight!.isValid, true);
+            expect(state.preflight!.errors, isEmpty);
             expect(
               await harness.searches.getAll(),
               hasLength(populated ? 1 : 0),
             );
             final profilesBefore = await harness.profiles.getAll();
             notifier.chooseProfileMapping(
-              ProfileReferenceKey.fromReference(
+              ProfileSiteKey.fromReference(
                 state.profileMappings.single.reference,
               ),
               _localProfileId,
@@ -728,7 +724,7 @@ void main() {
             await notifier.load(packagePaths['']!);
             state = harness.container.read(importFlowProvider);
             notifier.chooseProfileMapping(
-              ProfileReferenceKey.fromReference(
+              ProfileSiteKey.fromReference(
                 state.profileMappings.single.reference,
               ),
               _localProfileId,
@@ -819,7 +815,7 @@ void main() {
               ),
             );
             notifier.chooseProfileMapping(
-              ProfileReferenceKey.fromReference(
+              ProfileSiteKey.fromReference(
                 state.profileMappings.single.reference,
               ),
               _localProfileId,

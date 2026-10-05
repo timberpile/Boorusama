@@ -22,7 +22,7 @@ Approved by the user on 2026-10-05. The supplied Android screenshot shows three 
 
 Relevant code: `lib/core/backups/export_import/import/profile_dependency_planner.dart`, `import_issue_message.dart`, and `import_flow_page.dart`; translation key `unresolved_profile_dependency`.
 
-Coordinate with [DATA-012](../in-progress/DATA-012-default-and-edit-import-profile-mappings.md) for mapping state changes and [DATA-013](../done/DATA-013-improve-import-profile-mapping-layout.md) for profile identification in the cards. Keep scope to these dependency messages and their necessary structured context.
+Coordinate with [DATA-012](DATA-012-default-and-edit-import-profile-mappings.md) for mapping state changes and [DATA-013](../done/DATA-013-improve-import-profile-mapping-layout.md) for profile identification in the cards. Keep scope to these dependency messages and their necessary structured context.
 
 Follow [development workflow](../../development_workflow.md) and [engineering guidelines](../../engineering_guidelines.md). This ticket is unclaimed; implementation must be delegated in its own branch/worktree.
 

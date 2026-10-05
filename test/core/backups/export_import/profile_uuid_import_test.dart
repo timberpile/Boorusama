@@ -169,7 +169,7 @@ void main() {
     );
   });
 
-  test('matching site with a different UUID requires an explicit mapping', () {
+  test('a unique matching site with a different UUID maps automatically', () {
     final mappings = const ProfileMapper().map(
       const [
         BackupProfileReference(
@@ -181,7 +181,7 @@ void main() {
       ],
       [_profile(localId, 'https://same.example')],
     );
-    expect(mappings.single.localProfileId, isNull);
+    expect(mappings.single.localProfileId, localId);
     expect(mappings.single.candidateIds, {localId});
   });
 

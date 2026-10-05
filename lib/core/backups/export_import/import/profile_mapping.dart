@@ -2,6 +2,7 @@ import 'package:equatable/equatable.dart';
 
 import '../../sources/search_backup_profile.dart';
 import '../../../configs/config/types.dart';
+import '../../../posts/post/types.dart';
 
 enum ProfileMappingState { automatic, resolved, missing, ambiguous }
 
@@ -55,54 +56,43 @@ final class ProfileMapper {
     BackupProfileReference reference,
     List<BooruConfig> profiles,
   ) {
-    final sameId = profiles
-        .where((profile) => profile.id == reference.id)
-        .toList();
-    if (sameId.length == 1 &&
-        sameId.single.auth.booruType.name == reference.booruType &&
-        normalizeBackupProfileUrl(sameId.single.url) ==
-            normalizeBackupProfileUrl(reference.url)) {
-      return ProfileMapping(
-        reference: reference,
-        state: ProfileMappingState.automatic,
-        candidateIds: {reference.id},
-        localProfileId: reference.id,
-      );
-    }
     final sameSite = profiles
         .where(
           (profile) =>
               profile.auth.booruType.name == reference.booruType &&
-              normalizeBackupProfileUrl(profile.url) ==
-                  normalizeBackupProfileUrl(reference.url),
+              normalizePostSourceHost(reference.url).isNotEmpty &&
+              normalizePostSourceHost(profile.url) ==
+                  normalizePostSourceHost(reference.url),
         )
         .toList();
+    final sameId = sameSite.where((profile) => profile.id == reference.id);
+    if (sameId.length == 1) {
+      return ProfileMapping(
+        reference: reference,
+        state: ProfileMappingState.automatic,
+        candidateIds: {for (final profile in sameSite) profile.id},
+        localProfileId: reference.id,
+      );
+    }
     if (sameSite.isNotEmpty) {
       return _unresolved(reference, sameSite, ProfileMappingState.ambiguous);
     }
-    final compatible = profiles
-        .where(
-          (profile) => profile.auth.booruType.name == reference.booruType,
-        )
-        .toList();
-    return _unresolved(
-      reference,
-      compatible,
-      compatible.isEmpty
-          ? ProfileMappingState.missing
-          : ProfileMappingState.ambiguous,
-    );
+    return _unresolved(reference, const [], ProfileMappingState.missing);
   }
 
   ProfileMapping _unresolved(
     BackupProfileReference reference,
     Iterable<BooruConfig> candidates,
     ProfileMappingState state,
-  ) => ProfileMapping(
-    reference: reference,
-    state: state,
-    candidateIds: {for (final profile in candidates) profile.id},
-  );
+  ) {
+    final candidateIds = {for (final profile in candidates) profile.id};
+    return ProfileMapping(
+      reference: reference,
+      state: candidateIds.length == 1 ? ProfileMappingState.automatic : state,
+      candidateIds: candidateIds,
+      localProfileId: candidateIds.length == 1 ? candidateIds.single : null,
+    );
+  }
 }
 
 BooruConfig mergeImportedProfile({

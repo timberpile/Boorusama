@@ -1,11 +1,10 @@
 import 'package:equatable/equatable.dart';
 
-import '../../../boorus/booru/types.dart';
 import '../../../configs/config/types.dart';
+import '../../../posts/post/types.dart';
 import '../../sources/search_backup_profile.dart';
 import 'import_plan.dart';
 import 'profile_import_projection.dart';
-import 'profile_mapping.dart';
 
 final class ProfileReferenceKey extends Equatable {
   const ProfileReferenceKey({
@@ -18,7 +17,7 @@ final class ProfileReferenceKey extends Equatable {
       ProfileReferenceKey(
         exportedId: reference.id,
         booruType: reference.booruType,
-        url: normalizeBackupProfileUrl(reference.url),
+        url: normalizePostSourceHost(reference.url),
       );
 
   final String exportedId;
@@ -29,30 +28,48 @@ final class ProfileReferenceKey extends Equatable {
   List<Object> get props => [exportedId, booruType, url];
 }
 
+final class ProfileSiteKey extends Equatable {
+  const ProfileSiteKey({required this.booruType, required this.site});
+
+  factory ProfileSiteKey.fromReference(BackupProfileReference reference) {
+    final site = normalizePostSourceHost(reference.url);
+    return ProfileSiteKey(
+      booruType: reference.booruType,
+      site: site.isEmpty ? 'invalid:${reference.id}:${reference.url}' : site,
+    );
+  }
+
+  final String booruType;
+  final String site;
+
+  @override
+  List<Object> get props => [booruType, site];
+}
+
 final class ProfileDependencyMapping extends Equatable {
   ProfileDependencyMapping({
     required this.reference,
+    Iterable<BackupProfileReference>? references,
     required Iterable<String> candidateIds,
     this.profileId,
     required this.providedByImport,
-    this.createdFromReference = false,
-  }) : candidateIds = Set.unmodifiable(candidateIds);
+  }) : references = List.unmodifiable(references ?? [reference]),
+       candidateIds = Set.unmodifiable(candidateIds);
 
   final BackupProfileReference reference;
+  final List<BackupProfileReference> references;
   final Set<String> candidateIds;
   final String? profileId;
   final bool providedByImport;
-  final bool createdFromReference;
-
+  ProfileSiteKey get siteKey => ProfileSiteKey.fromReference(reference);
   bool get isResolved => profileId != null;
 
   @override
   List<Object?> get props => [
-    reference,
+    references,
     candidateIds,
     profileId,
     providedByImport,
-    createdFromReference,
   ];
 }
 
@@ -61,34 +78,24 @@ final class ProfileDependencyPlan extends Equatable {
     required Iterable<BooruConfig> projectedProfiles,
     required Iterable<ProfileDependencyMapping> mappings,
     required Iterable<ImportPlanIssue> errors,
-    Iterable<BooruConfig> createdProfiles = const [],
   }) : projectedProfiles = List.unmodifiable(projectedProfiles),
        mappings = List.unmodifiable(mappings),
-       errors = List.unmodifiable(errors),
-       createdProfiles = List.unmodifiable(createdProfiles);
+       errors = List.unmodifiable(errors);
 
   final List<BooruConfig> projectedProfiles;
   final List<ProfileDependencyMapping> mappings;
   final List<ImportPlanIssue> errors;
-  final List<BooruConfig> createdProfiles;
 
   String? profileIdFor(BackupProfileReference reference) {
-    final key = ProfileReferenceKey.fromReference(reference);
+    final key = ProfileSiteKey.fromReference(reference);
     for (final mapping in mappings) {
-      if (ProfileReferenceKey.fromReference(mapping.reference) == key) {
-        return mapping.profileId;
-      }
+      if (mapping.siteKey == key) return mapping.profileId;
     }
     return null;
   }
 
   @override
-  List<Object> get props => [
-    projectedProfiles,
-    mappings,
-    errors,
-    createdProfiles,
-  ];
+  List<Object> get props => [projectedProfiles, mappings, errors];
 }
 
 final class ProfileDependencyPlanner {
@@ -102,13 +109,12 @@ final class ProfileDependencyPlanner {
     ResolvedImportSource? profileResolution,
     bool credentialsIncluded = false,
     Map<String, String> copyIds = const {},
-    Map<ProfileReferenceKey, String> choices = const {},
-    Set<ProfileReferenceKey> createFromReferences = const {},
+    Map<ProfileSiteKey, String> choices = const {},
   }) {
     var projected = localProfiles;
     var destinationIds = const <String, String>{};
     final errors = <ImportPlanIssue>[];
-    if (importedProfiles.isNotEmpty && profileResolution != null) {
+    if (profileResolution != null) {
       try {
         final projection = const ProfileImportProjector().project(
           imported: importedProfiles,
@@ -138,120 +144,89 @@ final class ProfileDependencyPlanner {
       }
     }
 
-    final uniqueReferences = <ProfileReferenceKey, BackupProfileReference>{};
+    final grouped =
+        <ProfileSiteKey, Map<ProfileReferenceKey, BackupProfileReference>>{};
     for (final reference in references) {
-      uniqueReferences[ProfileReferenceKey.fromReference(reference)] =
-          reference;
+      grouped.putIfAbsent(
+        ProfileSiteKey.fromReference(reference),
+        () => {},
+      )[ProfileReferenceKey.fromReference(reference)] = reference;
     }
-    final importedById = {
-      for (final profile in importedProfiles) profile.id: profile,
-    };
     final mappings = <ProfileDependencyMapping>[];
-    final createdProfiles = <BooruConfig>[];
-    for (final entry in uniqueReferences.entries) {
-      final matchingId = projected
-          .where(
-            (profile) => profile.id == entry.key.exportedId,
-          )
-          .firstOrNull;
-      if (matchingId != null &&
-          (matchingId.auth.booruType.name != entry.key.booruType ||
-              normalizeBackupProfileUrl(matchingId.url) != entry.key.url)) {
+    for (final entry in grouped.entries) {
+      final siteKey = entry.key;
+      final group = entry.value.values.toList();
+      final reference = group.first;
+      final validSite = normalizePostSourceHost(reference.url).isNotEmpty;
+      bool matches(BooruConfig profile) =>
+          validSite &&
+          profile.auth.booruType.name == siteKey.booruType &&
+          normalizePostSourceHost(profile.url) == siteKey.site;
+      final candidates = projected.where(matches).toList();
+      final candidateIds = {for (final profile in candidates) profile.id};
+      final conflicts = <String>{};
+      for (final reference in group) {
+        for (final profile in [...localProfiles, ...projected]) {
+          if (profile.id == reference.id && !matches(profile)) {
+            conflicts.add(reference.id);
+          }
+        }
+      }
+      for (final id in conflicts) {
         errors.add(
           ImportPlanIssue(
             code: 'profile_identity_conflict',
             sourceId: 'profiles',
-            itemId: 'profile:${entry.key.exportedId}',
+            itemId: 'profile:$id',
           ),
         );
-        mappings.add(
-          ProfileDependencyMapping(
-            reference: entry.value,
-            candidateIds: const {},
-            providedByImport: false,
-          ),
-        );
-        continue;
       }
-      final imported = importedById[entry.key.exportedId];
-      final importedDestination = destinationIds[entry.key.exportedId];
-      final suppliedByImport =
-          imported != null &&
-          importedDestination != null &&
-          imported.auth.booruType.name == entry.key.booruType &&
-          normalizeBackupProfileUrl(imported.url) == entry.key.url;
-      if (suppliedByImport) {
-        mappings.add(
-          ProfileDependencyMapping(
-            reference: entry.value,
-            candidateIds: {importedDestination},
-            profileId: importedDestination,
-            providedByImport: true,
-          ),
-        );
-        continue;
-      }
-
-      if (createFromReferences.contains(entry.key) && matchingId == null) {
-        final created = _createProfile(entry.value, entry.value.id);
-        if (created == null) {
-          mappings.add(
-            ProfileDependencyMapping(
-              reference: entry.value,
-              candidateIds: const {},
-              providedByImport: false,
-            ),
-          );
-          errors.add(
-            ImportPlanIssue(
-              code: 'unsupported_profile_type',
-              sourceId: 'profiles',
-              itemId: entry.key.exportedId,
-            ),
-          );
-          continue;
+      final exactTargets = <String>{};
+      for (final reference in group) {
+        final destination = destinationIds[reference.id];
+        if (destination != null && candidateIds.contains(destination)) {
+          exactTargets.add(destination);
+        } else if (candidateIds.contains(reference.id)) {
+          exactTargets.add(reference.id);
         }
-        projected = [...projected, created];
-        createdProfiles.add(created);
-        mappings.add(
-          ProfileDependencyMapping(
-            reference: entry.value,
-            candidateIds: {created.id},
-            profileId: created.id,
-            providedByImport: false,
-            createdFromReference: true,
-          ),
-        );
-        continue;
       }
-
-      final mapped = const ProfileMapper().map([
-        entry.value,
-      ], projected).single;
-      final choice = choices[entry.key];
-      final chosen = choice != null && mapped.candidateIds.contains(choice)
-          ? choice
-          : mapped.localProfileId;
+      final choice = choices[siteKey];
+      final chosen = conflicts.isNotEmpty
+          ? null
+          : choice != null
+          ? (candidateIds.contains(choice) ? choice : null)
+          : candidateIds.length == 1
+          ? candidateIds.single
+          : exactTargets.length == 1
+          ? exactTargets.single
+          : null;
       mappings.add(
         ProfileDependencyMapping(
-          reference: entry.value,
-          candidateIds: mapped.candidateIds,
+          reference: reference,
+          references: group,
+          candidateIds: conflicts.isEmpty ? candidateIds : const {},
           profileId: chosen,
-          providedByImport: false,
+          providedByImport:
+              chosen != null && destinationIds.values.contains(chosen),
         ),
       );
-      if (chosen == null) {
+      if (chosen == null && conflicts.isEmpty) {
+        final sourceIds = <String>{
+          for (final reference in group)
+            ...?dependentSources[ProfileReferenceKey.fromReference(reference)],
+        };
         errors.add(
           ImportPlanIssue(
             code: 'unresolved_profile_dependency',
             sourceId: 'profiles',
-            itemId: entry.key.exportedId,
+            itemId: '${siteKey.booruType}:${siteKey.site}',
             profileDependency: ProfileDependencyIssueContext(
-              reference: entry.value,
-              label: _referenceLabel(entry.value, uniqueReferences.values),
-              sourceIds:
-                  dependentSources[entry.key] ??
-                  const {'pinned_searches', 'following_feeds'},
+              reference: reference,
+              label: validSite ? siteKey.site : reference.url,
+              missingProfile: candidateIds.isEmpty,
+              sourceIds: sourceIds.isEmpty
+                  ? const {'pinned_searches', 'following_feeds'}
+                  : sourceIds,
             ),
           ),
         );
@@ -261,47 +236,6 @@ final class ProfileDependencyPlanner {
       projectedProfiles: projected,
       mappings: mappings,
       errors: errors,
-      createdProfiles: createdProfiles,
     );
-  }
-
-  String _referenceLabel(
-    BackupProfileReference reference,
-    Iterable<BackupProfileReference> references,
-  ) {
-    final sameName = references
-        .where((other) => other.name == reference.name)
-        .toList();
-    final name = reference.name.trim().isEmpty ? reference.url : reference.name;
-    if (sameName.length < 2) return name;
-    final site = normalizeBackupProfileUrl(reference.url);
-    final sameSite = sameName.where(
-      (other) => normalizeBackupProfileUrl(other.url) == site,
-    );
-    return sameSite.length > 1
-        ? '$name ($site; ${reference.id})'
-        : '$name ($site)';
-  }
-
-  BooruConfig? _createProfile(BackupProfileReference reference, String id) {
-    final type = BooruYamlConfigs.values
-        .map((config) => config.type)
-        .firstWhere(
-          (type) => type.name == reference.booruType,
-          orElse: () => BooruType.unknown,
-        );
-    if (type == BooruType.unknown) return null;
-    return BooruConfig.fromJson({
-      ...BooruConfig.empty.toJson(),
-      'id': id,
-      'booruId': type.id,
-      'booruIdHint': type.id,
-      'url': reference.url,
-      'name': reference.name,
-      'apiKey': null,
-      'login': null,
-      'passHash': null,
-      'proxySettings': null,
-    });
   }
 }

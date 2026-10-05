@@ -17,7 +17,7 @@ void main() {
   );
 
   test(
-    'unresolved issues retain distinct references and selected dependent kinds',
+    'unresolved issues group canonical sites and retain selected dependent kinds',
     () {
       const other = BackupProfileReference(
         id: '00000000-0000-4000-8000-000000000020',
@@ -43,22 +43,23 @@ void main() {
           },
         },
       );
-      expect(result.errors, hasLength(3));
+      expect(result.errors, hasLength(2));
       expect(
         result.errors.map((e) => e.profileDependency!.label).toSet(),
-        hasLength(3),
+        hasLength(2),
       );
       expect(result.errors.first.profileDependency!.sourceIds, {
         'pinned_searches',
+        'following_feeds',
       });
       final resolved = const ProfileDependencyPlanner().plan(
         references: [remote, other, third],
         localProfiles: [
-          _profile(1, 'https://local-one.example'),
+          _profile(1, other.url),
           _profile(2, 'https://local-two.example'),
         ],
         choices: {
-          ProfileReferenceKey.fromReference(other): _profile(
+          ProfileSiteKey.fromReference(other): _profile(
             1,
             'https://local-one.example',
           ).id,
@@ -66,7 +67,6 @@ void main() {
       );
       expect(resolved.errors.map((e) => e.profileDependency!.reference.id), [
         remote.id,
-        third.id,
       ]);
     },
   );
@@ -112,8 +112,8 @@ void main() {
 
   test('an ambiguous dependency requires a local profile choice', () {
     final profiles = [
-      _profile(4, 'https://one.example'),
-      _profile(5, 'https://two.example'),
+      _profile(4, remote.url),
+      _profile(5, remote.url),
     ];
 
     final unresolved = const ProfileDependencyPlanner().plan(
@@ -124,7 +124,7 @@ void main() {
       references: [remote],
       localProfiles: profiles,
       choices: {
-        ProfileReferenceKey.fromReference(remote):
+        ProfileSiteKey.fromReference(remote):
             '00000000-0000-4000-8000-000000000005',
       },
     );
@@ -138,14 +138,64 @@ void main() {
     expect(resolved.profileIdFor(remote), profileUuid(5));
   });
 
-  test('one compatible local profile requires an explicit choice', () {
+  test('one compatible local profile is selected automatically', () {
     final result = const ProfileDependencyPlanner().plan(
       references: [remote],
-      localProfiles: [_profile(4, 'https://different.example')],
+      localProfiles: [_profile(4, remote.url)],
     );
 
-    expect(result.errors.single.code, 'unresolved_profile_dependency');
+    expect(result.errors, isEmpty);
+    expect(result.profileIdFor(remote), profileUuid(4));
+    expect(result.mappings.single.candidateIds, {profileUuid(4)});
+  });
+
+  test(
+    'exact identity defaults remain editable to another valid candidate',
+    () {
+      final profiles = [
+        _profile(12, remote.url),
+        _profile(4, remote.url),
+        _profile(5, 'https://different.example'),
+      ];
+      final initial = const ProfileDependencyPlanner().plan(
+        references: [remote],
+        localProfiles: profiles,
+      );
+      expect(initial.profileIdFor(remote), remote.id);
+      expect(initial.mappings.single.candidateIds, {remote.id, profileUuid(4)});
+      final changed = const ProfileDependencyPlanner().plan(
+        references: [remote],
+        localProfiles: profiles,
+        choices: {ProfileSiteKey.fromReference(remote): profileUuid(4)},
+      );
+      expect(changed.profileIdFor(remote), profileUuid(4));
+      expect(changed.errors, isEmpty);
+    },
+  );
+
+  test('a UUID conflict cannot be bypassed by one compatible candidate', () {
+    final result = const ProfileDependencyPlanner().plan(
+      references: [remote],
+      localProfiles: [
+        _profile(12, 'https://conflict.example'),
+        _profile(4, remote.url),
+      ],
+      choices: {ProfileSiteKey.fromReference(remote): profileUuid(4)},
+    );
+    expect(result.errors.single.code, 'profile_identity_conflict');
     expect(result.profileIdFor(remote), isNull);
+    expect(result.mappings.single.candidateIds, isEmpty);
+  });
+
+  test('one same-site candidate wins without broadening to other sites', () {
+    final result = const ProfileDependencyPlanner().plan(
+      references: [remote],
+      localProfiles: [
+        _profile(4, remote.url),
+        _profile(5, 'https://different.example'),
+      ],
+    );
+    expect(result.profileIdFor(remote), profileUuid(4));
     expect(result.mappings.single.candidateIds, {profileUuid(4)});
   });
 
@@ -161,23 +211,15 @@ void main() {
     expect(result.profileIdFor(remote), isNull);
   });
 
-  test('a missing dependency can create an unauthenticated local profile', () {
-    final key = ProfileReferenceKey.fromReference(remote);
+  test('a missing dependency remains unresolved without creating profiles', () {
+    final profiles = [_profile(40, 'https://other.example')];
     final result = const ProfileDependencyPlanner().plan(
       references: [remote],
-      localProfiles: [_profile(40, 'https://other.example')],
-      createFromReferences: {key},
+      localProfiles: profiles,
     );
-
-    expect(result.errors, isEmpty);
-    expect(result.mappings.single.createdFromReference, isTrue);
-    expect(result.profileIdFor(remote), remote.id);
-    expect(result.createdProfiles.single.id, remote.id);
-    expect(result.createdProfiles.single.name, 'Remote');
-    expect(result.createdProfiles.single.url, 'https://remote.example');
-    expect(result.createdProfiles.single.apiKey, isNull);
-    expect(result.createdProfiles.single.login, isNull);
-    expect(result.createdProfiles.single.passHash, isNull);
+    expect(result.errors.single.code, 'unresolved_profile_dependency');
+    expect(result.profileIdFor(remote), isNull);
+    expect(result.projectedProfiles, profiles);
   });
 
   test('an unsupported profile type is rejected during preflight', () {
@@ -190,14 +232,11 @@ void main() {
     final result = const ProfileDependencyPlanner().plan(
       references: const [unsupported],
       localProfiles: const [],
-      createFromReferences: {
-        ProfileReferenceKey.fromReference(unsupported),
-      },
     );
 
-    expect(result.errors.single.code, 'unsupported_profile_type');
+    expect(result.errors.single.code, 'unresolved_profile_dependency');
     expect(result.profileIdFor(unsupported), isNull);
-    expect(result.createdProfiles, isEmpty);
+    expect(result.projectedProfiles, isEmpty);
   });
 }
 

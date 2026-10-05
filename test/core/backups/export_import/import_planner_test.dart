@@ -122,7 +122,7 @@ void main() {
     },
   );
 
-  test('a sole compatible profile still needs an explicit mapping', () {
+  test('a sole compatible profile is selected automatically', () {
     final mapping = const ProfileMapper()
         .map(
           const [
@@ -133,12 +133,12 @@ void main() {
               name: 'Remote',
             ),
           ],
-          [_profile(4, 'https://local.example')],
+          [_profile(4, 'https://remote.example')],
         )
         .single;
 
-    expect(mapping.state, ProfileMappingState.ambiguous);
-    expect(mapping.localProfileId, isNull);
+    expect(mapping.state, ProfileMappingState.automatic);
+    expect(mapping.localProfileId, profileUuid(4));
     expect(mapping.candidateIds, {profileUuid(4)});
   });
 
@@ -154,8 +154,8 @@ void main() {
             ),
           ],
           [
-            _profile(4, 'https://one.example'),
-            _profile(5, 'https://two.example'),
+            _profile(4, 'https://remote.example'),
+            _profile(5, 'https://remote.example'),
           ],
         )
         .single;

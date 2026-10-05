@@ -27,14 +27,16 @@ final class ProfileDependencyIssueContext extends Equatable {
     required this.reference,
     required this.label,
     required Iterable<String> sourceIds,
+    this.missingProfile = false,
   }) : sourceIds = Set.unmodifiable(sourceIds);
 
   final BackupProfileReference reference;
   final String label;
   final Set<String> sourceIds;
+  final bool missingProfile;
 
   @override
-  List<Object> get props => [reference, label, sourceIds];
+  List<Object> get props => [reference, label, sourceIds, missingProfile];
 }
 
 final class ProposedImportItem extends Equatable {

@@ -35,7 +35,7 @@ void main() {
       ];
       Future<void> review(
         List<BackupProfileReference> selected, {
-        Set<ProfileReferenceKey> create = const {},
+        Set<ProfileSiteKey> resolved = const {},
       }) async {
         final dependencies = const ProfileDependencyPlanner().plan(
           references: selected,
@@ -49,11 +49,11 @@ void main() {
                 'id': id,
                 'booruId': BooruType.danbooru.id,
                 'booruIdHint': BooruType.danbooru.id,
-                'url': 'https://local.example',
+                'url': references.first.url,
               }),
           ],
           choices: {
-            for (final key in create)
+            for (final key in resolved)
               key: '00000000-0000-4000-8000-000000000031',
           },
           dependentSources: {
@@ -73,7 +73,10 @@ void main() {
           _app(
             ImportReviewValidation(
               preflight: _result(errors: dependencies.errors),
-              sourceNames: const {},
+              sourceNames: const {
+                'pinned_searches': 'Pinned searches',
+                'following_feeds': 'Following feeds',
+              },
               itemLabels: const {},
               onWarningsAcknowledged: (_) {},
               onApply: () {},
@@ -85,11 +88,11 @@ void main() {
 
       await review([...references, references.first]);
       const searches =
-          'Shared (https://first.example): Choose a target profile or create a new profile for the selected searches.';
+          'first.example: Select a matching profile for the selected Pinned searches, or skip those items.';
       const feeds =
-          'Shared (https://second.example): Choose a target profile or create a new profile for the selected feeds.';
+          'second.example: Create a profile for this website in profile management, then import again, or skip the selected Following feeds.';
       const both =
-          'Third: Choose a target profile or create a new profile for the selected searches and feeds.';
+          'third.example: Create a profile for this website in profile management, then import again, or skip the selected Pinned searches, Following feeds.';
       expect(find.text(searches), findsOneWidget);
       expect(find.text(feeds), findsOneWidget);
       expect(find.text(both), findsOneWidget);
@@ -99,14 +102,14 @@ void main() {
       );
       await review(
         references,
-        create: {ProfileReferenceKey.fromReference(references.first)},
+        resolved: {ProfileSiteKey.fromReference(references.first)},
       );
       expect(find.text(searches), findsNothing);
       expect(find.text(feeds), findsOneWidget);
       expect(find.text(both), findsOneWidget);
       await review(
         [references.first, references.last],
-        create: {ProfileReferenceKey.fromReference(references.first)},
+        resolved: {ProfileSiteKey.fromReference(references.first)},
       );
       expect(find.text(feeds), findsNothing);
       expect(find.text(both), findsOneWidget);
