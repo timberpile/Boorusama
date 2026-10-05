@@ -8,6 +8,9 @@
       - url: https://danbooru.donmai.us/
         ai-tag: true
         censored-tags-banned: true
+        quick-profile:
+          name: Danbooru
+          authentication: optional
       - url: https://donmai.moe/
         ai-tag: true
         censored-tags-banned: true
@@ -16,6 +19,9 @@
         censored-tags-banned: true
       - url: https://aibooru.online/
         ai-tag: true
+        quick-profile:
+          name: AIBooru
+          authentication: optional
       - url: https://testbooru.donmai.us/
 
 - gelbooru:
@@ -28,7 +34,10 @@
     protocol: https_2
     login-url: https://gelbooru.com/index.php?page=account&s=login&code=00
     sites:
-      - https://gelbooru.com/
+      - url: https://gelbooru.com/
+        quick-profile:
+          name: Gelbooru
+          authentication: required
 
 - gelbooru_v1:
     metadata:
@@ -110,6 +119,9 @@
         auth:
           required: true
           instructions-key: "booru.api_key_instructions.variants_1"
+        quick-profile:
+          name: Rule34
+          authentication: required
         overrides:
           posts:
             endpoint: "/index.php?page=dapi&s=post&q=index"
@@ -121,11 +133,17 @@
             parser: "parseR34PostHtml"
 
       - url: https://hypnohub.net/
+        quick-profile:
+          name: HypnoHub
+          authentication: optional
         overrides:
           post:
             parser: "parseDefaultPostHtml"
 
       - url: https://realbooru.com/
+        quick-profile:
+          name: Realbooru
+          authentication: optional
         overrides:
           posts:
             type: html
@@ -145,8 +163,14 @@
           cookie: "adult_mode=1"
 
       - url: https://xbooru.com/
+        quick-profile:
+          name: Xbooru
+          authentication: optional
       - url: https://tbib.org/
       - url: https://safebooru.org/
+        quick-profile:
+          name: Safebooru
+          authentication: optional
         overrides:
           posts:
             endpoint: "/index.php?page=dapi&s=post&q=index"
@@ -157,6 +181,9 @@
       legacy-ids: [6, 7, 8, 10]
     sites:
       - url: https://konachan.com/
+        quick-profile:
+          name: Konachan
+          authentication: optional
         version: 4.0.0
         salt: So-I-Heard-You-Like-Mupkids-?--{0}--
         favorite-support: true
@@ -167,10 +194,16 @@
         favorite-support: true
         protocol: https_2
       - url: https://yande.re/
+        quick-profile:
+          name: Yande.re
+          authentication: optional
         salt: choujin-steiner--{0}--
         favorite-support: true
         protocol: https_2
       - url: https://sakugabooru.com/
+        quick-profile:
+          name: Sakugabooru
+          authentication: optional
         post-request-url: https://www.sakugabooru.com/
         version: 6.0.0
         salt: er@!$rjiajd0$!dkaopc350!Y%)--{0}--
@@ -183,8 +216,14 @@
       legacy-ids: [11, 12]
     protocol: https_2
     sites:
-      - https://e621.net/
-      - https://e926.net/
+      - url: https://e621.net/
+        quick-profile:
+          name: e621
+          authentication: optional
+      - url: https://e926.net/
+        quick-profile:
+          name: e926
+          authentication: optional
 
 - zerochan:
     metadata:
@@ -193,7 +232,10 @@
       has-unknown-full-image-url: true
     protocol: https_2
     sites:
-      - https://zerochan.net/
+      - url: https://zerochan.net/
+        quick-profile:
+          name: Zerochan
+          authentication: unnecessary
       - https://kpop.asiachan.com/
 
 - sankaku:
@@ -205,7 +247,10 @@
       - Content-Type: application/json
       - Accept: application/json
     sites:
-      - https://chan.sankakucomplex.com/
+      - url: https://chan.sankakucomplex.com/
+        quick-profile:
+          name: Sankaku Channel
+          authentication: optional
       - https://beta.sankakucomplex.com/
       - https://sankakucomplex.com/
       - https://sankaku.app/
@@ -218,7 +263,10 @@
       id: 28
     protocol: https_2
     sites:
-      - https://derpibooru.org/
+      - url: https://derpibooru.org/
+        quick-profile:
+          name: Derpibooru
+          authentication: optional
       - https://ponybooru.org/
 
 - shimmie2:
@@ -226,7 +274,10 @@
       id: 29
     protocol: https_1
     sites:
-      - https://rule34.paheal.net/
+      - url: https://rule34.paheal.net/
+        quick-profile:
+          name: Rule 34 @ Paheal
+          authentication: optional
 
 - szurubooru:
     metadata:
@@ -248,7 +299,10 @@
     protocol: https_1
     login-url: https://anime-pictures.net/login?lang=en
     sites:
-      - https://anime-pictures.net/
+      - url: https://anime-pictures.net/
+        quick-profile:
+          name: Anime Pictures
+          authentication: optional
 
 - hybooru:
     metadata:
@@ -256,7 +310,10 @@
       post-count-method: endpoint
     protocol: https_2
     sites:
-      - https://booru.funmaker.moe/
+      - url: https://booru.funmaker.moe/
+        quick-profile:
+          name: HyBooru
+          authentication: unnecessary
 
 - eshuushuu:
     metadata:
@@ -266,7 +323,10 @@
       single-site: true
     protocol: https_1
     sites:
-      - https://e-shuushuu.net/
+      - url: https://e-shuushuu.net/
+        quick-profile:
+          name: e-shuushuu
+          authentication: optional
 
 - nozomi:
     metadata:
@@ -275,7 +335,10 @@
       single-site: true
     protocol: https_2
     sites:
-      - https://nozomi.la/
+      - url: https://nozomi.la/
+        quick-profile:
+          name: Nozomi.la
+          authentication: unnecessary
 
 - pixiv:
     metadata:
@@ -284,4 +347,7 @@
       single-site: true
     protocol: https_2
     sites:
-      - https://pixiv.net/
+      - url: https://pixiv.net/
+        quick-profile:
+          name: Pixiv
+          authentication: required

@@ -18,7 +18,10 @@ import 'package:foundation/foundation.dart';
 import 'subscription_test_utils.dart';
 
 void main() {
-  const config = BooruConfig.empty;
+  final config = BooruConfig.fromJson({
+    ...BooruConfig.empty.toJson(),
+    'id': '00000000-0000-4000-8000-00000000000c',
+  });
   final checkpoint = DateTime.utc(2026, 9, 14, 8);
   final startedAt = DateTime.utc(2026, 9, 14, 9);
   late SearchSubscriptionRepository repository;
@@ -32,7 +35,7 @@ void main() {
 
   Future<SearchSubscription> seed(
     String id, {
-    int? profileId,
+    String? profileId,
     DateTime? checkedAt,
     int unread = 0,
   }) async {
@@ -155,6 +158,109 @@ void main() {
   );
 
   test(
+    'an edit starts a new baseline while the previous refresh is in flight',
+    () async {
+      await seed('old');
+      await container.read(searchSubscriptionsProvider.future);
+      final oldStarted = Completer<void>();
+      final oldRelease = Completer<void>();
+      posts = TestSearchPostRepository((query, _, _) async {
+        if (query == 'old') {
+          oldStarted.complete();
+          await oldRelease.future;
+          return Either.of(
+            PostResult(posts: [TestSearchPost(1, checkpoint)], total: 1),
+          );
+        }
+        return Either.of(
+          PostResult(posts: [TestSearchPost(2, checkpoint)], total: 1),
+        );
+      });
+
+      final previous = notifier().refresh('old');
+      await oldStarted.future;
+      final editing = (notifier() as dynamic).edit(
+        'old',
+        profileId: config.id,
+        query: 'new',
+        name: null,
+      );
+      final result = await editing.timeout(const Duration(seconds: 5));
+      expect(result.refresh, isA<SearchRefreshSucceeded>());
+      expect((result.refresh as SearchRefreshSucceeded).baseline, isTrue);
+      oldRelease.complete();
+      expect(await previous, const SearchRefreshDiscarded());
+      final saved = (await repository.getById('old'))!;
+      expect(saved.query, 'new');
+      expect(saved.previews.single.postId, 2);
+      expect(saved.hasNewPosts, isFalse);
+    },
+  );
+
+  test('a missing profile blocks the edit before any write', () async {
+    final original = await seed('old', checkedAt: checkpoint, unread: 1);
+    await container.read(searchSubscriptionsProvider.future);
+    await expectLater(
+      notifier().edit(
+        original.id,
+        profileId: '00000000-0000-4000-8000-0000000003e7',
+        query: 'new',
+        name: 'New',
+      ),
+      throwsA(isA<MissingPinnedSearchProfileException>()),
+    );
+    expect(await repository.getById(original.id), original);
+  });
+
+  test('name-only edits do not start a baseline request', () async {
+    final original = await seed('old', checkedAt: checkpoint, unread: 1);
+    await container.read(searchSubscriptionsProvider.future);
+    var requested = false;
+    posts = TestSearchPostRepository((_, _, _) async {
+      requested = true;
+      return Either.of(const PostResult(posts: [], total: 0));
+    });
+    final result = await notifier().edit(
+      original.id,
+      profileId: config.id,
+      query: original.query,
+      name: 'New name',
+    );
+    expect(result.refresh, isNull);
+    expect(requested, isFalse);
+    expect(snapshot().subscriptions.single.name, 'New name');
+    expect(snapshot().subscriptions.single.hasNewPosts, isTrue);
+    expect(snapshot().subscriptions.single.lastSuccessfulCheckAt, checkpoint);
+  });
+
+  test(
+    'a failed edit baseline leaves the new query saved and not checked',
+    () async {
+      final original = await seed('old', checkedAt: checkpoint, unread: 1);
+      await container.read(searchSubscriptionsProvider.future);
+      posts = TestSearchPostRepository(
+        (_, _, _) async =>
+            Either.left(ServerError(httpStatusCode: 503, message: 'offline')),
+      );
+      final result = await notifier().edit(
+        original.id,
+        profileId: config.id,
+        query: 'new',
+        name: null,
+      );
+      expect(
+        result.refresh,
+        const SearchRefreshFailed(SearchRefreshErrorKind.network),
+      );
+      final saved = (await repository.getById(original.id))!;
+      expect(saved.query, 'new');
+      expect(saved.lastSuccessfulCheckAt, isNull);
+      expect(saved.lastErrorKind, SearchRefreshErrorKind.network);
+      expect(saved.hasNewPosts, isFalse);
+    },
+  );
+
+  test(
     'reuses duplicate queries and applies an optional replacement name',
     () async {
       await Future.wait([
@@ -176,7 +282,11 @@ void main() {
     () async {
       await seed('first', checkedAt: checkpoint, unread: 3);
       await seed('second', checkedAt: checkpoint, unread: 2);
-      await seed('other', profileId: config.id + 1, unread: 9);
+      await seed(
+        'other',
+        profileId: '00000000-0000-4000-8000-000000000063',
+        unread: 9,
+      );
       await container.read(searchSubscriptionsProvider.future);
       expect(
         container.read(profilePinnedSearchHasNewPostsProvider(config.id)),
@@ -212,7 +322,11 @@ void main() {
         isFalse,
       );
       expect(
-        container.read(profilePinnedSearchHasNewPostsProvider(config.id + 1)),
+        container.read(
+          profilePinnedSearchHasNewPostsProvider(
+            '00000000-0000-4000-8000-000000000063',
+          ),
+        ),
         isTrue,
       );
     },
@@ -221,7 +335,7 @@ void main() {
   test('reorders only the requested profile in published state', () async {
     await seed('first');
     await seed('second');
-    await seed('other', profileId: config.id + 1);
+    await seed('other', profileId: '00000000-0000-4000-8000-000000000063');
     await notifier().reorder(config.id, 1, 0);
     expect(
       container
@@ -232,7 +346,11 @@ void main() {
     );
     expect(
       container
-          .read(profilePinnedSearchesProvider(config.id + 1))
+          .read(
+            profilePinnedSearchesProvider(
+              '00000000-0000-4000-8000-000000000063',
+            ),
+          )
           .requireValue
           .single
           .id,
@@ -289,7 +407,7 @@ void main() {
         'later',
         checkedAt: checkpoint.add(const Duration(minutes: 2)),
       );
-      await seed('other', profileId: config.id + 1);
+      await seed('other', profileId: '00000000-0000-4000-8000-000000000063');
       final starts = <String>[];
       final releases = <String, Completer<void>>{};
       final initialWorkers = Completer<void>();

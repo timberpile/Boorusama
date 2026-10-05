@@ -30,63 +30,14 @@ class PinnedSearchesBackupSource
         version: 1,
         extraPayloadEncoder: (_) => const {'source': 'pinned_searches'},
         appVersion: ref.read(appVersionProvider),
-        dataGetter: () async {
-          final repository = await ref.read(
-            searchSubscriptionRepositoryProvider.future,
-          );
-          final profiles = {
-            for (final profile
-                in await ref.read(booruConfigRepoProvider).getAll())
-              profile.id: profile,
+        dataGetter: () => _loadPinnedSearchData(ref),
+        scopedDataGetter: (options) async {
+          final data = await _loadPinnedSearchData(ref);
+          final scope = switch (options?.scope) {
+            final PinnedSearchExportScope scope => scope,
+            _ => const PinnedSearchExportScope.all(),
           };
-          final subscriptions = await repository.getAll();
-          final feeds = await repository.getFeeds();
-          final internalIds = {
-            for (final feed in feeds) ...feed.sourceIds,
-          };
-          final organization = await repository.getOrganization();
-          final exportedIds = subscriptions
-              .where(
-                (pin) =>
-                    !internalIds.contains(pin.id) &&
-                    profiles.containsKey(pin.profileId),
-              )
-              .map((pin) => pin.id)
-              .toSet();
-          return PinnedSearchBackupData(
-            homeSearchIds: organization.homeSearchIds
-                .where(exportedIds.contains)
-                .toList(),
-            folders: [
-              for (final (position, folder) in organization.folders.indexed)
-                PinnedSearchFolderBackupRecord(
-                  id: folder.id,
-                  name: folder.name,
-                  position: position,
-                  searchIds: folder.searchIds
-                      .where(exportedIds.contains)
-                      .toList(),
-                ),
-            ],
-            records: [
-              for (final subscription in subscriptions.where(
-                (s) => !internalIds.contains(s.id),
-              ))
-                if (profiles[subscription.profileId] case final profile?)
-                  PinnedSearchBackupRecord(
-                    id: subscription.id,
-                    name: subscription.name,
-                    query: subscription.query,
-                    position: subscription.position,
-                    profile: BackupProfileReference(
-                      id: profile.id,
-                      booruType: profile.auth.booruType.name,
-                      url: normalizeBackupProfileUrl(profile.url),
-                      name: profile.name,
-                    ),
-                  ),
-            ],
-          );
+          return filterPinnedSearchBackupData(data, scope);
         },
         executor: (_, _) async {},
         resultExecutor: (data, context) async {
@@ -166,6 +117,61 @@ class PinnedSearchesBackupSource
               .replaceAll('{existing}', '${result.alreadyExistedCount}')
               .replaceAll('{skipped}', '${result.skippedProfileCount ?? 0}'),
     ),
+  );
+}
+
+Future<PinnedSearchBackupData> _loadPinnedSearchData(Ref ref) async {
+  final repository = await ref.read(
+    searchSubscriptionRepositoryProvider.future,
+  );
+  final profiles = {
+    for (final profile in await ref.read(booruConfigRepoProvider).getAll())
+      profile.id: profile,
+  };
+  final subscriptions = await repository.getAll();
+  final feeds = await repository.getFeeds();
+  final internalIds = {for (final feed in feeds) ...feed.sourceIds};
+  final organization = await repository.getOrganization();
+  final exportedIds = subscriptions
+      .where(
+        (pin) =>
+            !internalIds.contains(pin.id) &&
+            profiles.containsKey(pin.profileId),
+      )
+      .map((pin) => pin.id)
+      .toSet();
+  return PinnedSearchBackupData(
+    homeSearchIds: organization.homeSearchIds
+        .where(exportedIds.contains)
+        .toList(),
+    folders: [
+      for (final (position, folder) in organization.folders.indexed)
+        PinnedSearchFolderBackupRecord(
+          id: folder.id,
+          name: folder.name,
+          position: position,
+          searchIds: folder.searchIds.where(exportedIds.contains).toList(),
+        ),
+    ],
+    records: [
+      for (final subscription in subscriptions.where(
+        (search) => !internalIds.contains(search.id),
+      ))
+        if (profiles[subscription.profileId] case final profile?)
+          PinnedSearchBackupRecord(
+            id: subscription.id,
+            name: subscription.name,
+            query: subscription.query,
+            queryStructure: subscription.queryStructure,
+            position: subscription.position,
+            profile: BackupProfileReference(
+              id: profile.id,
+              booruType: profile.auth.booruType.name,
+              url: normalizeBackupProfileUrl(profile.url),
+              name: profile.name,
+            ),
+          ),
+    ],
   );
 }
 

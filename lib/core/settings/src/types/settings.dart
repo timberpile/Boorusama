@@ -13,6 +13,7 @@ import '../../../../foundation/caching/types.dart';
 import '../../../analytics/types.dart';
 import '../../../backups/auto/types.dart';
 import '../../../configs/gesture/types.dart';
+import '../../../configs/config/types.dart';
 import '../../../downloads/downloader/types.dart';
 import '../../../haptics/types.dart';
 import '../../../home/types.dart';
@@ -69,6 +70,7 @@ class Settings extends Equatable {
     required this.autoBackup,
     required this.videoCacheMaxSize,
     this.searchRefresh = const SearchRefreshSettings(),
+    this.pinnedSearchSort = 'manual',
   });
 
   Settings.fromJson(Map<String, dynamic> json)
@@ -89,7 +91,10 @@ class Settings extends Equatable {
       ),
       downloadQuality = DownloadQuality.parse(json['downloadQuality']),
       autoFocusSearchBar = json['autoFocusSearchBar'] ?? true,
-      currentBooruConfigId = json['currentBooruConfigId'],
+      currentBooruConfigId = switch (json['currentBooruConfigId']) {
+        final String id when isCanonicalProfileId(id) => id,
+        _ => '',
+      },
       booruConfigIdOrders = json['booruConfigIdOrders'] != null
           ? castOrFallback<String>(json['booruConfigIdOrders'], '')
           : '',
@@ -141,6 +146,11 @@ class Settings extends Equatable {
           json['swipeAreaToOpenSidebarPercentage'] ?? 5,
       autoBackup = AutoBackupSettings.parse(json['autoBackup']),
       searchRefresh = SearchRefreshSettings.parse(json['searchRefresh']),
+      pinnedSearchSort = switch (json['pinnedSearchSort']) {
+        'updatesFirst' => 'updatesFirst',
+        'lastPostOldest' => 'lastPostOldest',
+        _ => 'manual',
+      },
       videoCacheMaxSize = switch (json['videoCacheMaxSize']) {
         final v? => CacheSize.tryParse(v) ?? CacheSize.oneGigabyte,
         _ => CacheSize.oneGigabyte,
@@ -189,7 +199,7 @@ class Settings extends Equatable {
     downloadPath: null,
     imageQualityInFullView: ImageQuality.defaultValue,
     autoFocusSearchBar: true,
-    currentBooruConfigId: -1,
+    currentBooruConfigId: '',
     booruConfigIdOrders: '',
     downloadQuality: DownloadQuality.defaultValue,
     enableIncognitoModeForKeyboard: false,
@@ -232,7 +242,7 @@ class Settings extends Equatable {
 
   final bool autoFocusSearchBar;
 
-  final int currentBooruConfigId;
+  final String currentBooruConfigId;
 
   final String booruConfigIdOrders;
 
@@ -282,6 +292,7 @@ class Settings extends Equatable {
 
   final AutoBackupSettings autoBackup;
   final SearchRefreshSettings searchRefresh;
+  final String pinnedSearchSort;
 
   final CacheSize videoCacheMaxSize;
 
@@ -294,7 +305,7 @@ class Settings extends Equatable {
     String? downloadPath,
     ImageQuality? imageQualityInFullView,
     bool? autoFocusSearchBar,
-    int? currentBooruConfigId,
+    String? currentBooruConfigId,
     String? booruConfigIdOrders,
     DownloadQuality? downloadQuality,
     bool? enableIncognitoModeForKeyboard,
@@ -323,6 +334,7 @@ class Settings extends Equatable {
     HapticFeedbackLevel? hapticFeedbackLevel,
     AutoBackupSettings? autoBackup,
     SearchRefreshSettings? searchRefresh,
+    String? pinnedSearchSort,
     CacheSize? videoCacheMaxSize,
   }) => Settings(
     listing: listing ?? this.listing,
@@ -381,6 +393,7 @@ class Settings extends Equatable {
     hapticFeedbackLevel: hapticFeedbackLevel ?? this.hapticFeedbackLevel,
     autoBackup: autoBackup ?? this.autoBackup,
     searchRefresh: searchRefresh ?? this.searchRefresh,
+    pinnedSearchSort: pinnedSearchSort ?? this.pinnedSearchSort,
     videoCacheMaxSize: videoCacheMaxSize ?? this.videoCacheMaxSize,
   );
 
@@ -426,6 +439,7 @@ class Settings extends Equatable {
       'hapticFeedbackLevel': hapticFeedbackLevel.toData(),
       'autoBackup': autoBackup.toJson(),
       'searchRefresh': searchRefresh.toJson(),
+      'pinnedSearchSort': pinnedSearchSort,
       'videoCacheMaxSize': videoCacheMaxSize.displayString(),
     };
   }
@@ -468,14 +482,18 @@ class Settings extends Equatable {
     hapticFeedbackLevel,
     autoBackup,
     searchRefresh,
+    pinnedSearchSort,
     videoCacheMaxSize,
   ];
 
-  List<int> get booruConfigIdOrderList {
+  List<String> get booruConfigIdOrderList {
     try {
       if (booruConfigIdOrders.isEmpty) return [];
 
-      return booruConfigIdOrders.split(' ').map(int.parse).toList();
+      return booruConfigIdOrders
+          .split(' ')
+          .where(isCanonicalProfileId)
+          .toList();
     } catch (e) {
       return [];
     }

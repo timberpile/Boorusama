@@ -8,6 +8,7 @@ import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
 
 // Project imports:
+import '../../../../foundation/data_mutation_coordinator.dart';
 import '../../../boorus/booru/types.dart';
 import '../../../boorus/engine/providers.dart';
 import '../../../configs/config/types.dart';
@@ -78,7 +79,13 @@ class BookmarkPostBatchRollbackException implements Exception {
   final List<Bookmark> createdBookmarks;
 }
 
-enum BookmarkToggleOutcome { added, removed, unavailable, failed }
+enum BookmarkToggleOutcome {
+  added,
+  removed,
+  unavailable,
+  missingPostIdentity,
+  failed,
+}
 
 final bookmarkUrlResolverProvider = Provider.autoDispose
     .family<ImageUrlResolver, int?>((ref, booruId) {
@@ -159,7 +166,11 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     return saved;
   });
 
-  Future<T> _serialize<T>(Future<T> Function() operation) {
+  Future<T> _serialize<T>(Future<T> Function() operation) => ref
+      .read(dataMutationCoordinatorProvider)
+      .runExclusive(() => _serializeLocally(operation));
+
+  Future<T> _serializeLocally<T>(Future<T> Function() operation) {
     final completer = Completer<T>();
     _mutationTail = _mutationTail.catchError((_) {}).then((_) async {
       try {
@@ -239,6 +250,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     void Function()? onError,
   }) => _serialize(() async {
     try {
+      BookmarkIdentity.fromPost(post);
       final booruId = config.booruIdHint;
       final currentState = await future;
       final existing = currentState
@@ -291,6 +303,9 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     bool activateTarget = false,
   }) => _serialize(() async {
     try {
+      if (BookmarkUniqueId.fromPost(post) is UnbookmarkablePostIdentity) {
+        return BookmarkToggleOutcome.missingPostIdentity;
+      }
       final current = await future;
       final selectedTarget = target ?? current.activeTarget;
       if (activateTarget) {
@@ -362,6 +377,9 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     required bool bookmarked,
   }) async {
     final uniqueId = bookmarkIdentityForPost(post, config.booruIdHint);
+    if (uniqueId is UnbookmarkablePostIdentity) {
+      return BookmarkToggleOutcome.missingPostIdentity;
+    }
     final bookmark = current.bookmarksByUniqueId[uniqueId];
     final memberships = current.membershipsFor(uniqueId);
     if (target.groupId case final groupId?) {
@@ -714,6 +732,9 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     BooruConfigAuth config,
     Iterable<Post> posts,
   ) => _serialize(() async {
+    for (final post in posts) {
+      BookmarkIdentity.fromPost(post);
+    }
     final previousTarget = (await future).activeTarget;
     final repository = await ref.read(bookmarkGroupRepoProvider.future);
     final group = await (await _service).createGroup(name);
@@ -785,6 +806,9 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
   ) async {
     final current = await future;
     final selected = posts.toList();
+    for (final post in selected) {
+      BookmarkIdentity.fromPost(post);
+    }
     final existing = <Bookmark>[];
     final missing = <Post>[];
     for (final post in selected) {
@@ -986,8 +1010,8 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     BooruConfigAuth config,
     Post post,
   ) async {
+    final identity = BookmarkIdentity.fromPost(post);
     final repository = await bookmarkRepository;
-    final identity = _bookmarkIdentity(post, config);
 
     Future<Bookmark?> findStored() async {
       final bookmarks = await repository.getAllBookmarksOrThrow(
@@ -1031,6 +1055,14 @@ extension BookmarkCubitToastX on BookmarkNotifier {
       return;
     }
 
+    if (BookmarkUniqueId.fromPost(post) is UnbookmarkablePostIdentity) {
+      Kurumi.showErrorToast(
+        context,
+        context.t.bookmark.missing_post_identity,
+      );
+      return;
+    }
+
     await addBookmark(
       config,
       post,
@@ -1055,6 +1087,16 @@ extension BookmarkCubitToastX on BookmarkNotifier {
     final context = navigatorKey.currentContext;
 
     if (context == null || !context.mounted) {
+      return;
+    }
+
+    if (posts.any(
+      (post) => BookmarkUniqueId.fromPost(post) is UnbookmarkablePostIdentity,
+    )) {
+      Kurumi.showErrorToast(
+        context,
+        context.t.bookmark.missing_post_identity,
+      );
       return;
     }
 

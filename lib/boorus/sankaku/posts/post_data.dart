@@ -6,7 +6,8 @@ import 'package:equatable/equatable.dart';
 import '../../../core/posts/post/types.dart';
 import '../../../core/tags/tag/types.dart';
 
-final class SankakuPostData extends Equatable implements BooruPostData {
+final class SankakuPostData extends Equatable
+    implements BooruPostData, StableBookmarkPostKeyData {
   const SankakuPostData({
     required this.sankakuId,
     required this.isFavorited,
@@ -19,6 +20,18 @@ final class SankakuPostData extends Equatable implements BooruPostData {
   });
 
   final SankakuPostIdData? sankakuId;
+
+  @override
+  String? get stableBookmarkPostKey {
+    final value = sankakuId?.value.trim();
+    if (value == null || value.isEmpty) return null;
+    if (sankakuId!.isNumeric) {
+      final numeric = int.tryParse(value);
+      return numeric == null || numeric <= 0 ? null : 'id:$numeric';
+    }
+    return 'id:$value';
+  }
+
   final bool isFavorited;
   final int favoriteCount;
   final List<Tag> artistDetailsTags;

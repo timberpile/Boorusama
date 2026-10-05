@@ -3,10 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Project imports:
 import '../../../../../foundation/database/indexed_db_store.dart';
+import '../../../../../foundation/data_mutation_coordinator.dart';
 import '../../../../../foundation/filesystem.dart';
 import '../../../selected_tags/types.dart';
 import '../types/search_history.dart';
 import '../types/search_history_repository.dart';
+import 'coordinated_search_history_repository.dart';
 
 const kSearchHistoryDbName = 'search_history_db';
 const _kQueryTypeIndex = 'query_type';
@@ -16,7 +18,10 @@ final searchHistoryRepoProvider = FutureProvider<SearchHistoryRepository>(
   (ref) async {
     final repo = SearchHistoryRepositoryIndexedDb();
     await repo.initialize();
-    return repo;
+    return CoordinatedSearchHistoryRepository(
+      repo,
+      ref.watch(dataMutationCoordinatorProvider),
+    );
   },
 );
 

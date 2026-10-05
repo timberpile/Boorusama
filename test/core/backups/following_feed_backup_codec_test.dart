@@ -102,7 +102,7 @@ Map<String, dynamic> _feedRow({List<dynamic> queries = const ['cat', 'dog']}) =>
       'position': 0,
       'queries': queries,
       'profile': {
-        'id': 4,
+        'id': '00000000-0000-4000-8000-000000000004',
         'booruType': 'danbooru',
         'url': 'https://example.test/Posts',
         'name': 'Example',

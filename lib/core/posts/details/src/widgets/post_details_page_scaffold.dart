@@ -57,6 +57,12 @@ class PostDetailsPageScaffold<T extends Post> extends ConsumerStatefulWidget {
     this.preferredPreviewParts,
     this.enableViewerTransformations = true,
     this.viewerWarning,
+    this.nextLoading = false,
+    this.nextFailed = false,
+    this.nextCanLoad = false,
+    this.onRetryNext,
+    this.onLoadMoreNext,
+    this.onPageChanged,
   });
 
   final List<T> posts;
@@ -74,6 +80,12 @@ class PostDetailsPageScaffold<T extends Post> extends ConsumerStatefulWidget {
   final PostGestureHandlerBuilder? postGestureHandlerBuilder;
   final bool enableViewerTransformations;
   final Widget? viewerWarning;
+  final bool nextLoading;
+  final bool nextFailed;
+  final bool nextCanLoad;
+  final VoidCallback? onRetryNext;
+  final VoidCallback? onLoadMoreNext;
+  final ValueChanged<int>? onPageChanged;
 
   @override
   ConsumerState<PostDetailsPageScaffold<T>> createState() =>
@@ -118,7 +130,7 @@ class _PostDetailPageScaffoldState<T extends Post>
 
     _volumeKeyPageNavigator ??= VolumeKeyPageNavigator(
       pageViewController: _controller,
-      totalPosts: _posts.length,
+      totalPosts: () => _posts.length,
       visibilityNotifier: visibilityNotifier,
       enableVolumeKeyViewerNavigation: () => ref.read(
         settingsProvider.select((value) => value.volumeKeyViewerNavigation),
@@ -307,6 +319,11 @@ class _PostDetailPageScaffoldState<T extends Post>
 
     return Scaffold(
       body: PostDetailsPageView(
+        nextLoading: widget.nextLoading,
+        nextFailed: widget.nextFailed,
+        nextCanLoad: widget.nextCanLoad,
+        onRetryNext: widget.onRetryNext,
+        onLoadMoreNext: widget.onLoadMoreNext,
         viewMode: switch (swipeMode) {
           PostDetailsSwipeMode.horizontal => ViewMode.horizontal,
           PostDetailsSwipeMode.vertical => ViewMode.vertical,
@@ -318,6 +335,7 @@ class _PostDetailPageScaffoldState<T extends Post>
           widget.controller.setPage(page);
 
           _isInitPage.value = false;
+          widget.onPageChanged?.call(page);
 
           if (_controller.overlay.value) {
             if (post.isVideo) {

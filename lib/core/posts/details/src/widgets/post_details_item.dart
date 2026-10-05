@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 
 // Package imports:
 import 'package:cache_manager/cache_manager.dart';
+import 'package:extended_image/extended_image.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
@@ -13,6 +14,7 @@ import '../../../../boorus/engine/providers.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../configs/gesture/types.dart';
 import '../../../../videos/player/widgets.dart';
+import '../../../../developer_options/providers.dart';
 import '../../../../widgets/widgets.dart';
 import '../../../details_pageview/widgets.dart';
 import '../../../listing/providers.dart';
@@ -25,6 +27,8 @@ import 'post_details_controller.dart';
 import 'post_details_page_view_scope.dart';
 import 'post_media.dart';
 import 'seek_animation_overlay.dart';
+import 'post_viewer_transformation_scope.dart';
+import 'zoom_edge_page_gesture.dart';
 
 class PostDetailsItem<T extends Post> extends ConsumerStatefulWidget {
   const PostDetailsItem({
@@ -63,11 +67,13 @@ class PostDetailsItem<T extends Post> extends ConsumerStatefulWidget {
 class _PostDetailsItemState<T extends Post>
     extends ConsumerState<PostDetailsItem<T>> {
   final _videoKey = GlobalKey();
+  final _imageController = ExtendedImageController();
 
   @override
   void initState() {
     super.initState();
     widget.detailsController.currentSettledPage.addListener(_onPageSettled);
+    _imageController.loadState.addListener(_onImageStateChanged);
   }
 
   @override
@@ -84,10 +90,18 @@ class _PostDetailsItemState<T extends Post>
   @override
   void dispose() {
     widget.detailsController.currentSettledPage.removeListener(_onPageSettled);
+    _imageController.loadState.removeListener(_onImageStateChanged);
+    _imageController.dispose();
     super.dispose();
   }
 
   void _onPageSettled() => setState(() {});
+
+  void _onImageStateChanged() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() {});
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -112,6 +126,14 @@ class _PostDetailsItemState<T extends Post>
 
     final booruRepo = ref.watch(booruRepoProvider(widget.authConfig));
     final gestures = widget.gestureConfig?.fullview;
+    final noteOverlayShown = ref.watch(
+      noteOverlayProvider((widget.authConfig, post)),
+    );
+    final navigation = ZoomPageNavigationScope.maybeOf(context);
+    final viewerTransform = PostViewerTransformationScope.maybeOf(context);
+    final automaticMediaLoadingEnabled = ref.watch(
+      automaticMediaLoadingEnabledProvider,
+    );
 
     void onItemTap() {
       final controller = widget.detailsController;
@@ -161,7 +183,7 @@ class _PostDetailsItemState<T extends Post>
         ? _initialPlaceholderMedia(post, initialThumbnailUrl)
         : null;
 
-    return ValueListenableBuilder(
+    final viewer = ValueListenableBuilder(
       valueListenable: pageViewController.sheetState,
       builder: (_, state, _) => GestureDetector(
         // let the user tap the image to toggle overlay
@@ -176,9 +198,7 @@ class _PostDetailsItemState<T extends Post>
           doubleTapZoomMode: post.isVideo
               ? DoubleTapZoomMode.classic
               : doubleTapZoomMode,
-          enable: switch (ref.watch(
-            noteOverlayProvider((widget.authConfig, post)),
-          )) {
+          enable: switch (noteOverlayShown) {
             // If the note overlay is shown, disable all interactions to prevent gesture conflicts
             true => false,
             false => switch (state.isExpanded) {
@@ -241,6 +261,7 @@ class _PostDetailsItemState<T extends Post>
                             videoAspectRatioBuilder:
                                 widget.videoAspectRatioBuilder,
                             imageCacheManager: widget.imageCacheManager,
+                            imageController: _imageController,
                             // This is used to make sure we have a thumbnail to show instead of a black placeholder
                             placeholderMediaBuilder:
                                 isInitPage && initialThumbnailUrl != null
@@ -304,6 +325,41 @@ class _PostDetailsItemState<T extends Post>
         ),
       ),
     );
+
+    return switch ((navigation, viewerTransform)) {
+      (final nav?, final transform?) => ValueListenableBuilder(
+        valueListenable: widget.detailsController.originalImagePostKeys,
+        builder: (_, _, _) {
+          final useOriginal = widget
+              .detailsController
+              .originalImagePostKeys
+              .value
+              .contains(postViewerIdentity(post));
+          final imageUrl = useOriginal
+              ? post.originalImageUrl
+              : widget.imageUrlBuilder(post);
+
+          return ZoomEdgePageGesture(
+            transform: transform,
+            pageController: pageViewController,
+            currentSettledPage: widget.detailsController.currentSettledPage,
+            pageIndex: widget.index,
+            contentSize: Size(post.width, post.height),
+            navigation: nav,
+            mediaState: _imageController.loadState,
+            enabled:
+                !post.isVideo &&
+                !noteOverlayShown &&
+                automaticMediaLoadingEnabled &&
+                imageUrl.isNotEmpty &&
+                _imageController.loadState.value == LoadState.completed &&
+                _imageController.imageInfo.value != null,
+            child: viewer,
+          );
+        },
+      ),
+      _ => viewer,
+    };
   }
 
   GridThumbnailMedia _initialPlaceholderMedia(

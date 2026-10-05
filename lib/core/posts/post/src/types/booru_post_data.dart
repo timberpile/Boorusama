@@ -6,6 +6,10 @@ abstract interface class BooruPostData {
   int get schemaVersion;
 }
 
+abstract interface class StableBookmarkPostKeyData {
+  String? get stableBookmarkPostKey;
+}
+
 abstract interface class BooruPostDataCodec<D extends BooruPostData> {
   String get typeKey;
   int get currentVersion;

@@ -8,7 +8,7 @@ updates:
       interval: "weekly"
       day: "saturday"
       time: "17:00"
-    target-branch: "dev"
+    target-branch: "develop"
 
   # Temporarily disable Dependabot for Dart pub, not really useful for now
   # Maintain dependencies for Dart pub
@@ -18,6 +18,6 @@ updates:
   #     interval: "weekly"
   #     day: "saturday"
   #     time: "17:00"
-  #   target-branch: "dev"
+  #   target-branch: "develop"
   #   open-pull-requests-limit: 5
 

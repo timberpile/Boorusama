@@ -22,7 +22,7 @@ void main() {
       final folder = await notifier.createSharedFolder('Artists');
 
       final added = await notifier.bulkPinToFolder(
-        profileId: 12,
+        profileId: '00000000-0000-4000-8000-00000000000c',
         folderId: folder.id,
         rawQueries: ' dog  \n\ncat\ndog\n bird rating:safe \r\n',
       );
@@ -50,12 +50,12 @@ void main() {
       );
       await harness.container.read(searchSubscriptionsProvider.future);
       final first = await notifier.saveFeed(
-        profileId: 12,
+        profileId: '00000000-0000-4000-8000-00000000000c',
         name: 'First',
         queries: ['cat'],
       );
       final second = await notifier.saveFeed(
-        profileId: 12,
+        profileId: '00000000-0000-4000-8000-00000000000c',
         name: 'Second',
         queries: ['cat'],
       );
@@ -87,7 +87,14 @@ void main() {
     });
     await harness.pump(tester, PinnedSearchesPage(folderId: folderId));
 
-    await tester.tap(find.byTooltip('Add searches'));
+    await tester.tap(
+      find.descendant(
+        of: find.byType(AppBar),
+        matching: find.byTooltip('More'),
+      ),
+    );
+    await settle(tester);
+    await tester.tap(find.text('Add searches'));
     await settle(tester);
     await tester.enterText(find.byType(TextField).last, 'cat\ndog');
     await tester.pump();
@@ -118,7 +125,7 @@ void main() {
       );
       await harness.container.read(searchSubscriptionsProvider.future);
       feedId = (await notifier.saveFeed(
-        profileId: 12,
+        profileId: '00000000-0000-4000-8000-00000000000c',
         name: 'Artists',
         queries: ['cat'],
       )).id;

@@ -1,4 +1,8 @@
 {
+  "pinned_searches": {
+    "sort_updates_first": "अपडेट पहले",
+    "sort_last_post_oldest": "सबसे पुरानी पोस्ट पहले"
+  },
   "generic": {
     "done": "पूर्ण",
     "errors": {
@@ -9,6 +13,11 @@
       "add": "जोड़ना",
       "delete": "हटाना",
       "edit": "संपादन"
+    }
+  },
+  "post": {
+    "action": {
+      "edit_rating": "रेटिंग संपादित करें"
     }
   }
 }

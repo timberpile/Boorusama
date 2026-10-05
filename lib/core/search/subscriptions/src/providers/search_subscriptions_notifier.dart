@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 // Project imports:
+import '../../../../../foundation/data_mutation_coordinator.dart';
 import '../../../../boorus/engine/providers.dart';
 import '../../../../configs/manage/providers.dart';
 import '../../../../configs/config/types.dart';
@@ -45,7 +46,7 @@ class SearchSubscriptionsState extends Equatable {
   final Set<String> refreshingIds;
   final int batchCompleted;
   final int batchTotal;
-  final int? batchProfileId;
+  final String? batchProfileId;
   final List<SearchFollowingFeed> feeds;
   final SearchOrganization organization;
 
@@ -68,13 +69,13 @@ class SearchSubscriptionsNotifier
 
   final SearchRefreshService? _refreshService;
   final Map<String, Future<SearchRefreshOutcome>> _inFlight = {};
-  final Map<int, int> _pausedProfileRefreshes = {};
+  final Map<String, int> _pausedProfileRefreshes = {};
   final _requestGate = SearchRefreshRequestGate();
   Future<void> _mutationTail = Future.value();
   Future<void> _batchTail = Future.value();
   var _batchCompleted = 0;
   var _batchTotal = 0;
-  int? _batchProfileId;
+  String? _batchProfileId;
   var _disposed = false;
   List<SearchFollowingFeed> _feeds = const [];
   var _organization = SearchOrganization(
@@ -115,7 +116,7 @@ class SearchSubscriptionsNotifier
       );
 
   Future<SearchFollowingFeed> saveFeed({
-    required int profileId,
+    required String profileId,
     required String name,
     required List<String> queries,
     String? id,
@@ -161,7 +162,7 @@ class SearchSubscriptionsNotifier
   });
 
   Future<int> bulkPinToFolder({
-    required int profileId,
+    required String profileId,
     required String? folderId,
     required String rawQueries,
   }) => _mutate((repository) async {
@@ -226,7 +227,7 @@ class SearchSubscriptionsNotifier
     return created.length;
   });
 
-  void _validateFeedQueries(int profileId, List<String> queries) {
+  void _validateFeedQueries(String profileId, List<String> queries) {
     final config = ref
         .read(booruConfigProvider)
         .where((c) => c.id == profileId)
@@ -247,7 +248,7 @@ class SearchSubscriptionsNotifier
 
   Future<SearchFollowingFeed?> setFeedFollowing({
     required String feedId,
-    required int profileId,
+    required String profileId,
     required String query,
     required bool following,
   }) => _mutate((repository) async {
@@ -484,17 +485,28 @@ class SearchSubscriptionsNotifier
 
   Future<({SearchSubscription subscription, SearchRefreshOutcome refresh})>
   pin({
-    required int profileId,
+    required String profileId,
     required String query,
+    SearchQueryStructure? queryStructure,
     required String? name,
     String? folderId,
+    String? newFolderName,
   }) async {
     final subscription = await _mutate((repository) async {
+      if (newFolderName case final folderName?) {
+        return repository.savePinInNewFolder(
+          profileId: profileId,
+          query: query,
+          name: name,
+          folderName: folderName,
+        );
+      }
       final existing = await repository.findByQuery(profileId, query);
       final subscription = switch (existing) {
         null => await repository.create(
           profileId: profileId,
           query: query,
+          queryStructure: queryStructure,
           name: name,
         ),
         final saved when name != null => await repository.rename(
@@ -536,11 +548,60 @@ class SearchSubscriptionsNotifier
     );
   }
 
+  Future<({SearchSubscription subscription, SearchRefreshOutcome? refresh})>
+  edit(
+    String id, {
+    required String profileId,
+    required String query,
+    required String? name,
+  }) async {
+    final result = await _mutate((repository) async {
+      if (!ref.read(booruConfigProvider).any((c) => c.id == profileId)) {
+        throw MissingPinnedSearchProfileException();
+      }
+      await _requireIndependentPin(repository, id);
+      final previous = (await repository.getById(id))!;
+      final material =
+          previous.profileId != profileId || previous.query != query.trim();
+      final edited = await repository.edit(
+        id,
+        profileId: profileId,
+        query: query,
+        name: name,
+      );
+      return (subscription: edited, material: material);
+    });
+    if (!result.material) {
+      return (subscription: result.subscription, refresh: null);
+    }
+    unawaited(_inFlight.remove(id));
+    return (
+      subscription: result.subscription,
+      refresh: await refresh(id),
+    );
+  }
+
   Future<void> rename(String id, String? name) async {
     await _mutate((repository) => repository.rename(id, name));
   }
 
-  Future<void> reorder(int profileId, int oldIndex, int newIndex) async {
+  Future<SearchSubscription> savePinInNewFolder({
+    required String profileId,
+    required String query,
+    required String? name,
+    required String folderName,
+    String? existingPinId,
+  }) => _mutate(
+    (repository) => repository.savePinInNewFolder(
+      profileId: profileId,
+      query: query,
+      name: name,
+      folderName: folderName,
+      existingPinId: existingPinId,
+    ),
+  );
+
+  Future<void> reorder(String profileId, int oldIndex, int newIndex) async {
     await _mutate(
       (repository) => repository.reorder(profileId, oldIndex, newIndex),
     );
@@ -554,10 +615,17 @@ class SearchSubscriptionsNotifier
       _mutate((repository) => repository.delete(id));
 
   Future<SearchRefreshOutcome> refresh(String id, {bool Function()? canStart}) {
-    return _inFlight[id] ??= _refresh(id, canStart).whenComplete(() {
-      _inFlight.remove(id);
+    final existing = _inFlight[id];
+    if (existing != null) return existing;
+    late final Future<SearchRefreshOutcome> request;
+    request = _refresh(id, canStart).whenComplete(() {
+      if (identical(_inFlight[id], request)) {
+        _inFlight.remove(id);
+      }
       _publishActivity();
     });
+    _inFlight[id] = request;
+    return request;
   }
 
   Future<SearchRefreshOutcome> _refresh(String id, bool Function()? canStart) =>
@@ -591,7 +659,7 @@ class SearchSubscriptionsNotifier
     }
   }
 
-  Future<List<SearchRefreshOutcome>> refreshAll(int profileId) {
+  Future<List<SearchRefreshOutcome>> refreshAll(String profileId) {
     final completer = Completer<List<SearchRefreshOutcome>>();
     _batchTail = _batchTail.catchError((_) {}).then((_) async {
       try {
@@ -603,7 +671,7 @@ class SearchSubscriptionsNotifier
     return completer.future;
   }
 
-  Future<List<SearchRefreshOutcome>> _refreshAll(int profileId) async {
+  Future<List<SearchRefreshOutcome>> _refreshAll(String profileId) async {
     await future;
     final repository = await _repository;
     final feedSourceIds = {
@@ -691,7 +759,7 @@ class SearchSubscriptionsNotifier
   });
 
   Future<T> runWithProfileRefreshPaused<T>(
-    int profileId,
+    String profileId,
     Future<T> Function() operation,
   ) async {
     _pausedProfileRefreshes.update(
@@ -711,7 +779,11 @@ class SearchSubscriptionsNotifier
     }
   }
 
-  Future<T> _serialize<T>(Future<T> Function() operation) {
+  Future<T> _serialize<T>(Future<T> Function() operation) => ref
+      .read(dataMutationCoordinatorProvider)
+      .runExclusive(() => _serializeLocally(operation));
+
+  Future<T> _serializeLocally<T>(Future<T> Function() operation) {
     final completer = Completer<T>();
     _mutationTail = _mutationTail.catchError((_) {}).then((_) async {
       try {

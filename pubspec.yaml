@@ -2,7 +2,7 @@ name: boorusama
 description: A mobile client for Booru sites.
 
 publish_to: "none"
-version: 4.5.0-timberpile.2+186
+version: 4.5.0-timberpile.3+187
 
 environment:
   sdk: ^3.12.0
@@ -79,10 +79,12 @@ dependencies:
   expandable: ^5.0.1
   fast_immutable_collections: ^11.0.0
   file_picker: ^12.0.0-beta.7
+  ffi: ^2.1.4
   fl_chart: ^1.0.0
   flutter:
     sdk: flutter
   flutter_displaymode: ^0.7.0
+  flutter_libavif: ^0.1.1
   flutter_html: ^3.0.0-beta.2
   flutter_local_notifications: ^22.0.1
   flutter_markdown_plus: ^1.0.12
@@ -133,6 +135,7 @@ dependencies:
   share_handler: ^0.0.20
   share_plus: ^13.2.0
   shelf: ^1.4.1
+  image: ^4.9.1
   selection_mode: ^0.0.6
   sliver_tools: ^0.2.12
   smooth_page_indicator: ^2.0.1
@@ -166,7 +169,6 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   hive_ce_generator: ^1.9.3
-  image: ^4.9.1
   import_sorter: ^4.6.0
   mocktail: ^1.0.4
   test: ^1.25.2

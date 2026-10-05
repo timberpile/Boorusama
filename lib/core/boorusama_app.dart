@@ -18,6 +18,7 @@ import '../foundation/app_update/providers.dart';
 import '../foundation/boot.dart';
 import '../foundation/boot/failsafe.dart';
 import '../foundation/boot/providers.dart';
+import '../foundation/data_mutation_coordinator.dart';
 import '../foundation/display_mode.dart';
 import '../foundation/filesystem.dart';
 import '../foundation/iap/iap.dart';
@@ -30,6 +31,7 @@ import '../foundation/platform.dart';
 import '../foundation/utils/file_utils.dart';
 import '../foundation/vendors/google/providers.dart';
 import 'app.dart';
+import 'backups/export_import/import/import_recovery_gate.dart';
 import 'boorus/booru/providers.dart';
 import 'boorus/booru/types.dart';
 import 'boorus/engine/providers.dart';
@@ -42,8 +44,10 @@ import 'developer_options/providers.dart';
 import 'developer_options/src/developer_options_repository.dart';
 import 'developer_options/types.dart';
 import 'hive/hive_registrar.g.dart';
+import 'hive/search_subscription_hive_adapter.dart';
 import 'http/client/types.dart';
 import 'images/providers.dart';
+import 'posts/shares/src/share_media_preparation.dart';
 import 'settings/providers.dart';
 import 'settings/src/types/settings_repository.dart';
 import 'settings/types.dart';
@@ -94,6 +98,11 @@ class _BoorusamaAppState extends State<BoorusamaApp> {
 
     try {
       logger.debugBoot('App Start up');
+      try {
+        await cleanupExpiredShareFiles(await fs.getTemporaryPath());
+      } catch (_) {
+        // A cache cleanup failure must not prevent the app from starting.
+      }
 
       logger.debugBoot('Configure display mode');
       await DisplayModeService().preferHighRefreshRate(logger: logger);
@@ -108,7 +117,8 @@ class _BoorusamaAppState extends State<BoorusamaApp> {
       logger.debugBoot('Initialize Hive');
       Hive
         ..init(dbDirectoryPath)
-        ..registerAdapters();
+        ..registerAdapters()
+        ..registerAdapter(SearchSubscriptionHiveObjectAdapter());
 
       logger.debugBoot('Load app info');
       final appInfo = await getAppInfo();
@@ -320,7 +330,12 @@ class _BoorusamaAppState extends State<BoorusamaApp> {
               () => SettingsNotifier(data.settings),
             ),
             initialSettingsProvider.overrideWithValue(data.settings),
-            booruConfigRepoProvider.overrideWithValue(result.booruUserRepo),
+            booruConfigRepoProvider.overrideWith(
+              (ref) => CoordinatedBooruConfigRepository(
+                result.booruUserRepo,
+                ref.watch(dataMutationCoordinatorProvider),
+              ),
+            ),
             booruConfigProvider.overrideWith(
               () => BooruConfigNotifier(initialConfigs: data.configs),
             ),
@@ -335,7 +350,7 @@ class _BoorusamaAppState extends State<BoorusamaApp> {
               widget.cronetAvailable,
             ),
           ],
-          child: const App(),
+          child: const ImportRecoveryGate(child: App()),
         ),
       ),
     );

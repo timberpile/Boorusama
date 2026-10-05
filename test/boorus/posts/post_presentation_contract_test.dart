@@ -293,7 +293,9 @@ void main() {
       expect(
         presentation.detailsWrapperBuilder,
         switch (testCase.type) {
-          BooruType.danbooru || BooruType.moebooru => isNotNull,
+          BooruType.danbooru ||
+          BooruType.gelbooruV2 ||
+          BooruType.moebooru => isNotNull,
           _ => isNull,
         },
       );

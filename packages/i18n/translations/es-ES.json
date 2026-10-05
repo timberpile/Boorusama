@@ -1,4 +1,8 @@
 {
+  "pinned_searches": {
+    "sort_updates_first": "Actualizaciones primero",
+    "sort_last_post_oldest": "Publicaciones más antiguas primero"
+  },
   "generic": {
     "done": "Hecho",
     "errors": {
@@ -147,7 +151,8 @@
     },
     "action": {
       "view_comments": "Ver comentarios",
-      "add_to_favorite_group": "Añadir al grupo de Favoritos",
+      "add_to_favorite_group": "Añadir al grupo de favoritos de la cuenta",
+      "edit_rating": "Editar la calificación",
       "view_in_browser": "Ver en el navegador",
       "view_original": "Ver Original",
       "share": "Compartir",
@@ -730,7 +735,7 @@
     "empty_group_notice": "No tienes grupos favoritos",
     "create_group": "Crear grupo",
     "edit_group": "Editar grupo",
-    "add_to_group_dialog_title": "Añadir al grupo de favoritos",
+    "add_to_group_dialog_title": "Añadir al grupo de favoritos de la cuenta",
     "add_to": "Añadir a",
     "create": "Crear",
     "private": "Privado",

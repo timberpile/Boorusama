@@ -29,7 +29,9 @@ class SearchRefreshCoordinator extends Notifier<bool> {
   final SearchRefreshScheduler _scheduler;
   Timer? _timer;
   Future<int>? _runFuture;
+  Future<void>? _initializationFuture;
   var _foreground = false;
+  var _feedsOverviewActive = false;
   var _disposed = false;
 
   @override
@@ -44,7 +46,9 @@ class SearchRefreshCoordinator extends Notifier<bool> {
       (_, _) => _configure(),
     );
     ref.listen(automaticSearchRefreshNetworkAllowedProvider, (_, allowed) {
-      if (allowed && _foreground) unawaited(run());
+      if (allowed && _foreground) {
+        unawaited(initializeFeeds());
+      }
     });
     return false;
   }
@@ -54,51 +58,97 @@ class SearchRefreshCoordinator extends Notifier<bool> {
     _configure();
   }
 
+  void setFeedsOverviewActive(bool active) {
+    _feedsOverviewActive = active;
+    if (active) unawaited(initializeFeeds());
+  }
+
   void _configure() {
     _timer?.cancel();
     _timer = null;
-    if (!_disposed &&
-        _foreground &&
-        ref.read(settingsProvider).searchRefresh.enabled) {
-      _timer = Timer.periodic(
-        const Duration(minutes: 1),
-        (_) => unawaited(run()),
-      );
-      unawaited(run());
-    }
+    unawaited(initializeFeeds());
   }
 
   bool get _canRun =>
+      _canInitialize && ref.read(settingsProvider).searchRefresh.enabled;
+
+  bool get _canInitialize =>
       !_disposed &&
       _foreground &&
-      ref.read(settingsProvider).searchRefresh.enabled &&
       ref.read(automaticSearchRefreshNetworkAllowedProvider);
 
-  Future<int> run() =>
-      _runFuture ??= _run().whenComplete(() => _runFuture = null);
+  Future<void> initializeFeeds() {
+    if (!_canInitialize || !_feedsOverviewActive) return Future.value();
+    return _initializationFuture ??= _initializeFeeds().whenComplete(
+      () => _initializationFuture = null,
+    );
+  }
 
-  Future<int> _run() async {
-    if (!_canRun || state) return 0;
+  Future<void> _initializeFeeds() async {
+    final attemptedIds = <String>{};
+    while (_canInitialize && _feedsOverviewActive) {
+      final checked = await _startRun(initialAttemptIds: attemptedIds);
+      if (checked == 0) break;
+      if (_scheduler.spacing > Duration.zero) {
+        await Future<void>.delayed(_scheduler.spacing);
+      }
+    }
+  }
+
+  Future<int> run() => _canRun ? _startRun() : Future.value(0);
+
+  Future<int> _startRun({Set<String>? initialAttemptIds}) =>
+      _runFuture ??= _run(
+        initialAttemptIds: initialAttemptIds,
+      ).whenComplete(() => _runFuture = null);
+
+  Future<int> _run({Set<String>? initialAttemptIds}) async {
+    final initializing = initialAttemptIds != null;
+    bool canRun() =>
+        initializing ? _canInitialize && _feedsOverviewActive : _canRun;
+    if (!canRun() || state) return 0;
     state = true;
     try {
       final subscriptions = await ref.read(searchSubscriptionsProvider.future);
-      if (!_canRun) return 0;
+      if (!canRun()) return 0;
       final profiles = {
         for (final config in ref.read(booruConfigProvider)) config.id: config,
       };
       final interval = ref.read(settingsProvider).searchRefresh.interval;
+      final sourceIds = {
+        for (final feed in subscriptions.feeds)
+          if (profiles.containsKey(feed.profileId)) ...feed.sourceIds,
+      };
       return await _scheduler.run(
-        searches: subscriptions.subscriptions,
+        searches: subscriptions.subscriptions
+            .where(
+              (search) =>
+                  !initializing ||
+                  sourceIds.contains(search.id) &&
+                      search.lastSuccessfulCheckAt == null &&
+                      search.lastAttemptAt == null &&
+                      !initialAttemptIds.contains(search.id),
+            )
+            .toList(),
         interval: interval,
-        canRun: () => _canRun,
+        canRun: canRun,
         canRefresh: (search) {
           final current = ref.read(searchSubscriptionsProvider).valueOrNull;
           final latest = current?.subscriptions
               .where((s) => s.id == search.id)
               .firstOrNull;
           if (latest == null ||
-              !_scheduler.isDue(latest, interval) ||
-              (current?.refreshingIds.contains(search.id) ?? false)) {
+              (initializing
+                  ? latest.lastSuccessfulCheckAt != null ||
+                        latest.lastAttemptAt != null ||
+                        initialAttemptIds.contains(search.id) ||
+                        !(current?.feeds.any(
+                              (feed) => feed.sourceIds.contains(search.id),
+                            ) ??
+                            false)
+                  : !_scheduler.isDue(latest, interval) ||
+                        (current?.refreshingIds.contains(search.id) ??
+                            false))) {
             return false;
           }
           final config = profiles[latest.profileId];
@@ -111,9 +161,18 @@ class SearchRefreshCoordinator extends Notifier<bool> {
               adapter.plan(latest.query, after: null)
                   is SupportedSearchRefreshQueryPlan;
         },
-        refresh: (id) => ref
-            .read(searchSubscriptionsProvider.notifier)
-            .refresh(id, canStart: () => _canRun),
+        refresh: (id) {
+          return ref
+              .read(searchSubscriptionsProvider.notifier)
+              .refresh(
+                id,
+                canStart: () {
+                  final allowed = canRun();
+                  if (allowed) initialAttemptIds?.add(id);
+                  return allowed;
+                },
+              );
+        },
       );
     } catch (_) {
       return 0;

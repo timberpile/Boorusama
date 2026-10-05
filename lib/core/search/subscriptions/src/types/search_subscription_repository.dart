@@ -4,33 +4,51 @@ import 'search_following_feed.dart';
 import 'search_organization.dart';
 import 'search_subscription.dart';
 
+final class DuplicatePinnedSearchException implements Exception {}
+
+final class MissingPinnedSearchProfileException implements Exception {}
+
 abstract interface class SearchSubscriptionRepository {
   Future<List<SearchSubscription>> getAll();
   Future<List<SearchFollowingFeed>> getFeeds();
   Future<SearchFollowingFeed> saveFeed({
-    required int profileId,
+    required String profileId,
     required String name,
     required List<String> queries,
     String? id,
   });
   Future<void> deleteFeed(String id);
-  Future<void> setFeedOrder(int profileId, List<String> orderedIds);
-  Future<void> restoreFeeds(int profileId, List<SearchFollowingFeed> feeds);
+  Future<void> setFeedOrder(String profileId, List<String> orderedIds);
+  Future<void> restoreFeeds(String profileId, List<SearchFollowingFeed> feeds);
   Future<SearchOrganization> getOrganization();
   Future<void> replaceOrganization(SearchOrganization organization);
   Future<void> deleteSharedFolderAndPins(String folderId);
   Future<SearchSubscription?> getById(String id);
-  Future<SearchSubscription?> findByQuery(int profileId, String query);
+  Future<SearchSubscription?> findByQuery(String profileId, String query);
   Future<SearchSubscription> create({
-    required int profileId,
+    required String profileId,
     required String query,
+    SearchQueryStructure? queryStructure,
     required String? name,
     String? id,
     DateTime? createdAt,
   });
+  Future<SearchSubscription> edit(
+    String id, {
+    required String profileId,
+    required String query,
+    required String? name,
+  });
   Future<SearchSubscription> rename(String id, String? name);
+  Future<SearchSubscription> savePinInNewFolder({
+    required String profileId,
+    required String query,
+    required String? name,
+    required String folderName,
+    String? existingPinId,
+  });
   Future<List<SearchSubscription>> reorder(
-    int profileId,
+    String profileId,
     int oldIndex,
     int newIndex,
   );
@@ -44,10 +62,10 @@ abstract interface class SearchSubscriptionRepository {
     required SearchRefreshErrorKind kind,
   });
   Future<void> delete(String id);
-  Future<void> deleteForProfile(int profileId);
-  Future<void> invalidateRuntimeForProfile(int profileId);
+  Future<void> deleteForProfile(String profileId);
+  Future<void> invalidateRuntimeForProfile(String profileId);
   Future<void> restoreForProfile(
-    int profileId,
+    String profileId,
     List<SearchSubscription> subscriptions,
   );
 }

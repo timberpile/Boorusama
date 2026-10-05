@@ -70,6 +70,9 @@ class BookmarkDetailsMutationNotifier
     required BookmarkLibraryState library,
   }) {
     final uniqueId = bookmarkIdentityForPost(post, config.booruIdHint);
+    if (uniqueId is UnbookmarkablePostIdentity) {
+      return BookmarkToggleOutcome.missingPostIdentity;
+    }
     final target = library.activeTarget;
     final key = (bookmarkId: uniqueId, target: target);
     if (_pending.remove(key) case final pending?) {

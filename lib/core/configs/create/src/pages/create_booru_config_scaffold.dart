@@ -192,10 +192,14 @@ class CreateBooruConfigScope extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final initialConfig = config.copyWith(
+      name: id.isNew ? id.initialName : null,
+    );
+
     return ProviderScope(
       overrides: [
         editBooruConfigIdProvider.overrideWithValue(id),
-        initialBooruConfigProvider.overrideWithValue(config),
+        initialBooruConfigProvider.overrideWithValue(initialConfig),
       ],
       child: child,
     );

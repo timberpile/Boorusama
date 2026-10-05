@@ -112,6 +112,23 @@ class SliverPreviewPostGrid<T extends Post> extends ConsumerWidget {
         gridDelegate: _getGridDelegate(constraints?.maxWidth),
         itemBuilder: (context, index) => _buildGridItem(ref, index),
       ),
+      final FixedCountPreview fixedCount => SliverGrid.builder(
+        itemCount: fixedCount.calculateItemCount(posts.length),
+        gridDelegate: _getGridDelegate(constraints?.maxWidth),
+        itemBuilder: (context, index) => _buildGridItem(ref, index),
+      ),
+      final BatchedPreview batch => ExpandableSliverGrid(
+        itemCount: posts.length,
+        gridDelegate: _getGridDelegate(constraints?.maxWidth),
+        builder: (context, index) => _buildGridItem(ref, index),
+        shouldLimit: (totalCount, expandCount) =>
+            batch.calculateProgressiveLimit(
+              totalCount: totalCount,
+              expandCount: expandCount,
+            ),
+        onShowAll: onShowAll,
+        showCollapseButtonWhenExpanded: false,
+      ),
       final LimitedPreview limitConfig => ExpandableSliverGrid(
         itemCount: posts.length,
         gridDelegate: _getGridDelegate(constraints?.maxWidth),
@@ -185,6 +202,32 @@ class SliverPreviewPostGridPlaceholder extends StatelessWidget {
           ),
         ),
       ),
+      final FixedCountPreview fixedCount => SliverGrid.builder(
+        itemCount: fixedCount.calculateItemCount(itemCount),
+        addRepaintBoundaries: false,
+        addSemanticIndexes: false,
+        addAutomaticKeepAlives: false,
+        gridDelegate: _getGridDelegate(constraints?.maxWidth),
+        itemBuilder: (context, index) => Container(
+          decoration: BoxDecoration(
+            color: colorScheme.surfaceContainerHigh.withValues(alpha: 0.5),
+            borderRadius: const BorderRadius.all(Radius.circular(8)),
+          ),
+        ),
+      ),
+      final BatchedPreview batch => SliverGrid.builder(
+        itemCount: batch.calculateItemCount(itemCount),
+        addRepaintBoundaries: false,
+        addSemanticIndexes: false,
+        addAutomaticKeepAlives: false,
+        gridDelegate: _getGridDelegate(constraints?.maxWidth),
+        itemBuilder: (context, index) => Container(
+          decoration: BoxDecoration(
+            color: colorScheme.surfaceContainerHigh.withValues(alpha: 0.5),
+            borderRadius: const BorderRadius.all(Radius.circular(8)),
+          ),
+        ),
+      ),
       final LimitedPreview limitConfig => _buildLimitedPlaceholder(
         context,
         constraints,
@@ -229,6 +272,8 @@ class SliverPreviewPostGridPlaceholder extends StatelessWidget {
     );
   }
 }
+
+const artistUploaderPreviewPostLimit = 6;
 
 SliverGridDelegate _getGridDelegate(double? width) {
   return SliverGridDelegateWithFixedCrossAxisCount(

@@ -8,11 +8,13 @@ import 'package:kurumi/material.dart';
 // Project imports:
 import '../../../../foundation/info/package_info.dart';
 import '../../../../foundation/version.dart';
+import '../../export_import/import/import_flow_page.dart';
+import '../../export_import/nearby/nearby_transfer_service.dart';
+import '../../export_import/nearby/providers.dart';
 import '../../preparation/version_mismatch_alert_dialog.dart';
 import '../../servers/discovery_client.dart';
 import '../../types.dart';
 import 'manual_device_input_dialog.dart';
-import 'transfer_data_dialog.dart';
 
 class ImportDataPage extends ConsumerStatefulWidget {
   const ImportDataPage({super.key});
@@ -23,6 +25,7 @@ class ImportDataPage extends ConsumerStatefulWidget {
 
 class _ImportDataPageState extends ConsumerState<ImportDataPage> {
   List<DiscoveredService> discoveredServices = [];
+  var _receiving = false;
   late final _client = DiscoveryClient(
     onServiceResolved: _handleServiceResolved,
     onServiceLost: _handleServiceLost,
@@ -104,10 +107,7 @@ class _ImportDataPageState extends ConsumerState<ImportDataPage> {
                     if (uri == null) return;
 
                     if (context.mounted) {
-                      await showTransferOptionsDialog(
-                        context,
-                        url: uri.toString(),
-                      );
+                      await _openNearbyImport(uri.toString());
                     }
                   },
                 ),
@@ -191,10 +191,7 @@ class _ImportDataPageState extends ConsumerState<ImportDataPage> {
                           }
 
                           if (context.mounted) {
-                            await showTransferOptionsDialog(
-                              context,
-                              url: url,
-                            );
+                            await _openNearbyImport(url);
                           }
                         },
                       ),
@@ -227,9 +224,41 @@ class _ImportDataPageState extends ConsumerState<ImportDataPage> {
                   ),
                 ),
               ),
+            if (_receiving) ...[
+              const SizedBox(height: 20),
+              const CircularProgressIndicator(),
+            ],
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _openNearbyImport(String url) async {
+    if (_receiving) return;
+    setState(() => _receiving = true);
+    NearbyReceivedPackage? package;
+    try {
+      package = await ref.read(nearbyImportServiceProvider).download(url);
+      if (!mounted) {
+        await package.dispose();
+        return;
+      }
+      final received = package;
+      package = null;
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ImportFlowPage(
+            packagePath: received.path,
+            disposeInput: received.dispose,
+          ),
+        ),
+      );
+    } catch (error) {
+      await package?.dispose();
+      if (mounted) Kurumi.showErrorToast(context, error.toString());
+    } finally {
+      if (mounted) setState(() => _receiving = false);
+    }
   }
 }

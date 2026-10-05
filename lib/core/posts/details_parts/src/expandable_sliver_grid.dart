@@ -12,6 +12,7 @@ class ExpandableSliverGrid extends StatefulWidget {
     required this.shouldLimit,
     this.buttonBuilder,
     this.onShowAll,
+    this.showCollapseButtonWhenExpanded = true,
     super.key,
   });
 
@@ -27,6 +28,7 @@ class ExpandableSliverGrid extends StatefulWidget {
   )?
   buttonBuilder;
   final VoidCallback? onShowAll;
+  final bool showCollapseButtonWhenExpanded;
 
   @override
   State<ExpandableSliverGrid> createState() => _ExpandableSliverGridState();
@@ -40,7 +42,8 @@ class _ExpandableSliverGridState extends State<ExpandableSliverGrid> {
     final limit = widget.shouldLimit(widget.itemCount, _expandCount);
 
     if (limit == null) {
-      final canCollapse = _expandCount > 0;
+      final canCollapse =
+          _expandCount > 0 && widget.showCollapseButtonWhenExpanded;
       final showNavButton = canCollapse && widget.onShowAll != null;
 
       return MultiSliver(
@@ -176,21 +179,21 @@ class _ExpandCollapseButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(8),
         ),
         onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: 4,
-            vertical: 8,
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon),
-              const SizedBox(width: 4),
-              Text(
-                text,
-                style: const TextStyle(fontWeight: FontWeight.w500),
-              ),
-            ],
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 48),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon),
+                const SizedBox(width: 4),
+                Text(
+                  text,
+                  style: const TextStyle(fontWeight: FontWeight.w500),
+                ),
+              ],
+            ),
           ),
         ),
       ),

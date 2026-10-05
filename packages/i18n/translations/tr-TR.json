@@ -1,4 +1,8 @@
 {
+  "pinned_searches": {
+    "sort_updates_first": "Güncellemeler önce",
+    "sort_last_post_oldest": "En eski gönderiler önce"
+  },
   "generic": {
     "done": "Tamam",
     "errors": {
@@ -89,7 +93,8 @@
     },
     "action": {
       "view_comments": "Yorumları görüntüle",
-      "add_to_favorite_group": "Favori gruba ekle",
+      "add_to_favorite_group": "Hesabın favori grubuna ekle",
+      "edit_rating": "Derecelendirmeyi düzenle",
       "view_in_browser": "Tarayıcıda aç",
       "view_original": "Orijinalini göster"
     }

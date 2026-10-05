@@ -7,6 +7,7 @@ import 'package:hive_ce/hive.dart';
 import 'package:uuid/uuid.dart';
 
 // Project imports:
+import '../../../../../configs/config/src/types/profile_id.dart';
 import '../../types/search_post_preview.dart';
 import '../../types/search_refresh.dart';
 import '../../types/search_following_feed.dart';
@@ -36,7 +37,7 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
       for (final value in _organizationBox?.values ?? const [])
         if (value case final Map json
             when json['id'] is String &&
-                json['profileId'] is int &&
+                isCanonicalProfileId(json['profileId']) &&
                 json['name'] is String)
           SearchFollowingFeed.fromJson({
             ...json,
@@ -73,7 +74,7 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
 
   @override
   Future<SearchFollowingFeed> saveFeed({
-    required int profileId,
+    required String profileId,
     required String name,
     required List<String> queries,
     String? id,
@@ -196,7 +197,7 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
   });
 
   @override
-  Future<void> setFeedOrder(int profileId, List<String> orderedIds) =>
+  Future<void> setFeedOrder(String profileId, List<String> orderedIds) =>
       _serialize(() async {
         final storage = _organizationBox;
         if (storage == null) throw StateError('Feed storage unavailable');
@@ -223,23 +224,25 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
       });
 
   @override
-  Future<void> restoreFeeds(int profileId, List<SearchFollowingFeed> feeds) =>
-      _serialize(() async {
-        if (feeds.any((f) => f.profileId != profileId)) {
-          throw StateError('Invalid feed ownership');
-        }
-        await _organizationBox?.deleteAll(
-          _feeds()
-              .where((f) => f.profileId == profileId)
-              .map((f) => 'feed:${f.id}'),
-        );
-        await _organizationBox?.putAll({
-          for (final f in feeds) 'feed:${f.id}': f.toJson(),
-        });
-      });
+  Future<void> restoreFeeds(
+    String profileId,
+    List<SearchFollowingFeed> feeds,
+  ) => _serialize(() async {
+    if (feeds.any((f) => f.profileId != profileId)) {
+      throw StateError('Invalid feed ownership');
+    }
+    await _organizationBox?.deleteAll(
+      _feeds()
+          .where((f) => f.profileId == profileId)
+          .map((f) => 'feed:${f.id}'),
+    );
+    await _organizationBox?.putAll({
+      for (final f in feeds) 'feed:${f.id}': f.toJson(),
+    });
+  });
 
   @override
-  Future<void> invalidateRuntimeForProfile(int profileId) =>
+  Future<void> invalidateRuntimeForProfile(String profileId) =>
       _serialize(() async {
         final originals = {
           for (final object in _box.values)
@@ -275,6 +278,7 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
         id: source.id,
         profileId: source.profileId,
         query: source.query,
+        queryStructure: source.queryStructure,
         name: source.name,
         position: source.position,
         createdAt: source.createdAt,
@@ -365,25 +369,30 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
   }
 
   @override
-  Future<SearchSubscription?> findByQuery(int profileId, String query) {
-    return _read(() {
-      final normalizedQuery = normalizeSearchIdentity(query);
-      final internalIds = _feedSourceIds();
-      for (final subscription in _subscriptions()) {
-        if (subscription.profileId == profileId &&
-            !internalIds.contains(subscription.id) &&
-            normalizeSearchIdentity(subscription.query) == normalizedQuery) {
-          return subscription;
-        }
-      }
-      return null;
-    });
+  Future<SearchSubscription?> findByQuery(String profileId, String query) =>
+      _read(() => _findIndependentByQuery(profileId, query));
+
+  SearchSubscription? _findIndependentByQuery(
+    String profileId,
+    String query, {
+    String? excludingId,
+  }) {
+    final normalizedQuery = normalizeSearchIdentity(query);
+    final internalIds = _feedSourceIds();
+    return _subscriptions().firstWhereOrNull(
+      (subscription) =>
+          subscription.id != excludingId &&
+          subscription.profileId == profileId &&
+          !internalIds.contains(subscription.id) &&
+          normalizeSearchIdentity(subscription.query) == normalizedQuery,
+    );
   }
 
   @override
   Future<SearchSubscription> create({
-    required int profileId,
+    required String profileId,
     required String query,
+    SearchQueryStructure? queryStructure,
     required String? name,
     String? id,
     DateTime? createdAt,
@@ -395,12 +404,7 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
       }
       final subscriptions = _subscriptions().toList();
       final internalIds = _feedSourceIds();
-      if (subscriptions.any(
-        (subscription) =>
-            subscription.profileId == profileId &&
-            !internalIds.contains(subscription.id) &&
-            normalizeSearchIdentity(subscription.query) == normalizedQuery,
-      )) {
+      if (_findIndependentByQuery(profileId, query) != null) {
         throw StateError(
           'Pinned search query already exists for this profile.',
         );
@@ -417,6 +421,7 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
         id: subscriptionId,
         profileId: profileId,
         query: query,
+        queryStructure: queryStructure,
         name: name,
         position: subscriptions
             .where(
@@ -437,6 +442,55 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
   }
 
   @override
+  Future<SearchSubscription> edit(
+    String id, {
+    required String profileId,
+    required String query,
+    required String? name,
+  }) => _serialize(() async {
+    final current = _toSubscription(_requireObject(id));
+    if (_feedSourceIds().contains(current.id)) {
+      throw StateError('Feed sources cannot be edited as pinned searches.');
+    }
+    final trimmedQuery = query.trim();
+    final normalizedQuery = normalizeSearchIdentity(trimmedQuery);
+    if (normalizedQuery.isEmpty) {
+      throw const FormatException('Pinned search queries cannot be empty.');
+    }
+    if (_findIndependentByQuery(
+          profileId,
+          trimmedQuery,
+          excludingId: current.id,
+        ) !=
+        null) {
+      throw DuplicatePinnedSearchException();
+    }
+
+    final material =
+        current.profileId != profileId || current.query != trimmedQuery;
+    final updated = material
+        ? SearchSubscription(
+            id: current.id,
+            profileId: profileId,
+            query: trimmedQuery,
+            queryStructure: current.query == trimmedQuery
+                ? current.queryStructure
+                : null,
+            name: name,
+            position: current.position,
+            createdAt: current.createdAt,
+            runtimeRevision: current.runtimeRevision + 1,
+            previews: const [],
+            recentPostIdentities: const [],
+            unreadCount: 0,
+          )
+        : current.copyWithName(name);
+    final object = _toObject(updated);
+    await _box.put(object.id, object);
+    return _toSubscription(object);
+  });
+
+  @override
   Future<SearchSubscription> rename(String id, String? name) {
     return _serialize(() async {
       final current = _requireObject(id);
@@ -448,8 +502,95 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
   }
 
   @override
+  Future<SearchSubscription> savePinInNewFolder({
+    required String profileId,
+    required String query,
+    required String? name,
+    required String folderName,
+    String? existingPinId,
+  }) => _serialize(() async {
+    final storage = _organizationBox;
+    if (storage == null) throw StateError('Organization storage unavailable');
+    final identity = normalizeSearchIdentity(query);
+    if (identity.isEmpty) throw const FormatException('Empty pin query');
+    final current = _organization();
+    final folder = SharedSearchFolder(
+      id: _uuid.v4(),
+      name: folderName,
+      searchIds: const [],
+    );
+    if (current.folders.any(
+      (f) => f.name.toLowerCase() == folder.name.toLowerCase(),
+    )) {
+      throw StateError('Duplicate shared search folder');
+    }
+    final subscriptions = _subscriptionsForProfile(profileId).toList();
+    final existing = subscriptions.firstWhereOrNull(
+      (pin) => existingPinId == null
+          ? normalizeSearchIdentity(pin.query) == identity
+          : pin.id == existingPinId &&
+                normalizeSearchIdentity(pin.query) == identity,
+    );
+    if (existingPinId != null && existing == null) {
+      throw StateError('Independent pinned search not found');
+    }
+    final subscription = switch (existing) {
+      final pin? => name == null ? pin : pin.copyWithName(name),
+      null => SearchSubscription.create(
+        id: _uuid.v4(),
+        profileId: profileId,
+        query: query,
+        name: name,
+        position: subscriptions.fold(
+          0,
+          (next, pin) => pin.position >= next ? pin.position + 1 : next,
+        ),
+        createdAt: DateTime.now().toUtc(),
+      ),
+    };
+    final next = SearchOrganization(
+      folders: [
+        for (final old in current.folders)
+          SharedSearchFolder(
+            id: old.id,
+            name: old.name,
+            searchIds: old.searchIds.where((id) => id != subscription.id),
+          ),
+        SharedSearchFolder(
+          id: folder.id,
+          name: folder.name,
+          searchIds: [subscription.id],
+        ),
+      ],
+      homeSearchIds: current.homeSearchIds.where((id) => id != subscription.id),
+    );
+    final previousPin = _box.get(subscription.id);
+    final previousOrganization = storage.get('search:organization');
+    try {
+      await _box.put(subscription.id, _toObject(subscription));
+      await storage.put('search:organization', next.toJson());
+    } catch (_) {
+      if (previousPin case final pin?) {
+        await _box.put(subscription.id, pin);
+      } else {
+        await _box.delete(subscription.id);
+      }
+      // A write can report failure after changing storage.
+      if (storage.get('search:organization') != previousOrganization) {
+        if (previousOrganization case final value?) {
+          await storage.put('search:organization', value);
+        } else {
+          await storage.delete('search:organization');
+        }
+      }
+      rethrow;
+    }
+    return subscription;
+  });
+
+  @override
   Future<List<SearchSubscription>> reorder(
-    int profileId,
+    String profileId,
     int oldIndex,
     int newIndex,
   ) {
@@ -549,6 +690,7 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
         id: current.id,
         profileId: current.profileId,
         query: current.query,
+        queryStructure: current.queryStructure,
         name: current.name,
         position: current.position,
         createdAt: current.createdAt,
@@ -610,6 +752,7 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
         id: subscription.id,
         profileId: subscription.profileId,
         query: subscription.query,
+        queryStructure: subscription.queryStructure,
         name: subscription.name,
         position: subscription.position,
         createdAt: subscription.createdAt,
@@ -664,7 +807,7 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
   }
 
   @override
-  Future<void> deleteForProfile(int profileId) {
+  Future<void> deleteForProfile(String profileId) {
     return _serialize(() async {
       final keys = _box.values
           .where((object) => object.profileId == profileId)
@@ -705,7 +848,7 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
 
   @override
   Future<void> restoreForProfile(
-    int profileId,
+    String profileId,
     List<SearchSubscription> subscriptions,
   ) {
     return _serialize(() async {
@@ -748,7 +891,10 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
   }
 
   Iterable<SearchSubscription> _subscriptions() {
-    return _box.values.map(_toSubscription).toList()
+    return _box.values
+        .where((object) => isCanonicalProfileId(object.profileId))
+        .map(_toSubscription)
+        .toList()
       ..sort(_compareSubscriptions);
   }
 
@@ -822,7 +968,7 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
     }
   }
 
-  Iterable<SearchSubscription> _subscriptionsForProfile(int profileId) {
+  Iterable<SearchSubscription> _subscriptionsForProfile(String profileId) {
     final internalIds = _feedSourceIds();
     return _subscriptions().where(
       (subscription) =>
@@ -839,7 +985,7 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
     return object;
   }
 
-  Future<void> _writeContiguousPositions(int profileId) async {
+  Future<void> _writeContiguousPositions(String profileId) async {
     final objects = <String, SearchSubscriptionHiveObject>{
       for (final (index, subscription) in _subscriptionsForProfile(
         profileId,
@@ -890,6 +1036,7 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
       id: object.id,
       profileId: object.profileId,
       query: object.query,
+      queryStructure: SearchQueryStructure.tryParse(object.queryStructure),
       name: object.name,
       position: object.position,
       createdAt: object.createdAt,
@@ -917,6 +1064,7 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
       id: subscription.id,
       profileId: subscription.profileId,
       query: subscription.query,
+      queryStructure: subscription.queryStructure?.toJson(),
       name: subscription.name,
       position: subscription.position,
       createdAt: subscription.createdAt,
@@ -977,6 +1125,7 @@ extension on SearchSubscription {
       id: id,
       profileId: profileId,
       query: query,
+      queryStructure: queryStructure,
       name: name,
       position: position,
       createdAt: createdAt,
@@ -996,6 +1145,7 @@ extension on SearchSubscription {
       id: id,
       profileId: profileId,
       query: query,
+      queryStructure: queryStructure,
       name: name,
       position: value,
       createdAt: createdAt,
@@ -1015,6 +1165,7 @@ extension on SearchSubscription {
       id: id,
       profileId: profileId,
       query: query,
+      queryStructure: queryStructure,
       name: name,
       position: position,
       createdAt: createdAt,

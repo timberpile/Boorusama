@@ -21,7 +21,7 @@ import 'bookmark_import_planner.dart';
 import 'bookmark_import_service.dart';
 import 'json_source.dart';
 
-const kBookmarksBackupVersion = 2;
+const kBookmarksBackupVersion = 4;
 
 class BookmarksBackupSource extends JsonBackupSource<BookmarkBackupData> {
   BookmarksBackupSource(Ref ref)
@@ -101,11 +101,6 @@ class BookmarksBackupSource extends JsonBackupSource<BookmarkBackupData> {
           );
         },
         handler: BookmarkBackupCodec(
-          bookmarkParser: (json) {
-            final booruId = json['booruId'] as int?;
-            final resolver = ref.read(bookmarkUrlResolverProvider(booruId));
-            return Bookmark.fromJson(json, imageUrlResolver: resolver);
-          },
           postDataCodec: (type) =>
               ref.read(booruPostCapabilityProvider(type))?.codec,
         ),

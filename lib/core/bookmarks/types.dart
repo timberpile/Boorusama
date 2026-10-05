@@ -1,4 +1,5 @@
 export 'src/types/bookmark.dart';
+export 'src/types/bookmark_identity.dart';
 export 'src/types/bookmark_group.dart';
 export 'src/types/bookmark_group_repository.dart';
 export 'src/types/bookmark_library_state.dart';

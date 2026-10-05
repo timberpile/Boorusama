@@ -1,0 +1,245 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:boorusama/core/backups/auto/repo_io.dart';
+import 'package:boorusama/core/backups/auto/service.dart';
+import 'package:boorusama/core/backups/auto/types.dart';
+import 'package:boorusama/core/backups/export_import/export/export_service.dart';
+import 'package:boorusama/core/backups/export_import/models/export_selection.dart';
+import 'package:boorusama/core/backups/export_import/package/export_package_reader.dart';
+import 'package:boorusama/core/backups/export_import/package/export_package_writer.dart';
+import 'package:boorusama/core/backups/export_import/sources/export_import_source.dart';
+import 'package:boorusama/core/backups/types/backup_registry.dart';
+import 'package:boorusama/foundation/filesystem.dart';
+import 'package:boorusama/foundation/loggers.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:path/path.dart' as p;
+
+void main() {
+  late Directory directory;
+  late AutoBackupRepositoryIo repository;
+
+  setUp(() async {
+    directory = await Directory.systemTemp.createTemp('auto_backup_service_');
+    repository = const AutoBackupRepositoryIo(IoFileSystem());
+  });
+
+  tearDown(() => directory.delete(recursive: true));
+
+  test('automatic backup creates a full export with credentials', () async {
+    final sources = [_FakeSource('first'), _FakeSource('second')];
+    final registry = _registryFor(sources);
+    final service = AutoBackupService(
+      exportService: _exportService(sources),
+      logger: const _Logger(),
+      registry: registry,
+      repository: repository,
+    );
+
+    final result = await service.performBackup(
+      AutoBackupSettings(userSelectedPath: directory.path),
+    );
+    final staged = await const ExportPackageReader(
+      fs: IoFileSystem(),
+    ).stage(result.filePath);
+    addTearDown(staged.dispose);
+
+    expect(result.success, isTrue);
+    expect(
+      p.basename(result.filePath),
+      matches(
+        RegExp(r'^boorusama-\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}Z\.bsexport$'),
+      ),
+    );
+    expect(staged.manifest.sources.map((source) => source.id), {
+      'first',
+      'second',
+    });
+    expect(
+      sources.map((source) => source.lastRequest?.includeCredentials),
+      everyElement(isTrue),
+    );
+  });
+
+  test('successful backup retains only the newest configured files', () async {
+    final sources = [_FakeSource('source')];
+    final registry = _registryFor(sources);
+    final backupDirectory = await repository.getBackupDirectoryPath(
+      directory.path,
+    );
+    final legacyPath = p.join(backupDirectory, 'legacy.zip');
+    final previousPath = p.join(backupDirectory, 'previous.bsexport');
+    File(legacyPath).writeAsStringSync('legacy');
+    File(previousPath).writeAsStringSync('previous');
+    await repository.saveManifest(
+      backupDirectory,
+      AutoBackupManifest(
+        backups: [
+          AutoBackupEntry(
+            fileName: p.basename(legacyPath),
+            createdAt: DateTime.utc(2024),
+            fileSize: File(legacyPath).lengthSync(),
+          ),
+          AutoBackupEntry(
+            fileName: p.basename(previousPath),
+            createdAt: DateTime.utc(2025),
+            fileSize: File(previousPath).lengthSync(),
+          ),
+        ],
+      ),
+    );
+    final service = AutoBackupService(
+      exportService: _exportService(sources),
+      logger: const _Logger(),
+      registry: registry,
+      repository: repository,
+    );
+
+    final result = await service.performBackup(
+      AutoBackupSettings(maxBackups: 1, userSelectedPath: directory.path),
+    );
+    final manifest = await repository.loadManifest(backupDirectory);
+
+    expect(manifest.backups.map((entry) => entry.fileName), [
+      p.basename(result.filePath),
+    ]);
+    expect(File(legacyPath).existsSync(), isFalse);
+    expect(File(previousPath).existsSync(), isFalse);
+    expect(File(result.filePath).existsSync(), isTrue);
+  });
+
+  test(
+    'automatic export uses the next suffix when names are occupied',
+    () async {
+      final sources = [_FakeSource('source')];
+      final service = AutoBackupService(
+        exportService: _exportService(sources),
+        logger: const _Logger(),
+        registry: _registryFor(sources),
+        repository: const _OccupiedExportNameRepository(),
+      );
+
+      final result = await service.performBackup(
+        AutoBackupSettings(userSelectedPath: directory.path),
+      );
+
+      expect(
+        p.basename(result.filePath),
+        matches(
+          RegExp(
+            r'^boorusama-\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}Z-3\.bsexport$',
+          ),
+        ),
+      );
+      expect(File(result.filePath).existsSync(), isTrue);
+    },
+  );
+
+  test('overlapping automatic exports keep separate packages', () async {
+    final sources = [_FakeSource('source')];
+    final service = AutoBackupService(
+      exportService: _exportService(sources),
+      logger: const _Logger(),
+      registry: _registryFor(sources),
+      repository: repository,
+      now: () => DateTime.utc(2026, 10, 3, 12, 5, 6),
+    );
+    final settings = AutoBackupSettings(
+      maxBackups: 2,
+      userSelectedPath: directory.path,
+    );
+
+    final results = await Future.wait([
+      service.performBackup(settings),
+      service.performBackup(settings),
+    ]);
+
+    expect(results.map((result) => p.basename(result.filePath)).toSet(), {
+      'boorusama-2026-10-03_12-05-06Z.bsexport',
+      'boorusama-2026-10-03_12-05-06Z-2.bsexport',
+    });
+    for (final result in results) {
+      expect(File(result.filePath).existsSync(), isTrue);
+    }
+  });
+}
+
+BackupRegistry _registryFor(List<_FakeSource> sources) {
+  final registry = BackupRegistry();
+  for (final source in sources) {
+    registry.registerDescriptor(source.selectionDescriptor);
+  }
+  return registry;
+}
+
+final class _OccupiedExportNameRepository extends AutoBackupRepositoryIo {
+  const _OccupiedExportNameRepository() : super(const IoFileSystem());
+
+  @override
+  bool fileExists(String path) {
+    final name = p.basename(path);
+    if (RegExp(
+      r'^boorusama-\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}Z(?:-2)?\.bsexport$',
+    ).hasMatch(name)) {
+      return true;
+    }
+    return super.fileExists(path);
+  }
+}
+
+ExportService _exportService(List<_FakeSource> sources) => ExportService(
+  sources: () => sources,
+  writer: const ExportPackageWriter(fs: IoFileSystem()),
+  appVersion: '1.0.0',
+);
+
+final class _FakeSource implements ExportImportSource {
+  _FakeSource(this.id);
+
+  @override
+  final String id;
+
+  ExportSourceRequest? lastRequest;
+
+  @override
+  int get priority => 0;
+
+  @override
+  int get schemaVersion => 1;
+
+  @override
+  ExportSelectionDescriptor get selectionDescriptor =>
+      ExportSelectionDescriptor.leaf(id: id);
+
+  @override
+  Future<ExportSourceSnapshot> capture(ExportSourceRequest request) async {
+    lastRequest = request;
+    return ExportSourceSnapshot.json(
+      sourceId: id,
+      schemaVersion: schemaVersion,
+      json: jsonEncode({'credentials': request.includeCredentials}),
+    );
+  }
+}
+
+final class _Logger implements Logger {
+  const _Logger();
+
+  @override
+  String getDebugName() => 'auto backup test';
+
+  @override
+  void debug(String serviceName, String message) {}
+
+  @override
+  void error(String serviceName, String message) {}
+
+  @override
+  void info(String serviceName, String message) {}
+
+  @override
+  void verbose(String serviceName, String message) {}
+
+  @override
+  void warn(String serviceName, String message) {}
+}

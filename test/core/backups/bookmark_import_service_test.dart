@@ -49,8 +49,18 @@ void main() {
   });
 
   for (final testCase in [
-    (choice: BookmarkGroupConflictChoice.merge, expectedMemberships: 2),
-    (choice: BookmarkGroupConflictChoice.replace, expectedMemberships: 1),
+    (
+      choice: BookmarkGroupConflictChoice.merge,
+      expectedMemberships: 2,
+      expectedName: 'Local name',
+      expectedLibraryCount: 2,
+    ),
+    (
+      choice: BookmarkGroupConflictChoice.replace,
+      expectedMemberships: 1,
+      expectedName: 'Imported name',
+      expectedLibraryCount: 1,
+    ),
   ]) {
     test(
       '${testCase.choice.name} uses imported name and expected memberships',
@@ -58,6 +68,8 @@ void main() {
         final local = Bookmark.empty.copyWith(
           id: 1,
           originalUrl: 'https://example.com/local.jpg',
+          sourceUrl: 'https://example.com',
+          postId: () => 1,
         );
         await bookmarks.addBookmarkWithBookmarks([local]);
         final storedLocal = (await _load(bookmarks)).single;
@@ -66,6 +78,8 @@ void main() {
         final imported = Bookmark.empty.copyWith(
           id: 200,
           originalUrl: 'https://example.com/imported.jpg',
+          sourceUrl: 'https://example.com',
+          postId: () => 200,
         );
         final plan = const BookmarkImportPlanner()
             .plan(
@@ -91,12 +105,111 @@ void main() {
         ).apply(plan);
 
         final group = await groups.getGroup(groupId);
-        expect(group?.name, 'Imported name');
+        expect(group?.name, testCase.expectedName);
         expect(group?.bookmarkIds, hasLength(testCase.expectedMemberships));
-        expect(await _load(bookmarks), hasLength(2));
+        expect(
+          await _load(bookmarks),
+          hasLength(testCase.expectedLibraryCount),
+        );
       },
     );
   }
+
+  test('updating a group deletes bookmarks that become orphaned', () async {
+    final removed = Bookmark.empty.copyWith(
+      id: 1,
+      originalUrl: 'https://example.com/removed.jpg',
+      sourceUrl: 'https://example.com',
+      postId: () => 1,
+    );
+    final kept = Bookmark.empty.copyWith(
+      id: 2,
+      originalUrl: 'https://example.com/kept.jpg',
+      sourceUrl: 'https://example.com',
+      postId: () => 2,
+    );
+    await bookmarks.addBookmarkWithBookmarks([removed, kept]);
+    final stored = await _load(bookmarks);
+    await groups.createGroup('Local', id: groupId);
+    await groups.replaceMemberships(
+      groupId,
+      stored.map((bookmark) => bookmark.id).toSet(),
+    );
+    final importedKept = kept.copyWith(id: 200);
+    final plan = const BookmarkImportPlanner()
+        .plan(
+          data: BookmarkBackupData(
+            bookmarks: [importedKept],
+            groups: const [
+              BookmarkGroupBackup(
+                id: groupId,
+                name: 'Updated',
+                bookmarkIds: [200],
+              ),
+            ],
+          ),
+          currentBookmarks: stored,
+          currentGroups: await groups.getGroups(),
+        )
+        .resolve({groupId: BookmarkGroupConflictChoice.replace});
+
+    await BookmarkImportService(
+      bookmarkRepository: bookmarks,
+      groupRepository: groups,
+      imageUrlResolver: (_) => const DefaultImageUrlResolver(),
+    ).apply(plan);
+
+    final remaining = await _load(bookmarks);
+    expect(remaining, hasLength(1));
+    expect(remaining.single.transferIdentity, importedKept.transferIdentity);
+    expect((await groups.getGroup(groupId))?.bookmarkIds, {
+      remaining.single.id,
+    });
+  });
+
+  test(
+    'updating a group retains removed bookmarks used by another group',
+    () async {
+      final shared = Bookmark.empty.copyWith(
+        id: 1,
+        originalUrl: 'https://example.com/shared.jpg',
+        sourceUrl: 'https://example.com',
+        postId: () => 1,
+      );
+      await bookmarks.addBookmarkWithBookmarks([shared]);
+      final stored = (await _load(bookmarks)).single;
+      await groups.createGroup('Updated', id: groupId);
+      const otherGroupId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+      await groups.createGroup('Other', id: otherGroupId);
+      await groups.addBookmarks(groupId, {stored.id});
+      await groups.addBookmarks(otherGroupId, {stored.id});
+      final plan = const BookmarkImportPlanner()
+          .plan(
+            data: const BookmarkBackupData(
+              bookmarks: [],
+              groups: [
+                BookmarkGroupBackup(
+                  id: groupId,
+                  name: 'Empty',
+                  bookmarkIds: [],
+                ),
+              ],
+            ),
+            currentBookmarks: [stored],
+            currentGroups: await groups.getGroups(),
+          )
+          .resolve({groupId: BookmarkGroupConflictChoice.replace});
+
+      await BookmarkImportService(
+        bookmarkRepository: bookmarks,
+        groupRepository: groups,
+        imageUrlResolver: (_) => const DefaultImageUrlResolver(),
+      ).apply(plan);
+
+      expect(await _load(bookmarks), [stored]);
+      expect((await groups.getGroup(otherGroupId))?.bookmarkIds, {stored.id});
+    },
+  );
 
   test('a bookmark read failure leaves every group unchanged', () async {
     await groups.createGroup('Existing', id: groupId);
@@ -131,10 +244,14 @@ void main() {
       Bookmark.empty.copyWith(
         id: 100,
         originalUrl: 'https://example.com/first.jpg',
+        sourceUrl: 'https://example.com',
+        postId: () => 100,
       ),
       Bookmark.empty.copyWith(
         id: 101,
         originalUrl: 'https://example.com/second.jpg',
+        sourceUrl: 'https://example.com',
+        postId: () => 101,
       ),
     ];
     final plan = BookmarkImportPlan(

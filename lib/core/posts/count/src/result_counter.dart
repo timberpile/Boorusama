@@ -30,10 +30,13 @@ class ResultCounter extends StatelessWidget {
 
   Widget _buildLoadingState(BuildContext context) {
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          context.t.search.search_in_progress_notice,
-          style: Kurumi.themeOf(context).textTheme.titleLarge,
+        Flexible(
+          child: Text(
+            context.t.search.search_in_progress_notice,
+            style: Kurumi.themeOf(context).textTheme.titleLarge,
+          ),
         ),
         const SizedBox(width: 10),
         const SizedBox(
@@ -51,11 +54,14 @@ class ResultCounter extends StatelessWidget {
     Future<void> Function()? onRefresh,
   ) {
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          context.t.search.result_counter(n: count),
-          style: Kurumi.themeOf(context).textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.w800,
+        Flexible(
+          child: Text(
+            context.t.search.result_counter(n: count),
+            style: Kurumi.themeOf(context).textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
           ),
         ),
         const SizedBox(width: 4),

@@ -21,7 +21,7 @@ void main() {
         booruType: BooruType.danbooru,
         booruId: 20,
         source: 'https://danbooru.donmai.us/posts/42',
-        profileIdHint: 7,
+        profileIdHint: '00000000-0000-4000-8000-000000000007',
       ),
       core: PostCoreData(
         id: 42,
@@ -107,7 +107,7 @@ void main() {
     );
     final decoded = (result as StoredPostDecodeSuccess).post;
 
-    expect(decoded.origin.sourceHost, 'e621.net');
+    expect(decoded.origin.sourceHost, 'e621.net/posts/1');
     expect(decoded.origin.profileIdHint, isNull);
     expect(decoded.createdAt, isNull);
     expect(decoded.artistTags, isNull);
@@ -208,7 +208,7 @@ PostOriginSnapshot _originSnapshot() => const PostOriginSnapshot(
   booruTypeId: 20,
   booruId: 20,
   sourceHost: 'danbooru.donmai.us',
-  profileIdHint: 7,
+  profileIdHint: '00000000-0000-4000-8000-000000000007',
 );
 
 Map<String, Object?> _minimalCommonJson() => const {

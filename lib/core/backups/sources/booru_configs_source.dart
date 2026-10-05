@@ -1,5 +1,6 @@
 // Package imports:
 import 'package:coreutils/coreutils.dart';
+import 'package:equatable/equatable.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
@@ -14,12 +15,27 @@ import '../../search/subscriptions/providers.dart';
 import '../../settings/providers.dart';
 import '../../widgets/reboot.dart';
 import '../preparation/preparation_pipeline.dart';
+import '../types/backup_data_source.dart';
 import '../types/types.dart';
 import '../utils/json_handler.dart';
 import '../widgets/backup_restore_tile.dart';
 import '../widgets/import_booru_configs_alert_dialog.dart';
 import 'json_source.dart';
 import 'search_backup_profile.dart';
+
+class ProfileExportScope extends Equatable implements BackupExportScope {
+  const ProfileExportScope.all() : profileIds = null;
+
+  ProfileExportScope.selected(Iterable<String> profileIds)
+    : profileIds = Set.unmodifiable(profileIds);
+
+  final Set<String>? profileIds;
+
+  bool get isAll => profileIds == null;
+
+  @override
+  List<Object?> get props => [profileIds];
+}
 
 class BooruConfigExportData {
   BooruConfigExportData({
@@ -55,6 +71,18 @@ class BooruConfigsBackupSource extends JsonBackupSource<List<BooruConfig>> {
         version: kBooruConfigsExporterImporterVersion,
         appVersion: ref.read(appVersionProvider),
         dataGetter: () async => ref.read(booruConfigProvider),
+        scopedDataGetter: (options) async {
+          final profiles = ref.read(booruConfigProvider);
+          final scope = switch (options?.scope) {
+            final ProfileExportScope scope => scope,
+            _ => const ProfileExportScope.all(),
+          };
+          return scope.isAll
+              ? profiles
+              : profiles
+                    .where((profile) => scope.profileIds!.contains(profile.id))
+                    .toList();
+        },
         executor: (configs, _) => _replaceProfiles(ref, configs),
         restartAfterImport: (uiContext) async {
           final configs = await ref.read(booruConfigRepoProvider).getAll();

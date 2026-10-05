@@ -5,6 +5,7 @@ import 'package:scroll_to_index/scroll_to_index.dart';
 // Project imports:
 import '../../../../configs/config/types.dart';
 import '../../../post/types.dart';
+import 'post_details_live_source.dart';
 
 class DetailsRouteContext<T extends Post> extends Equatable {
   const DetailsRouteContext({
@@ -17,6 +18,7 @@ class DetailsRouteContext<T extends Post> extends Equatable {
     required this.config,
     this.dislclaimer,
     this.useMixedViewer = false,
+    this.liveSource,
   });
 
   DetailsRouteContext<T> copyWith({
@@ -34,6 +36,7 @@ class DetailsRouteContext<T extends Post> extends Equatable {
       dislclaimer: dislclaimer,
       config: config,
       useMixedViewer: useMixedViewer,
+      liveSource: liveSource,
     );
   }
 
@@ -47,6 +50,7 @@ class DetailsRouteContext<T extends Post> extends Equatable {
   final BooruConfig? config;
   BooruConfigSearch? get configSearch => config?.search;
   final bool useMixedViewer;
+  final PostDetailsLiveSource? liveSource;
 
   @override
   List<Object?> get props => [
@@ -59,5 +63,6 @@ class DetailsRouteContext<T extends Post> extends Equatable {
     dislclaimer,
     config,
     useMixedViewer,
+    liveSource,
   ];
 }

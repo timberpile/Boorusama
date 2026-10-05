@@ -10,6 +10,13 @@ import '../../../../foundation/picker.dart';
 import '../../../../foundation/platform.dart';
 
 class BackupFilePicker {
+  static bool hasAllowedExtension(String path, List<String> allowedExtensions) {
+    final extension = p.extension(path).toLowerCase();
+    return allowedExtensions.any(
+      (allowed) => extension == '.$allowed'.toLowerCase(),
+    );
+  }
+
   static Future<void> pickFile({
     required BuildContext context,
     required AndroidDeviceInfo? androidDeviceInfo,
@@ -49,9 +56,7 @@ class BackupFilePicker {
   ) => pickSingleFilePathToastOnError(
     context: context,
     onPick: (path) {
-      final ext = p.extension(path);
-
-      if (!allowedExtensions.contains(ext.substring(1))) {
+      if (!hasAllowedExtension(path, allowedExtensions)) {
         Kurumi.showErrorToast(
           context,
           'Invalid file type, only ${allowedExtensions.map((e) => '.$e').join(', ')} files are allowed',

@@ -6,11 +6,8 @@ import 'package:kurumi/material.dart';
 
 // Project imports:
 import '../auto/widgets.dart';
-import '../routes.dart';
-import '../transfer/sync_data_page.dart';
-import '../zip/providers.dart';
+import '../export_import/export_import_page.dart';
 import 'data_transfer_card.dart';
-import 'manual_backup_page.dart';
 
 class BackupSettingsSection extends ConsumerWidget {
   const BackupSettingsSection({
@@ -22,90 +19,18 @@ class BackupSettingsSection extends ConsumerWidget {
     return Column(
       children: [
         _Title(
-          title: context.t.settings.backup_and_restore.transfer_data,
+          title: context.t.settings.backup_and_restore.export_import.title,
         ),
         Padding(
           padding: const EdgeInsets.symmetric(
             vertical: 8,
             horizontal: 12,
           ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            spacing: 12,
-            children: [
-              Expanded(
-                child: DataTransferCard(
-                  icon: const FaIcon(
-                    FontAwesomeIcons.paperPlane,
-                  ),
-                  title: context.t.settings.backup_and_restore.send,
-                  onPressed: () {
-                    goToSyncDataPage(context, mode: TransferMode.export);
-                  },
-                ),
-              ),
-              Expanded(
-                child: DataTransferCard(
-                  icon: const FaIcon(
-                    FontAwesomeIcons.download,
-                  ),
-                  title: context.t.settings.backup_and_restore.receive,
-                  onPressed: () {
-                    goToSyncDataPage(context, mode: TransferMode.import);
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 20),
-        _Title(
-          title: context.t.settings.backup_and_restore.backup_data,
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(
-            vertical: 8,
-            horizontal: 12,
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            spacing: 12,
-            children: [
-              Expanded(
-                child: DataTransferCard(
-                  icon: const FaIcon(
-                    FontAwesomeIcons.fileExport,
-                  ),
-                  title: context.t.settings.backup_and_restore.export,
-                  onPressed: () =>
-                      ref.read(backupProvider.notifier).exportAll(context),
-                ),
-              ),
-              Expanded(
-                child: DataTransferCard(
-                  icon: const FaIcon(
-                    FontAwesomeIcons.fileImport,
-                  ),
-                  title: context.t.settings.backup_and_restore.import,
-                  onPressed: () =>
-                      ref.read(backupProvider.notifier).importFromZip(context),
-                ),
-              ),
-            ],
-          ),
-        ),
-        Center(
-          child: TextButton.icon(
+          child: DataTransferCard(
+            icon: const FaIcon(FontAwesomeIcons.fileExport),
+            title: context.t.settings.backup_and_restore.export_import.title,
             onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (context) => const ManualBackupPage(),
-              ),
-            ),
-            icon: const Icon(Icons.tune, size: 16),
-            label: Text(
-              context.t.settings.backup_and_restore.advanced_export_import,
+              MaterialPageRoute(builder: (_) => const ExportImportPage()),
             ),
           ),
         ),

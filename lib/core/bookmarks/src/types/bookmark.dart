@@ -7,6 +7,9 @@ import '../../../boorus/booru/types.dart';
 import '../../../posts/post/types.dart';
 import '../../../posts/rating/types.dart';
 import '../../../posts/sources/types.dart';
+import 'bookmark_identity.dart';
+
+export 'bookmark_identity.dart';
 
 class Bookmark extends Equatable with ImageInfoMixin, TagListCheckMixin {
   factory Bookmark({
@@ -152,10 +155,14 @@ class Bookmark extends Equatable with ImageInfoMixin, TagListCheckMixin {
   String get thumbnailUrl => post.thumbnailImageUrl;
   bool get isVideo => post.isVideo;
 
-  BookmarkUniqueId get uniqueId => BookmarkUniqueId(
-    booruId: booruId,
-    url: originalUrl,
-  );
+  BookmarkIdentity get identity => BookmarkIdentity.fromPost(post);
+  BookmarkUniqueId get uniqueId => postId == null || postId != post.id
+      ? const UnbookmarkablePostIdentity()
+      : BookmarkUniqueId.fromPost(post);
+  BookmarkIdentity get transferIdentity {
+    if (uniqueId case final BookmarkIdentity identity) return identity;
+    throw const FormatException('Bookmark has no stable upstream identity');
+  }
 
   static final empty = Bookmark(
     id: -1,
@@ -313,19 +320,3 @@ Set<String> _parseJsonTags(dynamic tags) => switch (tags) {
 enum BookmarkGetError { nullField, databaseClosed, unknown }
 
 typedef BookmarksOrError = TaskEither<BookmarkGetError, List<Bookmark>>;
-
-class BookmarkUniqueId extends Equatable {
-  const BookmarkUniqueId({
-    required this.booruId,
-    required this.url,
-  });
-
-  BookmarkUniqueId.fromPost(Post post, this.booruId)
-    : url = post.originalImageUrl;
-
-  final int booruId;
-  final String url;
-
-  @override
-  List<Object?> get props => [booruId, url];
-}

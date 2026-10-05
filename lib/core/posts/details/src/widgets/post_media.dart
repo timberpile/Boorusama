@@ -1,5 +1,6 @@
 // Package imports:
 import 'package:cache_manager/cache_manager.dart';
+import 'package:extended_image/extended_image.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kurumi/material.dart';
 
@@ -32,6 +33,7 @@ class PostMedia<T extends Post> extends ConsumerWidget {
     required this.placeholderMediaBuilder,
     required this.controller,
     required this.imageCacheManager,
+    this.imageController,
     super.key,
     this.isPageSettled = false,
   });
@@ -45,6 +47,7 @@ class PostMedia<T extends Post> extends ConsumerWidget {
   final double? Function(T post)? videoAspectRatioBuilder;
   final PostDetailsPlaceholderMediaBuilder<T>? placeholderMediaBuilder;
   final ImageCacheManager? imageCacheManager;
+  final ExtendedImageController? imageController;
   final bool isPageSettled;
 
   void _openSettings(WidgetRef ref) {
@@ -134,6 +137,7 @@ class PostMedia<T extends Post> extends ConsumerWidget {
             mediaAspectRatioBuilder: mediaAspectRatioBuilder,
             placeholderMediaBuilder: placeholderMediaBuilder,
             imageCacheManager: imageCacheManager,
+            imageController: imageController,
             post: post,
             config: config,
           );

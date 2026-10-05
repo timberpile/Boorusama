@@ -11,6 +11,7 @@ import 'dart:typed_data';
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/configs/manage/providers.dart';
 import 'package:boorusama/core/developer_options/providers.dart';
+import 'package:boorusama/core/errors/types.dart';
 import 'package:boorusama/core/downloads/downloader/providers.dart';
 import 'package:boorusama/core/downloads/downloader/types.dart';
 import 'package:boorusama/core/http/client/providers.dart';
@@ -47,6 +48,11 @@ import 'subscription_test_utils.dart';
 final selectedTestProfileProvider =
     NotifierProvider<SelectedTestProfile, BooruConfig>(SelectedTestProfile.new);
 
+final testAutomaticSearchRefreshNetworkAllowedProvider =
+    NotifierProvider<TestAutomaticSearchRefreshNetworkAllowed, bool>(
+      TestAutomaticSearchRefreshNetworkAllowed.new,
+    );
+
 class SelectedTestProfile extends Notifier<BooruConfig> {
   @override
   BooruConfig build() => testProfile;
@@ -54,21 +60,35 @@ class SelectedTestProfile extends Notifier<BooruConfig> {
   void select(BooruConfig config) => state = config;
 }
 
+class TestAutomaticSearchRefreshNetworkAllowed extends Notifier<bool> {
+  TestAutomaticSearchRefreshNetworkAllowed([this.initialValue = false]);
+
+  final bool initialValue;
+
+  @override
+  bool build() => initialValue;
+
+  void setAllowed(bool allowed) => state = allowed;
+}
+
+final testRefreshNetworkAllowedProvider =
+    testAutomaticSearchRefreshNetworkAllowedProvider;
+
 final testProfile = BooruConfig.fromJson({
   ...BooruConfig.empty.toJson(),
-  'id': 12,
+  'id': '00000000-0000-4000-8000-00000000000c',
   'url': 'https://active.example',
 });
 final otherTestProfile = BooruConfig.fromJson({
   ...BooruConfig.empty.toJson(),
-  'id': 99,
+  'id': '00000000-0000-4000-8000-000000000063',
   'url': 'https://other.example',
 });
 final checkedAt = DateTime.utc(2026, 9, 14, 10);
 
 SearchSubscription pinnedFixture({
   String id = 'cats',
-  int profileId = 12,
+  String profileId = '00000000-0000-4000-8000-00000000000c',
   String query = 'cat  rating:safe order:score',
   String? name = 'Cats',
   int position = 0,
@@ -77,10 +97,12 @@ SearchSubscription pinnedFixture({
   DateTime? postCreatedAt,
   SearchRefreshErrorKind? error,
   bool checked = true,
+  SearchQueryStructure? queryStructure,
 }) => SearchSubscription(
   id: id,
   profileId: profileId,
   query: query,
+  queryStructure: queryStructure,
   name: name,
   position: position,
   createdAt: checkedAt,
@@ -106,34 +128,47 @@ class PinnedSearchHarness {
     this.repositoryReady,
     this.loadImages = false,
     this.supported = true,
+    Settings? settings,
     ImageListingSettings? listingSettings,
     Clock clock = const Clock(),
     SearchRefreshScheduler? scheduler,
     bool networkAllowed = false,
+    Future<Either<BooruError, PostResult<Post>>> Function(
+      BooruConfig config,
+      String query,
+      int page,
+      int? limit,
+    )?
+    fetchPosts,
     List<BooruConfig>? profiles,
     BooruPostCapability<BooruPostData>? postCapability,
     BooruBuilder? Function(BooruConfigAuth config)? booruBuilder,
   }) {
+    final initialSettings = settings ?? Settings.defaultSettings;
     repository = HiveSearchSubscriptionRepository(
       box: box,
-      organizationBox: MemoryBox<dynamic>(),
+      organizationBox: organizationBox,
     );
     container = ProviderContainer(
       overrides: [
-        settingsProvider.overrideWithValue(Settings.defaultSettings),
         loggerProvider.overrideWithValue(
           ConsoleLogger(options: const ConsoleLoggerOptions.defaults()),
         ),
         settingsNotifierProvider.overrideWith(
-          () => SettingsNotifier(Settings.defaultSettings),
+          () => SettingsNotifier(initialSettings),
         ),
         settingsRepoProvider.overrideWithValue(
           SettingsRepositoryHive(Future.value(MemoryBox<dynamic>())),
         ),
         initialSettingsBooruConfigProvider.overrideWithValue(testProfile),
         analyticsProvider.overrideWith((ref) => Future.value()),
-        automaticSearchRefreshNetworkAllowedProvider.overrideWithValue(
-          networkAllowed,
+        testAutomaticSearchRefreshNetworkAllowedProvider.overrideWith(
+          () => TestAutomaticSearchRefreshNetworkAllowed(networkAllowed),
+        ),
+        automaticSearchRefreshNetworkAllowedProvider.overrideWith(
+          (ref) => ref.watch(
+            testAutomaticSearchRefreshNetworkAllowedProvider,
+          ),
         ),
         searchRefreshCoordinatorProvider.overrideWith(
           () => SearchRefreshCoordinator(scheduler: scheduler),
@@ -175,10 +210,15 @@ class PinnedSearchHarness {
               resolvePostRepository: (config) => TestSearchPostRepository(
                 (query, page, limit) async {
                   requests.add((
-                    profileId: config.auth.url == testProfile.url ? 12 : 99,
+                    profileId: config.auth.url == testProfile.url
+                        ? '00000000-0000-4000-8000-00000000000c'
+                        : '00000000-0000-4000-8000-000000000063',
                     query: query,
                   ));
                   await refreshGate?.future;
+                  if (fetchPosts != null) {
+                    return fetchPosts(config, query, page, limit);
+                  }
                   return Either.of(const PostResult(posts: <Post>[], total: 0));
                 },
               ),
@@ -218,17 +258,21 @@ class PinnedSearchHarness {
         routerProvider.overrideWith((_) => router),
       ],
     );
+    container
+        .read(testRefreshNetworkAllowedProvider.notifier)
+        .setAllowed(networkAllowed);
   }
 
   final Completer<void>? repositoryReady;
   final bool loadImages;
   final bool supported;
   final box = ControlledSubscriptionBox();
+  final organizationBox = MemoryBox<dynamic>();
   late final SearchSubscriptionRepository repository;
   late final ProviderContainer container;
   late GoRouter router;
   Completer<void>? refreshGate;
-  final requests = <({int profileId, String query})>[];
+  final requests = <({String profileId, String query})>[];
 
   Future<void> seed(List<SearchSubscription> items) async {
     for (final profileId in items.map((item) => item.profileId).toSet()) {

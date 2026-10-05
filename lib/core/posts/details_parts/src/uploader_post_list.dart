@@ -18,12 +18,10 @@ import 'sliver_details_post_list.dart';
 class UploaderPostsSection<T extends Post> extends ConsumerStatefulWidget {
   const UploaderPostsSection({
     super.key,
-    this.limit,
     this.filterQuery,
     required this.query,
   });
 
-  final PreviewLimit? limit;
   final UploaderQuery? query;
   final PostFilterQuery<T>? filterQuery;
 
@@ -54,7 +52,9 @@ class _UploaderPostsSectionState<T extends Post>
 
     final thumbUrlBuilder = ref.watch(gridThumbnailUrlGeneratorProvider(auth));
     final thumbSettings = ref.watch(gridThumbnailSettingsProvider(auth));
-    final effectiveLimit = widget.limit ?? const LimitedPreview.progressive();
+    final configFilter = ref.watchConfigFilter;
+    final config = ref.watchConfig;
+    const previewLimit = BatchedPreview(artistUploaderPreviewPostLimit);
 
     return MultiSliver(
       children: [
@@ -67,6 +67,12 @@ class _UploaderPostsSectionState<T extends Post>
           ),
         if (widget.query case final q?)
           SliverDetailsPostList(
+            key: ValueKey((
+              configFilter,
+              config,
+              q.resolveTag(),
+              widget.filterQuery,
+            )),
             onTap: () {
               _goToUploaderPage(q);
             },
@@ -79,8 +85,8 @@ class _UploaderPostsSectionState<T extends Post>
                         .watch(
                           detailsPostsProvider(
                             (
-                              ref.watchConfigFilter,
-                              ref.watchConfig,
+                              configFilter,
+                              config,
                               q.resolveTag(),
                               widget.filterQuery ?? postFilterQueryNone,
                             ),
@@ -91,7 +97,7 @@ class _UploaderPostsSectionState<T extends Post>
                               ? SliverPreviewPostGrid(
                                   posts: data,
                                   auth: auth,
-                                  limit: effectiveLimit,
+                                  limit: previewLimit,
                                   imageUrl: (p) => thumbUrlBuilder
                                       .resolve(
                                         p,
@@ -101,12 +107,12 @@ class _UploaderPostsSectionState<T extends Post>
                                   onShowAll: () => _goToUploaderPage(q),
                                 )
                               : const SliverSizedBox(),
-                          orElse: () => SliverPreviewPostGridPlaceholder(
-                            limit: effectiveLimit,
+                          orElse: () => const SliverPreviewPostGridPlaceholder(
+                            limit: previewLimit,
                           ),
                         )
-                  : SliverPreviewPostGridPlaceholder(
-                      limit: effectiveLimit,
+                  : const SliverPreviewPostGridPlaceholder(
+                      limit: previewLimit,
                     ),
             ),
           ),

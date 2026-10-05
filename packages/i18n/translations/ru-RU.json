@@ -1,4 +1,8 @@
 {
+  "pinned_searches": {
+    "sort_updates_first": "Обновления сначала",
+    "sort_last_post_oldest": "Сначала старые публикации"
+  },
   "generic": {
     "done": "Выполнено",
     "errors": {
@@ -146,7 +150,8 @@
     },
     "action": {
       "view_comments": "Просмотреть комментарии",
-      "add_to_favorite_group": "Добавить в любимое",
+      "add_to_favorite_group": "Добавить в группу избранного аккаунта",
+      "edit_rating": "Изменить рейтинг",
       "view_in_browser": "Открыть в браузере",
       "view_original": "Просмотреть оригинальное изображение",
       "share": "Поделиться",
@@ -705,7 +710,7 @@
     "empty_group_notice": "Нет избранных сборников",
     "create_group": "Создать сборник",
     "edit_group": "Изменить сборник",
-    "add_to_group_dialog_title": "Добавить в сборник избранного",
+    "add_to_group_dialog_title": "Добавить в группу избранного аккаунта",
     "add_to": "Добавить в",
     "create": "Создать",
     "private": "Private",

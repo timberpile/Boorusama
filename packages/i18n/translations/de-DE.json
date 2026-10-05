@@ -1,4 +1,8 @@
 {
+  "pinned_searches": {
+    "sort_updates_first": "Aktualisierungen zuerst",
+    "sort_last_post_oldest": "Älteste Beiträge zuerst"
+  },
   "generic": {
     "done": "Fertig",
     "errors": {
@@ -146,7 +150,8 @@
     },
     "action": {
       "view_comments": "Kommentare anzeigen",
-      "add_to_favorite_group": "Zur Gruppe hinzufügen",
+      "add_to_favorite_group": "Zur Konto-Favoritengruppe hinzufügen",
+      "edit_rating": "Bewertung bearbeiten",
       "view_in_browser": "In Browser anzeigen",
       "view_original": "Original anzeigen",
       "load_original": "Original laden",
@@ -726,7 +731,7 @@
     "empty_group_notice": "Keine Gruppen vorhanden",
     "create_group": "Gruppe erstellen",
     "edit_group": "Gruppe bearbeiten",
-    "add_to_group_dialog_title": "Zu Gruppe hinzufügen",
+    "add_to_group_dialog_title": "Zur Konto-Favoritengruppe hinzufügen",
     "add_to": "Hinzufügen zu",
     "create": "Erstellen",
     "private": "Privat",
@@ -785,6 +790,9 @@
     "month": "Monat"
   },
   "booru": {
+    "quick_setup": {
+      "account_required": "Benutzerkonto erforderlich"
+    },
     "booru_engine_input_label": "Booru Engine (*)",
     "config_name_label": "Konfigurationsname (*)",
     "site_url_label": "Seiten-URL",
@@ -911,6 +919,7 @@
   "bookmark": {
     "added": "Lesezeichen hinzugefügt",
     "failed_to_add": "Lesezeichen konnte nicht hinzugefügt werden",
+    "missing_post_identity": "Dieser Post hat keine stabile ID und kann nicht als Lesezeichen gespeichert werden",
     "many_added": "{0} Lesezeichen hinzugefügt",
     "failed_to_add_many": "Lesezeichen konnten nicht hinzugefügt werden",
     "removed": "Lesezeichen entfernt",

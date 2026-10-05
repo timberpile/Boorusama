@@ -1,4 +1,8 @@
 {
+  "pinned_searches": {
+    "sort_updates_first": "Абнаўленні спачатку",
+    "sort_last_post_oldest": "Найстарэйшыя допісы спачатку"
+  },
   "generic": {
     "done": "Зроблена",
     "errors": {
@@ -49,6 +53,7 @@
       "open_wiki": "Адкрыць wiki"
     },
     "action": {
+      "edit_rating": "Змяніць рэйтынг",
       "view_in_browser": "Адкрыць у браўзэры",
       "view_original": "Паглядзець арыгінальны малюнак"
     }

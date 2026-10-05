@@ -25,7 +25,7 @@ class FavoriteTagsBackupSource extends JsonBackupSource<List<FavoriteTag>> {
         dataGetter: () async => ref.read(favoriteTagsProvider),
         executor: (tags, _) async {
           final repo = await ref.read(favoriteTagRepoProvider.future);
-          await repo.createFrom(tags);
+          await repo.replaceAll(tags);
           ref.invalidate(favoriteTagsProvider);
         },
         handler: ListHandler<FavoriteTag>(

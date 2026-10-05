@@ -3,67 +3,90 @@ import 'package:path/path.dart' as p;
 
 // Project imports:
 import '../../../foundation/loggers.dart';
+import '../export_import/export/export_filename.dart';
+import '../export_import/export/export_service.dart';
+import '../export_import/models/export_selection.dart';
 import '../types/backup_registry.dart';
-import '../zip/bulk_backup_service.dart';
 import '../zip/types.dart';
 import 'types.dart';
 
+DateTime _systemNow() => DateTime.now();
+
 class AutoBackupService {
   const AutoBackupService({
-    required this.bulkBackupService,
+    required this.exportService,
     required this.logger,
     required this.registry,
     required this.repository,
+    this.now = _systemNow,
   });
 
-  final BulkBackupService bulkBackupService;
+  final ExportService exportService;
   final Logger logger;
   final BackupRegistry registry;
   final AutoBackupRepository repository;
+  final DateTime Function() now;
 
   static const manifestFileName = 'auto_backup_manifest.json';
   static const backupFolderName = 'boorusama_auto_backups';
+  static var _pendingBackup = Future<void>.value();
 
   Future<BulkExportResult> performBackup(
+    AutoBackupSettings settings, {
+    void Function(double progress)? onProgress,
+  }) {
+    final next = _pendingBackup.then(
+      (_) => _performBackup(settings, onProgress: onProgress),
+    );
+    _pendingBackup = next.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace _) {},
+    );
+    return next;
+  }
+
+  Future<BulkExportResult> _performBackup(
     AutoBackupSettings settings, {
     void Function(double progress)? onProgress,
   }) async {
     logger.verbose('AutoBackup', 'Starting auto backup');
 
     final backupDirPath = await _getBackupDirectoryPath(settings);
-    await _cleanupOldBackups(backupDirPath, settings.maxBackups);
-
-    // Get all available source IDs
-    final allSources = registry.getAllSources();
-    final sourceIds = allSources.map((source) => source.id).toList();
-
-    final result = await bulkBackupService.exportToZip(
-      backupDirPath,
-      sourceIds,
-      onProgress: onProgress != null
-          ? (progressUpdate) => onProgress(progressUpdate.progress)
-          : null,
-    );
-
-    if (result.success) {
-      await _updateManifest(backupDirPath, result.filePath);
-
-      logger.verbose(
-        'AutoBackup',
-        'Auto backup completed: ${result.exported.length} sources exported, ${result.skipped.length} skipped',
-      );
-
-      if (result.hasFailures) {
-        logger.warn(
-          'AutoBackup',
-          'Some sources failed: ${result.failed.join(', ')}',
-        );
-      }
-    } else {
-      logger.error('AutoBackup', 'Auto backup failed: no sources exported');
+    final selection = ExportSelection.full(registry);
+    final sourceIds = selection.sourceIds.toList();
+    if (sourceIds.isEmpty) {
+      throw StateError('No export sources are available');
     }
 
-    return result;
+    onProgress?.call(0);
+    final outputPath = nextAvailableExportPath(
+      backupDirPath,
+      exportFileName(now()),
+      repository.fileExists,
+    );
+    final filePath = await exportService.createPackage(
+      ExportRequest(
+        selection: selection,
+        outputPath: outputPath,
+      ),
+    );
+    onProgress?.call(1);
+
+    await _updateManifest(backupDirPath, filePath);
+    await _cleanupOldBackups(backupDirPath, settings.maxBackups);
+
+    logger.verbose(
+      'AutoBackup',
+      'Auto backup completed: ${sourceIds.length} sources exported',
+    );
+
+    return BulkExportResult(
+      success: true,
+      exported: sourceIds,
+      failed: const [],
+      skipped: const [],
+      filePath: filePath,
+    );
   }
 
   Future<String> _getBackupDirectoryPath(AutoBackupSettings settings) {
@@ -109,7 +132,7 @@ class AutoBackupService {
 
   Future<void> _reconcileManifest(String backupDirPath) async {
     final manifest = await _loadManifest(backupDirPath);
-    final actualFiles = repository.listZipFiles(backupDirPath).toSet();
+    final actualFiles = repository.listBackupFiles(backupDirPath).toSet();
 
     // Remove missing files from manifest
     final validBackups = manifest.backups

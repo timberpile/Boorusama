@@ -23,12 +23,14 @@ class ArtistSection extends StatefulWidget {
     required this.commentary,
     required this.artistTags,
     required this.source,
+    this.inlineAction,
     super.key,
   });
 
   final ArtistCommentary commentary;
   final Set<String> artistTags;
   final PostSource source;
+  final Widget? inlineAction;
 
   @override
   State<ArtistSection> createState() => _ArtistSectionState();
@@ -63,15 +65,17 @@ class _ArtistSectionState extends State<ArtistSection> {
                 display: display,
                 artistTags: artistTags,
                 url: source.url,
+                inlineAction: widget.inlineAction,
                 onChanged: onChanged,
               ),
               NonWebSource _ => _Link(
                 commentary: commentary,
                 display: display,
                 artistTags: artistTags,
+                inlineAction: widget.inlineAction,
                 onChanged: onChanged,
               ),
-              _ => const SizedBox.shrink(),
+              _ => widget.inlineAction ?? const SizedBox.shrink(),
             }
           else
             const SizedBox.shrink(),
@@ -135,6 +139,7 @@ class _Link extends StatelessWidget {
     required this.display,
     required this.artistTags,
     required this.onChanged,
+    this.inlineAction,
     this.url,
   });
 
@@ -143,6 +148,7 @@ class _Link extends StatelessWidget {
   final Set<String> artistTags;
   final String? url;
   final void Function(TranlationState state) onChanged;
+  final Widget? inlineAction;
 
   @override
   Widget build(BuildContext context) {
@@ -150,8 +156,10 @@ class _Link extends StatelessWidget {
       name: artistTags.first,
       title: Text(artistTags.join(' ')),
       url: url,
-      actionBuilder: () => commentary.isTranslated
-          ? KurumiPopupMenuButton(
+      actionBuilder: () {
+        final actions = <Widget>[
+          if (commentary.isTranslated)
+            KurumiPopupMenuButton(
               icon: const Icon(Symbols.keyboard_arrow_down),
               iconPadding: EdgeInsets.zero,
               items: [
@@ -166,8 +174,21 @@ class _Link extends StatelessWidget {
                   ),
                 },
               ],
-            )
-          : const SizedBox.shrink(),
+            ),
+          ?inlineAction,
+        ];
+
+        return switch (actions) {
+          [] => const SizedBox.shrink(),
+          [final action] => action,
+          _ => Wrap(
+            alignment: WrapAlignment.end,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 4,
+            children: actions,
+          ),
+        };
+      },
     );
   }
 }

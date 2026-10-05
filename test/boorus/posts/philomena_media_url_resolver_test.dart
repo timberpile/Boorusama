@@ -83,6 +83,7 @@ BooruConfigViewer _viewer(String? quality) {
   );
   return BooruConfig.fromJson({
     ...config.toJson(),
+    'id': '00000000-0000-4000-8000-000000000001',
     'imageDetaisQuality': quality,
   }).viewer;
 }

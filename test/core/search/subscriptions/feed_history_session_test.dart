@@ -17,7 +17,7 @@ void main() {
         for (final query in ['a', 'b'])
           SearchSubscription.create(
             id: query,
-            profileId: 1,
+            profileId: '00000000-0000-4000-8000-000000000001',
             query: query,
             name: null,
             position: 0,
@@ -80,7 +80,7 @@ void main() {
       final now = DateTime.utc(2026, 9, 20);
       final source = SearchSubscription.create(
         id: 'artist',
-        profileId: 1,
+        profileId: '00000000-0000-4000-8000-000000000001',
         query: 'artist',
         name: null,
         position: 0,
@@ -120,7 +120,7 @@ void main() {
     final now = DateTime.utc(2026, 9, 20);
     final source = SearchSubscription.create(
       id: 'artist',
-      profileId: 1,
+      profileId: '00000000-0000-4000-8000-000000000001',
       query: 'artist',
       name: null,
       position: 0,
@@ -164,7 +164,7 @@ void main() {
         for (final id in ['a', 'b', 'c', 'd'])
           SearchSubscription.create(
             id: id,
-            profileId: 1,
+            profileId: '00000000-0000-4000-8000-000000000001',
             query: id,
             name: null,
             position: 0,

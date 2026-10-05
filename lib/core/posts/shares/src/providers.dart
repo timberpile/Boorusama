@@ -7,11 +7,22 @@ import 'package:kurumi/material.dart';
 // Project imports:
 import '../../../../foundation/display.dart';
 import '../../../configs/config/types.dart';
+import '../../../configs/manage/providers.dart';
 import '../../../downloads/filename/types.dart';
 import '../../post/types.dart';
-import 'post_modal_share.dart';
+import 'unified_post_share_sheet.dart';
 
 final shareProvider = Provider.autoDispose((ref) => ShareService(ref));
+
+String? profileIconUrlForAuth(
+  Iterable<BooruConfig> profiles,
+  BooruConfigAuth auth,
+) {
+  for (final profile in profiles) {
+    if (profile.auth == auth) return profile.profileIcon?.url;
+  }
+  return null;
+}
 
 class ShareService {
   ShareService(this.ref);
@@ -27,12 +38,15 @@ class ShareService {
     required DownloadFilenameGenerator? filenameBuilder,
     required ImageCacheManager imageCacheManager,
   }) {
-    final modal = PostModalShare(
+    final profileIconUrl = profileIconUrlForAuth(
+      ref.read(booruConfigProvider),
+      config,
+    );
+    final modal = UnifiedPostShareSheet(
       post: post,
       auth: config,
+      profileIconUrl: profileIconUrl,
       viewer: configViewer,
-      download: download,
-      filenameBuilder: filenameBuilder,
       imageCacheManager: imageCacheManager,
     );
 

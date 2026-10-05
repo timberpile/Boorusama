@@ -13,7 +13,7 @@ void main() {
   }) {
     return SearchSubscription(
       id: id,
-      profileId: 7,
+      profileId: '00000000-0000-4000-8000-000000000007',
       query: 'cat_girl order:id',
       position: 0,
       createdAt: now,
@@ -29,7 +29,7 @@ void main() {
     () {
       final unnamed = SearchSubscription.create(
         id: 'unnamed',
-        profileId: 7,
+        profileId: '00000000-0000-4000-8000-000000000007',
         query: '  cat_girl   order:id  ',
         name: '   ',
         position: 0,
@@ -51,7 +51,7 @@ void main() {
       () {
         final item = SearchSubscription(
           id: 'direct-${testCase.description}',
-          profileId: 7,
+          profileId: '00000000-0000-4000-8000-000000000007',
           query: 'cat_girl order:id',
           name: testCase.name,
           position: 0,
@@ -72,6 +72,94 @@ void main() {
     expect(normalizeSearchIdentity('  B  A  '), 'B A');
   });
 
+  test(
+    'accepts supported typed tags and ignores unusable query structures',
+    () {
+      expect(
+        SearchQueryStructure.tryParse({
+          'kind': 'typed_tags',
+          'tags': ['cat', 'rating:safe'],
+          'futureField': true,
+        }),
+        SearchQueryStructure.typedTags(const ['cat', 'rating:safe']),
+      );
+      for (final value in [
+        null,
+        {'kind': 'future_kind', 'tags': <String>[]},
+        {
+          'kind': 'typed_tags',
+          'tags': <Object?>['cat', null],
+        },
+        {
+          'kind': 'typed_tags',
+          'tags': <String>['cat', '   '],
+        },
+      ]) {
+        expect(SearchQueryStructure.tryParse(value), isNull);
+      }
+    },
+  );
+
+  for (final c in [
+    (
+      description: 'matching tags with canonical whitespace',
+      query: 'cat   rating:safe',
+      tags: const ['cat', 'rating:safe'],
+      isUsable: true,
+    ),
+    (
+      description: 'a different tag',
+      query: 'dog',
+      tags: const ['cat'],
+      isUsable: false,
+    ),
+    (
+      description: 'a different tag order',
+      query: 'cat dog',
+      tags: const ['dog', 'cat'],
+      isUsable: false,
+    ),
+    (
+      description: 'an aggregate pretending to be one specific tag',
+      query: 'cat dog',
+      tags: const ['cat dog'],
+      isUsable: false,
+    ),
+    (
+      description: 'a tab-separated aggregate pretending to be one tag',
+      query: 'cat dog',
+      tags: const ['cat\tdog'],
+      isUsable: false,
+    ),
+    (
+      description: 'a newline-separated aggregate pretending to be one tag',
+      query: 'cat dog',
+      tags: const ['cat\ndog'],
+      isUsable: false,
+    ),
+    (
+      description: 'a space alias of one underscored tag',
+      query: 'cat_dog',
+      tags: const ['cat dog'],
+      isUsable: true,
+    ),
+  ]) {
+    test('treats ${c.description} as ${c.isUsable ? 'typed' : 'raw'}', () {
+      final structure = SearchQueryStructure.typedTags(c.tags);
+      final item = SearchSubscription.create(
+        id: c.description,
+        profileId: '00000000-0000-4000-8000-000000000007',
+        query: c.query,
+        queryStructure: structure,
+        name: null,
+        position: 0,
+        createdAt: now,
+      );
+
+      expect(item.queryStructure, c.isUsable ? structure : isNull);
+    });
+  }
+
   test('keeps subscription and refresh collections immutable snapshots', () {
     final preview = SearchPostPreview(
       postId: 1,
@@ -89,7 +177,7 @@ void main() {
     final discoveredPosts = [preview];
     final item = SearchSubscription(
       id: 'immutable',
-      profileId: 7,
+      profileId: '00000000-0000-4000-8000-000000000007',
       query: 'cat_girl order:id',
       position: 0,
       createdAt: now,

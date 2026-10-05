@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/images/booru_image.dart';
 import 'package:boorusama/core/router.dart';
+import 'package:boorusama/core/search/search/src/routes/params.dart';
 import 'package:boorusama/core/search/subscriptions/providers.dart';
 import 'package:boorusama/core/search/subscriptions/routes.dart';
 import 'package:boorusama/core/search/subscriptions/src/pages/pinned_searches_page.dart';
@@ -30,11 +31,31 @@ void main() {
   Future<void> pump(WidgetTester tester) =>
       harness.pump(tester, const PinnedSearchesPage());
 
-  IconButton refreshAllButton(WidgetTester tester) => tester.widget<IconButton>(
-    find.byWidgetPredicate(
-      (widget) => widget is IconButton && widget.tooltip == 'Refresh All',
-    ),
+  Finder pageOverflow() => find.descendant(
+    of: find.byType(AppBar),
+    matching: find.byTooltip('More'),
   );
+
+  Future<void> openPageMenu(WidgetTester tester) async {
+    await tester.tap(pageOverflow());
+    await settle(tester);
+  }
+
+  Future<void> choosePageAction(WidgetTester tester, String label) async {
+    await openPageMenu(tester);
+    await tester.tap(find.text(label));
+    await settle(tester);
+  }
+
+  PopupMenuItem refreshAllItem(WidgetTester tester) =>
+      tester.widget<PopupMenuItem>(
+        find.ancestor(
+          of: find.text('Refresh All'),
+          matching: find.byWidgetPredicate(
+            (widget) => widget is PopupMenuItem,
+          ),
+        ),
+      );
 
   Future<void> openMenu(WidgetTester tester, [String name = 'Cats']) async {
     final card = find.ancestor(
@@ -89,6 +110,250 @@ void main() {
     await settle(tester);
   }
 
+  for (final location in ['Home', 'folder']) {
+    testWidgets('a pin in $location offers Edit without a separate Rename', (
+      tester,
+    ) async {
+      initialize();
+      await harness.seed([pinnedFixture()]);
+      final notifier = harness.container.read(
+        searchSubscriptionsProvider.notifier,
+      );
+      final folder = await notifier.createSharedFolder('Favorites');
+      if (location == 'folder') {
+        await notifier.movePinToSharedFolder('cats', folder.id);
+        await harness.pump(tester, PinnedSearchesPage(folderId: folder.id));
+      } else {
+        await pump(tester);
+      }
+
+      await openMenu(tester);
+      expect(find.text('Edit'), findsOneWidget);
+      expect(find.text('Rename'), findsNothing);
+
+      if (location == 'Home') {
+        await tester.tapAt(const Offset(5, 5));
+        await settle(tester);
+        final folderCard = find.byKey(
+          ValueKey('pinned-search-folder-${folder.id}'),
+        );
+        await tester.tap(
+          find.descendant(
+            of: folderCard,
+            matching: find.byType(PopupMenuButton<PinnedSearchAction>),
+          ),
+        );
+        await settle(tester);
+        expect(find.text('Rename'), findsOneWidget);
+        expect(find.text('Edit'), findsNothing);
+      }
+    });
+  }
+
+  testWidgets('editing a pin changes its query and profile in its folder', (
+    tester,
+  ) async {
+    initialize();
+    await harness.seed([pinnedFixture()]);
+    final notifier = harness.container.read(
+      searchSubscriptionsProvider.notifier,
+    );
+    final folder = await notifier.createSharedFolder('Favorites');
+    await notifier.movePinToSharedFolder('cats', folder.id);
+    await harness.pump(tester, PinnedSearchesPage(folderId: folder.id));
+
+    await choose(tester, 'Edit');
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Name (optional)'),
+      'Dogs',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Exact query'),
+      'dog',
+    );
+    await tester.tap(find.byType(DropdownButtonFormField<String>));
+    await settle(tester);
+    await tester.tap(find.text('https://other.example').last);
+    await settle(tester);
+    await tester.tap(find.text('Save'));
+    await settle(tester);
+    await drain(tester);
+
+    final edited = (await harness.repository.getById('cats'))!;
+    expect(edited.name, 'Dogs');
+    expect(edited.query, 'dog');
+    expect(edited.profileId, '00000000-0000-4000-8000-000000000063');
+    expect(
+      (await harness.repository.getOrganization()).folders.single.searchIds,
+      ['cats'],
+    );
+    expect(
+      harness.requests,
+      contains((
+        profileId: '00000000-0000-4000-8000-000000000063',
+        query: 'dog',
+      )),
+    );
+  });
+
+  testWidgets('the editor distinguishes profiles with the same name', (
+    tester,
+  ) async {
+    harness = PinnedSearchHarness(
+      profiles: [
+        testProfile.copyWith(name: 'Shared'),
+        otherTestProfile.copyWith(name: 'Shared'),
+      ],
+    );
+    addTearDown(harness.dispose);
+    await harness.seed([pinnedFixture()]);
+    await pump(tester);
+
+    await choose(tester, 'Edit');
+    await tester.tap(find.byType(DropdownButtonFormField<String>));
+    await settle(tester);
+    expect(find.text('Shared · https://active.example'), findsWidgets);
+    await tester.tap(find.text('Shared · https://other.example').last);
+    await settle(tester);
+    await tester.tap(find.text('Save'));
+    await drain(tester);
+    await settle(tester);
+
+    expect(find.text('Edit Pinned Search'), findsNothing);
+    expect(
+      (await harness.repository.getById('cats'))!.profileId,
+      '00000000-0000-4000-8000-000000000063',
+    );
+    expect(find.text('Shared · https://other.example'), findsOneWidget);
+  });
+
+  testWidgets('barrier and Back cannot dismiss an editor during save', (
+    tester,
+  ) async {
+    initialize();
+    await harness.seed([pinnedFixture()]);
+    await pump(tester);
+    await choose(tester, 'Edit');
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Exact query'),
+      'dog',
+    );
+    final releaseSave = Completer<void>();
+    harness.box.writeGate = releaseSave;
+    await tester.tap(find.text('Save'));
+    await tester.pump();
+
+    await tester.tapAt(const Offset(5, 5));
+    await settle(tester);
+    expect(find.text('Edit Pinned Search'), findsOneWidget);
+    await tester.binding.handlePopRoute();
+    await settle(tester);
+    expect(find.text('Edit Pinned Search'), findsOneWidget);
+
+    releaseSave.complete();
+    await drain(tester);
+    await settle(tester);
+    expect(find.text('Edit Pinned Search'), findsNothing);
+    expect((await harness.repository.getById('cats'))!.query, 'dog');
+  });
+
+  testWidgets('a colliding edit stays open and writes nothing', (tester) async {
+    initialize();
+    await harness.seed([
+      pinnedFixture(),
+      pinnedFixture(
+        id: 'dogs',
+        name: 'Dogs',
+        query: 'dog rating:safe',
+        position: 1,
+      ),
+    ]);
+    await pump(tester);
+
+    await choose(tester, 'Edit');
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Exact query'),
+      ' dog  rating:safe ',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Name (optional)'),
+      'Changed',
+    );
+    await tester.tap(find.text('Save'));
+    await settle(tester);
+
+    expect(
+      find.text('Another pin already uses this query in the selected profile.'),
+      findsOneWidget,
+    );
+    expect(find.text('Edit Pinned Search'), findsOneWidget);
+    expect((await harness.repository.getById('cats'))!.name, 'Cats');
+    expect(
+      (await harness.repository.getById('cats'))!.query,
+      'cat  rating:safe order:score',
+    );
+    expect(
+      (await harness.repository.getById('dogs'))!.query,
+      'dog rating:safe',
+    );
+    expect(harness.requests, isEmpty);
+    await tester.tap(find.text('Cancel'));
+    await settle(tester);
+    expect(find.text('Edit Pinned Search'), findsNothing);
+  });
+
+  testWidgets(
+    'a failed edit save keeps the editor open and the pin unchanged',
+    (
+      tester,
+    ) async {
+      initialize();
+      await harness.seed([pinnedFixture()]);
+      await pump(tester);
+      await choose(tester, 'Edit');
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Exact query'),
+        'dog',
+      );
+      harness.box.failWrites = true;
+      await tester.tap(find.text('Save'));
+      await settle(tester);
+
+      expect(
+        find.text('Could not save the pinned search. Try again.'),
+        findsOneWidget,
+      );
+      expect(find.text('Edit Pinned Search'), findsOneWidget);
+      expect(
+        (await harness.repository.getById('cats'))!.query,
+        'cat  rating:safe order:score',
+      );
+      expect(harness.requests, isEmpty);
+    },
+  );
+
+  testWidgets('an unsupported profile warns before an edit is saved', (
+    tester,
+  ) async {
+    harness = PinnedSearchHarness(supported: false);
+    addTearDown(harness.dispose);
+    await harness.seed([pinnedFixture()]);
+    await pump(tester);
+    await choose(tester, 'Edit');
+    expect(
+      find.text(
+        'New-post tracking is unavailable for this profile. The search can still open normally.',
+      ),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('Cancel'));
+    await settle(tester);
+    expect(
+      (await harness.repository.getById('cats'))!.query,
+      'cat  rating:safe order:score',
+    );
+  });
+
   for (final scenario in ['existing', 'home', 'create', 'cancel', 'failure']) {
     testWidgets(
       'moving a pin to $scenario preserves its owner and commits only on success',
@@ -96,7 +361,11 @@ void main() {
         initialize();
         await harness.seed([
           pinnedFixture(),
-          pinnedFixture(id: 'dogs', profileId: 99, name: 'Dogs'),
+          pinnedFixture(
+            id: 'dogs',
+            profileId: '00000000-0000-4000-8000-000000000063',
+            name: 'Dogs',
+          ),
         ]);
         await harness.container.read(searchSubscriptionsProvider.future);
         final notifier = harness.container.read(
@@ -134,7 +403,10 @@ void main() {
         final destination = organization.folders
             .where((f) => f.searchIds.contains('cats'))
             .firstOrNull;
-        expect((await harness.repository.getById('cats'))!.profileId, 12);
+        expect(
+          (await harness.repository.getById('cats'))!.profileId,
+          '00000000-0000-4000-8000-00000000000c',
+        );
         switch (scenario) {
           case 'existing':
             expect(destination?.id, otherFolder.id);
@@ -167,9 +439,70 @@ void main() {
       expect(find.text('Cats'), findsOneWidget);
       expect(harness.requests, isEmpty);
       expect((await harness.repository.getAll()).single.id, 'cats');
-      expect(refreshAllButton(tester).onPressed, isNull);
+      await openPageMenu(tester);
+      expect(refreshAllItem(tester).enabled, isFalse);
     },
   );
+
+  testWidgets(
+    'Home keeps Sort dedicated and places maintenance actions in More',
+    (
+      tester,
+    ) async {
+      initialize();
+      await harness.seed([pinnedFixture()]);
+      await pump(tester);
+
+      expect(find.byTooltip('Sort by'), findsOneWidget);
+      expect(find.byTooltip('Add searches'), findsNothing);
+      expect(find.byTooltip('Refresh settings'), findsNothing);
+      expect(find.byTooltip('Manage folders'), findsNothing);
+      expect(find.byTooltip('Refresh All'), findsNothing);
+
+      await openPageMenu(tester);
+      for (final label in [
+        'Add searches',
+        'Create folder',
+        'Refresh All',
+      ]) {
+        expect(find.text(label), findsOneWidget);
+      }
+      expect(find.text('Refresh settings'), findsNothing);
+      expect(find.text('Refresh Folder'), findsNothing);
+    },
+  );
+
+  testWidgets('a folder keeps Sort dedicated and exposes only folder actions', (
+    tester,
+  ) async {
+    initialize();
+    await harness.seed([pinnedFixture(query: 'cat')]);
+    await harness.container.read(searchSubscriptionsProvider.future);
+    final notifier = harness.container.read(
+      searchSubscriptionsProvider.notifier,
+    );
+    final folder = await notifier.createSharedFolder('Animals');
+    await notifier.movePinToSharedFolder('cats', folder.id);
+    await harness.pump(tester, PinnedSearchesPage(folderId: folder.id));
+
+    expect(find.byTooltip('Sort by'), findsOneWidget);
+    await openPageMenu(tester);
+    for (final label in ['Add searches', 'Refresh Folder']) {
+      expect(find.text(label), findsOneWidget);
+    }
+    for (final label in [
+      'Create folder',
+      'Refresh settings',
+      'Refresh All',
+    ]) {
+      expect(find.text(label), findsNothing);
+    }
+    await tester.tap(find.text('Refresh Folder'));
+    await drain(tester);
+    expect(harness.requests, [
+      (profileId: '00000000-0000-4000-8000-00000000000c', query: 'cat'),
+    ]);
+  });
 
   testWidgets('routine check details are available through Info only', (
     tester,
@@ -181,6 +514,17 @@ void main() {
     await choose(tester, 'Info');
     expect(find.textContaining('Last checked:'), findsOneWidget);
     expect(harness.requests, isEmpty);
+  });
+
+  testWidgets('does not expose settings for disabled automatic refresh', (
+    tester,
+  ) async {
+    initialize();
+    await harness.seed([pinnedFixture()]);
+    await pump(tester);
+
+    expect(find.byTooltip('Refresh settings'), findsNothing);
+    expect(find.text('Automatic refresh'), findsNothing);
   });
 
   testWidgets('shows the cached last post time on the profile metadata line', (
@@ -218,7 +562,7 @@ void main() {
     const longUrl = 'https://a-very-long-profile-name.example.test';
     final profile = BooruConfig.fromJson({
       ...BooruConfig.empty.toJson(),
-      'id': 12,
+      'id': '00000000-0000-4000-8000-00000000000c',
       'url': longUrl,
     });
     harness = PinnedSearchHarness(profiles: [profile, otherTestProfile]);
@@ -311,11 +655,12 @@ void main() {
   });
 
   testWidgets(
-    'newest post view reorders cards without changing manual order',
+    'updates view reorders read Home cards without changing manual order',
     (tester) async {
       initialize();
       await harness.seed([
         pinnedFixture(
+          unreadCount: 0,
           previewCount: 1,
           postCreatedAt: DateTime.utc(2026, 9, 12),
         ),
@@ -324,6 +669,7 @@ void main() {
           name: 'Dogs',
           query: 'dog',
           position: 1,
+          unreadCount: 0,
           previewCount: 1,
           postCreatedAt: DateTime.utc(2026, 9, 13),
         ),
@@ -332,7 +678,25 @@ void main() {
 
       await tester.tap(find.byTooltip('Sort by'));
       await settle(tester);
-      await tester.tap(find.text('Last post: newest first'));
+      expect(find.byType(PopupMenuItem<PinnedSearchSort>), findsNWidgets(3));
+      expect(
+        tester
+            .widgetList<PopupMenuItem<PinnedSearchSort>>(
+              find.byType(PopupMenuItem<PinnedSearchSort>),
+            )
+            .map((item) => item.value),
+        [
+          PinnedSearchSort.manual,
+          PinnedSearchSort.updatesFirst,
+          PinnedSearchSort.lastPostOldest,
+        ],
+      );
+      expect(find.text('Manual order'), findsOneWidget);
+      expect(find.text('Updates first'), findsOneWidget);
+      expect(find.text('Oldest post first'), findsOneWidget);
+      expect(find.text('Unseen first'), findsNothing);
+      expect(find.text('Newest post first'), findsNothing);
+      await tester.tap(find.text('Updates first'));
       await settle(tester);
 
       expect(
@@ -355,6 +719,142 @@ void main() {
       );
     },
   );
+
+  testWidgets('updates view groups NEW Home cards before read cards', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(800, 1200));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    initialize();
+    await harness.seed([
+      pinnedFixture(
+        name: 'Read first',
+        unreadCount: 0,
+        previewCount: 1,
+        postCreatedAt: DateTime.utc(2026, 9, 14),
+      ),
+      pinnedFixture(
+        id: 'new',
+        name: 'NEW second',
+        query: 'new',
+        unreadCount: 1,
+        position: 1,
+        previewCount: 1,
+        postCreatedAt: DateTime.utc(2026, 9, 11),
+      ),
+      pinnedFixture(
+        id: 'new-tie',
+        name: 'NEW third',
+        query: 'newer',
+        unreadCount: 1,
+        position: 2,
+        previewCount: 1,
+        postCreatedAt: DateTime.utc(2026, 9, 12),
+      ),
+      pinnedFixture(
+        id: 'read-last',
+        name: 'Read last',
+        query: 'read',
+        unreadCount: 0,
+        position: 3,
+        previewCount: 1,
+        postCreatedAt: DateTime.utc(2026, 9, 10),
+      ),
+    ]);
+    await pump(tester);
+
+    await tester.tap(find.byTooltip('Sort by'));
+    await settle(tester);
+    await tester.tap(find.text('Updates first'));
+    await settle(tester);
+
+    expect(
+      tester.getTopLeft(find.text('NEW third')).dy,
+      lessThan(tester.getTopLeft(find.text('NEW second')).dy),
+    );
+    expect(
+      tester.getTopLeft(find.text('NEW second')).dy,
+      lessThan(tester.getTopLeft(find.text('Read first')).dy),
+    );
+    expect(
+      tester.getTopLeft(find.text('Read first')).dy,
+      lessThan(tester.getTopLeft(find.text('Read last')).dy),
+    );
+    expect((await harness.repository.getOrganization()).homeSearchIds, [
+      'cats',
+      'new',
+      'new-tie',
+      'read-last',
+    ]);
+    expect(harness.requests, isEmpty);
+  });
+
+  testWidgets('updates view is shared with folders and sorts their cards', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(800, 1200));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    initialize();
+    await harness.seed([
+      pinnedFixture(
+        name: 'Read',
+        unreadCount: 0,
+        previewCount: 1,
+        postCreatedAt: DateTime.utc(2026, 9, 14),
+      ),
+      pinnedFixture(
+        id: 'new',
+        name: 'New',
+        query: 'new',
+        unreadCount: 1,
+        position: 1,
+        previewCount: 1,
+        postCreatedAt: DateTime.utc(2026, 9, 11),
+      ),
+      pinnedFixture(
+        id: 'newer',
+        name: 'Newer',
+        query: 'newer',
+        unreadCount: 1,
+        position: 2,
+        previewCount: 1,
+        postCreatedAt: DateTime.utc(2026, 9, 12),
+      ),
+    ]);
+    final notifier = harness.container.read(
+      searchSubscriptionsProvider.notifier,
+    );
+    final folder = await notifier.createSharedFolder('Favorites');
+    await notifier.movePinToSharedFolder('cats', folder.id);
+    await notifier.movePinToSharedFolder('new', folder.id);
+    await notifier.movePinToSharedFolder('newer', folder.id);
+    await pump(tester);
+
+    await tester.tap(find.byTooltip('Sort by'));
+    await settle(tester);
+    await tester.tap(find.text('Updates first'));
+    await settle(tester);
+    await tester.tap(find.text('Favorites'));
+    await settle(tester);
+
+    expect(
+      tester.getTopLeft(find.text('Newer')).dy,
+      lessThan(tester.getTopLeft(find.text('New')).dy),
+    );
+    expect(
+      tester.getTopLeft(find.text('New')).dy,
+      lessThan(tester.getTopLeft(find.text('Read')).dy),
+    );
+    expect(
+      (await harness.repository.getOrganization()).folders.single.searchIds,
+      [
+        'cats',
+        'new',
+        'newer',
+      ],
+    );
+    expect(harness.requests, isEmpty);
+  });
 
   testWidgets('oldest post view keeps undated cards after dated cards', (
     tester,
@@ -385,7 +885,7 @@ void main() {
 
     await tester.tap(find.byTooltip('Sort by'));
     await settle(tester);
-    await tester.tap(find.text('Last post: oldest first'));
+    await tester.tap(find.text('Oldest post first'));
     await settle(tester);
 
     expect(
@@ -398,7 +898,40 @@ void main() {
     );
   });
 
-  testWidgets('date views disable manual move actions', (tester) async {
+  testWidgets(
+    'manual view keeps move actions and disables impossible directions',
+    (tester) async {
+      initialize();
+      await harness.seed([
+        pinnedFixture(),
+        pinnedFixture(id: 'dogs', name: 'Dogs', query: 'dog', position: 1),
+      ]);
+      await pump(tester);
+
+      for (final c in [
+        (name: 'Cats', moveUp: false, moveDown: true),
+        (name: 'Dogs', moveUp: true, moveDown: false),
+      ]) {
+        await openMenu(tester, c.name);
+        for (final action in [
+          (label: 'Move up', enabled: c.moveUp),
+          (label: 'Move down', enabled: c.moveDown),
+        ]) {
+          final item = tester.widget<PopupMenuItem<PinnedSearchAction>>(
+            find.ancestor(
+              of: find.text(action.label),
+              matching: find.byType(PopupMenuItem<PinnedSearchAction>),
+            ),
+          );
+          expect(item.enabled, action.enabled);
+        }
+        await tester.tapAt(const Offset(1, 1));
+        await settle(tester);
+      }
+    },
+  );
+
+  testWidgets('date views omit manual move actions', (tester) async {
     initialize();
     await harness.seed([
       pinnedFixture(
@@ -417,18 +950,12 @@ void main() {
     await pump(tester);
     await tester.tap(find.byTooltip('Sort by'));
     await settle(tester);
-    await tester.tap(find.text('Last post: newest first'));
+    await tester.tap(find.text('Updates first'));
     await settle(tester);
     await openMenu(tester, 'Dogs');
 
     for (final label in ['Move up', 'Move down']) {
-      final item = tester.widget<PopupMenuItem<PinnedSearchAction>>(
-        find.ancestor(
-          of: find.text(label),
-          matching: find.byType(PopupMenuItem<PinnedSearchAction>),
-        ),
-      );
-      expect(item.enabled, isFalse);
+      expect(find.text(label), findsNothing);
     }
   });
 
@@ -461,7 +988,7 @@ void main() {
 
     await tester.tap(find.byTooltip('Sort by'));
     await settle(tester);
-    await tester.tap(find.text('Last post: oldest first'));
+    await tester.tap(find.text('Oldest post first'));
     await settle(tester);
     await tester.tap(find.text('Favorites'));
     await settle(tester);
@@ -513,7 +1040,7 @@ void main() {
       ),
       pinnedFixture(
         id: 'other',
-        profileId: 99,
+        profileId: '00000000-0000-4000-8000-000000000063',
         name: 'Other profile',
         query: 'other',
         unreadCount: 90,
@@ -635,6 +1162,90 @@ void main() {
   );
 
   testWidgets(
+    'opens a structured pin as separate specific tags',
+    (tester) async {
+      initialize();
+      await harness.seed([
+        pinnedFixture(
+          query: 'cat rating:safe',
+          queryStructure: SearchQueryStructure.typedTags(const [
+            'cat',
+            'rating:safe',
+          ]),
+        ),
+      ]);
+      await pumpRouter(tester);
+
+      await tester.tap(find.text('Cats'));
+      await settle(tester);
+      await settle(tester);
+
+      expect(openedUri!.path, '/search');
+      expect(openedUri!.queryParameters['query'], isNull);
+      expect(openedUri!.queryParameters['tags'], '["cat","rating:safe"]');
+      expect(openedUri!.queryParameters['query_type'], 'list');
+      expect(
+        SearchParams.fromUri(openedUri!).tags?.tags.map((tag) => tag.isRaw),
+        [false, false],
+      );
+    },
+  );
+
+  testWidgets(
+    'opens a mismatched typed payload as the exact stored raw query',
+    (tester) async {
+      initialize();
+      await harness.seed([
+        pinnedFixture(
+          query: 'dog  order:score',
+          queryStructure: SearchQueryStructure.typedTags(const [
+            'cat',
+            'order:score',
+          ]),
+        ),
+      ]);
+      await pumpRouter(tester);
+
+      await tester.tap(find.text('Cats'));
+      await settle(tester);
+      await settle(tester);
+
+      expect(openedUri!.path, '/search');
+      expect(openedUri!.queryParameters['query'], 'dog  order:score');
+      expect(openedUri!.queryParameters['tags'], isNull);
+      expect(openedUri!.queryParameters['query_type'], 'simple');
+    },
+  );
+
+  for (final c in [
+    (description: 'tab', typedTag: 'cat\tdog'),
+    (description: 'newline', typedTag: 'cat\ndog'),
+  ]) {
+    testWidgets(
+      'opens a ${c.description}-separated typed payload as raw',
+      (tester) async {
+        initialize();
+        await harness.seed([
+          pinnedFixture(
+            query: 'cat dog',
+            queryStructure: SearchQueryStructure.typedTags([c.typedTag]),
+          ),
+        ]);
+        await pumpRouter(tester);
+
+        await tester.tap(find.text('Cats'));
+        await settle(tester);
+        await settle(tester);
+
+        expect(openedUri!.path, '/search');
+        expect(openedUri!.queryParameters['query'], 'cat dog');
+        expect(openedUri!.queryParameters['tags'], isNull);
+        expect(openedUri!.queryParameters['query_type'], 'simple');
+      },
+    );
+  }
+
+  testWidgets(
     'keeps the card unread and stays on the page when mark-read fails',
     (tester) async {
       initialize();
@@ -654,18 +1265,27 @@ void main() {
   );
 
   testWidgets(
-    'renaming to blank restores the query label without changing unread',
+    'editing the name to blank restores the query label without changing unread',
     (tester) async {
       initialize();
       await harness.seed([pinnedFixture()]);
       await pump(tester);
-      await choose(tester, 'Rename');
+      await choose(tester, 'Edit');
       expect(
-        tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        tester
+            .widget<TextField>(
+              find.widgetWithText(TextField, 'Name (optional)'),
+            )
+            .controller!
+            .text,
         'Cats',
       );
-      await tester.enterText(find.byType(TextField), '   ');
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Name (optional)'),
+        '   ',
+      );
       await tester.tap(find.text('Save'));
+      await drain(tester);
       await settle(tester);
       expect(find.text('Cats'), findsNothing);
       expect(find.text('cat  rating:safe order:score'), findsOneWidget);
@@ -680,7 +1300,12 @@ void main() {
       initialize();
       await harness.seed([
         pinnedFixture(),
-        pinnedFixture(id: 'dogs', name: 'Dogs', query: 'dog', profileId: 99),
+        pinnedFixture(
+          id: 'dogs',
+          name: 'Dogs',
+          query: 'dog',
+          profileId: '00000000-0000-4000-8000-000000000063',
+        ),
       ]);
       await pump(tester);
       await choose(tester, 'Move down');
@@ -692,7 +1317,10 @@ void main() {
         'dogs',
         'cats',
       ]);
-      expect((await harness.repository.getById('dogs'))!.profileId, 99);
+      expect(
+        (await harness.repository.getById('dogs'))!.profileId,
+        '00000000-0000-4000-8000-000000000063',
+      );
       await choose(tester, 'Move up');
       expect((await harness.repository.getOrganization()).homeSearchIds, [
         'cats',
@@ -728,12 +1356,18 @@ void main() {
     harness.refreshGate = Completer<void>();
     await harness.seed([
       pinnedFixture(query: 'cat'),
-      pinnedFixture(id: 'other', profileId: 99, name: 'Other'),
+      pinnedFixture(
+        id: 'other',
+        profileId: '00000000-0000-4000-8000-000000000063',
+        name: 'Other',
+      ),
     ]);
     await pump(tester);
     await choose(tester, 'Refresh');
     expect(find.text('Refreshing…'), findsOneWidget);
-    expect(harness.requests.map((request) => request.profileId), [12]);
+    expect(harness.requests.map((request) => request.profileId), [
+      '00000000-0000-4000-8000-00000000000c',
+    ]);
     harness.refreshGate!.complete();
     await settle(tester);
     expect(find.text('Refreshing…'), findsNothing);
@@ -748,27 +1382,38 @@ void main() {
         pinnedFixture(checked: false, query: 'cat'),
         pinnedFixture(
           id: 'other',
-          profileId: 99,
+          profileId: '00000000-0000-4000-8000-000000000063',
           name: 'Other',
           query: 'dog',
           checked: false,
         ),
       ]);
       await pump(tester);
-      await tester.tap(find.byTooltip('Refresh All'));
+      await choosePageAction(tester, 'Refresh All');
+      expect(harness.requests.map((r) => r.profileId), [
+        '00000000-0000-4000-8000-00000000000c',
+      ]);
+      await openPageMenu(tester);
+      expect(refreshAllItem(tester).enabled, isFalse);
+      await tester.tapAt(const Offset(1, 1));
       await settle(tester);
-      expect(harness.requests.map((r) => r.profileId), [12]);
-      expect(refreshAllButton(tester).onPressed, isNull);
       harness.container
           .read(selectedTestProfileProvider.notifier)
           .select(otherTestProfile);
       await pump(tester);
-      expect(refreshAllButton(tester).onPressed, isNull);
+      await openPageMenu(tester);
+      expect(refreshAllItem(tester).enabled, isFalse);
+      await tester.tapAt(const Offset(1, 1));
+      await settle(tester);
       harness.refreshGate!.complete();
       await settle(tester);
       await drain(tester);
-      expect(harness.requests.map((r) => r.profileId), [12, 99]);
-      expect(refreshAllButton(tester).onPressed, isNotNull);
+      expect(harness.requests.map((r) => r.profileId), [
+        '00000000-0000-4000-8000-00000000000c',
+        '00000000-0000-4000-8000-000000000063',
+      ]);
+      await openPageMenu(tester);
+      expect(refreshAllItem(tester).enabled, isTrue);
       expect(
         (await harness.repository.getById('other'))!.lastSuccessfulCheckAt,
         isNotNull,

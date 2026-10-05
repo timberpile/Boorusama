@@ -12,6 +12,7 @@ import '../../../configs/config/types.dart';
 import '../../../posts/post/types.dart';
 import '../data/bookmark_convert.dart';
 import '../providers/bookmark_provider.dart';
+import '../types/bookmark.dart';
 import '../types/bookmark_target.dart';
 import 'bookmark_active_target_badge.dart';
 import 'bookmark_group_label.dart';
@@ -91,6 +92,10 @@ Future<void> showAnchoredBookmarkGroupPicker(
     ],
   );
   if (selected == null || !navigator.mounted) return;
+  if (uniqueId is UnbookmarkablePostIdentity) {
+    _showPickerMissingIdentity(navigator);
+    return;
+  }
   final notifier = container.read(bookmarkProvider.notifier);
   void added() => _showPickerSuccess(navigator, added: true);
   void removed() => _showPickerSuccess(navigator, added: false);
@@ -120,6 +125,8 @@ Future<void> showAnchoredBookmarkGroupPicker(
         added();
       case BookmarkToggleOutcome.removed:
         removed();
+      case BookmarkToggleOutcome.missingPostIdentity:
+        _showPickerMissingIdentity(navigator);
       case BookmarkToggleOutcome.unavailable || BookmarkToggleOutcome.failed:
         failed();
     }
@@ -135,6 +142,14 @@ void _showPickerSuccess(NavigatorState navigator, {required bool added}) {
     added
         ? navigator.context.t.bookmark.added
         : navigator.context.t.bookmark.removed,
+  );
+}
+
+void _showPickerMissingIdentity(NavigatorState navigator) {
+  if (!navigator.mounted) return;
+  Kurumi.showErrorToast(
+    navigator.context,
+    navigator.context.t.bookmark.missing_post_identity,
   );
 }
 
@@ -157,6 +172,10 @@ bool _handleToggleOutcome(
   BookmarkToggleOutcome.removed => (() {
     _showPickerSuccess(navigator, added: false);
     return true;
+  })(),
+  BookmarkToggleOutcome.missingPostIdentity => (() {
+    _showPickerMissingIdentity(navigator);
+    return false;
   })(),
   BookmarkToggleOutcome.unavailable || BookmarkToggleOutcome.failed => (() {
     _showPickerError(navigator);

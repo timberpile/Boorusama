@@ -84,6 +84,28 @@ class DefaultImageCacheManager implements ImageCacheManager {
     return fileResult?.path;
   }
 
+  @override
+  Future<String?> getCacheFilePathForKey(String key) async {
+    if (key.contains('/') || key.contains('\\')) {
+      throw ArgumentError.value(key, 'key');
+    }
+    final cacheDir = await getCacheDirectory();
+    return join(cacheDir.path, key);
+  }
+
+  @override
+  Future<void> replaceCachedFile(String key, String stagedFilePath) async {
+    final targetPath = await getCacheFilePathForKey(key);
+    final target = File(targetPath!);
+    final staged = File(stagedFilePath).absolute;
+    if (staged.parent.path != target.parent.path ||
+        staged.path == target.path) {
+      throw ArgumentError.value(stagedFilePath, 'stagedFilePath');
+    }
+    await staged.rename(target.path);
+    _memoryCache?.remove(key);
+  }
+
   File? _getValidFile(Directory cacheDir, String key, Duration? maxAge) {
     try {
       final cacheFile = File(join(cacheDir.path, key));

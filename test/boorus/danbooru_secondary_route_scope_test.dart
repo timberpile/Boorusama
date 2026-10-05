@@ -68,7 +68,7 @@ final _config = BooruConfig.fromJson({
     url: 'https://page-profile.example',
     customDownloadFileNameFormat: null,
   ).toJson(),
-  'id': 42,
+  'id': '00000000-0000-4000-8000-00000000002a',
 });
 
 final _post = Post(

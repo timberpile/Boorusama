@@ -6,9 +6,11 @@ import 'package:sqlite3/sqlite3.dart';
 // Project imports:
 import '../../../../foundation/database/providers.dart';
 import '../../../../foundation/database/utils.dart';
+import '../../../../foundation/data_mutation_coordinator.dart';
 import '../../../../foundation/filesystem.dart';
 import '../../../../foundation/loggers.dart';
 import '../types/download_repository.dart';
+import 'coordinated_download_repository.dart';
 import 'repo_empty.dart';
 import 'repo_sqlite.dart';
 
@@ -38,7 +40,10 @@ final internalDownloadRepositoryProvider = FutureProvider<DownloadRepository>((
 
   ref.onDispose(() => db?.close());
 
-  return _createRepository(logger, db);
+  return CoordinatedDownloadRepository(
+    await _createRepository(logger, db),
+    ref.watch(dataMutationCoordinatorProvider),
+  );
 });
 
 Future<DownloadRepository> _createRepository(

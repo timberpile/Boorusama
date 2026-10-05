@@ -73,6 +73,26 @@ expect_failure \
   'An unused title' \
   ''
 
+dependabot_context=(env 'PR_AUTHOR=dependabot[bot]' \
+  PR_HEAD_REPOSITORY=timberpile/Boorusama \
+  PR_BASE_REPOSITORY=timberpile/Boorusama)
+
+expect_success 'Dependabot Actions updates can target develop' \
+  "${dependabot_context[@]}" "$validator" develop dependabot/github_actions/actions/checkout-6
+expect_failure 'Dependabot updates cannot target master' \
+  "${dependabot_context[@]}" "$validator" master dependabot/github_actions/actions/checkout-6
+expect_failure 'a human cannot impersonate a Dependabot branch' \
+  "${dependabot_context[@]}" PR_AUTHOR=someone "$validator" develop dependabot/github_actions/actions/checkout-6
+expect_failure 'a Dependabot branch from a fork is rejected' \
+  "${dependabot_context[@]}" PR_HEAD_REPOSITORY=someone/Boorusama "$validator" develop dependabot/github_actions/actions/checkout-6
+expect_failure 'Dependabot exception is restricted to this target repository' \
+  "${dependabot_context[@]}" PR_BASE_REPOSITORY=someone/Boorusama "$validator" develop dependabot/github_actions/actions/checkout-6
+expect_failure 'Dependabot exception requires event metadata' \
+  env -u PR_AUTHOR -u PR_HEAD_REPOSITORY -u PR_BASE_REPOSITORY \
+  "$validator" develop dependabot/github_actions/actions/checkout-6
+expect_failure 'unconfigured Dependabot ecosystems are rejected' \
+  "${dependabot_context[@]}" "$validator" develop dependabot/pub/some-package-2
+
 if ((failures > 0)); then
   echo "$failures pull request policy test(s) failed"
   exit 1

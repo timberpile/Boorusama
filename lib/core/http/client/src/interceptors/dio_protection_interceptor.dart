@@ -1,4 +1,5 @@
 // Dart imports:
+import 'dart:async';
 import 'dart:convert';
 
 // Package imports:
@@ -16,6 +17,7 @@ class DioProtectionInterceptor extends Interceptor {
        _dio = dio;
 
   static const _protectionRetryKey = 'boorusama.ddos_protection_retry';
+  static const _rule34ReplayDelay = Duration(seconds: 2);
 
   final HttpProtectionHandler _protectionHandler;
   final Dio _dio;
@@ -81,16 +83,58 @@ class DioProtectionInterceptor extends Interceptor {
       final solved = await _protectionHandler.handleError(DioErrorAdapter(err));
 
       if (solved) {
-        final response = await _retryAfterProtection(err.requestOptions);
-        _protectionHandler.resetRetryAttempts(err.requestOptions.uri);
-        handler.resolve(response);
+        try {
+          final response = await _retryAfterProtection(err.requestOptions);
+          handler.resolve(response);
+        } on DioException catch (replayError) {
+          if (!_shouldDelayRule34Replay(replayError)) {
+            handler.next(replayError);
+          } else {
+            try {
+              await _waitForRule34Replay(err.requestOptions.cancelToken);
+              final response = await _retryAfterProtection(err.requestOptions);
+              handler.resolve(response);
+            } on DioException catch (finalError) {
+              handler.next(finalError);
+            }
+          }
+        } finally {
+          _protectionHandler.resetRetryAttempts(err.requestOptions.uri);
+        }
         return;
       }
-    } catch (e) {
-      // If handling fails, continue with the error
+    } catch (_) {
+      // Continue with the original error if protection handling itself fails.
     }
 
     return handler.next(err);
+  }
+
+  bool _shouldDelayRule34Replay(DioException error) {
+    final options = error.requestOptions;
+    final uri = options.uri;
+    return error.response?.statusCode == 403 &&
+        uri.host == 'rule34.xxx' &&
+        options.method.toUpperCase() == 'GET' &&
+        uri.path == '/index.php' &&
+        uri.queryParameters['page'] == 'dapi' &&
+        uri.queryParameters['s'] == 'post' &&
+        uri.queryParameters['q'] == 'index';
+  }
+
+  Future<void> _waitForRule34Replay(CancelToken? cancelToken) async {
+    if (cancelToken == null) {
+      await Future<void>.delayed(_rule34ReplayDelay);
+      return;
+    }
+
+    if (cancelToken.isCancelled) throw cancelToken.cancelError!;
+    final cancellation = await Future.any<DioException?>([
+      Future<void>.delayed(_rule34ReplayDelay).then((_) => null),
+      cancelToken.whenCancel,
+    ]);
+    if (cancellation != null) throw cancellation;
+    if (cancelToken.isCancelled) throw cancelToken.cancelError!;
   }
 
   bool _isProtectionRetry(RequestOptions options) =>

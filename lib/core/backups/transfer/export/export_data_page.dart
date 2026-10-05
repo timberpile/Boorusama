@@ -111,7 +111,7 @@ class _ExportDataPageState extends ConsumerState<ExportDataPage> {
                 context.t.settings.backup_and_restore.send_data.how_to_send(
                   settings: (_) => TextSpan(
                     text:
-                        '${context.t.settings.settings} > ${context.t.settings.backup_and_restore.backup_and_restore}',
+                        '${context.t.settings.settings} > ${context.t.settings.backup_and_restore.export_import.title}',
                     style: textTheme.bodyMedium?.copyWith(
                       fontWeight: FontWeight.bold,
                       color: colorScheme.primary,

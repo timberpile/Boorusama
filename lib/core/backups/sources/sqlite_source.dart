@@ -1,3 +1,6 @@
+// Dart imports:
+import 'dart:io';
+
 // Package imports:
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,9 +8,11 @@ import 'package:intl/intl.dart';
 import 'package:kurumi/material.dart';
 import 'package:path/path.dart' as p;
 import 'package:shelf/shelf.dart' as shelf;
+import 'package:sqlite3/sqlite3.dart';
 
 // Project imports:
 import '../../../foundation/filesystem.dart';
+import '../../../foundation/data_mutation_coordinator.dart';
 import '../preparation/version_checking.dart';
 import '../types/backup_data_source.dart';
 import '../utils/backup_utils.dart';
@@ -21,6 +26,7 @@ abstract class SqliteBackupSource implements BackupDataSource {
     required this.dbPathGetter,
     required this.dbFileName,
     required this.onImportComplete,
+    required this.initializeDatabase,
   });
 
   @override
@@ -33,6 +39,77 @@ abstract class SqliteBackupSource implements BackupDataSource {
   final Future<String> Function() dbPathGetter;
   final String dbFileName;
   final void Function() onImportComplete;
+  final void Function(Database db) initializeDatabase;
+
+  Future<String> ensureInitializedForExport() => ref
+      .read(dataMutationCoordinatorProvider)
+      .runExclusive(_ensureInitializedForExport);
+
+  Future<void> captureDatabase(String outputPath) =>
+      ref.read(dataMutationCoordinatorProvider).runExclusive(() async {
+        final dbPath = await _ensureInitializedForExport();
+        await ref.read(appFileSystemProvider).copyFile(dbPath, outputPath);
+      });
+
+  Future<String> _ensureInitializedForExport() async {
+    final dbPath = await dbPathGetter();
+    final fs = ref.read(appFileSystemProvider);
+    var isMissing = false;
+    try {
+      if (await fs.fileSize(dbPath) == 0) {
+        throw StateError('Invalid database source: $id');
+      }
+    } on FileSystemException catch (error) {
+      // Unlike exists/type probes, length preserves lookup errors. Only an
+      // absent file (or absent parent on Windows) permits first-use creation.
+      final code = error.osError?.errorCode;
+      if (code != 2 && !(Platform.isWindows && code == 3)) rethrow;
+      isMissing = true;
+    }
+    Directory? initializationDirectory;
+    try {
+      if (isMissing) {
+        await fs.createDirectory(p.dirname(dbPath), recursive: true);
+        initializationDirectory = await Directory(
+          p.dirname(dbPath),
+        ).createTemp('.${dbFileName}_initialization_');
+      }
+      final initializationPath = initializationDirectory == null
+          ? dbPath
+          : p.join(initializationDirectory.path, dbFileName);
+      final db = sqlite3.open(
+        initializationPath,
+        mode: isMissing ? OpenMode.readWriteCreate : OpenMode.readOnly,
+      );
+      try {
+        // Repository providers can fall back to empty implementations on failure;
+        // export must propagate failures and use the real first-use schema.
+        if (isMissing) initializeDatabase(db);
+        final integrity = db.select('PRAGMA quick_check');
+        if (integrity.length != 1 || integrity.single.values.single != 'ok') {
+          throw StateError('Invalid database source: $id');
+        }
+      } finally {
+        db.close();
+      }
+      if (isMissing) {
+        // Publish only a complete schema. Preserve a source independently
+        // initialized while staging, without yielding between probe and rename.
+        if (File(dbPath).existsSync()) return _ensureInitializedForExport();
+        File(initializationPath).renameSync(dbPath);
+      }
+      return dbPath;
+    } finally {
+      if (initializationDirectory != null) {
+        try {
+          await initializationDirectory.delete(recursive: true);
+        } on FileSystemException {
+          // An unremovable staging directory cannot become a live source;
+          // preserve the original initialization error for the caller.
+        }
+      }
+    }
+  }
 
   @override
   BackupCapabilities get capabilities => BackupCapabilities(

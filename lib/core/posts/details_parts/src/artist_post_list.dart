@@ -20,11 +20,9 @@ class DefaultInheritedArtistPostsSection<T extends Post>
     extends ConsumerStatefulWidget {
   const DefaultInheritedArtistPostsSection({
     super.key,
-    this.limit,
     this.filterQuery,
   });
 
-  final PreviewLimit? limit;
   final PostFilterQuery<T>? filterQuery;
 
   @override
@@ -55,7 +53,9 @@ class _DefaultInheritedArtistPostsSectionState<T extends Post>
 
     final thumbUrlBuilder = ref.watch(gridThumbnailUrlGeneratorProvider(auth));
     final thumbSettings = ref.watch(gridThumbnailSettingsProvider(auth));
-    final effectiveLimit = widget.limit ?? const LimitedPreview.progressive();
+    final configFilter = ref.watchConfigFilter;
+    final config = ref.watchConfig;
+    const previewLimit = BatchedPreview(artistUploaderPreviewPostLimit);
 
     return MultiSliver(
       children: ref
@@ -65,6 +65,12 @@ class _DefaultInheritedArtistPostsSectionState<T extends Post>
                 ? data.artistTags.expand(
                     (tag) {
                       final controller = _getController(tag);
+                      final postsQuery = (
+                        configFilter,
+                        config,
+                        tag,
+                        widget.filterQuery,
+                      );
                       return [
                         SliverToBoxAdapter(
                           child: BooruVisibilityDetector(
@@ -73,6 +79,7 @@ class _DefaultInheritedArtistPostsSectionState<T extends Post>
                           ),
                         ),
                         SliverDetailsPostList(
+                          key: ValueKey(postsQuery),
                           tag: tag,
                           subtitle: context.t.post.detail.artist,
                           onTap: () => _goToArtistPage(tag),
@@ -83,8 +90,8 @@ class _DefaultInheritedArtistPostsSectionState<T extends Post>
                                       .watch(
                                         detailsPostsProvider(
                                           (
-                                            ref.watchConfigFilter,
-                                            ref.watchConfig,
+                                            configFilter,
+                                            config,
                                             tag,
                                             widget.filterQuery ??
                                                 postFilterQueryNone,
@@ -96,7 +103,7 @@ class _DefaultInheritedArtistPostsSectionState<T extends Post>
                                             ? SliverPreviewPostGrid(
                                                 auth: auth,
                                                 posts: data,
-                                                limit: effectiveLimit,
+                                                limit: previewLimit,
                                                 imageUrl: (p) => thumbUrlBuilder
                                                     .resolve(
                                                       p,
@@ -108,12 +115,12 @@ class _DefaultInheritedArtistPostsSectionState<T extends Post>
                                               )
                                             : const SliverSizedBox(),
                                         orElse: () =>
-                                            SliverPreviewPostGridPlaceholder(
-                                              limit: effectiveLimit,
+                                            const SliverPreviewPostGridPlaceholder(
+                                              limit: previewLimit,
                                             ),
                                       )
-                                : SliverPreviewPostGridPlaceholder(
-                                    limit: effectiveLimit,
+                                : const SliverPreviewPostGridPlaceholder(
+                                    limit: previewLimit,
                                   ),
                           ),
                         ),
@@ -122,8 +129,8 @@ class _DefaultInheritedArtistPostsSectionState<T extends Post>
                   ).toList()
                 : [],
             orElse: () => [
-              SliverPreviewPostGridPlaceholder(
-                limit: effectiveLimit,
+              const SliverPreviewPostGridPlaceholder(
+                limit: previewLimit,
               ),
             ],
           ),

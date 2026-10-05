@@ -20,6 +20,7 @@ class KurumiButtonData {
     required this.widget,
     required this.title,
     this.onTap,
+    this.enabled = true,
     this.required = false,
     this.placement = KurumiButtonPlacement.flexible,
   });
@@ -27,6 +28,7 @@ class KurumiButtonData {
   final Widget widget;
   final String title;
   final VoidCallback? onTap;
+  final bool enabled;
   final bool required;
   final KurumiButtonPlacement placement;
 }
@@ -421,7 +423,11 @@ class _KurumiAdaptiveButtonRowState extends State<KurumiAdaptiveButtonRow> {
           mainAxisSize: MainAxisSize.min,
           children: overflowButtons.asMap().entries.map(
             (entry) {
+              final enabled = entry.value.enabled;
+
               void handleTap() {
+                if (!enabled) return;
+
                 final controller = AnchorData.maybeOf(
                   context,
                 )?.controller;
@@ -437,14 +443,14 @@ class _KurumiAdaptiveButtonRowState extends State<KurumiAdaptiveButtonRow> {
 
               return Semantics(
                 button: true,
-                enabled: true,
+                enabled: enabled,
                 label: entry.value.title,
-                onTap: handleTap,
+                onTap: enabled ? handleTap : null,
                 excludeSemantics: true,
                 child: Material(
                   color: Colors.transparent,
                   child: InkWell(
-                    onTap: handleTap,
+                    onTap: enabled ? handleTap : null,
                     borderRadius: BorderRadius.circular(8),
                     child: Padding(
                       padding: EdgeInsets.symmetric(
@@ -454,7 +460,14 @@ class _KurumiAdaptiveButtonRowState extends State<KurumiAdaptiveButtonRow> {
                       child: Row(
                         children: [
                           Flexible(
-                            child: Text(entry.value.title),
+                            child: Text(
+                              entry.value.title,
+                              style: enabled
+                                  ? null
+                                  : TextStyle(
+                                      color: Theme.of(context).disabledColor,
+                                    ),
+                            ),
                           ),
                         ],
                       ),

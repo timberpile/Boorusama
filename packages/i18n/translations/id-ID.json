@@ -1,4 +1,8 @@
 {
+  "pinned_searches": {
+    "sort_updates_first": "Pembaruan terlebih dahulu",
+    "sort_last_post_oldest": "Postingan terlama terlebih dahulu"
+  },
   "generic": {
     "done": "Selesai",
     "errors": {
@@ -189,7 +193,8 @@
       "upvote": "Beri suara positif",
       "downvote": "Beri suara negatif",
       "view_comments": "Lihat komentar",
-      "add_to_favorite_group": "Tambahkan ke grup favorit",
+      "add_to_favorite_group": "Tambahkan ke grup favorit akun",
+      "edit_rating": "Ubah rating",
       "view_artist": "Lihat seniman",
       "view_tags": "Lihat tagar",
       "view_tag_history": "Lihat riwayat tagar",
@@ -744,7 +749,7 @@
     "empty_group_notice": "Tidak ada grup favorit",
     "create_group": "Buat grup",
     "edit_group": "Sunting grup",
-    "add_to_group_dialog_title": "Tambahkan ke grup favorit",
+    "add_to_group_dialog_title": "Tambahkan ke grup favorit akun",
     "add_to": "Tambahkan ke",
     "create": "Buat",
     "private": "Pribadi",

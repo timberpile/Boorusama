@@ -1,4 +1,8 @@
 {
+  "pinned_searches": {
+    "sort_updates_first": "Bản cập nhật trước",
+    "sort_last_post_oldest": "Bài đăng cũ nhất trước"
+  },
   "generic": {
     "done": "Xong",
     "errors": {
@@ -160,7 +164,8 @@
     },
     "action": {
       "view_comments": "Xem bình luận",
-      "add_to_favorite_group": "Thêm vào nhóm yêu thích",
+      "add_to_favorite_group": "Thêm vào nhóm yêu thích của tài khoản",
+      "edit_rating": "Chỉnh sửa xếp hạng",
       "share": "Chia sẻ",
       "bookmark": "Dấu trang",
       "favorite": "Yêu thích",
@@ -742,7 +747,7 @@
     "empty_group_notice": "Chưa tạo nhóm yêu thích nào",
     "create_group": "Tạo nhóm",
     "edit_group": "Sửa nhóm",
-    "add_to_group_dialog_title": "Thêm vào nhóm yêu thích",
+    "add_to_group_dialog_title": "Thêm vào nhóm yêu thích của tài khoản",
     "add_to": "Thêm vào",
     "create": "Tạo",
     "private": "Private",

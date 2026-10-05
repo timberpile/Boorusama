@@ -4,6 +4,7 @@ import 'package:shelf/shelf.dart' as shelf;
 
 // Project imports:
 import '../preparation/version_checking.dart';
+import '../export_import/models/export_selection.dart';
 import 'types.dart';
 
 abstract interface class BackupExportScope {}
@@ -77,4 +78,8 @@ abstract class BackupDataSource {
   String get displayName;
   BackupCapabilities get capabilities;
   Widget buildTile(BuildContext context);
+}
+
+abstract interface class BackupSelectionDataSource {
+  ExportSelectionDescriptor get selectionDescriptor;
 }

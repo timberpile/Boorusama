@@ -2,6 +2,7 @@ import 'package:boorusama/core/backups/sources/pinned_search_backup_codec.dart';
 import 'package:boorusama/core/backups/sources/pinned_search_backup_data.dart';
 import 'package:boorusama/core/backups/sources/search_backup_profile.dart';
 import 'package:boorusama/core/backups/types.dart';
+import 'package:boorusama/core/search/subscriptions/types.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -210,7 +211,10 @@ void main() {
                     {
                       ..._row(),
                       'id': 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
-                      'profile': {..._profile(), 'id': 99},
+                      'profile': {
+                        ..._profile(),
+                        'id': '00000000-0000-4000-8000-000000000063',
+                      },
                     },
                   ],
                 ),
@@ -277,7 +281,7 @@ void main() {
             query: 'cat  rating:safe',
             position: 0,
             profile: BackupProfileReference(
-              id: 4,
+              id: '00000000-0000-4000-8000-000000000004',
               booruType: 'danbooru',
               url: 'https://example.test/Posts',
               name: 'Example',
@@ -311,6 +315,85 @@ void main() {
     expect(data.records.single.query, 'cat  rating:safe');
     expect(codec.encode(data).first['name'], isNull);
   });
+
+  test('round trips typed tags while ignoring future structure fields', () {
+    final data = codec.parse(
+      _payload(
+        data: [
+          {
+            ..._row(),
+            'queryStructure': {
+              'kind': 'typed_tags',
+              'tags': ['cat', 'rating:safe'],
+              'futureField': {'anything': true},
+            },
+          },
+        ],
+      ),
+    );
+
+    expect(
+      data.records.single.queryStructure,
+      SearchQueryStructure.typedTags(const ['cat', 'rating:safe']),
+    );
+    expect(codec.encode(data).first['queryStructure'], {
+      'kind': 'typed_tags',
+      'tags': ['cat', 'rating:safe'],
+    });
+    expect(codec.parse(_payload(data: codec.encode(data))), data);
+  });
+
+  for (final c in [
+    (description: 'missing', structure: null),
+    (
+      description: 'unknown future',
+      structure: {'kind': 'future_kind', 'payload': 7},
+    ),
+    (
+      description: 'malformed known',
+      structure: {
+        'kind': 'typed_tags',
+        'tags': <Object?>['cat', null],
+      },
+    ),
+    (
+      description: 'mismatched known',
+      structure: {
+        'kind': 'typed_tags',
+        'tags': <String>['dog'],
+      },
+    ),
+    (
+      description: 'aggregate known',
+      structure: {
+        'kind': 'typed_tags',
+        'tags': <String>['cat rating:safe'],
+      },
+    ),
+    (
+      description: 'tab-separated known',
+      structure: {
+        'kind': 'typed_tags',
+        'tags': <String>['cat\trating:safe'],
+      },
+    ),
+    (
+      description: 'newline-separated known',
+      structure: {
+        'kind': 'typed_tags',
+        'tags': <String>['cat\nrating:safe'],
+      },
+    ),
+  ]) {
+    test('${c.description} query structure falls back to legacy raw data', () {
+      final row = _row();
+      if (c.structure != null) row['queryStructure'] = c.structure;
+      final data = codec.parse(_payload(data: [row]));
+
+      expect(data.records.single.queryStructure, isNull);
+      expect(codec.encode(data).first.containsKey('queryStructure'), isFalse);
+    });
+  }
 
   test('accepts an omitted optional name', () {
     final data = codec.parse(
@@ -367,7 +450,7 @@ void main() {
             query: 'cat',
             position: 0,
             profile: BackupProfileReference(
-              id: 4,
+              id: '00000000-0000-4000-8000-000000000004',
               booruType: 'danbooru',
               url:
                   'https://private-user:private-password@EXAMPLE.test:8443/Path/'
@@ -547,7 +630,7 @@ void main() {
 const _id = '550e8400-e29b-41d4-a716-446655440000';
 
 Map<String, dynamic> _profile() => {
-  'id': 4,
+  'id': '00000000-0000-4000-8000-000000000004',
   'booruType': 'danbooru',
   'url': 'https://EXAMPLE.test/Posts/',
   'name': 'Example',

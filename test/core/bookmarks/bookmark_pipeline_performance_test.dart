@@ -16,6 +16,7 @@ import 'package:boorusama/core/hive/hive_adapters.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 import 'package:boorusama/core/posts/rating/types.dart';
 import 'package:boorusama/core/posts/sources/types.dart';
+import '../../profile_uuid_utils.dart';
 
 const _bookmarkCount = 1000;
 const _catastrophicOperationLimit = Duration(seconds: 10);
@@ -44,7 +45,7 @@ void main() {
   test(
     'a large snapshot library stays bounded and reports cold-load cost',
     () async {
-      final posts = [for (var i = 0; i < _bookmarkCount; i++) _post(i)];
+      final posts = [for (var i = 0; i < _bookmarkCount; i++) _post(i + 1)];
       final repository = _repository(bookmarkBox);
 
       final writeWatch = Stopwatch()..start();
@@ -68,8 +69,8 @@ void main() {
       loadWatch.stop();
 
       expect(loaded.length, _bookmarkCount);
-      expect(loaded.first.post.id, 0);
-      expect(loaded.last.post.id, _bookmarkCount - 1);
+      expect(loaded.first.post.id, 1);
+      expect(loaded.last.post.id, _bookmarkCount);
       expect(
         loaded.every(
           (bookmark) => bookmark.post.booruData is GelbooruV2PostData,
@@ -107,8 +108,8 @@ Post _post(int id) => Post(
   origin: PostOrigin.fromSource(
     booruType: BooruType.gelbooruV2,
     booruId: BooruType.gelbooruV2.id,
-    source: 'https://gelbooru.example/index.php?page=post&s=view&id=$id',
-    profileIdHint: 21,
+    source: 'https://gelbooru.example',
+    profileIdHint: profileUuid(21),
   ),
   core: PostCoreData(
     id: id,

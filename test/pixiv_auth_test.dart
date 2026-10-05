@@ -1,3 +1,4 @@
+import './profile_uuid_utils.dart';
 // Dart imports:
 import 'dart:typed_data';
 
@@ -198,11 +199,11 @@ void main() {
 
       expect(
         resolvePixivConfigId(configs, configs[0].auth),
-        1,
+        '00000000-0000-4000-8000-000000000001',
       );
       expect(
         resolvePixivConfigId(configs, configs[1].auth),
-        2,
+        '00000000-0000-4000-8000-000000000002',
       );
     });
 
@@ -255,7 +256,7 @@ void main() {
 
         // An unrelated save on the other profile, as the config UI would do.
         await repo.update(
-          1,
+          profileUuid(1),
           repo.byId(1).toBooruConfigData().copyWith(name: 'renamed'),
         );
 
@@ -284,12 +285,31 @@ void main() {
     test('writes nothing when the record has been deleted meanwhile', () async {
       await persistPixivRotatedToken(
         repo: repo,
-        configId: 99,
+        configId: '00000000-0000-4000-8000-000000000063',
         tokens: const PixivTokens(refreshToken: 'refresh-x'),
       );
 
       expect(repo.byId(1).apiKey, 'refresh-a');
       expect(repo.byId(2).apiKey, 'refresh-b');
+    });
+
+    test('does not replace credentials imported during a refresh', () async {
+      await repo.update(
+        profileUuid(1),
+        repo.byId(1).toBooruConfigData().copyWith(apiKey: 'imported-token'),
+      );
+
+      await persistPixivRotatedToken(
+        repo: repo,
+        configId: '00000000-0000-4000-8000-000000000001',
+        expectedRefreshToken: 'refresh-a',
+        tokens: const PixivTokens(
+          accessToken: 'access',
+          refreshToken: 'rotated-old-account-token',
+        ),
+      );
+
+      expect(repo.byId(1).apiKey, 'imported-token');
     });
   });
 
@@ -456,7 +476,7 @@ final _unreserved = RegExp(r'^[A-Za-z0-9\-._~]+$');
 /// Resolves the profile holding [refreshToken] the way the Dio builder does,
 /// so a rotation test exercises the real record lookup rather than assuming
 /// an id.
-int _idOf(_FakeConfigRepository repo, String refreshToken) {
+String _idOf(_FakeConfigRepository repo, String refreshToken) {
   final configs = repo.snapshot;
   final auth = configs.firstWhere((c) => c.apiKey == refreshToken).auth;
 
@@ -484,7 +504,7 @@ BooruConfig _pixivConfig({
           videoQuality: null,
         )
         .copyWith(apiKey: apiKey, passHash: () => extraData.toPassHash())
-        .toBooruConfig(id: id)!;
+        .toBooruConfig(id: profileUuid(id))!;
 
 class _FakeConfigRepository implements BooruConfigRepository {
   _FakeConfigRepository(this._configs);
@@ -493,13 +513,17 @@ class _FakeConfigRepository implements BooruConfigRepository {
 
   List<BooruConfig> get snapshot => _configs.toList();
 
-  BooruConfig byId(int id) => _configs.firstWhere((e) => e.id == id);
+  BooruConfig byId(int seed) =>
+      _configs.firstWhere((e) => e.id == profileUuid(seed));
 
   @override
   Future<List<BooruConfig>> getAll() async => _configs.toList();
 
   @override
-  Future<BooruConfig?> update(int id, BooruConfigData booruConfigData) async {
+  Future<BooruConfig?> update(
+    String id,
+    BooruConfigData booruConfigData,
+  ) async {
     final index = _configs.indexWhere((e) => e.id == id);
     if (index == -1) return null;
 

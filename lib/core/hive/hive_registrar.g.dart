@@ -13,7 +13,6 @@ extension HiveRegistrar on HiveInterface {
     registerAdapter(FavoriteTagHiveObjectAdapter());
     registerAdapter(RecentSearchPostHiveObjectAdapter());
     registerAdapter(SearchPostPreviewHiveObjectAdapter());
-    registerAdapter(SearchSubscriptionHiveObjectAdapter());
   }
 }
 
@@ -25,6 +24,5 @@ extension IsolatedHiveRegistrar on IsolatedHiveInterface {
     registerAdapter(FavoriteTagHiveObjectAdapter());
     registerAdapter(RecentSearchPostHiveObjectAdapter());
     registerAdapter(SearchPostPreviewHiveObjectAdapter());
-    registerAdapter(SearchSubscriptionHiveObjectAdapter());
   }
 }

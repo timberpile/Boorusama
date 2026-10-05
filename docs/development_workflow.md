@@ -1,10 +1,60 @@
 # Development workflow
 
-The standard development workflow uses pull requests to retain review and test context. GitHub issues are recommended for work that benefits from tracked requirements or discussion, but they are not required. Direct commits to `develop` are permitted only when the user explicitly authorizes one for the current change.
+Small and medium features and fixes reach local `develop` as one descriptive
+Conventional Commit after review and explicit approval. Pull requests are for
+genuinely large branches that need GitHub review and test context; they use
+squash merging with a descriptive commit title. GitHub issues are recommended
+when useful, but repository queue tickets do not require them. The coordinating
+agent delegates every queue ticket's implementation to a subagent, with one
+dedicated worktree and branch per ticket. Intermediate commits on that branch
+are allowed. Publication to a remote remains a separate authorized action.
 
 In a fresh Git worktree, run `fvm dart pub get` from
 `packages/boorusama_cli` before the first `./gen.sh`; the generator imports the
 CLI package configuration from that directory.
+
+The current `libavif` Rust native hook can repeatedly emit `File modified during
+build. Build must be rerun.` even on an unchanged checkout. Cargo declares
+`native/vendor/libavif` as a dependency directory; `native_toolchain_rust`
+converts it to a file URI without a trailing slash. `hooks_runner` then treats
+the directory as a missing file, records the current time, and invalidates its
+cache on the next run. A verbose Flutter test log identifies this dependency.
+Verify the test exit code and unchanged checkout before attributing this
+message to concurrent source edits; repeating the build alone does not fix
+the dependency URI classification.
+
+## Exclusive Android emulator procedure
+
+The host-wide, standard-library CLI is `python3 scripts/emulator_lease.py`.
+Its `claim`, `renew`, `release`, and `status` commands use one lease file per
+exact emulator serial in `/tmp/boorusama-emulator-leases-<uid>`. A claim records
+an owner session/worktree label, a hash of a unique token, and a 30-minute
+expiration. The raw token appears only in the successful claim output.
+`status` and a busy claim report the owner and expiration without revealing the
+token. The owner must retain the token returned by its claim.
+
+1. Discover available serials with `adb devices -l`. Choose one exact
+   `emulator-NNNN` serial; discovery does not reserve it.
+2. Run `python3 scripts/emulator_lease.py claim emulator-NNNN --owner
+   "<agent-session> <worktree-path>"`. Proceed only when the command succeeds.
+   If it says `busy`, leave that serial alone. `python3 scripts/emulator_lease.py
+   status emulator-NNNN` can inspect a lease without changing it.
+3. Immediately before **every** device-affecting command or Maestro call, run
+   `python3 scripts/emulator_lease.py renew emulator-NNNN --token <token>`.
+   Stop using the emulator if renewal fails. Each individual operation must
+   finish in less than 20 minutes; split longer Maestro flows into steps and
+   renew between steps. A device-free APK build does not need a lease.
+4. Set `device_id: "emulator-NNNN"` on every Maestro call. Use
+   `adb -s emulator-NNNN ...` for every ADB device command and
+   `fvm flutter ... -d emulator-NNNN` for Flutter device commands. Do not use a
+   busy device as an implicit fallback.
+5. After the final operation, run `python3 scripts/emulator_lease.py release
+   emulator-NNNN --token <token>`.
+
+The lease is a coordination mechanism among compliant sessions on the same
+host and OS user. It does not lock the emulator itself. A short `flock` guards
+each lease update, while expiration recovers abandoned reservations. Since no
+heartbeat runs in the background, renew before each bounded operation.
 
 ## Issue descriptions
 
@@ -17,56 +67,88 @@ Do not include validation reports, test counts or results, static-analysis
 results, testing tool logs, or development history in issue descriptions. Keep
 verification details in work reports or review discussions instead.
 
-## Direct commits to develop
+## Single-commit integration on develop
 
-- Direct commits to `develop` require explicit user authorization for the current change. Authorization does not carry over to later changes.
-- An authorized direct commit may omit the GitHub issue, work branch, and pull request.
-- Keep each authorized direct change in a focused conventional commit.
-- Except for the explicitly documented `upstream/master` synchronization,
-  every local commit added to `develop` must have one parent. Never merge a
-  feature or fix branch into local `develop`; replay an authorized direct
-  change onto the latest `origin/develop` instead.
-- Before pushing local `develop`, verify that its outgoing range contains no
-  merge commits:
+- Small and medium features and fixes, including queue tickets, use one local
+  commit on `develop` after verification and explicit user approval. A pull
+  request is not required. Integrate an isolated ticket branch with a squash or
+  equivalent replay, checking that unrelated changes are not staged.
+- An authorized non-ticket change may omit the GitHub issue, work branch, and
+  pull request. Authorization for a direct change does not carry over to later
+  changes.
+- Give every single-parent feature or fix commit a specific Conventional
+  Commit summary, such as `feat(dev): reserve emulators across agent sessions`.
+  Do not use `Merge branch '<branch-name>'` for a squash commit. Keep the
+  summary only, without a commit description.
+- Except for the explicitly documented upstream and release-history
+  synchronization, every local commit added to `develop` must have one parent.
+  Never merge a feature or fix branch into local `develop` with a merge commit;
+  squash or replay its approved change onto current local `develop` instead.
+- Before pushing local `develop`, inspect merge commits in its outgoing range:
 
   ```bash
   git rev-list --min-parents=2 origin/develop..develop
   ```
 
-  The command must produce no output. If it prints a commit, rebuild the
-  unpushed commits as a linear chain before pushing.
+  Each listed merge must be an existing release commit reachable from
+  `origin/master`, or an explicitly authorized upstream or release-history
+  synchronization following the procedures below. Feature and fix merge
+  commits are prohibited; rebuild those unpushed changes as a linear chain.
 - Direct commits to `master` remain prohibited.
 
 ## Features and fixes
 
-1. Consider creating a GitHub issue to describe the behavior, scope, and acceptance criteria. An issue is recommended for substantial or user-facing work, but it is optional.
-2. Update local `develop` without creating a merge commit:
+1. For a queue ticket, the coordinating agent selects an eligible task,
+   claims it under `docs/work/in-progress/`, and assigns implementation to a
+   subagent. Record the branch, dedicated worktree, and implementer in the
+   ticket. The coordinator reviews the result; the implementer may work on
+   its assigned ticket directly without delegating it again. Choose the local
+   single-commit path for small or medium work. Use a pull request only when
+   the branch is genuinely large enough to need GitHub review context.
+2. Create a dedicated branch and worktree. Base local single-commit work on
+   current local `develop`; fetch and base a large pull-request branch on
+   latest `origin/develop`. Do not switch a shared or dirty primary checkout
+   just to start ticket work, and do not reuse a worktree or branch across
+   tickets. For local work, for example:
 
    ```bash
-   git switch develop
-   git fetch origin
-   git merge --ff-only origin/develop
+   git worktree add -b feature/<short-description> \
+     .worktrees/<short-description> develop
    ```
 
-3. Create a work branch. Include the issue ID when an issue exists:
-
-   ```bash
-   git switch -c feature/<issue-id>-<short-description>
-   ```
-
-   Without an issue, omit the ID:
-
-   ```bash
-   git switch -c feature/<short-description>
-   ```
-
-   Use `feature/` for features and additive changes. Use `fix/` for bug fixes and corrective changes. The description must contain lowercase letters, numbers, and hyphens only.
-
-4. Implement and verify the change on that branch. Development commits use conventional commit summaries.
-5. Push the branch and open a pull request targeting `develop`. When an issue exists, include `Closes #<issue-id>` in the pull request body so it closes when the pull request merges. Otherwise, omit the closing reference. Keep the description to a few concise bullets describing only the meaningful end-state changes introduced when merged. Do not include implementation details, test history, development phases, temporary steps, or exhaustive file-level summaries unless they are essential to understanding the result.
-6. Wait for required checks and explicit user approval. GitHub auto-merge must remain disabled.
-7. Manually squash-merge the pull request. Set the resulting commit title to `Merge branch '<branch-name>'`.
-8. GitHub deletes the remote source branch automatically. Synchronize `develop`, then delete the local source branch.
+   Use `feature/<issue-id>-<short-description>` or
+   `feature/<short-description>` for features/additions, and the corresponding
+   `fix/` names for fixes. Include the GitHub issue ID only when one exists.
+   Branch descriptions contain lowercase letters, numbers, and hyphens.
+3. The implementer changes and verifies only that ticket in its worktree,
+   following [the engineering guidelines](engineering_guidelines.md). Keep
+   conventional commit summaries without descriptions. The coordinator
+   checks the acceptance criteria and evidence before presenting it for user
+   review. Do not mark the ticket done without verified criteria.
+4. For small or medium work, present the verified result for user review.
+   After explicit approval, stage only that ticket's change on current local
+   `develop`, verify the combined result, and create one single-parent commit
+   with a specific Conventional Commit summary. Confirm the resulting tree and
+   ticket status. Keep remote publication and branch cleanup separately
+   authorized.
+5. For a genuinely large branch, obtain authorization to publish, then push
+   it and open a pull request targeting `develop` with a specific technical
+   title. When a GitHub issue exists,
+   include `Closes #<issue-id>` in the body; otherwise omit it. Keep the body
+   to a few concise end-state bullets, without test reports, development
+   history, or exhaustive file lists.
+6. Wait for required checks and explicit user approval. Do not enable
+   auto-merge. If review changes are needed, the implementer updates the same
+   branch/worktree and the coordinator presents it again.
+7. After approval, manually squash-merge the pull request into `develop` as
+   one commit with a specific Conventional Commit title describing the change.
+   Do not use `Merge branch '<branch-name>'` for this single-parent commit.
+8. Verify the pull request merged and its remote branch was deleted. Then
+   synchronize `develop`, remove the ticket's local worktree, and delete its
+   local branch. A squash does not make the branch's commits ancestors of
+   `develop`; if normal local branch deletion refuses, force-delete only the
+   exact branch after verifying the merged result and that no needed work
+   remains. Never clean up an unmerged or still-needed branch/worktree.
 
 ## Incorporating upstream changes
 
@@ -124,33 +206,117 @@ The merge commit has the previous `develop` tip and the incorporated `upstream/m
    git push origin develop
    ```
 
+## Release promotion and history synchronization
+
+Prepare the version and changelog on `develop`, then publish it with explicit
+authorization. Open a pull request from `develop` to `master`. Wait for
+`Pull request policy` and `Release validation` to pass, obtain explicit approval,
+and use **Create a merge commit** with the title `Merge branch 'develop'`.
+Never squash or rebase a release promotion. Tag and build the approved release
+commit on `master`; publishing a release requires separate authorization.
+
+### After every release promotion
+
+Before adding new work to `develop`, synchronize the release merge commit back
+into it. The two branches have the same files, but the merge commit records
+the completed release. With explicit authorization to push `develop`, use a
+clean checkout:
+
+```bash
+git fetch origin
+git switch develop
+git merge --ff-only origin/develop
+git merge --ff-only origin/master
+git push origin develop
+```
+
+This preserves shared history without creating another merge commit. If the
+fast-forward fails because `develop` already contains new work, use the next
+procedure; do not reset or rebase the shared branch.
+
+### If a release pull request is behind master
+
+The required up-to-date check needs the previous release merge commit to be
+an ancestor of `develop`, even when that commit introduces no new file changes.
+If synchronization was missed and `develop` has advanced, merge `origin/master`
+back into `develop`. Obtain explicit authorization for this local merge and
+push, then use a clean checkout:
+
+```bash
+git fetch origin
+git switch develop
+git merge --ff-only origin/develop
+git merge --no-ff origin/master \
+  -m "chore: synchronize release history from master"
+git diff HEAD^ HEAD
+```
+
+When only release history was missing, the diff must be empty. If files change
+or conflicts occur, review and verify those changes before publishing; do not
+treat them as a history-only synchronization. Verify that `origin/master` is
+now an ancestor, then push the authorized result:
+
+```bash
+git merge-base --is-ancestor origin/master develop
+git push origin develop
+```
+
+The existing release pull request updates automatically and its checks rerun.
+Wait for the checks before merging it, then perform the post-release
+fast-forward above. `develop` protection must allow merge commits for these
+synchronizations and upstream merges; ordinary feature/fix integration still
+uses single-parent commits.
+
 ## Protected branches
 
-Direct pushes to `develop` are permitted only under the explicit-authorization rule above. Force pushes and deletion remain prohibited for `develop`.
+Pushing local `develop` requires separate explicit authorization; approval for a local commit does not authorize a push. Force pushes and deletion remain prohibited for `develop`.
 
 Direct pushes, force pushes, and deletion are prohibited for `master`, including for repository administrators.
 
-- Feature and fix pull requests target `develop`.
+- Large feature and fix pull requests target `develop`.
 - Only `develop` may be promoted to `master`.
 - A promotion uses a merged commit titled `Merge branch 'develop'`. Linking a release-tracking issue is recommended, but not required.
-- Feature and fix pull requests use squash merging. Upstream synchronization uses an explicitly authorized local merge commit pushed directly to `develop`. Rebase merging and automatic merging remain disabled.
+- Large feature and fix pull requests use squash merging with a descriptive Conventional Commit title. Upstream synchronization uses an explicitly authorized local merge commit pushed directly to `develop`. Rebase merging and automatic merging remain disabled.
 
-The pull request policy workflow validates the base and source branches. Issue references remain optional. The squash commit title must be set when merging; repository settings delete merged remote branches.
+The pull request policy workflow validates the base and source branches. Issue references remain optional. Set the descriptive squash commit title when merging; repository settings delete merged remote branches.
 
 The workflow checks out the policy script from the pull request's base commit. Keep its invocation compatible with the version on `develop` while changing the policy, or the change's own pull request can fail before the new script is merged.
+
+### Release validation
+
+The `Release validation` job runs for pull requests targeting `master` and can
+also be started manually. It installs the Flutter version from `.fvmrc` through
+FVM, initializes dependencies and generated code, analyzes application code and
+workspace packages, and runs application, CLI, and tooling tests.
+Informational lints do not fail the check. Analysis excludes root application
+tests because of existing cast warnings; those tests are compiled and run.
+Warnings and errors in the analyzed code fail validation.
+
+After publishing this workflow and completing a successful run, add
+`Release validation` to the required status checks for `master`, alongside
+`Pull request policy`. Keep the up-to-date requirement enabled. Committing the
+workflow locally does not activate GitHub protection.
+
+Dependabot Actions updates target `develop`. The policy permits their
+`dependabot/github_actions/*` branches only when the pull request author is
+`dependabot[bot]` and both source and target repositories are
+`timberpile/Boorusama`. The workflow passes this event metadata through
+environment variables, preserving the validator's two-argument interface.
 
 ## GitHub CLI example
 
 For issue `42`:
 
 ```bash
-git switch -c feature/42-load-original-on-zoom
+git fetch origin
+git worktree add -b feature/42-load-original-on-zoom \
+  .worktrees/42-load-original-on-zoom origin/develop
 git push -u origin feature/42-load-original-on-zoom
 gh pr create \
   --repo timberpile/Boorusama \
   --base develop \
   --head feature/42-load-original-on-zoom \
-  --title "Load original image on zoom" \
+  --title "feat(posts): load original media on zoom" \
   --body 'Closes #42'
 ```
 
@@ -161,5 +327,11 @@ gh pr merge \
   --repo timberpile/Boorusama \
   --squash \
   --delete-branch \
-  --subject "Merge branch 'feature/42-load-original-on-zoom'"
+  --subject "feat(posts): load original media on zoom"
 ```
+
+After confirming the merge and remote branch deletion, synchronize `develop`
+and remove the exact local worktree and branch. Do not force-remove a dirty
+worktree. A squash-merged branch may need `git branch -D` after its result and
+any remaining commits have been checked, because its commits are not ancestors
+of `develop`.

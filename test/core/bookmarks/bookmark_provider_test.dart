@@ -38,6 +38,7 @@ void main() {
   late BookmarkGroupRepositoryHive groupRepository;
 
   setUp(() async {
+    _nextFixturePostId = 100;
     tempDirectory = await Directory.systemTemp.createTemp(
       'bookmark_provider_test_',
     );
@@ -89,9 +90,41 @@ void main() {
   }
 
   test(
+    'a post without upstream identity cannot be added as a bookmark',
+    () async {
+      final invalidPost = Bookmark.empty
+          .copyWith(
+            sourceUrl: 'https://booru.example',
+            postId: () => 0,
+          )
+          .toPost();
+      final container = createContainer();
+      final notifier = container.read(bookmarkProvider.notifier);
+      await notifier.future;
+      var failed = false;
+
+      await notifier.addBookmark(
+        BooruConfigAuth.fromConfig(BooruConfig.empty),
+        invalidPost,
+        onError: () => failed = true,
+      );
+
+      expect(failed, isTrue);
+      expect(bookmarkBox.isEmpty, isTrue);
+      expect(
+        await notifier.togglePostTarget(
+          BooruConfigAuth.fromConfig(BooruConfig.empty),
+          invalidPost,
+        ),
+        BookmarkToggleOutcome.missingPostIdentity,
+      );
+    },
+  );
+
+  test(
     'adding to No Group never clears existing named memberships',
     () async {
-      final bookmark = Bookmark.empty.copyWith(
+      final bookmark = _validBookmark.copyWith(
         originalUrl: 'https://example.com/grouped.jpg',
       );
       await bookmarkRepository.addBookmarkWithBookmarks([bookmark]);
@@ -124,7 +157,7 @@ void main() {
   );
 
   test('removing from a group view preserves every other membership', () async {
-    final bookmark = Bookmark.empty.copyWith(
+    final bookmark = _validBookmark.copyWith(
       originalUrl: 'https://example.com/shared.jpg',
     );
     await bookmarkRepository.addBookmarkWithBookmarks([bookmark]);
@@ -157,7 +190,7 @@ void main() {
   });
 
   test('bulk removal resolves stored identities for bookmark posts', () async {
-    final bookmark = Bookmark.empty.copyWith(
+    final bookmark = _validBookmark.copyWith(
       originalUrl: 'https://example.com/other-booru.jpg',
     );
     await bookmarkRepository.addBookmarkWithBookmarks([bookmark]);
@@ -211,7 +244,7 @@ void main() {
     final notifier = container.read(bookmarkProvider.notifier);
     await notifier.future;
     final blocker = Completer<void>();
-    final bookmark = Bookmark.empty.copyWith(
+    final bookmark = _validBookmark.copyWith(
       originalUrl: 'https://example.com/queued.jpg',
     );
 
@@ -294,7 +327,7 @@ void main() {
       );
       final notifier = container.read(bookmarkProvider.notifier);
       await notifier.future;
-      final post = Bookmark.empty
+      final post = _validBookmark
           .copyWith(originalUrl: 'https://example.com/new.jpg')
           .toPost();
       final config = BooruConfigAuth.fromConfig(
@@ -316,7 +349,7 @@ void main() {
   test(
     'creating a group preserves an existing bookmark when assignment fails',
     () async {
-      final source = Bookmark.empty.copyWith(
+      final source = _validBookmark.copyWith(
         originalUrl: 'https://example.com/existing.jpg',
       );
       await bookmarkRepository.addBookmarkWithBookmarks([source]);
@@ -357,7 +390,7 @@ void main() {
       );
       final notifier = container.read(bookmarkProvider.notifier);
       await notifier.future;
-      final post = Bookmark.empty
+      final post = _validBookmark
           .copyWith(originalUrl: 'https://example.com/rollback.jpg')
           .toPost();
       final config = BooruConfigAuth.fromConfig(
@@ -402,7 +435,7 @@ void main() {
       );
       final notifier = container.read(bookmarkProvider.notifier);
       await notifier.future;
-      final post = Bookmark.empty
+      final post = _validBookmark
           .copyWith(originalUrl: 'https://example.com/settings-rollback.jpg')
           .toPost();
       final config = BooruConfigAuth.fromConfig(
@@ -435,7 +468,7 @@ void main() {
   test(
     'setting target membership repeatedly preserves the desired state',
     () async {
-      final source = Bookmark.empty.copyWith(
+      final source = _validBookmark.copyWith(
         originalUrl: 'https://example.com/idempotent.jpg',
       );
       await bookmarkRepository.addBookmarkWithBookmarks([source]);
@@ -488,7 +521,7 @@ void main() {
   );
 
   test('two queued toggles apply both intents in order', () async {
-    final source = Bookmark.empty.copyWith(
+    final source = _validBookmark.copyWith(
       originalUrl: 'https://example.com/toggle.jpg',
     );
     await bookmarkRepository.addBookmarkWithBookmarks([source]);
@@ -526,7 +559,7 @@ void main() {
   });
 
   test('No Group reports unavailable for a grouped bookmark', () async {
-    final source = Bookmark.empty.copyWith(
+    final source = _validBookmark.copyWith(
       originalUrl: 'https://example.com/unavailable.jpg',
     );
     await bookmarkRepository.addBookmarkWithBookmarks([source]);
@@ -553,7 +586,7 @@ void main() {
   test(
     'a stale No Group action never deletes a newly grouped bookmark',
     () async {
-      final source = Bookmark.empty.copyWith(
+      final source = _validBookmark.copyWith(
         originalUrl: 'https://example.com/stale-picker.jpg',
       );
       await bookmarkRepository.addBookmarkWithBookmarks([source]);
@@ -595,7 +628,7 @@ void main() {
   test(
     'a stale No Group edit removal preserves a newly grouped bookmark',
     () async {
-      final source = Bookmark.empty.copyWith(
+      final source = _validBookmark.copyWith(
         originalUrl: 'https://example.com/stale-edit.jpg',
       );
       await bookmarkRepository.addBookmarkWithBookmarks([source]);
@@ -645,10 +678,10 @@ void main() {
       final notifier = container.read(bookmarkProvider.notifier);
       await notifier.future;
       final posts = [
-        Bookmark.empty
+        _validBookmark
             .copyWith(originalUrl: 'https://example.com/one.jpg')
             .toPost(),
-        Bookmark.empty
+        _validBookmark
             .copyWith(originalUrl: 'https://example.com/two.jpg')
             .toPost(),
       ];
@@ -679,10 +712,10 @@ void main() {
       final notifier = container.read(bookmarkProvider.notifier);
       await notifier.future;
       final posts = [
-        Bookmark.empty
+        _validBookmark
             .copyWith(originalUrl: 'https://example.com/retry-first.jpg')
             .toPost(),
-        Bookmark.empty
+        _validBookmark
             .copyWith(originalUrl: 'https://example.com/retry-second.jpg')
             .toPost(),
       ];
@@ -710,7 +743,7 @@ void main() {
   test(
     'bulk addition restores exact memberships after a committed write reports failure',
     () async {
-      final source = Bookmark.empty.copyWith(
+      final source = _validBookmark.copyWith(
         originalUrl: 'https://example.com/existing-bulk-add.jpg',
       );
       await bookmarkRepository.addBookmarkWithBookmarks([source]);
@@ -728,7 +761,7 @@ void main() {
       await notifier.future;
       final posts = [
         stored.toPost(),
-        Bookmark.empty
+        _validBookmark
             .copyWith(originalUrl: 'https://example.com/new-bulk-add.jpg')
             .toPost(),
       ];
@@ -755,7 +788,7 @@ void main() {
   test(
     'existing bookmark addition restores memberships after a committed write reports failure',
     () async {
-      final source = Bookmark.empty.copyWith(
+      final source = _validBookmark.copyWith(
         originalUrl: 'https://example.com/existing-committed-add.jpg',
       );
       await bookmarkRepository.addBookmarkWithBookmarks([source]);
@@ -907,7 +940,7 @@ void main() {
       );
       final notifier = container.read(bookmarkProvider.notifier);
       await notifier.future;
-      final post = Bookmark.empty
+      final post = _validBookmark
           .copyWith(originalUrl: 'https://example.com/committed-both.jpg')
           .toPost();
 
@@ -966,7 +999,7 @@ void main() {
 
       await notifier.addBookmark(
         BooruConfigAuth.fromConfig(BooruConfig.empty),
-        Bookmark.empty
+        _validBookmark
             .copyWith(originalUrl: 'https://example.com/committed.jpg')
             .toPost(),
         onSuccess: () => succeeded = true,
@@ -985,7 +1018,7 @@ void main() {
   );
 
   test('a stale deletion preview cannot delete changed memberships', () async {
-    final bookmark = Bookmark.empty.copyWith(
+    final bookmark = _validBookmark.copyWith(
       originalUrl: 'https://example.com/changed.jpg',
     );
     await bookmarkRepository.addBookmarkWithBookmarks([bookmark]);
@@ -1017,7 +1050,7 @@ void main() {
   test(
     'a stale orphan preview cannot delete a newly orphaned bookmark',
     () async {
-      final bookmark = Bookmark.empty.copyWith(
+      final bookmark = _validBookmark.copyWith(
         originalUrl: 'https://example.com/topology.jpg',
       );
       await bookmarkRepository.addBookmarkWithBookmarks([bookmark]);
@@ -1084,7 +1117,7 @@ void main() {
 
     await notifier.addBookmark(
       BooruConfigAuth.fromConfig(BooruConfig.empty),
-      Bookmark.empty
+      _validBookmark
           .copyWith(originalUrl: 'https://example.com/partial.jpg')
           .toPost(),
       onSuccess: () => succeeded = true,
@@ -1325,4 +1358,15 @@ class _FailingThirdReadBookmarkRepository extends BookmarkHiveRepository {
     if (_readCount == 3) return TaskEither.left(BookmarkGetError.unknown);
     return super.getAllBookmarks(imageUrlResolver: imageUrlResolver);
   }
+}
+
+var _nextFixturePostId = 100;
+
+Bookmark get _validBookmark {
+  final postId = _nextFixturePostId++;
+  return Bookmark.empty.copyWith(
+    id: postId,
+    sourceUrl: 'https://example.com',
+    postId: () => postId,
+  );
 }

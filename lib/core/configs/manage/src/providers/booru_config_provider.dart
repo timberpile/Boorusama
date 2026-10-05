@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:foundation/foundation.dart';
 
 // Project imports:
+import '../../../../../foundation/data_mutation_coordinator.dart';
 import '../../../../../foundation/loggers.dart';
 import '../../../../../foundation/utils/collection_utils.dart';
 import '../../../../analytics/analytics_interface.dart';
@@ -199,13 +200,13 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
 
   Future<void> update({
     required BooruConfigData booruConfigData,
-    required int oldConfigId,
+    required String oldConfigId,
     void Function(String message)? onFailure,
     void Function(BooruConfig booruConfig)? onSuccess,
   }) async {
     try {
       // Validate inputs
-      if (oldConfigId < 0) {
+      if (!isCanonicalProfileId(oldConfigId)) {
         _logError('Invalid config id: $oldConfigId');
         onFailure?.call('Unable to find this account');
         return;
@@ -344,6 +345,26 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
     void Function(BooruConfig booruConfig)? onSuccess,
     bool setAsCurrent = false,
     bool? isCopy,
+  }) => ref
+      .read(dataMutationCoordinatorProvider)
+      .runExclusive(
+        () => _addConfig(
+          data: data,
+          initialConfig: initialConfig,
+          onFailure: onFailure,
+          onSuccess: onSuccess,
+          setAsCurrent: setAsCurrent,
+          isCopy: isCopy,
+        ),
+      );
+
+  Future<void> _addConfig({
+    required BooruConfigData data,
+    BooruConfig? initialConfig,
+    void Function(String message)? onFailure,
+    void Function(BooruConfig booruConfig)? onSuccess,
+    bool setAsCurrent = false,
+    bool? isCopy,
   }) async {
     try {
       final config = await ref.read(booruConfigRepoProvider).add(data);
@@ -399,7 +420,7 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
     }
   }
 
-  Future<void> updateOrder(List<int> configIds) async {
+  Future<void> updateOrder(List<String> configIds) async {
     final notifier = ref.read(settingsNotifierProvider.notifier);
 
     await notifier.updateWith(
@@ -424,7 +445,7 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
     updateOrder(newOrders);
   }
 
-  BooruConfig? findConfigById(int id) {
+  BooruConfig? findConfigById(String id) {
     return state.firstWhereOrNull((config) => config.id == id);
   }
 

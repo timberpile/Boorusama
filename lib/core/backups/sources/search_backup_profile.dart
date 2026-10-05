@@ -11,7 +11,7 @@ class BackupProfileReference extends Equatable {
     required this.name,
   });
 
-  final int id;
+  final String id;
   final String booruType;
   final String url;
   final String name;
@@ -27,6 +27,11 @@ class BackupProfileReference extends Equatable {
   List<Object?> get props => [id, booruType, url, name];
 }
 
+typedef BackupProfileIdResolver =
+    String? Function(
+      BackupProfileReference reference,
+    );
+
 String normalizeBackupProfileUrl(String url) => normalizeBooruSiteUrl(url);
 
 BackupProfileReference parseBackupProfile(Object? raw, String field) {
@@ -34,8 +39,10 @@ BackupProfileReference parseBackupProfile(Object? raw, String field) {
     throw InvalidBackupFormatException('$field must be an object');
   }
   final id = switch (raw['id']) {
-    final int value when value >= 0 => value,
-    _ => throw InvalidBackupFormatException('$field.id is invalid'),
+    final String value when isCanonicalProfileId(value) => value,
+    _ => throw InvalidBackupFormatException(
+      '$field.id must be a lowercase UUID',
+    ),
   };
   final type = switch (raw['booruType']) {
     final String value when value.trim().isNotEmpty => value,
@@ -67,16 +74,20 @@ BooruConfig? resolveBackupProfile(
   BackupProfileReference reference,
   List<BooruConfig> profiles,
 ) {
-  final normalizedUrl = normalizeBackupProfileUrl(reference.url);
-  final matches = profiles
-      .where(
-        (profile) =>
-            profile.auth.booruType.name == reference.booruType &&
-            normalizeBackupProfileUrl(profile.url) == normalizedUrl,
-      )
-      .toList();
-  for (final profile in matches) {
-    if (profile.id == reference.id) return profile;
+  for (final profile in profiles) {
+    if (profile.id == reference.id &&
+        profile.auth.booruType.name == reference.booruType &&
+        normalizeBackupProfileUrl(profile.url) ==
+            normalizeBackupProfileUrl(reference.url)) {
+      return profile;
+    }
   }
-  return matches.length == 1 ? matches.single : null;
+  return null;
 }
+
+String? resolveBackupProfileId(
+  BackupProfileReference reference,
+  List<BooruConfig> profiles, {
+  BackupProfileIdResolver? resolver,
+}) =>
+    resolver?.call(reference) ?? resolveBackupProfile(reference, profiles)?.id;

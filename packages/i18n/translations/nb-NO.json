@@ -1,4 +1,8 @@
 {
+  "pinned_searches": {
+    "sort_updates_first": "Oppdateringer først",
+    "sort_last_post_oldest": "Eldste innlegg først"
+  },
   "generic": {
     "done": "Ferdig",
     "errors": {
@@ -60,7 +64,8 @@
     },
     "action": {
       "view_comments": "Vis kommentarer",
-      "add_to_favorite_group": "Legg til i favorittgruppe",
+      "add_to_favorite_group": "Legg til i kontoens favorittgruppe",
+      "edit_rating": "Rediger vurdering",
       "view_in_browser": "Vis i nettleser",
       "view_original": "Vis original"
     }

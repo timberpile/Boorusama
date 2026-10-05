@@ -3,6 +3,7 @@ import 'package:equatable/equatable.dart';
 
 // Project imports:
 import '../../../../boorus/booru/types.dart';
+import '../../../../configs/config/src/types/profile_id.dart';
 
 final class PostOrigin extends Equatable {
   const PostOrigin._({
@@ -16,7 +17,7 @@ final class PostOrigin extends Equatable {
     required BooruType booruType,
     required int booruId,
     required String source,
-    int? profileIdHint,
+    String? profileIdHint,
   }) => PostOrigin._(
     booruType: booruType,
     booruId: booruId,
@@ -40,7 +41,7 @@ final class PostOrigin extends Equatable {
   final BooruType booruType;
   final int booruId;
   final String sourceHost;
-  final int? profileIdHint;
+  final String? profileIdHint;
 
   PostOriginSnapshot toSnapshot() => PostOriginSnapshot(
     booruTypeId: booruType.id,
@@ -66,13 +67,16 @@ final class PostOriginSnapshot extends Equatable {
         booruTypeId: json['booruTypeId'] as int,
         booruId: json['booruId'] as int,
         sourceHost: json['sourceHost'] as String,
-        profileIdHint: json['profileIdHint'] as int?,
+        profileIdHint: switch (json['profileIdHint']) {
+          final String id when isCanonicalProfileId(id) => id,
+          _ => null,
+        },
       );
 
   final int booruTypeId;
   final int booruId;
   final String sourceHost;
-  final int? profileIdHint;
+  final String? profileIdHint;
 
   Map<String, Object?> toJson() => {
     'booruTypeId': booruTypeId,
@@ -89,14 +93,29 @@ String normalizePostSourceHost(String source) {
   final trimmed = source.trim();
   if (trimmed.isEmpty) return '';
 
-  final withScheme = trimmed.contains('://') ? trimmed : 'https://$trimmed';
+  final hasScheme = trimmed.contains('://');
+  final withScheme = hasScheme ? trimmed : 'https://$trimmed';
   final uri = Uri.tryParse(withScheme);
-  if (uri == null || uri.host.isEmpty) return trimmed.toLowerCase();
+  if (uri == null || uri.host.isEmpty) return '';
 
-  final host = uri.host.toLowerCase();
+  final rawHost = uri.host.toLowerCase();
+  final host = rawHost.contains(':') ? '[$rawHost]' : rawHost;
   final isDefaultPort =
-      (uri.scheme.toLowerCase() == 'https' && uri.port == 443) ||
-      (uri.scheme.toLowerCase() == 'http' && uri.port == 80);
+      hasScheme &&
+      ((uri.scheme.toLowerCase() == 'https' && uri.port == 443) ||
+          (uri.scheme.toLowerCase() == 'http' && uri.port == 80));
 
-  return uri.hasPort && !isDefaultPort ? '$host:${uri.port}' : host;
+  // Uri discards an explicitly written port when it matches the scheme default.
+  final canonicalAuthority = hasScheme
+      ? null
+      : trimmed.split(RegExp('[/?#]')).first;
+  final hasExplicitPort =
+      uri.hasPort ||
+      (canonicalAuthority != null &&
+          RegExp(r':\d+$').hasMatch(canonicalAuthority));
+  final authority = hasExplicitPort && !isDefaultPort
+      ? '$host:${uri.port}'
+      : host;
+  final path = uri.path.replaceFirst(RegExp(r'/+$'), '');
+  return '$authority$path';
 }

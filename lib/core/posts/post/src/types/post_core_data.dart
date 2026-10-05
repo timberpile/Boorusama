@@ -50,71 +50,73 @@ final class PostCoreData extends Equatable {
     this.metadata,
   });
 
-  factory PostCoreData.fromPost(PostRecord post, {String? status}) =>
-      PostCoreData(
-        id: post.id,
-        createdAt: post.createdAt,
-        thumbnailImageUrl: post.thumbnailImageUrl,
-        sampleImageUrl: post.sampleImageUrl,
-        originalImageUrl: post.originalImageUrl,
-        videoUrl: post.videoUrl,
-        videoThumbnailUrl: post.videoThumbnailUrl,
-        mediaVariants: switch (post) {
-          PostMediaVariants(:final mediaVariants) => mediaVariants,
+  factory PostCoreData.fromPost(
+    PostRecord post, {
+    String? status,
+    String? thumbnailImageUrl,
+  }) => PostCoreData(
+    id: post.id,
+    createdAt: post.createdAt,
+    thumbnailImageUrl: thumbnailImageUrl ?? post.thumbnailImageUrl,
+    sampleImageUrl: post.sampleImageUrl,
+    originalImageUrl: post.originalImageUrl,
+    videoUrl: post.videoUrl,
+    videoThumbnailUrl: post.videoThumbnailUrl,
+    mediaVariants: switch (post) {
+      PostMediaVariants(:final mediaVariants) => mediaVariants,
+      _ => null,
+    },
+    thumbnailAspectRatio: switch (post) {
+      PostMediaAspectRatios(:final thumbnailAspectRatio) =>
+        thumbnailAspectRatio,
+      _ => null,
+    },
+    sampleAspectRatio: switch (post) {
+      PostMediaAspectRatios(:final sampleAspectRatio) => sampleAspectRatio,
+      _ => null,
+    },
+    originalAspectRatio: switch (post) {
+      PostMediaAspectRatios(:final originalAspectRatio) => originalAspectRatio,
+      _ => null,
+    },
+    videoThumbnailAspectRatio: switch (post) {
+      PostMediaAspectRatios(:final videoThumbnailAspectRatio) =>
+        videoThumbnailAspectRatio,
+      _ => null,
+    },
+    videoAspectRatio: switch (post) {
+      PostMediaAspectRatios(:final videoAspectRatio) => videoAspectRatio,
+      _ => null,
+    },
+    width: post.width,
+    height: post.height,
+    format: post.format,
+    md5: post.md5,
+    fileSize: post.fileSize,
+    duration: post.duration,
+    hasSound: post.hasSound,
+    tags: post.tags,
+    artistTags: post.artistTags,
+    characterTags: post.characterTags,
+    copyrightTags: post.copyrightTags,
+    rating: post.rating,
+    hasComment: post.hasComment,
+    isTranslated: post.isTranslated,
+    hasParentOrChildren: post.hasParentOrChildren,
+    parentId: post.parentId,
+    source: post.source,
+    score: post.score,
+    downvotes: post.downvotes,
+    uploaderId: post.uploaderId,
+    uploaderName: post.uploaderName,
+    status:
+        status ??
+        switch (post.status) {
+          StringPostStatus(:final value) => value,
           _ => null,
         },
-        thumbnailAspectRatio: switch (post) {
-          PostMediaAspectRatios(:final thumbnailAspectRatio) =>
-            thumbnailAspectRatio,
-          _ => null,
-        },
-        sampleAspectRatio: switch (post) {
-          PostMediaAspectRatios(:final sampleAspectRatio) => sampleAspectRatio,
-          _ => null,
-        },
-        originalAspectRatio: switch (post) {
-          PostMediaAspectRatios(:final originalAspectRatio) =>
-            originalAspectRatio,
-          _ => null,
-        },
-        videoThumbnailAspectRatio: switch (post) {
-          PostMediaAspectRatios(:final videoThumbnailAspectRatio) =>
-            videoThumbnailAspectRatio,
-          _ => null,
-        },
-        videoAspectRatio: switch (post) {
-          PostMediaAspectRatios(:final videoAspectRatio) => videoAspectRatio,
-          _ => null,
-        },
-        width: post.width,
-        height: post.height,
-        format: post.format,
-        md5: post.md5,
-        fileSize: post.fileSize,
-        duration: post.duration,
-        hasSound: post.hasSound,
-        tags: post.tags,
-        artistTags: post.artistTags,
-        characterTags: post.characterTags,
-        copyrightTags: post.copyrightTags,
-        rating: post.rating,
-        hasComment: post.hasComment,
-        isTranslated: post.isTranslated,
-        hasParentOrChildren: post.hasParentOrChildren,
-        parentId: post.parentId,
-        source: post.source,
-        score: post.score,
-        downvotes: post.downvotes,
-        uploaderId: post.uploaderId,
-        uploaderName: post.uploaderName,
-        status:
-            status ??
-            switch (post.status) {
-              StringPostStatus(:final value) => value,
-              _ => null,
-            },
-        metadata: post.metadata,
-      );
+    metadata: post.metadata,
+  );
 
   final int id;
   final DateTime? createdAt;

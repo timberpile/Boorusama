@@ -1,4 +1,8 @@
 {
+  "pinned_searches": {
+    "sort_updates_first": "Aggiornamenti prima",
+    "sort_last_post_oldest": "Post meno recenti prima"
+  },
   "generic": {
     "done": "Finito",
     "errors": {
@@ -127,7 +131,8 @@
     },
     "action": {
       "view_comments": "Visualizza commenti",
-      "add_to_favorite_group": "Aggiungi al gruppo dei preferiti",
+      "add_to_favorite_group": "Aggiungi al gruppo dei preferiti dell'account",
+      "edit_rating": "Modifica valutazione",
       "view_in_browser": "Visualizza nel browser",
       "view_original": "Visualizza l'originale",
       "share": "Condividi",

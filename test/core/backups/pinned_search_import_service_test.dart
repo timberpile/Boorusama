@@ -1,6 +1,9 @@
+import '../../profile_uuid_utils.dart';
 import 'package:boorusama/core/backups/sources/pinned_search_backup_data.dart';
 import 'package:boorusama/core/backups/sources/search_backup_profile.dart';
 import 'package:boorusama/core/backups/sources/pinned_search_import_service.dart';
+import 'package:boorusama/core/backups/export_import/import/collection_import_action.dart';
+import 'package:boorusama/core/backups/export_import/models/import_action.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/search/subscriptions/types.dart';
@@ -9,6 +12,144 @@ import 'package:flutter_test/flutter_test.dart';
 import '../search/subscriptions/subscription_test_utils.dart';
 
 void main() {
+  for (final testCase in [
+    (
+      action: ImportAction.update,
+      expectedName: 'Remote',
+      expectedIds: [_id(1), _id(2)],
+    ),
+    (
+      action: ImportAction.merge,
+      expectedName: 'Local',
+      expectedIds: [_id(0), _id(1), _id(2)],
+    ),
+  ]) {
+    test(
+      '${testCase.action.name} applies the expected folder definition',
+      () async {
+        const folderId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+        final repository = memorySubscriptionRepository();
+        for (final index in [0, 1, 2]) {
+          await repository.create(
+            profileId: '00000000-0000-4000-8000-000000000004',
+            query: _record(index).query,
+            name: null,
+            id: _id(index),
+          );
+        }
+        await repository.replaceOrganization(
+          SearchOrganization(
+            folders: [
+              SharedSearchFolder(
+                id: folderId,
+                name: 'Local',
+                searchIds: [_id(0), _id(1)],
+              ),
+            ],
+            homeSearchIds: [_id(2)],
+          ),
+        );
+        final data = PinnedSearchBackupData(
+          records: [_record(1), _record(2)],
+          folders: [
+            PinnedSearchFolderBackupRecord(
+              id: folderId,
+              name: 'Remote',
+              position: 0,
+              searchIds: [_id(1), _id(2)],
+            ),
+          ],
+        );
+
+        await PinnedSearchImportService(repository: repository).apply(
+          data,
+          profiles: [_profile(4)],
+          folderActions: {
+            folderId: CollectionImportAction(
+              itemId: folderId,
+              action: testCase.action,
+            ),
+          },
+        );
+
+        final folder = (await repository.getOrganization()).folders.single;
+        expect(folder.name, testCase.expectedName);
+        expect(folder.searchIds, testCase.expectedIds);
+      },
+    );
+  }
+
+  for (final matchingId in [false, true]) {
+    test(
+      'Copy allocates a unique folder name for a ${matchingId ? 'matching ID' : 'different ID with the same name'}',
+      () async {
+        const incomingId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+        const oldId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+        const copyId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+        final repository = memorySubscriptionRepository();
+        final local = await repository.create(
+          profileId: profileUuid(4),
+          query: 'local_only',
+          name: null,
+        );
+        await repository.replaceOrganization(
+          SearchOrganization(
+            folders: [
+              SharedSearchFolder(
+                id: matchingId ? incomingId : oldId,
+                name: 'Animals',
+                searchIds: [local.id],
+              ),
+              SharedSearchFolder(
+                id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+                name: 'ANIMALS (2)',
+                searchIds: const [],
+              ),
+            ],
+            homeSearchIds: const [],
+          ),
+        );
+        final data = PinnedSearchBackupData(
+          records: [_record(1)],
+          folders: [
+            PinnedSearchFolderBackupRecord(
+              id: incomingId,
+              name: 'Animals',
+              position: 0,
+              searchIds: [_id(1)],
+            ),
+          ],
+        );
+        await PinnedSearchImportService(repository: repository).apply(
+          data,
+          profiles: [_profile(4)],
+          folderActions: {
+            incomingId: CollectionImportAction(
+              itemId: incomingId,
+              action: ImportAction.copy,
+              destinationId: matchingId ? copyId : null,
+            ),
+          },
+        );
+        final folders = (await repository.getOrganization()).folders;
+        expect(folders.first.name, 'Animals (3)');
+        expect(folders.first.searchIds, [_id(1)]);
+        expect(
+          folders
+              .singleWhere(
+                (folder) => folder.id == (matchingId ? incomingId : oldId),
+              )
+              .searchIds,
+          [local.id],
+        );
+        expect(
+          folders.map((folder) => folder.name.toLowerCase()).toSet(),
+          hasLength(3),
+        );
+      },
+    );
+  }
+
   test('folder imports remap profiles and remain idempotent', () async {
     final repository = memorySubscriptionRepository();
     final record = _record(0);
@@ -30,8 +171,16 @@ void main() {
       ],
     );
     final service = PinnedSearchImportService(repository: repository);
-    await service.apply(data, profiles: [_profile(9)]);
-    await service.apply(data, profiles: [_profile(9)]);
+    await service.apply(
+      data,
+      profiles: [_profile(9)],
+      profileIdResolver: (_) => profileUuid(9),
+    );
+    await service.apply(
+      data,
+      profiles: [_profile(9)],
+      profileIdResolver: (_) => profileUuid(9),
+    );
     final folders = (await repository.getOrganization()).folders;
     expect(folders.length, 2);
     expect(folders.first.searchIds, [(await repository.getAll()).single.id]);
@@ -39,11 +188,29 @@ void main() {
   });
 
   test(
+    'an explicit profile mapping imports without a currently loaded profile',
+    () async {
+      final repository = memorySubscriptionRepository();
+
+      await PinnedSearchImportService(repository: repository).apply(
+        PinnedSearchBackupData(records: [_record(0)]),
+        profiles: const [],
+        profileIdResolver: (_) => '00000000-0000-4000-8000-00000000004d',
+      );
+
+      expect((await repository.getAll()).single.profileId, profileUuid(77));
+    },
+  );
+
+  test(
     'previews unmatched pins and rejects before any writes',
     () async {
       final repository = memorySubscriptionRepository();
       final service = PinnedSearchImportService(repository: repository);
-      final missing = _record(1, profileId: 99);
+      final missing = _record(
+        1,
+        profileId: '00000000-0000-4000-8000-000000000063',
+      );
       final data = PinnedSearchBackupData(
         records: [_record(0), missing],
         folders: const [
@@ -83,7 +250,7 @@ void main() {
   test('restores mixed profiles and mapped query IDs in saved order', () async {
     final repository = memorySubscriptionRepository();
     final existing = await repository.create(
-      profileId: 9,
+      profileId: '00000000-0000-4000-8000-000000000009',
       query: _record(0).query,
       name: null,
       id: _id(9),
@@ -94,7 +261,7 @@ void main() {
       query: 'dog',
       position: 0,
       profile: const BackupProfileReference(
-        id: 99,
+        id: '00000000-0000-4000-8000-000000000063',
         booruType: 'danbooru',
         url: 'https://other.test',
         name: 'Other',
@@ -114,12 +281,22 @@ void main() {
     );
     final service = PinnedSearchImportService(repository: repository);
     final profiles = [_profile(9), _profile(88, url: 'https://other.test')];
-    await service.apply(data, profiles: profiles);
+    await service.apply(
+      data,
+      profiles: profiles,
+      profileIdResolver: (reference) =>
+          reference.id == profileUuid(99) ? profileUuid(88) : profileUuid(9),
+    );
     final organization = await repository.getOrganization();
     expect(organization.folders.single.searchIds, [dog.id, existing.id]);
     expect(organization.homeSearchIds, [_id(3), _id(2)]);
-    expect((await repository.getById(dog.id))!.profileId, 88);
-    await service.apply(data, profiles: profiles);
+    expect((await repository.getById(dog.id))!.profileId, profileUuid(88));
+    await service.apply(
+      data,
+      profiles: profiles,
+      profileIdResolver: (reference) =>
+          reference.id == profileUuid(99) ? profileUuid(88) : profileUuid(9),
+    );
     expect(await repository.getOrganization(), organization);
   });
 
@@ -128,13 +305,13 @@ void main() {
     () async {
       final repository = memorySubscriptionRepository();
       await repository.create(
-        profileId: 4,
+        profileId: '00000000-0000-4000-8000-000000000004',
         query: _record(0).query,
         name: null,
         id: _id(0),
       );
       await repository.create(
-        profileId: 4,
+        profileId: '00000000-0000-4000-8000-000000000004',
         query: 'local',
         name: null,
         id: _id(9),
@@ -162,11 +339,73 @@ void main() {
   );
 
   test(
+    'skips only the individually skipped searches during folder import',
+    () async {
+      final repository = memorySubscriptionRepository();
+      final existing = await repository.create(
+        profileId: '00000000-0000-4000-8000-000000000004',
+        query: '  cat   rating:safe ',
+        name: 'Local cat',
+        id: _id(8),
+      );
+      const folderId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+      final cat = _record(0);
+      final dog = PinnedSearchBackupRecord(
+        id: _id(1),
+        name: 'Dog',
+        query: 'dog',
+        position: 1,
+        profile: cat.profile,
+      );
+
+      final result = await PinnedSearchImportService(repository: repository)
+          .apply(
+            PinnedSearchBackupData(
+              records: [
+                PinnedSearchBackupRecord(
+                  id: cat.id,
+                  name: cat.name,
+                  query: 'cat rating:safe',
+                  position: cat.position,
+                  profile: cat.profile,
+                ),
+                dog,
+              ],
+              folders: [
+                PinnedSearchFolderBackupRecord(
+                  id: folderId,
+                  name: 'Animals',
+                  position: 0,
+                  searchIds: [cat.id, dog.id],
+                ),
+              ],
+            ),
+            profiles: [_profile(4)],
+            recordActions: {dog.id: ImportAction.skip},
+            folderActions: {
+              folderId: const CollectionImportAction(
+                itemId: folderId,
+                action: ImportAction.copy,
+              ),
+            },
+          );
+
+      expect(result.alreadyExistedCount, 1);
+      expect(result.importedCount, 0);
+      expect(await repository.getAll(), [existing]);
+      expect(
+        (await repository.getOrganization()).folders.single.searchIds,
+        [existing.id],
+      );
+    },
+  );
+
+  test(
     'appends pin-only imports after unlisted local pins with future timestamps',
     () async {
       final repository = memorySubscriptionRepository();
       await repository.create(
-        profileId: 4,
+        profileId: '00000000-0000-4000-8000-000000000004',
         query: 'local',
         name: null,
         id: _id(9),
@@ -189,7 +428,7 @@ void main() {
       final repository = memorySubscriptionRepository();
       for (final index in [0, 1, 2, 3]) {
         await repository.create(
-          profileId: 4,
+          profileId: '00000000-0000-4000-8000-000000000004',
           query: _record(index).query,
           name: null,
           id: _id(index),
@@ -246,25 +485,25 @@ void main() {
       expectedId: 4,
     ),
     (
-      description: 'a unique URL when the original ID changed',
+      description: 'no automatic mapping to a unique URL with another UUID',
       profiles: [_profile(9)],
-      expectedId: 9,
+      expectedId: null,
     ),
     (
-      description: 'a unique URL when the original ID has another URL',
+      description: 'no mapping when same UUID has another URL',
       profiles: [
         _profile(4, url: 'https://other.test'),
         _profile(9),
       ],
-      expectedId: 9,
+      expectedId: null,
     ),
     (
-      description: 'a unique URL when the original ID has another type',
+      description: 'no mapping when same UUID has another engine',
       profiles: [
         _profile(4, type: BooruType.gelbooru),
         _profile(9),
       ],
-      expectedId: 9,
+      expectedId: null,
     ),
     (
       description: 'no profile for an ambiguous URL',
@@ -272,17 +511,20 @@ void main() {
       expectedId: null,
     ),
     (
-      description: 'no profile for a missing URL',
+      description:
+          'no automatic mapping to the only compatible profile for a missing URL',
       profiles: [_profile(4, url: 'https://other.test')],
       expectedId: null,
     ),
     (
-      description: 'no profile for a different scheme',
+      description:
+          'no automatic mapping to the only compatible profile for a different scheme',
       profiles: [_profile(4, url: 'http://example.test/Posts')],
       expectedId: null,
     ),
     (
-      description: 'no profile for a different path',
+      description:
+          'no automatic mapping to the only compatible profile for a different path',
       profiles: [_profile(4, url: 'https://example.test/posts')],
       expectedId: null,
     ),
@@ -316,17 +558,17 @@ void main() {
       );
       expect(
         (await repository.getAll()).map((pin) => pin.profileId),
-        c.expectedId == null ? isEmpty : [c.expectedId],
+        c.expectedId == null ? isEmpty : [profileUuid(c.expectedId!)],
       );
     });
   }
 
   test('appends after existing positions in stable imported order', () async {
     final repository = memorySubscriptionRepository();
-    await repository.restoreForProfile(4, [
+    await repository.restoreForProfile('00000000-0000-4000-8000-000000000004', [
       SearchSubscription.create(
         id: _id(9),
-        profileId: 4,
+        profileId: '00000000-0000-4000-8000-000000000004',
         query: 'existing',
         name: null,
         position: 8,
@@ -355,17 +597,17 @@ void main() {
   });
 
   test(
-    'preserves existing ID and normalized-query matches across repeated imports',
+    'preserves query matches without reusing an ID collision',
     () async {
       final repository = memorySubscriptionRepository();
       final existingId = await repository.create(
-        profileId: 4,
+        profileId: '00000000-0000-4000-8000-000000000004',
         query: 'original',
         name: 'Local name',
         id: _id(0),
       );
       final existingQuery = await repository.create(
-        profileId: 4,
+        profileId: '00000000-0000-4000-8000-000000000004',
         query: 'cat tag_1',
         name: null,
         id: _id(9),
@@ -382,8 +624,8 @@ void main() {
       expect(
         first,
         const PinnedSearchImportResult(
-          importedCount: 1,
-          alreadyExistedCount: 2,
+          importedCount: 2,
+          alreadyExistedCount: 1,
           skippedProfileCount: 0,
         ),
       );
@@ -397,7 +639,89 @@ void main() {
       );
       expect(await repository.getAll(), afterFirst);
       expect(afterFirst.take(2), [existingId, existingQuery]);
+      expect(afterFirst, hasLength(4));
+      expect(
+        afterFirst.singleWhere((search) => search.query == 'cat  tag_0').id,
+        isNot(existingId.id),
+      );
       expect(afterFirst.last.id, _id(2));
+    },
+  );
+
+  test('an ID collision with a different query creates a new search', () async {
+    final repository = memorySubscriptionRepository();
+    final local = await repository.create(
+      profileId: '00000000-0000-4000-8000-000000000004',
+      query: 'local query',
+      name: 'Local',
+      id: _id(0),
+    );
+
+    final result = await PinnedSearchImportService(repository: repository)
+        .apply(
+          PinnedSearchBackupData(records: [_record(0, query: 'remote query')]),
+          profiles: [_profile(4)],
+        );
+
+    final searches = await repository.getAll();
+    expect(result.importedCount, 1);
+    expect(searches, hasLength(2));
+    expect(
+      searches.singleWhere((search) => search.id == local.id).query,
+      'local query',
+    );
+    expect(
+      searches.singleWhere((search) => search.id != local.id).query,
+      'remote query',
+    );
+  });
+
+  test(
+    'replacement reuses matching searches and removes only absent searches',
+    () async {
+      final repository = memorySubscriptionRepository();
+      final existing = await repository.create(
+        profileId: '00000000-0000-4000-8000-000000000004',
+        query: 'cat tag_0',
+        name: 'Local name',
+        id: _id(9),
+      );
+      await repository.create(
+        profileId: '00000000-0000-4000-8000-000000000004',
+        query: 'remove me',
+        name: null,
+        id: _id(8),
+      );
+      await repository.recordRefreshFailure(
+        existing.id,
+        expectedCreatedAt: existing.createdAt,
+        attemptedAt: DateTime.utc(2026),
+        kind: SearchRefreshErrorKind.network,
+      );
+      const folderId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+
+      await PinnedSearchImportService(repository: repository).replace(
+        PinnedSearchBackupData(
+          records: [_record(0)],
+          folders: [
+            PinnedSearchFolderBackupRecord(
+              id: folderId,
+              name: 'Animals',
+              position: 0,
+              searchIds: [_id(0)],
+            ),
+          ],
+        ),
+        profiles: [_profile(4)],
+      );
+
+      final searches = await repository.getAll();
+      expect(searches, hasLength(1));
+      expect(searches.single.id, existing.id);
+      expect(searches.single.lastErrorKind, SearchRefreshErrorKind.network);
+      final folder = (await repository.getOrganization()).folders.single;
+      expect(folder.id, folderId);
+      expect(folder.searchIds, [existing.id]);
     },
   );
 
@@ -411,7 +735,11 @@ void main() {
               records: [
                 _record(0, query: 'cat  rating:safe'),
                 _record(1, query: ' cat\trating:safe '),
-                _record(2, query: 'cat rating:safe', profileId: 5),
+                _record(
+                  2,
+                  query: 'cat rating:safe',
+                  profileId: '00000000-0000-4000-8000-000000000005',
+                ),
               ],
             ),
             profiles: [_profile(4), _profile(5)],
@@ -424,7 +752,10 @@ void main() {
           skippedProfileCount: 0,
         ),
       );
-      expect((await repository.getAll()).map((pin) => pin.profileId), [4, 5]);
+      expect((await repository.getAll()).map((pin) => pin.profileId), [
+        profileUuid(4),
+        profileUuid(5),
+      ]);
     },
   );
 
@@ -436,7 +767,7 @@ void main() {
         final String collisionId;
         if (feedOwned) {
           final feed = await repository.saveFeed(
-            profileId: 4,
+            profileId: '00000000-0000-4000-8000-000000000004',
             name: 'Feed',
             queries: ['original'],
           );
@@ -445,7 +776,7 @@ void main() {
               .id;
         } else {
           collisionId = (await repository.create(
-            profileId: 9,
+            profileId: '00000000-0000-4000-8000-000000000009',
             query: 'original',
             name: null,
             id: _id(0),
@@ -474,7 +805,10 @@ void main() {
         final result = await service.apply(data, profiles: [_profile(4)]);
         expect(result.importedCount, 1);
         expect(await repository.getById(collisionId), original);
-        final pin = (await repository.findByQuery(4, 'cat'))!;
+        final pin = (await repository.findByQuery(
+          '00000000-0000-4000-8000-000000000004',
+          'cat',
+        ))!;
         expect(pin.id, isNot(collisionId));
         expect((await repository.getOrganization()).folders.single.searchIds, [
           pin.id,
@@ -510,6 +844,49 @@ void main() {
       expect(pin.lastErrorKind, isNull);
     },
   );
+
+  test(
+    'imports typed tags without upgrading a matching legacy pin',
+    () async {
+      final repository = memorySubscriptionRepository();
+      final legacy = await repository.create(
+        profileId: '00000000-0000-4000-8000-000000000004',
+        query: 'cat rating:safe',
+        name: null,
+      );
+      final structured = PinnedSearchBackupRecord(
+        id: _id(0),
+        name: 'Cats',
+        query: 'cat rating:safe',
+        queryStructure: SearchQueryStructure.typedTags(const [
+          'cat',
+          'rating:safe',
+        ]),
+        position: 0,
+        profile: _record(0).profile,
+      );
+      final service = PinnedSearchImportService(repository: repository);
+
+      final duplicateResult = await service.apply(
+        PinnedSearchBackupData(records: [structured]),
+        profiles: [_profile(4)],
+      );
+
+      expect(duplicateResult.alreadyExistedCount, 1);
+      expect((await repository.getById(legacy.id))?.queryStructure, isNull);
+
+      await repository.delete(legacy.id);
+      final importResult = await service.apply(
+        PinnedSearchBackupData(records: [structured]),
+        profiles: [_profile(4)],
+      );
+      expect(importResult.importedCount, 1);
+      expect(
+        (await repository.getAll()).single.queryStructure,
+        structured.queryStructure,
+      );
+    },
+  );
 }
 
 String _id(int value) => '550e8400-e29b-41d4-a716-44665544000$value';
@@ -520,7 +897,7 @@ BooruConfig _profile(
   BooruType type = BooruType.danbooru,
 }) => BooruConfig.fromJson({
   ...BooruConfig.empty.toJson(),
-  'id': id,
+  'id': profileUuid(id),
   'booruIdHint': type.id,
   'url': url,
   'name': 'Local profile',
@@ -530,7 +907,7 @@ PinnedSearchBackupRecord _record(
   int index, {
   int position = 0,
   String? query,
-  int profileId = 4,
+  String profileId = '00000000-0000-4000-8000-000000000004',
 }) => PinnedSearchBackupRecord(
   id: _id(index),
   name: 'Cats $index',

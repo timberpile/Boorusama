@@ -40,16 +40,17 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('shows the query as context and starts with an empty name', (
+  testWidgets('shows the query inline and offers it as the empty name hint', (
     tester,
   ) async {
     await open(tester, onResult: (_) {});
-    expect(find.text('cat rating:safe'), findsOneWidget);
+    expect(find.text('Query: cat rating:safe'), findsOneWidget);
+    expect(find.text('Search query'), findsNothing);
     expect(find.byType(TextField), findsOneWidget);
-    expect(
-      tester.widget<TextField>(find.byType(TextField)).controller!.text,
-      isEmpty,
-    );
+    final field = tester.widget<TextField>(find.byType(TextField));
+    expect(field.controller!.text, isEmpty);
+    expect(field.decoration!.labelText, 'Name');
+    expect(field.decoration!.hintText, 'cat rating:safe');
   });
 
   testWidgets(
@@ -103,6 +104,11 @@ void main() {
     expect(
       tester.widget<TextField>(find.byType(TextField)).controller!.text,
       'Cats',
+    );
+    expect(find.text('Query: cat rating:safe'), findsOneWidget);
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).decoration!.labelText,
+      'Name',
     );
     expect(find.text('Pin'), findsNothing);
     await tester.enterText(find.byType(TextField), '  Kittens  ');

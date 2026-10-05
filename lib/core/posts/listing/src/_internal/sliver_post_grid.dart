@@ -30,6 +30,7 @@ class SliverPostGrid<T extends Post> extends StatelessWidget {
     this.postsPerPage,
     this.httpErrorActionBuilder,
     this.httpHandshakeErrorActionBuilder,
+    this.showRule34ChallengeRecovery = false,
   });
 
   final PostGridController<T> postController;
@@ -50,6 +51,7 @@ class SliverPostGrid<T extends Post> extends StatelessWidget {
   httpHandshakeErrorActionBuilder;
 
   final AppErrorTranslator errorTranslator;
+  final bool showRule34ChallengeRecovery;
 
   @override
   Widget build(BuildContext context) {
@@ -99,40 +101,44 @@ class SliverPostGrid<T extends Post> extends StatelessWidget {
                     if (httpErrorActionBuilder != null &&
                         e.httpStatusCode != null)
                       httpErrorActionBuilder!(context, e.httpStatusCode!),
-                    Container(
-                      padding: EdgeInsets.symmetric(
-                        vertical: e.isServerError ? 4 : 24,
-                      ),
-                      child: Builder(
-                        builder: (context) {
-                          try {
-                            final data = wrapIntoJsonToCodeBlock(
-                              prettyPrintJson(e.message),
-                            );
+                    if (!showRule34ChallengeRecovery || e.httpStatusCode != 403)
+                      Container(
+                        padding: EdgeInsets.symmetric(
+                          vertical: e.isServerError ? 4 : 24,
+                        ),
+                        child: Builder(
+                          builder: (context) {
+                            try {
+                              final data = wrapIntoJsonToCodeBlock(
+                                prettyPrintJson(e.message),
+                              );
 
-                            return MarkdownBody(
-                              styleSheet: MarkdownStyleSheet(
-                                codeblockPadding: const EdgeInsets.symmetric(
-                                  vertical: 8,
-                                  horizontal: 8,
+                              return MarkdownBody(
+                                styleSheet: MarkdownStyleSheet(
+                                  codeblockPadding: const EdgeInsets.symmetric(
+                                    vertical: 8,
+                                    horizontal: 8,
+                                  ),
+                                  codeblockDecoration: BoxDecoration(
+                                    color:
+                                        theme.colorScheme.surfaceContainerLow,
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
                                 ),
-                                codeblockDecoration: BoxDecoration(
-                                  color: theme.colorScheme.surfaceContainerLow,
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
-                              data: data,
-                            );
-                          } catch (err) {
-                            return Text(
-                              e.message,
-                              textAlign: TextAlign.center,
-                            );
-                          }
-                        },
+                                data: data,
+                              );
+                            } catch (err) {
+                              return Text(
+                                e.message,
+                                textAlign: TextAlign.center,
+                              );
+                            }
+                          },
+                        ),
                       ),
-                    ),
-                    if (e.isServerError)
+                    if (e.isServerError ||
+                        (showRule34ChallengeRecovery &&
+                            e.httpStatusCode == 403))
                       FilledButton(
                         onPressed: _onErrorRetry,
                         child: Text(context.t.generic.action.retry),

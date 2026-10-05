@@ -10,6 +10,8 @@ import '../../../../../../core/configs/config/providers.dart';
 import '../../../../../../core/posts/details/types.dart';
 import '../../../../../../core/posts/details_parts/widgets.dart';
 import '../../../../../../core/posts/post/types.dart';
+import '../../../../../../core/posts/sources/types.dart';
+import '../../../../../../core/search/subscriptions/src/widgets/feed_follow_control.dart';
 import '../../../../../../core/widgets/booru_visibility_detector.dart';
 import '../../../../artists/commentaries/providers.dart';
 import '../../../../comments/comment/providers.dart';
@@ -96,20 +98,44 @@ class DanbooruArtistInfoSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final post = InheritedPost.of<Post>(context);
     final params = (ref.watchConfigAuth, post.id);
+    final artistTags = post.artistTags ?? const <String>{};
 
     return SliverToBoxAdapter(
-      child: ArtistSection(
+      child: DanbooruArtistInfo(
         commentary: ref
             .watch(danbooruArtistCommentaryProvider(params))
             .maybeWhen(
               data: (commentary) => commentary,
               orElse: () => const ArtistCommentary.empty(),
             ),
-        artistTags: post.artistTags ?? const {},
+        artistTags: artistTags,
         source: post.source,
       ),
     );
   }
+}
+
+class DanbooruArtistInfo extends StatelessWidget {
+  const DanbooruArtistInfo({
+    required this.commentary,
+    required this.artistTags,
+    required this.source,
+    super.key,
+  });
+
+  final ArtistCommentary commentary;
+  final Set<String> artistTags;
+  final PostSource source;
+
+  @override
+  Widget build(BuildContext context) => ArtistSection(
+    commentary: commentary,
+    artistTags: artistTags,
+    source: source,
+    inlineAction: artistTags.length == 1
+        ? FeedFollowButton(query: artistTags.single, compact: true)
+        : null,
+  );
 }
 
 class DanbooruTagsSection extends ConsumerWidget {

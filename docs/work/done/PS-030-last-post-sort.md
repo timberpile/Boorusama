@@ -1,5 +1,10 @@
 # Show and sort pinned searches by the last matching post
 
+This task records the original last-post sort implementation. The later
+[Updates first refinement](IDEA-023-pinned-search-unseen-sort.md) replaced its
+Newest post first choice and the separate Unseen first choice with one shared
+mode; the remaining Oldest post first choice is unchanged.
+
 Priority: Normal
 Affected feature: Pinned Searches
 
@@ -17,8 +22,8 @@ identify.
 - Never-checked searches show `Last post: Not checked`; successfully checked
   searches with no matches show `Last post: No posts`.
 - A failed refresh retains any cached timestamp and continues to show its error.
-- The Pinned Searches page offers Manual order, Last post: newest first, and
-  Last post: oldest first.
+- The Pinned Searches page offers Manual order, Newest post first, and Oldest
+  post first.
 - Date sorting is a session-scoped, non-destructive view shared by Home and
   folder pages. It resets to Manual order when the app restarts.
 - Searches without a timestamp follow dated searches in both date orders.

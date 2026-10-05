@@ -59,6 +59,7 @@ android {
 
     defaultConfig {
         applicationId = "com.timberpile.boorusama"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         minSdk = 24
         targetSdk = 36
         versionCode = flutter.versionCode
@@ -114,6 +115,9 @@ flutter {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test:core:1.6.1")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
 }
 
 gradle.taskGraph.whenReady {

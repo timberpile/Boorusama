@@ -98,19 +98,22 @@ class ResultHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 40,
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 40),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 4,
-            ),
-            child: ResultCounter(
-              count: count,
-              loading: loading,
-              onRefresh: onRefresh,
+          Flexible(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 4,
+              ),
+              child: ResultCounter(
+                count: count,
+                loading: loading,
+                onRefresh: onRefresh,
+              ),
             ),
           ),
         ],

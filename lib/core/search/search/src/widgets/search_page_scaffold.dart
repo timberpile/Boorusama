@@ -27,6 +27,7 @@ import '../../../subscriptions/providers.dart';
 import '../../../subscriptions/types.dart';
 import '../../../subscriptions/widgets.dart';
 import '../../../subscriptions/src/widgets/pin_search_folder_picker.dart';
+import '../../../subscriptions/src/widgets/search_folder_dialog.dart';
 import '../../../subscriptions/src/widgets/feed_follow_control.dart';
 import '../routes/params.dart';
 import '../types/search_bar_position.dart';
@@ -94,6 +95,7 @@ class _SearchPageScaffoldState<T extends Post>
   late final SelectionModeController _searchModeController;
 
   late final ValueNotifier<PostGridController<T>?> _postController;
+  final _pinFeedback = ValueNotifier<String?>(null);
 
   @override
   void initState() {
@@ -128,6 +130,7 @@ class _SearchPageScaffoldState<T extends Post>
     _controller.dispose();
     _searchModeController.dispose();
     _postController.dispose();
+    _pinFeedback.dispose();
     super.dispose();
   }
 
@@ -160,19 +163,68 @@ class _SearchPageScaffoldState<T extends Post>
         builder: (context, value, _) => ValueListenableBuilder(
           valueListenable: _postController,
           builder: (context, postController, child) => postController != null
-              ? Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    ResultHeaderFromController(
-                      controller: postController,
-                      onRefresh: null,
-                      hasCount:
-                          ref.watchConfigAuth.booruType.postCountMethod ==
-                          PostCountMethod.search,
-                    ),
-                    _PinSearchAction(query: value),
-                    FeedFollowButton(query: value),
-                  ],
+              ? LayoutBuilder(
+                  builder: (context, constraints) => Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: switch (ref
+                                .watchConfigAuth
+                                .booruType
+                                .postCountMethod) {
+                              PostCountMethod.endpoint =>
+                                ResultHeaderWithProvider(
+                                  selectedTagsString: value,
+                                  onRefresh: null,
+                                ),
+                              PostCountMethod.search =>
+                                ResultHeaderFromController(
+                                  controller: postController,
+                                  onRefresh: null,
+                                  hasCount: true,
+                                ),
+                              PostCountMethod.notSupported =>
+                                const SizedBox.shrink(),
+                            },
+                          ),
+                          _PinSearchAction(
+                            query: value,
+                            queryStructure: _typedQueryStructure(
+                              _tagsController.tags,
+                            ),
+                            onFeedback: (message) =>
+                                _pinFeedback.value = message,
+                          ),
+                          ConstrainedBox(
+                            constraints: BoxConstraints(
+                              maxWidth: constraints.maxWidth * 0.55,
+                            ),
+                            child: FeedFollowButton(query: value),
+                          ),
+                        ],
+                      ),
+                      ValueListenableBuilder(
+                        valueListenable: _pinFeedback,
+                        builder: (context, error, _) => switch (error) {
+                          final message? when value.trim().isNotEmpty =>
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                              ),
+                              child: Text(
+                                message,
+                                style: TextStyle(
+                                  color: Theme.of(context).colorScheme.error,
+                                ),
+                              ),
+                            ),
+                          _ => const SizedBox.shrink(),
+                        },
+                      ),
+                    ],
+                  ),
                 )
               : const SizedBox.shrink(),
         ),
@@ -196,10 +248,21 @@ class _SearchPageScaffoldState<T extends Post>
   }
 }
 
+SearchQueryStructure? _typedQueryStructure(List<TagSearchItem> tags) =>
+    tags.isNotEmpty && tags.every((tag) => !tag.isRaw)
+    ? SearchQueryStructure.typedTags(tags.map((tag) => tag.toString()))
+    : null;
+
 class _PinSearchAction extends ConsumerStatefulWidget {
-  const _PinSearchAction({required this.query});
+  const _PinSearchAction({
+    required this.query,
+    required this.queryStructure,
+    required this.onFeedback,
+  });
 
   final String query;
+  final SearchQueryStructure? queryStructure;
+  final ValueChanged<String?> onFeedback;
 
   @override
   ConsumerState<_PinSearchAction> createState() => _PinSearchActionState();
@@ -208,12 +271,11 @@ class _PinSearchAction extends ConsumerStatefulWidget {
 class _PinSearchActionState extends ConsumerState<_PinSearchAction> {
   var _busy = false;
   var _saved = false;
-  String? _error;
-  ({int profileId, String query})? _pendingPin;
+  ({String profileId, String query})? _pendingPin;
 
   SearchSubscription? _findPin(
     List<SearchSubscription> subscriptions,
-    int profileId,
+    String profileId,
     String query,
   ) {
     final identity = normalizeSearchIdentity(query);
@@ -227,19 +289,17 @@ class _PinSearchActionState extends ConsumerState<_PinSearchAction> {
   }
 
   void _feedback(String message) {
-    setState(() => _error = message);
+    widget.onFeedback(message);
   }
 
-  Future<void> _manage(int profileId, SearchSubscription? existing) async {
+  Future<void> _manage(String profileId, SearchSubscription? existing) async {
     if (!ref.read(pinnedSearchTrackingSupportedProvider(ref.readConfigAuth))) {
       _feedback(context.t.pinned_searches.profile_unsupported);
       return;
     }
     final query = widget.query;
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
+    setState(() => _busy = true);
+    widget.onFeedback(null);
     try {
       final folders =
           ref
@@ -254,6 +314,9 @@ class _PinSearchActionState extends ConsumerState<_PinSearchAction> {
           )
           .firstOrNull
           ?.id;
+      var isNewFolder = false;
+      SearchSubscription? savedNewPin;
+      final notifier = ref.read(searchSubscriptionsProvider.notifier);
       final name = await showPinSearchDialog(
         context,
         query: query,
@@ -261,11 +324,44 @@ class _PinSearchActionState extends ConsumerState<_PinSearchAction> {
         isPinned: existing != null,
         extra: PinSearchFolderPicker(
           initialFolderId: folderId,
-          onSelected: (value) => folderId = value,
+          onSelected: (id, isNew) {
+            folderId = id;
+            isNewFolder = isNew;
+          },
         ),
+        onSubmit: (dialogContext, name) async {
+          if (!isNewFolder) return true;
+          final folderName = await showSearchFolderNameDialog(dialogContext);
+          if (folderName == null || !mounted) return false;
+          if (existing == null) {
+            _pendingPin = (profileId: profileId, query: query);
+          }
+          try {
+            savedNewPin = await notifier.savePinInNewFolder(
+              profileId: profileId,
+              query: query,
+              name: name,
+              folderName: folderName,
+              existingPinId: existing?.id,
+            );
+            return true;
+          } catch (_) {
+            _pendingPin = null;
+            _saved = false;
+            rethrow;
+          }
+        },
       );
       if (!mounted || name == null) return;
-      final notifier = ref.read(searchSubscriptionsProvider.notifier);
+      if (savedNewPin case final pin?) {
+        if (existing == null) {
+          final refresh = await notifier.refresh(pin.id);
+          if (mounted && refresh is SearchRefreshFailed) {
+            _feedback(context.t.pinned_searches.snapshot_failed);
+          }
+        }
+        return;
+      }
       switch (existing) {
         case final pin?:
           await notifier.rename(pin.id, name);
@@ -276,6 +372,7 @@ class _PinSearchActionState extends ConsumerState<_PinSearchAction> {
           final result = await notifier.pin(
             profileId: profileId,
             query: query,
+            queryStructure: widget.queryStructure,
             name: name,
             folderId: folderId,
           );
@@ -321,27 +418,14 @@ class _PinSearchActionState extends ConsumerState<_PinSearchAction> {
         }
       }
     });
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        IconButton(
-          tooltip: existing == null
-              ? context.t.pinned_searches.pin_title
-              : context.t.pinned_searches.manage_title,
-          icon: Icon(Symbols.push_pin, fill: existing == null ? 0 : 1),
-          onPressed: _busy || !subscriptions.hasValue
-              ? null
-              : () => _manage(profileId, existing),
-        ),
-        if (_error case final error?)
-          SizedBox(
-            width: 160,
-            child: Text(
-              error,
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
-            ),
-          ),
-      ],
+    return IconButton(
+      tooltip: existing == null
+          ? context.t.pinned_searches.pin_title
+          : context.t.pinned_searches.manage_title,
+      icon: Icon(Symbols.push_pin, fill: existing == null ? 0 : 1),
+      onPressed: _busy || !subscriptions.hasValue
+          ? null
+          : () => _manage(profileId, existing),
     );
   }
 }

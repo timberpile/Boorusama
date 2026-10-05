@@ -16,6 +16,7 @@ import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 import 'package:boorusama/core/posts/rating/types.dart';
 import 'package:boorusama/core/posts/sources/types.dart';
+import '../../../profile_uuid_utils.dart';
 
 const _postCount = 1000;
 const _runCount = 3;
@@ -69,15 +70,15 @@ void main() {
   test('profile resolution stays bounded and reports throughput', () {
     final configs = [
       for (var i = 0; i < 50; i++)
-        _config(id: i, url: 'https://profile-$i.example'),
+        _config(id: profileUuid(i), url: 'https://profile-$i.example'),
     ];
     final origins = [
       for (var i = 0; i < _originCount; i++)
         PostOrigin.fromSource(
           booruType: BooruType.danbooru,
           booruId: BooruType.danbooru.id,
-          source: 'https://profile-${i % configs.length}.example/posts/$i',
-          profileIdHint: i % configs.length,
+          source: 'https://profile-${i % configs.length}.example',
+          profileIdHint: profileUuid(i % configs.length),
         ),
     ];
     const resolver = PostOriginResolver();
@@ -194,7 +195,7 @@ Post _post(int id) {
       source: isDanbooru
           ? 'https://danbooru.donmai.us/posts/$id'
           : 'https://e621.net/posts/$id',
-      profileIdHint: isDanbooru ? 12 : 27,
+      profileIdHint: profileUuid(isDanbooru ? 12 : 27),
     ),
     core: PostCoreData(
       id: id,
@@ -288,7 +289,7 @@ int _median(Iterable<int> values) {
   return sorted[sorted.length ~/ 2];
 }
 
-BooruConfig _config({required int id, required String url}) =>
+BooruConfig _config({required String id, required String url}) =>
     BooruConfigData.anonymous(
       booru: BooruType.danbooru,
       booruHint: BooruType.danbooru,

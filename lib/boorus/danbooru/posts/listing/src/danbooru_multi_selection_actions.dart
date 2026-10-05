@@ -54,15 +54,16 @@ class DanbooruMultiSelectionActions extends ConsumerWidget {
                   }
                 : null,
             icon: const Icon(Symbols.add),
-            name: 'Add to Group'.hc,
+            name: context.t.post.action.add_to_favorite_group,
+            menuOnly: true,
           ),
-        if (ref.watch(isDevEnvironmentProvider))
-          if (loginDetails.hasLogin())
-            ref
-                .watch(danbooruCurrentUserProvider(config))
-                .when(
-                  data: (user) => user?.level.isUnres ?? false
-                      ? MultiSelectButton(
+        if (ref.watch(isDevEnvironmentProvider) && loginDetails.hasLogin())
+          ...ref
+              .watch(danbooruCurrentUserProvider(config))
+              .when(
+                data: (user) => user?.level.isUnres ?? false
+                    ? [
+                        MultiSelectButton(
                           onPressed: selectedPosts.isNotEmpty
                               ? () async {
                                   final shouldEnd =
@@ -77,12 +78,13 @@ class DanbooruMultiSelectionActions extends ConsumerWidget {
                                 }
                               : null,
                           icon: const Icon(Symbols.edit_square),
-                          name: 'Edit Rating'.hc,
-                        )
-                      : MultiSelectButton.shrink(),
-                  error: (error, _) => MultiSelectButton.shrink(),
-                  loading: () => MultiSelectButton.shrink(),
-                ),
+                          name: context.t.post.action.edit_rating,
+                        ),
+                      ]
+                    : const <Widget>[],
+                error: (error, _) => const <Widget>[],
+                loading: () => const <Widget>[],
+              ),
       ],
     );
   }

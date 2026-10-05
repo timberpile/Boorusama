@@ -87,7 +87,9 @@ class _PostScopeState<T extends Post> extends ConsumerState<PostScope<T>> {
 
           final bookmarkState = await ref.read(bookmarkProvider.future);
 
-          return bookmarkState.bookmarks.map((e) => e.url).toSet();
+          return bookmarkState.items
+              .map((bookmark) => bookmark.originalUrl)
+              .toSet();
         } catch (_) {
           return const {};
         }

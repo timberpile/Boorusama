@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 
+import 'command/animeboxes_command.dart';
 import 'command/build_command.dart';
 import 'command/doctor_command.dart';
 import 'command/gen_command.dart';
@@ -23,6 +24,7 @@ Future<void> runBoorusamaCli(List<String> args) async {
           'boorusama',
           'Boorusama development tool.',
         )
+        ..addCommand(AnimeBoxesCommand())
         ..addCommand(GenCommand())
         ..addCommand(I18nCommand())
         ..addCommand(BooruCommand())
@@ -51,6 +53,7 @@ void _printHelp() {
   print('-h, --help    Print this usage information.');
   print('');
   print('Available commands:');
+  print('  animeboxes  Convert AnimeBoxes Android exports.');
   print('  booru    Run booru client tooling.');
   print('  build    Build Boorusama artifacts.');
   print('  doctor   Check local build requirements.');

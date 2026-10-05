@@ -42,6 +42,7 @@ class _BlacklistedTagsViewScaffoldState
     extends ConsumerState<BlacklistedTagsViewScaffold> {
   final _searchController = TextEditingController();
   List<String>? _filteredTags;
+  var _showFilterControls = false;
 
   @override
   void initState() {
@@ -98,6 +99,27 @@ class _BlacklistedTagsViewScaffoldState
             },
             icon: const Icon(Symbols.add),
           ),
+          Semantics(
+            button: true,
+            label: _showFilterControls
+                ? context.t.blacklisted_tags.hide_filters
+                : context.t.blacklisted_tags.show_filters,
+            toggled: _showFilterControls,
+            onTap: () => setState(
+              () => _showFilterControls = !_showFilterControls,
+            ),
+            child: ExcludeSemantics(
+              child: IconButton(
+                tooltip: _showFilterControls
+                    ? context.t.blacklisted_tags.hide_filters
+                    : context.t.blacklisted_tags.show_filters,
+                onPressed: () => setState(
+                  () => _showFilterControls = !_showFilterControls,
+                ),
+                icon: const Icon(Symbols.filter_list),
+              ),
+            ),
+          ),
           ...widget.actions,
         ],
       ),
@@ -109,10 +131,11 @@ class _BlacklistedTagsViewScaffoldState
             ),
             child: Column(
               children: [
-                BlacklistedTagSearchBar(
-                  controller: _searchController,
-                  onSearch: _filterTags,
-                ),
+                if (_showFilterControls)
+                  BlacklistedTagSearchBar(
+                    controller: _searchController,
+                    onSearch: _filterTags,
+                  ),
                 Expanded(
                   child: BlacklistedTagList(
                     tags: _filteredTags,

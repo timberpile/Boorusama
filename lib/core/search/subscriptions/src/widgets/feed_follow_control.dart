@@ -14,7 +14,7 @@ import '../types/search_subscription.dart';
 
 List<SearchFollowingFeed> followedFeedsForQuery(
   SearchSubscriptionsState state,
-  int profileId,
+  String profileId,
   String query,
 ) {
   final identity = normalizeSearchIdentity(query);
@@ -35,10 +35,12 @@ List<SearchFollowingFeed> followedFeedsForQuery(
 class FeedFollowButton extends ConsumerWidget {
   const FeedFollowButton({
     required this.query,
+    this.compact = false,
     super.key,
   });
 
   final String query;
+  final bool compact;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -64,6 +66,24 @@ class FeedFollowButton extends ConsumerWidget {
             query: query,
           )
         : null;
+    if (compact) {
+      final colors = Theme.of(context).colorScheme;
+      return FilledButton(
+        onPressed: action,
+        style: FilledButton.styleFrom(
+          backgroundColor: count > 0
+              ? colors.surfaceContainerHighest
+              : colors.primary,
+          foregroundColor: count > 0
+              ? colors.onSurfaceVariant
+              : colors.onPrimary,
+          shape: const StadiumBorder(),
+          minimumSize: const Size(64, 48),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+        ),
+        child: Text(count > 0 ? strings.following : strings.follow),
+      );
+    }
     return TextButton.icon(
       onPressed: action,
       icon: icon,
@@ -74,7 +94,7 @@ class FeedFollowButton extends ConsumerWidget {
 
 Future<void> showFeedMembershipPicker(
   BuildContext context, {
-  required int profileId,
+  required String profileId,
   required String query,
 }) => showDialog<void>(
   context: context,
@@ -84,7 +104,7 @@ Future<void> showFeedMembershipPicker(
 class _FeedMembershipDialog extends ConsumerStatefulWidget {
   const _FeedMembershipDialog({required this.profileId, required this.query});
 
-  final int profileId;
+  final String profileId;
   final String query;
 
   @override
@@ -206,7 +226,7 @@ class _FeedMembershipDialogState extends ConsumerState<_FeedMembershipDialog> {
 class _CreateFeedDialog extends ConsumerStatefulWidget {
   const _CreateFeedDialog({required this.profileId, required this.query});
 
-  final int profileId;
+  final String profileId;
   final String query;
 
   @override

@@ -7,6 +7,7 @@ class MultiSelectButton extends StatelessWidget {
     required this.icon,
     required this.name,
     required this.onPressed,
+    this.menuOnly = false,
     super.key,
   });
 
@@ -15,6 +16,7 @@ class MultiSelectButton extends StatelessWidget {
   final Widget icon;
   final String name;
   final void Function()? onPressed;
+  final bool menuOnly;
 
   @override
   Widget build(BuildContext context) {

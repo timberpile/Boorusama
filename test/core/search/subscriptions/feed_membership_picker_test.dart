@@ -25,7 +25,7 @@ void main() {
           builder: (context) => TextButton(
             onPressed: () => showFeedMembershipPicker(
               context,
-              profileId: 12,
+              profileId: '00000000-0000-4000-8000-00000000000c',
               query: query,
             ),
             child: const Text('Open'),
@@ -66,7 +66,7 @@ void main() {
       expect(find.byType(AlertDialog), findsNothing);
       final feed = (await tester.runAsync(harness.repository.getFeeds))!.single;
       expect(feed.name, 'Characters');
-      expect(feed.profileId, 12);
+      expect(feed.profileId, '00000000-0000-4000-8000-00000000000c');
       expect(feed.sourceIds, hasLength(1));
       expect(
         (await tester.runAsync(
@@ -84,7 +84,7 @@ void main() {
     ) async {
       await tester.runAsync(
         () => harness.repository.saveFeed(
-          profileId: 12,
+          profileId: '00000000-0000-4000-8000-00000000000c',
           name: 'Existing',
           queries: ['cat'],
         ),

@@ -24,7 +24,7 @@ void main() {
     booruType: BooruType.gelbooruV1,
     booruId: BooruType.gelbooruV1.id,
     source: 'https://example.com/',
-    profileIdHint: 4,
+    profileIdHint: '00000000-0000-4000-8000-000000000004',
   );
 
   final emptyCases =

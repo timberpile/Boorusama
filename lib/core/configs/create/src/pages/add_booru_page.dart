@@ -12,8 +12,10 @@ import '../../../../analytics/providers.dart';
 import '../../../../boorus/booru/providers.dart';
 import '../../../../boorus/booru/types.dart';
 import '../../../../boorus/engine/providers.dart';
+import '../../../../config_widgets/website_logo.dart';
 import '../../../config/types.dart';
 import '../types/edit_booru_config_id.dart';
+import '../types/quick_profile_site.dart';
 import '../types/validator/booru_url_error.dart';
 import '../types/validator/booru_url_validator.dart';
 import 'add_unknown_booru_page.dart';
@@ -48,6 +50,12 @@ class _AddBooruPageState extends ConsumerState<AddBooruPage> {
         child: AddBooruPageInternal(
           backgroundColor: widget.backgroundColor,
           setCurrentBooruOnSubmit: widget.setCurrentBooruOnSubmit,
+          quickSetupSites: QuickProfileSiteCatalog.fromBoorus(
+            booruDb.getAllBoorus(),
+          ),
+          onQuickBooruSubmit: (site) => setState(() {
+            configId = site.toEditId();
+          }),
           onBooruSubmit: (url) => setState(() {
             configId = EditBooruConfigId.newId(
               booruType: BooruType.fromLegacyId(
@@ -168,11 +176,15 @@ class AddBooruPageInternal extends ConsumerStatefulWidget {
     super.key,
     this.backgroundColor,
     this.onBooruSubmit,
+    this.onQuickBooruSubmit,
+    this.quickSetupSites = const [],
   });
 
   final bool setCurrentBooruOnSubmit;
   final Color? backgroundColor;
   final void Function(String url)? onBooruSubmit;
+  final ValueChanged<QuickProfileSite>? onQuickBooruSubmit;
+  final List<QuickProfileSite> quickSetupSites;
 
   @override
   ConsumerState<AddBooruPageInternal> createState() =>
@@ -183,10 +195,13 @@ class _AddBooruPageInternalState extends ConsumerState<AddBooruPageInternal> {
   final urlController = TextEditingController();
   final booruUrlError = ValueNotifier(left(BooruUrlError.emptyUrl));
   final inputText = ValueNotifier('');
+  var showCustomSetup = false;
 
   @override
   void dispose() {
     urlController.dispose();
+    booruUrlError.dispose();
+    inputText.dispose();
     super.dispose();
   }
 
@@ -194,17 +209,19 @@ class _AddBooruPageInternalState extends ConsumerState<AddBooruPageInternal> {
   Widget build(BuildContext context) {
     return Material(
       color: widget.backgroundColor,
-      child: Stack(
-        children: [
-          _buildBody(),
-        ],
-      ),
+      child: showCustomSetup
+          ? _buildCustomSetup()
+          : QuickProfileSetupPicker(
+              sites: widget.quickSetupSites,
+              onSelected: (site) => widget.onQuickBooruSubmit?.call(site),
+              onCustomSite: () => setState(() => showCustomSetup = true),
+              onClose: Navigator.of(context).pop,
+            ),
     );
   }
 
-  Widget _buildBody() {
+  Widget _buildCustomSetup() {
     return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -216,14 +233,19 @@ class _AddBooruPageInternalState extends ConsumerState<AddBooruPageInternal> {
             horizontal: 12,
           ),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                context.t.booru.add_a_booru_site,
-                style: Kurumi.themeOf(context).textTheme.headlineSmall!
-                    .copyWith(
-                      fontWeight: FontWeight.w900,
-                    ),
+              IconButton(
+                onPressed: () => setState(() => showCustomSetup = false),
+                icon: const Icon(Symbols.arrow_back),
+              ),
+              Expanded(
+                child: Text(
+                  context.t.booru.add_a_booru_site,
+                  style: Kurumi.themeOf(context).textTheme.headlineSmall!
+                      .copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                ),
               ),
               IconButton(
                 onPressed: Navigator.of(context).pop,
@@ -330,6 +352,179 @@ class _AddBooruPageInternalState extends ConsumerState<AddBooruPageInternal> {
 
   void _onNext(String url) {
     widget.onBooruSubmit?.call(url);
+  }
+}
+
+class QuickProfileSetupPicker extends StatelessWidget {
+  const QuickProfileSetupPicker({
+    required this.sites,
+    required this.onSelected,
+    required this.onCustomSite,
+    super.key,
+    this.onClose,
+  });
+
+  final List<QuickProfileSite> sites;
+  final ValueChanged<QuickProfileSite> onSelected;
+  final VoidCallback onCustomSite;
+  final VoidCallback? onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Kurumi.themeOf(context);
+
+    return SafeArea(
+      bottom: false,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsetsDirectional.only(start: 16, end: 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    context.t.booru.quick_setup.popular_sites,
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+                if (onClose case final onClose?)
+                  IconButton(
+                    onPressed: onClose,
+                    icon: const Icon(Symbols.close),
+                  ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 16, 12),
+            child: Text(context.t.booru.quick_setup.description),
+          ),
+          Padding(
+            padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 16, 12),
+            child: OutlinedButton.icon(
+              onPressed: onCustomSite,
+              icon: const Icon(Symbols.add_link),
+              label: Text(context.t.booru.quick_setup.custom_site),
+            ),
+          ),
+          const Divider(height: 1, thickness: 2, indent: 16, endIndent: 16),
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              itemCount: sites.isEmpty ? 1 : sites.length,
+              itemBuilder: (context, index) {
+                if (sites.isEmpty) {
+                  return Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Text(context.t.booru.quick_setup.no_sites),
+                  );
+                }
+
+                final site = sites[index];
+                return _QuickProfileSiteTile(
+                  key: ValueKey('quick-profile-${site.url}'),
+                  site: site,
+                  onTap: () => onSelected(site),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _QuickProfileSiteTile extends StatelessWidget {
+  const _QuickProfileSiteTile({
+    required this.site,
+    required this.onTap,
+    super.key,
+  });
+
+  final QuickProfileSite site;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Kurumi.themeOf(context);
+
+    return Semantics(
+      button: true,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              SizedBox.square(
+                dimension: 40,
+                child: Center(
+                  child: ConfigAwareWebsiteLogo.fromBooruType(
+                    site.booruType,
+                    site.url,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        site.profileName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    if (site.authentication ==
+                        QuickProfileAuthentication.required) ...[
+                      const SizedBox(width: 4),
+                      Flexible(
+                        child: Container(
+                          key: ValueKey(
+                            'quick-profile-auth-required-${site.url}',
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 4,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.surfaceContainerHighest,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            context.t.booru.quick_setup.account_required,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            textScaler: MediaQuery.textScalerOf(context).clamp(
+                              maxScaleFactor: 1.2,
+                            ),
+                            textAlign: TextAlign.center,
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Icon(Symbols.chevron_right),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 

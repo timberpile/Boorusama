@@ -71,7 +71,7 @@ List<SettingEntry> _entries(
   SettingEntry(
     id: 'backup_and_restore',
     name: '/settings/backup_and_restore',
-    title: context.t.settings.backup_and_restore.backup_and_restore,
+    title: context.t.settings.backup_and_restore.export_import.title,
     icon: FontAwesomeIcons.cloudArrowDown,
     content: const BackupAndRestorePage(),
   ),

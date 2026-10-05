@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:boorusama/core/boorus/booru/types.dart';
@@ -40,6 +42,40 @@ void main() {
       );
 
       expect(logo.url, testCase.expected);
+    });
+  }
+
+  final assetCases = [
+    (
+      type: BooruType.danbooru,
+      url: 'https://danbooru.donmai.us/',
+      asset: 'assets/images/danbooru-logo.png',
+    ),
+    (
+      type: BooruType.hydrus,
+      url: 'http://127.0.0.1:45869/',
+      asset: 'assets/images/hydrus-logo.png',
+    ),
+  ];
+
+  for (final testCase in assetCases) {
+    testWidgets('${testCase.type.displayName} keeps its bundled site icon', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            home: ConfigAwareWebsiteLogo.fromBooruType(
+              testCase.type,
+              testCase.url,
+            ),
+          ),
+        ),
+      );
+
+      final image = tester.widget<Image>(find.byType(Image));
+      expect(image.image, isA<AssetImage>());
+      expect((image.image as AssetImage).assetName, testCase.asset);
     });
   }
 }

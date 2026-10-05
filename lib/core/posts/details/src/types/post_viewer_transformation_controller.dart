@@ -20,6 +20,7 @@ class PostViewerTransformationController {
       transformationController.value = Matrix4.identity();
     }
     _settledPage = page;
+    _autoStartHandledPostIds.clear();
   }
 
   bool tryAutoStartComicStrip({
@@ -34,6 +35,26 @@ class PostViewerTransformationController {
 
     _startComicStrip(geometry);
     return true;
+  }
+
+  ({bool left, bool right})? horizontalEdges(Size contentSize) {
+    final geometry = _geometry(contentSize);
+    if (geometry == null) return null;
+
+    final scale = transformationController.value.getMaxScaleOnAxis();
+    if (!scale.isFinite || scale <= 0) return null;
+
+    final (minimum, maximum) = _axisBounds(
+      viewportLength: geometry.viewport.width,
+      fittedLength: geometry.fitted.width,
+      fittedOffset: geometry.fittedOffset.dx,
+      scale: scale,
+    );
+    final translation = transformationController.value.getTranslation().x;
+    return (
+      left: translation >= maximum - 1,
+      right: translation <= minimum + 1,
+    );
   }
 
   void _startComicStrip(_ViewerGeometry geometry) {
@@ -115,14 +136,31 @@ double _constrainAxis({
   required double scale,
   required double translation,
 }) {
+  final (minimum, maximum) = _axisBounds(
+    viewportLength: viewportLength,
+    fittedLength: fittedLength,
+    fittedOffset: fittedOffset,
+    scale: scale,
+  );
+  return translation.clamp(minimum, maximum);
+}
+
+(double, double) _axisBounds({
+  required double viewportLength,
+  required double fittedLength,
+  required double fittedOffset,
+  required double scale,
+}) {
   final transformedLength = fittedLength * scale;
   if (transformedLength <= viewportLength) {
-    return viewportLength / 2 - scale * (fittedOffset + fittedLength / 2);
+    final center =
+        viewportLength / 2 - scale * (fittedOffset + fittedLength / 2);
+    return (center, center);
   }
 
   final minimum = viewportLength - scale * (fittedOffset + fittedLength);
   final maximum = -scale * fittedOffset;
-  return translation.clamp(minimum, maximum);
+  return (minimum, maximum);
 }
 
 bool _isValidSize(Size? size) =>

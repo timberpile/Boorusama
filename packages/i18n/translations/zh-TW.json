@@ -1,4 +1,8 @@
 {
+  "pinned_searches": {
+    "sort_updates_first": "有更新的搜尋優先",
+    "sort_last_post_oldest": "最舊的貼文優先"
+  },
   "generic": {
     "done": "完成",
     "errors": {
@@ -67,7 +71,8 @@
     },
     "action": {
       "view_comments": "查看評論",
-      "add_to_favorite_group": "新增至最愛群組",
+      "add_to_favorite_group": "新增至帳號最愛群組",
+      "edit_rating": "編輯評級",
       "view_in_browser": "在瀏覽器中查看",
       "view_original": "檢視原圖"
     }
@@ -318,7 +323,7 @@
     "empty_group_notice": "沒有最愛群組",
     "create_group": "建立群組",
     "edit_group": "編輯群組",
-    "add_to_group_dialog_title": "新增至最愛群組",
+    "add_to_group_dialog_title": "新增至帳號最愛群組",
     "add_to": "新增至",
     "create": "建立",
     "private": "私人",

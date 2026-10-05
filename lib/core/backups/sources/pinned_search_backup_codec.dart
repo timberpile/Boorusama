@@ -2,6 +2,7 @@
 import 'package:uuid/uuid.dart';
 
 // Project imports:
+import '../../search/subscriptions/types.dart';
 import '../types/types.dart';
 import '../utils/json_handler.dart';
 import 'pinned_search_backup_data.dart';
@@ -54,11 +55,21 @@ class PinnedSearchBackupCodec extends JsonHandler<PinnedSearchBackupData> {
         final String name => name.trim().isEmpty ? null : name.trim(),
         _ => throw InvalidBackupFormatException('$row.name is invalid'),
       };
+      final query = _nonBlankString(json['query'], '$row.query');
+      final queryStructure = SearchQueryStructure.tryParse(
+        json['queryStructure'],
+      );
       records.add(
         PinnedSearchBackupRecord(
           id: id,
           name: name,
-          query: _nonBlankString(json['query'], '$row.query'),
+          query: query,
+          queryStructure: switch (queryStructure) {
+            final SearchQueryStructure structure
+                when structure.matchesCanonicalQuery(query) =>
+              structure,
+            _ => null,
+          },
           position: _nonNegativeInt(json['position'], '$row.position'),
           profile: parseBackupProfile(json['profile'], '$row.profile'),
         ),
@@ -108,6 +119,8 @@ class PinnedSearchBackupCodec extends JsonHandler<PinnedSearchBackupData> {
         'id': record.id,
         'name': record.name,
         'query': record.query,
+        if (record.queryStructure case final structure?)
+          'queryStructure': structure.toJson(),
         'position': record.position,
         'profile': record.profile.toJson(),
       },
