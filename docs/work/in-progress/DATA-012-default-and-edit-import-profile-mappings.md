@@ -1,7 +1,7 @@
-# Default single-candidate import mappings and keep them editable
+# Share import profile mappings by website and engine
 
 Priority: Normal
-Affected feature: Import review for pinned searches and following feeds
+Affected feature: Shared import review mappings for bookmarks, pinned searches, and following feeds
 
 ## Problem
 
@@ -9,12 +9,13 @@ Importing pinned searches requires manually selecting a target profile even when
 
 ## Expected behavior and acceptance criteria
 
-- For each required profile mapping, preselect the target when exactly one valid candidate exists, including when its UUID differs from the exported profile UUID. This is an approved change to IDEA-002's explicit-mapping rule for unmatched UUIDs.
-- Preserve existing exact-UUID matching and engine/site conflict validation. Use the import planner's valid candidates; do not broaden compatibility merely to obtain one candidate.
-- With zero candidates, keep resolution required; with multiple candidates and no exact identity match, require explicit selection.
-- Keep the selected target visible and the mapping editable until import confirmation, for automatic and manual selections. Preserve the existing create-profile option where applicable.
-- Changing a target replans affected searches/feeds, invalidates previous preflight, and applies only the newly reviewed mapping. Preview interactions must not write application data.
-- Cover single, zero, and multiple candidates, changing a previously selected target, and dependent search/feed ownership in regression tests. Verify the visible import flow through the UI.
+- Build one global mapping per canonical website and engine across all selected bookmark, search, and feed dependencies. Display that site once, without repeating its hostname and full URL, and apply its chosen profile to every matching dependent entry.
+- Automatically select exactly one valid same-site, same-engine target even when its UUID differs from an exported reference. Hide the target selection control for that sole target.
+- With multiple valid profiles, keep one shared target control visible and editable. Preserve exact-UUID identity safety and conflict validation; do not silently merge incompatible identities or broaden matching to another website.
+- With no valid target, block Apply and show an actionable warning naming the website, directing the user to create a profile through the regular profile flow or skip affected items. Remove inline automatic profile creation from import review.
+- Changing a shared target replans affected bookmarks/searches/feeds, replaces previous preflight, and applies only the newly reviewed mapping. Preview interactions must not write application data.
+- Deselected or skipped dependents do not create irrelevant mappings. One selection applies consistently across categories; multiple accounts remain explicitly selectable.
+- Cover cross-category shared mapping, canonical site equivalence, zero/single/multiple profiles, UUID conflicts, changing a target and dependent ownership in focused tests. Verify visible shared review UI.
 
 ## Context and scope
 
@@ -45,3 +46,17 @@ Limit changes to mapping defaults and continued editability. Dialog layout and r
 - Queue ID corrected from DATA-007 to DATA-012 on 2026-10-05 because the old ID already existed in done/. Branch/worktree retained as the same ticket workspace.
 
 - Independent review: no issues found; reviewer reran 44 focused tests successfully. Coordinator reviewed the scoped diff; pending root/user review, remains in-progress.
+
+## Coordinated review status (2026-10-05)
+
+Implementation: `9b6ff5ab4 + ed174c313`. Independent review approved; editable/default mapping regressions and UI check passed.
+
+Combined verification is isolated in `.worktrees/nine-release-fixes-review` on `review/nine-release-fixes`. The final combined serial Flutter suite passed all 2,206 tests (exit 0); the unchanged current CLI implementation passed all 239 tests. The final Dev APK built successfully. Analysis of 29 changed Dart files found no errors or warnings; two unchanged baseline const-style informational lints remain. Development integration, publication, and cleanup have not been performed. Keep this ticket in progress pending final combined checks and its remaining acceptance evidence.
+
+## Revised user feedback (2026-10-05)
+
+The initial implementation is superseded by the acceptance criteria above: duplicate category mappings and repeated site labels were rejected. DATA-012 owns shared page, mapper UI, and dependency planner/notifier grouping changes. DATA-010 owns bookmark dependency/application tests and the Realbooru regular-versus-import-created investigation. Root will provide the integrated develop base before rebase; no integration or publication is authorized for this revision. Implementer `/root/import_coordinator/data007` resumes in the existing same-ticket branch/worktree.
+
+### Shared identity decision
+
+When active references for one canonical site/engine exactly match different local accounts, require an explicit shared target instead of choosing between them automatically. Auto-default may use a sole valid candidate or one exact target agreed by the references. Any exported UUID already bound to a different engine/site remains a blocking conflict regardless of a shared selection.
