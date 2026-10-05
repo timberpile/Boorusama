@@ -27,8 +27,12 @@ A persisted profile is not intrinsically necessary for a public media request: i
 
 User requested investigation first and approved a general per-website profile requirement if the dependency was confirmed. Relevant code: `bookmark_scroll_view.dart`, `PostOriginResolver`, `PostPagePresentationScope`, `httpHeadersProvider`, `GelbooruV2Repository.extraHttpHeaders`, and `ImportFlowNotifier._profileDependencies`.
 
-Coordinate with [DATA-007](DATA-007-default-and-edit-import-profile-mappings.md), [DATA-013](DATA-013-improve-import-profile-mapping-layout.md), and [DATA-009](DATA-009-identify-unresolved-import-profile-messages.md). Silent recovery after opening is [POST-008](POST-008-silently-recover-incomplete-bookmarks-on-open.md).
+Coordinate with [DATA-012](../in-progress/DATA-012-default-and-edit-import-profile-mappings.md), [DATA-013](DATA-013-improve-import-profile-mapping-layout.md), and [DATA-009](DATA-009-identify-unresolved-import-profile-messages.md). Silent recovery after opening is [POST-008](POST-008-silently-recover-incomplete-bookmarks-on-open.md).
 
 Relevant documentation: [bookmark groups](../../bookmark_groups.md), [unified post design](../../superpowers/specs/2026-09-22-unified-post-model-and-viewer-design.md), and [unified import design](../../superpowers/specs/2026-10-01-unified-export-import-design.md). Follow [development workflow](../../development_workflow.md) and [engineering guidelines](../../engineering_guidelines.md).
 
 This ticket is unclaimed; implementation must be delegated in its own branch/worktree. Private source data and media URLs must remain outside committed fixtures and reports.
+
+## Claim
+
+Claimed 2026-10-05 by coordinator `/root`; implementer `/root/data010_profiles`; branch `fix/data-010-bookmark-profile-preflight`; dedicated worktree `/home/timber/code/Boorusama/.worktrees/data-010-bookmark-profile-preflight`. Implementation queued for the next available slot; review pending.

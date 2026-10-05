@@ -20,6 +20,15 @@ The reported Android screenshot shows profile information, target selection, and
 
 Layout approved by the user on 2026-10-05: information above; target selector “or” Create profile below; vertical fallback when needed. The screenshot contains rule34.xxx, danbooru.donmai.us, and gelbooru.com cards illustrating excessive URL wrapping.
 
-Relevant code: `lib/core/backups/export_import/import/import_flow_page.dart`, profile mapping card. Coordinate with [DATA-007](DATA-007-default-and-edit-import-profile-mappings.md), which changes mapping defaults and continued editability. Repeated dependency messages are a separate workitem; this ticket does not change compatibility or planning rules.
+Relevant code: `lib/core/backups/export_import/import/import_flow_page.dart`, profile mapping card. Coordinate with [DATA-012](../in-progress/DATA-012-default-and-edit-import-profile-mappings.md), which changes mapping defaults and continued editability. Repeated dependency messages are a separate workitem; this ticket does not change compatibility or planning rules.
 
-Follow [development workflow](../../development_workflow.md) and [engineering guidelines](../../engineering_guidelines.md). This ticket is unclaimed; implementation must be delegated in its own branch/worktree.
+Follow [development workflow](../../development_workflow.md) and [engineering guidelines](../../engineering_guidelines.md). Implementation is delegated in its dedicated branch/worktree.
+
+## Claim and progress
+
+- Claimed 2026-10-05 by coordinator `/root/import_coordinator`; session rooted at `/root`.
+- Branch: `fix/data-013-import-profile-layout`.
+- Worktree: `/home/timber/code/Boorusama/.worktrees/data-013-import-profile-layout`.
+- Implementer: `/root/import_coordinator/data013`.
+- Dependency: reviewed DATA-012 commits `9b6ff5ab4` and `ed174c313`, carried onto this dedicated branch from current local develop; these inherited commits are not DATA-013 implementation.
+- Status: implementation pending; no integration or publication authorized.

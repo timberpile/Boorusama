@@ -25,3 +25,7 @@ Relevant code: `lib/core/backups/export_import/widgets/import_action_editor.dart
 Relevant documentation: [bookmark groups](../../bookmark_groups.md), [unified import design](../../superpowers/specs/2026-10-01-unified-export-import-design.md), and [AnimeBoxes migration](../../migrations/animeboxes.md).
 
 Follow [development workflow](../../development_workflow.md) and [engineering guidelines](../../engineering_guidelines.md). This ticket is unclaimed; implementation must be delegated in its own branch/worktree. Coordinate with ongoing import tickets before touching shared files.
+
+## Claim
+
+Claimed 2026-10-05 by coordinator `/root`; implementer `/root/data011_merge`; branch `fix/data-011-bookmark-merge-into`; dedicated worktree `/home/timber/code/Boorusama/.worktrees/data-011-bookmark-merge-into`. Implementation queued for the next available slot; review pending.

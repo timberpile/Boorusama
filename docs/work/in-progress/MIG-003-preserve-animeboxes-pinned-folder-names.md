@@ -23,3 +23,7 @@ Read-only inspection of the existing normalized real-export artifact found six f
 Relevant code: `packages/boorusama_cli/lib/src/migrations/animeboxes/csv_reader.dart`, `normalizer.dart`, and `boorusama_exporter.dart`. Related completed work: [MIG-002](../done/MIG-002-update-animeboxes-converter.md). Documentation: [AnimeBoxes migration](../../migrations/animeboxes.md) and [converter design](../../superpowers/specs/2026-09-24-animeboxes-export-converter-design.md).
 
 Follow [development workflow](../../development_workflow.md) and [engineering guidelines](../../engineering_guidelines.md). This ticket is unclaimed; implementation must be delegated in its own branch/worktree.
+
+## Claim
+
+Claimed 2026-10-05 by coordinator `/root`; implementer `/root/mig003_names`; branch `fix/mig-003-folder-names`; dedicated worktree `/home/timber/code/Boorusama/.worktrees/mig-003-folder-names`. Implementation and review pending.

@@ -25,3 +25,7 @@ User reported first-use failure and accepted empty-source representation, omissi
 Relevant code: `lib/core/backups/export_import/sources/legacy_sqlite_source_adapter.dart`, `lib/core/backups/sources/search_history_source.dart`, `downloads_source.dart`, and the source repository providers. Relevant documentation: [unified export/import design](../../superpowers/specs/2026-10-01-unified-export-import-design.md).
 
 Follow [development workflow](../../development_workflow.md) and [engineering guidelines](../../engineering_guidelines.md). This ticket is unclaimed; implementation must be delegated in its own branch/worktree.
+
+## Claim
+
+Claimed 2026-10-05 by coordinator `/root`; implementer `/root/data014_export`; branch `fix/data-014-empty-export-sources`; dedicated worktree `/home/timber/code/Boorusama/.worktrees/data-014-empty-export-sources`. Implementation and review pending.

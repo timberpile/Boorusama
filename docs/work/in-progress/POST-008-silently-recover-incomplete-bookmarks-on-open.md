@@ -22,3 +22,7 @@ Approved by the user on 2026-10-05. Keep this a small extension of the existing 
 Relevant code: `lib/core/bookmarks/src/pages/bookmark_details_page.dart` and `lib/core/posts/details/src/widgets/mixed_post_details_page.dart`. Relevant documentation: [unified post design](../../superpowers/specs/2026-09-22-unified-post-model-and-viewer-design.md) and [AnimeBoxes migration](../../migrations/animeboxes.md).
 
 Follow [development workflow](../../development_workflow.md) and [engineering guidelines](../../engineering_guidelines.md). This ticket is unclaimed; implementation must be delegated in its own branch/worktree.
+
+## Claim
+
+Claimed 2026-10-05 by coordinator `/root`; implementer `/root/post008_recovery`; branch `fix/post-008-silent-bookmark-recovery`; dedicated worktree `/home/timber/code/Boorusama/.worktrees/post-008-silent-bookmark-recovery`. Implementation queued for the next available slot; review pending.
