@@ -28,7 +28,7 @@ Das Mockup anschließend gemeinsam genau besprechen und nach Rückmeldung anpass
 
 ## Kontext und Abhängigkeiten
 
-[Export-/Import-Design](../../superpowers/specs/2026-10-01-unified-export-import-design.md), [Bookmark-Regeln](../../bookmark_groups.md). Mit laufenden Import-Tickets koordinieren, insbesondere [DATA-012 Profil-Mappings](../in-progress/DATA-012-default-and-edit-import-profile-mappings.md) und [DATA-011 Merge-Zielauswahl](../in-progress/DATA-011-fix-bookmark-merge-into-selection.md); bestehende Claims nicht übernehmen. Aktuelle Bookmark-Identitätsregeln haben Vorrang vor älteren Abschnitten im Export-Design.
+[Export-/Import-Design](../../superpowers/specs/2026-10-01-unified-export-import-design.md), [Bookmark-Regeln](../../bookmark_groups.md). Mit laufenden Import-Tickets koordinieren, insbesondere [DATA-012 Profil-Mappings](../in-progress/DATA-012-default-and-edit-import-profile-mappings.md) und [DATA-011 Merge-Zielauswahl](../done/DATA-011-fix-bookmark-merge-into-selection.md); bestehende Claims nicht übernehmen. Aktuelle Bookmark-Identitätsregeln haben Vorrang vor älteren Abschnitten im Export-Design.
 
 Vor Umsetzung [Entwicklungsworkflow](../../development_workflow.md) und [Engineering Guidelines](../../engineering_guidelines.md) beachten. Dieses Ticket ist unclaimed; Umsetzung benötigt einen eigenen Branch/Worktree und einen Implementer gemäß Queue-Regeln.
 

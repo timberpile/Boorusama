@@ -22,7 +22,7 @@ Warnungen und Fehler scheinen häufig keine hilfreichen Details im Log zu hinter
 
 Die Aufgabe umfasst appweite Diagnosequalität, keine pauschale Aktivierung sämtlicher Debug-/Netzwerk-Payload-Logs und kein vollständiges neues Logging-System. Bestehende Logger und Log-Zugriff verwenden; strukturelle Anpassungen nur soweit für zuverlässige Fehlerdiagnose nötig.
 
-[Post-Architektur](../../post_architecture.md), Datenschutzabschnitt im [Export-/Import-Design](../../superpowers/specs/2026-10-01-unified-export-import-design.md). [POST-008](../in-progress/POST-008-silently-recover-incomplete-bookmarks-on-open.md) behandelt automatische Recovery, dieses Ticket deren Diagnose; laufenden Claim nicht übernehmen.
+[Post-Architektur](../../post_architecture.md), Datenschutzabschnitt im [Export-/Import-Design](../../superpowers/specs/2026-10-01-unified-export-import-design.md). [POST-008](../done/POST-008-silently-recover-incomplete-bookmarks-on-open.md) behandelt automatische Recovery, dieses Ticket deren Diagnose; laufenden Claim nicht übernehmen.
 
 Vor Untersuchung eines Subsystems dessen Dokumentation lesen. Vor Umsetzung [Entwicklungsworkflow](../../development_workflow.md) und [Engineering Guidelines](../../engineering_guidelines.md) beachten. Dieses Ticket ist unclaimed; Umsetzung benötigt einen eigenen Branch/Worktree und einen Implementer gemäß Queue-Regeln.
 

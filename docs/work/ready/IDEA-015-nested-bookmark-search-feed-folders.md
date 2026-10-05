@@ -1,36 +1,31 @@
-# Add independent nested folders for bookmarks, pins, and feeds
+# Virtuelle Ordnerdarstellung flacher Gruppen über `//` im Namen
 
 Priority: Normal
-Affected feature: Bookmark groups, Pinned Searches, Following Feeds, backup/import
+Affected feature: Bookmark-Gruppen und Pinned-Search-Gruppen / Darstellung und Navigation
 
-## Problem
+## Problem und Ziel
 
-Flat organization does not scale as users collect groups, Pinned Searches, and Following Feeds. These features need arbitrary-depth navigation without mixing their distinct membership, `NEW`, and deletion semantics.
+Der Nutzer möchte insbesondere Gruppen einer anderen Person gemeinsam unter deren Namen sehen, während eigene Gruppen flach bleiben können. Eine echte gespeicherte Hierarchie verursacht für diesen Bedarf zu viele Randfälle und wird nicht weiterverfolgt. Stattdessen bleiben Gruppen intern flach; ihre Namen erzeugen lediglich eine verschachtelte UI-Darstellung.
 
-## Expected behavior
+## Vereinbartes Design und Akzeptanzkriterien
 
-Bookmarks, independent Pinned Searches, and Following Feeds each have their own folder tree with shared navigation controls. Users can create, rename, order, and move folders/items at any depth. Child folders precede items; breadcrumbs collapse older segments behind overflow. Folder cards show recursive counts, applicable aggregate `NEW`, and up to four deterministic descendant previews, all from local data.
+- `//` ist der Trenner virtueller Ordnerebenen. Ein einzelnes `/` bleibt ein normal verwendbares Zeichen im Namen: `Cookie//Artists` erscheint unter Cookie als Artists; `Cookie//Landscape/City` erscheint dort als Landscape/City.
+- Die gespeicherte Gruppe behält ihre UUID und ihren vollständigen Namen. Keine Eltern-IDs, gespeicherte Ordnerbäume oder neue Hierarchie-Migration einführen. Export/Import transportiert weiterhin flache Gruppennamen und bestehende Identitäten.
+- Virtuelle Zwischenordner sind aus Namen abgeleitet und haben keine eigene gespeicherte Identität. Ohne eine reale Gruppe Cookie kann der Nutzer Bookmarks nicht direkt in Cookie ablegen.
+- Existieren Cookie und Cookie//Artists gleichzeitig als reale Gruppen, zeigt die Cookie-Ebene sowohl den eigenen Gruppeninhalt als auch die virtuelle Untergruppe. Keine zusätzliche Gruppe automatisch erstellen und keine Mitgliedschaften verlagern.
+- Gruppen ohne Trenner bleiben flach. Entfernen des letzten namensbasierten Nachfahren lässt einen rein virtuellen Ordner verschwinden; eigenständige leere virtuelle Ordner werden nicht gespeichert.
+- Gruppen verschiedener UUIDs dürfen nicht wegen gleicher Namen oder Pfade zusammengeführt werden. Bestehende Bookmark-Mehrfachmitgliedschaften und Pinned-Search-Zuordnungen bleiben unverändert.
+- Kein zusätzlicher Überordner-/Präfix-Picker beim Import. Nutzer können ihre lokalen Gruppen selbst umbenennen.
+- [BM-005](BM-005-preserve-group-name-on-import-update.md) stellt sicher, dass Bookmark group Update nur den Inhalt ändert und den lokalen Namen samt virtueller Platzierung behält. Übrige Importaktionen werden nicht umgestaltet.
 
-## Decisions and edge cases
+## Vor Umsetzung zu konkretisierende UI-Regeln
 
-- One reusable tree contract/UI serves three separate roots, not one mixed hierarchy. Each folder has one nullable parent UUID in its own tree; null means root. Persist UUID, parent UUID, sibling order, and item placement. No self-parenting, cycles, multiple parents, or cross-feature moves. Sibling names are case-insensitively unique; duplicates elsewhere are allowed. No user-visible depth limit.
-- A bookmark may belong to several leaf folders; `Ungrouped` shows bookmarks with no memberships. Each independent Pinned Search and feed has exactly one parent/root. Feed-internal searches stay out of the Pinned Search tree.
-- Folder deletion is destructive and recursive. Before confirmation, show counts for folders, affected bookmarks, bookmarks to be deleted entirely, and applicable pin/feed items. Recompute if the persisted subtree changes before commit. Never promote descendants.
-- Delete as if removing content deepest-to-top: remove bookmark memberships inside the subtree, delete a bookmark record only if no membership survives outside it, delete independent pins/feeds placed there, then remove folders bottom-up. Commit atomically from the UI perspective; cancellation or persistence failure leaves everything intact.
-- Traverse and validate arbitrary depth iteratively with visited-node tracking. Import rejects missing, cross-feature, self, and cyclic parents before writes. Existing bookmark groups and Pinned Search folders enter as root-level folders with IDs, membership, and order preserved; feeds start at root. New backup/export stores parent and order; legacy flat imports land at root.
+Navigation, Darstellung einer Ebene mit eigenem Gruppeninhalt, Verhalten leerer Namenssegmente sowie Groß-/Kleinschreibung und Kollisionen im virtuellen Pfad konkret zeigen und besprechen. Sollten virtuelle Ordner Sammelaktionen zum Umbenennen oder Löschen bekommen, betrifft das mehrere echte Gruppen und benötigt eine verständliche Vorschau; keine alten Anforderungen an rekursive Baumoperationen ungeprüft übernehmen.
 
-## Acceptance criteria
+Die frühere Planung umfasste auch Following-Feed-Ordner. Dafür keine echte Ordnerstruktur mehr einführen; eine zusätzliche Feed-Darstellung über Namen ist vor Umsetzung gesondert zu konkretisieren und nicht automatisch durch diesen vereinfachten Gruppenentwurf freigegeben.
 
-- All three roots support arbitrary-depth creation, navigation, ordering, moves, compact breadcrumbs, and cycle prevention. Restart and import preserve identity, placement, and order.
-- Recursive counts, previews, and `NEW` require no network; previews follow depth-first manual order and deduplicate bookmarks shared across descendants.
-- A changed deletion preview cannot silently commit. Confirmation removes the entire subtree and affected items without promotion; cancellation and persistence failure preserve it.
-- A bookmark shared outside the deleted subtree survives there; one whose last membership is in the subtree is deleted. Pinned Searches and feeds retain single-parent semantics after moves, import, and profile deletion.
-- Malformed import graphs fail preflight before mutation. Existing flat groups/folders migrate to root preserving identity and order; backup round-trips parent/order; old flat imports land at root.
-- Renaming/moving a Favorites target preserves its IDEA-010 group reference. Editing a Pinned Search preserves folder placement.
+## Kontext und Entscheidung
 
-## Context and dependencies
+2026-10-05: Nutzer ersetzt den bisherigen Plan einer echten verschachtelten Struktur durch virtuelle Darstellung flacher Gruppen. `//` wurde als Trenner gewählt, damit `/` normal nutzbar bleibt. Ein Import-Präfix wird ausdrücklich nicht benötigt. Der Dateiname bleibt als stabile Ticketreferenz erhalten; die frühere Parent-UUID-/Baum-Migrationsplanung ist superseded.
 
-Bookmark membership uses IDEA-004 post identity. Completed IDEA-026 editing behavior must retain placement. IDEA-010 targets stay ordinary bookmark groups. Feed backup semantics stay separate from Pinned Search backup semantics, including in the ongoing export rewrite.
-
-- [Bookmark architecture](../../bookmark_groups.md)
-- [Pinned Search and Following Feed architecture](../../pinned_searches.md)
+[Bookmark-Architektur](../../bookmark_groups.md), [Pinned-Search-Architektur](../../pinned_searches.md). IDEA-010-Zielgruppenreferenzen bleiben durch unveränderte UUIDs erhalten. Unclaimed; keine Umsetzung erfolgt oder beauftragt. Vor Umsetzung [Entwicklungsworkflow](../../development_workflow.md) und [Engineering Guidelines](../../engineering_guidelines.md) beachten.
