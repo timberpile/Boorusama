@@ -103,9 +103,13 @@ class _ReviewImport extends ConsumerWidget {
         source.id: _localizedSourceLabel(context, source.id),
     };
     final localLabels = ref.watch(exportSelectionLabelsProvider).children;
+    final profiles = ref.watch(booruConfigProvider);
     final profileNames = {
-      for (final profile in ref.watch(booruConfigProvider))
-        profile.id: profile.name,
+      for (final profile in profiles)
+        profile.id:
+            profiles.where((other) => other.name == profile.name).length > 1
+            ? '${profile.name} · ${profile.url}'
+            : profile.name,
     };
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 16),
@@ -661,53 +665,113 @@ class _ProfileMappingTile extends StatelessWidget {
   final VoidCallback onCreate;
 
   @override
-  Widget build(BuildContext context) => Card(
-    child: ListTile(
-      title: Text(mapping.reference.name),
-      subtitle: Text(
-        '${mapping.reference.booruType} · ${mapping.reference.url}',
-      ),
-      trailing: Wrap(
-        spacing: 8,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: [
-          if (mapping.candidateIds.isNotEmpty && !mapping.createdFromReference)
-            DropdownButton<String>(
-              value: mapping.candidateIds.contains(mapping.profileId)
-                  ? mapping.profileId
-                  : null,
-              hint: Text(
-                context.t.settings.backup_and_restore.export_import.target,
-              ),
-              items: [
-                for (final id in mapping.candidateIds)
-                  DropdownMenuItem(
-                    value: id,
-                    child: Text(profileNames[id] ?? '$id'),
-                  ),
-              ],
-              onChanged: (value) {
-                if (value != null) onChanged(value);
-              },
-            ),
-          if (mapping.createdFromReference)
-            Text(
-              context.t.settings.backup_and_restore.export_import.new_profile,
-            )
-          else
-            TextButton(
-              onPressed: onCreate,
-              child: Text(
-                context
-                    .t
-                    .settings
-                    .backup_and_restore
-                    .export_import
-                    .create_profile,
+  Widget build(BuildContext context) {
+    final strings = context.t.settings.backup_and_restore.export_import;
+    final hasSelector =
+        mapping.candidateIds.isNotEmpty && !mapping.createdFromReference;
+    final selector = Semantics(
+      label: '${strings.target}: ${mapping.reference.name}',
+      child: DropdownButton<String>(
+        isExpanded: true,
+        itemHeight: null,
+        value: mapping.candidateIds.contains(mapping.profileId)
+            ? mapping.profileId
+            : null,
+        hint: Text(strings.target),
+        items: [
+          for (final id in mapping.candidateIds)
+            DropdownMenuItem(
+              value: id,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Text(profileNames[id] ?? id),
               ),
             ),
         ],
+        onChanged: (value) {
+          if (value != null) onChanged(value);
+        },
       ),
-    ),
-  );
+    );
+    final create = TextButton(
+      onPressed: onCreate,
+      child: Text(strings.create_profile),
+    );
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              mapping.reference.name,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 4),
+            Text('${mapping.reference.booruType} · ${mapping.reference.url}'),
+            const SizedBox(height: 12),
+            if (mapping.createdFromReference)
+              Text(strings.new_profile)
+            else if (!hasSelector)
+              Align(alignment: AlignmentDirectional.centerStart, child: create)
+            else
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final style = Theme.of(context).textTheme.labelLarge!;
+                  final scaler = MediaQuery.textScalerOf(context);
+                  final actionWidth =
+                      (TextPainter(
+                        text: TextSpan(
+                          text: strings.create_profile,
+                          style: style,
+                        ),
+                        textDirection: Directionality.of(context),
+                        textScaler: scaler,
+                      )..layout()).width +
+                      32;
+                  final orWidth = (TextPainter(
+                    text: TextSpan(text: strings.or, style: style),
+                    textDirection: Directionality.of(context),
+                    textScaler: scaler,
+                  )..layout()).width;
+                  final vertical =
+                      constraints.maxWidth <
+                      actionWidth + orWidth + 32 + scaler.scale(180);
+                  return vertical
+                      ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            selector,
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              child: Text(
+                                strings.or,
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                            Align(
+                              alignment: AlignmentDirectional.centerStart,
+                              child: create,
+                            ),
+                          ],
+                        )
+                      : Row(
+                          children: [
+                            Expanded(child: selector),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                              ),
+                              child: Text(strings.or),
+                            ),
+                            create,
+                          ],
+                        );
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
 }

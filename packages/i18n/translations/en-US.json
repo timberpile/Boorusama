@@ -941,6 +941,7 @@
         "recommended": "Recommended",
         "target": "Target",
         "create_profile": "Create profile",
+        "or": "or",
         "new_profile": "New profile",
         "cancel": "Cancel",
         "import_defaults": "Suggested import behavior",
