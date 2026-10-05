@@ -80,19 +80,20 @@ verification details in work reports or review discussions instead.
   Commit summary, such as `feat(dev): reserve emulators across agent sessions`.
   Do not use `Merge branch '<branch-name>'` for a squash commit. Keep the
   summary only, without a commit description.
-- Except for the explicitly documented `upstream/master` synchronization,
-  every local commit added to `develop` must have one parent. Never merge a
-  feature or fix branch into local `develop` with a merge commit; squash or
-  replay its approved change onto current local `develop` instead.
-- Before pushing local `develop`, verify that its outgoing range contains no
-  merge commits:
+- Except for the explicitly documented upstream and release-history
+  synchronization, every local commit added to `develop` must have one parent.
+  Never merge a feature or fix branch into local `develop` with a merge commit;
+  squash or replay its approved change onto current local `develop` instead.
+- Before pushing local `develop`, inspect merge commits in its outgoing range:
 
   ```bash
   git rev-list --min-parents=2 origin/develop..develop
   ```
 
-  The command must produce no output. If it prints a commit, rebuild the
-  unpushed commits as a linear chain before pushing.
+  Each listed merge must be an existing release commit reachable from
+  `origin/master`, or an explicitly authorized upstream or release-history
+  synchronization following the procedures below. Feature and fix merge
+  commits are prohibited; rebuild those unpushed changes as a linear chain.
 - Direct commits to `master` remain prohibited.
 
 ## Features and fixes
@@ -204,6 +205,67 @@ The merge commit has the previous `develop` tip and the incorporated `upstream/m
    ```bash
    git push origin develop
    ```
+
+## Release promotion and history synchronization
+
+Prepare the version and changelog on `develop`, then publish it with explicit
+authorization. Open a pull request from `develop` to `master`. Wait for
+`Pull request policy` and `Release validation` to pass, obtain explicit approval,
+and use **Create a merge commit** with the title `Merge branch 'develop'`.
+Never squash or rebase a release promotion. Tag and build the approved release
+commit on `master`; publishing a release requires separate authorization.
+
+### After every release promotion
+
+Before adding new work to `develop`, synchronize the release merge commit back
+into it. The two branches have the same files, but the merge commit records
+the completed release. With explicit authorization to push `develop`, use a
+clean checkout:
+
+```bash
+git fetch origin
+git switch develop
+git merge --ff-only origin/develop
+git merge --ff-only origin/master
+git push origin develop
+```
+
+This preserves shared history without creating another merge commit. If the
+fast-forward fails because `develop` already contains new work, use the next
+procedure; do not reset or rebase the shared branch.
+
+### If a release pull request is behind master
+
+The required up-to-date check needs the previous release merge commit to be
+an ancestor of `develop`, even when that commit introduces no new file changes.
+If synchronization was missed and `develop` has advanced, merge `origin/master`
+back into `develop`. Obtain explicit authorization for this local merge and
+push, then use a clean checkout:
+
+```bash
+git fetch origin
+git switch develop
+git merge --ff-only origin/develop
+git merge --no-ff origin/master \
+  -m "chore: synchronize release history from master"
+git diff HEAD^ HEAD
+```
+
+When only release history was missing, the diff must be empty. If files change
+or conflicts occur, review and verify those changes before publishing; do not
+treat them as a history-only synchronization. Verify that `origin/master` is
+now an ancestor, then push the authorized result:
+
+```bash
+git merge-base --is-ancestor origin/master develop
+git push origin develop
+```
+
+The existing release pull request updates automatically and its checks rerun.
+Wait for the checks before merging it, then perform the post-release
+fast-forward above. `develop` protection must allow merge commits for these
+synchronizations and upstream merges; ordinary feature/fix integration still
+uses single-parent commits.
 
 ## Protected branches
 
