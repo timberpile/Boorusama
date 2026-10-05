@@ -1,3 +1,38 @@
+# 4.5.0-timberpile.3
+
+## Breaking changes
+
+- **Existing profiles, pinned searches, following feeds, and bookmarks from older versions are not migrated and will no longer appear.**
+- Older profile and bookmark exports are no longer supported.
+- Bookmark imports now require a matching site profile.
+- Scheduled refresh for pinned searches and feeds is disabled; use manual refresh.
+
+## Major changes
+
+- Redesign data export, import, and sharing.
+- Make it easier to review imports before applying them.
+- Open shared export files in Boorusama and transfer data between devices more easily.
+- Add an AnimeBoxes export converter.
+- Add quick setup for popular sites.
+- Improve pinned-search editing, folders, and sorting.
+- Improve presentation and usability of pinned folders and following feeds.
+- Improve navigation and gestures in the post viewer.
+- Simplify sharing, copying, and saving posts.
+
+## Fixes and improvements
+
+- Avoid duplicate bookmarks across profiles and keep them when image links change.
+- Fix full-size images on Realbooru.
+- Fix Rule34 loading after completing a security challenge.
+- Improve artist and uploader previews.
+- Add artist following in Danbooru post details and clarify favorite-group actions.
+- Simplify search controls and keep typed searches when pinning.
+- Show upload dates and allow blacklist filters to collapse.
+- Fix profile editing and merging imported bookmark groups.
+- Fix full exports when some app features have not been used yet.
+- Recover missing bookmark details automatically when opening posts.
+- Preserve AnimeBoxes folder names and simplify import profile selection and messages.
+
 # 4.5.0-timberpile.2
 - Unlock Boorusama Plus features for every installation
 - Add Pixiv support
