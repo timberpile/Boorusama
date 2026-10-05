@@ -196,9 +196,9 @@ void main() {
       ),
     );
 
-    expect(find.text('New copy'), findsOneWidget);
+    expect(find.text('Copy'), findsOneWidget);
     expect(find.text('Update'), findsNothing);
-    expect(find.text('Merge into'), findsNothing);
+    expect(find.text('Merge into...'), findsNothing);
     expect(find.byType(DropdownButton<ImportAction>), findsNothing);
     expect(find.byType(KurumiSettingsTile<ImportAction>), findsNWidgets(2));
   });
@@ -222,7 +222,7 @@ void main() {
       ),
     );
 
-    for (final label in ['Update', 'Merge', 'Merge into', 'New copy']) {
+    for (final label in ['Update', 'Merge', 'Merge into...', 'Copy']) {
       expect(find.text(label), findsOneWidget);
     }
   });

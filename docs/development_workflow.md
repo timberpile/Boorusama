@@ -220,6 +220,27 @@ The pull request policy workflow validates the base and source branches. Issue r
 
 The workflow checks out the policy script from the pull request's base commit. Keep its invocation compatible with the version on `develop` while changing the policy, or the change's own pull request can fail before the new script is merged.
 
+### Release validation
+
+The `Release validation` job runs for pull requests targeting `master` and can
+also be started manually. It installs the Flutter version from `.fvmrc` through
+FVM, initializes dependencies and generated code, analyzes application code and
+workspace packages, and runs application, CLI, and tooling tests.
+Informational lints do not fail the check. Analysis excludes root application
+tests because of existing cast warnings; those tests are compiled and run.
+Warnings and errors in the analyzed code fail validation.
+
+After publishing this workflow and completing a successful run, add
+`Release validation` to the required status checks for `master`, alongside
+`Pull request policy`. Keep the up-to-date requirement enabled. Committing the
+workflow locally does not activate GitHub protection.
+
+Dependabot Actions updates target `develop`. The policy permits their
+`dependabot/github_actions/*` branches only when the pull request author is
+`dependabot[bot]` and both source and target repositories are
+`timberpile/Boorusama`. The workflow passes this event metadata through
+environment variables, preserving the validator's two-argument interface.
+
 ## GitHub CLI example
 
 For issue `42`:

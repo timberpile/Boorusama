@@ -463,8 +463,8 @@ void main() {
             .single
             .action;
         final selectedLabel = {
-          ImportAction.copy: 'New copy',
-          ImportAction.mergeIntoTarget: 'Merge into',
+          ImportAction.copy: 'Copy',
+          ImportAction.mergeIntoTarget: 'Merge into...',
           ImportAction.skip: 'Skip',
         }[selected]!;
         await tester.tap(find.text(selectedLabel).first);
@@ -473,10 +473,10 @@ void main() {
         await tester.pumpAndSettle();
       }
 
-      await action('Merge into');
+      await action('Merge into...');
       expect(tester.takeException(), isNull);
       expect(find.text('Target'), findsOneWidget);
-      expect(find.text('Merge into'), findsOneWidget);
+      expect(find.text('Merge into...'), findsOneWidget);
       expect(
         find.text('Choose a valid target for AnimeBoxes.'),
         findsOneWidget,
@@ -529,7 +529,7 @@ void main() {
       await target('Local bookmarks');
       await action('Skip');
       expect(find.text('Target'), findsNothing);
-      await action('Merge into');
+      await action('Merge into...');
       expect(
         harness.container
             .read(importFlowProvider)
