@@ -47,16 +47,37 @@ class BookmarkDetailsPage extends ConsumerWidget {
       disclaimer: null,
       fallbackUiBuilderDecorator: _withBookmarkToolbar,
       postRecoveryBuilder: (post, config) {
-        final bookmark = library?.bookmarkForPost(post);
-        final postId = bookmark?.postId;
         final repositoryAvailable =
             ref.read(booruRepoProvider(config.auth)) != null;
-        if (bookmark == null ||
-            postId == null ||
-            postId <= 0 ||
-            !repositoryAvailable) {
-          return null;
+        if (!repositoryAvailable) return null;
+        if (library == null) {
+          // Keep the first frame silent while the bookmark library is loading.
+          final pendingLibrary = ref.read(bookmarkProvider.future);
+          return () async {
+            final loadedLibrary = await pendingLibrary;
+            if (!ref.context.mounted) {
+              return const PostRecoveryFailure(
+                PostPresentationFallbackReason.refreshFailed,
+              );
+            }
+            final bookmark = loadedLibrary.bookmarkForPost(post);
+            final postId = bookmark?.postId;
+            if (bookmark == null || postId == null || postId <= 0) {
+              return const PostRecoveryFailure(
+                PostPresentationFallbackReason.incompatiblePresentation,
+              );
+            }
+            return _recoverBookmarkPost(
+              ref,
+              bookmark: bookmark,
+              postId: postId,
+              config: config,
+            );
+          };
         }
+        final bookmark = library.bookmarkForPost(post);
+        final postId = bookmark?.postId;
+        if (bookmark == null || postId == null || postId <= 0) return null;
 
         return () => _recoverBookmarkPost(
           ref,

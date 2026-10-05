@@ -254,6 +254,7 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
   final _isInitPage = ValueNotifier(true);
   final _fallbackReasons = <int, PostPresentationFallbackReason>{};
   final _recovering = <int>{};
+  final _automaticRecoveryAttempted = <int>{};
 
   @override
   void dispose() {
@@ -316,6 +317,23 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
         builder(currentPost, config),
       _ => null,
     };
+    final startAutomaticRecovery =
+        recovery != null && _automaticRecoveryAttempted.add(currentIndex);
+    if (startAutomaticRecovery) {
+      // Reserve the attempt before the next frame so rebuilds cannot queue it twice.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        unawaited(
+          _recoverPost(
+            details: details,
+            index: currentIndex,
+            recovery: recovery,
+          ),
+        );
+      });
+    }
+    final hideWarning =
+        startAutomaticRecovery || _recovering.contains(currentIndex);
     final uiBuilder = currentPresentation.usesGenericPresentation
         ? widget.fallbackUiBuilderDecorator?.call(
                 _genericPostDetailsUiBuilder,
@@ -339,7 +357,7 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
       uiBuilder: uiBuilder,
       gestureConfig: gestures,
       layoutConfig: layout,
-      viewerWarning: currentPresentation.usesGenericPresentation
+      viewerWarning: currentPresentation.usesGenericPresentation && !hideWarning
           ? PostPresentationFallbackWarning(
               reason: fallbackReason!,
               onRetry: recovery == null
@@ -430,6 +448,8 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
     required int index,
     required PostRecoveryCallback recovery,
   }) async {
+    if (!mounted || _recovering.contains(index)) return;
+    final originalIdentity = postViewerIdentity(details.posts[index]);
     setState(() => _recovering.add(index));
     late final PostRecoveryResult result;
     try {
@@ -440,6 +460,11 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
       );
     }
     if (!mounted) return;
+    if (index >= details.posts.length ||
+        postViewerIdentity(details.posts[index]) != originalIdentity) {
+      setState(() => _recovering.remove(index));
+      return;
+    }
 
     switch (result) {
       case PostRecoverySuccess(:final post):

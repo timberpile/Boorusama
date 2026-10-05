@@ -131,6 +131,15 @@ Engine-only mutations are disabled and a localized reason-specific warning is
 shown. A retry action is displayed only when the caller can provide a valid
 recovery callback.
 
+For incomplete bookmark snapshots, opening a post runs the caller's existing
+recovery callback once per viewer index. The cached presentation remains visible
+and its warning is suppressed until that attempt fails; there is no recovery
+loading indicator. The callback waits for the bookmark library when it is still
+loading on the first frame. Successful recovery updates that page and its stored
+snapshot; complete snapshots and unopened group members do not request recovery.
+Failed attempts retain manual Retry without an automatic loop on rebuild or
+returning to the page.
+
 Container-owned state stays outside the post presentation. Examples are a
 feed's `NEW` marker and bookmark-group actions.
 
