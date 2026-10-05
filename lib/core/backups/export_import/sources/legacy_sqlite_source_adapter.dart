@@ -1,6 +1,3 @@
-// Dart imports:
-import 'dart:io';
-
 // Project imports:
 import '../models/export_selection.dart';
 import '../../sources/sqlite_source.dart';
@@ -26,15 +23,12 @@ class LegacySqliteSourceAdapter implements ExportImportSource {
 
   @override
   Future<ExportSourceSnapshot> capture(ExportSourceRequest request) async {
-    final sourcePath = await source.dbPathGetter();
-    if (!File(sourcePath).existsSync()) {
-      throw StateError('Database source is unavailable: $id');
-    }
+    await source.ensureInitializedForExport();
     return ExportSourceSnapshot(
       sourceId: id,
       schemaVersion: schemaVersion,
       parts: {
-        'sources/$id/data.db': (path) => File(sourcePath).copy(path),
+        'sources/$id/data.db': source.captureDatabase,
       },
     );
   }
