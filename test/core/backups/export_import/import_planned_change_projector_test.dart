@@ -161,6 +161,41 @@ void main() {
     },
   );
 
+  for (final targetId in [null, 'group:missing']) {
+    test('bookmark merge preview waits for a valid target: $targetId', () {
+      expect(
+        projector.bookmarks(
+          local: BookmarkImportLocalSnapshot(
+            bookmarks: const [],
+            groups: const [],
+          ),
+          incoming: const BookmarkBackupData(
+            bookmarks: [],
+            groups: [
+              BookmarkGroupBackup(
+                id: 'incoming',
+                name: 'AnimeBoxes',
+                bookmarkIds: [],
+              ),
+            ],
+          ),
+          resolution: ResolvedImportSource(
+            id: 'bookmarks',
+            action: ImportAction.configureItems,
+            items: [
+              ResolvedImportItem(
+                id: 'group:incoming',
+                action: ImportAction.mergeIntoTarget,
+                targetId: targetId,
+              ),
+            ],
+          ),
+        ),
+        isNull,
+      );
+    });
+  }
+
   test('bookmark projection counts every record inside a new group', () {
     final bookmarks = [
       for (var index = 0; index < 10; index++)
@@ -188,7 +223,7 @@ void main() {
     );
 
     _expectTotals(summary, const PlannedChangeSummary(created: 11));
-    expect(summary.entitySummaries['bookmark']?.created, 10);
+    expect(summary!.entitySummaries['bookmark']?.created, 10);
     expect(summary.entitySummaries['bookmark-group']?.created, 1);
   });
 

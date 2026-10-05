@@ -44,6 +44,9 @@ import 'package:boorusama/core/settings/providers.dart';
 import 'package:boorusama/core/settings/src/types/settings.dart';
 import 'package:boorusama/foundation/filesystem.dart';
 import 'package:boorusama/foundation/info/package_info.dart';
+import 'package:boorusama/core/backups/export_import/import/import_flow_page.dart';
+import 'package:boorusama/core/backups/export_import/widgets/import_action_editor.dart';
+import 'package:i18n/src/gen/strings.g.dart' show TranslationProvider;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -281,6 +284,225 @@ void main() {
       } finally {
         await staged.dispose();
       }
+    },
+  );
+
+  testWidgets(
+    'Merge into retains unresolved selection and applies the chosen group',
+    (tester) async {
+      late _Harness harness;
+      await tester.runAsync(() async {
+        harness = await _Harness.create(populated: true);
+        await harness.groups.createGroup(
+          'Other target',
+          id: 'a0000000-0000-4000-8000-000000000004',
+        );
+        await harness.bookmarks.addBookmarkWithBookmarks([
+          Bookmark.empty.copyWith(
+            originalUrl: 'https://local.example/duplicate.jpg',
+            sourceUrl: 'https://danbooru.donmai.us',
+            postId: () => 42,
+          ),
+        ]);
+        await harness.container
+            .read(bookmarkProvider.notifier)
+            .syncActiveTargetFromSettings();
+        final notifier = harness.container.read(importFlowProvider.notifier);
+        await notifier.load(packagePaths['']!);
+        final pins = harness.container
+            .read(importFlowProvider)
+            .resolved!
+            .sources
+            .singleWhere((s) => s.id == 'pinned_searches');
+        notifier.replaceSource(pins.copyWith(action: ImportAction.skip));
+      });
+      addTearDown(() async {
+        await tester.pumpWidget(const SizedBox());
+        await tester.runAsync(harness.close);
+      });
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: harness.container,
+          child: TranslationProvider(
+            child: MaterialApp(
+              home: Scaffold(
+                body: Consumer(
+                  builder: (context, ref, _) {
+                    final state = ref.watch(importFlowProvider);
+                    final source = state.resolved!.sources.singleWhere(
+                      (s) => s.id == 'bookmarks',
+                    );
+                    return ListView(
+                      children: [
+                        ImportActionEditor(
+                          proposed: state.proposed!.sources.singleWhere(
+                            (s) => s.id == 'bookmarks',
+                          ),
+                          resolved: source,
+                          onChanged: ref
+                              .read(importFlowProvider.notifier)
+                              .replaceSource,
+                          sourceLabel: (_) => 'Bookmark groups',
+                          itemLabel: (_) => 'AnimeBoxes',
+                          targetLabel: (id) => id == 'group:$_localGroupId'
+                              ? 'Local bookmarks'
+                              : 'Other target',
+                        ),
+                        ImportReviewValidation(
+                          preflight: state.preflight!,
+                          sourceNames: const {'bookmarks': 'Bookmark groups'},
+                          itemLabels: state.itemLabels,
+                          onWarningsAcknowledged: ref
+                              .read(importFlowProvider.notifier)
+                              .acknowledgeWarnings,
+                          onApply: () => ref
+                              .read(importFlowProvider.notifier)
+                              .apply(context),
+                          onDone: () {},
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      Future<void> action(String label) async {
+        final selected = harness.container
+            .read(importFlowProvider)
+            .resolved!
+            .sources
+            .singleWhere((s) => s.id == 'bookmarks')
+            .items
+            .single
+            .action;
+        final selectedLabel = {
+          ImportAction.copy: 'New copy',
+          ImportAction.mergeIntoTarget: 'Merge into',
+          ImportAction.skip: 'Skip',
+        }[selected]!;
+        await tester.tap(find.text(selectedLabel).first);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text(label).last);
+        await tester.pumpAndSettle();
+      }
+
+      await action('Merge into');
+      expect(tester.takeException(), isNull);
+      expect(find.text('Target'), findsOneWidget);
+      expect(find.text('Merge into'), findsOneWidget);
+      expect(
+        find.text('Choose a valid target for AnimeBoxes.'),
+        findsOneWidget,
+      );
+      expect(
+        harness.container
+            .read(importFlowProvider)
+            .preflight!
+            .sourceSummaries
+            .containsKey('bookmarks'),
+        false,
+      );
+      expect(
+        harness.container.read(importFlowProvider).preflight!.isValid,
+        false,
+      );
+      expect(
+        harness.container
+            .read(importFlowProvider)
+            .preflight!
+            .errors
+            .map((e) => e.code),
+        contains('invalid_merge_target'),
+      );
+      expect(
+        tester.widget<FilledButton>(find.byType(FilledButton).last).onPressed,
+        isNull,
+      );
+      await tester.runAsync(() async {
+        expect(await harness.groups.getGroups(), hasLength(2));
+        expect(
+          await harness.bookmarks.getAllBookmarksOrThrow(
+            imageUrlResolver: (_) => const DefaultImageUrlResolver(),
+          ),
+          hasLength(2),
+        );
+      });
+      Future<void> target(String label) async {
+        await tester.tap(find.byType(DropdownButtonFormField<String>));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text(label).last);
+        await tester.pumpAndSettle();
+      }
+
+      await target('Other target');
+      expect(
+        harness.container.read(importFlowProvider).preflight!.isValid,
+        true,
+      );
+      await target('Local bookmarks');
+      await action('Skip');
+      expect(find.text('Target'), findsNothing);
+      await action('Merge into');
+      expect(
+        harness.container
+            .read(importFlowProvider)
+            .resolved!
+            .sources
+            .singleWhere((s) => s.id == 'bookmarks')
+            .items
+            .single
+            .targetId,
+        isNull,
+      );
+      expect(
+        harness.container.read(importFlowProvider).preflight!.isValid,
+        false,
+      );
+      await target('Local bookmarks');
+      expect(
+        harness.container
+            .read(importFlowProvider)
+            .preflight!
+            .sourceSummaries['bookmarks']!
+            .entitySummaries['bookmark']!
+            .created,
+        1,
+      );
+      await tester.runAsync(() async {
+        expect(await harness.groups.getGroups(), hasLength(2));
+        final context = tester.element(find.byType(ImportActionEditor));
+        await harness.container
+            .read(importFlowProvider.notifier)
+            .apply(context);
+        final state = harness.container.read(importFlowProvider);
+        expect(
+          state.status,
+          ImportFlowStatus.complete,
+          reason: '${state.error}',
+        );
+        final groups = await harness.groups.getGroups();
+        expect(groups, hasLength(2));
+        final merged = groups.singleWhere((g) => g.id == _localGroupId);
+        expect(merged.name, 'Local bookmarks');
+        expect(merged.bookmarkIds, hasLength(3));
+        expect(
+          groups
+              .singleWhere(
+                (g) => g.id == 'a0000000-0000-4000-8000-000000000004',
+              )
+              .bookmarkIds,
+          isEmpty,
+        );
+        final bookmarks = await harness.bookmarks.getAllBookmarksOrThrow(
+          imageUrlResolver: (_) => const DefaultImageUrlResolver(),
+        );
+        expect(bookmarks.map((b) => b.postId).toSet(), {42, 43, 99});
+        expect(bookmarks, hasLength(3));
+      });
     },
   );
 

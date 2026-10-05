@@ -132,11 +132,13 @@ class _ItemActionTile extends StatelessWidget {
           selectedOption: resolved.action,
           items: proposed.availableActions.toList(),
           onChanged: (action) => onChanged(
-            resolved.copyWith(
+            ResolvedImportItem(
+              id: resolved.id,
               action: action,
               targetId:
-                  proposed.targetRequiredActions.contains(action) ||
-                      action == ImportAction.mergeIntoTarget
+                  (proposed.targetRequiredActions.contains(action) ||
+                          action == ImportAction.mergeIntoTarget) &&
+                      proposed.compatibleTargetIds.contains(resolved.targetId)
                   ? resolved.targetId
                   : null,
             ),

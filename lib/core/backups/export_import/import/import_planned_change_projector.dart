@@ -132,7 +132,7 @@ final class ImportPlannedChangeProjector {
     );
   }
 
-  PlannedChangeSummary bookmarks({
+  PlannedChangeSummary? bookmarks({
     required BookmarkImportLocalSnapshot local,
     required BookmarkBackupData incoming,
     required ResolvedImportSource resolution,
@@ -256,7 +256,13 @@ final class ImportPlannedChangeProjector {
           '__copy__bookmark-group-$sourceId-$index',
         _ => sourceId,
       };
-      if (targetId == null) throw StateError('Group target is unresolved');
+      // Target selection is an intermediate review state. Preflight reports
+      // invalid targets; a complete preview is available once one is chosen.
+      if (targetId == null ||
+          (action == ImportAction.mergeIntoTarget &&
+              !localGroups.containsKey(targetId))) {
+        return null;
+      }
       final existing = projectedGroups[targetId];
       projectedGroups[targetId] = switch (action) {
         ImportAction.update || ImportAction.replace => _BookmarkGroupValue(

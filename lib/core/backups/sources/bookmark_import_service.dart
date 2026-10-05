@@ -70,7 +70,16 @@ class BookmarkImportService {
             .map((id) => localIds[id])
             .nonNulls
             .toSet();
-        final existing = await groupRepository.getGroup(imported.id);
+        final existingId = action == ImportAction.mergeIntoTarget
+            ? imported.targetId
+            : imported.id;
+        if (existingId == null) {
+          throw StateError('Merge target is unresolved.');
+        }
+        final existing = await groupRepository.getGroup(existingId);
+        if (action == ImportAction.mergeIntoTarget && existing == null) {
+          throw StateError('Merge target is unavailable.');
+        }
         if (existing == null) {
           final destinationId = imported.destinationId ?? imported.id;
           await groupRepository.createGroup(imported.name, id: destinationId);
@@ -97,16 +106,8 @@ class BookmarkImportService {
               ...membershipIds,
             });
           case ImportAction.mergeIntoTarget:
-            final targetId = imported.targetId;
-            if (targetId == null) {
-              throw StateError('Merge target is unresolved.');
-            }
-            final target = await groupRepository.getGroup(targetId);
-            if (target == null) {
-              throw StateError('Merge target is unavailable.');
-            }
-            await groupRepository.replaceMemberships(targetId, {
-              ...target.bookmarkIds,
+            await groupRepository.replaceMemberships(existingId, {
+              ...existing.bookmarkIds,
               ...membershipIds,
             });
           case ImportAction.copy:
