@@ -33,6 +33,7 @@ class ImageViewerSettingsSection extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         KurumiSettingsHeader(label: context.t.settings.general),
+        PostQualitySetting(value: viewer.postQuality, onUpdate: onUpdate),
         KurumiSettingsTile(
           title: Text(
             context.t.settings.image_details.ui_overlay.ui_overlay,
@@ -385,3 +386,24 @@ List<int> getDoubleTapSeekDurationPossibleValues() => [
   30,
   60,
 ];
+
+class PostQualitySetting extends StatelessWidget {
+  const PostQualitySetting({
+    required this.value,
+    required this.onUpdate,
+    super.key,
+  });
+  final PostQuality value;
+  final void Function(ImageViewerSettings Function(ImageViewerSettings))
+  onUpdate;
+
+  @override
+  Widget build(BuildContext context) => KurumiSettingsTile<PostQuality>(
+    title: Text(context.t.settings.image_viewer.post_quality),
+    selectedOption: value,
+    items: PostQuality.values,
+    onChanged: (quality) =>
+        onUpdate((current) => current.copyWith(postQuality: quality)),
+    optionBuilder: (quality) => Text(quality.localize(context)),
+  );
+}

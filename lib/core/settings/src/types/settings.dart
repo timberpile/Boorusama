@@ -8,6 +8,7 @@ import 'package:kurumi/kurumi.dart';
 
 // Project imports:
 import 'search_refresh_settings.dart';
+import 'post_quality.dart';
 import '../../../../foundation/applock/types.dart';
 import '../../../../foundation/caching/types.dart';
 import '../../../analytics/types.dart';
@@ -28,6 +29,7 @@ import '../../../videos/engines/types.dart';
 import '../../../videos/player/types.dart';
 
 export 'search_refresh_settings.dart';
+export 'post_quality.dart';
 
 const _settingNotProvided = Object();
 
@@ -601,6 +603,7 @@ class ViewerConfigs extends Equatable {
 class ImageViewerSettings extends Equatable {
   const ImageViewerSettings({
     required this.swipeMode,
+    this.postQuality = PostQuality.high,
     required this.loadOriginalOnZoom,
     required this.snapZoomToFit,
     required this.doubleTapZoomMode,
@@ -617,7 +620,8 @@ class ImageViewerSettings extends Equatable {
   });
 
   ImageViewerSettings.fromJson(Map<String, dynamic> json)
-    : swipeMode = PostDetailsSwipeMode.parse(json['swipeMode']),
+    : postQuality = PostQuality.parse(json['postQuality']),
+      swipeMode = PostDetailsSwipeMode.parse(json['swipeMode']),
       loadOriginalOnZoom = json['loadOriginalOnZoom'] ?? true,
       snapZoomToFit = json['snapZoomToFit'] ?? true,
       doubleTapZoomMode = DoubleTapZoomMode.parse(json['doubleTapZoomMode']),
@@ -642,6 +646,7 @@ class ImageViewerSettings extends Equatable {
       enableVideoCache = json['enableVideoCache'] ?? true,
       doubleTapSeekDuration = json['doubleTapSeekDuration'] ?? 10;
 
+  final PostQuality postQuality;
   final PostDetailsSwipeMode swipeMode;
   final bool loadOriginalOnZoom;
   final bool snapZoomToFit;
@@ -658,6 +663,7 @@ class ImageViewerSettings extends Equatable {
   final int doubleTapSeekDuration;
 
   ImageViewerSettings copyWith({
+    PostQuality? postQuality,
     PostDetailsSwipeMode? swipeMode,
     bool? loadOriginalOnZoom,
     bool? snapZoomToFit,
@@ -674,6 +680,7 @@ class ImageViewerSettings extends Equatable {
     int? doubleTapSeekDuration,
   }) {
     return ImageViewerSettings(
+      postQuality: postQuality ?? this.postQuality,
       swipeMode: swipeMode ?? this.swipeMode,
       loadOriginalOnZoom: loadOriginalOnZoom ?? this.loadOriginalOnZoom,
       snapZoomToFit: snapZoomToFit ?? this.snapZoomToFit,
@@ -698,6 +705,7 @@ class ImageViewerSettings extends Equatable {
   }
 
   Map<String, dynamic> toJson() => {
+    'postQuality': postQuality.toData(),
     'swipeMode': swipeMode.toData(),
     'loadOriginalOnZoom': loadOriginalOnZoom,
     'snapZoomToFit': snapZoomToFit,
@@ -716,6 +724,7 @@ class ImageViewerSettings extends Equatable {
 
   @override
   List<Object> get props => [
+    postQuality,
     swipeMode,
     loadOriginalOnZoom,
     snapZoomToFit,

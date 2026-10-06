@@ -91,8 +91,10 @@ class PhilomenaRepository extends BooruRepositoryDefault {
   }
 
   @override
-  MediaUrlResolver mediaUrlResolver(BooruConfigAuth config) {
-    return ref.watch(philomenaMediaUrlResolverProvider(config));
+  ProviderListenable<MediaUrlResolver> mediaUrlResolverProvider(
+    BooruConfigAuth config,
+  ) {
+    return philomenaMediaUrlResolverProvider(config);
   }
 
   @override

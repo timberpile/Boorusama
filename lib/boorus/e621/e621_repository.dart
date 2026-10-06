@@ -118,8 +118,10 @@ class E621Repository extends BooruRepositoryDefault {
   }
 
   @override
-  MediaUrlResolver mediaUrlResolver(BooruConfigAuth config) {
-    return ref.watch(e621MediaUrlResolverProvider);
+  ProviderListenable<MediaUrlResolver> mediaUrlResolverProvider(
+    BooruConfigAuth config,
+  ) {
+    return e621MediaUrlResolverProvider(config);
   }
 
   @override

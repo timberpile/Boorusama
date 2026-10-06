@@ -619,6 +619,7 @@
       "masonry": "Masonry"
     },
     "image_grid": {
+      "thumbnail_quality": "Thumbnail quality",
       "image_grid": "Image grid",
       "grid_size": {
         "grid_size": "Grid size",
@@ -633,6 +634,7 @@
         "auto": "Auto",
         "high_quality_notice": "High quality image will take longer to load.",
         "high": "High",
+        "medium": "Medium",
         "low": "Low",
         "original": "Original",
         "automatic": "Automatic",
@@ -644,6 +646,7 @@
       "aspect_ratio": "Aspect ratio"
     },
     "image_viewer": {
+      "post_quality": "Post quality",
       "image_viewer": "Image viewer",
       "slideshow": "Slideshow",
       "slideshow_interval": "Slideshow interval",

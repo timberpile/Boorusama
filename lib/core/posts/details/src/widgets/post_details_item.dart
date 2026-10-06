@@ -68,6 +68,12 @@ class _PostDetailsItemState<T extends Post>
     extends ConsumerState<PostDetailsItem<T>> {
   final _videoKey = GlobalKey();
   final _imageController = ExtendedImageController();
+  final _representationState = _MediaRepresentationState();
+  late final _mediaState = Listenable.merge([
+    _imageController.loadState,
+    _representationState,
+  ]);
+  var _mediaCompatible = false;
 
   @override
   void initState() {
@@ -92,10 +98,17 @@ class _PostDetailsItemState<T extends Post>
     widget.detailsController.currentSettledPage.removeListener(_onPageSettled);
     _imageController.loadState.removeListener(_onImageStateChanged);
     _imageController.dispose();
+    _representationState.dispose();
     super.dispose();
   }
 
   void _onPageSettled() => setState(() {});
+
+  void _onRepresentationChanged(bool compatible) {
+    _mediaCompatible = compatible;
+    _representationState.changed();
+    _onImageStateChanged();
+  }
 
   void _onImageStateChanged() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -262,6 +275,7 @@ class _PostDetailsItemState<T extends Post>
                                 widget.videoAspectRatioBuilder,
                             imageCacheManager: widget.imageCacheManager,
                             imageController: _imageController,
+                            onRepresentationChanged: _onRepresentationChanged,
                             // This is used to make sure we have a thumbnail to show instead of a black placeholder
                             placeholderMediaBuilder:
                                 isInitPage && initialThumbnailUrl != null
@@ -346,12 +360,13 @@ class _PostDetailsItemState<T extends Post>
             pageIndex: widget.index,
             contentSize: Size(post.width, post.height),
             navigation: nav,
-            mediaState: _imageController.loadState,
+            mediaState: _mediaState,
             enabled:
                 !post.isVideo &&
                 !noteOverlayShown &&
                 automaticMediaLoadingEnabled &&
                 imageUrl.isNotEmpty &&
+                _mediaCompatible &&
                 _imageController.loadState.value == LoadState.completed &&
                 _imageController.imageInfo.value != null,
             child: viewer,
@@ -378,8 +393,13 @@ class _PostDetailsItemState<T extends Post>
       url: initialThumbnailUrl,
       aspectRatio: media.aspectRatio,
       placeholderUrl: media.placeholderUrl,
+      fallbackUrl: media.fallbackUrl,
       placeholderAspectRatio: media.placeholderAspectRatio,
       placeholderFit: media.placeholderFit,
     );
   }
+}
+
+class _MediaRepresentationState extends ChangeNotifier {
+  void changed() => notifyListeners();
 }

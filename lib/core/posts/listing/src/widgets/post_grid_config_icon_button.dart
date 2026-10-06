@@ -372,12 +372,13 @@ class PostGridActionSheet extends ConsumerWidget {
                   ),
                   KurumiSettingsTile<ImageQuality>(
                     title: Text(
-                      context.t.settings.image_grid.image_quality.image_quality,
+                      context.t.settings.image_grid.thumbnail_quality,
                     ),
                     selectedOption: imageQuality,
                     items: ImageQuality.nonOriginalValues,
                     onChanged: (value) => onImageQualityChanged(value),
-                    optionBuilder: (value) => Text(value.localize(context)),
+                    optionBuilder: (value) =>
+                        Text(value.localizeThumbnail(context)),
                     visualDensity: VisualDensity.compact,
                   ),
                 ],

@@ -176,8 +176,9 @@ abstract class BooruRepositoryDefault implements BooruRepository {
   }
 
   @override
-  MediaUrlResolver mediaUrlResolver(BooruConfigAuth config) =>
-      ref.watch(defaultMediaUrlResolverProvider(config));
+  ProviderListenable<MediaUrlResolver> mediaUrlResolverProvider(
+    BooruConfigAuth config,
+  ) => defaultMediaUrlResolverProvider(config);
 
   @override
   GranularRatingFilterer? granularRatingFilterer(BooruConfigSearch config) {

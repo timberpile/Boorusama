@@ -57,7 +57,9 @@ abstract class BooruRepository {
   Map<String, String> extraHttpHeaders(BooruConfigAuth config);
   AppErrorTranslator appErrorTranslator(BooruConfigAuth config);
   BooruLoginDetails loginDetails(BooruConfigAuth config);
-  MediaUrlResolver mediaUrlResolver(BooruConfigAuth config);
+  ProviderListenable<MediaUrlResolver> mediaUrlResolverProvider(
+    BooruConfigAuth config,
+  );
   GranularRatingFilterer? granularRatingFilterer(BooruConfigSearch config);
   Set<Rating> getGranularRatingOptions(BooruConfigAuth config);
   bool handlePostGesture(WidgetRef ref, String? action, Post post);

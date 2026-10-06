@@ -314,9 +314,6 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                 index: index,
                 autoScrollController: widget.scrollController,
                 controller: controller,
-                imageUrl: post.isVideo
-                    ? post.thumbnailImageUrl
-                    : post.sampleImageUrl,
                 imageCacheManager: ref.watch(bookmarkImageCacheManagerProvider),
                 useHero: false,
                 config: effectiveAuth,
@@ -340,9 +337,17 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                   goToBookmarkDetailsPage(
                     ref,
                     index,
-                    initialThumbnailUrl: post.isVideo
-                        ? post.thumbnailImageUrl
-                        : post.sampleImageUrl,
+                    initialThumbnailUrl: ref
+                        .read(
+                          gridThumbnailUrlGeneratorProvider(effectiveAuth),
+                        )
+                        .resolve(
+                          post,
+                          settings: ref.read(
+                            gridThumbnailSettingsProvider(effectiveAuth),
+                          ),
+                        )
+                        .url,
                     controller: controller,
                   );
                 },

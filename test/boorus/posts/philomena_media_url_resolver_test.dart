@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:boorusama/boorus/philomena/posts/types.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/configs/config/types.dart';
-import 'package:boorusama/core/images/types.dart';
+import 'package:boorusama/core/settings/types.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 import 'package:boorusama/core/posts/rating/types.dart';
 import 'package:boorusama/core/posts/sources/types.dart';
@@ -30,8 +30,27 @@ void main() {
       representation: representations,
     ),
   );
+  for (final entry in [
+    (PostQuality.medium, 'sample'),
+    (PostQuality.high, 'sample'),
+  ]) {
+    test(
+      'independent ${entry.$1} selects common media without an engine override',
+      () {
+        final selected = PhilomenaMediaUrlResolver(postQuality: entry.$1);
+        expect(selected.resolveMediaUrl(post, _viewer(null)), entry.$2);
+        expect(
+          selected.resolveMediaUrl(
+            _post(const EmptyPostData(typeKey: 'empty')),
+            _viewer('full'),
+          ),
+          entry.$2,
+        );
+      },
+    );
+  }
   final resolver = PhilomenaMediaUrlResolver(
-    imageQuality: ImageQuality.automatic,
+    postQuality: PostQuality.high,
   );
   final cases = <String, String>{
     'full': representations.full,

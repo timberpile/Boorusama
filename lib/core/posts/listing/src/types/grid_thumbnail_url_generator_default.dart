@@ -20,7 +20,7 @@ GridThumbnailMedia defaultGridThumbnailMedia(
       ImageQuality.highest => post.effectiveSampleAspectRatio,
       ImageQuality.original => post.effectiveOriginalAspectRatio,
     },
-    false => switch (settings.imageQuality) {
+    false => switch (settings.resolvedImageQuality) {
       ImageQuality.automatic => post.effectiveThumbnailAspectRatio,
       ImageQuality.low => post.effectiveThumbnailAspectRatio,
       ImageQuality.high =>
@@ -37,7 +37,7 @@ GridThumbnailMedia defaultGridThumbnailMedia(
             : switch (settings.gridSize) {
                 GridSize.micro ||
                 GridSize.tiny => post.effectiveThumbnailAspectRatio,
-                _ => post.effectiveOriginalAspectRatio,
+                _ => post.effectiveSampleAspectRatio,
               },
       ImageQuality.original =>
         post.isVideo
@@ -58,7 +58,7 @@ GridThumbnailMedia defaultGridThumbnailMedia(
         ImageQuality.highest => post.sampleImageUrl,
         ImageQuality.original => post.originalImageUrl,
       },
-      false => switch (settings.imageQuality) {
+      false => switch (settings.resolvedImageQuality) {
         ImageQuality.automatic => post.thumbnailImageUrl,
         ImageQuality.low => post.thumbnailImageUrl,
         ImageQuality.high =>
@@ -73,7 +73,7 @@ GridThumbnailMedia defaultGridThumbnailMedia(
               ? post.thumbnailImageUrl
               : switch (settings.gridSize) {
                   GridSize.micro || GridSize.tiny => post.thumbnailImageUrl,
-                  _ => post.originalImageUrl,
+                  _ => post.sampleImageUrl,
                 },
         ImageQuality.original =>
           post.isVideo ? post.thumbnailImageUrl : post.originalImageUrl,

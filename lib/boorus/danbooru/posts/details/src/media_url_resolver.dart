@@ -3,17 +3,17 @@ import 'package:foundation/foundation.dart';
 
 // Project imports:
 import '../../../../../core/configs/config/types.dart';
-import '../../../../../core/images/types.dart';
+import '../../../../../core/settings/types.dart';
 import '../../../../../core/posts/details/types.dart';
 import '../../../../../core/posts/post/types.dart';
 import '../../post/types.dart';
 
 class DanbooruMediaUrlResolver implements MediaUrlResolver {
   DanbooruMediaUrlResolver({
-    required this.imageQuality,
+    required this.postQuality,
   });
 
-  final ImageQuality imageQuality;
+  final PostQuality postQuality;
 
   @override
   String resolveMediaUrl(
@@ -24,10 +24,9 @@ class DanbooruMediaUrlResolver implements MediaUrlResolver {
     (post) => post.isGif
         ? post.sampleImageUrl
         : config.imageDetaisQuality.toOption().fold(
-            () => switch (imageQuality) {
-              ImageQuality.highest ||
-              ImageQuality.original => post.sampleImageUrl,
-              _ => post.url720x720,
+            () => switch (postQuality) {
+              PostQuality.high => post.sampleImageUrl,
+              PostQuality.medium => post.url720x720,
             },
             (quality) => switch (PostQualityType.parse(quality)) {
               PostQualityType.v180x180 => post.url180x180,

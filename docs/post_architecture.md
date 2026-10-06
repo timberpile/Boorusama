@@ -108,6 +108,58 @@ Auto Comic fits a qualifying post once per settled page visit, not once per
 viewer lifetime: leaving clears the visit guard, so returning re-applies
 fit-to-width and top positioning without retriggering on same-page rebuilds.
 
+Thumbnail quality and Post quality are independent. Thumbnail controls show
+Auto, Low, Medium and High while preserving listing quality scalars 0/1/2/4.
+Auto chooses High for Large, Medium for Medium/Small, and Low for Tiny/Micro
+through shared thumbnail settings. Existing Auto GIF animation policy and
+Danbooru's GIF variant ladder remain exceptions. Generic thumbnail High uses
+Sample with its corresponding aspect ratio; Danbooru keeps its specialized
+Highest representation ladder. Engines without intermediate resources may reuse
+Original through an existing Sample alias. Historical thumbnail Original (3)
+remains a stored compatibility value, without a new selectable option.
+Ordinary bookmark grids use the same thumbnail resolver; fixed group covers
+retain their existing cover policy.
+
+Details use the separate `PostQuality` presets Medium and High, default High.
+Medium retains former High behavior and High retains former Highest behavior;
+they may choose the same Sample on engines without another viewer tier.
+The `postQuality` JSON key writes explicit scalars 2/4, never enum indexes.
+Legacy Auto/Low/High values migrate to Medium; Highest/Original migrate to High.
+Missing or invalid values use High, and the dormant legacy full-view key remains
+unchanged. Migrated Original is not an automatic Original request. Existing
+explicit engine detail overrides, manual Load Original, original-on-zoom,
+Share Original, video resolution and download policy remain independent.
+Resolver selection matches explicit auth to one enabled stored profile viewer
+override, otherwise global viewer settings; it never follows an unrelated
+selected profile. Conservative preload rules retain their own policies.
+Repositories expose media resolver providers as policy lookups. The consuming
+media provider owns their reactive watch; the engine initializer's retained
+Ref must not subscribe to viewer/profile state. Otherwise media use adds a
+profile dependency to the registry and subsequent login lookup during profile
+deletion creates a Riverpod cycle. This applies to default and engine resolvers;
+using a read snapshot or disabling debug assertions does not repair ownership.
+
+Still-image upgrades stage the configured network provider until its first
+frame decodes, then display that exact provider through the existing controller.
+A decoded lower or previous representation stays visible during transport or
+decoder failure. Distinct grid fallback and placeholder URLs are eligible even
+when the grid primary equals the target or is empty; candidates are unique and
+never duplicate the active target request. Media identity/auth changes clear that retained state. Known
+post dimensions determine stable layout; representation ratios are only a
+fallback when dimensions are unknown. Actual decoded geometry controls contain
+and edge readiness. Cropped previews are never stretched or treated as proof of
+full-image edges; tall previews start at the content top so Auto Comic keeps them
+visible. A representation replacement cancels a held edge drag even when both
+load states are completed; subsequent animation frames do not. Metadata-only
+recovery re-evaluates decoded compatibility and cancels held drags only when
+that effective compatibility changes, without refetching the image. Arrival of a
+compatible full image does not restart Auto Comic or replace the route, page,
+controller or transformation matrix.
+The production image deduplication interceptor shares success or failure as
+completion data, then rejects each failed duplicate through its own Dio request
+handler. This preserves normal errors across Dio interceptor error zones and
+avoids an unobserved error future when a media request has no duplicates.
+
 A nonempty server page may contribute no visible posts after duplicate or
 blacklist filtering. Near the end of the mixed viewer, the route checks the
 visible append result after each completed fetch and continues through at most

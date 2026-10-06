@@ -11,7 +11,7 @@ import '../../../configs/config/providers.dart';
 import '../../../images/booru_image.dart';
 import '../../../images/utils.dart';
 import '../../../videos/player/widgets.dart';
-import '../../details/providers.dart';
+import '../../listing/providers.dart';
 import '../../details/routes.dart';
 import '../../post/types.dart';
 import '../../post/widgets.dart';
@@ -169,8 +169,10 @@ class ExploreList extends ConsumerWidget {
     WidgetRef ref,
   ) {
     final configAuth = ref.watchConfigAuth;
-    final configViewer = ref.watchConfigViewer;
-    final mediaUrlResolver = ref.watch(mediaUrlResolverProvider(configAuth));
+    final generator = ref.watch(gridThumbnailUrlGeneratorProvider(configAuth));
+    final thumbnailSettings = ref.watch(
+      gridThumbnailSettingsProvider(configAuth),
+    );
 
     return SizedBox(
       height: height,
@@ -178,10 +180,8 @@ class ExploreList extends ConsumerWidget {
         scrollDirection: Axis.horizontal,
         itemBuilder: (context, index) {
           final post = filteredPosts[index];
-          final mediaAspectRatio = mediaUrlResolver.resolveMediaAspectRatio(
-            post,
-            configViewer,
-          );
+          final media = generator.resolve(post, settings: thumbnailSettings);
+          final mediaAspectRatio = media.aspectRatio;
 
           return ExplicitContentBlockOverlay(
             rating: post.rating,
@@ -192,10 +192,7 @@ class ExploreList extends ConsumerWidget {
                   ref: ref,
                   posts: filteredPosts,
                   initialIndex: index,
-                  initialThumbnailUrl: mediaUrlResolver.resolveMediaUrl(
-                    post,
-                    configViewer,
-                  ),
+                  initialThumbnailUrl: media.url,
                 ),
                 child: Stack(
                   alignment: Alignment.center,
@@ -203,12 +200,11 @@ class ExploreList extends ConsumerWidget {
                     BooruImage(
                       config: configAuth,
                       aspectRatio: mediaAspectRatio,
-                      imageUrl: mediaUrlResolver.resolveMediaUrl(
-                        post,
-                        configViewer,
-                      ),
-                      placeholderUrl: post.thumbnailImageUrl,
-                      placeholderAspectRatio: mediaAspectRatio,
+                      imageUrl: media.url,
+                      placeholderUrl: media.placeholderUrl,
+                      fallbackUrl: media.fallbackUrl,
+                      placeholderAspectRatio: media.placeholderAspectRatio,
+                      placeholderFit: media.placeholderFit,
                     ),
                     if (post.isAnimated)
                       Positioned(

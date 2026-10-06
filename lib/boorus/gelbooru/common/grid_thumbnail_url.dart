@@ -12,7 +12,7 @@ GridThumbnailMedia gelbooruGridThumbnailMedia(
     return defaultGridThumbnailMedia(post, settings);
   }
 
-  if (settings.imageQuality == ImageQuality.low) {
+  if (settings.resolvedImageQuality == ImageQuality.low) {
     return defaultGridThumbnailMedia(post, settings);
   }
 

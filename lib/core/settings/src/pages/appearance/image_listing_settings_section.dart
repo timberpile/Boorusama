@@ -92,7 +92,7 @@ class _ImageListingSettingsSectionState
         ),
         KurumiSettingsTile(
           title: Text(
-            context.t.settings.image_grid.image_quality.image_quality,
+            context.t.settings.image_grid.thumbnail_quality,
           ),
           subtitle: settings.imageQuality == ImageQuality.highest
               ? Text(
@@ -111,7 +111,7 @@ class _ImageListingSettingsSectionState
           items: ImageQuality.nonOriginalValues,
           onChanged: (value) =>
               _onUpdate((current) => current.copyWith(imageQuality: value)),
-          optionBuilder: (value) => Text(value.localize(context)),
+          optionBuilder: (value) => Text(value.localizeThumbnail(context)),
         ),
         KurumiSettingsTile(
           title: Text(context.t.settings.result_layout.result_layout),

@@ -48,8 +48,8 @@ final danbooruPostDetailsPoolsProvider = FutureProvider.family
 final danbooruMediaUrlResolverProvider =
     Provider.family<MediaUrlResolver, BooruConfigAuth>(
       (ref, config) => DanbooruMediaUrlResolver(
-        imageQuality: ref.watch(
-          settingsProvider.select((value) => value.listing.imageQuality),
+        postQuality: ref.watch(
+          postQualityProvider(config),
         ),
       ),
     );

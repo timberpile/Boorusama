@@ -2,7 +2,6 @@
 // Project imports:
 import '../../../../../core/images/types.dart';
 import '../../../../../core/posts/listing/types.dart';
-import '../../../../../core/posts/post/types.dart';
 import '../../post/types.dart';
 
 class DanbooruGridThumbnailUrlGenerator implements GridThumbnailUrlGenerator {
@@ -37,7 +36,9 @@ class DanbooruGridThumbnailUrlGenerator implements GridThumbnailUrlGenerator {
 String _danbooruGridThumbnailUrl(
   Post post,
   GridThumbnailSettings settings,
-) => switch (settings.imageQuality) {
+) => switch (post.isGif
+    ? settings.imageQuality
+    : settings.resolvedImageQuality) {
   ImageQuality.automatic => switch (settings.gridSize) {
     GridSize.micro => _variantUrl(post, PostQualityType.v180x180),
     GridSize.tiny => _variantUrl(post, PostQualityType.v360x360),

@@ -5,7 +5,7 @@ import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/developer_options/providers.dart';
 import 'package:boorusama/core/downloads/urls/providers.dart';
 import 'package:boorusama/core/downloads/urls/types.dart';
-import 'package:boorusama/core/images/types.dart';
+import 'package:boorusama/core/settings/types.dart';
 import 'package:boorusama/core/posts/details/providers.dart';
 import 'package:boorusama/core/posts/details/types.dart';
 import 'package:boorusama/core/posts/post/providers.dart';
@@ -408,9 +408,7 @@ void main() {
         format: 'png',
       ),
       extractor: _PendingExtractor(),
-      mediaUrlResolver: const DefaultMediaUrlResolver(
-        imageQuality: ImageQuality.original,
-      ),
+      mediaUrlResolver: _OriginalMediaUrlResolver(),
     );
 
     expect(find.text('800 × 600 · PNG'), findsNWidgets(2));
@@ -581,4 +579,20 @@ void main() {
       if (!temporaryPath.isCompleted) temporaryPath.complete(null);
     });
   }
+}
+
+class _OriginalMediaUrlResolver extends DefaultMediaUrlResolver {
+  _OriginalMediaUrlResolver() : super(postQuality: PostQuality.high);
+
+  @override
+  String resolveMediaUrl(Post post, BooruConfigViewer config) =>
+      super.resolveMediaUrl(
+        post,
+        BooruConfigViewer(
+          imageDetaisQuality: 'original',
+          videoQuality: config.videoQuality,
+          viewerNotesFetchBehavior: config.viewerNotesFetchBehavior,
+          settings: config.settings,
+        ),
+      );
 }

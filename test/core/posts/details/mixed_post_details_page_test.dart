@@ -1,6 +1,10 @@
+import 'package:boorusama/core/images/types.dart';
+import 'progressive_image_test_utils.dart';
+import 'package:extended_image/src/image/raw_image.dart';
 import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
+import 'package:flutter/rendering.dart';
 
 // Flutter imports:
 import 'package:flutter/material.dart';
@@ -70,6 +74,443 @@ import 'package:boorusama/foundation/loggers.dart';
 import 'package:boorusama/foundation/info/device_info.dart';
 
 void main() {
+  for (final success in [false, true]) {
+    testWidgets(
+      'mixed viewer retains pixels and matrix through ${success ? 'successful' : 'failed'} decoded upgrade',
+      (tester) async {
+        VisibilityDetectorController.instance.updateInterval = Duration.zero;
+        _mobileViewport(tester, size: const Size(800, 1200));
+        final adapter = ControlledImageAdapter();
+        final harness = _Harness(
+          imageAdapter: adapter,
+          imageCache: TestImageCache({'thumbnail-1': lowerPng}),
+          initialThumbnailUrl: 'thumbnail-1',
+        );
+        addTearDown(harness.dispose);
+        await tester.pumpWidget(harness.build());
+        await decodePump(tester);
+        final media = tester
+            .widgetList<PostMedia<Post>>(find.byType(PostMedia<Post>))
+            .firstWhere(
+              (media) => media.config.url == 'https://danbooru.example',
+            );
+        final imageController = media.imageController!;
+        expect(await paintedPixel(tester), [255, 0, 0, 255]);
+        expect(
+          imageController.imageInfo.value?.image.width,
+          2,
+          reason: 'controller must describe the visible decoded lower image',
+        );
+        final details = _detailsController(tester);
+        final pages = _pageViewController(tester);
+        final transform = tester
+            .widget<PostViewerTransformationScope>(
+              find.byType(PostViewerTransformationScope),
+            )
+            .controller
+            .transformationController;
+        transform.value = Matrix4.diagonal3Values(2, 2, 1)
+          ..setTranslationRaw(-400, -300, 0);
+        await tester.pump();
+        final matrix = transform.value.storage.toList();
+        final lower = find.descendant(
+          of: find.byType(RawPostDetailsImage<Post>).first,
+          matching: find.byType(ExtendedRawImage),
+        );
+        final bounds = tester.getSize(lower.first);
+        final target = adapter.pending.keys.singleWhere(
+          (url) => url.contains('danbooru.example/media/1'),
+        );
+        adapter.complete(
+          target,
+          success ? targetPng : Uint8List.fromList([1, 2, 3]),
+        );
+        await decodePump(tester);
+        expect(transform.value.storage, matrix);
+        expect(_detailsController(tester), same(details));
+        expect(_pageViewController(tester), same(pages));
+        expect(pages.page, 0);
+        final currentMedia = tester
+            .widgetList<PostMedia<Post>>(find.byType(PostMedia<Post>))
+            .firstWhere(
+              (media) => media.config.url == 'https://danbooru.example',
+            );
+        expect(currentMedia.imageController, same(imageController));
+        expect(imageController.imageInfo.value!.image.width, success ? 8 : 2);
+        expect(
+          await paintedPixel(tester),
+          success ? [0, 0, 255, 255] : [255, 0, 0, 255],
+        );
+        expect(tester.getSize(lower.first), bounds);
+        await tester.pumpWidget(const SizedBox());
+      },
+    );
+  }
+
+  testWidgets(
+    'decoded replacement cancels a held edge drag without cancelling a new drag',
+    (tester) async {
+      VisibilityDetectorController.instance.updateInterval = Duration.zero;
+      _mobileViewport(tester, size: const Size(800, 1200));
+      final adapter = ControlledImageAdapter();
+      final harness = _Harness(
+        imageAdapter: adapter,
+        imageCache: TestImageCache({'thumbnail-1': lowerPng}),
+      );
+      addTearDown(harness.dispose);
+      await tester.pumpWidget(harness.build());
+      await decodePump(tester);
+      final pages = _pageViewController(tester);
+      final transform = tester
+          .widget<PostViewerTransformationScope>(
+            find.byType(PostViewerTransformationScope),
+          )
+          .controller
+          .transformationController;
+      transform.value = Matrix4.diagonal3Values(2, 2, 1)
+        ..setTranslationRaw(-800, -400, 0);
+      await tester.pump();
+      final held = await tester.startGesture(const Offset(400, 550));
+      await held.moveBy(const Offset(-170, 0));
+      final target = adapter.pending.keys.singleWhere(
+        (url) => url.contains('danbooru.example/media/1'),
+      );
+      adapter.complete(target, targetPng);
+      await decodePump(tester);
+      await held.up();
+      await tester.pumpAndSettle();
+      expect(
+        pages.page,
+        0,
+        reason:
+            'completion while a finger is held must cancel that navigation drag',
+      );
+      await _swipeOutwardAtRightEdge(tester);
+      expect(pages.page, 1);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  testWidgets(
+    'duplicate post IDs keep pending decoded media within their origin page',
+    (tester) async {
+      VisibilityDetectorController.instance.updateInterval = Duration.zero;
+      _mobileViewport(tester);
+      final adapter = ControlledImageAdapter();
+      final harness = _Harness(
+        thumbnailQuality: ImageQuality.low,
+        imageAdapter: adapter,
+        imageCache: TestImageCache({'thumbnail-1': lowerPng}),
+      );
+      addTearDown(harness.dispose);
+      await tester.pumpWidget(harness.build());
+      await decodePump(tester);
+      final firstTarget = adapter.pending.keys.singleWhere(
+        (url) => url.contains('danbooru.example/media/1'),
+      );
+      _pageViewController(tester).jumpToPage(1);
+      await tester.pumpAndSettle();
+      await decodePump(tester);
+      final current = _detailsController(tester).currentPost.value;
+      expect(current.id, 1);
+      expect(current.origin.sourceHost, 'e621.example');
+      final secondTarget = adapter.pending.keys.singleWhere(
+        (url) => url.contains('e621.example/media/1'),
+      );
+      adapter.complete(firstTarget, originalPng);
+      await decodePump(tester);
+      final visibleMedia = tester
+          .widgetList<PostMedia<Post>>(find.byType(PostMedia<Post>))
+          .singleWhere((media) => media.post == current);
+      expect(visibleMedia.imageController!.imageInfo.value!.image.width, 2);
+      adapter.complete(secondTarget, targetPng);
+      await decodePump(tester);
+      expect(visibleMedia.imageController!.imageInfo.value!.image.width, 8);
+      expect(_pageViewController(tester).page, 1);
+      expect(_detailsController(tester).currentPost.value, current);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  testWidgets(
+    'sample-to-Original with different representation ratios keeps post geometry and viewer bounds',
+    (tester) async {
+      VisibilityDetectorController.instance.updateInterval = Duration.zero;
+      _mobileViewport(tester, size: const Size(800, 1200));
+      final adapter = ControlledImageAdapter();
+      final post = _post(
+        id: 1,
+        booruType: BooruType.danbooru,
+        host: 'https://danbooru.example',
+        data: _posts.first.booruData,
+        height: 400,
+      );
+      final harness = _Harness(
+        posts: [post],
+        loadOriginalOnZoom: true,
+        imageAdapter: adapter,
+        imageCache: TestImageCache({'thumbnail-1': lowerPng}),
+      );
+      addTearDown(harness.dispose);
+      await tester.pumpWidget(harness.build());
+      await decodePump(tester);
+      adapter.complete(
+        adapter.pending.keys.singleWhere((url) => url.contains('/media/1')),
+        targetPng,
+      );
+      await decodePump(tester);
+      final bounds = tester.getSize(
+        find.byType(RawPostDetailsImage<Post>).first,
+      );
+      final media = tester.widget<PostMedia<Post>>(
+        find.byType(PostMedia<Post>).first,
+      );
+      final controller = media.imageController!;
+      final contentSize = tester
+          .widget<InteractiveViewerExtended>(
+            find.byType(InteractiveViewerExtended).first,
+          )
+          .contentSize;
+      final first = await tester.startGesture(
+        const Offset(300, 550),
+        pointer: 21,
+      );
+      final second = await tester.startGesture(
+        const Offset(500, 550),
+        pointer: 22,
+      );
+      await tester.pump();
+      await first.moveTo(const Offset(180, 550));
+      await second.moveTo(const Offset(620, 550));
+      await tester.pump();
+      await first.up();
+      await second.up();
+      await decodePump(tester);
+      expect(
+        _zoomAction('Next page'),
+        findsNothing,
+        reason: 'the cropped sample does not prove full-image edges',
+      );
+      final transform = tester
+          .widget<PostViewerTransformationScope>(
+            find.byType(PostViewerTransformationScope),
+          )
+          .controller
+          .transformationController;
+      final matrix = transform.value.storage.toList();
+      adapter.complete(
+        adapter.pending.keys.singleWhere((url) => url.endsWith('/original-1')),
+        portraitPng,
+      );
+      await decodePump(tester);
+      expect(
+        tester.getSize(find.byType(RawPostDetailsImage<Post>).first),
+        bounds,
+      );
+      expect(
+        tester
+            .widget<InteractiveViewerExtended>(
+              find.byType(InteractiveViewerExtended).first,
+            )
+            .contentSize,
+        contentSize,
+      );
+      expect(
+        tester
+            .widget<PostMedia<Post>>(find.byType(PostMedia<Post>).first)
+            .imageController,
+        same(controller),
+      );
+      expect(transform.value.storage, matrix);
+      expect(await paintedPixel(tester), [0, 255, 0, 255]);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  testWidgets('representation metadata cannot resize known post content', (
+    tester,
+  ) async {
+    final post = _post(
+      id: 1,
+      booruType: BooruType.danbooru,
+      host: 'https://danbooru.example',
+      data: _posts.first.booruData,
+      height: 400,
+    );
+    final harness = _Harness(
+      imageCache: TestImageCache({
+        'thumbnail-1': lowerPng,
+        'sample-1': targetPng,
+        'original-1': portraitPng,
+      }),
+    );
+    addTearDown(harness.dispose);
+    final controller = ExtendedImageController();
+    addTearDown(controller.dispose);
+    Widget build(bool original) => UncontrolledProviderScope(
+      container: harness.container,
+      child: testApp(
+        Center(
+          child: PostDetailsImage<Post>(
+            config: _configs.first.auth,
+            post: post,
+            imageController: controller,
+            placeholderMediaBuilder: null,
+            imageUrlBuilder: (_) => original ? 'original-1' : 'sample-1',
+            mediaAspectRatioBuilder: (_) => original ? 0.25 : 1,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpWidget(build(false));
+    await decodePump(tester);
+    final bounds = tester.getSize(find.byType(PostDetailsImage<Post>));
+    expect(controller.imageInfo.value!.image.width, 8);
+    await tester.pumpWidget(build(true));
+    await decodePump(tester);
+    expect(tester.getSize(find.byType(PostDetailsImage<Post>)), bounds);
+    expect(controller.imageInfo.value!.image.height, 8);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets(
+    'AutoComic keeps a cropped decoded preview visible and preserves its matrix on completion',
+    (tester) async {
+      VisibilityDetectorController.instance.updateInterval = Duration.zero;
+      _mobileViewport(tester);
+      final adapter = ControlledImageAdapter();
+      final post = _post(
+        id: 1,
+        booruType: BooruType.danbooru,
+        host: 'https://danbooru.example',
+        data: _posts.first.booruData,
+        height: 600,
+      );
+      final harness = _Harness(
+        thumbnailQuality: ImageQuality.low,
+        posts: [post],
+        imageAdapter: adapter,
+        imageCache: TestImageCache({'thumbnail-1': lowerPng}),
+      );
+      addTearDown(harness.dispose);
+      final boundaryKey = GlobalKey();
+      await tester.pumpWidget(
+        RepaintBoundary(key: boundaryKey, child: harness.build()),
+      );
+      await decodePump(tester);
+      final transform = tester
+          .widget<PostViewerTransformationScope>(
+            find.byType(PostViewerTransformationScope),
+          )
+          .controller
+          .transformationController;
+      final matrix = transform.value.storage.toList();
+      expect(_pageViewController(tester).zoom.value, isTrue);
+      final boundary =
+          boundaryKey.currentContext!.findRenderObject()!
+              as RenderRepaintBoundary;
+      final screenshot = await tester.runAsync(() => boundary.toImage());
+      final bytes = await tester.runAsync(
+        () => screenshot!.toByteData(),
+      );
+      final offset = (250 * screenshot!.width + 200) * 4;
+      expect(
+        bytes!.buffer.asUint8List().sublist(offset, offset + 4),
+        [255, 0, 0, 255],
+        reason:
+            'the available preview must paint inside the actual AutoComic viewport',
+      );
+      screenshot.dispose();
+      expect(_zoomAction('Next page'), findsNothing);
+      adapter.complete(
+        adapter.pending.keys.singleWhere((url) => url.contains('/media/1')),
+        comicPng,
+      );
+      await decodePump(tester);
+      expect(
+        transform.value.storage,
+        matrix,
+        reason: 'the first full-compatible frame must not reapply AutoComic',
+      );
+      expect(await paintedPixel(tester), [0, 0, 255, 255]);
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  for (final success in [false, true]) {
+    testWidgets(
+      'original-on-zoom ${success ? 'success' : 'failure'} preserves the decoded sample and matrix',
+      (tester) async {
+        VisibilityDetectorController.instance.updateInterval = Duration.zero;
+        _mobileViewport(tester, size: const Size(800, 1200));
+        final adapter = ControlledImageAdapter();
+        final harness = _Harness(
+          loadOriginalOnZoom: true,
+          imageAdapter: adapter,
+          imageCache: TestImageCache({'thumbnail-1': lowerPng}),
+        );
+        addTearDown(harness.dispose);
+        await tester.pumpWidget(harness.build());
+        await decodePump(tester);
+        adapter.complete(
+          adapter.pending.keys.singleWhere(
+            (url) => url.contains('danbooru.example/media/1'),
+          ),
+          targetPng,
+        );
+        await decodePump(tester);
+        final media = tester
+            .widgetList<PostMedia<Post>>(find.byType(PostMedia<Post>))
+            .first;
+        final imageController = media.imageController!;
+        final transform = tester
+            .widget<PostViewerTransformationScope>(
+              find.byType(PostViewerTransformationScope),
+            )
+            .controller
+            .transformationController;
+        final firstFinger = await tester.startGesture(
+          const Offset(300, 550),
+          pointer: 21,
+        );
+        final secondFinger = await tester.startGesture(
+          const Offset(500, 550),
+          pointer: 22,
+        );
+        await tester.pump();
+        await firstFinger.moveTo(const Offset(180, 550));
+        await secondFinger.moveTo(const Offset(620, 550));
+        await tester.pump();
+        await firstFinger.up();
+        await secondFinger.up();
+        await decodePump(tester);
+        transform.value = Matrix4.diagonal3Values(2, 2, 1)
+          ..setTranslationRaw(-400, -400, 0);
+        await decodePump(tester);
+        final matrix = transform.value.storage.toList();
+        expect(imageController.imageInfo.value!.image.width, 8);
+        expect(await paintedPixel(tester), [0, 0, 255, 255]);
+        final original = adapter.pending.keys.singleWhere(
+          (url) => url.endsWith('/original-1'),
+        );
+        adapter.complete(
+          original,
+          success ? originalPng : Uint8List(0),
+          status: success ? 200 : 404,
+        );
+        await decodePump(tester);
+        expect(transform.value.storage, matrix);
+        expect(_pageViewController(tester).page, 0);
+        expect(imageController.imageInfo.value!.image.width, success ? 16 : 8);
+        expect(
+          await paintedPixel(tester),
+          success ? [0, 255, 0, 255] : [0, 0, 255, 255],
+        );
+        await tester.pumpWidget(const SizedBox());
+      },
+    );
+  }
   for (final placeholder in ['blocked', 'empty URL']) {
     testWidgets('$placeholder media cannot edge-navigate while zoomed', (
       tester,
@@ -112,7 +553,6 @@ void main() {
       () => Future<void>.delayed(const Duration(milliseconds: 100)),
     );
     await tester.pumpAndSettle();
-    expect(find.byType(ExtendedImage), findsWidgets);
     expect(find.byType(ErrorPlaceholder), findsWidgets);
 
     await _swipeOutwardAtRightEdge(tester);
@@ -572,6 +1012,7 @@ void main() {
       addTearDown(harness.dispose);
       await tester.pumpWidget(harness.build());
       await tester.pumpAndSettle();
+      await _waitForCurrentImage(tester);
 
       final pageView = _pageViewController(tester);
       final first = await tester.startGesture(
@@ -622,6 +1063,7 @@ void main() {
     addTearDown(harness.dispose);
     await tester.pumpWidget(harness.build());
     await tester.pumpAndSettle();
+    await _waitForCurrentImage(tester);
 
     final pageView = _pageViewController(tester);
     final transform = tester
@@ -670,6 +1112,7 @@ void main() {
     addTearDown(harness.dispose);
     await tester.pumpWidget(harness.build());
     await tester.pumpAndSettle();
+    await _waitForCurrentImage(tester);
 
     final pageView = _pageViewController(tester);
     final transform = tester
@@ -915,6 +1358,7 @@ void main() {
       await tester.pumpWidget(live.build());
       await tester.tap(find.text('Open'));
       await tester.pumpAndSettle();
+      await _waitForCurrentImage(tester);
       final details = _detailsController(tester);
       final pageView = _pageViewController(tester);
       pageView.zoom.value = true;
@@ -961,6 +1405,7 @@ void main() {
       await tester.pumpWidget(live.build());
       await tester.tap(find.text('Open'));
       await tester.pumpAndSettle();
+      await _waitForCurrentImage(tester);
       final details = _detailsController(tester);
       _pageViewController(tester).zoom.value = true;
       await tester.pump();
@@ -1382,12 +1827,19 @@ class _Harness {
     bool emptyFirstImage = false,
     bool invalidImage = false,
     bool loadOriginalOnZoom = false,
+    HttpClientAdapter? imageAdapter,
+    ImageCacheManager? imageCache,
+    this.initialThumbnailUrl,
+    ImageQuality thumbnailQuality = ImageQuality.automatic,
   }) : container = ProviderContainer(
          overrides: [
            if (router != null) routerProvider.overrideWithValue(router),
            settingsProvider.overrideWithValue(
              Settings.defaultSettings.copyWith(
                reduceAnimations: reduceAnimations,
+               listing: Settings.defaultSettings.listing.copyWith(
+                 imageQuality: thumbnailQuality,
+               ),
                viewer: Settings.defaultSettings.viewer.copyWith(
                  loadOriginalOnZoom: loadOriginalOnZoom,
                  swipeMode: vertical
@@ -1427,10 +1879,18 @@ class _Harness {
            dioForWidgetProvider.overrideWith(
              (ref, config) =>
                  Dio(BaseOptions(baseUrl: 'https://images.example/'))
-                   ..httpClientAdapter = _TestImageAdapter(invalidImage),
+                   ..httpClientAdapter =
+                       imageAdapter ?? _TestImageAdapter(invalidImage),
            ),
            defaultImageCacheManagerProvider.overrideWithValue(
-             _NoImageCache(invalidImage),
+             imageCache ??
+                 _NoImageCache(
+                   invalidImage,
+                   comicIds: (posts ?? _posts)
+                       .where((post) => post.height > post.width * 4)
+                       .map((post) => post.id)
+                       .toSet(),
+                 ),
            ),
            deviceInfoProvider.overrideWithValue(DeviceInfo.empty()),
            hasPremiumLayoutProvider.overrideWithValue(false),
@@ -1448,6 +1908,7 @@ class _Harness {
   final TextDirection direction;
   final int initialIndex;
   final List<Post>? posts;
+  final String? initialThumbnailUrl;
 
   Widget build() => UncontrolledProviderScope(
     container: container,
@@ -1462,7 +1923,7 @@ class _Harness {
           child: MixedPostDetailsPage(
             posts: posts ?? _posts,
             initialIndex: initialIndex,
-            initialThumbnailUrl: null,
+            initialThumbnailUrl: initialThumbnailUrl,
             scrollController: null,
             disclaimer: null,
           ),
@@ -1526,6 +1987,7 @@ Future<void> _swipeOutwardAtRightEdge(
   IconData? indicatorIcon,
   String? indicatorLabel,
 }) async {
+  await decodePump(tester);
   final width = tester.view.physicalSize.width;
   final transform = tester
       .widget<PostViewerTransformationScope>(
@@ -1946,7 +2408,9 @@ final class _TestImageAdapter implements HttpClientAdapter {
 }
 
 final class _NoImageCache implements ImageCacheManager {
-  _NoImageCache(this.invalidImage);
+  _NoImageCache(this.invalidImage, {this.comicIds = const {}});
+
+  final Set<int> comicIds;
 
   final bool invalidImage;
 
@@ -1955,7 +2419,11 @@ final class _NoImageCache implements ImageCacheManager {
 
   @override
   FutureOr<Uint8List?> getCachedFileBytes(String key, {Duration? maxAge}) =>
-      invalidImage ? Uint8List.fromList([1, 2, 3]) : _TestImageAdapter._png;
+      invalidImage
+      ? Uint8List.fromList([1, 2, 3])
+      : comicIds.any((id) => key.endsWith('/$id') || key.endsWith('-$id'))
+      ? comicPng
+      : lowerPng;
 
   @override
   String generateCacheKey(String url, {String? customKey}) => url;

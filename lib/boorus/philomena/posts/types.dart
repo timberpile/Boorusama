@@ -7,7 +7,7 @@ import 'package:equatable/equatable.dart';
 
 // Project imports:
 import '../../../core/configs/config/types.dart';
-import '../../../core/images/types.dart';
+import '../../../core/settings/types.dart';
 import '../../../core/posts/details/types.dart';
 import '../../../core/posts/post/types.dart';
 import '../../../core/posts/rating/types.dart';
@@ -208,10 +208,10 @@ PhilomenaPostQualityType? stringToPhilomenaPostQualityType(String? value) =>
 
 class PhilomenaMediaUrlResolver implements MediaUrlResolver {
   PhilomenaMediaUrlResolver({
-    required this.imageQuality,
+    required this.postQuality,
   });
 
-  final ImageQuality imageQuality;
+  final PostQuality postQuality;
 
   @override
   String resolveMediaUrl(
@@ -219,9 +219,9 @@ class PhilomenaMediaUrlResolver implements MediaUrlResolver {
     BooruConfigViewer config,
   ) {
     final representation = post.philomenaData?.representation;
-    if (representation == null) return post.sampleImageUrl;
+    if (representation == null) return _commonMedia(post);
     final quality = config.imageDetaisQuality;
-    if (quality == null) return post.sampleImageUrl;
+    if (quality == null) return _commonMedia(post);
 
     return switch (stringToPhilomenaPostQualityType(quality)) {
       PhilomenaPostQualityType.full => representation.full,
@@ -236,6 +236,12 @@ class PhilomenaMediaUrlResolver implements MediaUrlResolver {
     };
   }
 
+  String _commonMedia(Post post) => post.isGif
+      ? post.sampleImageUrl
+      : post.isVideo
+      ? post.videoThumbnailUrl
+      : post.sampleImageUrl;
+
   @override
   String resolveVideoUrl(
     Post post,
@@ -246,7 +252,13 @@ class PhilomenaMediaUrlResolver implements MediaUrlResolver {
   double? resolveMediaAspectRatio(
     Post post,
     BooruConfigViewer config,
-  ) => post.aspectRatio;
+  ) => config.imageDetaisQuality != null && post.philomenaData != null
+      ? post.aspectRatio
+      : post.isGif
+      ? post.effectiveSampleAspectRatio
+      : post.isVideo
+      ? post.effectiveVideoThumbnailAspectRatio
+      : post.effectiveSampleAspectRatio;
 
   @override
   double? resolveVideoAspectRatio(

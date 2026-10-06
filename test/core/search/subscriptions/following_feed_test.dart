@@ -557,10 +557,10 @@ void main() {
     );
     final images = tester.widgetList<BooruImage>(find.byType(BooruImage));
     expect(images.map((image) => image.imageUrl), [
-      'https://example.com/5-thumb.jpg',
-      'https://example.com/4-thumb.jpg',
-      'https://example.com/3-thumb.jpg',
-      'https://example.com/2-thumb.jpg',
+      'https://example.com/5.jpg',
+      'https://example.com/4.jpg',
+      'https://example.com/3.jpg',
+      'https://example.com/2.jpg',
     ]);
     expect(
       images.every((image) => image.config == otherTestProfile.auth),
@@ -1125,7 +1125,7 @@ void main() {
 
   final automaticThumbnailCases = [
     (gridSize: GridSize.micro, expectedUrl: 'https://example.com/180.jpg'),
-    (gridSize: GridSize.tiny, expectedUrl: 'https://example.com/360.jpg'),
+    (gridSize: GridSize.tiny, expectedUrl: 'https://example.com/180.jpg'),
     (gridSize: GridSize.normal, expectedUrl: 'https://example.com/720.jpg'),
   ];
   for (final c in automaticThumbnailCases) {
