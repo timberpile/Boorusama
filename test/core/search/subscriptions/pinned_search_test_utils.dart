@@ -133,6 +133,8 @@ class PinnedSearchHarness {
     this.supported = true,
     Settings? settings,
     ImageListingSettings? listingSettings,
+    ImageCacheManager? imageCacheManager,
+    void Function(RequestOptions options)? onMediaRequest,
     Clock clock = const Clock(),
     SearchRefreshScheduler? scheduler,
     bool networkAllowed = false,
@@ -145,6 +147,7 @@ class PinnedSearchHarness {
     )?
     fetchPosts,
     List<BooruConfig>? profiles,
+    BooruConfigRepository? profileRepository,
     BooruPostCapability<BooruPostData>? postCapability,
     BooruBuilder? Function(BooruConfigAuth config)? booruBuilder,
   }) {
@@ -206,6 +209,8 @@ class PinnedSearchHarness {
         currentReadOnlyBooruConfigProvider.overrideWith(
           (ref) => ref.watch(selectedTestProfileProvider),
         ),
+        if (profileRepository != null)
+          booruConfigRepoProvider.overrideWithValue(profileRepository),
         booruConfigProvider.overrideWith(
           () => BooruConfigNotifier(
             initialConfigs: profiles ?? [testProfile, otherTestProfile],
@@ -246,16 +251,18 @@ class PinnedSearchHarness {
         ),
         automaticMediaLoadingEnabledProvider.overrideWithValue(loadImages),
         blacklistTagsProvider.overrideWith((ref, config) => const {}),
-        imageListingSettingsProvider.overrideWithValue(
-          listingSettings ?? Settings.defaultSettings.listing,
-        ),
+        if (listingSettings != null)
+          imageListingSettingsProvider.overrideWithValue(listingSettings),
         deviceInfoProvider.overrideWithValue(DeviceInfo.empty()),
-        defaultImageCacheManagerProvider.overrideWithValue(_NoImageCache()),
+        defaultImageCacheManagerProvider.overrideWithValue(
+          imageCacheManager ?? _NoImageCache(),
+        ),
         dioForWidgetProvider.overrideWith(
           (ref, config) => Dio()
             ..interceptors.add(
               InterceptorsWrapper(
                 onRequest: (options, handler) {
+                  onMediaRequest?.call(options);
                   handler.reject(
                     DioException(
                       requestOptions: options,

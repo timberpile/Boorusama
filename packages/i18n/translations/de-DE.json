@@ -25,6 +25,13 @@
     "refresh_waiting_rate_limit": "Warten auf das Anfragelimit der Website.",
 
     "refreshing_remaining": "Aktualisieren… {count} verbleibend",
+
+    "sort_feed_added_date": "Hinzufügedatum",
+    "sort_feed_newest_first": "Neueste zuerst",
+    "sort_feed_oldest_first": "Älteste zuerst",
+    "edit_feed_member": "Feed-Eintrag bearbeiten",
+    "remove_feed_member": "Entfernen",
+    "shared_member_name": "Dieser Name gilt für alle Feeds, die diese Suche enthalten.",
     "sort_updates_first": "Aktualisierungen zuerst",
     "sort_last_post_oldest": "Älteste Beiträge zuerst"
   },

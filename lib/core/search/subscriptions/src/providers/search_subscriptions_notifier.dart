@@ -346,6 +346,32 @@ class SearchSubscriptionsNotifier
     );
   });
 
+  Future<void> renameFeedMember({
+    required String feedId,
+    required SearchSubscription source,
+    required String? name,
+  }) => runSerializedMutation((repository) async {
+    final feed = (await repository.getFeeds())
+        .where((item) => item.id == feedId)
+        .firstOrNull;
+    final current = await repository.getById(source.id);
+    final ownerExists = ref
+        .read(booruConfigProvider)
+        .any((config) => config.id == source.profileId);
+    if (feed == null ||
+        current == null ||
+        !ownerExists ||
+        !feed.sourceIds.contains(source.id) ||
+        feed.profileId != current.profileId ||
+        current.profileId != source.profileId ||
+        current.query != source.query ||
+        current.createdAt != source.createdAt ||
+        current.runtimeRevision != source.runtimeRevision) {
+      throw StateError('Feed member changed or is unavailable');
+    }
+    await repository.rename(source.id, name);
+  });
+
   Future<void> deleteFeed(String id) =>
       runSerializedMutation((repository) => repository.deleteFeed(id));
 

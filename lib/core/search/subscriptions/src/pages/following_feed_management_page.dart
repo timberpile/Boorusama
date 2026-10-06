@@ -12,7 +12,12 @@ import '../providers/search_subscriptions_notifier.dart';
 import '../types/search_following_feed.dart';
 import '../types/search_subscription.dart';
 import '../widgets/bulk_search_import_dialog.dart';
-import '../widgets/search_refresh_error_text.dart';
+import '../providers/following_feed_member_sort_provider.dart';
+import '../types/following_feed_member_sort.dart';
+import '../widgets/following_feed_member_card.dart';
+import '../widgets/pinned_search_card.dart';
+import '../widgets/edit_feed_member_name_dialog.dart';
+import '../widgets/pinned_search_profile_caption.dart';
 
 class FollowingFeedManagementPage extends ConsumerWidget {
   const FollowingFeedManagementPage({required this.feedId, super.key});
@@ -29,14 +34,40 @@ class FollowingFeedManagementPage extends ConsumerWidget {
           in activity?.subscriptions ?? const <SearchSubscription>[])
         item.id: item,
     };
-    final sources = [
+    final sources = sortFollowingFeedMembers([
       for (final id in feed?.sourceIds ?? const <String>[])
         if (byId[id] case final SearchSubscription source) source,
-    ];
+    ], ref.watch(followingFeedMemberSortProvider));
     return Scaffold(
       appBar: AppBar(
         title: Text(feed?.name ?? strings.following_feeds),
         actions: [
+          if (feed != null)
+            PopupMenuButton<FollowingFeedMemberSort>(
+              tooltip: context.t.sort.sort_by,
+              icon: const Icon(Symbols.sort),
+              initialValue: ref.watch(followingFeedMemberSortProvider),
+              onSelected: (sort) async {
+                final saved = await ref
+                    .read(followingFeedMemberSortProvider.notifier)
+                    .select(sort);
+                if (!saved && context.mounted) _showFailure(context);
+              },
+              itemBuilder: (context) => [
+                PopupMenuItem(
+                  value: FollowingFeedMemberSort.addedDate,
+                  child: Text(strings.sort_feed_added_date),
+                ),
+                PopupMenuItem(
+                  value: FollowingFeedMemberSort.newestFirst,
+                  child: Text(strings.sort_feed_newest_first),
+                ),
+                PopupMenuItem(
+                  value: FollowingFeedMemberSort.oldestFirst,
+                  child: Text(strings.sort_feed_oldest_first),
+                ),
+              ],
+            ),
           if (feed != null)
             IconButton(
               tooltip: strings.bulk_add,
@@ -56,88 +87,117 @@ class FollowingFeedManagementPage extends ConsumerWidget {
           : ListView(
               children: [
                 for (final source in sources)
-                  ListTile(
-                    title: Text(source.query),
-                    subtitle: Text(
-                      source.lastErrorKind == null
-                          ? source.lastSuccessfulCheckAt
-                                    ?.toLocal()
-                                    .toString() ??
-                                strings.never_checked
-                          : searchRefreshErrorText(
-                              context,
-                              source.lastErrorKind!,
-                            ),
-                    ),
-                    leading: Badge(
-                      isLabelVisible: source.hasNewPosts,
-                      child: const Icon(Symbols.search),
-                    ),
-                    onTap: () async {
-                      await ref
-                          .read(searchSubscriptionsProvider.notifier)
-                          .markRead(source.id);
-                      final config = ref
-                          .read(booruConfigProvider)
-                          .where((item) => item.id == feed.profileId)
-                          .firstOrNull;
-                      if (config == null || !context.mounted) return;
-                      await ref
-                          .read(currentBooruConfigProvider.notifier)
-                          .update(config);
-                      if (context.mounted) {
-                        goToSearchPage(ref, tag: source.query);
-                      }
-                    },
-                    trailing: PopupMenuButton<String>(
-                      onSelected: (action) async {
-                        final notifier = ref.read(
-                          searchSubscriptionsProvider.notifier,
-                        );
-                        try {
-                          if (action == 'refresh') {
-                            final result = await notifier.refresh(source.id);
-                            if (context.mounted &&
-                                result is SearchRefreshDeferred) {
-                              Kurumi.showErrorToast(
-                                context,
-                                rateLimitWaitText(context, result.retryAt),
-                              );
-                            }
-                          } else {
-                            await notifier.setFeedFollowing(
-                              feedId: feed.id,
-                              profileId: feed.profileId,
-                              query: source.query,
-                              following: false,
-                            );
-                            if (feed.sourceIds.length == 1 && context.mounted) {
-                              Navigator.pop(context);
-                            }
-                          }
-                        } catch (_) {
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text(strings.operation_failed)),
-                            );
-                          }
-                        }
-                      },
-                      itemBuilder: (context) => [
-                        PopupMenuItem(
-                          value: 'refresh',
-                          child: Text(strings.refresh),
-                        ),
-                        PopupMenuItem(
-                          value: 'remove',
-                          child: Text(context.t.generic.action.delete),
-                        ),
-                      ],
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: FollowingFeedMemberCard(
+                      key: ValueKey(source.id),
+                      feed: feed,
+                      source: source,
+                      refreshing:
+                          activity?.refreshingIds.contains(source.id) ?? false,
+                      onOpen: () => _open(context, ref, feed, source),
+                      onAction: (action) =>
+                          _memberAction(context, ref, feed, source, action),
                     ),
                   ),
               ],
             ),
     );
+  }
+
+  void _showFailure(BuildContext context) =>
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.t.pinned_searches.operation_failed)),
+      );
+
+  Future<void> _open(
+    BuildContext context,
+    WidgetRef ref,
+    SearchFollowingFeed feed,
+    SearchSubscription source,
+  ) async {
+    try {
+      final owner = ref
+          .read(booruConfigProvider)
+          .where((p) => p.id == source.profileId && p.id == feed.profileId)
+          .firstOrNull;
+      if (owner == null) return;
+      await ref.read(searchSubscriptionsProvider.notifier).markRead(source.id);
+      if (!context.mounted ||
+          !ref.read(booruConfigProvider).any((p) => p.id == owner.id)) {
+        return;
+      }
+      await ref.read(currentBooruConfigProvider.notifier).update(owner);
+      if (context.mounted) goToSearchPage(ref, tag: source.query);
+    } catch (_) {
+      if (context.mounted) _showFailure(context);
+    }
+  }
+
+  Future<void> _memberAction(
+    BuildContext context,
+    WidgetRef ref,
+    SearchFollowingFeed feed,
+    SearchSubscription source,
+    PinnedSearchAction action,
+  ) async {
+    final notifier = ref.read(searchSubscriptionsProvider.notifier);
+    try {
+      switch (action) {
+        case PinnedSearchAction.refresh:
+          final result = await notifier.refresh(source.id);
+          if (context.mounted && result is SearchRefreshDeferred) {
+            Kurumi.showErrorToast(
+              context,
+              rateLimitWaitText(context, result.retryAt),
+            );
+          }
+        case PinnedSearchAction.edit:
+          final profiles = ref.read(booruConfigProvider);
+          final owner = profiles
+              .where((p) => p.id == source.profileId && p.id == feed.profileId)
+              .firstOrNull;
+          if (owner == null) return;
+          final shared =
+              (ref
+                      .read(searchSubscriptionsProvider)
+                      .valueOrNull
+                      ?.feeds
+                      .where((f) => f.sourceIds.contains(source.id))
+                      .length ??
+                  0) >
+              1;
+          await showEditFeedMemberNameDialog(
+            context,
+            source: source,
+            ownerCaption: pinnedSearchProfileCaption(owner, profiles),
+            shared: shared,
+            onSave: (name) => notifier.renameFeedMember(
+              feedId: feed.id,
+              source: source,
+              name: name,
+            ),
+          );
+        case PinnedSearchAction.delete:
+          await notifier.setFeedFollowing(
+            feedId: feed.id,
+            profileId: feed.profileId,
+            query: source.query,
+            following: false,
+          );
+          if (feed.sourceIds.length == 1 && context.mounted) {
+            Navigator.pop(context);
+          }
+        case PinnedSearchAction.info:
+        case PinnedSearchAction.rename:
+        case PinnedSearchAction.moveUp:
+        case PinnedSearchAction.moveDown:
+        case PinnedSearchAction.moveFolder:
+          return;
+      }
+    } catch (_) {
+      if (context.mounted) _showFailure(context);
+    }
   }
 
   Future<void> _bulkAdd(

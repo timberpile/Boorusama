@@ -346,8 +346,32 @@ A user follows an existing tag, artist, or current search into one or more
 feeds, or creates a named feed from that starting point. There is no empty-feed
 creation or raw query editor. The all-profile feed list shows each owner's
 profile caption. Artist Follow/Following shows how many feeds contain the exact
-artist tag. Feed management lists its member searches for direct opening and
-manual refresh.
+artist tag. Feed management shows saved-search-style member cards with optional name and
+exact query, NEW/error status and localized relative successful check time.
+Never checked remains visible after a first failed attempt; later errors retain
+the prior successful time and previews. Each member offers Open, Refresh,
+name-only Edit and Remove. A member name belongs to its shared search record,
+so editing it affects every feed containing that record; the dialog explains
+this when shared. Saves recheck current membership, owner and definition
+identity so removed or replaced members cannot be renamed by an old dialog.
+
+Editor previews match up to four member preview IDs to full cached feed
+snapshots and preserve their engine codecs. Thumbnail quality uses the actual
+owner's enabled listing override, otherwise global listing defaults, even
+when another profile is selected. The editor reads only existing shared cache
+bytes and decodes them with normal or native AVIF memory providers. Missing,
+evicted or invalid snapshots/bytes omit previews; rebuilding, sorting and
+opening the editor never refresh posts or download media. Overview first-time
+initialization remains separate, and explicit Refresh uses the existing
+source request path.
+
+Added Date follows the stored member-ID sequence, including shared sources
+added later and members removed and re-added. Newest first and Oldest first
+use cached latest post upload time, with missing dates last and addition order
+breaking ties. Sorting is a display-only copy and changes neither membership
+nor refresh/read state. One persisted editor preference is shared across feeds
+and independent of the Pinned Searches sort; missing or unknown values use
+Added Date. No folder/move controls or manual drag order appear in the editor.
 
 Feeds use the same chronological scanner as independent pins through explicit
 refresh actions. A feed has NEW if any member search has NEW. Opening it marks
@@ -498,3 +522,15 @@ scheduler, fetches posts or writes runtime state. Its minute pulse exists only
 while the dialog is open. Next refresh uses the registered locale's relative
 future-time messages; past check and attempt dates retain the local Material
 formatter.
+
+## Testing cached member previews
+
+Widget tests that decode AVIF bytes must create the decoder and wait for its
+first decoded frame within `tester.runAsync`, pumping frames from that real
+async block. libavif shares the first `Avif.warmUp()` future across tests. If
+that future starts in a widget test’s FakeAsync zone, a later test’s decode can
+queue its warm-up continuation in the earlier zone and remain pending. Cover
+corrupt AVIF omission followed by valid AVIF rendering in the same test file;
+assert the decoded `RawImage` and zero media requests, not only the image
+provider type. Keep repository seeding and asynchronous notifier reads in
+`tester.runAsync` as well.

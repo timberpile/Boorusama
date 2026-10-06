@@ -74,6 +74,7 @@ class Settings extends Equatable {
     this.imageCacheMaxSize = CacheSize.oneGigabyte,
     this.searchRefresh = const SearchRefreshSettings(),
     this.pinnedSearchSort = 'manual',
+    this.followingFeedMemberSort = 'addedDate',
   });
 
   Settings.fromJson(Map<String, dynamic> json)
@@ -149,6 +150,11 @@ class Settings extends Equatable {
           json['swipeAreaToOpenSidebarPercentage'] ?? 5,
       autoBackup = AutoBackupSettings.parse(json['autoBackup']),
       searchRefresh = SearchRefreshSettings.parse(json['searchRefresh']),
+      followingFeedMemberSort = switch (json['followingFeedMemberSort']) {
+        'newestFirst' => 'newestFirst',
+        'oldestFirst' => 'oldestFirst',
+        _ => 'addedDate',
+      },
       pinnedSearchSort = switch (json['pinnedSearchSort']) {
         'updatesFirst' => 'updatesFirst',
         'lastPostOldest' => 'lastPostOldest',
@@ -304,6 +310,7 @@ class Settings extends Equatable {
   final AutoBackupSettings autoBackup;
   final SearchRefreshSettings searchRefresh;
   final String pinnedSearchSort;
+  final String followingFeedMemberSort;
 
   final CacheSize videoCacheMaxSize;
   final CacheSize imageCacheMaxSize;
@@ -347,6 +354,7 @@ class Settings extends Equatable {
     AutoBackupSettings? autoBackup,
     SearchRefreshSettings? searchRefresh,
     String? pinnedSearchSort,
+    String? followingFeedMemberSort,
     CacheSize? videoCacheMaxSize,
     CacheSize? imageCacheMaxSize,
   }) => Settings(
@@ -407,6 +415,8 @@ class Settings extends Equatable {
     autoBackup: autoBackup ?? this.autoBackup,
     searchRefresh: searchRefresh ?? this.searchRefresh,
     pinnedSearchSort: pinnedSearchSort ?? this.pinnedSearchSort,
+    followingFeedMemberSort:
+        followingFeedMemberSort ?? this.followingFeedMemberSort,
     videoCacheMaxSize: videoCacheMaxSize ?? this.videoCacheMaxSize,
     imageCacheMaxSize: imageCacheMaxSize ?? this.imageCacheMaxSize,
   );
@@ -454,6 +464,7 @@ class Settings extends Equatable {
       'autoBackup': autoBackup.toJson(),
       'searchRefresh': searchRefresh.toJson(),
       'pinnedSearchSort': pinnedSearchSort,
+      'followingFeedMemberSort': followingFeedMemberSort,
       'videoCacheMaxSize': videoCacheMaxSize.displayString(),
       'imageCacheMaxSize': imageCacheMaxSize.displayString(),
     };
@@ -498,6 +509,7 @@ class Settings extends Equatable {
     autoBackup,
     searchRefresh,
     pinnedSearchSort,
+    followingFeedMemberSort,
     videoCacheMaxSize,
     imageCacheMaxSize,
   ];
