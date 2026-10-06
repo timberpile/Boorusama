@@ -30,7 +30,10 @@ class SearchRefreshCommit extends Equatable {
     required List<SearchPostPreview> discoveredPosts,
     this.feedPosts = const [],
     this.canCommit,
-  }) : discoveredPosts = List.unmodifiable(discoveredPosts.take(50));
+    bool automatic = false,
+    this.automaticResolver,
+  }) : _automatic = automatic,
+       discoveredPosts = List.unmodifiable(discoveredPosts.take(50));
 
   /// Checked after acquiring the serialized write boundary, before mutation.
   final bool Function()? canCommit;
@@ -42,6 +45,9 @@ class SearchRefreshCommit extends Equatable {
   final DateTime startedAt;
   final DateTime identityRetentionBoundary;
   final bool baseline;
+  final bool _automatic;
+  final bool Function()? automaticResolver;
+  bool get automatic => automaticResolver?.call() ?? _automatic;
   final List<SearchPostPreview> discoveredPosts;
 
   @override
@@ -56,6 +62,7 @@ class SearchRefreshCommit extends Equatable {
     discoveredPosts,
     feedPosts,
     canCommit,
+    automatic,
   ];
 }
 

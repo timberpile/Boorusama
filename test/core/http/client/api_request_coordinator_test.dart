@@ -4,6 +4,107 @@ import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('expired admission is separate from live-owner cancellation', () {
+    fakeAsync((time) {
+      final c = ApiRequestCoordinator(elapsed: () => time.elapsed);
+      final key = ApiQuotaKey.fromUri(Uri.parse('https://budget.test'));
+      final held = <ApiRequestPermit>[];
+      for (var i = 0; i < 4; i++) {
+        c.acquire(key).then(held.add);
+      }
+      time.flushMicrotasks();
+      var admit = true;
+      Object? failure;
+      c
+          .acquire(
+            key,
+            context: ApiRequestContext(
+              canStart: () => true,
+              canAdmit: () => admit,
+            ),
+          )
+          .then(
+            (p) => p.release(),
+            onError: (Object e) {
+              failure = e;
+            },
+          );
+      time.flushMicrotasks();
+      admit = false;
+      held.first.release();
+      time.flushMicrotasks();
+      expect(
+        failure,
+        isA<DioException>().having(
+          (e) => e.error,
+          'expired admission',
+          isA<ApiAdmissionExpired>(),
+        ),
+      );
+      for (final p in held.skip(1)) {
+        p.release();
+      }
+      c.dispose();
+    });
+  });
+
+  test(
+    'a queued shared request is promoted without changing dispatched accounting',
+    () {
+      fakeAsync((time) {
+        final c = ApiRequestCoordinator(elapsed: () => time.elapsed);
+        final key = ApiQuotaKey.fromUri(Uri.parse('https://promotion.test'));
+        final heldPassive = <ApiRequestPermit>[];
+        for (var i = 0; i < 2; i++) {
+          c
+              .acquire(
+                key,
+                context: const ApiRequestContext(
+                  requestClass: ApiRequestClass.automatic,
+                ),
+              )
+              .then(heldPassive.add);
+        }
+        var priority = ApiRequestClass.automatic;
+        ApiRequestPermit? joined;
+        c
+            .acquire(
+              key,
+              context: ApiRequestContext(requestClassResolver: () => priority),
+            )
+            .then((p) => joined = p);
+        time.flushMicrotasks();
+        expect(joined, isNull);
+        priority = ApiRequestClass.userInitiated;
+        c.refreshAdmissions();
+        time.flushMicrotasks();
+        expect(joined, isNotNull);
+        priority = ApiRequestClass.automatic;
+        joined!.release();
+        for (final permit in heldPassive) {
+          permit.release();
+        }
+        time.flushMicrotasks();
+        expect(c.snapshot(key).inFlight, 0);
+        var passiveStarted = false;
+        c
+            .acquire(
+              key,
+              context: const ApiRequestContext(
+                requestClass: ApiRequestClass.automatic,
+              ),
+            )
+            .then((p) {
+              passiveStarted = true;
+              p.release();
+            });
+        time.flushMicrotasks();
+        expect(passiveStarted, true);
+        c.dispose();
+      });
+    },
+  );
+
   test(
     'abandoned unknown-origin admission immediately restores its occupied slot',
     () {

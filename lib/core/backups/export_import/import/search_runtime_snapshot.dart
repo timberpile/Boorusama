@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:equatable/equatable.dart';
 
 import '../../../search/subscriptions/types.dart';
+import '../../../search/subscriptions/src/services/conservative_refresh_policy.dart';
 
 final class SearchRuntimeSnapshot extends Equatable {
   const SearchRuntimeSnapshot({
@@ -87,6 +88,10 @@ final class SearchRuntimeSnapshotCodec {
     'lastSuccessfulCheckAt': search.lastSuccessfulCheckAt?.toIso8601String(),
     'highestSeenPostId': search.highestSeenPostId,
     'lastErrorKind': search.lastErrorKind?.name,
+    'adaptiveIntervalMilliseconds':
+        search.adaptiveState.interval.inMilliseconds,
+    'emptyAutomaticStreak': search.adaptiveState.consecutiveEmptyAutomatic,
+    'lastMaterialEditAt': search.lastMaterialEditAt?.toIso8601String(),
   };
 
   static SearchSubscription _searchFromJson(Object? value) {
@@ -140,6 +145,18 @@ final class SearchRuntimeSnapshotCodec {
       highestSeenPostId: _optionalInt(value, 'highestSeenPostId'),
       lastErrorKind: _optionalErrorKind(value, 'lastErrorKind'),
       runtimeRevision: runtimeRevision,
+      adaptiveState: AdaptiveRefreshState(
+        interval: Duration(
+          milliseconds: switch (value['adaptiveIntervalMilliseconds']) {
+            final int milliseconds
+                when milliseconds >= 21600000 && milliseconds <= 604800000 =>
+              milliseconds,
+            _ => 86400000,
+          },
+        ),
+        consecutiveEmptyAutomatic: value['emptyAutomaticStreak'] == 1 ? 1 : 0,
+      ),
+      lastMaterialEditAt: _optionalDate(value, 'lastMaterialEditAt'),
     );
   }
 

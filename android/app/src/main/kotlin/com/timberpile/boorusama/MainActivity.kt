@@ -11,10 +11,12 @@ import io.flutter.plugin.common.MethodChannel
 
 class MainActivity: FlutterFragmentActivity() {
     private var receivedExportChannel: ReceivedExportChannel? = null
+    private var searchRefreshEnvironmentChannel: SearchRefreshEnvironmentChannel? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         val messenger = flutterEngine.dartExecutor.binaryMessenger
+        searchRefreshEnvironmentChannel = SearchRefreshEnvironmentChannel(applicationContext, messenger)
         MediaScannerChannel(applicationContext, messenger).register()
         registerExportClipboardChannel(messenger)
         ImageClipboardChannel(applicationContext, messenger)
@@ -32,6 +34,7 @@ class MainActivity: FlutterFragmentActivity() {
 
     override fun onDestroy() {
         receivedExportChannel?.close()
+        searchRefreshEnvironmentChannel?.close()
         super.onDestroy()
     }
 

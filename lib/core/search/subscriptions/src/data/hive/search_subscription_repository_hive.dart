@@ -3,12 +3,14 @@ import 'dart:async';
 
 // Package imports:
 import 'package:collection/collection.dart';
+import 'package:clock/clock.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:uuid/uuid.dart';
 
 // Project imports:
 import '../../../../../configs/config/src/types/profile_id.dart';
 import '../../types/search_post_preview.dart';
+import '../../services/conservative_refresh_policy.dart';
 import '../../types/search_refresh.dart';
 import '../../types/search_following_feed.dart';
 import '../../types/search_organization.dart';
@@ -23,12 +25,15 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
     required Box<SearchSubscriptionHiveObject> box,
     Box<dynamic>? organizationBox,
     Uuid uuid = const Uuid(),
+    Clock clock = const Clock(),
   }) : _organizationBox = organizationBox,
        _box = box,
-       _uuid = uuid;
+       _uuid = uuid,
+       _clock = clock;
 
   final Box<SearchSubscriptionHiveObject> _box;
   final Uuid _uuid;
+  final Clock _clock;
   final Box<dynamic>? _organizationBox;
   Future<void> _mutationTail = Future.value();
 
@@ -117,7 +122,7 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
               query: query,
               name: null,
               position: position,
-              createdAt: DateTime.now().toUtc(),
+              createdAt: _clock.now().toUtc(),
             ),
       );
     }
@@ -283,6 +288,7 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
         position: source.position,
         createdAt: source.createdAt,
         runtimeRevision: source.runtimeRevision + 1,
+        lastMaterialEditAt: _clock.now().toUtc(),
         previews: const [],
         recentPostIdentities: const [],
         unreadCount: 0,
@@ -433,7 +439,7 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
               0,
               (next, item) => item.position >= next ? item.position + 1 : next,
             ),
-        createdAt: createdAt ?? DateTime.now().toUtc(),
+        createdAt: createdAt ?? _clock.now().toUtc(),
       );
       final object = _toObject(subscription);
       await _box.put(subscription.id, object);
@@ -480,6 +486,7 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
             position: current.position,
             createdAt: current.createdAt,
             runtimeRevision: current.runtimeRevision + 1,
+            lastMaterialEditAt: _clock.now().toUtc(),
             previews: const [],
             recentPostIdentities: const [],
             unreadCount: 0,
@@ -545,7 +552,7 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
           0,
           (next, pin) => pin.position >= next ? pin.position + 1 : next,
         ),
-        createdAt: DateTime.now().toUtc(),
+        createdAt: _clock.now().toUtc(),
       ),
     };
     final next = SearchOrganization(
@@ -696,6 +703,14 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
         position: current.position,
         createdAt: current.createdAt,
         runtimeRevision: current.runtimeRevision,
+        lastMaterialEditAt: current.lastMaterialEditAt,
+        adaptiveState: current.adaptiveState.after(
+          !commit.automatic || commit.baseline
+              ? AdaptiveRefreshResult.baseline
+              : foundHigherId
+              ? AdaptiveRefreshResult.newPostsAutomatic
+              : AdaptiveRefreshResult.emptyAutomatic,
+        ),
         previews: previews,
         recentPostIdentities: recentPostIdentities.take(50).toList(),
         highestSeenPostId: highestSeenPostId,
@@ -760,6 +775,8 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
         position: subscription.position,
         createdAt: subscription.createdAt,
         runtimeRevision: subscription.runtimeRevision,
+        adaptiveState: subscription.adaptiveState,
+        lastMaterialEditAt: subscription.lastMaterialEditAt,
         previews: subscription.previews,
         recentPostIdentities: subscription.recentPostIdentities,
         unreadCount: subscription.unreadCount,
@@ -1044,6 +1061,16 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
       position: object.position,
       createdAt: object.createdAt,
       runtimeRevision: object.runtimeRevision,
+      adaptiveState: AdaptiveRefreshState(
+        interval: Duration(
+          milliseconds: object.adaptiveIntervalMilliseconds.clamp(
+            21600000,
+            604800000,
+          ),
+        ),
+        consecutiveEmptyAutomatic: object.emptyAutomaticStreak == 1 ? 1 : 0,
+      ),
+      lastMaterialEditAt: object.lastMaterialEditAt,
       previews: object.previews.take(4).map(_toPreview).toList(),
       recentPostIdentities: object.recentPostIdentities.reversed
           .take(50)
@@ -1072,6 +1099,11 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
       position: subscription.position,
       createdAt: subscription.createdAt,
       runtimeRevision: subscription.runtimeRevision,
+      adaptiveIntervalMilliseconds:
+          subscription.adaptiveState.interval.inMilliseconds,
+      emptyAutomaticStreak:
+          subscription.adaptiveState.consecutiveEmptyAutomatic,
+      lastMaterialEditAt: subscription.lastMaterialEditAt,
       lastAttemptAt: subscription.lastAttemptAt,
       lastSuccessfulCheckAt: subscription.lastSuccessfulCheckAt,
       highestSeenPostId: subscription.highestSeenPostId,
@@ -1133,6 +1165,8 @@ extension on SearchSubscription {
       position: position,
       createdAt: createdAt,
       runtimeRevision: runtimeRevision,
+      adaptiveState: adaptiveState,
+      lastMaterialEditAt: lastMaterialEditAt,
       previews: previews,
       recentPostIdentities: recentPostIdentities,
       unreadCount: unreadCount,
@@ -1153,6 +1187,8 @@ extension on SearchSubscription {
       position: value,
       createdAt: createdAt,
       runtimeRevision: runtimeRevision,
+      adaptiveState: adaptiveState,
+      lastMaterialEditAt: lastMaterialEditAt,
       previews: previews,
       recentPostIdentities: recentPostIdentities,
       unreadCount: unreadCount,
@@ -1173,6 +1209,8 @@ extension on SearchSubscription {
       position: position,
       createdAt: createdAt,
       runtimeRevision: runtimeRevision,
+      adaptiveState: adaptiveState,
+      lastMaterialEditAt: lastMaterialEditAt,
       previews: previews,
       recentPostIdentities: recentPostIdentities,
       unreadCount: value,

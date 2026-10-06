@@ -78,11 +78,20 @@ class BooruConfigViewerView extends ConsumerWidget {
               child: ImageViewerSettingsSection(
                 viewer:
                     viewerConfig?.settings ?? Settings.defaultSettings.viewer,
-                onUpdate: (viewerSettings) {
-                  final currentViewerConfig = config.viewerTyped;
+                onUpdate: (change) {
+                  final currentViewerConfig = ref
+                      .read(
+                        editBooruConfigProvider(
+                          ref.read(editBooruConfigIdProvider),
+                        ),
+                      )
+                      .viewerTyped;
                   ref.editNotifier.updateViewerConfigs(
                     ViewerConfigs(
-                      settings: viewerSettings,
+                      settings: change(
+                        currentViewerConfig?.settings ??
+                            Settings.defaultSettings.viewer,
+                      ),
                       enable: currentViewerConfig?.enable ?? true,
                     ),
                   );

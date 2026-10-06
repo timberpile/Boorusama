@@ -5,7 +5,7 @@
 - **Existing profiles, pinned searches, following feeds, and bookmarks from older versions are not migrated and will no longer appear.**
 - Older profile and bookmark exports are no longer supported.
 - Bookmark imports now require a matching site profile.
-- Scheduled refresh for pinned searches and feeds is disabled; use manual refresh.
+- Automatic refresh for pinned searches and following feeds is enabled by default while the app is open, starting at 24 hours and adapting between 6 hours and 7 days. Checks use shared site limits, normally require Wi-Fi or Ethernet, and pause in battery saver. Disable them in Pinned Searches & Feeds settings; explicit disabled choices are preserved.
 
 ## Major changes
 

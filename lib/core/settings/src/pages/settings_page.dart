@@ -34,6 +34,7 @@ import 'help_us_translate_page.dart';
 import 'image_viewer_page.dart';
 import 'language_page.dart';
 import 'privacy_page.dart';
+import 'pinned_searches_and_feeds_page.dart';
 import 'search_settings_page.dart';
 
 List<SettingEntry> _entries(
@@ -81,6 +82,13 @@ List<SettingEntry> _entries(
     title: context.t.settings.search.search,
     icon: FontAwesomeIcons.magnifyingGlass,
     content: const SearchSettingsPage(),
+  ),
+  SettingEntry(
+    id: 'pinned_searches_and_feeds',
+    name: '/settings/pinned_searches_and_feeds',
+    title: context.t.settings.pinned_searches_and_feeds.title,
+    icon: FontAwesomeIcons.rss,
+    content: const PinnedSearchesAndFeedsSettingsPage(),
   ),
   SettingEntry(
     id: 'accessibility',

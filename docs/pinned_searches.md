@@ -283,13 +283,56 @@ use `tester.runAsync`; directly awaiting its future in the fake async zone can
 wait for scheduled Riverpod work that has not yet been pumped. Text controllers
 belong to dialog State so they survive the route's closing animation.
 
-Automatic refresh is disabled. Launching or resuming the app, recovering
-connectivity, and leaving the app open do not schedule search checks. Manual
-per-search, folder, feed-source, and Refresh All actions remain available. The
-existing scheduler implementation and persisted `searchRefresh` settings are
-retained as dormant migration context; the UI does not expose those inactive
-settings. A conservative daily-scale replacement with shared site throttling is
-tracked in [PS-031](work/ready/PS-031-conservative-automatic-refresh.md).
+Automatic refresh is enabled by default with an Adaptive interval starting at
+24 hours, bounded by six hours and seven days. Explicit stored disabled choices
+remain disabled; legacy minute intervals become safe Adaptive settings. The
+settings page also offers fixed six-hour to seven-day intervals and separate
+pin/feed scope controls. Manual refresh remains available while scheduling is
+disabled or automatic environment checks are paused.
+
+Each foreground run selects at most six due source IDs, oldest activity first
+then ID. Shared feed source IDs deduplicate; an independent pin remains its own
+source. Due time follows the latest creation, material edit, attempt, or success.
+Adaptive interval and empty streak persist in the source aggregate: new automatic
+results halve the interval; the first empty result retains it, and the second
+empty result doubles it and clears the streak. Baselines and manual, failed,
+cancelled, or deferred outcomes leave that policy unchanged. A live manual caller
+joining automatic work makes its shared outcome timing-inert at the guarded
+serialized commit. Rename, sorting, and mark-read preserve policy state; query,
+profile, and site changes reset it and advance the material-edit anchor.
+
+Resume, settings/environment changes, and a local minute wake reevaluate daily-scale
+eligibility. The run's 20-second budget limits new physical admission, including
+work waiting in a source or site queue. Already dispatched reads may finish
+after that deadline under lifecycle and source-identity guards; it is not a
+20-second completion guarantee. No OS-background job is installed. Wi-Fi or
+Ethernet is the default, battery saver pauses work, and optional mobile access
+requires a connection reported as unmetered. Unavailable power or network
+signals pause automatic work. Android captures transport and metering together
+from the active network's NetworkCapabilities and uses
+PowerManager power-save signals; iOS uses NWPath expense/constrained state and
+transport together with low-power mode. Independent connectivity observations
+can veto a mismatched or unknown transition, but cannot provide native metering
+proof. These platform classifications are not guarantees about billing.
+Foreground resume reloads these signals and pauses automatic admission until a
+fresh snapshot arrives. Platform references:
+[Android metering](https://developer.android.com/reference/android/net/ConnectivityManager),
+[Android capabilities](https://developer.android.com/reference/android/net/NetworkCapabilities),
+[Android power save](https://developer.android.com/reference/android/os/PowerManager),
+and [Apple path expense](https://developer.apple.com/documentation/network/nwpath/isexpensive).
+
+Source refresh and account authentication retain one physical operation while
+live callers join. A queued manual owner promotes priority immediately and
+survives an automatic owner's pause/cancellation when the source definition is
+still valid. Known cooldown returns retryAt immediately; a late manual owner
+also interrupts an automatic brief cooldown wait without replay. Definition
+changes and deletion still reject admission and guarded persistence. Shared
+site budgets and source identity/session guards are described in
+[request coordination](http_request_coordination.md). First-time feed
+initialization remains separate, using its existing foreground Wi-Fi/Ethernet
+admission and physically-started app-session suppression.
+Disabling either automatic source scope revokes its queued automatic owners
+using current feed membership; live manual owners of the same operation survive.
 
 Following Feeds is a separate navigation feature. A feed belongs to one profile
 and stores the IDs of the tracked searches that supply it. Search records have
@@ -431,3 +474,27 @@ definitions in the package but reuse one local pin per mapped profile; the
 selected Home membership takes precedence, then the first selected imported
 folder retains its membership. The conversion report gives an
 aggregate duplicate count without exposing query values.
+
+Folder refresh progress counts distinct source IDs still awaiting a terminal
+outcome in the current finite passes, including planned queued members and live
+source operations. Root manual Refresh All reserves later-profile members before
+its first profile; automatic passes expose only their bounded candidate slice.
+Pass reservations are transient and independently owned, so an overlapping or
+joined caller cannot double-count a source or clear another pass's reservation.
+A deadline or cancelled pass drops its unstarted reservations while a physically
+running source remains visible until settlement. Counts intersect current full
+folder membership and do not change NEW state, persistence, or portable backups.
+The normal Settings page owns search/feed refresh controls; management overflow
+menus contain collection operations rather than a Settings shortcut.
+
+Pinned-search Info observes the current aggregate by UUID rather than retaining
+the tapped snapshot. Its effective interval is the stored per-source Adaptive
+value or current Fixed setting. The displayed next eligibility time shares the
+planner's latest creation/material-edit/attempt/success anchor and known source
+cooldown; it is not a promised dispatch time. Disabled scope, missing owners,
+unsupported queries and temporary foreground/network/power pauses stay explicit.
+Info watches a passive immutable status snapshot and never initializes the
+scheduler, fetches posts or writes runtime state. Its minute pulse exists only
+while the dialog is open. Next refresh uses the registered locale's relative
+future-time messages; past check and attempt dates retain the local Material
+formatter.

@@ -24,7 +24,10 @@ class ImageListingSettingsSection extends ConsumerStatefulWidget {
   });
 
   final ImageListingSettings listing;
-  final void Function(ImageListingSettings) onUpdate;
+  final void Function(
+    ImageListingSettings Function(ImageListingSettings),
+  )
+  onUpdate;
   final EdgeInsetsGeometry? itemPadding;
   final List<Widget> extraChildren;
 
@@ -62,8 +65,8 @@ class _ImageListingSettingsSectionState
     }
   }
 
-  void _onUpdate(ImageListingSettings newSettings) {
-    widget.onUpdate(newSettings);
+  void _onUpdate(ImageListingSettings Function(ImageListingSettings) change) {
+    widget.onUpdate(change);
   }
 
   @override
@@ -75,7 +78,8 @@ class _ImageListingSettingsSectionState
           title: Text(context.t.settings.image_grid.grid_size.grid_size),
           selectedOption: settings.gridSize,
           items: GridSize.sortedValues,
-          onChanged: (value) => _onUpdate(settings.copyWith(gridSize: value)),
+          onChanged: (value) =>
+              _onUpdate((current) => current.copyWith(gridSize: value)),
           optionBuilder: (value) => Text(value.localize(context)),
         ),
         KurumiSettingsTile(
@@ -83,7 +87,7 @@ class _ImageListingSettingsSectionState
           selectedOption: settings.imageListType,
           items: ImageListType.values,
           onChanged: (value) =>
-              _onUpdate(settings.copyWith(imageListType: value)),
+              _onUpdate((current) => current.copyWith(imageListType: value)),
           optionBuilder: (value) => Text(value.localize(context)),
         ),
         KurumiSettingsTile(
@@ -106,7 +110,7 @@ class _ImageListingSettingsSectionState
           selectedOption: settings.imageQuality,
           items: ImageQuality.nonOriginalValues,
           onChanged: (value) =>
-              _onUpdate(settings.copyWith(imageQuality: value)),
+              _onUpdate((current) => current.copyWith(imageQuality: value)),
           optionBuilder: (value) => Text(value.localize(context)),
         ),
         KurumiSettingsTile(
@@ -116,7 +120,8 @@ class _ImageListingSettingsSectionState
               ? Text(context.t.settings.infinite_scroll_warning)
               : null,
           items: const [...PageMode.values],
-          onChanged: (value) => _onUpdate(settings.copyWith(pageMode: value)),
+          onChanged: (value) =>
+              _onUpdate((current) => current.copyWith(pageMode: value)),
           optionBuilder: (value) => Text(value.localize(context)),
         ),
         if (settings.pageMode == PageMode.paginated)
@@ -124,8 +129,9 @@ class _ImageListingSettingsSectionState
             title: Text(context.t.settings.page_indicator.page_indicator),
             selectedOption: settings.pageIndicatorPosition,
             items: const [...PageIndicatorPosition.values],
-            onChanged: (value) =>
-                _onUpdate(settings.copyWith(pageIndicatorPosition: value)),
+            onChanged: (value) => _onUpdate(
+              (current) => current.copyWith(pageIndicatorPosition: value),
+            ),
             optionBuilder: (value) => Text(value.localize(context)),
           ),
         KurumiSettingsTile(
@@ -140,7 +146,7 @@ class _ImageListingSettingsSectionState
           items: getPostsPerPagePossibleValue(),
           onChanged: (newValue) {
             _onUpdate(
-              settings.copyWith(
+              (current) => current.copyWith(
                 postsPerPage: newValue,
               ),
             );
@@ -153,7 +159,7 @@ class _ImageListingSettingsSectionState
           title: Text(context.t.settings.appearance.show_scores),
           value: settings.showScoresInGrid,
           onChanged: (value) =>
-              _onUpdate(settings.copyWith(showScoresInGrid: value)),
+              _onUpdate((current) => current.copyWith(showScoresInGrid: value)),
         ),
         KurumiSwitchListTile(
           title: Text(
@@ -161,7 +167,7 @@ class _ImageListingSettingsSectionState
           ),
           value: settings.showPostListConfigHeader,
           onChanged: (value) => _onUpdate(
-            settings.copyWith(
+            (current) => current.copyWith(
               showPostListConfigHeader: value,
             ),
           ),
@@ -172,7 +178,7 @@ class _ImageListingSettingsSectionState
           ),
           value: settings.mediaBlurCondition.blurExplicitMedia,
           onChanged: (value) => _onUpdate(
-            settings.copyWith(
+            (current) => current.copyWith(
               mediaBlurCondition: value
                   ? MediaBlurCondition.explicitOnly
                   : MediaBlurCondition.none,
@@ -187,7 +193,7 @@ class _ImageListingSettingsSectionState
               settings.animatedPostsDefaultState ==
               AnimatedPostsDefaultState.autoplay,
           onChanged: (value) => _onUpdate(
-            settings.copyWith(
+            (current) => current.copyWith(
               animatedPostsDefaultState: value
                   ? AnimatedPostsDefaultState.autoplay
                   : AnimatedPostsDefaultState.static,
@@ -217,8 +223,9 @@ class _ImageListingSettingsSectionState
           divisions: 20,
           max: 20,
           value: value,
-          onChangeEnd: (value) =>
-              _onUpdate(settings.copyWith(imageBorderRadius: value)),
+          onChangeEnd: (value) => _onUpdate(
+            (current) => current.copyWith(imageBorderRadius: value),
+          ),
           onChanged: (value) => _borderRadiusSliderValue.value = value,
           padding: EdgeInsets.zero,
         );
@@ -236,7 +243,7 @@ class _ImageListingSettingsSectionState
           max: 10,
           value: value,
           onChangeEnd: (value) =>
-              _onUpdate(settings.copyWith(imageGridSpacing: value)),
+              _onUpdate((current) => current.copyWith(imageGridSpacing: value)),
           onChanged: (value) => _spacingSliderValue.value = value,
           padding: EdgeInsets.zero,
         );
@@ -254,7 +261,7 @@ class _ImageListingSettingsSectionState
           max: 32,
           value: value,
           onChangeEnd: (value) =>
-              _onUpdate(settings.copyWith(imageGridPadding: value)),
+              _onUpdate((current) => current.copyWith(imageGridPadding: value)),
           onChanged: (value) => _paddingSliderValue.value = value,
           padding: EdgeInsets.zero,
         );
@@ -272,8 +279,9 @@ class _ImageListingSettingsSectionState
           max: 1.5,
           min: 0.5,
           value: value,
-          onChangeEnd: (value) =>
-              _onUpdate(settings.copyWith(imageGridAspectRatio: value)),
+          onChangeEnd: (value) => _onUpdate(
+            (current) => current.copyWith(imageGridAspectRatio: value),
+          ),
           onChanged: (value) => _aspectRatioSliderValue.value = value,
           padding: EdgeInsets.zero,
         );
@@ -303,8 +311,8 @@ class LayoutSection extends ConsumerWidget {
           title: Text(context.t.settings.appearance.booru_config_placement),
           selectedOption: settings.booruConfigSelectorPosition,
           items: const [...BooruConfigSelectorPosition.values],
-          onChanged: (value) => notifier.updateSettings(
-            settings.copyWith(booruConfigSelectorPosition: value),
+          onChanged: (value) => notifier.updateWith(
+            (settings) => settings.copyWith(booruConfigSelectorPosition: value),
           ),
           optionBuilder: (value) => Text(value.localize(context)),
         ),
@@ -312,8 +320,8 @@ class LayoutSection extends ConsumerWidget {
           title: Text(context.t.settings.appearance.booru_config_label),
           selectedOption: settings.booruConfigLabelVisibility,
           items: const [...BooruConfigLabelVisibility.values],
-          onChanged: (value) => notifier.updateSettings(
-            settings.copyWith(booruConfigLabelVisibility: value),
+          onChanged: (value) => notifier.updateWith(
+            (settings) => settings.copyWith(booruConfigLabelVisibility: value),
           ),
           optionBuilder: (value) => Text(value.localize(context)),
         ),

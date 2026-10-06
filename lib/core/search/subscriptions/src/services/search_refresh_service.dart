@@ -41,8 +41,9 @@ class SearchRefreshService {
 
   Future<SearchRefreshOutcome> refresh(
     SearchSubscription subscription,
-    BooruConfig config,
-  ) async {
+    BooruConfig config, {
+    bool Function()? automatic,
+  }) async {
     final startedAt = _clock.now().toUtc();
     final checkpoint = subscription.lastSuccessfulCheckAt;
     final baseline = checkpoint == null;
@@ -123,6 +124,7 @@ class SearchRefreshService {
           SearchRefreshCommit(
             subscriptionId: subscription.id,
             canCommit: _commitGuard(),
+            automaticResolver: automatic,
             feedPosts: [
               for (final post in posts)
                 feedPostSnapshotFromPost(

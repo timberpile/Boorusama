@@ -32,8 +32,10 @@ class _ImageViewerPageState extends ConsumerState<ImageViewerPage> {
         ViewerSettingsInteractionBlocker(
           child: ImageViewerSettingsSection(
             viewer: settings.viewer,
-            onUpdate: (viewerSettings) => notifer.updateSettings(
-              settings.copyWith(viewer: viewerSettings),
+            onUpdate: (change) => notifer.updateWith(
+              (settings) => settings.copyWith(
+                viewer: change(settings.viewer),
+              ),
             ),
           ),
         ),

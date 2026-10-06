@@ -38,6 +38,21 @@ void main() {
   setUp(() => harness = PinnedSearchHarness());
   tearDown(() => harness.dispose());
 
+  testWidgets('feed overview has no misplaced settings overflow', (
+    tester,
+  ) async {
+    await harness.pump(tester, const FollowingFeedsPage());
+    await settle(tester);
+    expect(
+      find.descendant(
+        of: find.byType(AppBar),
+        matching: find.byWidgetPredicate((widget) => widget is PopupMenuButton),
+      ),
+      findsNothing,
+    );
+    expect(find.text('Pinned Searches & Feeds'), findsNothing);
+  });
+
   test(
     'feeds store member search IDs without changing independent pins',
     () async {

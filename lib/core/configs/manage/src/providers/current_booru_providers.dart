@@ -101,9 +101,10 @@ class CurrentBooruConfigNotifier extends Notifier<BooruConfig> {
     if (booruConfig == state) return;
 
     state = booruConfig;
-    final settings = ref
-        .read(settingsProvider)
-        .copyWith(currentBooruConfigId: booruConfig.id);
-    await ref.read(settingsNotifierProvider.notifier).updateSettings(settings);
+    await ref
+        .read(settingsNotifierProvider.notifier)
+        .updateWith(
+          (settings) => settings.copyWith(currentBooruConfigId: booruConfig.id),
+        );
   }
 }

@@ -45,10 +45,8 @@ class LanguagePage extends ConsumerWidget {
               groupValue: selectedLanguage,
               onChanged: (value) {
                 if (value == null) return;
-                final settings = ref.read(settingsProvider);
-
-                notifer.updateSettings(
-                  settings.copyWith(language: value.locale),
+                notifer.updateWith(
+                  (settings) => settings.copyWith(language: value.locale),
                 );
                 context.setLocaleLanguage(value);
               },

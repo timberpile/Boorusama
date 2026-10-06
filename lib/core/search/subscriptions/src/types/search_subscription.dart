@@ -4,6 +4,7 @@ import 'package:equatable/equatable.dart';
 // Project imports:
 import '../../../selected_tags/types.dart';
 import 'search_post_preview.dart';
+import '../services/conservative_refresh_policy.dart';
 import 'search_refresh.dart';
 
 class SearchSubscription extends Equatable {
@@ -23,6 +24,8 @@ class SearchSubscription extends Equatable {
     this.highestSeenPostId,
     this.lastErrorKind,
     this.runtimeRevision = 0,
+    this.adaptiveState = const AdaptiveRefreshState(),
+    this.lastMaterialEditAt,
   }) : queryStructure = switch (queryStructure) {
          final SearchQueryStructure structure
              when structure.matchesCanonicalQuery(query) =>
@@ -72,6 +75,8 @@ class SearchSubscription extends Equatable {
   final int? highestSeenPostId;
   final SearchRefreshErrorKind? lastErrorKind;
   final int runtimeRevision;
+  final AdaptiveRefreshState adaptiveState;
+  final DateTime? lastMaterialEditAt;
 
   String get displayName => name ?? query;
   bool get hasNewPosts => unreadCount > 0;
@@ -94,6 +99,9 @@ class SearchSubscription extends Equatable {
     highestSeenPostId,
     lastErrorKind,
     runtimeRevision,
+    adaptiveState.interval,
+    adaptiveState.consecutiveEmptyAutomatic,
+    lastMaterialEditAt,
   ];
 }
 

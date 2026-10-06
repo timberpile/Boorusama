@@ -1,5 +1,30 @@
 {
   "pinned_searches": {
+    "current_refresh_interval": "Aktualisierungsintervall: {value}",
+    "interval_adaptive": "Adaptiv · {duration}",
+    "interval_fixed": "Fest · {duration}",
+    "interval_days": {
+        "one": "$n Tag",
+        "other": "$n Tage"
+    },
+    "interval_hours": {
+        "one": "$n Stunde",
+        "other": "$n Stunden"
+    },
+    "interval_minutes": {
+        "one": "$n Minute",
+        "other": "$n Minuten"
+    },
+    "next_scheduled_refresh": "Nächste Aktualisierung: {value}",
+    "refresh_due_now": "Jetzt fällig",
+    "refresh_not_scheduled_disabled": "Nicht geplant — automatische Aktualisierung deaktiviert",
+    "refresh_not_scheduled_scope": "Nicht geplant — Aktualisierung angehefteter Suchen deaktiviert",
+    "refresh_not_scheduled_unsupported": "Nicht geplant — diese Suche kann nicht automatisch geprüft werden",
+    "refresh_profile_unavailable": "Nicht geplant — Profil nicht verfügbar",
+    "refresh_search_unavailable": "Diese angeheftete Suche ist nicht mehr verfügbar.",
+    "refresh_waiting_rate_limit": "Warten auf das Anfragelimit der Website.",
+
+    "refreshing_remaining": "Aktualisieren… {count} verbleibend",
     "sort_updates_first": "Aktualisierungen zuerst",
     "sort_last_post_oldest": "Älteste Beiträge zuerst"
   },
@@ -291,6 +316,39 @@
   "settings": {
     "settings": "Einstellungen",
     "app_settings": "App Einstellungen",
+    "pinned_searches_and_feeds": {
+      "title": "Angepinnte Suchen & Feeds",
+      "automatic_section": "Automatische Prüfungen",
+      "enabled": "Automatische Prüfungen aktivieren",
+      "periodic_description": "Adaptive Prüfungen beginnen nach 24 Stunden und passen sich zwischen 6 Stunden und 7 Tagen an. Jeder Lauf prüft im Vordergrund höchstens sechs fällige Quellen innerhalb gemeinsamer Anfragelimits. Manuelles Aktualisieren bleibt verfügbar.",
+      "pinned_searches": "Angepinnte Suchen",
+      "following_feeds": "Quellen in gefolgten Feeds",
+      "interval": "Prüfintervall",
+      "adaptive": "Adaptiv (anfangs 24 Stunden)",
+      "fixed": "Fest",
+      "fixed_interval": "Festes Intervall",
+      "six_hours": "Alle 6 Stunden",
+      "twelve_hours": "Alle 12 Stunden",
+      "one_day": "Täglich",
+      "two_days": "Alle 2 Tage",
+      "seven_days": "Alle 7 Tage",
+      "network_section": "Netzwerk und Energie",
+      "wifi_only": "Nur WLAN oder Ethernet",
+      "foreground_only": "Prüfungen laufen nur bei geöffneter App und pausieren im Energiesparmodus. Erweiterter Netzwerkzugriff erlaubt nur als ungetaktet gemeldete Verbindungen. Unbekannter Netzwerk- oder Energiestatus pausiert automatische Prüfungen.",
+      "status_section": "Status",
+      "last_run": "Letzter automatischer Lauf: ${value}",
+      "paused": "Pausiert: ${reason}",
+      "eligible": "Fällige Quellen für diesen Lauf: ${count}",
+      "never": "Nie",
+      "running": "Fällige Quellen werden geprüft…",
+      "ready": "Automatische Prüfungen sind bereit",
+      "pause_disabled": "automatische Prüfungen deaktiviert",
+      "pause_foreground": "App ist nicht im Vordergrund",
+      "pause_battery": "Energiesparmodus ist aktiv",
+      "pause_unknown": "Energie- oder Netzwerkstatus ist nicht verfügbar",
+      "pause_network": "Warten auf ein erlaubtes Netzwerk",
+      "save_failed": "Aktualisierungseinstellungen konnten nicht gespeichert werden."
+    },
     "appearance": {
       "appearance": "Aussehen",
       "show_scores": "Scores anzeigen",

@@ -98,6 +98,13 @@ void main() {
             );
           },
         ),
+        GoRoute(
+          path: '/settings',
+          builder: (_, state) {
+            openedUri = state.uri;
+            return const Scaffold(body: Text('Settings destination'));
+          },
+        ),
       ],
       initialLocation: '/pinned-searches',
     );
@@ -354,6 +361,17 @@ void main() {
     );
   });
 
+  testWidgets('page overflow contains search operations without settings', (
+    tester,
+  ) async {
+    initialize();
+    await pumpRouter(tester);
+    await tester.tap(find.byTooltip('More').first);
+    await settle(tester);
+    expect(find.text('Pinned Searches & Feeds'), findsNothing);
+    expect(find.text('Refresh All'), findsOneWidget);
+  });
+
   for (final scenario in ['existing', 'home', 'create', 'cancel', 'failure']) {
     testWidgets(
       'moving a pin to $scenario preserves its owner and commits only on success',
@@ -513,6 +531,7 @@ void main() {
     expect(find.textContaining('Last checked:'), findsNothing);
     await choose(tester, 'Info');
     expect(find.textContaining('Last checked:'), findsOneWidget);
+    expect(find.text('Refresh interval: Adaptive · 1 day'), findsOneWidget);
     expect(harness.requests, isEmpty);
   });
 

@@ -101,3 +101,11 @@ class OrderedSearchRefreshQueryAdapter
     );
   }
 }
+
+bool supportsSearchRefreshQuery(
+  SearchRefreshQueryAdapter? adapter,
+  String query,
+) =>
+    adapter != null &&
+    adapter.isSupported &&
+    adapter.plan(query, after: null) is SupportedSearchRefreshQueryPlan;

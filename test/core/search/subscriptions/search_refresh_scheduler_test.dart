@@ -24,7 +24,121 @@ void main() {
     lastAttemptAt: attempted,
     lastErrorKind: error,
   );
+  test(
+    'finite progress settles skipped work and releases the remaining plan at deadline',
+    () async {
+      var now = start;
+      final scheduler = SearchRefreshScheduler(
+        clock: Clock(() => now),
+        maxChecks: 2,
+      );
+      final pending = <Set<String>>[];
+      var planned = false;
+      await scheduler.run(
+        searches: [search('a'), search('b'), search('c')],
+        interval: Duration.zero,
+        canRun: () => true,
+        canRefresh: (item) => !planned || item.id != 'a',
+        onPendingChanged: (ids) {
+          pending.add(ids.toSet());
+          planned = true;
+        },
+        refresh: (_) async {
+          now = now.add(const Duration(seconds: 21));
+          return const SearchRefreshDiscarded();
+        },
+      );
+      expect(pending, [
+        {'a', 'b'},
+        {'b'},
+        <String>{},
+        <String>{},
+      ]);
+    },
+  );
   Future<void> noWait(Duration _) async {}
+  test('partial plans preserve accumulated failure backoff', () async {
+    var now = start;
+    final scheduler = SearchRefreshScheduler(
+      clock: Clock(() => now),
+      spacing: Duration.zero,
+    );
+    var bad = search('bad');
+    Future<int> run(List<SearchSubscription> batch) => scheduler.run(
+      searches: batch,
+      interval: Duration.zero,
+      canRun: () => true,
+      canRefresh: (_) => true,
+      refresh: (_) async =>
+          const SearchRefreshFailed(SearchRefreshErrorKind.network),
+    );
+    expect(await run([bad]), 1);
+    now = start.add(const Duration(minutes: 5));
+    bad = search(
+      'bad',
+      attempted: start,
+      error: SearchRefreshErrorKind.network,
+    );
+    expect(await run([bad]), 1);
+    bad = search(
+      'bad',
+      attempted: now,
+      error: SearchRefreshErrorKind.network,
+    );
+    scheduler.retainSources([bad, search('other')]);
+    expect(await run([search('other')]), 1);
+    expect(await run([]), 0);
+    now = start.add(const Duration(minutes: 11));
+    expect(await run([bad]), 0);
+    now = start.add(const Duration(minutes: 15));
+    expect(await run([bad]), 1);
+  });
+
+  for (final replacement in ['removed', 'recreated', 'revised']) {
+    test(
+      'late captured cooldown is cleared for a $replacement source',
+      () async {
+        final scheduler = SearchRefreshScheduler(
+          clock: Clock.fixed(start),
+          spacing: Duration.zero,
+        );
+        final captured = search('limited');
+        final live = [
+          if (replacement != 'removed')
+            SearchSubscription(
+              id: captured.id,
+              profileId: captured.profileId,
+              query: captured.query,
+              position: 0,
+              createdAt: replacement == 'recreated'
+                  ? start.add(const Duration(seconds: 1))
+                  : start,
+              runtimeRevision: replacement == 'revised' ? 1 : 0,
+              previews: const [],
+              recentPostIdentities: const [],
+              unreadCount: 0,
+            ),
+        ];
+        await scheduler.run(
+          searches: [captured],
+          interval: Duration.zero,
+          canRun: () => true,
+          canRefresh: (_) => true,
+          refresh: (_) async {
+            scheduler.retainSources(live);
+            return SearchRefreshDeferred(
+              start.add(const Duration(minutes: 30)),
+            );
+          },
+        );
+        scheduler.retainSources(live);
+        expect(scheduler.deferredUntil('limited'), isNull);
+        if (live.isNotEmpty) {
+          expect(scheduler.isDue(live.single, Duration.zero), isTrue);
+        }
+      },
+    );
+  }
   for (final count in [2, 10000]) {
     test(
       'a queue of $count due searches uses at most ten sequential checks',
@@ -183,18 +297,21 @@ void main() {
     },
   );
   test(
-    'refresh preferences round trip while old settings get five-minute defaults',
+    'refresh preferences round trip while old minute settings migrate to a day',
     () {
       expect(
         Settings.fromJson(
           Settings.defaultSettings.toJson(),
         ).searchRefresh.interval,
-        const Duration(minutes: 5),
+        const Duration(hours: 24),
       );
       final updated = Settings.defaultSettings.copyWith(
         searchRefresh: const SearchRefreshSettings(
           enabled: false,
-          intervalMinutes: 15,
+          pinnedSearchesEnabled: false,
+          mode: SearchRefreshMode.fixed,
+          fixedIntervalHours: 48,
+          wifiEthernetOnly: false,
         ),
       );
       expect(
@@ -210,6 +327,13 @@ void main() {
           const SearchRefreshSettings(),
         );
       }
+      expect(
+        SearchRefreshSettings.parse(const {
+          'enabled': false,
+          'intervalMinutes': 5,
+        }),
+        const SearchRefreshSettings(enabled: false),
+      );
     },
   );
 }

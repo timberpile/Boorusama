@@ -1,11 +1,72 @@
 import UIKit
 import Flutter
 import CryptoKit
+import Network
 import flutter_local_notifications
+
+private final class SearchRefreshEnvironmentChannel: NSObject, FlutterStreamHandler {
+  private let method: FlutterMethodChannel
+  private let events: FlutterEventChannel
+  private let monitor = NWPathMonitor()
+  private var path: NWPath?
+  private var sink: FlutterEventSink?
+  private var powerObserver: NSObjectProtocol?
+
+  init(messenger: FlutterBinaryMessenger) {
+    method = FlutterMethodChannel(name: "boorusama/search_refresh_environment", binaryMessenger: messenger)
+    events = FlutterEventChannel(name: "boorusama/search_refresh_environment/events", binaryMessenger: messenger)
+    super.init()
+    method.setMethodCallHandler { [weak self] call, result in
+      if call.method == "snapshot" { result(self?.snapshot() ?? [:]) }
+      else { result(FlutterMethodNotImplemented) }
+    }
+    events.setStreamHandler(self)
+    monitor.pathUpdateHandler = { [weak self] path in
+      DispatchQueue.main.async {
+        self?.path = path
+        self?.emit()
+      }
+    }
+    monitor.start(queue: DispatchQueue(label: "boorusama.searchRefreshEnvironment"))
+    powerObserver = NotificationCenter.default.addObserver(
+      forName: Notification.Name.NSProcessInfoPowerStateDidChange, object: nil, queue: .main
+    ) { [weak self] _ in self?.emit() }
+  }
+
+  private func snapshot() -> [String: Any] {
+    var value: [String: Any] = ["batterySaver": ProcessInfo.processInfo.isLowPowerModeEnabled]
+    if let path {
+      if path.status == .satisfied {
+        let transports = [(NWInterface.InterfaceType.wifi, "wifi"), (.wiredEthernet, "ethernet"), (.cellular, "mobile")]
+          .filter { path.usesInterfaceType($0.0) }.map { $0.1 }
+        value["transport"] = transports.count == 1 ? transports[0] : "unknown"
+        value["metered"] = path.isExpensive || path.isConstrained
+      } else {
+        value["transport"] = "none"
+      }
+    }
+    return value
+  }
+  private func emit() { sink?(snapshot()) }
+  func onListen(withArguments arguments: Any?, eventSink events: @escaping FlutterEventSink) -> FlutterError? {
+    sink = events
+    emit()
+    return nil
+  }
+  func onCancel(withArguments arguments: Any?) -> FlutterError? {
+    sink = nil
+    return nil
+  }
+  deinit {
+    monitor.cancel()
+    if let powerObserver { NotificationCenter.default.removeObserver(powerObserver) }
+  }
+}
 
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
   private var appPrivacyChannel: AppPrivacyChannel?
+  private var searchRefreshEnvironmentChannel: SearchRefreshEnvironmentChannel?
   private var receivedExportChannel: ReceivedExportChannel?
   private var exportClipboardChannel: ExportClipboardChannel?
   private var pendingExportURLs: [URL] = []
@@ -34,6 +95,7 @@ import flutter_local_notifications
       forPlugin: "AppPrivacyChannel"
     ) else { return }
     appPrivacyChannel = AppPrivacyChannel(messenger: registrar.messenger())
+    searchRefreshEnvironmentChannel = SearchRefreshEnvironmentChannel(messenger: registrar.messenger())
     appPrivacyChannel?.register()
     receivedExportChannel = ReceivedExportChannel(messenger: registrar.messenger())
     receivedExportChannel?.register()

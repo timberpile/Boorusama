@@ -23,8 +23,14 @@ class SearchSubscriptionHiveObject extends HiveObject {
     this.feedId,
     this.runtimeRevision = 0,
     this.queryStructure,
+    this.adaptiveIntervalMilliseconds = 86400000,
+    this.emptyAutomaticStreak = 0,
+    this.lastMaterialEditAt,
   });
 
+  int adaptiveIntervalMilliseconds;
+  int emptyAutomaticStreak;
+  DateTime? lastMaterialEditAt;
   String? feedId;
   int runtimeRevision;
   Object? queryStructure;

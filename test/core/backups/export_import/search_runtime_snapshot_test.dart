@@ -7,6 +7,7 @@ import 'package:boorusama/core/backups/export_import/import/import_plan.dart';
 import 'package:boorusama/core/backups/export_import/import/import_transaction.dart';
 import 'package:boorusama/core/backups/export_import/import/search_runtime_snapshot.dart';
 import 'package:boorusama/core/search/subscriptions/types.dart';
+import 'package:boorusama/core/search/subscriptions/src/services/conservative_refresh_policy.dart';
 import 'package:boorusama/foundation/filesystem.dart';
 
 import '../../search/subscriptions/subscription_test_utils.dart';
@@ -49,6 +50,11 @@ void main() {
       highestSeenPostId: 42,
       lastErrorKind: SearchRefreshErrorKind.rateLimited,
       runtimeRevision: 7,
+      adaptiveState: const AdaptiveRefreshState(
+        interval: Duration(hours: 21),
+        consecutiveEmptyAutomatic: 1,
+      ),
+      lastMaterialEditAt: checkedAt.subtract(const Duration(days: 2)),
     );
     final feedSource = SearchSubscription(
       id: 'feed-source',

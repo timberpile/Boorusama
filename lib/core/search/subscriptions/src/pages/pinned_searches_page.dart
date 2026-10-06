@@ -27,6 +27,7 @@ import '../widgets/pinned_search_card.dart';
 import '../widgets/pinned_search_profile_caption.dart';
 import '../widgets/pinned_search_folder_card.dart';
 import '../widgets/search_folder_dialog.dart';
+import '../widgets/pinned_search_info_dialog.dart';
 
 enum _PinnedSearchPageAction {
   bulkAdd,
@@ -76,7 +77,7 @@ class _PinnedSearchesPageState extends ConsumerState<PinnedSearchesPage> {
     final canRefreshFolder = canRefreshPinnedSearchFolder(
       folder: folder,
       subscriptions: activity?.subscriptions ?? const <SearchSubscription>[],
-      refreshingIds: activity?.refreshingIds ?? const <String>{},
+      refreshingIds: activity?.pendingRefreshIds ?? const <String>{},
       refreshableProfileIds: refreshableProfileIds,
     );
     return Scaffold(
@@ -284,13 +285,16 @@ class _PinnedSearchesPageState extends ConsumerState<PinnedSearchesPage> {
                               ),
                               lastPostAt: lastPost.lastPostAt,
                               hasBaseline: lastPost.hasBaseline,
-                              refreshing: activity.refreshingIds.any(
+                              refreshing: activity.pendingRefreshIds.any(
                                 folder.searchIds.contains,
                               ),
+                              remainingRefreshes: activity.pendingRefreshIds
+                                  .where(folder.searchIds.contains)
+                                  .length,
                               canRefresh: canRefreshPinnedSearchFolder(
                                 folder: folder,
                                 subscriptions: activity.subscriptions,
-                                refreshingIds: activity.refreshingIds,
+                                refreshingIds: activity.pendingRefreshIds,
                                 refreshableProfileIds: refreshableProfileIds,
                               ),
                               showMoveActions: canReorder,
@@ -468,20 +472,29 @@ class _PinnedSearchesPageState extends ConsumerState<PinnedSearchesPage> {
 
   Future<void> _refreshProfiles(List<String> profileIds) async {
     setState(() => _refreshingAllProfiles = true);
+    SearchRefreshProgress? progress;
     try {
+      progress = await ref
+          .read(searchSubscriptionsProvider.notifier)
+          .planIndependentRefreshes(profileIds);
       for (final id in profileIds) {
         if (!mounted) return;
-        await _refreshAll(id);
+        await _refreshAll(id, progress: progress);
       }
     } finally {
+      progress?.close();
       if (mounted) setState(() => _refreshingAllProfiles = false);
     }
   }
 
-  Future<void> _refreshAll(String profileId) async {
+  Future<void> _refreshAll(
+    String profileId, {
+    SearchRefreshProgress? progress,
+  }) async {
     await _runAction(
-      () =>
-          ref.read(searchSubscriptionsProvider.notifier).refreshAll(profileId),
+      () => ref
+          .read(searchSubscriptionsProvider.notifier)
+          .refreshAll(profileId, progress: progress),
     );
   }
 
@@ -496,47 +509,8 @@ class _PinnedSearchesPageState extends ConsumerState<PinnedSearchesPage> {
       case PinnedSearchAction.info:
         await showDialog<void>(
           context: context,
-          builder: (context) {
-            final strings = context.t.pinned_searches;
-            final localizations = MaterialLocalizations.of(context);
-            String date(DateTime value) {
-              final local = value.toLocal();
-              return '${localizations.formatMediumDate(local)} ${localizations.formatTimeOfDay(TimeOfDay.fromDateTime(local))}';
-            }
-
-            return AlertDialog(
-              title: Text(strings.info),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(subscription.displayName),
-                  Text(subscription.query),
-                  const SizedBox(height: 16),
-                  Text(switch (subscription.lastSuccessfulCheckAt) {
-                    null => strings.never_checked,
-                    final checked => strings.last_checked.replaceAll(
-                      '{date}',
-                      date(checked),
-                    ),
-                  }),
-                  if (subscription.lastAttemptAt case final attempted?)
-                    Text(
-                      strings.last_attempt.replaceAll(
-                        '{date}',
-                        date(attempted),
-                      ),
-                    ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: Text(context.t.generic.action.ok),
-                ),
-              ],
-            );
-          },
+          builder: (_) =>
+              PinnedSearchInfoDialog(subscriptionId: subscription.id),
         );
       case PinnedSearchAction.refresh:
         await _runAction(

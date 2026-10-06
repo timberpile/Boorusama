@@ -1,35 +1,105 @@
 import 'package:equatable/equatable.dart';
 
+enum SearchRefreshMode { adaptive, fixed }
+
 class SearchRefreshSettings extends Equatable {
-  const SearchRefreshSettings({this.enabled = true, this.intervalMinutes = 5});
+  const SearchRefreshSettings({
+    this.enabled = true,
+    this.pinnedSearchesEnabled = true,
+    this.followingFeedsEnabled = true,
+    this.mode = SearchRefreshMode.adaptive,
+    this.fixedIntervalHours = 24,
+    this.wifiEthernetOnly = true,
+  });
+
   factory SearchRefreshSettings.parse(Object? value) {
     final json = switch (value) {
       final Map json => json,
       _ => const <String, Object?>{},
     };
+    final enabled = switch (json['enabled']) {
+      final bool value => value,
+      _ => true,
+    };
+    if (json['schemaVersion'] != 2) {
+      // Old minute intervals are intentionally not carried into the new policy.
+      return SearchRefreshSettings(enabled: enabled);
+    }
+    final fixedHours = switch (json['fixedIntervalHours']) {
+      final int value
+          when value == 6 ||
+              value == 12 ||
+              value == 24 ||
+              value == 48 ||
+              value == 168 =>
+        value,
+      _ => 24,
+    };
     return SearchRefreshSettings(
-      enabled: switch (json['enabled']) {
+      enabled: enabled,
+      pinnedSearchesEnabled: switch (json['pinnedSearchesEnabled']) {
         final bool value => value,
         _ => true,
       },
-      intervalMinutes: switch (json['intervalMinutes']) {
-        final int value when value >= 1 && value <= 1440 => value,
-        _ => 5,
+      followingFeedsEnabled: switch (json['followingFeedsEnabled']) {
+        final bool value => value,
+        _ => true,
+      },
+      mode: json['mode'] == 'fixed'
+          ? SearchRefreshMode.fixed
+          : SearchRefreshMode.adaptive,
+      fixedIntervalHours: fixedHours,
+      wifiEthernetOnly: switch (json['wifiEthernetOnly']) {
+        final bool value => value,
+        _ => true,
       },
     );
   }
+
   final bool enabled;
-  final int intervalMinutes;
-  Duration get interval => Duration(minutes: intervalMinutes);
-  SearchRefreshSettings copyWith({bool? enabled, int? intervalMinutes}) =>
-      SearchRefreshSettings(
-        enabled: enabled ?? this.enabled,
-        intervalMinutes: intervalMinutes ?? this.intervalMinutes,
-      );
+  final bool pinnedSearchesEnabled;
+  final bool followingFeedsEnabled;
+  final SearchRefreshMode mode;
+  final int fixedIntervalHours;
+  final bool wifiEthernetOnly;
+
+  Duration get interval => mode == SearchRefreshMode.adaptive
+      ? const Duration(hours: 24)
+      : Duration(hours: fixedIntervalHours);
+
+  SearchRefreshSettings copyWith({
+    bool? enabled,
+    bool? pinnedSearchesEnabled,
+    bool? followingFeedsEnabled,
+    SearchRefreshMode? mode,
+    int? fixedIntervalHours,
+    bool? wifiEthernetOnly,
+  }) => SearchRefreshSettings(
+    enabled: enabled ?? this.enabled,
+    pinnedSearchesEnabled: pinnedSearchesEnabled ?? this.pinnedSearchesEnabled,
+    followingFeedsEnabled: followingFeedsEnabled ?? this.followingFeedsEnabled,
+    mode: mode ?? this.mode,
+    fixedIntervalHours: fixedIntervalHours ?? this.fixedIntervalHours,
+    wifiEthernetOnly: wifiEthernetOnly ?? this.wifiEthernetOnly,
+  );
+
   Map<String, Object> toJson() => {
+    'schemaVersion': 2,
     'enabled': enabled,
-    'intervalMinutes': intervalMinutes,
+    'pinnedSearchesEnabled': pinnedSearchesEnabled,
+    'followingFeedsEnabled': followingFeedsEnabled,
+    'mode': mode.name,
+    'fixedIntervalHours': fixedIntervalHours,
+    'wifiEthernetOnly': wifiEthernetOnly,
   };
+
   @override
-  List<Object?> get props => [enabled, intervalMinutes];
+  List<Object?> get props => [
+    enabled,
+    pinnedSearchesEnabled,
+    followingFeedsEnabled,
+    mode,
+    fixedIntervalHours,
+    wifiEthernetOnly,
+  ];
 }

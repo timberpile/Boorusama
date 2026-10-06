@@ -18,6 +18,7 @@ class MemorySubscriptionBox extends MemoryBox<SearchSubscriptionHiveObject> {}
 
 class MemoryBox<T> implements Box<T> {
   final _items = <dynamic, T>{};
+  var mutationCount = 0;
 
   @override
   Iterable<T> get values => _items.values;
@@ -33,6 +34,7 @@ class MemoryBox<T> implements Box<T> {
 
   @override
   Future<void> put(dynamic key, T value) async {
+    mutationCount++;
     _items[key] = value;
   }
 
@@ -40,6 +42,7 @@ class MemoryBox<T> implements Box<T> {
   Future<void> putAll(
     Map<dynamic, T> entries,
   ) async {
+    mutationCount++;
     for (final entry in entries.entries) {
       _items[entry.key] = entry.value;
     }
@@ -47,11 +50,13 @@ class MemoryBox<T> implements Box<T> {
 
   @override
   Future<void> delete(dynamic key) async {
+    mutationCount++;
     _items.remove(key);
   }
 
   @override
   Future<void> deleteAll(Iterable<dynamic> keys) async {
+    mutationCount++;
     keys.toList().forEach(_items.remove);
   }
 

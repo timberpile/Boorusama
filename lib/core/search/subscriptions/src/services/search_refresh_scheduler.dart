@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:async';
 import 'package:clock/clock.dart';
 import '../types/search_refresh.dart';
 import '../types/search_subscription.dart';
@@ -11,12 +12,30 @@ class SearchRefreshScheduler {
     this.spacing = const Duration(seconds: 1),
   }) : _clock = clock;
   final Clock _clock;
+  DateTime get now => _clock.now().toUtc();
   final int maxChecks;
   final Duration runBudget;
   final Duration spacing;
   final _failures = <String, int>{};
   final _deferredUntil = <String, DateTime>{};
+  final _stateIdentities = <String, ({DateTime createdAt, int revision})>{};
+  DateTime? deferredUntil(String id) => _deferredUntil[id];
   var _running = false;
+
+  void retainSources(Iterable<SearchSubscription> sources) {
+    final identities = {
+      for (final source in sources)
+        source.id: (
+          createdAt: source.createdAt,
+          revision: source.runtimeRevision,
+        ),
+    };
+    bool stale(String id) =>
+        !identities.containsKey(id) || identities[id] != _stateIdentities[id];
+    _failures.removeWhere((id, _) => stale(id));
+    _deferredUntil.removeWhere((id, _) => stale(id));
+    _stateIdentities.removeWhere((id, _) => stale(id));
+  }
 
   bool isDue(SearchSubscription search, Duration interval) {
     final now = _clock.now().toUtc();
@@ -40,31 +59,49 @@ class SearchRefreshScheduler {
   Future<int> run({
     required List<SearchSubscription> searches,
     required Duration interval,
+    bool alreadyPlanned = false,
     required bool Function() canRun,
     required bool Function(SearchSubscription) canRefresh,
     required Future<SearchRefreshOutcome> Function(String) refresh,
-    Future<void> Function(Duration) wait = Future<void>.delayed,
+    Future<void> Function(Duration)? wait,
+    Future<void>? cancelled,
+    void Function(Set<String>)? onPendingChanged,
   }) async {
     if (_running || !canRun()) return 0;
     _running = true;
     final startedAt = _clock.now();
     var checked = 0;
     try {
-      final ids = searches.map((s) => s.id).toSet();
-      _failures.removeWhere((id, _) => !ids.contains(id));
-      _deferredUntil.removeWhere((id, _) => !ids.contains(id));
-      final due = searches.where((s) => isDue(s, interval)).toList()
-        ..sort(compareSearchRefreshPriority);
-      for (final search in due) {
+      // A run may contain only a selected batch; live-source cleanup belongs
+      // to retainSources, using the authoritative subscription collection.
+      final due = alreadyPlanned
+          ? searches
+          : (searches.where((s) => isDue(s, interval)).toList()
+              ..sort(compareSearchRefreshPriority));
+      final planned = due.where(canRefresh).take(maxChecks).toList();
+      final pending = planned.map((search) => search.id).toSet();
+      void publish() => onPendingChanged?.call(Set.unmodifiable(pending));
+      publish();
+      for (final search in planned) {
         if (!canRun() ||
             checked >= maxChecks ||
             _clock.now().difference(startedAt) >= runBudget) {
           break;
         }
-        if (!canRefresh(search)) continue;
+        if (!canRefresh(search)) {
+          pending.remove(search.id);
+          publish();
+          continue;
+        }
         checked++;
+        final identity = (
+          createdAt: search.createdAt,
+          revision: search.runtimeRevision,
+        );
         try {
-          switch (await refresh(search.id)) {
+          final outcome = await refresh(search.id);
+          _stateIdentities[search.id] = identity;
+          switch (outcome) {
             case SearchRefreshFailed():
               _failures.update(search.id, (n) => n + 1, ifAbsent: () => 1);
             case SearchRefreshSucceeded():
@@ -76,15 +113,29 @@ class SearchRefreshScheduler {
               break;
           }
         } catch (_) {
+          _stateIdentities[search.id] = identity;
           _failures.update(search.id, (n) => n + 1, ifAbsent: () => 1);
         }
+        pending.remove(search.id);
+        publish();
         if (spacing > Duration.zero && checked < maxChecks && canRun()) {
-          await wait(spacing);
+          await (wait?.call(spacing) ?? waitForSpacing(cancelled: cancelled));
         }
       }
       return checked;
     } finally {
+      onPendingChanged?.call(const {});
       _running = false;
     }
+  }
+
+  Future<void> waitForSpacing({Future<void>? cancelled}) {
+    final completed = Completer<void>();
+    final timer = Timer(spacing, completed.complete);
+    cancelled?.then((_) {
+      timer.cancel();
+      if (!completed.isCompleted) completed.complete();
+    });
+    return completed.future;
   }
 }

@@ -127,9 +127,20 @@ class BooruConfigListingView extends ConsumerWidget {
               grayedOut: !enable,
               child: ImageListingSettingsSection(
                 listing: settings,
-                onUpdate: (value) => ref.editNotifier.updateListing(
-                  listing.copyWith(settings: value),
-                ),
+                onUpdate: (change) {
+                  final current =
+                      ref
+                          .read(
+                            editBooruConfigProvider(
+                              ref.read(editBooruConfigIdProvider),
+                            ),
+                          )
+                          .listingTyped ??
+                      ListingConfigs.undefined();
+                  ref.editNotifier.updateListing(
+                    current.copyWith(settings: change(current.settings)),
+                  );
+                },
               ),
             ),
             if (tooltipToggle case final toggle?) ...[

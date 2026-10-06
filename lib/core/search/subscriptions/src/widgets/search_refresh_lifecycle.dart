@@ -40,7 +40,7 @@ class _SearchRefreshLifecycleState extends ConsumerState<SearchRefreshLifecycle>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _coordinator.setForeground(false);
+    _coordinator.setForeground(false, deferPublication: true);
     super.dispose();
   }
 

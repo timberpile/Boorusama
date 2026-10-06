@@ -233,8 +233,8 @@ class _DataAndStoragePageState extends ConsumerState<DataAndStoragePage> {
             title: Text(
               context.t.settings.data_and_storage.clear_cache_on_start_up,
             ),
-            onChanged: (value) => notifier.updateSettings(
-              settings.copyWith(clearImageCacheOnStartup: value),
+            onChanged: (value) => notifier.updateWith(
+              (settings) => settings.copyWith(clearImageCacheOnStartup: value),
             ),
           ),
           const Divider(height: 1),
@@ -403,8 +403,8 @@ class _DataAndStoragePageState extends ConsumerState<DataAndStoragePage> {
           ).then((customSize) {
             if (customSize == null) return;
 
-            notifier.updateSettings(
-              settings.copyWith(videoCacheMaxSize: customSize),
+            notifier.updateWith(
+              (settings) => settings.copyWith(videoCacheMaxSize: customSize),
             );
           });
           return;
@@ -413,8 +413,8 @@ class _DataAndStoragePageState extends ConsumerState<DataAndStoragePage> {
         final size = option.cacheSize;
         if (size == null) return;
 
-        notifier.updateSettings(
-          settings.copyWith(videoCacheMaxSize: size),
+        notifier.updateWith(
+          (settings) => settings.copyWith(videoCacheMaxSize: size),
         );
       },
       optionBuilder: (option) => Text(

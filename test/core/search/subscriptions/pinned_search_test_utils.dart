@@ -45,6 +45,8 @@ import 'package:kurumi/kurumi.dart';
 import 'package:oktoast/oktoast.dart';
 
 import 'subscription_test_utils.dart';
+import 'package:boorusama/core/search/subscriptions/src/services/search_refresh_environment.dart';
+import 'package:boorusama/core/search/subscriptions/src/services/conservative_refresh_policy.dart';
 
 final selectedTestProfileProvider =
     NotifierProvider<SelectedTestProfile, BooruConfig>(SelectedTestProfile.new);
@@ -134,6 +136,7 @@ class PinnedSearchHarness {
     Clock clock = const Clock(),
     SearchRefreshScheduler? scheduler,
     bool networkAllowed = false,
+    Future<void> Function()? beforeDispatch,
     Future<Either<BooruError, PostResult<Post>>> Function(
       BooruConfig config,
       String query,
@@ -159,7 +162,7 @@ class PinnedSearchHarness {
           () => SettingsNotifier(initialSettings),
         ),
         settingsRepoProvider.overrideWithValue(
-          SettingsRepositoryHive(Future.value(MemoryBox<dynamic>())),
+          SettingsRepositoryHive(Future.value(settingsBox)),
         ),
         initialSettingsBooruConfigProvider.overrideWithValue(testProfile),
         analyticsProvider.overrideWith((ref) => Future.value()),
@@ -169,6 +172,14 @@ class PinnedSearchHarness {
         automaticSearchRefreshNetworkAllowedProvider.overrideWith(
           (ref) => ref.watch(
             testAutomaticSearchRefreshNetworkAllowedProvider,
+          ),
+        ),
+        searchRefreshEnvironmentProvider.overrideWith(
+          (ref) => SearchRefreshEnvironment(
+            network: ref.watch(testAutomaticSearchRefreshNetworkAllowedProvider)
+                ? RefreshNetwork.wifi
+                : RefreshNetwork.offline,
+            powerKnown: true,
           ),
         ),
         searchRefreshCoordinatorProvider.overrideWith(
@@ -210,6 +221,7 @@ class PinnedSearchHarness {
               clock: clock,
               resolvePostRepository: (config) => TestSearchPostRepository(
                 (query, page, limit) async {
+                  await beforeDispatch?.call();
                   // This injected repository simulates remote dispatch instead
                   // of using Dio, so signal its physical request boundary.
                   ApiRequestContext.current().onStarted?.call();
@@ -272,6 +284,7 @@ class PinnedSearchHarness {
   final bool supported;
   final box = ControlledSubscriptionBox();
   final organizationBox = MemoryBox<dynamic>();
+  final settingsBox = MemoryBox<dynamic>();
   late final SearchSubscriptionRepository repository;
   late final ProviderContainer container;
   late GoRouter router;

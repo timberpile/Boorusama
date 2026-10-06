@@ -99,14 +99,18 @@ sets `allowCooldownRetry: false`: a click during cooldown returns the remaining
 wait and cannot become a delayed action.
 
 `runWithApiRequestContext` scopes lazy asynchronous execution. Consumers supply
-priority, cancellation, a final `canStart` guard and `onStarted` callback.
+live owner priority, cancellation, a final `canStart` guard, an optional separate
+`canAdmit` deadline guard, and `onStarted` callback. Admission expiry prevents new
+physical dispatches, including retries, while a valid already-dispatched read
+may finish and commit. An ordinary failure whose optional retry exceeds that
+deadline keeps its original failure outcome.
 Pinned/following source refresh uses lifecycle and source-revision guards and
 checks cancellation/lifecycle again inside the serialized repository write
 boundary, and returns `SearchRefreshDeferred(retryAt)` without changing attempt/checkpoint,
 previews or NEW state. The scheduler remembers deferral in memory until retryAt;
-it is not a persisted failed attempt. PS-031 can consume these contexts,
-snapshots and deadlines for its foreground policy. This ticket does not enable
-automatic activation. The existing three-operation refresh gate remains a
+it is not a persisted failed attempt. The conservative foreground automatic
+policy uses these contexts, snapshots and admission deadlines. The existing
+three-operation refresh gate remains a
 feature-level guard in addition to the app-wide physical transport limits.
 
 A queued shared auth operation follows its strongest live owner's priority.
@@ -119,6 +123,17 @@ owner's passive exemption. Once dispatched, classification and debit remain
 fixed through completion or acknowledged cancellation. Credential rotation
 is never restarted to change priority. Shared live ownership and account identity remain independent of
 individual caller cancellation.
+
+A shared source or auth operation resolves queued priority from live owners;
+joining manual work promotes it and explicitly wakes admission. Source-definition
+guards remain separate from individual owner cancellation. A live manual owner
+can finish when the automatic owner pauses, and makes adaptive interval outcomes
+inert at the guarded commit. Once manual work joins, brief delayed cooldown replay
+stays disabled. When a new manual caller finds the actual current data quota in
+cooldown, it returns Deferred immediately: a pending physical read may still
+finish, while a between-attempt cooldown wait is interrupted. Unrelated origins
+and completed auth quotas do not establish a source data cooldown. Shared auth
+retains aggregate ownership, credential rotation, and cross-Zone settlement.
 
 Detached Danbooru favorite-status and vote metadata requests use `preload`,
 inherit cancellation/eligibility, and request immediate deferral when no

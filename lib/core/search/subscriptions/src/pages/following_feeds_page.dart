@@ -59,7 +59,9 @@ class _FollowingFeedsPageState extends ConsumerState<FollowingFeedsPage> {
     final byProfileId = {for (final profile in profiles) profile.id: profile};
     final strings = context.t.pinned_searches;
     return Scaffold(
-      appBar: AppBar(title: Text(strings.following_feeds)),
+      appBar: AppBar(
+        title: Text(strings.following_feeds),
+      ),
       body: ref
           .watch(searchSubscriptionsProvider)
           .when(

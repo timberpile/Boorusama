@@ -26,6 +26,30 @@
     "backup_import_skipped": "Imported {count} following feeds; {existing} already existed. Skipped {skipped} feeds because their profile was missing or ambiguous."
   },
   "pinned_searches": {
+    "current_refresh_interval": "Refresh interval: {value}",
+    "interval_adaptive": "Adaptive · {duration}",
+    "interval_fixed": "Fixed · {duration}",
+    "interval_days": {
+        "one": "$n day",
+        "other": "$n days"
+    },
+    "interval_hours": {
+        "one": "$n hour",
+        "other": "$n hours"
+    },
+    "interval_minutes": {
+        "one": "$n minute",
+        "other": "$n minutes"
+    },
+    "next_scheduled_refresh": "Next refresh: {value}",
+    "refresh_due_now": "Due now",
+    "refresh_not_scheduled_disabled": "Not scheduled — automatic checks disabled",
+    "refresh_not_scheduled_scope": "Not scheduled — pinned-search checks disabled",
+    "refresh_not_scheduled_unsupported": "Not scheduled — this search cannot be checked automatically",
+    "refresh_profile_unavailable": "Not scheduled — profile unavailable",
+    "refresh_search_unavailable": "This pinned search is no longer available.",
+    "refresh_waiting_rate_limit": "Waiting for the site rate limit.",
+
     "title": "Pinned Searches",
     "backup_count": {
       "one": "$n pinned search",
@@ -45,6 +69,7 @@
     "refresh": "Refresh",
     "refresh_all": "Refresh All",
     "refreshing": "Refreshing…",
+    "refreshing_remaining": "Refreshing… {count} left",
     "refreshing_progress": "Refreshing {completed} of {total}",
     "new_badge": "NEW",
     "new_posts": "New posts available",
@@ -510,6 +535,39 @@
   "settings": {
     "settings": "Settings",
     "app_settings": "App Settings",
+    "pinned_searches_and_feeds": {
+      "title": "Pinned Searches & Feeds",
+      "automatic_section": "Automatic checks",
+      "enabled": "Enable automatic checks",
+      "periodic_description": "Adaptive checks start after 24 hours and adjust between 6 hours and 7 days. Each foreground run checks at most six due sources within shared site request limits. Manual refresh remains available.",
+      "pinned_searches": "Pinned searches",
+      "following_feeds": "Following feed sources",
+      "interval": "Check interval",
+      "adaptive": "Adaptive (starts at 24 hours)",
+      "fixed": "Fixed",
+      "fixed_interval": "Fixed interval",
+      "six_hours": "Every 6 hours",
+      "twelve_hours": "Every 12 hours",
+      "one_day": "Every day",
+      "two_days": "Every 2 days",
+      "seven_days": "Every 7 days",
+      "network_section": "Network and power",
+      "wifi_only": "Wi-Fi or Ethernet only",
+      "foreground_only": "Checks run only while the app is open and pause in battery saver. Broader network access allows only connections reported as unmetered; unknown connection or power status pauses automatic checks.",
+      "status_section": "Status",
+      "last_run": "Last automatic run: ${value}",
+      "paused": "Paused: ${reason}",
+      "eligible": "Due sources this run: ${count}",
+      "never": "Never",
+      "running": "Checking due sources…",
+      "ready": "Automatic checks are ready",
+      "pause_disabled": "automatic checks disabled",
+      "pause_foreground": "app is not in the foreground",
+      "pause_battery": "battery saver is active",
+      "pause_unknown": "power or network status is unavailable",
+      "pause_network": "waiting for an allowed network",
+      "save_failed": "Could not save refresh settings."
+    },
     "appearance": {
       "appearance": "Appearance",
       "customize": "Customize",
