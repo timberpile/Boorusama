@@ -152,7 +152,7 @@ void main() {
     (tester) async {
       VisibilityDetectorController.instance.updateInterval = Duration.zero;
       _mobileViewport(tester, size: const Size(800, 1200));
-      final adapter = ControlledImageAdapter();
+      final adapter = _ReplayableImageAdapter();
       final harness = _Harness(
         imageAdapter: adapter,
         imageCache: TestImageCache({'thumbnail-1': lowerPng}),
@@ -188,6 +188,20 @@ void main() {
       await _swipeOutwardAtRightEdge(tester);
       expect(pages.page, 1);
       await tester.pumpWidget(const SizedBox());
+      final pendingRequests = adapter.requests
+          .where(
+            (request) => !adapter.pending[request.uri.toString()]!.isCompleted,
+          )
+          .toList();
+      expect(pendingRequests, isNotEmpty);
+      expect(
+        pendingRequests.every(
+          (request) => request.cancelToken?.isCancelled ?? false,
+        ),
+        isTrue,
+      );
+      // Drain the cancellation callbacks after unmount, in both callback zones.
+      await decodePump(tester);
     },
   );
 
@@ -2433,4 +2447,35 @@ final class _NoImageCache implements ImageCacheManager {
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+// A URL barrier controls payload delivery, while each actual HTTP request gets
+// its own response stream. Adjacent-page preloads can request the staged URL.
+class _ReplayableImageAdapter implements HttpClientAdapter {
+  final pending = <String, Completer<Uint8List>>{};
+  final requests = <RequestOptions>[];
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    requests.add(options);
+    final bytes =
+        await (pending[options.uri.toString()] ??= Completer<Uint8List>())
+            .future;
+    return ResponseBody.fromBytes(
+      bytes,
+      200,
+      headers: {
+        Headers.contentTypeHeader: ['image/png'],
+      },
+    );
+  }
+
+  void complete(String url, Uint8List bytes) => pending[url]!.complete(bytes);
+
+  @override
+  void close({bool force = false}) {}
 }

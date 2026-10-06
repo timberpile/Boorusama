@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cache_manager/cache_manager.dart';
 import 'package:dio/dio.dart';
 import 'package:extended_image/extended_image.dart';
@@ -166,8 +168,9 @@ class _RawProgressivePostImageState extends State<RawProgressivePostImage> {
     _stage(
       candidates[index],
       onDecoded: (provider, decodedRatio) {
-        if (_targetSucceeded || _displayed != null) return;
+        if (_targetSucceeded || _displayed != null) return false;
         _show(provider, decodedRatio);
+        return true;
       },
       onError: () {
         if (_targetSucceeded) return;
@@ -191,9 +194,10 @@ class _RawProgressivePostImageState extends State<RawProgressivePostImage> {
     _target = _stage(
       widget.imageUrl,
       onDecoded: (provider, ratio) {
-        if (generation != _targetGeneration) return;
+        if (generation != _targetGeneration) return false;
         _targetSucceeded = true;
         _show(provider, ratio);
+        return true;
       },
       onError: () {
         if (generation != _targetGeneration) return;
@@ -204,7 +208,7 @@ class _RawProgressivePostImageState extends State<RawProgressivePostImage> {
 
   _DecodedCandidate _stage(
     String url, {
-    required void Function(ImageProvider provider, double ratio) onDecoded,
+    required bool Function(ImageProvider provider, double ratio) onDecoded,
     required VoidCallback onError,
   }) {
     final token = CancelToken();
@@ -231,18 +235,35 @@ class _RawProgressivePostImageState extends State<RawProgressivePostImage> {
           candidate.removeListener();
           return;
         }
+        if (candidate.decoded) {
+          info.dispose();
+          return;
+        }
+        candidate.decoded = true;
         final ratio = info.image.width / info.image.height;
         candidate.holdDecodedStream();
-        onDecoded(provider, ratio);
+        final displayed = onDecoded(provider, ratio);
         info.dispose();
-        candidate.removeListener();
-        // ExtendedImage attaches synchronously to this live, already-decoded stream.
-        WidgetsBinding.instance.addPostFrameCallback(
-          (_) => candidate.releaseHandle(),
-        );
+        if (!displayed) {
+          candidate.removeListener();
+          candidate.releaseHandle();
+          return;
+        }
+        // Without decoded-cache admission, a keepAlive handle prevents disposal
+        // but removing the last listener also removes the cache's live-key
+        // lookup. Keep this listener until ExtendedImage attaches in the frame.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          candidate.removeListener();
+          candidate.releaseHandle();
+        });
       },
       onError: (error, stack) {
         candidate.removeListener();
+        // Failed staged providers never attach to ExtendedImage's error
+        // handler. Evict this terminal candidate's decoded-cache key so its
+        // pending listener is released. Its private CancelToken separates it
+        // from replacement candidates; this does not remove disk payloads.
+        unawaited(provider.evict());
         if (!mounted || candidate.disposed) return;
         onError();
       },
@@ -322,6 +343,7 @@ class _DecodedCandidate {
   ImageStreamListener? listener;
   ImageStreamCompleterHandle? handle;
   var disposed = false;
+  var decoded = false;
   void holdDecodedStream() => handle ??= stream.completer?.keepAlive();
   void removeListener() {
     final current = listener;
@@ -337,6 +359,7 @@ class _DecodedCandidate {
   void dispose() {
     if (disposed) return;
     disposed = true;
+    if (decoded) removeListener();
     releaseHandle();
     // Keep the error listener until cancellation settles. Removing it first
     // makes the decoder's cancelled Future an unhandled image-cache error.

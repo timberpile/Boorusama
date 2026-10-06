@@ -141,6 +141,11 @@ using a read snapshot or disabling debug assertions does not repair ownership.
 
 Still-image upgrades stage the configured network provider until its first
 frame decodes, then display that exact provider through the existing controller.
+The stage listener stays attached until the display frame attaches, so decoded
+images exceeding the RAM cache budget reuse their live stream without another
+fetch or decode. Ignored candidates release their handles immediately; terminal
+failed candidates evict only their own decoded-cache key, including pending
+listeners, while the retained representation and disk payload remain intact.
 A decoded lower or previous representation stays visible during transport or
 decoder failure. Distinct grid fallback and placeholder URLs are eligible even
 when the grid primary equals the target or is empty; candidates are unique and
@@ -195,6 +200,44 @@ returning to the page.
 Container-owned state stays outside the post presentation. Examples are a
 feed's `NEW` marker and bookmark-group actions.
 
+## Shared image cache
+
+Ordinary posts, bookmark grids, group previews, viewers and preloading use the
+same temporary image cache. Entries use media URLs, so Thumbnail, Sample and
+Original have separate entries when their URLs differ. The old durable
+`bookmarks/images` directory is neither adopted, migrated nor removed. Removing
+bookmarks changes records and memberships without deleting shared media.
+
+The independent image storage limit defaults to 1 GB and shares the existing
+video preset/custom controls. Disabled means zero retained image files; image
+display and transfer still work. Ordinary post images have no age expiry.
+Explicit `cacheMaxAge` remains available for mutable resources: favicons and the
+translation status badge opt into one-hour freshness.
+
+The manager journals actual use, including raw and decoded RAM hits and
+progressive stage/display resolution, and checkpoints it for restart-safe LRU.
+Normal/AVIF/preload misses reserve write ownership before transport; all-cache
+and per-key clear invalidate those owners without interrupting decoded pixels.
+Cold metadata failure rebuilds readable payloads in memory and retries durable
+bookkeeping when storage recovers. Write-only scratch is created lazily, and
+optional cache lookup/admission failure leaves network display available.
+Final completed-file publication is prepared before destructive retirement,
+so a failed generation rename preserves previous bytes and capacity victims.
+Status/path/key probes do not count as use. Admission uses completed file sizes,
+a shared serialized budget decision and immutable generations. Reader leases
+last through the owned bytes copy or platform handoff, rather than widget
+lifetime. Clearing and limit reduction retire pinned files until release; their
+physical bytes continue to count toward retained occupancy. A writer begun
+before clear cannot repopulate the cleared cache. Disabled, oversized and
+pin-blocked admissions use separately owned transient files without evicting
+otherwise fitting files.
+
+Clearing Images or All caches does not change bookmark records, snapshots or
+group memberships. Generic temp clearing excludes manager metadata, active
+transfers and platform handoff directories, including when listing fails. The
+operating system may still remove temporary files; this is not an offline
+availability guarantee.
+
 ## Shared post sharing
 
 The Share sheet builds Image from the active viewer URL. Original and Video
@@ -202,8 +245,15 @@ use the engine's original-download extractor, which may resolve a different
 URL and cookie from the preview stored on the post. Image and Original remain
 separate even when their resolved URLs coincide. Media preparation uses the
 profile's existing HTTP client and headers. Image and Original use the normal
-viewer cache entry for their URL, downloading into that entry on a miss; Android
-Copy and Share pass that cached file to the platform with an explicit MIME type.
+viewer cache generation for their URL, holding a file lease through handoff and
+downloading through a managed write session on a miss. Android Copy and Share
+atomically copy completed retained or transient sources into unique owned files
+under `boorusama-clipboard` off the UI thread. Only the completed owned URI is
+published, with explicit MIME and Share read permission. Sources can then be
+cleared without breaking the receiver. Completed owned handoffs expire after
+24 hours from completion; repeated copies retain other recent handoffs. Stale
+owned staging partials also expire, while process-wide active copy ownership
+protects current partials through atomic publication and cleanup.
 Video uses separate temporary staging. None of these actions writes to the
 durable Save destination or exposes credentials through the shared URI.
 

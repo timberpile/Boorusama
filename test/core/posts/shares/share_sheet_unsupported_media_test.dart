@@ -25,7 +25,7 @@ import '../../../bulk_downloads/common.dart';
 
 class _FileSystem extends Mock implements AppFileSystem {}
 
-class _CacheManager extends Mock implements ImageCacheManager {}
+class _CacheManager extends Mock implements ManagedImageCacheManager {}
 
 void main() {
   testWidgets('unsupported media sharing disables retry and Share', (
@@ -48,8 +48,8 @@ void main() {
     });
     when(() => cache.generateCacheKey(any())).thenReturn('cached-image');
     when(
-      () => cache.getCachedFilePath('cached-image'),
-    ).thenReturn(cachedImage.path);
+      () => cache.acquireFile('cached-image'),
+    ).thenAnswer((_) async => _TestFileLease(cachedImage.path));
     when(() => cache.getCachedFileBytes('cached-image')).thenReturn(png);
     const auth = BooruConfigAuth(
       booruId: 1,
@@ -139,4 +139,14 @@ void main() {
       isNull,
     );
   });
+}
+
+class _TestFileLease extends ImageCacheFileLease {
+  _TestFileLease(this.path);
+  @override
+  final String path;
+  @override
+  bool get isRetained => true;
+  @override
+  Future<void> release() async {}
 }

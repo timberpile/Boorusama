@@ -77,7 +77,6 @@ void main() {
         bookmarkUrlResolverProvider.overrideWith(
           (ref, booruId) => const DefaultImageUrlResolver(),
         ),
-        bookmarkImageCacheManagerProvider.overrideWithValue(null),
         settingsNotifierProvider.overrideWith(
           () =>
               settingsNotifier ??

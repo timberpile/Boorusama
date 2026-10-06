@@ -1,3 +1,15 @@
+import 'package:boorusama/foundation/networking.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:boorusama/core/themes/colors/providers.dart';
+import 'package:cache_manager/cache_manager.dart';
+import 'package:dio/dio.dart';
+import 'package:extended_image/src/image/raw_image.dart';
+import 'package:boorusama/core/images/providers.dart';
+import 'package:boorusama/core/images/booru_image.dart';
+import 'package:boorusama/foundation/info/device_info.dart';
+import 'package:boorusama/core/bookmarks/src/pages/bookmark_group_browser_page.dart';
+import 'package:boorusama/core/bookmarks/src/pages/bookmark_page.dart';
+import '../posts/details/progressive_image_test_utils.dart';
 // Dart imports:
 import 'dart:async';
 import 'dart:io';
@@ -58,6 +70,126 @@ import 'package:boorusama/foundation/loggers.dart';
 import 'package:boorusama/core/themes/colors/src/colors.dart';
 
 void main() {
+  testWidgets(
+    'bookmark grid group previews and viewer decode from the same ordinary cache without a download',
+    (tester) async {
+      await tester.runAsync(() async {
+        VisibilityDetectorController.instance.updateInterval = Duration.zero;
+        final root = await Directory.systemTemp.createTemp(
+          'bookmark-common-widget-',
+        );
+        final cache = DefaultImageCacheManager(
+          cacheRootPathProvider: () => root.path,
+        );
+        final bookmark = Bookmark(
+          id: 42,
+          postId: 42,
+          createdAt: DateTime(2026),
+          updatedAt: DateTime(2026),
+          width: 1200,
+          height: 1200,
+          md5: '',
+          tags: const {},
+          realSourceUrl: null,
+          format: 'png',
+          metadata: const {},
+          imageUrlResolver: const DefaultImageUrlResolver(),
+          booruId: _config.booruId,
+          sourceUrl: _config.url,
+          thumbnailUrl: 'https://bookmark-cache.test/thumb.png',
+          sampleUrl: 'https://bookmark-cache.test/sample.png',
+          originalUrl: 'https://bookmark-cache.test/original.png',
+        );
+        for (final url in [
+          bookmark.thumbnailUrl,
+          bookmark.sampleUrl,
+          bookmark.originalUrl,
+        ]) {
+          await cache.saveFile(cache.generateCacheKey(url), lowerPng);
+        }
+        final favicon = PostSource.from(
+          _config.url,
+        ).whenWeb((source) => source.faviconUrl, () => '');
+        if (favicon.isNotEmpty) {
+          await cache.saveFile(cache.generateCacheKey(favicon), lowerPng);
+        }
+        final adapter = ControlledImageAdapter();
+        final dio = Dio()..httpClientAdapter = adapter;
+        final state = BookmarkLibraryState(
+          bookmarks: [bookmark],
+          groups: const [],
+          activeTarget: const BookmarkTarget.ungrouped(),
+        );
+        final controller = PostGridController<Post>(
+          fetcher: (_) => TaskEither.right(
+            PostResult(posts: [bookmark.toPost()], total: 1),
+          ),
+          blacklistedTagsFetcher: () async => const {},
+          mountedChecker: () => true,
+          duplicateTracker: PostDuplicateTracker(),
+          onError: (_) {},
+          debounceDuration: Duration.zero,
+        );
+        await controller.refresh();
+        try {
+          for (final home in [
+            const BookmarkGroupBrowserPage(),
+            const BookmarkPage(),
+            null,
+          ]) {
+            await tester.pumpWidget(
+              _BookmarkViewerHarness(
+                controller: controller,
+                home: home,
+                bookmarkNotifier: _CacheBookmarkNotifier(state),
+                commonCache: cache,
+                imageDio: dio,
+              ),
+            );
+            for (var i = 0; i < 10; i++) {
+              await Future<void>.delayed(const Duration(milliseconds: 60));
+              await tester.pump();
+            }
+            final decoded = tester
+                .widgetList<ExtendedRawImage>(find.byType(ExtendedRawImage))
+                .where((image) => image.image != null)
+                .toList();
+            expect(
+              decoded,
+              isNotEmpty,
+              reason:
+                  '${home?.runtimeType ?? "BookmarkDetailsPage"} must display actual cached pixels',
+            );
+            expect(
+              (await decoded.first.image!.toByteData())!.buffer
+                  .asUint8List()
+                  .take(4),
+              [255, 0, 0, 255],
+            );
+            expect(
+              adapter.requests,
+              isEmpty,
+              reason:
+                  'all bookmark surfaces reuse ordinary URL-keyed cache files',
+            );
+            for (final image in tester.widgetList<BooruRawImage>(
+              find.byType(BooruRawImage),
+            )) {
+              expect(image.imageCacheManager, same(cache));
+            }
+            await tester.pumpWidget(const SizedBox());
+          }
+        } finally {
+          await tester.pumpWidget(const SizedBox());
+          controller.dispose();
+          dio.close(force: true);
+          await cache.dispose();
+          await root.delete(recursive: true);
+        }
+      });
+    },
+  );
+
   testWidgets(
     'bookmark viewer renders only the active booru toolbar',
     (tester) async {
@@ -618,6 +750,9 @@ class _BookmarkViewerHarness extends StatelessWidget {
     this.repositoryConfigs,
     this.bookmarkRepository,
     this.groupRepository,
+    this.home,
+    this.commonCache,
+    this.imageDio,
   });
 
   final PostGridController<Post> controller;
@@ -627,10 +762,24 @@ class _BookmarkViewerHarness extends StatelessWidget {
   final List<BooruConfig>? repositoryConfigs;
   final BookmarkHiveRepository? bookmarkRepository;
   final BookmarkGroupRepositoryHive? groupRepository;
+  final Widget? home;
+  final ImageCacheManager? commonCache;
+  final Dio? imageDio;
 
   @override
   Widget build(BuildContext context) => ProviderScope(
     overrides: [
+      settingsNotifierProvider.overrideWith(
+        () => SettingsNotifier(
+          Settings.defaultSettings.copyWith(reduceAnimations: true),
+        ),
+      ),
+      colorSchemeProvider.overrideWithValue(
+        ColorScheme.fromSeed(seedColor: Colors.blue),
+      ),
+      connectivityProvider.overrideWith(
+        (ref) => Stream.value([ConnectivityResult.wifi]),
+      ),
       settingsProvider.overrideWithValue(
         Settings.defaultSettings.copyWith(reduceAnimations: true),
       ),
@@ -650,7 +799,6 @@ class _BookmarkViewerHarness extends StatelessWidget {
       bookmarkUrlResolverProvider.overrideWith(
         (ref, _) => const DefaultImageUrlResolver(),
       ),
-      bookmarkImageCacheManagerProvider.overrideWithValue(null),
       booruPostPresentationProvider.overrideWith(
         (ref, request) => switch (request.data) {
           GelbooruV2PostData() => const _NativePresentation(),
@@ -669,7 +817,14 @@ class _BookmarkViewerHarness extends StatelessWidget {
         return recoveryRepository ?? EmptyPostRepository();
       }),
       booruBuilderProvider.overrideWith((ref, config) => null),
-      automaticMediaLoadingEnabledProvider.overrideWithValue(false),
+      automaticMediaLoadingEnabledProvider.overrideWithValue(
+        commonCache != null,
+      ),
+      if (commonCache case final cache?)
+        defaultImageCacheManagerProvider.overrideWithValue(cache),
+      if (imageDio case final dio?)
+        dioForWidgetProvider.overrideWith((ref, config) => dio),
+      deviceInfoProvider.overrideWithValue(DeviceInfo.empty()),
       hasPremiumLayoutProvider.overrideWithValue(false),
       showPremiumFeatsProvider.overrideWithValue(false),
       downloadServiceProvider.overrideWithValue(_DownloadService()),
@@ -681,17 +836,22 @@ class _BookmarkViewerHarness extends StatelessWidget {
     ],
     child: BooruLocalization(
       child: MaterialApp(
+        theme: ThemeData(
+          extensions: const [KurumiExtendedColorScheme()],
+        ).withBoorusamaColors(),
         builder: (context, child) => KurumiTheme(
           data: KurumiThemeData.fromMaterial(
             Theme.of(context).withBoorusamaColors(),
           ),
           child: child!,
         ),
-        home: BookmarkDetailsPage(
-          initialIndex: initialIndex,
-          initialThumbnailUrl: null,
-          controller: controller,
-        ),
+        home:
+            home ??
+            BookmarkDetailsPage(
+              initialIndex: initialIndex,
+              initialThumbnailUrl: null,
+              controller: controller,
+            ),
       ),
     ),
   );
@@ -938,4 +1098,11 @@ final class _CodecRegistry extends BooruEngineRegistry {
           presentation: _NativePresentation(),
         )
       : null;
+}
+
+class _CacheBookmarkNotifier extends BookmarkLibraryNotifier {
+  _CacheBookmarkNotifier(this.library);
+  final BookmarkLibraryState library;
+  @override
+  FutureOr<BookmarkLibraryState> build() => library;
 }

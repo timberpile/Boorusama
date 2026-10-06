@@ -203,7 +203,10 @@ class _BoorusamaAppState extends State<BoorusamaApp> {
 
       if (settings.clearImageCacheOnStartup) {
         logger.debugBoot('Clear image cache');
-        final imageCacheManager = createDefaultImageCacheManager(fs);
+        final imageCacheManager = createDefaultImageCacheManager(
+          fs,
+          maxBytes: settings.imageCacheMaxSize.bytes,
+        );
         try {
           await clearImageCache(imageCacheManager);
         } finally {

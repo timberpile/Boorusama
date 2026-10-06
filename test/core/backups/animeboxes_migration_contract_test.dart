@@ -1010,7 +1010,6 @@ class _Harness {
         bookmarkUrlResolverProvider.overrideWith(
           (ref, id) => const DefaultImageUrlResolver(),
         ),
-        bookmarkImageCacheManagerProvider.overrideWithValue(null),
         searchSubscriptionRepositoryProvider.overrideWith(
           () => _SearchRepositoryNotifier(searches),
         ),

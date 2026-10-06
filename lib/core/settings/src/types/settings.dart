@@ -71,6 +71,7 @@ class Settings extends Equatable {
     required this.hapticFeedbackLevel,
     required this.autoBackup,
     required this.videoCacheMaxSize,
+    this.imageCacheMaxSize = CacheSize.oneGigabyte,
     this.searchRefresh = const SearchRefreshSettings(),
     this.pinnedSearchSort = 'manual',
   });
@@ -152,6 +153,14 @@ class Settings extends Equatable {
         'updatesFirst' => 'updatesFirst',
         'lastPostOldest' => 'lastPostOldest',
         _ => 'manual',
+      },
+      imageCacheMaxSize = switch (json['imageCacheMaxSize']) {
+        0 => CacheSize.zero,
+        final v? => switch (CacheSize.tryParse(v)) {
+          final CacheSize size when !size.isUnlimited => size,
+          _ => CacheSize.oneGigabyte,
+        },
+        _ => CacheSize.oneGigabyte,
       },
       videoCacheMaxSize = switch (json['videoCacheMaxSize']) {
         final v? => CacheSize.tryParse(v) ?? CacheSize.oneGigabyte,
@@ -297,6 +306,7 @@ class Settings extends Equatable {
   final String pinnedSearchSort;
 
   final CacheSize videoCacheMaxSize;
+  final CacheSize imageCacheMaxSize;
 
   Settings copyWith({
     String? blacklistedTags,
@@ -338,6 +348,7 @@ class Settings extends Equatable {
     SearchRefreshSettings? searchRefresh,
     String? pinnedSearchSort,
     CacheSize? videoCacheMaxSize,
+    CacheSize? imageCacheMaxSize,
   }) => Settings(
     listing: listing ?? this.listing,
     viewer: viewer ?? this.viewer,
@@ -397,6 +408,7 @@ class Settings extends Equatable {
     searchRefresh: searchRefresh ?? this.searchRefresh,
     pinnedSearchSort: pinnedSearchSort ?? this.pinnedSearchSort,
     videoCacheMaxSize: videoCacheMaxSize ?? this.videoCacheMaxSize,
+    imageCacheMaxSize: imageCacheMaxSize ?? this.imageCacheMaxSize,
   );
 
   Map<String, dynamic> toJson() {
@@ -443,6 +455,7 @@ class Settings extends Equatable {
       'searchRefresh': searchRefresh.toJson(),
       'pinnedSearchSort': pinnedSearchSort,
       'videoCacheMaxSize': videoCacheMaxSize.displayString(),
+      'imageCacheMaxSize': imageCacheMaxSize.displayString(),
     };
   }
 
@@ -486,6 +499,7 @@ class Settings extends Equatable {
     searchRefresh,
     pinnedSearchSort,
     videoCacheMaxSize,
+    imageCacheMaxSize,
   ];
 
   List<String> get booruConfigIdOrderList {

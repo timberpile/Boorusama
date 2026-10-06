@@ -68,6 +68,7 @@ class HelpUseTranslatePage extends ConsumerWidget {
                       ExtendedImage.network(
                         dio: dio,
                         appInfo.translationBadgeUrl,
+                        cacheMaxAge: const Duration(hours: 1),
                         height: 66,
                         width: 287,
                         cacheManager: ref.watch(

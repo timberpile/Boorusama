@@ -848,7 +848,10 @@
           "free": "Free"
         }
       },
-      "error_loading_cache_info": "Error loading cache info"
+      "error_loading_cache_info": "Error loading cache info",
+      "image_cache_limit": "Image cache limit",
+      "image_cache_limit_description": "Maximum storage used by images, including bookmark images.",
+      "cache_disabled": "Disabled"
     },
     "backup_and_restore": {
       "backup_and_restore": "Backup and Restore",
@@ -938,13 +941,34 @@
         "completed_updated_count": "Updated {count}",
         "completed_deleted_count": "Removed {count}",
         "change_entities": {
-          "bookmark": {"one": "bookmark", "other": "bookmarks"},
-          "bookmark_group": {"one": "group", "other": "groups"},
-          "pinned_search": {"one": "search", "other": "searches"},
-          "pinned_folder": {"one": "folder", "other": "folders"},
-          "feed": {"one": "feed", "other": "feeds"},
-          "feed_search": {"one": "feed search", "other": "feed searches"},
-          "profile": {"one": "profile", "other": "profiles"},
+          "bookmark": {
+            "one": "bookmark",
+            "other": "bookmarks"
+          },
+          "bookmark_group": {
+            "one": "group",
+            "other": "groups"
+          },
+          "pinned_search": {
+            "one": "search",
+            "other": "searches"
+          },
+          "pinned_folder": {
+            "one": "folder",
+            "other": "folders"
+          },
+          "feed": {
+            "one": "feed",
+            "other": "feeds"
+          },
+          "feed_search": {
+            "one": "feed search",
+            "other": "feed searches"
+          },
+          "profile": {
+            "one": "profile",
+            "other": "profiles"
+          },
           "home_arrangement": "Home arrangement"
         },
         "categories_unchanged": {
@@ -963,12 +987,12 @@
         "export_failed": "The export could not be created: {error}",
         "saved": "Export saved",
         "copied": "Export copied to the clipboard",
-        "no_data_selected": "Choose at least one data category."
-        ,"delete_template": "Delete template"
-        ,"name_template": "Save as template"
-        ,"saved_template": "Template saved"
-        ,"select_export_type": "Select export type"
-        ,"sources": {
+        "no_data_selected": "Choose at least one data category.",
+        "delete_template": "Delete template",
+        "name_template": "Save as template",
+        "saved_template": "Template saved",
+        "select_export_type": "Select export type",
+        "sources": {
           "profiles": "Booru profiles",
           "settings": "Settings",
           "favorite_tags": "Favorite tags",

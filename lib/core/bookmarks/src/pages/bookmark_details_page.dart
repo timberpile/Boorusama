@@ -19,7 +19,6 @@ import '../../../posts/post/types.dart';
 import '../../../posts/shares/widgets.dart';
 import '../../../widgets/adaptive_button_row.dart';
 import '../../../widgets/booru_menu_button_row.dart';
-import '../data/providers.dart';
 import '../providers/bookmark_provider.dart';
 import '../types/bookmark.dart';
 
@@ -202,9 +201,6 @@ class BookmarkPostActionToolbar extends ConsumerWidget {
                   auth: config.auth,
                   configViewer: config.viewer,
                   download: config.download,
-                  imageCacheManager: ref.watch(
-                    bookmarkImageCacheManagerProvider,
-                  ),
                   filenameBuilder: fallbackFileNameBuilder,
                 ),
                 title: context.t.post.action.share,

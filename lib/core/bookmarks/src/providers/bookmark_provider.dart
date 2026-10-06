@@ -2,7 +2,6 @@
 import 'dart:async';
 
 // Package imports:
-import 'package:cache_manager/cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
@@ -99,9 +98,6 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
   Future<void> _mutationTail = Future.value();
   var _requiresRefresh = false;
 
-  ImageCacheManager? get _cacheManager =>
-      ref.read(bookmarkImageCacheManagerProvider);
-
   Future<BookmarkRepository> get bookmarkRepository =>
       ref.read(bookmarkRepoProvider.future);
 
@@ -110,7 +106,6 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     groupRepository: await ref.read(bookmarkGroupRepoProvider.future),
     imageUrlResolver: (booruId) =>
         ref.read(bookmarkUrlResolverProvider(booruId)),
-    clearBookmarkCache: _clearBookmarkCache,
   );
 
   @override
@@ -208,16 +203,6 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     } catch (_) {
       state = previousState;
       _requiresRefresh = true;
-    }
-  }
-
-  Future<void> _clearBookmarkCache(Bookmark bookmark) async {
-    if (_cacheManager case final cache?) {
-      await Future.wait([
-        cache.clearCache(cache.generateCacheKey(bookmark.originalUrl)),
-        cache.clearCache(cache.generateCacheKey(bookmark.sampleUrl)),
-        cache.clearCache(cache.generateCacheKey(bookmark.thumbnailUrl)),
-      ]);
     }
   }
 

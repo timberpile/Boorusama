@@ -194,7 +194,7 @@ void main() {
       addTearDown(cache.dispose);
       const key = 'preserved-image';
       await cache.saveFile(key, png);
-      final targetPath = await cache.getCacheFilePathForKey(key);
+      final targetPath = await cache.getCachedFilePath(key);
       final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
       addTearDown(server.close);
       server.listen((request) async {
@@ -283,7 +283,7 @@ void main() {
       addTearDown(cache.dispose);
       const key = 'cancelled-image';
       await cache.saveFile(key, png);
-      final targetPath = await cache.getCacheFilePathForKey(key);
+      final targetPath = await cache.getCachedFilePath(key);
       final started = Completer<void>();
       final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
       addTearDown(server.close);
@@ -339,6 +339,8 @@ class _ForcedMissCacheManager extends DefaultImageCacheManager {
   String generateCacheKey(String url, {String? customKey}) => key;
 
   @override
-  Future<String?> getCachedFilePath(String key, {Duration? maxAge}) async =>
-      forceMiss ? null : super.getCachedFilePath(this.key, maxAge: maxAge);
+  Future<ImageCacheFileLease?> acquireFile(
+    String key, {
+    Duration? maxAge,
+  }) async => forceMiss ? null : super.acquireFile(this.key, maxAge: maxAge);
 }

@@ -173,7 +173,6 @@ void main() {
               bookmarkUrlResolverProvider.overrideWith(
                 (ref, id) => const DefaultImageUrlResolver(),
               ),
-              bookmarkImageCacheManagerProvider.overrideWithValue(null),
               booruConfigRepoProvider.overrideWithValue(profiles),
               booruConfigProvider.overrideWith(
                 () => BooruConfigNotifier(initialConfigs: localProfiles),

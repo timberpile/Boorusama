@@ -9,6 +9,7 @@ import 'package:kurumi/material.dart';
 // Project imports:
 import '../developer_options/blocked_media_placeholder.dart';
 import '../developer_options/providers.dart';
+import '../images/providers.dart';
 
 const _unknownSize = 26.0;
 const kFaviconSize = 32.0;
@@ -69,7 +70,9 @@ class WebsiteLogo extends ConsumerWidget {
               strokeWidth: 1.5,
             ),
           ),
-          cacheManager: cacheManager,
+          cacheManager:
+              cacheManager ?? ref.watch(defaultImageCacheManagerProvider),
+          cacheMaxAge: const Duration(hours: 1),
           errorWidget: _buildFallback(),
         ),
         (final String _, false) => BlockedMediaPlaceholder(

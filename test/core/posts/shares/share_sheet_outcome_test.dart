@@ -1,4 +1,6 @@
 import 'package:boorusama/core/configs/config/types.dart';
+import 'package:boorusama/core/settings/providers.dart';
+import 'package:boorusama/core/settings/types.dart';
 import 'package:boorusama/core/config_widgets/website_logo.dart';
 import 'package:boorusama/core/developer_options/providers.dart';
 import 'package:boorusama/core/downloads/urls/providers.dart';
@@ -54,6 +56,9 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          settingsNotifierProvider.overrideWith(
+            () => SettingsNotifier(Settings.defaultSettings),
+          ),
           automaticMediaLoadingEnabledProvider.overrideWithValue(false),
           downloadFileUrlExtractorProvider.overrideWith(
             (ref, config) => const UrlInsidePostExtractor(),

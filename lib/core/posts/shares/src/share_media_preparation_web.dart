@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:cache_manager/cache_manager.dart';
 
 enum ShareMediaKind { image, original, video, gif }
 
@@ -34,10 +35,12 @@ class ShareMediaPreparation {
     required this.rootPath,
     required this.dio,
     required this.cachedBytes,
+    this.imageCacheManager,
   });
   final String rootPath;
   final Dio dio;
   final CachedShareBytes cachedBytes;
+  final ImageCacheManager? imageCacheManager;
 
   Future<ShareMediaLease> prepare({
     required String url,

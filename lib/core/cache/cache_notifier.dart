@@ -1,4 +1,5 @@
 // Package imports:
+import 'package:cache_manager/cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Project imports:
@@ -19,8 +20,18 @@ final appCacheSizeProvider = FutureProvider.autoDispose<DirectorySizeInfo>((
 final imageCacheSizeProvider = FutureProvider.autoDispose<DirectorySizeInfo>((
   ref,
 ) {
-  final fs = ref.watch(appFileSystemProvider);
-  return getImageCacheSize(fs).catchError((_) => DirectorySizeInfo.zero);
+  final manager = ref.watch(defaultImageCacheManagerProvider);
+  if (manager is! ManagedImageCacheManager) return DirectorySizeInfo.zero;
+  return manager
+      .getStats()
+      .then(
+        (stats) => DirectorySizeInfo(
+          size: stats.retainedBytes,
+          fileCount: stats.retainedFileCount,
+          directoryCount: 0,
+        ),
+      )
+      .catchError((_) => DirectorySizeInfo.zero);
 });
 
 final tagCacheSizeProvider = FutureProvider.autoDispose<int>((ref) {
@@ -53,7 +64,6 @@ enum StorageType {
   systemData,
   imageCache,
   videoCache,
-  bookmarkImages,
   tagCache,
   appCache,
   freeSpace,
@@ -102,10 +112,8 @@ class CacheSizeInfo {
       tagCacheSize +
       persistentCacheSize;
 
-  List<StorageInfo> getStorageBreakdown({
-    int bookmarkCacheSize = 0,
-  }) {
-    final totalCacheSize = totalSize + bookmarkCacheSize;
+  List<StorageInfo> getStorageBreakdown() {
+    final totalCacheSize = totalSize;
     final systemUsedSpace = diskSpaceInfo.usedSpace - totalCacheSize;
 
     return [
@@ -123,11 +131,6 @@ class CacheSizeInfo {
         StorageInfo(
           type: StorageType.videoCache,
           size: videoCacheSize.size,
-        ),
-      if (bookmarkCacheSize > 0)
-        StorageInfo(
-          type: StorageType.bookmarkImages,
-          size: bookmarkCacheSize,
         ),
       if (tagCacheSize > 0)
         StorageInfo(

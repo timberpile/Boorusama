@@ -24,7 +24,6 @@ import '../../types.dart';
 import '../data/bookmark_convert.dart';
 import '../data/bookmark_selection.dart';
 import '../data/bookmark_view_refresh_gate.dart';
-import '../data/providers.dart';
 import '../providers/bookmark_details_mutation_notifier.dart';
 import '../providers/bookmark_provider.dart';
 import '../providers/bookmark_group_selectors.dart';
@@ -314,7 +313,6 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                 index: index,
                 autoScrollController: widget.scrollController,
                 controller: controller,
-                imageCacheManager: ref.watch(bookmarkImageCacheManagerProvider),
                 useHero: false,
                 config: effectiveAuth,
                 imageConfig: config?.auth,

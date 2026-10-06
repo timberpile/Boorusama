@@ -3,21 +3,21 @@ import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 
 // Project imports:
-import '../../../foundation/caching/types.dart';
-import 'types.dart';
+import '../../foundation/caching/types.dart';
+import '../../foundation/caching/cache_limit_options.dart';
 
-Future<CacheSize?> showVideoCacheLimitDialog(
+Future<CacheSize?> showCacheLimitDialog(
   BuildContext context, {
   required CacheSize currentValue,
 }) {
   return showDialog<CacheSize>(
     context: context,
-    builder: (context) => VideoCacheLimitDialog(currentValue: currentValue),
+    builder: (context) => CacheLimitDialog(currentValue: currentValue),
   );
 }
 
-class VideoCacheLimitDialog extends StatefulWidget {
-  const VideoCacheLimitDialog({
+class CacheLimitDialog extends StatefulWidget {
+  const CacheLimitDialog({
     required this.currentValue,
     super.key,
   });
@@ -25,20 +25,20 @@ class VideoCacheLimitDialog extends StatefulWidget {
   final CacheSize currentValue;
 
   @override
-  State<VideoCacheLimitDialog> createState() => _VideoCacheLimitDialogState();
+  State<CacheLimitDialog> createState() => _CacheLimitDialogState();
 }
 
-class _VideoCacheLimitDialogState extends State<VideoCacheLimitDialog> {
-  late var _sliderGigabytes = VideoCacheLimitOptions.initialCustomGigabytes(
+class _CacheLimitDialogState extends State<CacheLimitDialog> {
+  late var _sliderGigabytes = CacheLimitOptions.initialCustomGigabytes(
     widget.currentValue,
   ).toDouble();
 
   int get _selectedGigabytes {
-    return VideoCacheLimitOptions.snapGigabytes(_sliderGigabytes.round());
+    return CacheLimitOptions.snapGigabytes(_sliderGigabytes.round());
   }
 
   CacheSize get _selectedSize {
-    return VideoCacheLimitOptions.fromGigabytes(_selectedGigabytes);
+    return CacheLimitOptions.fromGigabytes(_selectedGigabytes);
   }
 
   @override
@@ -63,23 +63,21 @@ class _VideoCacheLimitDialogState extends State<VideoCacheLimitDialog> {
           Row(
             children: [
               IconButton(
-                onPressed:
-                    VideoCacheLimitOptions.canDecrease(_selectedGigabytes)
+                onPressed: CacheLimitOptions.canDecrease(_selectedGigabytes)
                     ? _decrement
                     : null,
                 icon: const Icon(Icons.remove),
               ),
               Expanded(
                 child: KurumiSlider(
-                  min: VideoCacheLimitOptions.minCustomGigabytes.toDouble(),
-                  max: VideoCacheLimitOptions.maxCustomGigabytes.toDouble(),
+                  min: CacheLimitOptions.minCustomGigabytes.toDouble(),
+                  max: CacheLimitOptions.maxCustomGigabytes.toDouble(),
                   value: _sliderGigabytes,
                   onChanged: _updateFromSlider,
                 ),
               ),
               IconButton(
-                onPressed:
-                    VideoCacheLimitOptions.canIncrease(_selectedGigabytes)
+                onPressed: CacheLimitOptions.canIncrease(_selectedGigabytes)
                     ? _increment
                     : null,
                 icon: const Icon(Icons.add),
@@ -110,7 +108,7 @@ class _VideoCacheLimitDialogState extends State<VideoCacheLimitDialog> {
 
   void _decrement() {
     setState(() {
-      _sliderGigabytes = VideoCacheLimitOptions.decrease(
+      _sliderGigabytes = CacheLimitOptions.decrease(
         _selectedGigabytes,
       ).toDouble();
     });
@@ -118,7 +116,7 @@ class _VideoCacheLimitDialogState extends State<VideoCacheLimitDialog> {
 
   void _increment() {
     setState(() {
-      _sliderGigabytes = VideoCacheLimitOptions.increase(
+      _sliderGigabytes = CacheLimitOptions.increase(
         _selectedGigabytes,
       ).toDouble();
     });

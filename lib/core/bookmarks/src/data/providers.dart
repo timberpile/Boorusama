@@ -11,8 +11,6 @@ import 'hive/bookmark_group_hive_object.dart';
 import 'hive/bookmark_group_repository_hive.dart';
 import 'hive/repository.dart';
 
-export 'image_cache.dart';
-
 final bookmarkGroupRepoProvider = FutureProvider<BookmarkGroupRepository>(
   (ref) async {
     final groupBox = await Hive.openBox<BookmarkGroupHiveObject>(

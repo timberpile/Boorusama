@@ -13,6 +13,7 @@ import 'package:path/path.dart' as path;
 import 'package:retriable/retriable.dart';
 
 import 'cached_network_avif_image.dart';
+import 'cache_usage_image_provider.dart';
 import 'dio_extended_image_provider.dart';
 import 'image/raw_image.dart';
 import 'utils.dart';
@@ -108,47 +109,53 @@ class ExtendedImage extends StatefulWidget {
     ImageCacheManager? cacheManager,
   }) : assert(cacheWidth == null || cacheWidth > 0),
        assert(cacheHeight == null || cacheHeight > 0),
-       image = ExtendedResizeImage.resizeIfNeeded(
-         provider:
-             shouldUseAvif(
-               url,
-               platform: platform,
-               androidVersion: androidVersion,
-             )
-             ? CustomCachedNetworkAvifImageProvider(
+       image = CacheUsageImageProvider.wrap(
+         ExtendedResizeImage.resizeIfNeeded(
+           provider:
+               shouldUseAvif(
                  url,
-                 scale: scale,
-                 headers: headers,
-                 cacheManager: cacheManager,
-                 dio: dio,
-                 cancelToken: cancelToken,
-                 fetchStrategy: fetchStrategy,
-                 cacheKey: cacheKey,
-                 cacheMaxAge: cacheMaxAge ?? kDefaultImageCacheDuration,
-                 cacheWidth: cacheWidth,
-                 cacheHeight: cacheHeight,
+                 platform: platform,
+                 androidVersion: androidVersion,
                )
-             : DioExtendedNetworkImageProvider(
-                 url,
-                 dio: dio,
-                 scale: scale,
-                 headers: headers,
-                 cache: cache,
-                 cancelToken: cancelToken,
-                 cacheKey: cacheKey,
-                 printError: printError,
-                 cacheRawData: cacheRawData,
-                 imageCacheName: imageCacheName,
-                 cacheMaxAge: cacheMaxAge ?? kDefaultImageCacheDuration,
-                 fetchStrategy: fetchStrategy,
-                 cacheManager: cacheManager,
-               ),
-         compressionRatio: compressionRatio,
-         maxBytes: maxBytes,
-         cacheWidth: cacheWidth,
-         cacheHeight: cacheHeight,
-         cacheRawData: cacheRawData,
-         imageCacheName: imageCacheName,
+               ? CustomCachedNetworkAvifImageProvider(
+                   url,
+                   scale: scale,
+                   headers: headers,
+                   cacheManager: cacheManager,
+                   cache: cache,
+                   dio: dio,
+                   cancelToken: cancelToken,
+                   fetchStrategy: fetchStrategy,
+                   cacheKey: cacheKey,
+                   cacheMaxAge: cacheMaxAge,
+                   cacheWidth: cacheWidth,
+                   cacheHeight: cacheHeight,
+                 )
+               : DioExtendedNetworkImageProvider(
+                   url,
+                   dio: dio,
+                   scale: scale,
+                   headers: headers,
+                   cache: cache,
+                   cancelToken: cancelToken,
+                   cacheKey: cacheKey,
+                   printError: printError,
+                   cacheRawData: cacheRawData,
+                   imageCacheName: imageCacheName,
+                   cacheMaxAge: cacheMaxAge,
+                   fetchStrategy: fetchStrategy,
+                   cacheManager: cacheManager,
+                 ),
+           compressionRatio: compressionRatio,
+           maxBytes: maxBytes,
+           cacheWidth: cacheWidth,
+           cacheHeight: cacheHeight,
+           cacheRawData: cacheRawData,
+           imageCacheName: imageCacheName,
+         ),
+         manager: cache ? cacheManager : null,
+         url: url,
+         customKey: cacheKey,
        ),
        constraints = (width != null || height != null)
            ? constraints?.tighten(width: width, height: height) ??

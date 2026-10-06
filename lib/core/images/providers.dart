@@ -1,3 +1,5 @@
+import 'dart:async';
+
 // Flutter imports:
 import 'package:flutter/foundation.dart';
 
@@ -7,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Project imports:
 import '../../foundation/filesystem.dart';
+import '../settings/providers.dart';
 
 final defaultCachedImageFileProvider = FutureProvider.autoDispose
     .family<Uint8List?, String>(
@@ -22,7 +25,13 @@ final defaultCachedImageFileProvider = FutureProvider.autoDispose
 final defaultImageCacheManagerProvider = Provider<ImageCacheManager>(
   (ref) {
     final fs = ref.watch(appFileSystemProvider);
-    final manager = createDefaultImageCacheManager(fs);
+    final manager = createDefaultImageCacheManager(
+      fs,
+      maxBytes: ref.read(settingsProvider).imageCacheMaxSize.bytes,
+    );
+    ref.listen(settingsProvider.select((s) => s.imageCacheMaxSize), (_, limit) {
+      unawaited(manager.setMaxBytes(limit.bytes));
+    });
 
     ref.onDispose(() {
       manager.dispose();
@@ -32,8 +41,12 @@ final defaultImageCacheManagerProvider = Provider<ImageCacheManager>(
   },
 );
 
-ImageCacheManager createDefaultImageCacheManager(AppFileSystem fs) {
+ManagedImageCacheManager createDefaultImageCacheManager(
+  AppFileSystem fs, {
+  int maxBytes = 1024 * 1024 * 1024,
+}) {
   return DefaultImageCacheManager(
+    maxBytes: maxBytes,
     enableLogging: kDebugMode,
     cacheRootPathProvider: () async {
       final path = await fs.getTemporaryPath();
