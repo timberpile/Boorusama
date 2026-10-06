@@ -95,7 +95,9 @@ class BookmarkImportService {
             orphanCandidates.addAll(
               existing.bookmarkIds.difference(membershipIds),
             );
-            await groupRepository.renameGroup(imported.id, imported.name);
+            if (action == ImportAction.replace) {
+              await groupRepository.renameGroup(imported.id, imported.name);
+            }
             await groupRepository.replaceMemberships(
               imported.id,
               membershipIds,

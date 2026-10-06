@@ -16,7 +16,7 @@ Der Nutzer möchte insbesondere Gruppen einer anderen Person gemeinsam unter der
 - Gruppen ohne Trenner bleiben flach. Entfernen des letzten namensbasierten Nachfahren lässt einen rein virtuellen Ordner verschwinden; eigenständige leere virtuelle Ordner werden nicht gespeichert.
 - Gruppen verschiedener UUIDs dürfen nicht wegen gleicher Namen oder Pfade zusammengeführt werden. Bestehende Bookmark-Mehrfachmitgliedschaften und Pinned-Search-Zuordnungen bleiben unverändert.
 - Kein zusätzlicher Überordner-/Präfix-Picker beim Import. Nutzer können ihre lokalen Gruppen selbst umbenennen.
-- [BM-005](BM-005-preserve-group-name-on-import-update.md) stellt sicher, dass Bookmark group Update nur den Inhalt ändert und den lokalen Namen samt virtueller Platzierung behält. Übrige Importaktionen werden nicht umgestaltet.
+- [BM-005](../done/BM-005-preserve-group-name-on-import-update.md) stellt sicher, dass Bookmark group Update nur den Inhalt ändert und den lokalen Namen samt virtueller Platzierung behält. Übrige Importaktionen werden nicht umgestaltet.
 
 ## Vor Umsetzung zu konkretisierende UI-Regeln
 

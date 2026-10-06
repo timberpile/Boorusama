@@ -259,7 +259,8 @@ Bookmark groups keep their UUID across devices. Names are display data, not
 identity. **No group** is a selection and import boundary, not a stored group
 with a synthetic UUID.
 
-- Update mirrors the exported group's name, order, and exact membership.
+- Update preserves the exact local UUID and display name while replacing the
+  group's content with the exported membership (BM-005).
 - Merge with the match keeps the local UUID and local display name and unions
   membership in local order followed by exported-only members.
 - Merge into another group keeps the target's UUID, name, and existing order.

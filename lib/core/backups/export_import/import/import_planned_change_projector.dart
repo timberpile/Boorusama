@@ -265,7 +265,11 @@ final class ImportPlannedChangeProjector {
       }
       final existing = projectedGroups[targetId];
       projectedGroups[targetId] = switch (action) {
-        ImportAction.update || ImportAction.replace => _BookmarkGroupValue(
+        ImportAction.update => _BookmarkGroupValue(
+          name: existing?.name ?? group.name,
+          bookmarkIds: memberships,
+        ),
+        ImportAction.replace => _BookmarkGroupValue(
           name: group.name,
           bookmarkIds: memberships,
         ),

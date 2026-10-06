@@ -161,6 +161,60 @@ void main() {
     },
   );
 
+  for (final action in [ImportAction.update, ImportAction.replace]) {
+    test(
+      '${action.name} preview distinguishes a local name from imported content',
+      () {
+        final local = _bookmark(localId: 1, postId: 101);
+        final incoming = _bookmark(localId: 20, postId: 101);
+        final summary = projector.bookmarks(
+          local: BookmarkImportLocalSnapshot(
+            bookmarks: [local],
+            groups: [
+              BookmarkGroup(
+                id: 'group',
+                name: 'Cookie//Artists',
+                bookmarkIds: const {1},
+              ),
+            ],
+          ),
+          incoming: BookmarkBackupData(
+            bookmarks: [incoming],
+            groups: const [
+              BookmarkGroupBackup(
+                id: 'group',
+                name: 'Artists',
+                bookmarkIds: [20],
+              ),
+            ],
+          ),
+          resolution: action == ImportAction.replace
+              ? _source('bookmarks', ImportAction.replace)
+              : ResolvedImportSource(
+                  id: 'bookmarks',
+                  action: ImportAction.configureItems,
+                  items: const [
+                    ResolvedImportItem(
+                      id: 'group:group',
+                      action: ImportAction.update,
+                    ),
+                  ],
+                ),
+        );
+        _expectTotals(
+          summary,
+          action == ImportAction.replace
+              ? const PlannedChangeSummary(updated: 1, unchanged: 1)
+              : const PlannedChangeSummary(unchanged: 2),
+        );
+        expect(
+          summary!.entitySummaries['bookmark-group']?.updated,
+          action == ImportAction.replace ? 1 : 0,
+        );
+      },
+    );
+  }
+
   for (final targetId in [null, 'group:missing']) {
     test('bookmark merge preview waits for a valid target: $targetId', () {
       expect(

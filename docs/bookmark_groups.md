@@ -16,10 +16,12 @@ target; null means `No Group`. `All` is a view and is never an assignment target
 Current export and import uses the `.bsexport` container. A Full export marks
 the bookmark source as complete and recommends category replacement. A custom
 export records whether all groups (including future groups) or exact current
-group UUIDs were selected. Per-group Update mirrors the imported name and
-membership, removing newly orphaned bookmarks; Merge uses the imported name
-and keeps local-only memberships. Import choices are validated before the durable
-package transaction starts.
+group UUIDs were selected. Per-group Update preserves the exact local name and
+UUID while replacing membership and removing newly orphaned bookmarks. Merge and Merge into preserve
+the local target name and keep local-only memberships. New groups and copies use
+the imported name. Full category Replace restores the imported group
+definitions. Import choices are validated before the durable package transaction
+starts.
 
 Package imports write bookmark repositories directly, bypassing the bookmark
 provider mutation methods. After the durable transaction commits, the import
@@ -51,11 +53,11 @@ post snapshots and decoded from Hive's untyped nested map values on reload.
 Group objects carry a UUID `id`, name, and `bookmarkIds`. The UUID identifies a
 group for import conflicts; the name remains a display label.
 
-Only matching GUIDs conflict. Merge and Replace both use the imported display
-name. Merge unions memberships, while Replace uses exactly the imported
-membership set without deleting bookmark records. All conflict choices are
-collected before storage is changed, so cancelling a conflict dialog cancels
-the whole import.
+Only matching GUIDs conflict; equal names or displayed paths do not match
+groups. The legacy per-group Replace conflict choice resolves to Update and
+therefore preserves the local name while replacing membership and removing
+newly orphaned bookmarks. All conflict choices are collected before storage is
+changed, so cancelling a conflict dialog cancels the whole import.
 
 ## Name dialog lifecycle
 

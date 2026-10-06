@@ -557,7 +557,29 @@ void main() {
             (await groups.getGroup(groupId))!.bookmarkIds,
             saved.map((b) => b.id).toSet(),
           );
+          expect((await groups.getGroup(groupId))!.name, 'Original');
           expect((await profiles.getAll()).any((p) => p.id == finalId), isTrue);
+          // Full category Replace restores imported definitions, unlike Update.
+          if (accounts == 0 && !canonicalBoundary) {
+            final incomingPath = '${directory.path}/category-replace.json';
+            await File(incomingPath).writeAsString(json);
+            final bookmarkSource = container.read(
+              _transactionSource((id: 'bookmarks', path: incomingPath)),
+            );
+            await bookmarkSource.prepare(null);
+            bookmarkSource.profileMappings = {bookmarkKey: finalId};
+            await bookmarkSource.apply(
+              ResolvedImportSource(
+                id: 'bookmarks',
+                action: ImportAction.replace,
+                items: const [],
+              ),
+            );
+            final replaced = (await groups.getGroup(groupId))!;
+            expect(replaced.name, 'Imported');
+            expect(replaced.id, groupId);
+            expect(replaced.bookmarkIds, hasLength(2));
+          }
           if (crossCategories) {
             final pins = await searchRepository.getAll();
             expect(
