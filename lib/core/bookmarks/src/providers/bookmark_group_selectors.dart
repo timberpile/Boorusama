@@ -115,10 +115,13 @@ class BookmarkMembershipPresentation extends Equatable {
 
 BookmarkMembershipPresentation selectBookmarkMembershipPresentation(
   BookmarkLibraryState state,
-  BookmarkUniqueId bookmarkId,
-) {
-  final isBookmarked = state.bookmarksByUniqueId.containsKey(bookmarkId);
-  final memberships = state.membershipsFor(bookmarkId);
+  BookmarkUniqueId bookmarkId, {
+  bool? bookmarked,
+  Set<String>? groupMemberships,
+}) {
+  final isBookmarked =
+      bookmarked ?? state.bookmarksByUniqueId.containsKey(bookmarkId);
+  final memberships = groupMemberships ?? state.membershipsFor(bookmarkId);
   final activeGroupId = state.activeTarget.groupId;
   return BookmarkMembershipPresentation(
     isBookmarked: isBookmarked,

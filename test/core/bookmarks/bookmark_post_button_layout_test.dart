@@ -9,10 +9,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
+import 'package:oktoast/oktoast.dart';
+import 'package:like_button/like_button.dart';
+import 'package:material_symbols_icons/symbols.dart';
+import 'package:boorusama/core/configs/manage/providers.dart';
+import 'package:boorusama/core/themes/colors/src/colors.dart';
 
 // Project imports:
 import 'package:boorusama/core/bookmarks/src/data/bookmark_convert.dart';
 import 'package:boorusama/core/bookmarks/src/providers/bookmark_provider.dart';
+import 'package:boorusama/core/bookmarks/src/providers/bookmark_details_mutation_notifier.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_group.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_library_state.dart';
@@ -24,6 +30,127 @@ import 'package:boorusama/core/posts/post/types.dart';
 const _groupId = '550e8400-e29b-41d4-a716-446655440000';
 
 void main() {
+  for (final likeButton in [false, true]) {
+    testWidgets(
+      'deferred group removal updates ${likeButton ? 'like button' : 'icon button'} and second tap restores it',
+      (tester) async {
+        final bookmark = Bookmark.empty.copyWith(
+          sourceUrl: 'https://example.com',
+          originalUrl: 'https://example.com/1.jpg',
+          postId: () => 1,
+        );
+        final library = BookmarkLibraryState(
+          bookmarks: [bookmark],
+          groups: [
+            BookmarkGroup(
+              id: _groupId,
+              name: 'Saved',
+              bookmarkIds: {bookmark.id},
+            ),
+          ],
+          activeTarget: BookmarkTarget.group(_groupId),
+        );
+        final notifier = _FixedBookmarkNotifier(library);
+        final container = ProviderContainer(
+          overrides: [
+            bookmarkProvider.overrideWith(() => notifier),
+            currentReadOnlyBooruConfigAuthProvider.overrideWithValue(
+              BooruConfig.empty.auth,
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+        container.read(bookmarkDetailsMutationProvider.notifier).begin();
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: container,
+            child: BooruLocalization(
+              child: MaterialApp(
+                theme: ThemeData(
+                  extensions: const [KurumiExtendedColorScheme()],
+                ).withBoorusamaColors(),
+                builder: (context, child) => KurumiTheme(
+                  data: KurumiThemeData.fromMaterial(
+                    Theme.of(context).withBoorusamaColors(),
+                  ),
+                  child: OKToast(child: child!),
+                ),
+                home: likeButton
+                    ? BookmarkPostLikeButtonButton(post: bookmark.toPost())
+                    : BookmarkPostButton(
+                        post: bookmark.toPost(),
+                        config: BooruConfig.empty.auth,
+                      ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        bool filled() => likeButton
+            ? tester.widget<Icon>(find.byIcon(Symbols.bookmark)).fill == 1
+            : (tester
+                          .widget<CustomPaint>(
+                            find.byWidgetPredicate(
+                              (widget) =>
+                                  widget is CustomPaint &&
+                                  widget.painter
+                                      is BookmarkWithDropdownIconPainter,
+                            ),
+                          )
+                          .painter!
+                      as BookmarkWithDropdownIconPainter)
+                  .fill;
+        expect(filled(), isTrue);
+        if (!likeButton) {
+          expect(
+            find.byWidgetPredicate(
+              (widget) =>
+                  widget is KurumiTooltip &&
+                  widget.message == 'Remove from Saved',
+            ),
+            findsOneWidget,
+          );
+        }
+        await tester.tap(find.byType(likeButton ? LikeButton : IconButton));
+        await tester.pumpAndSettle();
+        expect(filled(), isFalse);
+        if (!likeButton) {
+          expect(
+            find.byWidgetPredicate(
+              (widget) =>
+                  widget is KurumiTooltip && widget.message == 'Add to Saved',
+            ),
+            findsOneWidget,
+          );
+        }
+        expect(container.read(bookmarkProvider).valueOrNull, same(library));
+        expect(
+          container.read(bookmarkDetailsMutationProvider.notifier).pending,
+          hasLength(1),
+        );
+        await tester.tap(find.byType(likeButton ? LikeButton : IconButton));
+        await tester.pumpAndSettle();
+        expect(filled(), isTrue);
+        if (!likeButton) {
+          expect(
+            find.byWidgetPredicate(
+              (widget) =>
+                  widget is KurumiTooltip &&
+                  widget.message == 'Remove from Saved',
+            ),
+            findsOneWidget,
+          );
+        }
+        expect(
+          container.read(bookmarkDetailsMutationProvider.notifier).pending,
+          isEmpty,
+        );
+        await tester.pump(const Duration(seconds: 3));
+        await tester.pumpWidget(const SizedBox.shrink());
+      },
+    );
+  }
+
   testWidgets(
     'a short group name keeps compact margins around the caption',
     (tester) async {

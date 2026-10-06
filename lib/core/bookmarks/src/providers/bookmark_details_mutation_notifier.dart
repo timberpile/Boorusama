@@ -9,6 +9,7 @@ import '../types/bookmark.dart';
 import '../types/bookmark_library_state.dart';
 import '../types/bookmark_target.dart';
 import 'bookmark_provider.dart';
+import 'bookmark_group_selectors.dart';
 
 final bookmarkDetailsMutationProvider =
     NotifierProvider<
@@ -22,11 +23,47 @@ typedef BookmarkDetailsMutationKey = ({
 });
 
 class BookmarkDetailsMutationState {
-  const BookmarkDetailsMutationState({required this.isVisible});
+  const BookmarkDetailsMutationState({
+    required this.isVisible,
+    this.pending = const {},
+  });
 
-  const BookmarkDetailsMutationState.initial() : isVisible = false;
+  const BookmarkDetailsMutationState.initial()
+    : isVisible = false,
+      pending = const {};
 
   final bool isVisible;
+  final Map<BookmarkDetailsMutationKey, BookmarkDetailsPendingToggle> pending;
+
+  BookmarkMembershipPresentation presentationFor(
+    BookmarkLibraryState library,
+    BookmarkUniqueId bookmarkId,
+  ) {
+    var bookmarked = library.bookmarksByUniqueId.containsKey(bookmarkId);
+    final memberships = {...library.membershipsFor(bookmarkId)};
+    for (final entry in pending.entries) {
+      if (entry.key.bookmarkId != bookmarkId) continue;
+      final added = entry.value.outcome == BookmarkToggleOutcome.added;
+      if (entry.key.target.groupId case final groupId?) {
+        if (added) {
+          memberships.add(groupId);
+          bookmarked = true;
+        } else {
+          memberships.remove(groupId);
+          // Removing the final group also deletes the bookmark at commit.
+          bookmarked = memberships.isNotEmpty;
+        }
+      } else {
+        bookmarked = added;
+      }
+    }
+    return selectBookmarkMembershipPresentation(
+      library,
+      bookmarkId,
+      bookmarked: bookmarked,
+      groupMemberships: memberships,
+    );
+  }
 }
 
 class BookmarkDetailsPendingToggle {
@@ -76,6 +113,7 @@ class BookmarkDetailsMutationNotifier
     final target = library.activeTarget;
     final key = (bookmarkId: uniqueId, target: target);
     if (_pending.remove(key) case final pending?) {
+      _publishPending();
       return switch (pending.outcome) {
         BookmarkToggleOutcome.added => BookmarkToggleOutcome.removed,
         BookmarkToggleOutcome.removed => BookmarkToggleOutcome.added,
@@ -103,7 +141,15 @@ class BookmarkDetailsMutationNotifier
       target: target,
       outcome: outcome,
     );
+    _publishPending();
     return outcome;
+  }
+
+  void _publishPending() {
+    state = BookmarkDetailsMutationState(
+      isVisible: state.isVisible,
+      pending: pending,
+    );
   }
 
   Future<bool> commit(BookmarkLibraryNotifier library) async {

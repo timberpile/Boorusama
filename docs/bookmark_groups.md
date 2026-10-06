@@ -11,6 +11,15 @@ membership indexes used by the group browser, filtered grids, post actions, and
 bulk actions. A nullable `activeBookmarkGroupId` setting stores the add/remove
 target; null means `No Group`. `All` is a view and is never an assignment target.
 
+## Viewer removal feedback
+
+The bookmark viewer keeps a snapshot of its post list and queues target-specific
+membership changes until the route closes. A second tap cancels the queued
+change. Toolbar controls project that pending intent over the persisted library
+so their fill, action tooltip, and group count update immediately. The shared
+library and underlying grid remain unchanged while the viewer is open; the grid
+listens only to the mutation session's visibility and refreshes after closing.
+
 ## Backup compatibility
 
 Current export and import uses the `.bsexport` container. A Full export marks

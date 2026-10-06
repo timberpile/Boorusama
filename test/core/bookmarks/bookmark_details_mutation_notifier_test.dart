@@ -27,28 +27,38 @@ void main() {
     activeTarget: const BookmarkTarget.ungrouped(),
   );
 
-  test('deferred toggles stay invisible and a second tap cancels them', () {
-    final container = ProviderContainer();
-    addTearDown(container.dispose);
-    final notifier = container.read(
-      bookmarkDetailsMutationProvider.notifier,
-    );
-    notifier.begin();
-    final visibleState = container.read(bookmarkDetailsMutationProvider);
+  test(
+    'deferred toggles publish their intent and a second tap cancels them',
+    () {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      final notifier = container.read(
+        bookmarkDetailsMutationProvider.notifier,
+      );
+      notifier.begin();
+      final visibleState = container.read(bookmarkDetailsMutationProvider);
 
-    expect(
-      notifier.toggle(config: config, post: post, library: library),
-      BookmarkToggleOutcome.removed,
-    );
-    expect(notifier.pending, hasLength(1));
-    expect(container.read(bookmarkDetailsMutationProvider), same(visibleState));
+      expect(
+        notifier.toggle(config: config, post: post, library: library),
+        BookmarkToggleOutcome.removed,
+      );
+      expect(notifier.pending, hasLength(1));
+      expect(
+        container.read(bookmarkDetailsMutationProvider).isVisible,
+        visibleState.isVisible,
+      );
+      expect(
+        container.read(bookmarkDetailsMutationProvider).pending,
+        hasLength(1),
+      );
 
-    expect(
-      notifier.toggle(config: config, post: post, library: library),
-      BookmarkToggleOutcome.added,
-    );
-    expect(notifier.pending, isEmpty);
-  });
+      expect(
+        notifier.toggle(config: config, post: post, library: library),
+        BookmarkToggleOutcome.added,
+      );
+      expect(notifier.pending, isEmpty);
+    },
+  );
 
   test('a second tap also cancels a deferred bookmark addition', () {
     final container = ProviderContainer();
@@ -107,6 +117,96 @@ void main() {
       BookmarkToggleOutcome.added,
     );
     expect(notifier.pending, hasLength(2));
+  });
+
+  test('pending group changes update counts without changing other posts', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    final notifier = container.read(bookmarkDetailsMutationProvider.notifier)
+      ..begin();
+    const first = '11111111-1111-4111-8111-111111111111';
+    const second = '22222222-2222-4222-8222-222222222222';
+    final grouped = BookmarkLibraryState(
+      bookmarks: [bookmark],
+      groups: [
+        BookmarkGroup(id: first, name: 'First', bookmarkIds: {bookmark.id}),
+        BookmarkGroup(id: second, name: 'Second', bookmarkIds: {bookmark.id}),
+      ],
+      activeTarget: BookmarkTarget.group(first),
+    );
+    notifier.toggle(config: config, post: post, library: grouped);
+    var presentation = container
+        .read(bookmarkDetailsMutationProvider)
+        .presentationFor(grouped, bookmark.uniqueId);
+    expect(presentation.isInActiveTarget, isFalse);
+    expect(presentation.namedGroupCount, 1);
+    expect(presentation.showNamedGroupCount, isTrue);
+    expect(presentation.isBookmarked, isTrue);
+    final otherPost = Bookmark.empty
+        .copyWith(sourceUrl: 'https://example.com', postId: () => 99)
+        .toPost();
+    expect(
+      container
+          .read(bookmarkDetailsMutationProvider)
+          .presentationFor(
+            grouped,
+            BookmarkUniqueId.fromPost(otherPost, config.booruIdHint),
+          )
+          .isBookmarked,
+      isFalse,
+    );
+    final secondTarget = BookmarkLibraryState(
+      bookmarks: grouped.items,
+      groups: grouped.groups,
+      activeTarget: BookmarkTarget.group(second),
+    );
+    notifier.toggle(config: config, post: post, library: secondTarget);
+    final ungrouped = BookmarkLibraryState(
+      bookmarks: grouped.items,
+      groups: grouped.groups,
+      activeTarget: const BookmarkTarget.ungrouped(),
+    );
+    presentation = container
+        .read(bookmarkDetailsMutationProvider)
+        .presentationFor(ungrouped, bookmark.uniqueId);
+    expect(presentation.isBookmarked, isFalse);
+    expect(presentation.isInActiveTarget, isFalse);
+    expect(presentation.namedGroupCount, 0);
+    notifier.toggle(config: config, post: post, library: grouped);
+    presentation = container
+        .read(bookmarkDetailsMutationProvider)
+        .presentationFor(grouped, bookmark.uniqueId);
+    expect(presentation.isInActiveTarget, isTrue);
+    expect(presentation.namedGroupCount, 1);
+    expect(grouped.membershipsFor(bookmark.uniqueId), {first, second});
+  });
+
+  test('deferred ungrouped addition and cancellation update presentation', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    final notifier = container.read(bookmarkDetailsMutationProvider.notifier)
+      ..begin();
+    final empty = BookmarkLibraryState(
+      bookmarks: const [],
+      groups: const [],
+      activeTarget: const BookmarkTarget.ungrouped(),
+    );
+    notifier.toggle(config: config, post: post, library: empty);
+    expect(
+      container
+          .read(bookmarkDetailsMutationProvider)
+          .presentationFor(empty, bookmark.uniqueId)
+          .isInActiveTarget,
+      isTrue,
+    );
+    notifier.toggle(config: config, post: post, library: empty);
+    expect(
+      container
+          .read(bookmarkDetailsMutationProvider)
+          .presentationFor(empty, bookmark.uniqueId)
+          .isInActiveTarget,
+      isFalse,
+    );
   });
 
   test(
