@@ -201,7 +201,10 @@ class VideoCacheManager implements ImageCacheManager {
       if (estimatedSize == null) {
         final headResponse = await dio.head(
           url,
-          options: Options(headers: headers),
+          options: Options(
+            headers: headers,
+            extra: const {'boorusama.request.media': true},
+          ),
         );
 
         final contentLength = headResponse.headers.value('content-length');

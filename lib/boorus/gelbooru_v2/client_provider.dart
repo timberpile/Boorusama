@@ -50,6 +50,7 @@ final gelbooruV2DioProvider = Provider.family<Dio, BooruConfigAuth>((
   final capabilities = gelbooruV2.getCapabilitiesForSite(config.url);
 
   final dio = newDio(
+    apiCoordinator: ref.watch(apiRequestCoordinatorProvider),
     options: DioOptions(
       ddosProtectionHandler: ddosProtectionHandler,
       userAgent: ref.watch(defaultUserAgentProvider),
@@ -65,7 +66,6 @@ final gelbooruV2DioProvider = Provider.family<Dio, BooruConfigAuth>((
         if (c.isNotEmpty) CookieInjectionInterceptor(cookie: c),
       if (capabilities?.auth?.required case true)
         AuthErrorResponseInterceptor(),
-      ref.watch(defaultSlidingWindowRateLimitConfigInterceptorProvider),
     ],
   );
 

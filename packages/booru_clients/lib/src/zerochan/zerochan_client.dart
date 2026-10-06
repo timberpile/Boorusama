@@ -1,3 +1,4 @@
+import '../http/request_interruption.dart';
 // Dart imports:
 import 'dart:convert';
 
@@ -82,6 +83,7 @@ class ZerochanClient {
 
       return (data as List).map((e) => PostDto.fromJson(e)).toList();
     } catch (e, stackTrace) {
+      if (isDataRequestInterruption(e)) rethrow;
       logger?.call('Zerochan Error: $e');
       Error.throwWithStackTrace(e, stackTrace);
     }

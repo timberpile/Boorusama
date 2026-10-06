@@ -1,3 +1,4 @@
+import '../http/request_interruption.dart';
 import 'package:dio/dio.dart';
 import 'dart:convert';
 import '../sankaku/sankaku_client.dart';
@@ -174,6 +175,7 @@ class SankakuIdolClient implements SankakuClient {
 
       return (data as List).map((e) => TagIdolDto.fromJson(e)).toList();
     } on DioException catch (e) {
+      if (isDataRequestInterruption(e)) rethrow;
       if (e.type == DioExceptionType.cancel) {
         return [];
       } else if (e.type == DioExceptionType.receiveTimeout) {
@@ -215,6 +217,7 @@ class SankakuIdolClient implements SankakuClient {
       }
       return const Token.empty();
     } catch (e) {
+      if (isDataRequestInterruption(e)) rethrow;
       return const Token.empty();
     }
   }

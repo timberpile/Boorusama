@@ -1,3 +1,4 @@
+import '../http/request_interruption.dart';
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
@@ -218,6 +219,7 @@ class PixivClient {
 
       return _extractBody(response.data);
     } on DioException catch (e) {
+      if (isDataRequestInterruption(e)) rethrow;
       throw _translateDioException(e);
     }
   }
@@ -277,7 +279,8 @@ PixivException _translateDioException(DioException e) {
 dynamic _tryDecode(String s) {
   try {
     return jsonDecode(s);
-  } catch (_) {
+  } catch (interruption) {
+    if (isDataRequestInterruption(interruption)) rethrow;
     return null;
   }
 }

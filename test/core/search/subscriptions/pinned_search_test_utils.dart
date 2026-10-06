@@ -15,6 +15,7 @@ import 'package:boorusama/core/errors/types.dart';
 import 'package:boorusama/core/downloads/downloader/providers.dart';
 import 'package:boorusama/core/downloads/downloader/types.dart';
 import 'package:boorusama/core/http/client/providers.dart';
+import 'package:boorusama/core/http/client/coordination.dart';
 import 'package:boorusama/core/images/providers.dart';
 import 'package:boorusama/core/router.dart';
 import 'package:boorusama/core/search/subscriptions/providers.dart';
@@ -209,6 +210,9 @@ class PinnedSearchHarness {
               clock: clock,
               resolvePostRepository: (config) => TestSearchPostRepository(
                 (query, page, limit) async {
+                  // This injected repository simulates remote dispatch instead
+                  // of using Dio, so signal its physical request boundary.
+                  ApiRequestContext.current().onStarted?.call();
                   requests.add((
                     profileId: config.auth.url == testProfile.url
                         ? '00000000-0000-4000-8000-00000000000c'

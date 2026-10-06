@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:dio/dio.dart';
+import '../../../../http/client/coordination.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../settings/providers.dart';
 import '../../../../boorus/engine/providers.dart';
@@ -33,12 +35,16 @@ class SearchRefreshCoordinator extends Notifier<bool> {
   var _foreground = false;
   var _feedsOverviewActive = false;
   var _disposed = false;
+  CancelToken? _runToken;
+  final _initialAttemptRevisions =
+      <String, ({int revision, DateTime createdAt})>{};
 
   @override
   bool build() {
     _disposed = false;
     ref.onDispose(() {
       _disposed = true;
+      _runToken?.cancel();
       _timer?.cancel();
     });
     ref.listen(
@@ -46,6 +52,7 @@ class SearchRefreshCoordinator extends Notifier<bool> {
       (_, _) => _configure(),
     );
     ref.listen(automaticSearchRefreshNetworkAllowedProvider, (_, allowed) {
+      if (!allowed) _runToken?.cancel();
       if (allowed && _foreground) {
         unawaited(initializeFeeds());
       }
@@ -55,11 +62,13 @@ class SearchRefreshCoordinator extends Notifier<bool> {
 
   void setForeground(bool foreground) {
     _foreground = foreground;
+    if (!foreground) _runToken?.cancel();
     _configure();
   }
 
   void setFeedsOverviewActive(bool active) {
     _feedsOverviewActive = active;
+    if (!active) _runToken?.cancel();
     if (active) unawaited(initializeFeeds());
   }
 
@@ -85,7 +94,16 @@ class SearchRefreshCoordinator extends Notifier<bool> {
   }
 
   Future<void> _initializeFeeds() async {
-    final attemptedIds = <String>{};
+    final current = await ref.read(searchSubscriptionsProvider.future);
+    _initialAttemptRevisions.removeWhere(
+      (id, identity) => !current.subscriptions.any(
+        (source) =>
+            source.id == id &&
+            source.runtimeRevision == identity.revision &&
+            source.createdAt == identity.createdAt,
+      ),
+    );
+    final attemptedIds = _initialAttemptRevisions.keys.toSet();
     while (_canInitialize && _feedsOverviewActive) {
       final checked = await _startRun(initialAttemptIds: attemptedIds);
       if (checked == 0) break;
@@ -108,6 +126,7 @@ class SearchRefreshCoordinator extends Notifier<bool> {
         initializing ? _canInitialize && _feedsOverviewActive : _canRun;
     if (!canRun() || state) return 0;
     state = true;
+    final token = _runToken = CancelToken();
     try {
       final subscriptions = await ref.read(searchSubscriptionsProvider.future);
       if (!canRun()) return 0;
@@ -166,17 +185,32 @@ class SearchRefreshCoordinator extends Notifier<bool> {
               .read(searchSubscriptionsProvider.notifier)
               .refresh(
                 id,
-                canStart: () {
-                  final allowed = canRun();
-                  if (allowed) initialAttemptIds?.add(id);
-                  return allowed;
+                canStart: canRun,
+                onStarted: () {
+                  if (initialAttemptIds == null) return;
+                  initialAttemptIds.add(id);
+                  final latest = ref
+                      .read(searchSubscriptionsProvider)
+                      .valueOrNull
+                      ?.subscriptions
+                      .where((source) => source.id == id)
+                      .firstOrNull;
+                  if (latest != null) {
+                    _initialAttemptRevisions[id] = (
+                      revision: latest.runtimeRevision,
+                      createdAt: latest.createdAt,
+                    );
+                  }
                 },
+                requestClass: ApiRequestClass.automatic,
+                cancelToken: token,
               );
         },
       );
     } catch (_) {
       return 0;
     } finally {
+      if (identical(_runToken, token)) _runToken = null;
       if (!_disposed) state = false;
     }
   }

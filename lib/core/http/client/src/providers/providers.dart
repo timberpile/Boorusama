@@ -12,17 +12,29 @@ import '../../../../boorus/booru/providers.dart';
 import '../../../../boorus/engine/providers.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../ddos/handler/providers.dart';
-import '../interceptors/sliding_window_rate_limit_interceptor.dart';
+import '../coordination/api_request_coordinator.dart';
+import '../coordination/api_auth_refresh_registry.dart';
 import '../types/dio_options.dart';
 import '../types/http_utils.dart';
 import '../types/network_protocol_info.dart';
 import 'dio.dart';
+
+final apiAuthRefreshRegistryProvider = Provider<ApiAuthRefreshRegistry>(
+  (ref) => ApiAuthRefreshRegistry(),
+);
+
+final apiRequestCoordinatorProvider = Provider<ApiRequestCoordinator>((ref) {
+  final coordinator = ApiRequestCoordinator();
+  ref.onDispose(coordinator.dispose);
+  return coordinator;
+});
 
 final defaultDioProvider = Provider.family<Dio, BooruConfigAuth>((ref, config) {
   final ddosProtectionHandler = ref.watch(httpDdosProtectionBypassProvider);
   final loggerService = ref.watch(loggerProvider);
 
   return newDio(
+    apiCoordinator: ref.watch(apiRequestCoordinatorProvider),
     options: DioOptions(
       ddosProtectionHandler: ddosProtectionHandler,
       userAgent: ref.watch(defaultUserAgentProvider),
@@ -36,9 +48,6 @@ final defaultDioProvider = Provider.family<Dio, BooruConfigAuth>((ref, config) {
           config.networkSettings?.httpSettings?.skipCertificateVerification ??
           false,
     ),
-    additionalInterceptors: [
-      ref.watch(defaultSlidingWindowRateLimitConfigInterceptorProvider),
-    ],
   );
 });
 
@@ -151,14 +160,3 @@ final defaultNetworkProtocolInfoProvider =
         ),
       );
     });
-
-final defaultSlidingWindowRateLimitConfigInterceptorProvider =
-    Provider<SlidingWindowRateLimitInterceptor>(
-      (ref) => SlidingWindowRateLimitInterceptor(
-        // 10 requests per second
-        config: const SlidingWindowRateLimitConfig(
-          requestsPerWindow: 10,
-          windowSizeMs: 1000,
-        ),
-      ),
-    );

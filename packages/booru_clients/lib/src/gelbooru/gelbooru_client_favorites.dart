@@ -30,6 +30,7 @@ mixin GelbooruClientFavorites {
         'id': postId,
       },
       options: Options(
+        extra: const {'boorusama.request.mutation': true},
         headers: _buildHeaders(),
       ),
     );
@@ -57,6 +58,7 @@ mixin GelbooruClientFavorites {
         'id': postId,
       },
       options: Options(
+        extra: const {'boorusama.request.mutation': true},
         validateStatus: (status) => status == 200 || status == 302,
         headers: _buildHeaders(),
       ),

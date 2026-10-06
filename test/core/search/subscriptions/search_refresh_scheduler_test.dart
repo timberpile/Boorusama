@@ -162,6 +162,27 @@ void main() {
     },
   );
   test(
+    'cooldown deferral prevents repolling until retryAt without a failed attempt',
+    () async {
+      var now = start;
+      final retryAt = start.add(const Duration(seconds: 30));
+      final scheduler = SearchRefreshScheduler(clock: Clock(() => now));
+      Future<int> run() => scheduler.run(
+        searches: [search('limited')],
+        interval: const Duration(minutes: 5),
+        canRun: () => true,
+        canRefresh: (_) => true,
+        wait: noWait,
+        refresh: (_) async => SearchRefreshDeferred(retryAt),
+      );
+      expect(await run(), 1);
+      now = retryAt.subtract(const Duration(milliseconds: 1));
+      expect(await run(), 0);
+      now = retryAt;
+      expect(await run(), 1);
+    },
+  );
+  test(
     'refresh preferences round trip while old settings get five-minute defaults',
     () {
       expect(

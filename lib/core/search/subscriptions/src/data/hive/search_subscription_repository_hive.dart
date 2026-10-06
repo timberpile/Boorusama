@@ -632,6 +632,7 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
   @override
   Future<SearchSubscription?> commitRefresh(SearchRefreshCommit commit) {
     return _serialize(() async {
+      if (!(commit.canCommit?.call() ?? true)) return null;
       final currentObject = _box.get(commit.subscriptionId.trim());
       if (currentObject == null) {
         return null;
@@ -739,8 +740,10 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
     int expectedRevision = 0,
     required DateTime attemptedAt,
     required SearchRefreshErrorKind kind,
+    bool Function()? canCommit,
   }) {
     return _serialize(() async {
+      if (!(canCommit?.call() ?? true)) return null;
       final current = _box.get(id.trim());
       if (current == null ||
           current.createdAt != expectedCreatedAt ||

@@ -4,6 +4,7 @@ import 'dart:async';
 // Package imports:
 import 'package:booru_clients/pixiv.dart';
 import 'package:dio/dio.dart';
+import '../../../core/http/client/coordination.dart';
 
 /// Marker written into `RequestOptions.extra` before a 401 is retried, so a
 /// retried request is never refreshed-and-retried a second time.
@@ -19,7 +20,7 @@ const kPixivAuthRetryKey = 'pixivAuthRetried';
 /// logging that traffic would be a public credential disclosure. Never route
 /// token traffic through the app's shared Dio, and never pass
 /// `skipCertificateVerification` here.
-PixivAuthClient createPixivAuthClient() => PixivAuthClient();
+PixivAuthClient createPixivAuthClient({Dio? dio}) => PixivAuthClient(dio: dio);
 
 typedef PixivTokenRefresher = Future<PixivTokens> Function(String refreshToken);
 
@@ -76,9 +77,10 @@ class PixivAuthInterceptor extends Interceptor {
   /// The single-flight latch (FIX 6a). Requests arriving while a refresh is
   /// in progress await THIS future and then attach the fresh token, instead
   /// of bailing out and failing.
-  Future<bool>? _inFlight;
+  final _refreshRegistry = ApiAuthRefreshRegistry();
 
   Dio? _dio;
+  DioException? _lastRefreshError;
 
   /// The Dio this interceptor is installed on. A 401 is retried through it
   /// rather than through a throwaway `Dio`, so the retry still goes through
@@ -105,10 +107,29 @@ class PixivAuthInterceptor extends Interceptor {
     RequestOptions options,
     RequestInterceptorHandler handler,
   ) async {
+    final refreshError = _lastRefreshError;
+    final retryAt = switch (refreshError?.error) {
+      ApiCooldownException(:final retryAt) => retryAt,
+      _ => null,
+    };
+    if (refreshError != null &&
+        (retryAt == null || !DateTime.now().toUtc().isBefore(retryAt))) {
+      _lastRefreshError = null;
+      _accessTokenExpiry = null;
+      _lastFailureAt = null;
+    }
     if (_isExpiring && !_isCoolingDown) {
-      await _refreshOnce();
+      await _refreshOnce(options);
     }
 
+    if (_lastRefreshError case final error?) {
+      handler.reject(error.copyWith(requestOptions: options));
+      return;
+    }
+    if (options.cancelToken?.isCancelled ?? false) {
+      handler.reject(options.cancelToken!.cancelError!);
+      return;
+    }
     _applyBearer(options);
 
     handler.next(options);
@@ -122,13 +143,21 @@ class PixivAuthInterceptor extends Interceptor {
     final isUnauthorized = err.response?.statusCode == 401;
     final alreadyRetried = err.requestOptions.extra[kPixivAuthRetryKey] == true;
 
-    if (!isUnauthorized || alreadyRetried || _isCoolingDown) {
+    if (!isUnauthorized ||
+        alreadyRetried ||
+        _isCoolingDown ||
+        !isApiSafeRead(err.requestOptions) ||
+        (err.requestOptions.cancelToken?.isCancelled ?? false)) {
       handler.next(err);
       return;
     }
 
-    final refreshed = await _refreshOnce();
+    final refreshed = await _refreshOnce(err.requestOptions);
     if (!refreshed) {
+      if (_lastRefreshError case final error?) {
+        handler.next(error.copyWith(requestOptions: err.requestOptions));
+        return;
+      }
       handler.next(err);
       return;
     }
@@ -155,10 +184,20 @@ class PixivAuthInterceptor extends Interceptor {
 
   /// Runs at most one refresh at a time; concurrent callers get the same
   /// future and therefore the same outcome.
-  Future<bool> _refreshOnce() =>
-      _inFlight ??= _refresh().whenComplete(() => _inFlight = null);
+  Future<bool> _refreshOnce(RequestOptions options) async {
+    try {
+      return await runWithApiRequestContext(
+        apiRequestContextFor(options),
+        () => _refreshRegistry.run(this, _refresh),
+      );
+    } on DioException catch (error) {
+      if (error.type == DioExceptionType.cancel) return false;
+      rethrow;
+    }
+  }
 
   Future<bool> _refresh() async {
+    _lastRefreshError = null;
     onLog?.call('Refreshing access token');
 
     try {
@@ -203,6 +242,15 @@ class PixivAuthInterceptor extends Interceptor {
       _accessTokenExpiry = null;
       _lastFailureAt = DateTime.now();
       onAuthFailed?.call();
+      return false;
+    } on DioException catch (e) {
+      if (e.error is ApiCooldownException ||
+          e.type == DioExceptionType.cancel) {
+        _lastRefreshError = e;
+        _lastFailureAt = DateTime.now();
+        return false;
+      }
+      _lastFailureAt = DateTime.now();
       return false;
     } catch (e) {
       // Anything else (offline, rate limited, DNS) is transient: do not

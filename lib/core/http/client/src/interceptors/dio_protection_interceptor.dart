@@ -4,6 +4,7 @@ import 'dart:convert';
 
 // Package imports:
 import 'package:dio/dio.dart';
+import '../coordination/coordinated_dio.dart';
 
 // Project imports:
 import '../../../../ddos/handler/types.dart';
@@ -46,7 +47,9 @@ class DioProtectionInterceptor extends Interceptor {
     Response response,
     ResponseInterceptorHandler handler,
   ) async {
-    if (_isProtectionRetry(response.requestOptions)) {
+    if (_isProtectionRetry(response.requestOptions) ||
+        !isApiSafeRead(response.requestOptions) ||
+        response.statusCode == 429) {
       return super.onResponse(response, handler);
     }
 
@@ -75,7 +78,9 @@ class DioProtectionInterceptor extends Interceptor {
     DioException err,
     ErrorInterceptorHandler handler,
   ) async {
-    if (_isProtectionRetry(err.requestOptions)) {
+    if (_isProtectionRetry(err.requestOptions) ||
+        !isApiSafeRead(err.requestOptions) ||
+        err.response?.statusCode == 429) {
       return handler.next(err);
     }
 
@@ -143,6 +148,7 @@ class DioProtectionInterceptor extends Interceptor {
   Future<Response<dynamic>> _retryAfterProtection(
     RequestOptions options,
   ) async {
+    options.extra[apiNegotiatedKey] = true;
     final previous = options.extra[_protectionRetryKey];
     options.extra[_protectionRetryKey] = true;
 

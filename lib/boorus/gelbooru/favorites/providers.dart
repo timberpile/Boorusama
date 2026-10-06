@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/configs/config/types.dart';
 import '../../../core/posts/favorites/providers.dart';
 import '../../../core/posts/favorites/types.dart';
+import '../../../core/posts/favorites/src/types/favorite_interruption.dart';
 import '../client_provider.dart';
 import '../posts/types.dart';
 
@@ -28,7 +29,12 @@ final gelbooruFavoriteRepoProvider =
           remove: (postId) => client
               .removeFavorite(postId: postId)
               .then((value) => true)
-              .catchError((e) => false),
+              .catchError((Object e) {
+                if (isFavoriteRequestInterruption(e)) {
+                  Error.throwWithStackTrace(e, StackTrace.current);
+                }
+                return false;
+              }),
           isFavorited: (post) => false,
           canFavorite: () => client.canFavorite,
         );

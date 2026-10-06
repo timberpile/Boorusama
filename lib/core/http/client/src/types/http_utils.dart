@@ -5,6 +5,7 @@ import 'package:foundation/foundation.dart';
 
 // Project imports:
 import '../../../../errors/types.dart';
+import '../coordination/api_request_coordinator.dart';
 
 typedef DataFetcher<T> = Future<T> Function();
 
@@ -27,6 +28,9 @@ TaskEither<BooruError, T> tryFetchRemoteData<T>({
 }) => TaskEither.tryCatch(
   () => fetcher(),
   (error, stackTrace) => switch (error) {
+    DioException(error: ApiCooldownException(:final retryAt)) =>
+      RateLimitedError(retryAt),
+    DioException(type: DioExceptionType.cancel) => RequestCancelledError(),
     DioException(:final response?) => ServerError(
       httpStatusCode: response.statusCode,
       message: switch (response.data) {

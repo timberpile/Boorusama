@@ -321,7 +321,14 @@ void main() {
   testWidgets(
     'pausing during initialization stops later requests until foreground resumes',
     (tester) async {
-      final harness = createHarness();
+      final harness = createHarness(
+        fetch: (query, _, _) async => Either.of(
+          PostResult(
+            posts: [TestSearchPost(query == 'a' ? 1 : 2, checkedAt)],
+            total: 1,
+          ),
+        ),
+      );
       addTearDown(harness.dispose);
       harness.refreshGate = Completer<void>();
       await seedFeeds(
@@ -329,7 +336,7 @@ void main() {
         harness,
         [
           for (final id in ['a', 'b'])
-            pinnedFixture(id: id, query: id, checked: false),
+            pinnedFixture(id: id, query: id, checked: false, unreadCount: 0),
         ],
         [
           SearchFollowingFeed(
@@ -347,9 +354,25 @@ void main() {
       harness.refreshGate!.complete();
       await drain(tester);
       expect(harness.requests.map((request) => request.query), ['a']);
+      final cancelled = (await harness.repository.getById('a'))!;
+      expect(cancelled.lastAttemptAt, isNull);
+      expect(cancelled.lastSuccessfulCheckAt, isNull);
+      expect(cancelled.previews, isEmpty);
+      expect(cancelled.hasNewPosts, false);
+      expect((await harness.repository.getFeeds()).single.posts, isEmpty);
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       await drain(tester);
       expect(harness.requests.map((request) => request.query), ['a', 'b']);
+      final manual = harness.container
+          .read(searchSubscriptionsProvider.notifier)
+          .refresh('a');
+      await drain(tester);
+      await manual;
+      expect(harness.requests.map((request) => request.query), ['a', 'b', 'a']);
+      expect(
+        (await harness.repository.getById('a'))!.lastSuccessfulCheckAt,
+        isNotNull,
+      );
     },
   );
 

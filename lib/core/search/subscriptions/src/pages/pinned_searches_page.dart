@@ -1,3 +1,4 @@
+import '../../../../errors/types.dart';
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
@@ -632,7 +633,19 @@ class _PinnedSearchesPageState extends ConsumerState<PinnedSearchesPage> {
 
   Future<void> _runAction(Future<Object?> Function() action) async {
     try {
-      await action();
+      final result = await action();
+      final outcomes = switch (result) {
+        SearchRefreshOutcome() => [result],
+        List<SearchRefreshOutcome>() => result,
+        _ => const <SearchRefreshOutcome>[],
+      };
+      final waits = outcomes.whereType<SearchRefreshDeferred>().toList();
+      if (mounted && waits.isNotEmpty) {
+        final retryAt = waits
+            .map((r) => r.retryAt)
+            .reduce((a, b) => a.isAfter(b) ? a : b);
+        Kurumi.showErrorToast(context, rateLimitWaitText(context, retryAt));
+      }
     } catch (_) {
       if (mounted) {
         Kurumi.showErrorToast(

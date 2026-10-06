@@ -1,3 +1,4 @@
+import '../http/request_interruption.dart';
 // Package imports:
 import 'dart:convert';
 import 'package:dio/dio.dart';
@@ -73,6 +74,7 @@ class HybooruClient {
       final response = await _dio.get('/api/post/$id');
       return PostDto.fromJson(response.data as Map<String, dynamic>);
     } catch (e) {
+      if (isDataRequestInterruption(e)) rethrow;
       return null;
     }
   }
@@ -141,20 +143,19 @@ class HybooruClient {
       }
       return [];
     } catch (e) {
+      if (isDataRequestInterruption(e)) rethrow;
       return [];
     }
   }
 
   Future<List<TagDto>> getTagsFromPostId({required int postId}) async {
-    final crawlerDio = Dio(
-      BaseOptions(
-        baseUrl: _dio.options.baseUrl,
-        headers: _dio.options.headers,
-      ),
-    );
+    final crawlerDio = _dio;
 
     try {
-      final response = await crawlerDio.get('/posts/$postId');
+      final response = await crawlerDio.get(
+        '/posts/$postId',
+        options: Options(responseType: ResponseType.plain),
+      );
       final html = parse(response.data);
 
       // Find the script element containing the JSON data
@@ -175,6 +176,7 @@ class HybooruClient {
           .map((entry) => TagDto.fromJson(entry.key, entry.value as int))
           .toList();
     } catch (e) {
+      if (isDataRequestInterruption(e)) rethrow;
       return [];
     }
   }

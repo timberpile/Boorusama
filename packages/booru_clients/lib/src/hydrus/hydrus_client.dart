@@ -1,3 +1,4 @@
+import '../http/request_interruption.dart';
 // Dart imports:
 import 'dart:async';
 import 'dart:convert';
@@ -209,6 +210,7 @@ class HydrusClient {
 
       return true;
     } catch (e) {
+      if (isDataRequestInterruption(e)) rethrow;
       return false;
     }
   }

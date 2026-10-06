@@ -37,6 +37,7 @@ class GraphQLClient {
   }) async {
     final response = await _dio.post(
       '/graphql',
+      options: Options(extra: const {'boorusama.request.safeRead': true}),
       queryParameters: _authParams(),
       data: {'query': query, 'variables': variables},
     );

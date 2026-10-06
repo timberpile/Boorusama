@@ -1,6 +1,9 @@
+import '../types/search_refresh.dart';
+import '../../../../errors/types.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
+import 'package:kurumi/kurumi.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import '../../../../configs/manage/providers.dart';
@@ -93,7 +96,14 @@ class FollowingFeedManagementPage extends ConsumerWidget {
                         );
                         try {
                           if (action == 'refresh') {
-                            await notifier.refresh(source.id);
+                            final result = await notifier.refresh(source.id);
+                            if (context.mounted &&
+                                result is SearchRefreshDeferred) {
+                              Kurumi.showErrorToast(
+                                context,
+                                rateLimitWaitText(context, result.retryAt),
+                              );
+                            }
                           } else {
                             await notifier.setFeedFollowing(
                               feedId: feed.id,

@@ -13,6 +13,7 @@ import '../../../../settings/providers.dart';
 import '../../../../themes/theme/types.dart';
 import '../../../post/types.dart';
 import '../providers/favorites_notifier.dart';
+import 'favorite_action.dart';
 
 class QuickFavoriteButton extends ConsumerWidget {
   const QuickFavoriteButton({
@@ -21,7 +22,7 @@ class QuickFavoriteButton extends ConsumerWidget {
     this.onFavToggle,
   });
 
-  final void Function(bool value)? onFavToggle;
+  final Future<void> Function(bool value)? onFavToggle;
   final bool isFaved;
 
   @override
@@ -41,15 +42,18 @@ class QuickFavoriteButton extends ConsumerWidget {
       ),
       child: LikeButton(
         isLiked: isFaved,
-        onTap: (isLiked) {
+        onTap: (isLiked) async {
           final liked = !isLiked;
-          onFavToggle?.call(!isLiked);
+          final result = await runFavoriteAction(context, () async {
+            await onFavToggle?.call(liked);
+          });
+          if (result == null) return isLiked;
 
           if (liked && hapticsLevel.isBalanceAndAbove) {
-            HapticFeedback.mediumImpact();
+            await HapticFeedback.mediumImpact();
           }
 
-          return Future.value(liked);
+          return liked;
         },
         likeBuilder: (isLiked) {
           return Icon(

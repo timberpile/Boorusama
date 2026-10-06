@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/configs/config/types.dart';
 import '../../../core/posts/favorites/providers.dart';
 import '../../../core/posts/favorites/types.dart';
+import '../../../core/posts/favorites/src/types/favorite_interruption.dart';
 import '../client_provider.dart';
 import '../posts/types.dart';
 
@@ -25,7 +26,8 @@ final eshuushuuFavoriteRepoProvider =
               return (result?.favorited ?? false)
                   ? AddFavoriteStatus.success
                   : AddFavoriteStatus.alreadyExists;
-            } catch (_) {
+            } catch (e) {
+              if (isFavoriteRequestInterruption(e)) rethrow;
               return AddFavoriteStatus.failure;
             }
           },
@@ -33,7 +35,8 @@ final eshuushuuFavoriteRepoProvider =
             try {
               await client.removeFavorite(postId);
               return true;
-            } catch (_) {
+            } catch (e) {
+              if (isFavoriteRequestInterruption(e)) rethrow;
               return false;
             }
           },

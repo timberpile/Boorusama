@@ -1,3 +1,4 @@
+import '../http/request_interruption.dart';
 // Dart imports:
 import 'dart:async';
 import 'dart:convert';
@@ -193,7 +194,8 @@ class GelbooruClient
               .toList(),
         _ => <AutocompleteDto>[],
       };
-    } on Exception catch (_) {
+    } on Exception catch (interruption) {
+      if (isDataRequestInterruption(interruption)) rethrow;
       return [];
     }
   }
@@ -223,15 +225,11 @@ class GelbooruClient
     // Calculate pid (0-based pagination where page 1 = pid 0, page 2 = pid 10)
     final pid = page == null ? null : (page - 1) * 10;
 
-    final crawlerDio = Dio(
-      BaseOptions(
-        baseUrl: _dio.options.baseUrl,
-        headers: _dio.options.headers,
-      ),
-    );
+    final crawlerDio = _dio;
 
     final response = await crawlerDio.get(
       '/index.php',
+      options: Options(responseType: ResponseType.plain),
       queryParameters: {
         'page': 'post',
         's': 'view',
@@ -289,6 +287,7 @@ class GelbooruClient
           );
         }
       } catch (e) {
+        if (isDataRequestInterruption(e)) rethrow;
         continue;
       }
     }
@@ -299,15 +298,11 @@ class GelbooruClient
   Future<List<NoteDto>> getNotesFromPostId({
     required int postId,
   }) async {
-    final crawlerDio = Dio(
-      BaseOptions(
-        baseUrl: _dio.options.baseUrl,
-        headers: _dio.options.headers,
-      ),
-    );
+    final crawlerDio = _dio;
 
     final response = await crawlerDio.get(
       '/index.php',
+      options: Options(responseType: ResponseType.plain),
       queryParameters: {
         'page': 'post',
         's': 'view',

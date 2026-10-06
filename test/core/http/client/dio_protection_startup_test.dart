@@ -109,7 +109,7 @@ void main() {
     expect(fixture.adapter.requestCount, 2);
   });
 
-  test('a mutation never gets a delayed second replay', () async {
+  test('a mutation never replays after protection handling', () async {
     final fixture = _Fixture([
       const _Response(403, _challengePage),
       const _Response(403, _deniedPage),
@@ -122,7 +122,7 @@ void main() {
     ).run();
 
     expect(result.fold((error) => error, (_) => null), isA<ServerError>());
-    expect(fixture.adapter.requestCount, 2);
+    expect(fixture.adapter.requestCount, 1);
   });
 
   test('cancellation during the delay prevents another request', () async {

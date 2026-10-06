@@ -32,6 +32,7 @@ final gelbooruDioProvider = Provider.family<Dio, BooruConfigAuth>((
   final loggerService = ref.watch(loggerProvider);
 
   final dio = newDio(
+    apiCoordinator: ref.watch(apiRequestCoordinatorProvider),
     options: DioOptions(
       ddosProtectionHandler: ddosProtectionHandler,
       userAgent: ref.watch(defaultUserAgentProvider),
@@ -48,7 +49,6 @@ final gelbooruDioProvider = Provider.family<Dio, BooruConfigAuth>((
         detectionStatusCode: 200,
         returnedStatusCode: 410,
       ),
-      ref.watch(defaultSlidingWindowRateLimitConfigInterceptorProvider),
     ],
   );
 

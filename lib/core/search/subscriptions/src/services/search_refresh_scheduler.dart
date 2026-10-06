@@ -15,10 +15,15 @@ class SearchRefreshScheduler {
   final Duration runBudget;
   final Duration spacing;
   final _failures = <String, int>{};
+  final _deferredUntil = <String, DateTime>{};
   var _running = false;
 
   bool isDue(SearchSubscription search, Duration interval) {
     final now = _clock.now().toUtc();
+    if (_deferredUntil[search.id] case final retryAt?) {
+      if (now.isBefore(retryAt)) return false;
+      _deferredUntil.remove(search.id);
+    }
     if (search.lastSuccessfulCheckAt case final checked?) {
       if (now.difference(checked) <= interval) return false;
     }
@@ -47,6 +52,7 @@ class SearchRefreshScheduler {
     try {
       final ids = searches.map((s) => s.id).toSet();
       _failures.removeWhere((id, _) => !ids.contains(id));
+      _deferredUntil.removeWhere((id, _) => !ids.contains(id));
       final due = searches.where((s) => isDue(s, interval)).toList()
         ..sort(compareSearchRefreshPriority);
       for (final search in due) {
@@ -63,6 +69,9 @@ class SearchRefreshScheduler {
               _failures.update(search.id, (n) => n + 1, ifAbsent: () => 1);
             case SearchRefreshSucceeded():
               _failures.remove(search.id);
+              _deferredUntil.remove(search.id);
+            case SearchRefreshDeferred(:final retryAt):
+              _deferredUntil[search.id] = retryAt;
             case SearchRefreshDiscarded():
               break;
           }

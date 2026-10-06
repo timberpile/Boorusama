@@ -35,6 +35,7 @@ final zerochanDioProvider = Provider.family<Dio, BooruConfigAuth>((
   final loggerService = ref.watch(loggerProvider);
 
   return newDio(
+    apiCoordinator: ref.watch(apiRequestCoordinatorProvider),
     options: DioOptions(
       ddosProtectionHandler: ddosProtectionHandler,
       userAgent: '${appName.sentenceCase}/$appVersion - boorusama',
@@ -47,13 +48,6 @@ final zerochanDioProvider = Provider.family<Dio, BooruConfigAuth>((
     ),
     additionalInterceptors: [
       // 55 requests per minute (conservative buffer below 60 to avoid hitting limits)
-      SlidingWindowRateLimitInterceptor(
-        config: const SlidingWindowRateLimitConfig(
-          requestsPerWindow: 55,
-          windowSizeMs: 60000,
-          maxDelayMs: 10000,
-        ),
-      ),
     ],
   );
 });

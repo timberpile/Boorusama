@@ -14,6 +14,7 @@ import '../../../../configs/config/providers.dart';
 import '../../../post/types.dart';
 import '../providers/favorites_notifier.dart';
 import '../types/types.dart';
+import 'favorite_action.dart';
 
 class FavoriteContextMenuTile extends ConsumerWidget {
   const FavoriteContextMenuTile({
@@ -67,15 +68,19 @@ class FavoriteContextMenuTile extends ConsumerWidget {
     required bool isFavorited,
     required int postId,
   }) async {
-    final success = isFavorited
-        ? await notifier.remove(postId)
-        : switch (await notifier.add(postId)) {
-            AddFavoriteStatus.success ||
-            AddFavoriteStatus.alreadyExists => true,
-            _ => false,
-          };
+    final result = await runFavoriteAction(
+      context,
+      () async => isFavorited
+          ? await notifier.remove(postId)
+          : switch (await notifier.add(postId)) {
+              AddFavoriteStatus.success ||
+              AddFavoriteStatus.alreadyExists => true,
+              _ => false,
+            },
+    );
 
-    if (!context.mounted) return;
+    if (!context.mounted || result == null || result.cleanupInterrupted) return;
+    final success = result.value;
 
     if (success) {
       Kurumi.showSuccessToast(

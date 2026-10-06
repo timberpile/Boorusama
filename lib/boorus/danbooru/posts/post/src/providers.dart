@@ -12,6 +12,8 @@ import 'package:i18n/i18n.dart';
 import '../../../../../core/configs/config/types.dart';
 import '../../../../../core/downloads/urls/types.dart';
 import '../../../../../core/posts/favorites/providers.dart';
+import '../../../../../core/posts/favorites/src/types/favorite_interruption.dart';
+import '../../../../../core/http/client/coordination.dart';
 import '../../../../../core/posts/post/providers.dart';
 import '../../../../../core/posts/post/types.dart';
 import '../../../../../core/settings/providers.dart';
@@ -92,11 +94,35 @@ Future<PostResult<Post>> transformPosts(
   if (user != null) {
     final ids = posts.map((e) => e.id).toList();
 
-    unawaited(
-      ref.read(favoritesProvider(config.auth).notifier).checkFavorites(ids),
+    final inherited = ApiRequestContext.current();
+    final preloadContext = ApiRequestContext(
+      requestClass: ApiRequestClass.preload,
+      admissionBehavior: ApiAdmissionBehavior.dropIfUnavailable,
+      cancelToken: inherited.cancelToken,
+      canStart: inherited.canStart,
+      allowCooldownRetry: false,
     );
     unawaited(
-      ref.read(danbooruPostVotesProvider(config.auth).notifier).getVotes(posts),
+      runWithApiRequestContext(preloadContext, () async {
+        try {
+          await ref
+              .read(favoritesProvider(config.auth).notifier)
+              .checkFavorites(ids);
+        } catch (error) {
+          if (!isFavoriteRequestInterruption(error)) rethrow;
+        }
+      }),
+    );
+    unawaited(
+      runWithApiRequestContext(preloadContext, () async {
+        try {
+          await ref
+              .read(danbooruPostVotesProvider(config.auth).notifier)
+              .getVotes(posts);
+        } catch (error) {
+          if (!isFavoriteRequestInterruption(error)) rethrow;
+        }
+      }),
     );
     ref.read(danbooruTagListProvider(config.auth).notifier).removeTags(ids);
   }

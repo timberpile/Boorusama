@@ -14,6 +14,7 @@ import '../../core/configs/manage/providers.dart';
 import '../../core/ddos/handler/providers.dart';
 import '../../core/http/client/providers.dart';
 import '../../core/http/client/types.dart';
+import '../../core/http/client/coordination.dart';
 import '../../core/router.dart';
 import '../../foundation/loggers.dart';
 import 'auth/auth_interceptor.dart';
@@ -47,6 +48,7 @@ final eshuushuuDioProvider = Provider.family<Dio, BooruConfigAuth>((
       ?.id;
 
   return newDio(
+    apiCoordinator: ref.watch(apiRequestCoordinatorProvider),
     options: DioOptions(
       ddosProtectionHandler: ddosProtectionHandler,
       userAgent: ref.watch(defaultUserAgentProvider),
@@ -58,17 +60,28 @@ final eshuushuuDioProvider = Provider.family<Dio, BooruConfigAuth>((
       proxySettings: config.proxySettings,
     ),
     additionalInterceptors: [
-      SlidingWindowRateLimitInterceptor(
-        config: const SlidingWindowRateLimitConfig(
-          requestsPerWindow: 30,
-          windowSizeMs: 60000,
-          maxDelayMs: 10000,
-        ),
-      ),
       if (refreshToken != null && refreshToken.isNotEmpty)
         createEshuushuuAuthInterceptor(
           refreshToken: refreshToken,
           baseUrl: config.url,
+          refreshDio: newGenericDio(
+            baseUrl: config.url,
+            apiCoordinator: ref.watch(apiRequestCoordinatorProvider),
+            proxySettings: config.proxySettings,
+          ),
+          refreshOnce: (action) => ref.read(apiAuthRefreshRegistryProvider).run(
+            (
+              ApiQuotaKey.fromUri(Uri.parse(config.url)),
+              switch (config.login) {
+                final String login when login.isNotEmpty => login,
+                _ =>
+                  ref
+                      .read(apiAuthRefreshRegistryProvider)
+                      .opaqueCredentialIdentity(refreshToken),
+              },
+            ),
+            action,
+          ),
           onLog: (message) => loggerService.info('Auth', message),
           onAuthFailed: () {
             showSessionExpiredDialog(

@@ -87,6 +87,7 @@ class CustomCachedNetworkAvifImageProvider
         fetchStrategy: fetchStrategy,
         options: Options(
           responseType: ResponseType.bytes,
+          extra: const {'boorusama.request.media': true},
           headers: headers,
         ),
         onReceiveProgress: (count, total) {

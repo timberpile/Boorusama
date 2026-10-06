@@ -139,7 +139,10 @@ class ShareMediaPreparation {
         final response = await dio.download(
           url,
           file.path,
-          options: Options(headers: headers),
+          options: Options(
+            headers: headers,
+            extra: const {'boorusama.request.media': true},
+          ),
           cancelToken: cancelToken,
           onReceiveProgress: (received, total) =>
               onProgress?.call(total > 0 ? received / total : -1),
@@ -238,7 +241,10 @@ class ShareMediaPreparation {
         final response = await dio.download(
           url,
           staged.path,
-          options: Options(headers: headers),
+          options: Options(
+            headers: headers,
+            extra: const {'boorusama.request.media': true},
+          ),
           cancelToken: cancelToken,
           onReceiveProgress: (received, total) =>
               onProgress?.call(total > 0 ? received / total : -1),

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:booru_clients/pixiv.dart';
 import 'package:crypto/crypto.dart';
@@ -285,7 +286,8 @@ void main() {
       'never leaks the authorization header value in a failed request\'s exception',
       () async {
         await server.stop();
-        final deadDio = Dio(BaseOptions(baseUrl: 'http://127.0.0.1:1'));
+        final deadDio = Dio(BaseOptions(baseUrl: baseUrl))
+          ..httpClientAdapter = _FailedTransport();
         final client = PixivClient(
           dio: deadDio,
           accessToken: 'super-secret-token',
@@ -300,4 +302,23 @@ void main() {
       },
     );
   });
+}
+
+final class _FailedTransport implements HttpClientAdapter {
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    expect(options.headers['Authorization'], 'Bearer super-secret-token');
+    throw DioException(
+      requestOptions: options,
+      type: DioExceptionType.connectionError,
+      message: 'Connection failed',
+    );
+  }
+
+  @override
+  void close({bool force = false}) {}
 }

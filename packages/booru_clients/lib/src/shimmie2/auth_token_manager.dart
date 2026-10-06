@@ -1,3 +1,4 @@
+import '../http/request_interruption.dart';
 import 'dart:async';
 import 'package:coreutils/coreutils.dart';
 import 'package:dio/dio.dart';
@@ -57,7 +58,8 @@ final class AuthTokenManager {
       final regex = RegExp(r"name='auth_token'\s+value='([^']+)'");
       _cachedToken = regex.firstMatch(response.data)?.group(1);
       return _cachedToken;
-    } catch (_) {
+    } catch (interruption) {
+      if (isDataRequestInterruption(interruption)) rethrow;
       return null;
     }
   }

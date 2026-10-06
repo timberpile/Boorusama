@@ -5,6 +5,7 @@ import 'package:foundation/foundation.dart';
 // Project imports:
 import '../../../../configs/config/types.dart';
 import '../../../../errors/types.dart';
+import '../../../../http/client/coordination.dart';
 import '../../../../posts/post/types.dart';
 import '../refresh/chronological_search_scanner.dart';
 import '../refresh/search_refresh_query_adapter.dart';
@@ -68,14 +69,31 @@ class SearchRefreshService {
                       options: PostFetchOptions.raw,
                     )
                     .run())
-                .mapLeft(_mapError);
+                .mapLeft((error) {
+                  if (error is RateLimitedError ||
+                      error is RequestCancelledError) {
+                    throw error;
+                  }
+                  return _mapError(error);
+                });
           }
           scan = await scanner.scanSnapshot(fetchPage: fetchPage);
       }
     } catch (error) {
+      if (error is RateLimitedError) {
+        return SearchRefreshDeferred(error.retryAt);
+      }
+      if (error is RequestCancelledError ||
+          (ApiRequestContext.current().cancelToken?.isCancelled ?? false)) {
+        return const SearchRefreshDiscarded();
+      }
       scan = FailedSearchScan(_mapError(error));
     }
 
+    if ((ApiRequestContext.current().cancelToken?.isCancelled ?? false) ||
+        !(ApiRequestContext.current().canStart?.call() ?? true)) {
+      return const SearchRefreshDiscarded();
+    }
     switch (scan) {
       case FailedSearchScan(:final kind):
         return _fail(subscription, startedAt, kind);
@@ -104,6 +122,7 @@ class SearchRefreshService {
         final committed = await repository.commitRefresh(
           SearchRefreshCommit(
             subscriptionId: subscription.id,
+            canCommit: _commitGuard(),
             feedPosts: [
               for (final post in posts)
                 feedPostSnapshotFromPost(
@@ -153,10 +172,18 @@ class SearchRefreshService {
       expectedRevision: subscription.runtimeRevision,
       attemptedAt: startedAt,
       kind: kind,
+      canCommit: _commitGuard(),
     );
     return saved == null
         ? const SearchRefreshDiscarded()
         : SearchRefreshFailed(kind);
+  }
+
+  bool Function() _commitGuard() {
+    final context = ApiRequestContext.current();
+    return () =>
+        !(context.cancelToken?.isCancelled ?? false) &&
+        (context.canStart?.call() ?? true);
   }
 
   SearchRefreshErrorKind _mapError(Object error) => switch (error) {

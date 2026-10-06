@@ -1,3 +1,4 @@
+import '../http/request_interruption.dart';
 // Package imports:
 import 'package:dio/dio.dart';
 
@@ -20,6 +21,7 @@ mixin DanbooruClientFavorites {
 
       return true;
     } catch (e) {
+      if (isDataRequestInterruption(e)) rethrow;
       return false;
     }
   }
@@ -34,6 +36,7 @@ mixin DanbooruClientFavorites {
 
       return true;
     } catch (e) {
+      if (isDataRequestInterruption(e)) rethrow;
       return false;
     }
   }

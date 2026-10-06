@@ -1,3 +1,4 @@
+import '../http/request_interruption.dart';
 import 'dart:async';
 
 import 'package:dio/dio.dart';
@@ -138,7 +139,8 @@ class GelbooruV2Client with GelbooruClientFavorites {
           P.limit: ?limit,
         },
       );
-    } on Exception catch (_) {
+    } on Exception catch (interruption) {
+      if (isDataRequestInterruption(interruption)) rethrow;
       return [];
     }
   }

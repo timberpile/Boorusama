@@ -6,6 +6,8 @@ import 'package:collection/collection.dart';
 import 'package:equatable/equatable.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
+import 'package:dio/dio.dart';
+import '../../../../http/client/coordination.dart';
 
 // Project imports:
 import '../../../../../foundation/data_mutation_coordinator.dart';
@@ -70,6 +72,7 @@ class SearchSubscriptionsNotifier
   final SearchRefreshService? _refreshService;
   final Map<String, Future<SearchRefreshOutcome>> _inFlight = {};
   final Map<String, int> _pausedProfileRefreshes = {};
+  final _refreshTokens = <String, CancelToken>{};
   final _requestGate = SearchRefreshRequestGate();
   Future<void> _mutationTail = Future.value();
   Future<void> _batchTail = Future.value();
@@ -86,7 +89,12 @@ class SearchSubscriptionsNotifier
   @override
   Future<SearchSubscriptionsState> build() async {
     _disposed = false;
-    ref.onDispose(() => _disposed = true);
+    ref.onDispose(() {
+      _disposed = true;
+      for (final token in _refreshTokens.values) {
+        token.cancel();
+      }
+    });
     final repository = await _repository;
     _feeds = await repository.getFeeds();
     _organization = await repository.getOrganization();
@@ -614,16 +622,49 @@ class SearchSubscriptionsNotifier
   Future<void> delete(String id) =>
       _mutate((repository) => repository.delete(id));
 
-  Future<SearchRefreshOutcome> refresh(String id, {bool Function()? canStart}) {
+  Future<SearchRefreshOutcome> refresh(
+    String id, {
+    bool Function()? canStart,
+    void Function()? onStarted,
+    ApiRequestClass requestClass = ApiRequestClass.userInitiated,
+    CancelToken? cancelToken,
+  }) {
     final existing = _inFlight[id];
     if (existing != null) return existing;
-    late final Future<SearchRefreshOutcome> request;
-    request = _refresh(id, canStart).whenComplete(() {
-      if (identical(_inFlight[id], request)) {
-        _inFlight.remove(id);
+    final token = CancelToken();
+    _refreshTokens[id] = token;
+    if (cancelToken != null) {
+      if (cancelToken.isCancelled) {
+        token.cancel();
+      } else {
+        cancelToken.whenCancel.then((e) => token.cancel(e));
       }
-      _publishActivity();
-    });
+    }
+    var started = false;
+    late final Future<SearchRefreshOutcome> request;
+    request =
+        runWithApiRequestContext(
+          ApiRequestContext(
+            requestClass: requestClass,
+            cancelToken: token,
+            allowCooldownRetry: requestClass != ApiRequestClass.userInitiated,
+            canStart: () =>
+                !_disposed && !token.isCancelled && (canStart?.call() ?? true),
+            onStarted: () {
+              if (!started) {
+                started = true;
+                onStarted?.call();
+              }
+            },
+          ),
+          () => _refresh(id, canStart),
+        ).whenComplete(() {
+          if (identical(_inFlight[id], request)) {
+            _inFlight.remove(id);
+            _refreshTokens.remove(id);
+          }
+          _publishActivity();
+        });
     _inFlight[id] = request;
     return request;
   }
@@ -651,7 +692,32 @@ class SearchSubscriptionsNotifier
           .read(booruConfigProvider)
           .firstWhereOrNull((config) => config.id == subscription.profileId);
       if (config == null) return const SearchRefreshDiscarded();
-      return await _service(repository).refresh(subscription, config);
+      final inherited = ApiRequestContext.current();
+      return await runWithApiRequestContext(
+        ApiRequestContext(
+          requestClass: inherited.requestClass,
+          cancelToken: inherited.cancelToken,
+          allowCooldownRetry: inherited.allowCooldownRetry,
+          onStarted: inherited.onStarted,
+          canStart: () =>
+              (inherited.canStart?.call() ?? true) &&
+              !_pausedProfileRefreshes.containsKey(config.id) &&
+              ref
+                  .read(booruConfigProvider)
+                  .any(
+                    (latest) =>
+                        latest.id == config.id && latest.auth == config.auth,
+                  ) &&
+              (state.valueOrNull?.subscriptions.any(
+                    (latest) =>
+                        latest.id == id &&
+                        latest.createdAt == subscription.createdAt &&
+                        latest.runtimeRevision == subscription.runtimeRevision,
+                  ) ??
+                  false),
+        ),
+        () => _service(repository).refresh(subscription, config),
+      );
     } catch (_) {
       return const SearchRefreshFailed(SearchRefreshErrorKind.other);
     } finally {
@@ -762,6 +828,11 @@ class SearchSubscriptionsNotifier
     String profileId,
     Future<T> Function() operation,
   ) async {
+    final searches =
+        state.valueOrNull?.subscriptions ?? const <SearchSubscription>[];
+    for (final search in searches.where((s) => s.profileId == profileId)) {
+      _refreshTokens[search.id]?.cancel();
+    }
     _pausedProfileRefreshes.update(
       profileId,
       (count) => count + 1,

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:foundation/foundation.dart';
 
 // Project imports:
+import '../../../core/http/client/coordination.dart';
 import '../../../core/configs/config/types.dart';
 import '../../../core/errors/types.dart';
 import '../../../core/posts/explores/types.dart';
@@ -184,15 +185,8 @@ class PixivExploreRepository {
     PixivRecommendedFeed() => 'recommended',
   };
 
-  /// Mirrors `tryFetchRemoteData`'s (core/http/client) `DioException`
-  /// mapping, with one addition at the top: the shared rate limiter (see
-  /// `client_provider.dart`'s `PixivRateLimitSuppressionInterceptor`)
-  /// rejects requests during its 300s back-off window with a cancel-type
-  /// `DioException` instead of letting one through to fail normally. That
-  /// is surfaced as a rate-limit `ServerError` — reusing the app's
-  /// existing "You're being rate limited" copy — rather than as an empty
-  /// page, so rapid arrow-tapping during suppression reads as "wait a
-  /// bit", not as "no posts for this date".
+  /// Preserves the shared coordinator's cooldown deadline so the view shows
+  /// the remaining wait instead of treating a rate envelope as an empty page.
   ///
   /// `tryFetchRemoteData` itself is not reused here because its own
   /// certificate/handshake detection is private to that file; an
@@ -200,10 +194,9 @@ class PixivExploreRepository {
   /// `cannotReachServer` classification it would use.
   static BooruError _mapError(Object error, StackTrace stackTrace) =>
       switch (error) {
-        DioException(type: DioExceptionType.cancel) => ServerError(
-          httpStatusCode: 429,
-          message: 'Pixiv rate limit active; suppressing requests.',
-        ),
+        DioException(error: ApiCooldownException(:final retryAt)) =>
+          RateLimitedError(retryAt),
+        DioException(type: DioExceptionType.cancel) => RequestCancelledError(),
         DioException(:final response?) => ServerError(
           httpStatusCode: response.statusCode,
           message: switch (response.data) {

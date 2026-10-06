@@ -91,6 +91,11 @@ Both the initial baseline and later refreshes use this same budget. Requests,
 post processing, and retained identities stay bounded independently of the
 number of matching uploads; server/network latency is outside that guarantee.
 Raw repository fetches avoid enrichment requests for returned posts.
+The [shared transport policy](http_request_coordination.md) separately counts
+automatic/preload data work against its local 12/minute budget and at most two
+of four physical slots. Manual work has no invented fallback rate window;
+documented site pacing and server cooldown still apply to every relevant
+class. This transport budget does not change the scanner's one-page limit.
 
 The scanner requires an upload timestamp on each post and deduplicates IDs.
 It accepts the site's default post order, including small differences between
@@ -320,11 +325,14 @@ initialized again on reopen. The opened feed's oldest successful source check
 uses the registered locale-aware relative-time formatter also used by pinned
 search cards, including singular units and older dates. Feeds without successful
 checks show Never checked.
-Session suppression starts only when the shared request gate permits the check
-to begin. A queued request discarded while foreground/network policy is paused
+Session suppression starts at physical data/auth transport dispatch through
+the origin coordinator. It survives lifecycle recovery for that source identity
+and runtime revision, while changed or replaced sources remain eligible. A queued request discarded while foreground/network policy is paused
 remains eligible after recovery, even during the inter-batch spacing delay.
 Once a check starts, session suppression also prevents a failed persistence
-operation from creating a repeated request loop.
+operation from creating a repeated request loop. Cancellation prevents the
+checkpoint/attempt/cache write; explicit manual Refresh can still recover that
+source.
 
 Changing a profile's engine or normalized site URL retains its feed definitions
 and search queries but clears post caches, previews, NEW/error state, and refresh
@@ -366,7 +374,10 @@ presentation. Near the end of the loaded posts, the viewer asks the grid to
 load more history. Removing a source clears the recent
 snapshot so posts exclusive to that source do not remain visible. Unchanged
 source checkpoints persist. All explicit refresh entry points share a
-three-request concurrency gate.
+three-operation concurrency gate. Physical data requests also use the
+app-wide [origin request coordinator](http_request_coordination.md); cooldown
+returns a retry deadline without recording a failed check or replaying a manual
+action later.
 
 Backup version 3 stores feed names and source query definitions, excluding
 runtime cache and checkpoints. Restore creates internal source searches and

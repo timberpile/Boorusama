@@ -7,6 +7,8 @@ import '../../../../configs/config/types.dart';
 import '../../../post/types.dart';
 import '../data/providers.dart';
 import '../types/types.dart';
+import '../types/favorite_interruption.dart';
+import '../types/favorite_mutation_tracker.dart';
 
 final favoritesProvider =
     NotifierProvider.family<
@@ -59,6 +61,8 @@ class FavoritesNotifier
     return <int, bool>{}.lock;
   }
 
+  final _mutations = FavoriteMutationTracker<int>();
+
   FavoriteRepository get repo => ref.read(favoriteRepoProvider(arg));
 
   void preload<T extends Post>(List<T> posts) => preloadInternal(
@@ -88,32 +92,49 @@ class FavoritesNotifier
 
   Future<AddFavoriteStatus> add(int postId) async {
     if (state[postId] ?? false) return AddFavoriteStatus.alreadyExists;
-
+    final operation = _mutations.start(postId, state[postId], true);
     state = state.add(postId, true);
-
-    final status = await repo.addToFavorites(postId);
-    if (status != AddFavoriteStatus.success &&
-        status != AddFavoriteStatus.alreadyExists) {
-      state = state.add(postId, false);
+    var acknowledged = false;
+    try {
+      final status = await repo.addToFavorites(postId);
+      acknowledged =
+          status == AddFavoriteStatus.success ||
+          status == AddFavoriteStatus.alreadyExists;
+      return status;
+    } finally {
+      _finish(postId, operation, acknowledged: acknowledged);
     }
-
-    return status;
   }
 
   Future<bool> remove(int postId) async {
     if (state[postId] == false) return true;
-
+    final operation = _mutations.start(postId, state[postId], false);
     state = state.add(postId, false);
-
-    final success = await repo.removeFromFavorites(postId);
-    if (!success) {
-      state = state.add(postId, true);
+    var acknowledged = false;
+    try {
+      return acknowledged = await repo.removeFromFavorites(postId);
+    } on FavoriteCompletedWithInterruption catch (error) {
+      acknowledged = true;
+      if (reportCompletedFavoriteInterruption(error)) return true;
+      rethrow;
+    } finally {
+      _finish(postId, operation, acknowledged: acknowledged);
     }
+  }
 
-    return success;
+  void _finish(int postId, int operation, {required bool acknowledged}) {
+    final result = _mutations.finish(
+      postId,
+      operation,
+      acknowledged: acknowledged,
+    );
+    if (result == null) return;
+    final prior = result.favorite;
+    state = prior == null ? state.remove(postId) : state.add(postId, prior);
   }
 
   void removeLocalFavorite(int postId) {
+    _mutations.forget(postId);
     final newData = state.add(postId, false);
     state = newData;
   }
@@ -126,6 +147,7 @@ class FavoritesNotifier
 
     for (final post in posts) {
       final favorited = selfFavorited != null ? selfFavorited(post) : false;
+      _mutations.forget(post.id);
       data[post.id] = favorited;
     }
 

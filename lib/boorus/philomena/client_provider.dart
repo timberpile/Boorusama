@@ -31,6 +31,7 @@ final philomenaDioProvider = Provider.family<Dio, BooruConfigAuth>((
   final loggerService = ref.watch(loggerProvider);
 
   return newDio(
+    apiCoordinator: ref.watch(apiRequestCoordinatorProvider),
     options: DioOptions(
       ddosProtectionHandler: ddosProtectionHandler,
       userAgent: ref.watch(defaultUserAgentProvider),
@@ -41,8 +42,6 @@ final philomenaDioProvider = Provider.family<Dio, BooruConfigAuth>((
       baseUrl: config.url,
       proxySettings: config.proxySettings,
     ),
-    additionalInterceptors: [
-      PhilomenaRateLimitInterceptor(),
-    ],
+    additionalInterceptors: [],
   );
 });

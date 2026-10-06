@@ -5,6 +5,7 @@ import 'package:foundation/foundation.dart';
 
 // Project imports:
 import '../../../core/configs/config/types.dart';
+import '../../../core/posts/favorites/src/types/favorite_mutation_tracker.dart';
 import '../client_provider.dart';
 import '../posts/types.dart';
 
@@ -48,6 +49,8 @@ class SankakuFavoritesNotifier
     return <SankakuId, bool>{}.lock;
   }
 
+  final _mutations = FavoriteMutationTracker<SankakuId>();
+
   SankakuClient get client => ref.read(sankakuClientProvider(arg));
 
   void preload(List<Post> posts) {
@@ -58,6 +61,7 @@ class SankakuFavoritesNotifier
 
       if (id == null) continue;
 
+      _mutations.forget(id);
       cache[id] = post.isFavorited;
     }
 
@@ -66,23 +70,32 @@ class SankakuFavoritesNotifier
 
   Future<void> add(SankakuId id) async {
     if (state[id] ?? false) return;
-
+    final operation = _mutations.start(id, state[id], true);
     state = state.add(id, true);
-
-    final success = await client.addToFavorites(postId: id);
-    if (!success) {
-      state = state.add(id, false);
+    var acknowledged = false;
+    try {
+      acknowledged = await client.addToFavorites(postId: id);
+    } finally {
+      _finish(id, operation, acknowledged: acknowledged);
     }
   }
 
   Future<void> remove(SankakuId id) async {
     if (state[id] == false) return;
-
+    final operation = _mutations.start(id, state[id], false);
     state = state.add(id, false);
-
-    final success = await client.removeFromFavorites(postId: id);
-    if (!success) {
-      state = state.add(id, true);
+    var acknowledged = false;
+    try {
+      acknowledged = await client.removeFromFavorites(postId: id);
+    } finally {
+      _finish(id, operation, acknowledged: acknowledged);
     }
+  }
+
+  void _finish(SankakuId id, int operation, {required bool acknowledged}) {
+    final result = _mutations.finish(id, operation, acknowledged: acknowledged);
+    if (result == null) return;
+    final prior = result.favorite;
+    state = prior == null ? state.remove(id) : state.add(id, prior);
   }
 }

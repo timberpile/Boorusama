@@ -11,6 +11,9 @@ import '../../../../../foundation/loggers.dart';
 import '../../../../proxy/client.dart';
 import '../../../../proxy/types.dart';
 import '../data/client.dart';
+import '../coordination/api_request_coordinator.dart';
+import '../coordination/coordinated_dio.dart';
+import '../interceptors/auto_refresh_auth_interceptor.dart';
 import '../interceptors/dio_image_deduplicate_interceptor.dart';
 import '../interceptors/dio_logger_interceptor.dart';
 import '../interceptors/dio_protection_interceptor.dart';
@@ -28,6 +31,7 @@ Dio newGenericDio({
   ProxySettings? proxySettings,
   List<Interceptor>? additionalInterceptors,
   bool skipCertificateVerification = false,
+  ApiRequestCoordinator? apiCoordinator,
 }) {
   final dio =
       Dio(
@@ -58,6 +62,7 @@ Dio newGenericDio({
   }
 
   additionalInterceptors?.forEach(dio.interceptors.add);
+  if (apiCoordinator != null) coordinateApiDio(dio, apiCoordinator);
 
   return dio;
 }
@@ -65,9 +70,11 @@ Dio newGenericDio({
 Dio newDio({
   required DioOptions options,
   List<Interceptor>? additionalInterceptors,
+  ApiRequestCoordinator? apiCoordinator,
 }) {
   final dio = newGenericDio(
     baseUrl: _cleanUrl(options.baseUrl),
+    apiCoordinator: apiCoordinator,
     userAgent: options.userAgent,
     logger: options.loggerService,
     protocolInfo: options.networkProtocolInfo,
@@ -83,6 +90,9 @@ Dio newDio({
     ),
   );
 
+  for (final auth in dio.interceptors.whereType<AutoRefreshAuthInterceptor>()) {
+    auth.attach(dio);
+  }
   return dio;
 }
 

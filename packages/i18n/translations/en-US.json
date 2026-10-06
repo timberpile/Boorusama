@@ -455,6 +455,8 @@
       "tag_limit": "Maximum tag limit reached. Upgrade your account to search for more tags at once.",
       "database_timeout": "Your search took too long to execute and was cancelled.",
       "rate_limited": "You're being rate limited. Please try again later",
+      "rate_limited_wait": "Rate limited by the site. Try again in {seconds} seconds.",
+      "rate_limited_wait_one": "Rate limited by the site. Try again in one second.",
       "pagination_limit": "You're have reached pagination limit. It means you cannot scroll more",
       "max_capacity": "Server is under heavy load and cannot handle the request be, please try again later",
       "down": "Server is down. please try again later",
