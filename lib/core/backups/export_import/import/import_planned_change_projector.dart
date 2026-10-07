@@ -11,6 +11,8 @@ import '../../sources/pinned_search_import_names.dart';
 import '../../sources/search_backup_profile.dart';
 import '../models/import_action.dart';
 import 'import_plan.dart';
+import 'bookmark_profile_dependency.dart';
+import 'import_change_preview.dart';
 import 'import_preflight.dart';
 import 'profile_dependency_planner.dart';
 import 'profile_import_projection.dart';
@@ -52,6 +54,108 @@ final class FollowingFeedImportLocalSnapshot {
 
 final class ImportPlannedChangeProjector {
   const ImportPlannedChangeProjector();
+
+  PlannedChangeSummary jsonPreview({
+    required String sourceId,
+    required Object? local,
+    required Object? incoming,
+    required ResolvedImportSource resolution,
+  }) {
+    final summary = scalar(
+      local: local,
+      incoming: incoming,
+      resolution: resolution,
+    );
+    if (!summary.hasMutations) return summary;
+    final List<ImportChangePreviewRow> rows;
+    if (sourceId == 'settings') {
+      Object? unwrap(Object? value) =>
+          value is List && value.length == 1 ? value.single : value;
+      rows = [
+        for (final detail in importFieldChanges(
+          unwrap(local),
+          unwrap(incoming),
+        ))
+          ImportChangePreviewRow(
+            category: sourceId,
+            id: detail.key,
+            kind: ImportChangeKind.changed,
+            label: detail.key,
+            details: [detail],
+          ),
+      ];
+    } else if ((sourceId == 'blacklisted_tags' ||
+            sourceId == 'favorite_tags') &&
+        local is List &&
+        incoming is List) {
+      final old = {
+        for (final value in local.whereType<Map>())
+          value[sourceId == 'favorite_tags' ? 'name' : 'id']: value,
+      };
+      final next = {
+        for (final value in incoming.whereType<Map>())
+          value[sourceId == 'favorite_tags' ? 'name' : 'id']: value,
+      };
+      rows = [
+        for (final id in {...old.keys, ...next.keys})
+          if (!const DeepCollectionEquality().equals(old[id], next[id]))
+            ImportChangePreviewRow(
+              category: sourceId,
+              id: id.toString(),
+              kind: !old.containsKey(id)
+                  ? ImportChangeKind.added
+                  : !next.containsKey(id)
+                  ? ImportChangeKind.removed
+                  : ImportChangeKind.changed,
+              label: safeImportDisplayValue(
+                'name',
+                (next[id] ?? old[id])?['name'] ?? id,
+              ),
+              previousLabel:
+                  old[id]?['name'] != next[id]?['name'] &&
+                      old.containsKey(id) &&
+                      next.containsKey(id)
+                  ? safeImportDisplayValue('name', old[id]?['name'])
+                  : null,
+              details: old.containsKey(id) && next.containsKey(id)
+                  ? importFieldChanges(old[id], next[id])
+                  : const [],
+            ),
+      ];
+    } else {
+      rows = [
+        ImportChangePreviewRow(
+          category: sourceId,
+          id: sourceId,
+          kind: ImportChangeKind.changed,
+          label: sourceId,
+          limit: ['search_histories', 'downloads'].contains(sourceId)
+              ? ImportPreviewLimit.database
+              : ImportPreviewLimit.unknown,
+        ),
+      ];
+    }
+    return PlannedChangeSummary(
+      created: summary.created,
+      updated: summary.updated,
+      deleted: summary.deleted,
+      unchanged: summary.unchanged,
+      preserved: summary.preserved,
+      previewRows: List.unmodifiable(
+        rows.isEmpty
+            ? [
+                ImportChangePreviewRow(
+                  category: sourceId,
+                  id: sourceId,
+                  kind: ImportChangeKind.changed,
+                  label: sourceId,
+                  limit: ImportPreviewLimit.unknown,
+                ),
+              ]
+            : rows,
+      ),
+    );
+  }
 
   PlannedChangeSummary scalar({
     required Object? local,
@@ -136,7 +240,27 @@ final class ImportPlannedChangeProjector {
     required BookmarkImportLocalSnapshot local,
     required BookmarkBackupData incoming,
     required ResolvedImportSource resolution,
+    Map<ProfileReferenceKey, String> profileMappings = const {},
   }) {
+    final mappedBookmarks = <int, Bookmark>{};
+    for (final bookmark in selectedProfileBookmarks(incoming, resolution)) {
+      final profileId =
+          profileMappings[ProfileReferenceKey.fromReference(
+            bookmarkProfileReference(bookmark),
+          )];
+      if (profileId != null)
+        mappedBookmarks[bookmark.id] = bookmarkWithProfileHint(
+          bookmark,
+          profileId,
+        );
+    }
+    final data = BookmarkBackupData(
+      bookmarks: [
+        for (final bookmark in incoming.bookmarks)
+          mappedBookmarks[bookmark.id] ?? bookmark,
+      ],
+      groups: incoming.groups,
+    );
     final localByIdentity = {
       for (final bookmark in local.bookmarks)
         bookmark.transferIdentity: bookmark,
@@ -165,18 +289,18 @@ final class ImportPlannedChangeProjector {
     }
 
     final incomingIdentityById = {
-      for (final bookmark in incoming.bookmarks)
+      for (final bookmark in data.bookmarks)
         bookmark.id: bookmark.transferIdentity,
     };
     final incomingByIdentity = {
-      for (final bookmark in incoming.bookmarks)
+      for (final bookmark in data.bookmarks)
         bookmark.transferIdentity: bookmark,
     };
     if (resolution.action == ImportAction.replace) {
       final projected = <Object, Object?>{
         for (final entry in incomingByIdentity.entries)
           _key('bookmark', entry.key): _BookmarkValue.from(entry.value),
-        for (final (index, group) in incoming.groups.indexed)
+        for (final (index, group) in data.groups.indexed)
           _key(
             'bookmark-group',
             group.id ?? 'legacy-$index',
@@ -196,17 +320,17 @@ final class ImportPlannedChangeProjector {
 
     final actions = {for (final item in resolution.items) item.id: item};
     final allGroupedIncomingIds = {
-      for (final group in incoming.groups) ...group.bookmarkIds,
+      for (final group in data.groups) ...group.bookmarkIds,
     };
     final ungroupedAction = actions['ungrouped']?.action;
     final chosenGroups = [
-      for (final group in incoming.groups)
+      for (final group in data.groups)
         if (actions['group:${group.id}']?.action != ImportAction.skip) group,
     ];
     final chosenIds = {
       for (final group in chosenGroups) ...group.bookmarkIds,
       if (ungroupedAction != null && ungroupedAction != ImportAction.skip)
-        for (final bookmark in incoming.bookmarks)
+        for (final bookmark in data.bookmarks)
           if (!allGroupedIncomingIds.contains(bookmark.id)) bookmark.id,
     };
     final projectedBookmarks = Map.of(localByIdentity);
@@ -232,6 +356,12 @@ final class ImportPlannedChangeProjector {
       final bookmark = identity == null ? null : incomingByIdentity[identity];
       if (identity == null || bookmark == null) continue;
       projectedBookmarks.putIfAbsent(identity, () => bookmark);
+      if (mappedBookmarks.containsKey(id)) {
+        projectedBookmarks[identity] = bookmarkWithProfileHint(
+          projectedBookmarks[identity]!,
+          bookmark.post.origin.profileIdHint!,
+        );
+      }
       touched.add(_key('bookmark', identity));
     }
 
@@ -880,9 +1010,421 @@ PlannedChangeSummary _summarize({
     preserved: preserved,
     unchanged: unchanged,
     entitySummaries: Map.unmodifiable(entitySummaries),
+    previewRows: _previewRows(local, projected),
   );
 }
 
+List<ImportChangePreviewRow> _previewRows(
+  Map<Object, Object?> local,
+  Map<Object, Object?> projected,
+) {
+  final rows = <ImportChangePreviewRow>[];
+  var metadataChanges = 0;
+  for (final key in {...local.keys, ...projected.keys}.cast<_EntityKey>()) {
+    final before = local[key], after = projected[key];
+    if (before == after) continue;
+    final kind = before == null
+        ? ImportChangeKind.added
+        : after == null
+        ? ImportChangeKind.removed
+        : ImportChangeKind.changed;
+    final value = after ?? before;
+    switch (value) {
+      case final _BookmarkGroupValue group:
+        final old = before as _BookmarkGroupValue?,
+            next = after as _BookmarkGroupValue?;
+        final oldMembers = old?.bookmarkIds ?? <BookmarkUniqueId>{},
+            nextMembers = next?.bookmarkIds ?? <BookmarkUniqueId>{};
+        rows.add(
+          ImportChangePreviewRow(
+            category: 'bookmarks',
+            id: key.id.toString(),
+            kind: kind,
+            label: safeImportDisplayValue('name', group.name),
+            previousLabel: old != null && next != null && old.name != next.name
+                ? safeImportDisplayValue('name', old.name)
+                : null,
+            membershipsAdded: nextMembers.difference(oldMembers).length,
+            membershipsRemoved: oldMembers.difference(nextMembers).length,
+            entityChanged: old == null || next == null || old.name != next.name,
+          ),
+        );
+      case final _BookmarkValue _:
+        if (before != null && after != null) metadataChanges++;
+      case _SearchValue() || _FolderValue() || _HomeValue():
+        // Pins are emitted inside their folders, including unchanged containers.
+        break;
+      case final _FeedValue feed:
+        rows.add(
+          ImportChangePreviewRow(
+            category: 'following_feeds',
+            entityChanged:
+                before is! _FeedValue ||
+                after is! _FeedValue ||
+                before.name != after.name ||
+                before.position != after.position ||
+                before.profileId != after.profileId,
+            isContainer: true,
+            children: _feedQueryRows(
+              before as _FeedValue?,
+              after as _FeedValue?,
+            ),
+            id: key.id.toString(),
+            kind: kind,
+            label: safeImportDisplayValue('name', feed.name),
+            previousLabel:
+                before is _FeedValue &&
+                    after is _FeedValue &&
+                    before.name != after.name
+                ? safeImportDisplayValue('name', before.name)
+                : null,
+            profileId: feed.profileId,
+            details: [
+              if (before is _FeedValue && after is _FeedValue)
+                ...importFieldChanges(
+                  {'position': before.position, 'profileId': before.profileId},
+                  {'position': after.position, 'profileId': after.profileId},
+                ),
+              ...importQueryChanges(
+                before is _FeedValue ? before.queries : [],
+                after is _FeedValue ? after.queries : [],
+              ).where(
+                (detail) =>
+                    detail.presentation == ImportDetailPresentation.queryOrder,
+              ),
+            ],
+          ),
+        );
+      case final BooruConfig profile:
+        rows.add(
+          ImportChangePreviewRow(
+            category: 'profiles',
+            id: key.id.toString(),
+            kind: kind,
+            label: safeImportDisplayValue('name', profile.name),
+            previousLabel:
+                before is BooruConfig &&
+                    after is BooruConfig &&
+                    before.name != after.name
+                ? safeImportDisplayValue('name', before.name)
+                : null,
+            profileId: profile.id,
+            details: _profileFieldChanges(
+              before is BooruConfig ? before : null,
+              after is BooruConfig ? after : null,
+            ),
+          ),
+        );
+      default:
+        // Internal feed searches are explained by their owning feed's details.
+        break;
+    }
+  }
+  rows.addAll(_pinnedPreviewRows(local, projected));
+  if (local.keys.cast<_EntityKey>().any((key) => key.type == 'bookmark') ||
+      projected.keys.cast<_EntityKey>().any((key) => key.type == 'bookmark')) {
+    Set<Object> ungrouped(Map<Object, Object?> values) {
+      final grouped = {
+        for (final group in values.values.whereType<_BookmarkGroupValue>())
+          ...group.bookmarkIds,
+      };
+      return {
+        for (final key in values.keys.cast<_EntityKey>())
+          if (key.type == 'bookmark' && !grouped.contains(key.id)) key.id,
+      };
+    }
+
+    final old = ungrouped(local), next = ungrouped(projected);
+    final added = next.difference(old).length,
+        removed = old.difference(next).length;
+    if (added + removed > 0)
+      rows.add(
+        ImportChangePreviewRow(
+          category: 'bookmarks',
+          id: 'ungrouped',
+          kind: ImportChangeKind.changed,
+          label: '__ungrouped',
+          membershipsAdded: added,
+          membershipsRemoved: removed,
+          entityChanged: false,
+        ),
+      );
+  }
+  if (metadataChanges > 0)
+    rows.add(
+      ImportChangePreviewRow(
+        category: 'bookmark_metadata',
+        id: 'metadata',
+        kind: ImportChangeKind.changed,
+        label: '__bookmark_metadata',
+        limit: ImportPreviewLimit.bookmarkMetadata,
+        countOverride: ImportChangeCounts(changed: metadataChanges),
+      ),
+    );
+  return List.unmodifiable(rows);
+}
+
+List<ImportChangePreviewRow> _feedQueryRows(
+  _FeedValue? before,
+  _FeedValue? after,
+) {
+  final oldQueries = before?.queries ?? <String>[];
+  final newQueries = after?.queries ?? <String>[];
+  // Compare retained entries so inserting a query does not fabricate reorder changes.
+  final oldCommon = oldQueries.where(newQueries.contains).toList();
+  final newCommon = newQueries.where(oldQueries.contains).toList();
+  return [
+    for (final (index, detail) in importQueryChanges(
+      before?.queries ?? [],
+      after?.queries ?? [],
+    ).indexed)
+      if (detail.presentation == ImportDetailPresentation.query)
+        ImportChangePreviewRow(
+          category: 'feed_queries',
+          id: '$index',
+          kind: detail.kind,
+          label: detail.kind == ImportChangeKind.removed
+              ? detail.before
+              : detail.after,
+          profileId: detail.kind == ImportChangeKind.removed
+              ? before?.profileId
+              : after?.profileId,
+        ),
+    for (final query in newCommon)
+      if (oldCommon.indexOf(query) != newCommon.indexOf(query) ||
+          before?.profileId != after?.profileId)
+        ImportChangePreviewRow(
+          category: 'feed_queries',
+          id: 'changed-${newCommon.indexOf(query)}',
+          kind: ImportChangeKind.changed,
+          label: safeImportDisplayValue('query', query),
+          profileId: after?.profileId,
+          details: importFieldChanges(
+            {
+              'position': oldQueries.indexOf(query),
+              'profileId': before?.profileId,
+            },
+            {
+              'position': newQueries.indexOf(query),
+              'profileId': after?.profileId,
+            },
+          ),
+        ),
+  ];
+}
+
+List<ImportChangePreviewRow> _pinnedPreviewRows(
+  Map<Object, Object?> local,
+  Map<Object, Object?> projected,
+) {
+  Map<_EntityKey, List<String>> containers(Map<Object, Object?> values) {
+    final folders = <_EntityKey, List<String>>{
+      for (final key in values.keys.cast<_EntityKey>())
+        if (key.type == 'pinned-folder')
+          if (values[key] case final _FolderValue folder) key: folder.searchIds,
+    };
+    final assigned = folders.values.expand((ids) => ids).toSet();
+    final home = values[_key('pinned-home', 'home')] as _HomeValue?;
+    folders[_key('pinned-home', 'home')] = [
+      for (final id in home?.searchIds ?? <String>[])
+        if (!assigned.contains(id)) id,
+      // Legacy pins without an organization entry still belong under Home.
+      for (final key in values.keys.cast<_EntityKey>())
+        if (key.type == 'pinned-search' &&
+            !assigned.contains(key.id) &&
+            !(home?.searchIds.contains(key.id) ?? false))
+          key.id.toString(),
+    ];
+    return folders;
+  }
+
+  final oldContainers = containers(local);
+  final newContainers = containers(projected);
+  final rows = <ImportChangePreviewRow>[];
+  for (final key in {...newContainers.keys, ...oldContainers.keys}) {
+    final id = key.type == 'pinned-home' ? 'home' : 'folder:${key.id}';
+    final isHome = key.type == 'pinned-home';
+    final before = local[key];
+    final after = projected[key];
+    final oldIds = oldContainers[key] ?? [];
+    final newIds = newContainers[key] ?? [];
+    final oldCommon = oldIds.where(newIds.contains).toList();
+    final newCommon = newIds.where(oldIds.contains).toList();
+    final children = <ImportChangePreviewRow>[];
+    for (final searchId in {...newIds, ...oldIds}) {
+      final oldSearch = local[_key('pinned-search', searchId)] as _SearchValue?;
+      final newSearch =
+          projected[_key('pinned-search', searchId)] as _SearchValue?;
+      final wasHere = oldIds.contains(searchId) && oldSearch != null;
+      final isHere = newIds.contains(searchId) && newSearch != null;
+      final reordered =
+          wasHere &&
+          isHere &&
+          oldCommon.indexOf(searchId) != newCommon.indexOf(searchId);
+      if ((!wasHere && !isHere) ||
+          (wasHere && isHere && oldSearch == newSearch && !reordered)) {
+        continue;
+      }
+      final kind = !wasHere
+          ? ImportChangeKind.added
+          : !isHere
+          ? ImportChangeKind.removed
+          : ImportChangeKind.changed;
+      final search = isHere ? newSearch : oldSearch!;
+      children.add(
+        ImportChangePreviewRow(
+          category: 'pinned_searches',
+          id: '$id/$searchId',
+          kind: kind,
+          label: safeImportDisplayValue('query', search.name ?? search.query),
+          previousLabel:
+              kind == ImportChangeKind.changed &&
+                  (oldSearch!.name ?? oldSearch.query) !=
+                      (newSearch!.name ?? newSearch.query)
+              ? safeImportDisplayValue(
+                  'query',
+                  oldSearch.name ?? oldSearch.query,
+                )
+              : null,
+          profileId: search.profileId,
+          details: [
+            if (kind == ImportChangeKind.changed)
+              ...importFieldChanges(
+                {
+                  ..._searchJson(oldSearch!),
+                  if (reordered) 'position': oldIds.indexOf(searchId),
+                },
+                {
+                  ..._searchJson(newSearch!),
+                  if (reordered) 'position': newIds.indexOf(searchId),
+                },
+              ),
+            if (search.name != null && kind != ImportChangeKind.changed)
+              ImportChangeDetail(
+                key: 'query',
+                before: kind == ImportChangeKind.added
+                    ? '∅'
+                    : safeImportDisplayValue('query', search.query),
+                after: kind == ImportChangeKind.removed
+                    ? '∅'
+                    : safeImportDisplayValue('query', search.query),
+                kind: kind,
+                presentation: ImportDetailPresentation.query,
+              ),
+          ],
+        ),
+      );
+    }
+    if (before == after && children.isEmpty) continue;
+    if (!isHome && before == null && after == null) continue;
+    final folder = isHome ? null : (after ?? before) as _FolderValue?;
+    final kind = isHome
+        ? ImportChangeKind.changed
+        : before == null
+        ? ImportChangeKind.added
+        : after == null
+        ? ImportChangeKind.removed
+        : ImportChangeKind.changed;
+    rows.add(
+      ImportChangePreviewRow(
+        category: 'pinned_folders',
+        id: id,
+        kind: kind,
+        isContainer: true,
+        label: isHome ? '__home' : safeImportDisplayValue('name', folder!.name),
+        previousLabel:
+            before is _FolderValue &&
+                after is _FolderValue &&
+                before.name != after.name
+            ? safeImportDisplayValue('name', before.name)
+            : null,
+        // Home is implicit: count its search changes, never the container itself.
+        entityChanged:
+            !isHome &&
+            (before is! _FolderValue ||
+                after is! _FolderValue ||
+                before.name != after.name ||
+                before.position != after.position),
+        children: children,
+        details: [
+          if (before is _FolderValue && after is _FolderValue)
+            ...importFieldChanges(
+              {'position': before.position},
+              {'position': after.position},
+            ),
+          if (!const ListEquality<String>().equals(
+            oldIds.where(newIds.contains).toList(),
+            newIds.where(oldIds.contains).toList(),
+          ))
+            ImportChangeDetail(
+              key: 'queryOrder',
+              before: oldIds
+                  .where(newIds.contains)
+                  .map((id) => _pinnedQueryLabel(id, local))
+                  .join('\n'),
+              after: newIds
+                  .where(oldIds.contains)
+                  .map((id) => _pinnedQueryLabel(id, projected))
+                  .join('\n'),
+              presentation: ImportDetailPresentation.queryOrder,
+            ),
+        ],
+      ),
+    );
+  }
+  return rows;
+}
+
+String _pinnedQueryLabel(String id, Map<Object, Object?> values) {
+  final search = values[_key('pinned-search', id)] as _SearchValue?;
+  return safeImportDisplayValue('query', search?.name ?? search?.query);
+}
+
+List<ImportChangeDetail> _profileFieldChanges(
+  BooruConfig? before,
+  BooruConfig? after,
+) {
+  Map<String, dynamic>? json(BooruConfig? profile) {
+    if (profile == null) return null;
+    final data = profile.toJson()
+      ..remove('id')
+      ..remove('name');
+    if (data['blacklistedTags'] case final Map value)
+      data['blacklistedTags'] = Map.of(value)..remove('blacklistedTags');
+    return data;
+  }
+
+  Set<String> rules(BooruConfig? profile) =>
+      (profile?.blacklistConfigs?.blacklistedTags ?? '')
+          .split('\n')
+          .map((value) => value.trim())
+          .where((value) => value.isNotEmpty)
+          .toSet();
+  final old = rules(before), next = rules(after);
+  return [
+    ...importFieldChanges(json(before), json(after)),
+    for (final rule in next.difference(old))
+      ImportChangeDetail(
+        key: 'blacklistedTags',
+        before: '∅',
+        after: safeImportDisplayValue('rule', rule),
+        kind: ImportChangeKind.added,
+      ),
+    for (final rule in old.difference(next))
+      ImportChangeDetail(
+        key: 'blacklistedTags',
+        before: safeImportDisplayValue('rule', rule),
+        after: '∅',
+        kind: ImportChangeKind.removed,
+      ),
+  ];
+}
+
+Map<String, Object?> _searchJson(_SearchValue value) => {
+  'query': value.query,
+  'profileId': value.profileId,
+  'position': value.position,
+};
 _EntityKey _key(String type, Object id) => _EntityKey(type, id);
 
 String _idWithoutPrefix(String id, String prefix) =>

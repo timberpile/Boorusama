@@ -587,6 +587,31 @@
       "error_loading_cache_info": "Fehler beim Laden der Cache-Informationen"
     },
     "backup_and_restore": {
+      "export_import": {
+        "configure_items": "Einzeln",
+        "preview_count": {
+          "one": "${n} Änderung",
+          "other": "${n} Änderungen"
+        },
+        "preview_added": "{count} hinzugefügt",
+        "preview_removed": "{count} entfernt",
+        "preview_changed": "{count} geändert",
+        "preview_database_limit": "Datenbank wird ersetzt; Änderungen einzelner Einträge können nicht angezeigt werden.",
+        "preview_metadata_limit": "Bookmark-Daten ändern sich; einzelne Bookmarks werden nicht aufgelistet.",
+        "preview_unknown_limit": "Daten der Kategorie ändern sich; einzelne Änderungen können nicht angezeigt werden.",
+        "preview_refreshed": "Lokale Daten haben sich geändert. Der Plan wurde aktualisiert; prüfe ihn und bestätige erneut.",
+        "preview_bookmark_data": "Bookmark-Daten",
+        "preview_home": "Startseite",
+        "preview_ungrouped": "Keine Gruppe",
+        "preview_bookmark_groups": "Bookmark-Gruppen",
+        "preview_folder": "Ordner",
+        "preview_unknown_profile": "Unbekanntes Profil",
+        "preview_profile": "Profil",
+        "preview_position": "Position",
+        "preview_query": "Suchabfrage",
+        "preview_query_order": "Reihenfolge der Suchabfragen",
+        "preview_global": "Global"
+      },
       "backup_and_restore": "Sichern und Wiederherstellen",
       "import": "Importieren",
       "export": "Exportieren",

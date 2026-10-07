@@ -2,6 +2,7 @@ import 'package:equatable/equatable.dart';
 
 import '../models/import_action.dart';
 import 'import_plan.dart';
+import 'import_change_preview.dart';
 
 final class PlannedChangeSummary extends Equatable {
   const PlannedChangeSummary({
@@ -11,6 +12,7 @@ final class PlannedChangeSummary extends Equatable {
     this.preserved = 0,
     this.unchanged = 0,
     this.entitySummaries = const {},
+    this.previewRows = const [],
   });
 
   final int created;
@@ -19,6 +21,7 @@ final class PlannedChangeSummary extends Equatable {
   final int preserved;
   final int unchanged;
   final Map<String, PlannedChangeSummary> entitySummaries;
+  final List<ImportChangePreviewRow> previewRows;
 
   bool get hasMutations => created > 0 || updated > 0 || deleted > 0;
 
@@ -29,12 +32,14 @@ final class PlannedChangeSummary extends Equatable {
         deleted: deleted + other.deleted,
         preserved: preserved + other.preserved,
         unchanged: unchanged + other.unchanged,
+        previewRows: [...previewRows, ...other.previewRows],
         entitySummaries: {
           for (final key in {
             ...entitySummaries.keys,
             ...other.entitySummaries.keys,
           })
-            key: (entitySummaries[key] ?? const PlannedChangeSummary()) +
+            key:
+                (entitySummaries[key] ?? const PlannedChangeSummary()) +
                 (other.entitySummaries[key] ?? const PlannedChangeSummary()),
         },
       );
@@ -47,6 +52,7 @@ final class PlannedChangeSummary extends Equatable {
     preserved,
     unchanged,
     entitySummaries,
+    previewRows,
   ];
 }
 

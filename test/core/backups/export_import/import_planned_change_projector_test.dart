@@ -1,4 +1,6 @@
 import '../../../profile_uuid_utils.dart';
+import 'package:boorusama/core/backups/export_import/import/bookmark_profile_dependency.dart';
+import 'package:boorusama/core/backups/export_import/import/import_change_preview.dart';
 import 'package:boorusama/core/backups/export_import/import/import_plan.dart';
 import 'package:boorusama/core/backups/export_import/import/import_planned_change_projector.dart';
 import 'package:boorusama/core/backups/export_import/import/import_preflight.dart';
@@ -17,6 +19,373 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   const projector = ImportPlannedChangeProjector();
 
+  test('preview counts memberships without an extra changed group', () {
+    final a = _bookmark(localId: 1, postId: 101);
+    final b = _bookmark(localId: 2, postId: 102);
+    final c = _bookmark(localId: 3, postId: 103);
+    final summary = projector.bookmarks(
+      local: BookmarkImportLocalSnapshot(
+        bookmarks: [a, b],
+        groups: [
+          BookmarkGroup(id: 'g', name: 'Local', bookmarkIds: const {1, 2}),
+        ],
+      ),
+      incoming: BookmarkBackupData(
+        bookmarks: [a, c],
+        groups: const [
+          BookmarkGroupBackup(id: 'g', name: 'Imported', bookmarkIds: [1, 3]),
+        ],
+      ),
+      resolution: ResolvedImportSource(
+        id: 'bookmarks',
+        action: ImportAction.configureItems,
+        items: const [
+          ResolvedImportItem(id: 'group:g', action: ImportAction.update),
+        ],
+      ),
+    )!;
+    expect(summary.previewRows.single.label, 'Local');
+    expect(summary.previewRows.single.counts.added, 1);
+    expect(summary.previewRows.single.counts.removed, 1);
+    expect(summary.previewRows.single.counts.changed, 0);
+  });
+  test('settings preview exposes changed keys and masks nested secrets', () {
+    final summary = projector.jsonPreview(
+      sourceId: 'settings',
+      local: {
+        'themeMode': 'light',
+        'proxy': {'password': 'old-secret'},
+        'url': 'https://user:pass@site.example/?token=old',
+        'proxyServer': 'socks5://proxy-user:proxy-secret@site.example',
+      },
+      incoming: {
+        'themeMode': 'dark',
+        'proxy': {'password': 'new-secret'},
+        'url': 'https://user:newpass@site.example/?token=new',
+        'proxyServer': 'socks5://new-user:new-proxy-secret@site.example',
+      },
+      resolution: _source('settings', ImportAction.replace),
+    );
+    expect(summary.previewRows.map((r) => r.label), contains('themeMode'));
+    final values = summary.previewRows
+        .expand((r) => r.details)
+        .map((d) => '${d.before} ${d.after}')
+        .join(' ');
+    expect(values, contains('light dark'));
+    for (final secret in [
+      'old-secret',
+      'new-secret',
+      'pass@',
+      'newpass',
+      'proxy-secret',
+      'proxy-user',
+      'token=old',
+      'token=new',
+    ]) {
+      expect(values, isNot(contains(secret)));
+    }
+  });
+  test(
+    'replace preview counts group additions removals and true renames with memberships',
+    () {
+      final a = _bookmark(localId: 1, postId: 101),
+          b = _bookmark(localId: 2, postId: 102),
+          c = _bookmark(localId: 3, postId: 103);
+      final rows = projector
+          .bookmarks(
+            local: BookmarkImportLocalSnapshot(
+              bookmarks: [a, b],
+              groups: [
+                BookmarkGroup(
+                  id: 'rename',
+                  name: 'Old',
+                  bookmarkIds: const {1},
+                ),
+                BookmarkGroup(
+                  id: 'removed',
+                  name: 'Removed',
+                  bookmarkIds: const {2},
+                ),
+              ],
+            ),
+            incoming: BookmarkBackupData(
+              bookmarks: [a, c],
+              groups: const [
+                BookmarkGroupBackup(
+                  id: 'rename',
+                  name: 'New',
+                  bookmarkIds: [1, 3],
+                ),
+                BookmarkGroupBackup(
+                  id: 'added',
+                  name: 'Added',
+                  bookmarkIds: [],
+                ),
+              ],
+            ),
+            resolution: _source('bookmarks', ImportAction.replace),
+          )!
+          .previewRows;
+      final total = rows.fold(
+        const ImportChangeCounts(),
+        (sum, row) => sum + row.counts,
+      );
+      expect(total, const ImportChangeCounts(added: 2, removed: 2, changed: 1));
+      expect(
+        rows.singleWhere((row) => row.id == 'rename').previousLabel,
+        'Old',
+      );
+    },
+  );
+  test(
+    'shared memberships and ungrouped metadata remain compact without record duplication',
+    () {
+      final a = _bookmark(localId: 1, postId: 101),
+          b = _bookmark(localId: 2, postId: 102);
+      final updated = b.copyWith(metadata: {'search': 'updated'});
+      final rows = projector
+          .bookmarks(
+            local: BookmarkImportLocalSnapshot(
+              bookmarks: [a, b],
+              groups: [
+                BookmarkGroup(id: 'one', name: 'One', bookmarkIds: const {1}),
+                BookmarkGroup(id: 'two', name: 'Two', bookmarkIds: const {1}),
+              ],
+            ),
+            incoming: BookmarkBackupData(
+              bookmarks: [a, updated],
+              groups: const [
+                BookmarkGroupBackup(id: 'one', name: 'One', bookmarkIds: []),
+                BookmarkGroupBackup(id: 'two', name: 'Two', bookmarkIds: [1]),
+              ],
+            ),
+            resolution: _source('bookmarks', ImportAction.replace),
+          )!
+          .previewRows;
+      expect(
+        rows.where((row) => row.category == 'bookmarks').single.counts,
+        const ImportChangeCounts(removed: 1),
+      );
+      final metadata = rows.singleWhere(
+        (row) => row.category == 'bookmark_metadata',
+      );
+      expect(metadata.counts, const ImportChangeCounts(changed: 1));
+      expect(metadata.limit, ImportPreviewLimit.bookmarkMetadata);
+      expect(rows.any((row) => row.label.contains('102')), isFalse);
+      final ungrouped = projector
+          .bookmarks(
+            local: BookmarkImportLocalSnapshot(
+              bookmarks: [a, b],
+              groups: const [],
+            ),
+            incoming: BookmarkBackupData(bookmarks: [a], groups: const []),
+            resolution: _source('bookmarks', ImportAction.replace),
+          )!
+          .previewRows
+          .single;
+      expect(ungrouped.id, 'ungrouped');
+      expect(ungrouped.counts, const ImportChangeCounts(removed: 1));
+    },
+  );
+  test(
+    'global blacklist replacement shows missing local deletion and masks sensitive URLs',
+    () {
+      final summary = projector.jsonPreview(
+        sourceId: 'blacklisted_tags',
+        local: [
+          {'id': 1, 'name': 'old'},
+          {'id': 2, 'name': 'rating:e'},
+        ],
+        incoming: [
+          {'id': 2, 'name': 'rating:e -scenery'},
+          {
+            'id': 3,
+            'name':
+                'https://user:private@site.example/?auth=hidden&access_key=hidden&pwd=hidden&signature=hidden',
+          },
+        ],
+        resolution: _source('blacklisted_tags', ImportAction.replace),
+      );
+      expect(
+        summary.previewRows.fold(
+          const ImportChangeCounts(),
+          (sum, row) => sum + row.counts,
+        ),
+        const ImportChangeCounts(added: 1, removed: 1, changed: 1),
+      );
+      expect(
+        summary.previewRows.singleWhere((row) => row.id == '2').previousLabel,
+        'rating:e',
+      );
+      expect(
+        summary.previewRows.singleWhere((row) => row.id == '3').label,
+        isNot(contains('hidden')),
+      );
+      expect(
+        summary.previewRows.singleWhere((row) => row.id == '3').label,
+        isNot(contains('private')),
+      );
+    },
+  );
+  test(
+    'profile scoped rule details show additions removals and masked credentials once',
+    () {
+      final old = BooruConfig.fromJson({
+        ..._profile(id: 1, apiKey: 'old-secret').toJson(),
+        'blacklistedTags': {
+          'combinationMode': 'merge',
+          'enable': true,
+          'blacklistedTags': 'old\nkeep',
+        },
+      });
+      final next = BooruConfig.fromJson({
+        ..._profile(id: 1, apiKey: 'new-secret').toJson(),
+        'blacklistedTags': {
+          'combinationMode': 'merge',
+          'enable': true,
+          'blacklistedTags': 'new\nkeep',
+        },
+      });
+      final row = projector
+          .profiles(
+            local: [old],
+            imported: [next],
+            credentialsIncluded: true,
+            resolution: _source('profiles', ImportAction.replace),
+          )!
+          .previewRows
+          .single;
+      expect(row.counts, const ImportChangeCounts(changed: 1));
+      expect(row.profileId, old.id);
+      expect(
+        row.details.where((d) => d.key == 'id' || d.key == 'name'),
+        isEmpty,
+      );
+      expect(
+        row.details.where((d) => d.key == 'blacklistedTags').map((d) => d.kind),
+        containsAll([ImportChangeKind.added, ImportChangeKind.removed]),
+      );
+      expect(
+        row.details.map((d) => d.before + ' ' + d.after).join(),
+        isNot(contains('secret')),
+      );
+    },
+  );
+  for (final action in [ImportAction.skip, ImportAction.replace]) {
+    test(
+      '${action.name} identical JSON has no display rows',
+      () => expect(
+        projector
+            .jsonPreview(
+              sourceId: 'settings',
+              local: {'themeMode': 'dark'},
+              incoming: {'themeMode': 'dark'},
+              resolution: _source('settings', action),
+            )
+            .previewRows,
+        isEmpty,
+      ),
+    );
+  }
+  test(
+    'SQLite preview states database replacement without invented individual row counts',
+    () {
+      final row = projector
+          .jsonPreview(
+            sourceId: 'search_histories',
+            local: 'digest-old',
+            incoming: 'digest-next',
+            resolution: _source('search_histories', ImportAction.replace),
+          )
+          .previewRows
+          .single;
+      expect(row.limit, ImportPreviewLimit.database);
+      expect(row.counts, const ImportChangeCounts(changed: 1));
+      expect(row.details, isEmpty);
+    },
+  );
+  for (final destination in [1, 2]) {
+    test(
+      'bookmark mapping to profile $destination projects existing hint changes before writes',
+      () {
+        final bookmark = bookmarkWithProfileHint(
+          _bookmark(localId: 1, postId: 101),
+          profileUuid(1),
+        );
+        final summary = projector.bookmarks(
+          local: BookmarkImportLocalSnapshot(
+            bookmarks: [bookmark],
+            groups: [
+              BookmarkGroup(id: 'g', name: 'Group', bookmarkIds: const {1}),
+            ],
+          ),
+          incoming: BookmarkBackupData(
+            bookmarks: [bookmark],
+            groups: const [
+              BookmarkGroupBackup(id: 'g', name: 'Group', bookmarkIds: [1]),
+            ],
+          ),
+          resolution: ResolvedImportSource(
+            id: 'bookmarks',
+            action: ImportAction.configureItems,
+            items: const [
+              ResolvedImportItem(id: 'group:g', action: ImportAction.update),
+            ],
+          ),
+          profileMappings: {
+            ProfileReferenceKey.fromReference(
+              bookmarkProfileReference(bookmark),
+            ): profileUuid(
+              destination,
+            ),
+          },
+        )!;
+        expect(summary.hasMutations, destination == 2);
+        if (destination == 1) {
+          expect(summary.previewRows, isEmpty);
+        } else {
+          expect(summary.previewRows.single.category, 'bookmark_metadata');
+          expect(
+            summary.previewRows.single.counts,
+            const ImportChangeCounts(changed: 1),
+          );
+        }
+      },
+    );
+  }
+  test(
+    'favorite tags replace uses tag names as identities and retains every affected tag',
+    () {
+      final rows = projector
+          .jsonPreview(
+            sourceId: 'favorite_tags',
+            local: [
+              {'name': 'removed'},
+              {
+                'name': 'kept',
+                'labels': ['old'],
+              },
+            ],
+            incoming: [
+              {'name': 'added'},
+              {
+                'name': 'kept',
+                'labels': ['new'],
+              },
+            ],
+            resolution: _source('favorite_tags', ImportAction.replace),
+          )
+          .previewRows;
+      expect(
+        rows.map((row) => row.label),
+        containsAll(['removed', 'added', 'kept']),
+      );
+      expect(
+        rows.fold(const ImportChangeCounts(), (sum, row) => sum + row.counts),
+        const ImportChangeCounts(added: 1, removed: 1, changed: 1),
+      );
+    },
+  );
   test('scalar projection distinguishes exact no-op update and skip', () {
     final unchanged = projector.scalar(
       local: const {
@@ -105,6 +474,7 @@ void main() {
       );
 
       _expectTotals(summary, const PlannedChangeSummary(unchanged: 1));
+      expect(summary!.previewRows, isEmpty);
     },
   );
 
@@ -279,6 +649,10 @@ void main() {
     _expectTotals(summary, const PlannedChangeSummary(created: 11));
     expect(summary!.entitySummaries['bookmark']?.created, 10);
     expect(summary.entitySummaries['bookmark-group']?.created, 1);
+    expect(
+      summary.previewRows.single.counts,
+      const ImportChangeCounts(added: 11),
+    );
   });
 
   test(
@@ -488,6 +862,12 @@ void main() {
       expect(summary?.hasMutations, isTrue);
       expect(summary?.updated, 1);
       expect(summary?.entitySummaries['pinned-home']?.updated, 1);
+      expect(summary!.previewRows.single.entityChanged, isFalse);
+      expect(summary.previewRows.single.children, hasLength(2));
+      expect(
+        summary.previewRows.single.counts,
+        const ImportChangeCounts(changed: 2),
+      );
     },
   );
 
@@ -568,7 +948,282 @@ void main() {
         unchanged: 1,
       ),
     );
+    expect(summary!.previewRows.every((row) => row.isContainer), isTrue);
+    final newFolder = summary.previewRows.singleWhere(
+      (row) => row.label == 'New',
+    );
+    final oldFolder = summary.previewRows.singleWhere(
+      (row) => row.label == 'Old',
+    );
+    final home = summary.previewRows.singleWhere(
+      (row) => row.label == '__home',
+    );
+    expect(newFolder.children.single.label, 'cat girl');
+    expect(newFolder.children.single.kind, ImportChangeKind.added);
+    expect(oldFolder.children.single.label, 'removed');
+    expect(oldFolder.children.single.kind, ImportChangeKind.removed);
+    expect(home.children.single.label, 'cat girl');
+    expect(home.children.single.kind, ImportChangeKind.removed);
+    expect(
+      summary.previewRows.fold(
+        const ImportChangeCounts(),
+        (sum, row) => sum + row.counts,
+      ),
+      const ImportChangeCounts(added: 2, removed: 3),
+    );
   });
+
+  test('adding a search to Home counts only the search', () {
+    final summary = projector.pinnedSearches(
+      local: PinnedSearchImportLocalSnapshot(
+        searches: const [],
+        organization: SearchOrganization(
+          folders: const [],
+          homeSearchIds: const [],
+        ),
+        feeds: const [],
+      ),
+      incoming: const PinnedSearchBackupData(
+        records: [
+          PinnedSearchBackupRecord(
+            id: 'pin',
+            name: null,
+            query: 'cat',
+            position: 0,
+            profile: _profileReference,
+          ),
+        ],
+        homeSearchIds: ['pin'],
+      ),
+      profileMappings: {
+        ProfileReferenceKey.fromReference(_profileReference):
+            '00000000-0000-4000-8000-000000000001',
+      },
+      resolution: _source('pinned_searches', ImportAction.replace),
+    )!;
+    final home = summary.previewRows.single;
+    expect(home.label, '__home');
+    expect(home.entityChanged, isFalse);
+    expect(home.children.single.kind, ImportChangeKind.added);
+    expect(home.counts, const ImportChangeCounts(added: 1));
+  });
+
+  for (final rename in [false, true]) {
+    test(
+      rename
+          ? 'renaming a folder counts the folder itself'
+          : 'adding to an existing folder counts only the added search',
+      () {
+        final summary = projector.pinnedSearches(
+          local: PinnedSearchImportLocalSnapshot(
+            searches: [_search(id: 'cat', query: 'cat')],
+            organization: SearchOrganization(
+              folders: [
+                SharedSearchFolder(
+                  id: 'folder',
+                  name: 'Animals',
+                  searchIds: const ['cat'],
+                ),
+              ],
+              homeSearchIds: const [],
+            ),
+            feeds: const [],
+          ),
+          incoming: PinnedSearchBackupData(
+            records: [
+              const PinnedSearchBackupRecord(
+                id: 'cat',
+                name: null,
+                query: 'cat',
+                position: 0,
+                profile: _profileReference,
+              ),
+              if (!rename)
+                const PinnedSearchBackupRecord(
+                  id: 'dog',
+                  name: null,
+                  query: 'dog',
+                  position: 1,
+                  profile: _profileReference,
+                ),
+            ],
+            folders: [
+              PinnedSearchFolderBackupRecord(
+                id: 'folder',
+                name: rename ? 'Renamed' : 'Animals',
+                position: 0,
+                searchIds: ['cat', if (!rename) 'dog'],
+              ),
+            ],
+          ),
+          profileMappings: {
+            ProfileReferenceKey.fromReference(_profileReference):
+                '00000000-0000-4000-8000-000000000001',
+          },
+          resolution: _source('pinned_searches', ImportAction.replace),
+        )!;
+        final folder = summary.previewRows.single;
+        expect(folder.entityChanged, rename);
+        expect(
+          folder.counts,
+          rename
+              ? const ImportChangeCounts(changed: 1)
+              : const ImportChangeCounts(added: 1),
+        );
+        expect(folder.children.length, rename ? 0 : 1);
+      },
+    );
+  }
+
+  test('legacy pins without organization entries are shown under Home', () {
+    final summary = projector.pinnedSearches(
+      local: PinnedSearchImportLocalSnapshot(
+        searches: [_search(id: 'orphan', query: 'cat')],
+        organization: SearchOrganization(folders: [], homeSearchIds: []),
+        feeds: [],
+      ),
+      incoming: const PinnedSearchBackupData(records: [], folders: []),
+      profileMappings: {},
+      resolution: _source('pinned_searches', ImportAction.replace),
+    )!;
+    expect(summary.previewRows.single.label, '__home');
+    expect(summary.previewRows.single.children.single.label, 'cat');
+    expect(
+      summary.previewRows.single.children.single.kind,
+      ImportChangeKind.removed,
+    );
+    expect(
+      summary.previewRows.single.counts,
+      const ImportChangeCounts(removed: 1),
+    );
+  });
+
+  test(
+    'matching query text from different profiles remains separate inside its folder',
+    () {
+      final summary = projector.pinnedSearches(
+        local: PinnedSearchImportLocalSnapshot(
+          searches: [_search(id: 'old', query: 'cat')],
+          organization: SearchOrganization(
+            folders: [
+              SharedSearchFolder(
+                id: 'folder',
+                name: 'Cats',
+                searchIds: ['old'],
+              ),
+            ],
+            homeSearchIds: [],
+          ),
+          feeds: [],
+        ),
+        incoming: const PinnedSearchBackupData(
+          records: [
+            PinnedSearchBackupRecord(
+              id: 'new',
+              name: 'Cats at work',
+              query: 'cat',
+              position: 0,
+              profile: _profileReference,
+            ),
+          ],
+          folders: [
+            PinnedSearchFolderBackupRecord(
+              id: 'folder',
+              name: 'Cats',
+              position: 0,
+              searchIds: ['new'],
+            ),
+          ],
+        ),
+        profileMappings: {
+          ProfileReferenceKey.fromReference(_profileReference):
+              '00000000-0000-4000-8000-000000000002',
+        },
+        resolution: _source('pinned_searches', ImportAction.replace),
+      )!;
+      final folder = summary.previewRows.single;
+      expect(folder.children.map((row) => row.kind), [
+        ImportChangeKind.added,
+        ImportChangeKind.removed,
+      ]);
+      expect(folder.children.map((row) => row.profileId), [
+        '00000000-0000-4000-8000-000000000002',
+        '00000000-0000-4000-8000-000000000001',
+      ]);
+      expect(folder.children.first.label, 'Cats at work');
+      expect(folder.children.first.details.single.after, 'cat');
+      expect(
+        folder.counts,
+        const ImportChangeCounts(added: 1, removed: 1),
+      );
+    },
+  );
+
+  test(
+    'folder reorder remains visible without fabricating search additions or removals',
+    () {
+      final summary = projector.pinnedSearches(
+        local: PinnedSearchImportLocalSnapshot(
+          searches: [
+            _search(id: 'cat', query: 'cat'),
+            _search(id: 'dog', query: 'dog'),
+          ],
+          organization: SearchOrganization(
+            folders: [
+              SharedSearchFolder(
+                id: 'folder',
+                name: 'Animals',
+                searchIds: ['cat', 'dog'],
+              ),
+            ],
+            homeSearchIds: [],
+          ),
+          feeds: [],
+        ),
+        incoming: const PinnedSearchBackupData(
+          records: [
+            PinnedSearchBackupRecord(
+              id: 'cat',
+              name: null,
+              query: 'cat',
+              position: 0,
+              profile: _profileReference,
+            ),
+            PinnedSearchBackupRecord(
+              id: 'dog',
+              name: null,
+              query: 'dog',
+              position: 1,
+              profile: _profileReference,
+            ),
+          ],
+          folders: [
+            PinnedSearchFolderBackupRecord(
+              id: 'folder',
+              name: 'Animals',
+              position: 0,
+              searchIds: ['dog', 'cat'],
+            ),
+          ],
+        ),
+        profileMappings: {
+          ProfileReferenceKey.fromReference(_profileReference):
+              '00000000-0000-4000-8000-000000000001',
+        },
+        resolution: _source('pinned_searches', ImportAction.replace),
+      )!;
+      final folder = summary.previewRows.single;
+      expect(folder.children, hasLength(2));
+      expect(folder.entityChanged, isFalse);
+      expect(
+        folder.details.single.presentation,
+        ImportDetailPresentation.queryOrder,
+      );
+      expect(folder.details.single.before, 'cat\ndog');
+      expect(folder.details.single.after, 'dog\ncat');
+      expect(folder.counts, const ImportChangeCounts(changed: 2));
+    },
+  );
 
   test('folder projection counts all three new searches and the folder', () {
     const records = [
@@ -636,6 +1291,18 @@ void main() {
     );
     expect(summary?.entitySummaries['pinned-search']?.created, 3);
     expect(summary?.entitySummaries['pinned-folder']?.created, 1);
+    final folder = summary!.previewRows.single;
+    expect(folder.isContainer, isTrue);
+    expect(folder.label, 'Three searches');
+    expect(folder.children.map((row) => row.label), ['one', 'two', 'three']);
+    expect(
+      folder.children.every(
+        (row) => row.profileId == '00000000-0000-4000-8000-000000000001',
+      ),
+      isTrue,
+    );
+    expect(folder.counts, const ImportChangeCounts(added: 4));
+    expect(folder.details, isEmpty);
   });
 
   test(
@@ -689,6 +1356,16 @@ void main() {
         ),
       );
 
+      final row = summary!.previewRows.single;
+      expect(row.previousLabel, 'First');
+      expect(row.label, 'First updated');
+      expect(row.isContainer, isTrue);
+      expect(row.details, isEmpty);
+      expect(row.children.single.label, 'dog');
+      expect(row.children.single.kind, ImportChangeKind.added);
+      expect(row.children.single.profileId, cat.profileId);
+      expect(row.counts, const ImportChangeCounts(added: 1, changed: 1));
+
       expect(
         _totals(summary),
         const PlannedChangeSummary(
@@ -700,6 +1377,141 @@ void main() {
       );
     },
   );
+
+  test('empty library counts each new feed and each of its search entries', () {
+    final summary = projector.followingFeeds(
+      local: FollowingFeedImportLocalSnapshot(
+        searches: const [],
+        feeds: const [],
+      ),
+      incoming: FollowingFeedBackupData(
+        feeds: [
+          FollowingFeedBackupRecord(
+            id: 'one',
+            name: 'One entry',
+            position: 0,
+            queries: ['cat'],
+            profile: _profileReference,
+          ),
+          FollowingFeedBackupRecord(
+            id: 'two',
+            name: 'Two entries',
+            position: 1,
+            queries: ['cat', 'dog'],
+            profile: _profileReference,
+          ),
+        ],
+      ),
+      profileMappings: {
+        ProfileReferenceKey.fromReference(_profileReference):
+            '00000000-0000-4000-8000-000000000001',
+      },
+      resolution: _source('following_feeds', ImportAction.replace),
+    )!;
+    expect(summary.previewRows.map((row) => row.counts), [
+      const ImportChangeCounts(added: 2),
+      const ImportChangeCounts(added: 3),
+    ]);
+    expect(
+      summary.previewRows.fold(
+        const ImportChangeCounts(),
+        (sum, row) => sum + row.counts,
+      ),
+      const ImportChangeCounts(added: 5),
+    );
+  });
+
+  for (final scenario in [
+    (
+      label: 'rename',
+      before: ['cat'],
+      after: ['cat'],
+      profile: '00000000-0000-4000-8000-000000000001',
+      counts: const ImportChangeCounts(changed: 1),
+    ),
+    (
+      label: 'reordering',
+      before: ['cat', 'dog'],
+      after: ['dog', 'cat'],
+      profile: '00000000-0000-4000-8000-000000000001',
+      counts: const ImportChangeCounts(changed: 2),
+    ),
+    (
+      label: 'insertion without artificial position changes',
+      before: ['cat', 'dog'],
+      after: ['bird', 'cat', 'dog'],
+      profile: '00000000-0000-4000-8000-000000000001',
+      counts: const ImportChangeCounts(added: 1),
+    ),
+    (
+      label: 'replacement',
+      before: ['cat'],
+      after: ['dog'],
+      profile: '00000000-0000-4000-8000-000000000001',
+      counts: const ImportChangeCounts(added: 1, removed: 1),
+    ),
+    (
+      label: 'profile change',
+      before: ['cat'],
+      after: ['cat'],
+      profile: '00000000-0000-4000-8000-000000000002',
+      counts: const ImportChangeCounts(changed: 2),
+    ),
+  ]) {
+    test(
+      'feed entry counts include individual changes for ${scenario.label}',
+      () {
+        final summary = projector.followingFeeds(
+          local: FollowingFeedImportLocalSnapshot(
+            searches: [
+              for (final (index, query) in scenario.before.indexed)
+                _search(id: 'source-$index', query: query),
+            ],
+            feeds: [
+              SearchFollowingFeed(
+                id: 'feed',
+                name: 'Feed',
+                profileId: '00000000-0000-4000-8000-000000000001',
+                sourceIds: [
+                  for (final (index, _) in scenario.before.indexed)
+                    'source-$index',
+                ],
+              ),
+            ],
+          ),
+          incoming: FollowingFeedBackupData(
+            feeds: [
+              FollowingFeedBackupRecord(
+                id: 'feed',
+                name: scenario.label == 'rename' ? 'Renamed' : 'Feed',
+                position: 0,
+                queries: scenario.after,
+                profile: _profileReference,
+              ),
+            ],
+          ),
+          profileMappings: {
+            ProfileReferenceKey.fromReference(_profileReference):
+                scenario.profile,
+          },
+          resolution: _source('following_feeds', ImportAction.replace),
+        )!;
+        final feed = summary.previewRows.single;
+        expect(feed.counts, scenario.counts);
+        if (scenario.label == 'reordering') {
+          expect(feed.children.map((row) => row.kind), [
+            ImportChangeKind.changed,
+            ImportChangeKind.changed,
+          ]);
+          expect(feed.children.first.details.single.before, '1');
+          expect(feed.children.first.details.single.after, '0');
+        }
+        if (scenario.label == 'insertion without artificial position changes') {
+          expect(feed.children.single.label, 'bird');
+        }
+      },
+    );
+  }
 
   test('feed projection waits for unresolved profile mapping', () {
     final summary = projector.followingFeeds(
@@ -774,6 +1586,22 @@ void main() {
     expect(
       _totals(summary),
       const PlannedChangeSummary(deleted: 2, unchanged: 2),
+    );
+    expect(summary!.previewRows.single.category, 'following_feeds');
+    expect(summary.previewRows.single.isContainer, isTrue);
+    expect(summary.previewRows.single.children.single.label, 'dog');
+    expect(
+      summary.previewRows.single.children.single.kind,
+      ImportChangeKind.removed,
+    );
+    expect(
+      summary.previewRows.single.children.single.profileId,
+      '00000000-0000-4000-8000-000000000001',
+    );
+
+    expect(
+      summary.previewRows.single.counts,
+      const ImportChangeCounts(removed: 2),
     );
   });
 }
