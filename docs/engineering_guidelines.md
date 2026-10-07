@@ -1,8 +1,8 @@
 # Engineering and verification guidelines
 
-Read this before changing Dart or Flutter code or tests. The ticket and
-development workflows are in [docs/work/README.md](work/README.md) and
-[docs/development_workflow.md](development_workflow.md).
+Consult relevant sections when the current change needs additional engineering
+conventions. [AGENTS.md](../AGENTS.md) defines workflow routing and proportional
+verification; queue and integration documentation are loaded only when needed.
 
 ## Tools
 
@@ -10,9 +10,11 @@ development workflows are in [docs/work/README.md](work/README.md) and
   `fvm flutter test`.
 - Run `./gen.sh` to generate i18n, language configs, and booru client configs
   when those inputs change. In a fresh worktree, first run `fvm dart pub get`
-  from `packages/boorusama_cli`, as described in the development workflow.
-- Use the Maestro MCP server to control the available Android emulator when
-  testing or validating UI behavior.
+  from `packages/boorusama_cli` before the first generation. Consult
+  [build troubleshooting](build_troubleshooting.md) for the repeated native
+  build warning.
+- Use an Android emulator only when device/UI integration is necessary. Follow
+  [lease procedure](android_emulator.md) and use Maestro MCP for UI control.
 - Sample related code before writing new code so changes follow existing
   patterns. Run `fvm dart format` after creating or editing Dart files;
   batch formatting where practical.
@@ -59,9 +61,9 @@ for (final c in cases) {
 
 ## Persistent project knowledge
 
-Project knowledge belongs under `docs/`. Check the relevant documentation
-before investigating a subsystem. Update it when you discover non-obvious
-information that would save a future agent significant investigation:
+Project knowledge belongs under `docs/`. Read relevant subsystem documentation
+when it materially affects the task. Update it within the requested scope when
+you discover non-obvious information that would save significant investigation:
 architectural constraints, unexpected framework behavior, important decisions
 and rationale, build/tooling quirks, or unsuccessful approaches worth avoiding.
 Do not store source-obvious facts, temporary debugging observations, or

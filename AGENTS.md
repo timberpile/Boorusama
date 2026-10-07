@@ -1,50 +1,74 @@
 # Boorusama agent instructions
 
-## Required reading
+## Isolation and scope
 
-- Before repository changes, read [the development workflow](docs/development_workflow.md).
-- Before repository ticket work, read [the task queue rules](docs/work/README.md)
-  and check related tickets. For a specific request, stay within its scope.
-- Before investigating a subsystem, read its relevant documentation under
-  `docs/`. Before changing Dart or Flutter code or tests, read
-  [the engineering guidelines](docs/engineering_guidelines.md).
+Before changing repository files, create a dedicated branch/worktree from
+current local `develop`:
 
-## Ticket ownership and delivery
+```bash
+git worktree add -b <prefix>/<slug> .worktrees/<slug> develop
+```
 
-- The coordinating agent selects and claims eligible tickets, delegates each
-  ticket's implementation to an implementer subagent, and reviews the result.
-  The coordinator does not implement a ticket itself. The implementer may
-  implement its assigned ticket directly; this rule does not require recursive
-  delegation. If subagents are unavailable, report the blocker rather than
-  implementing the ticket in the coordinator's place.
-- Give every ticket its own worktree and branch. Base local single-commit work
-  on current local `develop`; base large pull requests on latest
-  `origin/develop`. Never reuse a ticket's branch or worktree for another
-  ticket. Claim the ticket before implementation, record the agent/session,
-  worktree, and branch, and do not take over another claim without coordination.
-- Verify the acceptance criteria and prepare the result for user review. After
-  explicit approval, integrate small or medium work as one descriptive
-  Conventional Commit on local `develop`. Use a pull request and squash merge
-  for a genuinely large branch. Do not enable auto-merge. Follow the
-  development workflow for publication and cleanup.
-- Follow the queue's status and evidence rules. A ticket does not authorize
-  unrelated work, publication, or delivery.
+Choose a concise task slug and appropriate prefix: `feature/`, `fix/`, `docs/`,
+`refactor/`, or `chore/`. Continue an existing worktree for the same task; never
+reuse it for unrelated work. Make all changes and run verification there.
+Do not edit, switch, stash, or reset the user's primary checkout.
 
-## Android emulator ownership
+Keep changes within the request; avoid unrelated cleanup. Commits, integration,
+publication, remote changes, and branch/worktree cleanup require explicit user
+authorization. Use `gh` and explicitly target `timberpile/Boorusama`; provide
+manual instructions for other repositories.
 
-- Before using an emulator, claim its exact serial and renew before each device
-  operation; release it afterward. Follow the [exclusive Android emulator
-  procedure](docs/development_workflow.md#exclusive-android-emulator-procedure),
-  including the under-20-minute operation limit, explicit device targeting,
-  and the rule never to use a busy device.
+## Workflow selection
 
-## Repository and credentials
+Use the applicable `.agents/skills/<name>/SKILL.md`:
 
-- Use `gh` for GitHub work. Never perform GitHub actions on a repository other
-  than `timberpile/Boorusama`; target that repository explicitly in CLI calls.
-  For other repositories, provide manual instructions instead.
-- Always use `fvm` for Flutter and Dart. Use the Maestro MCP server to control
-  the Android emulator when validating UI behavior.
-- Emulator test accounts are already signed in. Read only needed entries from
-  the ignored `.test_credentials` file. Never commit its contents or paste
-  them into logs, screenshots, issues, responses, or test fixtures.
+| Skill | Use when |
+| --- | --- |
+| [implement-change](.agents/skills/implement-change/SKILL.md) | Clear, scoped implementation |
+| [debug-issue](.agents/skills/debug-issue/SKILL.md) | Known symptom, uncertain cause |
+| [design-change](.agents/skills/design-change/SKILL.md) | Significant architecture, data/migration, subsystem, or UX/state decisions; requested design |
+| [execute-plan](.agents/skills/execute-plan/SKILL.md) | Implement an existing plan or detailed design |
+| [verify-change](.agents/skills/verify-change/SKILL.md) | Requested review or justified additional validation of a large change |
+
+Default: inspect → implement → targeted verification → report. Tickets, issues,
+design/plan documents, subagents, and reviewer pairs are optional, not routine
+prerequisites. Use PRs only when explicitly requested. Do not automatically chain
+skills; implementation includes verification. Use Superpowers only when explicitly
+requested.
+
+## Context and conventions
+
+Read only relevant code, tests, and docs. Consult
+[engineering guidelines](docs/engineering_guidelines.md) for needed detail.
+Read [queue rules](docs/work/README.md) and related tickets only for explicitly
+requested work items; one agent may claim and implement directly. Read relevant
+[development workflow](docs/development_workflow.md) sections for integration,
+publication, releases, or upstream synchronization.
+
+- Always use `fvm` for Flutter/Dart.
+- Use manually declared Riverpod `Notifier`/`AsyncNotifier` providers; no provider codegen.
+- Follow nearby architecture/style; keep business logic out of widgets when practical.
+- Localize user-facing strings and use `context.t`.
+- Treat external/site/API data as nullable; use `equatable` when useful.
+- Prefer readable pattern matching; comment non-obvious decisions.
+
+## Verification and devices
+
+Format changed Dart files with `fvm dart format`, run directly related behavior
+tests, and analyze affected scope when useful. Broaden checks only for
+cross-cutting changes or insufficient targeted coverage; no default full suite.
+Run `./gen.sh` only when changed inputs or missing generated output require it.
+
+For UI changes, exercise affected actions at narrow width, enlarged text, and
+with the keyboard open when relevant. Apply these checks where the interaction
+can be constrained (e.g. dialogs, sheets, forms, or search/filter controls);
+prefer targeted widget tests when they cover this efficiently.
+
+Use an emulator only for necessary device/UI integration. Before any operation,
+read and follow the [exclusive lease procedure](docs/android_emulator.md).
+Use Maestro MCP for UI control. Test accounts are already signed in; read only
+needed entries from ignored `.test_credentials` and never commit or expose them
+in logs, screenshots, issues, responses, or fixtures.
+
+Report changes, significant decisions, checks actually performed, and limitations.

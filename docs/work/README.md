@@ -1,5 +1,8 @@
 # Repository task queue
 
+These rules apply only when the user explicitly asks to create, update, or work
+through repository work items. Ordinary changes do not require a ticket.
+
 Each task or issue has its own Markdown file. Its folder determines its status:
 
 | Folder | Meaning |
@@ -17,14 +20,13 @@ Existing descriptive filenames may be retained.
 When asked to work through the queue, select an eligible task from `ready/`.
 Choose High priority before Normal, then Low; break ties by filename. Resolve
 dependencies first. If a legacy document lacks priority, treat it as Normal.
-Move the file to `in-progress/` before starting and record your agent/session
-and work branch. The coordinating agent claims the ticket before implementation
-and delegates its implementation to a subagent in that ticket's dedicated
-worktree and branch. Record the implementer/session and worktree as soon as
-assigned. The implementer may complete its assigned ticket directly; this
-delegation rule does not recursively apply to it. A claim in one worktree is
-not automatically visible in another, so the coordinator must synchronize
-claims and prevent duplicate work across checkouts.
+Before implementation, move the file to `in-progress/` in the task's isolated
+worktree and record the agent/session, branch, and worktree. One agent may claim
+and implement the ticket directly; delegation and separate reviewer agents are
+optional. Check related tickets and existing claims across active worktrees
+before claiming: a claim in one checkout is not automatically visible in another.
+Coordinate conflicting claims; do not take over someone else's claim without
+coordination. Keep the implementation within the requested ticket's scope.
 
 Record progress and verification in the task file. For blocked work, explain
 what must change before it can resume. Recheck historical blockers rather than
@@ -38,10 +40,11 @@ Task files should contain:
 - Expected behavior and observable acceptance criteria.
 - Relevant documentation, constraints, and dependencies.
 - Agent/session and work branch when claimed.
-- Dedicated worktree and implementer when assigned.
+- Dedicated worktree, plus implementer/session if delegated.
 - Progress, blockers, and completion evidence as applicable.
 
-Consult [AGENTS.md](../../AGENTS.md) and the
-[development workflow](../development_workflow.md) when implementing tasks.
+Follow [AGENTS.md](../../AGENTS.md) for isolation and workflow selection. Read
+the relevant [development workflow](../development_workflow.md) sections only
+for integration, publication, releases, or upstream synchronization.
 Being listed in the queue does not itself authorize an agent to work outside
 the user's request. GitHub issues are not required.
