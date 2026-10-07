@@ -1,6 +1,5 @@
 // Project imports:
 import '../../../core/posts/post/types.dart';
-import 'post_data.dart';
 import 'types.dart';
 
 final class PixivPostCodec implements BooruPostDataCodec<PixivPostData> {
@@ -27,7 +26,7 @@ final class PixivPostCodec implements BooruPostDataCodec<PixivPostData> {
     'totalBookmarks': data.totalBookmarks,
     'totalView': data.totalView,
     'aiType': data.aiType,
-    if (data.seriesTitle case final value?) 'seriesTitle': value,
+    'seriesTitle': ?data.seriesTitle,
     'isUgoira': data.isUgoira,
     'isRestricted': data.isRestricted,
   };
@@ -45,19 +44,19 @@ final class PixivPostCodec implements BooruPostDataCodec<PixivPostData> {
       throw const FormatException('Invalid Pixiv illustration type');
     }
     return PixivPostData(
-      illustId: json['illustId'] as int,
-      pageIndex: json['pageIndex'] as int,
-      pageCount: json['pageCount'] as int,
-      userId: json['userId'] as int,
-      userName: json['userName'] as String,
-      userAccount: json['userAccount'] as String,
+      illustId: _required<int>(json['illustId'], 'illustId'),
+      pageIndex: _required<int>(json['pageIndex'], 'pageIndex'),
+      pageCount: _required<int>(json['pageCount'], 'pageCount'),
+      userId: _required<int>(json['userId'], 'userId'),
+      userName: _required<String>(json['userName'], 'userName'),
+      userAccount: _required<String>(json['userAccount'], 'userAccount'),
       illustType: illustType,
-      totalBookmarks: json['totalBookmarks'] as int,
-      totalView: json['totalView'] as int,
-      aiType: json['aiType'] as int,
+      totalBookmarks: _required<int>(json['totalBookmarks'], 'totalBookmarks'),
+      totalView: _required<int>(json['totalView'], 'totalView'),
+      aiType: _required<int>(json['aiType'], 'aiType'),
       seriesTitle: json['seriesTitle'] as String?,
-      isUgoira: json['isUgoira'] as bool,
-      isRestricted: json['isRestricted'] as bool,
+      isUgoira: _required<bool>(json['isUgoira'], 'isUgoira'),
+      isRestricted: _required<bool>(json['isRestricted'], 'isRestricted'),
     );
   }
 }
@@ -81,3 +80,8 @@ Post pixivPostFromRecord(PixivPostRecord post, PostOrigin origin) => Post(
     isRestricted: post.isRestricted,
   ),
 );
+
+T _required<T>(Object? value, String field) => switch (value) {
+  final T value => value,
+  _ => throw FormatException('Invalid Pixiv $field'),
+};

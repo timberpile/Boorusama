@@ -73,7 +73,7 @@ void main() {
       (_, _, _) async => Either.of(
         PostResult(
           posts: [
-            TestSearchPost(1, checkpoint.add(const Duration(minutes: 1))),
+            testSearchPost(1, checkpoint.add(const Duration(minutes: 1))),
           ],
           total: 1,
         ),
@@ -283,7 +283,7 @@ void main() {
         posts = TestSearchPostRepository((_, _, _) async {
           await dio.get('/posts');
           return Either.of(
-            PostResult(posts: [TestSearchPost(2, checkpoint)], total: 1),
+            PostResult(posts: [testSearchPost(2, checkpoint)], total: 1),
           );
         });
         final automatic = notifier().refresh(
@@ -336,7 +336,7 @@ void main() {
         fetched.complete();
         await release.future;
         return Either.of(
-          PostResult(posts: [TestSearchPost(2, checkpoint)], total: 1),
+          PostResult(posts: [testSearchPost(2, checkpoint)], total: 1),
         );
       });
       final token = CancelToken();
@@ -388,7 +388,7 @@ void main() {
         dispatchedClass = context.requestClass;
         permit.release();
         return Either.of(
-          PostResult(posts: [TestSearchPost(2, checkpoint)], total: 1),
+          PostResult(posts: [testSearchPost(2, checkpoint)], total: 1),
         );
       });
       final automatic = notifier().refresh(
@@ -422,7 +422,7 @@ void main() {
         fetched.complete();
         await release.future;
         return Either.of(
-          PostResult(posts: [TestSearchPost(1, checkpoint)], total: 1),
+          PostResult(posts: [testSearchPost(1, checkpoint)], total: 1),
         );
       });
       final pinning = notifier().pin(
@@ -464,7 +464,7 @@ void main() {
       expect(snapshot().subscriptions.single.lastSuccessfulCheckAt, isNull);
       posts = TestSearchPostRepository(
         (_, _, _) async => Either.of(
-          PostResult(posts: [TestSearchPost(1, checkpoint)], total: 1),
+          PostResult(posts: [testSearchPost(1, checkpoint)], total: 1),
         ),
       );
       final retried = await notifier().refresh(result.subscription.id);
@@ -485,11 +485,11 @@ void main() {
           oldStarted.complete();
           await oldRelease.future;
           return Either.of(
-            PostResult(posts: [TestSearchPost(1, checkpoint)], total: 1),
+            PostResult(posts: [testSearchPost(1, checkpoint)], total: 1),
           );
         }
         return Either.of(
-          PostResult(posts: [TestSearchPost(2, checkpoint)], total: 1),
+          PostResult(posts: [testSearchPost(2, checkpoint)], total: 1),
         );
       });
 
@@ -688,7 +688,7 @@ void main() {
         return Either.of(
           PostResult(
             posts: [
-              TestSearchPost(1, checkpoint.add(const Duration(minutes: 1))),
+              testSearchPost(1, checkpoint.add(const Duration(minutes: 1))),
             ],
             total: 1,
           ),
@@ -721,7 +721,7 @@ void main() {
             SharedSearchFolder(
               id: 'folder',
               name: 'Folder',
-              searchIds: ['a', 'b'],
+              searchIds: const ['a', 'b'],
             ),
           ],
           homeSearchIds: const [],
@@ -815,18 +815,20 @@ void main() {
             BooruConfig.fromJson({...config.toJson(), 'id': id}),
         ]);
         final storage = _FailOnceOrganizationBox();
-        if (readFailure)
+        if (readFailure) {
           repository = HiveSearchSubscriptionRepository(
             box: MemorySubscriptionBox(),
             organizationBox: storage,
           );
+        }
         await seed('a');
         await seed('b', profileId: middle);
         await seed('c', profileId: last);
         final releases = <String, Completer<void>>{};
         posts = TestSearchPostRepository((query, _, _) async {
-          if (query != 'edited-b')
+          if (query != 'edited-b') {
             await (releases[query] = Completer<void>()).future;
+          }
           return Either.of(PostResult.empty());
         });
         final root = await notifier().planIndependentRefreshes([

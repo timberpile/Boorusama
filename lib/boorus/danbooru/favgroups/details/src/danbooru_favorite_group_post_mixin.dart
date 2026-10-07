@@ -7,7 +7,6 @@ import 'package:collection/collection.dart';
 // Project imports:
 import '../../../../../core/posts/post/types.dart';
 import '../../../posts/post/providers.dart';
-import '../../../posts/post/types.dart';
 
 mixin DanbooruFavoriteGroupPostMixin {
   PostRepository<Post> get postRepository;

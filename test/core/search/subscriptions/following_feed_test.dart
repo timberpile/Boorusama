@@ -284,7 +284,7 @@ void main() {
             feedPosts: [
               for (final id in ids)
                 feedPostSnapshotFromPost(
-                  TestSearchPost(id, checkedAt.add(Duration(seconds: id))),
+                  testSearchPost(id, checkedAt.add(Duration(seconds: id))),
                 ),
             ],
           ),
@@ -401,7 +401,7 @@ void main() {
           baseline: true,
           discoveredPosts: const [],
           feedPosts: [
-            feedPostSnapshotFromPost(TestSearchPost(1, checkedAt)),
+            feedPostSnapshotFromPost(testSearchPost(1, checkedAt)),
           ],
         ),
       );
@@ -543,7 +543,7 @@ void main() {
           feedPosts: [
             for (var i = 0; i < 6; i++)
               feedPostSnapshotFromPost(
-                TestSearchPost(i, checkedAt.add(Duration(seconds: i))),
+                testSearchPost(i, checkedAt.add(Duration(seconds: i))),
               ),
           ],
         ),
@@ -719,7 +719,7 @@ void main() {
           discoveredPosts: const [],
           feedPosts: [
             for (var i = 0; i < 4; i++)
-              feedPostSnapshotFromPost(TestSearchPost(i, checkedAt)),
+              feedPostSnapshotFromPost(testSearchPost(i, checkedAt)),
           ],
         ),
       );
@@ -769,7 +769,7 @@ void main() {
           baseline: true,
           discoveredPosts: const [],
           feedPosts: [
-            feedPostSnapshotFromPost(TestSearchPost(1, checkedAt)),
+            feedPostSnapshotFromPost(testSearchPost(1, checkedAt)),
           ],
         ),
       );
@@ -1110,7 +1110,7 @@ void main() {
         tester,
         FeedPostThumbnail(
           post: decodeFeedPost(
-            feedPostSnapshotFromPost(TestSearchPost(1, checkedAt)),
+            feedPostSnapshotFromPost(testSearchPost(1, checkedAt)),
           ),
           config: testProfile.auth,
         ),
@@ -1214,7 +1214,7 @@ const _variantMediaVariants = {
 };
 
 Post _variantSearchPost(int id, DateTime? createdAt) {
-  final post = TestSearchPost(id, createdAt);
+  final post = testSearchPost(id, createdAt);
   return post.copyWith(
     core: PostCoreData(
       id: post.id,

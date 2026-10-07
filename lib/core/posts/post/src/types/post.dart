@@ -49,10 +49,15 @@ final class Post extends Equatable
   final PostCoreData core;
   final BooruPostData booruData;
 
+  @override
   int get id => core.id;
+  @override
   DateTime? get createdAt => core.createdAt;
+  @override
   String get thumbnailImageUrl => core.thumbnailImageUrl;
+  @override
   String get sampleImageUrl => core.sampleImageUrl;
+  @override
   String get originalImageUrl => core.originalImageUrl;
   @override
   String get videoUrl => core.videoUrl;
@@ -84,6 +89,7 @@ final class Post extends Equatable
   double get duration => core.duration;
   @override
   bool? get hasSound => core.hasSound;
+  @override
   Set<String> get tags => core.tags;
   @override
   Set<String>? get artistTags => core.artistTags;
@@ -91,17 +97,29 @@ final class Post extends Equatable
   Set<String>? get characterTags => core.characterTags;
   @override
   Set<String>? get copyrightTags => core.copyrightTags;
+  @override
   Rating get rating => core.rating;
+  @override
   bool get hasComment => core.hasComment;
+  @override
   bool get isTranslated => core.isTranslated;
+  @override
   bool get hasParentOrChildren => core.hasParentOrChildren;
+  @override
   int? get parentId => core.parentId;
+  @override
   PostSource get source => core.source;
+  @override
   int get score => core.score;
+  @override
   int? get downvotes => core.downvotes;
+  @override
   int? get uploaderId => core.uploaderId;
+  @override
   String? get uploaderName => core.uploaderName;
+  @override
   PostStatus? get status => StringPostStatus.tryParse(core.status);
+  @override
   PostMetadata? get metadata => core.metadata;
 
   Post copyWith({

@@ -86,7 +86,7 @@ class TestSearchPostRepository extends PostRepository<Post> {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-Post TestSearchPost(int id, DateTime? createdAt) => Post(
+Post testSearchPost(int id, DateTime? createdAt) => Post(
   origin: PostOrigin.forBooruType(BooruType.unknown),
   core: PostCoreData(
     id: id,
@@ -104,14 +104,11 @@ Post TestSearchPost(int id, DateTime? createdAt) => Post(
     duration: 0,
     fileSize: 0,
     format: 'jpg',
-    hasSound: null,
     height: 0,
     md5: '',
     videoThumbnailUrl: '',
     videoUrl: '',
     width: 0,
-    uploaderId: null,
-    metadata: null,
   ),
   booruData: const LegacyPostData(typeKey: 'test_search', custom: {}),
 );

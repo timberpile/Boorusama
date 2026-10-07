@@ -907,9 +907,9 @@ void main() {
         addTearDown(progress.close);
         await tester.pumpWidget(
           harness.wrap(
-            MaterialApp(
+            const MaterialApp(
               builder: themeBuilder,
-              home: const MediaQuery(
+              home: MediaQuery(
                 data: MediaQueryData(textScaler: TextScaler.linear(2)),
                 child: PinnedSearchesPage(),
               ),

@@ -12,7 +12,6 @@ import '../../../core/tags/categories/providers.dart';
 import '../../../core/tags/local/providers.dart';
 import '../client_provider.dart';
 import 'parser.dart';
-import 'types.dart';
 
 final nozomiPostRepoProvider =
     Provider.family<PostRepository<Post>, BooruConfigSearch>(

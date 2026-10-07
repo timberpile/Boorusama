@@ -64,8 +64,8 @@ void main() {
       (query, page, limit) async => Either.of(
         PostResult(
           posts: [
-            TestSearchPost(2, checkpoint.add(const Duration(minutes: 2))),
-            TestSearchPost(1, checkpoint.add(const Duration(minutes: 1))),
+            testSearchPost(2, checkpoint.add(const Duration(minutes: 2))),
+            testSearchPost(1, checkpoint.add(const Duration(minutes: 1))),
           ],
           total: 2,
         ),
@@ -105,7 +105,7 @@ void main() {
         fetched.complete();
         await release.future;
         return Either.of(
-          PostResult(posts: [TestSearchPost(3, startedAt)], total: 1),
+          PostResult(posts: [testSearchPost(3, startedAt)], total: 1),
         );
       });
       final token = CancelToken();
@@ -154,7 +154,7 @@ void main() {
                   ),
                 )
               : Either.of(
-                  PostResult(posts: [TestSearchPost(3, startedAt)], total: 1),
+                  PostResult(posts: [testSearchPost(3, startedAt)], total: 1),
                 );
         });
         final token = CancelToken();
@@ -198,9 +198,9 @@ void main() {
       (_, _, _) async => Either.of(
         PostResult(
           posts: [
-            TestSearchPost(2, checkpoint.add(const Duration(minutes: 2))),
-            TestSearchPost(1, checkpoint.add(const Duration(minutes: 1))),
-            TestSearchPost(0, checkpoint),
+            testSearchPost(2, checkpoint.add(const Duration(minutes: 2))),
+            testSearchPost(1, checkpoint.add(const Duration(minutes: 1))),
+            testSearchPost(0, checkpoint),
           ],
           total: 3,
         ),
@@ -215,7 +215,7 @@ void main() {
   test('a higher post ID sets NEW even with an older upload time', () async {
     posts = TestSearchPostRepository(
       (_, _, _) async => Either.right(
-        [TestSearchPost(100, checkpoint)].toResult(),
+        [testSearchPost(100, checkpoint)].toResult(),
       ),
     );
     now = checkpoint;
@@ -224,8 +224,8 @@ void main() {
     posts = TestSearchPostRepository(
       (_, _, _) async => Either.right(
         [
-          TestSearchPost(101, checkpoint.subtract(const Duration(days: 1))),
-          TestSearchPost(100, checkpoint),
+          testSearchPost(101, checkpoint.subtract(const Duration(days: 1))),
+          testSearchPost(100, checkpoint),
         ].toResult(),
       ),
     );
@@ -240,7 +240,7 @@ void main() {
   test('a lower post ID does not set NEW with a newer upload time', () async {
     posts = TestSearchPostRepository(
       (_, _, _) async => Either.right(
-        [TestSearchPost(100, checkpoint)].toResult(),
+        [testSearchPost(100, checkpoint)].toResult(),
       ),
     );
     now = checkpoint;
@@ -249,8 +249,8 @@ void main() {
     posts = TestSearchPostRepository(
       (_, _, _) async => Either.right(
         [
-          TestSearchPost(100, checkpoint),
-          TestSearchPost(99, startedAt.add(const Duration(days: 1))),
+          testSearchPost(100, checkpoint),
+          testSearchPost(99, startedAt.add(const Duration(days: 1))),
         ].toResult(),
       ),
     );
@@ -299,7 +299,7 @@ void main() {
                   id > total - (total < 50 ? total : 50);
                   id--
                 )
-                  TestSearchPost(id, checkpoint.add(Duration(seconds: id))),
+                  testSearchPost(id, checkpoint.add(Duration(seconds: id))),
               ],
               total: total,
               hasMore: total > 50,
@@ -323,7 +323,7 @@ void main() {
     () async {
       posts = TestSearchPostRepository(
         (_, _, _) async => Either.right(
-          [TestSearchPost(10, checkpoint)].toResult(),
+          [testSearchPost(10, checkpoint)].toResult(),
         ),
       );
       now = checkpoint;
@@ -333,8 +333,8 @@ void main() {
       posts = TestSearchPostRepository(
         (_, _, _) async => Either.right(
           [
-            TestSearchPost(9, checkpoint),
-            TestSearchPost(8, checkpoint.subtract(const Duration(days: 1))),
+            testSearchPost(9, checkpoint),
+            testSearchPost(8, checkpoint.subtract(const Duration(days: 1))),
           ].toResult(),
         ),
       );
@@ -425,7 +425,7 @@ void main() {
           (_, _, _) async => switch (c.error) {
             final error? => Either.left(error),
             null => Either.of(
-              PostResult(posts: [TestSearchPost(3, null)], total: 1),
+              PostResult(posts: [testSearchPost(3, null)], total: 1),
             ),
           },
         );

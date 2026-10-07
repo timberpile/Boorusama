@@ -33,6 +33,11 @@ decodes to `UnknownPostData`. Legacy bookmark data decodes to `LegacyPostData`
 without inventing engine fields. Credentials, repositories, provider state,
 callbacks, and controllers are never persisted.
 
+Persistence decoders must accept string-keyed `Map<Object?, Object?>` values
+and normalize them before typed access. Hive may rehydrate nested maps with
+dynamic key types even when the original snapshot used `Map<String, Object?>`;
+non-string keys remain malformed input.
+
 ## Presentation and profile resolution
 
 Each engine registers a `BooruPostCapability` containing its codec and

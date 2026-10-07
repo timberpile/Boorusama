@@ -7,7 +7,6 @@ import '../../../../../../core/configs/config/types.dart';
 import '../../../../../../core/configs/manage/providers.dart';
 import '../../../../../../core/posts/post/types.dart';
 import '../../../../posts/post/providers.dart';
-import '../../../../posts/post/types.dart';
 
 final danbooruFavoriteGroupPreviewsProvider =
     NotifierProvider.family<

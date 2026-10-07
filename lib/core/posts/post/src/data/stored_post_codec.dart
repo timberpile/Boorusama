@@ -155,50 +155,52 @@ final class StoredPostCodec {
 Map<String, Object?> _encodeCommon(PostCoreData data) => {
   'schemaVersion': StoredPostCodec.commonSchemaVersion,
   'id': data.id,
-  if (data.createdAt case final value?)
-    'createdAt': value.toUtc().toIso8601String(),
+  'createdAt': ?data.createdAt?.toUtc().toIso8601String(),
   'thumbnailImageUrl': data.thumbnailImageUrl,
   'sampleImageUrl': data.sampleImageUrl,
   'originalImageUrl': data.originalImageUrl,
   'videoUrl': data.videoUrl,
   'videoThumbnailUrl': data.videoThumbnailUrl,
-  if (data.mediaVariants case final value?) 'mediaVariants': value,
-  if (data.thumbnailAspectRatio case final value?)
-    'thumbnailAspectRatio': value,
-  if (data.sampleAspectRatio case final value?) 'sampleAspectRatio': value,
-  if (data.originalAspectRatio case final value?) 'originalAspectRatio': value,
-  if (data.videoThumbnailAspectRatio case final value?)
-    'videoThumbnailAspectRatio': value,
-  if (data.videoAspectRatio case final value?) 'videoAspectRatio': value,
+  'mediaVariants': ?data.mediaVariants,
+  'thumbnailAspectRatio': ?data.thumbnailAspectRatio,
+  'sampleAspectRatio': ?data.sampleAspectRatio,
+  'originalAspectRatio': ?data.originalAspectRatio,
+  'videoThumbnailAspectRatio': ?data.videoThumbnailAspectRatio,
+  'videoAspectRatio': ?data.videoAspectRatio,
   'width': data.width,
   'height': data.height,
   'format': data.format,
   'md5': data.md5,
   'fileSize': data.fileSize,
   'duration': data.duration,
-  if (data.hasSound case final value?) 'hasSound': value,
+  'hasSound': ?data.hasSound,
   'tags': data.tags.toList(),
-  if (data.artistTags case final value?) 'artistTags': value.toList(),
-  if (data.characterTags case final value?) 'characterTags': value.toList(),
-  if (data.copyrightTags case final value?) 'copyrightTags': value.toList(),
+  'artistTags': ?data.artistTags?.toList(),
+  'characterTags': ?data.characterTags?.toList(),
+  'copyrightTags': ?data.copyrightTags?.toList(),
   'rating': data.rating.name,
   'hasComment': data.hasComment,
   'isTranslated': data.isTranslated,
   'hasParentOrChildren': data.hasParentOrChildren,
-  if (data.parentId case final value?) 'parentId': value,
+  'parentId': ?data.parentId,
   'source': _encodeSource(data.source),
   'score': data.score,
-  if (data.downvotes case final value?) 'downvotes': value,
-  if (data.uploaderId case final value?) 'uploaderId': value,
-  if (data.uploaderName case final value?) 'uploaderName': value,
-  if (data.status case final value?) 'status': value,
-  if (data.metadata case final value?)
-    'metadata': {
-      if (value.page case final page?) 'page': page,
-      if (value.search case final search?) 'search': search,
-      if (value.limit case final limit?) 'limit': limit,
-    },
+  'downvotes': ?data.downvotes,
+  'uploaderId': ?data.uploaderId,
+  'uploaderName': ?data.uploaderName,
+  'status': ?data.status,
+  'metadata': ?_encodeMetadata(data.metadata),
 };
+
+Map<String, Object?>? _encodeMetadata(PostMetadata? metadata) =>
+    switch (metadata) {
+      final metadata? => {
+        'page': ?metadata.page,
+        'search': ?metadata.search,
+        'limit': ?metadata.limit,
+      },
+      null => null,
+    };
 
 PostCoreData _decodeCommon(Map<String, Object?> json) {
   final version = json['schemaVersion'];
@@ -207,17 +209,26 @@ PostCoreData _decodeCommon(Map<String, Object?> json) {
   }
 
   return PostCoreData(
-    id: json['id'] as int,
+    id: _required<int>(json['id'], 'id'),
     createdAt: switch (json['createdAt']) {
       final String value => DateTime.parse(value),
       null => null,
       _ => throw const FormatException('Invalid createdAt'),
     },
-    thumbnailImageUrl: json['thumbnailImageUrl'] as String,
-    sampleImageUrl: json['sampleImageUrl'] as String,
-    originalImageUrl: json['originalImageUrl'] as String,
-    videoUrl: json['videoUrl'] as String,
-    videoThumbnailUrl: json['videoThumbnailUrl'] as String,
+    thumbnailImageUrl: _required<String>(
+      json['thumbnailImageUrl'],
+      'thumbnailImageUrl',
+    ),
+    sampleImageUrl: _required<String>(json['sampleImageUrl'], 'sampleImageUrl'),
+    originalImageUrl: _required<String>(
+      json['originalImageUrl'],
+      'originalImageUrl',
+    ),
+    videoUrl: _required<String>(json['videoUrl'], 'videoUrl'),
+    videoThumbnailUrl: _required<String>(
+      json['videoThumbnailUrl'],
+      'videoThumbnailUrl',
+    ),
     mediaVariants: _optionalStringMap(json['mediaVariants']),
     thumbnailAspectRatio: _optionalDouble(json['thumbnailAspectRatio']),
     sampleAspectRatio: _optionalDouble(json['sampleAspectRatio']),
@@ -226,24 +237,27 @@ PostCoreData _decodeCommon(Map<String, Object?> json) {
       json['videoThumbnailAspectRatio'],
     ),
     videoAspectRatio: _optionalDouble(json['videoAspectRatio']),
-    width: (json['width'] as num).toDouble(),
-    height: (json['height'] as num).toDouble(),
-    format: json['format'] as String,
-    md5: json['md5'] as String,
-    fileSize: json['fileSize'] as int,
-    duration: (json['duration'] as num).toDouble(),
+    width: _required<num>(json['width'], 'width').toDouble(),
+    height: _required<num>(json['height'], 'height').toDouble(),
+    format: _required<String>(json['format'], 'format'),
+    md5: _required<String>(json['md5'], 'md5'),
+    fileSize: _required<int>(json['fileSize'], 'fileSize'),
+    duration: _required<num>(json['duration'], 'duration').toDouble(),
     hasSound: json['hasSound'] as bool?,
     tags: _stringSet(json['tags']),
     artistTags: _optionalStringSet(json['artistTags']),
     characterTags: _optionalStringSet(json['characterTags']),
     copyrightTags: _optionalStringSet(json['copyrightTags']),
     rating: Rating.parse(json['rating']),
-    hasComment: json['hasComment'] as bool,
-    isTranslated: json['isTranslated'] as bool,
-    hasParentOrChildren: json['hasParentOrChildren'] as bool,
+    hasComment: _required<bool>(json['hasComment'], 'hasComment'),
+    isTranslated: _required<bool>(json['isTranslated'], 'isTranslated'),
+    hasParentOrChildren: _required<bool>(
+      json['hasParentOrChildren'],
+      'hasParentOrChildren',
+    ),
     parentId: json['parentId'] as int?,
     source: _decodeSource(json['source']),
-    score: json['score'] as int,
+    score: _required<int>(json['score'], 'score'),
     downvotes: json['downvotes'] as int?,
     uploaderId: json['uploaderId'] as int?,
     uploaderName: json['uploaderName'] as String?,
@@ -260,7 +274,7 @@ Map<String, Object?> _encodeSource(PostSource source) => switch (source) {
 };
 
 PostSource _decodeSource(Object? value) {
-  final json = Map<String, Object?>.from(value as Map);
+  final json = _map(value, 'post source');
   return switch (json) {
     {'kind': 'none'} => PostSource.none(),
     {'kind': 'nonWeb', 'value': final String source} => NonWebSource(source),
@@ -274,7 +288,7 @@ PostSource _decodeSource(Object? value) {
 
 PostMetadata? _decodeMetadata(Object? value) {
   if (value == null) return null;
-  final json = Map<String, Object?>.from(value as Map);
+  final json = _map(value, 'post metadata');
   return PostMetadata(
     page: json['page'] as int?,
     search: json['search'] as String?,
@@ -289,7 +303,7 @@ double? _optionalDouble(Object? value) => switch (value) {
 };
 
 Set<String> _stringSet(Object? value) {
-  final values = value as List;
+  final values = _list(value, 'string set');
   if (values.any((item) => item is! String)) {
     throw const FormatException('Expected strings');
   }
@@ -301,12 +315,28 @@ Set<String>? _optionalStringSet(Object? value) =>
 
 Map<String, String>? _optionalStringMap(Object? value) {
   if (value == null) return null;
-  final map = Map<String, Object?>.from(value as Map);
+  final map = _map(value, 'string map');
   if (map.values.any((item) => item is! String)) {
     throw const FormatException('Expected string values');
   }
   return map.map((key, value) => MapEntry(key, value! as String));
 }
+
+T _required<T>(Object? value, String field) => switch (value) {
+  final T value => value,
+  _ => throw FormatException('Invalid stored post $field'),
+};
+
+List<Object?> _list(Object? value, String field) => switch (value) {
+  final List<Object?> values => values,
+  _ => throw FormatException('Invalid stored post $field'),
+};
+
+Map<String, Object?> _map(Object? value, String field) => switch (value) {
+  final Map<Object?, Object?> map when map.keys.every((key) => key is String) =>
+    Map<String, Object?>.from(map),
+  _ => throw FormatException('Invalid stored post $field'),
+};
 
 final class _UnsupportedCommonVersion implements Exception {
   const _UnsupportedCommonVersion(this.version);

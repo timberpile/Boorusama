@@ -1,6 +1,5 @@
 // Project imports:
 import '../../../core/posts/post/types.dart';
-import 'post_data.dart';
 import 'types.dart';
 
 final class PhilomenaPostCodec
@@ -42,24 +41,39 @@ final class PhilomenaPostCodec
     if (version != 1) {
       throw const FormatException('Unsupported Philomena post data');
     }
-    final representation = json['representation'];
-    if (representation is! Map<String, Object?>) {
-      throw const FormatException('Invalid Philomena representation');
-    }
+    final representation = _map(json['representation']);
     return PhilomenaPostData(
-      description: json['description'] as String,
-      commentCount: json['commentCount'] as int,
-      favCount: json['favCount'] as int,
-      upvotes: json['upvotes'] as int,
+      description: _required<String>(json['description'], 'description'),
+      commentCount: _required<int>(json['commentCount'], 'commentCount'),
+      favCount: _required<int>(json['favCount'], 'favCount'),
+      upvotes: _required<int>(json['upvotes'], 'upvotes'),
       representation: PhilomenaRepresentation(
-        full: representation['full'] as String,
-        large: representation['large'] as String,
-        medium: representation['medium'] as String,
-        small: representation['small'] as String,
-        tall: representation['tall'] as String,
-        thumb: representation['thumb'] as String,
-        thumbSmall: representation['thumbSmall'] as String,
-        thumbTiny: representation['thumbTiny'] as String,
+        full: _required<String>(representation['full'], 'full representation'),
+        large: _required<String>(
+          representation['large'],
+          'large representation',
+        ),
+        medium: _required<String>(
+          representation['medium'],
+          'medium representation',
+        ),
+        small: _required<String>(
+          representation['small'],
+          'small representation',
+        ),
+        tall: _required<String>(representation['tall'], 'tall representation'),
+        thumb: _required<String>(
+          representation['thumb'],
+          'thumb representation',
+        ),
+        thumbSmall: _required<String>(
+          representation['thumbSmall'],
+          'small thumbnail representation',
+        ),
+        thumbTiny: _required<String>(
+          representation['thumbTiny'],
+          'tiny thumbnail representation',
+        ),
       ),
     );
   }
@@ -77,3 +91,14 @@ Post philomenaPostFromRecord(PhilomenaPostRecord post, PostOrigin origin) =>
         representation: post.representation,
       ),
     );
+
+T _required<T>(Object? value, String field) => switch (value) {
+  final T value => value,
+  _ => throw FormatException('Invalid Philomena $field'),
+};
+
+Map<String, Object?> _map(Object? value) => switch (value) {
+  final Map<Object?, Object?> map when map.keys.every((key) => key is String) =>
+    Map<String, Object?>.from(map),
+  _ => throw const FormatException('Invalid Philomena representation'),
+};

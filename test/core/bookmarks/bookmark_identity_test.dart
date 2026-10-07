@@ -46,7 +46,7 @@ void main() {
 
   test('ignores changed engine metadata for one upstream post', () {
     final first = BookmarkIdentity.fromPost(
-      _post(source: 'https://booru.example', type: BooruType.gelbooruV2),
+      _post(source: 'https://booru.example'),
     );
     final second = BookmarkIdentity.fromPost(
       _post(source: 'https://booru.example', type: BooruType.danbooru),

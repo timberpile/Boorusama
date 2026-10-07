@@ -11,7 +11,6 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../../../core/configs/config/providers.dart';
 import '../../../core/configs/create/routes.dart';
 import '../../../core/posts/details/providers.dart';
-import '../../../core/posts/post/types.dart';
 import '../../../core/videos/player/widgets.dart';
 import '../../../foundation/html.dart';
 import '../../../foundation/platform.dart';

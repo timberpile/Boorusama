@@ -1,6 +1,5 @@
 // Project imports:
 import '../../../core/posts/post/types.dart';
-import 'post_data.dart';
 import 'types.dart';
 
 final class MoebooruPostCodec implements BooruPostDataCodec<MoebooruPostData> {

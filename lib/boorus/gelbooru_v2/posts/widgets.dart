@@ -18,7 +18,6 @@ import '../../../core/router.dart';
 import '../../../core/search/search/routes.dart';
 import '../gelbooru_v2_provider.dart';
 import 'providers.dart';
-import 'types.dart';
 
 class GelbooruV2PostDetailsPage extends ConsumerWidget {
   const GelbooruV2PostDetailsPage({

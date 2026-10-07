@@ -8,7 +8,6 @@ import '../../../core/configs/config/types.dart';
 import '../../../core/posts/post/types.dart';
 import '../client_provider.dart';
 import 'parser.dart';
-import 'types.dart';
 
 class EshuushuuSearchState extends Equatable {
   const EshuushuuSearchState({

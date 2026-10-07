@@ -7,7 +7,6 @@ import 'package:kurumi/material.dart';
 // Project imports:
 import '../../../../../../core/configs/config/providers.dart';
 import '../../../../../../core/posts/details_parts/widgets.dart';
-import '../../../../../../core/posts/post/types.dart';
 import '../../../../../../core/search/search/routes.dart';
 import '../../../../../../core/tags/tag/providers.dart';
 import '../../../../../../core/tags/tag/types.dart';

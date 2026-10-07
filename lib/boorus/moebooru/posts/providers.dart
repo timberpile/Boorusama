@@ -9,7 +9,6 @@ import '../../../core/settings/providers.dart';
 import '../client_provider.dart';
 import '../tags/providers.dart';
 import 'parser.dart';
-import 'types.dart';
 
 final moebooruPostRepoProvider =
     Provider.family<PostRepository<Post>, BooruConfigSearch>(

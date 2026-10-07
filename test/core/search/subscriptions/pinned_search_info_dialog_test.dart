@@ -9,7 +9,6 @@ import 'package:boorusama/core/search/subscriptions/src/widgets/pinned_search_in
 import 'package:boorusama/core/search/subscriptions/types.dart';
 import 'package:boorusama/core/settings/providers.dart';
 import 'package:boorusama/core/settings/src/types/settings.dart';
-import 'package:boorusama/core/settings/src/types/search_refresh_settings.dart';
 import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -255,7 +254,7 @@ void main() {
         clock: Clock(() => now),
         fetchPosts: (_, _, _, _) async => Either.of(
           PostResult(
-            posts: additions ? [TestSearchPost(++id, now)] : <Post>[],
+            posts: additions ? [testSearchPost(++id, now)] : <Post>[],
             total: 1,
           ),
         ),

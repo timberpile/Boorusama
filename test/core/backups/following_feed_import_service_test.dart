@@ -337,7 +337,7 @@ void main() {
       );
       final old = saved.copyWith(
         posts: [
-          feedPostSnapshotFromPost(TestSearchPost(42, DateTime.utc(2026))),
+          feedPostSnapshotFromPost(testSearchPost(42, DateTime.utc(2026))),
         ],
       );
       await repository.restoreFeeds('00000000-0000-4000-8000-000000000004', [

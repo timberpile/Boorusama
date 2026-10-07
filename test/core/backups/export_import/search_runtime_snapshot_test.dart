@@ -81,7 +81,7 @@ void main() {
         name: 'Landscapes',
         sourceIds: const ['feed-source'],
         posts: [
-          feedPostSnapshotFromPost(TestSearchPost(100, checkedAt)),
+          feedPostSnapshotFromPost(testSearchPost(100, checkedAt)),
         ],
       ),
     ]);

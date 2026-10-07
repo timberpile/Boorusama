@@ -1,7 +1,6 @@
 // Project imports:
 import '../../../core/posts/post/types.dart';
 import '../../../core/posts/sources/types.dart';
-import 'post_data.dart';
 import 'types.dart';
 
 final class E621PostCodec implements BooruPostDataCodec<E621PostData> {
@@ -60,18 +59,18 @@ final class E621PostCodec implements BooruPostDataCodec<E621PostData> {
       speciesTags: _stringSet(json['speciesTags']),
       invalidTags: _stringSet(json['invalidTags']),
       loreTags: _stringSet(json['loreTags']),
-      upScore: json['upScore'] as int,
-      downScore: json['downScore'] as int,
-      favCount: json['favCount'] as int,
-      isFavorited: json['isFavorited'] as bool,
+      upScore: _required<int>(json['upScore'], 'upScore'),
+      downScore: _required<int>(json['downScore'], 'downScore'),
+      favCount: _required<int>(json['favCount'], 'favCount'),
+      isFavorited: _required<bool>(json['isFavorited'], 'isFavorited'),
       sources: _list(json['sources']).map((value) {
         final map = _map(value);
         return E621PostSourceData(
-          kind: map['kind'] as String,
-          value: map['value'] as String,
+          kind: _required<String>(map['kind'], 'source kind'),
+          value: _required<String>(map['value'], 'source value'),
         );
       }).toList(),
-      description: json['description'] as String,
+      description: _required<String>(json['description'], 'description'),
       videoVariants: _list(json['videoVariants']).map((value) {
         final map = _map(value);
         final type = E621VideoVariantType.tryParse(map['type'] as String?);
@@ -80,12 +79,12 @@ final class E621PostCodec implements BooruPostDataCodec<E621PostData> {
         }
         return E621VideoVariantData(
           type: type,
-          url: map['url'] as String,
-          size: map['size'] as int,
-          width: map['width'] as int,
-          height: map['height'] as int,
-          codec: map['codec'] as String,
-          fps: (map['fps'] as num).toDouble(),
+          url: _required<String>(map['url'], 'video variant url'),
+          size: _required<int>(map['size'], 'video variant size'),
+          width: _required<int>(map['width'], 'video variant width'),
+          height: _required<int>(map['height'], 'video variant height'),
+          codec: _required<String>(map['codec'], 'video variant codec'),
+          fps: _required<num>(map['fps'], 'video variant fps').toDouble(),
         );
       }).toList(),
     );
@@ -124,7 +123,7 @@ E621PostSourceData _sourceData(PostSource source) => switch (source) {
 };
 
 Set<String> _stringSet(Object? value) =>
-    _list(value).map((e) => e as String).toSet();
+    _list(value).map((e) => _required<String>(e, 'string set item')).toSet();
 
 List<Object?> _list(Object? value) => switch (value) {
   final List<Object?> values => values,
@@ -132,6 +131,12 @@ List<Object?> _list(Object? value) => switch (value) {
 };
 
 Map<String, Object?> _map(Object? value) => switch (value) {
-  final Map<String, Object?> map => map,
+  final Map<Object?, Object?> map when map.keys.every((key) => key is String) =>
+    Map<String, Object?>.from(map),
   _ => throw const FormatException('Invalid map'),
+};
+
+T _required<T>(Object? value, String field) => switch (value) {
+  final T value => value,
+  _ => throw FormatException('Invalid e621 $field'),
 };

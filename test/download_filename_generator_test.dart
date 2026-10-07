@@ -29,7 +29,7 @@ void main() {
       final fileName = await builder.generateForBulkDownload(
         Settings.defaultSettings,
         config,
-        _TestPost(format: 'jpg'),
+        _testPost(format: 'jpg'),
         downloadUrl: 'http://127.0.0.1:45869/get_files/file?file_id=42',
       );
 
@@ -40,7 +40,7 @@ void main() {
       final fileName = await builder.generate(
         Settings.defaultSettings,
         config,
-        _TestPost(format: '.png'),
+        _testPost(format: '.png'),
         downloadUrl: 'http://127.0.0.1:45869/get_files/file?file_id=42',
       );
 
@@ -49,7 +49,7 @@ void main() {
   });
 }
 
-Post _TestPost({required String format}) => Post(
+Post _testPost({required String format}) => Post(
   origin: PostOrigin.forBooruType(BooruType.unknown),
   core: PostCoreData(
     id: 42,
@@ -64,7 +64,6 @@ Post _TestPost({required String format}) => Post(
     md5: '0123456789abcdef0123456789abcdef',
     fileSize: 0,
     duration: 0,
-    hasSound: null,
     tags: const {},
     rating: Rating.general,
     hasComment: false,
@@ -72,8 +71,6 @@ Post _TestPost({required String format}) => Post(
     hasParentOrChildren: false,
     source: PostSource.none(),
     score: 0,
-    uploaderId: null,
-    metadata: null,
   ),
   booruData: const EmptyPostData(typeKey: 'test'),
 );

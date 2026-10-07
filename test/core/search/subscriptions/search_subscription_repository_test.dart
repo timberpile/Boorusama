@@ -305,7 +305,7 @@ void main() {
           identityRetentionBoundary: createdAt,
           baseline: true,
           discoveredPosts: const [],
-          feedPosts: [feedPostSnapshotFromPost(TestSearchPost(7, createdAt))],
+          feedPosts: [feedPostSnapshotFromPost(testSearchPost(7, createdAt))],
         ),
       );
       await box.close();
@@ -389,7 +389,7 @@ void main() {
               feedPosts: [
                 for (var i = 0; i < 50; i++)
                   feedPostSnapshotFromPost(
-                    TestSearchPost(
+                    testSearchPost(
                       batch * 50 + i,
                       createdAt.add(Duration(seconds: batch * 50 + i)),
                     ),
@@ -480,7 +480,7 @@ void main() {
         identityRetentionBoundary: createdAt,
         baseline: true,
         discoveredPosts: [preview(5, createdAt)],
-        feedPosts: [feedPostSnapshotFromPost(TestSearchPost(5, createdAt))],
+        feedPosts: [feedPostSnapshotFromPost(testSearchPost(5, createdAt))],
       );
       await repository.commitRefresh(oldCommit);
       await repository.recordRefreshFailure(

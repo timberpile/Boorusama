@@ -9,7 +9,6 @@ import 'package:i18n/i18n.dart';
 import '../../../core/configs/config/types.dart';
 import '../../../core/downloads/filename/types.dart';
 import '../../../core/downloads/urls/types.dart';
-import '../../../core/posts/post/types.dart';
 import '../posts/types.dart';
 import '../tag_summary/repo.dart';
 import '../tags/providers.dart';

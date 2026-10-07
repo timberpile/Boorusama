@@ -19,8 +19,8 @@ void main() {
       () async {
         final requests = <(int, int)>[];
         final posts = [
-          TestSearchPost(2, uploadedAt),
-          TestSearchPost(1, uploadedAt),
+          testSearchPost(2, uploadedAt),
+          testSearchPost(1, uploadedAt),
         ];
         final result = await ChronologicalSearchScanner().scanSnapshot(
           fetchPage: (page, limit) async {
@@ -45,8 +45,8 @@ void main() {
     'limits processing when a server returns more than the requested budget',
     () async {
       final posts = [
-        for (var id = 100; id > 0; id--) TestSearchPost(id, uploadedAt),
-        TestSearchPost(0, null),
+        for (var id = 100; id > 0; id--) testSearchPost(id, uploadedAt),
+        testSearchPost(0, null),
       ];
       final result = await ChronologicalSearchScanner().scanSnapshot(
         fetchPage: (_, _) async => Either.right(posts.toResult()),
@@ -59,8 +59,8 @@ void main() {
 
   test('keeps distinct posts with equal timestamps in a snapshot', () async {
     final posts = [
-      TestSearchPost(2, uploadedAt),
-      TestSearchPost(1, uploadedAt),
+      testSearchPost(2, uploadedAt),
+      testSearchPost(1, uploadedAt),
     ];
     final result = await ChronologicalSearchScanner().scanSnapshot(
       fetchPage: (_, _) async =>
@@ -72,15 +72,15 @@ void main() {
   test('rejects a snapshot with an unknown upload time', () async {
     final result = await ChronologicalSearchScanner().scanSnapshot(
       fetchPage: (_, _) async =>
-          Either.right([TestSearchPost(1, null)].toResult()),
+          Either.right([testSearchPost(1, null)].toResult()),
     );
     expect(result, const FailedSearchScan(SearchRefreshErrorKind.unsupported));
   });
 
   test('keeps site order when upload timestamps differ slightly', () async {
     final posts = [
-      TestSearchPost(2, uploadedAt),
-      TestSearchPost(1, uploadedAt.add(const Duration(seconds: 1))),
+      testSearchPost(2, uploadedAt),
+      testSearchPost(1, uploadedAt.add(const Duration(seconds: 1))),
     ];
     expect(
       await ChronologicalSearchScanner().scanSnapshot(
@@ -92,8 +92,8 @@ void main() {
 
   test('keeps posts with upload times in different timezones', () async {
     final posts = [
-      TestSearchPost(2, DateTime.parse('2026-09-14T12:00:00+02:00')),
-      TestSearchPost(1, DateTime.parse('2026-09-14T11:00:00+02:00')),
+      testSearchPost(2, DateTime.parse('2026-09-14T12:00:00+02:00')),
+      testSearchPost(1, DateTime.parse('2026-09-14T11:00:00+02:00')),
     ];
     expect(
       await ChronologicalSearchScanner().scanSnapshot(

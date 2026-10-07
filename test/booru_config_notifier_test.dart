@@ -494,7 +494,7 @@ void main() {
               name: 'Artists',
               sourceIds: const ['source'],
               posts: [
-                feedPostSnapshotFromPost(TestSearchPost(5, checkedAt)),
+                feedPostSnapshotFromPost(testSearchPost(5, checkedAt)),
               ],
             ),
           ],

@@ -15,7 +15,6 @@ import '../client_provider.dart';
 import '../post_votes/providers.dart';
 import '../tags/providers.dart';
 import 'parser.dart';
-import 'types.dart';
 
 final szurubooruPostRepoProvider =
     Provider.family<PostRepository<Post>, BooruConfigSearch>(

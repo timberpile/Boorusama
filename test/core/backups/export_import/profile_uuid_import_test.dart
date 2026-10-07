@@ -32,7 +32,7 @@ void main() {
         profileResolution: ResolvedImportSource(
           id: 'profiles',
           action: ImportAction.configureItems,
-          items: [
+          items: const [
             ResolvedImportItem(
               id: 'profile:$sourceId',
               action: ImportAction.copy,

@@ -54,7 +54,7 @@ void main() {
             parent,
             () => transformPosts(
               ref,
-              [TestSearchPost(1, DateTime.utc(2026))].toResult(),
+              [testSearchPost(1, DateTime.utc(2026))].toResult(),
               config.search,
             ),
           ),

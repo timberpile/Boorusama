@@ -13,7 +13,6 @@ import '../../core/posts/post/types.dart';
 import '../../core/tags/autocompletes/types.dart';
 import '../../core/tags/tag/types.dart';
 import 'posts/post_codec.dart';
-import 'posts/post_data.dart';
 import 'posts/providers.dart';
 import 'posts/types.dart';
 import 'tags/providers.dart';

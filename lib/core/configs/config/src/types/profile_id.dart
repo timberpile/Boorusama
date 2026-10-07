@@ -10,8 +10,8 @@ bool isCanonicalProfileId(Object? value) =>
     value is String && _profileIdPattern.hasMatch(value);
 
 String readProfileId(Object? value, {String field = 'profile ID'}) {
-  if (!isCanonicalProfileId(value)) {
+  if (value is! String || !isCanonicalProfileId(value)) {
     throw FormatException('Invalid $field');
   }
-  return value as String;
+  return value;
 }

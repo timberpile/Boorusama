@@ -288,7 +288,7 @@ void main() {
     final harness = createHarness(
       fetch: (query, _, _) async => Either.of(
         PostResult(
-          posts: [TestSearchPost(query == 'a' ? 1 : 2, checkedAt)],
+          posts: [testSearchPost(query == 'a' ? 1 : 2, checkedAt)],
           total: 1,
         ),
       ),
@@ -324,7 +324,7 @@ void main() {
       final harness = createHarness(
         fetch: (query, _, _) async => Either.of(
           PostResult(
-            posts: [TestSearchPost(query == 'a' ? 1 : 2, checkedAt)],
+            posts: [testSearchPost(query == 'a' ? 1 : 2, checkedAt)],
             total: 1,
           ),
         ),
