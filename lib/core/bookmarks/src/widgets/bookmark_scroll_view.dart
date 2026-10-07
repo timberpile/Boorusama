@@ -324,10 +324,12 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                         ? ConfigAwareWebsiteLogo.fromBooruType(
                             post.origin.booruType,
                             post.origin.sourceHost,
+                            fit: BoxFit.contain,
                           )
                         : ConfigAwareWebsiteLogo.fromConfig(
                             config.auth,
                             customIconUrl: config.profileIcon?.url,
+                            fit: BoxFit.contain,
                           ),
                   ),
                 ],

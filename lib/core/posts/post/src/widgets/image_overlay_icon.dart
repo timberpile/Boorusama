@@ -2,6 +2,8 @@
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 
+import 'thumbnail_overlay.dart';
+
 class ImageOverlayIcon extends StatelessWidget {
   const ImageOverlayIcon({
     required this.icon,
@@ -17,8 +19,8 @@ class ImageOverlayIcon extends StatelessWidget {
     final colors = Kurumi.semanticColorsOf(context);
 
     return Container(
-      width: 24,
-      height: 24,
+      width: ThumbnailOverlayDimensions.extent,
+      height: ThumbnailOverlayDimensions.extent,
       decoration: BoxDecoration(
         color: colors.overlayDim,
         borderRadius: const BorderRadius.all(Radius.circular(4)),
@@ -26,7 +28,7 @@ class ImageOverlayIcon extends StatelessWidget {
       child: Icon(
         icon,
         color: colors.onOverlayDim,
-        size: size ?? 18,
+        size: size ?? ThumbnailOverlayDimensions.icon,
         weight: 700,
       ),
     );

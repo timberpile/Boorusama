@@ -31,12 +31,14 @@ class WebsiteLogo extends ConsumerWidget {
     super.key,
     this.size = kFaviconSize,
     this.cacheManager,
+    this.fit = BoxFit.cover,
   });
 
   final String? url;
   final double size;
   final Dio dio;
   final ImageCacheManager? cacheManager;
+  final BoxFit fit;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -57,7 +59,7 @@ class WebsiteLogo extends ConsumerWidget {
           url,
           dio: dio,
           clearMemoryCacheIfFailed: false,
-          fit: BoxFit.cover,
+          fit: fit,
           fetchStrategy: const FetchStrategyBuilder(
             maxAttempts: 1,
             timeout: Duration(seconds: 5),

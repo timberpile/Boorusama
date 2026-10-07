@@ -9,6 +9,7 @@ import '../../../../../core/configs/config/types.dart';
 import '../../../../../core/posts/details_parts/src/details_ui_builder.dart';
 import '../../../../../core/posts/listing/widgets.dart';
 import '../../../../../core/posts/post/types.dart';
+import '../../../../../core/posts/post/src/widgets/thumbnail_overlay.dart';
 import '../../../../../core/posts/sources/types.dart';
 import '../../../../../foundation/clipboard.dart';
 import '../../../../../foundation/url_launcher.dart';
@@ -121,9 +122,11 @@ final class DanbooruPostGridPresentation
               mainAxisSize: MainAxisSize.min,
               children: [
                 switch (post.source) {
-                  final WebSource source => ConfigAwareWebsiteLogo(
-                    size: 18,
-                    url: source.url,
+                  final WebSource source => ThumbnailOverlayBox(
+                    child: ConfigAwareWebsiteLogo(
+                      url: source.url,
+                      fit: BoxFit.contain,
+                    ),
                   ),
                   _ => const SizedBox.shrink(),
                 },

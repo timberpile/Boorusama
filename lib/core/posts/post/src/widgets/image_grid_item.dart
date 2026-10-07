@@ -11,6 +11,7 @@ import '../../../../themes/theme/types.dart';
 import '../../../../videos/player/widgets.dart';
 import '../../../../widgets/widgets.dart';
 import 'image_overlay_icon.dart';
+import 'thumbnail_overlay.dart';
 
 class AutoScrollOptions {
   const AutoScrollOptions({
@@ -108,11 +109,12 @@ class ImageGridItem extends StatelessWidget {
         child: Wrap(
           spacing: 1,
           children: [
-            ...?leadingIcons,
+            for (final icon in leadingIcons ?? <Widget>[])
+              ThumbnailOverlayBox(child: icon),
             if (isGif)
               const ImageOverlayIcon(
                 icon: Symbols.gif,
-                size: 24,
+                size: ThumbnailOverlayDimensions.extent,
               )
             else if (isAnimated ?? false)
               if (duration == null || duration < 0)
@@ -133,24 +135,23 @@ class ImageGridItem extends StatelessWidget {
             if (isAI)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6),
-                height: 24,
+                height: ThumbnailOverlayDimensions.extent,
                 decoration: BoxDecoration(
                   color: context.extendedColorScheme.surfaceContainerOverlayDim,
                   borderRadius: const BorderRadius.all(Radius.circular(4)),
                 ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      'AI',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w800,
-                        color: context
-                            .extendedColorScheme
-                            .onSurfaceContainerOverlayDim,
-                      ),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    'AI',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: context
+                          .extendedColorScheme
+                          .onSurfaceContainerOverlayDim,
                     ),
-                  ],
+                  ),
                 ),
               ),
           ],
