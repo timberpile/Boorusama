@@ -2,19 +2,29 @@
 
 ## Isolation and scope
 
-Before changing repository files, create a dedicated branch/worktree from
-current local `develop`:
+Before changing repository files, create or reuse an isolated task worktree.
+For a new task, run (based on current local `develop`):
 
 ```bash
-git worktree add -b <prefix>/<slug> .worktrees/<slug> develop
+python3 scripts/agent_worktree.py create <task-slug>
 ```
 
-Choose a concise task slug and appropriate prefix: `feature/`, `fix/`, `docs/`,
-`refactor/`, or `chore/`. Continue an existing worktree for the same task; never
-reuse it for unrelated work. Make all changes and run verification there.
+Perform all implementation and verification inside the reported worktree.
+If the expected task worktree may already exist, inspect it first:
+
+```bash
+python3 scripts/agent_worktree.py status <task-slug>
+```
+
+Continue an existing worktree for the same task; never reuse it for unrelated work.
 Do not edit, switch, stash, or reset the user's primary checkout.
 
-Keep changes within the request; avoid unrelated cleanup. Commits, integration,
+Keep changes within the request; avoid unrelated cleanup. Local work and commits
+on the agent's own isolated task branch/worktree are explicitly authorized as
+part of the requested task; no separate approval is needed unless the user says
+otherwise.
+
+Merging or integrating changes, modifying `develop` or any other branch/worktree,
 publication, remote changes, and branch/worktree cleanup require explicit user
 authorization. Use `gh` and explicitly target `timberpile/Boorusama`; provide
 manual instructions for other repositories.
