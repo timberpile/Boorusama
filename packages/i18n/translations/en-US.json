@@ -26,6 +26,10 @@
     "backup_import_skipped": "Imported {count} following feeds; {existing} already existed. Skipped {skipped} feeds because their profile was missing or ambiguous."
   },
   "pinned_searches": {
+    "refresh_in": "in $duration",
+    "name_line": "Name: $name",
+    "last_attempt_succeeded": "Last attempt: $date · Succeeded",
+    "last_attempt_failed": "Last attempt: $date · Failed · $message",
     "current_refresh_interval": "Refresh interval: {value}",
     "interval_adaptive": "Adaptive · {duration}",
     "interval_fixed": "Fixed · {duration}",

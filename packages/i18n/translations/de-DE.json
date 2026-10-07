@@ -1,5 +1,12 @@
 {
   "pinned_searches": {
+    "refresh_in": "in $duration",
+    "name_line": "Name: $name",
+    "query_line": "Suchanfrage: $query",
+    "last_attempt_succeeded": "Letzter Versuch: $date · Erfolgreich",
+    "last_attempt_failed": "Letzter Versuch: $date · Fehlgeschlagen · $message",
+    "error_network": "Verbindung fehlgeschlagen. Versuche erneut zu aktualisieren.",
+    "error_unsupported": "Die Erkennung neuer Beiträge wird für diese Suche nicht unterstützt.",
     "current_refresh_interval": "Aktualisierungsintervall: {value}",
     "interval_adaptive": "Adaptiv · {duration}",
     "interval_fixed": "Fest · {duration}",

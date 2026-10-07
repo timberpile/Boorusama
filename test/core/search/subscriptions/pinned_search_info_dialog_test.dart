@@ -10,6 +10,7 @@ import 'package:boorusama/core/search/subscriptions/types.dart';
 import 'package:boorusama/core/settings/providers.dart';
 import 'package:boorusama/core/settings/src/types/settings.dart';
 import 'package:clock/clock.dart';
+import 'package:timeago/timeago.dart' as timeago;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:foundation/foundation.dart';
@@ -24,11 +25,16 @@ void main() {
     String query = 'cat',
     String profileId = '00000000-0000-4000-8000-00000000000c',
     bool checked = true,
+    String? name = 'Cats',
+    DateTime? attemptedAt,
+    SearchRefreshErrorKind? error,
   }) => SearchSubscription(
     id: 'cats',
     profileId: profileId,
     query: query,
-    name: 'Cats',
+    name: name,
+    lastAttemptAt: attemptedAt,
+    lastErrorKind: error,
     position: 0,
     createdAt: created,
     lastSuccessfulCheckAt: checked ? created : null,
@@ -80,6 +86,152 @@ void main() {
     return observed;
   }
 
+  for (final name in <String?>[null, 'Cats', 'cat']) {
+    testWidgets('Info labels stored query and explicit name $name', (
+      tester,
+    ) async {
+      final harness = PinnedSearchHarness();
+      addTearDown(harness.dispose);
+      await tester.runAsync(() async {
+        await harness.seed([source(name: name, checked: false)]);
+        await harness.container.read(searchSubscriptionsProvider.future);
+      });
+      await mount(tester, harness);
+      expect(find.text('Query: cat'), findsOneWidget);
+      expect(
+        find.textContaining('Name:'),
+        name == null ? findsNothing : findsOneWidget,
+      );
+      if (name != null) expect(find.text('Name: $name'), findsOneWidget);
+      expect(find.text('cat'), findsNothing);
+      expect(find.textContaining('Last attempt:'), findsNothing);
+      expect(find.textContaining('Succeeded'), findsNothing);
+      expect(find.textContaining('Failed'), findsNothing);
+      expect(find.text('Never checked'), findsOneWidget);
+    });
+  }
+
+  for (final error in <SearchRefreshErrorKind?>[
+    null,
+    ...SearchRefreshErrorKind.values,
+  ]) {
+    testWidgets(
+      'Info shows last outcome $error and separate successful history',
+      (
+        tester,
+      ) async {
+        final harness = PinnedSearchHarness();
+        addTearDown(harness.dispose);
+        final attempted = created.add(const Duration(days: 1));
+        await tester.runAsync(() async {
+          await harness.seed([source(attemptedAt: attempted, error: error)]);
+          await harness.container.read(searchSubscriptionsProvider.future);
+        });
+        await mount(tester, harness);
+        final context = tester.element(find.byType(PinnedSearchInfoDialog));
+        final strings = context.t.pinned_searches;
+        final message = switch (error) {
+          SearchRefreshErrorKind.network => strings.error_network,
+          SearchRefreshErrorKind.authentication => strings.error_authentication,
+          SearchRefreshErrorKind.query => strings.error_query,
+          SearchRefreshErrorKind.pagination => strings.error_pagination,
+          SearchRefreshErrorKind.parsing => strings.error_parsing,
+          SearchRefreshErrorKind.unsupported => strings.error_unsupported,
+          SearchRefreshErrorKind.other => strings.error_other,
+          SearchRefreshErrorKind.tagLimit => strings.error_tag_limit,
+          SearchRefreshErrorKind.rateLimited => strings.error_rate_limited,
+          null => null,
+        };
+        String date(DateTime value) => timeago.format(
+          value.toLocal(),
+          locale: context.locale.toLanguageTag(),
+          clock: clock.now().toLocal(),
+        );
+        expect(find.text('Last checked: ${date(created)}'), findsOneWidget);
+        expect(
+          find.text(
+            'Last attempt: ${date(attempted)} · ${message == null ? 'Succeeded' : 'Failed · $message'}',
+          ),
+          findsOneWidget,
+        );
+        expect(find.textContaining('Message:'), findsNothing);
+      },
+    );
+  }
+
+  testWidgets('open Info clears failure after a real successful refresh', (
+    tester,
+  ) async {
+    var now = created.add(const Duration(days: 2));
+    var fail = true;
+    final harness = PinnedSearchHarness(
+      clock: Clock(() => now),
+      fetchPosts: (_, _, _, _) async => fail
+          ? Either.left(
+              UnknownError(error: 'test failure', message: 'test failure'),
+            )
+          : Either.of(const PostResult(posts: <Post>[], total: 0)),
+    );
+    addTearDown(harness.dispose);
+    await tester.runAsync(() async {
+      await harness.seed([source()]);
+      await harness.container.read(searchSubscriptionsProvider.future);
+    });
+    await mount(tester, harness);
+    final notifier = harness.container.read(
+      searchSubscriptionsProvider.notifier,
+    );
+    await settleOperation(tester, notifier.refresh('cats'));
+    await tester.pump();
+    expect(
+      find.textContaining('Failed · Could not refresh this search. Try again.'),
+      findsOneWidget,
+    );
+    fail = false;
+    now = now.add(const Duration(hours: 1));
+    await settleOperation(tester, notifier.refresh('cats'));
+    await tester.pump();
+    expect(find.textContaining('Succeeded'), findsOneWidget);
+    expect(find.textContaining('Failed'), findsNothing);
+    expect(find.textContaining('Could not refresh'), findsNothing);
+    final saved = (await harness.repository.getAll()).single;
+    expect(saved.lastErrorKind, isNull);
+    expect(saved.lastSuccessfulCheckAt, now);
+    expect(saved.lastAttemptAt, now);
+  });
+
+  testWidgets('Info relative history updates with its minute pulse', (
+    tester,
+  ) async {
+    var now = created.add(const Duration(minutes: 30));
+    final testClock = Clock(() => now);
+    final harness = PinnedSearchHarness(clock: testClock);
+    addTearDown(harness.dispose);
+    await tester.runAsync(() async {
+      await harness.seed([
+        source(attemptedAt: created.add(const Duration(minutes: 10))),
+      ]);
+      await harness.container.read(searchSubscriptionsProvider.future);
+    });
+    await withClock(testClock, () async {
+      await mount(tester, harness);
+      expect(find.text('Last checked: 30 minutes ago'), findsOneWidget);
+      expect(
+        find.text('Last attempt: 20 minutes ago · Succeeded'),
+        findsOneWidget,
+      );
+      now = now.add(const Duration(minutes: 1));
+      await tester.pump(const Duration(minutes: 1));
+      expect(find.text('Last checked: 31 minutes ago'), findsOneWidget);
+      expect(
+        find.text('Last attempt: 21 minutes ago · Succeeded'),
+        findsOneWidget,
+      );
+      expect(harness.requests, isEmpty);
+      await tester.pumpWidget(const SizedBox());
+    });
+  });
+
   for (final unrelatedDue in [false, true]) {
     testWidgets(
       'automatic cooldown survives next-minute ${unrelatedDue ? "unrelated" : "empty"} plans in open Info',
@@ -130,7 +282,7 @@ void main() {
           expect(harness.box.mutationCount, writes);
           await mount(tester, harness);
           expect(
-            find.text('Next refresh: 30 minutes from now'),
+            find.text('Next refresh: in 30 minutes'),
             findsOneWidget,
           );
           expect(find.text('Waiting for the site rate limit.'), findsOneWidget);
@@ -146,7 +298,7 @@ void main() {
               {'cats': retryAt},
             );
             expect(
-              find.text('Next refresh: $remainingMinutes minutes from now'),
+              find.text('Next refresh: in $remainingMinutes minutes'),
               findsOneWidget,
             );
             expect(
@@ -188,8 +340,8 @@ void main() {
   for (final example in [
     (
       locale: 'en-US',
-      initial: 'Next refresh: 30 minutes from now',
-      afterMinute: 'Next refresh: 29 minutes from now',
+      initial: 'Next refresh: in 30 minutes',
+      afterMinute: 'Next refresh: in 29 minutes',
       due: 'Next refresh: Due now',
       note:
           'Automatic checks run while the app is open; checks may start later.',
@@ -293,7 +445,7 @@ void main() {
         );
         await tester.pump();
         expect(find.text('Refresh interval: Adaptive · 1 day'), findsOneWidget);
-        expect(find.text('new-cat'), findsOneWidget);
+        expect(find.text('Query: new-cat'), findsOneWidget);
         additions = false;
         for (final label in ['1 day', '2 days']) {
           await settleOperation(
@@ -440,7 +592,7 @@ void main() {
       deferred.clear();
       await withClock(Clock.fixed(now), () async {
         await mount(tester, harness);
-        expect(find.text('Next refresh: 2 hours from now'), findsOneWidget);
+        expect(find.text('Next refresh: in 2 hours'), findsOneWidget);
         expect(find.textContaining('Due now'), findsNothing);
         expect(find.text('Paused: battery saver is active'), findsOneWidget);
         expect(find.text('Waiting for the site rate limit.'), findsOneWidget);
@@ -461,6 +613,8 @@ void main() {
           await harness.seed([
             source(
               state: const AdaptiveRefreshState(interval: Duration(hours: 84)),
+              attemptedAt: created.add(const Duration(days: 1)),
+              error: SearchRefreshErrorKind.unsupported,
             ),
           ]);
           await harness.container.read(searchSubscriptionsProvider.future);

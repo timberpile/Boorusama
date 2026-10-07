@@ -15,6 +15,7 @@ import '../providers/search_refresh_coordinator.dart';
 import '../providers/search_subscriptions_notifier.dart';
 import '../refresh/search_refresh_query_adapter.dart';
 import '../services/conservative_refresh_policy.dart';
+import 'search_refresh_error_text.dart';
 
 class PinnedSearchInfoDialog extends ConsumerWidget {
   const PinnedSearchInfoDialog({required this.subscriptionId, super.key});
@@ -40,12 +41,6 @@ class PinnedSearchInfoDialog extends ConsumerWidget {
               ?.searchRefreshQueryAdapter(profile.auth);
     final supported =
         source != null && supportsSearchRefreshQuery(adapter, source.query);
-    final localizations = MaterialLocalizations.of(context);
-    String date(DateTime value) {
-      final local = value.toLocal();
-      return '${localizations.formatMediumDate(local)} ${localizations.formatTimeOfDay(TimeOfDay.fromDateTime(local))}';
-    }
-
     String duration(Duration value) {
       final parts = <String>[];
       final days = value.inDays;
@@ -67,6 +62,11 @@ class PinnedSearchInfoDialog extends ConsumerWidget {
               updateInterval: const Duration(minutes: 1),
               builder: (context, _) {
                 final now = clock.now();
+                String date(DateTime value) => timeago.format(
+                  value.toLocal(),
+                  locale: context.locale.toLanguageTag(),
+                  clock: now.toLocal(),
+                );
                 final cooldown = status.deferredUntilById[source.id];
                 final timing = conservativeRefreshTiming(
                   source: RefreshSourceCandidate(
@@ -96,11 +96,17 @@ class PinnedSearchInfoDialog extends ConsumerWidget {
                     : !settings.pinnedSearchesEnabled
                     ? strings.refresh_not_scheduled_scope
                     : now.isBefore(timing.eligibleAt)
-                    ? timeago.format(
-                        timing.eligibleAt.toLocal(),
-                        locale: context.locale.toLanguageTag(),
-                        clock: now.toLocal(),
-                        allowFromNow: true,
+                    ? strings.refresh_in(
+                        duration: duration(
+                          Duration(
+                            minutes:
+                                (timing.eligibleAt
+                                            .difference(now)
+                                            .inMilliseconds /
+                                        Duration.millisecondsPerMinute)
+                                    .ceil(),
+                          ),
+                        ),
                       )
                     : strings.refresh_due_now;
                 final mode = settings.mode == SearchRefreshMode.adaptive
@@ -119,8 +125,9 @@ class PinnedSearchInfoDialog extends ConsumerWidget {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(source.displayName),
-                    Text(source.query),
+                    if (source.name case final name?)
+                      Text(strings.name_line(name: name)),
+                    Text(strings.query_line(query: source.query)),
                     const SizedBox(height: 16),
                     Text(
                       source.lastSuccessfulCheckAt == null
@@ -132,10 +139,15 @@ class PinnedSearchInfoDialog extends ConsumerWidget {
                     ),
                     if (source.lastAttemptAt case final attempted?)
                       Text(
-                        strings.last_attempt.replaceAll(
-                          '{date}',
-                          date(attempted),
-                        ),
+                        switch (source.lastErrorKind) {
+                          final kind? => strings.last_attempt_failed(
+                            date: date(attempted),
+                            message: searchRefreshErrorText(context, kind),
+                          ),
+                          null => strings.last_attempt_succeeded(
+                            date: date(attempted),
+                          ),
+                        },
                       ),
                     const SizedBox(height: 16),
                     Text(
