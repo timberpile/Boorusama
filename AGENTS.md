@@ -25,9 +25,20 @@ part of the requested task; no separate approval is needed unless the user says
 otherwise.
 
 Merging or integrating changes, modifying `develop` or any other branch/worktree,
-publication, remote changes, and branch/worktree cleanup require explicit user
-authorization. Use `gh` and explicitly target `timberpile/Boorusama`; provide
-manual instructions for other repositories.
+publication, and remote changes require explicit user authorization. Use `gh`
+and explicitly target `timberpile/Boorusama`; provide manual instructions for
+other repositories.
+
+After successful, verified integration of a completed task into local `develop`,
+automatically remove that task's local worktree and branch; integration approval
+authorizes this cleanup without another confirmation unless the user asks to
+retain them. First confirm that all task changes are integrated, the worktree is
+clean (including untracked/ignored files), and no pending work or needed artifacts
+remain. Remove only known disposable task-generated files; retain anything
+uncertain. For squash integration, verify patch/tree equivalence rather than relying
+on ancestry alone. Never force-remove a worktree. Delete only the exact completed
+task's local branch/worktree; other cleanup and remote deletion require explicit
+authorization.
 
 ## Workflow selection
 

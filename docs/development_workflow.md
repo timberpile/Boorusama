@@ -1,8 +1,11 @@
 # Development workflow
 
 Follow [AGENTS.md](../AGENTS.md) for ordinary implementation. This file covers
-integration, publication, and branch history. These actions require explicit
-user authorization; implementation approval does not authorize a push or cleanup.
+integration, publication, and branch history. Integration and publication require
+explicit user authorization; implementation approval does not authorize a push.
+Verified integration of a completed task authorizes automatic cleanup of that
+task's local branch/worktree as specified in `AGENTS.md`; other cleanup requires
+explicit authorization.
 
 ## Integration
 
@@ -78,10 +81,17 @@ A release PR behind `master` needs this synchronization before its checks rerun.
   merges and release-history merges are allowed.
 - Direct commits/pushes, force pushes, and deletion of `master` are prohibited,
   including for administrators. Promotion is through the approved release PR.
-- Before authorized cleanup, verify the integrated result and that no needed
-  work remains. Never force-remove a dirty worktree or discard unmerged work.
-  Squash merging does not make task commits ancestors of `develop`; force-delete
-  only the exact verified branch when normal deletion refuses.
+- After successful, verified integration of a completed task into local `develop`,
+  automatically remove its local worktree and branch unless the user asks to
+  retain them. Verify the integrated result, cleanliness (including untracked and
+  ignored files), and that no pending work or needed artifacts remain. Preserve
+  unfinished work and unrelated branches/worktrees; never force-remove a worktree.
+  Use the helper for matching `agent/<slug>` worktrees, or `git worktree remove`
+  with the exact registered path for older task branches. Delete the exact local
+  branch with `git branch -d`. Squash merging does not make task commits ancestors
+  of `develop`; if normal deletion refuses, force-delete only after verifying
+  patch/tree equivalence and that no unintegrated commits remain. Remote branch
+  deletion and other cleanup still require explicit authorization.
 
 ## Issue descriptions
 
