@@ -19,7 +19,7 @@ Das Update einer bestehenden Bookmark-Gruppe übernimmt aktuell auch den importi
 
 2026-10-05: Nutzer hat ausdrücklich ausschließlich Inhaltsänderungen bei Bookmark group Update verlangt; alle übrigen Importaktionen passen so.
 
-Einstiegspunkte: `lib/core/backups/sources/bookmark_import_service.dart` und `lib/core/backups/export_import/import/import_planned_change_projector.dart`. Zusammenhang mit [virtueller Gruppendarstellung](../ready/IDEA-015-nested-bookmark-search-feed-folders.md) und [kompakter Importvorschau](../ready/DATA-015-compact-import-change-preview.md).
+Einstiegspunkte: `lib/core/backups/sources/bookmark_import_service.dart` und `lib/core/backups/export_import/import/import_planned_change_projector.dart`. Zusammenhang mit [virtueller Gruppendarstellung](../ready/IDEA-015-nested-bookmark-search-feed-folders.md) und [kompakter Importvorschau](../in-progress/DATA-015-compact-import-change-preview.md).
 
 Akzeptanzkriterien nach unabhängiger Prüfung verifiziert; lokale Integration vom Nutzer freigegeben. Vor Umsetzung [Entwicklungsworkflow](../../development_workflow.md) und [Engineering Guidelines](../../engineering_guidelines.md) beachten.
 
