@@ -991,6 +991,7 @@
         "invalid_export_description": "The file is invalid, incomplete, or uses an unsupported format.",
         "choose_another_export": "Choose another export",
         "export_failed": "The export could not be created: {error}",
+        "save_failed": "Could not save the export to this folder. Choose another folder and try again.",
         "saved": "Export saved",
         "copied": "Export copied to the clipboard",
         "no_data_selected": "Choose at least one data category.",

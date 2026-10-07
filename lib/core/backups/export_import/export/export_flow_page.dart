@@ -7,6 +7,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../../../foundation/filesystem.dart';
 import '../../../../foundation/picker.dart';
+import '../../../../foundation/platform.dart';
 import '../clipboard/export_clipboard_service.dart';
 import '../models/export_selection.dart';
 import '../models/export_item_presentation.dart';
@@ -17,6 +18,7 @@ import '../widgets/import_recommendation_tree.dart';
 import '../widgets/selection_tree.dart';
 import '../widgets/private_export_confirmation.dart';
 import 'export_filename.dart';
+import 'export_save_service.dart';
 import 'export_flow_notifier.dart';
 
 final exportClipboardServiceProvider = Provider<ExportClipboardService>((ref) {
@@ -568,7 +570,28 @@ class _ExportReady extends ConsumerWidget {
     );
   }
 
-  Future<void> _save(BuildContext context, WidgetRef ref, String source) {
+  Future<void> _save(BuildContext context, WidgetRef ref, String source) async {
+    if (isAndroid()) {
+      try {
+        final saved = await ref
+            .read(androidExportSaveServiceProvider)
+            .save(source);
+        if (saved && context.mounted) {
+          Kurumi.showSuccessToast(
+            context,
+            context.t.settings.backup_and_restore.export_import.saved,
+          );
+        }
+      } catch (_) {
+        if (context.mounted) {
+          Kurumi.showErrorToast(
+            context,
+            context.t.settings.backup_and_restore.export_import.save_failed,
+          );
+        }
+      }
+      return;
+    }
     return pickDirectoryPathToastOnError(
       context: context,
       onPick: (directory) async {
