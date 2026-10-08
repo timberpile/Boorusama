@@ -158,3 +158,20 @@ Local commit requested by the user. No integration or publication was performed.
 - Android/Maestro validation remains pending. The ticket stays in `in-progress`
   and its task worktree/branch are retained for that follow-up. No push or other
   remote publication was requested or performed.
+
+## User-approved completion and cleanup (2026-10-08)
+
+- The user explicitly requested moving this integrated work item to `done` and
+  deleting its remaining local task worktree and branch. This supersedes the
+  earlier decision to retain them for device validation.
+- Local `develop` commit `5fa9ff79fd41b87999f3cdcda4074a55a7f4ff03` contains
+  the final implementation. Every implementation, test, and other task path
+  changed on the task branch matches the integrated tree exactly; only this
+  ticket's later integration note differs. No implementation work remains.
+- Prior focused tests and analysis are recorded above. Android/Maestro device
+  validation was not performed and remains unverified; the final acceptance
+  checkbox is intentionally left unchecked. Closure is at the user's request,
+  without representing that check as passed.
+- The original worktree has no tracked or untracked changes. Its ignored files
+  are disposable Flutter/Dart build, dependency, and generated outputs.
+- This completion correction is integrated locally; no remote publication.
