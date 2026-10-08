@@ -17,6 +17,7 @@ import '../providers/settings_provider.dart';
 import '../types/settings.dart';
 import '../widgets/settings_page_scaffold.dart';
 import '../widgets/storage_segment_bar.dart';
+import 'bookmark_maintenance_page.dart';
 
 final diskSpaceProvider = Provider.autoDispose<CacheSizeInfo>((
   ref,
@@ -63,6 +64,15 @@ class _DataAndStoragePageState extends ConsumerState<DataAndStoragePage> {
       children: [
         _buildDiskSpace(),
         _buildCacheSection(settings, notifier),
+        ListTile(
+          title: Text(context.t.bookmark.maintenance.advanced),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => const AdvancedDataSettingsPage(),
+            ),
+          ),
+        ),
       ],
     );
   }

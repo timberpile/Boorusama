@@ -5,6 +5,7 @@ import 'dart:convert';
 // Package imports:
 import 'package:dio/dio.dart';
 import '../coordination/coordinated_dio.dart';
+import '../coordination/api_request_context.dart';
 
 // Project imports:
 import '../../../../ddos/handler/types.dart';
@@ -47,7 +48,8 @@ class DioProtectionInterceptor extends Interceptor {
     Response response,
     ResponseInterceptorHandler handler,
   ) async {
-    if (_isProtectionRetry(response.requestOptions) ||
+    if (_isBulkTransfer(response.requestOptions) ||
+        _isProtectionRetry(response.requestOptions) ||
         !isApiSafeRead(response.requestOptions) ||
         response.statusCode == 429) {
       return super.onResponse(response, handler);
@@ -78,7 +80,8 @@ class DioProtectionInterceptor extends Interceptor {
     DioException err,
     ErrorInterceptorHandler handler,
   ) async {
-    if (_isProtectionRetry(err.requestOptions) ||
+    if (_isBulkTransfer(err.requestOptions) ||
+        _isProtectionRetry(err.requestOptions) ||
         !isApiSafeRead(err.requestOptions) ||
         err.response?.statusCode == 429) {
       return handler.next(err);
@@ -141,6 +144,12 @@ class DioProtectionInterceptor extends Interceptor {
     if (cancellation != null) throw cancellation;
     if (cancelToken.isCancelled) throw cancelToken.cancelError!;
   }
+
+  // Maintenance uses existing cookies but must leave interactive verification
+  // to a normal browsing action rather than solve or replay challenges itself.
+  bool _isBulkTransfer(RequestOptions options) =>
+      apiRequestContextFor(options).requestClass ==
+      ApiRequestClass.bulkTransfer;
 
   bool _isProtectionRetry(RequestOptions options) =>
       options.extra[_protectionRetryKey] == true;

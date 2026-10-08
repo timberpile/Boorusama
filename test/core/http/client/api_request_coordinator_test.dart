@@ -4,6 +4,70 @@ import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  for (final (host, interval) in [
+    ('api.rule34.xxx', const Duration(seconds: 2)),
+    ('rule34.xxx', const Duration(seconds: 2)),
+    ('other.test', const Duration(milliseconds: 1250)),
+  ]) {
+    test(
+      'paces bulk transfers for $host while interactive work and other sites can continue',
+      () {
+        fakeAsync((time) {
+          final coordinator = ApiRequestCoordinator(
+            elapsed: () => time.elapsed,
+          );
+          final key = ApiQuotaKey.fromUri(Uri.parse('https://$host'));
+          final starts = <Duration>[];
+          for (var i = 0; i < 3; i++) {
+            coordinator
+                .acquire(
+                  key,
+                  context: const ApiRequestContext(
+                    requestClass: ApiRequestClass.bulkTransfer,
+                  ),
+                )
+                .then((permit) {
+                  starts.add(time.elapsed);
+                  permit.release();
+                });
+          }
+          time.flushMicrotasks();
+          expect(starts, [Duration.zero]);
+          var interactive = false;
+          var otherSite = false;
+          coordinator.acquire(key).then((permit) {
+            interactive = true;
+            permit.release();
+          });
+          coordinator
+              .acquire(
+                ApiQuotaKey.fromUri(Uri.parse('https://independent.test')),
+                context: const ApiRequestContext(
+                  requestClass: ApiRequestClass.bulkTransfer,
+                ),
+              )
+              .then((permit) {
+                otherSite = true;
+                permit.release();
+              });
+          time.flushMicrotasks();
+          expect(interactive, isTrue);
+          expect(otherSite, isTrue);
+          time.elapse(interval - const Duration(milliseconds: 1));
+          time.flushMicrotasks();
+          expect(starts.length, 1);
+          time.elapse(const Duration(milliseconds: 1));
+          time.flushMicrotasks();
+          expect(starts, [Duration.zero, interval]);
+          time.elapse(interval);
+          time.flushMicrotasks();
+          expect(starts.length, 3);
+          coordinator.dispose();
+        });
+      },
+    );
+  }
+
   test('expired admission is separate from live-owner cancellation', () {
     fakeAsync((time) {
       final c = ApiRequestCoordinator(elapsed: () => time.elapsed);

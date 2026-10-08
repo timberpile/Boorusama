@@ -65,6 +65,10 @@ final class ApiQuotaPolicy {
       capacity: 12,
       duration: Duration(minutes: 1),
     ),
+    this.bulkWindow = const ApiStartWindow(
+      capacity: 1,
+      duration: Duration(milliseconds: 1250),
+    ),
     this.maxInFlight = 4,
     this.maxPassiveInFlight = 2,
   });
@@ -78,11 +82,21 @@ final class ApiQuotaPolicy {
         capacity: 12,
         duration: Duration(minutes: 1),
       ),
+      bulkWindow = const ApiStartWindow(
+        capacity: 1,
+        duration: Duration(milliseconds: 1250),
+      ),
       maxInFlight = 4,
       maxPassiveInFlight = 2;
 
   factory ApiQuotaPolicy.forOrigin(ApiQuotaKey key) {
     if (key.scheme != 'https' || key.port != 443) return fallback;
+    // Application pacing for maintenance, rather than a claimed server quota.
+    if (key.host == 'rule34.xxx' || key.host == 'api.rule34.xxx') {
+      return const ApiQuotaPolicy(
+        bulkWindow: ApiStartWindow(capacity: 1, duration: Duration(seconds: 2)),
+      );
+    }
     // https://danbooru.donmai.us/wiki_pages/help:api: 10/s bursts, ~1/s
     // recommended sustained reads. This token bucket implements our pacing,
     // not the server's unpublished global algorithm.
@@ -155,6 +169,9 @@ final class ApiQuotaPolicy {
   }
   final List<ApiRateRule> serverRules;
   final ApiStartWindow passiveWindow;
+  // Conservative application pacing for large explicit transfers, including
+  // sites without an evidenced server rule. Interactive requests stay eligible.
+  final ApiStartWindow bulkWindow;
   final int maxInFlight;
   final int maxPassiveInFlight;
   static const fallback = ApiQuotaPolicy();

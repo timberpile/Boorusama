@@ -23,6 +23,7 @@ import '../../../settings/providers.dart';
 import '../data/bookmark_convert.dart';
 import '../data/providers.dart';
 import '../services/bookmark_library_service.dart';
+import '../services/bookmark_hydration_service.dart';
 import '../types/bookmark.dart';
 import '../types/bookmark_group.dart';
 import '../types/bookmark_library_state.dart';
@@ -259,6 +260,28 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     } catch (_) {
       await _publishCommittedMutation();
       onError?.call();
+    }
+  });
+
+  Future<BookmarkHydrationProgress> hydrateBookmarks({
+    required Iterable<BooruConfig> configs,
+    required BookmarkRecoveryService recovery,
+    required BookmarkHydrationCancellation cancellation,
+    required void Function(BookmarkHydrationProgress) onProgress,
+  }) => _serialize(() async {
+    final library = await future;
+    try {
+      return await BookmarkHydrationService(
+        library: await _service,
+        recovery: recovery,
+      ).run(
+        bookmarks: library.items,
+        configs: configs,
+        cancellation: cancellation,
+        onProgress: onProgress,
+      );
+    } finally {
+      await _publishCommittedMutation();
     }
   });
 

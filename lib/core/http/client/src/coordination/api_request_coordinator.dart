@@ -18,6 +18,7 @@ enum ApiWaitReason {
   serverWindow,
   serverPacing,
   passiveBudget,
+  bulkPacing,
   concurrency,
   priority,
 }
@@ -167,6 +168,9 @@ final class ApiRequestCoordinator {
       q.passiveStarts.removeWhere(
         (s) => now - s.at >= q.policy.passiveWindow.duration,
       );
+      q.bulkStarts.removeWhere(
+        (s) => now - s.at >= q.policy.bulkWindow.duration,
+      );
       _Waiter? selected;
       var rules = <_RuleState>[];
       Duration? nextWake;
@@ -229,6 +233,20 @@ final class ApiRequestCoordinator {
             reason = ApiWaitReason.passiveBudget;
           }
         }
+        if (candidate.context.requestClass == ApiRequestClass.bulkTransfer &&
+            q.bulkStarts.length >= q.policy.bulkWindow.capacity) {
+          final refill =
+              q
+                  .bulkStarts[q.bulkStarts.length -
+                      q.policy.bulkWindow.capacity]
+                  .at +
+              q.policy.bulkWindow.duration -
+              now;
+          if (refill > delay) {
+            delay = refill;
+            reason = ApiWaitReason.bulkPacing;
+          }
+        }
         if (delay > Duration.zero) {
           candidate.reason = reason;
           if (nextWake == null || delay < nextWake) nextWake = delay;
@@ -250,6 +268,8 @@ final class ApiRequestCoordinator {
       for (final rule in rules) {
         rule.admit(start);
       }
+      final bulk = w.context.requestClass == ApiRequestClass.bulkTransfer;
+      if (bulk) q.bulkStarts.add(start);
       q.inFlight++;
       if (passive) {
         q.passiveStarts.add(start);
@@ -264,6 +284,7 @@ final class ApiRequestCoordinator {
               rule.refund(start, _elapsed());
             }
             if (passive) q.passiveStarts.remove(start);
+            if (bulk) q.bulkStarts.remove(start);
           }
           q.inFlight--;
           if (passive) q.passiveInFlight--;
@@ -359,6 +380,7 @@ final class _Quota {
   final ApiQuotaPolicy policy;
   final List<_RuleState> rules;
   final passiveStarts = <_Start>[];
+  final bulkStarts = <_Start>[];
   final waiters = <_Waiter>[];
   var inFlight = 0;
   var passiveInFlight = 0;

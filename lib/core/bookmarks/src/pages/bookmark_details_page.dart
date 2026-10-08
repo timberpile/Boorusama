@@ -14,12 +14,13 @@ import '../../../posts/details_parts/types.dart';
 import '../../../posts/details_parts/widgets.dart';
 import '../../../posts/details/widgets.dart';
 import '../../../posts/listing/providers.dart';
-import '../../../posts/post/providers.dart';
 import '../../../posts/post/types.dart';
 import '../../../posts/shares/widgets.dart';
 import '../../../widgets/adaptive_button_row.dart';
 import '../../../widgets/booru_menu_button_row.dart';
 import '../providers/bookmark_provider.dart';
+import '../providers/bookmark_hydration_provider.dart';
+import '../services/bookmark_hydration_service.dart';
 import '../types/bookmark.dart';
 
 class BookmarkDetailsPage extends ConsumerWidget {
@@ -69,7 +70,6 @@ class BookmarkDetailsPage extends ConsumerWidget {
             return _recoverBookmarkPost(
               ref,
               bookmark: bookmark,
-              postId: postId,
               config: config,
             );
           };
@@ -81,7 +81,6 @@ class BookmarkDetailsPage extends ConsumerWidget {
         return () => _recoverBookmarkPost(
           ref,
           bookmark: bookmark,
-          postId: postId,
           config: config,
         );
       },
@@ -92,30 +91,33 @@ class BookmarkDetailsPage extends ConsumerWidget {
 Future<PostRecoveryResult> _recoverBookmarkPost(
   WidgetRef ref, {
   required Bookmark bookmark,
-  required int postId,
   required BooruConfig config,
 }) async {
   try {
     final result = await ref
-        .read(originAwarePostRepoProvider(config))
-        .getPost(NumericPostId(postId))
-        .run();
-    return await result.fold(
-      (_) => const PostRecoveryFailure(
-        PostPresentationFallbackReason.refreshFailed,
-      ),
-      (post) async {
-        if (post == null) {
-          return const PostRecoveryFailure(
-            PostPresentationFallbackReason.removedUpstreamPost,
-          );
-        }
+        .read(bookmarkRecoveryServiceProvider)
+        .recover(bookmark, config);
+    switch (result) {
+      case BookmarkRecoverySuccess(:final post):
         await ref
             .read(bookmarkProvider.notifier)
             .upgradeBookmarkSnapshot(bookmark, post);
         return PostRecoverySuccess(post);
-      },
-    );
+      case BookmarkRecoveryRemoved():
+        return const PostRecoveryFailure(
+          PostPresentationFallbackReason.removedUpstreamPost,
+        );
+      case BookmarkRecoverySkipped():
+        return const PostRecoveryFailure(
+          PostPresentationFallbackReason.refreshFailed,
+        );
+      case BookmarkRecoveryFailed() ||
+          BookmarkRecoveryRateLimited() ||
+          BookmarkRecoveryCancelled():
+        return const PostRecoveryFailure(
+          PostPresentationFallbackReason.refreshFailed,
+        );
+    }
   } catch (_) {
     return const PostRecoveryFailure(
       PostPresentationFallbackReason.refreshFailed,
