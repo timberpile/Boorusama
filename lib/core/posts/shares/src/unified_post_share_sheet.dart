@@ -5,7 +5,6 @@ import 'package:cache_manager/cache_manager.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
-import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 import 'package:oktoast/oktoast.dart';
 import 'package:share_plus/share_plus.dart';
@@ -23,6 +22,11 @@ import '../../details/providers.dart';
 import '../../post/providers.dart';
 import '../../post/types.dart';
 import '../../sources/types.dart';
+import 'gif_conversion_service.dart';
+import 'gif_export_contract.dart';
+import 'gif_editor_page.dart';
+import 'gif_error_message.dart';
+import 'gif_ffmpeg_runner.dart';
 import 'share_cached_image_description.dart';
 import 'share_action_adapter.dart';
 import 'share_media_description.dart';
@@ -73,7 +77,8 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
   var _showProgress = false;
   var _clipboardHandoff = false;
   String? _error;
-  (SharePayload, bool)? _retry;
+  (SharePayload, bool, bool)? _retry;
+  var _creatingGif = false;
   var _nativeMediaShareUnsupported = false;
   String? _imageMetadataUrl;
   ImageCacheManager? _imageMetadataCacheManager;
@@ -98,8 +103,9 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.inactive ||
-        state == AppLifecycleState.paused) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached ||
+        (state == AppLifecycleState.inactive && !_creatingGif)) {
       _cancelActiveMedia();
     }
   }
@@ -188,6 +194,10 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
     );
     final canShareMedia =
         capabilities.canShareMedia && !_nativeMediaShareUnsupported;
+    final gifBackend = ref.watch(gifEncoderBackendProvider);
+    final videoPayload = payloads.media
+        .where((p) => p.id == SharePayloadId.video)
+        .firstOrNull;
     final theme = Theme.of(context);
 
     return Material(
@@ -208,13 +218,23 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
                       style: theme.textTheme.titleLarge,
                     ),
                     const SizedBox(height: 12),
-                    KurumiSegmentedButton<_ShareSegment>(
-                      initialValue: _segment,
-                      segments: {
-                        _ShareSegment.media: context.t.post.action.media,
-                        _ShareSegment.links: context.t.post.action.links,
-                      },
-                      onChanged: (value) => setState(() => _segment = value),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final segment in _ShareSegment.values)
+                          ChoiceChip(
+                            label: Text(switch (segment) {
+                              _ShareSegment.media =>
+                                context.t.post.action.media,
+                              _ShareSegment.links =>
+                                context.t.post.action.links,
+                            }),
+                            selected: _segment == segment,
+                            onSelected: (_) =>
+                                setState(() => _segment = segment),
+                          ),
+                      ],
                     ),
                     const SizedBox(height: 12),
                     if (_segment == _ShareSegment.media && !canShareMedia)
@@ -266,6 +286,35 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
                       ),
                       const SizedBox(height: 8),
                     ],
+                    if (_segment == _ShareSegment.media &&
+                        gifBackend != null &&
+                        videoPayload != null) ...[
+                      SharePayloadTile(
+                        key: const ValueKey('gif-share-payload'),
+                        leading: const Icon(Icons.gif_box_outlined),
+                        title: context.t.post.action.gif,
+                        value: videoPayload.value,
+                        deferred: videoPayload.deferred,
+                        showValue: false,
+                        unavailable: context.t.post.action.unavailable,
+                        trailing: IconButton(
+                          key: const ValueKey('create-gif'),
+                          tooltip: context.t.post.action.create_gif,
+                          icon: const Icon(Icons.auto_fix_high),
+                          onPressed:
+                              _active == null &&
+                                  videoPayload.available &&
+                                  canShareMedia
+                              ? () => _perform(
+                                  videoPayload,
+                                  share: true,
+                                  asGif: true,
+                                )
+                              : null,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
                   ],
                 ),
               ),
@@ -292,6 +341,8 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
                                               .post
                                               .action
                                               .copying_to_clipboard
+                                        : _creatingGif
+                                        ? context.t.post.gif_editor.preparing
                                         : context.t.post.action.preparing_media,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
@@ -317,7 +368,11 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
                               TextButton(
                                 onPressed: () {
                                   final attempt = _retry!;
-                                  _perform(attempt.$1, share: attempt.$2);
+                                  _perform(
+                                    attempt.$1,
+                                    share: attempt.$2,
+                                    asGif: attempt.$3,
+                                  );
                                 },
                                 child: Text(context.t.post.action.retry),
                               ),
@@ -355,6 +410,7 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
   Future<void> _perform(
     SharePayload payload, {
     required bool share,
+    bool asGif = false,
   }) async {
     if (_active != null || !payload.available) return;
     final token = payload.isMedia ? CancelToken() : null;
@@ -363,6 +419,7 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
       _error = null;
       _retry = null;
       _active = payload;
+      _creatingGif = asGif;
       _progress = null;
       _showProgress = false;
       _cancelToken = token;
@@ -378,7 +435,7 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
     ShareMediaLease? lease;
     try {
       final value = payload.value;
-      if (payload.id == SharePayloadId.video && !share) {
+      if (payload.id == SharePayloadId.video && !share && !asGif) {
         final request = await resolveShareMediaUrl(
           payload: payload,
           post: widget.post,
@@ -452,6 +509,51 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
               ),
           imageCacheManager: widget.imageCacheManager,
         );
+        if (asGif) {
+          final converter = GifConversionService(
+            preparation: service,
+            backend: ref.read(gifEncoderBackendProvider),
+          );
+          final prepared = await converter.prepareSource(
+            sourceUrl: request.url,
+            headers: requestHeaders,
+            cancelToken: token!,
+            onProgress: (value) {
+              if (mounted) setState(() => _progress = value.fraction);
+            },
+          );
+          try {
+            checkShareCancellation(token);
+            if (!mounted) return;
+            _cancelToken = null;
+            _progressVisibilityTimer?.cancel();
+            setState(() => _showProgress = false);
+            await Navigator.of(context).push<void>(
+              MaterialPageRoute(
+                builder: (_) => GifEditorPage(
+                  source: prepared,
+                  service: converter,
+                  fileName: 'boorusama_${widget.post.id}.gif',
+                  share: (output) async {
+                    if (isAndroid() && widget.shareAdapter == null) {
+                      await AppClipboard.shareImageFile(
+                        output.path,
+                        output.mimeType,
+                      );
+                      return ShareActionOutcome.success;
+                    }
+                    return (widget.shareAdapter ??
+                            ShareActionAdapter(SharePlus.instance.share))
+                        .shareMedia(output.path, output.mimeType);
+                  },
+                ),
+              ),
+            );
+          } finally {
+            await prepared.release();
+          }
+          return;
+        }
         lease = await service.prepare(
           url: request.url,
           kind: switch (payload.id) {
@@ -475,7 +577,7 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
           setState(() => _showProgress = false);
           final ShareActionOutcome outcome;
           if (isAndroid() &&
-              payload.id != SharePayloadId.video &&
+              (asGif || payload.id != SharePayloadId.video) &&
               widget.shareAdapter == null) {
             await AppClipboard.shareImageFile(lease.path, lease.mimeType);
             outcome = ShareActionOutcome.success;
@@ -531,6 +633,12 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
           position: ToastPosition.bottom,
         );
       }
+    } on GifConversionException catch (error) {
+      if (mounted &&
+          error.failure != GifConversionFailure.cancelled &&
+          token?.isCancelled != true) {
+        _showFailure(payload, share, gifErrorMessage(context, error));
+      }
     } on ShareMediaException catch (error) {
       if (mounted &&
           error.failure != ShareMediaFailure.cancelled &&
@@ -570,6 +678,7 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
       if (mounted) {
         setState(() {
           _active = null;
+          _creatingGif = false;
           _progress = null;
           _showProgress = false;
         });
@@ -625,7 +734,7 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
     if (!mounted) return;
     setState(() {
       _error = message;
-      _retry = retryable ? (payload, share) : null;
+      _retry = retryable ? (payload, share, _creatingGif) : null;
     });
   }
 }

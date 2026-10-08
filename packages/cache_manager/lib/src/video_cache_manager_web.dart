@@ -67,14 +67,6 @@ class VideoCacheManager implements ImageCacheManager {
   }
 
   @override
-  FutureOr<String?> getCacheFilePathForKey(String key) => null;
-
-  @override
-  Future<void> replaceCachedFile(String key, String stagedFilePath) async {
-    throw UnsupportedError('Web video cache does not use files');
-  }
-
-  @override
   FutureOr<Uint8List?> getCachedFileBytes(String key, {Duration? maxAge}) {
     return _memoryCache.get(key);
   }

@@ -103,6 +103,7 @@ class PinnedSearchFolderCard extends StatelessWidget {
     required this.lastPostAt,
     required this.hasBaseline,
     required this.refreshing,
+    this.remainingRefreshes = 0,
     required this.canRefresh,
     required this.showMoveActions,
     required this.canMoveUp,
@@ -119,6 +120,7 @@ class PinnedSearchFolderCard extends StatelessWidget {
   final DateTime? lastPostAt;
   final bool hasBaseline;
   final bool refreshing;
+  final int remainingRefreshes;
   final bool canRefresh;
   final bool showMoveActions;
   final bool canMoveUp;
@@ -225,7 +227,13 @@ class PinnedSearchFolderCard extends StatelessWidget {
                 lastPostAt: lastPostAt,
                 hasBaseline: hasBaseline,
               ),
-              if (refreshing) Text(strings.refreshing),
+              if (refreshing)
+                Text(
+                  strings.refreshing_remaining.replaceAll(
+                    '{count}',
+                    '$remainingRefreshes',
+                  ),
+                ),
             ],
           ),
         ),

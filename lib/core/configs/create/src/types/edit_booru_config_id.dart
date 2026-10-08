@@ -59,7 +59,7 @@ class EditBooruConfigId extends Equatable {
   Map<String, String> toQueryParameters() => {
     'type': booruType.id.toString(),
     'url': url,
-    'id': id.toString(),
+    'id': id,
     'name': ?initialName,
   };
 

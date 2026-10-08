@@ -6,7 +6,6 @@ import 'package:boorusama/boorus/danbooru/posts/post/src/danbooru_post_codec.dar
 import 'package:boorusama/boorus/danbooru/posts/post/src/danbooru_post_data.dart';
 import 'package:boorusama/boorus/danbooru/posts/post/types.dart' as danbooru;
 import 'package:boorusama/boorus/e621/posts/post_codec.dart';
-import 'package:boorusama/boorus/e621/posts/post_data.dart';
 import 'package:boorusama/boorus/e621/posts/types.dart';
 import 'package:boorusama/boorus/sankaku/posts/post_codec.dart';
 import 'package:boorusama/boorus/sankaku/posts/post_data.dart';
@@ -21,6 +20,8 @@ import 'package:boorusama/core/posts/rating/types.dart';
 import 'package:boorusama/core/posts/sources/types.dart';
 import 'package:boorusama/core/tags/categories/types.dart';
 import 'package:boorusama/core/tags/tag/types.dart';
+
+import 'post_codec_persistence_fixture.dart';
 
 void main() {
   test('Danbooru preserves interaction, tag and moderation data', () {
@@ -204,7 +205,7 @@ void main() {
         Shimmie2CommentData(
           id: 8,
           comment: 'Comment',
-          posted: DateTime.utc(2026, 1, 1),
+          posted: DateTime.utc(2026),
           ownerName: 'Owner',
           ownerId: 6,
         ),
@@ -265,6 +266,121 @@ void main() {
 
     expect(_roundTripData(data, const SzurubooruPostCodec()), data);
   });
+
+  final malformedRequiredDataCases = [
+    (
+      name: 'Danbooru up score',
+      decode: () => const DanbooruPostCodec().decode(
+        const {'upScore': null},
+        version: 1,
+      ),
+    ),
+    (
+      name: 'e621 up score',
+      decode: () => const E621PostCodec().decode(
+        const {
+          'generalTags': <Object?>[],
+          'metaTags': <Object?>[],
+          'speciesTags': <Object?>[],
+          'invalidTags': <Object?>[],
+          'loreTags': <Object?>[],
+          'upScore': null,
+        },
+        version: 1,
+      ),
+    ),
+    (
+      name: 'Sankaku favorite state',
+      decode: () => const SankakuPostCodec().decode(
+        const {'isFavorited': null},
+        version: 1,
+      ),
+    ),
+    (
+      name: 'Szurubooru favorite state',
+      decode: () => const SzurubooruPostCodec().decode(
+        const {'ownFavorite': null},
+        version: 1,
+      ),
+    ),
+  ];
+  for (final testCase in malformedRequiredDataCases) {
+    test('${testCase.name} rejects null required persisted data', () {
+      expect(testCase.decode, throwsA(isA<FormatException>()));
+    });
+  }
+
+  final malformedNestedMapCases = [
+    (
+      name: 'e621 source',
+      decode: () => const E621PostCodec().decode(
+        const {
+          'generalTags': <Object?>[],
+          'metaTags': <Object?>[],
+          'speciesTags': <Object?>[],
+          'invalidTags': <Object?>[],
+          'loreTags': <Object?>[],
+          'upScore': 0,
+          'downScore': 0,
+          'favCount': 0,
+          'isFavorited': false,
+          'sources': [
+            <Object?, Object?>{1: 'invalid'},
+          ],
+          'description': '',
+          'videoVariants': <Object?>[],
+        },
+        version: 1,
+      ),
+    ),
+    (
+      name: 'Sankaku ID',
+      decode: () => const SankakuPostCodec().decode(
+        const {
+          'sankakuId': <Object?, Object?>{1: 'invalid'},
+          'isFavorited': false,
+          'favoriteCount': 0,
+          'artistDetailsTags': <Object?>[],
+          'characterDetailsTags': <Object?>[],
+          'copyrightDetailsTags': <Object?>[],
+          'generalDetailsTags': <Object?>[],
+          'metaDetailsTags': <Object?>[],
+        },
+        version: 1,
+      ),
+    ),
+    (
+      name: 'Shimmie2 vote',
+      decode: () => const Shimmie2PostCodec().decode(
+        const {
+          'votes': [
+            <Object?, Object?>{1: 'invalid'},
+          ],
+        },
+        version: 1,
+      ),
+    ),
+    (
+      name: 'Szurubooru tag',
+      decode: () => const SzurubooruPostCodec().decode(
+        const {
+          'ownFavorite': false,
+          'favoriteCount': 0,
+          'commentCount': 0,
+          'tagDetails': [
+            <Object?, Object?>{1: 'invalid'},
+          ],
+          'pools': <Object?>[],
+        },
+        version: 1,
+      ),
+    ),
+  ];
+  for (final testCase in malformedNestedMapCases) {
+    test('${testCase.name} rejects a persisted map with non-string keys', () {
+      expect(testCase.decode, throwsA(isA<FormatException>()));
+    });
+  }
 }
 
 Tag _tag(String name, TagCategory category, int postCount) => Tag(
@@ -289,7 +405,9 @@ D _roundTripData<D extends BooruPostData>(
   );
   expect(post.runtimeType, Post);
   final result = codec.decode(
-    codec.encode(post, dataCodec: dataCodec),
+    rehydrateSnapshotWithDynamicNestedMaps(
+      codec.encode(post, dataCodec: dataCodec),
+    ),
     dataCodec: dataCodec,
   );
   expect(result, isA<StoredPostDecodeSuccess>());

@@ -145,6 +145,7 @@ class SliverPostGrid<T extends Post> extends StatelessWidget {
                       ),
                   ],
                 ),
+                RequestCancelledError() => const SizedBox.shrink(),
                 final UnknownError e => ErrorBox(
                   errorMessage: e.error.toString(),
                 ),
@@ -224,6 +225,7 @@ class SliverPostGrid<T extends Post> extends StatelessWidget {
 
 String? translateServerError(BuildContext context, ServerError error) =>
     switch (error) {
+      RateLimitedError(:final retryAt) => rateLimitWaitText(context, retryAt),
       final ServerError e => switch (e.httpStatusCode) {
         null => null,
         401 => context.t.search.errors.forbidden,

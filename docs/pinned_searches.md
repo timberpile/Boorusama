@@ -91,6 +91,11 @@ Both the initial baseline and later refreshes use this same budget. Requests,
 post processing, and retained identities stay bounded independently of the
 number of matching uploads; server/network latency is outside that guarantee.
 Raw repository fetches avoid enrichment requests for returned posts.
+The [shared transport policy](http_request_coordination.md) separately counts
+automatic/preload data work against its local 12/minute budget and at most two
+of four physical slots. Manual work has no invented fallback rate window;
+documented site pacing and server cooldown still apply to every relevant
+class. This transport budget does not change the scanner's one-page limit.
 
 The scanner requires an upload timestamp on each post and deduplicates IDs.
 It accepts the site's default post order, including small differences between
@@ -278,13 +283,56 @@ use `tester.runAsync`; directly awaiting its future in the fake async zone can
 wait for scheduled Riverpod work that has not yet been pumped. Text controllers
 belong to dialog State so they survive the route's closing animation.
 
-Automatic refresh is disabled. Launching or resuming the app, recovering
-connectivity, and leaving the app open do not schedule search checks. Manual
-per-search, folder, feed-source, and Refresh All actions remain available. The
-existing scheduler implementation and persisted `searchRefresh` settings are
-retained as dormant migration context; the UI does not expose those inactive
-settings. A conservative daily-scale replacement with shared site throttling is
-tracked in [PS-031](work/ready/PS-031-conservative-automatic-refresh.md).
+Automatic refresh is enabled by default with an Adaptive interval starting at
+24 hours, bounded by six hours and seven days. Explicit stored disabled choices
+remain disabled; legacy minute intervals become safe Adaptive settings. The
+settings page also offers fixed six-hour to seven-day intervals and separate
+pin/feed scope controls. Manual refresh remains available while scheduling is
+disabled or automatic environment checks are paused.
+
+Each foreground run selects at most six due source IDs, oldest activity first
+then ID. Shared feed source IDs deduplicate; an independent pin remains its own
+source. Due time follows the latest creation, material edit, attempt, or success.
+Adaptive interval and empty streak persist in the source aggregate: new automatic
+results halve the interval; the first empty result retains it, and the second
+empty result doubles it and clears the streak. Baselines and manual, failed,
+cancelled, or deferred outcomes leave that policy unchanged. A live manual caller
+joining automatic work makes its shared outcome timing-inert at the guarded
+serialized commit. Rename, sorting, and mark-read preserve policy state; query,
+profile, and site changes reset it and advance the material-edit anchor.
+
+Resume, settings/environment changes, and a local minute wake reevaluate daily-scale
+eligibility. The run's 20-second budget limits new physical admission, including
+work waiting in a source or site queue. Already dispatched reads may finish
+after that deadline under lifecycle and source-identity guards; it is not a
+20-second completion guarantee. No OS-background job is installed. Wi-Fi or
+Ethernet is the default, battery saver pauses work, and optional mobile access
+requires a connection reported as unmetered. Unavailable power or network
+signals pause automatic work. Android captures transport and metering together
+from the active network's NetworkCapabilities and uses
+PowerManager power-save signals; iOS uses NWPath expense/constrained state and
+transport together with low-power mode. Independent connectivity observations
+can veto a mismatched or unknown transition, but cannot provide native metering
+proof. These platform classifications are not guarantees about billing.
+Foreground resume reloads these signals and pauses automatic admission until a
+fresh snapshot arrives. Platform references:
+[Android metering](https://developer.android.com/reference/android/net/ConnectivityManager),
+[Android capabilities](https://developer.android.com/reference/android/net/NetworkCapabilities),
+[Android power save](https://developer.android.com/reference/android/os/PowerManager),
+and [Apple path expense](https://developer.apple.com/documentation/network/nwpath/isexpensive).
+
+Source refresh and account authentication retain one physical operation while
+live callers join. A queued manual owner promotes priority immediately and
+survives an automatic owner's pause/cancellation when the source definition is
+still valid. Known cooldown returns retryAt immediately; a late manual owner
+also interrupts an automatic brief cooldown wait without replay. Definition
+changes and deletion still reject admission and guarded persistence. Shared
+site budgets and source identity/session guards are described in
+[request coordination](http_request_coordination.md). First-time feed
+initialization remains separate, using its existing foreground Wi-Fi/Ethernet
+admission and physically-started app-session suppression.
+Disabling either automatic source scope revokes its queued automatic owners
+using current feed membership; live manual owners of the same operation survive.
 
 Following Feeds is a separate navigation feature. A feed belongs to one profile
 and stores the IDs of the tracked searches that supply it. Search records have
@@ -298,8 +346,61 @@ A user follows an existing tag, artist, or current search into one or more
 feeds, or creates a named feed from that starting point. There is no empty-feed
 creation or raw query editor. The all-profile feed list shows each owner's
 profile caption. Artist Follow/Following shows how many feeds contain the exact
-artist tag. Feed management lists its member searches for direct opening and
-manual refresh.
+artist tag. Feed management shows saved-search-style member cards with optional name and
+exact query, NEW/error status and localized Last post metadata. Last refresh
+appears below Last post, right-aligned, using the last successful check; failed
+attempts retain that time and never-checked sources are labeled explicitly.
+Each member offers Open, Info, Refresh, name-only Edit and Remove. Info reads
+cached state and shows the successful check, last attempt, refresh interval,
+next scheduled refresh and temporary pauses using the Following Feeds scope.
+A first failed attempt retains the never-checked state; later errors retain the
+prior successful time and previews. A member name belongs to its shared search
+record, so editing it affects every feed containing that record; the dialog explains
+this when shared. Saves recheck current membership, owner and definition
+identity so removed or replaced members cannot be renamed by an old dialog.
+
+Feed overview and member cards show Last post right-aligned on the same row
+as the owning profile caption. The member sort menu includes Last refresh
+(oldest first): never-checked sources first, then the oldest successful checks,
+with membership order breaking ties. This choice persists across restarts and
+does not change membership or NEW/read state. Overview menus offer Refresh, Info, Edit,
+Move up/down and Delete. Ordering persists within each owning profile. Feed Info aggregates
+checked-source counts, failures, rate limits and the oldest successful source
+check; source Info links expose individual adaptive intervals and next refreshes.
+Manual feed Refresh is available in the overview and opened-feed menus. Each tap
+checks at most ten sources belonging to that feed, sequentially, with a twenty
+second deadline. Sources with the oldest attempt/successful-check activity go
+first; failed attempts count as activity so persistent failures do not starve
+other sources on subsequent taps. Shared request coordination and source
+coalescing remain in effect. A site rate-limit/deferred response ends the batch;
+a deferred response shows the existing localized retry time. Only one manual
+feed batch is active at a time: repeat taps share that batch and other feed
+Refresh actions are disabled, without queuing extra batches. Manual refresh
+works independently of the automatic-refresh setting and does not change the
+adaptive interval. Membership is checked before each source/request so a removed
+feed cannot start remaining work.
+
+Opening either dialog starts no refresh and changes no read state. An opened
+feed keeps active refresh progress above its posts, with maintenance status
+available only through its Info menu. Dialogs follow changes to cached state.
+
+Editor previews match up to four member preview IDs to full cached feed
+snapshots and preserve their engine codecs. Thumbnail quality uses the actual
+owner's enabled listing override, otherwise global listing defaults, even
+when another profile is selected. The editor reads only existing shared cache
+bytes and decodes them with normal or native AVIF memory providers. Missing,
+evicted or invalid snapshots/bytes omit previews; rebuilding, sorting and
+opening the editor never refresh posts or download media. Overview first-time
+initialization remains separate, and explicit Refresh uses the existing
+source request path.
+
+Added Date follows the stored member-ID sequence, including shared sources
+added later and members removed and re-added. Newest first and Oldest first
+use cached latest post upload time, with missing dates last and addition order
+breaking ties. Sorting is a display-only copy and changes neither membership
+nor refresh/read state. One persisted editor preference is shared across feeds
+and independent of the Pinned Searches sort; missing or unknown values use
+Added Date. No folder/move controls or manual drag order appear in the editor.
 
 Feeds use the same chronological scanner as independent pins through explicit
 refresh actions. A feed has NEW if any member search has NEW. Opening it marks
@@ -320,11 +421,14 @@ initialized again on reopen. The opened feed's oldest successful source check
 uses the registered locale-aware relative-time formatter also used by pinned
 search cards, including singular units and older dates. Feeds without successful
 checks show Never checked.
-Session suppression starts only when the shared request gate permits the check
-to begin. A queued request discarded while foreground/network policy is paused
+Session suppression starts at physical data/auth transport dispatch through
+the origin coordinator. It survives lifecycle recovery for that source identity
+and runtime revision, while changed or replaced sources remain eligible. A queued request discarded while foreground/network policy is paused
 remains eligible after recovery, even during the inter-batch spacing delay.
 Once a check starts, session suppression also prevents a failed persistence
-operation from creating a repeated request loop.
+operation from creating a repeated request loop. Cancellation prevents the
+checkpoint/attempt/cache write; explicit manual Refresh can still recover that
+source.
 
 Changing a profile's engine or normalized site URL retains its feed definitions
 and search queries but clears post caches, previews, NEW/error state, and refresh
@@ -366,7 +470,10 @@ presentation. Near the end of the loaded posts, the viewer asks the grid to
 load more history. Removing a source clears the recent
 snapshot so posts exclusive to that source do not remain visible. Unchanged
 source checkpoints persist. All explicit refresh entry points share a
-three-request concurrency gate.
+three-operation concurrency gate. Physical data requests also use the
+app-wide [origin request coordinator](http_request_coordination.md); cooldown
+returns a retry deadline without recording a failed check or replaying a manual
+action later.
 
 Backup version 3 stores feed names and source query definitions, excluding
 runtime cache and checkpoints. Restore creates internal source searches and
@@ -420,3 +527,39 @@ definitions in the package but reuse one local pin per mapped profile; the
 selected Home membership takes precedence, then the first selected imported
 folder retains its membership. The conversion report gives an
 aggregate duplicate count without exposing query values.
+
+Folder refresh progress counts distinct source IDs still awaiting a terminal
+outcome in the current finite passes, including planned queued members and live
+source operations. Root manual Refresh All reserves later-profile members before
+its first profile; automatic passes expose only their bounded candidate slice.
+Pass reservations are transient and independently owned, so an overlapping or
+joined caller cannot double-count a source or clear another pass's reservation.
+A deadline or cancelled pass drops its unstarted reservations while a physically
+running source remains visible until settlement. Counts intersect current full
+folder membership and do not change NEW state, persistence, or portable backups.
+The normal Settings page owns search/feed refresh controls; management overflow
+menus contain collection operations rather than a Settings shortcut.
+
+Pinned-search Info observes the current aggregate by UUID rather than retaining
+the tapped snapshot. Its effective interval is the stored per-source Adaptive
+value or current Fixed setting. The displayed next eligibility time shares the
+planner's latest creation/material-edit/attempt/success anchor and known source
+cooldown; it is not a promised dispatch time. Disabled scope, missing owners,
+unsupported queries and temporary foreground/network/power pauses stay explicit.
+Info watches a passive immutable status snapshot and never initializes the
+scheduler, fetches posts or writes runtime state. Its minute pulse exists only
+while the dialog is open. Next refresh uses the registered locale's relative
+future-time messages; past check and attempt dates retain the local Material
+formatter.
+
+## Testing cached member previews
+
+Widget tests that decode AVIF bytes must create the decoder and wait for its
+first decoded frame within `tester.runAsync`, pumping frames from that real
+async block. libavif shares the first `Avif.warmUp()` future across tests. If
+that future starts in a widget test’s FakeAsync zone, a later test’s decode can
+queue its warm-up continuation in the earlier zone and remain pending. Cover
+corrupt AVIF omission followed by valid AVIF rendering in the same test file;
+assert the decoded `RawImage` and zero media requests, not only the image
+provider type. Keep repository seeding and asynchronous notifier reads in
+`tester.runAsync` as well.

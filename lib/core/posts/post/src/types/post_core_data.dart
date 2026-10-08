@@ -8,7 +8,6 @@ import 'post.dart';
 import 'post_media_aspect_ratios.dart';
 import 'post_media_variants.dart';
 import 'post_record.dart';
-import 'status.dart';
 
 final class PostCoreData extends Equatable {
   const PostCoreData({

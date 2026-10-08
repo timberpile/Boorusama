@@ -218,8 +218,10 @@ class DanbooruRepository extends BooruRepositoryDefault {
   }
 
   @override
-  MediaUrlResolver mediaUrlResolver(BooruConfigAuth config) {
-    return ref.watch(danbooruMediaUrlResolverProvider(config));
+  ProviderListenable<MediaUrlResolver> mediaUrlResolverProvider(
+    BooruConfigAuth config,
+  ) {
+    return danbooruMediaUrlResolverProvider(config);
   }
 
   @override

@@ -50,23 +50,22 @@ final detailsPostsProvider = FutureProvider.autoDispose
 final mediaUrlResolverProvider =
     Provider.family<MediaUrlResolver, BooruConfigAuth>(
       (ref, config) {
-        final fallbackMediaUrlResolver = ref.watch(
-          defaultMediaUrlResolverProvider(config),
-        );
+        final resolverProvider =
+            ref
+                .watch(booruRepoProvider(config))
+                ?.mediaUrlResolverProvider(config) ??
+            defaultMediaUrlResolverProvider(config);
 
-        final mediaUrlResolver =
-            ref.watch(booruRepoProvider(config))?.mediaUrlResolver(config) ??
-            fallbackMediaUrlResolver;
-
-        return mediaUrlResolver;
+        // The consumer owns reactive settings, not the engine registry's Ref.
+        return ref.watch(resolverProvider);
       },
     );
 
 final defaultMediaUrlResolverProvider =
     Provider.family<MediaUrlResolver, BooruConfigAuth>(
       (ref, config) => DefaultMediaUrlResolver(
-        imageQuality: ref.watch(
-          settingsProvider.select((value) => value.listing.imageQuality),
+        postQuality: ref.watch(
+          postQualityProvider(config),
         ),
       ),
     );

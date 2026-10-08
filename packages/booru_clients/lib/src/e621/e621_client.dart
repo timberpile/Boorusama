@@ -1,3 +1,4 @@
+import '../http/request_interruption.dart';
 // Dart imports:
 import 'dart:convert';
 
@@ -88,6 +89,7 @@ class E621Client {
 
       return true;
     } catch (e) {
+      if (isDataRequestInterruption(e)) rethrow;
       return false;
     }
   }
@@ -102,6 +104,7 @@ class E621Client {
 
       return true;
     } catch (e) {
+      if (isDataRequestInterruption(e)) rethrow;
       return false;
     }
   }

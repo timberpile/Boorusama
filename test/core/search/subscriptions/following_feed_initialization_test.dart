@@ -288,7 +288,7 @@ void main() {
     final harness = createHarness(
       fetch: (query, _, _) async => Either.of(
         PostResult(
-          posts: [TestSearchPost(query == 'a' ? 1 : 2, checkedAt)],
+          posts: [testSearchPost(query == 'a' ? 1 : 2, checkedAt)],
           total: 1,
         ),
       ),
@@ -321,7 +321,14 @@ void main() {
   testWidgets(
     'pausing during initialization stops later requests until foreground resumes',
     (tester) async {
-      final harness = createHarness();
+      final harness = createHarness(
+        fetch: (query, _, _) async => Either.of(
+          PostResult(
+            posts: [testSearchPost(query == 'a' ? 1 : 2, checkedAt)],
+            total: 1,
+          ),
+        ),
+      );
       addTearDown(harness.dispose);
       harness.refreshGate = Completer<void>();
       await seedFeeds(
@@ -329,7 +336,7 @@ void main() {
         harness,
         [
           for (final id in ['a', 'b'])
-            pinnedFixture(id: id, query: id, checked: false),
+            pinnedFixture(id: id, query: id, checked: false, unreadCount: 0),
         ],
         [
           SearchFollowingFeed(
@@ -347,9 +354,25 @@ void main() {
       harness.refreshGate!.complete();
       await drain(tester);
       expect(harness.requests.map((request) => request.query), ['a']);
+      final cancelled = (await harness.repository.getById('a'))!;
+      expect(cancelled.lastAttemptAt, isNull);
+      expect(cancelled.lastSuccessfulCheckAt, isNull);
+      expect(cancelled.previews, isEmpty);
+      expect(cancelled.hasNewPosts, false);
+      expect((await harness.repository.getFeeds()).single.posts, isEmpty);
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       await drain(tester);
       expect(harness.requests.map((request) => request.query), ['a', 'b']);
+      final manual = harness.container
+          .read(searchSubscriptionsProvider.notifier)
+          .refresh('a');
+      await drain(tester);
+      await manual;
+      expect(harness.requests.map((request) => request.query), ['a', 'b', 'a']);
+      expect(
+        (await harness.repository.getById('a'))!.lastSuccessfulCheckAt,
+        isNotNull,
+      );
     },
   );
 
@@ -494,7 +517,7 @@ void main() {
   ];
   for (final date in dates) {
     testWidgets(
-      'last checked displays ${date.label} instead of a technical timestamp',
+      'feed Info last checked displays ${date.label} instead of a technical timestamp',
       (tester) async {
         final harness = createHarness(networkAllowed: false);
         addTearDown(harness.dispose);
@@ -522,6 +545,8 @@ void main() {
               profileId: '00000000-0000-4000-8000-00000000000c',
             ),
           );
+          expect(find.textContaining('Last checked:'), findsNothing);
+          await openFeedInfo(tester);
           expect(find.text('Last checked: ${date.label}'), findsOneWidget);
           expect(find.textContaining('2026-09-14'), findsNothing);
         });
@@ -555,7 +580,7 @@ void main() {
     },
   );
 
-  testWidgets('never checked entries show a localized never-checked state', (
+  testWidgets('feed Info shows a localized never-checked state', (
     tester,
   ) async {
     final harness = createHarness(networkAllowed: false);
@@ -583,8 +608,17 @@ void main() {
         profileId: '00000000-0000-4000-8000-00000000000c',
       ),
     );
+    expect(find.text('Never checked'), findsNothing);
+    await openFeedInfo(tester);
     expect(find.text('Never checked'), findsOneWidget);
   });
+}
+
+Future<void> openFeedInfo(WidgetTester tester) async {
+  await tester.tap(find.byType(PopupMenuButton<String>).first);
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('Info').last);
+  await tester.pumpAndSettle();
 }
 
 Future<void> seedFeeds(

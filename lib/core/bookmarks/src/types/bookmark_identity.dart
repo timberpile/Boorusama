@@ -26,18 +26,6 @@ final class BookmarkIdentity extends BookmarkUniqueId {
       BookmarkIdentity.tryFromPost(post) ??
       (throw const FormatException('Post has no stable bookmark identity'));
 
-  static BookmarkIdentity? tryFromPost(Post post) {
-    final site = post.origin.sourceHost;
-    final key = switch ((post.origin.booruType, post.booruData)) {
-      (_, final StableBookmarkPostKeyData data) => data.stableBookmarkPostKey,
-      (BooruType.sankaku || BooruType.pixiv, _) => null,
-      (_, _) when post.id > 0 => 'id:${post.id}',
-      _ => null,
-    };
-    if (site.isEmpty || key == null || key.isEmpty) return null;
-    return BookmarkIdentity(site: site, postKey: key);
-  }
-
   factory BookmarkIdentity.fromJson(Map<String, dynamic> json) {
     final site = json['site'];
     final postKey = json['postKey'];
@@ -48,6 +36,18 @@ final class BookmarkIdentity extends BookmarkUniqueId {
       throw const FormatException('Invalid bookmark identity');
     }
     return BookmarkIdentity(site: site, postKey: postKey);
+  }
+
+  static BookmarkIdentity? tryFromPost(Post post) {
+    final site = post.origin.sourceHost;
+    final key = switch ((post.origin.booruType, post.booruData)) {
+      (_, final StableBookmarkPostKeyData data) => data.stableBookmarkPostKey,
+      (BooruType.sankaku || BooruType.pixiv, _) => null,
+      (_, _) when post.id > 0 => 'id:${post.id}',
+      _ => null,
+    };
+    if (site.isEmpty || key == null || key.isEmpty) return null;
+    return BookmarkIdentity(site: site, postKey: key);
   }
 
   final String site;

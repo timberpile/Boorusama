@@ -46,6 +46,18 @@ class ServerError extends BooruError with Equatable {
   List<Object?> get props => [httpStatusCode, message];
 }
 
+class RateLimitedError extends ServerError {
+  RateLimitedError(this.retryAt)
+    : super(httpStatusCode: 429, message: 'API cooldown');
+  final DateTime retryAt;
+  @override
+  List<Object?> get props => [...super.props, retryAt];
+}
+
+class RequestCancelledError extends BooruError {
+  RequestCancelledError() : super(message: 'Request cancelled');
+}
+
 class UnknownError extends BooruError {
   UnknownError({
     required this.error,

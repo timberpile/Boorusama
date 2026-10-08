@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+import 'package:cache_manager/cache_manager.dart';
 // Dart imports:
 import 'dart:io';
 
@@ -28,7 +30,7 @@ void main() {
   late BookmarkHiveRepository bookmarkRepository;
   late BookmarkGroupRepositoryHive groupRepository;
   late BookmarkLibraryService service;
-  late List<int> clearedBookmarkIds;
+  late ManagedImageCacheManager images;
   final fixturePostIds = <String, int>{};
 
   Bookmark fixtureBookmark(String path) {
@@ -70,22 +72,43 @@ void main() {
     groupBox = await Hive.openBox<BookmarkGroupHiveObject>('groups_test');
     bookmarkRepository = BookmarkHiveRepository(bookmarkBox);
     groupRepository = BookmarkGroupRepositoryHive(groupBox);
-    clearedBookmarkIds = [];
+    images = DefaultImageCacheManager(
+      cacheRootPathProvider: () => tempDirectory.path,
+    );
     service = BookmarkLibraryService(
       bookmarkRepository: bookmarkRepository,
       groupRepository: groupRepository,
       imageUrlResolver: resolver,
-      clearBookmarkCache: (bookmark) async {
-        clearedBookmarkIds.add(bookmark.id);
-      },
     );
   });
 
   tearDown(() async {
+    await images.dispose();
     await bookmarkBox.close();
     await groupBox.close();
     await tempDirectory.delete(recursive: true);
   });
+
+  test(
+    'clearing image cache preserves bookmark snapshots and group memberships',
+    () async {
+      final bookmark = await storeBookmark('clear-image');
+      await groupRepository.createGroup('First', id: firstGroupId);
+      await groupRepository.addBookmarks(firstGroupId, {bookmark.id});
+      final before = await service.load(const BookmarkTarget.ungrouped());
+      final key = images.generateCacheKey(bookmark.originalUrl);
+      await images.saveFile(key, Uint8List.fromList([1, 2, 3]));
+      final legacy = File('${tempDirectory.path}/bookmarks/images/legacy.jpg');
+      await legacy.parent.create(recursive: true);
+      await legacy.writeAsBytes([9, 8, 7]);
+      await images.clearAllCache();
+      final after = await service.load(const BookmarkTarget.ungrouped());
+      expect(after.bookmarksById, before.bookmarksById);
+      expect(after.groups, before.groups);
+      expect(await images.getCachedFileBytes(key), isNull);
+      expect(await legacy.readAsBytes(), [9, 8, 7]);
+    },
+  );
 
   test(
     'loads one repaired snapshot after removing stale memberships',
@@ -286,7 +309,6 @@ void main() {
         (await service.load(const BookmarkTarget.ungrouped())).items,
         isEmpty,
       );
-      expect(clearedBookmarkIds, [bookmark.id]);
     },
   );
 
@@ -306,7 +328,6 @@ void main() {
       (await service.load(const BookmarkTarget.ungrouped())).items,
       [bookmark],
     );
-    expect(clearedBookmarkIds, isEmpty);
   });
 
   test(
@@ -325,24 +346,20 @@ void main() {
       expect(preview.orphanBookmarkIds, {orphan.id});
       expect(state.items.map((bookmark) => bookmark.id), [shared.id]);
       expect(state.groups.single.bookmarkIds, {shared.id});
-      expect(clearedBookmarkIds, [orphan.id]);
     },
   );
 
   test(
-    'cache cleanup failure does not turn a committed deletion into failure',
+    'bookmark deletion leaves the shared image available to ordinary readers',
     () async {
       final bookmark = await storeBookmark('cache-failure');
       await groupRepository.createGroup('First', id: firstGroupId);
       await groupRepository.addBookmarks(firstGroupId, {bookmark.id});
-      service = BookmarkLibraryService(
-        bookmarkRepository: bookmarkRepository,
-        groupRepository: groupRepository,
-        imageUrlResolver: resolver,
-        clearBookmarkCache: (_) => throw StateError('cache cleanup failed'),
-      );
+      final key = images.generateCacheKey(bookmark.originalUrl);
+      await images.saveFile(key, Uint8List.fromList([4, 5, 6]));
 
       await service.deleteBookmarks([bookmark]);
+      expect(await images.getCachedFileBytes(key), [4, 5, 6]);
 
       expect(
         (await service.load(const BookmarkTarget.ungrouped())).items,

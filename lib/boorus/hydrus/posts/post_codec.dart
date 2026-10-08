@@ -1,6 +1,5 @@
 // Project imports:
 import '../../../core/posts/post/types.dart';
-import 'post_data.dart';
 import 'types.dart';
 
 final class HydrusPostCodec implements BooruPostDataCodec<HydrusPostData> {
@@ -17,7 +16,7 @@ final class HydrusPostCodec implements BooruPostDataCodec<HydrusPostData> {
 
   @override
   Map<String, Object?> encode(HydrusPostData data) => {
-    if (data.ownFavorite case final value?) 'ownFavorite': value,
+    'ownFavorite': ?data.ownFavorite,
   };
 
   @override

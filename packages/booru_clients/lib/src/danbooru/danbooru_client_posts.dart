@@ -1,3 +1,4 @@
+import '../http/request_interruption.dart';
 // Package imports:
 import 'package:dio/dio.dart';
 
@@ -112,6 +113,7 @@ mixin DanbooruClientPosts {
 
       return true;
     } catch (e) {
+      if (isDataRequestInterruption(e)) rethrow;
       return false;
     }
   }

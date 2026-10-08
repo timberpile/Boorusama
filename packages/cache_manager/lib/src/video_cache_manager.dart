@@ -118,14 +118,6 @@ class VideoCacheManager implements ImageCacheManager {
     return fileResult?.path;
   }
 
-  @override
-  FutureOr<String?> getCacheFilePathForKey(String key) => null;
-
-  @override
-  Future<void> replaceCachedFile(String key, String stagedFilePath) async {
-    throw UnsupportedError('Video cache files cannot be replaced as images');
-  }
-
   File? _getValidFile(Directory cacheDir, String key, Duration? maxAge) {
     try {
       final cacheFile = File(join(cacheDir.path, key));
@@ -201,7 +193,10 @@ class VideoCacheManager implements ImageCacheManager {
       if (estimatedSize == null) {
         final headResponse = await dio.head(
           url,
-          options: Options(headers: headers),
+          options: Options(
+            headers: headers,
+            extra: const {'boorusama.request.media': true},
+          ),
         );
 
         final contentLength = headResponse.headers.value('content-length');

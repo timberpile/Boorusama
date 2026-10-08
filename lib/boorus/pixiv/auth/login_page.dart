@@ -4,6 +4,7 @@ import 'dart:async';
 // Package imports:
 import 'package:booru_clients/pixiv.dart';
 import 'package:i18n/i18n.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 import 'package:webview_cookie_manager/webview_cookie_manager.dart';
@@ -12,6 +13,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 // Project imports:
 import '../../../foundation/platform.dart';
 import 'auth_interceptor.dart';
+import '../client_provider.dart';
 import 'pkce.dart';
 
 /// The only redirect this flow accepts: `pixiv://account/login?code=...`.
@@ -83,7 +85,7 @@ bool get isPixivWebViewLoginSupported => isAndroid() || isIOS();
 /// injection, no page-source reads. The user's Pixiv password is theirs
 /// alone; the only thing this flow ever takes from the webview is the
 /// authorization code in the redirect.
-class PixivLoginPage extends StatefulWidget {
+class PixivLoginPage extends ConsumerStatefulWidget {
   const PixivLoginPage({
     required this.onSuccess,
     super.key,
@@ -92,10 +94,10 @@ class PixivLoginPage extends StatefulWidget {
   final void Function(PixivTokens tokens) onSuccess;
 
   @override
-  State<PixivLoginPage> createState() => _PixivLoginPageState();
+  ConsumerState<PixivLoginPage> createState() => _PixivLoginPageState();
 }
 
-class _PixivLoginPageState extends State<PixivLoginPage> {
+class _PixivLoginPageState extends ConsumerState<PixivLoginPage> {
   /// Single-use, page-local, never persisted and never held in a provider
   /// that outlives this State — it is the only thing binding the code Pixiv
   /// returns to the request we made.
@@ -159,10 +161,13 @@ class _PixivLoginPageState extends State<PixivLoginPage> {
     });
 
     try {
-      final tokens = await createPixivAuthClient().exchangeCode(
-        code: code,
-        codeVerifier: _pkce.codeVerifier,
-      );
+      final tokens =
+          await createPixivAuthClient(
+            dio: ref.read(pixivOAuthDioProvider),
+          ).exchangeCode(
+            code: code,
+            codeVerifier: _pkce.codeVerifier,
+          );
 
       await _clearWebViewState();
 

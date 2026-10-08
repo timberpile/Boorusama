@@ -44,7 +44,9 @@ class BookmarkPostButton extends ConsumerWidget {
     final uniqueId = bookmarkIdentityForPost(post, config.booruIdHint);
     final presentation = library == null
         ? null
-        : selectBookmarkMembershipPresentation(library, uniqueId);
+        : ref
+              .watch(bookmarkDetailsMutationProvider)
+              .presentationFor(library, uniqueId);
     final activeGroupId = library?.activeTarget.groupId;
     final isBookmarked = presentation?.isInActiveTarget ?? false;
     final groupLabels = library == null
@@ -146,17 +148,13 @@ class BookmarkPostLikeButtonButton extends ConsumerWidget {
     final bookmarkStateAsync = ref.watch(bookmarkProvider);
     final library = bookmarkStateAsync.valueOrNull;
     final uniqueId = bookmarkIdentityForPost(post, booruConfig.booruIdHint);
-    final bookmark = library?.bookmarksByUniqueId[uniqueId];
-    final groupId = library?.activeTarget.groupId;
-    final memberships = library?.membershipsFor(uniqueId) ?? const <String>{};
-    final isBookmarked = groupId == null
-        ? bookmark != null && memberships.isEmpty
-        : memberships.contains(groupId);
-    final showCount =
-        memberships.isNotEmpty &&
-        (groupId == null ||
-            !memberships.contains(groupId) ||
-            memberships.length > 1);
+    final presentation = library == null
+        ? null
+        : ref
+              .watch(bookmarkDetailsMutationProvider)
+              .presentationFor(library, uniqueId);
+    final isBookmarked = presentation?.isInActiveTarget ?? false;
+    final showCount = presentation?.showNamedGroupCount ?? false;
     final isLoading = bookmarkStateAsync.isLoading;
 
     return GestureDetector(
@@ -186,7 +184,7 @@ class BookmarkPostLikeButtonButton extends ConsumerWidget {
               },
         likeBuilder: (isLiked) => Badge(
           isLabelVisible: showCount,
-          label: Text('${memberships.length}'),
+          label: Text('${presentation?.namedGroupCount ?? 0}'),
           child: Icon(
             Symbols.bookmark,
             color: isLiked

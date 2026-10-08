@@ -8,7 +8,6 @@ import 'package:booru_clients/sankaku.dart';
 import '../../../core/posts/post/types.dart';
 import '../../../core/tags/categories/types.dart';
 import '../../../core/tags/tag/types.dart';
-import 'post_data.dart';
 import 'types.dart';
 
 final class SankakuPostCodec implements BooruPostDataCodec<SankakuPostData> {
@@ -49,13 +48,13 @@ final class SankakuPostCodec implements BooruPostDataCodec<SankakuPostData> {
         null => null,
         final value => switch (_map(value)) {
           final map => SankakuPostIdData(
-            value: map['value'] as String,
-            isNumeric: map['isNumeric'] as bool,
+            value: _required<String>(map['value'], 'ID value'),
+            isNumeric: _required<bool>(map['isNumeric'], 'ID numeric flag'),
           ),
         },
       },
-      isFavorited: json['isFavorited'] as bool,
-      favoriteCount: json['favoriteCount'] as int,
+      isFavorited: _required<bool>(json['isFavorited'], 'favorite state'),
+      favoriteCount: _required<int>(json['favoriteCount'], 'favorite count'),
       artistDetailsTags: _decodeTags(json['artistDetailsTags']),
       characterDetailsTags: _decodeTags(json['characterDetailsTags']),
       copyrightDetailsTags: _decodeTags(json['copyrightDetailsTags']),
@@ -92,14 +91,14 @@ Post sankakuPostFromRecord(SankakuPostRecord post, PostOrigin origin) => Post(
 
 Map<String, Object?> _encodeTag(Tag tag) => {
   'name': tag.name,
-  if (tag.label case final value?) 'label': value,
+  'label': ?tag.label,
   'postCount': tag.postCount,
   'category': {
     'id': tag.category.id,
     'name': tag.category.name,
-    if (tag.category.displayName case final value?) 'displayName': value,
-    if (tag.category.originalName case final value?) 'originalName': value,
-    if (tag.category.order case final value?) 'order': value,
+    'displayName': ?tag.category.displayName,
+    'originalName': ?tag.category.originalName,
+    'order': ?tag.category.order,
     if (tag.category.darkColor case final value?) 'darkColor': value.toARGB32(),
     if (tag.category.lightColor case final value?)
       'lightColor': value.toARGB32(),
@@ -110,12 +109,12 @@ List<Tag> _decodeTags(Object? value) => _list(value).map((entry) {
   final map = _map(entry);
   final category = _map(map['category']);
   return Tag(
-    name: map['name'] as String,
+    name: _required<String>(map['name'], 'tag name'),
     label: map['label'] as String?,
-    postCount: map['postCount'] as int,
+    postCount: _required<int>(map['postCount'], 'tag post count'),
     category: TagCategory(
-      id: category['id'] as int,
-      name: category['name'] as String,
+      id: _required<int>(category['id'], 'tag category ID'),
+      name: _required<String>(category['name'], 'tag category name'),
       displayName: category['displayName'] as String?,
       originalName: category['originalName'] as String?,
       order: category['order'] as int?,
@@ -137,6 +136,12 @@ List<Object?> _list(Object? value) => switch (value) {
 };
 
 Map<String, Object?> _map(Object? value) => switch (value) {
-  final Map map => Map<String, Object?>.from(map),
+  final Map<Object?, Object?> map when map.keys.every((key) => key is String) =>
+    Map<String, Object?>.from(map),
   _ => throw const FormatException('Invalid map'),
+};
+
+T _required<T>(Object? value, String field) => switch (value) {
+  final T value => value,
+  _ => throw FormatException('Invalid Sankaku $field'),
 };

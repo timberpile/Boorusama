@@ -1,3 +1,4 @@
+import '../http/request_interruption.dart';
 // Dart imports:
 import 'dart:async';
 import 'dart:convert';
@@ -151,6 +152,7 @@ class Shimmie2Client {
         _ => const [],
       };
     } catch (e) {
+      if (isDataRequestInterruption(e)) rethrow;
       throw Exception('Failed to parse autocomplete >> $e >> ${response.data}');
     }
   }
@@ -223,35 +225,9 @@ class Shimmie2Client {
       );
       return true;
     } on DioException catch (e) {
-      // Success redirects (302) are treated as errors by Dio
+      if (isDataRequestInterruption(e)) rethrow;
       if (e.response?.statusCode == 302) return true;
-      if (e.response?.statusCode != 403) return false;
-
-      manager.invalidate();
-      if (await manager.getToken(forceRefresh: true) case final newToken?) {
-        try {
-          await _dio.post(
-            endpoint,
-            queryParameters: _authParams,
-            data: {
-              _kAuthTokenParam: newToken,
-            },
-            options: Options(
-              contentType: Headers.formUrlEncodedContentType,
-              headers: _authHeaders,
-            ),
-          );
-          return true;
-        } on DioException catch (e2) {
-          // Success redirects (302) are treated as errors by Dio
-          if (e2.response?.statusCode == 302) return true;
-          return false;
-        } catch (_) {
-          return false;
-        }
-      }
-      return false;
-    } catch (_) {
+      if (e.response?.statusCode == 403) manager.invalidate();
       return false;
     }
   }
@@ -284,42 +260,9 @@ class Shimmie2Client {
       );
       return true;
     } on DioException catch (e) {
-      // Success redirects (302) are treated as errors by Dio
+      if (isDataRequestInterruption(e)) rethrow;
       if (e.response?.statusCode == 302) return true;
-      if (e.response?.statusCode != 403) return false;
-
-      manager.invalidate();
-      if (await manager.getToken(forceRefresh: true) case final newToken?) {
-        try {
-          await _dio.post(
-            '/bulk_action',
-            queryParameters: _authParams,
-            data: {
-              _kAuthTokenParam: newToken,
-              'bulk_action': action.value,
-              'bulk_selected_ids': '[${postIds.join(',')}]',
-              'bulk_query': ?query,
-              'submit_button': switch (action) {
-                BulkAction.favorite => 'Favorite',
-                BulkAction.unfavorite => 'Unfavorite',
-              },
-            },
-            options: Options(
-              contentType: Headers.formUrlEncodedContentType,
-              headers: _authHeaders,
-            ),
-          );
-          return true;
-        } on DioException catch (e2) {
-          // Success redirects (302) are treated as errors by Dio
-          if (e2.response?.statusCode == 302) return true;
-          return false;
-        } catch (_) {
-          return false;
-        }
-      }
-      return false;
-    } catch (_) {
+      if (e.response?.statusCode == 403) manager.invalidate();
       return false;
     }
   }
@@ -345,11 +288,13 @@ class Shimmie2Client {
 
       return result;
     } on DioException catch (e) {
+      if (isDataRequestInterruption(e)) rethrow;
       if (e.response?.statusCode == 404 || e.response?.statusCode == 403) {
         return ExtensionsNotSupported();
       }
       rethrow;
-    } catch (_) {
+    } catch (interruption) {
+      if (isDataRequestInterruption(interruption)) rethrow;
       return ExtensionsNotSupported();
     }
   }
@@ -366,11 +311,13 @@ class Shimmie2Client {
         version: _parseShimmieVersionFromHeaders(response.headers),
       );
     } on DioException catch (e) {
+      if (isDataRequestInterruption(e)) rethrow;
       if (e.response?.statusCode == 404 || e.response?.statusCode == 403) {
         return ExtensionsNotSupported();
       }
       rethrow;
-    } catch (_) {
+    } catch (interruption) {
+      if (isDataRequestInterruption(interruption)) rethrow;
       return ExtensionsNotSupported();
     }
   }

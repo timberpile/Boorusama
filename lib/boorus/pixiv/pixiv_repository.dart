@@ -15,7 +15,6 @@ import '../../core/tags/autocompletes/types.dart';
 import 'client_provider.dart';
 import 'posts/link_generator.dart';
 import 'posts/post_codec.dart';
-import 'posts/post_data.dart';
 import 'posts/providers.dart';
 import 'posts/types.dart';
 import 'tags/providers.dart';

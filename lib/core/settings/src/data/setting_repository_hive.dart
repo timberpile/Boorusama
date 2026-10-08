@@ -21,9 +21,31 @@ class SettingsRepositoryHive implements SettingsRepository {
   SettingsOrError load() => _openDb()
       .flatMap((db) => TaskEither.fromEither(_getSettingsJson(db)))
       .flatMap(
-        (jsonString) => TaskEither.fromEither(
-          _decodeSettingsJson(jsonString),
-        ),
+        (jsonString) =>
+            TaskEither.fromEither(
+              _decodeSettingsJson(jsonString),
+            ).flatMap(
+              (settings) => TaskEither.tryCatch(
+                () async {
+                  final decoded = jsonDecode(jsonString);
+                  if (decoded is Map<String, dynamic> &&
+                      switch (decoded['searchRefresh']) {
+                        final Map refresh => refresh['schemaVersion'] != 2,
+                        _ => true,
+                      }) {
+                    final migrated = Map<String, dynamic>.from(decoded)
+                      ..['searchRefresh'] = settings.searchRefresh.toJson();
+                    try {
+                      await (await _db).put(_settingsKey, jsonEncode(migrated));
+                    } catch (_) {
+                      // Keep the safe in-memory interpretation if storage is unavailable.
+                    }
+                  }
+                  return settings;
+                },
+                (e, s) => SettingsLoadError.unknown,
+              ),
+            ),
       );
 
   TaskEither<SettingsLoadError, dynamic> _openDb() => TaskEither.tryCatch(

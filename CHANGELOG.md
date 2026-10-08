@@ -1,3 +1,32 @@
+# 4.5.0-timberpile.4
+
+## Breaking changes
+
+- Automatic refresh for pinned searches and following feeds is now enabled by default while the app is open. Adaptive checks start at 24 hours, normally require Wi-Fi or Ethernet, and pause in battery saver. Disable them in Pinned Searches & Feeds settings; existing disabled choices are preserved.
+- Reselect your Android automatic-backup folder to grant persistent access.
+- Bookmark images now use the shared image cache. Previously cached bookmark images are not reused and may need downloading again; cached images can be removed when storage limits are reached.
+
+## Features
+
+- Create, trim, resize, save, and share GIFs from videos on Android.
+- Add previews, renaming, and sorting for following-feed sources.
+- Add feed refresh controls and detailed refresh status.
+- Set thumbnail and post-viewer quality independently.
+- Configure a shared image-cache storage limit.
+- Recover missing bookmark details in bulk with resumable maintenance and a copyable diagnostic log.
+- Review import changes in a compact, expandable hierarchy.
+
+## Fixes and improvements
+
+- Fix Android export saving and persistent automatic-backup folder access.
+- Preserve local bookmark-group names when updating imported groups.
+- Update bookmark-viewer controls immediately after group removals.
+- Make bookmark filters more compact and scrollable.
+- Prioritize active browsing over automatic site requests.
+- Recognize equivalent website URLs when checking profile capabilities.
+- Preserve saved post metadata and standardize thumbnail indicators.
+- Display complete release notes, including categorized sections.
+
 # 4.5.0-timberpile.3
 
 ## Breaking changes

@@ -1,6 +1,3 @@
-// Dart imports:
-import 'dart:async';
-
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kurumi/material.dart';
@@ -35,11 +32,11 @@ class DanbooruQuickFavoriteButton extends ConsumerWidget {
 
     return QuickFavoriteButton(
       isFaved: isFaved,
-      onFavToggle: (isFaved) {
+      onFavToggle: (isFaved) async {
         if (!isFaved) {
-          unawaited(notifier.remove(post.id));
+          await notifier.remove(post.id);
         } else {
-          unawaited(notifier.add(post.id));
+          await notifier.add(post.id);
         }
       },
     );

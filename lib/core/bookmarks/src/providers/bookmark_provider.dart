@@ -2,7 +2,6 @@
 import 'dart:async';
 
 // Package imports:
-import 'package:cache_manager/cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
@@ -24,6 +23,7 @@ import '../../../settings/providers.dart';
 import '../data/bookmark_convert.dart';
 import '../data/providers.dart';
 import '../services/bookmark_library_service.dart';
+import '../services/bookmark_hydration_service.dart';
 import '../types/bookmark.dart';
 import '../types/bookmark_group.dart';
 import '../types/bookmark_library_state.dart';
@@ -99,9 +99,6 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
   Future<void> _mutationTail = Future.value();
   var _requiresRefresh = false;
 
-  ImageCacheManager? get _cacheManager =>
-      ref.read(bookmarkImageCacheManagerProvider);
-
   Future<BookmarkRepository> get bookmarkRepository =>
       ref.read(bookmarkRepoProvider.future);
 
@@ -110,7 +107,6 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     groupRepository: await ref.read(bookmarkGroupRepoProvider.future),
     imageUrlResolver: (booruId) =>
         ref.read(bookmarkUrlResolverProvider(booruId)),
-    clearBookmarkCache: _clearBookmarkCache,
   );
 
   @override
@@ -211,16 +207,6 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     }
   }
 
-  Future<void> _clearBookmarkCache(Bookmark bookmark) async {
-    if (_cacheManager case final cache?) {
-      await Future.wait([
-        cache.clearCache(cache.generateCacheKey(bookmark.originalUrl)),
-        cache.clearCache(cache.generateCacheKey(bookmark.sampleUrl)),
-        cache.clearCache(cache.generateCacheKey(bookmark.thumbnailUrl)),
-      ]);
-    }
-  }
-
   Future<void> addBookmarks(
     BooruConfigAuth config,
     Iterable<Post> posts, {
@@ -274,6 +260,28 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     } catch (_) {
       await _publishCommittedMutation();
       onError?.call();
+    }
+  });
+
+  Future<BookmarkHydrationProgress> hydrateBookmarks({
+    required Iterable<BooruConfig> configs,
+    required BookmarkRecoveryService recovery,
+    required BookmarkHydrationCancellation cancellation,
+    required void Function(BookmarkHydrationProgress) onProgress,
+  }) => _serialize(() async {
+    final library = await future;
+    try {
+      return await BookmarkHydrationService(
+        library: await _service,
+        recovery: recovery,
+      ).run(
+        bookmarks: library.items,
+        configs: configs,
+        cancellation: cancellation,
+        onProgress: onProgress,
+      );
+    } finally {
+      await _publishCommittedMutation();
     }
   });
 

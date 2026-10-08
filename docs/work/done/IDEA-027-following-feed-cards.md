@@ -64,7 +64,7 @@ technical last-checked timestamps with localized relative time.
   behavior, lifecycle, scheduling, request gate, service, and notifier files
   (`/tmp/boorusama-ready-27-followup-focused.log`). Coordinator's independent
   review, full-suite and emulator follow-up gates remain pending.
-- Preserved [the separate feed-editor card task](../ready/FEED-001-editor-preview-cards.md)
+- Preserved [the separate feed-editor card task](../done/FEED-001-editor-preview-cards.md)
   in ready; no editor redesign is included.
 - Follow-up analyzer baseline remains 227 existing informational findings,
   with no errors, warnings, or touched-file findings

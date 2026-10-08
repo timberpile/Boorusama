@@ -1,6 +1,5 @@
 // Project imports:
 import '../../../core/posts/post/types.dart';
-import 'post_data.dart';
 import 'types.dart';
 
 final class Shimmie2PostCodec implements BooruPostDataCodec<Shimmie2PostData> {
@@ -17,42 +16,42 @@ final class Shimmie2PostCodec implements BooruPostDataCodec<Shimmie2PostData> {
 
   @override
   Map<String, Object?> encode(Shimmie2PostData data) => {
-    if (data.locked case final value?) 'locked': value,
-    if (data.ext case final value?) 'ext': value,
-    if (data.mime case final value?) 'mime': value,
-    if (data.niceName case final value?) 'niceName': value,
-    if (data.tooltip case final value?) 'tooltip': value,
-    if (data.favorites case final value?) 'favorites': value,
-    if (data.numericScore case final value?) 'numericScore': value,
-    if (data.notes case final value?) 'notes': value,
-    if (data.hasChildren case final value?) 'hasChildren': value,
-    if (data.title case final value?) 'title': value,
-    if (data.approved case final value?) 'approved': value,
-    if (data.approvedById case final value?) 'approvedById': value,
-    if (data.isPrivate case final value?) 'isPrivate': value,
-    if (data.trash case final value?) 'trash': value,
+    'locked': ?data.locked,
+    'ext': ?data.ext,
+    'mime': ?data.mime,
+    'niceName': ?data.niceName,
+    'tooltip': ?data.tooltip,
+    'favorites': ?data.favorites,
+    'numericScore': ?data.numericScore,
+    'notes': ?data.notes,
+    'hasChildren': ?data.hasChildren,
+    'title': ?data.title,
+    'approved': ?data.approved,
+    'approvedById': ?data.approvedById,
+    'isPrivate': ?data.isPrivate,
+    'trash': ?data.trash,
     if (data.ownerJoinDate case final value?)
       'ownerJoinDate': value.toUtc().toIso8601String(),
     if (data.votes case final votes?)
       'votes': [
         for (final vote in votes)
           {
-            if (vote.score case final value?) 'score': value,
-            if (vote.userName case final value?) 'userName': value,
-            if (vote.userId case final value?) 'userId': value,
+            'score': ?vote.score,
+            'userName': ?vote.userName,
+            'userId': ?vote.userId,
           },
       ],
-    if (data.myVote case final value?) 'myVote': value,
+    'myVote': ?data.myVote,
     if (data.comments case final comments?)
       'comments': [
         for (final comment in comments)
           {
-            if (comment.id case final value?) 'id': value,
-            if (comment.comment case final value?) 'comment': value,
+            'id': ?comment.id,
+            'comment': ?comment.comment,
             if (comment.posted case final value?)
               'posted': value.toUtc().toIso8601String(),
-            if (comment.ownerName case final value?) 'ownerName': value,
-            if (comment.ownerId case final value?) 'ownerId': value,
+            'ownerName': ?comment.ownerName,
+            'ownerId': ?comment.ownerId,
           },
       ],
   };
@@ -160,6 +159,7 @@ List<Object?>? _optionalList(Object? value) => switch (value) {
 };
 
 Map<String, Object?> _map(Object? value) => switch (value) {
-  final Map<String, Object?> map => map,
+  final Map<Object?, Object?> map when map.keys.every((key) => key is String) =>
+    Map<String, Object?>.from(map),
   _ => throw const FormatException('Invalid map'),
 };

@@ -7,6 +7,7 @@ import 'package:boorusama/core/search/subscriptions/src/pages/pinned_searches_pa
 import 'package:boorusama/core/search/subscriptions/src/widgets/pinned_search_card.dart';
 import 'package:boorusama/core/search/subscriptions/types.dart';
 import 'package:clock/clock.dart';
+import 'package:i18n/i18n.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -835,13 +836,17 @@ void main() {
       harness.refreshGate = Completer<void>();
       late String folderId;
       await tester.runAsync(() async {
-        await harness.seed([pinnedFixture(query: 'cat')]);
+        await harness.seed([
+          pinnedFixture(query: 'cat'),
+          pinnedFixture(id: 'dogs', query: 'dog'),
+        ]);
         await harness.container.read(searchSubscriptionsProvider.future);
         final notifier = harness.container.read(
           searchSubscriptionsProvider.notifier,
         );
         folderId = (await notifier.createSharedFolder('Animals')).id;
         await notifier.movePinToSharedFolder('cats', folderId);
+        await notifier.movePinToSharedFolder('dogs', folderId);
       });
 
       await harness.pump(tester, const PinnedSearchesPage());
@@ -858,6 +863,7 @@ void main() {
         (profileId: '00000000-0000-4000-8000-00000000000c', query: 'cat'),
       ]);
       await tester.pump();
+      expect(find.text('Refreshing… 2 left'), findsOneWidget);
 
       await openFolderMenu(tester, folderId);
       expect(actionItem(tester, 'Refresh').enabled, isFalse);
@@ -867,6 +873,7 @@ void main() {
       await tester.tap(pageOverflow());
       await settle(tester);
       expect(actionItem(tester, 'Refresh Folder').enabled, isFalse);
+      expect(find.text('Pinned Searches & Feeds'), findsNothing);
       await dismissMenu(tester);
 
       harness.refreshGate!.complete();
@@ -874,6 +881,71 @@ void main() {
       await drain(tester);
     },
   );
+
+  for (final locale in ['en-US', 'de-DE']) {
+    testWidgets(
+      'remaining folder work wraps on a narrow screen in $locale without fetching',
+      (tester) async {
+        await tester.binding.setSurfaceSize(const Size(280, 700));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        addTearDown(() => ensureI18nInitialized('en-US'));
+        late SearchRefreshProgress progress;
+        await tester.runAsync(() async {
+          await ensureI18nInitialized(locale);
+          await harness.seed([pinnedFixture(), pinnedFixture(id: 'dogs')]);
+          await harness.container.read(searchSubscriptionsProvider.future);
+          final notifier = harness.container.read(
+            searchSubscriptionsProvider.notifier,
+          );
+          final folder = await notifier.createSharedFolder(
+            'A long folder title',
+          );
+          await notifier.movePinToSharedFolder('cats', folder.id);
+          await notifier.movePinToSharedFolder('dogs', folder.id);
+          progress = notifier.beginRefreshProgress(['cats', 'dogs']);
+        });
+        addTearDown(progress.close);
+        await tester.pumpWidget(
+          harness.wrap(
+            const MaterialApp(
+              builder: themeBuilder,
+              home: MediaQuery(
+                data: MediaQueryData(textScaler: TextScaler.linear(2)),
+                child: PinnedSearchesPage(),
+              ),
+            ),
+          ),
+        );
+        await settle(tester);
+        expect(
+          find.text(
+            locale == 'de-DE'
+                ? 'Aktualisieren… 2 verbleibend'
+                : 'Refreshing… 2 left',
+          ),
+          findsOneWidget,
+        );
+        expect(harness.requests, isEmpty);
+        expect(tester.takeException(), isNull);
+        progress.settle('cats');
+        await tester.pump();
+        expect(
+          find.text(
+            locale == 'de-DE'
+                ? 'Aktualisieren… 1 verbleibend'
+                : 'Refreshing… 1 left',
+          ),
+          findsOneWidget,
+        );
+        progress.close();
+        await tester.pump();
+        expect(
+          find.textContaining(locale == 'de-DE' ? 'verbleibend' : 'left'),
+          findsNothing,
+        );
+      },
+    );
+  }
 
   testWidgets('a missing folder disables refresh on the opened page', (
     tester,

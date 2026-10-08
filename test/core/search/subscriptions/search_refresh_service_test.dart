@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'package:boorusama/core/http/client/coordination.dart';
+import 'package:dio/dio.dart';
 
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/errors/types.dart';
@@ -12,6 +14,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:foundation/foundation.dart';
 
 import 'subscription_test_utils.dart';
+import 'package:boorusama/core/search/subscriptions/src/data/hive/search_subscription_repository_hive.dart';
+import 'package:boorusama/core/search/subscriptions/src/data/hive/search_subscription_hive_object.dart';
 
 void main() {
   final checkpoint = DateTime.utc(2026, 9, 14, 8);
@@ -60,14 +64,120 @@ void main() {
       (query, page, limit) async => Either.of(
         PostResult(
           posts: [
-            TestSearchPost(2, checkpoint.add(const Duration(minutes: 2))),
-            TestSearchPost(1, checkpoint.add(const Duration(minutes: 1))),
+            testSearchPost(2, checkpoint.add(const Duration(minutes: 2))),
+            testSearchPost(1, checkpoint.add(const Duration(minutes: 1))),
           ],
           total: 2,
         ),
       ),
     );
   });
+
+  test(
+    'cooldown exposes retryAt without writing an attempt or checkpoint',
+    () async {
+      final retryAt = startedAt.add(const Duration(minutes: 2));
+      posts = TestSearchPostRepository(
+        (_, _, _) async => Either.left(RateLimitedError(retryAt)),
+      );
+      final result = await service().refresh(subscription, BooruConfig.empty);
+      expect(
+        result,
+        isA<SearchRefreshDeferred>().having(
+          (r) => r.retryAt,
+          'retryAt',
+          retryAt,
+        ),
+      );
+      final saved = (await repository.getById(subscription.id))!;
+      expect(saved.lastAttemptAt, isNull);
+      expect(saved.lastSuccessfulCheckAt, isNull);
+      expect(saved.lastErrorKind, isNull);
+    },
+  );
+
+  test(
+    'cancelled source refresh cannot commit after a fetch completes',
+    () async {
+      final fetched = Completer<void>();
+      final release = Completer<void>();
+      posts = TestSearchPostRepository((_, _, _) async {
+        fetched.complete();
+        await release.future;
+        return Either.of(
+          PostResult(posts: [testSearchPost(3, startedAt)], total: 1),
+        );
+      });
+      final token = CancelToken();
+      final operation = runWithApiRequestContext(
+        ApiRequestContext(cancelToken: token),
+        () => service().refresh(subscription, BooruConfig.empty),
+      );
+      await fetched.future;
+      token.cancel();
+      release.complete();
+      expect(await operation, const SearchRefreshDiscarded());
+      final saved = (await repository.getById(subscription.id))!;
+      expect(saved.lastAttemptAt, isNull);
+      expect(saved.lastSuccessfulCheckAt, isNull);
+      expect(saved.previews, isEmpty);
+      expect(saved.hasNewPosts, false);
+    },
+  );
+
+  for (final failure in [false, true]) {
+    test(
+      'cancellation while ${failure ? 'failure' : 'success'} commit waits for serialization preserves runtime state',
+      () async {
+        final box = _QueuedWriteBox();
+        repository = HiveSearchSubscriptionRepository(
+          box: box,
+          organizationBox: MemoryBox<dynamic>(),
+        );
+        subscription = await repository.create(
+          profileId: BooruConfig.empty.id,
+          query: 'cat',
+          name: null,
+          id: 'cat',
+        );
+        box.block = true;
+        final renaming = repository.rename('cat', 'Renamed');
+        await box.entered.future;
+        final fetched = Completer<void>();
+        posts = TestSearchPostRepository((_, _, _) async {
+          fetched.complete();
+          return failure
+              ? Either.left(
+                  AppError(
+                    type: AppErrorType.cannotReachServer,
+                    message: 'offline',
+                  ),
+                )
+              : Either.of(
+                  PostResult(posts: [testSearchPost(3, startedAt)], total: 1),
+                );
+        });
+        final token = CancelToken();
+        final operation = runWithApiRequestContext(
+          ApiRequestContext(cancelToken: token),
+          () => service().refresh(subscription, BooruConfig.empty),
+        );
+        await fetched.future;
+        await Future<void>.delayed(Duration.zero);
+        token.cancel();
+        box.release.complete();
+        await renaming;
+        expect(await operation, const SearchRefreshDiscarded());
+        final saved = (await repository.getById('cat'))!;
+        expect(saved.name, 'Renamed');
+        expect(saved.lastAttemptAt, isNull);
+        expect(saved.lastSuccessfulCheckAt, isNull);
+        expect(saved.lastErrorKind, isNull);
+        expect(saved.previews, isEmpty);
+        expect(saved.hasNewPosts, false);
+      },
+    );
+  }
 
   test('first successful refresh establishes a read baseline', () async {
     final result = await service().refresh(subscription, BooruConfig.empty);
@@ -88,9 +198,9 @@ void main() {
       (_, _, _) async => Either.of(
         PostResult(
           posts: [
-            TestSearchPost(2, checkpoint.add(const Duration(minutes: 2))),
-            TestSearchPost(1, checkpoint.add(const Duration(minutes: 1))),
-            TestSearchPost(0, checkpoint),
+            testSearchPost(2, checkpoint.add(const Duration(minutes: 2))),
+            testSearchPost(1, checkpoint.add(const Duration(minutes: 1))),
+            testSearchPost(0, checkpoint),
           ],
           total: 3,
         ),
@@ -105,7 +215,7 @@ void main() {
   test('a higher post ID sets NEW even with an older upload time', () async {
     posts = TestSearchPostRepository(
       (_, _, _) async => Either.right(
-        [TestSearchPost(100, checkpoint)].toResult(),
+        [testSearchPost(100, checkpoint)].toResult(),
       ),
     );
     now = checkpoint;
@@ -114,8 +224,8 @@ void main() {
     posts = TestSearchPostRepository(
       (_, _, _) async => Either.right(
         [
-          TestSearchPost(101, checkpoint.subtract(const Duration(days: 1))),
-          TestSearchPost(100, checkpoint),
+          testSearchPost(101, checkpoint.subtract(const Duration(days: 1))),
+          testSearchPost(100, checkpoint),
         ].toResult(),
       ),
     );
@@ -130,7 +240,7 @@ void main() {
   test('a lower post ID does not set NEW with a newer upload time', () async {
     posts = TestSearchPostRepository(
       (_, _, _) async => Either.right(
-        [TestSearchPost(100, checkpoint)].toResult(),
+        [testSearchPost(100, checkpoint)].toResult(),
       ),
     );
     now = checkpoint;
@@ -139,8 +249,8 @@ void main() {
     posts = TestSearchPostRepository(
       (_, _, _) async => Either.right(
         [
-          TestSearchPost(100, checkpoint),
-          TestSearchPost(99, startedAt.add(const Duration(days: 1))),
+          testSearchPost(100, checkpoint),
+          testSearchPost(99, startedAt.add(const Duration(days: 1))),
         ].toResult(),
       ),
     );
@@ -189,7 +299,7 @@ void main() {
                   id > total - (total < 50 ? total : 50);
                   id--
                 )
-                  TestSearchPost(id, checkpoint.add(Duration(seconds: id))),
+                  testSearchPost(id, checkpoint.add(Duration(seconds: id))),
               ],
               total: total,
               hasMore: total > 50,
@@ -213,7 +323,7 @@ void main() {
     () async {
       posts = TestSearchPostRepository(
         (_, _, _) async => Either.right(
-          [TestSearchPost(10, checkpoint)].toResult(),
+          [testSearchPost(10, checkpoint)].toResult(),
         ),
       );
       now = checkpoint;
@@ -223,8 +333,8 @@ void main() {
       posts = TestSearchPostRepository(
         (_, _, _) async => Either.right(
           [
-            TestSearchPost(9, checkpoint),
-            TestSearchPost(8, checkpoint.subtract(const Duration(days: 1))),
+            testSearchPost(9, checkpoint),
+            testSearchPost(8, checkpoint.subtract(const Duration(days: 1))),
           ].toResult(),
         ),
       );
@@ -315,7 +425,7 @@ void main() {
           (_, _, _) async => switch (c.error) {
             final error? => Either.left(error),
             null => Either.of(
-              PostResult(posts: [TestSearchPost(3, null)], total: 1),
+              PostResult(posts: [testSearchPost(3, null)], total: 1),
             ),
           },
         );
@@ -369,4 +479,19 @@ class _TestAdapter implements SearchRefreshQueryAdapter {
   @override
   SearchRefreshQueryPlan plan(String query, {required DateTime? after}) =>
       resolve(query, after);
+}
+
+class _QueuedWriteBox extends MemorySubscriptionBox {
+  var block = false;
+  final entered = Completer<void>();
+  final release = Completer<void>();
+  @override
+  Future<void> put(dynamic key, SearchSubscriptionHiveObject value) async {
+    if (block) {
+      block = false;
+      entered.complete();
+      await release.future;
+    }
+    await super.put(key, value);
+  }
 }

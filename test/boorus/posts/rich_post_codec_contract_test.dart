@@ -6,24 +6,22 @@ import 'package:boorusama/boorus/anime-pictures/posts/post_codec.dart';
 import 'package:boorusama/boorus/anime-pictures/posts/post_data.dart';
 import 'package:boorusama/boorus/anime-pictures/posts/types.dart';
 import 'package:boorusama/boorus/eshuushuu/posts/post_codec.dart';
-import 'package:boorusama/boorus/eshuushuu/posts/post_data.dart';
 import 'package:boorusama/boorus/eshuushuu/posts/types.dart';
 import 'package:boorusama/boorus/hydrus/posts/post_codec.dart';
-import 'package:boorusama/boorus/hydrus/posts/post_data.dart';
 import 'package:boorusama/boorus/hydrus/posts/types.dart';
 import 'package:boorusama/boorus/nozomi/posts/post_codec.dart';
 import 'package:boorusama/boorus/nozomi/posts/post_data.dart';
 import 'package:boorusama/boorus/nozomi/posts/types.dart';
 import 'package:boorusama/boorus/philomena/posts/post_codec.dart';
-import 'package:boorusama/boorus/philomena/posts/post_data.dart';
 import 'package:boorusama/boorus/philomena/posts/types.dart';
 import 'package:boorusama/boorus/pixiv/posts/post_codec.dart';
-import 'package:boorusama/boorus/pixiv/posts/post_data.dart';
 import 'package:boorusama/boorus/pixiv/posts/types.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 import 'package:boorusama/core/posts/rating/types.dart';
 import 'package:boorusama/core/posts/sources/types.dart';
+
+import 'post_codec_persistence_fixture.dart';
 
 void main() {
   final origin = PostOrigin.fromSource(
@@ -226,6 +224,72 @@ void main() {
       expect(decoded.downvotes, 2);
     },
   );
+
+  final malformedRequiredDataCases = [
+    (
+      name: 'AnimePictures tag count',
+      decode: () => const AnimePicturesPostCodec().decode(
+        const {'tagsCount': null},
+        version: 1,
+      ),
+    ),
+    (
+      name: 'Eshuushuu tag collection entry',
+      decode: () => const EshuushuuPostCodec().decode(
+        const {
+          'characters': ['character', null],
+        },
+        version: 1,
+      ),
+    ),
+    (
+      name: 'Philomena description',
+      decode: () => const PhilomenaPostCodec().decode(
+        const {
+          'description': null,
+          'representation': {
+            'full': 'full',
+            'large': 'large',
+            'medium': 'medium',
+            'small': 'small',
+            'tall': 'tall',
+            'thumb': 'thumb',
+            'thumbSmall': 'thumb-small',
+            'thumbTiny': 'thumb-tiny',
+          },
+        },
+        version: 1,
+      ),
+    ),
+    (
+      name: 'Pixiv illustration ID',
+      decode: () => const PixivPostCodec().decode(
+        const {'illustType': 'illust', 'illustId': null},
+        version: 1,
+      ),
+    ),
+  ];
+  for (final testCase in malformedRequiredDataCases) {
+    test('${testCase.name} rejects null required persisted data', () {
+      expect(testCase.decode, throwsA(isA<FormatException>()));
+    });
+  }
+
+  test('Philomena rejects a persisted representation with non-string keys', () {
+    expect(
+      () => const PhilomenaPostCodec().decode(
+        const {
+          'description': '',
+          'commentCount': 0,
+          'favCount': 0,
+          'upvotes': 0,
+          'representation': <Object?, Object?>{1: 'invalid'},
+        },
+        version: 1,
+      ),
+      throwsA(isA<FormatException>()),
+    );
+  });
 }
 
 Post _roundTrip<D extends BooruPostData>(
@@ -235,7 +299,9 @@ Post _roundTrip<D extends BooruPostData>(
   expect(post.runtimeType, Post);
   const codec = StoredPostCodec();
   final result = codec.decode(
-    codec.encode(post, dataCodec: dataCodec),
+    rehydrateSnapshotWithDynamicNestedMaps(
+      codec.encode(post, dataCodec: dataCodec),
+    ),
     dataCodec: dataCodec,
   );
   expect(result, isA<StoredPostDecodeSuccess>());

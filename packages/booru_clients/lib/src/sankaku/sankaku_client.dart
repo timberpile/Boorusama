@@ -1,3 +1,4 @@
+import '../http/request_interruption.dart';
 // Package imports:
 import 'package:dio/dio.dart';
 
@@ -176,7 +177,8 @@ class SankakuClient {
       );
 
       return true;
-    } catch (_) {
+    } catch (interruption) {
+      if (isDataRequestInterruption(interruption)) rethrow;
       return false;
     }
   }
@@ -195,7 +197,8 @@ class SankakuClient {
       );
 
       return true;
-    } catch (_) {
+    } catch (interruption) {
+      if (isDataRequestInterruption(interruption)) rethrow;
       return false;
     }
   }
@@ -225,6 +228,7 @@ class SankakuClient {
 
       return (response.data as List).map((e) => TagDto.fromJson(e)).toList();
     } on DioException catch (e) {
+      if (isDataRequestInterruption(e)) rethrow;
       if (e.type == DioExceptionType.cancel) {
         return [];
       } else if (e.type == DioExceptionType.receiveTimeout) {
@@ -251,6 +255,7 @@ class SankakuClient {
 
       return (response.data as List).map((e) => TagDto.fromJson(e)).toList();
     } on DioException catch (e) {
+      if (isDataRequestInterruption(e)) rethrow;
       if (e.type == DioExceptionType.receiveTimeout) {
         // Too slow, return empty list, don't throw
         return [];

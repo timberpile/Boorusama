@@ -34,8 +34,8 @@ class _SearchSettingsPageState extends ConsumerState<SearchSettingsPage> {
           title: Text(context.t.settings.search.auto_focus_search_bar),
           value: settings.autoFocusSearchBar,
           onChanged: (value) {
-            notifer.updateSettings(
-              settings.copyWith(
+            notifer.updateWith(
+              (settings) => settings.copyWith(
                 autoFocusSearchBar: value,
               ),
             );
@@ -56,8 +56,8 @@ class _SearchSettingsPageState extends ConsumerState<SearchSettingsPage> {
           ),
           value: settings.searchBarScrollBehavior.persistSearchBar,
           onChanged: (value) {
-            notifer.updateSettings(
-              settings.copyWith(
+            notifer.updateWith(
+              (settings) => settings.copyWith(
                 searchBarScrollBehavior: value
                     ? SearchBarScrollBehavior.persistent
                     : SearchBarScrollBehavior.autoHide,
@@ -73,8 +73,8 @@ class _SearchSettingsPageState extends ConsumerState<SearchSettingsPage> {
           selectedOption: settings.searchBarPosition,
           items: SearchBarPosition.values,
           onChanged: (value) {
-            notifer.updateSettings(
-              settings.copyWith(searchBarPosition: value),
+            notifer.updateWith(
+              (settings) => settings.copyWith(searchBarPosition: value),
             );
           },
           optionBuilder: (value) => Text(value.localize(context)),
@@ -85,8 +85,8 @@ class _SearchSettingsPageState extends ConsumerState<SearchSettingsPage> {
           ),
           value: settings.bookmarkFilterType.shouldFilterBookmarks,
           onChanged: (value) {
-            notifer.updateSettings(
-              settings.copyWith(
+            notifer.updateWith(
+              (settings) => settings.copyWith(
                 bookmarkFilterType: value
                     ? BookmarkFilterType.hideAll
                     : BookmarkFilterType.none,

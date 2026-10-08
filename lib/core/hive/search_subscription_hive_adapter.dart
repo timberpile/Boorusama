@@ -38,13 +38,23 @@ class SearchSubscriptionHiveObjectAdapter
       feedId: fields[12] as String?,
       runtimeRevision: fields[13] == null ? 0 : (fields[13] as num).toInt(),
       queryStructure: fields[15] as Object?,
+      adaptiveIntervalMilliseconds: switch (fields[16]) {
+        final int milliseconds
+            when milliseconds >= 21600000 && milliseconds <= 604800000 =>
+          milliseconds,
+        _ => 86400000,
+      },
+      emptyAutomaticStreak: fields[17] == 1 ? 1 : 0,
+      lastMaterialEditAt: fields[18] is DateTime
+          ? fields[18] as DateTime
+          : null,
     );
   }
 
   @override
   void write(BinaryWriter writer, SearchSubscriptionHiveObject obj) {
     writer
-      ..writeByte(16)
+      ..writeByte(19)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -76,7 +86,13 @@ class SearchSubscriptionHiveObjectAdapter
       ..writeByte(14)
       ..write(obj.highestSeenPostId)
       ..writeByte(15)
-      ..write(obj.queryStructure);
+      ..write(obj.queryStructure)
+      ..writeByte(16)
+      ..write(obj.adaptiveIntervalMilliseconds)
+      ..writeByte(17)
+      ..write(obj.emptyAutomaticStreak)
+      ..writeByte(18)
+      ..write(obj.lastMaterialEditAt);
   }
 
   @override

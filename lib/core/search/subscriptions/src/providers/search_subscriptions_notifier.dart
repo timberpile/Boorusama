@@ -6,6 +6,9 @@ import 'package:collection/collection.dart';
 import 'package:equatable/equatable.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
+import 'package:dio/dio.dart';
+import '../../../../http/client/coordination.dart';
+import '../../../../http/client/providers.dart';
 
 // Project imports:
 import '../../../../../foundation/data_mutation_coordinator.dart';
@@ -37,16 +40,21 @@ class SearchSubscriptionsState extends Equatable {
     required this.batchCompleted,
     required this.batchTotal,
     this.batchProfileId,
+    this.refreshingFeedId,
+    Set<String> pendingRefreshIds = const {},
     this.feeds = const [],
     required this.organization,
   }) : subscriptions = List.unmodifiable(subscriptions),
-       refreshingIds = Set.unmodifiable(refreshingIds);
+       refreshingIds = Set.unmodifiable(refreshingIds),
+       pendingRefreshIds = Set.unmodifiable(pendingRefreshIds);
 
   final List<SearchSubscription> subscriptions;
   final Set<String> refreshingIds;
+  final Set<String> pendingRefreshIds;
   final int batchCompleted;
   final int batchTotal;
   final String? batchProfileId;
+  final String? refreshingFeedId;
   final List<SearchFollowingFeed> feeds;
   final SearchOrganization organization;
 
@@ -54,9 +62,11 @@ class SearchSubscriptionsState extends Equatable {
   List<Object?> get props => [
     subscriptions,
     refreshingIds,
+    pendingRefreshIds,
     batchCompleted,
     batchTotal,
     batchProfileId,
+    refreshingFeedId,
     feeds,
     organization,
   ];
@@ -69,10 +79,16 @@ class SearchSubscriptionsNotifier
 
   final SearchRefreshService? _refreshService;
   final Map<String, Future<SearchRefreshOutcome>> _inFlight = {};
+  final Map<Object, Set<String>> _refreshPlans = {};
   final Map<String, int> _pausedProfileRefreshes = {};
+  final _refreshTokens = <String, CancelToken>{};
+  final _refreshOperations = <String, _SourceRefreshOperation>{};
   final _requestGate = SearchRefreshRequestGate();
   Future<void> _mutationTail = Future.value();
   Future<void> _batchTail = Future.value();
+  Future<List<SearchRefreshOutcome>>? _feedRefreshFuture;
+  String? _refreshingFeedId;
+  CancelToken? _feedRefreshToken;
   var _batchCompleted = 0;
   var _batchTotal = 0;
   String? _batchProfileId;
@@ -86,7 +102,13 @@ class SearchSubscriptionsNotifier
   @override
   Future<SearchSubscriptionsState> build() async {
     _disposed = false;
-    ref.onDispose(() => _disposed = true);
+    ref.onDispose(() {
+      _disposed = true;
+      _feedRefreshToken?.cancel();
+      for (final token in _refreshTokens.values) {
+        token.cancel();
+      }
+    });
     final repository = await _repository;
     _feeds = await repository.getFeeds();
     _organization = await repository.getOrganization();
@@ -114,6 +136,45 @@ class SearchSubscriptionsNotifier
             const UnsupportedSearchRefreshQueryAdapter(),
         scanner: ChronologicalSearchScanner(),
       );
+
+  SearchRefreshProgress beginRefreshProgress([
+    Iterable<String> ids = const [],
+  ]) {
+    final key = Object();
+    void update(Iterable<String> ids) {
+      if (_disposed) return;
+      _refreshPlans[key] = ids.toSet();
+      _publishActivity();
+    }
+
+    final progress = SearchRefreshProgress(update, () {
+      _refreshPlans.remove(key);
+      _publishActivity();
+    });
+    progress.update(ids);
+    return progress;
+  }
+
+  Future<SearchRefreshProgress> planIndependentRefreshes(
+    List<String> profiles,
+  ) async {
+    await future;
+    final current = state.requireValue;
+    final sourceIds = {for (final feed in current.feeds) ...feed.sourceIds};
+    final profileIds = {
+      for (final profile in profiles)
+        profile: {
+          for (final search in current.subscriptions)
+            if (search.profileId == profile && !sourceIds.contains(search.id))
+              search.id,
+        },
+    };
+    final progress = beginRefreshProgress(
+      profileIds.values.expand((ids) => ids),
+    );
+    progress._profileIds.addAll(profileIds);
+    return progress;
+  }
 
   Future<SearchFollowingFeed> saveFeed({
     required String profileId,
@@ -290,6 +351,137 @@ class SearchSubscriptionsNotifier
       queries: updated,
       id: feed.id,
     );
+  });
+
+  Future<void> renameFeedMember({
+    required String feedId,
+    required SearchSubscription source,
+    required String? name,
+  }) => runSerializedMutation((repository) async {
+    final feed = (await repository.getFeeds())
+        .where((item) => item.id == feedId)
+        .firstOrNull;
+    final current = await repository.getById(source.id);
+    final ownerExists = ref
+        .read(booruConfigProvider)
+        .any((config) => config.id == source.profileId);
+    if (feed == null ||
+        current == null ||
+        !ownerExists ||
+        !feed.sourceIds.contains(source.id) ||
+        feed.profileId != current.profileId ||
+        current.profileId != source.profileId ||
+        current.query != source.query ||
+        current.createdAt != source.createdAt ||
+        current.runtimeRevision != source.runtimeRevision) {
+      throw StateError('Feed member changed or is unavailable');
+    }
+    await repository.rename(source.id, name);
+  });
+
+  Future<List<SearchRefreshOutcome>> refreshFeed(String id) {
+    if (_feedRefreshFuture case final running?) {
+      return _refreshingFeedId == id ? running : Future.value(const []);
+    }
+    _refreshingFeedId = id;
+    final result = _feedRefreshFuture = _refreshFeedBatch(id).whenComplete(() {
+      _feedRefreshFuture = null;
+      _refreshingFeedId = null;
+      _publishActivity();
+    });
+    _publishActivity();
+    return result;
+  }
+
+  Future<List<SearchRefreshOutcome>> _refreshFeedBatch(String id) async {
+    await future;
+    if (_disposed) return const [];
+    final current = state.requireValue;
+    final feed = current.feeds.firstWhereOrNull((feed) => feed.id == id);
+    if (feed == null) return const [];
+    final sourceIds = feed.sourceIds.toSet();
+    // Attempts include failures, so persistent failures cannot monopolize each
+    // batch. Successful checks cover older records without an attempt time.
+    DateTime? activity(SearchSubscription source) =>
+        switch ((source.lastAttemptAt, source.lastSuccessfulCheckAt)) {
+          (final attempt?, final check?) =>
+            attempt.isAfter(check) ? attempt : check,
+          (final attempt, final check) => attempt ?? check,
+        };
+    final sources =
+        current.subscriptions
+            .where(
+              (s) => sourceIds.contains(s.id) && s.profileId == feed.profileId,
+            )
+            .toList()
+          ..sort((left, right) {
+            final order = switch ((activity(left), activity(right))) {
+              (null, null) => 0,
+              (null, _) => -1,
+              (_, null) => 1,
+              (final a?, final b?) => a.compareTo(b),
+            };
+            return order == 0 ? left.id.compareTo(right.id) : order;
+          });
+    final planned = sources.take(10).toList();
+    final token = _feedRefreshToken = CancelToken();
+    final deadline = Timer(const Duration(seconds: 20), () => token.cancel());
+    final progress = beginRefreshProgress(planned.map((s) => s.id));
+    final pending = planned.map((s) => s.id).toSet();
+    final outcomes = <SearchRefreshOutcome>[];
+    try {
+      for (final source in planned) {
+        bool canContinue() =>
+            !_disposed &&
+            !token.isCancelled &&
+            (state.valueOrNull?.feeds.any(
+                  (f) =>
+                      f.id == id &&
+                      f.profileId == source.profileId &&
+                      f.sourceIds.contains(source.id),
+                ) ??
+                false);
+        if (!canContinue()) break;
+        final outcome = await refresh(
+          source.id,
+          cancelToken: token,
+          canStart: canContinue,
+          canAdmit: canContinue,
+        );
+        outcomes.add(outcome);
+        pending.remove(source.id);
+        progress.update(pending);
+        // Every source in a feed uses the same site; respect its cooldown rather
+        // than submitting the rest of this batch to that site.
+        if (outcome is SearchRefreshDeferred ||
+            outcome is SearchRefreshFailed &&
+                outcome.kind == SearchRefreshErrorKind.rateLimited) {
+          break;
+        }
+      }
+      return outcomes;
+    } finally {
+      deadline.cancel();
+      progress.close();
+      _feedRefreshToken = null;
+    }
+  }
+
+  Future<void> moveFeed(String id, {required bool up}) => _mutate((
+    repository,
+  ) async {
+    final all = await repository.getFeeds();
+    final feed = all.firstWhereOrNull((feed) => feed.id == id);
+    if (feed == null) return;
+    final siblings = all.where((f) => f.profileId == feed.profileId).toList();
+    final index = siblings.indexWhere((f) => f.id == id);
+    final target = index + (up ? -1 : 1);
+    if (target < 0 || target >= siblings.length) return;
+    final moved = siblings.removeAt(index);
+    siblings.insert(target, moved);
+    await repository.setFeedOrder(feed.profileId, [
+      for (final f in siblings) f.id,
+    ]);
   });
 
   Future<void> deleteFeed(String id) =>
@@ -480,7 +672,20 @@ class SearchSubscriptionsNotifier
             .where((search) => ids.contains(search.id))
             .toList()
           ..sort(compareSearchRefreshPriority);
-    return [for (final item in items) await refresh(item.id)];
+    final progress = beginRefreshProgress(items.map((item) => item.id));
+    try {
+      final outcomes = <SearchRefreshOutcome>[];
+      for (final item in items) {
+        try {
+          outcomes.add(await refresh(item.id));
+        } finally {
+          progress.settle(item.id);
+        }
+      }
+      return outcomes;
+    } finally {
+      progress.close();
+    }
   }
 
   Future<({SearchSubscription subscription, SearchRefreshOutcome refresh})>
@@ -574,6 +779,8 @@ class SearchSubscriptionsNotifier
     if (!result.material) {
       return (subscription: result.subscription, refresh: null);
     }
+    _refreshTokens.remove(id)?.cancel();
+    _refreshOperations.remove(id);
     unawaited(_inFlight.remove(id));
     return (
       subscription: result.subscription,
@@ -614,27 +821,89 @@ class SearchSubscriptionsNotifier
   Future<void> delete(String id) =>
       _mutate((repository) => repository.delete(id));
 
-  Future<SearchRefreshOutcome> refresh(String id, {bool Function()? canStart}) {
-    final existing = _inFlight[id];
-    if (existing != null) return existing;
-    late final Future<SearchRefreshOutcome> request;
-    request = _refresh(id, canStart).whenComplete(() {
-      if (identical(_inFlight[id], request)) {
-        _inFlight.remove(id);
+  Future<SearchRefreshOutcome> refresh(
+    String id, {
+    bool Function()? canStart,
+    bool Function()? canAdmit,
+    Stream<void>? admissionChanges,
+    void Function()? onStarted,
+    ApiRequestClass requestClass = ApiRequestClass.userInitiated,
+    CancelToken? cancelToken,
+    bool waitForSettlement = false,
+  }) {
+    var operation = _refreshOperations[id];
+    if (operation != null && operation.token.isCancelled) operation = null;
+    if (operation?.dataQuota case final quota?
+        when requestClass == ApiRequestClass.userInitiated ||
+            requestClass == ApiRequestClass.interactive) {
+      final retryAt = ref
+          .read(apiRequestCoordinatorProvider)
+          .snapshot(quota)
+          .retryAt;
+      if (retryAt != null) {
+        if (!operation!.dataRunning) operation.disableCooldownReplay();
+        return Future.value(SearchRefreshDeferred(retryAt));
       }
-      _publishActivity();
-    });
+    }
+    final owner = _SourceRefreshOwner(
+      requestClass,
+      canStart,
+      onStarted,
+      cancelToken,
+      canAdmit,
+      admissionChanges,
+    );
+    if (operation != null) {
+      operation.add(owner);
+      return waitForSettlement ? operation.result : operation.resultFor(owner);
+    }
+    final captured = state.valueOrNull?.subscriptions
+        .where((s) => s.id == id)
+        .firstOrNull;
+    final shared = _SourceRefreshOperation(captured)..add(owner);
+    _refreshOperations[id] = shared;
+    _refreshTokens[id] = shared.token;
+    late final Future<SearchRefreshOutcome> request;
+    request =
+        runWithApiRequestContext(
+          ApiRequestContext(
+            requestClassResolver: () => shared.priority,
+            allowCooldownRetryResolver: () => !shared.manualJoined,
+            changes: shared.changes.stream,
+            onDataTransport: shared.trackDataTransport,
+            cancelToken: shared.token,
+            canStart: () => !_disposed && shared.live,
+            canAdmit: () => shared.canAdmit,
+            onStarted: shared.onStarted,
+          ),
+          () => _refresh(id, () => !_disposed && shared.live, shared),
+        ).whenComplete(() {
+          if (identical(_inFlight[id], request)) {
+            _inFlight.remove(id);
+            _refreshTokens.remove(id);
+            _refreshOperations.remove(id);
+          }
+          unawaited(shared.changes.close());
+          _publishActivity();
+        });
+    shared.result = request;
     _inFlight[id] = request;
-    return request;
+    return waitForSettlement ? shared.result : shared.resultFor(owner);
   }
 
-  Future<SearchRefreshOutcome> _refresh(String id, bool Function()? canStart) =>
-      _requestGate.run(() async {
-        if (!(canStart?.call() ?? true)) return const SearchRefreshDiscarded();
-        return _performRefresh(id);
-      });
+  Future<SearchRefreshOutcome> _refresh(
+    String id,
+    bool Function()? canStart,
+    _SourceRefreshOperation operation,
+  ) => _requestGate.run(() async {
+    if (!(canStart?.call() ?? true)) return const SearchRefreshDiscarded();
+    return _performRefresh(id, operation);
+  });
 
-  Future<SearchRefreshOutcome> _performRefresh(String id) async {
+  Future<SearchRefreshOutcome> _performRefresh(
+    String id,
+    _SourceRefreshOperation operation,
+  ) async {
     await future;
     if (_disposed) return const SearchRefreshDiscarded();
     _publishActivity();
@@ -644,6 +913,9 @@ class SearchSubscriptionsNotifier
       if (_disposed || subscription == null) {
         return const SearchRefreshDiscarded();
       }
+      if (!operation.matches(subscription)) {
+        return const SearchRefreshDiscarded();
+      }
       if (_pausedProfileRefreshes.containsKey(subscription.profileId)) {
         return const SearchRefreshDiscarded();
       }
@@ -651,7 +923,39 @@ class SearchSubscriptionsNotifier
           .read(booruConfigProvider)
           .firstWhereOrNull((config) => config.id == subscription.profileId);
       if (config == null) return const SearchRefreshDiscarded();
-      return await _service(repository).refresh(subscription, config);
+      final inherited = ApiRequestContext.current();
+      return await runWithApiRequestContext(
+        ApiRequestContext(
+          requestClass: inherited.requestClass,
+          requestClassResolver: inherited.requestClassResolver,
+          allowCooldownRetryResolver: inherited.allowCooldownRetryResolver,
+          changes: inherited.changes,
+          onDataTransport: inherited.onDataTransport,
+          cancelToken: inherited.cancelToken,
+          canAdmit: inherited.canAdmit,
+          allowCooldownRetry: inherited.allowCooldownRetry,
+          onStarted: inherited.onStarted,
+          canStart: () =>
+              (inherited.canStart?.call() ?? true) &&
+              !_pausedProfileRefreshes.containsKey(config.id) &&
+              ref
+                  .read(booruConfigProvider)
+                  .any(
+                    (latest) =>
+                        latest.id == config.id && latest.auth == config.auth,
+                  ) &&
+              (state.valueOrNull?.subscriptions.any(
+                    (latest) =>
+                        latest.id == id &&
+                        latest.createdAt == subscription.createdAt &&
+                        latest.runtimeRevision == subscription.runtimeRevision,
+                  ) ??
+                  false),
+        ),
+        () => _service(
+          repository,
+        ).refresh(subscription, config, automatic: () => !operation.liveManual),
+      );
     } catch (_) {
       return const SearchRefreshFailed(SearchRefreshErrorKind.other);
     } finally {
@@ -659,19 +963,30 @@ class SearchSubscriptionsNotifier
     }
   }
 
-  Future<List<SearchRefreshOutcome>> refreshAll(String profileId) {
+  Future<List<SearchRefreshOutcome>> refreshAll(
+    String profileId, {
+    SearchRefreshProgress? progress,
+  }) {
     final completer = Completer<List<SearchRefreshOutcome>>();
     _batchTail = _batchTail.catchError((_) {}).then((_) async {
       try {
-        completer.complete(await _refreshAll(profileId));
+        completer.complete(
+          await _refreshAll(profileId, onSettled: progress?.settle),
+        );
       } catch (error, stackTrace) {
         completer.completeError(error, stackTrace);
+      } finally {
+        // Fresh membership can omit a captured source, or reads can fail before workers.
+        progress?.settleProfile(profileId);
       }
     });
     return completer.future;
   }
 
-  Future<List<SearchRefreshOutcome>> _refreshAll(String profileId) async {
+  Future<List<SearchRefreshOutcome>> _refreshAll(
+    String profileId, {
+    void Function(String)? onSettled,
+  }) async {
     await future;
     final repository = await _repository;
     final feedSourceIds = {
@@ -686,6 +1001,7 @@ class SearchSubscriptionsNotifier
             )
             .toList()
           ..sort(compareSearchRefreshPriority);
+    final progress = beginRefreshProgress(subscriptions.map((item) => item.id));
     _batchCompleted = 0;
     _batchTotal = subscriptions.length;
     _batchProfileId = profileId;
@@ -705,13 +1021,19 @@ class SearchSubscriptionsNotifier
             SearchRefreshErrorKind.other,
           );
         }
+        progress.settle(subscriptions[index].id);
+        onSettled?.call(subscriptions[index].id);
         _batchCompleted++;
         _publishActivity();
       }
     }
 
-    await Future.wait(List.generate(3, (_) => worker()));
-    return outcomes;
+    try {
+      await Future.wait(List.generate(3, (_) => worker()));
+      return outcomes;
+    } finally {
+      progress.close();
+    }
   }
 
   Future<T> _mutate<T>(
@@ -762,6 +1084,11 @@ class SearchSubscriptionsNotifier
     String profileId,
     Future<T> Function() operation,
   ) async {
+    final searches =
+        state.valueOrNull?.subscriptions ?? const <SearchSubscription>[];
+    for (final search in searches.where((s) => s.profileId == profileId)) {
+      _refreshTokens[search.id]?.cancel();
+    }
     _pausedProfileRefreshes.update(
       profileId,
       (count) => count + 1,
@@ -815,10 +1142,110 @@ class SearchSubscriptionsNotifier
         feeds: List.unmodifiable(_feeds),
         organization: _organization,
         refreshingIds: _inFlight.keys.toSet(),
+        pendingRefreshIds: {
+          ..._inFlight.keys,
+          for (final ids in _refreshPlans.values) ...ids,
+        }.intersection(subscriptions.map((item) => item.id).toSet()),
         batchCompleted: _batchCompleted,
         batchTotal: _batchTotal,
         batchProfileId: _batchProfileId,
+        refreshingFeedId: _refreshingFeedId,
       );
+}
+
+final class _SourceRefreshOwner {
+  _SourceRefreshOwner(
+    this.priority,
+    this.canStart,
+    this.onStarted,
+    this.token,
+    this.admissionGuard,
+    this.admissionChanges,
+  );
+  final ApiRequestClass priority;
+  final bool Function()? canStart;
+  final void Function()? onStarted;
+  final CancelToken? token;
+  final bool Function()? admissionGuard;
+  final Stream<void>? admissionChanges;
+  bool get live => !(token?.isCancelled ?? false) && (canStart?.call() ?? true);
+}
+
+final class _SourceRefreshOperation {
+  _SourceRefreshOperation(this.definition);
+  final SearchSubscription? definition;
+  bool matches(SearchSubscription value) =>
+      definition == null ||
+      definition!.createdAt == value.createdAt &&
+          definition!.runtimeRevision == value.runtimeRevision;
+  final owners = <_SourceRefreshOwner>{};
+  final token = CancelToken();
+  final changes = StreamController<void>.broadcast(sync: true);
+  late final Future<SearchRefreshOutcome> result;
+  var started = false;
+  var manualJoined = false;
+  ApiQuotaKey? dataQuota;
+  var dataRunning = false;
+  void trackDataTransport(Uri uri, bool running) {
+    dataQuota = ApiQuotaKey.fromUri(uri);
+    dataRunning = running;
+  }
+
+  void disableCooldownReplay() {
+    manualJoined = true;
+    notify();
+  }
+
+  bool get live => !token.isCancelled && owners.any((owner) => owner.live);
+  bool get canAdmit =>
+      live &&
+      owners.any(
+        (owner) => owner.live && (owner.admissionGuard?.call() ?? true),
+      );
+  bool get liveManual => owners.any(
+    (owner) =>
+        owner.live &&
+        (owner.priority == ApiRequestClass.userInitiated ||
+            owner.priority == ApiRequestClass.interactive),
+  );
+  ApiRequestClass get priority => owners
+      .where((owner) => owner.live)
+      .map((owner) => owner.priority)
+      .fold(ApiRequestClass.preload, (a, b) => a.index < b.index ? a : b);
+  void add(_SourceRefreshOwner owner) {
+    owners.add(owner);
+    owner.admissionChanges?.listen((_) => notify());
+    manualJoined |=
+        owner.priority == ApiRequestClass.userInitiated ||
+        owner.priority == ApiRequestClass.interactive;
+    if (started && owner.live) owner.onStarted?.call();
+    owner.token?.whenCancel.then((_) {
+      owners.remove(owner);
+      if (!live) token.cancel();
+      notify();
+    });
+    notify();
+  }
+
+  void notify() {
+    if (!changes.isClosed) changes.add(null);
+  }
+
+  void onStarted() {
+    if (started) return;
+    started = true;
+    for (final owner in owners.where((owner) => owner.live)) {
+      owner.onStarted?.call();
+    }
+  }
+
+  Future<SearchRefreshOutcome> resultFor(_SourceRefreshOwner owner) =>
+      owner.token == null
+      ? result
+      : Future.any([
+          result,
+          owner.token!.whenCancel.then((_) => const SearchRefreshDiscarded()),
+        ]);
 }
 
 List<String> parseBulkSearchQueries(String raw) {
@@ -829,4 +1256,29 @@ List<String> parseBulkSearchQueries(String raw) {
           when identity.isNotEmpty && seen.add(identity))
         line.trim(),
   ];
+}
+
+/// Transient ownership of a finite refresh pass, independent of physical requests.
+final class SearchRefreshProgress {
+  SearchRefreshProgress(this._publish, this._release);
+  final void Function(Iterable<String>) _publish;
+  final void Function() _release;
+  Set<String> _ids = {};
+  final _profileIds = <String, Set<String>>{};
+  var _closed = false;
+  void update(Iterable<String> ids) {
+    if (_closed) return;
+    _ids = ids.toSet();
+    _publish(_ids);
+  }
+
+  void settle(String id) => update(_ids.difference({id}));
+  void settleProfile(String profileId) =>
+      update(_ids.difference(_profileIds.remove(profileId) ?? const {}));
+
+  void close() {
+    if (_closed) return;
+    _closed = true;
+    _release();
+  }
 }

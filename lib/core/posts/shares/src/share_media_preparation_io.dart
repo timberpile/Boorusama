@@ -34,11 +34,13 @@ class ShareMediaLease {
     required this.path,
     required this.mimeType,
     this.deleteOnRelease = true,
+    this.onReleased,
   });
 
   final String path;
   final String mimeType;
   final bool deleteOnRelease;
+  final Future<void> Function()? onReleased;
   var _owners = 1;
 
   void retain() {
@@ -49,9 +51,13 @@ class ShareMediaLease {
   Future<void> release() async {
     if (_owners == 0) return;
     _owners--;
-    if (_owners == 0 && deleteOnRelease) {
-      final file = File(path);
-      if (await file.exists()) await file.delete();
+    if (_owners == 0) {
+      if (onReleased case final release?) {
+        await release();
+      } else if (deleteOnRelease) {
+        final file = File(path);
+        if (await file.exists()) await file.delete();
+      }
     }
   }
 }
@@ -90,7 +96,7 @@ class ShareMediaPreparation {
     final extension = _extension(uri, kind, fallbackExtension);
     checkShareCancellation(cancelToken);
 
-    if (imageCacheManager case final cacheManager?
+    if (imageCacheManager case final ManagedImageCacheManager cacheManager
         when kind == ShareMediaKind.image || kind == ShareMediaKind.original) {
       return _prepareImageInCache(
         cacheManager: cacheManager,
@@ -139,7 +145,10 @@ class ShareMediaPreparation {
         final response = await dio.download(
           url,
           file.path,
-          options: Options(headers: headers),
+          options: Options(
+            headers: headers,
+            extra: const {'boorusama.request.media': true},
+          ),
           cancelToken: cancelToken,
           onReceiveProgress: (received, total) =>
               onProgress?.call(total > 0 ? received / total : -1),
@@ -201,7 +210,7 @@ class ShareMediaPreparation {
   }
 
   Future<ShareMediaLease> _prepareImageInCache({
-    required ImageCacheManager cacheManager,
+    required ManagedImageCacheManager cacheManager,
     required String url,
     required String? extension,
     required ShareMediaKind kind,
@@ -210,75 +219,78 @@ class ShareMediaPreparation {
     required void Function(double fraction)? onProgress,
   }) async {
     final key = cacheManager.generateCacheKey(url);
+    ImageCacheFileLease? owned;
+    ImageCacheWriteSession? write;
     try {
-      final cachedPath = await cacheManager.getCachedFilePath(key);
-      if (cachedPath != null) {
-        final cachedExtension = await validateShareImageFile(File(cachedPath));
-        if (cachedExtension != null) {
-          return ShareMediaLease(
-            path: cachedPath,
-            mimeType: _mimeType(cachedExtension),
+      owned = await cacheManager.acquireFile(key);
+      if (owned != null) {
+        final actual = await validateShareImageFile(File(owned.path));
+        checkShareCancellation(cancelToken);
+        if (actual != null) {
+          final result = ShareMediaLease(
+            path: owned.path,
+            mimeType: _mimeType(actual),
             deleteOnRelease: false,
+            onReleased: owned.release,
           );
+          owned = null;
+          return result;
         }
+        await owned.release();
+        owned = null;
       }
-
-      final targetPath = await cacheManager.getCacheFilePathForKey(key);
-      if (targetPath == null) {
-        throw const ShareMediaException(ShareMediaFailure.unsupported);
-      }
-      final target = File(targetPath);
-      await target.parent.create(recursive: true);
-      final random = Random.secure();
-      final staged = File(
-        '${target.path}.${DateTime.now().microsecondsSinceEpoch}_${random.nextInt(1 << 32)}.partial',
+      write = await cacheManager.beginFileWrite(key);
+      checkShareCancellation(cancelToken);
+      final staged = File(write.stagedPath);
+      final response = await dio.download(
+        url,
+        staged.path,
+        options: Options(
+          headers: headers,
+          extra: const {'boorusama.request.media': true},
+        ),
+        cancelToken: cancelToken,
+        onReceiveProgress: (received, total) =>
+            onProgress?.call(total > 0 ? received / total : -1),
       );
       checkShareCancellation(cancelToken);
-      try {
-        final response = await dio.download(
-          url,
-          staged.path,
-          options: Options(headers: headers),
-          cancelToken: cancelToken,
-          onReceiveProgress: (received, total) =>
-              onProgress?.call(total > 0 ? received / total : -1),
-        );
-        checkShareCancellation(cancelToken);
-        final contentType = response.headers
-            .value(Headers.contentTypeHeader)
-            ?.split(';')
-            .first
-            .trim()
-            .toLowerCase();
-        final responseExtension = _extensionForMime(contentType, kind);
-        if ((extension == null && responseExtension == null) ||
-            (contentType != null &&
-                contentType != 'application/octet-stream' &&
-                responseExtension == null)) {
-          throw const ShareMediaException(ShareMediaFailure.unsupported);
-        }
-        if (await staged.length() == 0) {
-          throw const ShareMediaException(ShareMediaFailure.empty);
-        }
-        final actualExtension = await validateShareImageFile(staged);
-        final expectedExtension = responseExtension ?? extension;
-        if (actualExtension == null ||
-            expectedExtension == null ||
-            _canonicalImageExtension(actualExtension) !=
-                _canonicalImageExtension(expectedExtension)) {
-          throw const ShareMediaException(ShareMediaFailure.unsupported);
-        }
-        checkShareCancellation(cancelToken);
-        await cacheManager.replaceCachedFile(key, staged.path);
-        onProgress?.call(1);
-        return ShareMediaLease(
-          path: target.path,
-          mimeType: _mimeType(actualExtension),
-          deleteOnRelease: false,
-        );
-      } finally {
-        if (await staged.exists()) await staged.delete();
+      final contentType = response.headers
+          .value(Headers.contentTypeHeader)
+          ?.split(';')
+          .first
+          .trim()
+          .toLowerCase();
+      final responseExtension = _extensionForMime(contentType, kind);
+      if ((extension == null && responseExtension == null) ||
+          (contentType != null &&
+              contentType != 'application/octet-stream' &&
+              responseExtension == null)) {
+        throw const ShareMediaException(ShareMediaFailure.unsupported);
       }
+      if (await staged.length() == 0) {
+        throw const ShareMediaException(ShareMediaFailure.empty);
+      }
+      final actualExtension = await validateShareImageFile(staged);
+      final expectedExtension = responseExtension ?? extension;
+      if (actualExtension == null ||
+          expectedExtension == null ||
+          _canonicalImageExtension(actualExtension) !=
+              _canonicalImageExtension(expectedExtension)) {
+        throw const ShareMediaException(ShareMediaFailure.unsupported);
+      }
+      checkShareCancellation(cancelToken);
+      owned = await write.commit();
+      write = null;
+      checkShareCancellation(cancelToken);
+      onProgress?.call(1);
+      final result = ShareMediaLease(
+        path: owned.path,
+        mimeType: _mimeType(actualExtension),
+        deleteOnRelease: false,
+        onReleased: owned.release,
+      );
+      owned = null;
+      return result;
     } on ShareMediaException {
       rethrow;
     } on DioException catch (error) {
@@ -292,6 +304,9 @@ class ShareMediaPreparation {
       throw const ShareMediaException(ShareMediaFailure.network);
     } on FileSystemException {
       throw const ShareMediaException(ShareMediaFailure.storage);
+    } finally {
+      await owned?.release();
+      await write?.abort();
     }
   }
 

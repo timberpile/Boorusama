@@ -9,6 +9,7 @@ import 'package:material_symbols_icons/symbols.dart';
 
 // Project imports:
 import '../../../../themes/theme/types.dart';
+import 'favorite_action.dart';
 
 class FavoritePostButton extends StatelessWidget {
   const FavoritePostButton({
@@ -44,9 +45,9 @@ class FavoritePostButton extends StatelessWidget {
                   return;
                 }
                 if (isFaved!) {
-                  unawaited(removeFavorite());
+                  unawaited(runFavoriteAction(context, removeFavorite));
                 } else {
-                  unawaited(addFavorite());
+                  unawaited(runFavoriteAction(context, addFavorite));
                 }
               }
             : null,

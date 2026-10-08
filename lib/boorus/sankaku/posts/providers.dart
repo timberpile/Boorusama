@@ -11,7 +11,6 @@ import '../../../core/settings/providers.dart';
 import '../client_provider.dart';
 import '../favorites/providers.dart';
 import 'parser.dart';
-import 'types.dart';
 
 final sankakuPseudoIdGeneratorProvider = Provider((ref) {
   return PostIdGenerator();

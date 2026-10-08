@@ -1,3 +1,4 @@
+import '../http/request_interruption.dart';
 // Dart imports:
 import 'dart:convert';
 
@@ -100,6 +101,7 @@ class DanbooruClient
 
       return response.data['counts']['posts'];
     } catch (e) {
+      if (isDataRequestInterruption(e)) rethrow;
       return null;
     }
   }
@@ -127,7 +129,8 @@ class DanbooruClient
       return (response.data as List)
           .map((item) => AutocompleteDto.fromJson(item))
           .toList();
-    } on Exception catch (_) {
+    } on Exception catch (interruption) {
+      if (isDataRequestInterruption(interruption)) rethrow;
       return [];
     }
   }

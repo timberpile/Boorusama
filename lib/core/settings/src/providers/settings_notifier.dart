@@ -26,6 +26,7 @@ class SettingsNotifier extends Notifier<Settings> {
   SettingsNotifier(this.initialSettings);
 
   final Settings initialSettings;
+  var _writeTail = Future<void>.value();
 
   @override
   Settings build() {
@@ -34,16 +35,22 @@ class SettingsNotifier extends Notifier<Settings> {
 
   Future<bool> updateWith(
     Settings Function(Settings) selector,
-  ) {
-    final currentSettings = state;
-    final newSettings = selector(currentSettings);
+  ) => _enqueue(selector);
 
-    return updateSettings(newSettings);
+  Future<bool> replaceSettings(Settings settings) => _enqueue((_) => settings);
+
+  Future<bool> _enqueue(Settings Function(Settings) selector) {
+    final result = _writeTail.then(
+      (_) => ref
+          .read(dataMutationCoordinatorProvider)
+          .runExclusive(() => _updateSettings(selector(state))),
+    );
+    _writeTail = result.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace _) {},
+    );
+    return result;
   }
-
-  Future<bool> updateSettings(Settings settings) => ref
-      .read(dataMutationCoordinatorProvider)
-      .runExclusive(() => _updateSettings(settings));
 
   Future<bool> _updateSettings(Settings settings) async {
     final currentSettings = state;

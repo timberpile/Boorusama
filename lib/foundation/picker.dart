@@ -1,3 +1,5 @@
+import 'dart:async';
+
 // Package imports:
 import 'package:file_picker/file_picker.dart';
 import 'package:kurumi/kurumi.dart';
@@ -7,7 +9,7 @@ export 'package:file_picker/file_picker.dart' show FileType;
 
 Future<void> pickDirectoryPathToastOnError({
   required BuildContext context,
-  required void Function(String path) onPick,
+  required FutureOr<void> Function(String path) onPick,
   void Function()? onCanceled,
   String? initialDirectory,
 }) => pickDirectoryPath(
@@ -77,7 +79,7 @@ Future<void> pickSingleFilePath({
 }
 
 Future<void> pickDirectoryPath({
-  required void Function(String path) onPick,
+  required FutureOr<void> Function(String path) onPick,
   void Function()? onCanceled,
   void Function(Object error)? onError,
   String? initialDirectory,
@@ -88,7 +90,7 @@ Future<void> pickDirectoryPath({
     );
 
     if (path != null) {
-      onPick(path);
+      await onPick(path);
     } else {
       onCanceled?.call();
     }

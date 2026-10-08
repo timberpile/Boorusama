@@ -10,7 +10,6 @@ import '../../../core/search/queries/providers.dart';
 import '../../../core/settings/providers.dart';
 import '../client_provider.dart';
 import 'parser.dart';
-import 'types.dart';
 
 final hydrusPostRepoProvider =
     Provider.family<PostRepository, BooruConfigSearch>(

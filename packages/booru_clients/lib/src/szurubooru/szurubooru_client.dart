@@ -1,3 +1,4 @@
+import '../http/request_interruption.dart';
 // Dart imports:
 import 'dart:async';
 import 'dart:convert';
@@ -82,6 +83,7 @@ class SzurubooruClient
 
       return results.map((e) => TagDto.fromJson(e)).toList();
     } on DioException catch (e) {
+      if (isDataRequestInterruption(e)) rethrow;
       if (e.type == DioExceptionType.cancel) {
         return [];
       } else if (e.type == DioExceptionType.receiveTimeout) {

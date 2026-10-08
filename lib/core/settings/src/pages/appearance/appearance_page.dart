@@ -53,8 +53,8 @@ class _AppearancePageState extends ConsumerState<AppearancePage> {
                   updateMethod: ThemeUpdateMethod.applyDirectly,
                   colorSettings: settings.colors,
                   onThemeUpdated: (colors) {
-                    notifier.updateSettings(
-                      settings.copyWith(
+                    notifier.updateWith(
+                      (settings) => settings.copyWith(
                         colors: colors,
                       ),
                     );
@@ -68,8 +68,11 @@ class _AppearancePageState extends ConsumerState<AppearancePage> {
         ListingSettingsInteractionBlocker(
           child: ImageListingSettingsSection(
             listing: settings.listing,
-            onUpdate: (value) =>
-                notifier.updateSettings(settings.copyWith(listing: value)),
+            onUpdate: (change) => notifier.updateWith(
+              (settings) => settings.copyWith(
+                listing: change(settings.listing),
+              ),
+            ),
           ),
         ),
         const Divider(thickness: 1),
@@ -92,8 +95,9 @@ class _AppearancePageState extends ConsumerState<AppearancePage> {
           title: Text(context.t.settings.theme.theme),
           selectedOption: settings.themeMode,
           items: KurumiThemeMode.values,
-          onChanged: (value) =>
-              notifier.updateSettings(settings.copyWith(themeMode: value)),
+          onChanged: (value) => notifier.updateWith(
+            (settings) => settings.copyWith(themeMode: value),
+          ),
           optionBuilder: (value) => Text(value.localize(context)),
         ),
         Builder(
@@ -121,8 +125,9 @@ class _AppearancePageState extends ConsumerState<AppearancePage> {
                     ),
               value: settings.enableDynamicColoring,
               onChanged: dynamicColorSupported
-                  ? (value) => notifier.updateSettings(
-                      settings.copyWith(enableDynamicColoring: value),
+                  ? (value) => notifier.updateWith(
+                      (settings) =>
+                          settings.copyWith(enableDynamicColoring: value),
                     )
                   : null,
             );
@@ -166,8 +171,8 @@ class _AppearancePageState extends ConsumerState<AppearancePage> {
                           updateMethod: ThemeUpdateMethod.applyDirectly,
                           colorSettings: settings.colors,
                           onThemeUpdated: (colors) {
-                            notifier.updateSettings(
-                              settings.copyWith(colors: colors),
+                            notifier.updateWith(
+                              (settings) => settings.copyWith(colors: colors),
                             );
                           },
                         ),

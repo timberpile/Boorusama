@@ -38,6 +38,21 @@ void main() {
   setUp(() => harness = PinnedSearchHarness());
   tearDown(() => harness.dispose());
 
+  testWidgets('feed overview has no misplaced settings overflow', (
+    tester,
+  ) async {
+    await harness.pump(tester, const FollowingFeedsPage());
+    await settle(tester);
+    expect(
+      find.descendant(
+        of: find.byType(AppBar),
+        matching: find.byWidgetPredicate((widget) => widget is PopupMenuButton),
+      ),
+      findsNothing,
+    );
+    expect(find.text('Pinned Searches & Feeds'), findsNothing);
+  });
+
   test(
     'feeds store member search IDs without changing independent pins',
     () async {
@@ -269,7 +284,7 @@ void main() {
             feedPosts: [
               for (final id in ids)
                 feedPostSnapshotFromPost(
-                  TestSearchPost(id, checkedAt.add(Duration(seconds: id))),
+                  testSearchPost(id, checkedAt.add(Duration(seconds: id))),
                 ),
             ],
           ),
@@ -386,7 +401,7 @@ void main() {
           baseline: true,
           discoveredPosts: const [],
           feedPosts: [
-            feedPostSnapshotFromPost(TestSearchPost(1, checkedAt)),
+            feedPostSnapshotFromPost(testSearchPost(1, checkedAt)),
           ],
         ),
       );
@@ -528,7 +543,7 @@ void main() {
           feedPosts: [
             for (var i = 0; i < 6; i++)
               feedPostSnapshotFromPost(
-                TestSearchPost(i, checkedAt.add(Duration(seconds: i))),
+                testSearchPost(i, checkedAt.add(Duration(seconds: i))),
               ),
           ],
         ),
@@ -542,10 +557,10 @@ void main() {
     );
     final images = tester.widgetList<BooruImage>(find.byType(BooruImage));
     expect(images.map((image) => image.imageUrl), [
-      'https://example.com/5-thumb.jpg',
-      'https://example.com/4-thumb.jpg',
-      'https://example.com/3-thumb.jpg',
-      'https://example.com/2-thumb.jpg',
+      'https://example.com/5.jpg',
+      'https://example.com/4.jpg',
+      'https://example.com/3.jpg',
+      'https://example.com/2.jpg',
     ]);
     expect(
       images.every((image) => image.config == otherTestProfile.auth),
@@ -654,7 +669,7 @@ void main() {
     await harness.pump(tester, const FollowingFeedsPage());
     await tester.tap(find.byType(PopupMenuButton<String>));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Edit feed'));
+    await tester.tap(find.text('Edit'));
     await tester.pumpAndSettle();
     expect(find.byType(FollowingFeedManagementPage), findsOneWidget);
     expect(find.text('cat'), findsOneWidget);
@@ -704,7 +719,7 @@ void main() {
           discoveredPosts: const [],
           feedPosts: [
             for (var i = 0; i < 4; i++)
-              feedPostSnapshotFromPost(TestSearchPost(i, checkedAt)),
+              feedPostSnapshotFromPost(testSearchPost(i, checkedAt)),
           ],
         ),
       );
@@ -754,7 +769,7 @@ void main() {
           baseline: true,
           discoveredPosts: const [],
           feedPosts: [
-            feedPostSnapshotFromPost(TestSearchPost(1, checkedAt)),
+            feedPostSnapshotFromPost(testSearchPost(1, checkedAt)),
           ],
         ),
       );
@@ -1095,7 +1110,7 @@ void main() {
         tester,
         FeedPostThumbnail(
           post: decodeFeedPost(
-            feedPostSnapshotFromPost(TestSearchPost(1, checkedAt)),
+            feedPostSnapshotFromPost(testSearchPost(1, checkedAt)),
           ),
           config: testProfile.auth,
         ),
@@ -1110,7 +1125,7 @@ void main() {
 
   final automaticThumbnailCases = [
     (gridSize: GridSize.micro, expectedUrl: 'https://example.com/180.jpg'),
-    (gridSize: GridSize.tiny, expectedUrl: 'https://example.com/360.jpg'),
+    (gridSize: GridSize.tiny, expectedUrl: 'https://example.com/180.jpg'),
     (gridSize: GridSize.normal, expectedUrl: 'https://example.com/720.jpg'),
   ];
   for (final c in automaticThumbnailCases) {
@@ -1199,7 +1214,7 @@ const _variantMediaVariants = {
 };
 
 Post _variantSearchPost(int id, DateTime? createdAt) {
-  final post = TestSearchPost(id, createdAt);
+  final post = testSearchPost(id, createdAt);
   return post.copyWith(
     core: PostCoreData(
       id: post.id,

@@ -38,8 +38,8 @@ class _AccessibilityPageState extends ConsumerState<AccessibilityPage> {
                 .reverseBooruConfigSelectorScrollDirection,
           ),
           value: settings.booruConfigSelectorScrollDirection.isReversed,
-          onChanged: (value) => notifer.updateSettings(
-            settings.copyWith(
+          onChanged: (value) => notifer.updateWith(
+            (settings) => settings.copyWith(
               booruConfigSelectorScrollDirection: value
                   ? BooruConfigScrollDirection.reversed
                   : BooruConfigScrollDirection.normal,
@@ -57,8 +57,9 @@ class _AccessibilityPageState extends ConsumerState<AccessibilityPage> {
           selectedOption: settings.swipeAreaToOpenSidebarPercentage,
           items: getSwipeAreaPossibleValue(),
           onChanged: (newValue) {
-            notifer.updateSettings(
-              settings.copyWith(swipeAreaToOpenSidebarPercentage: newValue),
+            notifer.updateWith(
+              (settings) =>
+                  settings.copyWith(swipeAreaToOpenSidebarPercentage: newValue),
             );
           },
           optionBuilder: (value) => Text(
@@ -71,8 +72,8 @@ class _AccessibilityPageState extends ConsumerState<AccessibilityPage> {
             context.t.settings.accessibility.reduce_animations_description,
           ),
           value: settings.reduceAnimations,
-          onChanged: (value) => notifer.updateSettings(
-            settings.copyWith(
+          onChanged: (value) => notifer.updateWith(
+            (settings) => settings.copyWith(
               reduceAnimations: value,
             ),
           ),
@@ -83,8 +84,8 @@ class _AccessibilityPageState extends ConsumerState<AccessibilityPage> {
             context.t.settings.accessibility.volume_navigation_description,
           ),
           value: settings.volumeKeyViewerNavigation,
-          onChanged: (value) => notifer.updateSettings(
-            settings.copyWith(
+          onChanged: (value) => notifer.updateWith(
+            (settings) => settings.copyWith(
               volumeKeyViewerNavigation: value,
             ),
           ),
@@ -96,8 +97,8 @@ class _AccessibilityPageState extends ConsumerState<AccessibilityPage> {
           selectedOption: settings.hapticFeedbackLevel,
           items: HapticFeedbackLevel.values,
           onChanged: (newValue) {
-            notifer.updateSettings(
-              settings.copyWith(hapticFeedbackLevel: newValue),
+            notifer.updateWith(
+              (settings) => settings.copyWith(hapticFeedbackLevel: newValue),
             );
           },
           optionBuilder: (value) => Text(

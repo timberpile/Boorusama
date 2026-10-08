@@ -2,6 +2,11 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:boorusama/core/backups/auto/repo_io.dart';
+import 'package:boorusama/core/backups/auto/providers.dart';
+import 'package:boorusama/core/backups/zip/providers.dart';
+import 'package:boorusama/core/settings/providers.dart';
+import 'package:boorusama/core/settings/src/types/settings.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:boorusama/core/backups/auto/service.dart';
 import 'package:boorusama/core/backups/auto/types.dart';
 import 'package:boorusama/core/backups/export_import/export/export_service.dart';
@@ -162,6 +167,86 @@ void main() {
       expect(File(result.filePath).existsSync(), isTrue);
     }
   });
+  for (final operation in ['read', 'write', 'delete']) {
+    test('$operation failure never reports a successful backup', () async {
+      final sources = [_FakeSource('source')];
+      final failing = _FailingRepository(operation);
+      final backupDirectory = await failing.getBackupDirectoryPath(
+        directory.path,
+      );
+      File(
+        p.join(backupDirectory, 'previous.bsexport'),
+      ).writeAsStringSync('previous');
+      await repository.saveManifest(
+        backupDirectory,
+        AutoBackupManifest(
+          backups: [
+            AutoBackupEntry(
+              fileName: 'previous.bsexport',
+              createdAt: DateTime.utc(2024),
+              fileSize: 8,
+            ),
+          ],
+        ),
+      );
+      final service = AutoBackupService(
+        exportService: _exportService(sources),
+        logger: const _Logger(),
+        registry: _registryFor(sources),
+        repository: failing,
+      );
+      await expectLater(
+        service.performBackup(
+          AutoBackupSettings(userSelectedPath: directory.path, maxBackups: 1),
+        ),
+        throwsStateError,
+      );
+      expect(
+        File(p.join(backupDirectory, 'previous.bsexport')).existsSync(),
+        isTrue,
+      );
+    });
+  }
+  test(
+    'automatic failure survives operation disposal without advancing backup time',
+    () async {
+      final sources = [_FakeSource('source')];
+      final settings = AutoBackupSettings(
+        enabled: true,
+        userSelectedPath: directory.path,
+        lastBackupTime: DateTime.utc(2024),
+      );
+      final service = AutoBackupService(
+        exportService: _exportService(sources),
+        logger: const _Logger(),
+        registry: _registryFor(sources),
+        repository: const _FailingRepository('write'),
+      );
+      final container = ProviderContainer(
+        overrides: [
+          autoBackupServiceProvider.overrideWithValue(service),
+          loggerProvider.overrideWithValue(const _Logger()),
+          settingsNotifierProvider.overrideWith(
+            () => SettingsNotifier(
+              Settings.defaultSettings.copyWith(autoBackup: settings),
+            ),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      final operation = container
+          .read(backupProvider.notifier)
+          .performAutoBackupIfNeeded(settings);
+      await container.pump();
+      await operation;
+      await container.pump();
+      expect(container.read(autoBackupFailureProvider), isTrue);
+      expect(
+        container.read(settingsProvider).autoBackup.lastBackupTime,
+        DateTime.utc(2024),
+      );
+    },
+  );
 }
 
 BackupRegistry _registryFor(List<_FakeSource> sources) {
@@ -242,4 +327,30 @@ final class _Logger implements Logger {
 
   @override
   void warn(String serviceName, String message) {}
+}
+
+class _FailingRepository extends AutoBackupRepositoryIo {
+  const _FailingRepository(this.operation) : super(const IoFileSystem());
+  final String operation;
+
+  @override
+  Future<AutoBackupManifest> loadManifest(String directory) {
+    if (operation == 'read') throw StateError('read failed');
+    return super.loadManifest(directory);
+  }
+
+  @override
+  Future<String> writeBackup(
+    String destination,
+    Future<String> Function(String) createPackage,
+  ) {
+    if (operation == 'write') throw StateError('write failed');
+    return super.writeBackup(destination, createPackage);
+  }
+
+  @override
+  Future<void> deleteFile(String path) {
+    if (operation == 'delete') throw StateError('delete failed');
+    return super.deleteFile(path);
+  }
 }

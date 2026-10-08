@@ -118,17 +118,24 @@ class PinnedSearchCard extends StatelessWidget {
     required this.config,
     required this.refreshing,
     required this.onOpen,
-    required this.showMoveActions,
-    required this.canMoveUp,
-    required this.canMoveDown,
+    this.showMoveActions = false,
+    this.canMoveUp = false,
+    this.canMoveDown = false,
     required this.onAction,
     this.ownerCaption,
+    this.actionItemBuilder,
+    this.metadata,
+    this.preview,
     super.key,
   });
 
   final String? ownerCaption;
   final SearchSubscription subscription;
-  final BooruConfigAuth config;
+  final BooruConfigAuth? config;
+  final List<PopupMenuEntry<PinnedSearchAction>> Function(BuildContext)?
+  actionItemBuilder;
+  final Widget? metadata;
+  final Widget? preview;
   final bool refreshing;
   final VoidCallback? onOpen;
   final bool showMoveActions;
@@ -166,47 +173,51 @@ class PinnedSearchCard extends StatelessWidget {
                   PopupMenuButton<PinnedSearchAction>(
                     icon: const Icon(Symbols.more_vert),
                     onSelected: onAction,
-                    itemBuilder: (context) => [
-                      PopupMenuItem(
-                        value: PinnedSearchAction.info,
-                        child: Text(strings.info),
-                      ),
-                      PopupMenuItem(
-                        value: PinnedSearchAction.refresh,
-                        enabled: !refreshing,
-                        child: Text(strings.refresh),
-                      ),
-                      PopupMenuItem(
-                        value: PinnedSearchAction.edit,
-                        child: Text(context.t.generic.action.edit),
-                      ),
-                      if (showMoveActions)
-                        PopupMenuItem(
-                          value: PinnedSearchAction.moveUp,
-                          enabled: canMoveUp,
-                          child: Text(strings.move_up),
-                        ),
-                      if (showMoveActions)
-                        PopupMenuItem(
-                          value: PinnedSearchAction.moveDown,
-                          enabled: canMoveDown,
-                          child: Text(strings.move_down),
-                        ),
-                      PopupMenuItem(
-                        value: PinnedSearchAction.moveFolder,
-                        child: Text(strings.move_to_folder),
-                      ),
-                      PopupMenuItem(
-                        value: PinnedSearchAction.delete,
-                        child: Text(context.t.generic.action.delete),
-                      ),
-                    ],
+                    itemBuilder: (context) =>
+                        actionItemBuilder?.call(context) ??
+                        [
+                          PopupMenuItem(
+                            value: PinnedSearchAction.info,
+                            child: Text(strings.info),
+                          ),
+                          PopupMenuItem(
+                            value: PinnedSearchAction.refresh,
+                            enabled: !refreshing,
+                            child: Text(strings.refresh),
+                          ),
+                          PopupMenuItem(
+                            value: PinnedSearchAction.edit,
+                            child: Text(context.t.generic.action.edit),
+                          ),
+                          if (showMoveActions)
+                            PopupMenuItem(
+                              value: PinnedSearchAction.moveUp,
+                              enabled: canMoveUp,
+                              child: Text(strings.move_up),
+                            ),
+                          if (showMoveActions)
+                            PopupMenuItem(
+                              value: PinnedSearchAction.moveDown,
+                              enabled: canMoveDown,
+                              child: Text(strings.move_down),
+                            ),
+                          PopupMenuItem(
+                            value: PinnedSearchAction.moveFolder,
+                            child: Text(strings.move_to_folder),
+                          ),
+                          PopupMenuItem(
+                            value: PinnedSearchAction.delete,
+                            child: Text(context.t.generic.action.delete),
+                          ),
+                        ],
                   ),
                 ],
               ),
               if (subscription.displayName != subscription.query)
                 Text(subscription.query),
-              if (subscription.previews.isNotEmpty)
+              if (preview != null)
+                preview!
+              else if (subscription.previews.isNotEmpty && config != null)
                 Padding(
                   padding: pinnedSearchCardPreviewPadding,
                   child: Row(
@@ -217,7 +228,7 @@ class PinnedSearchCard extends StatelessWidget {
                             padding: pinnedSearchCardThumbnailPadding,
                             child: BooruImage(
                               imageUrl: preview.thumbnailUrl,
-                              config: config,
+                              config: config!,
                               fit: BoxFit.cover,
                             ),
                           ),
@@ -227,11 +238,12 @@ class PinnedSearchCard extends StatelessWidget {
                     ],
                   ),
                 ),
-              PinnedSearchCardMetadata(
-                leading: ownerCaption,
-                lastPostAt: subscription.lastPostAt,
-                hasBaseline: subscription.hasBaseline,
-              ),
+              metadata ??
+                  PinnedSearchCardMetadata(
+                    leading: ownerCaption,
+                    lastPostAt: subscription.lastPostAt,
+                    hasBaseline: subscription.hasBaseline,
+                  ),
               if (refreshing) Text(strings.refreshing),
               if (subscription.lastErrorKind case final kind?)
                 Text(

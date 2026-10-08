@@ -7,3 +7,5 @@ export 'src/types/pinned_search_sort.dart';
 export 'src/types/search_organization.dart';
 
 export 'src/types/search_following_feed.dart';
+
+export 'src/types/following_feed_member_sort.dart';

@@ -19,8 +19,8 @@ final class AnimePicturesPostCodec
   @override
   Map<String, Object?> encode(AnimePicturesPostData data) => {
     'tagsCount': data.tagsCount,
-    if (data.statusValue case final value?) 'statusValue': value,
-    if (data.statusType case final value?) 'statusType': value,
+    'statusValue': ?data.statusValue,
+    'statusType': ?data.statusType,
   };
 
   @override
@@ -32,7 +32,7 @@ final class AnimePicturesPostCodec
       throw const FormatException('Unsupported AnimePictures post data');
     }
     return AnimePicturesPostData(
-      tagsCount: json['tagsCount'] as int,
+      tagsCount: _required<int>(json['tagsCount'], 'tagsCount'),
       statusValue: json['statusValue'] as int?,
       statusType: json['statusType'] as int?,
     );
@@ -57,3 +57,8 @@ Post animePicturesPostFromRecord(
     ),
   );
 }
+
+T _required<T>(Object? value, String field) => switch (value) {
+  final T value => value,
+  _ => throw FormatException('Invalid AnimePictures $field'),
+};

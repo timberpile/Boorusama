@@ -16,7 +16,7 @@ void main() {
         for (var id = 1; id <= followingFeedRetention; id++)
           feedPostSnapshotFromJson({
             'id': id,
-            'createdAt': DateTime.utc(2026, 1, 1).toIso8601String(),
+            'createdAt': DateTime.utc(2026).toIso8601String(),
             'thumbnail': 'https://example.test/thumbnails/$id.jpg',
             'sample': 'https://example.test/samples/$id.jpg',
             'original': 'https://example.test/originals/$id.jpg',

@@ -34,6 +34,7 @@ class PostMedia<T extends Post> extends ConsumerWidget {
     required this.controller,
     required this.imageCacheManager,
     this.imageController,
+    this.onRepresentationChanged,
     super.key,
     this.isPageSettled = false,
   });
@@ -48,6 +49,7 @@ class PostMedia<T extends Post> extends ConsumerWidget {
   final PostDetailsPlaceholderMediaBuilder<T>? placeholderMediaBuilder;
   final ImageCacheManager? imageCacheManager;
   final ExtendedImageController? imageController;
+  final ValueChanged<bool>? onRepresentationChanged;
   final bool isPageSettled;
 
   void _openSettings(WidgetRef ref) {
@@ -138,6 +140,7 @@ class PostMedia<T extends Post> extends ConsumerWidget {
             placeholderMediaBuilder: placeholderMediaBuilder,
             imageCacheManager: imageCacheManager,
             imageController: imageController,
+            onRepresentationChanged: onRepresentationChanged,
             post: post,
             config: config,
           );

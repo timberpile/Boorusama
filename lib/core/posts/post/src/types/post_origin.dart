@@ -82,7 +82,7 @@ final class PostOriginSnapshot extends Equatable {
     'booruTypeId': booruTypeId,
     'booruId': booruId,
     'sourceHost': sourceHost,
-    if (profileIdHint case final id?) 'profileIdHint': id,
+    'profileIdHint': ?profileIdHint,
   };
 
   @override

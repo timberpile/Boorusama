@@ -68,6 +68,11 @@ search boundary is a product decision for this ticket.
 - [Pinned-search subsystem](../../pinned_searches.md)
 - [Overview and folder page](../../../lib/core/search/subscriptions/src/pages/pinned_searches_page.dart)
 - [Shared-folder behavior](../done/PS-018-rework-pinned-search-folder-navigation.md)
-- [Interactive mockup for the approved filter behavior](../../superpowers/mockups/2026-10-03-pinned-search-folder-profile-filter.html)
+- Historical design artifact: `docs/superpowers/mockups/2026-10-03-pinned-search-folder-profile-filter.html`. This file is absent from current local `develop`; recover or recreate it before implementation.
 
 Dependencies: None.
+
+
+## Deferred from the current program (2026-10-06)
+
+The user requested skipping all unstarted items to finish existing work. The coordinator released the setup-only reservation. No implementer was started, prerequisites were not replayed, and no product code or tests were changed. This ticket is available but outside the current authorized finishing scope. The setup-only reserved branch `feature/ps-032-filter-pinned-searches` and its worktree were subsequently removed during local maintenance. As checked on 2026-10-07, neither remains; there is no active claim.

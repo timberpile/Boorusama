@@ -62,13 +62,14 @@ final e621PostRepoProvider =
       );
     });
 
-final e621MediaUrlResolverProvider = Provider<MediaUrlResolver>((ref) {
-  return E621MediaUrlResolver(
-    imageQuality: ref.watch(
-      settingsProvider.select((s) => s.listing.imageQuality),
-    ),
-  );
-});
+final e621MediaUrlResolverProvider =
+    Provider.family<MediaUrlResolver, BooruConfigAuth>((ref, config) {
+      return E621MediaUrlResolver(
+        postQuality: ref.watch(
+          postQualityProvider(config),
+        ),
+      );
+    });
 
 final e621UploaderQueryProvider = Provider.family<UploaderQuery?, Post>((
   ref,

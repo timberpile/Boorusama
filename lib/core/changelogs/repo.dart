@@ -19,14 +19,14 @@ class ChangelogRepositoryImpl implements ChangelogRepository {
   Future<ChangelogData> loadLatestChangelog() async {
     final text = await _loadData();
 
-    // parse the md file until encountering the first empty line
+    // Release headings delimit sections; blank lines and subheadings are content.
     final lines = text.split('\n');
     final buffer = StringBuffer();
     final versionText = lines[0].substring(2).trim().toLowerCase();
 
     for (var i = 1; i < lines.length; i++) {
       final line = lines[i];
-      if (line.trim().isEmpty) {
+      if (line.startsWith('# ')) {
         break;
       }
 

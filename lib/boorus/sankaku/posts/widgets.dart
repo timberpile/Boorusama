@@ -1,6 +1,3 @@
-// Dart imports:
-import 'dart:async';
-
 // Package imports:
 import 'package:booru_clients/sankaku.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,10 +9,8 @@ import '../../../core/posts/details/types.dart';
 import '../../../core/posts/details_parts/types.dart';
 import '../../../core/posts/details_parts/widgets.dart';
 import '../../../core/posts/favorites/widgets.dart';
-import '../../../core/posts/post/types.dart';
 import '../../../core/search/search/routes.dart';
 import '../favorites/providers.dart';
-import 'post_data.dart';
 import 'providers.dart';
 import 'types.dart';
 
@@ -40,11 +35,11 @@ class SankakuQuickFavoriteButton extends ConsumerWidget {
 
     return QuickFavoriteButton(
       isFaved: isFaved,
-      onFavToggle: (isFaved) {
+      onFavToggle: (isFaved) async {
         if (isFaved) {
-          unawaited(notifier.add(id));
+          await notifier.add(id);
         } else {
-          unawaited(notifier.remove(id));
+          await notifier.remove(id);
         }
       },
     );

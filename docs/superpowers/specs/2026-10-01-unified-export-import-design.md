@@ -122,6 +122,16 @@ Every completed export always offers **Save file** and **Share file**. A small
 export without credentials additionally offers **Copy as Base64**. Clipboard
 copy is an extra transport, never the only way to obtain the package.
 
+On Android, manual Save uses the system document-tree grant and streams the
+completed temporary export through `ContentResolver`, retaining its document
+URI. Native source validation accepts the app's `cacheDir` and `codeCacheDir`:
+Flutter's `Directory.systemTemp` resolves to `code_cache` on the tested Android
+runtime. A grant to a folder does not grant raw filesystem-path access, so converting
+the picked URI to a path can fail under scoped storage even after the user
+allows access. The one-save grant is not persisted. Save errors are reported
+only after awaiting the write; an incomplete newly created document is removed
+when the provider permits cleanup. Other platforms retain directory-path saves.
+
 ### Selection meaning
 
 Selection nodes have explicit semantics that survive template reuse:
@@ -259,7 +269,8 @@ Bookmark groups keep their UUID across devices. Names are display data, not
 identity. **No group** is a selection and import boundary, not a stored group
 with a synthetic UUID.
 
-- Update mirrors the exported group's name, order, and exact membership.
+- Update preserves the exact local UUID and display name while replacing the
+  group's content with the exported membership (BM-005).
 - Merge with the match keeps the local UUID and local display name and unions
   membership in local order followed by exported-only members.
 - Merge into another group keeps the target's UUID, name, and existing order.

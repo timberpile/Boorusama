@@ -323,11 +323,9 @@ class _Harness {
   late final ProviderContainer container;
 
   FollowingFeedsBackupSource get feedSource =>
-      container.read(followingFeedsBackupSourceProvider)
-          as FollowingFeedsBackupSource;
+      container.read(followingFeedsBackupSourceProvider);
   PinnedSearchesBackupSource get pinSource =>
-      container.read(pinnedSearchesBackupSourceProvider)
-          as PinnedSearchesBackupSource;
+      container.read(pinnedSearchesBackupSourceProvider);
 }
 
 class _RepositoryNotifier extends SearchSubscriptionRepositoryNotifier {

@@ -7,6 +7,7 @@ import 'package:foundation/foundation.dart';
 import 'package:hive_ce/hive.dart';
 
 // Project imports:
+import 'package:boorusama/core/backups/export_import/models/import_action.dart';
 import 'package:boorusama/core/backups/sources/bookmark_backup_data.dart';
 import 'package:boorusama/core/backups/sources/bookmark_import_plan.dart';
 import 'package:boorusama/core/backups/sources/bookmark_import_planner.dart';
@@ -52,18 +53,18 @@ void main() {
     (
       choice: BookmarkGroupConflictChoice.merge,
       expectedMemberships: 2,
-      expectedName: 'Local name',
+      expectedName: 'Cookie//Artists',
       expectedLibraryCount: 2,
     ),
     (
       choice: BookmarkGroupConflictChoice.replace,
       expectedMemberships: 1,
-      expectedName: 'Imported name',
+      expectedName: 'Cookie//Artists',
       expectedLibraryCount: 1,
     ),
   ]) {
     test(
-      '${testCase.choice.name} uses imported name and expected memberships',
+      '${testCase.choice.name} preserves the local name and applies expected memberships',
       () async {
         final local = Bookmark.empty.copyWith(
           id: 1,
@@ -73,7 +74,7 @@ void main() {
         );
         await bookmarks.addBookmarkWithBookmarks([local]);
         final storedLocal = (await _load(bookmarks)).single;
-        await groups.createGroup('Local name', id: groupId);
+        await groups.createGroup('Cookie//Artists', id: groupId);
         await groups.addBookmarks(groupId, {storedLocal.id});
         final imported = Bookmark.empty.copyWith(
           id: 200,
@@ -88,7 +89,7 @@ void main() {
                 groups: const [
                   BookmarkGroupBackup(
                     id: groupId,
-                    name: 'Imported name',
+                    name: 'Artists',
                     bookmarkIds: [200],
                   ),
                 ],
@@ -114,6 +115,94 @@ void main() {
       },
     );
   }
+
+  for (final action in [
+    ImportAction.update,
+    ImportAction.merge,
+    ImportAction.mergeIntoTarget,
+    ImportAction.copy,
+  ]) {
+    test(
+      '${action.name} applies resolved group identity and name rules',
+      () async {
+        const otherId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+        const copyId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+        await groups.createGroup('Cookie//Artists', id: groupId);
+        await groups.createGroup('Target//Artists', id: otherId);
+        final imported = Bookmark.empty.copyWith(
+          id: 200,
+          sourceUrl: 'https://example.com',
+          postId: () => 200,
+        );
+        final planned = const BookmarkImportPlanner().plan(
+          data: BookmarkBackupData(
+            bookmarks: [imported],
+            groups: const [
+              BookmarkGroupBackup(
+                id: groupId,
+                name: 'Artists',
+                bookmarkIds: [200],
+              ),
+            ],
+          ),
+          currentBookmarks: const [],
+          currentGroups: await groups.getGroups(),
+        );
+        final plan = planned.resolveActions({
+          groupId: planned.groups.single.resolveAction(
+            action,
+            targetId: action == ImportAction.mergeIntoTarget ? otherId : null,
+            destinationId: action == ImportAction.copy ? copyId : groupId,
+          ),
+        });
+        await BookmarkImportService(
+          bookmarkRepository: bookmarks,
+          groupRepository: groups,
+          imageUrlResolver: (_) => const DefaultImageUrlResolver(),
+        ).apply(plan);
+
+        final destinationId = switch (action) {
+          ImportAction.mergeIntoTarget => otherId,
+          ImportAction.copy => copyId,
+          _ => groupId,
+        };
+        final destination = (await groups.getGroup(destinationId))!;
+        expect(destination.id, destinationId);
+        expect(destination.name, switch (action) {
+          ImportAction.mergeIntoTarget => 'Target//Artists',
+          ImportAction.copy => 'Artists',
+          _ => 'Cookie//Artists',
+        });
+        expect(destination.bookmarkIds, {(await _load(bookmarks)).single.id});
+        expect((await groups.getGroup(groupId))!.name, 'Cookie//Artists');
+      },
+    );
+  }
+
+  test('a new group with the same name keeps its own identity', () async {
+    await groups.createGroup('Artists', id: groupId);
+    const newId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    final plan = const BookmarkImportPlanner().plan(
+      data: const BookmarkBackupData(
+        bookmarks: [],
+        groups: [
+          BookmarkGroupBackup(id: newId, name: 'Artists', bookmarkIds: []),
+        ],
+      ),
+      currentBookmarks: const [],
+      currentGroups: await groups.getGroups(),
+    );
+    await BookmarkImportService(
+      bookmarkRepository: bookmarks,
+      groupRepository: groups,
+      imageUrlResolver: (_) => const DefaultImageUrlResolver(),
+    ).apply(plan);
+    expect(
+      (await groups.getGroups()).map((group) => group.id),
+      unorderedEquals([groupId, newId]),
+    );
+    expect((await groups.getGroup(newId))!.name, 'Artists');
+  });
 
   test('updating a group deletes bookmarks that become orphaned', () async {
     final removed = Bookmark.empty.copyWith(
@@ -211,6 +300,50 @@ void main() {
     },
   );
 
+  test(
+    'a failed update restores the local group and removed bookmark',
+    () async {
+      final stored = (await bookmarks.addBookmarkWithBookmarks([
+        Bookmark.empty.copyWith(
+          id: 1,
+          sourceUrl: 'https://example.com',
+          postId: () => 1,
+        ),
+      ])).single;
+      await groups.createGroup('Cookie//Artists', id: groupId);
+      await groups.addBookmarks(groupId, {stored.id});
+      final planned = const BookmarkImportPlanner().plan(
+        data: const BookmarkBackupData(
+          bookmarks: [],
+          groups: [
+            BookmarkGroupBackup(id: groupId, name: 'Artists', bookmarkIds: []),
+          ],
+        ),
+        currentBookmarks: [stored],
+        currentGroups: await groups.getGroups(),
+      );
+      await expectLater(
+        BookmarkImportService(
+          bookmarkRepository: _ThrowingRemovalBookmarkRepository(bookmarkBox),
+          groupRepository: groups,
+          imageUrlResolver: (_) => const DefaultImageUrlResolver(),
+        ).apply(
+          planned.resolveActions({
+            groupId: planned.groups.single.resolveAction(ImportAction.update),
+          }),
+        ),
+        throwsStateError,
+      );
+      final restored = (await _load(bookmarks)).single;
+      expect(restored.transferIdentity, stored.transferIdentity);
+      expect(restored.snapshot, stored.snapshot);
+      final group = (await groups.getGroup(groupId))!;
+      expect(group.id, groupId);
+      expect(group.name, 'Cookie//Artists');
+      expect(group.bookmarkIds, {restored.id});
+    },
+  );
+
   test('a bookmark read failure leaves every group unchanged', () async {
     await groups.createGroup('Existing', id: groupId);
     const plan = BookmarkImportPlan(
@@ -296,5 +429,15 @@ class _PartiallyThrowingBookmarkRepository extends BookmarkHiveRepository {
   ) async {
     await super.addBookmarkWithBookmarks([bookmarks.first]);
     throw StateError('bookmark batch failed after a partial write');
+  }
+}
+
+class _ThrowingRemovalBookmarkRepository extends BookmarkHiveRepository {
+  const _ThrowingRemovalBookmarkRepository(super._box);
+
+  @override
+  Future<void> removeBookmarks(Iterable<Bookmark> bookmarks) async {
+    await super.removeBookmarks(bookmarks);
+    throw StateError('bookmark cleanup failed after removing the orphan');
   }
 }

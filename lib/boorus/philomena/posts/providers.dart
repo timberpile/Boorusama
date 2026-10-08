@@ -58,8 +58,8 @@ final philomenaPostRepoProvider =
 final philomenaMediaUrlResolverProvider =
     Provider.family<MediaUrlResolver, BooruConfigAuth>(
       (ref, config) => PhilomenaMediaUrlResolver(
-        imageQuality: ref.watch(
-          settingsProvider.select((value) => value.listing.imageQuality),
+        postQuality: ref.watch(
+          postQualityProvider(config),
         ),
       ),
     );

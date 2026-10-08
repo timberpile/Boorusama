@@ -115,7 +115,7 @@ GridThumbnailMedia _nozomiGridThumbnailMedia(
 }
 
 double? _nozomiLoadingPlaceholderAspectRatio(GridThumbnailSettings settings) {
-  return switch (settings.imageQuality) {
+  return switch (settings.resolvedImageQuality) {
     ImageQuality.automatic || ImageQuality.low => 1,
     ImageQuality.high || ImageQuality.highest => switch (settings.gridSize) {
       GridSize.micro || GridSize.tiny => 1,

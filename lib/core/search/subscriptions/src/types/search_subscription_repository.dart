@@ -60,6 +60,7 @@ abstract interface class SearchSubscriptionRepository {
     int expectedRevision = 0,
     required DateTime attemptedAt,
     required SearchRefreshErrorKind kind,
+    bool Function()? canCommit,
   });
   Future<void> delete(String id);
   Future<void> deleteForProfile(String profileId);

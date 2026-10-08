@@ -58,16 +58,21 @@ class AutoBackupService {
       throw StateError('No export sources are available');
     }
 
+    await _loadManifest(backupDirPath);
     onProgress?.call(0);
-    final outputPath = nextAvailableExportPath(
-      backupDirPath,
-      exportFileName(now()),
-      repository.fileExists,
-    );
-    final filePath = await exportService.createPackage(
-      ExportRequest(
-        selection: selection,
-        outputPath: outputPath,
+    final name = exportFileName(now());
+    var outputPath = p.join(backupDirPath, name);
+    var suffix = 2;
+    while (await repository.fileExists(outputPath)) {
+      outputPath = p.join(
+        backupDirPath,
+        '${p.basenameWithoutExtension(name)}-${suffix++}${p.extension(name)}',
+      );
+    }
+    final filePath = await repository.writeBackup(
+      outputPath,
+      (localPath) => exportService.createPackage(
+        ExportRequest(selection: selection, outputPath: localPath),
       ),
     );
     onProgress?.call(1);
@@ -93,13 +98,9 @@ class AutoBackupService {
     return repository.getBackupDirectoryPath(settings.userSelectedPath);
   }
 
-  Future<AutoBackupManifest> _loadManifest(String backupDirPath) async {
-    try {
-      return await repository.loadManifest(backupDirPath);
-    } catch (e) {
-      logger.warn('AutoBackup', 'Failed to load manifest, creating new: $e');
-      return const AutoBackupManifest(backups: []);
-    }
+  Future<AutoBackupManifest> _loadManifest(String backupDirPath) {
+    // Read failures must stop retention rather than replace existing history.
+    return repository.loadManifest(backupDirPath);
   }
 
   Future<void> _saveManifest(
@@ -132,7 +133,9 @@ class AutoBackupService {
 
   Future<void> _reconcileManifest(String backupDirPath) async {
     final manifest = await _loadManifest(backupDirPath);
-    final actualFiles = repository.listBackupFiles(backupDirPath).toSet();
+    final actualFiles = (await repository.listBackupFiles(
+      backupDirPath,
+    )).toSet();
 
     // Remove missing files from manifest
     final validBackups = manifest.backups
@@ -173,7 +176,7 @@ class AutoBackupService {
       // Delete old backup files
       for (final backup in backupsToDelete) {
         final filePath = p.join(backupDirPath, backup.fileName);
-        if (repository.fileExists(filePath)) {
+        if (await repository.fileExists(filePath)) {
           await repository.deleteFile(filePath);
           logger.verbose(
             'AutoBackup',
@@ -187,6 +190,7 @@ class AutoBackupService {
       await _saveManifest(backupDirPath, updatedManifest);
     } catch (e) {
       logger.warn('AutoBackup', 'Failed to cleanup old backups: $e');
+      rethrow;
     }
   }
 }

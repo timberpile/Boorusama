@@ -84,6 +84,16 @@ class GridThumbnailSettings extends Equatable {
   final AnimatedPostsDefaultState animatedPostsDefaultState;
   final GridSize gridSize;
 
+  // GIF Auto retains each generator's existing animation policy.
+  ImageQuality get resolvedImageQuality =>
+      imageQuality == ImageQuality.automatic
+      ? switch (gridSize) {
+          GridSize.large => ImageQuality.highest,
+          GridSize.normal || GridSize.small => ImageQuality.high,
+          GridSize.tiny || GridSize.micro => ImageQuality.low,
+        }
+      : imageQuality;
+
   @override
   List<Object?> get props => [
     imageQuality,

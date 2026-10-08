@@ -14,7 +14,10 @@ class ImageRequestDeduplicateInterceptor extends Interceptor {
 
   final bool Function(Uri uri) isImageRequest;
 
-  final _pendingRequests = <String, Completer<Response>>{};
+  // Dio interceptor callbacks run in distinct error zones. Share failures as
+  // data so every duplicate can reject through its own request handler.
+  final _pendingRequests =
+      <String, Completer<({Response? response, DioException? error})>>{};
 
   String _deduplicateKey(RequestOptions options) {
     return options.uri.toString();
@@ -42,17 +45,17 @@ class ImageRequestDeduplicateInterceptor extends Interceptor {
       final existingCompleter = _pendingRequests[key]!;
 
       // When the existingCompleter completes, we just fulfill the new request with the same response
-      existingCompleter.future.then(
-        (response) {
-          handler.resolve(response);
-        },
-        onError: (err) {
-          handler.reject(err);
-        },
-      );
+      existingCompleter.future.then((result) {
+        if (result.error case final error?) {
+          handler.reject(error);
+        } else {
+          handler.resolve(result.response!);
+        }
+      });
     } else {
       // No existing request, so create a new Completer for this key
-      final completer = Completer<Response>();
+      final completer =
+          Completer<({Response? response, DioException? error})>();
       _pendingRequests[key] = completer;
 
       handler.next(options);
@@ -66,7 +69,7 @@ class ImageRequestDeduplicateInterceptor extends Interceptor {
     // If we have a completer for this response, complete it
     final completer = _pendingRequests[key];
     if (completer != null && !completer.isCompleted) {
-      completer.complete(response);
+      completer.complete((response: response, error: null));
       _pendingRequests.remove(key);
     }
 
@@ -80,7 +83,7 @@ class ImageRequestDeduplicateInterceptor extends Interceptor {
     // Complete the future with an error if still pending
     final completer = _pendingRequests[key];
     if (completer != null && !completer.isCompleted) {
-      completer.completeError(err);
+      completer.complete((response: null, error: err));
       _pendingRequests.remove(key);
     }
 

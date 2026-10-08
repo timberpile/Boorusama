@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
+import 'package:collection/collection.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kurumi/material.dart';
 import 'package:uuid/uuid.dart';
@@ -68,6 +69,7 @@ final class ImportFlowState {
     this.exporterVersion,
     this.containsCredentials = false,
     this.bookmarkRefreshFailed = false,
+    this.planRefreshed = false,
     this.error,
   });
 
@@ -86,6 +88,7 @@ final class ImportFlowState {
   final String? exporterVersion;
   final bool containsCredentials;
   final bool bookmarkRefreshFailed;
+  final bool planRefreshed;
   final Object? error;
 
   ImportFlowState copyWith({
@@ -102,6 +105,7 @@ final class ImportFlowState {
     String? exporterVersion,
     bool? containsCredentials,
     bool? bookmarkRefreshFailed,
+    bool? planRefreshed,
     Object? error,
   }) => ImportFlowState(
     status: status ?? this.status,
@@ -118,6 +122,7 @@ final class ImportFlowState {
     exporterVersion: exporterVersion ?? this.exporterVersion,
     containsCredentials: containsCredentials ?? this.containsCredentials,
     bookmarkRefreshFailed: bookmarkRefreshFailed ?? this.bookmarkRefreshFailed,
+    planRefreshed: planRefreshed ?? this.planRefreshed,
     error: error,
   );
 }
@@ -163,19 +168,28 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
     return const ImportFlowState.initial();
   }
 
-  Future<void> load(String path) async {
+  Future<void> load(String path) => _load(path);
+
+  Future<void> _load(String? path) async {
+    final previous = path == null ? state.resolved : null;
     state = const ImportFlowState(status: ImportFlowStatus.checking);
     try {
-      await _package?.dispose();
-      final package = await ref.read(importPackageStagerProvider).stage(path);
+      final StagedExportPackage package;
+      if (path == null) {
+        package = _package ?? (throw StateError('No staged import to refresh'));
+      } else {
+        await _package?.dispose();
+        package = await ref.read(importPackageStagerProvider).stage(path);
+      }
       _package = package;
       _stagingBytes = package.manifest.sources.fold(
         0,
         (total, source) =>
             total + source.parts.fold(0, (sum, part) => sum + part.byteLength),
       );
-      _profileChoices.clear();
+      if (path != null) _profileChoices.clear();
       _copyProfileIds.clear();
+      _warningsAcknowledged = false;
       final disk = await DiskSpaceInfo.fromTempDir(
         ref.read(appFileSystemProvider),
       );
@@ -279,7 +293,21 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
           BookmarkBackupData() || PinnedSearchBackupData() => true,
           _ => descriptor?.isCollection ?? false,
         };
-        final localIds = descriptor?.childIds ?? const <String>{};
+        final localIds = switch (wrapper._localSnapshot) {
+          final BookmarkImportLocalSnapshot local => {
+            'ungrouped',
+            for (final group in local.groups) 'group:${group.id}',
+          },
+          final PinnedSearchImportLocalSnapshot local => {
+            for (final search in local.searches) 'search:${search.id}',
+            for (final folder in local.organization.folders)
+              'folder:${folder.id}',
+          },
+          final FollowingFeedImportLocalSnapshot local => {
+            for (final feed in local.feeds) 'feed:${feed.id}',
+          },
+          _ => descriptor?.childIds ?? const <String>{},
+        };
         final incomingIds = _incomingItemIds(wrapper.preparedData, selection);
         final alreadyPresentSearchIds = <String>{};
         if (wrapper.preparedData case final PinnedSearchBackupData data) {
@@ -300,7 +328,7 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
         final items = switch (wrapper.preparedData) {
           final List<BooruConfig> profiles => _profilePlanningItems(
             profiles,
-            ref.read(booruConfigProvider),
+            wrapper._localSnapshot as List<BooruConfig>,
             manifest.itemRecommendedActions,
           ),
           _ => [
@@ -396,10 +424,11 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
               warnings: [...planned.warnings, ...unsupportedSourceIssues],
               errors: planned.errors,
             );
-      final resolved = proposed.resolveDefaults();
+      final resolved = _retainImportChoices(proposed, previous);
       final dependencies = _profileDependencies(resolved);
       state = ImportFlowState(
         status: ImportFlowStatus.review,
+        planRefreshed: path == null,
         proposed: proposed,
         resolved: resolved,
         preflight: _preflightWithDependencies(
@@ -515,6 +544,9 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
         bookmarkRefreshFailed:
             _sources['bookmarks']?.bookmarkRefreshFailed ?? false,
       );
+    } on StaleImportPlanException {
+      // The original clipboard/received file may be gone; keep using verified staged parts.
+      await _load(null);
     } catch (error) {
       state = state.copyWith(status: ImportFlowStatus.error, error: error);
     }
@@ -647,7 +679,9 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
     return const ProfileDependencyPlanner().plan(
       references: references,
       dependentSources: dependentSources,
-      localProfiles: ref.read(booruConfigProvider),
+      localProfiles:
+          _sources['profiles']?._localSnapshot as List<BooruConfig>? ??
+          ref.read(booruConfigProvider),
       importedProfiles: importedProfiles,
       profileResolution: profileResolution,
       copyIds: _copyProfileIds,
@@ -747,6 +781,44 @@ ImportItemPlanningInput _profilePlanningItem(
     availableActions: const {ImportAction.copy, ImportAction.skip},
     fallbackAction: ImportAction.copy,
     recommendedAction: recommendations[id],
+  );
+}
+
+ResolvedImportPlan _retainImportChoices(
+  ProposedImportPlan proposed,
+  ResolvedImportPlan? previous,
+) {
+  if (previous == null) return proposed.resolveDefaults();
+  final oldSources = {for (final source in previous.sources) source.id: source};
+  final defaults = proposed.resolveDefaults();
+  return ResolvedImportPlan(
+    sources: [
+      for (final (index, source) in proposed.sources.indexed)
+        ResolvedImportSource(
+          id: source.id,
+          action:
+              source.availableActions.contains(oldSources[source.id]?.action)
+              ? oldSources[source.id]!.action
+              : source.defaultAction,
+          items: [
+            for (final (itemIndex, item) in source.items.indexed)
+              (() {
+                final old = oldSources[source.id]?.items
+                    .where((old) => old.id == item.id)
+                    .firstOrNull;
+                if (old == null || !item.availableActions.contains(old.action))
+                  return defaults.sources[index].items[itemIndex];
+                final targetRequired =
+                    old.action == ImportAction.mergeIntoTarget ||
+                    item.targetRequiredActions.contains(old.action);
+                if (targetRequired &&
+                    !item.compatibleTargetIds.contains(old.targetId))
+                  return defaults.sources[index].items[itemIndex];
+                return old;
+              })(),
+          ],
+        ),
+    ],
   );
 }
 
@@ -880,6 +952,7 @@ final class PackageTransactionSource implements ImportTransactionSource {
           local: local,
           incoming: data,
           resolution: resolution,
+          profileMappings: profileMappings,
         ),
       (
         'pinned_searches',
@@ -903,7 +976,8 @@ final class PackageTransactionSource implements ImportTransactionSource {
           resolution: resolution,
           profileMappings: profileMappings,
         ),
-      _ => projector.scalar(
+      _ => projector.jsonPreview(
+        sourceId: id,
         local: _localSnapshot,
         incoming: _incomingComparable,
         resolution: resolution,

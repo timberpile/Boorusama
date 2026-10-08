@@ -1,3 +1,5 @@
+import 'dart:async';
+
 // Package imports:
 import 'package:equatable/equatable.dart';
 
@@ -173,7 +175,11 @@ abstract class AutoBackupRepository {
   Future<AutoBackupManifest> loadManifest(String backupDirPath);
   Future<void> saveManifest(String backupDirPath, AutoBackupManifest manifest);
   Future<void> deleteFile(String filePath);
-  List<String> listBackupFiles(String backupDirPath);
-  bool fileExists(String filePath);
+  FutureOr<List<String>> listBackupFiles(String backupDirPath);
+  FutureOr<bool> fileExists(String filePath);
   Future<int> getFileSize(String filePath);
+  Future<String> writeBackup(
+    String destination,
+    Future<String> Function(String outputPath) createPackage,
+  );
 }

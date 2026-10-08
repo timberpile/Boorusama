@@ -22,7 +22,10 @@ class ImageViewerSettingsSection extends ConsumerWidget {
   });
 
   final ImageViewerSettings viewer;
-  final void Function(ImageViewerSettings) onUpdate;
+  final void Function(
+    ImageViewerSettings Function(ImageViewerSettings),
+  )
+  onUpdate;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -30,6 +33,7 @@ class ImageViewerSettingsSection extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         KurumiSettingsHeader(label: context.t.settings.general),
+        PostQualitySetting(value: viewer.postQuality, onUpdate: onUpdate),
         KurumiSettingsTile(
           title: Text(
             context.t.settings.image_details.ui_overlay.ui_overlay,
@@ -37,7 +41,8 @@ class ImageViewerSettingsSection extends ConsumerWidget {
           selectedOption: viewer.postDetailsOverlayInitialState,
           items: PostDetailsOverlayInitialState.values,
           onChanged: (value) => onUpdate(
-            viewer.copyWith(postDetailsOverlayInitialState: value),
+            (current) =>
+                current.copyWith(postDetailsOverlayInitialState: value),
           ),
           optionBuilder: (value) => Text(value.localize(context)),
         ),
@@ -57,7 +62,9 @@ class ImageViewerSettingsSection extends ConsumerWidget {
                   .horizontal_description,
               onSelected: (value) {
                 onUpdate(
-                  viewer.copyWith(swipeMode: PostDetailsSwipeMode.horizontal),
+                  (current) => current.copyWith(
+                    swipeMode: PostDetailsSwipeMode.horizontal,
+                  ),
                 );
               },
             ),
@@ -73,7 +80,9 @@ class ImageViewerSettingsSection extends ConsumerWidget {
                   .vertical_description,
               onSelected: (value) {
                 onUpdate(
-                  viewer.copyWith(swipeMode: PostDetailsSwipeMode.vertical),
+                  (current) => current.copyWith(
+                    swipeMode: PostDetailsSwipeMode.vertical,
+                  ),
                 );
               },
             ),
@@ -86,7 +95,7 @@ class ImageViewerSettingsSection extends ConsumerWidget {
           ),
           value: viewer.loadOriginalOnZoom,
           onChanged: (value) => onUpdate(
-            viewer.copyWith(
+            (current) => current.copyWith(
               loadOriginalOnZoom: value,
             ),
           ),
@@ -98,13 +107,13 @@ class ImageViewerSettingsSection extends ConsumerWidget {
           ),
           value: viewer.snapZoomToFit,
           onChanged: (value) => onUpdate(
-            viewer.copyWith(snapZoomToFit: value),
+            (current) => current.copyWith(snapZoomToFit: value),
           ),
         ),
         DoubleTapZoomModeSetting(
           value: viewer.doubleTapZoomMode,
           onChanged: (value) => onUpdate(
-            viewer.copyWith(doubleTapZoomMode: value),
+            (current) => current.copyWith(doubleTapZoomMode: value),
           ),
         ),
         KurumiSwitchListTile(
@@ -120,7 +129,7 @@ class ImageViewerSettingsSection extends ConsumerWidget {
           ),
           value: viewer.autoAdjustComicStrips,
           onChanged: (value) => onUpdate(
-            viewer.copyWith(autoAdjustComicStrips: value),
+            (current) => current.copyWith(autoAdjustComicStrips: value),
           ),
         ),
         const Divider(thickness: 1),
@@ -130,7 +139,7 @@ class ImageViewerSettingsSection extends ConsumerWidget {
           selectedOption: viewer.slideshowDirection,
           items: SlideshowDirection.values,
           onChanged: (value) => onUpdate(
-            viewer.copyWith(slideshowDirection: value),
+            (current) => current.copyWith(slideshowDirection: value),
           ),
           optionBuilder: (value) => Text(value.localize(context)),
         ),
@@ -142,7 +151,7 @@ class ImageViewerSettingsSection extends ConsumerWidget {
           selectedOption: viewer.slideshowInterval,
           items: getSlideShowIntervalPossibleValue(),
           onChanged: (newValue) => onUpdate(
-            viewer.copyWith(slideshowInterval: newValue),
+            (current) => current.copyWith(slideshowInterval: newValue),
           ),
           optionBuilder: (value) => Text(
             context.t.time.counters.second(
@@ -154,7 +163,7 @@ class ImageViewerSettingsSection extends ConsumerWidget {
           title: Text(context.t.settings.image_viewer.slideshow_skip),
           value: viewer.slideshowTransitionType.isSkip,
           onChanged: (value) => onUpdate(
-            viewer.copyWith(
+            (current) => current.copyWith(
               slideshowTransitionType: value
                   ? SlideshowTransitionType.none
                   : SlideshowTransitionType.natural,
@@ -186,7 +195,7 @@ class ImageViewerSettingsSection extends ConsumerWidget {
                   .wait_for_completion_description,
               onSelected: (value) {
                 onUpdate(
-                  viewer.copyWith(
+                  (current) => current.copyWith(
                     slideshowVideoBehavior:
                         SlideshowVideoBehavior.waitForCompletion,
                   ),
@@ -210,7 +219,7 @@ class ImageViewerSettingsSection extends ConsumerWidget {
                   .fixed_interval_description,
               onSelected: (value) {
                 onUpdate(
-                  viewer.copyWith(
+                  (current) => current.copyWith(
                     slideshowVideoBehavior:
                         SlideshowVideoBehavior.fixedInterval,
                   ),
@@ -237,7 +246,7 @@ class ImageViewerSettingsSection extends ConsumerWidget {
               builder: (context) => _VideoEngineSelectorSheet(
                 currentEngine: viewer.videoPlayerEngine,
                 onChanged: (engine) => onUpdate(
-                  viewer.copyWith(videoPlayerEngine: engine),
+                  (current) => current.copyWith(videoPlayerEngine: engine),
                 ),
               ),
             );
@@ -247,7 +256,7 @@ class ImageViewerSettingsSection extends ConsumerWidget {
           title: Text(context.t.settings.image_viewer.mute_video),
           value: viewer.videoAudioDefaultState.muteByDefault,
           onChanged: (value) => onUpdate(
-            viewer.copyWith(
+            (current) => current.copyWith(
               videoAudioDefaultState: value
                   ? VideoAudioDefaultState.mute
                   : VideoAudioDefaultState.unmute,
@@ -259,7 +268,7 @@ class ImageViewerSettingsSection extends ConsumerWidget {
           selectedOption: viewer.doubleTapSeekDuration,
           items: getDoubleTapSeekDurationPossibleValues(),
           onChanged: (value) => onUpdate(
-            viewer.copyWith(doubleTapSeekDuration: value),
+            (current) => current.copyWith(doubleTapSeekDuration: value),
           ),
           optionBuilder: (value) => Text(
             context.t.time.counters.second(n: value),
@@ -272,7 +281,7 @@ class ImageViewerSettingsSection extends ConsumerWidget {
           ),
           value: viewer.enableVideoCache,
           onChanged: (value) => onUpdate(
-            viewer.copyWith(enableVideoCache: value),
+            (current) => current.copyWith(enableVideoCache: value),
           ),
         ),
         TextButton(
@@ -377,3 +386,24 @@ List<int> getDoubleTapSeekDurationPossibleValues() => [
   30,
   60,
 ];
+
+class PostQualitySetting extends StatelessWidget {
+  const PostQualitySetting({
+    required this.value,
+    required this.onUpdate,
+    super.key,
+  });
+  final PostQuality value;
+  final void Function(ImageViewerSettings Function(ImageViewerSettings))
+  onUpdate;
+
+  @override
+  Widget build(BuildContext context) => KurumiSettingsTile<PostQuality>(
+    title: Text(context.t.settings.image_viewer.post_quality),
+    selectedOption: value,
+    items: PostQuality.values,
+    onChanged: (quality) =>
+        onUpdate((current) => current.copyWith(postQuality: quality)),
+    optionBuilder: (quality) => Text(quality.localize(context)),
+  );
+}

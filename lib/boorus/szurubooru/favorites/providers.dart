@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/configs/config/types.dart';
 import '../../../core/posts/favorites/providers.dart';
 import '../../../core/posts/favorites/types.dart';
+import '../../../core/posts/favorites/src/types/favorite_interruption.dart';
 import '../client_provider.dart';
 import '../configs/providers.dart';
 import '../post_votes/providers.dart';
@@ -27,6 +28,7 @@ final szurubooruFavoriteRepoProvider =
 
               return AddFavoriteStatus.success;
             } catch (e) {
+              if (isFavoriteRequestInterruption(e)) rethrow;
               return AddFavoriteStatus.failure;
             }
           },

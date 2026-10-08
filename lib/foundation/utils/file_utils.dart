@@ -6,7 +6,6 @@ import 'package:extended_image/extended_image.dart';
 // Project imports:
 import '../filesystem.dart';
 import '../path.dart';
-import '../platform.dart';
 
 class DirectorySizeInfo {
   DirectorySizeInfo({
@@ -98,6 +97,16 @@ Future<DirectorySizeInfo> getVideoCacheSize(AppFileSystem fs) async {
   return getDirectorySize(fs, path);
 }
 
+// File owners release these roots through their own lifetime policies.
+const _ownedCacheRoots = {
+  cacheImageFolderName,
+  'cacheimage-index',
+  'cacheimage-transfers',
+  'boorusama-clipboard',
+  'boorusama-share',
+  'share_plus',
+};
+
 Future<void> clearCache(AppFileSystem fs) async {
   final cacheDirPath = await fs.getTemporaryPath();
 
@@ -105,7 +114,11 @@ Future<void> clearCache(AppFileSystem fs) async {
 
   if (fs.directoryExistsSync(cacheDirPath)) {
     try {
-      await for (final entry in fs.listDirectoryStream(cacheDirPath)) {
+      await for (final entry in fs.listDirectoryStream(
+        cacheDirPath,
+        followLinks: false,
+      )) {
+        if (_ownedCacheRoots.contains(basename(entry.path))) continue;
         try {
           if (entry.isDirectory) {
             await fs.deleteDirectory(entry.path, recursive: true);
@@ -116,17 +129,9 @@ Future<void> clearCache(AppFileSystem fs) async {
           // Silently ignore deletion errors for individual files/folders
         }
       }
-    } catch (e) {
-      if (isWindows()) {
-        // Silently ignore if we can't list directory contents
-      } else {
-        try {
-          fs.deleteDirectorySync(cacheDirPath, recursive: true);
-          await fs.createDirectory(cacheDirPath, recursive: true);
-        } catch (_) {
-          // Silently ignore if we can't clear the directory
-        }
-      }
+    } catch (_) {
+      // A failed listing provides no safe ownership information. In particular,
+      // deleting the temp root would unlink active cache and platform handoffs.
     }
   }
 }

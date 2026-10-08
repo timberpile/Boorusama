@@ -228,7 +228,7 @@ enum E621VideoVariantType {
 
 class E621MediaUrlResolver extends DefaultMediaUrlResolver {
   E621MediaUrlResolver({
-    required super.imageQuality,
+    required super.postQuality,
   });
 
   @override

@@ -12,7 +12,9 @@ import '../../../../configs/config/providers.dart';
 import '../../../../settings/providers.dart';
 import '../../../../themes/theme/types.dart';
 import '../../../post/types.dart';
+import '../../../post/src/widgets/thumbnail_overlay.dart';
 import '../providers/favorites_notifier.dart';
+import 'favorite_action.dart';
 
 class QuickFavoriteButton extends ConsumerWidget {
   const QuickFavoriteButton({
@@ -21,45 +23,74 @@ class QuickFavoriteButton extends ConsumerWidget {
     this.onFavToggle,
   });
 
-  final void Function(bool value)? onFavToggle;
+  final Future<void> Function(bool value)? onFavToggle;
   final bool isFaved;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final hapticsLevel = ref.watch(hapticFeedbackLevelProvider);
 
-    return Container(
-      padding: const EdgeInsets.only(
-        top: 2,
-        bottom: 1,
-        right: 1,
-        left: 3,
-      ),
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: context.extendedColorScheme.surfaceContainerOverlay,
-      ),
-      child: LikeButton(
-        isLiked: isFaved,
-        onTap: (isLiked) {
-          final liked = !isLiked;
-          onFavToggle?.call(!isLiked);
+    return SizedBox.square(
+      dimension: ThumbnailOverlayDimensions.favoriteTouchTarget,
+      child: Stack(
+        alignment: Alignment.bottomRight,
+        children: [
+          Container(
+            width:
+                ThumbnailOverlayDimensions.favoriteIcon +
+                ThumbnailOverlayDimensions.favoritePadding * 2,
+            height:
+                ThumbnailOverlayDimensions.favoriteIcon +
+                ThumbnailOverlayDimensions.favoritePadding * 2,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: context.extendedColorScheme.surfaceContainerOverlay,
+            ),
+          ),
+          LikeButton(
+            size: ThumbnailOverlayDimensions.favoriteIcon,
+            // Extend the touch target toward the top and left, keeping the
+            // visible button at the thumbnail's bottom-right inset. LikeButton
+            // owns padding taps as well as the animation and async action flow.
+            padding: const EdgeInsets.only(
+              top:
+                  ThumbnailOverlayDimensions.favoriteTouchTarget -
+                  ThumbnailOverlayDimensions.favoriteIcon -
+                  ThumbnailOverlayDimensions.favoritePadding,
+              left:
+                  ThumbnailOverlayDimensions.favoriteTouchTarget -
+                  ThumbnailOverlayDimensions.favoriteIcon -
+                  ThumbnailOverlayDimensions.favoritePadding,
+              bottom: ThumbnailOverlayDimensions.favoritePadding,
+              right: ThumbnailOverlayDimensions.favoritePadding,
+            ),
+            likeCountPadding: EdgeInsets.zero,
+            isLiked: isFaved,
+            onTap: (isLiked) async {
+              final liked = !isLiked;
+              final result = await runFavoriteAction(context, () async {
+                await onFavToggle?.call(liked);
+              });
+              if (result == null) return isLiked;
 
-          if (liked && hapticsLevel.isBalanceAndAbove) {
-            HapticFeedback.mediumImpact();
-          }
+              if (liked && hapticsLevel.isBalanceAndAbove) {
+                await HapticFeedback.mediumImpact();
+              }
 
-          return Future.value(liked);
-        },
-        likeBuilder: (isLiked) {
-          return Icon(
-            isLiked ? Symbols.favorite : Symbols.favorite,
-            color: isLiked
-                ? context.colors.upvoteColor
-                : context.extendedColorScheme.onSurfaceContainerOverlay,
-            fill: isLiked ? 1 : 0,
-          );
-        },
+              return liked;
+            },
+            likeBuilder: (isLiked) {
+              return Icon(
+                Symbols.favorite,
+                size: ThumbnailOverlayDimensions.favoriteIcon,
+                color: isLiked
+                    ? context.colors.upvoteColor
+                    : context.extendedColorScheme.onSurfaceContainerOverlay,
+                fill: isLiked ? 1 : 0,
+              );
+            },
+          ),
+        ],
       ),
     );
   }

@@ -9,7 +9,6 @@ import '../../../../../../core/artists/types.dart';
 import '../../../../../../core/configs/config/providers.dart';
 import '../../../../../../core/posts/details/types.dart';
 import '../../../../../../core/posts/details_parts/widgets.dart';
-import '../../../../../../core/posts/post/types.dart';
 import '../../../../../../core/posts/sources/types.dart';
 import '../../../../../../core/search/subscriptions/src/widgets/feed_follow_control.dart';
 import '../../../../../../core/widgets/booru_visibility_detector.dart';

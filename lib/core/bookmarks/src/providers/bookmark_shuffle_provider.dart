@@ -22,7 +22,7 @@ class BookmarkShuffleState extends Equatable {
 
   BookmarkShuffleState withNewShuffle() {
     return BookmarkShuffleState(
-      seed: DateTime.now().millisecondsSinceEpoch,
+      seed: max(DateTime.now().microsecondsSinceEpoch, (seed ?? 0) + 1),
     );
   }
 

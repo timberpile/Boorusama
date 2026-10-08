@@ -62,8 +62,8 @@ class PrivacyPage extends ConsumerWidget {
             ),
             value: settings.enableIncognitoModeForKeyboard,
             onChanged: (value) {
-              notifier.updateSettings(
-                settings.copyWith(
+              notifier.updateWith(
+                (settings) => settings.copyWith(
                   enableIncognitoModeForKeyboard: value,
                 ),
               );

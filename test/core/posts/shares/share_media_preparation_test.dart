@@ -123,11 +123,15 @@ void main() {
     await directory.create();
     final old = File('${directory.path}/old.jpg');
     final recent = File('${directory.path}/recent.jpg');
+    final oldGif = File('${directory.path}/boorusama_share_expired.gif');
+    final recentGif = File('${directory.path}/boorusama_share_recent.gif');
     await old.writeAsBytes([1]);
     await recent.writeAsBytes([2]);
-    await old.setLastModified(
-      DateTime.now().subtract(const Duration(hours: 25)),
-    );
+    await oldGif.writeAsBytes([3]);
+    await recentGif.writeAsBytes([4]);
+    final expiredAt = DateTime.now().subtract(const Duration(hours: 25));
+    await old.setLastModified(expiredAt);
+    await oldGif.setLastModified(expiredAt);
     final service = ShareMediaPreparation(
       rootPath: root.path,
       dio: Dio(),
@@ -138,6 +142,8 @@ void main() {
 
     expect(await old.exists(), isFalse);
     expect(await recent.exists(), isTrue);
+    expect(await oldGif.exists(), isFalse);
+    expect(await recentGif.exists(), isTrue);
   });
   test(
     'image cache miss is downloaded into the viewer cache under its URL key',
@@ -194,7 +200,7 @@ void main() {
       addTearDown(cache.dispose);
       const key = 'preserved-image';
       await cache.saveFile(key, png);
-      final targetPath = await cache.getCacheFilePathForKey(key);
+      final targetPath = await cache.getCachedFilePath(key);
       final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
       addTearDown(server.close);
       server.listen((request) async {
@@ -283,7 +289,7 @@ void main() {
       addTearDown(cache.dispose);
       const key = 'cancelled-image';
       await cache.saveFile(key, png);
-      final targetPath = await cache.getCacheFilePathForKey(key);
+      final targetPath = await cache.getCachedFilePath(key);
       final started = Completer<void>();
       final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
       addTearDown(server.close);
@@ -339,6 +345,8 @@ class _ForcedMissCacheManager extends DefaultImageCacheManager {
   String generateCacheKey(String url, {String? customKey}) => key;
 
   @override
-  Future<String?> getCachedFilePath(String key, {Duration? maxAge}) async =>
-      forceMiss ? null : super.getCachedFilePath(this.key, maxAge: maxAge);
+  Future<ImageCacheFileLease?> acquireFile(
+    String key, {
+    Duration? maxAge,
+  }) async => forceMiss ? null : super.acquireFile(this.key, maxAge: maxAge);
 }

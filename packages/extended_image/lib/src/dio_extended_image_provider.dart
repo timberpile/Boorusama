@@ -13,6 +13,7 @@ import 'package:dio/dio.dart';
 import 'package:retriable/retriable.dart';
 
 import 'image_fetcher.dart';
+import 'pending_image_cache_write.dart';
 
 class DioExtendedNetworkImageProvider
     extends ImageProvider<ExtendedNetworkImageProvider>
@@ -151,37 +152,30 @@ class DioExtendedNetworkImageProvider
     return instantiateImageCodec(bytes, decode);
   }
 
-  ImageCacheManager _getEffectiveCacheManager() {
-    return cacheManager ??
-        DefaultImageCacheManager(
-          cacheDirName: cacheImageFolderName,
-          enableLogging: printError && kDebugMode,
-        );
-  }
-
   Future<Uint8List?> _fetchImageBytes(
     StreamController<ImageChunkEvent>? chunkEvents,
   ) async {
-    if (!cache) {
+    if (!cache || cacheManager == null) {
       return _loadNetwork(chunkEvents);
     }
 
-    final manager = _getEffectiveCacheManager();
+    final manager = cacheManager!;
     final effectiveCacheKey = manager.generateCacheKey(
       url,
       customKey: cacheKey,
     );
 
-    final cachedBytesResult = manager.getCachedFileBytes(
-      effectiveCacheKey,
-      maxAge: cacheMaxAge,
-    );
-
     Uint8List? cachedBytes;
-    if (cachedBytesResult is Future<Uint8List?>) {
-      cachedBytes = await cachedBytesResult;
-    } else {
-      cachedBytes = cachedBytesResult;
+    try {
+      final cachedBytesResult = manager.getCachedFileBytes(
+        effectiveCacheKey,
+        maxAge: cacheMaxAge,
+      );
+      cachedBytes = cachedBytesResult is Future<Uint8List?>
+          ? await cachedBytesResult
+          : cachedBytesResult;
+    } on Object {
+      // Cache availability is optional; the transport still owns display bytes.
     }
 
     if (cachedBytes != null && cachedBytes.isNotEmpty) {
@@ -189,12 +183,19 @@ class DioExtendedNetworkImageProvider
     }
 
     // Load from network if not in cache
-    final networkData = await _loadNetwork(chunkEvents);
-    if (networkData != null && networkData.isNotEmpty) {
-      await manager.saveFile(effectiveCacheKey, networkData);
+    final write = await PendingImageCacheWrite.begin(
+      manager,
+      effectiveCacheKey,
+    );
+    try {
+      final networkData = await _loadNetwork(chunkEvents);
+      if (networkData != null && networkData.isNotEmpty) {
+        await write.save(networkData);
+      }
+      return networkData;
+    } finally {
+      await write.abort();
     }
-
-    return networkData;
   }
 
   Future<Uint8List?> _loadNetwork(
@@ -235,6 +236,11 @@ class DioExtendedNetworkImageProvider
     StreamController<ImageChunkEvent>? chunkEvents,
   }) => _fetchImageBytes(chunkEvents);
 
+  Object? get _cacheDomain => switch (cacheManager) {
+    ManagedImageCacheManager(:final cacheDomain) => cacheDomain,
+    final manager => manager,
+  };
+
   @override
   bool operator ==(Object other) {
     if (other.runtimeType != runtimeType) {
@@ -242,6 +248,7 @@ class DioExtendedNetworkImageProvider
     }
     return other is DioExtendedNetworkImageProvider &&
         url == other.url &&
+        identical(_cacheDomain, other._cacheDomain) &&
         scale == other.scale &&
         cacheRawData == other.cacheRawData &&
         timeLimit == other.timeLimit &&
@@ -256,6 +263,7 @@ class DioExtendedNetworkImageProvider
   @override
   int get hashCode => Object.hash(
     url,
+    _cacheDomain,
     scale,
     cacheRawData,
     timeLimit,

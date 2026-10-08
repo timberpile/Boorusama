@@ -1,3 +1,4 @@
+import '../../http/request_interruption.dart';
 // Dart imports:
 import 'dart:convert';
 
@@ -99,6 +100,7 @@ class FieldDiscovery {
       await _cache.set(_cacheKey, _availableFields!);
       await _cache.setTimestamp(_cacheKey, DateTime.now());
     } catch (e) {
+      if (isDataRequestInterruption(e)) rethrow;
       _availableFields = _coreFields;
       await _cache.set(_cacheKey, _availableFields!);
       await _cache.setTimestamp(_cacheKey, DateTime.now());

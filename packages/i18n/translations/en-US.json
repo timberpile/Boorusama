@@ -26,6 +26,34 @@
     "backup_import_skipped": "Imported {count} following feeds; {existing} already existed. Skipped {skipped} feeds because their profile was missing or ambiguous."
   },
   "pinned_searches": {
+    "refresh_in": "in $duration",
+    "name_line": "Name: $name",
+    "last_attempt_succeeded": "Last attempt: $date · Succeeded",
+    "last_attempt_failed": "Last attempt: $date · Failed · $message",
+    "current_refresh_interval": "Refresh interval: {value}",
+    "interval_adaptive": "Adaptive · {duration}",
+    "interval_fixed": "Fixed · {duration}",
+    "interval_days": {
+        "one": "$n day",
+        "other": "$n days"
+    },
+    "interval_hours": {
+        "one": "$n hour",
+        "other": "$n hours"
+    },
+    "interval_minutes": {
+        "one": "$n minute",
+        "other": "$n minutes"
+    },
+    "next_scheduled_refresh": "Next refresh: {value}",
+    "refresh_due_now": "Due now",
+    "refresh_not_scheduled_disabled": "Not scheduled — automatic checks disabled",
+    "refresh_not_scheduled_scope": "Not scheduled — pinned-search checks disabled",
+    "refresh_not_scheduled_unsupported": "Not scheduled — this search cannot be checked automatically",
+    "refresh_profile_unavailable": "Not scheduled — profile unavailable",
+    "refresh_search_unavailable": "This pinned search is no longer available.",
+    "refresh_waiting_rate_limit": "Waiting for the site rate limit.",
+
     "title": "Pinned Searches",
     "backup_count": {
       "one": "$n pinned search",
@@ -45,10 +73,12 @@
     "refresh": "Refresh",
     "refresh_all": "Refresh All",
     "refreshing": "Refreshing…",
+    "refreshing_remaining": "Refreshing… {count} left",
     "refreshing_progress": "Refreshing {completed} of {total}",
     "new_badge": "NEW",
     "new_posts": "New posts available",
     "last_checked": "Last checked: {date}",
+    "last_refresh": "Last refresh: {date}",
     "never_checked": "Never checked",
     "rename": "Rename",
     "edit_title": "Edit Pinned Search",
@@ -84,6 +114,13 @@
     "save_failed": "Could not save the pinned search. Try again.",
     "snapshot_failed": "Search pinned, but its preview could not be loaded. Refresh it later.",
     "info": "Info",
+    "sort_feed_added_date": "Added Date",
+    "sort_feed_newest_first": "Newest first",
+    "sort_feed_oldest_first": "Oldest first",
+    "sort_feed_last_refresh": "Last refresh (oldest first)",
+    "edit_feed_member": "Edit feed member",
+    "remove_feed_member": "Remove",
+    "shared_member_name": "This name is shared by every feed containing this search.",
     "sort_manual": "Manual order",
     "sort_updates_first": "Updates first",
     "sort_last_post_oldest": "Oldest post first",
@@ -337,6 +374,13 @@
       }
     },
     "action": {
+      "gif": "GIF",
+      "create_gif": "Create GIF",
+      "creating_gif": "Creating GIF…",
+      "gif_prototype_settings": "First 6 seconds · 480 px · 12 FPS. Videos up to 30 seconds. Opens sharing when ready.",
+      "gif_source_too_long": "GIF creation supports videos up to 30 seconds.",
+      "gif_too_large": "The result exceeds 100 MB. Try a smaller size, fewer frames, or a shorter clip.",
+      "gif_conversion_error": "Could not create a GIF from this video. You can still share the video.",
       "image": "Image",
       "original": "Original",
       "video": "Video",
@@ -409,6 +453,49 @@
       "failed_to_get_image_url": "Failed to get image URL",
       "failed_to_get_image_bytes": "Failed to get image bytes",
       "failed_to_copy_image": "Failed to copy image: $e"
+    },
+    "gif_editor": {
+      "size": "Size",
+      "axes": "width & height",
+      "frames": "Source frames",
+      "frames_hint": "Frames per source second; speed is separate.",
+      "speed": "Playback speed",
+      "trim_hint": "Drag window to move · edges to trim",
+      "selected": "${seconds} s selected",
+      "duration_change": "${source} s selected → ${gif} s GIF",
+      "dimensions": "${width} × ${height} px",
+      "fps": "${value} fps",
+      "original_fps": "Original · ${value} fps",
+      "playback": "${fps} fps · ${percent}%",
+      "summary": "${duration} s GIF · ${width} × ${height} · ${sourceFps} → ${playbackFps} fps · ${percent}%",
+      "estimate": "Estimated size: ≈ ${megabytes} MB",
+      "estimate_small": "Estimated size: < 1 MB",
+      "estimate_unknown": "Estimated size: —",
+      "invalid_selection": "Choose a longer clip, more source frames, or a larger size to create a GIF.",
+      "ready": "GIF ready",
+      "adjust": "Adjust",
+      "save": "Save",
+      "saved": "GIF saved",
+      "share": "Share",
+      "save_error": "Could not save the GIF to the download folder. Check your download settings and try again.",
+      "preparing": "Preparing video…",
+      "encoding": "Creating your GIF…",
+      "checking": "Checking GIF…",
+      "foreground": "You can leave the app while your GIF is created.",
+      "preview_hint": "Preview the result before sharing.",
+      "preview_unavailable": "Preview is unavailable.",
+      "reset": "Reset GIF settings",
+      "move_window": "Move clip window",
+      "clip_start": "Clip start",
+      "clip_end": "Clip end",
+      "too_large_title": "This GIF is too large",
+      "too_large_body": "The result exceeds 100 MB. Try a smaller size, fewer frames, or a shorter clip.",
+      "smaller": "Try 50% size · fewer frames",
+      "back_to_share": "Back to Share",
+      "selection_kept": "Your chosen clip is kept. You can still share the original video.",
+      "original": "Original",
+      "play": "Play preview",
+      "pause": "Pause preview"
     }
   },
   "comment": {
@@ -455,6 +542,8 @@
       "tag_limit": "Maximum tag limit reached. Upgrade your account to search for more tags at once.",
       "database_timeout": "Your search took too long to execute and was cancelled.",
       "rate_limited": "You're being rate limited. Please try again later",
+      "rate_limited_wait": "Rate limited by the site. Try again in {seconds} seconds.",
+      "rate_limited_wait_one": "Rate limited by the site. Try again in one second.",
       "pagination_limit": "You're have reached pagination limit. It means you cannot scroll more",
       "max_capacity": "Server is under heavy load and cannot handle the request be, please try again later",
       "down": "Server is down. please try again later",
@@ -508,6 +597,39 @@
   "settings": {
     "settings": "Settings",
     "app_settings": "App Settings",
+    "pinned_searches_and_feeds": {
+      "title": "Pinned Searches & Feeds",
+      "automatic_section": "Automatic checks",
+      "enabled": "Enable automatic checks",
+      "periodic_description": "Adaptive checks start after 24 hours and adjust between 6 hours and 7 days. Each foreground run checks at most six due sources within shared site request limits. Manual refresh remains available.",
+      "pinned_searches": "Pinned searches",
+      "following_feeds": "Following feed sources",
+      "interval": "Check interval",
+      "adaptive": "Adaptive (starts at 24 hours)",
+      "fixed": "Fixed",
+      "fixed_interval": "Fixed interval",
+      "six_hours": "Every 6 hours",
+      "twelve_hours": "Every 12 hours",
+      "one_day": "Every day",
+      "two_days": "Every 2 days",
+      "seven_days": "Every 7 days",
+      "network_section": "Network and power",
+      "wifi_only": "Wi-Fi or Ethernet only",
+      "foreground_only": "Checks run only while the app is open and pause in battery saver. Broader network access allows only connections reported as unmetered; unknown connection or power status pauses automatic checks.",
+      "status_section": "Status",
+      "last_run": "Last automatic run: ${value}",
+      "paused": "Paused: ${reason}",
+      "eligible": "Due sources this run: ${count}",
+      "never": "Never",
+      "running": "Checking due sources…",
+      "ready": "Automatic checks are ready",
+      "pause_disabled": "automatic checks disabled",
+      "pause_foreground": "app is not in the foreground",
+      "pause_battery": "battery saver is active",
+      "pause_unknown": "power or network status is unavailable",
+      "pause_network": "waiting for an allowed network",
+      "save_failed": "Could not save refresh settings."
+    },
     "appearance": {
       "appearance": "Appearance",
       "customize": "Customize",
@@ -559,6 +681,7 @@
       "masonry": "Masonry"
     },
     "image_grid": {
+      "thumbnail_quality": "Thumbnail quality",
       "image_grid": "Image grid",
       "grid_size": {
         "grid_size": "Grid size",
@@ -573,6 +696,7 @@
         "auto": "Auto",
         "high_quality_notice": "High quality image will take longer to load.",
         "high": "High",
+        "medium": "Medium",
         "low": "Low",
         "original": "Original",
         "automatic": "Automatic",
@@ -584,6 +708,7 @@
       "aspect_ratio": "Aspect ratio"
     },
     "image_viewer": {
+      "post_quality": "Post quality",
       "image_viewer": "Image viewer",
       "slideshow": "Slideshow",
       "slideshow_interval": "Slideshow interval",
@@ -785,7 +910,10 @@
           "free": "Free"
         }
       },
-      "error_loading_cache_info": "Error loading cache info"
+      "error_loading_cache_info": "Error loading cache info",
+      "image_cache_limit": "Image cache limit",
+      "image_cache_limit_description": "Maximum storage used by images, including bookmark images.",
+      "cache_disabled": "Disabled"
     },
     "backup_and_restore": {
       "backup_and_restore": "Backup and Restore",
@@ -858,7 +986,7 @@
         "replace": "Replace",
         "replace_explanation_title": "What Replace does",
         "replace_explanation": "Replace makes the selected category match this export. Current items in that category that are absent from the export are removed. Skipped categories and items are unchanged. Boorusama creates a rollback checkpoint before applying anything.",
-        "configure_items": "Configure items individually",
+        "configure_items": "Custom",
         "skip": "Skip",
         "update": "Update",
         "merge": "Merge",
@@ -875,13 +1003,34 @@
         "completed_updated_count": "Updated {count}",
         "completed_deleted_count": "Removed {count}",
         "change_entities": {
-          "bookmark": {"one": "bookmark", "other": "bookmarks"},
-          "bookmark_group": {"one": "group", "other": "groups"},
-          "pinned_search": {"one": "search", "other": "searches"},
-          "pinned_folder": {"one": "folder", "other": "folders"},
-          "feed": {"one": "feed", "other": "feeds"},
-          "feed_search": {"one": "feed search", "other": "feed searches"},
-          "profile": {"one": "profile", "other": "profiles"},
+          "bookmark": {
+            "one": "bookmark",
+            "other": "bookmarks"
+          },
+          "bookmark_group": {
+            "one": "group",
+            "other": "groups"
+          },
+          "pinned_search": {
+            "one": "search",
+            "other": "searches"
+          },
+          "pinned_folder": {
+            "one": "folder",
+            "other": "folders"
+          },
+          "feed": {
+            "one": "feed",
+            "other": "feeds"
+          },
+          "feed_search": {
+            "one": "feed search",
+            "other": "feed searches"
+          },
+          "profile": {
+            "one": "profile",
+            "other": "profiles"
+          },
           "home_arrangement": "Home arrangement"
         },
         "categories_unchanged": {
@@ -898,14 +1047,15 @@
         "invalid_export_description": "The file is invalid, incomplete, or uses an unsupported format.",
         "choose_another_export": "Choose another export",
         "export_failed": "The export could not be created: {error}",
+        "save_failed": "Could not save the export to this folder. Choose another folder and try again.",
         "saved": "Export saved",
         "copied": "Export copied to the clipboard",
-        "no_data_selected": "Choose at least one data category."
-        ,"delete_template": "Delete template"
-        ,"name_template": "Save as template"
-        ,"saved_template": "Template saved"
-        ,"select_export_type": "Select export type"
-        ,"sources": {
+        "no_data_selected": "Choose at least one data category.",
+        "delete_template": "Delete template",
+        "name_template": "Save as template",
+        "saved_template": "Template saved",
+        "select_export_type": "Select export type",
+        "sources": {
           "profiles": "Booru profiles",
           "settings": "Settings",
           "favorite_tags": "Favorite tags",
@@ -976,7 +1126,29 @@
           "unresolved_profile_import": "Choose a valid import action and target for {item}.",
           "incomplete_checks": "Boorusama could not complete all safety checks for {source}.",
           "unknown_problem": "Boorusama found a problem with {source}."
-        }
+        },
+        "preview_count": {
+          "one": "${n} change",
+          "other": "${n} changes"
+        },
+        "preview_added": "{count} added",
+        "preview_removed": "{count} removed",
+        "preview_changed": "{count} changed",
+        "preview_database_limit": "Database replacement; individual row changes cannot be previewed.",
+        "preview_metadata_limit": "Bookmark data changes; individual bookmarks are not listed.",
+        "preview_unknown_limit": "Category data changes; individual changes cannot be previewed.",
+        "preview_refreshed": "Local data changed. The plan was refreshed; review it and confirm again.",
+        "preview_bookmark_data": "Bookmark data",
+        "preview_home": "Home",
+        "preview_ungrouped": "No group",
+        "preview_bookmark_groups": "Bookmark groups",
+        "preview_folder": "Folder",
+        "preview_unknown_profile": "Unknown profile",
+        "preview_profile": "Profile",
+        "preview_position": "Position",
+        "preview_query": "Search query",
+        "preview_query_order": "Search order",
+        "preview_global": "Global"
       },
       "auto_backup": "Auto backup",
       "auto_backup_tooltip": "Backups are created when you open the app. No backups occur when the app is closed.",
@@ -1036,6 +1208,10 @@
       }
     },
     "auto_backup": {
+      "folder_access_hint": "Choose a folder and allow access in the Android system picker. Access is kept for future backups, including after restarting.",
+      "folder_access_error": "Could not access or write to the backup folder. Check that it is available, then select the folder again to allow access.",
+      "no_location": "No location selected",
+      "select_location": "Select a backup location to enable auto backup",
       "enable_auto_backup": "Enable Auto Backup",
       "backup_frequency": "Backup Frequency",
       "backup_location": "Backup Location",
@@ -1510,6 +1686,47 @@
     }
   },
   "bookmark": {
+    "maintenance": {
+      "advanced": "Advanced",
+      "title": "Maintenance",
+      "hydrate": "Hydrate bookmark metadata",
+      "description": "Update incomplete imported bookmarks with native post metadata. Completed updates are saved as the operation runs. You can leave this page and return to view progress.",
+      "candidates": "Incomplete bookmarks: {0}",
+      "confirm": "Update {0} incomplete bookmarks? This makes network requests to their booru sites using the matching profiles. It may take a while for large libraries. Cancellation keeps completed updates.",
+      "start": "Start",
+      "progress": "Processed {0} / {1}",
+      "result": "Updated {0} · Skipped {1} · Failed {2}",
+      "rate_limited": "Waiting for the rate limit on: {sites}. Hydration will resume automatically.",
+      "retry_waiting": "Automatically retrying {0} failed posts at {1}. You can cancel while waiting.",
+      "retrying": "Retrying {0} remaining failed posts (retry pass {1}).",
+      "cancelled": "Cancelled. Completed updates have been kept.",
+      "error": "Could not load or update the bookmark library. Please try again.",
+      "log_title": "Post log",
+      "log_description": "Latest {0} entries, newest first. Starting a new run clears the log.",
+      "log_copy": "Copy log",
+      "log_copied": "Log copied",
+      "log_empty": "No posts processed yet.",
+      "log_unknown_domain": "Unknown domain",
+      "log_post": "Post #{0}",
+      "log_bookmark": "Bookmark #{0} (no post ID)",
+      "log_updated": "Updated",
+      "log_missing_profile": "Skipped — no matching profile",
+      "log_ambiguous_profile": "Skipped — multiple matching profiles",
+      "log_missing_post_id": "Skipped — missing post ID",
+      "log_removed_post": "Skipped — post no longer available",
+      "log_unsupported_snapshot": "Skipped — native metadata unavailable",
+      "log_request_failed": "Failed — could not fetch post",
+      "log_connection_failed": "Failed — could not connect to the server",
+      "log_timeout": "Failed — request timed out",
+      "log_handshake_failed": "Failed — TLS handshake failed",
+      "log_certificate_failed": "Failed — server certificate error",
+      "log_invalid_response": "Failed — invalid post response",
+      "log_access_denied": "Failed — access denied; check profile credentials or site access",
+      "log_server_failed": "Failed — server rejected the request",
+      "log_save_failed": "Failed — could not save metadata",
+      "log_request_cancelled": "Request cancelled",
+      "log_rate_limited": "Waiting — rate limited; retry at {0}"
+    },
     "title": "Bookmarks",
     "added": "Bookmark added",
     "failed_to_add": "Failed to add bookmark",

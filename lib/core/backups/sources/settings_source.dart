@@ -25,7 +25,7 @@ class SettingsBackupSource extends JsonBackupSource<Settings> {
         executor: (settings, _) async {
           await ref
               .read(settingsNotifierProvider.notifier)
-              .updateSettings(settings);
+              .replaceSettings(settings);
           await ref
               .read(bookmarkProvider.notifier)
               .syncActiveTargetFromSettings();

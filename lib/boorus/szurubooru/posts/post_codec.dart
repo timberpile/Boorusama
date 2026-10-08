@@ -6,7 +6,6 @@ import '../../../core/posts/post/types.dart';
 import '../../../core/tags/categories/types.dart';
 import '../../../core/tags/tag/types.dart';
 import '../pools/types.dart';
-import 'post_data.dart';
 import 'types.dart';
 
 final class SzurubooruPostCodec
@@ -28,7 +27,7 @@ final class SzurubooruPostCodec
     'favoriteCount': data.favoriteCount,
     'commentCount': data.commentCount,
     'tagDetails': data.tagDetails.map(_encodeTag).toList(),
-    if (data.status case final value?) 'status': value,
+    'status': ?data.status,
     'pools': data.pools.map(_encodePool).toList(),
   };
 
@@ -41,9 +40,9 @@ final class SzurubooruPostCodec
       throw const FormatException('Unsupported Szurubooru post data');
     }
     return SzurubooruPostData(
-      ownFavorite: json['ownFavorite'] as bool,
-      favoriteCount: json['favoriteCount'] as int,
-      commentCount: json['commentCount'] as int,
+      ownFavorite: _required<bool>(json['ownFavorite'], 'favorite state'),
+      favoriteCount: _required<int>(json['favoriteCount'], 'favorite count'),
+      commentCount: _required<int>(json['commentCount'], 'comment count'),
       tagDetails: _list(json['tagDetails']).map(_decodeTag).toList(),
       status: json['status'] as String?,
       pools: _list(json['pools']).map(_decodePool).toList(),
@@ -70,14 +69,14 @@ Post szurubooruPostFromRecord(SzurubooruPostRecord post, PostOrigin origin) =>
 
 Map<String, Object?> _encodeTag(Tag tag) => {
   'name': tag.name,
-  if (tag.label case final value?) 'label': value,
+  'label': ?tag.label,
   'postCount': tag.postCount,
   'category': {
     'id': tag.category.id,
     'name': tag.category.name,
-    if (tag.category.displayName case final value?) 'displayName': value,
-    if (tag.category.originalName case final value?) 'originalName': value,
-    if (tag.category.order case final value?) 'order': value,
+    'displayName': ?tag.category.displayName,
+    'originalName': ?tag.category.originalName,
+    'order': ?tag.category.order,
     if (tag.category.darkColor case final value?) 'darkColor': value.toARGB32(),
     if (tag.category.lightColor case final value?)
       'lightColor': value.toARGB32(),
@@ -88,12 +87,12 @@ Tag _decodeTag(Object? value) {
   final map = _map(value);
   final category = _map(map['category']);
   return Tag(
-    name: map['name'] as String,
+    name: _required<String>(map['name'], 'tag name'),
     label: map['label'] as String?,
-    postCount: map['postCount'] as int,
+    postCount: _required<int>(map['postCount'], 'tag post count'),
     category: TagCategory(
-      id: category['id'] as int,
-      name: category['name'] as String,
+      id: _required<int>(category['id'], 'tag category ID'),
+      name: _required<String>(category['name'], 'tag category name'),
       displayName: category['displayName'] as String?,
       originalName: category['originalName'] as String?,
       order: category['order'] as int?,
@@ -112,9 +111,9 @@ Tag _decodeTag(Object? value) {
 Map<String, Object?> _encodePool(SzurubooruPool pool) => {
   'id': pool.id,
   'names': pool.names,
-  if (pool.category case final value?) 'category': value,
-  if (pool.description case final value?) 'description': value,
-  if (pool.postCount case final value?) 'postCount': value,
+  'category': ?pool.category,
+  'description': ?pool.description,
+  'postCount': ?pool.postCount,
   'postIds': pool.postIds,
   'thumbnailUrls': pool.thumbnailUrls,
   if (pool.createdAt case final value?)
@@ -126,15 +125,19 @@ Map<String, Object?> _encodePool(SzurubooruPool pool) => {
 SzurubooruPool _decodePool(Object? value) {
   final map = _map(value);
   return SzurubooruPool(
-    id: map['id'] as int,
-    names: _list(map['names']).map((e) => e as String).toList(),
+    id: _required<int>(map['id'], 'pool ID'),
+    names: _list(
+      map['names'],
+    ).map((e) => _required<String>(e, 'pool name')).toList(),
     category: map['category'] as String?,
     description: map['description'] as String?,
     postCount: map['postCount'] as int?,
-    postIds: _list(map['postIds']).map((e) => e as int).toList(),
+    postIds: _list(
+      map['postIds'],
+    ).map((e) => _required<int>(e, 'pool post ID')).toList(),
     thumbnailUrls: _list(
       map['thumbnailUrls'],
-    ).map((e) => e as String).toList(),
+    ).map((e) => _required<String>(e, 'pool thumbnail URL')).toList(),
     createdAt: _optionalDate(map['createdAt']),
     updatedAt: _optionalDate(map['updatedAt']),
   );
@@ -152,6 +155,12 @@ List<Object?> _list(Object? value) => switch (value) {
 };
 
 Map<String, Object?> _map(Object? value) => switch (value) {
-  final Map<String, Object?> map => map,
+  final Map<Object?, Object?> map when map.keys.every((key) => key is String) =>
+    Map<String, Object?>.from(map),
   _ => throw const FormatException('Invalid map'),
+};
+
+T _required<T>(Object? value, String field) => switch (value) {
+  final T value => value,
+  _ => throw FormatException('Invalid Szurubooru $field'),
 };

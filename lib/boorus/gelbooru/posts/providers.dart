@@ -11,7 +11,6 @@ import '../../../core/settings/providers.dart';
 import '../client_provider.dart';
 import '../tags/providers.dart';
 import 'parser.dart';
-import 'types.dart';
 
 const _gelbooruSearchDepthLimit = 40000;
 

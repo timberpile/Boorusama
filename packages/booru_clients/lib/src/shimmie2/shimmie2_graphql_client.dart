@@ -1,3 +1,4 @@
+import '../http/request_interruption.dart';
 // Dart imports:
 import 'dart:async';
 
@@ -163,6 +164,7 @@ class Shimmie2GraphQLClient {
         parseData: parseData,
       );
     } catch (e) {
+      if (isDataRequestInterruption(e)) rethrow;
       if (_isFieldError(e)) {
         await _postFieldDiscovery.rediscover();
         final fields = await fetchFields();

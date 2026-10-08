@@ -11,7 +11,6 @@ import '../../../core/posts/post/types.dart';
 import '../../../foundation/caching.dart';
 import '../client_provider.dart';
 import '../posts/parser.dart';
-import '../posts/types.dart';
 import 'types.dart';
 
 final e621PopularPostRepoProvider =

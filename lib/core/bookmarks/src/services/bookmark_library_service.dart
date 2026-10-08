@@ -11,8 +11,6 @@ import '../types/bookmark_library_state.dart';
 import '../types/bookmark_repository.dart';
 import '../types/bookmark_target.dart';
 
-typedef BookmarkCacheCleaner = Future<void> Function(Bookmark bookmark);
-
 class BookmarkGroupRemovalResult extends Equatable {
   const BookmarkGroupRemovalResult({
     required this.removedCount,
@@ -41,13 +39,11 @@ class BookmarkLibraryService {
     required this.bookmarkRepository,
     required this.groupRepository,
     required this.imageUrlResolver,
-    this.clearBookmarkCache,
   });
 
   final BookmarkRepository bookmarkRepository;
   final BookmarkGroupRepository groupRepository;
   final ImageUrlResolver Function(int? booruId) imageUrlResolver;
-  final BookmarkCacheCleaner? clearBookmarkCache;
 
   Future<BookmarkLibraryState> load(BookmarkTarget activeTarget) async {
     final bookmarks = await bookmarkRepository.getAllBookmarksOrThrow(
@@ -250,7 +246,6 @@ class BookmarkLibraryService {
       rollbackErrors.addAll(await _restoreMemberships([target]));
       _throwWithRollback(error, stackTrace, rollbackErrors);
     }
-    await _clearCaches(toDelete);
 
     return BookmarkGroupRemovalResult(
       removedCount: affectedIds.length,
@@ -288,7 +283,6 @@ class BookmarkLibraryService {
         rollbackErrors,
       );
     }
-    await _clearCaches(bookmarkList);
   }
 
   Future<BookmarkGroupDeletionPreview> deleteGroup(String groupId) async {
@@ -333,18 +327,7 @@ class BookmarkLibraryService {
       }
       _throwWithRollback(error, stackTrace, rollbackErrors);
     }
-    await _clearCaches(orphanBookmarks);
     return preview;
-  }
-
-  Future<void> _clearCaches(Iterable<Bookmark> bookmarks) async {
-    if (clearBookmarkCache case final cleaner?) {
-      for (final bookmark in bookmarks) {
-        try {
-          await cleaner(bookmark);
-        } catch (_) {}
-      }
-    }
   }
 
   Future<List<Object>> _restoreMemberships(

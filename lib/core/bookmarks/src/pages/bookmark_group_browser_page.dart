@@ -12,7 +12,6 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../../../configs/config/providers.dart';
 import '../../../configs/config/types.dart';
 import '../../../images/booru_image.dart';
-import '../data/providers.dart';
 import '../providers/bookmark_group_selectors.dart';
 import '../providers/bookmark_provider.dart';
 import '../providers/bookmark_shuffle_provider.dart';
@@ -408,7 +407,7 @@ class _BookmarkGroupPreviewImage extends ConsumerWidget {
     return BooruImage(
       imageUrl: bookmarkGroupPreviewUrl(bookmark),
       config: imageConfig?.auth ?? ref.watchConfigAuth,
-      imageCacheManager: ref.watch(bookmarkImageCacheManagerProvider),
+
       fit: BoxFit.cover,
       placeholderWidget: const SizedBox.expand(),
     );

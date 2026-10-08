@@ -92,7 +92,9 @@ class HydrusRepository extends BooruRepositoryDefault {
   }
 
   @override
-  MediaUrlResolver mediaUrlResolver(BooruConfigAuth config) {
-    return ref.watch(sampleMediaUrlResolverProvider(config));
+  ProviderListenable<MediaUrlResolver> mediaUrlResolverProvider(
+    BooruConfigAuth config,
+  ) {
+    return sampleMediaUrlResolverProvider(config);
   }
 }

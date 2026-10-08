@@ -1,3 +1,4 @@
+import '../http/request_interruption.dart';
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
@@ -66,6 +67,7 @@ class PixivAuthClient {
 
       return PixivTokens.fromJson(decoded);
     } on DioException catch (e) {
+      if (isDataRequestInterruption(e)) rethrow;
       final decoded = _decode(e.response?.data);
       final authError = _authErrorOf(decoded);
       if (authError != null) throw authError;

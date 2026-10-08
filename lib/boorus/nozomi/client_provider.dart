@@ -33,6 +33,7 @@ final nozomiDioProvider = Provider.family<Dio, BooruConfigAuth>((ref, config) {
   final loggerService = ref.watch(loggerProvider);
 
   final dio = newDio(
+    apiCoordinator: ref.watch(apiRequestCoordinatorProvider),
     options: DioOptions(
       ddosProtectionHandler: ddosProtectionHandler,
       userAgent: '${appName.sentenceCase}/$appVersion - boorusama',

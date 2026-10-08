@@ -43,6 +43,7 @@ final moebooruPostRequestDioProvider = Provider.family<Dio?, BooruConfigAuth>((
   return switch (moebooru.getPostRequestUrl(config.url)) {
     null => null,
     final postRequestUrl => newDio(
+      apiCoordinator: ref.watch(apiRequestCoordinatorProvider),
       options: DioOptions(
         ddosProtectionHandler: ddosProtectionHandler,
         userAgent: ref.watch(defaultUserAgentProvider),
@@ -53,9 +54,7 @@ final moebooruPostRequestDioProvider = Provider.family<Dio?, BooruConfigAuth>((
         baseUrl: postRequestUrl,
         proxySettings: config.proxySettings,
       ),
-      additionalInterceptors: [
-        ref.watch(defaultSlidingWindowRateLimitConfigInterceptorProvider),
-      ],
+      additionalInterceptors: [],
     ),
   };
 });

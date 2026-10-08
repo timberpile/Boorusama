@@ -44,6 +44,32 @@ void main() {
       });
     }
 
+    for (final size in GridSize.values) {
+      test(
+        'automatic ${size.name} video grid uses its size tier without loading video',
+        () {
+          final media = gelbooruGridThumbnailMedia(
+            _post(format: 'mp4'),
+            GridThumbnailSettings(
+              imageQuality: ImageQuality.automatic,
+              animatedPostsDefaultState: AnimatedPostsDefaultState.static,
+              gridSize: size,
+            ),
+          );
+          final small = size == GridSize.tiny || size == GridSize.micro;
+          expect(
+            media.url,
+            small
+                ? 'https://example.test/thumbnail.jpg'
+                : 'https://example.test/poster.jpg',
+          );
+          expect(
+            media.fallbackUrl,
+            small ? null : 'https://example.test/thumbnail.jpg',
+          );
+        },
+      );
+    }
     final unchangedCases = [
       (format: 'jpg', quality: ImageQuality.high),
       (format: 'gif', quality: ImageQuality.automatic),

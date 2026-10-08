@@ -18,6 +18,7 @@ import 'package:boorusama/core/ddos/solver/src/protection_solver.dart';
 import 'package:boorusama/core/ddos/solver/src/user_agent_provider.dart';
 import 'package:boorusama/core/errors/types.dart';
 import 'package:boorusama/core/http/client/src/interceptors/dio_protection_interceptor.dart';
+import 'package:boorusama/core/http/client/coordination.dart';
 import 'package:boorusama/core/http/client/src/types/http_utils.dart';
 
 const _challengePage = '''
@@ -27,6 +28,24 @@ const _challengePage = '''
 const _deniedPage = '<html><title>403 Access denied</title></html>';
 
 void main() {
+  test(
+    'bulk maintenance does not launch verification or replay a challenge response',
+    () async {
+      final fixture = _Fixture([
+        const _Response(403, _challengePage),
+        const _Response(200, 'posts'),
+      ]);
+      await expectLater(
+        runWithApiRequestContext(
+          const ApiRequestContext(requestClass: ApiRequestClass.bulkTransfer),
+          () => fixture.dio.get<String>('/index.php?page=dapi&s=post&q=index'),
+        ),
+        throwsA(isA<DioException>()),
+      );
+      expect(fixture.adapter.requestCount, 1);
+    },
+  );
+
   test(
     'a solved startup challenge replays the request with clearance',
     () async {
@@ -109,7 +128,7 @@ void main() {
     expect(fixture.adapter.requestCount, 2);
   });
 
-  test('a mutation never gets a delayed second replay', () async {
+  test('a mutation never replays after protection handling', () async {
     final fixture = _Fixture([
       const _Response(403, _challengePage),
       const _Response(403, _deniedPage),
@@ -122,7 +141,7 @@ void main() {
     ).run();
 
     expect(result.fold((error) => error, (_) => null), isA<ServerError>());
-    expect(fixture.adapter.requestCount, 2);
+    expect(fixture.adapter.requestCount, 1);
   });
 
   test('cancellation during the delay prevents another request', () async {

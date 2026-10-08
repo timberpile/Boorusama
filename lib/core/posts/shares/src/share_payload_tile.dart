@@ -5,8 +5,9 @@ class SharePayloadTile extends StatelessWidget {
     required this.title,
     required this.value,
     required this.unavailable,
-    required this.copyTooltip,
-    required this.shareTooltip,
+    this.copyTooltip,
+    this.shareTooltip,
+    this.trailing,
     super.key,
     this.description,
     this.leading,
@@ -26,8 +27,9 @@ class SharePayloadTile extends StatelessWidget {
   final bool reserveDescriptionSpace;
   final bool showValue;
   final String unavailable;
-  final String copyTooltip;
-  final String shareTooltip;
+  final String? copyTooltip;
+  final String? shareTooltip;
+  final Widget? trailing;
   final VoidCallback? onCopy;
   final VoidCallback? onShare;
   final bool busy;
@@ -75,16 +77,20 @@ class SharePayloadTile extends StatelessWidget {
                 ],
               ),
             ),
-            IconButton(
-              tooltip: copyTooltip,
-              icon: const Icon(Icons.content_copy),
-              onPressed: available && !busy ? onCopy : null,
-            ),
-            IconButton(
-              tooltip: shareTooltip,
-              icon: const Icon(Icons.share),
-              onPressed: available && !busy ? onShare : null,
-            ),
+            if (trailing case final action?)
+              action
+            else ...[
+              IconButton(
+                tooltip: copyTooltip,
+                icon: const Icon(Icons.content_copy),
+                onPressed: available && !busy ? onCopy : null,
+              ),
+              IconButton(
+                tooltip: shareTooltip,
+                icon: const Icon(Icons.share),
+                onPressed: available && !busy ? onShare : null,
+              ),
+            ],
           ],
         ),
       ),

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../configs/auth/types.dart';
 import '../../../../configs/config/providers.dart';
 import '../providers/favorites_notifier.dart';
+import 'favorite_action.dart';
 
 extension FavX on WidgetRef {
   void toggleFavorite(int postId) {
@@ -13,7 +14,11 @@ extension FavX on WidgetRef {
       final notifier = read(favoritesProvider(config).notifier);
       final isFaved = read(favoriteProvider((config, postId)));
       if (isFaved) {
-        await notifier.remove(postId);
+        final result = await runFavoriteAction(
+          context,
+          () => notifier.remove(postId),
+        );
+        if (result == null || result.cleanupInterrupted) return;
         if (context.mounted) {
           showSuccessSnackBar(
             context,
@@ -21,7 +26,11 @@ extension FavX on WidgetRef {
           );
         }
       } else {
-        await notifier.add(postId);
+        final result = await runFavoriteAction(
+          context,
+          () => notifier.add(postId),
+        );
+        if (result == null || result.cleanupInterrupted) return;
         if (context.mounted) {
           showSuccessSnackBar(
             context,

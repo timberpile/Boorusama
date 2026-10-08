@@ -10,18 +10,34 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity: FlutterFragmentActivity() {
+    private var gifSaveChannel: GifSaveChannel? = null
+    private var gifBackgroundChannel: GifBackgroundChannel? = null
+    private var autoBackupChannel: AutoBackupChannel? = null
+    private var exportSaveChannel: ExportSaveChannel? = null
     private var receivedExportChannel: ReceivedExportChannel? = null
+    private var searchRefreshEnvironmentChannel: SearchRefreshEnvironmentChannel? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         val messenger = flutterEngine.dartExecutor.binaryMessenger
+        searchRefreshEnvironmentChannel = SearchRefreshEnvironmentChannel(applicationContext, messenger)
         MediaScannerChannel(applicationContext, messenger).register()
         registerExportClipboardChannel(messenger)
         ImageClipboardChannel(applicationContext, messenger)
+        GifMetadataChannel(applicationContext, messenger)
+        gifSaveChannel = GifSaveChannel(this, messenger)
+        gifBackgroundChannel = GifBackgroundChannel(applicationContext, messenger)
+        autoBackupChannel = AutoBackupChannel(this, messenger)
+        exportSaveChannel = ExportSaveChannel(applicationContext, messenger)
         receivedExportChannel = ReceivedExportChannel(applicationContext, messenger).also {
             it.register()
             it.receive(intent)
         }
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (autoBackupChannel?.onActivityResult(requestCode, resultCode, data) == true) return
+        super.onActivityResult(requestCode, resultCode, data)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -32,6 +48,11 @@ class MainActivity: FlutterFragmentActivity() {
 
     override fun onDestroy() {
         receivedExportChannel?.close()
+        autoBackupChannel?.close()
+        exportSaveChannel?.close()
+        gifSaveChannel?.close()
+        gifBackgroundChannel?.close()
+        searchRefreshEnvironmentChannel?.close()
         super.onDestroy()
     }
 

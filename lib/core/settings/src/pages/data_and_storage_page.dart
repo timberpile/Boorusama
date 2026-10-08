@@ -8,18 +8,18 @@ import 'package:kurumi/material.dart';
 // Project imports:
 import '../../../../foundation/caching/types.dart';
 import '../../../../foundation/utils/file_utils.dart';
-import '../../../bookmarks/providers.dart';
 import '../../../cache/cache_notifier.dart';
 import '../../../cache/providers.dart';
-import '../../../videos/cache/types.dart';
-import '../../../videos/cache/widgets.dart';
+import '../../../../foundation/caching/cache_limit_options.dart';
+import '../../../cache/cache_limit_dialog.dart';
 import '../providers/settings_notifier.dart';
 import '../providers/settings_provider.dart';
 import '../types/settings.dart';
 import '../widgets/settings_page_scaffold.dart';
 import '../widgets/storage_segment_bar.dart';
+import 'bookmark_maintenance_page.dart';
 
-final diskSpaceProvider = Provider.autoDispose<(CacheSizeInfo, int)>((
+final diskSpaceProvider = Provider.autoDispose<CacheSizeInfo>((
   ref,
 ) {
   final appCache = ref.watch(appCacheSizeProvider);
@@ -27,7 +27,6 @@ final diskSpaceProvider = Provider.autoDispose<(CacheSizeInfo, int)>((
   final tagCache = ref.watch(tagCacheSizeProvider);
   final diskSpace = ref.watch(diskSpaceInfoProvider);
   final videoCache = ref.watch(videoCacheSizeProvider);
-  final bookmarkCache = ref.watch(bookmarkCacheInfoProvider);
   final persistentCache = ref.watch(persistentCacheSizeProvider);
 
   final cacheInfo = CacheSizeInfo(
@@ -39,9 +38,7 @@ final diskSpaceProvider = Provider.autoDispose<(CacheSizeInfo, int)>((
     persistentCacheSize: persistentCache.valueOrNull ?? 0,
   );
 
-  final bookmarkCacheSize = bookmarkCache.valueOrNull?.$1 ?? 0;
-
-  return (cacheInfo, bookmarkCacheSize);
+  return cacheInfo;
 });
 
 class DataAndStoragePage extends ConsumerStatefulWidget {
@@ -67,14 +64,22 @@ class _DataAndStoragePageState extends ConsumerState<DataAndStoragePage> {
       children: [
         _buildDiskSpace(),
         _buildCacheSection(settings, notifier),
-        _buildDataSection(),
+        ListTile(
+          title: Text(context.t.bookmark.maintenance.advanced),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => const AdvancedDataSettingsPage(),
+            ),
+          ),
+        ),
       ],
     );
   }
 
   Widget _buildDiskSpace() {
     final colorScheme = Kurumi.themeOf(context).colorScheme;
-    final (sizeInfo, bookmarkCacheSize) = ref.watch(diskSpaceProvider);
+    final sizeInfo = ref.watch(diskSpaceProvider);
     final diskInfo = sizeInfo.diskSpaceInfo;
 
     final hasDiskData = diskInfo.totalSpace > 0;
@@ -97,9 +102,7 @@ class _DataAndStoragePageState extends ConsumerState<DataAndStoragePage> {
       );
     }
 
-    final storageBreakdown = sizeInfo.getStorageBreakdown(
-      bookmarkCacheSize: bookmarkCacheSize,
-    );
+    final storageBreakdown = sizeInfo.getStorageBreakdown();
     final segments = _mapToStorageSegments(
       storageBreakdown,
       sizeInfo,
@@ -189,7 +192,6 @@ class _DataAndStoragePageState extends ConsumerState<DataAndStoragePage> {
         case StorageType.systemData:
           systemDataSize += info.size;
         case StorageType.imageCache:
-        case StorageType.bookmarkImages:
           imagesSize += info.size;
         case StorageType.videoCache:
           videosSize += info.size;
@@ -233,21 +235,16 @@ class _DataAndStoragePageState extends ConsumerState<DataAndStoragePage> {
             title: Text(
               context.t.settings.data_and_storage.clear_cache_on_start_up,
             ),
-            onChanged: (value) => notifier.updateSettings(
-              settings.copyWith(clearImageCacheOnStartup: value),
+            onChanged: (value) => notifier.updateWith(
+              (settings) => settings.copyWith(clearImageCacheOnStartup: value),
             ),
           ),
           const Divider(height: 1),
-          _buildVideoCacheMaxSizeItem(settings, notifier),
+          _buildCacheMaxSizeItem(settings, notifier, image: true),
+          const Divider(height: 1),
+          _buildCacheMaxSizeItem(settings, notifier, image: false),
         ],
       ),
-    );
-  }
-
-  Widget _buildDataSection() {
-    return KurumiSettingsCard(
-      title: context.t.settings.data_and_storage.data,
-      child: _buildBookmarkImageDataItem(),
     );
   }
 
@@ -354,58 +351,44 @@ class _DataAndStoragePageState extends ConsumerState<DataAndStoragePage> {
     );
   }
 
-  Widget _buildBookmarkImageDataItem() {
-    final cacheInfo = ref.watch(bookmarkCacheInfoProvider);
-
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 4),
-      title: Text(context.t.settings.data_and_storage.bookmark_images),
-      subtitle: cacheInfo.when(
-        data: (data) => Text(
-          Filesize.parse(data.$1),
-        ),
-        loading: () => Text(context.t.settings.data_and_storage.loading),
-        error: (_, _) =>
-            Text(context.t.settings.data_and_storage.error_loading_cache_info),
-      ),
-      trailing: FilledButton(
-        onPressed: cacheInfo.isLoading
-            ? null
-            : () {
-                ref.read(bookmarkImageCacheManagerProvider)?.clearAllCache();
-                ref.invalidate(bookmarkCacheInfoProvider);
-              },
-        child: Text(context.t.settings.performance.clear_cache),
-      ),
-    );
-  }
-
-  Widget _buildVideoCacheMaxSizeItem(
+  Widget _buildCacheMaxSizeItem(
     Settings settings,
-    SettingsNotifier notifier,
-  ) {
-    final currentValue = settings.videoCacheMaxSize;
-    final optionItems = VideoCacheLimitOptions.dropdownOptions();
-    final selectedOption = VideoCacheLimitOptions.selectedOption(currentValue);
+    SettingsNotifier notifier, {
+    required bool image,
+  }) {
+    final currentValue = image
+        ? settings.imageCacheMaxSize
+        : settings.videoCacheMaxSize;
+    void update(CacheSize size) => notifier.updateWith(
+      (latest) => image
+          ? latest.copyWith(imageCacheMaxSize: size)
+          : latest.copyWith(videoCacheMaxSize: size),
+    );
+    final optionItems = CacheLimitOptions.dropdownOptions();
+    final selectedOption = CacheLimitOptions.selectedOption(currentValue);
 
-    return KurumiSettingsTile<VideoCacheLimitOption>(
-      title: Text(context.t.settings.data_and_storage.video_cache_limit),
+    return KurumiSettingsTile<CacheLimitOption>(
+      title: Text(
+        image
+            ? context.t.settings.data_and_storage.image_cache_limit
+            : context.t.settings.data_and_storage.video_cache_limit,
+      ),
       subtitle: Text(
-        context.t.settings.data_and_storage.video_cache_limit_description,
+        image
+            ? context.t.settings.data_and_storage.image_cache_limit_description
+            : context.t.settings.data_and_storage.video_cache_limit_description,
       ),
       selectedOption: selectedOption,
       items: optionItems,
       onChanged: (option) {
         if (option.isCustom) {
-          showVideoCacheLimitDialog(
+          showCacheLimitDialog(
             context,
             currentValue: currentValue,
           ).then((customSize) {
             if (customSize == null) return;
 
-            notifier.updateSettings(
-              settings.copyWith(videoCacheMaxSize: customSize),
-            );
+            update(customSize);
           });
           return;
         }
@@ -413,9 +396,7 @@ class _DataAndStoragePageState extends ConsumerState<DataAndStoragePage> {
         final size = option.cacheSize;
         if (size == null) return;
 
-        notifier.updateSettings(
-          settings.copyWith(videoCacheMaxSize: size),
-        );
+        update(size);
       },
       optionBuilder: (option) => Text(
         option.isCustom
@@ -432,7 +413,7 @@ class _DataAndStoragePageState extends ConsumerState<DataAndStoragePage> {
 
   String _getCacheSizeLabel(BuildContext context, CacheSize cacheSize) =>
       switch (cacheSize) {
-        CacheSize.zero => context.t.settings.data_and_storage.no_limit,
+        CacheSize.zero => context.t.settings.data_and_storage.cache_disabled,
         _ => cacheSize.displayString(withSpace: true),
       };
 }

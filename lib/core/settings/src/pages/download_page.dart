@@ -47,8 +47,9 @@ class _DownloadPageState extends ConsumerState<DownloadPage> {
         DownloadSettingsInteractionBlocker(
           child: DownloadFolderSelectorSection(
             storagePath: settings.downloadPath,
-            onPathChanged: (path) =>
-                notifer.updateSettings(settings.copyWith(downloadPath: path)),
+            onPathChanged: (path) => notifer.updateWith(
+              (settings) => settings.copyWith(downloadPath: path),
+            ),
             deviceInfo: ref.watch(deviceInfoProvider),
           ),
         ),
@@ -57,8 +58,9 @@ class _DownloadPageState extends ConsumerState<DownloadPage> {
           title: Text(context.t.settings.download.quality),
           selectedOption: settings.downloadQuality,
           items: DownloadQuality.values,
-          onChanged: (value) =>
-              notifer.updateSettings(settings.copyWith(downloadQuality: value)),
+          onChanged: (value) => notifer.updateWith(
+            (settings) => settings.copyWith(downloadQuality: value),
+          ),
           optionBuilder: (value) => switch (value) {
             DownloadQuality.original => Text(
               context.t.settings.download.qualities.original,
@@ -89,8 +91,8 @@ class _DownloadPageState extends ConsumerState<DownloadPage> {
             ),
             selectedOption: settings.downloadNetworkPolicy,
             items: DownloadNetworkPolicy.values,
-            onChanged: (value) => notifer.updateSettings(
-              settings.copyWith(downloadNetworkPolicy: value),
+            onChanged: (value) => notifer.updateWith(
+              (settings) => settings.copyWith(downloadNetworkPolicy: value),
             ),
             isOptionEnabled: (value) =>
                 value != DownloadNetworkPolicy.wifiOnly ||
@@ -131,8 +133,9 @@ class _DownloadPageState extends ConsumerState<DownloadPage> {
           title: Text(context.t.bulk_downloads.options.enable_notification),
           value: settings.downloadNotificationsEnabled,
           onChanged: (value) async {
-            await notifer.updateSettings(
-              settings.copyWith(downloadNotificationsEnabled: value),
+            await notifer.updateWith(
+              (settings) =>
+                  settings.copyWith(downloadNotificationsEnabled: value),
             );
           },
         ),
@@ -144,8 +147,8 @@ class _DownloadPageState extends ConsumerState<DownloadPage> {
           ),
           value: settings.downloadFileExistedBehavior.skipDownloadIfExists,
           onChanged: (value) async {
-            await notifer.updateSettings(
-              settings.copyWith(
+            await notifer.updateWith(
+              (settings) => settings.copyWith(
                 downloadFileExistedBehavior: value
                     ? DownloadFileExistedBehavior.skip
                     : DownloadFileExistedBehavior.appDecide,

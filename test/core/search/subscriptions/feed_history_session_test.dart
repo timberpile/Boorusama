@@ -39,7 +39,7 @@ void main() {
         sources: sources,
         recent: [
           for (final id in [10, 9])
-            _post(TestSearchPost(id, now.add(Duration(seconds: id)))),
+            _post(testSearchPost(id, now.add(Duration(seconds: id)))),
         ],
         fetchPage: (source, page) async {
           fetched.add('${source.query}:$page');
@@ -47,7 +47,7 @@ void main() {
           return PostResult<Post>(
             posts: [
               for (final id in ids)
-                _post(TestSearchPost(id, now.add(Duration(seconds: id)))),
+                _post(testSearchPost(id, now.add(Duration(seconds: id)))),
             ],
             total: null,
             hasMore: page == 1,
@@ -89,7 +89,7 @@ void main() {
       var attempts = 0;
       final session = FeedHistorySession(
         sources: [source],
-        recent: [_post(TestSearchPost(10, now))],
+        recent: [_post(testSearchPost(10, now))],
         fetchPage: (_, page) async {
           attempts++;
           if (attempts == 1) throw StateError('Offline');
@@ -97,7 +97,7 @@ void main() {
           return PostResult<Post>(
             posts: [
               _post(
-                TestSearchPost(
+                testSearchPost(
                   9,
                   now.subtract(const Duration(seconds: 1)),
                 ),
@@ -129,7 +129,7 @@ void main() {
     var pageTwoAttempts = 0;
     final session = FeedHistorySession(
       sources: [source],
-      recent: [_post(TestSearchPost(11, now))],
+      recent: [_post(testSearchPost(11, now))],
       fetchPage: (_, page) async {
         if (page == 2 && pageTwoAttempts++ == 0) {
           throw StateError('Offline');
@@ -138,7 +138,7 @@ void main() {
           posts: [
             for (final id in page == 1 ? [10, 9] : [8])
               _post(
-                TestSearchPost(
+                testSearchPost(
                   id,
                   now.subtract(Duration(seconds: 11 - id)),
                 ),
@@ -178,7 +178,7 @@ void main() {
       ];
       final session = FeedHistorySession(
         sources: sources,
-        recent: [_post(TestSearchPost(10, now))],
+        recent: [_post(testSearchPost(10, now))],
         fetchPage: (source, _) {
           requests.add(source.id);
           if (requests.length == 3) started.complete();

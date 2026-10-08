@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Project imports:
 import '../../../configs/manage/providers.dart';
+import '../../../configs/config/types.dart';
 import '../types/settings.dart';
 import 'settings_provider.dart';
 
@@ -29,4 +30,21 @@ final hasCustomViewerSettingsProvider = Provider<bool>((ref) {
   );
 
   return viewerConfigs != null && viewerConfigs.enable;
+});
+
+// Explicit auth keeps mixed pages and preloads independent of the selected profile.
+final postQualityProvider = Provider.family<PostQuality, BooruConfigAuth>((
+  ref,
+  auth,
+) {
+  final global = ref.watch(
+    settingsProvider.select((settings) => settings.viewer.postQuality),
+  );
+  final matches = ref
+      .watch(booruConfigProvider)
+      .where((config) => config.auth == auth)
+      .toList();
+  if (matches.length != 1) return global;
+  final viewer = matches.single.viewerConfigs;
+  return viewer != null && viewer.enable ? viewer.settings.postQuality : global;
 });

@@ -305,7 +305,7 @@ void main() {
           identityRetentionBoundary: createdAt,
           baseline: true,
           discoveredPosts: const [],
-          feedPosts: [feedPostSnapshotFromPost(TestSearchPost(7, createdAt))],
+          feedPosts: [feedPostSnapshotFromPost(testSearchPost(7, createdAt))],
         ),
       );
       await box.close();
@@ -389,7 +389,7 @@ void main() {
               feedPosts: [
                 for (var i = 0; i < 50; i++)
                   feedPostSnapshotFromPost(
-                    TestSearchPost(
+                    testSearchPost(
                       batch * 50 + i,
                       createdAt.add(Duration(seconds: batch * 50 + i)),
                     ),
@@ -480,7 +480,7 @@ void main() {
         identityRetentionBoundary: createdAt,
         baseline: true,
         discoveredPosts: [preview(5, createdAt)],
-        feedPosts: [feedPostSnapshotFromPost(TestSearchPost(5, createdAt))],
+        feedPosts: [feedPostSnapshotFromPost(testSearchPost(5, createdAt))],
       );
       await repository.commitRefresh(oldCommit);
       await repository.recordRefreshFailure(
@@ -740,6 +740,63 @@ void main() {
       [second.id, first.id],
     );
   });
+
+  test(
+    'automatic adaptive outcomes survive restart and preserve presentation edits',
+    () async {
+      final pin = await repository.create(
+        profileId: '00000000-0000-4000-8000-00000000000c',
+        query: 'cat',
+        name: null,
+        createdAt: createdAt,
+      );
+      Future<SearchSubscription?> scan(
+        int? id, {
+        bool baseline = false,
+        bool automatic = true,
+      }) async {
+        final current = (await repository.getById(pin.id))!;
+        return repository.commitRefresh(
+          SearchRefreshCommit(
+            subscriptionId: pin.id,
+            expectedCreatedAt: createdAt,
+            expectedCheckpoint: current.lastSuccessfulCheckAt,
+            startedAt: (current.lastSuccessfulCheckAt ?? createdAt).add(
+              const Duration(days: 1),
+            ),
+            identityRetentionBoundary: createdAt,
+            baseline: baseline,
+            automatic: automatic,
+            discoveredPosts: id == null ? [] : [preview(id, createdAt)],
+          ),
+        );
+      }
+
+      await scan(1, baseline: true);
+      expect(
+        (await scan(2))!.adaptiveState.interval,
+        const Duration(hours: 12),
+      );
+      await repository.rename(pin.id, 'Renamed');
+      await repository.markRead(pin.id);
+      expect((await scan(null))!.adaptiveState.consecutiveEmptyAutomatic, 1);
+      expect(
+        (await scan(null))!.adaptiveState.interval,
+        const Duration(hours: 24),
+      );
+      await scan(3, automatic: false);
+      await box.close();
+      box = await Hive.openBox<SearchSubscriptionHiveObject>(boxName);
+      repository = HiveSearchSubscriptionRepository(
+        box: box,
+        organizationBox: organizationBox,
+      );
+      final restored = (await repository.getById(pin.id))!;
+      expect(restored.name, 'Renamed');
+      expect(restored.adaptiveState.interval, const Duration(hours: 24));
+      expect(restored.adaptiveState.consecutiveEmptyAutomatic, 0);
+    },
+  );
 
   tearDown(() async {
     await box.close();

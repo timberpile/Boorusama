@@ -21,7 +21,6 @@ import 'comments/widgets.dart';
 import 'configs/widgets.dart';
 import 'favorites/widgets.dart';
 import 'home/widgets.dart';
-import 'posts/post_data.dart';
 import 'posts/types.dart';
 import 'posts/widgets.dart';
 import 'users/routes.dart';

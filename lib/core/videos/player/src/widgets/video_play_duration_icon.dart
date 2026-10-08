@@ -4,6 +4,9 @@ import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
+// Project imports:
+import '../../../../posts/post/src/widgets/thumbnail_overlay.dart';
+
 class VideoPlayDurationIcon extends StatelessWidget {
   const VideoPlayDurationIcon({
     required this.duration,
@@ -29,7 +32,7 @@ class VideoPlayDurationIcon extends StatelessWidget {
       label: durationLabel,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 4),
-        height: 24,
+        height: ThumbnailOverlayDimensions.extent,
         decoration: BoxDecoration(
           color: background,
           borderRadius: const BorderRadius.all(Radius.circular(4)),
@@ -37,13 +40,18 @@ class VideoPlayDurationIcon extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              durationLabel,
-              style: TextStyle(
-                color: foreground,
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                letterSpacing: -0.25,
+            Flexible(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  durationLabel,
+                  style: TextStyle(
+                    color: foreground,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: -0.25,
+                  ),
+                ),
               ),
             ),
             if (hasSound case final sound?)
@@ -54,7 +62,7 @@ class VideoPlayDurationIcon extends StatelessWidget {
                       ? Symbols.volume_up_rounded
                       : Symbols.volume_off_rounded,
                   color: foreground,
-                  size: 18,
+                  size: ThumbnailOverlayDimensions.icon,
                   fill: 1,
                 ),
               ),

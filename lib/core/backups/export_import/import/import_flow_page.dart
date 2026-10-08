@@ -8,9 +8,9 @@ import '../export/export_flow_notifier.dart';
 import '../models/export_item_presentation.dart';
 import '../models/import_action.dart';
 import '../widgets/import_action_editor.dart';
+import '../widgets/import_change_preview.dart';
 import 'import_flow_notifier.dart';
 import 'import_issue_message.dart';
-import 'import_plan.dart';
 import 'import_preflight.dart';
 import 'profile_dependency_planner.dart';
 
@@ -187,61 +187,20 @@ class _ReviewImport extends ConsumerWidget {
               strings.searches_already_present(n: state.alreadyPresentSearches),
             ),
           ),
-        if (preflight.sourceSummaries.isNotEmpty) ...[
-          const SizedBox(height: 12),
-          Text(
-            strings.planned_changes,
-            style: Theme.of(context).textTheme.titleMedium,
+        if (state.planRefreshed)
+          ListTile(
+            leading: const Icon(Icons.info_outline),
+            title: Text(strings.preview_refreshed),
           ),
-          for (final source in resolved.sources)
-            if (preflight.sourceSummaries[source.id] case final summary?)
-              if (summary.hasMutations)
-                ListTile(
-                  leading: const Icon(Icons.fact_check_outlined),
-                  title: Text(sourceNames[source.id] ?? source.id),
-                  subtitle: Text(
-                    _plannedChangeDescription(
-                      source,
-                      summary,
-                      entityNouns: {
-                        'bookmark': (count) =>
-                            strings.change_entities.bookmark(n: count),
-                        'bookmark-group': (count) =>
-                            strings.change_entities.bookmark_group(n: count),
-                        'pinned-search': (count) =>
-                            strings.change_entities.pinned_search(n: count),
-                        'pinned-folder': (count) =>
-                            strings.change_entities.pinned_folder(n: count),
-                        'feed': (count) =>
-                            strings.change_entities.feed(n: count),
-                        'feed-search': (count) =>
-                            strings.change_entities.feed_search(n: count),
-                        'profile': (count) =>
-                            strings.change_entities.profile(n: count),
-                      },
-                      homeArrangementLabel:
-                          strings.change_entities.home_arrangement,
-                      containsCredentials: state.containsCredentials,
-                      createdTemplate: strings.created_count,
-                      updatedTemplate: strings.updated_count,
-                      deletedTemplate: strings.deleted_count,
-                      credentialsReplaced: strings.profile_credentials_replaced,
-                      credentialsPreserved:
-                          strings.profile_credentials_preserved,
-                      bookmarkOrphanPolicy: strings.bookmark_orphan_policy,
-                      ungroupedRemovalPolicy: strings.ungrouped_removal_policy,
-                    ),
-                  ),
-                ),
-          if (preflight.sourceSummaries.values
-                  .where((summary) => !summary.hasMutations)
-                  .length
-              case final unchangedCount when unchangedCount > 0)
-            ListTile(
-              leading: const Icon(Icons.check_circle_outline),
-              title: Text(strings.categories_unchanged(n: unchangedCount)),
-            ),
-        ],
+        if (preflight.sourceSummaries.isNotEmpty)
+          ImportChangePreview(
+            rows: [
+              for (final summary in preflight.sourceSummaries.values)
+                ...summary.previewRows,
+            ],
+            sourceNames: sourceNames,
+            profileNames: profileNames,
+          ),
         const SizedBox(height: 16),
         if (preflight.warnings.isEmpty && preflight.errors.isEmpty)
           ListTile(
@@ -499,53 +458,6 @@ class ImportErrorView extends StatelessWidget {
       ),
     ),
   );
-}
-
-String _plannedChangeDescription(
-  ResolvedImportSource source,
-  PlannedChangeSummary summary, {
-  required Map<String, String Function(int)> entityNouns,
-  required String homeArrangementLabel,
-  required bool containsCredentials,
-  required String createdTemplate,
-  required String updatedTemplate,
-  required String deletedTemplate,
-  required String credentialsReplaced,
-  required String credentialsPreserved,
-  required String bookmarkOrphanPolicy,
-  required String ungroupedRemovalPolicy,
-}) {
-  final details = <String>[
-    plannedSourceChangeLabels(
-      summary,
-      createdTemplate: createdTemplate,
-      updatedTemplate: updatedTemplate,
-      deletedTemplate: deletedTemplate,
-      entityNouns: entityNouns,
-      homeArrangementLabel: homeArrangementLabel,
-    ).join(' · '),
-  ];
-  if (source.id == 'profiles' && (summary.created > 0 || summary.updated > 0)) {
-    if (containsCredentials) {
-      details.add(credentialsReplaced);
-    } else if (summary.updated > 0) {
-      details.add(credentialsPreserved);
-    }
-  }
-  if (source.id == 'bookmarks' &&
-      source.items.any(
-        (item) =>
-            item.id.startsWith('group:') && item.action == ImportAction.update,
-      )) {
-    details.add(bookmarkOrphanPolicy);
-  }
-  if (source.id == 'bookmarks' &&
-      source.items.any(
-        (item) => item.id == 'ungrouped' && item.action == ImportAction.update,
-      )) {
-    details.add(ungroupedRemovalPolicy);
-  }
-  return details.join('\n');
 }
 
 List<String> plannedSourceChangeLabels(

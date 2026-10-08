@@ -8,6 +8,7 @@ import 'package:kurumi/kurumi.dart';
 
 // Project imports:
 import 'search_refresh_settings.dart';
+import 'post_quality.dart';
 import '../../../../foundation/applock/types.dart';
 import '../../../../foundation/caching/types.dart';
 import '../../../analytics/types.dart';
@@ -28,6 +29,7 @@ import '../../../videos/engines/types.dart';
 import '../../../videos/player/types.dart';
 
 export 'search_refresh_settings.dart';
+export 'post_quality.dart';
 
 const _settingNotProvided = Object();
 
@@ -69,8 +71,10 @@ class Settings extends Equatable {
     required this.hapticFeedbackLevel,
     required this.autoBackup,
     required this.videoCacheMaxSize,
+    this.imageCacheMaxSize = CacheSize.oneGigabyte,
     this.searchRefresh = const SearchRefreshSettings(),
     this.pinnedSearchSort = 'manual',
+    this.followingFeedMemberSort = 'addedDate',
   });
 
   Settings.fromJson(Map<String, dynamic> json)
@@ -146,10 +150,24 @@ class Settings extends Equatable {
           json['swipeAreaToOpenSidebarPercentage'] ?? 5,
       autoBackup = AutoBackupSettings.parse(json['autoBackup']),
       searchRefresh = SearchRefreshSettings.parse(json['searchRefresh']),
+      followingFeedMemberSort = switch (json['followingFeedMemberSort']) {
+        'newestFirst' => 'newestFirst',
+        'oldestFirst' => 'oldestFirst',
+        'lastRefresh' => 'lastRefresh',
+        _ => 'addedDate',
+      },
       pinnedSearchSort = switch (json['pinnedSearchSort']) {
         'updatesFirst' => 'updatesFirst',
         'lastPostOldest' => 'lastPostOldest',
         _ => 'manual',
+      },
+      imageCacheMaxSize = switch (json['imageCacheMaxSize']) {
+        0 => CacheSize.zero,
+        final v? => switch (CacheSize.tryParse(v)) {
+          final CacheSize size when !size.isUnlimited => size,
+          _ => CacheSize.oneGigabyte,
+        },
+        _ => CacheSize.oneGigabyte,
       },
       videoCacheMaxSize = switch (json['videoCacheMaxSize']) {
         final v? => CacheSize.tryParse(v) ?? CacheSize.oneGigabyte,
@@ -293,8 +311,10 @@ class Settings extends Equatable {
   final AutoBackupSettings autoBackup;
   final SearchRefreshSettings searchRefresh;
   final String pinnedSearchSort;
+  final String followingFeedMemberSort;
 
   final CacheSize videoCacheMaxSize;
+  final CacheSize imageCacheMaxSize;
 
   Settings copyWith({
     String? blacklistedTags,
@@ -335,7 +355,9 @@ class Settings extends Equatable {
     AutoBackupSettings? autoBackup,
     SearchRefreshSettings? searchRefresh,
     String? pinnedSearchSort,
+    String? followingFeedMemberSort,
     CacheSize? videoCacheMaxSize,
+    CacheSize? imageCacheMaxSize,
   }) => Settings(
     listing: listing ?? this.listing,
     viewer: viewer ?? this.viewer,
@@ -394,7 +416,10 @@ class Settings extends Equatable {
     autoBackup: autoBackup ?? this.autoBackup,
     searchRefresh: searchRefresh ?? this.searchRefresh,
     pinnedSearchSort: pinnedSearchSort ?? this.pinnedSearchSort,
+    followingFeedMemberSort:
+        followingFeedMemberSort ?? this.followingFeedMemberSort,
     videoCacheMaxSize: videoCacheMaxSize ?? this.videoCacheMaxSize,
+    imageCacheMaxSize: imageCacheMaxSize ?? this.imageCacheMaxSize,
   );
 
   Map<String, dynamic> toJson() {
@@ -440,7 +465,9 @@ class Settings extends Equatable {
       'autoBackup': autoBackup.toJson(),
       'searchRefresh': searchRefresh.toJson(),
       'pinnedSearchSort': pinnedSearchSort,
+      'followingFeedMemberSort': followingFeedMemberSort,
       'videoCacheMaxSize': videoCacheMaxSize.displayString(),
+      'imageCacheMaxSize': imageCacheMaxSize.displayString(),
     };
   }
 
@@ -483,7 +510,9 @@ class Settings extends Equatable {
     autoBackup,
     searchRefresh,
     pinnedSearchSort,
+    followingFeedMemberSort,
     videoCacheMaxSize,
+    imageCacheMaxSize,
   ];
 
   List<String> get booruConfigIdOrderList {
@@ -601,6 +630,7 @@ class ViewerConfigs extends Equatable {
 class ImageViewerSettings extends Equatable {
   const ImageViewerSettings({
     required this.swipeMode,
+    this.postQuality = PostQuality.high,
     required this.loadOriginalOnZoom,
     required this.snapZoomToFit,
     required this.doubleTapZoomMode,
@@ -617,7 +647,8 @@ class ImageViewerSettings extends Equatable {
   });
 
   ImageViewerSettings.fromJson(Map<String, dynamic> json)
-    : swipeMode = PostDetailsSwipeMode.parse(json['swipeMode']),
+    : postQuality = PostQuality.parse(json['postQuality']),
+      swipeMode = PostDetailsSwipeMode.parse(json['swipeMode']),
       loadOriginalOnZoom = json['loadOriginalOnZoom'] ?? true,
       snapZoomToFit = json['snapZoomToFit'] ?? true,
       doubleTapZoomMode = DoubleTapZoomMode.parse(json['doubleTapZoomMode']),
@@ -642,6 +673,7 @@ class ImageViewerSettings extends Equatable {
       enableVideoCache = json['enableVideoCache'] ?? true,
       doubleTapSeekDuration = json['doubleTapSeekDuration'] ?? 10;
 
+  final PostQuality postQuality;
   final PostDetailsSwipeMode swipeMode;
   final bool loadOriginalOnZoom;
   final bool snapZoomToFit;
@@ -658,6 +690,7 @@ class ImageViewerSettings extends Equatable {
   final int doubleTapSeekDuration;
 
   ImageViewerSettings copyWith({
+    PostQuality? postQuality,
     PostDetailsSwipeMode? swipeMode,
     bool? loadOriginalOnZoom,
     bool? snapZoomToFit,
@@ -674,6 +707,7 @@ class ImageViewerSettings extends Equatable {
     int? doubleTapSeekDuration,
   }) {
     return ImageViewerSettings(
+      postQuality: postQuality ?? this.postQuality,
       swipeMode: swipeMode ?? this.swipeMode,
       loadOriginalOnZoom: loadOriginalOnZoom ?? this.loadOriginalOnZoom,
       snapZoomToFit: snapZoomToFit ?? this.snapZoomToFit,
@@ -698,6 +732,7 @@ class ImageViewerSettings extends Equatable {
   }
 
   Map<String, dynamic> toJson() => {
+    'postQuality': postQuality.toData(),
     'swipeMode': swipeMode.toData(),
     'loadOriginalOnZoom': loadOriginalOnZoom,
     'snapZoomToFit': snapZoomToFit,
@@ -716,6 +751,7 @@ class ImageViewerSettings extends Equatable {
 
   @override
   List<Object> get props => [
+    postQuality,
     swipeMode,
     loadOriginalOnZoom,
     snapZoomToFit,

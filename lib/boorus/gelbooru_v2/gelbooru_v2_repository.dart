@@ -38,7 +38,6 @@ import 'favorites/providers.dart';
 import 'gelbooru_v2_provider.dart';
 import 'notes/providers.dart';
 import 'posts/post_codec.dart';
-import 'posts/post_data.dart';
 import 'posts/providers.dart';
 import 'posts/grid_thumbnail_url.dart';
 import 'posts/types.dart';

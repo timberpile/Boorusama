@@ -189,7 +189,6 @@ Post _post(int id) => Post(
     md5: '',
     fileSize: 0,
     duration: 0,
-    hasSound: null,
     tags: const {},
     rating: Rating.general,
     hasComment: false,
@@ -197,8 +196,6 @@ Post _post(int id) => Post(
     hasParentOrChildren: false,
     source: PostSource.none(),
     score: 0,
-    uploaderId: null,
-    metadata: null,
   ),
   booruData: const EmptyPostData(typeKey: 'test'),
 );

@@ -1,6 +1,10 @@
 // Package imports:
 import 'package:coreutils/coreutils.dart';
 import 'package:dio/dio.dart';
+import '../coordination/coordinated_dio.dart';
+import '../coordination/api_request_coordinator.dart';
+import '../coordination/api_request_context.dart';
+import '../coordination/api_auth_refresh_registry.dart';
 
 /// Auth token pair returned by a refresh operation.
 class AuthTokenPair {
@@ -62,7 +66,10 @@ class AutoRefreshAuthInterceptor extends Interceptor {
   String? _accessToken;
   DateTime? _tokenObtainedAt;
   late var _expiresInSeconds = config.defaultExpiresInSeconds;
-  var _isRefreshing = false;
+  final _refreshRegistry = ApiAuthRefreshRegistry();
+  Dio? _dio;
+  DioException? _lastRefreshError;
+  void attach(Dio dio) => _dio = dio;
 
   bool get _isTokenExpiringSoon {
     if (_accessToken == null || _tokenObtainedAt == null) return true;
@@ -76,10 +83,28 @@ class AutoRefreshAuthInterceptor extends Interceptor {
     RequestOptions options,
     RequestInterceptorHandler handler,
   ) async {
-    if (_isTokenExpiringSoon && !_isRefreshing) {
-      await _refreshAndStore();
+    final refreshError = _lastRefreshError;
+    final retryAt = switch (refreshError?.error) {
+      ApiCooldownException(:final retryAt) => retryAt,
+      _ => null,
+    };
+    if (refreshError != null &&
+        (retryAt == null || !DateTime.now().toUtc().isBefore(retryAt))) {
+      _lastRefreshError = null;
+      _tokenObtainedAt = null;
+    }
+    if (_isTokenExpiringSoon) {
+      await _refreshAndStore(options);
     }
 
+    if (_lastRefreshError case final error?) {
+      handler.reject(error.copyWith(requestOptions: options));
+      return;
+    }
+    if (options.cancelToken?.isCancelled ?? false) {
+      handler.reject(options.cancelToken!.cancelError!);
+      return;
+    }
     if (_accessToken != null) {
       final existing = options.headers['cookie'] as String? ?? '';
       options.headers['cookie'] = CookieUtils.mergeCookieHeaders(
@@ -96,32 +121,53 @@ class AutoRefreshAuthInterceptor extends Interceptor {
     DioException err,
     ErrorInterceptorHandler handler,
   ) async {
-    if (err.response?.statusCode != 401 || _isRefreshing) {
+    if (err.response?.statusCode != 401 ||
+        !isApiSafeRead(err.requestOptions) ||
+        err.requestOptions.extra[apiNegotiatedKey] == true ||
+        (err.requestOptions.cancelToken?.isCancelled ?? false)) {
       return super.onError(err, handler);
     }
 
-    final success = await _refreshAndStore();
+    final success = await _refreshAndStore(err.requestOptions);
     if (!success) {
+      if (_lastRefreshError case final error?) {
+        return handler.next(error.copyWith(requestOptions: err.requestOptions));
+      }
       return super.onError(err, handler);
     }
 
     try {
       final opts = err.requestOptions;
+      opts.extra[apiNegotiatedKey] = true;
       opts.headers['cookie'] = CookieUtils.mergeCookieHeaders(
         opts.headers['cookie'] as String? ?? '',
         '${config.cookieName}=$_accessToken',
       );
-      final response = await Dio(BaseOptions(baseUrl: baseUrl)).fetch(opts);
+      final dio = _dio;
+      if (dio == null) return super.onError(err, handler);
+      final response = await dio.fetch(opts);
       return handler.resolve(response);
+    } on DioException catch (replayError) {
+      return handler.next(replayError);
     } catch (_) {
       return super.onError(err, handler);
     }
   }
 
-  Future<bool> _refreshAndStore() async {
-    if (_isRefreshing) return false;
+  Future<bool> _refreshAndStore(RequestOptions options) async {
+    try {
+      return await runWithApiRequestContext(
+        apiRequestContextFor(options),
+        () => _refreshRegistry.run(this, _performRefresh),
+      );
+    } on DioException catch (error) {
+      if (error.type == DioExceptionType.cancel) return false;
+      rethrow;
+    }
+  }
 
-    _isRefreshing = true;
+  Future<bool> _performRefresh() async {
+    _lastRefreshError = null;
     onLog?.call('Attempting token refresh');
     try {
       final tokens = await _onRefresh(_refreshToken);
@@ -144,12 +190,18 @@ class AutoRefreshAuthInterceptor extends Interceptor {
       }
       onTokenRefreshed?.call(tokens);
       return true;
+    } on DioException catch (e) {
+      if (e.error is ApiCooldownException ||
+          e.type == DioExceptionType.cancel) {
+        _lastRefreshError = e;
+        return false;
+      }
+      onLog?.call('Token refresh failed: ${e.type}');
+      return false;
     } catch (e) {
       onLog?.call('Token refresh failed: $e');
       onAuthFailed?.call();
       return false;
-    } finally {
-      _isRefreshing = false;
     }
   }
 

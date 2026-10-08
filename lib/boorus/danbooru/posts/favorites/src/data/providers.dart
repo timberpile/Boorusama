@@ -1,10 +1,12 @@
 // Package imports:
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Project imports:
 import '../../../../../../core/configs/config/types.dart';
 import '../../../../../../core/posts/favorites/providers.dart';
 import '../../../../../../core/posts/favorites/types.dart';
+import '../../../../../../core/posts/favorites/src/types/favorite_interruption.dart';
 import '../../../../client_provider.dart';
 import '../../../../configs/providers.dart';
 import '../../../../users/user/providers.dart';
@@ -25,12 +27,10 @@ final danbooruFavoriteRepoProvider =
               danbooruPostVotesProvider(config).notifier,
             );
 
-            await votesNotifier.upvote(postId, localOnly: true);
-
             final success = await client.addToFavorites(postId: postId);
 
-            if (!success) {
-              votesNotifier.removeLocalVote(postId);
+            if (success) {
+              await votesNotifier.upvote(postId, localOnly: true);
             }
 
             return success
@@ -42,18 +42,21 @@ final danbooruFavoriteRepoProvider =
               danbooruPostVotesProvider(config).notifier,
             );
 
-            votesNotifier.removeLocalVote(postId);
-
             final success = await client.removeFromFavorites(postId: postId);
 
             if (success) {
               try {
                 await votesNotifier.removeVote(postId, null);
-              } catch (e) {
-                return false;
+              } catch (e, stack) {
+                if (isFavoriteRequestInterruption(e)) {
+                  throw FavoriteCompletedWithInterruption(
+                    e as DioException,
+                    stack,
+                  );
+                }
+                // Favorite removal is already acknowledged. Failed vote cleanup
+                // must not restore a favorite or claim its mutation failed.
               }
-            } else {
-              await votesNotifier.upvote(postId, localOnly: true);
             }
 
             return success;
@@ -72,7 +75,12 @@ final danbooruFavoriteRepoProvider =
                   userId: user.id,
                 )
                 .then((value) => value.map(favoriteDtoToFavorite).toList())
-                .catchError((Object obj) => <Favorite>[]);
+                .catchError((Object obj) {
+                  if (isFavoriteRequestInterruption(obj)) {
+                    Error.throwWithStackTrace(obj, StackTrace.current);
+                  }
+                  return <Favorite>[];
+                });
 
             return favorites.map((f) => f.postId).toList();
           },

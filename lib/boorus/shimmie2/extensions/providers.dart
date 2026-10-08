@@ -34,6 +34,7 @@ final shimmie2AnonymousDioProvider = Provider.family<Dio, String>(
     final loggerService = ref.watch(loggerProvider);
 
     return newGenericDio(
+      apiCoordinator: ref.watch(apiRequestCoordinatorProvider),
       baseUrl: baseUrl,
       userAgent: ref.watch(defaultUserAgentProvider),
       logger: loggerService,

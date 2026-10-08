@@ -7,7 +7,6 @@ import 'package:archive/archive.dart';
 import 'package:boorusama/core/backups/preparation/preparation_pipeline.dart';
 import 'package:boorusama/core/backups/preparation/version_checking.dart';
 import 'package:boorusama/core/backups/types/backup_data_source.dart';
-import 'package:boorusama/core/backups/sources/booru_configs_source.dart';
 import 'package:boorusama/core/backups/sources/pinned_search_backup_data.dart';
 import 'package:boorusama/core/backups/sources/following_feed_backup_data.dart';
 import 'package:boorusama/core/backups/sources/following_feeds_source.dart';
@@ -396,9 +395,9 @@ void main() {
       await harness.container.read(searchSubscriptionsProvider.future);
       expect(harness.container.read(booruConfigProvider), isEmpty);
 
-      final profilesSource =
-          harness.container.read(booruConfigsBackupSourceProvider)
-              as BooruConfigsBackupSource;
+      final profilesSource = harness.container.read(
+        booruConfigsBackupSourceProvider,
+      );
       await profilesSource.executor([_profile], null);
       final profile = (await harness.profiles.getAll()).single;
       expect(profile.id, profileUuid(4));
@@ -445,7 +444,6 @@ void main() {
       );
       await importer.profiles.addAll([
         _replacement(
-          id: 4,
           url:
               'https://local-user:local-password@example.test:8443/Posts'
               '?other_key=local-token#local-fragment',
@@ -593,9 +591,7 @@ void main() {
         [pin],
       );
       await harness.container.read(searchSubscriptionsProvider.future);
-      final source =
-          harness.container.read(booruConfigsBackupSourceProvider)
-              as BooruConfigsBackupSource;
+      final source = harness.container.read(booruConfigsBackupSourceProvider);
 
       await source.executor([c.replacement], null);
 
@@ -647,7 +643,7 @@ void main() {
                 )
               : Either.of(
                   PostResult(
-                    posts: [TestSearchPost(42, DateTime.utc(2026, 9))],
+                    posts: [testSearchPost(42, DateTime.utc(2026, 9))],
                     total: 1,
                   ),
                 );
@@ -660,9 +656,9 @@ void main() {
         );
         final pending = refresh.refresh(oldPin, _profile);
         await fetched.future;
-        final profilesSource =
-            harness.container.read(booruConfigsBackupSourceProvider)
-                as BooruConfigsBackupSource;
+        final profilesSource = harness.container.read(
+          booruConfigsBackupSourceProvider,
+        );
         final replacement = _replacement(url: 'https://replacement.test');
         await profilesSource.executor([replacement], null);
         expect(await harness.repository.getById(_id), isNull);
@@ -702,7 +698,7 @@ void main() {
           calls++;
           return Either.of(
             PostResult(
-              posts: [TestSearchPost(77, DateTime.utc(2026, 9))],
+              posts: [testSearchPost(77, DateTime.utc(2026, 9))],
               total: 1,
             ),
           );
@@ -733,9 +729,7 @@ void main() {
       [pin],
     );
     box.failNextDelete = true;
-    final source =
-        harness.container.read(booruConfigsBackupSourceProvider)
-            as BooruConfigsBackupSource;
+    final source = harness.container.read(booruConfigsBackupSourceProvider);
 
     await expectLater(
       source.executor([_replacement(id: 8)], null),
@@ -794,9 +788,7 @@ void main() {
       final oldPins = await harness.repository.getAll();
       final oldFeeds = await harness.repository.getFeeds();
       (harness.profiles.box as _ProfileBox).failNextWrite = true;
-      final source =
-          harness.container.read(booruConfigsBackupSourceProvider)
-              as BooruConfigsBackupSource;
+      final source = harness.container.read(booruConfigsBackupSourceProvider);
 
       await expectLater(
         source.executor([_replacement(id: 8)], null),
@@ -1164,9 +1156,9 @@ void main() {
           () => HttpServer.bind(InternetAddress.loopbackIPv4, 0),
         );
         addTearDown(() => server!.close(force: true));
-        final profilesSource =
-            harness.container.read(booruConfigsBackupSourceProvider)
-                as BooruConfigsBackupSource;
+        final profilesSource = harness.container.read(
+          booruConfigsBackupSourceProvider,
+        );
         await tester.runAsync(() async {
           server!.listen((request) async {
             if (request.uri.path == '/pinned_searches') {
@@ -1295,9 +1287,7 @@ void main() {
       'profile-single-test-',
     );
     addTearDown(() => directory.deleteSync(recursive: true));
-    final source =
-        harness.container.read(booruConfigsBackupSourceProvider)
-            as BooruConfigsBackupSource;
+    final source = harness.container.read(booruConfigsBackupSourceProvider);
     final file = File(
       '${directory.path}/profiles.json',
     )..writeAsStringSync(source.converter.encode(payload: [_profile.toJson()]));
@@ -1372,9 +1362,7 @@ File _writeBackupZip(
   String? profilesContent,
   bool includeOther = false,
 }) {
-  final source =
-      harness.container.read(booruConfigsBackupSourceProvider)
-          as BooruConfigsBackupSource;
+  final source = harness.container.read(booruConfigsBackupSourceProvider);
   final entries = {
     if (includeOther) 'other.json': '{}',
     'manifest.json': jsonEncode({
@@ -1586,11 +1574,9 @@ class _Harness {
   final profiles = HiveBooruConfigRepository(box: _ProfileBox());
   late final ProviderContainer container;
   PinnedSearchesBackupSource get source =>
-      container.read(pinnedSearchesBackupSourceProvider)
-          as PinnedSearchesBackupSource;
+      container.read(pinnedSearchesBackupSourceProvider);
   FollowingFeedsBackupSource get feedSource =>
-      container.read(followingFeedsBackupSourceProvider)
-          as FollowingFeedsBackupSource;
+      container.read(followingFeedsBackupSourceProvider);
 }
 
 class _RepositoryNotifier extends SearchSubscriptionRepositoryNotifier {

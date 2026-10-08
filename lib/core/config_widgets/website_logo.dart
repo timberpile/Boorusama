@@ -18,6 +18,7 @@ class ConfigAwareWebsiteLogo extends ConsumerWidget {
     this.width,
     this.height,
     this.customIconUrl,
+    this.fit = BoxFit.cover,
   }) : _isFixedIcon = false;
 
   ConfigAwareWebsiteLogo.fromConfig(
@@ -26,6 +27,7 @@ class ConfigAwareWebsiteLogo extends ConsumerWidget {
     this.width,
     this.height,
     this.customIconUrl,
+    this.fit = BoxFit.cover,
   }) : url = _sourceFromType(config.booruType, config.url),
        size = kFaviconSize,
        _isFixedIcon = _isFixed(config.booruType);
@@ -37,6 +39,7 @@ class ConfigAwareWebsiteLogo extends ConsumerWidget {
     this.width,
     this.height,
     this.customIconUrl,
+    this.fit = BoxFit.cover,
   }) : url = _sourceFromType(booruType, url),
        size = kFaviconSize,
        _isFixedIcon = _isFixed(booruType);
@@ -59,6 +62,7 @@ class ConfigAwareWebsiteLogo extends ConsumerWidget {
   final double? height;
   final bool _isFixedIcon;
   final String? customIconUrl;
+  final BoxFit fit;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -87,6 +91,7 @@ class ConfigAwareWebsiteLogo extends ConsumerWidget {
       url: iconUrl,
       dio: dio,
       size: width ?? height ?? size,
+      fit: fit,
       cacheManager: ref.watch(defaultImageCacheManagerProvider),
     );
   }
@@ -98,6 +103,7 @@ class ConfigAwareWebsiteLogo extends ConsumerWidget {
       url: source?.faviconUrl,
       dio: dio,
       size: width ?? height ?? size,
+      fit: fit,
       cacheManager: ref.watch(defaultImageCacheManagerProvider),
     );
   }
@@ -107,7 +113,7 @@ class ConfigAwareWebsiteLogo extends ConsumerWidget {
       assetUrl,
       width: width ?? _kFallbackSize,
       height: height ?? _kFallbackSize,
-      fit: BoxFit.cover,
+      fit: fit,
     );
   }
 }

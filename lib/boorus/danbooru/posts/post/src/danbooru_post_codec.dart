@@ -22,7 +22,7 @@ final class DanbooruPostCodec implements BooruPostDataCodec<DanbooruPostData> {
     'upScore': data.upScore,
     'downScore': data.downScore,
     'favCount': data.favCount,
-    if (data.approverId case final value?) 'approverId': value,
+    'approverId': ?data.approverId,
     'generalTags': data.generalTags.toList(),
     'metaTags': data.metaTags.toList(),
     'hasChildren': data.hasChildren,
@@ -44,15 +44,15 @@ final class DanbooruPostCodec implements BooruPostDataCodec<DanbooruPostData> {
         null => null,
         _ => throw const FormatException('Invalid last comment timestamp'),
       },
-      upScore: json['upScore'] as int,
-      downScore: json['downScore'] as int,
-      favCount: json['favCount'] as int,
+      upScore: _required<int>(json['upScore'], 'upScore'),
+      downScore: _required<int>(json['downScore'], 'downScore'),
+      favCount: _required<int>(json['favCount'], 'favCount'),
       approverId: json['approverId'] as int?,
       generalTags: _stringSet(json['generalTags']),
       metaTags: _stringSet(json['metaTags']),
-      hasChildren: json['hasChildren'] as bool,
-      hasLarge: json['hasLarge'] as bool,
-      pixelHash: json['pixelHash'] as String,
+      hasChildren: _required<bool>(json['hasChildren'], 'hasChildren'),
+      hasLarge: _required<bool>(json['hasLarge'], 'hasLarge'),
+      pixelHash: _required<String>(json['pixelHash'], 'pixelHash'),
     );
   }
 }
@@ -64,6 +64,12 @@ Post danbooruPostFromRecord(DanbooruPostRecord post, PostOrigin origin) => Post(
 );
 
 Set<String> _stringSet(Object? value) => switch (value) {
-  final List<Object?> values => values.map((e) => e as String).toSet(),
+  final List<Object?> values when values.every((item) => item is String) =>
+    values.cast<String>().toSet(),
   _ => throw const FormatException('Invalid string set'),
+};
+
+T _required<T>(Object? value, String field) => switch (value) {
+  final T value => value,
+  _ => throw FormatException('Invalid Danbooru $field'),
 };

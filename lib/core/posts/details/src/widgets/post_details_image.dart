@@ -16,6 +16,7 @@ import '../../../listing/providers.dart';
 import '../../../listing/types.dart';
 import '../../../post/types.dart';
 import '../providers/note_overlay_provider.dart';
+import 'progressive_post_image.dart';
 
 typedef PostDetailsPlaceholderMediaBuilder<T extends Post> =
     GridThumbnailMedia Function(T post);
@@ -31,6 +32,7 @@ class PostDetailsImage<T extends Post> extends StatelessWidget {
     this.heroTag,
     this.imageCacheManager,
     this.imageController,
+    this.onRepresentationChanged,
   });
 
   final BooruConfigAuth config;
@@ -40,12 +42,15 @@ class PostDetailsImage<T extends Post> extends StatelessWidget {
   final PostDetailsPlaceholderMediaBuilder<T>? placeholderMediaBuilder;
   final ImageCacheManager? imageCacheManager;
   final ExtendedImageController? imageController;
+  final ValueChanged<bool>? onRepresentationChanged;
   final T post;
 
   @override
   Widget build(BuildContext context) {
     final aspectRatio =
-        mediaAspectRatioBuilder?.call(post) ?? post.effectiveSampleAspectRatio;
+        _postAspectRatio(post) ??
+        mediaAspectRatioBuilder?.call(post) ??
+        post.effectiveSampleAspectRatio;
 
     return aspectRatio != null
         ? AspectRatio(
@@ -62,6 +67,7 @@ class PostDetailsImage<T extends Post> extends StatelessWidget {
                     placeholderMediaBuilder: placeholderMediaBuilder,
                     imageCacheManager: imageCacheManager,
                     imageController: imageController,
+                    onRepresentationChanged: onRepresentationChanged,
                   ),
                   ..._buildNotes(ref),
                 ],
@@ -77,6 +83,7 @@ class PostDetailsImage<T extends Post> extends StatelessWidget {
             placeholderMediaBuilder: placeholderMediaBuilder,
             imageCacheManager: imageCacheManager,
             imageController: imageController,
+            onRepresentationChanged: onRepresentationChanged,
           );
   }
 
@@ -121,6 +128,7 @@ class RawPostDetailsImage<T extends Post> extends ConsumerWidget {
     this.placeholderMediaBuilder,
     this.imageCacheManager,
     this.imageController,
+    this.onRepresentationChanged,
     this.fit,
   });
 
@@ -131,6 +139,7 @@ class RawPostDetailsImage<T extends Post> extends ConsumerWidget {
   final PostDetailsPlaceholderMediaBuilder<T>? placeholderMediaBuilder;
   final ImageCacheManager? imageCacheManager;
   final ExtendedImageController? imageController;
+  final ValueChanged<bool>? onRepresentationChanged;
   final T post;
   final BoxFit? fit;
 
@@ -140,6 +149,7 @@ class RawPostDetailsImage<T extends Post> extends ConsumerWidget {
         ? imageUrlBuilder!(post)
         : post.thumbnailImageUrl;
     final aspectRatio =
+        _postAspectRatio(post) ??
         mediaAspectRatioBuilder?.call(post) ??
         post.effectiveThumbnailAspectRatio;
 
@@ -163,32 +173,19 @@ class RawPostDetailsImage<T extends Post> extends ConsumerWidget {
       settings: gridThumbnailSettings,
     );
     final placeholderMedia = placeholderMediaBuilder?.call(post) ?? gridMedia;
-    final usesPrimaryPlaceholderUrl = placeholderMedia.url.isNotEmpty;
-    final placeholderImageUrl = usesPrimaryPlaceholderUrl
-        ? placeholderMedia.url
-        : placeholderMedia.placeholderUrl;
-    final placeholderAspectRatio = usesPrimaryPlaceholderUrl
-        ? placeholderMedia.aspectRatio
-        : placeholderMedia.placeholderAspectRatio ??
-              placeholderMedia.aspectRatio;
-
-    final image = BooruImage(
+    final image = ProgressivePostImage(
+      mediaIdentity: postViewerIdentity(post),
       config: config,
       imageUrl: imageUrl,
-      placeholderUrl: placeholderImageUrl,
-      placeholderAspectRatio: placeholderAspectRatio,
-      placeholderFit: placeholderMedia.placeholderFit,
+      lowerMedia: placeholderMedia,
       aspectRatio: aspectRatio,
-      forceCover: aspectRatio != null,
-      imageHeight: post.height,
-      imageWidth: post.width,
-      forceFill: true,
+      geometryAspectRatio: post.width > 0 && post.height > 0
+          ? post.width / post.height
+          : null,
       fit: fit,
-      borderRadius: BorderRadius.zero,
-      forceLoadPlaceholder: true,
-      hideMismatchedPlaceholder: true,
       imageCacheManager: imageCacheManager,
       controller: imageController,
+      onRepresentationChanged: onRepresentationChanged,
     );
 
     return KurumiHero(
@@ -204,3 +201,8 @@ class RawPostDetailsImage<T extends Post> extends ConsumerWidget {
     );
   }
 }
+
+// Representation metadata may describe a crop. Keep known full-post geometry
+// stable while thumbnail, sample and original providers replace each other.
+double? _postAspectRatio(Post post) =>
+    post.width > 0 && post.height > 0 ? post.width / post.height : null;

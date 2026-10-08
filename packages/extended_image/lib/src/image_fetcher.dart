@@ -25,6 +25,7 @@ class ImageFetcher {
         fetchStrategy: fetchStrategy,
         options: Options(
           responseType: ResponseType.bytes,
+          extra: const {'boorusama.request.media': true},
           headers: headers,
         ),
         onReceiveProgress: onReceiveProgress,

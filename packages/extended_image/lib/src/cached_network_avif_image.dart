@@ -7,6 +7,8 @@ import 'package:flutter/painting.dart';
 import 'package:flutter_libavif/flutter_libavif.dart';
 import 'package:retriable/retriable.dart';
 
+import 'pending_image_cache_write.dart';
+
 @immutable
 class CustomCachedNetworkAvifImageProvider
     extends AvifImageProvider<CustomCachedNetworkAvifImageProvider> {
@@ -19,16 +21,17 @@ class CustomCachedNetworkAvifImageProvider
     this.fetchStrategy,
     this.cacheKey,
     this.cacheMaxAge,
-    ImageCacheManager? cacheManager,
+    this.cacheManager,
+    this.cache = true,
     super.cacheWidth,
     super.cacheHeight,
     super.options,
-  }) : headers = Map.unmodifiable(headers ?? const <String, String>{}),
-       cacheManager = cacheManager ?? DefaultImageCacheManager();
+  }) : headers = Map.unmodifiable(headers ?? const <String, String>{});
 
   final String url;
   final Map<String, String> headers;
-  final ImageCacheManager cacheManager;
+  final ImageCacheManager? cacheManager;
+  final bool cache;
   final Dio dio;
   final CancelToken? cancelToken;
   final FetchStrategyBuilder? fetchStrategy;
@@ -65,18 +68,28 @@ class CustomCachedNetworkAvifImageProvider
     StreamController<ImageChunkEvent> chunkEvents,
     CancelToken requestCancelToken,
   ) async {
-    final cacheKey = cacheManager.generateCacheKey(
+    final manager = cache ? cacheManager : null;
+    final cacheKey = manager?.generateCacheKey(
       url,
       customKey: this.cacheKey,
     );
 
+    PendingImageCacheWrite? write;
     try {
-      final cachedBytes = await cacheManager.getCachedFileBytes(
-        cacheKey,
-        maxAge: cacheMaxAge,
-      );
+      Uint8List? cachedBytes;
+      try {
+        cachedBytes = manager == null
+            ? null
+            : await manager.getCachedFileBytes(cacheKey!, maxAge: cacheMaxAge);
+      } on Object {
+        // Cache read/admission failures cannot prevent network pixels.
+      }
       if (cachedBytes != null) {
         return cachedBytes;
+      }
+
+      if (manager != null) {
+        write = await PendingImageCacheWrite.begin(manager, cacheKey!);
       }
 
       final resolved = Uri.base.resolve(url);
@@ -87,6 +100,7 @@ class CustomCachedNetworkAvifImageProvider
         fetchStrategy: fetchStrategy,
         options: Options(
           responseType: ResponseType.bytes,
+          extra: const {'boorusama.request.media': true},
           headers: headers,
         ),
         onReceiveProgress: (count, total) {
@@ -110,7 +124,7 @@ class CustomCachedNetworkAvifImageProvider
         throw StateError('$url is empty and cannot be decoded.');
       }
 
-      await cacheManager.saveFile(cacheKey, bytes);
+      await write?.save(bytes);
       return bytes;
     } on DioException catch (error) {
       if (error.type == DioExceptionType.cancel) {
@@ -118,6 +132,7 @@ class CustomCachedNetworkAvifImageProvider
       }
       throw StateError('Failed to load $url: $error');
     } finally {
+      await write?.abort();
       if (!chunkEvents.isClosed) {
         unawaited(chunkEvents.close());
       }
@@ -128,10 +143,17 @@ class CustomCachedNetworkAvifImageProvider
   String describeAvifSource(CustomCachedNetworkAvifImageProvider key) =>
       key.url;
 
+  Object? get _cacheDomain => switch (cacheManager) {
+    ManagedImageCacheManager(:final cacheDomain) => cacheDomain,
+    final manager => manager,
+  };
+
   @override
   bool operator ==(Object other) =>
       other is CustomCachedNetworkAvifImageProvider &&
       other.url == url &&
+      identical(_cacheDomain, other._cacheDomain) &&
+      other.cache == cache &&
       other.scale == scale &&
       mapEquals(other.headers, headers) &&
       other.cacheWidth == cacheWidth &&
@@ -143,6 +165,8 @@ class CustomCachedNetworkAvifImageProvider
   @override
   int get hashCode => Object.hash(
     url,
+    _cacheDomain,
+    cache,
     scale,
     Object.hashAllUnordered(
       headers.entries.map((entry) => Object.hash(entry.key, entry.value)),

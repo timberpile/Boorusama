@@ -8,6 +8,7 @@ import 'package:retriable/retriable.dart';
 
 // Project imports:
 import 'image_fetcher.dart';
+import 'pending_image_cache_write.dart';
 
 class ImagePreloader {
   const ImagePreloader({
@@ -31,22 +32,24 @@ class ImagePreloader {
     final cacheKey = customKey ?? cacheManager.generateCacheKey(url);
 
     // Check if already cached
-    final hasValidCacheResult = cacheManager.hasValidCache(
-      cacheKey,
-      maxAge: maxAge,
-    );
-    bool hasValidCache;
-    if (hasValidCacheResult is Future<bool>) {
-      hasValidCache = await hasValidCacheResult;
-    } else {
-      hasValidCache = hasValidCacheResult;
+    var hasValidCache = false;
+    try {
+      final result = cacheManager.hasValidCache(cacheKey, maxAge: maxAge);
+      hasValidCache = result is Future<bool> ? await result : result;
+    } on Object {
+      // Optional cache lookup cannot prevent a preload transport attempt.
     }
 
     if (hasValidCache) {
+      if (cancelToken?.isCancelled == true) return;
+      if (cacheManager case final ManagedImageCacheManager manager) {
+        await manager.touch(cacheKey);
+      }
       _log('Image already cached: $url');
       return;
     }
 
+    final write = await PendingImageCacheWrite.begin(cacheManager, cacheKey);
     try {
       _log('Preloading image: $url');
 
@@ -59,11 +62,13 @@ class ImagePreloader {
         printError: enableLogging,
       );
 
-      await cacheManager.saveFile(cacheKey, bytes);
+      await write.save(bytes);
       _log('Successfully preloaded: $url');
     } catch (e) {
       _log('Failed to preload $url: $e');
       // Don't rethrow - preloading is non-critical
+    } finally {
+      await write.abort();
     }
   }
 

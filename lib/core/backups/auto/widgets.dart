@@ -5,13 +5,12 @@ import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 
 // Project imports:
-import '../../../foundation/html.dart';
-import '../../../foundation/info/device_info.dart';
 import '../../../foundation/picker.dart';
-import '../../downloads/path/types.dart';
+import '../../../foundation/platform.dart';
 import '../../settings/providers.dart';
 import '../zip/providers.dart';
 import 'providers.dart';
+import 'repo_android.dart';
 import 'types.dart';
 
 class AutoBackupSection extends ConsumerWidget {
@@ -33,7 +32,9 @@ class AutoBackupSection extends ConsumerWidget {
           orElse: () => null,
         );
 
-    final hasValidPath = storagePath != null;
+    final hasValidPath = isAndroid()
+        ? AutoBackupRepositoryAndroid.isTree(storagePath)
+        : storagePath != null;
     final canEnableAutoBackup = !isLoading && hasValidPath;
 
     return Padding(
@@ -64,10 +65,33 @@ class AutoBackupSection extends ConsumerWidget {
                 ref
                     .watch(autoBackupDefaultDirectoryPathProvider)
                     .when(
-                      data: (defaultPath) =>
-                          settings.userSelectedPath ??
-                          defaultPath ??
-                          'No location selected'.hc,
+                      data: (defaultPath) {
+                        final location =
+                            settings.userSelectedPath ?? defaultPath;
+                        if (location == null) {
+                          return context.t.settings.auto_backup.no_location;
+                        }
+                        return ref
+                            .watch(
+                              autoBackupDirectoryDisplayPathProvider(location),
+                            )
+                            .when(
+                              data: (path) =>
+                                  path ??
+                                  context
+                                      .t
+                                      .settings
+                                      .auto_backup
+                                      .backup_location,
+                              loading: () =>
+                                  context.t.settings.data_and_storage.loading,
+                              error: (_, _) => context
+                                  .t
+                                  .settings
+                                  .auto_backup
+                                  .backup_location,
+                            );
+                      },
                       loading: () =>
                           context.t.settings.data_and_storage.loading,
                       error: (_, _) => context.t.generic.errors.unknown,
@@ -77,16 +101,45 @@ class AutoBackupSection extends ConsumerWidget {
                 ),
               ),
               trailing: TextButton(
-                onPressed: () => pickDirectoryPathToastOnError(
-                  context: context,
-                  onPick: (path) => _updateSettings(
-                    settingsNotifier,
-                    settings.copyWith(userSelectedPath: () => path),
-                  ),
-                  initialDirectory:
-                      settings.userSelectedPath ??
-                      ref.read(autoBackupDefaultDirectoryPathProvider).value,
-                ),
+                onPressed: isLoading
+                    ? null
+                    : () async {
+                        if (isAndroid()) {
+                          try {
+                            final path =
+                                await AutoBackupRepositoryAndroid.pickDirectory();
+                            if (path != null) {
+                              _updateSettings(
+                                settingsNotifier,
+                                settings.copyWith(userSelectedPath: () => path),
+                              );
+                            }
+                          } catch (_) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    context
+                                        .t
+                                        .settings
+                                        .auto_backup
+                                        .folder_access_error,
+                                  ),
+                                ),
+                              );
+                            }
+                          }
+                        } else {
+                          await pickDirectoryPathToastOnError(
+                            context: context,
+                            onPick: (path) => _updateSettings(
+                              settingsNotifier,
+                              settings.copyWith(userSelectedPath: () => path),
+                            ),
+                            initialDirectory: storagePath,
+                          );
+                        }
+                      },
                 child: Text(
                   ref
                       .watch(autoBackupDefaultDirectoryPathProvider)
@@ -102,14 +155,21 @@ class AutoBackupSection extends ConsumerWidget {
               ),
             ),
             if (!hasValidPath) const _SelectLocationRequestBanner(),
-            //FIXME: Migrate folder selection warning to a common widget
-            _DownloadPathWarning(
-              padding: const EdgeInsets.all(12),
-              storagePath: storagePath,
-            ),
+            if (isAndroid())
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Text(context.t.settings.auto_backup.folder_access_hint),
+              ),
+            if (ref.watch(autoBackupFailureProvider))
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Text(
+                  context.t.settings.auto_backup.folder_access_error,
+                  style: TextStyle(color: colorScheme.error),
+                ),
+              ),
             if (settings.enabled && hasValidPath) ...[
-              KurumiSettingsTile(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
+              _BackupOptionTile(
                 title: Text(context.t.settings.auto_backup.backup_frequency),
                 selectedOption: settings.frequency,
                 items: AutoBackupFrequency.values,
@@ -126,8 +186,7 @@ class AutoBackupSection extends ConsumerWidget {
                   },
                 ),
               ),
-              KurumiSettingsTile(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
+              _BackupOptionTile(
                 title: Text(context.t.settings.auto_backup.maximum_backups),
                 selectedOption: settings.maxBackups,
                 items: const [2, 3, 4, 5],
@@ -192,7 +251,7 @@ class _SelectLocationRequestBanner extends StatelessWidget {
           const SizedBox(width: 12),
           Expanded(
             child: Text(
-              'Please select a backup location to enable auto backup'.hc,
+              context.t.settings.auto_backup.select_location,
               style: theme.textTheme.bodySmall?.copyWith(
                 color: colorScheme.primary,
               ),
@@ -216,54 +275,64 @@ class _StatusTile extends ConsumerWidget {
     );
     final settings = ref.watch(settingsProvider.select((s) => s.autoBackup));
 
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-      title: Text(
-        context.t.settings.auto_backup.last_backup(
-          lastBackup: _getLastBackupDisplay(context, settings),
-        ),
-      ),
-      subtitle: Text(
-        settings.shouldBackup
-            ? context.t.settings.auto_backup.backup_needed
-            : context.t.settings.auto_backup.up_to_date,
-        style: theme.textTheme.bodySmall?.copyWith(
-          color: settings.shouldBackup
-              ? colorScheme.error
-              : colorScheme.primary,
-          fontWeight: FontWeight.w500,
-        ),
-      ),
-      trailing: isLoading
-          ? Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-                const SizedBox(width: 8),
-                Text(context.t.settings.auto_backup.backing_up),
-              ],
-            )
-          : FilledButton(
-              onPressed: () async {
-                await ref
-                    .read(backupProvider.notifier)
-                    .performManualAutoBackup(settings);
-              },
-              style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              child: Text(context.t.settings.auto_backup.backup_now),
+    final needsBackup =
+        settings.shouldBackup || ref.watch(autoBackupFailureProvider);
+
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            context.t.settings.auto_backup.last_backup(
+              lastBackup: _getLastBackupDisplay(context, settings),
             ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            needsBackup
+                ? context.t.settings.auto_backup.backup_needed
+                : context.t.settings.auto_backup.up_to_date,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: needsBackup ? colorScheme.error : colorScheme.primary,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 12),
+          isLoading
+              ? Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(context.t.settings.auto_backup.backing_up),
+                    ),
+                  ],
+                )
+              : FilledButton(
+                  onPressed: () async {
+                    await ref
+                        .read(backupProvider.notifier)
+                        .performManualAutoBackup(settings);
+                  },
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: Text(context.t.settings.auto_backup.backup_now),
+                ),
+        ],
+      ),
     );
   }
 }
@@ -291,45 +360,47 @@ String _getLastBackupDisplay(
   },
 };
 
-class _DownloadPathWarning extends ConsumerWidget {
-  const _DownloadPathWarning({
-    required this.storagePath,
-    this.padding,
+class _BackupOptionTile<T> extends StatelessWidget {
+  const _BackupOptionTile({
+    required this.title,
+    required this.selectedOption,
+    required this.items,
+    required this.onChanged,
+    required this.optionBuilder,
   });
 
-  final String? storagePath;
-  final EdgeInsetsGeometry? padding;
+  final Widget title;
+  final T selectedOption;
+  final List<T> items;
+  final ValueChanged<T> onChanged;
+  final Widget Function(T) optionBuilder;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final pathInfo = PathInfo.from(storagePath);
-    final deviceInfo = ref.watch(deviceInfoProvider);
-
-    final shouldShow = switch (pathInfo) {
-      AndroidPathInfo() => pathInfo.requiresPublicDirectory(
-        deviceInfo.androidDeviceInfo?.version.sdkInt,
-      ),
-      InvalidPath() => true,
-      _ => false,
-    };
-
-    if (!shouldShow) {
-      return const SizedBox.shrink();
-    }
-
-    final releaseName =
-        deviceInfo.androidDeviceInfo?.version.release ?? 'Unknown';
-
-    return KurumiWarningContainer(
-      margin: padding,
-      contentBuilder: (context) => AppHtml(
-        data: context.t.download.folder_select_warning
-            .replaceAll(
-              '{0}',
-              AndroidPathInfo.allowedDownloadFolders.join(', '),
-            )
-            .replaceAll('{1}', releaseName),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        title,
+        DropdownButton<T>(
+          value: selectedOption,
+          isExpanded: true,
+          itemHeight: null,
+          onChanged: (value) {
+            if (value != null) onChanged(value);
+          },
+          items: [
+            for (final value in items)
+              DropdownMenuItem<T>(
+                value: value,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: optionBuilder(value),
+                ),
+              ),
+          ],
+        ),
+      ],
+    ),
+  );
 }

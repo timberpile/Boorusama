@@ -32,6 +32,7 @@ final danbooruDioProvider = Provider.family<Dio, BooruConfigAuth>((
   final loggerService = ref.watch(loggerProvider);
 
   return newDio(
+    apiCoordinator: ref.watch(apiRequestCoordinatorProvider),
     options: DioOptions(
       ddosProtectionHandler: ddosProtectionHandler,
       userAgent: ref.watch(defaultUserAgentProvider),
@@ -43,7 +44,6 @@ final danbooruDioProvider = Provider.family<Dio, BooruConfigAuth>((
       proxySettings: config.proxySettings,
     ),
     additionalInterceptors: [
-      ref.watch(defaultSlidingWindowRateLimitConfigInterceptorProvider),
       // Use query parameters for auth on web to avoid CORS preflight
       if (isWeb())
         if ((config.login, config.apiKey) case (

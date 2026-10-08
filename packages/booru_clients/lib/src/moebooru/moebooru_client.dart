@@ -1,3 +1,4 @@
+import '../http/request_interruption.dart';
 // Package imports:
 import 'dart:convert';
 import 'package:dio/dio.dart';
@@ -266,7 +267,8 @@ class MoebooruClient {
           if (posts.isNotEmpty) {
             return PostDto.fromJson(posts.first as Map<String, dynamic>);
           }
-        } catch (_) {
+        } catch (interruption) {
+          if (isDataRequestInterruption(interruption)) rethrow;
           // JSON parsing failed, continue to HTML parsing
         }
       }
@@ -274,6 +276,7 @@ class MoebooruClient {
       // Fallback to HTML parsing
       return _parsePostFromHtml(html, id);
     } catch (e) {
+      if (isDataRequestInterruption(e)) rethrow;
       return null;
     }
   }
@@ -357,7 +360,9 @@ class MoebooruClient {
           final date = DateTime.parse(dateStr);
           createdAt = date.millisecondsSinceEpoch ~/ 1000;
         }
-      } catch (_) {}
+      } catch (interruption) {
+        if (isDataRequestInterruption(interruption)) rethrow;
+      }
     }
 
     // Check if this post is deleted

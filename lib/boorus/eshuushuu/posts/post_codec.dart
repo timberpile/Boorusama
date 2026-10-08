@@ -1,6 +1,5 @@
 // Project imports:
 import '../../../core/posts/post/types.dart';
-import 'post_data.dart';
 import 'types.dart';
 
 final class EshuushuuPostCodec
@@ -22,10 +21,10 @@ final class EshuushuuPostCodec
     if (data.artists case final value?) 'artists': value.toList(),
     if (data.sourceTags case final value?) 'sourceTags': value.toList(),
     if (data.generalTags case final value?) 'generalTags': value.toList(),
-    if (data.largeImageUrl case final value?) 'largeImageUrl': value,
-    if (data.isFavorited case final value?) 'isFavorited': value,
-    if (data.favorites case final value?) 'favorites': value,
-    if (data.bayesianRating case final value?) 'bayesianRating': value,
+    'largeImageUrl': ?data.largeImageUrl,
+    'isFavorited': ?data.isFavorited,
+    'favorites': ?data.favorites,
+    'bayesianRating': ?data.bayesianRating,
   };
 
   @override
@@ -67,6 +66,7 @@ Post eshuushuuPostFromRecord(EshuushuuPostRecord post, PostOrigin origin) =>
 
 Set<String>? _optionalStringSet(Object? value) => switch (value) {
   null => null,
-  final List<Object?> values => values.map((e) => e as String).toSet(),
+  final List<Object?> values when values.every((item) => item is String) =>
+    values.cast<String>().toSet(),
   _ => throw const FormatException('Invalid string set'),
 };
