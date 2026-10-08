@@ -19,6 +19,7 @@ Use the applicable `.agents/skills/<name>/SKILL.md`:
 | [design-change](.agents/skills/design-change/SKILL.md) | Significant architecture, data/migration, subsystem, or UX/state decisions; requested design |
 | [execute-plan](.agents/skills/execute-plan/SKILL.md) | Implement an existing plan or detailed design |
 | [verify-change](.agents/skills/verify-change/SKILL.md) | Requested review or justified additional validation of a large change |
+| [prepare-release](.agents/skills/prepare-release/SKILL.md) | Next release version and changelog; explicitly requested delivery through a GitHub draft |
 
 Default: inspect → implement → targeted verification → report. Tickets, issues,
 design/plan documents, subagents, and reviewer pairs are optional, not routine

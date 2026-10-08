@@ -103,6 +103,29 @@ requested; only `develop` may target `master`. Require an up-to-date branch,
 real merge in the table above. Tag/build the approved commit on `master`;
 release publication requires separate authorization.
 
+An explicit request to complete a release through a GitHub draft (for example,
+using `prepare-release`) authorizes its local preparation integration, pushing
+the intended release contents to `develop`, creating the `develop` to `master`
+release PR, merging it after the required checks, pushing the exact release tag,
+building and uploading verified artifacts to a GitHub draft, and synchronizing
+the release history back into `develop`. Honor narrower limits and requested
+review checkpoints; do not ask again for these already authorized steps. A
+generic preparation request remains local. The draft workflow never authorizes
+public publication: the user publishes the draft manually. Existing release
+scripts/services remain excluded by that skill. This authorization applies to
+executing an explicitly requested draft release, not to editing the skill.
+
+An explicit request to undo recorded release actions authorizes the scoped
+recovery integration, normal pushes, and removal of an unchanged draft created
+by that run. Preserve later/unrelated work and shared history. Any reversal on
+`master` goes through `develop` and a checked release PR with a real merge.
+Reverting the whole promotion may also remove pre-existing `develop` features;
+prepare the exact reversal diff and resolve that additional scope first.
+Inspect the full recovery PR diff so later unrelated `develop` work is not
+silently promoted alongside the reversal; resolve that extra scope before merge.
+Public releases, pushed-tag deletion, and changes outside recorded ownership
+need a separately scoped decision. Recovery does not authorize public publishing.
+
 Before new work on `develop`, bring the release merge back from `origin/master`
 with authorization. Fast-forward when possible. If `develop` has advanced, merge
 `origin/master` into it; never reset or rebase the shared branch. For a history-only
