@@ -517,7 +517,7 @@ void main() {
   ];
   for (final date in dates) {
     testWidgets(
-      'last checked displays ${date.label} instead of a technical timestamp',
+      'feed Info last checked displays ${date.label} instead of a technical timestamp',
       (tester) async {
         final harness = createHarness(networkAllowed: false);
         addTearDown(harness.dispose);
@@ -545,6 +545,8 @@ void main() {
               profileId: '00000000-0000-4000-8000-00000000000c',
             ),
           );
+          expect(find.textContaining('Last checked:'), findsNothing);
+          await openFeedInfo(tester);
           expect(find.text('Last checked: ${date.label}'), findsOneWidget);
           expect(find.textContaining('2026-09-14'), findsNothing);
         });
@@ -578,7 +580,7 @@ void main() {
     },
   );
 
-  testWidgets('never checked entries show a localized never-checked state', (
+  testWidgets('feed Info shows a localized never-checked state', (
     tester,
   ) async {
     final harness = createHarness(networkAllowed: false);
@@ -606,8 +608,17 @@ void main() {
         profileId: '00000000-0000-4000-8000-00000000000c',
       ),
     );
+    expect(find.text('Never checked'), findsNothing);
+    await openFeedInfo(tester);
     expect(find.text('Never checked'), findsOneWidget);
   });
+}
+
+Future<void> openFeedInfo(WidgetTester tester) async {
+  await tester.tap(find.byType(PopupMenuButton<String>).first);
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('Info').last);
+  await tester.pumpAndSettle();
 }
 
 Future<void> seedFeeds(
