@@ -40,10 +40,11 @@ reshuffle the current results.
   filter row and choice surface, with full accessibility labels. At narrow
   widths and enlarged text, controls remain operable without overflow or text
   truncation, and the count remains on the same row.
-- [ ] All new visible labels and accessibility text are localized. Focused
+- [x] All new visible labels and accessibility text are localized. Focused
   widget tests cover source and sort choices, Random reshuffle, the visible
   search field, zero-result recovery, and narrow/enlarged layouts. Validate
-  the resulting layout on Android with Maestro.
+  the resulting layout manually; the user confirmed their own verification
+  on 2026-10-08. No additional Android/Maestro run is required.
 
 ## Context and dependencies
 
@@ -89,12 +90,13 @@ Dependencies: None.
 - Required missing generated outputs were created with `./gen.sh` in the fresh
   worktree. No generated tracked files changed.
 
-## Pending device validation
+## Historical device-validation limitation (resolved by user verification)
 
 The initial Android/Maestro validation could not run: `adb devices -l` returned no devices,
-while Maestro MCP `list_devices` timed out after 180 seconds. The final acceptance
-criterion remains unchecked solely for that device validation. Retained in
-`in-progress` until an Android emulator and responsive Maestro MCP are available.
+while Maestro MCP `list_devices` timed out after 180 seconds. The agent therefore left the final acceptance
+criterion unchecked and initially retained the ticket in `in-progress`.
+The user subsequently confirmed their own verification on 2026-10-08;
+this limitation no longer leaves any acceptance criterion open.
 Local commit requested by the user. No integration or publication was performed.
 
 ## User-requested layout revision
@@ -111,7 +113,7 @@ Local commit requested by the user. No integration or publication was performed.
   position and subdued style at 800px/320px and 100%/200% text, live zero-result
   counts, popup selection/dismissal, full source semantics, and keyboard insets.
 - Latest ADB discovery lists a physical handset only, with no Android emulator.
-  Emulator/Maestro layout validation remains pending. The user requested a local commit for this revision and automatic commits for future changes.
+  Emulator/Maestro layout validation was pending at that stage. The user requested a local commit for this revision and automatic commits for future changes.
 
 ## Single-row layout and shared menu revision
 
@@ -130,7 +132,7 @@ Local commit requested by the user. No integration or publication was performed.
 - Verification for this revision: **25 focused tests passed** across
   `bookmark_list_controls_test.dart` and `bookmark_details_page_test.dart`.
   Affected-scope analysis: **No issues found**. `git diff --check`: passed.
-  Emulator/Maestro validation remains pending; no integration or publication.
+  Emulator/Maestro validation was pending at that stage; no integration or publication.
 
 ## Horizontal scrolling and rightmost menu revision (2026-10-08)
 
@@ -146,7 +148,7 @@ Local commit requested by the user. No integration or publication was performed.
   reaching the count at the scroll end, fixed menu position, complete labels,
   and 320px/800px widths at 100%/200% text. All 15 page tests also passed with
   this implementation. Affected-scope analysis: **No issues found**;
-  `git diff --check`: passed. Android/Maestro validation remains pending.
+  `git diff --check`: passed. Android/Maestro validation was pending at that stage.
 
 ## Approved local integration (2026-10-08)
 
@@ -155,8 +157,9 @@ Local commit requested by the user. No integration or publication was performed.
 - Integration candidate matched all approved BM-002 files. **39 focused tests
   passed** across control, page, and bookmark-state suites; affected-scope
   analysis reported **No issues found**. Diff checks passed.
-- Android/Maestro validation remains pending. The ticket stays in `in-progress`
-  and its task worktree/branch are retained for that follow-up. No push or other
+- Android/Maestro validation was pending at that stage. The ticket was initially left in `in-progress`
+  and its task worktree/branch were retained for that follow-up. This was
+  superseded by the user-approved completion and verification below. No push or other
   remote publication was requested or performed.
 
 ## User-approved completion and cleanup (2026-10-08)
@@ -168,10 +171,10 @@ Local commit requested by the user. No integration or publication was performed.
   the final implementation. Every implementation, test, and other task path
   changed on the task branch matches the integrated tree exactly; only this
   ticket's later integration note differs. No implementation work remains.
-- Prior focused tests and analysis are recorded above. Android/Maestro device
-  validation was not performed and remains unverified; the final acceptance
-  checkbox is intentionally left unchecked. Closure is at the user's request,
-  without representing that check as passed.
+- Prior focused tests and analysis are recorded above. The user confirmed
+  their own verification on 2026-10-08 and explicitly stated that no open
+  Android/Maestro check is needed. All acceptance criteria are complete.
+  No additional agent-run device validation is required.
 - The original worktree has no tracked or untracked changes. Its ignored files
   are disposable Flutter/Dart build, dependency, and generated outputs.
 - This completion correction is integrated locally; no remote publication.
