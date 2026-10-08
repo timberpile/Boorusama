@@ -16,6 +16,8 @@ description: Diagnose and fix a Boorusama failure with a known symptom but unest
    symptom. Switch to `design-change` only if substantial design decisions arise.
 4. Add a focused regression test when practical. Observe failure before the fix
    when inexpensive; avoid scaffolding solely to enforce RED/GREEN sequencing.
-5. Apply `AGENTS.md` verification and check the original behavior or failure
-   mechanism. Report root cause, fix, checks, and remaining uncertainty, without
-   a debugging transcript.
+5. Check the original behavior or failure mechanism. After the last edit, run
+   the complete local suite required by `AGENTS.md` before final review or
+   handoff; focused reproduction and CI do not replace it. Resolve failures and
+   repeat the complete suite after further edits. Report root cause, fix, checks,
+   and remaining uncertainty, without a debugging transcript.

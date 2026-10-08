@@ -18,3 +18,8 @@ Keep the design concise, without line-by-line implementation instructions or an
 automatic separate plan. If a persistent document is requested, use
 `docs/designs/<date>-<name>.md`. Preserve historical `docs/superpowers/` material;
 existing plans remain usable through `execute-plan`.
+
+For repository changes made during design work, run the complete local suite
+required by `AGENTS.md` after the last edit and before final review or handoff,
+including documentation-only changes. Resolve failures and repeat it after
+further edits; targeted passes and CI do not replace the local run.

@@ -14,8 +14,11 @@ Implement dependencies continuously in the checkout permitted by the
 (normally the existing task worktree); batch related mechanical changes.
 Do not ask to continue after each task or automatically
 create subagents, reviewers, a progress ledger, another worktree, or per-task
-commits. Before presenting work for review, commit all task changes and confirm the worktree has no uncommitted
-changes, including untracked task files. Record any pending verification in the
+commits. Before presenting work for review, run the complete local suite required
+by `AGENTS.md` after the last edit, then commit all task changes and confirm the worktree has no uncommitted
+changes, including untracked task files. Targeted passes and CI do not replace
+the full local run; resolve failures and rerun it after further edits. Record any
+pending device or upgrade verification in the
 committed documentation. Integration and publication remain subject to
 the [development workflow](../../../docs/development_workflow.md) authorization rules.
 

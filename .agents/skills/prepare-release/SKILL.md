@@ -98,14 +98,18 @@ unintegrated features.
 - Check that the version increased correctly and matches the nonempty top
   changelog section. Check the final diff for unrelated changes and Markdown
   errors. Preserve the top-level version headings used by changelog readers.
-- Use FVM for Dart/Flutter checks. For version/changelog-only changes, run the
-  directly relevant version and changelog-reader tests, currently
+- Use FVM for Dart/Flutter checks. During preparation, run the directly relevant
+  version and changelog-reader tests, currently
   `test/version_test.dart` and `test/core/changelogs/changelog_repository_test.dart`,
-  and `git diff --check`. Expand checks when the candidate's changes or missing
-  evidence warrant it; consult the release-validation workflow for broader
-  qualification. Do not run the excluded release automation or its tests as a
-  substitute for candidate validation. Generate output only when required by
-  changed inputs or missing generated files.
+  and `git diff --check`. After the last edit, run the complete local suite
+  required by `AGENTS.md` before final review, handoff, or starting delivery,
+  including for version/changelog-only changes. Resolve failures and rerun the
+  complete suite after further edits. Targeted passes and release CI do not
+  replace this local qualification; required PR checks must also pass for the
+  final candidate. Tests of existing release tooling remain allowed as part of
+  the complete suite; never execute the excluded release commands or services
+  or substitute their tests for candidate validation. Generate output only when
+  required by changed inputs or missing generated files.
 - Report the old and new full version, previous release baseline, candidate
   commit, changed files, checks actually performed, and unresolved blockers.
   Distinguish local preparation from CI, device, upgrade, and publication

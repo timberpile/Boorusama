@@ -21,7 +21,7 @@ Use the applicable `.agents/skills/<name>/SKILL.md`:
 | [verify-change](.agents/skills/verify-change/SKILL.md) | Requested review or justified additional validation of a large change |
 | [prepare-release](.agents/skills/prepare-release/SKILL.md) | Next release version and changelog; explicitly requested delivery through a GitHub draft |
 
-Default: inspect → implement → targeted verification → report. Tickets, issues,
+Default: inspect → implement → full final verification → review → report. Tickets, issues,
 design/plan documents, subagents, and reviewer pairs are optional, not routine
 prerequisites. Use PRs only when explicitly requested. Do not automatically chain
 skills; implementation includes verification. Use Superpowers only when explicitly
@@ -46,8 +46,13 @@ publication, releases, or upstream synchronization.
 ## Verification and devices
 
 Format changed Dart files with `fvm dart format`, run directly related behavior
-tests, and analyze affected scope when useful. Broaden checks only for
-cross-cutting changes or insufficient targeted coverage; no default full suite.
+tests during implementation, and analyze affected scope when useful. After the
+last edit and before final review, handoff, or claiming changes are ready, rerun
+the [complete local test suite](docs/engineering_guidelines.md#complete-local-test-suite).
+This includes application, package, CLI, and repository-tooling tests, even for
+small or documentation-only changes. Targeted passes and CI do not replace this
+local run. Fix failures and repeat the complete suite after any further edits;
+if blocked, report the incomplete checks without presenting the change as ready.
 Run `./gen.sh` only when changed inputs or missing generated output require it.
 
 For UI changes, exercise affected actions at narrow width, enlarged text, and

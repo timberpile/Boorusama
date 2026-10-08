@@ -1,7 +1,7 @@
 # Engineering and verification guidelines
 
 Consult relevant sections when the current change needs additional engineering
-conventions. [AGENTS.md](../AGENTS.md) defines workflow routing and proportional
+conventions. [AGENTS.md](../AGENTS.md) defines workflow routing and required
 verification; queue and integration documentation are loaded only when needed.
 
 ## Tools
@@ -18,6 +18,33 @@ verification; queue and integration documentation are loaded only when needed.
 - Sample related code before writing new code so changes follow existing
   patterns. Run `fvm dart format` after creating or editing Dart files;
   batch formatting where practical.
+
+## Complete local test suite
+
+After the final edit, run all of the following locally before final review or
+handoff. Keep focused checks during implementation; they do not replace this
+final run. Run from the task worktree, using the pinned FVM SDK and generated
+outputs required by that checkout.
+
+- Application: `fvm flutter test --no-pub --concurrency=2` from the repository root.
+- Every package with `test/**/*_test.dart`, including `packages/boorusama_cli`:
+  run its complete suite from that package directory. Use
+  `fvm flutter test --no-pub --concurrency=2` for Flutter packages and
+  `fvm dart test` for Dart-only packages; do not filter by path or test name.
+- Repository tooling, from the repository root:
+
+  ```bash
+  .github/scripts/test-pull-request-policy.sh
+  .github/scripts/test-android-release-scripts.sh
+  python3 -m unittest discover -s scripts/tests
+  ```
+
+Inspect every result. A failed, skipped, or unrun suite does not satisfy this
+requirement; report existing individual test skips separately. Fix in-scope
+failures and rerun the entire suite after further edits. If a failure cannot be
+resolved within scope or a required check cannot run, report the blocker before
+final review and do not claim readiness. Record the checked commit or final diff
+and distinguish local results from CI, device, and upgrade acceptance.
 
 ## Code style
 

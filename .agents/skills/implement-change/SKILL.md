@@ -16,8 +16,10 @@ description: Implement a clear, scoped Boorusama change without unresolved archi
    decision, or complete an action. Prefer icons where their meaning is clear.
 3. Add/update tests for meaningful behavior, edge cases, or regressions, not
    trivial getters, language behavior, or internal implementation details.
-4. Apply the proportional verification in `AGENTS.md`. Prefer targeted tests:
-   `fvm flutter test <test-path>` or `fvm dart test` in a Dart package.
+4. Run targeted checks while implementing. After the last edit, run the complete
+   local suite required by `AGENTS.md` before final review or handoff. Resolve
+   failures and repeat the complete suite after any further edits; targeted
+   passes or CI are not substitutes.
 5. Report changes, significant decisions, verification, and limitations.
 
 No automatic design, implementation plan, work item, subagent, separate reviewer,
