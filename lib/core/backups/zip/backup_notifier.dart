@@ -367,6 +367,9 @@ class BackupNotifier extends AutoDisposeNotifier<BackupState> {
     AutoBackupSettings settings, {
     required bool isManual,
   }) async {
+    final keepAlive = ref.keepAlive();
+    final failure = ref.read(autoBackupFailureProvider.notifier);
+    failure.setFailed(false);
     final logger = ref.read(loggerProvider);
 
     final startTime = DateTime.now();
@@ -417,6 +420,7 @@ class BackupNotifier extends AutoDisposeNotifier<BackupState> {
         progress: 1,
       );
     } catch (e) {
+      failure.setFailed(true);
       logger.error('Backup.Auto', 'Auto backup failed: $e');
 
       state = state.copyWith(
@@ -437,6 +441,7 @@ class BackupNotifier extends AutoDisposeNotifier<BackupState> {
         'Backup.Auto',
         'Auto backup process completed in ${duration.inMilliseconds}ms',
       );
+      keepAlive.close();
     }
   }
 

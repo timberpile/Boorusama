@@ -7,12 +7,15 @@ import 'package:path/path.dart' as p;
 
 // Project imports:
 import '../../../foundation/filesystem.dart';
+import '../../../foundation/platform.dart';
+import 'repo_android.dart';
 import '../../downloads/path/types.dart';
 import '../export_import/models/package_manifest.dart';
 import 'service.dart';
 import 'types.dart';
 
 final autoBackupRepositoryProvider = Provider<AutoBackupRepository>((ref) {
+  if (isAndroid()) return const AutoBackupRepositoryAndroid();
   return AutoBackupRepositoryIo(
     ref.watch(appFileSystemProvider),
   );
@@ -90,6 +93,12 @@ class AutoBackupRepositoryIo implements AutoBackupRepository {
   bool fileExists(String filePath) {
     return _fs.fileExistsSync(filePath);
   }
+
+  @override
+  Future<String> writeBackup(
+    String destination,
+    Future<String> Function(String outputPath) createPackage,
+  ) => createPackage(destination);
 
   @override
   Future<int> getFileSize(String filePath) {

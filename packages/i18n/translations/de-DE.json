@@ -782,6 +782,10 @@
     "open_app_settings": "Einstellungen öffnen",
     "need_more_questions": "Haben Sie mehr Fragen?",
     "auto_backup": {
+      "folder_access_hint": "Wähle einen Ordner und erlaube den Zugriff in der Android-Systemauswahl. Die Freigabe bleibt für künftige Sicherungen auch nach einem Neustart erhalten.",
+      "folder_access_error": "Auf den Sicherungsordner konnte nicht zugegriffen oder geschrieben werden. Prüfe seine Verfügbarkeit und wähle den Ordner erneut, um Zugriff zu erlauben.",
+      "no_location": "Kein Speicherort ausgewählt",
+      "select_location": "Wähle einen Speicherort, um automatische Sicherungen zu aktivieren",
       "enable_auto_backup": "Automatische Sicherung aktivieren",
       "backup_frequency": "Sicherungshäufigkeit",
       "backup_location": "Speicherort der Sicherung",

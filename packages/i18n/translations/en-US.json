@@ -1208,6 +1208,10 @@
       }
     },
     "auto_backup": {
+      "folder_access_hint": "Choose a folder and allow access in the Android system picker. Access is kept for future backups, including after restarting.",
+      "folder_access_error": "Could not access or write to the backup folder. Check that it is available, then select the folder again to allow access.",
+      "no_location": "No location selected",
+      "select_location": "Select a backup location to enable auto backup",
       "enable_auto_backup": "Enable Auto Backup",
       "backup_frequency": "Backup Frequency",
       "backup_location": "Backup Location",
