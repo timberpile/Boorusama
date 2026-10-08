@@ -18,8 +18,13 @@ import '../services/conservative_refresh_policy.dart';
 import 'search_refresh_error_text.dart';
 
 class PinnedSearchInfoDialog extends ConsumerWidget {
-  const PinnedSearchInfoDialog({required this.subscriptionId, super.key});
+  const PinnedSearchInfoDialog({
+    required this.subscriptionId,
+    this.feedSource = false,
+    super.key,
+  });
   final String subscriptionId;
+  final bool feedSource;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -71,7 +76,8 @@ class PinnedSearchInfoDialog extends ConsumerWidget {
                 final timing = conservativeRefreshTiming(
                   source: RefreshSourceCandidate(
                     id: source.id,
-                    pinned: true,
+                    pinned: !feedSource,
+                    feedSource: feedSource,
                     createdAt: source.createdAt,
                     lastMaterialEditAt: source.lastMaterialEditAt,
                     lastAttemptAt: source.lastAttemptAt,
@@ -86,14 +92,18 @@ class PinnedSearchInfoDialog extends ConsumerWidget {
                     profile != null &&
                     supported &&
                     settings.enabled &&
-                    settings.pinnedSearchesEnabled;
+                    (feedSource
+                        ? settings.followingFeedsEnabled
+                        : settings.pinnedSearchesEnabled);
                 final next = profile == null
                     ? strings.refresh_profile_unavailable
                     : !supported
                     ? strings.refresh_not_scheduled_unsupported
                     : !settings.enabled
                     ? strings.refresh_not_scheduled_disabled
-                    : !settings.pinnedSearchesEnabled
+                    : !(feedSource
+                          ? settings.followingFeedsEnabled
+                          : settings.pinnedSearchesEnabled)
                     ? strings.refresh_not_scheduled_scope
                     : now.isBefore(timing.eligibleAt)
                     ? strings.refresh_in(

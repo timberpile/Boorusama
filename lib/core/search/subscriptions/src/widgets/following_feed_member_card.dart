@@ -7,8 +7,9 @@ import '../../../../configs/config/types.dart';
 import '../providers/feed_member_preview_provider.dart';
 import '../types/search_following_feed.dart';
 import '../types/search_subscription.dart';
-import 'feed_last_checked.dart';
+import '../types/pinned_search_sort.dart';
 import 'pinned_search_card.dart';
+import 'feed_last_checked.dart';
 import 'pinned_search_profile_caption.dart';
 
 class FollowingFeedMemberCard extends ConsumerWidget {
@@ -49,6 +50,10 @@ class FollowingFeedMemberCard extends ConsumerWidget {
       onAction: onAction,
       actionItemBuilder: (context) => [
         PopupMenuItem(
+          value: PinnedSearchAction.info,
+          child: Text(strings.info),
+        ),
+        PopupMenuItem(
           value: PinnedSearchAction.refresh,
           enabled: owner != null && !refreshing,
           child: Text(strings.refresh),
@@ -64,14 +69,19 @@ class FollowingFeedMemberCard extends ConsumerWidget {
         ),
       ],
       metadata: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (owner != null)
-            Text(
-              pinnedSearchProfileCaption(owner, profiles),
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          FeedLastChecked(checkedAt: source.lastSuccessfulCheckAt),
+          PinnedSearchCardMetadata(
+            leading: owner == null
+                ? null
+                : pinnedSearchProfileCaption(owner, profiles),
+            lastPostAt: source.lastPostAt,
+            hasBaseline: source.hasBaseline,
+          ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: FeedLastRefresh(refreshedAt: source.lastSuccessfulCheckAt),
+          ),
         ],
       ),
       preview: previews.isEmpty

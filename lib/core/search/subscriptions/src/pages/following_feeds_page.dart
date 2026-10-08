@@ -23,9 +23,11 @@ import '../providers/search_subscriptions_notifier.dart';
 import '../providers/search_refresh_coordinator.dart';
 import '../types/search_following_feed.dart';
 import '../types/search_subscription.dart';
+import '../types/pinned_search_sort.dart';
 import '../types/search_refresh.dart';
 import '../widgets/feed_post_thumbnail.dart';
-import '../widgets/feed_last_checked.dart';
+import '../widgets/following_feed_info_dialog.dart';
+import '../widgets/pinned_search_card.dart';
 import 'following_feed_management_page.dart';
 
 class FollowingFeedsPage extends ConsumerStatefulWidget {
@@ -104,9 +106,47 @@ class _FollowingFeedsPageState extends ConsumerState<FollowingFeedsPage> {
                               search.lastErrorKind ==
                                   SearchRefreshErrorKind.rateLimited,
                         );
+                        final siblings = feeds
+                            .where((f) => f.profileId == feed.profileId)
+                            .toList();
+                        final index = siblings.indexWhere(
+                          (f) => f.id == feed.id,
+                        );
+                        final sources = state.subscriptions
+                            .where((s) => feed.sourceIds.contains(s.id))
+                            .toList();
+                        final dates = <DateTime>[
+                          ...feed.posts
+                              .map(feedPostCreatedAt)
+                              .whereType<DateTime>(),
+                          ...sources
+                              .map((s) => s.lastPostAt)
+                              .whereType<DateTime>(),
+                        ]..sort();
                         final overflow = PopupMenuButton<String>(
                           icon: const Icon(Symbols.more_vert),
                           onSelected: (action) async {
+                            if (action == 'refresh') {
+                              await _refreshFeed(context, ref, feed.id);
+                              return;
+                            }
+                            if (action == 'info') {
+                              await showDialog<void>(
+                                context: context,
+                                builder: (_) =>
+                                    FollowingFeedInfoDialog(feedId: feed.id),
+                              );
+                              return;
+                            }
+                            if (action == 'up' || action == 'down') {
+                              await _feedAction(
+                                context,
+                                () => ref
+                                    .read(searchSubscriptionsProvider.notifier)
+                                    .moveFeed(feed.id, up: action == 'up'),
+                              );
+                              return;
+                            }
                             if (action == 'edit') {
                               await Navigator.of(context).push(
                                 MaterialPageRoute<void>(
@@ -155,8 +195,27 @@ class _FollowingFeedsPageState extends ConsumerState<FollowingFeedsPage> {
                           },
                           itemBuilder: (context) => [
                             PopupMenuItem(
+                              value: 'refresh',
+                              enabled: state.refreshingFeedId == null,
+                              child: Text(strings.refresh),
+                            ),
+                            PopupMenuItem(
+                              value: 'info',
+                              child: Text(strings.info),
+                            ),
+                            PopupMenuItem(
+                              value: 'up',
+                              enabled: index > 0,
+                              child: Text(strings.move_up),
+                            ),
+                            PopupMenuItem(
+                              value: 'down',
+                              enabled: index < siblings.length - 1,
+                              child: Text(strings.move_down),
+                            ),
+                            PopupMenuItem(
                               value: 'edit',
-                              child: Text(strings.edit_feed),
+                              child: Text(context.t.generic.action.edit),
                             ),
                             PopupMenuItem(
                               value: 'delete',
@@ -237,14 +296,15 @@ class _FollowingFeedsPageState extends ConsumerState<FollowingFeedsPage> {
                                         ],
                                       ),
                                     ),
-                                  Text(
-                                    caption,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.bodySmall,
+                                  PinnedSearchCardMetadata(
+                                    leading: caption,
+                                    lastPostAt: dates.lastOrNull,
+                                    hasBaseline:
+                                        sources.isEmpty ||
+                                        sources.every((s) => s.hasBaseline),
                                   ),
+                                  if (state.refreshingFeedId == feed.id)
+                                    const LinearProgressIndicator(),
                                   if (rateLimited)
                                     Text(
                                       strings.error_rate_limited,
@@ -268,6 +328,19 @@ class _FollowingFeedsPageState extends ConsumerState<FollowingFeedsPage> {
     );
   }
 }
+
+Future<void> _refreshFeed(BuildContext context, WidgetRef ref, String id) =>
+    _feedAction(context, () async {
+      final results = await ref
+          .read(searchSubscriptionsProvider.notifier)
+          .refreshFeed(id);
+      final deferred = results.whereType<SearchRefreshDeferred>().firstOrNull;
+      if (context.mounted && deferred != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(rateLimitWaitText(context, deferred.retryAt))),
+        );
+      }
+    });
 
 Future<void> _feedAction(
   BuildContext context,
@@ -327,32 +400,41 @@ class _FollowingFeedPageState extends ConsumerState<FollowingFeedPage> {
     final refreshing = sources.any(
       (s) => state?.refreshingIds.contains(s.id) ?? false,
     );
-    final checked = sources
-        .where((s) => s.lastSuccessfulCheckAt != null)
-        .length;
-    final failed = sources.where((s) => s.lastErrorKind != null).length;
-    final rateLimited = sources.any(
-      (s) => s.lastErrorKind == SearchRefreshErrorKind.rateLimited,
-    );
-    final lastChecked =
-        sources
-            .map((s) => s.lastSuccessfulCheckAt)
-            .whereType<DateTime>()
-            .toList()
-          ..sort();
     return Scaffold(
       appBar: AppBar(
         title: Text(feed?.name ?? strings.following_feeds),
         actions: [
-          IconButton(
-            tooltip: strings.edit_feed,
-            icon: const Icon(Symbols.tune),
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) =>
-                    FollowingFeedManagementPage(feedId: widget.feedId),
+          PopupMenuButton<String>(
+            onSelected: (action) {
+              if (action == 'refresh') {
+                unawaited(_refreshFeed(context, ref, widget.feedId));
+              } else if (action == 'info') {
+                showDialog<void>(
+                  context: context,
+                  builder: (_) =>
+                      FollowingFeedInfoDialog(feedId: widget.feedId),
+                );
+              } else {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) =>
+                        FollowingFeedManagementPage(feedId: widget.feedId),
+                  ),
+                );
+              }
+            },
+            itemBuilder: (context) => [
+              PopupMenuItem(
+                value: 'refresh',
+                enabled: feed != null && state?.refreshingFeedId == null,
+                child: Text(strings.refresh),
               ),
-            ),
+              PopupMenuItem(value: 'info', child: Text(strings.info)),
+              PopupMenuItem(
+                value: 'edit',
+                child: Text(context.t.generic.action.edit),
+              ),
+            ],
           ),
         ],
       ),
@@ -360,21 +442,8 @@ class _FollowingFeedPageState extends ConsumerState<FollowingFeedPage> {
           ? Center(child: Text(strings.feeds_empty))
           : Column(
               children: [
-                if (refreshing) const LinearProgressIndicator(),
-                Text(
-                  strings.feed_freshness
-                      .replaceAll('{checked}', '$checked')
-                      .replaceAll('{total}', '${sources.length}')
-                      .replaceAll('{failed}', '$failed'),
-                ),
-                if (rateLimited)
-                  Text(
-                    strings.error_rate_limited,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                  ),
-                FeedLastChecked(checkedAt: lastChecked.firstOrNull),
+                if (refreshing || state?.refreshingFeedId == widget.feedId)
+                  const LinearProgressIndicator(),
                 Expanded(
                   child: feed.posts.isEmpty
                       ? Center(child: Text(strings.feed_posts_empty))

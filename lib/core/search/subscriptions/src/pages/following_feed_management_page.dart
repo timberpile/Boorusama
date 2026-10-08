@@ -17,6 +17,7 @@ import '../types/following_feed_member_sort.dart';
 import '../widgets/following_feed_member_card.dart';
 import '../widgets/pinned_search_card.dart';
 import '../widgets/edit_feed_member_name_dialog.dart';
+import '../widgets/pinned_search_info_dialog.dart';
 import '../widgets/pinned_search_profile_caption.dart';
 
 class FollowingFeedManagementPage extends ConsumerWidget {
@@ -61,6 +62,10 @@ class FollowingFeedManagementPage extends ConsumerWidget {
                 PopupMenuItem(
                   value: FollowingFeedMemberSort.newestFirst,
                   child: Text(strings.sort_feed_newest_first),
+                ),
+                PopupMenuItem(
+                  value: FollowingFeedMemberSort.lastRefresh,
+                  child: Text(strings.sort_feed_last_refresh),
                 ),
                 PopupMenuItem(
                   value: FollowingFeedMemberSort.oldestFirst,
@@ -189,6 +194,14 @@ class FollowingFeedManagementPage extends ConsumerWidget {
             Navigator.pop(context);
           }
         case PinnedSearchAction.info:
+          await showDialog<void>(
+            context: context,
+            builder: (_) => PinnedSearchInfoDialog(
+              subscriptionId: source.id,
+              feedSource: true,
+            ),
+          );
+          return;
         case PinnedSearchAction.rename:
         case PinnedSearchAction.moveUp:
         case PinnedSearchAction.moveDown:

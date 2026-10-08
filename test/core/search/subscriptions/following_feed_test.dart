@@ -669,7 +669,7 @@ void main() {
     await harness.pump(tester, const FollowingFeedsPage());
     await tester.tap(find.byType(PopupMenuButton<String>));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Edit feed'));
+    await tester.tap(find.text('Edit'));
     await tester.pumpAndSettle();
     expect(find.byType(FollowingFeedManagementPage), findsOneWidget);
     expect(find.text('cat'), findsOneWidget);

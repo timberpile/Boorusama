@@ -153,6 +153,7 @@ class Settings extends Equatable {
       followingFeedMemberSort = switch (json['followingFeedMemberSort']) {
         'newestFirst' => 'newestFirst',
         'oldestFirst' => 'oldestFirst',
+        'lastRefresh' => 'lastRefresh',
         _ => 'addedDate',
       },
       pinnedSearchSort = switch (json['pinnedSearchSort']) {

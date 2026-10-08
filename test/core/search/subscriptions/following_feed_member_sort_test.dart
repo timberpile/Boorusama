@@ -50,6 +50,56 @@ void main() {
     );
   }
   test(
+    'last refresh puts never checked first, then oldest successful checks, ignoring newer failed attempts',
+    () {
+      SearchSubscription source(
+        String id,
+        DateTime? checked, {
+        DateTime? attempted,
+        SearchRefreshErrorKind? error,
+      }) => SearchSubscription(
+        id: id,
+        profileId: testProfile.id,
+        query: id,
+        position: 0,
+        createdAt: older,
+        previews: const [],
+        recentPostIdentities: const [],
+        unreadCount: 0,
+        lastSuccessfulCheckAt: checked,
+        lastAttemptAt: attempted,
+        lastErrorKind: error,
+      );
+      final sources = [
+        source('newest', newer),
+        source(
+          'old-failed',
+          older,
+          attempted: newer,
+          error: SearchRefreshErrorKind.network,
+        ),
+        source(
+          'never-failed',
+          null,
+          attempted: newer,
+          error: SearchRefreshErrorKind.network,
+        ),
+        source('old-equal', older),
+        source('never', null),
+      ];
+      final before = List<SearchSubscription>.of(sources);
+      expect(
+        sortFollowingFeedMembers(
+          sources,
+          FollowingFeedMemberSort.lastRefresh,
+        ).map((s) => s.id),
+        ['never-failed', 'never', 'old-failed', 'old-equal', 'newest'],
+      );
+      expect(sources, before);
+    },
+  );
+
+  test(
     'addition order is each feed membership sequence, including shared sources and remove readd',
     () async {
       final repository = memorySubscriptionRepository();

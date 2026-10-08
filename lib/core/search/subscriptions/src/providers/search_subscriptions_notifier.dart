@@ -40,6 +40,7 @@ class SearchSubscriptionsState extends Equatable {
     required this.batchCompleted,
     required this.batchTotal,
     this.batchProfileId,
+    this.refreshingFeedId,
     Set<String> pendingRefreshIds = const {},
     this.feeds = const [],
     required this.organization,
@@ -53,6 +54,7 @@ class SearchSubscriptionsState extends Equatable {
   final int batchCompleted;
   final int batchTotal;
   final String? batchProfileId;
+  final String? refreshingFeedId;
   final List<SearchFollowingFeed> feeds;
   final SearchOrganization organization;
 
@@ -64,6 +66,7 @@ class SearchSubscriptionsState extends Equatable {
     batchCompleted,
     batchTotal,
     batchProfileId,
+    refreshingFeedId,
     feeds,
     organization,
   ];
@@ -83,6 +86,9 @@ class SearchSubscriptionsNotifier
   final _requestGate = SearchRefreshRequestGate();
   Future<void> _mutationTail = Future.value();
   Future<void> _batchTail = Future.value();
+  Future<List<SearchRefreshOutcome>>? _feedRefreshFuture;
+  String? _refreshingFeedId;
+  CancelToken? _feedRefreshToken;
   var _batchCompleted = 0;
   var _batchTotal = 0;
   String? _batchProfileId;
@@ -98,6 +104,7 @@ class SearchSubscriptionsNotifier
     _disposed = false;
     ref.onDispose(() {
       _disposed = true;
+      _feedRefreshToken?.cancel();
       for (final token in _refreshTokens.values) {
         token.cancel();
       }
@@ -370,6 +377,111 @@ class SearchSubscriptionsNotifier
       throw StateError('Feed member changed or is unavailable');
     }
     await repository.rename(source.id, name);
+  });
+
+  Future<List<SearchRefreshOutcome>> refreshFeed(String id) {
+    if (_feedRefreshFuture case final running?) {
+      return _refreshingFeedId == id ? running : Future.value(const []);
+    }
+    _refreshingFeedId = id;
+    final result = _feedRefreshFuture = _refreshFeedBatch(id).whenComplete(() {
+      _feedRefreshFuture = null;
+      _refreshingFeedId = null;
+      _publishActivity();
+    });
+    _publishActivity();
+    return result;
+  }
+
+  Future<List<SearchRefreshOutcome>> _refreshFeedBatch(String id) async {
+    await future;
+    if (_disposed) return const [];
+    final current = state.requireValue;
+    final feed = current.feeds.firstWhereOrNull((feed) => feed.id == id);
+    if (feed == null) return const [];
+    final sourceIds = feed.sourceIds.toSet();
+    // Attempts include failures, so persistent failures cannot monopolize each
+    // batch. Successful checks cover older records without an attempt time.
+    DateTime? activity(SearchSubscription source) =>
+        switch ((source.lastAttemptAt, source.lastSuccessfulCheckAt)) {
+          (final attempt?, final check?) =>
+            attempt.isAfter(check) ? attempt : check,
+          (final attempt, final check) => attempt ?? check,
+        };
+    final sources =
+        current.subscriptions
+            .where(
+              (s) => sourceIds.contains(s.id) && s.profileId == feed.profileId,
+            )
+            .toList()
+          ..sort((left, right) {
+            final order = switch ((activity(left), activity(right))) {
+              (null, null) => 0,
+              (null, _) => -1,
+              (_, null) => 1,
+              (final a?, final b?) => a.compareTo(b),
+            };
+            return order == 0 ? left.id.compareTo(right.id) : order;
+          });
+    final planned = sources.take(10).toList();
+    final token = _feedRefreshToken = CancelToken();
+    final deadline = Timer(const Duration(seconds: 20), () => token.cancel());
+    final progress = beginRefreshProgress(planned.map((s) => s.id));
+    final pending = planned.map((s) => s.id).toSet();
+    final outcomes = <SearchRefreshOutcome>[];
+    try {
+      for (final source in planned) {
+        bool canContinue() =>
+            !_disposed &&
+            !token.isCancelled &&
+            (state.valueOrNull?.feeds.any(
+                  (f) =>
+                      f.id == id &&
+                      f.profileId == source.profileId &&
+                      f.sourceIds.contains(source.id),
+                ) ??
+                false);
+        if (!canContinue()) break;
+        final outcome = await refresh(
+          source.id,
+          cancelToken: token,
+          canStart: canContinue,
+          canAdmit: canContinue,
+        );
+        outcomes.add(outcome);
+        pending.remove(source.id);
+        progress.update(pending);
+        // Every source in a feed uses the same site; respect its cooldown rather
+        // than submitting the rest of this batch to that site.
+        if (outcome is SearchRefreshDeferred ||
+            outcome is SearchRefreshFailed &&
+                outcome.kind == SearchRefreshErrorKind.rateLimited) {
+          break;
+        }
+      }
+      return outcomes;
+    } finally {
+      deadline.cancel();
+      progress.close();
+      _feedRefreshToken = null;
+    }
+  }
+
+  Future<void> moveFeed(String id, {required bool up}) => _mutate((
+    repository,
+  ) async {
+    final all = await repository.getFeeds();
+    final feed = all.firstWhereOrNull((feed) => feed.id == id);
+    if (feed == null) return;
+    final siblings = all.where((f) => f.profileId == feed.profileId).toList();
+    final index = siblings.indexWhere((f) => f.id == id);
+    final target = index + (up ? -1 : 1);
+    if (target < 0 || target >= siblings.length) return;
+    final moved = siblings.removeAt(index);
+    siblings.insert(target, moved);
+    await repository.setFeedOrder(feed.profileId, [
+      for (final f in siblings) f.id,
+    ]);
   });
 
   Future<void> deleteFeed(String id) =>
@@ -1037,6 +1149,7 @@ class SearchSubscriptionsNotifier
         batchCompleted: _batchCompleted,
         batchTotal: _batchTotal,
         batchProfileId: _batchProfileId,
+        refreshingFeedId: _refreshingFeedId,
       );
 }
 

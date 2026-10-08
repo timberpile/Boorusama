@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:clock/clock.dart';
 import 'package:i18n/i18n.dart';
 import 'package:boorusama/core/configs/manage/providers.dart';
 import 'package:boorusama/core/router.dart';
@@ -6,6 +7,7 @@ import 'package:boorusama/core/search/subscriptions/providers.dart';
 import 'package:boorusama/core/search/subscriptions/types.dart';
 import 'package:boorusama/core/search/subscriptions/src/pages/following_feed_management_page.dart';
 import 'package:boorusama/core/search/subscriptions/src/widgets/pinned_search_card.dart';
+import 'package:boorusama/core/search/subscriptions/src/widgets/pinned_search_info_dialog.dart';
 import 'package:boorusama/core/settings/providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -47,14 +49,14 @@ void main() {
   }
 
   testWidgets(
-    'editor shows named cards, relative successful check and never checked without initialization',
+    'editor shows named cards and last post metadata without initialization',
     (tester) async {
       await seed(tester);
       expect(find.byType(PinnedSearchCard), findsNWidgets(2));
       expect(find.text('Cats'), findsOneWidget);
       expect(find.text('cat'), findsOneWidget);
-      expect(find.text('Never checked'), findsOneWidget);
-      expect(find.textContaining('Last checked:'), findsOneWidget);
+      expect(find.textContaining('Last post:'), findsNWidgets(2));
+      expect(find.textContaining('Last checked:'), findsNothing);
       expect(find.text('NEW'), findsOneWidget);
       expect(
         find.text('Could not connect. Try refreshing again.'),
@@ -79,10 +81,41 @@ void main() {
     expect(find.text('Refresh'), findsOneWidget);
     expect(find.text('Edit'), findsOneWidget);
     expect(find.text('Remove'), findsOneWidget);
-    expect(find.text('Info'), findsNothing);
+    expect(find.text('Info'), findsOneWidget);
     expect(find.text('Move to folder'), findsNothing);
     expect(find.text('Move up'), findsNothing);
   });
+  testWidgets(
+    'member Info opens cached timing without changing sources or membership',
+    (tester) async {
+      final feed = await seed(tester);
+      final before = await tester.runAsync(h.repository.getAll);
+      await tester.tap(
+        find
+            .descendant(
+              of: find.byType(PinnedSearchCard).first,
+              matching: find.byWidgetPredicate((w) => w is PopupMenuButton),
+            )
+            .first,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Info'));
+      await tester.pumpAndSettle();
+      final info = tester.widget<PinnedSearchInfoDialog>(
+        find.byType(PinnedSearchInfoDialog),
+      );
+      expect(info.subscriptionId, feed.sourceIds.first);
+      expect(info.feedSource, isTrue);
+      expect(find.textContaining('Refresh interval: Adaptive'), findsOneWidget);
+      expect(await tester.runAsync(h.repository.getAll), before);
+      expect((await tester.runAsync(h.repository.getFeeds))!.single, feed);
+      expect(h.requests, isEmpty);
+      await tester.tap(find.widgetWithText(TextButton, 'OK'));
+      await tester.pumpAndSettle();
+      expect(find.byType(PinnedSearchInfoDialog), findsNothing);
+    },
+  );
+
   testWidgets(
     'sort changes display and survives reopen without changing membership or read state',
     (tester) async {
@@ -113,6 +146,61 @@ void main() {
       expect(selected.initialValue, FollowingFeedMemberSort.oldestFirst);
     },
   );
+  testWidgets(
+    'cards show last successful refresh below last post and refresh sorting persists without source mutations',
+    (tester) async {
+      final feed = await withClock(
+        Clock.fixed(checkedAt.add(const Duration(hours: 2))),
+        () => seed(tester),
+      );
+      expect(find.text('Last refresh: 2 hours ago'), findsOneWidget);
+      expect(find.text('Last refresh: Never checked'), findsOneWidget);
+      final lastPost = find.descendant(
+        of: find.byType(PinnedSearchCard).first,
+        matching: find.textContaining('Last post:'),
+      );
+      final lastRefresh = find.text('Last refresh: 2 hours ago');
+      expect(
+        tester.getCenter(lastRefresh).dy,
+        greaterThan(tester.getCenter(lastPost).dy),
+      );
+      expect(
+        tester.getBottomRight(lastRefresh).dx,
+        closeTo(tester.getBottomRight(lastPost).dx, 1),
+      );
+      final before = await tester.runAsync(h.repository.getAll);
+      await tester.tap(find.byTooltip('Sort by'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Last refresh (oldest first)'));
+      await drain(tester);
+      expect(
+        h.container.read(settingsProvider).followingFeedMemberSort,
+        'lastRefresh',
+      );
+      expect(
+        tester
+            .widget<PinnedSearchCard>(find.byType(PinnedSearchCard).first)
+            .subscription
+            .query,
+        'dog',
+      );
+      expect(await tester.runAsync(h.repository.getAll), before);
+      expect((await tester.runAsync(h.repository.getFeeds))!.single, feed);
+      await h.pump(tester, FollowingFeedManagementPage(feedId: feed.id));
+      await tester.tap(find.byTooltip('Sort by'));
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<PopupMenuButton<FollowingFeedMemberSort>>(
+              find.byType(PopupMenuButton<FollowingFeedMemberSort>),
+            )
+            .initialValue,
+        FollowingFeedMemberSort.lastRefresh,
+      );
+      expect(h.requests, isEmpty);
+    },
+  );
+
   testWidgets(
     'name edit explains sharing, cancel is inert and clearing restores the query title',
     (tester) async {
@@ -272,6 +360,27 @@ void main() {
         );
         await drain(tester);
         expect(tester.takeException(), isNull);
+        expect(
+          find.textContaining(
+            locale == 'de-DE' ? 'Zuletzt aktualisiert:' : 'Last refresh:',
+          ),
+          findsNWidgets(2),
+        );
+        await tester.tap(find.byType(PopupMenuButton<FollowingFeedMemberSort>));
+        await tester.pumpAndSettle();
+        expect(
+          find
+              .text(
+                locale == 'de-DE'
+                    ? 'Letzte Aktualisierung (älteste zuerst)'
+                    : 'Last refresh (oldest first)',
+              )
+              .hitTestable(),
+          findsOneWidget,
+        );
+        expect(tester.takeException(), isNull);
+        await tester.tapAt(Offset.zero);
+        await tester.pumpAndSettle();
         await tester.tap(
           find
               .descendant(

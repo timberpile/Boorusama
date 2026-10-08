@@ -347,13 +347,42 @@ feeds, or creates a named feed from that starting point. There is no empty-feed
 creation or raw query editor. The all-profile feed list shows each owner's
 profile caption. Artist Follow/Following shows how many feeds contain the exact
 artist tag. Feed management shows saved-search-style member cards with optional name and
-exact query, NEW/error status and localized relative successful check time.
-Never checked remains visible after a first failed attempt; later errors retain
-the prior successful time and previews. Each member offers Open, Refresh,
-name-only Edit and Remove. A member name belongs to its shared search record,
-so editing it affects every feed containing that record; the dialog explains
+exact query, NEW/error status and localized Last post metadata. Last refresh
+appears below Last post, right-aligned, using the last successful check; failed
+attempts retain that time and never-checked sources are labeled explicitly.
+Each member offers Open, Info, Refresh, name-only Edit and Remove. Info reads
+cached state and shows the successful check, last attempt, refresh interval,
+next scheduled refresh and temporary pauses using the Following Feeds scope.
+A first failed attempt retains the never-checked state; later errors retain the
+prior successful time and previews. A member name belongs to its shared search
+record, so editing it affects every feed containing that record; the dialog explains
 this when shared. Saves recheck current membership, owner and definition
 identity so removed or replaced members cannot be renamed by an old dialog.
+
+Feed overview and member cards show Last post right-aligned on the same row
+as the owning profile caption. The member sort menu includes Last refresh
+(oldest first): never-checked sources first, then the oldest successful checks,
+with membership order breaking ties. This choice persists across restarts and
+does not change membership or NEW/read state. Overview menus offer Refresh, Info, Edit,
+Move up/down and Delete. Ordering persists within each owning profile. Feed Info aggregates
+checked-source counts, failures, rate limits and the oldest successful source
+check; source Info links expose individual adaptive intervals and next refreshes.
+Manual feed Refresh is available in the overview and opened-feed menus. Each tap
+checks at most ten sources belonging to that feed, sequentially, with a twenty
+second deadline. Sources with the oldest attempt/successful-check activity go
+first; failed attempts count as activity so persistent failures do not starve
+other sources on subsequent taps. Shared request coordination and source
+coalescing remain in effect. A site rate-limit/deferred response ends the batch;
+a deferred response shows the existing localized retry time. Only one manual
+feed batch is active at a time: repeat taps share that batch and other feed
+Refresh actions are disabled, without queuing extra batches. Manual refresh
+works independently of the automatic-refresh setting and does not change the
+adaptive interval. Membership is checked before each source/request so a removed
+feed cannot start remaining work.
+
+Opening either dialog starts no refresh and changes no read state. An opened
+feed keeps active refresh progress above its posts, with maintenance status
+available only through its Info menu. Dialogs follow changes to cached state.
 
 Editor previews match up to four member preview IDs to full cached feed
 snapshots and preserve their engine codecs. Thumbnail quality uses the actual

@@ -1,5 +1,7 @@
 {
   "pinned_searches": {
+    "last_refresh": "Zuletzt aktualisiert: {date}",
+    "sort_feed_last_refresh": "Letzte Aktualisierung (älteste zuerst)",
     "refresh_in": "in $duration",
     "name_line": "Name: $name",
     "query_line": "Suchanfrage: $query",

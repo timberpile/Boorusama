@@ -4,11 +4,13 @@ import 'pinned_search_sort.dart';
 enum FollowingFeedMemberSort {
   addedDate,
   newestFirst,
-  oldestFirst;
+  oldestFirst,
+  lastRefresh;
 
   static FollowingFeedMemberSort parse(Object? value) => switch (value) {
     'newestFirst' => newestFirst,
     'oldestFirst' => oldestFirst,
+    'lastRefresh' => lastRefresh,
     _ => addedDate,
   };
 }
@@ -22,10 +24,14 @@ List<SearchSubscription> sortFollowingFeedMembers(
   }
   final indexed = membersInAdditionOrder.indexed.toList()
     ..sort((left, right) {
-      final dates = switch ((left.$2.lastPostAt, right.$2.lastPostAt)) {
+      final refreshOrder = sort == FollowingFeedMemberSort.lastRefresh;
+      final dates = switch ((
+        refreshOrder ? left.$2.lastSuccessfulCheckAt : left.$2.lastPostAt,
+        refreshOrder ? right.$2.lastSuccessfulCheckAt : right.$2.lastPostAt,
+      )) {
         (null, null) => 0,
-        (null, _) => 1,
-        (_, null) => -1,
+        (null, _) => refreshOrder ? -1 : 1,
+        (_, null) => refreshOrder ? 1 : -1,
         (final a?, final b?) =>
           sort == FollowingFeedMemberSort.newestFirst
               ? b.compareTo(a)
