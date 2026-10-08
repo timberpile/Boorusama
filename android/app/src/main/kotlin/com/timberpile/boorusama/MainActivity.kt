@@ -10,6 +10,8 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity: FlutterFragmentActivity() {
+    private var gifSaveChannel: GifSaveChannel? = null
+    private var gifBackgroundChannel: GifBackgroundChannel? = null
     private var exportSaveChannel: ExportSaveChannel? = null
     private var receivedExportChannel: ReceivedExportChannel? = null
     private var searchRefreshEnvironmentChannel: SearchRefreshEnvironmentChannel? = null
@@ -21,6 +23,9 @@ class MainActivity: FlutterFragmentActivity() {
         MediaScannerChannel(applicationContext, messenger).register()
         registerExportClipboardChannel(messenger)
         ImageClipboardChannel(applicationContext, messenger)
+        GifMetadataChannel(applicationContext, messenger)
+        gifSaveChannel = GifSaveChannel(this, messenger)
+        gifBackgroundChannel = GifBackgroundChannel(applicationContext, messenger)
         exportSaveChannel = ExportSaveChannel(applicationContext, messenger)
         receivedExportChannel = ReceivedExportChannel(applicationContext, messenger).also {
             it.register()
@@ -37,6 +42,8 @@ class MainActivity: FlutterFragmentActivity() {
     override fun onDestroy() {
         receivedExportChannel?.close()
         exportSaveChannel?.close()
+        gifSaveChannel?.close()
+        gifBackgroundChannel?.close()
         searchRefreshEnvironmentChannel?.close()
         super.onDestroy()
     }

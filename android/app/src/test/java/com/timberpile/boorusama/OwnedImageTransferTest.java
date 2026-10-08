@@ -44,6 +44,21 @@ public final class OwnedImageTransferTest {
             assertArrayEquals(bytes, Files.readAllBytes(owned.toPath()));
         }
     }
+    @Test public void generatedGifSurvivesSourceCleanupAfterHandoff() throws Exception {
+        File source = source("boorusama-share", "boorusama_share_conversion.gif");
+        File owned = transfer.copy(source, "image/gif");
+        assertTrue(owned.getName().endsWith(".gif"));
+        assertTrue(source.delete());
+        assertArrayEquals(bytes, Files.readAllBytes(owned.toPath()));
+    }
+    @Test public void gifHandoffDoesNotAcceptUnrelatedShareFilesOrOtherMedia() throws Exception {
+        for (String name : new String[] {"unrelated.gif", "boorusama_share_video.mp4", "boorusama_share_conversion.gif.partial"}) {
+            File source = source("boorusama-share", name);
+            assertThrows(IllegalArgumentException.class, () -> transfer.copy(source, "image/gif"));
+        }
+        File source = source("boorusama-share", "boorusama_share_conversion.gif");
+        assertThrows(IllegalArgumentException.class, () -> transfer.copy(source, "image/png"));
+    }
     @Test public void concurrentCopiesPublishUniqueFilesWithoutExposingPartialBytes() throws Exception {
         File source = source("cacheimage", "complete");
         byte[] large = new byte[4 * 1024 * 1024];

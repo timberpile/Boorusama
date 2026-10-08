@@ -302,7 +302,13 @@ void main() {
         isNull,
       );
     }
-    expect(find.text('Unavailable'), findsOneWidget);
+    expect(find.text('Unavailable'), findsNWidgets(2));
+    expect(
+      tester
+          .widget<IconButton>(find.byKey(const ValueKey('create-gif')))
+          .onPressed,
+      isNull,
+    );
     expect(find.text('https://site.test/thumb.jpg'), findsNothing);
   });
 

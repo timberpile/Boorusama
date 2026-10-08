@@ -1,0 +1,11 @@
+# Research handoff: repeated-video loop detection
+
+Assess whether Boorusama's Android GIF editor can detect a video consisting of repeated copies of one visual loop and automatically select its first complete cycle. This is feasibility research; do not implement or change the feature branch.
+
+- Current code: `lib/core/posts/shares/src/gif_editor_selection.dart`, `gif_conversion_service.dart`, `gif_ffmpeg_backend.dart`, and `docs/gif_conversion_evaluation.md`. Worktree: `.worktrees/idea-28-gif-experiment`, branch `feature/28-gif-experiment`.
+- Constraints: Android prototype, pinned `ffmpeg_kit_flutter_new_min` 3.6.7; fully downloaded MP4/WebM. Source and selected-clip duration no longer have a maximum; the initial selection covers the full video and actual GIF output is capped at 100 MB. Account for analysis cost on longer videos. Determine which useful comparison filters are actually available in the minimal native build.
+- Compare practical approaches such as downscaled frame fingerprints, temporal similarity/periodicity, and verification of candidate cycles. Tolerate compression differences and variable frame rate. Reject static footage, similar poses, unrelated recurring scenes, and videos containing a loop plus other material. Inspect the whole source, not just a matching pair of boundary frames. Consider partial final repetitions and a source starting midway through a loop.
+- Recommend confidence thresholds, minimum evidence (for example two complete repetitions), on-device time/memory cost, cancellation behavior, and a useful test corpus. Explain how to select a whole detected cycle, including cycles longer than six seconds.
+- Proposed UX to evaluate: high-confidence auto-trim with the detected duration shown and easy manual adjustment/reset; ambiguous sources keep the normal selection. Explain residual false positives without making the user responsible for validating an unreliable detector.
+
+Return a short feasibility verdict, the simplest recommended algorithm, evidence from primary sources or a small isolated experiment, important failure cases, and rough implementation effort. Do not change encoder quality, download/Share behavior, or remote state. If experimenting, use a separate worktree and keep fixtures free of credentials and private URLs.
