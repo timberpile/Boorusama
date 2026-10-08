@@ -2,6 +2,9 @@
 
 These rules apply only when the user explicitly asks to create, update, or work
 through repository work items. Ordinary changes do not require a ticket.
+Work items always require a dedicated task branch/worktree; the small-change
+exception in the [development workflow](../development_workflow.md#isolation-and-small-changes)
+does not apply.
 
 Each task or issue has its own Markdown file. Its folder determines its status:
 

@@ -1,11 +1,47 @@
 # Development workflow
 
-Follow [AGENTS.md](../AGENTS.md) for ordinary implementation. This file covers
-integration, publication, and branch history. Integration and publication require
-explicit user authorization; implementation approval does not authorize a push.
-Verified integration of a completed task authorizes automatic cleanup of that
-task's local branch/worktree as specified in `AGENTS.md`; other cleanup requires
-explicit authorization.
+Follow [AGENTS.md](../AGENTS.md) for workflow selection and verification. This
+file covers isolation, authorization, integration, publication, and branch history.
+
+## Isolation and small changes
+
+By default, create or reuse an isolated task branch/worktree before changing
+repository files. Exception: an explicitly requested small, predictable change
+that is not a work item and for which no review is requested or warranted may be
+implemented and verified directly on clean local `develop`, in one scoped commit,
+without further approval. This permits direct edits and a local commit only,
+not merging or integrating a task branch. If uncertainty arises or scope grows
+beyond this exception, move the change into a task worktree before continuing.
+Work items always require their own task branch/worktree.
+
+For work requiring isolation, run (based on current local `develop`):
+
+```bash
+python3 scripts/agent_worktree.py create <task-slug>
+```
+
+For isolated work, perform implementation and verification in the reported worktree.
+If the expected task worktree may already exist, inspect it first:
+
+```bash
+python3 scripts/agent_worktree.py status <task-slug>
+```
+
+Continue an existing worktree for the same task; never reuse it for unrelated work.
+Do not edit the user's primary checkout except under the small-change exception;
+never switch, stash, or reset it.
+
+Keep changes within the request; avoid unrelated cleanup. Local work and commits
+on the agent's own isolated task branch/worktree are explicitly authorized as
+part of the requested task; no separate approval is needed unless the user says
+otherwise.
+
+Merging or integrating a task branch always requires explicit user authorization.
+Modifying `develop` or any other branch/worktree outside the permissions above
+requires explicit user authorization.
+Publication and remote changes always require explicit authorization. Use `gh`
+and explicitly target `timberpile/Boorusama`; provide manual instructions for
+other repositories.
 
 ## Integration
 
@@ -28,7 +64,8 @@ commit title. Do not rebase or squash shared upstream/release history.
 ## Pull requests and publication
 
 - Use a PR only when the user explicitly requests one, regardless of change
-  size. Otherwise prepare the result for approved local integration.
+  size. Otherwise prepare the result for approved local integration, unless the
+  small-change exception above permits a direct local `develop` commit.
 - Before authorized publication, fetch current references and reconcile the
   task branch with latest `origin/develop`. After a rebase, reread current
   `AGENTS.md` and this workflow.
@@ -85,7 +122,8 @@ A release PR behind `master` needs this synchronization before its checks rerun.
   automatically remove its local worktree and branch unless the user asks to
   retain them. Verify the integrated result, cleanliness (including untracked and
   ignored files), and that no pending work or needed artifacts remain. Preserve
-  unfinished work and unrelated branches/worktrees; never force-remove a worktree.
+  unfinished work and unrelated branches/worktrees. Remove only known disposable
+  task-generated files; retain anything uncertain. Never force-remove a worktree.
   Use the helper for matching `agent/<slug>` worktrees, or `git worktree remove`
   with the exact registered path for older task branches. Delete the exact local
   branch with `git branch -d`. Squash merging does not make task commits ancestors

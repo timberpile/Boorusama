@@ -2,43 +2,11 @@
 
 ## Isolation and scope
 
-Before changing repository files, create or reuse an isolated task worktree.
-For a new task, run (based on current local `develop`):
-
-```bash
-python3 scripts/agent_worktree.py create <task-slug>
-```
-
-Perform all implementation and verification inside the reported worktree.
-If the expected task worktree may already exist, inspect it first:
-
-```bash
-python3 scripts/agent_worktree.py status <task-slug>
-```
-
-Continue an existing worktree for the same task; never reuse it for unrelated work.
-Do not edit, switch, stash, or reset the user's primary checkout.
-
-Keep changes within the request; avoid unrelated cleanup. Local work and commits
-on the agent's own isolated task branch/worktree are explicitly authorized as
-part of the requested task; no separate approval is needed unless the user says
-otherwise.
-
-Merging or integrating changes, modifying `develop` or any other branch/worktree,
-publication, and remote changes require explicit user authorization. Use `gh`
-and explicitly target `timberpile/Boorusama`; provide manual instructions for
-other repositories.
-
-After successful, verified integration of a completed task into local `develop`,
-automatically remove that task's local worktree and branch; integration approval
-authorizes this cleanup without another confirmation unless the user asks to
-retain them. First confirm that all task changes are integrated, the worktree is
-clean (including untracked/ignored files), and no pending work or needed artifacts
-remain. Remove only known disposable task-generated files; retain anything
-uncertain. For squash integration, verify patch/tree equivalence rather than relying
-on ancestry alone. Never force-remove a worktree. Delete only the exact completed
-task's local branch/worktree; other cleanup and remote deletion require explicit
-authorization.
+Use an isolated task branch/worktree; work items always require one. Small
+explicit changes may use local `develop` under the
+[development workflow](docs/development_workflow.md#isolation-and-small-changes).
+Keep changes within the request; avoid unrelated cleanup. Follow that workflow
+for checkout setup, authorization, integration, and cleanup.
 
 ## Workflow selection
 
