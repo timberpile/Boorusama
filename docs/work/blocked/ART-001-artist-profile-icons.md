@@ -2,6 +2,7 @@
 
 Priority: Normal
 Affected feature: Artist identity and post information
+Status: Frozen at user request on 2026-10-08; design unresolved.
 
 ## Problem
 
@@ -16,7 +17,11 @@ resolved reliably. The artist name remains immediately usable while an optional
 image loads. If no trustworthy image is available, show the name without any
 icon or empty placeholder.
 
-## Acceptance criteria
+## Original acceptance criteria (require revision before resuming)
+
+These criteria describe the original Pixiv-focused scope. They are retained
+for context and are not an approved implementation specification for the
+source-based approach discussed below.
 
 - [ ] On a Pixiv post, resolve the uploader's profile image from its known
   Pixiv user identity. Reuse a profile image already present in post data when
@@ -58,3 +63,44 @@ other artist listings can reuse the resolver in a separate task.
 - [Danbooru artist information](../../../lib/boorus/danbooru/posts/details/src/widgets/details_widgets.dart)
 
 Dependencies: None.
+
+## Previous claim (implementation paused)
+
+- Implementer: Codex, 2026-10-08 session.
+- Branch: `agent/art-001-artist-profile-icons`.
+- Worktree: `.worktrees/art-001-artist-profile-icons`.
+
+## Deferral and open design questions
+
+The user requested freezing this ticket on 2026-10-08 because the desired
+source-based solution is broader and more difficult than the initial scope.
+No application code was changed; work stopped after repository inspection and
+creating the isolated worktree.
+
+The preferred direction discussed is to start from a post's original source,
+resolve its artist account on the source platform, and cache the account's real
+profile image by canonical platform and stable account identity. This should
+support platforms beyond Pixiv rather than force all artists through Pixiv.
+The discussion is a design direction, not a completed or approved design.
+
+Before resuming, resolve:
+
+- Which platforms are supported initially and how each reliably exposes account
+  profile images. X/Twitter access, authentication, costs, and the feasibility
+  of public retrieval remain open; arbitrary website parsing cannot guarantee
+  that a discovered image is a profile image rather than artwork.
+- How source links identify the original artist, including reposts, direct
+  image/CDN links, missing sources, and posts with multiple artist tags. A
+  source account must not be assigned to an unrelated artist tag.
+- Whether and when artist-record profile links serve as a fallback, and how
+  conflicting account identities are handled.
+- Persistent cache lifetime, refresh and failure retry rules, and canonical
+  platform aliases such as twitter.com/x.com. Shared lookups should use stable
+  platform/account identity rather than artist display names.
+- How optional authenticated lookups fail silently. The existing Pixiv client
+  can open a session-expired dialog, so catching lookup errors alone does not
+  satisfy the original no-login-interruption requirement.
+
+Resume only after the user requests it and the scope/design and acceptance
+criteria have been revised. No Flutter tests or Android/Maestro checks were
+run because implementation did not begin.
