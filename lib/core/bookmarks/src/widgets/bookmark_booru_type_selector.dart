@@ -1,38 +1,30 @@
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
-import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 
 // Project imports:
-import '../../../../core/widgets/widgets.dart';
 import '../providers/local_providers.dart';
+import 'bookmark_option_selector.dart';
 
 class BookmarkBooruSourceUrlSelector extends ConsumerWidget {
-  const BookmarkBooruSourceUrlSelector({
-    super.key,
-  });
+  const BookmarkBooruSourceUrlSelector({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Container(
-      color: Kurumi.themeOf(context).colorScheme.surface,
-      padding: const EdgeInsets.only(bottom: 4),
-      child: ref
-          .watch(availableBooruUrlsProvider)
-          .when(
-            data: (data) => ChoiceOptionSelectorList(
-              options: data,
-              sheetTitle: context.t.post.detail.source_label,
-              onSelected: (value) {
-                ref.read(selectedBooruUrlProvider.notifier).state = value;
-              },
-              selectedOption: ref.watch(selectedBooruUrlProvider),
-              optionLabelBuilder: (value) => value ?? 'All',
-            ),
-            error: (error, _) => Text(error.toString()),
-            loading: () => const Center(child: CircularProgressIndicator()),
-          ),
+    final selected = ref.watch(selectedBooruUrlProvider);
+    final sources = ref.watch(availableBooruUrlsProvider);
+    final all = context.t.bookmark.groups.all;
+    final label = '${context.t.post.detail.source_label}: ${selected ?? all}';
+
+    return BookmarkOptionSelector<String?>(
+      label: label,
+      value: selected,
+      options: [null, ...?sources.valueOrNull],
+      optionLabel: (source) => source ?? all,
+      onSelected: (source) {
+        ref.read(selectedBooruUrlProvider.notifier).state = source;
+      },
     );
   }
 }

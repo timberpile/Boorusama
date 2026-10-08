@@ -17,8 +17,6 @@ import '../../providers.dart';
 
 export 'bookmark_group_selectors.dart' show BookmarkSortType, filterBookmarks;
 
-final bookmarkEditProvider = StateProvider.autoDispose<bool>((ref) => false);
-
 final tagCountProvider = FutureProvider.autoDispose.family<int, String>((
   ref,
   tag,

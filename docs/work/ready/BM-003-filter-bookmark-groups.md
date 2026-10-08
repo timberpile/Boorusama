@@ -41,6 +41,6 @@ mode within a bookmark post list.
 
 - [Bookmark groups](../../bookmark_groups.md)
 - [Group overview](../../../lib/core/bookmarks/src/pages/bookmark_group_browser_page.dart)
-- [Compact controls inside groups](BM-002-compact-bookmark-controls.md)
+- [Compact controls inside groups](../in-progress/BM-002-compact-bookmark-controls.md)
 
 Dependencies: None.

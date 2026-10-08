@@ -1,3 +1,9 @@
+import 'package:selection_mode/selection_mode.dart';
+import 'package:boorusama/core/widgets/multi_select_button.dart';
+import 'package:material_symbols_icons/symbols.dart';
+import 'package:flutter/foundation.dart';
+import 'package:boorusama/core/bookmarks/src/providers/local_providers.dart';
+import 'package:boorusama/core/bookmarks/src/widgets/bookmark_search_bar.dart';
 import 'package:boorusama/foundation/networking.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:boorusama/core/themes/colors/providers.dart';
@@ -70,6 +76,189 @@ import 'package:boorusama/foundation/loggers.dart';
 import 'package:boorusama/core/themes/colors/src/colors.dart';
 
 void main() {
+  const compactGroupId = '550e8400-e29b-41d4-a716-446655440000';
+  for (final view in [
+    const BookmarkView.all(),
+    const BookmarkView.ungrouped(),
+    BookmarkView.group(compactGroupId),
+  ]) {
+    testWidgets('compact bookmark header recovers empty filters in $view', (
+      tester,
+    ) async {
+      VisibilityDetectorController.instance.updateInterval = Duration.zero;
+      // Keep focused text-field animations from blocking result assertions.
+      Future<void> pumpHeader() async {
+        for (var frame = 0; frame < 12; frame++) {
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+      }
+
+      final bookmarks = List.generate(
+        8,
+        (index) => Bookmark.empty.copyWith(
+          id: index + 1,
+          postId: () => index + 1,
+          sourceUrl: _config.url,
+          originalUrl: 'https://gelbooru.example/${index + 1}.jpg',
+          width: 1200,
+          height: 1200,
+          tags: const {'red'},
+          createdAt: DateTime(2026, 1, index + 1),
+        ),
+      );
+      final library = BookmarkLibraryState(
+        bookmarks: bookmarks,
+        groups: [
+          BookmarkGroup(
+            id: compactGroupId,
+            name: 'Saved',
+            bookmarkIds: const {1, 2, 3, 4},
+          ),
+        ],
+        activeTarget: const BookmarkTarget.ungrouped(),
+      );
+      final unusedController = _controller([]);
+      addTearDown(unusedController.dispose);
+      await tester.pumpWidget(
+        _BookmarkViewerHarness(
+          controller: unusedController,
+          bookmarkNotifier: _CacheBookmarkNotifier(library),
+          home: BookmarkPage(view: view),
+        ),
+      );
+      await pumpHeader();
+      final search = find.descendant(
+        of: find.byType(BookmarkSearchBar),
+        matching: find.byType(TextField),
+      );
+      expect(search, findsOneWidget);
+      expect(find.text('Source: All'), findsOneWidget);
+      expect(find.text('Newest'), findsOneWidget);
+      expect(tester.widget<AppBar>(find.byType(AppBar).first).actions, isNull);
+      final pageContext = tester.element(find.byType(BookmarkSearchBar));
+      final container = ProviderScope.containerOf(pageContext);
+      final controller = PostScope.of<Post>(pageContext);
+      final expectedCount = view.kind == BookmarkViewKind.all ? 8 : 4;
+      expect(controller.items.length, expectedCount);
+      expect(find.text('$expectedCount bookmarks'), findsOneWidget);
+      await tester.enterText(search, 'absent_tag');
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await pumpHeader();
+      expect(controller.items, isEmpty);
+      expect(find.text('0 bookmarks'), findsOneWidget);
+      expect(search, findsOneWidget);
+      expect(find.text('Source: All'), findsOneWidget);
+      expect(find.text('Newest'), findsOneWidget);
+      await tester.tap(find.byIcon(Symbols.clear));
+      await pumpHeader();
+      expect(controller.items.length, expectedCount);
+      // A selected source remains visible even when it has no matches in this view.
+      container.read(selectedBooruUrlProvider.notifier).state =
+          'missing.example';
+      await pumpHeader();
+      expect(controller.items, isEmpty);
+      expect(find.text('0 bookmarks'), findsOneWidget);
+      expect(find.text('Source: missing.example'), findsOneWidget);
+      await _tapFilter(tester, 'Source: missing.example');
+      await pumpHeader();
+      await tester.tap(
+        find.ancestor(
+          of: find.text('All'),
+          matching: find.byType(KurumiPopupMenuItem),
+        ),
+      );
+      await pumpHeader();
+      expect(controller.items.length, expectedCount);
+      await tester.enterText(search, 'red');
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await pumpHeader();
+      container.read(selectedBooruUrlProvider.notifier).state =
+          'gelbooru.example';
+      await pumpHeader();
+      await _tapFilter(tester, 'Newest');
+      await pumpHeader();
+      await tester.tap(
+        find.ancestor(
+          of: find.text('Random'),
+          matching: find.byType(KurumiPopupMenuItem),
+        ),
+      );
+      await pumpHeader();
+      final firstOrder = controller.items.map((post) => post.id).toList();
+      // Retry is valid: a random permutation can coincidentally repeat.
+      var changed = false;
+      for (var attempt = 0; attempt < 8 && !changed; attempt++) {
+        await tester.tap(find.byTooltip('Shuffle bookmarks'));
+        await pumpHeader();
+        changed = !listEquals(
+          firstOrder,
+          controller.items.map((post) => post.id).toList(),
+        );
+      }
+      expect(changed, isTrue);
+      expect(controller.items.length, expectedCount);
+      expect(container.read(selectedBooruUrlProvider), 'gelbooru.example');
+      expect(tester.widget<TextField>(search).controller!.text, 'red');
+      expect(container.read(bookmarkProvider).requireValue, same(library));
+      await tester.tap(
+        find.descendant(
+          of: find.byType(PostGridConfigIconButton),
+          matching: find.byType(KurumiPopupMenuButton),
+        ),
+      );
+      await pumpHeader();
+      await tester.tap(
+        find.ancestor(
+          of: find.text('Select'),
+          matching: find.byType(KurumiPopupMenuItem),
+        ),
+      );
+      await pumpHeader();
+      final selection = SelectionMode.of(pageContext);
+      expect(selection.isActive, isTrue);
+      await tester.tap(find.byIcon(Symbols.select_all));
+      await pumpHeader();
+      expect(selection.selection.length, expectedCount);
+      final download = tester.widget<MultiSelectButton>(
+        find.byWidgetPredicate(
+          (widget) => widget is MultiSelectButton && widget.name == 'Download',
+        ),
+      );
+      expect(download.onPressed, isNotNull);
+      final groupActions = find.byWidgetPredicate(
+        (widget) =>
+            widget is MultiSelectPopupButton && widget.name == 'Bookmarks',
+      );
+      expect(
+        tester.widget<MultiSelectPopupButton>(groupActions).enabled,
+        isTrue,
+      );
+      await tester.tap(
+        find.descendant(
+          of: groupActions,
+          matching: find.byType(KurumiPopupMenuButton),
+        ),
+      );
+      await pumpHeader();
+      expect(find.text('Remove from group'), findsOneWidget);
+      await tester.tap(
+        find.ancestor(
+          of: find.text('Delete'),
+          matching: find.byType(KurumiPopupMenuItem),
+        ),
+      );
+      await pumpHeader();
+      expect(find.byType(AlertDialog), findsOneWidget);
+      await tester.tap(find.text('Cancel'));
+      await pumpHeader();
+      expect(container.read(bookmarkProvider).requireValue, same(library));
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await pumpHeader();
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   testWidgets(
     'bookmark grid group previews and viewer decode from the same ordinary cache without a download',
     (tester) async {
@@ -1105,4 +1294,21 @@ class _CacheBookmarkNotifier extends BookmarkLibraryNotifier {
   final BookmarkLibraryState library;
   @override
   FutureOr<BookmarkLibraryState> build() => library;
+}
+
+Future<void> _tapFilter(WidgetTester tester, String label) async {
+  final button = find.ancestor(
+    of: find.text(label),
+    matching: find.byType(KurumiPopupMenuButton),
+  );
+  await tester.ensureVisible(button);
+  await tester.pump();
+  final viewport = find.byWidgetPredicate(
+    (widget) =>
+        widget is SingleChildScrollView &&
+        widget.scrollDirection == Axis.horizontal,
+  );
+  final visible = tester.getRect(button).intersect(tester.getRect(viewport));
+  expect(visible.isEmpty, isFalse);
+  await tester.tapAt(visible.center);
 }

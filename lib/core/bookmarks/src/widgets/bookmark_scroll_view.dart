@@ -1,7 +1,6 @@
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:foundation/foundation.dart';
-import 'package:foundation/widgets.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
@@ -31,10 +30,8 @@ import '../providers/bookmark_shuffle_provider.dart';
 import '../providers/local_providers.dart';
 import '../routes/route_utils.dart';
 import 'bookmark_appbar.dart';
-import 'bookmark_booru_type_selector.dart';
+import 'bookmark_list_controls.dart';
 import 'bookmark_search_bar.dart';
-import 'bookmark_shuffle_button.dart';
-import 'bookmark_sort_button.dart';
 import 'bookmark_multi_selection.dart';
 
 class BookmarkScrollView extends ConsumerStatefulWidget {
@@ -205,28 +202,7 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                 ),
               ],
             ),
-            header: Container(
-              margin: const EdgeInsets.symmetric(vertical: 8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: ValueListenableBuilder(
-                      valueListenable: controller.itemsNotifier,
-                      builder: (_, posts, _) => Text(
-                        context.t.bookmark.counter(n: posts.length),
-                        style: Kurumi.themeOf(context).textTheme.titleLarge,
-                      ),
-                    ),
-                  ),
-                  PostGridConfigIconButton(
-                    postController: controller,
-                    showBlacklist: false,
-                  ),
-                ],
-              ),
-            ),
+            header: const SizedBox.shrink(),
             itemBuilder: (context, index, autoScrollController, useHero) =>
                 _buildItem(
                   index,
@@ -241,7 +217,6 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                 titleSpacing: 0,
                 backgroundColor: Kurumi.themeOf(context).colorScheme.surface,
                 title: BookmarkAppBar(
-                  controller: controller,
                   title: widget.title,
                 ),
               ),
@@ -251,25 +226,17 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                   postController: controller,
                 ),
               ),
-              const SliverPinnedHeader(
-                child: BookmarkBooruSourceUrlSelector(),
-              ),
-              const SliverSizedBox(height: 8),
-              ValueListenableBuilder(
-                valueListenable: controller.itemsNotifier,
-                builder: (_, posts, _) => posts.isNotEmpty
-                    ? const SliverToBoxAdapter(
-                        child: Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 8),
-                          child: Row(
-                            children: [
-                              BookmarkSortButton(),
-                              BookmarkShuffleButton(),
-                            ],
-                          ),
-                        ),
-                      )
-                    : const SliverSizedBox.shrink(),
+              SliverPinnedHeader(
+                child: ValueListenableBuilder(
+                  valueListenable: controller.itemsNotifier,
+                  builder: (_, posts, _) => BookmarkListControls(
+                    count: posts.length,
+                    gridConfig: PostGridConfigIconButton(
+                      postController: controller,
+                      showBlacklist: false,
+                    ),
+                  ),
+                ),
               ),
             ],
           );
@@ -282,16 +249,10 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
     int index,
     PostGridController<Post> controller,
   ) {
-    final edit = ref.watch(bookmarkEditProvider);
-
     return ValueListenableBuilder(
       valueListenable: controller.itemsNotifier,
       builder: (_, posts, _) {
         final post = posts[index];
-        final bookmark = ref
-            .watch(bookmarkProvider)
-            .valueOrNull
-            ?.bookmarkForPost(post);
         final config = switch (const PostOriginResolver().resolve(
           post.origin,
           ref.watch(booruConfigProvider),
@@ -304,74 +265,52 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
             : null;
         final effectiveAuth = config?.auth ?? BooruConfig.empty.auth;
 
-        return Stack(
-          children: [
-            PostGridContextMenu(
-              index: index,
-              controller: controller,
-              child: DefaultImageGridItem(
-                index: index,
-                autoScrollController: widget.scrollController,
+        return PostGridContextMenu(
+          index: index,
+          controller: controller,
+          child: DefaultImageGridItem(
+            index: index,
+            autoScrollController: widget.scrollController,
+            controller: controller,
+            useHero: false,
+            config: effectiveAuth,
+            imageConfig: config?.auth,
+            presentation: presentation,
+            leadingIcons: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: config == null
+                    ? ConfigAwareWebsiteLogo.fromBooruType(
+                        post.origin.booruType,
+                        post.origin.sourceHost,
+                        fit: BoxFit.contain,
+                      )
+                    : ConfigAwareWebsiteLogo.fromConfig(
+                        config.auth,
+                        customIconUrl: config.profileIcon?.url,
+                        fit: BoxFit.contain,
+                      ),
+              ),
+            ],
+            onTap: () {
+              goToBookmarkDetailsPage(
+                ref,
+                index,
+                initialThumbnailUrl: ref
+                    .read(
+                      gridThumbnailUrlGeneratorProvider(effectiveAuth),
+                    )
+                    .resolve(
+                      post,
+                      settings: ref.read(
+                        gridThumbnailSettingsProvider(effectiveAuth),
+                      ),
+                    )
+                    .url,
                 controller: controller,
-                useHero: false,
-                config: effectiveAuth,
-                imageConfig: config?.auth,
-                presentation: presentation,
-                leadingIcons: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: config == null
-                        ? ConfigAwareWebsiteLogo.fromBooruType(
-                            post.origin.booruType,
-                            post.origin.sourceHost,
-                            fit: BoxFit.contain,
-                          )
-                        : ConfigAwareWebsiteLogo.fromConfig(
-                            config.auth,
-                            customIconUrl: config.profileIcon?.url,
-                            fit: BoxFit.contain,
-                          ),
-                  ),
-                ],
-                onTap: () {
-                  goToBookmarkDetailsPage(
-                    ref,
-                    index,
-                    initialThumbnailUrl: ref
-                        .read(
-                          gridThumbnailUrlGeneratorProvider(effectiveAuth),
-                        )
-                        .resolve(
-                          post,
-                          settings: ref.read(
-                            gridThumbnailSettingsProvider(effectiveAuth),
-                          ),
-                        )
-                        .url,
-                    controller: controller,
-                  );
-                },
-              ),
-            ),
-            if (edit)
-              Positioned(
-                top: 5,
-                right: 5,
-                child: KurumiCircularIconButton(
-                  padding: const EdgeInsets.all(4),
-                  icon: const Icon(Symbols.close),
-                  onPressed: bookmark == null
-                      ? null
-                      : () => ref.bookmarks.removeBookmarkFromView(
-                          bookmark,
-                          widget.view,
-                          onSuccess: () {
-                            controller.remove([post.id], (e) => e.id);
-                          },
-                        ),
-                ),
-              ),
-          ],
+              );
+            },
+          ),
         );
       },
     );
