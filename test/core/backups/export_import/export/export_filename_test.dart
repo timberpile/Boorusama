@@ -18,8 +18,14 @@ void main() {
       normalizedExportFileName('  Favorites October  '),
       'Favorites October.bsexport',
     );
-    expect(normalizedExportFileName('Favorites.bsexport'), 'Favorites.bsexport');
-    expect(normalizedExportFileName('Favorites.BSEXPORT'), 'Favorites.bsexport');
+    expect(
+      normalizedExportFileName('Favorites.bsexport'),
+      'Favorites.bsexport',
+    );
+    expect(
+      normalizedExportFileName('Favorites.BSEXPORT'),
+      'Favorites.bsexport',
+    );
     expect(exportFileNameStem('Favorites.bsexport'), 'Favorites');
 
     for (final invalid in [
@@ -33,6 +39,8 @@ void main() {
       'name:invalid',
       'name?',
       'report.',
+      'Favorites .bsexport',
+      'Favorites\t.bsexport',
       'CON',
       'nul.txt',
       'COM1',

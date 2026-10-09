@@ -68,7 +68,8 @@ public final class ExportDocumentTransferTest {
     }
 
     @Test public void rejectsUnsafeCustomFileNameBeforeWriting() throws Exception {
-        for (String invalid : new String[] {"../unsafe.bsexport", "a\\b.bsexport", "CON.bsexport", ".bsexport"}) {
+        for (String invalid : new String[] {"../unsafe.bsexport", "a\\b.bsexport", "CON.bsexport", ".bsexport",
+                "Favorites .bsexport", "Favorites\t.bsexport"}) {
             assertThrows(IOException.class, () -> transfer.copy(source, destination, invalid));
             assertNull(destination.created);
         }

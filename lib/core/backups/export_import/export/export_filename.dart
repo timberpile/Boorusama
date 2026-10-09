@@ -21,6 +21,7 @@ String? normalizedExportFileName(String input) {
       ? trimmed.substring(0, trimmed.length - kExportPackageExtension.length)
       : trimmed;
   if (stem.isEmpty ||
+      stem != stem.trim() ||
       stem == '.' ||
       stem == '..' ||
       stem.endsWith('.') ||

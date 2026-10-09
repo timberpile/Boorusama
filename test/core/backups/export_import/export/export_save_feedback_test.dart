@@ -44,21 +44,25 @@ void main() {
     await tester.pumpAndSettle();
     final dialog = find.byType(KurumiDialog);
     expect(dialog, findsOneWidget);
-    await tester.enterText(
-      find.byKey(const ValueKey('export-file-name-input')),
-      '../invalid',
-    );
-    await tester.pumpAndSettle();
-    expect(
-      find.text('Enter a valid file name without reserved characters.'),
-      findsOneWidget,
-    );
-    expect(
-      tester.widget<FilledButton>(
-        find.descendant(of: dialog, matching: find.byType(FilledButton)),
-      ).onPressed,
-      isNull,
-    );
+    for (final invalid in ['../invalid', 'Favorites .bsexport']) {
+      await tester.enterText(
+        find.byKey(const ValueKey('export-file-name-input')),
+        invalid,
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Enter a valid file name without reserved characters.'),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .widget<FilledButton>(
+              find.descendant(of: dialog, matching: find.byType(FilledButton)),
+            )
+            .onPressed,
+        isNull,
+      );
+    }
 
     await tester.enterText(
       find.byKey(const ValueKey('export-file-name-input')),
