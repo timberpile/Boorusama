@@ -6,21 +6,28 @@ import 'package:i18n/i18n.dart';
 
 // Project imports:
 import '../../bookmarks/types.dart';
+import '../../groups/folder_tree.dart';
 import '../../bookmarks/src/widgets/bookmark_group_label.dart';
 import '../sources/bookmark_backup_data.dart';
 
 Future<BookmarkExportScope?> showBookmarkExportScopeDialog(
   BuildContext context, {
   required List<BookmarkGroup> groups,
+  List<CollectionFolder> folders = const [],
 }) => showDialog<BookmarkExportScope>(
   context: context,
-  builder: (_) => BookmarkExportScopeDialog(groups: groups),
+  builder: (_) => BookmarkExportScopeDialog(groups: groups, folders: folders),
 );
 
 class BookmarkExportScopeDialog extends StatefulWidget {
-  const BookmarkExportScopeDialog({required this.groups, super.key});
+  const BookmarkExportScopeDialog({
+    required this.groups,
+    this.folders = const [],
+    super.key,
+  });
 
   final List<BookmarkGroup> groups;
+  final List<CollectionFolder> folders;
 
   @override
   State<BookmarkExportScopeDialog> createState() =>
@@ -31,12 +38,14 @@ class _BookmarkExportScopeDialogState extends State<BookmarkExportScopeDialog> {
   var _all = true;
   var _ungrouped = false;
   final _groupIds = <String>{};
+  final _folderIds = <String>{};
 
-  bool get _valid => _all || _ungrouped || _groupIds.isNotEmpty;
+  bool get _valid =>
+      _all || _ungrouped || (_groupIds.isNotEmpty || _folderIds.isNotEmpty);
 
   @override
   Widget build(BuildContext context) {
-    final labels = bookmarkGroupLabels(widget.groups);
+    final labels = bookmarkGroupLabels(widget.groups, folders: widget.folders);
     return AlertDialog(
       title: Text(context.t.settings.backup_and_restore.export_scope.title),
       content: SingleChildScrollView(
@@ -71,6 +80,18 @@ class _BookmarkExportScopeDialogState extends State<BookmarkExportScopeDialog> {
               ),
             ),
             if (!_all) ...[
+              for (final f in widget.folders)
+                CheckboxListTile(
+                  value: _folderIds.contains(f.id),
+                  title: Text(FolderTree(widget.folders).path(f.id)),
+                  secondary: const Icon(Icons.folder_outlined),
+                  onChanged: (selected) => setState(() {
+                    if (selected ?? false)
+                      _folderIds.add(f.id);
+                    else
+                      _folderIds.remove(f.id);
+                  }),
+                ),
               for (final group in widget.groups)
                 CheckboxListTile(
                   value: _groupIds.contains(group.id),
@@ -108,6 +129,7 @@ class _BookmarkExportScopeDialogState extends State<BookmarkExportScopeDialog> {
                       ? const BookmarkExportScope.all()
                       : BookmarkExportScope.selected(
                           groupIds: _groupIds,
+                          folderIds: _folderIds,
                           includeUngrouped: _ungrouped,
                         ),
                 )

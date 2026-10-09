@@ -27,7 +27,7 @@ class PinnedSearchesBackupSource
     : super(
         id: 'pinned_searches',
         priority: 100000,
-        version: 1,
+        version: 2,
         extraPayloadEncoder: (_) => const {'source': 'pinned_searches'},
         appVersion: ref.read(appVersionProvider),
         dataGetter: () => _loadPinnedSearchData(ref),
@@ -145,11 +145,12 @@ Future<PinnedSearchBackupData> _loadPinnedSearchData(Ref ref) async {
         .where(exportedIds.contains)
         .toList(),
     folders: [
-      for (final (position, folder) in organization.folders.indexed)
+      for (final folder in organization.folders)
         PinnedSearchFolderBackupRecord(
           id: folder.id,
           name: folder.name,
-          position: position,
+          position: folder.position,
+          parentId: folder.parentId,
           searchIds: folder.searchIds.where(exportedIds.contains).toList(),
         ),
     ],
@@ -164,6 +165,12 @@ Future<PinnedSearchBackupData> _loadPinnedSearchData(Ref ref) async {
             query: subscription.query,
             queryStructure: subscription.queryStructure,
             position: subscription.position,
+            folderId: organization.placements
+                .firstWhere((p) => p.itemId == subscription.id)
+                .folderId,
+            folderPosition: organization.placements
+                .firstWhere((p) => p.itemId == subscription.id)
+                .position,
             profile: BackupProfileReference(
               id: profile.id,
               booruType: profile.auth.booruType.name,
@@ -184,7 +191,10 @@ Future<SearchBackupImportApproval> _confirmImportPreview(
   final repository = await ref.read(
     searchSubscriptionRepositoryProvider.future,
   );
-  final service = PinnedSearchImportService(repository: repository);
+  final service = PinnedSearchImportService(
+    repository: repository,
+    importFolderName: Translations().folders.imported_searches,
+  );
   final projected = service.preview(
     data,
     profiles: await projectedProfilesGetter(),
@@ -219,7 +229,10 @@ Future<BackupOperationResult> _applyApproved(
   repository,
 ) async {
   final profiles = await ref.read(booruConfigRepoProvider).getAll();
-  final service = PinnedSearchImportService(repository: repository);
+  final service = PinnedSearchImportService(
+    repository: repository,
+    importFolderName: Translations().folders.imported_searches,
+  );
   final preview = service.preview(data, profiles: profiles);
   if (!const SetEquality<String>().equals(
     preview.unmatchedRecordIds,

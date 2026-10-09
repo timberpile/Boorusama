@@ -1,3 +1,4 @@
+import '../../search/subscriptions/subscription_test_utils.dart';
 import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -55,7 +56,10 @@ void main() {
     bookmarkBox = await Hive.openBox<BookmarkHiveObject>('bookmarks_test');
     groupBox = await Hive.openBox<BookmarkGroupHiveObject>('groups_test');
     bookmarkRepository = BookmarkHiveRepository(bookmarkBox);
-    groupRepository = BookmarkGroupRepositoryHive(groupBox);
+    groupRepository = BookmarkGroupRepositoryHive(
+      groupBox,
+      organizationBox: MemoryBox<dynamic>(),
+    );
   });
 
   tearDown(() async {

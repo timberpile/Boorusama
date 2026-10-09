@@ -26,6 +26,7 @@ import '../services/bookmark_library_service.dart';
 import '../services/bookmark_hydration_service.dart';
 import '../types/bookmark.dart';
 import '../types/bookmark_group.dart';
+import '../../../groups/folder_tree.dart';
 import '../types/bookmark_library_state.dart';
 import '../types/bookmark_repository.dart';
 import '../types/bookmark_target.dart';
@@ -437,36 +438,119 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     return BookmarkToggleOutcome.removed;
   }
 
-  Future<BookmarkGroup> createGroup(String name, {bool activate = false}) =>
-      _serialize(() async {
-        final group = await (await _service).createGroup(name);
-        var activated = false;
-        if (activate) {
-          activated = await ref
-              .read(settingsNotifierProvider.notifier)
-              .updateWith(
-                (settings) => settings.copyWith(
-                  activeBookmarkGroupId: group.id,
-                ),
-              );
-        }
-        if (activate && !activated) {
-          await (await ref.read(
-            bookmarkGroupRepoProvider.future,
-          )).deleteGroup(group.id);
-          throw StateError('Failed to activate bookmark group ${group.id}.');
-        }
-        await _publishCommittedMutation(
-          activated ? BookmarkTarget.group(group.id) : null,
+  Future<BookmarkGroup> createGroup(
+    String name, {
+    bool activate = false,
+    String? folderId,
+  }) => _serialize(() async {
+    var group = await (await _service).createGroup(name);
+    if (folderId != null) {
+      try {
+        await (await _service).moveFolderItems(
+          groupIds: {group.id},
+          destination: folderId,
         );
-        return group;
-      });
+        group = (await (await ref.read(
+          bookmarkGroupRepoProvider.future,
+        )).getGroup(group.id))!;
+      } catch (_) {
+        await (await ref.read(
+          bookmarkGroupRepoProvider.future,
+        )).deleteGroup(group.id);
+        rethrow;
+      }
+    }
+    var activated = false;
+    if (activate) {
+      activated = await ref
+          .read(settingsNotifierProvider.notifier)
+          .updateWith(
+            (settings) => settings.copyWith(
+              activeBookmarkGroupId: group.id,
+            ),
+          );
+    }
+    if (activate && !activated) {
+      await (await ref.read(
+        bookmarkGroupRepoProvider.future,
+      )).deleteGroup(group.id);
+      throw StateError('Failed to activate bookmark group ${group.id}.');
+    }
+    await _publishCommittedMutation(
+      activated ? BookmarkTarget.group(group.id) : null,
+    );
+    return group;
+  });
 
   Future<BookmarkGroup> duplicateGroup(String groupId, String name) =>
       _serialize(() async {
-        final group = await (await _service).duplicateGroup(groupId, name);
+        final service = await _service;
+        final repository = await ref.read(bookmarkGroupRepoProvider.future);
+        final source = (await repository.getGroup(groupId))!;
+        var group = await service.duplicateGroup(groupId, name);
+        try {
+          if (source.folderId != null)
+            await service.moveFolderItems(
+              groupIds: {group.id},
+              destination: source.folderId,
+            );
+        } catch (_) {
+          await repository.deleteGroup(group.id);
+          rethrow;
+        }
+        group = (await repository.getGroup(group.id))!;
         await _publishCommittedMutation();
         return group;
+      });
+
+  Future<CollectionFolder> createFolder(String name, {String? parentId}) =>
+      runSerializedMutation(
+        () async => (await _service).createFolder(name, parentId: parentId),
+      );
+  Future<void> renameFolder(String id, String name) => runSerializedMutation(
+    () async => (await _service).renameFolder(id, name),
+  );
+  Future<void> moveFolderItems({
+    Set<String> folderIds = const {},
+    Set<String> groupIds = const {},
+    required String? destination,
+  }) => runSerializedMutation(
+    () async => (await _service).moveFolderItems(
+      folderIds: folderIds,
+      groupIds: groupIds,
+      destination: destination,
+    ),
+  );
+  Future<BookmarkFolderDeletionPreview> previewDeleteFolder(String id) =>
+      _serialize(() async => (await _service).previewDeleteFolder(id));
+  Future<void> deleteFolder(BookmarkFolderDeletionPreview expected) =>
+      runSerializedMutation(() async {
+        final service = await _service;
+        final current = await service.previewDeleteFolder(expected.folderId);
+        if (current != expected) throw BookmarkFolderChangedException(current);
+        final active = ref.read(settingsProvider).activeBookmarkGroupId;
+        final clear = active != null && current.groupIds.contains(active);
+        if (clear) {
+          final ok = await ref
+              .read(settingsNotifierProvider.notifier)
+              .updateWith((s) => s.copyWith(activeBookmarkGroupId: null));
+          if (!ok) throw StateError('Failed to clear active target');
+        }
+        try {
+          await service.deleteFolder(expected);
+        } catch (error, stack) {
+          if (clear) {
+            final ok = await ref
+                .read(settingsNotifierProvider.notifier)
+                .updateWith((s) => s.copyWith(activeBookmarkGroupId: active));
+            if (!ok)
+              throw BookmarkGroupDeletionRollbackException(
+                deletionError: error,
+                rollbackErrors: [StateError('Failed to restore active target')],
+              );
+          }
+          Error.throwWithStackTrace(error, stack);
+        }
       });
 
   Future<void> renameGroup(String groupId, String name) => _serialize(() async {
@@ -738,14 +822,27 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
   Future<({BookmarkGroup group, int addedCount})> createGroupWithPosts(
     String name,
     BooruConfigAuth config,
-    Iterable<Post> posts,
-  ) => _serialize(() async {
+    Iterable<Post> posts, {
+    String? folderId,
+  }) => _serialize(() async {
     for (final post in posts) {
       BookmarkIdentity.fromPost(post);
     }
     final previousTarget = (await future).activeTarget;
     final repository = await ref.read(bookmarkGroupRepoProvider.future);
     final group = await (await _service).createGroup(name);
+    try {
+      if (folderId != null)
+        await (await _service).moveFolderItems(
+          groupIds: {group.id},
+          destination: folderId,
+        );
+    } catch (_) {
+      await (await ref.read(
+        bookmarkGroupRepoProvider.future,
+      )).deleteGroup(group.id);
+      rethrow;
+    }
     final activated = await ref
         .read(settingsNotifierProvider.notifier)
         .updateWith(

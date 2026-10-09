@@ -193,6 +193,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text(groupName), findsNWidgets(2));
+    expect(find.byType(KurumiPopupMenuItem), findsWidgets);
+    expect(find.byType(AlertDialog), findsNothing);
+    expect(find.byType(PopupMenuItem<String>), findsNothing);
   });
 
   testWidgets('tapping the caption overlap activates the icon button', (

@@ -8,12 +8,14 @@ Future<String?> showBookmarkGroupNameDialog(
   BuildContext context, {
   required String title,
   String? initialName,
+  String? hint,
 }) async {
   final result = await showDialog<String>(
     context: context,
     builder: (_) => _BookmarkGroupNameDialog(
       title: title,
       initialName: initialName,
+      hint: hint,
     ),
   );
   return switch (result?.trim()) {
@@ -23,10 +25,15 @@ Future<String?> showBookmarkGroupNameDialog(
 }
 
 class _BookmarkGroupNameDialog extends StatefulWidget {
-  const _BookmarkGroupNameDialog({required this.title, this.initialName});
+  const _BookmarkGroupNameDialog({
+    required this.title,
+    this.initialName,
+    this.hint,
+  });
 
   final String title;
   final String? initialName;
+  final String? hint;
 
   @override
   State<_BookmarkGroupNameDialog> createState() =>
@@ -49,7 +56,9 @@ class _BookmarkGroupNameDialogState extends State<_BookmarkGroupNameDialog> {
       controller: _controller,
       autofocus: true,
       textCapitalization: TextCapitalization.sentences,
-      decoration: InputDecoration(hintText: context.t.bookmark.groups.name),
+      decoration: InputDecoration(
+        hintText: widget.hint ?? context.t.bookmark.groups.name,
+      ),
       onSubmitted: (value) => Navigator.pop(context, value.trim()),
     ),
     actions: [

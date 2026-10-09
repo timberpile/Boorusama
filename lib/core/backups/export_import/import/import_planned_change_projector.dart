@@ -1,5 +1,9 @@
 import 'package:collection/collection.dart';
 import 'package:equatable/equatable.dart';
+import 'package:i18n/i18n.dart';
+import '../../../groups/folder_tree.dart';
+import '../../sources/pinned_search_import_service.dart';
+import 'collection_import_action.dart';
 
 import '../../../bookmarks/types.dart';
 import '../../../configs/config/types.dart';
@@ -7,7 +11,6 @@ import '../../../search/subscriptions/types.dart';
 import '../../sources/bookmark_backup_data.dart';
 import '../../sources/following_feed_backup_data.dart';
 import '../../sources/pinned_search_backup_data.dart';
-import '../../sources/pinned_search_import_names.dart';
 import '../../sources/search_backup_profile.dart';
 import '../models/import_action.dart';
 import 'import_plan.dart';
@@ -21,11 +24,13 @@ final class BookmarkImportLocalSnapshot {
   BookmarkImportLocalSnapshot({
     required Iterable<Bookmark> bookmarks,
     required Iterable<BookmarkGroup> groups,
+    this.folders = const [],
   }) : bookmarks = List.unmodifiable(bookmarks),
        groups = List.unmodifiable(groups);
 
   final List<Bookmark> bookmarks;
   final List<BookmarkGroup> groups;
+  final List<CollectionFolder> folders;
 }
 
 final class PinnedSearchImportLocalSnapshot {
@@ -260,6 +265,7 @@ final class ImportPlannedChangeProjector {
           mappedBookmarks[bookmark.id] ?? bookmark,
       ],
       groups: incoming.groups,
+      folders: incoming.folders,
     );
     final localByIdentity = {
       for (final bookmark in local.bookmarks)
@@ -273,12 +279,15 @@ final class ImportPlannedChangeProjector {
       for (final group in local.groups)
         group.id: _BookmarkGroupValue(
           name: group.name,
+          folderId: group.folderId,
+          position: group.position,
           bookmarkIds: {
             for (final id in group.bookmarkIds) ?localIdentityById[id],
           },
         ),
     };
     final localEntities = <Object, Object?>{
+      for (final f in local.folders) _key('bookmark-folder', f.id): f,
       for (final entry in localByIdentity.entries)
         _key('bookmark', entry.key): _BookmarkValue.from(entry.value),
       for (final entry in localGroups.entries)
@@ -298,6 +307,7 @@ final class ImportPlannedChangeProjector {
     };
     if (resolution.action == ImportAction.replace) {
       final projected = <Object, Object?>{
+        for (final f in data.folders) _key('bookmark-folder', f.id): f,
         for (final entry in incomingByIdentity.entries)
           _key('bookmark', entry.key): _BookmarkValue.from(entry.value),
         for (final (index, group) in data.groups.indexed)
@@ -306,6 +316,8 @@ final class ImportPlannedChangeProjector {
             group.id ?? 'legacy-$index',
           ): _BookmarkGroupValue(
             name: group.name,
+            folderId: group.folderId,
+            position: group.position,
             bookmarkIds: {
               for (final id in group.bookmarkIds) ?incomingIdentityById[id],
             },
@@ -365,6 +377,27 @@ final class ImportPlannedChangeProjector {
       touched.add(_key('bookmark', identity));
     }
 
+    final copies = chosenGroups
+        .where(
+          (g) =>
+              (actions['group:${g.id}']?.action ??
+                  (localGroups.containsKey(g.id)
+                      ? ImportAction.update
+                      : ImportAction.copy)) ==
+              ImportAction.copy,
+        )
+        .toList();
+    var nextFolderId = 0;
+    final hierarchy = copies.isEmpty
+        ? null
+        : planFolderHierarchyCopy(
+            current: local.folders,
+            incoming: data.folders,
+            itemFolders: copies.map((g) => g.folderId),
+            wrapperName: Translations().folders.imported_groups,
+            newId: () => '__created__bookmark-folder-${nextFolderId++}',
+          );
+    final projectedFolders = hierarchy?.folders ?? local.folders;
     final orphanCandidates = <BookmarkUniqueId>{};
     for (final (index, group) in chosenGroups.indexed) {
       final sourceId = group.id ?? 'legacy-$index';
@@ -397,6 +430,8 @@ final class ImportPlannedChangeProjector {
       projectedGroups[targetId] = switch (action) {
         ImportAction.update => _BookmarkGroupValue(
           name: existing?.name ?? group.name,
+          folderId: existing?.folderId,
+          position: existing?.position ?? group.position,
           bookmarkIds: memberships,
         ),
         ImportAction.replace => _BookmarkGroupValue(
@@ -406,10 +441,16 @@ final class ImportPlannedChangeProjector {
         ImportAction.merge ||
         ImportAction.mergeIntoTarget => _BookmarkGroupValue(
           name: existing?.name ?? group.name,
+          folderId: existing?.folderId,
+          position: existing?.position ?? group.position,
           bookmarkIds: {...?existing?.bookmarkIds, ...memberships},
         ),
         ImportAction.copy => _BookmarkGroupValue(
           name: group.name,
+          folderId: group.folderId == null
+              ? hierarchy?.wrapperId
+              : hierarchy?.folderIds[group.folderId],
+          position: group.position,
           bookmarkIds: memberships,
         ),
         ImportAction.skip || ImportAction.configureItems => throw StateError(
@@ -433,6 +474,7 @@ final class ImportPlannedChangeProjector {
     return _summarize(
       local: localEntities,
       projected: {
+        for (final f in projectedFolders) _key('bookmark-folder', f.id): f,
         for (final entry in projectedBookmarks.entries)
           _key('bookmark', entry.key): _BookmarkValue.from(entry.value),
         for (final entry in projectedGroups.entries)
@@ -459,8 +501,8 @@ final class ImportPlannedChangeProjector {
     final localEntities = <Object, Object?>{
       for (final entry in localSearches.entries)
         _key('pinned-search', entry.key): _SearchValue.from(entry.value),
-      for (final (position, folder) in localFolders.indexed)
-        _key('pinned-folder', folder.id): _FolderValue.from(folder, position),
+      for (final folder in localFolders)
+        _key('pinned-folder', folder.id): _FolderValue.from(folder),
       _key('pinned-home', 'home'): _HomeValue(
         local.organization.homeSearchIds,
       ),
@@ -499,7 +541,15 @@ final class ImportPlannedChangeProjector {
       });
     for (final (_, record) in orderedRecords) {
       if (resolution.action != ImportAction.replace &&
-          items['search:${record.id}']?.action == ImportAction.skip) {
+          (items['search:${record.id}']?.action == ImportAction.skip ||
+              pinnedSearchFolderSkipped(incoming, record.id, {
+                for (final item in resolution.items)
+                  if (item.id.startsWith('folder:'))
+                    item.id.substring(7): CollectionImportAction(
+                      itemId: item.id.substring(7),
+                      action: item.action,
+                    ),
+              }))) {
         continue;
       }
       final profileId = _profileId(record.profile, profileMappings);
@@ -561,6 +611,8 @@ final class ImportPlannedChangeProjector {
           SharedSearchFolder(
             id: record.id,
             name: record.name,
+            parentId: record.parentId,
+            position: record.position,
             searchIds: mapped(record.searchIds),
           ),
       ];
@@ -568,18 +620,24 @@ final class ImportPlannedChangeProjector {
       final folderActions = {
         for (final item in resolution.items)
           if (item.id.startsWith('folder:'))
-            item.id.substring('folder:'.length): item,
+            item.id.substring(7): CollectionImportAction(
+              itemId: item.id.substring(7),
+              action: item.action,
+              targetId: _optionalIdWithoutPrefix(item.targetId, 'folder:'),
+            ),
       };
-      final applied = _projectFolders(
-        currentFolders: folders,
-        currentHome: home,
-        incoming: incoming,
+      var nextFolderId = 0;
+      final organization = planPinnedSearchFolderImport(
+        current: local.organization,
+        data: incoming,
         importedByBackupId: importedByBackupId,
-        actions: folderActions,
-        createdIds: createdIds,
+        createdIds: createdIds.toSet(),
+        folderActions: folderActions,
+        wrapperName: Translations().folders.imported_searches,
+        newId: () => '__created__search-folder-${nextFolderId++}',
       );
-      folders = applied.folders;
-      home = applied.home;
+      folders = organization.folders;
+      home = organization.homeSearchIds;
     }
     for (final folder in folders) {
       if (localFolders.any((value) => value.id == folder.id) ||
@@ -596,8 +654,8 @@ final class ImportPlannedChangeProjector {
       projected: {
         for (final entry in projectedSearches.entries)
           _key('pinned-search', entry.key): _SearchValue.from(entry.value),
-        for (final (position, folder) in folders.indexed)
-          _key('pinned-folder', folder.id): _FolderValue.from(folder, position),
+        for (final folder in folders)
+          _key('pinned-folder', folder.id): _FolderValue.from(folder),
         _key('pinned-home', 'home'): _HomeValue(home),
       },
       touched: resolution.action == ImportAction.replace
@@ -783,107 +841,6 @@ final class ImportPlannedChangeProjector {
   }
 }
 
-({List<SharedSearchFolder> folders, List<String> home}) _projectFolders({
-  required List<SharedSearchFolder> currentFolders,
-  required List<String> currentHome,
-  required PinnedSearchBackupData incoming,
-  required Map<String, String> importedByBackupId,
-  required Map<String, ResolvedImportItem> actions,
-  required List<String> createdIds,
-}) {
-  final folders = currentFolders.toList();
-  final assigned = <String>{};
-  List<String> mapped(Iterable<String> ids) => [
-    for (final id in ids)
-      if (importedByBackupId[id] case final localId?)
-        if (assigned.add(localId)) localId,
-  ];
-
-  final home = mapped(incoming.homeSearchIds);
-  final ordered = incoming.folders.toList()
-    ..sort((left, right) => left.position.compareTo(right.position));
-  final reservedNames = {
-    for (final folder in folders) folder.name.toLowerCase(),
-    for (final record in ordered)
-      if (actions[record.id]?.action != ImportAction.copy &&
-          actions[record.id]?.action != ImportAction.skip)
-        record.name.toLowerCase(),
-  };
-  final operations = <({int position, SharedSearchFolder folder})>[];
-  final removedIds = <String>{};
-  for (final (index, record) in ordered.indexed) {
-    final resolution = actions[record.id];
-    if (resolution == null || resolution.action == ImportAction.skip) continue;
-    final members = mapped(record.searchIds);
-    final matchingIndex = folders.indexWhere(
-      (folder) => folder.id == record.id,
-    );
-    final targetId = switch (resolution.action) {
-      ImportAction.mergeIntoTarget => _optionalIdWithoutPrefix(
-        resolution.targetId,
-        'folder:',
-      ),
-      ImportAction.copy when matchingIndex >= 0 =>
-        '__copy__pinned-folder-${record.id}-$index',
-      _ => record.id,
-    };
-    if (targetId == null) throw StateError('Folder target is unresolved');
-    final targetIndex = folders.indexWhere((folder) => folder.id == targetId);
-    final target = targetIndex < 0 ? null : folders[targetIndex];
-    final folder = switch (resolution.action) {
-      ImportAction.update || ImportAction.replace => SharedSearchFolder(
-        id: targetId,
-        name: record.name,
-        searchIds: members,
-      ),
-      ImportAction.merge || ImportAction.mergeIntoTarget => SharedSearchFolder(
-        id: targetId,
-        name: target?.name ?? record.name,
-        searchIds: _orderedUnion(target?.searchIds ?? const [], members),
-      ),
-      ImportAction.copy => SharedSearchFolder(
-        id: targetId,
-        name: allocatePinnedFolderCopyName(record.name, reservedNames),
-        searchIds: members,
-      ),
-      _ => throw StateError('Folder action is not applicable'),
-    };
-    if (targetIndex >= 0) removedIds.add(targetId);
-    operations.add((position: record.position, folder: folder));
-  }
-  final placed = {
-    ...home,
-    for (final operation in operations) ...operation.folder.searchIds,
-  };
-  final remaining = [
-    for (final folder in folders)
-      if (!removedIds.contains(folder.id))
-        SharedSearchFolder(
-          id: folder.id,
-          name: folder.name,
-          searchIds: folder.searchIds.where((id) => !placed.contains(id)),
-        ),
-  ];
-  for (final operation in operations) {
-    remaining.insert(
-      operation.position.clamp(0, remaining.length),
-      operation.folder,
-    );
-  }
-  final organized = {
-    ...home,
-    for (final folder in remaining) ...folder.searchIds,
-  };
-  return (
-    folders: remaining,
-    home: [
-      ...home,
-      ...currentHome.where((id) => !placed.contains(id)),
-      ...createdIds.where((id) => !organized.contains(id)),
-    ],
-  );
-}
-
 Set<String> _saveFeed({
   required FollowingFeedBackupRecord record,
   required String profileId,
@@ -1046,7 +1003,23 @@ List<ImportChangePreviewRow> _previewRows(
                 : null,
             membershipsAdded: nextMembers.difference(oldMembers).length,
             membershipsRemoved: oldMembers.difference(nextMembers).length,
-            entityChanged: old == null || next == null || old.name != next.name,
+            entityChanged:
+                old == null ||
+                next == null ||
+                old.name != next.name ||
+                old.folderId != next.folderId ||
+                old.position != next.position,
+          ),
+        );
+      case final CollectionFolder folder:
+        rows.add(
+          ImportChangePreviewRow(
+            category: 'bookmarks',
+            id: key.id.toString(),
+            kind: kind,
+            label: safeImportDisplayValue('name', folder.name),
+            isContainer: true,
+            entityChanged: true,
           ),
         );
       case final _BookmarkValue _:
@@ -1344,7 +1317,8 @@ List<ImportChangePreviewRow> _pinnedPreviewRows(
             (before is! _FolderValue ||
                 after is! _FolderValue ||
                 before.name != after.name ||
-                before.position != after.position),
+                before.position != after.position ||
+                before.parentId != after.parentId),
         children: children,
         details: [
           if (before is _FolderValue && after is _FolderValue)
@@ -1433,14 +1407,6 @@ String _idWithoutPrefix(String id, String prefix) =>
 String? _optionalIdWithoutPrefix(String? id, String prefix) =>
     id == null ? null : _idWithoutPrefix(id, prefix);
 
-List<String> _orderedUnion(Iterable<String> first, Iterable<String> second) {
-  final seen = <String>{};
-  return [
-    for (final id in [...first, ...second])
-      if (seen.add(id)) id,
-  ];
-}
-
 List<String> _orderedQueryUnion(
   Iterable<String> first,
   Iterable<String> second,
@@ -1490,13 +1456,17 @@ final class _BookmarkGroupValue extends Equatable {
   _BookmarkGroupValue({
     required this.name,
     required Set<BookmarkUniqueId> bookmarkIds,
+    this.folderId,
+    this.position = 0,
   }) : bookmarkIds = Set.unmodifiable(bookmarkIds);
 
   final String name;
   final Set<BookmarkUniqueId> bookmarkIds;
+  final String? folderId;
+  final int position;
 
   @override
-  List<Object> get props => [name, bookmarkIds];
+  List<Object?> get props => [name, bookmarkIds, folderId, position];
 }
 
 final class _SearchValue extends Equatable {
@@ -1528,21 +1498,23 @@ final class _FolderValue extends Equatable {
     required this.name,
     required Iterable<String> searchIds,
     required this.position,
+    this.parentId,
   }) : searchIds = List.unmodifiable(searchIds);
 
-  factory _FolderValue.from(SharedSearchFolder folder, int position) =>
-      _FolderValue(
-        name: folder.name,
-        searchIds: folder.searchIds,
-        position: position,
-      );
+  factory _FolderValue.from(SharedSearchFolder folder) => _FolderValue(
+    name: folder.name,
+    searchIds: folder.searchIds,
+    parentId: folder.parentId,
+    position: folder.position,
+  );
 
   final String name;
   final List<String> searchIds;
   final int position;
+  final String? parentId;
 
   @override
-  List<Object> get props => [name, searchIds, position];
+  List<Object?> get props => [name, searchIds, position, parentId];
 }
 
 final class _HomeValue extends Equatable {

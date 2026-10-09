@@ -94,7 +94,7 @@ void main() {
       );
       expect(data.homeSearchIds, [_id]);
       expect(
-        codec.parse(_payload(data: codec.encode(data))),
+        codec.parse(_payload(data: codec.encode(data), version: 2)),
         data,
       );
     },
@@ -238,16 +238,23 @@ void main() {
           ),
         ],
       );
+      final restored = codec.parse(
+        _payload(data: codec.encode(data), version: 2),
+      );
+      expect(restored.folders, data.folders);
       expect(
-        codec.parse(_payload(data: codec.encode(data))),
-        data,
+        restored.records.map((r) => r.query),
+        data.records.map((r) => r.query),
+      );
+      expect(
+        restored.records.map((r) => r.folderId),
+        everyElement(data.folders.first.id),
       );
       final invalid = codec.encode(data);
-      (invalid.first as Map<String, dynamic>)['searchIds'] = [
-        'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
-      ];
+      (invalid.first as Map<String, dynamic>)['parentId'] =
+          'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
       expect(
-        () => codec.parse(_payload(data: invalid)),
+        () => codec.parse(_payload(data: invalid, version: 2)),
         throwsA(isA<InvalidBackupFormatException>()),
       );
     },
@@ -274,12 +281,14 @@ void main() {
     expect(
       data,
       const PinnedSearchBackupData(
+        homeSearchIds: [_id],
         records: [
           PinnedSearchBackupRecord(
             id: _id,
             name: 'Cats',
             query: 'cat  rating:safe',
             position: 0,
+            folderPosition: 0,
             profile: BackupProfileReference(
               id: '00000000-0000-4000-8000-000000000004',
               booruType: 'danbooru',
@@ -294,11 +303,16 @@ void main() {
     expect(encoded, [
       {
         ..._row(),
+        'folderId': null,
+        'folderPosition': 0,
         'profile': {..._profile(), 'url': 'https://example.test/Posts'},
       },
       {'kind': 'organization', 'homeSearchIds': <String>[]},
     ]);
-    expect(codec.parse(_payload(data: encoded)), data);
+    final restored = codec.parse(_payload(data: encoded, version: 2));
+    expect(restored.records, data.records);
+    expect(restored.folders, data.folders);
+    expect(restored.homeSearchIds, data.homeSearchIds);
   });
 
   test('canonicalizes UUIDs and optional names without changing the query', () {
@@ -340,7 +354,7 @@ void main() {
       'kind': 'typed_tags',
       'tags': ['cat', 'rating:safe'],
     });
-    expect(codec.parse(_payload(data: codec.encode(data))), data);
+    expect(codec.parse(_payload(data: codec.encode(data), version: 2)), data);
   });
 
   for (final c in [
@@ -433,7 +447,7 @@ void main() {
       expect(data.records.single.profile.url, c.output);
       expect(codec.encode(data).first['profile']['url'], c.output);
       expect(
-        codec.parse(_payload(data: codec.encode(data))),
+        codec.parse(_payload(data: codec.encode(data), version: 2)),
         data,
       );
     });
@@ -449,6 +463,7 @@ void main() {
             name: null,
             query: 'cat',
             position: 0,
+            folderPosition: 0,
             profile: BackupProfileReference(
               id: '00000000-0000-4000-8000-000000000004',
               booruType: 'danbooru',
@@ -645,15 +660,16 @@ Map<String, dynamic> _row() => {
   'profile': _profile(),
 };
 
-ExportDataPayload _payload({required List<dynamic> data}) => ExportDataPayload(
-  version: 1,
-  exportDate: null,
-  exportVersion: null,
-  extraFields: const {'source': 'pinned_searches'},
-  data: data.any((row) => row is Map && row['kind'] == 'organization')
-      ? data
-      : [
-          ...data,
-          {'kind': 'organization', 'homeSearchIds': <String>[]},
-        ],
-);
+ExportDataPayload _payload({required List<dynamic> data, int version = 1}) =>
+    ExportDataPayload(
+      version: version,
+      exportDate: null,
+      exportVersion: null,
+      extraFields: const {'source': 'pinned_searches'},
+      data: data.any((row) => row is Map && row['kind'] == 'organization')
+          ? data
+          : [
+              ...data,
+              {'kind': 'organization', 'homeSearchIds': <String>[]},
+            ],
+    );

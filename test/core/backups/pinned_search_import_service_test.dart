@@ -16,12 +16,12 @@ void main() {
     (
       action: ImportAction.update,
       expectedName: 'Remote',
-      expectedIds: [_id(1), _id(2)],
+      expectedIds: [_id(0), _id(1)],
     ),
     (
       action: ImportAction.merge,
       expectedName: 'Local',
-      expectedIds: [_id(0), _id(1), _id(2)],
+      expectedIds: [_id(0), _id(1)],
     ),
   ]) {
     test(
@@ -132,8 +132,14 @@ void main() {
           },
         );
         final folders = (await repository.getOrganization()).folders;
-        expect(folders.first.name, 'Animals (3)');
-        expect(folders.first.searchIds, [_id(1)]);
+        final copy = folders.singleWhere((f) => f.searchIds.contains(_id(1)));
+        expect(copy.name, 'Animals');
+        expect(copy.parentId, isNotNull);
+        expect(copy.id, isNot(incomingId));
+        expect(
+          folders.singleWhere((f) => f.id == copy.parentId).name,
+          'Imported Searches',
+        );
         expect(
           folders
               .singleWhere(
@@ -183,8 +189,13 @@ void main() {
     );
     final folders = (await repository.getOrganization()).folders;
     expect(folders.length, 2);
-    expect(folders.first.searchIds, [(await repository.getAll()).single.id]);
-    expect(folders.last.searchIds, isEmpty);
+    expect(folders.singleWhere((f) => f.name == 'Animals').searchIds, [
+      (await repository.getAll()).single.id,
+    ]);
+    expect(
+      folders.singleWhere((f) => f.name == 'Imported Searches').searchIds,
+      isEmpty,
+    );
   });
 
   test(
@@ -242,7 +253,7 @@ void main() {
       expect(result.skippedProfileCount, 1);
       expect(
         (await repository.getOrganization()).folders.single.searchIds,
-        isEmpty,
+        [_id(0)],
       );
     },
   );
@@ -288,8 +299,17 @@ void main() {
           reference.id == profileUuid(99) ? profileUuid(88) : profileUuid(9),
     );
     final organization = await repository.getOrganization();
-    expect(organization.folders.single.searchIds, [dog.id, existing.id]);
-    expect(organization.homeSearchIds, [_id(3), _id(2)]);
+    expect(
+      organization.folders.singleWhere((f) => f.name == 'Animals').searchIds,
+      [dog.id],
+    );
+    expect(
+      organization.folders
+          .singleWhere((f) => f.name == 'Imported Searches')
+          .searchIds,
+      [_id(3), _id(2)],
+    );
+    expect(organization.homeSearchIds, [existing.id]);
     expect((await repository.getById(dog.id))!.profileId, profileUuid(88));
     await service.apply(
       data,
@@ -394,7 +414,7 @@ void main() {
       expect(result.importedCount, 0);
       expect(await repository.getAll(), [existing]);
       expect(
-        (await repository.getOrganization()).folders.single.searchIds,
+        (await repository.getOrganization()).homeSearchIds,
         [existing.id],
       );
     },
@@ -469,12 +489,12 @@ void main() {
         repository: repository,
       ).apply(data, profiles: [_profile(4)]);
       final organization = await repository.getOrganization();
-      expect(organization.homeSearchIds, [_id(0), _id(3)]);
+      expect(organization.homeSearchIds, [_id(3), _id(2)]);
       expect(organization.folders.map((folder) => folder.name), [
         'Renamed',
         'Empty',
       ]);
-      expect(organization.folders.first.searchIds, [_id(2), _id(1)]);
+      expect(organization.folders.first.searchIds, [_id(0), _id(1)]);
     },
   );
 
@@ -810,9 +830,14 @@ void main() {
           'cat',
         ))!;
         expect(pin.id, isNot(collisionId));
-        expect((await repository.getOrganization()).folders.single.searchIds, [
-          pin.id,
-        ]);
+        expect(
+          (await repository.getOrganization()).folders
+              .singleWhere((f) => f.name == 'Animals')
+              .searchIds,
+          [
+            pin.id,
+          ],
+        );
         expect(
           (await service.apply(
             data,

@@ -1,3 +1,4 @@
+import '../search/subscriptions/subscription_test_utils.dart';
 import 'dart:convert';
 import 'dart:io';
 
@@ -205,13 +206,14 @@ void main() {
           );
           final organization = await harness.searches.getOrganization();
           expect(organization.folders.map((folder) => folder.name), [
+            'Imported Searches',
             'Folder, café',
             'Folder, café (2)',
             'Imported folder 3',
           ]);
           expect(
             organization.folders.map((folder) => folder.searchIds.length),
-            [1, 1, 1],
+            [0, 1, 1, 1],
           );
           final pins = await harness.searches.getAll();
           expect(pins.map((pin) => pin.query), [
@@ -699,7 +701,9 @@ void main() {
               name: null,
             );
             final firstOrganization = await harness.searches.getOrganization();
-            const firstFolderId = '11111111-1111-4111-8111-111111111111';
+            final firstFolderId = firstOrganization.folders
+                .singleWhere((f) => f.name == 'Folder, café')
+                .id;
             await harness.searches.replaceOrganization(
               SearchOrganization(
                 folders: [
@@ -707,6 +711,8 @@ void main() {
                     SharedSearchFolder(
                       id: folder.id,
                       name: folder.name,
+                      parentId: folder.parentId,
+                      position: folder.position,
                       searchIds: [
                         ...folder.searchIds,
                         if (folder.id == firstFolderId) extra.id,
@@ -718,9 +724,8 @@ void main() {
                     .toList(),
               ),
             );
-            // Source/local profile UUIDs differ, so fresh review retains selected
-            // Copy queries and requires mapping again. Reused pins then move
-            // to suffixed copies; local-only pins retain their memberships.
+            // Explicit folder copies get a fresh wrapper. Reused searches keep
+            // their existing placement, including local-only folder contents.
             await notifier.load(packagePaths['']!);
             state = harness.container.read(importFlowProvider);
             notifier.chooseProfileMapping(
@@ -744,7 +749,7 @@ void main() {
                   .sourceSummaries['pinned_searches']!
                   .entitySummaries['pinned-folder']!
                   .created,
-              2,
+              3,
             );
             await notifier.apply(context);
             state = harness.container.read(importFlowProvider);
@@ -764,17 +769,35 @@ void main() {
               copiedOrganization.folders
                   .singleWhere((folder) => folder.id == firstFolderId)
                   .searchIds,
-              [extra.id],
+              [
+                ...firstOrganization.folders
+                    .singleWhere((f) => f.id == firstFolderId)
+                    .searchIds,
+                extra.id,
+              ],
             );
             expect(
               copiedOrganization.folders.map((folder) => folder.name),
-              containsAll(['Folder, café (2)', 'Second folder (2)']),
+              containsAll([
+                'Imported Searches (2)',
+                'Folder, café',
+                'Second folder',
+              ]),
             );
             expect(
               copiedOrganization.folders
-                  .singleWhere((folder) => folder.name == 'Folder, café (2)')
+                  .singleWhere(
+                    (folder) =>
+                        folder.parentId ==
+                            copiedOrganization.folders
+                                .singleWhere(
+                                  (f) => f.name == 'Imported Searches (2)',
+                                )
+                                .id &&
+                        folder.name == 'Folder, café',
+                  )
                   .searchIds,
-              hasLength(2),
+              isEmpty,
             );
             expect(
               await harness.bookmarks.getAllBookmarksOrThrow(
@@ -808,7 +831,10 @@ void main() {
                 items: [
                   for (final item in mergedPins.items)
                     if (item.id.startsWith('folder:'))
-                      item.copyWith(action: ImportAction.merge)
+                      item.copyWith(
+                        action: ImportAction.mergeIntoTarget,
+                        targetId: 'folder:$firstFolderId',
+                      )
                     else
                       item,
                 ],
@@ -876,9 +902,10 @@ Future<void> _expectSearchOrder(
   final queries = {for (final search in searches) search.id: search.query};
   final organization = await harness.searches.getOrganization();
   expect(organization.folders.map((folder) => folder.name), [
+    if (populated) 'Local folder',
+    'Imported Searches',
     'Folder, café',
     'Second folder',
-    if (populated) 'Local folder',
   ]);
   final first = organization.folders.singleWhere(
     (folder) => folder.name == 'Folder, café',
@@ -896,10 +923,14 @@ Future<void> _expectSearchOrder(
       'side_folder',
     ],
   );
-  expect(organization.homeSearchIds.map((id) => queries[id]), [
-    'home_z',
-    'home_a',
-  ]);
+  expect(organization.homeSearchIds, isEmpty);
+  expect(
+    organization.folders
+        .singleWhere((f) => f.name == 'Imported Searches')
+        .searchIds
+        .map((id) => queries[id]),
+    ['home_z', 'home_a'],
+  );
 }
 
 Future<void> _cli(List<String> arguments) async {
@@ -956,7 +987,10 @@ class _Harness {
     );
     final profileBox = await Hive.openBox<String>('booru_configs');
     final bookmarks = BookmarkHiveRepository(bookmarkBox);
-    final groups = BookmarkGroupRepositoryHive(groupBox);
+    final groups = BookmarkGroupRepositoryHive(
+      groupBox,
+      organizationBox: MemoryBox<dynamic>(),
+    );
     final searches = HiveSearchSubscriptionRepository(
       box: searchBox,
       organizationBox: organizationBox,

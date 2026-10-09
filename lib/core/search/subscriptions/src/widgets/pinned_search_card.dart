@@ -118,6 +118,9 @@ class PinnedSearchCard extends StatelessWidget {
     required this.config,
     required this.refreshing,
     required this.onOpen,
+    this.onSelect,
+    this.selected = false,
+    this.selecting = false,
     this.showMoveActions = false,
     this.canMoveUp = false,
     this.canMoveDown = false,
@@ -142,115 +145,142 @@ class PinnedSearchCard extends StatelessWidget {
   final bool canMoveUp;
   final bool canMoveDown;
   final ValueChanged<PinnedSearchAction> onAction;
+  final VoidCallback? onSelect;
+  final bool selected;
+  final bool selecting;
 
   @override
   Widget build(BuildContext context) {
     final strings = context.t.pinned_searches;
 
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onOpen,
-        child: Padding(
-          padding: pinnedSearchCardContentPadding,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      subscription.displayName,
-                      style: Theme.of(context).textTheme.titleMedium,
+    return Semantics(
+      selected: selecting ? selected : null,
+      child: Card(
+        color: selected
+            ? Theme.of(context).colorScheme.secondaryContainer
+            : null,
+        shape: selected
+            ? RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(
+                  color: Theme.of(context).colorScheme.primary,
+                  width: 2,
+                ),
+              )
+            : null,
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onOpen,
+          onLongPress: onSelect,
+          child: Padding(
+            padding: pinnedSearchCardContentPadding,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        subscription.displayName,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                    ),
+                    if (subscription.hasNewPosts)
+                      Semantics(
+                        label: strings.new_posts,
+                        excludeSemantics: true,
+                        child: Badge(label: Text(strings.new_badge)),
+                      ),
+                    if (selected)
+                      Icon(
+                        Icons.check_circle,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    if (!selecting)
+                      PopupMenuButton<PinnedSearchAction>(
+                        icon: const Icon(Symbols.more_vert),
+                        onSelected: onAction,
+                        itemBuilder: (context) =>
+                            actionItemBuilder?.call(context) ??
+                            [
+                              PopupMenuItem(
+                                value: PinnedSearchAction.info,
+                                child: Text(strings.info),
+                              ),
+                              PopupMenuItem(
+                                value: PinnedSearchAction.refresh,
+                                enabled: !refreshing,
+                                child: Text(strings.refresh),
+                              ),
+                              PopupMenuItem(
+                                value: PinnedSearchAction.edit,
+                                child: Text(context.t.generic.action.edit),
+                              ),
+                              if (showMoveActions)
+                                PopupMenuItem(
+                                  value: PinnedSearchAction.moveUp,
+                                  enabled: canMoveUp,
+                                  child: Text(strings.move_up),
+                                ),
+                              if (showMoveActions)
+                                PopupMenuItem(
+                                  value: PinnedSearchAction.moveDown,
+                                  enabled: canMoveDown,
+                                  child: Text(strings.move_down),
+                                ),
+                              PopupMenuItem(
+                                value: PinnedSearchAction.moveFolder,
+                                child: Text(strings.move_to_folder),
+                              ),
+                              PopupMenuItem(
+                                value: PinnedSearchAction.delete,
+                                child: Text(context.t.generic.action.delete),
+                              ),
+                            ],
+                      ),
+                  ],
+                ),
+                if (subscription.displayName != subscription.query)
+                  Text(subscription.query),
+                if (preview != null)
+                  preview!
+                else if (subscription.previews.isNotEmpty && config != null)
+                  Padding(
+                    padding: pinnedSearchCardPreviewPadding,
+                    child: Row(
+                      children: [
+                        for (final preview in subscription.previews.take(4))
+                          Expanded(
+                            child: Padding(
+                              padding: pinnedSearchCardThumbnailPadding,
+                              child: BooruImage(
+                                imageUrl: preview.thumbnailUrl,
+                                config: config!,
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                          ),
+                        for (var i = subscription.previews.length; i < 4; i++)
+                          const Spacer(),
+                      ],
                     ),
                   ),
-                  if (subscription.hasNewPosts)
-                    Semantics(
-                      label: strings.new_posts,
-                      excludeSemantics: true,
-                      child: Badge(label: Text(strings.new_badge)),
+                metadata ??
+                    PinnedSearchCardMetadata(
+                      leading: ownerCaption,
+                      lastPostAt: subscription.lastPostAt,
+                      hasBaseline: subscription.hasBaseline,
                     ),
-                  PopupMenuButton<PinnedSearchAction>(
-                    icon: const Icon(Symbols.more_vert),
-                    onSelected: onAction,
-                    itemBuilder: (context) =>
-                        actionItemBuilder?.call(context) ??
-                        [
-                          PopupMenuItem(
-                            value: PinnedSearchAction.info,
-                            child: Text(strings.info),
-                          ),
-                          PopupMenuItem(
-                            value: PinnedSearchAction.refresh,
-                            enabled: !refreshing,
-                            child: Text(strings.refresh),
-                          ),
-                          PopupMenuItem(
-                            value: PinnedSearchAction.edit,
-                            child: Text(context.t.generic.action.edit),
-                          ),
-                          if (showMoveActions)
-                            PopupMenuItem(
-                              value: PinnedSearchAction.moveUp,
-                              enabled: canMoveUp,
-                              child: Text(strings.move_up),
-                            ),
-                          if (showMoveActions)
-                            PopupMenuItem(
-                              value: PinnedSearchAction.moveDown,
-                              enabled: canMoveDown,
-                              child: Text(strings.move_down),
-                            ),
-                          PopupMenuItem(
-                            value: PinnedSearchAction.moveFolder,
-                            child: Text(strings.move_to_folder),
-                          ),
-                          PopupMenuItem(
-                            value: PinnedSearchAction.delete,
-                            child: Text(context.t.generic.action.delete),
-                          ),
-                        ],
+                if (refreshing) Text(strings.refreshing),
+                if (subscription.lastErrorKind case final kind?)
+                  Text(
+                    searchRefreshErrorText(context, kind),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
                   ),
-                ],
-              ),
-              if (subscription.displayName != subscription.query)
-                Text(subscription.query),
-              if (preview != null)
-                preview!
-              else if (subscription.previews.isNotEmpty && config != null)
-                Padding(
-                  padding: pinnedSearchCardPreviewPadding,
-                  child: Row(
-                    children: [
-                      for (final preview in subscription.previews.take(4))
-                        Expanded(
-                          child: Padding(
-                            padding: pinnedSearchCardThumbnailPadding,
-                            child: BooruImage(
-                              imageUrl: preview.thumbnailUrl,
-                              config: config!,
-                              fit: BoxFit.cover,
-                            ),
-                          ),
-                        ),
-                      for (var i = subscription.previews.length; i < 4; i++)
-                        const Spacer(),
-                    ],
-                  ),
-                ),
-              metadata ??
-                  PinnedSearchCardMetadata(
-                    leading: ownerCaption,
-                    lastPostAt: subscription.lastPostAt,
-                    hasBaseline: subscription.hasBaseline,
-                  ),
-              if (refreshing) Text(strings.refreshing),
-              if (subscription.lastErrorKind case final kind?)
-                Text(
-                  searchRefreshErrorText(context, kind),
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
-                ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

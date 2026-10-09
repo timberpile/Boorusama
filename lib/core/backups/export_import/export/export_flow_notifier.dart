@@ -147,10 +147,9 @@ final exportFlowProvider =
 
 class ExportFlowNotifier extends AutoDisposeNotifier<ExportFlowState> {
   @override
-  ExportFlowState build() {
-    ref.watch(exportImportSourcesProvider);
-    return const ExportFlowState.initial();
-  }
+  // Descriptors are read when used; catalog refreshes must preserve the user's
+  // selection, export mode, and credential choice.
+  ExportFlowState build() => const ExportFlowState.initial();
 
   List<ExportSelectionDescriptor> get descriptors => [
     for (final source in ref.read(exportImportSourcesProvider))

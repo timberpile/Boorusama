@@ -1,3 +1,4 @@
+import '../search/subscriptions/subscription_test_utils.dart';
 import 'dart:typed_data';
 import 'package:cache_manager/cache_manager.dart';
 // Dart imports:
@@ -71,7 +72,10 @@ void main() {
     bookmarkBox = await Hive.openBox<BookmarkHiveObject>('bookmarks_test');
     groupBox = await Hive.openBox<BookmarkGroupHiveObject>('groups_test');
     bookmarkRepository = BookmarkHiveRepository(bookmarkBox);
-    groupRepository = BookmarkGroupRepositoryHive(groupBox);
+    groupRepository = BookmarkGroupRepositoryHive(
+      groupBox,
+      organizationBox: MemoryBox<dynamic>(),
+    );
     images = DefaultImageCacheManager(
       cacheRootPathProvider: () => tempDirectory.path,
     );

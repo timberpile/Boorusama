@@ -6,9 +6,13 @@ class BookmarkGroupHiveObject extends HiveObject {
     required this.id,
     required this.name,
     required this.bookmarkIds,
+    this.folderId,
+    this.position = 0,
   });
 
   String id;
   String name;
   List<int> bookmarkIds;
+  String? folderId;
+  int position;
 }

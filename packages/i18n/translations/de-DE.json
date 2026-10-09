@@ -1071,6 +1071,15 @@
     }
   },
   "bookmark": {
+    "groups": {
+      "add_folder": "Gruppenordner hinzufügen",
+      "add": "Gruppe hinzufügen",
+      "move_here": "Hierher verschieben",
+      "folder_memberships": {
+        "one": "1 Gruppe enthält dieses Lesezeichen",
+        "other": "$n Gruppen enthalten dieses Lesezeichen"
+      }
+    },
     "added": "Lesezeichen hinzugefügt",
     "failed_to_add": "Lesezeichen konnte nicht hinzugefügt werden",
     "missing_post_identity": "Dieser Post hat keine stabile ID und kann nicht als Lesezeichen gespeichert werden",
@@ -1300,5 +1309,22 @@
   "misc": {
     "trailing_more": " mehr",
     "trailing_less": " weniger"
+  },
+  "folders": {
+    "home": "Start",
+    "create": "Ordner erstellen",
+    "rename": "Ordner umbenennen",
+    "move": "Verschieben",
+    "name": "Ordnername",
+    "delete_title": "„{name}“ löschen?",
+    "delete_bookmarks": "Dadurch werden {folders} Ordner, {groups} Lesezeichengruppen und {bookmarks} Lesezeichen, die keiner anderen Gruppe angehören, endgültig gelöscht.",
+    "delete_searches": "Dadurch werden {folders} Ordner und {searches} angeheftete Suchen endgültig gelöscht.",
+    "select": "Auswählen",
+    "selected": "{count} ausgewählt",
+    "imported_groups": "Importierte Gruppen",
+    "imported_searches": "Importierte Suchen",
+    "move_up": "Nach oben",
+    "move_down": "Nach unten",
+    "invalid": "Der Ordnername oder das Ziel ist ungültig."
   }
 }

@@ -26,6 +26,7 @@ class BookmarkImportPlanner {
     final currentGroupIds = currentGroups.map((group) => group.id).toSet();
     return BookmarkImportPlan(
       bookmarks: List.unmodifiable(data.bookmarks),
+      folders: data.folders,
       missingBookmarks: data.bookmarks
           .where(
             (bookmark) =>
@@ -37,6 +38,8 @@ class BookmarkImportPlanner {
           BookmarkGroupImport(
             id: group.id ?? uuid.v4().toLowerCase(),
             name: group.name,
+            folderId: group.folderId,
+            position: group.position,
             bookmarkIds: {
               for (final exportedId in group.bookmarkIds)
                 ?importedByLocalId[exportedId],

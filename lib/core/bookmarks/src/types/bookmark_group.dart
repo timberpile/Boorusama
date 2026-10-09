@@ -6,25 +6,34 @@ class BookmarkGroup extends Equatable {
     required this.id,
     required this.name,
     required Set<int> bookmarkIds,
+    this.folderId,
+    this.position = 0,
   }) : bookmarkIds = Set.unmodifiable(bookmarkIds);
 
   final String id;
   final String name;
+  final String? folderId;
+  final int position;
   final Set<int> bookmarkIds;
 
   BookmarkGroup copyWith({
     String? name,
     Set<int>? bookmarkIds,
+    String? folderId,
+    bool home = false,
+    int? position,
   }) {
     return BookmarkGroup(
       id: id,
       name: name ?? this.name,
       bookmarkIds: bookmarkIds ?? this.bookmarkIds,
+      folderId: home ? null : folderId ?? this.folderId,
+      position: position ?? this.position,
     );
   }
 
   @override
-  List<Object?> get props => [id, name, bookmarkIds];
+  List<Object?> get props => [id, name, bookmarkIds, folderId, position];
 }
 
 class BookmarkGroupDeletionPreview extends Equatable {

@@ -60,74 +60,71 @@ class BookmarkPostButton extends ConsumerWidget {
         ? context.t.bookmark.groups.remove_from(name: activeLabel)
         : context.t.bookmark.groups.add_to(name: activeLabel);
 
-    return KurumiTooltip(
-      message: actionLabel,
-      padding: const EdgeInsets.all(8),
-      child: GestureDetector(
-        behavior: HitTestBehavior.translucent,
-        onLongPressStart: isLoading
-            ? null
-            : (details) => showAnchoredBookmarkGroupPicker(
-                context,
-                config: config,
-                post: post,
-                position: details.globalPosition,
-              ),
-        child: Stack(
-          alignment: Alignment.topCenter,
-          children: [
-            IconButton(
-              splashRadius: 16,
-              onPressed: isLoading
-                  ? null
-                  : () async {
-                      if (presentation?.activeTargetUnavailable ?? false) {
-                        await showBookmarkGroupPicker(
-                          context,
-                          config: config,
-                          post: post,
-                        );
-                        return;
-                      }
-                      await ref.toggleBookmarkTarget(post, config, context);
-                    },
-              icon: Badge(
-                isLabelVisible: presentation?.showNamedGroupCount ?? false,
-                label: Text('${presentation?.namedGroupCount ?? 0}'),
-                child: CustomPaint(
-                  size: const Size(32, 24),
-                  painter: BookmarkWithDropdownIconPainter(
-                    color: isBookmarked
-                        ? context.colors.upvoteColor
-                        : IconTheme.of(context).color ?? Colors.grey,
-                    fill: isBookmarked,
+    return BookmarkGroupPickerAnchor(
+      config: config,
+      post: post,
+      builder: (context, showPicker) => KurumiTooltip(
+        message: actionLabel,
+        padding: const EdgeInsets.all(8),
+        child: GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onLongPressStart: isLoading ? null : (_) => showPicker(),
+          child: Stack(
+            alignment: Alignment.topCenter,
+            children: [
+              IconButton(
+                splashRadius: 16,
+                onPressed: isLoading
+                    ? null
+                    : () async {
+                        if (presentation?.activeTargetUnavailable ?? false) {
+                          await showBookmarkGroupPicker(
+                            context,
+                            config: config,
+                            post: post,
+                          );
+                          return;
+                        }
+                        await ref.toggleBookmarkTarget(post, config, context);
+                      },
+                icon: Badge(
+                  isLabelVisible: presentation?.showNamedGroupCount ?? false,
+                  label: Text('${presentation?.namedGroupCount ?? 0}'),
+                  child: CustomPaint(
+                    size: const Size(32, 24),
+                    painter: BookmarkWithDropdownIconPainter(
+                      color: isBookmarked
+                          ? context.colors.upvoteColor
+                          : IconTheme.of(context).color ?? Colors.grey,
+                      fill: isBookmarked,
+                    ),
                   ),
                 ),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.only(
-                top: _bookmarkCaptionTop,
-                bottom: _bookmarkCaptionBottom,
-              ),
-              child: IgnorePointer(
-                child: OverflowBox(
-                  fit: OverflowBoxFit.deferToChild,
-                  minWidth: 112,
-                  maxWidth: 112,
-                  child: Text(
-                    activeLabel,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                    style: Kurumi.themeOf(
-                      context,
-                    ).textTheme.labelSmall?.copyWith(height: 1),
+              Padding(
+                padding: const EdgeInsets.only(
+                  top: _bookmarkCaptionTop,
+                  bottom: _bookmarkCaptionBottom,
+                ),
+                child: IgnorePointer(
+                  child: OverflowBox(
+                    fit: OverflowBoxFit.deferToChild,
+                    minWidth: 112,
+                    maxWidth: 112,
+                    child: Text(
+                      activeLabel,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: Kurumi.themeOf(
+                        context,
+                      ).textTheme.labelSmall?.copyWith(height: 1),
+                    ),
                   ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -157,40 +154,37 @@ class BookmarkPostLikeButtonButton extends ConsumerWidget {
     final showCount = presentation?.showNamedGroupCount ?? false;
     final isLoading = bookmarkStateAsync.isLoading;
 
-    return GestureDetector(
-      onLongPressStart: isLoading
-          ? null
-          : (details) => showAnchoredBookmarkGroupPicker(
-              context,
-              config: booruConfig,
-              post: post,
-              position: details.globalPosition,
+    return BookmarkGroupPickerAnchor(
+      config: booruConfig,
+      post: post,
+      builder: (context, showPicker) => GestureDetector(
+        onLongPressStart: isLoading ? null : (_) => showPicker(),
+        child: LikeButton(
+          isLiked: isBookmarked,
+          onTap: isLoading
+              ? null
+              : (isLiked) async {
+                  final outcome = await ref.toggleBookmarkTarget(
+                    post,
+                    booruConfig,
+                    context,
+                  );
+                  return switch (outcome) {
+                    BookmarkToggleOutcome.added => true,
+                    BookmarkToggleOutcome.removed => false,
+                    _ => isLiked,
+                  };
+                },
+          likeBuilder: (isLiked) => Badge(
+            isLabelVisible: showCount,
+            label: Text('${presentation?.namedGroupCount ?? 0}'),
+            child: Icon(
+              Symbols.bookmark,
+              color: isLiked
+                  ? context.colors.upvoteColor
+                  : context.extendedColorScheme.onSurfaceContainerOverlay,
+              fill: isLiked ? 1 : 0,
             ),
-      child: LikeButton(
-        isLiked: isBookmarked,
-        onTap: isLoading
-            ? null
-            : (isLiked) async {
-                final outcome = await ref.toggleBookmarkTarget(
-                  post,
-                  booruConfig,
-                  context,
-                );
-                return switch (outcome) {
-                  BookmarkToggleOutcome.added => true,
-                  BookmarkToggleOutcome.removed => false,
-                  _ => isLiked,
-                };
-              },
-        likeBuilder: (isLiked) => Badge(
-          isLabelVisible: showCount,
-          label: Text('${presentation?.namedGroupCount ?? 0}'),
-          child: Icon(
-            Symbols.bookmark,
-            color: isLiked
-                ? context.colors.upvoteColor
-                : context.extendedColorScheme.onSurfaceContainerOverlay,
-            fill: isLiked ? 1 : 0,
           ),
         ),
       ),

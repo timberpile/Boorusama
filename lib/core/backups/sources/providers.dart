@@ -14,6 +14,7 @@ import '../export_import/sources/profile_export_sanitizer.dart';
 import '../types/backup_registry.dart';
 import 'blacklisted_tags_source.dart';
 import 'bookmark_backup_data.dart';
+import '../export_import/import/import_item_labels.dart';
 import 'bookmarks_source.dart';
 import 'booru_configs_source.dart';
 import 'downloads_source.dart';
@@ -99,29 +100,28 @@ final exportImportSourcesProvider = Provider<List<ExportImportSource>>((ref) {
     for (final search in searches?.subscriptions ?? const [])
       if (!internalSearchIds.contains(search.id)) search.id: search,
   };
-  final pinnedSearchChildren = <ExportSelectionNode>[
-    for (final folder in searches?.organization.folders ?? const [])
-      ExportSelectionNode(
-        id: ExportSelectionIds.pinnedSearchFolder(folder.id),
-        canHaveChildren: true,
-        children: [
-          for (final id in folder.searchIds)
-            if (selectableSearches.containsKey(id))
-              ExportSelectionNode(id: ExportSelectionIds.pinnedSearch(id)),
-        ],
-      ),
-    if ((searches?.organization.homeSearchIds ?? const []).any(
-      selectableSearches.containsKey,
-    ))
-      ExportSelectionNode(
-        id: ExportSelectionIds.pinnedSearchHome,
-        canHaveChildren: true,
-        children: [
-          for (final id in searches?.organization.homeSearchIds ?? const [])
-            if (selectableSearches.containsKey(id))
-              ExportSelectionNode(id: ExportSelectionIds.pinnedSearch(id)),
-        ],
-      ),
+  final pinnedSearchChildren = [
+    ...buildFolderSelectionNodes(
+      folders: searches?.organization.folders ?? [],
+      folderPrefix: 'folder:',
+      items: {
+        for (final f in searches?.organization.folders ?? const [])
+          f.id: [
+            for (final id in f.searchIds)
+              if (selectableSearches.containsKey(id))
+                ExportSelectionNode(id: ExportSelectionIds.pinnedSearch(id)),
+          ],
+      },
+    ),
+    ExportSelectionNode(
+      id: ExportSelectionIds.pinnedSearchHome,
+      canHaveChildren: true,
+      children: [
+        for (final id in searches?.organization.homeSearchIds ?? const [])
+          if (selectableSearches.containsKey(id))
+            ExportSelectionNode(id: ExportSelectionIds.pinnedSearch(id)),
+      ],
+    ),
   ];
 
   return [
@@ -157,15 +157,21 @@ final exportImportSourcesProvider = Provider<List<ExportImportSource>>((ref) {
       source: ref.watch(bookmarksBackupSourceProvider),
       descriptor: ExportSelectionDescriptor.collection(
         id: 'bookmarks',
-        childIds: {
-          ExportSelectionIds.ungroupedBookmarks,
-          for (final group in bookmarks?.groups ?? const [])
-            ExportSelectionIds.bookmarkGroup(group.id),
-        },
+        children: bookmarkExportNodes(
+          buildBookmarkBackupData(
+            bookmarks: bookmarks?.items ?? [],
+            groups: bookmarks?.groups ?? [],
+            folders: bookmarks?.folders ?? [],
+            scope: const BookmarkExportScope.all(),
+          ),
+        ),
       ),
       scopeBuilder: (selection) => switch (selection.kind) {
         ExportNodeSelectionKind.all => const BookmarkExportScope.all(),
         ExportNodeSelectionKind.explicit => BookmarkExportScope.selected(
+          folderIds: selection.childIds
+              .where((id) => id.startsWith('group-folder:'))
+              .map((id) => id.substring(13)),
           groupIds: selection.childIds
               .map(ExportSelectionIds.bookmarkGroupId)
               .whereType<String>(),

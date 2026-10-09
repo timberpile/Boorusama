@@ -61,6 +61,14 @@ and distinguish local results from CI, device, and upgrade acceptance.
 - Treat external data as nullable and handle null cases explicitly.
 - Comment only non-obvious logic or decisions, not what the code already says.
 
+## UI consistency
+
+Inspect comparable screens and interactions before implementing UI. Reuse existing
+application components and their spacing, typography, sizing, and behavior. Prefer
+`KurumiAnchor`, `KurumiPopupMenuItem`, and `KurumiContextMenu` for menus; keep row
+styling consistent within a popup rather than mixing Material and Kurumi items.
+Make deviations intentional and explain why they are needed.
+
 ## Tests
 
 - Focus on observable behavior rather than implementation details.

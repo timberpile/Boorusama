@@ -8,6 +8,7 @@ import 'package:boorusama/core/search/subscriptions/providers.dart';
 import 'package:boorusama/core/search/subscriptions/routes.dart';
 import 'package:boorusama/core/search/subscriptions/src/pages/pinned_searches_page.dart';
 import 'package:boorusama/core/search/subscriptions/src/widgets/pinned_search_card.dart';
+import 'package:boorusama/core/search/subscriptions/src/widgets/pinned_search_folder_card.dart';
 import 'package:boorusama/core/search/subscriptions/types.dart';
 import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
@@ -372,6 +373,169 @@ void main() {
     expect(find.text('Refresh All'), findsOneWidget);
   });
 
+  testWidgets(
+    'empty nested search folders retain breadcrumb navigation without requests',
+    (tester) async {
+      initialize();
+      await harness.container.read(searchSubscriptionsProvider.future);
+      final notifier = harness.container.read(
+        searchSubscriptionsProvider.notifier,
+      );
+      final root = await notifier.createSharedFolder('Root');
+      final empty = await notifier.createSharedFolder(
+        'Empty',
+        parentId: root.id,
+      );
+      await tester.binding.setSurfaceSize(const Size(320, 700));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await harness.pump(tester, PinnedSearchesPage(folderId: empty.id));
+      expect(find.text('Home'), findsOneWidget);
+      expect(find.text('Root'), findsOneWidget);
+      expect(find.text('No pinned searches yet'), findsOneWidget);
+      expect(harness.requests, isEmpty);
+      expect(tester.takeException(), isNull);
+      await notifier.deleteSharedFolderAndPins(empty.id);
+      await drain(tester);
+      expect(find.text('Pinned Searches'), findsOneWidget);
+      expect(find.text('Root'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      expect(harness.requests, isEmpty);
+    },
+  );
+  for (final startWithFolder in [false, true]) {
+    testWidgets(
+      'long press ${startWithFolder ? 'folder' : 'pin'} selects, deselects, and cancels at narrow width',
+      (tester) async {
+        initialize();
+        await tester.binding.setSurfaceSize(const Size(320, 700));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        await harness.seed([pinnedFixture()]);
+        final notifier = harness.container.read(
+          searchSubscriptionsProvider.notifier,
+        );
+        final folder = await notifier.createSharedFolder('Favorites');
+        await harness.pump(
+          tester,
+          const MediaQuery(
+            data: MediaQueryData(textScaler: TextScaler.linear(2)),
+            child: PinnedSearchesPage(),
+          ),
+        );
+        final start = startWithFolder ? 'Favorites' : 'Cats';
+        final other = startWithFolder ? 'Cats' : 'Favorites';
+        expect(find.byTooltip('Select'), findsNothing);
+        expect(find.byTooltip('Sort by'), findsOneWidget);
+        expect(pageOverflow(), findsOneWidget);
+        // Per-item action menus remain normal actions, not selection gestures.
+        await openMenu(tester);
+        expect(find.text('1 selected'), findsNothing);
+        await tester.tapAt(const Offset(5, 5));
+        await settle(tester);
+        await tester.longPress(find.text(start));
+        await settle(tester);
+        expect(find.text('1 selected'), findsOneWidget);
+        expect(find.byTooltip('Move'), findsOneWidget);
+        expect(find.byTooltip('Cancel'), findsOneWidget);
+        expect(find.byTooltip('Sort by'), findsNothing);
+        expect(pageOverflow(), findsNothing);
+        expect(find.byType(PopupMenuButton<PinnedSearchAction>), findsNothing);
+        expect(find.byIcon(Icons.check_circle), findsOneWidget);
+        final pinCard = tester.widget<PinnedSearchCard>(
+          find.byType(PinnedSearchCard),
+        );
+        final folderCard = tester.widget<PinnedSearchFolderCard>(
+          find.byType(PinnedSearchFolderCard),
+        );
+        expect(pinCard.selected, !startWithFolder);
+        expect(folderCard.selected, startWithFolder);
+        await tester.tap(find.text(other));
+        await settle(tester);
+        expect(find.text('2 selected'), findsOneWidget);
+        expect(find.byIcon(Icons.check_circle), findsNWidgets(2));
+        await tester.tap(find.text(start));
+        await settle(tester);
+        expect(find.text('1 selected'), findsOneWidget);
+        await tester.tap(find.text(other));
+        await settle(tester);
+        expect(find.text('0 selected'), findsNothing);
+        expect(find.text('Pinned Searches'), findsOneWidget);
+        expect(find.byTooltip('Move'), findsNothing);
+        expect(find.byTooltip('Sort by'), findsOneWidget);
+        expect(pageOverflow(), findsOneWidget);
+        // Cancel clears both sets, so a new selection starts with one item.
+        await tester.longPress(find.text(start));
+        await settle(tester);
+        await tester.tap(find.text(other));
+        await settle(tester);
+        await tester.tap(find.byTooltip('Cancel'));
+        await settle(tester);
+        await tester.longPress(find.text(other));
+        await settle(tester);
+        expect(find.text('1 selected'), findsOneWidget);
+        await tester.tap(find.byTooltip('Move'));
+        await settle(tester);
+        await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+        await settle(tester);
+        expect(find.text('1 selected'), findsOneWidget);
+        await tester.tap(find.byTooltip('Cancel'));
+        await settle(tester);
+        // Normal folder navigation is restored.
+        await tester.tap(find.text('Favorites'));
+        await settle(tester);
+        expect(find.text('Home'), findsOneWidget);
+        expect(find.text('Favorites'), findsNWidgets(2));
+        expect(
+          (await harness.repository.getOrganization()).folders.single.id,
+          folder.id,
+        );
+        expect(harness.requests, isEmpty);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  testWidgets(
+    'multi-selection taps select folder and pin cards before one Move',
+    (tester) async {
+      initialize();
+      await harness.seed([pinnedFixture()]);
+      await harness.container.read(searchSubscriptionsProvider.future);
+      final notifier = harness.container.read(
+        searchSubscriptionsProvider.notifier,
+      );
+      final folder = await notifier.createSharedFolder('Selected folder');
+      final destination = await notifier.createSharedFolder('Destination');
+      final original = await harness.repository.getById('cats');
+      await pump(tester);
+      await tester.longPress(find.text('Selected folder'));
+      await tester.tap(find.text('Cats'));
+      await settle(tester);
+      expect(find.text('2 selected'), findsOneWidget);
+      expect(harness.requests, isEmpty);
+      await tester.tap(find.byTooltip('Move'));
+      await settle(tester);
+      await tester.tap(find.text('Destination').last);
+      await settle(tester);
+      await tester.tap(find.widgetWithText(FilledButton, 'Move'));
+      await drain(tester);
+      final saved = await harness.repository.getOrganization();
+      expect(
+        saved.folders.singleWhere((f) => f.id == folder.id).parentId,
+        destination.id,
+      );
+      expect(
+        saved.folders.singleWhere((f) => f.id == destination.id).searchIds,
+        ['cats'],
+      );
+      expect(await harness.repository.getById('cats'), original);
+      expect(find.text('Pinned Searches'), findsOneWidget);
+      expect(find.byTooltip('Move'), findsNothing);
+      expect(find.byIcon(Icons.check_circle), findsNothing);
+      expect(find.byTooltip('Sort by'), findsOneWidget);
+      expect(pageOverflow(), findsOneWidget);
+      expect(harness.requests, isEmpty);
+    },
+  );
   for (final scenario in ['existing', 'home', 'create', 'cancel', 'failure']) {
     testWidgets(
       'moving a pin to $scenario preserves its owner and commits only on success',
@@ -396,14 +560,16 @@ void main() {
         await notifier.movePinToSharedFolder('cats', oldFolder.id);
         await notifier.movePinToSharedFolder('dogs', otherFolder.id);
         await harness.pump(tester, PinnedSearchesPage(folderId: oldFolder.id));
-        await choose(tester, 'Move to folder');
-        expect(find.text('[Home]'), findsOneWidget);
+        await choose(tester, 'Move');
+        expect(find.text('Home'), findsWidgets);
         expect(find.text('Other owner folder'), findsOneWidget);
         expect(find.text('Create folder'), findsOneWidget);
         if (scenario == 'existing' || scenario == 'home') {
           await tester.tap(
-            find.text(scenario == 'home' ? '[Home]' : 'Other owner folder'),
+            find.text(scenario == 'home' ? 'Home' : 'Other owner folder').last,
           );
+          await settle(tester);
+          await tester.tap(find.widgetWithText(FilledButton, 'Move'));
         } else {
           await tester.tap(find.text('Create folder'));
           await settle(tester);
@@ -413,7 +579,13 @@ void main() {
             scenario == 'failure' ? 'Original' : 'New folder',
           );
           await tester.pump();
-          await tester.tap(find.text(scenario == 'cancel' ? 'Cancel' : 'Save'));
+          await tester.tap(
+            find.text(scenario == 'cancel' ? 'Cancel' : 'Save').last,
+          );
+          if (scenario == 'cancel') {
+            await settle(tester);
+            await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+          }
         }
         await settle(tester);
         await drain(tester);
@@ -505,11 +677,10 @@ void main() {
 
     expect(find.byTooltip('Sort by'), findsOneWidget);
     await openPageMenu(tester);
-    for (final label in ['Add searches', 'Refresh Folder']) {
+    for (final label in ['Add searches', 'Create folder', 'Refresh Folder']) {
       expect(find.text(label), findsOneWidget);
     }
     for (final label in [
-      'Create folder',
       'Refresh settings',
       'Refresh All',
     ]) {

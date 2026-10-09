@@ -1,5 +1,4 @@
 // Package imports:
-import 'package:collection/collection.dart';
 import 'package:equatable/equatable.dart';
 
 // Project imports:
@@ -8,8 +7,10 @@ import '../export_import/models/import_action.dart';
 import '../../configs/config/types.dart';
 import '../../search/subscriptions/types.dart';
 import 'pinned_search_backup_data.dart';
-import 'pinned_search_import_names.dart';
+import '../../groups/folder_tree.dart';
+import 'package:uuid/uuid.dart';
 import 'search_backup_profile.dart';
+import '../export_import/import/search_runtime_snapshot.dart';
 
 class PinnedSearchImportResult extends Equatable {
   const PinnedSearchImportResult({
@@ -47,9 +48,13 @@ class UnmatchedPinnedSearchProfilesException implements Exception {
 }
 
 class PinnedSearchImportService {
-  const PinnedSearchImportService({required this.repository});
+  const PinnedSearchImportService({
+    required this.repository,
+    this.importFolderName = 'Imported Searches',
+  });
 
   final SearchSubscriptionRepository repository;
+  final String importFolderName;
 
   PinnedSearchImportPreview preview(
     PinnedSearchBackupData data, {
@@ -75,6 +80,25 @@ class PinnedSearchImportService {
     required List<BooruConfig> profiles,
     BackupProfileIdResolver? profileIdResolver,
   }) async {
+    final snapshots = SearchRuntimeSnapshotService(repository);
+    final previous = await snapshots.capture();
+    try {
+      return await _replace(
+        data,
+        profiles: profiles,
+        profileIdResolver: profileIdResolver,
+      );
+    } catch (error, stack) {
+      await snapshots.restore(previous);
+      Error.throwWithStackTrace(error, stack);
+    }
+  }
+
+  Future<PinnedSearchImportResult> _replace(
+    PinnedSearchBackupData data, {
+    required List<BooruConfig> profiles,
+    BackupProfileIdResolver? profileIdResolver,
+  }) async {
     final previousOrganization = await repository.getOrganization();
     final internalIds = {
       for (final feed in await repository.getFeeds()) ...feed.sourceIds,
@@ -83,6 +107,7 @@ class PinnedSearchImportService {
       data,
       profiles: profiles,
       profileIdResolver: profileIdResolver,
+      restoreHierarchy: true,
     );
     final importedByBackupId = <String, String>{};
     for (final record in data.records) {
@@ -118,6 +143,8 @@ class PinnedSearchImportService {
             SharedSearchFolder(
               id: folder.id,
               name: folder.name,
+              parentId: folder.parentId,
+              position: folder.position,
               searchIds: mapped(folder.searchIds),
             ),
         ],
@@ -137,6 +164,7 @@ class PinnedSearchImportService {
     Map<String, CollectionImportAction>? folderActions,
     Map<String, ImportAction>? recordActions,
     BackupProfileIdResolver? profileIdResolver,
+    bool restoreHierarchy = false,
   }) async {
     final unmatched = preview(
       data,
@@ -147,6 +175,15 @@ class PinnedSearchImportService {
     if (unmatched.isNotEmpty && !allowMissingProfiles) {
       throw UnmatchedPinnedSearchProfilesException(unmatched);
     }
+    FolderTree([
+      for (final f in data.folders)
+        CollectionFolder(
+          id: f.id,
+          name: f.name,
+          parentId: f.parentId,
+          position: f.position,
+        ),
+    ]);
     final previousOrganization = await repository.getOrganization();
     final createdIds = <String>[];
     final importedByBackupId = <String, String>{};
@@ -169,121 +206,54 @@ class PinnedSearchImportService {
     var imported = 0;
     var existing = 0;
     var skipped = 0;
-    for (final (:record, :profileId) in mapped) {
-      if (recordActions?[record.id] == ImportAction.skip) continue;
-      if (profileId == null) {
-        skipped++;
-        continue;
-      }
-      final byId = await repository.getById(record.id);
-      final byQuery = await repository.findByQuery(profileId, record.query);
-      final saved = byQuery;
-      if (saved != null) {
-        importedByBackupId[record.id] = saved.id;
-        existing++;
-        continue;
-      }
-      final created = await repository.create(
-        profileId: profileId,
-        query: record.query,
-        queryStructure: record.queryStructure,
-        name: record.name,
-        id: byId == null ? record.id : null,
-      );
-      importedByBackupId[record.id] = created.id;
-      createdIds.add(created.id);
-      imported++;
-    }
-    if (createdIds.isNotEmpty ||
-        data.folders.isNotEmpty ||
-        data.homeSearchIds.isNotEmpty) {
-      final organization = SearchOrganization(
-        folders: previousOrganization.folders,
-        homeSearchIds: [...previousOrganization.homeSearchIds, ...createdIds],
-      );
-      final assigned = <String>{};
-      List<String> mappedIds(Iterable<String> ids) => [
-        for (final id in ids)
-          if (importedByBackupId[id] case final savedId?)
-            if (assigned.add(savedId)) savedId,
-      ];
-      final home = mappedIds(data.homeSearchIds);
-      final orderedFolders = data.folders.toList()
-        ..sort((a, b) => a.position.compareTo(b.position));
-      final importedFolders = <SharedSearchFolder>[];
-      final matchedFolderIds = <String>{};
-      for (final record in orderedFolders) {
-        final existingFolder =
-            organization.folders.firstWhereOrNull(
-              (folder) => folder.id == record.id,
-            ) ??
-            organization.folders.firstWhereOrNull(
-              (folder) =>
-                  folder.name.toLowerCase() == record.name.toLowerCase(),
-            );
-        final folderId = existingFolder?.id ?? record.id;
-        matchedFolderIds.add(folderId);
-        final importedIndex = importedFolders.indexWhere(
-          (folder) => folder.id == folderId,
-        );
-        final members = mappedIds(record.searchIds);
-        final folder = SharedSearchFolder(
-          id: folderId,
-          name: existingFolder?.name ?? record.name,
-          searchIds: [
-            if (importedIndex >= 0) ...importedFolders[importedIndex].searchIds,
-            ...members,
-          ],
-        );
-        if (importedIndex >= 0) {
-          importedFolders[importedIndex] = folder;
-        } else {
-          importedFolders.add(folder);
+    try {
+      for (final (:record, :profileId) in mapped) {
+        if (recordActions?[record.id] == ImportAction.skip ||
+            pinnedSearchFolderSkipped(data, record.id, folderActions ?? {})) {
+          continue;
         }
+        if (profileId == null) {
+          skipped++;
+          continue;
+        }
+        final byId = await repository.getById(record.id);
+        final byQuery = await repository.findByQuery(profileId, record.query);
+        final saved = byQuery;
+        if (saved != null) {
+          importedByBackupId[record.id] = saved.id;
+          existing++;
+          continue;
+        }
+        final created = await repository.create(
+          profileId: profileId,
+          query: record.query,
+          queryStructure: record.queryStructure,
+          name: record.name,
+          id: byId == null ? record.id : null,
+        );
+        importedByBackupId[record.id] = created.id;
+        createdIds.add(created.id);
+        imported++;
       }
-      await repository.replaceOrganization(
-        folderActions == null
-            ? SearchOrganization(
-                folders: [
-                  for (final folder in importedFolders)
-                    SharedSearchFolder(
-                      id: folder.id,
-                      name: folder.name,
-                      searchIds: [
-                        ...folder.searchIds,
-                        ...?organization.folders
-                            .firstWhereOrNull(
-                              (local) => local.id == folder.id,
-                            )
-                            ?.searchIds
-                            .where((id) => !assigned.contains(id)),
-                      ],
-                    ),
-                  for (final folder in organization.folders)
-                    if (!matchedFolderIds.contains(folder.id))
-                      SharedSearchFolder(
-                        id: folder.id,
-                        name: folder.name,
-                        searchIds: folder.searchIds.where(
-                          (id) => !assigned.contains(id),
-                        ),
-                      ),
-                ],
-                homeSearchIds: [
-                  ...home,
-                  ...organization.homeSearchIds.where(
-                    (id) => !assigned.contains(id),
-                  ),
-                ],
-              )
-            : _applyFolderActions(
-                current: previousOrganization,
-                imported: data,
-                importedByBackupId: importedByBackupId,
-                actions: folderActions,
-                createdIds: createdIds,
-              ),
-      );
+      if (!restoreHierarchy) {
+        await repository.replaceOrganization(
+          planPinnedSearchFolderImport(
+            current: previousOrganization,
+            data: data,
+            importedByBackupId: importedByBackupId,
+            createdIds: createdIds.toSet(),
+            folderActions: folderActions ?? {},
+            wrapperName: importFolderName,
+            newId: () => const Uuid().v4(),
+          ),
+        );
+      }
+    } catch (error, stack) {
+      for (final id in createdIds) {
+        await repository.delete(id);
+      }
+      await repository.replaceOrganization(previousOrganization);
+      Error.throwWithStackTrace(error, stack);
     }
     return PinnedSearchImportResult(
       importedCount: imported,
@@ -293,109 +263,176 @@ class PinnedSearchImportService {
   }
 }
 
-SearchOrganization _applyFolderActions({
+SearchOrganization planPinnedSearchFolderImport({
   required SearchOrganization current,
-  required PinnedSearchBackupData imported,
+  required PinnedSearchBackupData data,
   required Map<String, String> importedByBackupId,
-  required Map<String, CollectionImportAction> actions,
-  required List<String> createdIds,
+  required Set<String> createdIds,
+  required Map<String, CollectionImportAction> folderActions,
+  required String wrapperName,
+  required String Function() newId,
 }) {
-  final folders = current.folders.toList();
-  final importedAssigned = <String>{};
-  List<String> mapped(Iterable<String> ids) => [
-    for (final id in ids)
-      if (importedByBackupId[id] case final localId?)
-        if (importedAssigned.add(localId)) localId,
-  ];
-
-  final home = mapped(imported.homeSearchIds);
-  final ordered = imported.folders.toList()
-    ..sort((left, right) => left.position.compareTo(right.position));
-  final reservedNames = {
-    for (final folder in folders) folder.name.toLowerCase(),
-    for (final record in ordered)
-      if (actions[record.id]?.action != ImportAction.copy &&
-          actions[record.id]?.action != ImportAction.skip)
-        record.name.toLowerCase(),
+  final assignedCopies = <String>{};
+  final uniqueImported = {
+    for (final e in importedByBackupId.entries)
+      if (assignedCopies.add(e.value)) e.key: e.value,
   };
-  final operations = <({int position, SharedSearchFolder folder})>[];
-  final removedIds = <String>{};
-  for (final record in ordered) {
-    final resolution = actions[record.id];
-    if (resolution == null || resolution.action == ImportAction.skip) continue;
-    final members = mapped(record.searchIds);
-    final matchingIndex = folders.indexWhere(
-      (folder) => folder.id == record.id,
+  final locations = {
+    for (final f in data.folders)
+      for (final (i, id) in f.searchIds.indexed)
+        id: FolderPlacement(itemId: id, folderId: f.id, position: i),
+    for (final (i, id) in data.homeSearchIds.indexed)
+      id: FolderPlacement(itemId: id, position: i),
+  };
+  final sourceFolders = [
+    for (final f in data.folders)
+      CollectionFolder(
+        id: f.id,
+        name: f.name,
+        parentId: f.parentId,
+        position: f.position,
+      ),
+  ];
+  final sourceTree = FolderTree(sourceFolders);
+  if (sourceFolders.isEmpty) {
+    var position = current.placements
+        .where((p) => p.folderId == null)
+        .fold(0, (next, p) => p.position >= next ? p.position + 1 : next);
+    final ordered = uniqueImported.entries.toList()
+      ..sort(
+        (a, b) =>
+            (locations[a.key]?.position ??
+                    data.records.indexWhere((r) => r.id == a.key))
+                .compareTo(
+                  locations[b.key]?.position ??
+                      data.records.indexWhere((r) => r.id == b.key),
+                ),
+      );
+    return SearchOrganization(
+      folders: current.folders,
+      placements: [
+        ...current.placements,
+        for (final entry in ordered)
+          if (createdIds.contains(entry.value))
+            FolderPlacement(itemId: entry.value, position: position++),
+      ],
     );
-    final targetId = switch (resolution.action) {
-      ImportAction.mergeIntoTarget => resolution.targetId,
-      ImportAction.copy =>
-        resolution.destinationId ?? (matchingIndex < 0 ? record.id : null),
-      _ => record.id,
-    };
-    if (targetId == null) throw StateError('Folder target is unresolved.');
-    final targetIndex = folders.indexWhere((folder) => folder.id == targetId);
-    final target = targetIndex < 0 ? null : folders[targetIndex];
-    final folder = switch (resolution.action) {
-      ImportAction.update || ImportAction.replace => SharedSearchFolder(
-        id: targetId,
-        name: record.name,
-        searchIds: members,
-      ),
-      ImportAction.merge || ImportAction.mergeIntoTarget => SharedSearchFolder(
-        id: targetId,
-        name: target?.name ?? record.name,
-        searchIds: _orderedUnion(target?.searchIds ?? const [], members),
-      ),
-      ImportAction.copy => SharedSearchFolder(
-        id: targetId,
-        name: allocatePinnedFolderCopyName(record.name, reservedNames),
-        searchIds: members,
-      ),
-      _ => throw StateError('Folder action is not applicable.'),
-    };
-    if (targetIndex >= 0) removedIds.add(targetId);
-    operations.add((position: record.position, folder: folder));
   }
 
-  final placed = {
-    ...home,
-    for (final operation in operations) ...operation.folder.searchIds,
+  String? targetFolder(String sourceId) {
+    final folderId = locations[sourceId]?.folderId;
+    final action = folderActions[folderId];
+    final target = switch (action?.action) {
+      ImportAction.mergeIntoTarget => action?.targetId,
+      ImportAction.update || ImportAction.merge
+          when current.tree.byId.containsKey(folderId) =>
+        folderId,
+      _ => null,
+    };
+    if (action?.action == ImportAction.mergeIntoTarget &&
+        (target == null || !current.tree.byId.containsKey(target))) {
+      throw StateError('Missing folder target');
+    }
+    return target;
+  }
+
+  final copies = uniqueImported.entries
+      .where((e) => createdIds.contains(e.value))
+      .toList();
+  final reconstructed = copies
+      .where((e) => targetFolder(e.key) == null)
+      .toList();
+  final requestedCopies = {
+    for (final f in data.folders)
+      if (folderActions[f.id]?.action == ImportAction.copy &&
+          !sourceTree
+              .ancestors(f.id)
+              .any((a) => folderActions[a.id]?.action == ImportAction.skip))
+        f.id,
   };
-  final remaining = [
-    for (final folder in folders)
-      if (!removedIds.contains(folder.id))
+  final currentFolders = [
+    for (final f in current.folders)
+      if (folderActions[f.id]?.action == ImportAction.update)
         SharedSearchFolder(
-          id: folder.id,
-          name: folder.name,
-          searchIds: folder.searchIds.where((id) => !placed.contains(id)),
-        ),
+          id: f.id,
+          name: data.folders.singleWhere((r) => r.id == f.id).name,
+          parentId: f.parentId,
+          position: f.position,
+        )
+      else
+        f,
   ];
-  for (final operation in operations) {
-    remaining.insert(
-      operation.position.clamp(0, remaining.length),
-      operation.folder,
+  final requiredPaths = [
+    for (final e in reconstructed) locations[e.key]?.folderId,
+    ...requestedCopies,
+  ];
+  final hierarchy = requiredPaths.isEmpty
+      ? null
+      : planFolderHierarchyCopy(
+          current: currentFolders,
+          incoming: sourceFolders,
+          itemFolders: requiredPaths,
+          wrapperName: wrapperName,
+          newId: newId,
+        );
+  final placements = [...current.placements];
+  for (final entry in copies) {
+    final source = locations[entry.key];
+    final target = targetFolder(entry.key);
+    final destination =
+        target ??
+        (source?.folderId == null
+            ? hierarchy!.wrapperId
+            : hierarchy!.folderIds[source!.folderId]);
+    final position = target == null
+        ? source?.position ?? placements.length
+        : placements
+              .where((p) => p.folderId == target)
+              .fold(0, (n, p) => p.position >= n ? p.position + 1 : n);
+    placements.add(
+      FolderPlacement(
+        itemId: entry.value,
+        folderId: destination,
+        position: position,
+      ),
     );
   }
-  final organized = {
-    ...home,
-    for (final folder in remaining) ...folder.searchIds,
-  };
-  final unassignedCreated = createdIds.where((id) => !organized.contains(id));
-  return SearchOrganization(
-    folders: remaining,
-    homeSearchIds: [
-      ...home,
-      ...current.homeSearchIds.where((id) => !placed.contains(id)),
-      ...unassignedCreated,
+  final folders = hierarchy?.folders ?? currentFolders;
+  final organization = SearchOrganization(
+    folders: [
+      for (final f in folders)
+        SharedSearchFolder(
+          id: f.id,
+          name: f.name,
+          parentId: f.parentId,
+          position: f.position,
+        ),
     ],
+    placements: placements,
   );
+  organization.tree.validatePlacements(organization.placements);
+  return organization;
 }
 
-List<String> _orderedUnion(Iterable<String> first, Iterable<String> second) {
-  final seen = <String>{};
-  return [
-    for (final id in [...first, ...second])
-      if (seen.add(id)) id,
-  ];
+bool pinnedSearchFolderSkipped(
+  PinnedSearchBackupData data,
+  String searchId,
+  Map<String, CollectionImportAction> actions,
+) {
+  final folder = data.folders
+      .where((f) => f.searchIds.contains(searchId))
+      .firstOrNull;
+  if (folder == null) return false;
+  final tree = FolderTree([
+    for (final f in data.folders)
+      CollectionFolder(
+        id: f.id,
+        name: f.name,
+        parentId: f.parentId,
+        position: f.position,
+      ),
+  ]);
+  return tree
+      .ancestors(folder.id)
+      .any((f) => actions[f.id]?.action == ImportAction.skip);
 }

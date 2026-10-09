@@ -136,7 +136,7 @@
     "create_folder": "Create folder",
     "folder": "Folder",
     "folder_name": "Folder name",
-    "move_to_folder": "Move to folder",
+    "move_to_folder": "Move",
     "home": "[Home]",
     "new_folder": "[New]",
     "refresh_folder": "Refresh Folder",
@@ -1743,6 +1743,13 @@
       "all": "All",
       "ungrouped": "No Group",
       "selector": "Bookmark Groups",
+      "add_folder": "Add groups folder",
+      "add": "Add group",
+      "move_here": "Move here",
+      "folder_memberships": {
+        "one": "1 group contains this bookmark",
+        "other": "$n groups contain this bookmark"
+      },
       "create": "Create group",
       "create_new": "Create new group",
       "duplicate": "Duplicate",
@@ -2138,5 +2145,22 @@
         "week_r18g_manga": "R-18G Manga"
       }
     }
+  },
+  "folders": {
+    "home": "Home",
+    "create": "Create folder",
+    "rename": "Rename folder",
+    "move": "Move",
+    "name": "Folder name",
+    "delete_title": "Delete \"{name}\"?",
+    "delete_bookmarks": "This will permanently delete {folders} folders, {groups} bookmark groups, and {bookmarks} bookmarks that are not in any other group.",
+    "delete_searches": "This will permanently delete {folders} folders and {searches} pinned searches.",
+    "select": "Select",
+    "selected": "{count} selected",
+    "imported_groups": "Imported Groups",
+    "imported_searches": "Imported Searches",
+    "move_up": "Move up",
+    "move_down": "Move down",
+    "invalid": "The folder name or destination is invalid."
   }
 }

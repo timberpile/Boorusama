@@ -21,7 +21,7 @@ import 'bookmark_import_planner.dart';
 import 'bookmark_import_service.dart';
 import 'json_source.dart';
 
-const kBookmarksBackupVersion = 4;
+const kBookmarksBackupVersion = 5;
 
 class BookmarksBackupSource extends JsonBackupSource<BookmarkBackupData> {
   BookmarksBackupSource(Ref ref)
@@ -37,6 +37,7 @@ class BookmarksBackupSource extends JsonBackupSource<BookmarkBackupData> {
           return buildBookmarkBackupData(
             bookmarks: state.items,
             groups: state.groups,
+            folders: state.folders,
             scope: const BookmarkExportScope.all(),
           );
         },
@@ -51,6 +52,7 @@ class BookmarksBackupSource extends JsonBackupSource<BookmarkBackupData> {
           return buildBookmarkBackupData(
             bookmarks: state.items,
             groups: state.groups,
+            folders: state.folders,
             scope: scope,
           );
         },
@@ -87,6 +89,7 @@ class BookmarksBackupSource extends JsonBackupSource<BookmarkBackupData> {
                 throw const ImportCancelledException();
               }
               final result = await BookmarkImportService(
+                importFolderName: Translations().folders.imported_groups,
                 bookmarkRepository: bookmarkRepository,
                 groupRepository: groupRepository,
                 imageUrlResolver: (booruId) =>
@@ -140,6 +143,7 @@ class BookmarksBackupSource extends JsonBackupSource<BookmarkBackupData> {
             final scope = await showBookmarkExportScopeDialog(
               context,
               groups: groups,
+              folders: ref.read(bookmarkProvider).valueOrNull?.folders ?? [],
             );
             return scope == null ? null : BackupExportOptions(scope: scope);
           },

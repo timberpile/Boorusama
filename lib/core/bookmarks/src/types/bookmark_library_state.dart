@@ -5,6 +5,7 @@ import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 // Project imports:
 import '../../../posts/post/types.dart';
 import 'bookmark.dart';
+import '../../../groups/folder_tree.dart';
 import 'bookmark_group.dart';
 import 'bookmark_target.dart';
 
@@ -13,7 +14,9 @@ class BookmarkLibraryState extends Equatable {
     required List<Bookmark> bookmarks,
     required List<BookmarkGroup> groups,
     required BookmarkTarget activeTarget,
-  }) : items = List.unmodifiable(bookmarks),
+    List<CollectionFolder> folders = const [],
+  }) : folders = List.unmodifiable(folders),
+       items = List.unmodifiable(bookmarks),
        bookmarks = bookmarks
            .where((bookmark) => bookmark.uniqueId is BookmarkIdentity)
            .map((bookmark) => bookmark.uniqueId)
@@ -36,6 +39,7 @@ class BookmarkLibraryState extends Equatable {
          _buildMemberships(bookmarks, groups),
        );
 
+  final List<CollectionFolder> folders;
   final List<Bookmark> items;
   final ISet<BookmarkUniqueId> bookmarks;
   final List<BookmarkGroup> groups;
@@ -58,7 +62,7 @@ class BookmarkLibraryState extends Equatable {
       )];
 
   @override
-  List<Object?> get props => [items, groups, activeTarget];
+  List<Object?> get props => [items, groups, activeTarget, folders];
 }
 
 BookmarkTarget _effectiveTarget(

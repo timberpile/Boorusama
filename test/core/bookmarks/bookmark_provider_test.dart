@@ -1,3 +1,4 @@
+import '../search/subscriptions/subscription_test_utils.dart';
 // Dart imports:
 import 'dart:async';
 import 'dart:io';
@@ -52,7 +53,10 @@ void main() {
     bookmarkBox = await Hive.openBox<BookmarkHiveObject>('bookmarks_test');
     groupBox = await Hive.openBox<BookmarkGroupHiveObject>('groups_test');
     bookmarkRepository = BookmarkHiveRepository(bookmarkBox);
-    groupRepository = BookmarkGroupRepositoryHive(groupBox);
+    groupRepository = BookmarkGroupRepositoryHive(
+      groupBox,
+      organizationBox: MemoryBox<dynamic>(),
+    );
   });
 
   tearDown(() async {
@@ -88,6 +92,35 @@ void main() {
     return container;
   }
 
+  test(
+    'nested group creation and recursive deletion clear the active target',
+    () async {
+      final container = createContainer();
+      final notifier = container.read(bookmarkProvider.notifier);
+      await notifier.future;
+      final folder = await notifier.createFolder('Cookie');
+      final child = await notifier.createFolder('Child', parentId: folder.id);
+      final group = await notifier.createGroup(
+        'Cookie//literal',
+        folderId: child.id,
+        activate: true,
+      );
+      final before = await notifier.future;
+      expect(before.folders, hasLength(2));
+      expect(before.groups.single.folderId, child.id);
+      expect(before.activeTarget.groupId, group.id);
+      final duplicate = await notifier.duplicateGroup(group.id, 'Copy');
+      expect(duplicate.folderId, child.id);
+      expect(() => before.folders.clear(), throwsUnsupportedError);
+      final preview = await notifier.previewDeleteFolder(folder.id);
+      await notifier.deleteFolder(preview);
+      final after = await notifier.future;
+      expect(after.folders, isEmpty);
+      expect(after.groups, isEmpty);
+      expect(after.activeTarget.groupId, isNull);
+      expect(container.read(settingsProvider).activeBookmarkGroupId, isNull);
+    },
+  );
   test(
     'a post without upstream identity cannot be added as a bookmark',
     () async {

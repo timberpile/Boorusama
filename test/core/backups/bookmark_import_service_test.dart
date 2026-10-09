@@ -1,3 +1,4 @@
+import '../search/subscriptions/subscription_test_utils.dart';
 // Dart imports:
 import 'dart:io';
 
@@ -40,7 +41,10 @@ void main() {
     bookmarkBox = await Hive.openBox('bookmark_import_bookmarks');
     groupBox = await Hive.openBox('bookmark_import_groups');
     bookmarks = BookmarkHiveRepository(bookmarkBox);
-    groups = BookmarkGroupRepositoryHive(groupBox);
+    groups = BookmarkGroupRepositoryHive(
+      groupBox,
+      organizationBox: MemoryBox<dynamic>(),
+    );
   });
 
   tearDown(() async {

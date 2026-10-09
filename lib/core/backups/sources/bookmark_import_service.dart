@@ -4,8 +4,11 @@ import 'package:equatable/equatable.dart';
 // Project imports:
 import '../export_import/models/import_action.dart';
 import '../../bookmarks/types.dart';
+import '../../groups/folder_tree.dart';
+import 'package:uuid/uuid.dart';
 import '../../posts/post/types.dart';
 import 'bookmark_import_plan.dart';
+import 'bookmark_backup_data.dart';
 
 class BookmarkImportResult extends Equatable {
   const BookmarkImportResult({
@@ -37,15 +40,83 @@ class BookmarkImportService {
     required this.bookmarkRepository,
     required this.groupRepository,
     required this.imageUrlResolver,
+    this.importFolderName = 'Imported Groups',
   });
 
   final BookmarkRepository bookmarkRepository;
   final BookmarkGroupRepository groupRepository;
+  final String importFolderName;
   final ImageUrlResolver Function(int? booruId) imageUrlResolver;
+
+  Future<void> replace(BookmarkBackupData data) async {
+    FolderTree(data.folders).validatePlacements([
+      for (final (i, g) in data.groups.indexed)
+        FolderPlacement(
+          itemId: g.id ?? 'legacy-$i',
+          folderId: g.folderId,
+          position: g.position,
+        ),
+    ]);
+    final oldGroups = await groupRepository.getGroups();
+    final oldFolders = await groupRepository.getFolders();
+    final oldBookmarks = await bookmarkRepository.getAllBookmarksOrThrow(
+      imageUrlResolver: imageUrlResolver,
+    );
+    try {
+      for (final g in oldGroups) {
+        await groupRepository.deleteGroup(g.id);
+      }
+      if (oldBookmarks.isNotEmpty)
+        await bookmarkRepository.removeBookmarks(oldBookmarks);
+      final saved = await bookmarkRepository.addBookmarkWithBookmarks(
+        data.bookmarks,
+      );
+      final savedByIdentity = {for (final b in saved) b.transferIdentity: b.id};
+      final importedIds = {
+        for (final b in data.bookmarks)
+          b.id: savedByIdentity[b.transferIdentity],
+      };
+      final restored = <BookmarkGroup>[];
+      for (final g in data.groups) {
+        final group = await groupRepository.createGroup(g.name, id: g.id);
+        final members = await groupRepository.replaceMemberships(group.id, {
+          for (final id in g.bookmarkIds) importedIds[id]!,
+        });
+        restored.add(
+          members.copyWith(folderId: g.folderId, position: g.position),
+        );
+      }
+      await groupRepository.replaceFolderOrganization(data.folders, restored);
+    } catch (error, stack) {
+      final errors = await _rollback(
+        oldGroups: oldGroups,
+        oldFolders: oldFolders,
+        oldGroupIds: oldGroups.map((g) => g.id).toSet(),
+        oldBookmarks: oldBookmarks,
+      );
+      if (errors.isNotEmpty)
+        throw BookmarkImportRollbackException(
+          importError: error,
+          rollbackErrors: errors,
+        );
+      Error.throwWithStackTrace(error, stack);
+    }
+  }
 
   Future<BookmarkImportResult> apply(BookmarkImportPlan plan) async {
     if (!plan.isResolved) throw StateError('Import conflicts are unresolved.');
     final oldGroups = await groupRepository.getGroups();
+    final oldFolders = await groupRepository.getFolders();
+    final sourceTree = FolderTree(plan.folders);
+    sourceTree.validatePlacements([
+      for (final g in plan.groups)
+        FolderPlacement(
+          itemId: g.id,
+          folderId: g.folderId,
+          position: g.position,
+        ),
+    ]);
+    final createdPlacements = <String, FolderPlacement>{};
     final oldGroupIds = oldGroups.map((group) => group.id).toSet();
     final oldBookmarks = await bookmarkRepository.getAllBookmarksOrThrow(
       imageUrlResolver: imageUrlResolver,
@@ -53,6 +124,34 @@ class BookmarkImportService {
     var addedBookmarks = const <Bookmark>[];
     final orphanCandidates = <int>{};
     try {
+      final copies = plan.groups
+          .where((g) => g.resolvedAction == ImportAction.copy)
+          .toList();
+      if (copies.isNotEmpty && groupRepository is BookmarkFolderRepository) {
+        final hierarchy = planFolderHierarchyCopy(
+          current: oldFolders,
+          incoming: plan.folders,
+          itemFolders: copies.map((g) => g.folderId),
+          wrapperName: importFolderName,
+          newId: () => const Uuid().v4(),
+        );
+        await groupRepository.replaceFolderOrganization(
+          hierarchy.folders,
+          oldGroups,
+        );
+        for (final g in copies) {
+          final id =
+              g.destinationId ??
+              (oldGroupIds.contains(g.id) ? const Uuid().v4() : g.id);
+          createdPlacements[g.id] = FolderPlacement(
+            itemId: id,
+            folderId: g.folderId == null
+                ? hierarchy.wrapperId
+                : hierarchy.folderIds[g.folderId],
+            position: g.position,
+          );
+        }
+      }
       if (plan.missingBookmarks.isNotEmpty) {
         addedBookmarks = await bookmarkRepository.addBookmarkWithBookmarks(
           plan.missingBookmarks,
@@ -81,7 +180,10 @@ class BookmarkImportService {
           throw StateError('Merge target is unavailable.');
         }
         if (existing == null) {
-          final destinationId = imported.destinationId ?? imported.id;
+          final destinationId =
+              createdPlacements[imported.id]?.itemId ??
+              imported.destinationId ??
+              imported.id;
           await groupRepository.createGroup(imported.name, id: destinationId);
           await groupRepository.replaceMemberships(
             destinationId,
@@ -113,7 +215,9 @@ class BookmarkImportService {
               ...membershipIds,
             });
           case ImportAction.copy:
-            final destinationId = imported.destinationId;
+            final destinationId =
+                createdPlacements[imported.id]?.itemId ??
+                imported.destinationId;
             if (destinationId == null || destinationId == imported.id) {
               throw StateError('Copy identity is unresolved.');
             }
@@ -131,6 +235,22 @@ class BookmarkImportService {
         }
       }
 
+      if (createdPlacements.isNotEmpty) {
+        final placements = {
+          for (final p in createdPlacements.values) p.itemId: p,
+        };
+        final groups = await groupRepository.getGroups();
+        await groupRepository.replaceFolderOrganization(
+          await groupRepository.getFolders(),
+          [
+            for (final g in groups)
+              if (placements[g.id] case final p?)
+                g.copyWith(folderId: p.folderId, position: p.position)
+              else
+                g,
+          ],
+        );
+      }
       if (orphanCandidates.isNotEmpty) {
         final memberships = {
           for (final group in await groupRepository.getGroups())
@@ -152,6 +272,7 @@ class BookmarkImportService {
     } catch (error, stackTrace) {
       final rollbackErrors = await _rollback(
         oldGroups: oldGroups,
+        oldFolders: oldFolders,
         oldGroupIds: oldGroupIds,
         oldBookmarks: oldBookmarks,
       );
@@ -173,6 +294,7 @@ class BookmarkImportService {
 
   Future<List<Object>> _rollback({
     required List<BookmarkGroup> oldGroups,
+    required List<CollectionFolder> oldFolders,
     required Set<String> oldGroupIds,
     required List<Bookmark> oldBookmarks,
   }) async {
@@ -242,6 +364,18 @@ class BookmarkImportService {
       } catch (error) {
         errors.add(error);
       }
+    }
+    try {
+      await groupRepository.replaceFolderOrganization(oldFolders, [
+        for (final g in oldGroups)
+          g.copyWith(
+            bookmarkIds: {
+              for (final id in g.bookmarkIds) restoredIds[id] ?? id,
+            },
+          ),
+      ]);
+    } catch (e) {
+      errors.add(e);
     }
     return errors;
   }

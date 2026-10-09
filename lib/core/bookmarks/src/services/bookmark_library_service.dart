@@ -5,6 +5,7 @@ import 'package:uuid/uuid.dart';
 // Project imports:
 import '../../../posts/post/types.dart';
 import '../types/bookmark.dart';
+import '../../../groups/folder_tree.dart';
 import '../types/bookmark_group.dart';
 import '../types/bookmark_group_repository.dart';
 import '../types/bookmark_library_state.dart';
@@ -52,11 +53,123 @@ class BookmarkLibraryService {
     await groupRepository.repair(
       validBookmarkIds: bookmarks.map((bookmark) => bookmark.id).toSet(),
     );
+    final groups = await groupRepository.getGroups();
+    final folders = await groupRepository.getFolders();
+    FolderTree(folders).validatePlacements([
+      for (final g in groups)
+        FolderPlacement(
+          itemId: g.id,
+          folderId: g.folderId,
+          position: g.position,
+        ),
+    ]);
     return BookmarkLibraryState(
       bookmarks: bookmarks,
-      groups: await groupRepository.getGroups(),
+      groups: groups,
+      folders: folders,
       activeTarget: activeTarget,
     );
+  }
+
+  Future<CollectionFolder> createFolder(String name, {String? parentId}) async {
+    final folders = await groupRepository.getFolders();
+    final tree = FolderTree(folders);
+    if (parentId != null && !tree.byId.containsKey(parentId)) {
+      throw const FormatException('Unknown parent');
+    }
+    final folder = CollectionFolder(
+      id: const Uuid().v4(),
+      name: name.trim(),
+      parentId: parentId,
+      position: tree.children(parentId).length,
+    );
+    await groupRepository.replaceFolderOrganization([
+      ...folders,
+      folder,
+    ], await groupRepository.getGroups());
+    return folder;
+  }
+
+  Future<void> renameFolder(String id, String name) async {
+    final folders = await groupRepository.getFolders();
+    if (!folders.any((f) => f.id == id)) {
+      throw const FormatException('Unknown folder');
+    }
+    await groupRepository.replaceFolderOrganization([
+      for (final f in folders) f.id == id ? f.copyWith(name: name.trim()) : f,
+    ], await groupRepository.getGroups());
+  }
+
+  Future<void> moveFolderItems({
+    Set<String> folderIds = const {},
+    Set<String> groupIds = const {},
+    required String? destination,
+  }) async {
+    final folders = await groupRepository.getFolders();
+    final tree = FolderTree(folders);
+    final moved = tree.move(folderIds, destination);
+    final groups = await groupRepository.getGroups();
+    if (!groups.map((g) => g.id).toSet().containsAll(groupIds)) {
+      throw const FormatException('Unknown group');
+    }
+    final contained = {for (final id in folderIds) ...tree.subtree(id)};
+    var position = groups
+        .where((g) => g.folderId == destination)
+        .fold(0, (n, g) => g.position >= n ? g.position + 1 : n);
+    await groupRepository.replaceFolderOrganization(moved, [
+      for (final g in groups)
+        groupIds.contains(g.id) &&
+                !contained.contains(g.folderId) &&
+                g.folderId != destination
+            ? g.copyWith(
+                folderId: destination,
+                home: destination == null,
+                position: position++,
+              )
+            : g,
+    ]);
+  }
+
+  Future<BookmarkFolderDeletionPreview> previewDeleteFolder(String id) async {
+    final snapshot = await load(const BookmarkTarget.ungrouped());
+    return BookmarkFolderDeletionPreview.from(snapshot, id);
+  }
+
+  Future<void> deleteFolder(BookmarkFolderDeletionPreview expected) async {
+    final current = await previewDeleteFolder(expected.folderId);
+    if (current != expected) throw BookmarkFolderChangedException(current);
+    final deletedGroups = current.groupIds;
+    final old = current.snapshot;
+    final orphans = [
+      for (final id in current.orphanBookmarkIds) old.bookmarksById[id]!,
+    ];
+    try {
+      for (final id in deletedGroups) {
+        await groupRepository.deleteGroup(id);
+      }
+      if (orphans.isNotEmpty) await bookmarkRepository.removeBookmarks(orphans);
+      await groupRepository.replaceFolderOrganization(
+        old.folders.where((f) => !current.folderIds.contains(f.id)).toList(),
+        old.groups.where((g) => !deletedGroups.contains(g.id)).toList(),
+      );
+    } catch (error, stack) {
+      final errors = await _restoreBookmarks(orphans);
+      try {
+        for (final g in old.groups) {
+          if (await groupRepository.getGroup(g.id) == null) {
+            await groupRepository.createGroup(g.name, id: g.id);
+          }
+          await groupRepository.replaceMemberships(g.id, g.bookmarkIds);
+        }
+        await groupRepository.replaceFolderOrganization(
+          old.folders,
+          old.groups,
+        );
+      } catch (e) {
+        errors.add(e);
+      }
+      _throwWithRollback(error, stack, errors);
+    }
   }
 
   Future<Bookmark> upgradeBookmarkSnapshot({
@@ -325,6 +438,14 @@ class BookmarkLibraryService {
       } catch (rollbackError) {
         rollbackErrors.add(rollbackError);
       }
+      try {
+        await groupRepository.replaceFolderOrganization(
+          state.folders,
+          state.groups,
+        );
+      } catch (e) {
+        rollbackErrors.add(e);
+      }
       _throwWithRollback(error, stackTrace, rollbackErrors);
     }
     return preview;
@@ -396,4 +517,34 @@ Never _throwWithRollback(
 
 extension<T> on Iterable<T> {
   T? get firstOrNull => isEmpty ? null : first;
+}
+
+class BookmarkFolderDeletionPreview extends Equatable {
+  BookmarkFolderDeletionPreview.from(this.snapshot, this.folderId) {
+    folderIds = FolderTree(snapshot.folders).subtree(folderId);
+    groupIds = {
+      for (final g in snapshot.groups)
+        if (folderIds.contains(g.folderId)) g.id,
+    };
+    final outside = {
+      for (final g in snapshot.groups)
+        if (!groupIds.contains(g.id)) ...g.bookmarkIds,
+    };
+    orphanBookmarkIds = {
+      for (final g in snapshot.groups)
+        if (groupIds.contains(g.id)) ...g.bookmarkIds,
+    }.difference(outside).intersection(snapshot.bookmarksById.keys.toSet());
+  }
+  final BookmarkLibraryState snapshot;
+  final String folderId;
+  late final Set<String> folderIds;
+  late final Set<String> groupIds;
+  late final Set<int> orphanBookmarkIds;
+  @override
+  List<Object?> get props => [snapshot, folderId];
+}
+
+class BookmarkFolderChangedException implements Exception {
+  const BookmarkFolderChangedException(this.preview);
+  final BookmarkFolderDeletionPreview preview;
 }

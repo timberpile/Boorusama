@@ -4,6 +4,7 @@ import 'package:uuid/uuid.dart';
 // Project imports:
 import '../../boorus/booru/types.dart';
 import '../../bookmarks/types.dart';
+import '../../groups/folder_tree.dart';
 import '../../posts/post/types.dart';
 import '../types/types.dart';
 import '../utils/json_handler.dart';
@@ -16,7 +17,7 @@ class BookmarkBackupCodec extends JsonHandler<BookmarkBackupData> {
 
   @override
   BookmarkBackupData parse(ExportDataPayload metadata) {
-    if (metadata.version != 4) {
+    if (metadata.version != 4 && metadata.version != 5) {
       throw InvalidBackupFormatException(
         'Unsupported bookmark backup version ${metadata.version}',
       );
@@ -49,10 +50,7 @@ class BookmarkBackupCodec extends JsonHandler<BookmarkBackupData> {
       }
     }
 
-    if (!metadata.extraFields.containsKey('groups')) {
-      return BookmarkBackupData(bookmarks: bookmarks, groups: const []);
-    }
-    final rawGroups = metadata.extraFields['groups'];
+    final rawGroups = metadata.extraFields['groups'] ?? <dynamic>[];
     if (rawGroups is! List<dynamic>) {
       throw const InvalidBackupFormatException('groups must be a list');
     }
@@ -89,15 +87,74 @@ class BookmarkBackupCodec extends JsonHandler<BookmarkBackupData> {
       if (id != null && !suppliedIds.add(id)) {
         throw InvalidBackupFormatException('groups[$index].id is repeated');
       }
+      final folderId = metadata.version == 5 ? value['folderId'] : null;
+      final position = metadata.version == 5
+          ? value['position'] ?? index
+          : index;
+      if ((folderId != null &&
+              (folderId is! String ||
+                  !Uuid.isValidUUID(fromString: folderId))) ||
+          position is! int ||
+          position < 0) {
+        throw InvalidBackupFormatException(
+          'groups[$index] placement is invalid',
+        );
+      }
       groups.add(
         BookmarkGroupBackup(
           id: id,
           name: name.trim(),
           bookmarkIds: bookmarkIds.cast<int>().toSet().toList(),
+          folderId: (folderId as String?)?.toLowerCase(),
+          position: position,
         ),
       );
     }
-    return BookmarkBackupData(bookmarks: bookmarks, groups: groups);
+    try {
+      final rawFolders = metadata.version == 5
+          ? metadata.extraFields['folders']
+          : null;
+      if (rawFolders != null && rawFolders is! List) {
+        throw const FormatException('Invalid folders');
+      }
+      final folders = [
+        for (final row in rawFolders as List? ?? [])
+          (() {
+            final f = CollectionFolder.fromJson(row as Map);
+            return CollectionFolder(
+              id: f.id.toLowerCase(),
+              name: f.name.trim(),
+              parentId: f.parentId?.toLowerCase(),
+              position: f.position,
+            );
+          })(),
+      ];
+      if (folders.any(
+        (f) =>
+            !Uuid.isValidUUID(fromString: f.id) ||
+            (f.parentId != null && !Uuid.isValidUUID(fromString: f.parentId!)),
+      )) {
+        throw const FormatException('Invalid folder UUID');
+      }
+      final tree = FolderTree(folders);
+      tree.validatePlacements([
+        for (final (i, g) in groups.indexed)
+          FolderPlacement(
+            itemId: g.id ?? 'legacy-$i',
+            folderId: g.folderId,
+            position: g.position,
+          ),
+      ]);
+      return BookmarkBackupData(
+        bookmarks: bookmarks,
+        groups: groups,
+        folders: folders,
+      );
+    } catch (_) {
+      throw const InvalidBackupFormatException(
+        'Invalid bookmark folder hierarchy',
+      );
+    }
   }
 
   @override

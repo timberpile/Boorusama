@@ -109,6 +109,9 @@ class PinnedSearchFolderCard extends StatelessWidget {
     required this.canMoveUp,
     required this.canMoveDown,
     required this.onOpen,
+    this.onSelect,
+    this.selected = false,
+    this.selecting = false,
     required this.onAction,
     super.key,
   });
@@ -127,114 +130,144 @@ class PinnedSearchFolderCard extends StatelessWidget {
   final bool canMoveDown;
   final VoidCallback onOpen;
   final ValueChanged<PinnedSearchAction> onAction;
+  final VoidCallback? onSelect;
+  final bool selected;
+  final bool selecting;
 
   @override
   Widget build(BuildContext context) {
     final strings = context.t.pinned_searches;
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onOpen,
-        child: Padding(
-          padding: pinnedSearchCardContentPadding,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
+    return Semantics(
+      selected: selecting ? selected : null,
+      child: Card(
+        color: selected
+            ? Theme.of(context).colorScheme.secondaryContainer
+            : null,
+        shape: selected
+            ? RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(
+                  color: Theme.of(context).colorScheme.primary,
+                  width: 2,
+                ),
+              )
+            : null,
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onOpen,
+          onLongPress: onSelect,
+          child: Padding(
+            padding: pinnedSearchCardContentPadding,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Row(
+                        children: [
+                          const Icon(Symbols.folder),
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Text(
+                              name,
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (hasNewPosts)
+                      Semantics(
+                        label: strings.new_posts,
+                        excludeSemantics: true,
+                        child: Badge(label: Text(strings.new_badge)),
+                      ),
+                    if (selected)
+                      Icon(
+                        Icons.check_circle,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    if (!selecting)
+                      PopupMenuButton<PinnedSearchAction>(
+                        tooltip: context.t.generic.action.more,
+                        icon: const Icon(Symbols.more_vert),
+                        onSelected: onAction,
+                        itemBuilder: (context) => [
+                          PopupMenuItem(
+                            value: PinnedSearchAction.moveFolder,
+                            child: Text(context.t.folders.move),
+                          ),
+                          PopupMenuItem(
+                            value: PinnedSearchAction.refresh,
+                            enabled: canRefresh,
+                            child: Text(strings.refresh),
+                          ),
+                          PopupMenuItem(
+                            value: PinnedSearchAction.rename,
+                            child: Text(strings.rename),
+                          ),
+                          if (showMoveActions)
+                            PopupMenuItem(
+                              value: PinnedSearchAction.moveUp,
+                              enabled: canMoveUp,
+                              child: Text(strings.move_up),
+                            ),
+                          if (showMoveActions)
+                            PopupMenuItem(
+                              value: PinnedSearchAction.moveDown,
+                              enabled: canMoveDown,
+                              child: Text(strings.move_down),
+                            ),
+                          PopupMenuItem(
+                            value: PinnedSearchAction.delete,
+                            child: Text(context.t.generic.action.delete),
+                          ),
+                        ],
+                      ),
+                  ],
+                ),
+                if (previews.isNotEmpty)
+                  Padding(
+                    padding: pinnedSearchCardPreviewPadding,
                     child: Row(
                       children: [
-                        const Icon(Symbols.folder),
-                        const SizedBox(width: 4),
-                        Flexible(
-                          child: Text(
-                            name,
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (hasNewPosts)
-                    Semantics(
-                      label: strings.new_posts,
-                      excludeSemantics: true,
-                      child: Badge(label: Text(strings.new_badge)),
-                    ),
-                  PopupMenuButton<PinnedSearchAction>(
-                    tooltip: context.t.generic.action.more,
-                    icon: const Icon(Symbols.more_vert),
-                    onSelected: onAction,
-                    itemBuilder: (context) => [
-                      PopupMenuItem(
-                        value: PinnedSearchAction.refresh,
-                        enabled: canRefresh,
-                        child: Text(strings.refresh),
-                      ),
-                      PopupMenuItem(
-                        value: PinnedSearchAction.rename,
-                        child: Text(strings.rename),
-                      ),
-                      if (showMoveActions)
-                        PopupMenuItem(
-                          value: PinnedSearchAction.moveUp,
-                          enabled: canMoveUp,
-                          child: Text(strings.move_up),
-                        ),
-                      if (showMoveActions)
-                        PopupMenuItem(
-                          value: PinnedSearchAction.moveDown,
-                          enabled: canMoveDown,
-                          child: Text(strings.move_down),
-                        ),
-                      PopupMenuItem(
-                        value: PinnedSearchAction.delete,
-                        child: Text(context.t.generic.action.delete),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              if (previews.isNotEmpty)
-                Padding(
-                  padding: pinnedSearchCardPreviewPadding,
-                  child: Row(
-                    children: [
-                      for (final preview in previews.take(4))
-                        Expanded(
-                          child: Padding(
-                            padding: pinnedSearchCardThumbnailPadding,
-                            child: AspectRatio(
-                              aspectRatio: 1,
-                              child: BooruImage(
-                                imageUrl: preview.thumbnailUrl,
-                                config: preview.config,
-                                fit: BoxFit.cover,
+                        for (final preview in previews.take(4))
+                          Expanded(
+                            child: Padding(
+                              padding: pinnedSearchCardThumbnailPadding,
+                              child: AspectRatio(
+                                aspectRatio: 1,
+                                child: BooruImage(
+                                  imageUrl: preview.thumbnailUrl,
+                                  config: preview.config,
+                                  fit: BoxFit.cover,
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                      for (var i = previews.length; i < 4; i++) const Spacer(),
-                    ],
+                        for (var i = previews.length; i < 4; i++)
+                          const Spacer(),
+                      ],
+                    ),
                   ),
-                ),
-              PinnedSearchCardMetadata(
-                leading: strings.folder_item_count.replaceAll(
-                  '{count}',
-                  '$itemCount',
-                ),
-                lastPostAt: lastPostAt,
-                hasBaseline: hasBaseline,
-              ),
-              if (refreshing)
-                Text(
-                  strings.refreshing_remaining.replaceAll(
+                PinnedSearchCardMetadata(
+                  leading: strings.folder_item_count.replaceAll(
                     '{count}',
-                    '$remainingRefreshes',
+                    '$itemCount',
                   ),
+                  lastPostAt: lastPostAt,
+                  hasBaseline: hasBaseline,
                 ),
-            ],
+                if (refreshing)
+                  Text(
+                    strings.refreshing_remaining.replaceAll(
+                      '{count}',
+                      '$remainingRefreshes',
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       ),

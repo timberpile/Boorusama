@@ -13,9 +13,9 @@ import '../../../configs/config/types.dart';
 import '../../../posts/post/types.dart';
 import '../data/bookmark_convert.dart';
 import '../providers/bookmark_provider.dart';
-import '../types/bookmark.dart';
 import '../types/bookmark_target.dart';
-import 'bookmark_group_label.dart';
+import '../types/bookmark_library_state.dart';
+import 'bookmark_folder_picker_contents.dart';
 import 'bookmark_group_name_dialog.dart';
 
 class BookmarkContextMenuSection extends ConsumerWidget {
@@ -30,10 +30,6 @@ class BookmarkContextMenuSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final library = ref.watch(bookmarkProvider).valueOrNull;
-    final id = bookmarkIdentityForPost(post, config.booruIdHint);
-    final bookmark = library?.bookmarksByUniqueId[id];
-    final memberships = library?.membershipsFor(id) ?? const <String>{};
     final container = ProviderScope.containerOf(context, listen: false);
     final navigator = Navigator.of(context, rootNavigator: true);
 
@@ -46,8 +42,6 @@ class BookmarkContextMenuSection extends ConsumerWidget {
           (pageContext) => _BookmarkContextGroupPage(
             post: post,
             config: config,
-            bookmark: bookmark,
-            memberships: memberships,
             container: container,
             navigator: navigator,
           ),
@@ -57,43 +51,61 @@ class BookmarkContextMenuSection extends ConsumerWidget {
   }
 }
 
-class _BookmarkContextGroupPage extends StatelessWidget {
+class _BookmarkContextGroupPage extends StatefulWidget {
   const _BookmarkContextGroupPage({
     required this.post,
     required this.config,
-    required this.bookmark,
-    required this.memberships,
     required this.container,
     required this.navigator,
   });
 
   final Post post;
   final BooruConfigAuth config;
-  final Bookmark? bookmark;
-  final Set<String> memberships;
   final ProviderContainer container;
   final NavigatorState navigator;
 
   @override
+  State<_BookmarkContextGroupPage> createState() =>
+      _BookmarkContextGroupPageState();
+}
+
+class _BookmarkContextGroupPageState extends State<_BookmarkContextGroupPage> {
+  ProviderContainer get container => widget.container;
+  NavigatorState get navigator => widget.navigator;
+  Post get post => widget.post;
+  BooruConfigAuth get config => widget.config;
+  ProviderSubscription<AsyncValue<BookmarkLibraryState>>? _subscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _subscription = container.listen(bookmarkProvider, (_, _) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _subscription?.close();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final library = container.read(bookmarkProvider).valueOrNull;
+    final id = bookmarkIdentityForPost(post, config.booruIdHint);
+    final bookmark = library?.bookmarksByUniqueId[id];
+    final memberships = library?.membershipsFor(id) ?? const <String>{};
     final isGrouped = bookmark != null && memberships.isNotEmpty;
-    final labels = bookmarkGroupLabels(library?.groups ?? const []);
     return ConstrainedBox(
       constraints: BoxConstraints(maxHeight: MediaQuery.heightOf(context) * .6),
-      child: ListView(
-        shrinkWrap: true,
-        padding: EdgeInsets.zero,
-        children: [
-          KurumiPopupMenuItem(
-            icon: const Icon(Icons.arrow_back),
-            title: Text(context.t.generic.action.back),
-            hideOnTap: false,
-            onTap:
-                KurumiContextMenuPageController.maybeOf(context)?.reset ??
-                () {},
-          ),
-          const Divider(),
+      child: BookmarkFolderPickerContents(
+        compact: true,
+        folders: library?.folders ?? const [],
+        groups: library?.groups ?? const [],
+        membershipGroupIds: memberships,
+        onRootBack: KurumiContextMenuPageController.maybeOf(context)?.reset,
+        homeChildren: [
           if (!isGrouped)
             _item(
               context,
@@ -101,20 +113,19 @@ class _BookmarkContextGroupPage extends StatelessWidget {
               name: context.t.bookmark.groups.ungrouped,
               selected: bookmark != null,
             ),
-          for (final group in library?.groups ?? const [])
-            _item(
-              context,
-              groupId: group.id,
-              name: labels[group.id]!,
-              selected: memberships.contains(group.id),
-            ),
-          const Divider(),
-          KurumiPopupMenuItem(
-            icon: const Icon(Symbols.create_new_folder),
-            title: Text(context.t.bookmark.groups.create_new),
-            onTap: () => _afterDismiss(() => _createGroup(navigator.context)),
-          ),
         ],
+        groupBuilder: (context, group) => _item(
+          context,
+          groupId: group.id,
+          name: group.name,
+          selected: memberships.contains(group.id),
+        ),
+        footerBuilder: (context, folderId) => BookmarkPickerMenuItem(
+          icon: const Icon(Icons.add),
+          title: context.t.bookmark.groups.create_new,
+          onTap: () =>
+              _afterDismiss(() => _createGroup(navigator.context, folderId)),
+        ),
       ),
     );
   }
@@ -124,12 +135,12 @@ class _BookmarkContextGroupPage extends StatelessWidget {
     required String? groupId,
     required String name,
     required bool selected,
-  }) => KurumiPopupMenuItem(
+  }) => BookmarkPickerMenuItem(
     icon: Icon(
       groupId == null ? Symbols.bookmark : Symbols.bookmarks,
       fill: selected ? 1 : 0,
     ),
-    title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
+    title: name,
     onTap: () => _afterDismiss(() => _toggle(groupId)),
   );
 
@@ -170,7 +181,7 @@ class _BookmarkContextGroupPage extends StatelessWidget {
     }
   }
 
-  Future<void> _createGroup(BuildContext context) async {
+  Future<void> _createGroup(BuildContext context, String? folderId) async {
     final name = await showBookmarkGroupNameDialog(
       context,
       title: context.t.bookmark.groups.create,
@@ -178,7 +189,9 @@ class _BookmarkContextGroupPage extends StatelessWidget {
     if (name == null) return;
     try {
       final notifier = container.read(bookmarkProvider.notifier);
-      await notifier.createGroupWithPosts(name, config, [post]);
+      await notifier.createGroupWithPosts(name, config, [
+        post,
+      ], folderId: folderId);
       _added();
     } catch (_) {
       _error();

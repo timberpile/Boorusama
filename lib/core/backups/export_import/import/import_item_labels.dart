@@ -1,5 +1,6 @@
 import '../../../configs/config/types.dart';
 import '../../sources/bookmark_backup_data.dart';
+import '../../../groups/folder_tree.dart';
 import '../../sources/following_feed_backup_data.dart';
 import '../../sources/pinned_search_backup_data.dart';
 import '../models/export_item_presentation.dart';
@@ -40,7 +41,7 @@ ImportItemPresentationResult importItemPresentation(
           id: ExportSelectionIds.ungroupedBookmarks,
         ),
     ],
-    final PinnedSearchBackupData searches => _pinnedSearchNodes(searches),
+    final PinnedSearchBackupData searches => pinnedSearchExportNodes(searches),
     final FollowingFeedBackupData feeds => [
       for (final feed in feeds.feeds)
         ExportSelectionNode(id: ExportSelectionIds.followingFeed(feed.id)),
@@ -56,10 +57,15 @@ ImportItemPresentationResult importItemPresentation(
         );
       }
     case final BookmarkBackupData bookmarks:
+      for (final f in bookmarks.folders) {
+        items['group-folder:${f.id}'] = ExportItemPresentation(label: f.name);
+      }
       for (final group in bookmarks.groups) {
         if (group.id case final id?) {
           items[ExportSelectionIds.bookmarkGroup(id)] = ExportItemPresentation(
-            label: group.name,
+            label: group.folderId == null
+                ? group.name
+                : '${FolderTree(bookmarks.folders).path(group.folderId)} / ${group.name}',
           );
         }
       }
@@ -103,23 +109,33 @@ ImportItemPresentationResult importItemPresentation(
   );
 }
 
-List<ExportSelectionNode> _pinnedSearchNodes(PinnedSearchBackupData searches) {
+List<ExportSelectionNode> pinnedSearchExportNodes(
+  PinnedSearchBackupData searches,
+) {
   final recordsById = {
     for (final record in searches.records) record.id: record,
   };
   final organizedIds = <String>{};
-  final nodes = <ExportSelectionNode>[
-    for (final folder in searches.folders)
-      ExportSelectionNode(
-        id: ExportSelectionIds.pinnedSearchFolder(folder.id),
-        canHaveChildren: true,
-        children: [
-          for (final id in folder.searchIds)
+  final nodes = buildFolderSelectionNodes(
+    folders: [
+      for (final f in searches.folders)
+        CollectionFolder(
+          id: f.id,
+          name: f.name,
+          parentId: f.parentId,
+          position: f.position,
+        ),
+    ],
+    folderPrefix: 'folder:',
+    items: {
+      for (final f in searches.folders)
+        f.id: [
+          for (final id in f.searchIds)
             if (recordsById.containsKey(id))
               ExportSelectionNode(id: ExportSelectionIds.pinnedSearch(id)),
         ],
-      ),
-  ];
+    },
+  );
   organizedIds.addAll(
     searches.folders.expand((folder) => folder.searchIds),
   );
@@ -154,4 +170,49 @@ bool _hasUngroupedBookmarks(BookmarkBackupData data) {
     for (final group in data.groups) ...group.bookmarkIds,
   };
   return data.bookmarks.any((bookmark) => !groupedIds.contains(bookmark.id));
+}
+
+List<ExportSelectionNode> bookmarkExportNodes(BookmarkBackupData data) => [
+  ...buildFolderSelectionNodes(
+    folders: data.folders,
+    folderPrefix: 'group-folder:',
+    items: {
+      for (final f in data.folders)
+        f.id: [
+          for (final g in data.groups)
+            if (g.folderId == f.id && g.id != null)
+              ExportSelectionNode(id: ExportSelectionIds.bookmarkGroup(g.id!)),
+        ],
+    },
+  ),
+  for (final g in data.groups)
+    if (g.folderId == null && g.id != null)
+      ExportSelectionNode(id: ExportSelectionIds.bookmarkGroup(g.id!)),
+  const ExportSelectionNode(id: ExportSelectionIds.ungroupedBookmarks),
+];
+List<ExportSelectionNode> buildFolderSelectionNodes({
+  required List<CollectionFolder> folders,
+  required String folderPrefix,
+  required Map<String, List<ExportSelectionNode>> items,
+}) {
+  final tree = FolderTree(folders);
+  final ordered = <CollectionFolder>[];
+  final pending = tree.children(null).reversed.toList();
+  while (pending.isNotEmpty) {
+    final f = pending.removeLast();
+    ordered.add(f);
+    pending.addAll(tree.children(f.id).reversed);
+  }
+  final nodes = <String, ExportSelectionNode>{};
+  for (final f in ordered.reversed) {
+    nodes[f.id] = ExportSelectionNode(
+      id: '$folderPrefix${f.id}',
+      canHaveChildren: true,
+      children: [
+        for (final child in tree.children(f.id)) nodes[child.id]!,
+        ...?items[f.id],
+      ],
+    );
+  }
+  return [for (final f in tree.children(null)) nodes[f.id]!];
 }

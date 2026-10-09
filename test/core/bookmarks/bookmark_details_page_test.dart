@@ -1,3 +1,5 @@
+import 'package:boorusama/core/groups/folder_tree.dart';
+import '../search/subscriptions/subscription_test_utils.dart';
 import 'package:selection_mode/selection_mode.dart';
 import 'package:boorusama/core/widgets/multi_select_button.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -76,6 +78,64 @@ import 'package:boorusama/foundation/loggers.dart';
 import 'package:boorusama/core/themes/colors/src/colors.dart';
 
 void main() {
+  testWidgets(
+    'nested bookmark groups render literal leaf names and restore breadcrumb history',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(320, 700));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      const root = CollectionFolder(id: 'root', name: 'Cookie');
+      const child = CollectionFolder(
+        id: 'child',
+        name: 'Deep // literal',
+        parentId: 'root',
+      );
+      final state = BookmarkLibraryState(
+        bookmarks: [],
+        folders: [root, child],
+        groups: [
+          BookmarkGroup(
+            id: '550e8400-e29b-41d4-a716-446655440099',
+            name: 'Leaf // literal',
+            bookmarkIds: {},
+            folderId: 'child',
+          ),
+        ],
+        activeTarget: const BookmarkTarget.ungrouped(),
+      );
+      final controller = _controller([]);
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(
+        _BookmarkViewerHarness(
+          controller: controller,
+          bookmarkNotifier: _CacheBookmarkNotifier(state),
+          home: MediaQuery(
+            data: const MediaQueryData(
+              size: Size(320, 700),
+              textScaler: TextScaler.linear(2),
+            ),
+            child: const BookmarkGroupBrowserPage(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Cookie'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Deep // literal'));
+      await tester.pumpAndSettle();
+      expect(find.text('Leaf // literal'), findsOneWidget);
+      expect(
+        find.text('Cookie / Deep // literal / Leaf // literal'),
+        findsNothing,
+      );
+      expect(tester.takeException(), isNull);
+      await tester.tap(find.text('Home'));
+      await tester.pumpAndSettle();
+      expect(find.text('Bookmark Groups'), findsOneWidget);
+      expect(find.text('Leaf // literal'), findsNothing);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
   const compactGroupId = '550e8400-e29b-41d4-a716-446655440000';
   for (final view in [
     const BookmarkView.all(),
@@ -757,7 +817,10 @@ void main() {
           bookmarkBox,
           postDataCodec: (_) => const GelbooruV2PostCodec(),
         );
-        groupRepository = BookmarkGroupRepositoryHive(groupBox);
+        groupRepository = BookmarkGroupRepositoryHive(
+          groupBox,
+          organizationBox: MemoryBox<dynamic>(),
+        );
         await bookmarkBox.put(legacy.id, favoriteToHiveObject(legacy));
         await groupRepository.createGroup(
           'Kept',

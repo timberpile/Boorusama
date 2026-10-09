@@ -295,7 +295,14 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
       );
 
   @override
-  Future<SearchOrganization> getOrganization() => _read(_organization);
+  Future<SearchOrganization> getOrganization() => _serialize(() async {
+    final organization = _organization();
+    if (_organizationBox?.get('search:organization') case final Map json
+        when json['version'] != 2) {
+      await _organizationBox?.put('search:organization', organization.toJson());
+    }
+    return organization;
+  });
 
   @override
   Future<void> replaceOrganization(SearchOrganization organization) =>
@@ -304,8 +311,13 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
         if (storage == null) {
           throw StateError('Organization storage unavailable');
         }
+        try {
+          organization.tree.validatePlacements(organization.placements);
+        } on FormatException catch (e) {
+          throw StateError(e.message);
+        }
         final folderIds = <String>{};
-        final folderNames = <String>{};
+        final folderNames = <(String?, String)>{};
         final memberships = <String>{};
         final subscriptions = {
           for (final subscription in _subscriptions())
@@ -314,7 +326,7 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
 
         for (final folder in organization.folders) {
           if (!folderIds.add(folder.id) ||
-              !folderNames.add(folder.name.toLowerCase())) {
+              !folderNames.add((folder.parentId, folder.name.toLowerCase()))) {
             throw StateError('Duplicate shared search folder');
           }
           _validateOrganizationMemberships(
@@ -342,11 +354,13 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
           .firstOrNull;
       if (folder == null) return;
       final previousPins = {
-        for (final id in folder.searchIds) id: ?_box.get(id),
+        for (final id in previousOrganization.recursiveIds(folderId))
+          id: ?_box.get(id),
       };
       final nextOrganization = SearchOrganization(
         folders: previousOrganization.folders.where(
-          (item) => item.id != folderId,
+          (item) =>
+              !previousOrganization.tree.subtree(folderId).contains(item.id),
         ),
         homeSearchIds: previousOrganization.homeSearchIds,
       );
@@ -524,10 +538,13 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
     final folder = SharedSearchFolder(
       id: _uuid.v4(),
       name: folderName,
+      position: current.tree.children(null).length,
       searchIds: const [],
     );
     if (current.folders.any(
-      (f) => f.name.toLowerCase() == folder.name.toLowerCase(),
+      (f) =>
+          f.parentId == null &&
+          f.name.toLowerCase() == folder.name.toLowerCase(),
     )) {
       throw StateError('Duplicate shared search folder');
     }
@@ -561,11 +578,15 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
           SharedSearchFolder(
             id: old.id,
             name: old.name,
+            parentId: old.parentId,
+            position: old.position,
             searchIds: old.searchIds.where((id) => id != subscription.id),
           ),
         SharedSearchFolder(
           id: folder.id,
           name: folder.name,
+          parentId: folder.parentId,
+          position: folder.position,
           searchIds: [subscription.id],
         ),
       ],
@@ -935,6 +956,8 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
         SharedSearchFolder(
           id: folder.id,
           name: folder.name,
+          parentId: folder.parentId,
+          position: folder.position,
           searchIds: folder.searchIds.where(
             (id) => subscriptions.containsKey(id) && memberships.add(id),
           ),
@@ -966,6 +989,8 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
         SharedSearchFolder(
           id: folder.id,
           name: folder.name,
+          parentId: folder.parentId,
+          position: folder.position,
           searchIds: folder.searchIds.where((id) => !ids.contains(id)),
         ),
     ],

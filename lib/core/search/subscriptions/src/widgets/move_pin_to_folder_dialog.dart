@@ -1,38 +1,33 @@
-import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
-
+import '../../../../groups/folder_navigation.dart';
 import '../types/search_organization.dart';
 import 'search_folder_dialog.dart';
 
-typedef FolderChoice = ({String? folderId, String? createName});
-
+typedef FolderChoice = ({
+  String? folderId,
+  String? createName,
+  String? parentId,
+});
 Future<FolderChoice?> showMovePinToFolderDialog(
   BuildContext context,
   List<SharedSearchFolder> folders,
-) => showDialog<FolderChoice>(
-  context: context,
-  builder: (context) => SimpleDialog(
-    title: Text(context.t.pinned_searches.move_to_folder),
-    children: [
-      SimpleDialogOption(
-        onPressed: () =>
-            Navigator.pop(context, (folderId: null, createName: null)),
-        child: Text(context.t.pinned_searches.home),
-      ),
-      for (final folder in folders)
-        SimpleDialogOption(
-          onPressed: () =>
-              Navigator.pop(context, (folderId: folder.id, createName: null)),
-          child: Text(folder.name),
-        ),
-      SimpleDialogOption(
-        onPressed: () async {
-          final name = await showSearchFolderNameDialog(context);
-          if (name == null || !context.mounted) return;
-          Navigator.pop(context, (folderId: null, createName: name));
-        },
-        child: Text(context.t.pinned_searches.create_folder),
-      ),
-    ],
-  ),
-);
+) async {
+  String? createName;
+  String? createParentId;
+  final choice = await showFolderDestinationPicker(
+    context,
+    folders: folders,
+    onCreate: (context, parentId) async {
+      createParentId = parentId;
+      createName = await showSearchFolderNameDialog(context);
+      return createName == null ? null : '__new__';
+    },
+  );
+  return choice == null
+      ? null
+      : (
+          folderId: createName == null ? choice.folderId : null,
+          createName: createName,
+          parentId: createParentId,
+        );
+}

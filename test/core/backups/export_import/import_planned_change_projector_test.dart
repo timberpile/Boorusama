@@ -646,11 +646,13 @@ void main() {
       ),
     );
 
-    _expectTotals(summary, const PlannedChangeSummary(created: 11));
+    _expectTotals(summary, const PlannedChangeSummary(created: 12));
     expect(summary!.entitySummaries['bookmark']?.created, 10);
     expect(summary.entitySummaries['bookmark-group']?.created, 1);
     expect(
-      summary.previewRows.single.counts,
+      summary.previewRows
+          .singleWhere((row) => row.label != 'Imported Groups')
+          .counts,
       const ImportChangeCounts(added: 11),
     );
   });
@@ -859,15 +861,10 @@ void main() {
         ),
       );
 
-      expect(summary?.hasMutations, isTrue);
-      expect(summary?.updated, 1);
-      expect(summary?.entitySummaries['pinned-home']?.updated, 1);
-      expect(summary!.previewRows.single.entityChanged, isFalse);
-      expect(summary.previewRows.single.children, hasLength(2));
-      expect(
-        summary.previewRows.single.counts,
-        const ImportChangeCounts(changed: 2),
-      );
+      expect(summary?.hasMutations, isFalse);
+      expect(summary?.updated, 0);
+      expect(summary?.entitySummaries['pinned-home']?.updated ?? 0, 0);
+      expect(summary!.previewRows.every((row) => !row.entityChanged), isTrue);
     },
   );
 
@@ -1287,11 +1284,13 @@ void main() {
 
     _expectTotals(
       summary,
-      const PlannedChangeSummary(created: 4, preserved: 1),
+      const PlannedChangeSummary(created: 5, preserved: 1),
     );
     expect(summary?.entitySummaries['pinned-search']?.created, 3);
-    expect(summary?.entitySummaries['pinned-folder']?.created, 1);
-    final folder = summary!.previewRows.single;
+    expect(summary?.entitySummaries['pinned-folder']?.created, 2);
+    final folder = summary!.previewRows.singleWhere(
+      (row) => row.label == 'Three searches',
+    );
     expect(folder.isContainer, isTrue);
     expect(folder.label, 'Three searches');
     expect(folder.children.map((row) => row.label), ['one', 'two', 'three']);

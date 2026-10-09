@@ -39,6 +39,10 @@ publication, releases, or upstream synchronization.
 - Always use `fvm` for Flutter/Dart.
 - Use manually declared Riverpod `Notifier`/`AsyncNotifier` providers; no provider codegen.
 - Follow nearby architecture/style; keep business logic out of widgets when practical.
+- Before UI changes, inspect comparable screens; reuse application components, spacing,
+  typography, sizing, and interactions. Justify intentional deviations.
+- Prefer Kurumi components for popup, context, and anchored menus; do not mix
+  differently styled Material and Kurumi menu rows in one popup.
 - Localize user-facing strings and use `context.t`.
 - Treat external/site/API data as nullable; use `equatable` when useful.
 - Prefer readable pattern matching; comment non-obvious decisions.

@@ -124,7 +124,10 @@ void main() {
           );
           final profileBox = await Hive.openBox<String>('booru_configs');
           final bookmarks = BookmarkHiveRepository(bookmarkBox);
-          final groups = BookmarkGroupRepositoryHive(groupBox);
+          final groups = BookmarkGroupRepositoryHive(
+            groupBox,
+            organizationBox: MemoryBox<dynamic>(),
+          );
           final profiles = HiveBooruConfigRepository(box: profileBox);
           final localProfiles = accounts == 0
               ? [
