@@ -49,9 +49,12 @@ void main() {
         (tester) async {
           await tester.binding.setSurfaceSize(const Size(320, 1600));
           addTearDown(() => tester.binding.setSurfaceSize(null));
+          final savedRetention =
+              location?.startsWith('content://example.') == true ? 12 : 30;
           final settings = Settings.defaultSettings.copyWith(
             autoBackup: AutoBackupSettings(
               enabled: true,
+              maxBackups: savedRetention,
               userSelectedPath: location,
             ),
           );
@@ -82,6 +85,20 @@ void main() {
           );
           await tester.pumpAndSettle();
           expect(tester.takeException(), isNull);
+          if (location?.startsWith('content:') ?? false) {
+            expect(find.text('$savedRetention backups'), findsOneWidget);
+            final selector = tester.widget<DropdownButton<int>>(
+              find.byType(DropdownButton<int>),
+            );
+            expect(
+              selector.items!.map((item) => item.value),
+              containsAll([2, 3, 4, 5, 7, 14, 30, 60, 90]),
+            );
+            expect(
+              selector.items!.map((item) => item.value),
+              contains(savedRetention),
+            );
+          }
           if (display != null) expect(find.text(display), findsOneWidget);
           if (location?.startsWith('content:') ?? false) {
             expect(find.text(location!), findsNothing);

@@ -31,6 +31,21 @@ void main() {
 
   tearDown(() => directory.delete(recursive: true));
 
+  test('defaults to 30 retained backups while honoring saved values', () {
+    expect(const AutoBackupSettings().maxBackups, 30);
+    expect(AutoBackupSettings.parse(<String, dynamic>{}).maxBackups, 30);
+    expect(AutoBackupSettings.parse({'maxBackups': 0}).maxBackups, 30);
+
+    for (final count in [1, 2, 3, 4, 5, 12, 30, 60, 90, 120]) {
+      final restored = AutoBackupSettings.parse({'maxBackups': count});
+      expect(restored.maxBackups, count);
+      expect(
+        AutoBackupSettings.parse(restored.toJson()).maxBackups,
+        count,
+      );
+    }
+  });
+
   test('automatic backup creates a full export with credentials', () async {
     final sources = [_FakeSource('first'), _FakeSource('second')];
     final registry = _registryFor(sources);
@@ -110,6 +125,52 @@ void main() {
     ]);
     expect(File(legacyPath).existsSync(), isFalse);
     expect(File(previousPath).existsSync(), isFalse);
+    expect(File(result.filePath).existsSync(), isTrue);
+  });
+
+  test('successful backup retains 30 entries and removes the oldest', () async {
+    final sources = [_FakeSource('source')];
+    final backupDirectory = await repository.getBackupDirectoryPath(
+      directory.path,
+    );
+    final existing = <AutoBackupEntry>[];
+    for (var day = 1; day <= 30; day++) {
+      final fileName = 'previous-$day.bsexport';
+      final file = File(p.join(backupDirectory, fileName))
+        ..writeAsStringSync('backup $day');
+      existing.add(
+        AutoBackupEntry(
+          fileName: fileName,
+          createdAt: DateTime.utc(2025, 1, day),
+          fileSize: file.lengthSync(),
+        ),
+      );
+    }
+    await repository.saveManifest(
+      backupDirectory,
+      AutoBackupManifest(backups: existing),
+    );
+
+    final service = AutoBackupService(
+      exportService: _exportService(sources),
+      logger: const _Logger(),
+      registry: _registryFor(sources),
+      repository: repository,
+    );
+    final result = await service.performBackup(
+      AutoBackupSettings(maxBackups: 30, userSelectedPath: directory.path),
+    );
+    final manifest = await repository.loadManifest(backupDirectory);
+    final names = manifest.backups.map((entry) => entry.fileName).toSet();
+
+    expect(names, hasLength(30));
+    expect(names, isNot(contains('previous-1.bsexport')));
+    expect(names, containsAll(existing.skip(1).map((entry) => entry.fileName)));
+    expect(names, contains(p.basename(result.filePath)));
+    expect(
+      File(p.join(backupDirectory, 'previous-1.bsexport')).existsSync(),
+      isFalse,
+    );
     expect(File(result.filePath).existsSync(), isTrue);
   });
 
