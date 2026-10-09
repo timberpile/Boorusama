@@ -647,6 +647,9 @@
     },
     "backup_and_restore": {
       "export_import": {
+        "file_name": "Dateiname",
+        "edit_file_name": "Dateinamen bearbeiten",
+        "invalid_file_name": "Bitte einen gültigen Dateinamen ohne unzulässige Zeichen eingeben.",
         "configure_items": "Einzeln",
         "preview_count": {
           "one": "${n} Änderung",

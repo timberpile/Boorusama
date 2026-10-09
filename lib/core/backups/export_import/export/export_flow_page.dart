@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
+import 'package:path/path.dart' as p;
 import 'package:share_plus/share_plus.dart';
 import 'package:uuid/uuid.dart';
 
@@ -13,6 +14,7 @@ import '../models/export_selection.dart';
 import '../models/export_item_presentation.dart';
 import '../models/export_template.dart';
 import '../models/import_action.dart';
+import '../models/package_manifest.dart';
 import '../widgets/import_action_editor.dart';
 import '../widgets/import_recommendation_tree.dart';
 import '../widgets/selection_tree.dart';
@@ -467,13 +469,35 @@ class _TemplatePicker extends ConsumerWidget {
   }
 }
 
-class _ExportReady extends ConsumerWidget {
+class _ExportReady extends ConsumerStatefulWidget {
   const _ExportReady({required this.state});
 
   final ExportFlowState state;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_ExportReady> createState() => _ExportReadyState();
+}
+
+class _ExportReadyState extends ConsumerState<_ExportReady> {
+  late String _fileName;
+
+  @override
+  void initState() {
+    super.initState();
+    _fileName = p.basename(widget.state.packagePath!);
+  }
+
+  @override
+  void didUpdateWidget(covariant _ExportReady oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.state.packagePath != oldWidget.state.packagePath) {
+      _fileName = p.basename(widget.state.packagePath!);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = widget.state;
     final path = state.packagePath!;
     final clipboard = ref.watch(exportClipboardServiceProvider);
     return FutureBuilder<bool>(
@@ -481,7 +505,7 @@ class _ExportReady extends ConsumerWidget {
         path,
         containsCredentials: state.includeCredentials,
       ),
-      builder: (context, snapshot) => Padding(
+      builder: (context, snapshot) => SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -501,9 +525,35 @@ class _ExportReady extends ConsumerWidget {
               sourceLabel: (id) => _sourceLabel(context, id),
               onEdit: ref.read(exportFlowProvider.notifier).editSelection,
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
+            Text(
+              context.t.settings.backup_and_restore.export_import.file_name,
+              style: Theme.of(context).textTheme.labelMedium,
+            ),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    _fileName,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                IconButton(
+                  tooltip: context
+                      .t
+                      .settings
+                      .backup_and_restore
+                      .export_import
+                      .edit_file_name,
+                  icon: const Icon(Icons.edit_outlined),
+                  onPressed: _editFileName,
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
             FilledButton.icon(
-              onPressed: () => _save(context, ref, path),
+              onPressed: () => _save(path),
               icon: const Icon(Icons.save_alt),
               label: Text(
                 context.t.settings.backup_and_restore.export_import.save,
@@ -570,12 +620,22 @@ class _ExportReady extends ConsumerWidget {
     );
   }
 
-  Future<void> _save(BuildContext context, WidgetRef ref, String source) async {
+  Future<void> _editFileName() async {
+    final name = await showDialog<String>(
+      context: context,
+      builder: (_) => _ExportFileNameDialog(initialName: _fileName),
+    );
+    if (name != null && mounted) {
+      setState(() => _fileName = name);
+    }
+  }
+
+  Future<void> _save(String source) async {
     if (isAndroid()) {
       try {
         final saved = await ref
             .read(androidExportSaveServiceProvider)
-            .save(source);
+            .save(source, fileName: _fileName);
         if (saved && context.mounted) {
           Kurumi.showSuccessToast(
             context,
@@ -596,7 +656,7 @@ class _ExportReady extends ConsumerWidget {
       context: context,
       onPick: (directory) async {
         final fs = ref.read(appFileSystemProvider);
-        await copyExportToDirectory(fs, source, directory);
+        await copyExportToDirectory(fs, source, directory, fileName: _fileName);
         if (context.mounted) {
           Kurumi.showSuccessToast(
             context,
@@ -604,6 +664,100 @@ class _ExportReady extends ConsumerWidget {
           );
         }
       },
+    );
+  }
+}
+
+class _ExportFileNameDialog extends StatefulWidget {
+  const _ExportFileNameDialog({required this.initialName});
+
+  final String initialName;
+
+  @override
+  State<_ExportFileNameDialog> createState() => _ExportFileNameDialogState();
+}
+
+class _ExportFileNameDialogState extends State<_ExportFileNameDialog> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    final stem = exportFileNameStem(widget.initialName);
+    _controller = TextEditingController(text: stem);
+    _controller.selection = TextSelection(
+      baseOffset: 0,
+      extentOffset: stem.length,
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final name = normalizedExportFileName(_controller.text);
+    if (name != null) Navigator.of(context).pop(name);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = context.t.settings.backup_and_restore.export_import;
+    final name = normalizedExportFileName(_controller.text);
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+      child: KurumiDialog(
+        width: 420,
+        semanticLabel: strings.edit_file_name,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                strings.edit_file_name,
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 16),
+              KurumiTextField(
+                key: const ValueKey('export-file-name-input'),
+                controller: _controller,
+                autofocus: true,
+                autocorrect: false,
+                enableSuggestions: false,
+                textInputAction: TextInputAction.done,
+                decoration: InputDecoration(
+                  labelText: strings.file_name,
+                  suffixText: kExportPackageExtension,
+                  errorText: name == null ? strings.invalid_file_name : null,
+                ),
+                onChanged: (_) => setState(() {}),
+                onSubmitted: (_) => _submit(),
+              ),
+              const SizedBox(height: 16),
+              Align(
+                alignment: Alignment.centerRight,
+                child: Wrap(
+                  spacing: 8,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: Text(strings.cancel),
+                    ),
+                    FilledButton(
+                      onPressed: name == null ? null : _submit,
+                      child: Text(strings.save),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

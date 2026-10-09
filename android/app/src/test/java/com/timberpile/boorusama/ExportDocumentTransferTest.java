@@ -60,6 +60,20 @@ public final class ExportDocumentTransferTest {
         assertEquals(2, destination.existing.size());
     }
 
+    @Test public void customNameUsesNextAvailableNameWithoutChangingCachedExport() throws Exception {
+        destination.existing.add("My favorites.bsexport");
+        assertEquals("content://exports/My favorites-2.bsexport",
+                transfer.copy(source, destination, "My favorites.bsexport"));
+        assertArrayEquals(bytes, Files.readAllBytes(source.toPath()));
+    }
+
+    @Test public void rejectsUnsafeCustomFileNameBeforeWriting() throws Exception {
+        for (String invalid : new String[] {"../unsafe.bsexport", "a\\b.bsexport", "CON.bsexport", ".bsexport"}) {
+            assertThrows(IOException.class, () -> transfer.copy(source, destination, invalid));
+            assertNull(destination.created);
+        }
+    }
+
     @Test public void nullOutputIsFailureAndDeletesOnlyNewDocument() throws Exception {
         destination.nullOutput = true;
         assertThrows(IOException.class, () -> transfer.copy(source, destination));

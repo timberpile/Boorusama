@@ -42,6 +42,40 @@ void main() {
     },
   );
 
+  test('sends the chosen file name to the native SAF writer', () async {
+    MethodCall? request;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          request = call;
+          return 'content://provider/document/custom-export';
+        });
+
+    expect(
+      await const AndroidExportSaveService().save(
+        '/cache/file.bsexport',
+        fileName: 'My bookmarks.bsexport',
+      ),
+      true,
+    );
+    expect(request?.method, 'saveToDirectory');
+    expect(request?.arguments, {
+      'source': '/cache/file.bsexport',
+      'directory': 'content://provider/tree/folder',
+      'fileName': 'My bookmarks.bsexport',
+    });
+  });
+
+  test('invalid file names are rejected before opening the picker', () async {
+    await expectLater(
+      const AndroidExportSaveService().save(
+        '/cache/file.bsexport',
+        fileName: '../invalid.bsexport',
+      ),
+      throwsArgumentError,
+    );
+    expect(picker.options, isNull);
+  });
+
   test('canceling folder selection does not request a write', () async {
     picker.path = null;
     var writes = 0;

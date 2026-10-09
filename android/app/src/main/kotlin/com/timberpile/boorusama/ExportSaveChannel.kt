@@ -26,12 +26,13 @@ class ExportSaveChannel(context: Context, messenger: BinaryMessenger) {
             } else {
                 val source = call.argument<String>("source")
                 val tree = call.argument<String>("directory")?.let(Uri::parse)
+                val fileName = call.argument<String>("fileName")
                 if (source == null || tree?.scheme != "content" || !DocumentsContract.isTreeUri(tree)) {
                     result.error("invalid_destination", "Export destination is unavailable", null)
                 } else {
                     worker.execute {
                         try {
-                            val saved = transfer.copy(File(source), destination(tree))
+                            val saved = transfer.copy(File(source), destination(tree), fileName)
                             main.post { result.success(saved) }
                         } catch (error: Exception) {
                             // Do not expose source paths or export contents in errors.
