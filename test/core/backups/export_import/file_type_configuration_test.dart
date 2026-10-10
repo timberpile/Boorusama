@@ -92,15 +92,15 @@ void main() {
     expect(mainActivity, isNot(contains('android:taskAffinity=""')));
   });
 
-  test('Android bounds received files and deduplicates by content digest', () {
+  test('Android stages each received intent with a bounded private delivery', () {
     final channel = File(
       'android/app/src/main/kotlin/com/timberpile/boorusama/ReceivedExportChannel.kt',
     ).readAsStringSync();
 
     expect(channel, contains('MAX_EXPORT_BYTES'));
-    expect(channel, contains('MessageDigest.getInstance("SHA-256")'));
-    expect(channel, contains('byteCount > MAX_EXPORT_BYTES'));
-    expect(channel, contains(r'File(directory, "$id.bsexport")'));
+    expect(channel, contains('ReceivedExportStaging.stage('));
+    expect(channel, contains('"id" to delivery.id'));
+    expect(channel, contains('"path" to delivery.file.absolutePath'));
   });
 
   for (final plistPath in [

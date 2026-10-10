@@ -18,6 +18,7 @@ class ReceivedExport {
     required this.displayName,
   });
 
+  /// Identifies one external delivery, not the file contents.
   final String id;
   final String path;
   final String displayName;
