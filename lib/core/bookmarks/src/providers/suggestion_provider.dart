@@ -12,6 +12,7 @@ import '../../../configs/config/types.dart';
 import '../../../tags/categories/providers.dart';
 import '../../../tags/tag/colors.dart';
 import '../../../themes/colors/providers.dart';
+import '../types/bookmark_search_token.dart';
 import 'local_providers.dart';
 
 class TagSuggestionsNotifier
@@ -43,10 +44,9 @@ class TagSuggestionsNotifier
     );
 
     try {
-      final tags = tagString.trim().split(' ');
-      final tag = tags.lastOrNull?.trim();
+      final tag = BookmarkSearchToken.current(tagString).tag;
 
-      if (tag == null || tag.isEmpty) {
+      if (tag.isEmpty) {
         state = AsyncValue.data(
           currentState.copyWith(
             suggestions: const [],
@@ -58,7 +58,7 @@ class TagSuggestionsNotifier
       final sortedTags = await ref.watch(sortedTagsProvider.future);
 
       final filteredTags = sortedTags
-          .where((entry) => entry.key.contains(tag))
+          .where((entry) => entry.key.toLowerCase().contains(tag))
           .take(5)
           .toList();
 

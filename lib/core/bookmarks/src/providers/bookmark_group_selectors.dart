@@ -5,6 +5,7 @@ import 'package:equatable/equatable.dart';
 // Project imports:
 import '../types/bookmark.dart';
 import '../types/bookmark_library_state.dart';
+import '../types/bookmark_search_token.dart';
 import '../types/bookmark_view.dart';
 import 'bookmark_shuffle_provider.dart';
 
@@ -58,6 +59,17 @@ List<Bookmark> filterBookmarks({
   String? selectedBooruUrl,
   BookmarkShuffleState? shuffleState,
 }) {
+  final filters = selectedTags
+      .map(BookmarkSearchToken.parse)
+      .where((token) => token.tag.isNotEmpty)
+      .toList();
+  bool matchesTags(Bookmark bookmark) {
+    final tags = bookmark.tags.map((tag) => tag.toLowerCase()).toSet();
+    return filters.every(
+      (token) => tags.contains(token.tag) != token.isNegative,
+    );
+  }
+
   final filtered = selectedBooruUrl == null && selectedTags.isEmpty
       ? bookmarks
       : bookmarks
@@ -65,8 +77,7 @@ List<Bookmark> filterBookmarks({
               (bookmark) =>
                   (selectedBooruUrl == null ||
                       bookmark.sourceUrl.contains(selectedBooruUrl)) &&
-                  (selectedTags.isEmpty ||
-                      selectedTags.every(bookmark.tags.contains)),
+                  (filters.isEmpty || matchesTags(bookmark)),
             )
             .toList();
   final sorted = filtered.sorted(

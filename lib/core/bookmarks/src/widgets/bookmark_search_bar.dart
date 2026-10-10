@@ -16,9 +16,9 @@ import '../../../../foundation/html.dart';
 import '../../../../foundation/platform.dart';
 import '../../../configs/config/providers.dart';
 import '../../../posts/listing/providers.dart';
-import '../../../search/queries/types.dart';
 import '../../../search/search/widgets.dart';
 import '../providers/suggestion_provider.dart';
+import '../types/bookmark_search_token.dart';
 
 class BookmarkSearchBar extends ConsumerStatefulWidget {
   const BookmarkSearchBar({
@@ -82,7 +82,7 @@ class _BookmarkSearchBarState extends ConsumerState<BookmarkSearchBar> {
                 child: _Overlay(
                   controller: widget.controller,
                   onTap: (tag) {
-                    widget.controller.text = replaceOrAppendTag(
+                    widget.controller.text = insertBookmarkTagSuggestion(
                       widget.controller.text,
                       tag.tag,
                     );
@@ -263,8 +263,9 @@ class _SuggestionItem extends ConsumerWidget {
                   child: ValueListenableBuilder(
                     valueListenable: controller,
                     builder: (_, value, _) {
-                      final lastTag =
-                          value.text.split(' ').lastOrNull ?? value.text;
+                      final lastTag = BookmarkSearchToken.current(
+                        value.text,
+                      ).tag;
 
                       return AppHtml(
                         style: {
