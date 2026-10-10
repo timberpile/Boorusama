@@ -1,5 +1,6 @@
 // Dart imports:
 import 'dart:async';
+import 'dart:collection';
 import 'dart:math' as math;
 
 // Flutter imports:
@@ -113,12 +114,19 @@ class PreloadManager {
     required int itemCount,
     required PreloadMedia? Function(int index) mediaBuilder,
   }) {
+    if (!_isEnabled()) {
+      cancelAll();
+      return;
+    }
+
     final context = PreloadContext(
       currentPage: currentPage,
       itemCount: itemCount,
       mediaBuilder: mediaBuilder,
       activeDownloads: Set.from(_activeDownloads),
-      completedUrls: Set.from(_completedUrls),
+      // Calculation is synchronous; a read-only view avoids copying the
+      // complete browsing history on every page change.
+      completedUrls: UnmodifiableSetView(_completedUrls),
     );
     final result = strategy.calculatePreload(context);
     preloadMedias(result);
@@ -205,13 +213,15 @@ class PreloadManager {
 
     try {
       await _preloader(url, cancelToken);
-      // Success: mark as completed
-      _completedUrls.add(url);
-      _logState(
-        'Download completed',
-        url: url,
-        completed: _completedUrls.length,
-      );
+      if (!cancelToken.isCancelled &&
+          identical(_activeCancelTokens[url], cancelToken)) {
+        _completedUrls.add(url);
+        _logState(
+          'Download completed',
+          url: url,
+          completed: _completedUrls.length,
+        );
+      }
     } catch (error) {
       // Let caller handle all retries. If we get here, the preload failed
       // after all retries.
@@ -221,10 +231,13 @@ class PreloadManager {
         extra: {'error': error.toString().split('\n').first},
       );
     } finally {
-      // This block ALWAYS runs, ensuring cleanup
-      _activeDownloads.remove(url);
-      _activeCancelTokens.remove(url);
-      _startNextDownloads();
+      // A canceled request may finish after the same URL has been restarted.
+      // Only the request that still owns the token may release that slot.
+      if (identical(_activeCancelTokens[url], cancelToken)) {
+        _activeDownloads.remove(url);
+        _activeCancelTokens.remove(url);
+        _startNextDownloads();
+      }
     }
   }
 

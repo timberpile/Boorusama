@@ -99,9 +99,7 @@ class _PostDetailPageScaffoldState<T extends Post>
       PostViewerTransformationController(widget.transformController);
 
   PostDetailsPageViewController? _pageViewController;
-  PostDetailsPageViewController get _controller {
-    return _pageViewController ??= PostDetailsPageViewScope.of(context);
-  }
+  PostDetailsPageViewController get _controller => _pageViewController!;
 
   VolumeKeyPageNavigator? _volumeKeyPageNavigator;
 
@@ -115,6 +113,7 @@ class _PostDetailPageScaffoldState<T extends Post>
     super.initState();
 
     WidgetsBinding.instance.addPostFrameCallback((timeStamp) {
+      if (!mounted) return;
       widget.controller.setPage(
         widget.controller.initialPage,
       );
@@ -128,23 +127,39 @@ class _PostDetailPageScaffoldState<T extends Post>
   void didChangeDependencies() {
     super.didChangeDependencies();
 
-    _volumeKeyPageNavigator ??= VolumeKeyPageNavigator(
-      pageViewController: _controller,
+    final controller = PostDetailsPageViewScope.of(context);
+    if (identical(_pageViewController, controller)) return;
+
+    _pageViewController?.precisePage.removeListener(_onPrecisePageChanged);
+    _volumeKeyPageNavigator?.dispose();
+    _pageViewController = controller;
+    controller.precisePage.addListener(_onPrecisePageChanged);
+
+    _volumeKeyPageNavigator = VolumeKeyPageNavigator(
+      pageViewController: controller,
       totalPosts: () => _posts.length,
       visibilityNotifier: visibilityNotifier,
       enableVolumeKeyViewerNavigation: () => ref.read(
         settingsProvider.select((value) => value.volumeKeyViewerNavigation),
       ),
     )..initialize();
+  }
 
-    _controller.precisePage.addListener(_onPrecisePageChanged);
+  @override
+  void didUpdateWidget(covariant PostDetailsPageScaffold<T> oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller.isVideoPlaying.removeListener(_isVideoPlayingChanged);
+      widget.controller.isVideoPlaying.addListener(_isVideoPlayingChanged);
+    }
   }
 
   @override
   void dispose() {
     _volumeKeyPageNavigator?.dispose();
     widget.controller.isVideoPlaying.removeListener(_isVideoPlayingChanged);
-    _controller.precisePage.removeListener(_onPrecisePageChanged);
+    _pageViewController?.precisePage.removeListener(_onPrecisePageChanged);
+    visibilityNotifier.dispose();
 
     super.dispose();
   }

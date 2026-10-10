@@ -41,17 +41,45 @@ class DirectionBasedPreloadStrategy extends PreloadStrategy {
   final DirectionHistory directionHistory;
   final PreloadStrategyOptions options;
 
-  @override
-  PreloadResult calculatePreload(PreloadContext context) {
-    final baseDistance = options.defaultPreloadDistance;
-    final direction = directionHistory.scrollDirection;
-    final confidence = directionHistory.confidence;
+  /// The complete set of indices this strategy may inspect. Mixed-profile
+  /// viewers resolve this small window once, before dispatching to each manager.
+  Set<int> getResolutionIndices({
+    required int currentPage,
+    required int itemCount,
+  }) {
+    final nearbyDistance = const RelevanceZones().nearbyDistance;
+    final offsets = {
+      ..._preloadOffsets(
+        directionHistory.scrollDirection,
+        directionHistory.confidence,
+      ),
+      for (var offset = -nearbyDistance; offset <= nearbyDistance; offset++)
+        offset,
+    };
+    return {
+      for (final offset in offsets)
+        if (currentPage + offset >= 0 && currentPage + offset < itemCount)
+          currentPage + offset,
+    };
+  }
 
+  List<int> _preloadOffsets(
+    ScrollDirection direction,
+    DirectionConfidence confidence,
+  ) {
+    final baseDistance = options.defaultPreloadDistance;
     final distance = switch (directionHistory.entryPattern) {
       EntryPattern.direct => 1,
       EntryPattern.initial || EntryPattern.sequential => baseDistance,
       EntryPattern.exploring => math.max(1, baseDistance - 1),
     };
+    return _getPreloadOffsets(distance, direction, confidence, options);
+  }
+
+  @override
+  PreloadResult calculatePreload(PreloadContext context) {
+    final direction = directionHistory.scrollDirection;
+    final confidence = directionHistory.confidence;
 
     final prioritizedUrls = <PrioritizedUrl>[];
     final skipUrls = <String>{};
@@ -61,12 +89,7 @@ class DirectionBasedPreloadStrategy extends PreloadStrategy {
       skipUrls.addAll(currentMedia.allUrls);
     }
 
-    final offsets = _getPreloadOffsets(
-      distance,
-      direction,
-      confidence,
-      options,
-    );
+    final offsets = _preloadOffsets(direction, confidence);
 
     final desiredUrls = <String>{};
     for (final pageOffset in offsets) {
@@ -150,45 +173,27 @@ class DirectionBasedPreloadStrategy extends PreloadStrategy {
     ScrollDirection direction,
     DirectionConfidence confidence,
   ) {
-    final cancelUrls = <String>{};
+    final cancelUrls = context.activeDownloads.difference(desiredUrls);
+    if (cancelUrls.isEmpty) return cancelUrls;
 
-    final urlIndexMap = context.buildUrlIndexMap();
-
-    for (final activeUrl in context.activeDownloads) {
-      // Don't cancel what we still want
-      if (desiredUrls.contains(activeUrl)) continue;
-
-      // Find the index of this active URL
-      final activeIndex = urlIndexMap[activeUrl];
-      if (activeIndex == null) {
-        // Can't find URL index, cancel it (probably stale)
-        cancelUrls.add(activeUrl);
+    // Non-desired downloads outside the nearby zone are always canceled.
+    // Inspect only the positions that could retain a download, not the feed.
+    final nearbyDistance = const RelevanceZones().nearbyDistance;
+    final start = math.max(0, context.currentPage - nearbyDistance);
+    final end = math.min(
+      context.itemCount - 1,
+      context.currentPage + nearbyDistance,
+    );
+    for (var index = start; index <= end; index++) {
+      if (context.getRelevanceZone(index) == RelevanceZone.nearby &&
+          confidence == DirectionConfidence.high &&
+          _isOppositeDirection(index, context.currentPage, direction)) {
         continue;
       }
 
-      final zone = context.getRelevanceZone(activeIndex);
-
-      final shouldCancel = switch ((
-        zone,
-        direction,
-        confidence,
-      )) {
-        (RelevanceZone.immediate, _, _) => false,
-        (RelevanceZone.nearby, final dir, DirectionConfidence.high)
-            when _isOppositeDirection(activeIndex, context.currentPage, dir) =>
-          true,
-        (RelevanceZone.nearby, _, _) => false,
-        (RelevanceZone.distant, final dir, DirectionConfidence.medium)
-            when _isOppositeDirection(activeIndex, context.currentPage, dir) =>
-          true,
-        (RelevanceZone.distant, _, DirectionConfidence.low) => true,
-        (RelevanceZone.irrelevant, _, _) => true,
-        (RelevanceZone.distant, _, _) => true,
-      };
-
-      if (shouldCancel) {
-        cancelUrls.add(activeUrl);
-      }
+      final media = context.getMediaItemAt(index);
+      if (media != null) cancelUrls.removeAll(media.allUrls);
+      if (cancelUrls.isEmpty) break;
     }
 
     return cancelUrls;
