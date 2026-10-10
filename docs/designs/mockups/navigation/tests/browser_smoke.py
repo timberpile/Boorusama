@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def standalone() -> str:
     html = (ROOT / 'index.html').read_text()
     html = html.replace('<link rel="stylesheet" href="styles.css">', '<style>' + (ROOT / 'styles.css').read_text() + '</style>')
-    scripts = ['model.js', 'app.js', 'views.js', 'dialogs.js', 'actions.js']
+    scripts = ['model.js', 'app.js', 'views.js', 'following.js', 'dialogs.js', 'actions.js']
     for script in scripts:
         html = html.replace('<script defer src="' + script + '"></script>', '')
     inline = ''.join('<script>' + (ROOT / script).read_text() + '</script>' for script in scripts)
@@ -59,7 +59,7 @@ def main() -> None:
         def test(name, fn):
             nonlocal test_number
             test_number += 1
-            group = 'navigation' if test_number <= 6 else 'editing' if test_number <= 12 else 'layout'
+            group = 'navigation' if test_number <= 10 else 'editing' if test_number <= 15 else 'layout'
             if args.group not in ('all', group):
                 return
             fn()
@@ -82,17 +82,67 @@ def main() -> None:
                 check(read('m.route.folder') is None, 'Back reaches collection root')
             test(concept + ' restores nested group through global navigation', journey)
 
-        def cross_profile():
-            reset(); scenario('pins'); click('pin-open', '[data-id="p3"]')
-            check(read('m.nav.profile') == 'gel', 'pin activates owner')
-            check(read('m.route.query') == 'original scenery', 'exact stored query')
-            click('back');check(read('m.nav.section') == 'following', 'Back returns to pin collection')
-            click('pin-folder', '[data-id="worlds"]');click('pin-folder', '[data-id="atmospheres"]')
-            click('following-tab', '[data-page="feeds"]');click('feed-open', '[data-id="f1"]')
-            click('following-tab', '[data-page="pins"]')
-            check(read('m.route.folder') == 'atmospheres', 'nested pin folder retained')
-            click('following-tab', '[data-page="feeds"]');check(read('m.route.id') == 'f1', 'feed position retained')
-        test('cross-profile pin and independent nested Following tabs', cross_profile)
+        def following_unified():
+            reset(); scenario('pins')
+            check(read('m.route.page') == 'following','Following is one unified root')
+            check(page.locator('.page-tabs').count() == 0, 'no legacy Feeds/Pins tabs')
+            check(page.locator('[data-action=pin-open]').count() == 0, 'no pin type in B')
+            click('following-open', '[data-id="u5"]')
+            check(read('m.route.page') == 'following-stream', 'opens a unified topic')
+            check(read('m.nav.profile') == 'personal', 'opening source from another profile does not change Browse profile')
+            check(read("m.followings.find(f=>f.id==='u5').sources[0].profile") == 'gel', 'source retains Sketchbook identity')
+            check('Gelbooru · Sketchbook' in page.locator('.source-stack').inner_text(), 'source identity visible')
+            click('back');check(read('m.nav.section') == 'following', 'Back returns to Following')
+            click('following-folder-open', '[data-id="worlds"]')
+            click('following-folder-open', '[data-id="atmospheres"]')
+            click('nav', '[data-section="bookmarks"]')
+            click('nav', '[data-section="following"]')
+            check(read('m.route.folder') == 'atmospheres', 'nested folder preserved without subviews')
+        test('unified Following owns source profiles and retains nested folders', following_unified)
+
+        def profile_strip():
+            reset(); click('menu')
+            check(page.locator('#modal .profile-pill').count() == 3, 'all current profiles visible in horizontal strip')
+            check(page.locator('#modal .nav-row[data-action=tool]').count() == 9, 'all nine site tools visible, no overflow action')
+            check(page.locator('#modal .profile-scroll').evaluate('e=>e.scrollWidth>=e.clientWidth'), 'horizontal strip scrollable')
+            click('sidebar-profile', '[data-id="gel"]')
+            check(read('m.nav.profile') == 'gel', 'profile switched in drawer without picker')
+            check(read('ui.modal.type') == 'menu', 'sidebar remains open to select a tool')
+            click('tool','[data-tool="Explore"]')
+            check(read('m.nav.section') == 'browse' and read('m.route.tool') == 'Explore', 'opens selected profile site tool')
+            click('menu')
+            click('sidebar-profile', '[data-id="guest"]')
+            check(read('m.route.tool') == 'Explore', 'site tool stays in context across profile switch')
+            check(read('m.route.profile') == 'guest', 'site tool rebinds to selected account')
+            click('nav', '[data-section="bookmarks"]')
+            click('menu'); click('sidebar-profile', '[data-id="personal"]')
+            check(read('m.nav.section') == 'bookmarks', 'profile selection never leaves global library')
+            check(read('m.visiblePosts().length') > 0, 'bookmarks unfiltered')
+        test('sidebar profile strip, complete tools and scope consistency', profile_strip)
+
+        def profile_close_persists():
+            reset();click('menu');click('sidebar-profile','[data-id="gel"]')
+            click('close-modal')
+            page.wait_for_timeout(70)
+            check(read('m.nav.profile')=='gel','profile choice survives drawer dismissal')
+            page.keyboard.press('Alt+ArrowLeft');page.wait_for_timeout(60)
+            check(read('m.nav.profile')=='gel','historical entry stores committed profile')
+        test('closing a drawer keeps inline profile switch in browser history',profile_close_persists)
+
+        def scroll_navigation():
+            reset();
+            check(page.locator('.bottom-nav:visible').count()==1,'fixed task bar initially visible')
+            before=page.locator('.scroll').evaluate('e=>({top:e.getBoundingClientRect().top,height:e.clientHeight})')
+            page.locator('.scroll').evaluate('e=>e.scrollTop=310');page.wait_for_timeout(280)
+            check(page.locator('.bottom-nav').evaluate('e=>e.classList.contains("nav-hidden")'), 'downscroll hides task bar')
+            check(page.locator('.bottom-nav').evaluate('e=>e.inert'), 'hidden bar cannot receive keyboard focus')
+            after=page.locator('.scroll').evaluate('e=>({top:e.getBoundingClientRect().top,height:e.clientHeight})')
+            check(before==after,'hiding nav does not relayout the feed')
+            page.locator('.scroll').evaluate('e=>e.scrollTop-=120');page.wait_for_timeout(280)
+            check(not page.locator('.bottom-nav').evaluate('e=>e.classList.contains("nav-hidden")'), 'upscroll shows task bar')
+            scenario('pins')
+            check(not page.locator('.bottom-nav').evaluate('e=>e.classList.contains("nav-hidden")'), 'navigation change restores visible bar')
+        test('feed scroll hides/shows fixed task bar without layout jumps',scroll_navigation)
 
         def viewer_pending():
             reset();scenario('nested')
@@ -138,20 +188,30 @@ def main() -> None:
             click('clear-selection')
         test('selection replaces navigation and distinguishes views, folders and groups', selection)
 
-        def create_pin_tree():
-            reset();scenario('pins');click('create-menu');click('create-pin')
-            page.locator('#field-name').fill('Test search');page.locator('#field-query').fill('scenery original test')
+        def create_following_tree():
+            reset();scenario('pins');click('create-menu');click('following-add')
+            page.locator('#field-name').fill('Test topic');page.locator('#field-query').fill('scenery original test')
             page.locator('input[name=folder][value=atmospheres]').check()
-            check(page.locator('.folder-picker .tree-indent input[value=atmospheres]').count()==1, 'picker represents nesting')
-            page.locator('form[data-form=pin] button[type=submit]').click();page.wait_for_timeout(25)
-            check(read('m.pins.at(-1).folder')=='atmospheres','new pin saved in nested folder')
-        test('pin form offers a real folder tree and saves its selection', create_pin_tree)
+            check(page.locator('.folder-picker .tree-indent input[value=atmospheres]').count()==1, 'picker represents Following nesting')
+            page.locator('form[data-form=following-add] button[type=submit]').click();page.wait_for_timeout(25)
+            check(read('m.followings.at(-1).folder')=='atmospheres','new Following topic saved in nested folder')
+            click('following-folder-open', '[data-id="worlds"]')
+            click('following-folder-open', '[data-id="atmospheres"]')
+            click('following-open', '[data-id="'+read('m.followings.at(-1).id')+'"]')
+            click('following-edit')
+            page.locator('input[name=source]').first.check()
+            page.locator('#field-query').fill('night cityscape')
+            page.locator('#field-profile').select_option('gel')
+            page.locator('form[data-form=following-edit] button[type=submit]').click();page.wait_for_timeout(25)
+            check(read('m.followings.at(-1).sources.length')==2,'added source with own profile')
+            check(read('m.nav.profile')=='personal','Browse profile unchanged after source edit')
+        test('Following topic create + nested folder picker + source editing', create_following_tree)
 
         def filter_restore():
-            reset();scenario('pins');page.locator('[data-local-filter]').fill('Sketchbook')
+            reset();scenario('pins');page.locator('[data-local-filter]').fill('Sketchbook discoveries')
             click('nav','[data-section="bookmarks"]');click('nav','[data-section="following"]')
-            check(page.locator('[data-local-filter]').input_value()=='Sketchbook','filter survives destination switch')
-            check(page.locator('[data-action=pin-open]:visible').count()==1,'restored filter applied')
+            check(page.locator('[data-local-filter]').input_value()=='Sketchbook discoveries','filter survives destination switch')
+            check(page.locator('[data-action=following-open]:visible').count()==1,'restored filter applied')
         test('local filter and collection location survive task switches',filter_restore)
 
         def workspace():

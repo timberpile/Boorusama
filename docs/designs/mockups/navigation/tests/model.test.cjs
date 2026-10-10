@@ -50,4 +50,33 @@ test('restoring browser navigation does not undo application data mutations',()=
   assert.equal(m.nav.section,'browse');assert.ok(m.groups.some(g=>g.name==='New group'));
 });
 
-test('Following tabs retain independent nested locations',()=>{const m=new Model();m.switchFollowing('pins');m.push({page:'pins',folder:'worlds'});m.switchFollowing('feeds');m.push({page:'feed',id:'f1'});m.switchFollowing('pins');assert.equal(m.route.folder,'worlds');m.switchFollowing('feeds');assert.equal(m.route.id,'f1');});
+test('Legacy A/C following tabs retain separate nested locations',()=>{const m=new Model('A');m.switchFollowing('pins');m.push({page:'pins',folder:'worlds'});m.switchFollowing('feeds');m.push({page:'feed',id:'f1'});m.switchFollowing('pins');assert.equal(m.route.folder,'worlds');m.switchFollowing('feeds');assert.equal(m.route.id,'f1');});
+
+test('B Following is a single branch with nested folders and preserved Browse profile',()=>{
+ const m=new Model('B');m.switchSection('following');assert.equal(m.route.page,'following');
+ m.push({page:'following',folder:'worlds'});m.push({page:'following',folder:'atmospheres'});
+ m.openFollowing('u5');assert.equal(m.route.page,'following-stream');assert.equal(m.nav.profile,'personal');
+ assert.equal(m.followings.find(f=>f.id==='u5').sources[0].profile,'gel');
+ m.back();assert.equal(m.route.folder,'atmospheres');m.switchSection('bookmarks');m.switchSection('following');
+ assert.equal(m.route.folder,'atmospheres');assert.throws(()=>m.switchFollowing('pins'),/one unified view/);
+});
+test('B Following source edits and folder creation never alter global browsing context',()=>{
+ const m=new Model('B');m.switchSection('following');const id=m.addFollowing('New','original scenery','gel','worlds');
+ assert.equal(m.followings.find(f=>f.id===id).sources[0].profile,'gel');assert.equal(m.nav.profile,'personal');
+ const items=m.followingDescendants('worlds');assert.ok(items.some(f=>f.id===id));
+ m.switchProfile('guest');assert.equal(m.nav.section,'following');assert.equal(m.nav.profile,'guest');
+ assert.equal(m.followings.find(f=>f.id===id).sources[0].profile,'gel');
+});
+test('B Following new state and multi-source matching do not silently activate source profiles',()=>{
+ const m=new Model('B');const f=m.followings.find(f=>f.id==='u1');assert.equal(f.sources.length,2);
+ m.switchSection('following');m.openFollowing('u1');assert.equal(f.isNew,false);
+ assert.equal(m.nav.profile,'personal');const sites=new Set(m.visiblePosts().map(p=>p.site));
+ assert.ok(sites.has('Danbooru')&&sites.has('Gelbooru'));
+});
+
+test('B preserves a source profile on post context even for a guest profile on the same site',()=>{
+ const m=new Model('B');m.switchSection('following');m.openFollowing('u6');
+ const posts=m.visiblePosts();assert.ok(posts.length>0);assert.ok(posts.every(p=>p.sourceProfile==='guest'));
+ m.openViewer(posts[0].key,posts.map(p=>p.key));assert.equal(m.viewedPost.sourceProfile,'guest');
+ m.closeViewer();assert.equal(m.nav.profile,'personal');
+});

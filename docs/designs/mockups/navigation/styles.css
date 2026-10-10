@@ -18,3 +18,61 @@
 .folder-picker{border:1px solid var(--line);border-radius:12px;margin:16px 0;padding:8px 12px;min-width:0}
 .folder-picker legend{padding:0 6px;font-weight:650}.tree-branch{min-width:0}.tree-indent{margin-left:15px;padding-left:8px;border-left:1px solid var(--line)}
 .folder-picker .check-row{gap:10px;min-height:44px}.folder-picker input[type=radio]{flex:0 0 auto;accent-color:var(--accent)}
+
+/* Concept B refinement — pinned site profiles and complete directly accessible tools. */
+.sidebar-profile-bar{flex-shrink:0;min-width:0;padding:11px 10px 12px;background:var(--panel);border-bottom:1px solid var(--border)}
+.profile-bar-heading{display:flex;align-items:center;justify-content:space-between;gap:7px;margin-bottom:10px;font-size:.69em;font-weight:650;letter-spacing:.8px;color:var(--sub)}
+.profile-bar-hint{font-size:.86em;letter-spacing:0;font-weight:400;white-space:nowrap}
+.profile-scroll{display:flex;gap:7px;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x proximity;overscroll-behavior-x:contain;scrollbar-width:thin;scrollbar-color:var(--border) transparent;padding:2px 1px 7px;-webkit-overflow-scrolling:touch}
+.profile-pill{display:flex;align-items:center;gap:7px;min-height:55px;flex:0 0 auto;max-width:180px;min-width:120px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:11px;padding:7px 10px;text-align:left;scroll-snap-align:start}
+.profile-pill[aria-pressed=true]{background:var(--selected);border-color:var(--primary);box-shadow:0 0 0 1px var(--primary)}
+.profile-pill .profile-avatar{width:29px;height:29px;display:grid;place-items:center;background:var(--raised);color:var(--primary);font-size:.86em;border-radius:50%;font-weight:650;flex-shrink:0}
+.profile-pill-name{display:block;overflow:hidden;min-width:0}.profile-pill-name strong{display:block;font-size:.81em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.profile-pill-name small{display:block;color:var(--sub);font-size:.65em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px}
+.profile-scroll>.icon-btn{border:1px solid var(--border);background:var(--raised);height:55px;min-width:50px;scroll-snap-align:start}
+.profile-scope-hint{color:var(--sub);font-size:.69em;line-height:1.45;margin:1px 0 0}
+.nav-scroller{min-height:0;min-width:0;flex:1;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:var(--border) transparent;padding:2px 4px 15px}
+.tool-state{display:block;font-size:.64em;margin:-8px 5px 3px 49px;color:var(--warn);pointer-events:none}
+.drawer-content{display:flex;flex-direction:column;min-height:0;height:calc(100% - 60px);overflow:hidden;padding:0 9px 10px}
+.drawer-content .profile-scroll{max-width:100%}
+.side-nav{overscroll-behavior:contain}
+.side-nav .sidebar-profile-bar{margin:-3px -3px 5px}
+.side-nav>.nav-scroller{overflow-y:auto}
+/* Bottom task bar is overlay-only: list viewport dimensions never change when it slides. */
+.app-frame[data-concept=B] .shell{position:relative}
+.app-frame[data-concept=B] .bottom-nav{position:absolute;bottom:0;left:0;right:0;z-index:9;min-height:75px;transition:transform 180ms ease,opacity 180ms ease;will-change:transform;box-shadow:0 -8px 18px #0002}
+.app-frame[data-concept=B] .bottom-nav.nav-hidden{transform:translateY(calc(100% + 2px));opacity:.35;pointer-events:none}
+.app-frame[data-concept=B] .content-area>.scroll{padding-bottom:90px}
+.app-frame[data-concept=B].has-keyboard .bottom-nav{display:none}
+/* Following is one destination; every topic can contain one or more source profiles. */
+.following-controls{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin:4px 0 2px}
+.following-topic .row-main{min-height:73px}.following-topic .row-copy small{overflow-wrap:anywhere}
+.following-page .list-row .icon-btn{flex-shrink:0}
+.source-stack{display:flex;align-items:flex-start;flex-wrap:wrap;gap:7px;margin:14px 0 4px}
+.source-pill{display:flex;flex-direction:column;align-items:flex-start;gap:4px;max-width:100%;padding:8px 10px;border-radius:9px;background:var(--panel);color:var(--text);font-size:.71em;border:1px solid var(--border);overflow-wrap:anywhere}
+.source-pill .icon{width:15px;height:15px;display:inline-block;vertical-align:middle;margin-right:4px;color:var(--primary)}
+.source-pill>span{color:var(--sub);font-size:.95em}
+.follow-stream .chip-row{flex-wrap:wrap}
+@container app (min-width:620px){
+ .app-frame[data-concept=B] .bottom-nav{display:none}
+ .app-frame[data-concept=B] .content-area>.scroll{padding-bottom:16px}
+ .app-frame[data-concept=B] .side-nav{width:218px;padding:10px 8px;overflow:hidden}
+ .app-frame[data-concept=B] .side-nav .nav-row{flex-direction:row;justify-content:flex-start;text-align:left;gap:10px;padding:8px 10px;min-height:44px;font-size:.78em}
+ .app-frame[data-concept=B] .side-nav .nav-row>span:nth-child(2){flex:1}
+ .app-frame[data-concept=B] .side-nav .menu-group-title,.app-frame[data-concept=B] .side-nav .drawer-only{display:block}
+ .app-frame[data-concept=B] .side-nav .sidebar-profile-bar{margin:0 -8px 6px;padding:10px 8px}
+}
+@container app (min-width:1000px){
+ .app-frame[data-concept=B] .side-nav{width:244px;padding:10px 12px}
+ .app-frame[data-concept=B] .side-nav .sidebar-profile-bar{margin:0 -12px 8px;padding:12px}
+ .app-frame[data-concept=B] .side-nav .nav-row{font-size:.86em}
+}
+@container app (max-width:340px){
+ .profile-pill{min-width:105px;max-width:135px;padding:5px;gap:5px}
+ .profile-scope-hint{font-size:.63em}
+ .source-pill{font-size:.67em}
+}
+@media(prefers-reduced-motion:reduce){.app-frame[data-concept=B] .bottom-nav{transition:none;will-change:auto}}
+@container app (min-width:620px) and (max-width:999px){
+ /* C retains an icon-only compact rail. Its profile row remains in the drawer. */
+ .app-frame[data-concept=C] .side-nav .sidebar-profile-bar{display:none}
+}

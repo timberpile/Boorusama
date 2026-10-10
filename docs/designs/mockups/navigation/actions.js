@@ -2,7 +2,25 @@
 function perform(action,b,e){const id=b.dataset.id;
  switch(action){
  case 'menu':openModal('menu');break;
- case 'profiles':openModal('profiles');break;
+ case 'profiles':openModal(concept==='B'?'menu':'profiles');break;
+ case 'sidebar-profile':{
+   const oldTool=m.nav.section==='browse'&&m.route.page==='tool'?m.route.tool:null;
+   transition(()=>{m.switchProfile(id);if(oldTool&&(m.route.tool!==oldTool||m.route.profile!==id))m.push({page:'tool',tool:oldTool,profile:id});},true);if(ui.modal?.type==='menu')menuPendingNav=m.snapshot();
+   requestAnimationFrame(()=>{(modal.open?modal:screen).querySelector(`[data-action="sidebar-profile"][data-id="${CSS.escape(id)}"]`)?.focus({preventScroll:true});});
+   break;
+ }
+ case 'following-home':transition(()=>{m.resetSection('following');ui.filter='';},Boolean(ui.modal));break;
+ case 'following-folder-open':navigate('following',{page:'following',folder:id});break;
+ case 'following-folder-root':transition(()=>visitFolder('following',id));break;
+ case 'following-open':transition(()=>{m.openFollowing(id);ui.filter='';ui.onlyNew=false;},Boolean(ui.modal));break;
+ case 'following-add':openModal('following-add',{query:m.route.query||''});break;
+ case 'following-edit':openModal('following-edit',{id});break;
+ case 'following-folder':openModal('following-folder');break;
+ case 'following-item-menu':openModal('following-item-menu',{id});break;
+ case 'following-move':{m.selection=[id];openModal('following-move');break;}
+ case 'following-move-target':transition(()=>{m.followings.filter(f=>m.selection.includes(f.id)).forEach(f=>f.folder=id||null);m.clearSelection();ui.modal=null;},true);toast('Moved in Following. Source profiles are unchanged.');break;
+ case 'following-read':transition(()=>{const f=m.followings.find(f=>f.id===id);if(f)f.isNew=false;ui.modal=null;},true);break;
+ case 'following-remove':openModal('confirm',{id,title:'Unfollow this topic?',message:'Removes the followed topic from this local collection. Source posts and bookmarks are unaffected.',label:'Unfollow'});break;
  case 'nav':navigate(b.dataset.section);break;
  case 'back':appBack();break;
  case 'close-modal':closeModal();break;
@@ -39,7 +57,7 @@ function perform(action,b,e){const id=b.dataset.id;
  case 'create-group':openModal('name',{kind:'group'});break;
  case 'create-folder':openModal('name',{kind:'folder'});break;
  case 'create-pin-folder':openModal('name',{kind:'pin-folder'});break;
- case 'create-pin':case 'pin-query':openModal('pin',{query:m.route.query||''});break;
+ case 'create-pin':case 'pin-query':openModal(concept==='B'?'following-add':'pin',{query:m.route.query||''});break;
  case 'create-feed':openModal('feed-edit');break;
  case 'edit-feed':openModal('feed-edit',{id});break;
  case 'rename-item':{const pin=m.pins.find(p=>p.id===id),g=m.groups.find(g=>g.id===id);openModal('name',{id,kind:pin?'pin':g.type,name:(pin||g).name,rename:true});break;}
@@ -55,7 +73,7 @@ function perform(action,b,e){const id=b.dataset.id;
  case 'sort':openModal('sort');break;
  case 'sort-choice':transition(()=>{ui.sort=b.dataset.value;ui.modal=null;},true);break;
  case 'demo-order':transition(()=>{ui.sort=b.dataset.order;},true);break;
- case 'refresh':if(m.offline)toast('Offline: cached content and NEW state are retained. Retry when connected.');else{transition(()=>{ui.modal=null;const p=m.pins.find(p=>p.profile===m.nav.profile)||m.pins[0];if(p)p.isNew=true;m.feeds[0]&&(m.feeds[0].isNew=true);},Boolean(ui.modal));toast('Simulated refresh completed. NEW is a signal, not an unread post count.');}break;
+ case 'refresh':if(m.offline)toast('Offline: cached content and NEW state are retained. Retry when connected.');else{transition(()=>{ui.modal=null;if(concept==='B'){const f=m.followings.find(f=>f.id===m.route.id)||m.followings[0];if(f)f.isNew=true;}else{const p=m.pins.find(p=>p.profile===m.nav.profile)||m.pins[0];if(p)p.isNew=true;if(m.feeds[0])m.feeds[0].isNew=true;}},Boolean(ui.modal));toast('Simulated refresh completed. NEW is a signal, not an unread post count.');}break;
  case 'retry':transition(()=>{m.offline=false;},true);toast('Simulated connection restored. No live requests were made.');break;
  case 'choose-profile':transition(()=>{m.switchProfile(id);ui.modal=null;if(m.route.page==='unavailable')m.resetSection('browse');},true);toast('Browsing profile changed. Your global collections are unchanged.');break;
  case 'setup-profile':transition(()=>{if(!m.profiles.length)m.profiles=copy(NavigationLab.PROFILES);else if(!m.profiles.some(p=>p.id==='extra'))m.profiles.push({id:'extra',name:'Second account',site:'Danbooru',host:'danbooru.donmai.us',signedIn:false,initials:'D'});ui.modal=null;},Boolean(ui.modal));toast('Added a local demo profile. No credentials or requests.');break;
@@ -68,9 +86,9 @@ function perform(action,b,e){const id=b.dataset.id;
  case 'download-post':transition(()=>{const p=m.viewedPost;m.downloads.push({id:'job-'+m.nextId++,name:p.title+'.jpg',status:'Downloading',progress:0});},true);toast('Added a simulated download. Find it under Downloads.');break;
  case 'download-info':openModal('info',{title:'Completed demo download',message:'The queue is navigation-independent. This fixture has no file on disk.'});break;
  case 'move':openModal('move');break;
- case 'move-destination':transition(()=>{const mode=selectionKind();if(mode==='posts')m.moveBookmarks(id);else if(mode==='pins'){m.pins.filter(p=>m.selection.includes(p.id)).forEach(p=>p.folder=id||null);m.clearSelection();}else{m.groups.filter(g=>m.selection.includes(g.id)).forEach(g=>g.parent=id||null);m.clearSelection();}ui.modal=null;},true);toast('Moved in the demo. Profile ownership and saved searches are unchanged.');break;
+ case 'move-destination':transition(()=>{const mode=selectionKind();if(mode==='posts')m.moveBookmarks(id);else if(mode==='pins'){m.pins.filter(p=>m.selection.includes(p.id)).forEach(p=>p.folder=id||null);m.clearSelection();}else if(mode==='following'){m.followings.filter(p=>m.selection.includes(p.id)).forEach(p=>p.folder=id||null);m.clearSelection();}else{m.groups.filter(g=>m.selection.includes(g.id)).forEach(g=>g.parent=id||null);m.clearSelection();}ui.modal=null;},true);toast('Moved in the demo. Profile ownership and saved searches are unchanged.');break;
  case 'remove-selection':openModal('confirm',{title:'Remove selected items?',message:'This changes only the synthetic demo. Bookmark removal removes the selected local bookmarks; pin and group removal affect their own collections.'});break;
- case 'confirm-remove':transition(()=>{const ids=ui.modal.data.id?[ui.modal.data.id]:m.selection.slice();m.pins=m.pins.filter(p=>!ids.includes(p.id));const removedFolders=m.groups.filter(g=>ids.includes(g.id)&&g.type==='folder').map(g=>g.id);m.groups=m.groups.filter(g=>!ids.includes(g.id));m.groups.forEach(g=>{if(removedFolders.includes(g.parent))g.parent=null;});m.posts.forEach(p=>{if(ids.includes(p.key)){p.bookmarked=false;p.groups=[];}else p.groups=p.groups.filter(g=>!ids.includes(g));});m.clearSelection();ui.modal=null;},true);toast('Removed from the demo.');break;
+ case 'confirm-remove':transition(()=>{const ids=ui.modal.data.id?[ui.modal.data.id]:m.selection.slice();m.pins=m.pins.filter(p=>!ids.includes(p.id));m.followings=m.followings.filter(f=>!ids.includes(f.id));const foldersRemoved=m.followingFolders.filter(f=>ids.includes(f.id)).map(f=>f.id);m.followingFolders=m.followingFolders.filter(f=>!ids.includes(f.id));m.followingFolders.forEach(f=>{if(foldersRemoved.includes(f.parent))f.parent=null;});m.followings.forEach(f=>{if(foldersRemoved.includes(f.folder))f.folder=null;});const removedFolders=m.groups.filter(g=>ids.includes(g.id)&&g.type==='folder').map(g=>g.id);m.groups=m.groups.filter(g=>!ids.includes(g.id));m.groups.forEach(g=>{if(removedFolders.includes(g.parent))g.parent=null;});m.posts.forEach(p=>{if(ids.includes(p.key)){p.bookmarked=false;p.groups=[];}else p.groups=p.groups.filter(g=>!ids.includes(g));});m.clearSelection();ui.modal=null;if(m.route.page==='following-stream'&&!m.followings.some(f=>f.id===m.route.id))m.resetSection('following');},true);toast('Removed from the demo.');break;
  case 'download-selection':transition(()=>{m.downloads.push({id:'job-'+m.nextId++,name:m.selection.length+' selected demo items',status:'Downloading',progress:0});m.clearSelection();},true);toast('Added a simulated queue entry. No network or file operation.');break;
  case 'export-selection':openModal('info',{title:'Export selection',message:m.selection.length+' items would enter the existing export flow.',detail:'Real .bsexport serialization, filename entry, platform file pickers and permissions are deliberately not implemented by this HTML lab.'});break;
  case 'spaces':openModal('spaces');break;
@@ -83,8 +101,8 @@ function perform(action,b,e){const id=b.dataset.id;
  case 'artist':navigate('browse',{page:'search',query:'original',name:'Artist: '+b.dataset.name});break;
  case 'server-search':navigate('browse',{page:'search',query:'scenery clouds',name:'Server saved search'});break;
  case 'site-collection':navigate('browse',{page:'search',query:'scenery',name:b.dataset.name});break;
- case 'search-tag':{const p=m.viewedPost,owner=p?.profile||m.nav.profile;transition(()=>{leaveOverlay();if(m.profile(owner))m.switchProfile(owner);m.switchSection('browse');m.push({page:'search',query:b.dataset.query});},true);break;}
- case 'view-source':{const p=m.viewedPost;transition(()=>{const owner=p.profile;leaveOverlay();m.switchProfile(owner);m.switchSection('browse');m.push({page:'search',query:'scenery',name:'From '+p.site});},true);break;}
+ case 'search-tag':{const p=m.viewedPost,owner=p?.sourceProfile||p?.profile||m.nav.profile;transition(()=>{leaveOverlay();if(m.profile(owner))m.switchProfile(owner);m.switchSection('browse');m.push({page:'search',query:b.dataset.query});},true);break;}
+ case 'view-source':{const p=m.viewedPost;transition(()=>{const owner=p.sourceProfile||p.profile;leaveOverlay();m.switchProfile(owner);m.switchSection('browse');m.push({page:'search',query:'scenery',name:'From '+p.site});},true);break;}
  case 'add-tag':openModal('tag',{tool:m.route.tool});break;
  case 'edit-tag':openModal('tag',{name:b.dataset.name,tool:b.dataset.tool});break;
  case 'discard-edit':closeModal(true);break;
@@ -112,6 +130,27 @@ document.addEventListener('submit',e=>{
  const form=e.target.closest('form[data-form]');if(!form)return;e.preventDefault();const data=new FormData(form),get=k=>String(data.get(k)||'').trim();
  try{
   const type=form.dataset.form;
+   if(type==='following-add'){
+     m.addFollowing(get('name'),get('query'),get('profile'),get('folder')||null);
+     transition(()=>{ui.modal=null;},true);toast('Now following that search. The source profile is stored with the topic.');
+     return;
+   }
+   if(type==='following-folder'){
+     const name=get('name'),id=form.dataset.id;if(!name)throw new Error('Enter a folder name');
+     if(m.followingFolders.some(f=>f.name.toLowerCase()===name.toLowerCase()&&f.id!==id))throw new Error('A Following folder with that name exists');
+     if(id)m.followingFolders.find(f=>f.id===id).name=name;
+     else m.followingFolders.push({id:'following-folder-'+m.nextId++,name,parent:m.route.page==='following'?m.route.folder||null:null});
+     transition(()=>{m.empty=false;ui.modal=null;},true);toast(id?'Following folder renamed.':'Following folder created.');return;
+   }
+   if(type==='following-edit'){
+     const topic=m.followings.find(f=>f.id===form.dataset.id);if(!topic)throw new Error('Topic no longer exists');
+     const name=get('name');if(!name)throw new Error('Enter a topic name');
+     const checked=data.getAll('source').map(Number);const sources=topic.sources.filter((s,i)=>checked.includes(i));
+     if(get('query')){if(!m.profile(get('profile')))throw new Error('Choose a source profile');sources.push({name:get('query'),query:get('query'),profile:get('profile')});}
+     if(!sources.length)throw new Error('Keep at least one source');
+     topic.name=name;topic.sources=sources;
+     transition(()=>{ui.modal=null;},true);toast('Source list updated without changing Browse profile.');return;
+   }
   if(type==='search'){
     const query=get('query');if(!query)throw new Error('Enter a search query');
     transition(()=>{leaveOverlay();m.switchSection('browse');m.push({page:'search',query});},true);
@@ -160,9 +199,9 @@ modal.addEventListener('cancel',e=>{e.preventDefault();closeModal();});
 modal.addEventListener('click',e=>{if(e.target!==modal)return;const r=modal.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)closeModal();});
 window.addEventListener('resize',positionModal);window.addEventListener('scroll',positionModal,{passive:true});
 window.addEventListener('popstate',e=>{
- if(!e.state?.lab)return;if(ui.modal?.dirty){const previous=copy(ui.modal);historyDepth=e.state.depth;ui.modal={type:'discard',data:{previous}};render();record();return;}saveScroll();const sameViewer=m.viewer&&e.state.viewer&&e.state.concept===concept&&JSON.stringify(m.viewer.keys)===JSON.stringify(e.state.viewer.keys);if(m.viewer&&!sameViewer)m.closeViewer();
- concept=e.state.concept;m=models[concept];m.restore(e.state.nav);m.viewer=copy(e.state.viewer);m.selection=(e.state.selection||[]).slice();
- ui.modal=copy(e.state.modal);ui.immersive=false;ui.zoom=false;ui.filter='';historyDepth=e.state.depth;render();
+ if(!e.state?.lab)return;if(ui.modal?.dirty){const previous=copy(ui.modal);historyDepth=e.state.depth;ui.modal={type:'discard',data:{previous}};render();record();return;}saveScroll();const savedMenuNav=ui.modal?.type==='menu'&&menuPendingNav&&!e.state.modal?copy(menuPendingNav):null;const sameViewer=m.viewer&&e.state.viewer&&e.state.concept===concept&&JSON.stringify(m.viewer.keys)===JSON.stringify(e.state.viewer.keys);if(m.viewer&&!sameViewer)m.closeViewer();
+ concept=e.state.concept;m=models[concept];m.restore(savedMenuNav||e.state.nav);m.viewer=copy(e.state.viewer);m.selection=(e.state.selection||[]).slice();
+ ui.modal=copy(e.state.modal);ui.immersive=false;ui.zoom=false;ui.filter='';historyDepth=e.state.depth;menuPendingNav=null;render();if(savedMenuNav)record(true);
 });
 document.addEventListener('keydown',e=>{
  const typing=e.target.matches('input,textarea,select,[contenteditable=true]');
@@ -211,7 +250,7 @@ $('#scenario').addEventListener('change',e=>{
  switch(e.target.value){
  case 'browse':m.resetSection('browse');break;
  case 'nested':m.resetSection('bookmarks');m.push({page:'groups',folder:'collections'});m.push({page:'group',group:'scenery'});break;
- case 'pins':m.resetSection('following',{page:'pins',folder:null});break;
+ case 'pins':if(concept==='B')m.resetSection('following');else m.resetSection('following',{page:'pins',folder:null});break;
  case 'selection':m.resetSection('bookmarks');m.push({page:'group',group:'all'});m.selection=m.visiblePosts().slice(0,3).map(p=>p.key);break;
  case 'guest':m.switchProfile('guest');m.resetSection('browse');m.push({page:'tool',tool:'Server favorites',profile:'guest'});break;
  case 'offline':m.offline=true;m.resetSection('browse');break;
@@ -222,7 +261,7 @@ $('#scenario').addEventListener('change',e=>{
  });
 });
 // A small, intentionally explicit set of copyable initial deep links.
-(function initialRoute(){try{const parts=location.hash.replace(/^#\//,'').split('/');if(['browse','following','bookmarks','more'].includes(parts[0])){m.switchSection(parts[0]);if(parts[1]==='group'&&parts[2])m.push({page:'group',group:decodeURIComponent(parts[2])});if(parts[1]==='folder'&&parts[2])m.push({page:parts[0]==='following'?'pins':'groups',folder:decodeURIComponent(parts[2])});if(parts[1]==='search'&&parts[2])m.push({page:'search',query:decodeURIComponent(parts[2])});if(parts[1]==='feeds')m.resetSection('following',{page:'feeds'});}}catch(_){m.resetSection('browse');toast('The link could not be read. Opened the start destination instead.');}})();
+(function initialRoute(){try{const parts=location.hash.replace(/^#\//,'').split('/');if(['browse','following','bookmarks','more'].includes(parts[0])){m.switchSection(parts[0]);if(parts[1]==='group'&&parts[2])m.push({page:'group',group:decodeURIComponent(parts[2])});if(parts[1]==='folder'&&parts[2])m.push({page:parts[0]==='following'?(concept==='B'?'following':'pins'):'groups',folder:decodeURIComponent(parts[2])});if(parts[1]==='search'&&parts[2])m.push({page:'search',query:decodeURIComponent(parts[2])});if(parts[1]==='feeds')m.resetSection('following',{page:'feeds'});}}catch(_){m.resetSection('browse');toast('The link could not be read. Opened the start destination instead.');}})();
 $('button[data-size=phone]').setAttribute('aria-pressed','true');render();record(true);updateSize();
 // Read-only test hooks. No production integration or external API access.
 window.__navigationLab={get model(){return m;},get ui(){return ui;},render,art};
