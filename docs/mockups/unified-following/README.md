@@ -1,171 +1,49 @@
-# Unified pinned searches and Following
+# Following / Topics — interactive concept (v2)
 
-Interactive design prototype, based on `develop` at
-`f4972eb54119fce98360c4c2303bbce375b8e722`. No Flutter application code is changed.
-The proposed behavior is not an assertion about functionality already shipped.
+This revises the previous `Pinned searches + Following Feeds` mockup. It is a **design prototype, not a Flutter implementation**. The directory retains its original name to keep the earlier mockup location and branch stable.
 
-## Open the prototype
+Open **`index.html`** in a modern browser, or serve the directory with `python -m http.server 8000`. The HTML is self-contained and needs no network, build, assets, packages, or real booru account. Search results, profiles, and thumbnails are illustrative fixtures. The browser stores demo edits under `boorusama.topics-following.mockup.v2`; open **Design notes → Reset demo** to discard them.
 
-Open `index.html` in a modern browser. It is a single, self-contained file: no
-build, packages, server, fonts, images, APIs, or accounts are needed. For browsers
-that restrict local files, serve this directory with `python -m http.server 8000`
-and open the local server instead.
+## Adopted product model
 
-Changes are kept under the isolated local-storage key
-`boorusama.unified-following.mockup.v1`. The prototype never reads or changes real
-Boorusama data. When storage is unavailable, it remains usable in memory. Use
-**Design notes -> Reset demo** to restore the fixtures. All artwork and search
-results are synthetic; new queries generate illustrative results, not real API
-responses. Profile names identify simulated sources, not connected accounts.
+- **Following** is the *only* navigation entry, replacing both **Pinned searches** and **Following Feeds**. We do not use **Saved searches**; Danbooru already uses that name for another feature.
+- **Topic** is a followed artist, tag, or arbitrary profile-bound search query. Selecting a topic opens the **ordinary search-results view**, with independent pagination. The mock implements repeatable **Load more posts** controls solely to illustrate that existing behavior; production should reuse its existing search page and pagination.
+- **Folder** organizes topics and nested folders. It opens to its **contents (folders and individual topics)**, not automatically to an aggregate post grid.
+- **Open Feed** is an action in the folder's **actual top app bar**. It opens a chronologically merged post view for the folder and all descendants. **No separate Feed model, feed creation, feed subscriptions, or feed management page** is required for the UX.
+- Editing a topic changes the original shared search definition. Linking an existing topic into another folder never creates a duplicate search. **Remove from this folder** keeps the topic followed (moving it to the Following root if its last folder reference was removed); **Unfollow everywhere** is a separate confirmed destructive action.
+- Topics can be mixed across profiles within a folder and consequently within its feed. Duplicate matches from the same origin are merged; numeric IDs from different booru sites remain distinct.
 
-## Recommendation and vocabulary
-
-Retain **Pinned searches** for the existing feature and use **Following** as the
-browsing destination. Do not use **Saved searches**, which conflicts with the
-separate Danbooru feature.
-
-| Term or action | Meaning |
-| --- | --- |
-| Pinned search | One reusable query bound to one profile. |
-| Search folder | References to searches and nested folders. A search may be linked to several folders. |
-| Following | The place to open the feeds the user has created. |
-| Create feed | Make a folder's Posts view directly available in Following. No copied searches or converted folder type. |
-| Follow | Pin or reuse an artist/tag/query and link it to one or more feed folders. |
-| Posts / Searches | Two views of the same folder, not separate management systems. |
-
-**Search library** is a reasonable alternative if the existing name is changed:
-it describes the shared collection better than “Pins,” but loses familiar
-terminology. **Streams** is compact but less explicit about following interests.
-**Watchlist** suggests monitoring/alerts more than browsing. These alternatives
-are included in the prototype's Design notes, not adopted as competing labels.
-
-The feed and folder intentionally share their name. Creating the same feed twice
-is not offered. Removing a feed only removes its entry from Following; the folder
-and all searches remain. “Remove from this folder” removes a reference;
-“Delete everywhere” is a separate, confirmed operation.
+Root-level topics are accessible under Following; only folders have the Open Feed action. The mock uses English product copy, as should the Flutter implementation.
 
 ## Walkthrough
 
-1. Open **Daily inspiration**. Posts combine Danbooru, Gelbooru, and Rule34.
-   Filter by profile or reverse upload order. Post `101` exists on three sites:
-   those are three different posts. Open the Danbooru post to see that two search
-   matches on that one site are combined.
-2. Switch to **Searches**. The **Landscapes** subfolder contributes searches to
-   the parent Posts view. Open it through the same hierarchy used by the library.
-3. Edit **Mosslight** from its overflow menu. Change its name or query; then open
-   **Color & form** or **Pinned searches -> All searches**. The same definition
-   changes everywhere. Query changes replace this source's synthetic results.
-4. Use **Add existing** or **Follow**. Following `gesture_drawing` on Gelbooru
-   reuses the already-pinned **Gesture studies** record instead of copying it.
-5. Use **Create feed -> Reference board**. The existing folder immediately gains
-   an entry in Following. Remove that feed and verify its folder/search survives.
-6. Create a new empty feed, add a search, create a subfolder, or rename its folder.
-   Long-press a search or use its menu to select. Shift-click extends a range;
-   pointer drag after a long press also selects a range. Bulk linking and removing
-   references are available in the contextual toolbar, without a permanent
-   selection-mode button.
-7. Switch to **Gelbooru offline** in the prototype toolbar. The error is scoped
-   to that source, cached content remains visible, and **Retry** recovers the
-   simulated state. Try the phone preview and light theme as well.
+1. **Following** → see three folders and two top-level topics. There is no separate feeds screen.
+2. Open **Daily inspiration** → see **Mosslight** and **Night trains** as individual topics, plus the **Landscapes** subfolder. The folder is a normal topic list, not a feed.
+3. Select **Mosslight** → its normal post grid appears. Click **Load more posts** repeatedly to illustrate regular, independent search pagination. Return to the folder through **Back to folder**.
+4. In **Daily inspiration**, choose **Open Feed** from the **top app bar**. The combined grid includes the nested Landscapes topics and multiple simulated sites. Switch profile or upload order; use **View Topics** to return to the same folder.
+5. At the bottom of the feed, the explicit **End of feed preview** note distinguishes the *simulated short cached window* from the unresolved problem of historical feed pagination. There is deliberately **no Load more** button in the feed.
+6. Edit **Mosslight** from its topic menu. Revisit **Color & form**: the same underlying topic is updated. Use **Add existing** to reference a followed topic without copying it, or **Follow topic** to add a new artist, tag, or query.
+7. Long-press a topic or Shift-click to select multiple topics. Remove a folder reference without unfollowing; separately confirm **Unfollow everywhere**. Create a new folder and see that it immediately offers **Open Feed**, without a **Create feed** step.
+8. Try **Phone preview**, **Light mode**, and **Gelbooru offline** in the prototype toolbar.
 
-## Why mixed profiles require changes, but are feasible
+## Feed pagination deliberately deferred
 
-The inspected implementation has real single-profile assumptions; the restriction
-is not merely a future Gelbooru optimization:
+This change is a UX and data-model proposal **only**. It does **not** assert that the existing feed can retrieve arbitrarily old posts or that storing the latest N per topic is a scalable pagination design. Feed previews display five synthetic cached posts per topic and stop, visibly marking that boundary. The normal individual-topic search uses an independent synthetic page generator to demonstrate the expected *existing* unlimited search behavior.
 
-- [`SearchFollowingFeed`](../../../lib/core/search/subscriptions/src/types/search_following_feed.dart)
-  requires one `profileId`. Its merge indexes cached posts by numeric post ID.
-- [`HiveSearchSubscriptionRepository.saveFeed`](../../../lib/core/search/subscriptions/src/data/hive/search_subscription_repository_hive.dart)
-  creates/reuses sources under the supplied profile. Existing feed sources are
-  distinguished from ordinary pinned searches. Deleting a feed may delete sources
-  not referenced by another feed; this is unsafe for shared pinned searches.
-- [`_CachedFeedGrid._createHistory`](../../../lib/core/search/subscriptions/src/pages/following_feeds_page.dart)
-  selects the adapter and post repository using the feed's `widget.config`, not
-  each source's profile. The page also provides a single current-profile scope.
-  Thumbnail configuration already resolves individual post origins, so some
-  origin-aware infrastructure is available.
-- [`FeedHistorySession`](../../../lib/core/search/subscriptions/src/services/feed_history_session.dart)
-  uses `Set<int>` for deduplication. It filters out posts without timestamps and
-  rethrows a source-page failure after its workers finish.
+A later engineering work item should investigate actual retained snapshots (currently roughly the most recent 50 per source), history pagination, API request and per-host batching, memory usage, refresh/read state, cache expiry, missing upload timestamps, and partial failures. None are promised or hidden behind a mock infinite-scroll control.
 
-For production, keep the search's profile but remove profile ownership from the
-feed definition. Resolve the adapter, authentication, pagination, and post
-presentation from each source/post origin. Use canonical site/instance + post ID
-for identity, not bare ID. Preserve the profile context needed to perform actions;
-profiles on the same site should not automatically produce duplicate posts.
-Cross-site copies with different origins remain separate unless an independent,
-explicit content-matching feature is designed.
+## Technical implications for a future implementation
 
-Merge streams by actual upload time with a stable tie-breaker. Unknown dates need
-an explicit fallback/section rather than silent dropping or comparison of IDs
-across unrelated sites. Isolate partial failures and retries per source; keep
-shared host/account request limits, cancellation, and stale-result protection.
-Do not imply that a chronological feed is complete when one source could not load.
-The mockup's fixture list is finite and does not implement network pagination.
+1. Existing pinned search records can serve as canonical Topics. Convert/migrate existing feed sources into the same collection, reconciling duplicates and preserving folder membership, names, profiles, and refresh/read state. Folders should reference topics; removing a link must not delete a canonical topic still used elsewhere.
+2. Treat a feed as a **folder view**, not as independently managed data. A feed runtime/cache may still be a separate internal service. Remove the one-profile assumption at the boundary of source resolution; resolve adapters and repositories per search source and post origin. Deduplicate by **site/instance + post ID** (also preserve profile context for authorization/actions), not by raw numeric ID.
+3. Query edits invalidate all affected feed views even if referenced topic IDs remain the same. Descendant topics count once when a topic is referenced through multiple paths.
+4. Account removal, backup/import/export, migration from existing Following Feeds, offline failures, request limits, refresh scheduling, and actual feed pagination require dedicated implementation/design work. The mock does not perform this migration.
+5. Flutter screens should reuse the existing search viewer, pinned-search/folder management and selection patterns, folder-tree picker and Kurumi popups. This conceptual styling is not a new Flutter design system.
 
-Gelbooru batching can be omitted initially. It is not inherently incompatible
-with mixed feeds: a later optimizer could batch eligible queries within one
-site/profile and merge that batch with other sources. Do not sacrifice source
-correctness or hide other profiles merely to retain batching.
+## Verification
 
-## Data and migration boundaries
+Run `python test_mockup.py` in this directory. Chromium and Python Playwright are required; set `CHROMIUM_PATH` if needed. The suite runs the self-contained HTML in an isolated browser with a local-storage double and no network.
 
-Use one canonical search record per profile/query identity and folder membership
-references. The same membership drives both folder views. Descendant searches
-are included, with repeated references deduplicated. Query edits must invalidate
-all affected feed results even when the list of source IDs did not change.
+**20 Chromium checks passed** for navigation, regular topic pagination, Open Feed, descendant inclusion, cross-profile deduplication, filtering/sorting, shared edits, follow/reuse, safe remove/unfollow, new folders, long-press/Shift selection, menu dismissal, validation, simulated offline state, persisted fixtures, HTML escaping, and narrow layouts including a 390 × 420 viewport. These are mockup checks, not real Flutter, Android, or API acceptance tests.
 
-The prototype represents the feed entry with a boolean on the folder. Production
-can retain a separate `FeedDefinition(folderId)` and feed runtime/cache; sharing
-management does not mean putting network machinery into the folder model.
-
-A migration must preserve existing feed names, searches, profile bindings, and
-references, then expose those searches in the pinned library. Reconcile duplicate
-records deliberately; do not silently overwrite conflicting user names or reset
-all update state. Update backup/import/export, profile removal, query-edit
-invalidation, and deletion rules together. No implicit orphan collection should
-delete an original pinned search just because its last feed was removed.
-
-## UI boundaries and intentional prototype simplifications
-
-Cards, overflow actions, long-press selection, profile metadata, folder badges,
-and shared editing follow the inspected pinned-search/feed screens. The theme is
-an approximation of adaptive Material-style colors, not a new Flutter theme.
-Actual implementation should reuse the existing cards, folder-tree picker,
-selection widgets, localized strings, and Kurumi popup components.
-
-The two-entry navigation is a context for this concept, not a redesign of the
-entire application sidebar. The explanatory cards and upper prototype toolbar
-help evaluate the design; they do not all need to ship. The optional display name
-and query editor deliberately remain the same from library and feed management.
-
-Folder selection/moving, source pause policies, auto-refresh scheduling,
-background fetches, production read/unread semantics, account deletion, and
-migration execution are not implemented. The mockup shares “seen” flags by post
-identity and marks all loaded results of the chosen profile filter, not just the
-cards currently inside the viewport. A production feed's read cursor requires
-its own decision. Opening Searches does not automatically mark posts as read.
-
-## Checks and limitations
-
-Run `python test_mockup.py` with Playwright and Chromium installed. The test runner
-uses a system Chromium when available; set `CHROMIUM_PATH` for another executable,
-or install Playwright's Chromium. It renders the local HTML in memory and uses an
-isolated storage double, so the test does not need a server or network access.
-
-The 18 browser checks cover shared edits, identity/deduplication, mixed profiles,
-ordering, reuse, existing/new feed creation, safe removal/deletion, long-press and
-Shift selection, outside-click dismissal, cancellation, partial failure, nested
-folders, storage serialization/restoration, safe text rendering, and constrained
-layouts. Narrow layouts were exercised at 320/390 px, text enlargement at 150%,
-and a reduced 390 x 420 viewport to approximate keyboard constraints. These are
-not real Android keyboard or touch-device acceptance tests. Native filesystem
-loading and real local-storage persistence could not be exercised by this
-sandbox's managed browser; in-memory rendering and the storage round trip were
-checked instead.
-
-The full repository verification required by `AGENTS.md` remains **unrun**:
-this environment has no FVM/Flutter SDK or full local checkout, and direct Git
-clone access is unavailable. App, package, CLI, and repository-tooling suites are
-therefore not claimed as passing. No application implementation, migration, or
-release readiness is implied by the prototype checks.
+The repository's Flutter/FVM-wide verification suite was **not run** in this environment. No production app code is changed in this branch.
