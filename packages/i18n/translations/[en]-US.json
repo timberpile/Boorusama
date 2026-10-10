@@ -1,0 +1,13 @@
+{
+  "@@comment": "Supplemental GIF editor strings. Slang merges wildcard locales into en-US; existing locale keys take precedence.",
+  "post": {
+    "gif_editor": {
+      "refine_loop": "Refine Loop",
+      "refining_loop": "Refining loop…",
+      "loop_refined": "Loop boundaries refined.",
+      "loop_seam_hint": "Loop transition adjusted. Repetition could not be verified.",
+      "loop_no_match": "No reliable match nearby. Selection unchanged.",
+      "undo_refinement": "Undo refinement"
+    }
+  }
+}

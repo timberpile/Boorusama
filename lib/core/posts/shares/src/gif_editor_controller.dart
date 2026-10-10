@@ -8,6 +8,8 @@ import 'gif_conversion_service.dart';
 import 'gif_background_execution.dart';
 import 'gif_editor_selection.dart';
 import 'gif_export_contract.dart';
+import 'gif_loop_refinement.dart';
+import 'gif_loop_refinement_service.dart';
 import 'share_media_preparation.dart';
 import 'share_resolution_control.dart';
 
@@ -20,6 +22,7 @@ class GifEditorController extends ChangeNotifier {
     required this.source,
     required this.service,
     this.background,
+    this.loopRefiner,
   }) : selection = GifEditorSelection.initial(
          source.metadata,
          source.lease.mimeType,
@@ -28,6 +31,7 @@ class GifEditorController extends ChangeNotifier {
   final GifPreparedSource source;
   final GifConversionService service;
   final GifBackgroundExecution? background;
+  final GifLoopRefiner? loopRefiner;
   GifEditorSelection selection;
   GifEditorPhase phase = GifEditorPhase.editing;
   GifConversionProgress? progress;
@@ -37,14 +41,99 @@ class GifEditorController extends ChangeNotifier {
   CancelToken? _token;
   var _closed = false;
   var _changingResult = false;
+  CancelToken? _refineToken;
+  Future<void>? _refineJob;
+  (Duration, Duration)? _trimUndo;
+  GifLoopResult? loopResult;
+
+  bool get isRefining => _refineToken != null;
+  bool get showRefineLoop => loopRefiner != null &&
+      phase == GifEditorPhase.editing && !gifLoopRequest(selection).isFullSource;
+  bool get canUndoRefinement => _trimUndo != null && phase == GifEditorPhase.editing;
+
+  Future<void> refineLoop() async {
+    if (_closed || !showRefineLoop || isRefining || !selection.canCreate) return;
+    final token = _refineToken = CancelToken();
+    final snapshot = selection;
+    loopResult = null;
+    notifyListeners();
+    _refineJob = _refine(snapshot, token);
+    await _refineJob;
+  }
+
+  Future<void> _refine(GifEditorSelection snapshot, CancelToken token) async {
+    try {
+      final refined = await loopRefiner!.refine(
+        source: source, selection: snapshot, cancelToken: token,
+      );
+      if (_closed || token.isCancelled || phase != GifEditorPhase.editing ||
+          !identical(selection, snapshot)) return;
+      loopResult = refined;
+      if (refined.matched) {
+        final request = gifLoopRequest(snapshot);
+        final start = refined.start;
+        final end = refined.end;
+        // Treat backend output as untrusted and recheck the editor contract.
+        if (start == null || end == null ||
+            (start - request.start).abs() > request.radius ||
+            (end - request.end).abs() > request.radius ||
+            start < 0 || end > request.sourceDuration ||
+            end - start < request.minimumDuration) {
+          loopResult = const GifLoopResult.noMatch();
+          return;
+        }
+        final next = selection.copyWith(
+          start: Duration(microseconds: start), end: Duration(microseconds: end),
+        );
+        if (!next.canCreate) {
+          loopResult = const GifLoopResult.noMatch();
+          return;
+        }
+        if (next.start != selection.start || next.end != selection.end) {
+          _trimUndo = (selection.start, selection.end);
+          selection = next;
+        }
+      }
+    } catch (_) {
+      if (!_closed && !token.isCancelled) {
+        loopResult = const GifLoopResult.noMatch(GifLoopNoMatchReason.unavailable);
+      }
+    } finally {
+      _refineToken = null;
+      _refineJob = null;
+      if (!_closed) notifyListeners();
+    }
+  }
+
+  void cancelRefinement() {
+    _refineToken?.cancel();
+    loopResult = null;
+  }
+
+  void undoRefinement() {
+    if (_closed || !canUndoRefinement) return;
+    final previous = _trimUndo!;
+    final next = selection.copyWith(start: previous.$1, end: previous.$2);
+    // Restore the user's trim even if a later FPS change disables conversion.
+    update(next);
+    _trimUndo = null;
+  }
 
   void update(GifEditorSelection next) {
     if (_closed || phase != GifEditorPhase.editing) return;
+    cancelRefinement();
+    if (next.start != selection.start || next.end != selection.end) _trimUndo = null;
     selection = next;
     notifyListeners();
   }
 
   Future<void> create() async {
+    // Do not run an analysis decoder and GIF encoder concurrently.
+    final refinement = _refineJob;
+    if (refinement != null) {
+      cancelRefinement();
+      await refinement;
+    }
     if (_closed || _changingResult || _token != null || !selection.canCreate) {
       return;
     }
@@ -124,7 +213,10 @@ class GifEditorController extends ChangeNotifier {
     }
   }
 
-  void cancel() => _token?.cancel();
+  void cancel() {
+    _token?.cancel();
+    cancelRefinement();
+  }
 
   Future<void> adjust() async {
     if (_closed || _token != null || _changingResult) return;

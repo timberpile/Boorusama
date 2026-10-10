@@ -11,6 +11,7 @@ import 'package:flutter/services.dart';
 import '../../../../foundation/platform.dart';
 import 'gif_export_contract.dart';
 import 'gif_ffmpeg_backend.dart';
+import 'gif_loop_refinement_service.dart';
 
 final gifEncoderBackendProvider = Provider<GifEncoderBackend?>(
   (ref) => isAndroid()
@@ -18,6 +19,12 @@ final gifEncoderBackendProvider = Provider<GifEncoderBackend?>(
           FfmpegKitGifRunner(),
           rotationReader: readAndroidGifRotation,
         )
+      : null,
+);
+
+final gifLoopRefinerProvider = Provider<GifLoopRefiner?>(
+  (ref) => isAndroid()
+      ? const GifLoopRefinementService(FfmpegGifLoopDecoder(FfmpegKitGifRunner()))
       : null,
 );
 
@@ -29,7 +36,7 @@ Future<int?> readAndroidGifRotation(String path) async {
   return clockwise == null ? null : ((-clockwise % 360) + 360) % 360;
 }
 
-class FfmpegKitGifRunner implements GifCommandRunner {
+class FfmpegKitGifRunner implements GifCommandRunner, GifLoopCommandRunner {
   const FfmpegKitGifRunner();
 
   @override
@@ -60,6 +67,17 @@ class FfmpegKitGifRunner implements GifCommandRunner {
       ),
       token,
     );
+  }
+
+  @override
+  Future<String> runWithOutput(List<String> arguments, CancelToken token) async {
+    final session = await _execute(
+      (complete) => FFmpegKit.executeWithArgumentsAsync(
+        arguments, (session) => complete(session), (_) {},
+      ),
+      token,
+    );
+    return await session.getOutput() ?? '';
   }
 
   Future<Session> _execute(

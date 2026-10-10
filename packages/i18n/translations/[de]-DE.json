@@ -1,0 +1,12 @@
+{
+  "post": {
+    "gif_editor": {
+      "refine_loop": "Loop verfeinern",
+      "refining_loop": "Loop wird verfeinert…",
+      "loop_refined": "Loop-Grenzen verfeinert.",
+      "loop_seam_hint": "Loop-Übergang angepasst. Die Wiederholung konnte nicht bestätigt werden.",
+      "loop_no_match": "Keine zuverlässige Übereinstimmung in der Nähe. Auswahl unverändert.",
+      "undo_refinement": "Verfeinerung rückgängig"
+    }
+  }
+}

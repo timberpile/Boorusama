@@ -4,7 +4,6 @@ import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
-import 'package:video_player/video_player.dart';
 
 import 'gif_conversion_service.dart';
 import 'gif_background_execution.dart';
@@ -12,6 +11,9 @@ import 'gif_editor_controller.dart';
 import 'gif_editor_selection.dart';
 import 'gif_error_message.dart';
 import 'gif_export_contract.dart';
+import 'gif_ffmpeg_runner.dart';
+import 'gif_loop_editor_actions.dart';
+import 'gif_loop_video_preview.dart';
 import 'gif_save_service.dart';
 import 'share_action_adapter.dart';
 import 'share_media_preparation.dart';
@@ -44,6 +46,7 @@ class _GifEditorPageState extends ConsumerState<GifEditorPage>
   late final _controller = GifEditorController(
     source: widget.source,
     service: widget.service,
+    loopRefiner: ref.read(gifLoopRefinerProvider),
     background: GifBackgroundExecution(
       title: context.t.post.gif_editor.encoding,
       cancelLabel: MaterialLocalizations.of(context).cancelButtonLabel,
@@ -183,7 +186,8 @@ class _GifEditorPageState extends ConsumerState<GifEditorPage>
                           Offstage(
                             offstage:
                                 _controller.phase == GifEditorPhase.preview,
-                            child: _GifVideoPreview(
+                            child: GifLoopVideoPreview(
+                              key: ObjectKey(widget.source),
                               source: widget.source,
                               selection: selected,
                               enabled: editing,
@@ -385,6 +389,7 @@ class _GifEditorPageState extends ConsumerState<GifEditorPage>
                               ),
                             ],
                           ),
+                          GifLoopEditorActions(controller: _controller),
                           const SizedBox(height: 24),
                           Text(
                             t.size,
@@ -823,136 +828,5 @@ class _GifTrimTimelineState extends State<_GifTrimTimeline> {
         ),
       );
     },
-  );
-}
-
-class _GifVideoPreview extends StatefulWidget {
-  const _GifVideoPreview({
-    required this.source,
-    required this.selection,
-    required this.enabled,
-  });
-  final GifPreparedSource source;
-  final GifEditorSelection selection;
-  final bool enabled;
-  @override
-  State<_GifVideoPreview> createState() => _GifVideoPreviewState();
-}
-
-class _GifVideoPreviewState extends State<_GifVideoPreview>
-    with WidgetsBindingObserver {
-  late final _video = VideoPlayerController.file(
-    File(widget.source.lease.path),
-  );
-  var _ready = false;
-  var _unavailable = false;
-  var _creationFailed = false;
-  var _seeking = false;
-  late final Future<void> _initialization;
-  @override
-  void initState() {
-    super.initState();
-    widget.source.lease.retain();
-    WidgetsBinding.instance.addObserver(this);
-    _video.addListener(_loop);
-    _initialization = _initialize();
-  }
-
-  Future<void> _initialize() async {
-    try {
-      await _video.initialize();
-      if (!mounted) return;
-      await _video.setVolume(0);
-      await _video.seekTo(widget.selection.start);
-      await _video.setPlaybackSpeed(widget.selection.speed);
-      if (mounted) setState(() => _ready = true);
-    } catch (_) {
-      _creationFailed = !_video.value.isInitialized && !_video.value.hasError;
-      if (mounted) setState(() => _unavailable = true);
-    }
-  }
-
-  void _loop() {
-    if (!_ready || _seeking || !_video.value.isPlaying) return;
-    if (_video.value.position >= widget.selection.end ||
-        _video.value.position < widget.selection.start) {
-      _seeking = true;
-      unawaited(
-        _video
-            .seekTo(widget.selection.start)
-            .whenComplete(() => _seeking = false),
-      );
-    }
-  }
-
-  @override
-  void didUpdateWidget(_GifVideoPreview oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (_ready) {
-      if (!widget.enabled) unawaited(_video.pause());
-      if (oldWidget.selection.start != widget.selection.start ||
-          oldWidget.selection.end != widget.selection.end ||
-          oldWidget.selection.speed != widget.selection.speed) {
-        unawaited(_video.setPlaybackSpeed(widget.selection.speed));
-        unawaited(_video.seekTo(widget.selection.start));
-      }
-    }
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state != AppLifecycleState.resumed && _ready) unawaited(_video.pause());
-  }
-
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    _video.removeListener(_loop);
-    unawaited(_disposeVideo());
-    super.dispose();
-  }
-
-  Future<void> _disposeVideo() async {
-    try {
-      await _initialization;
-      // A platform creation failure leaves video_player's creation completer
-      // unresolved. Decoder errors arrive through value.hasError after creation
-      // and still require disposal before releasing the source file.
-      if (!_creationFailed) {
-        await _video.dispose();
-      }
-    } finally {
-      await widget.source.lease.release();
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) => SizedBox(
-    height: 220,
-    child: _unavailable
-        ? Center(child: Text(context.t.post.gif_editor.preview_unavailable))
-        : !_ready
-        ? const Center(child: CircularProgressIndicator())
-        : Stack(
-            alignment: Alignment.center,
-            children: [
-              AspectRatio(
-                aspectRatio: _video.value.aspectRatio,
-                child: VideoPlayer(_video),
-              ),
-              ValueListenableBuilder(
-                valueListenable: _video,
-                builder: (context, value, _) => IconButton.filled(
-                  tooltip: value.isPlaying
-                      ? context.t.post.gif_editor.pause
-                      : context.t.post.gif_editor.play,
-                  onPressed: widget.enabled
-                      ? () => value.isPlaying ? _video.pause() : _video.play()
-                      : null,
-                  icon: Icon(value.isPlaying ? Icons.pause : Icons.play_arrow),
-                ),
-              ),
-            ],
-          ),
   );
 }
