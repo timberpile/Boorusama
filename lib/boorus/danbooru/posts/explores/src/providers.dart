@@ -74,35 +74,46 @@ final danbooruMostViewedTodayProvider = FutureProvider<PostResult<Post>>(
       ),
     );
   },
-  dependencies: [currentReadOnlyBooruConfigProvider],
+  dependencies: [
+    currentReadOnlyBooruConfigProvider,
+    danbooruExploreRepoProvider,
+  ],
 );
 
-final danbooruPopularTodayProvider = FutureProvider<PostResult<Post>>((
-  ref,
-) {
-  final repo = ref
-      .watch(danbooruExploreRepoProvider(ref.watchConfig))
-      .getPopularPosts(DateTime.now(), 1, TimeScale.day);
+final danbooruPopularTodayProvider = FutureProvider<PostResult<Post>>(
+  (ref) {
+    final repo = ref
+        .watch(danbooruExploreRepoProvider(ref.watchConfig))
+        .getPopularPosts(DateTime.now(), 1, TimeScale.day);
 
-  return repo.run().then(
-    (value) => value.fold(
-      (l) => <Post>[].toResult(),
-      (r) => r,
-    ),
-  );
-}, dependencies: [currentReadOnlyBooruConfigProvider]);
+    return repo.run().then(
+      (value) => value.fold(
+        (l) => <Post>[].toResult(),
+        (r) => r,
+      ),
+    );
+  },
+  dependencies: [
+    currentReadOnlyBooruConfigProvider,
+    danbooruExploreRepoProvider,
+  ],
+);
 
-final danbooruHotTodayProvider = FutureProvider<PostResult<Post>>((
-  ref,
-) {
-  final repo = ref
-      .watch(danbooruExploreRepoProvider(ref.watchConfig))
-      .getHotPosts(1);
+final danbooruHotTodayProvider = FutureProvider<PostResult<Post>>(
+  (ref) {
+    final repo = ref
+        .watch(danbooruExploreRepoProvider(ref.watchConfig))
+        .getHotPosts(1);
 
-  return repo.run().then(
-    (value) => value.fold(
-      (l) => <Post>[].toResult(),
-      (r) => r,
-    ),
-  );
-}, dependencies: [currentReadOnlyBooruConfigProvider]);
+    return repo.run().then(
+      (value) => value.fold(
+        (l) => <Post>[].toResult(),
+        (r) => r,
+      ),
+    );
+  },
+  dependencies: [
+    currentReadOnlyBooruConfigProvider,
+    danbooruExploreRepoProvider,
+  ],
+);
