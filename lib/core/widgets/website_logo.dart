@@ -74,7 +74,6 @@ class WebsiteLogo extends ConsumerWidget {
           ),
           cacheManager:
               cacheManager ?? ref.watch(defaultImageCacheManagerProvider),
-          cacheMaxAge: const Duration(hours: 1),
           errorWidget: _buildFallback(),
         ),
         (final String _, false) => BlockedMediaPlaceholder(

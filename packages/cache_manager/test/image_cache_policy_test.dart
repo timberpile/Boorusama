@@ -24,6 +24,65 @@ void main() {
   );
 
   test(
+    'images with identical paths on different hosts keep independent bytes',
+    () async {
+      final firstKey = manager.generateCacheKey(
+        'https://a.example.test/favicon.ico',
+      );
+      final secondKey = manager.generateCacheKey(
+        'https://b.example.test/favicon.ico',
+      );
+
+      expect(firstKey, isNot(secondKey));
+      await manager.saveFile(firstKey, Uint8List.fromList([1, 2]));
+      await manager.saveFile(secondKey, Uint8List.fromList([3, 4]));
+
+      expect(await manager.getCachedFileBytes(firstKey), [1, 2]);
+      expect(await manager.getCachedFileBytes(secondKey), [3, 4]);
+    },
+  );
+
+  test('cache keys distinguish schemes, ports and query parameters', () {
+    const url = 'https://example.test/img.png?size=64';
+    final key = manager.generateCacheKey(url);
+
+    expect(
+      key,
+      isNot(manager.generateCacheKey('http://example.test/img.png?size=64')),
+    );
+    expect(
+      key,
+      isNot(
+        manager.generateCacheKey(
+          'https://example.test:8443/img.png?size=64',
+        ),
+      ),
+    );
+    expect(
+      key,
+      isNot(manager.generateCacheKey('https://example.test/img.png?size=128')),
+    );
+  });
+
+  test('URL fragments do not affect the cache key', () {
+    const url = 'https://example.test/img.png';
+    final key = manager.generateCacheKey(url);
+
+    expect(key, manager.generateCacheKey('$url#first'));
+    expect(key, manager.generateCacheKey('$url#second'));
+  });
+
+  test('explicit custom keys still override URL-based cache keys', () {
+    expect(
+      manager.generateCacheKey(
+        'https://example.test/img.png',
+        customKey: 'shared',
+      ),
+      'shared',
+    );
+  });
+
+  test(
     'evicts the least recently read file and keeps use order after restart',
     () async {
       await limit(8);
