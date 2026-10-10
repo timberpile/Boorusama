@@ -21,11 +21,17 @@ final danbooruFavoriteGroupPreviewsProvider =
     );
 
 final danbooruFavoriteGroupPreviewProvider = Provider.autoDispose
-    .family<String, int?>((ref, postId) {
-      final config = ref.watchConfigSearch;
-      return ref.watch(danbooruFavoriteGroupPreviewsProvider(config))[postId] ??
-          '';
-    }, dependencies: [currentReadOnlyBooruConfigSearchProvider]);
+    .family<String, int?>(
+      (ref, postId) {
+        final config = ref.watchConfigSearch;
+        return ref.watch(danbooruFavoriteGroupPreviewsProvider(config))[postId] ??
+            '';
+      },
+      dependencies: [
+        currentReadOnlyBooruConfigSearchProvider,
+        danbooruFavoriteGroupPreviewsProvider,
+      ],
+    );
 
 class FavoriteGroupPreviewsNotifier
     extends FamilyNotifier<Map<int, String>, BooruConfigSearch> {
