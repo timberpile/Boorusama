@@ -100,6 +100,15 @@ class BookmarkBackupCodec extends JsonHandler<BookmarkBackupData> {
           'groups[$index] placement is invalid',
         );
       }
+      final role = value['systemRole'];
+      if (role != null && (role != 'default' || id != defaultBookmarkGroupId)) {
+        throw InvalidBackupFormatException(
+          'groups[$index].systemRole is invalid',
+        );
+      }
+      if (id == defaultBookmarkGroupId && folderId != null) {
+        throw const InvalidBackupFormatException('Default must be at Home');
+      }
       groups.add(
         BookmarkGroupBackup(
           id: id,

@@ -15,14 +15,24 @@ import '../types/bookmark_target.dart';
 class BookmarkGroupRemovalResult extends Equatable {
   const BookmarkGroupRemovalResult({
     required this.removedCount,
-    required this.movedToNoGroupCount,
+    this.deletedBookmarks = const [],
+    this.removedBookmarks = const [],
+    this.groupId,
   });
 
+  final List<Bookmark> deletedBookmarks;
+  final List<Bookmark> removedBookmarks;
+  final String? groupId;
+  int get deletedCount => deletedBookmarks.length;
   final int removedCount;
-  final int movedToNoGroupCount;
 
   @override
-  List<Object?> get props => [removedCount, movedToNoGroupCount];
+  List<Object?> get props => [
+    groupId,
+    removedBookmarks,
+    deletedBookmarks,
+    removedCount,
+  ];
 }
 
 class BookmarkLibraryRollbackException implements Exception {
@@ -53,6 +63,7 @@ class BookmarkLibraryService {
     await groupRepository.repair(
       validBookmarkIds: bookmarks.map((bookmark) => bookmark.id).toSet(),
     );
+    await ensureDefaultMemberships(bookmarks);
     final groups = await groupRepository.getGroups();
     final folders = await groupRepository.getFolders();
     FolderTree(folders).validatePlacements([
@@ -69,6 +80,34 @@ class BookmarkLibraryService {
       folders: folders,
       activeTarget: activeTarget,
     );
+  }
+
+  /// Idempotent repair is also used after legacy import and full replacement.
+  Future<void> ensureDefaultMemberships(List<Bookmark> bookmarks) async {
+    var groups = await groupRepository.getGroups();
+    if (!groups.any((g) => g.isDefault)) {
+      try {
+        await groupRepository.createGroup(
+          'Default',
+          id: defaultBookmarkGroupId,
+        );
+      } catch (_) {
+        if (await groupRepository.getGroup(defaultBookmarkGroupId) == null) {
+          rethrow;
+        }
+      }
+      groups = await groupRepository.getGroups();
+    }
+    final members = {for (final g in groups) ...g.bookmarkIds};
+    final missing = bookmarks.map((b) => b.id).toSet().difference(members);
+    if (missing.isNotEmpty) {
+      try {
+        await groupRepository.addBookmarks(defaultBookmarkGroupId, missing);
+      } catch (_) {
+        final saved = await groupRepository.getGroup(defaultBookmarkGroupId);
+        if (saved == null || !saved.bookmarkIds.containsAll(missing)) rethrow;
+      }
+    }
   }
 
   Future<CollectionFolder> createFolder(String name, {String? parentId}) async {
@@ -112,6 +151,9 @@ class BookmarkLibraryService {
     if (!groups.map((g) => g.id).toSet().containsAll(groupIds)) {
       throw const FormatException('Unknown group');
     }
+    if (groupIds.contains(defaultBookmarkGroupId)) {
+      throw StateError('Default cannot be moved.');
+    }
     final contained = {for (final id in folderIds) ...tree.subtree(id)};
     var position = groups
         .where((g) => g.folderId == destination)
@@ -131,7 +173,7 @@ class BookmarkLibraryService {
   }
 
   Future<BookmarkFolderDeletionPreview> previewDeleteFolder(String id) async {
-    final snapshot = await load(const BookmarkTarget.ungrouped());
+    final snapshot = await load(const BookmarkTarget.defaultGroup());
     return BookmarkFolderDeletionPreview.from(snapshot, id);
   }
 
@@ -210,7 +252,7 @@ class BookmarkLibraryService {
       createBookmarkIdentity,
       createBookmark,
     )) {
-      (final bookmark?, _, _) => (bookmark: bookmark, created: false),
+      (final bookmark?, _, _) => await _resolveStoredBookmark(bookmark),
       (null, final identity?, final creator?) => await _createBookmark(
         identity,
         creator,
@@ -265,18 +307,43 @@ class BookmarkLibraryService {
     if (group == null) {
       throw StateError('Bookmark group $groupId does not exist.');
     }
-    final ids = bookmarks.map((bookmark) => bookmark.id).toSet();
-    final addedIds = ids.difference(group.bookmarkIds);
-    if (addedIds.isEmpty) return 0;
+    final stored = {
+      for (final b in await bookmarkRepository.getAllBookmarksOrThrow(
+        imageUrlResolver: imageUrlResolver,
+      ))
+        b.uniqueId: b,
+    };
+    final created = <Bookmark>[];
     try {
+      final ids = <int>{};
+      for (final snapshot in bookmarks) {
+        final existing = stored[snapshot.uniqueId];
+        if (existing != null) {
+          ids.add(existing.id);
+          continue;
+        }
+        final resolved = await _createBookmark(
+          snapshot.uniqueId,
+          () async => (await bookmarkRepository.addBookmarkWithBookmarks([
+            snapshot,
+          ])).single,
+        );
+        ids.add(resolved.bookmark.id);
+        stored[snapshot.uniqueId] = resolved.bookmark;
+        if (resolved.created) created.add(resolved.bookmark);
+      }
+      final addedIds = ids.difference(group.bookmarkIds);
+      if (addedIds.isEmpty) return 0;
       await groupRepository.addBookmarks(groupId, addedIds);
       return addedIds.length;
     } catch (error, stackTrace) {
-      _throwWithRollback(
-        error,
-        stackTrace,
-        await _restoreMemberships([group]),
-      );
+      final errors = await _restoreMemberships([group]);
+      try {
+        await bookmarkRepository.removeBookmarks(created);
+      } catch (e) {
+        errors.add(e);
+      }
+      _throwWithRollback(error, stackTrace, errors);
     }
   }
 
@@ -294,33 +361,21 @@ class BookmarkLibraryService {
     }
   }
 
-  Future<void> moveBookmarkToUngrouped(Bookmark bookmark) async {
-    final affectedGroups = (await groupRepository.getGroups())
-        .where((group) => group.bookmarkIds.contains(bookmark.id))
-        .toList();
-    try {
-      await groupRepository.removeBookmarkFromAllGroups(bookmark.id);
-    } catch (error, stackTrace) {
-      _throwWithRollback(
-        error,
-        stackTrace,
-        await _restoreMemberships(affectedGroups),
-      );
-    }
-  }
-
   Future<BookmarkGroupRemovalResult> removeBookmarksFromGroup(
     Iterable<Bookmark> bookmarks,
-    String groupId, {
-    bool deleteWhenMembershipBecomesEmpty = false,
-  }) async {
+    String groupId,
+  ) async {
     final groups = await groupRepository.getGroups();
     final target = groups.where((group) => group.id == groupId).firstOrNull;
     if (target == null) {
       throw StateError('Bookmark group $groupId does not exist.');
     }
+    final selected = bookmarks.map((b) => b.uniqueId).toSet();
     final selectedById = {
-      for (final bookmark in bookmarks) bookmark.id: bookmark,
+      for (final bookmark in await bookmarkRepository.getAllBookmarksOrThrow(
+        imageUrlResolver: imageUrlResolver,
+      ))
+        if (selected.contains(bookmark.uniqueId)) bookmark.id: bookmark,
     };
     final affectedIds = target.bookmarkIds.intersection(
       selectedById.keys.toSet(),
@@ -328,7 +383,6 @@ class BookmarkLibraryService {
     if (affectedIds.isEmpty) {
       return const BookmarkGroupRemovalResult(
         removedCount: 0,
-        movedToNoGroupCount: 0,
       );
     }
 
@@ -337,9 +391,7 @@ class BookmarkLibraryService {
       otherMembershipIds.addAll(group.bookmarkIds);
     }
     final finalMembershipIds = affectedIds.difference(otherMembershipIds);
-    final toDelete = deleteWhenMembershipBecomesEmpty
-        ? finalMembershipIds.map((id) => selectedById[id]!).toList()
-        : const <Bookmark>[];
+    final toDelete = finalMembershipIds.map((id) => selectedById[id]!).toList();
 
     try {
       await groupRepository.removeBookmarks(groupId, affectedIds);
@@ -362,10 +414,52 @@ class BookmarkLibraryService {
 
     return BookmarkGroupRemovalResult(
       removedCount: affectedIds.length,
-      movedToNoGroupCount: deleteWhenMembershipBecomesEmpty
-          ? 0
-          : finalMembershipIds.length,
+      groupId: groupId,
+      removedBookmarks: List.unmodifiable(
+        affectedIds.map((id) => selectedById[id]!),
+      ),
+      deletedBookmarks: List.unmodifiable(toDelete),
     );
+  }
+
+  Future<void> undoRemoval(BookmarkGroupRemovalResult removal) async {
+    final groupId = removal.groupId;
+    if (groupId == null || removal.removedCount == 0) return;
+    final target = await groupRepository.getGroup(groupId);
+    if (target == null) throw StateError('The source group no longer exists.');
+    final current = await bookmarkRepository.getAllBookmarksOrThrow(
+      imageUrlResolver: imageUrlResolver,
+    );
+    final byIdentity = {for (final b in current) b.uniqueId: b};
+    final deleted = removal.deletedBookmarks.map((b) => b.uniqueId).toSet();
+    final created = <Bookmark>[];
+    final members = <int>{};
+    try {
+      for (final old in removal.removedBookmarks) {
+        final existing = byIdentity[old.uniqueId];
+        if (existing != null) {
+          members.add(existing.id);
+        } else if (deleted.contains(old.uniqueId)) {
+          final restored = await _createBookmark(
+            old.uniqueId,
+            () async => (await bookmarkRepository.addBookmarkWithBookmarks([
+              old,
+            ])).single,
+          );
+          if (restored.created) created.add(restored.bookmark);
+          members.add(restored.bookmark.id);
+        }
+      }
+      await groupRepository.addBookmarks(groupId, members);
+    } catch (error, stack) {
+      final errors = await _restoreMemberships([target]);
+      try {
+        await bookmarkRepository.removeBookmarks(created);
+      } catch (e) {
+        errors.add(e);
+      }
+      _throwWithRollback(error, stack, errors);
+    }
   }
 
   Future<void> deleteBookmarks(Iterable<Bookmark> bookmarks) async {
@@ -399,7 +493,7 @@ class BookmarkLibraryService {
   }
 
   Future<BookmarkGroupDeletionPreview> deleteGroup(String groupId) async {
-    final state = await load(const BookmarkTarget.ungrouped());
+    final state = await load(const BookmarkTarget.defaultGroup());
     final preview = await groupRepository.previewDeleteGroup(groupId);
     try {
       await groupRepository.deleteGroup(groupId);
@@ -477,6 +571,19 @@ class BookmarkLibraryService {
       }
     }
     return errors;
+  }
+
+  Future<({Bookmark bookmark, bool created})> _resolveStoredBookmark(
+    Bookmark snapshot,
+  ) async {
+    final stored = await _findBookmark(snapshot.uniqueId);
+    if (stored != null) return (bookmark: stored, created: false);
+    return _createBookmark(
+      snapshot.uniqueId,
+      () async => (await bookmarkRepository.addBookmarkWithBookmarks([
+        snapshot,
+      ])).single,
+    );
   }
 
   Future<({Bookmark bookmark, bool created})> _createBookmark(

@@ -44,7 +44,10 @@ class BookmarkImportPlanner {
               for (final exportedId in group.bookmarkIds)
                 ?importedByLocalId[exportedId],
             },
-            conflicts: group.id != null && currentGroupIds.contains(group.id),
+            conflicts:
+                !group.isDefault &&
+                group.id != null &&
+                currentGroupIds.contains(group.id),
           ),
       ],
     );

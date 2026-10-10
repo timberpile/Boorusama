@@ -1,3 +1,6 @@
+import 'package:flutter/material.dart';
+import 'package:i18n/i18n.dart';
+import 'package:oktoast/oktoast.dart';
 import '../search/subscriptions/subscription_test_utils.dart';
 // Dart imports:
 import 'dart:async';
@@ -92,6 +95,144 @@ void main() {
     return container;
   }
 
+  for (final (count, failUndo) in [(1, false), (2, false), (1, true)]) {
+    testWidgets(
+      'removal of $count bookmarks shows one Undo without confirmation at narrow width and enlarged text (failure: $failUndo)',
+      (tester) async {
+        final container = createContainer();
+        late BookmarkLibraryNotifier notifier;
+        final stored = await tester.runAsync(() async {
+          final values = await bookmarkRepository.addBookmarkWithBookmarks([
+            for (var i = 0; i < count; i++) _validBookmark,
+          ]);
+          await groupRepository.createGroup('Artists', id: groupId);
+          await groupRepository.addBookmarks(
+            groupId,
+            values.map((b) => b.id).toSet(),
+          );
+          notifier = container.read(bookmarkProvider.notifier);
+          await notifier.future;
+          return values;
+        });
+        await tester.binding.setSurfaceSize(const Size(320, 600));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        BuildContext? feedbackContext;
+        await tester.pumpWidget(
+          BooruLocalization(
+            child: MaterialApp(
+              builder: (context, child) => MediaQuery(
+                data: MediaQuery.of(context).copyWith(
+                  textScaler: const TextScaler.linear(1.8),
+                  viewInsets: const EdgeInsets.only(bottom: 180),
+                ),
+                child: OKToast(child: child!),
+              ),
+              home: Scaffold(
+                body: Builder(
+                  builder: (context) {
+                    feedbackContext = context;
+                    return const SizedBox.expand();
+                  },
+                ),
+              ),
+            ),
+          ),
+        );
+        final removal = await tester.runAsync(
+          () => notifier.removePostsFromGroup(
+            BooruConfig.empty.auth,
+            stored!.map((b) => b.toPost()),
+            groupId,
+          ),
+        );
+        notifier.showRemovalUndo(feedbackContext!, removal!);
+        await tester.pumpAndSettle();
+        expect(find.byType(AlertDialog), findsNothing);
+        expect(find.byType(SnackBar), findsOneWidget);
+        expect(find.text('Undo'), findsOneWidget);
+        expect(
+          find.text('$count removed · $count bookmarks deleted'),
+          findsOneWidget,
+        );
+        expect(container.read(bookmarkProvider).requireValue.items, isEmpty);
+        if (failUndo) {
+          await tester.runAsync(() => groupRepository.deleteGroup(groupId));
+        }
+        await tester.runAsync(() async {
+          await tester.tap(find.text('Undo'));
+          await notifier.snapshotForExport();
+        });
+        await tester.pumpAndSettle();
+        // Flush the Snackbar's real-zone dismissal callback before unmounting.
+        await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+        await tester.pumpAndSettle();
+        final restored = container.read(bookmarkProvider).requireValue;
+        if (failUndo) {
+          expect(restored.items, isEmpty);
+          expect(
+            find.text(
+              'Could not undo removal. The bookmark or group may have changed.',
+            ),
+            findsOneWidget,
+          );
+        } else {
+          expect(restored.items, hasLength(count));
+          for (final old in stored!) {
+            final bookmark = restored.bookmarksByUniqueId[old.uniqueId]!;
+            expect(bookmark.snapshot, old.snapshot);
+            expect(restored.membershipsFor(old.uniqueId), {groupId});
+          }
+        }
+        dismissAllToast(showAnim: false);
+        await tester.pump(const Duration(seconds: 4));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox.shrink());
+      },
+    );
+  }
+
+  test(
+    'Undo preserves an intervening addition and rejects a superseded removal',
+    () async {
+      final stored = (await bookmarkRepository.addBookmarkWithBookmarks([
+        _validBookmark,
+      ])).single;
+      await groupRepository.createGroup('Artists', id: groupId);
+      await groupRepository.addBookmarks(groupId, {stored.id});
+      await groupRepository.createGroup('Default', id: defaultBookmarkGroupId);
+      await groupRepository.addBookmarks(defaultBookmarkGroupId, {stored.id});
+      final container = createContainer();
+      final notifier = container.read(bookmarkProvider.notifier);
+      await notifier.future;
+      final removal = await notifier.removePostsFromGroup(
+        BooruConfig.empty.auth,
+        [stored.toPost()],
+        groupId,
+      );
+      final other = await notifier.createGroup('Other');
+      await notifier.addExistingBookmarkToGroup(stored, other.id);
+      await notifier.undoRemoval(removal);
+      expect((await notifier.future).membershipsFor(stored.uniqueId), {
+        groupId,
+        defaultBookmarkGroupId,
+        other.id,
+      });
+      final superseded = await notifier.removePostsFromGroup(
+        BooruConfig.empty.auth,
+        [stored.toPost()],
+        groupId,
+      );
+      await notifier.removePostsFromGroup(BooruConfig.empty.auth, [
+        stored.toPost(),
+      ], other.id);
+      await expectLater(notifier.undoRemoval(superseded), throwsStateError);
+      expect((await notifier.future).membershipsFor(stored.uniqueId), {
+        defaultBookmarkGroupId,
+      });
+    },
+  );
+
   test(
     'nested group creation and recursive deletion clear the active target',
     () async {
@@ -107,7 +248,10 @@ void main() {
       );
       final before = await notifier.future;
       expect(before.folders, hasLength(2));
-      expect(before.groups.single.folderId, child.id);
+      expect(
+        before.groups.where((g) => !g.isDefault).single.folderId,
+        child.id,
+      );
       expect(before.activeTarget.groupId, group.id);
       final duplicate = await notifier.duplicateGroup(group.id, 'Copy');
       expect(duplicate.folderId, child.id);
@@ -116,8 +260,8 @@ void main() {
       await notifier.deleteFolder(preview);
       final after = await notifier.future;
       expect(after.folders, isEmpty);
-      expect(after.groups, isEmpty);
-      expect(after.activeTarget.groupId, isNull);
+      expect(after.groups.where((g) => !g.isDefault), isEmpty);
+      expect(after.activeTarget.groupId, defaultBookmarkGroupId);
       expect(container.read(settingsProvider).activeBookmarkGroupId, isNull);
     },
   );
@@ -329,7 +473,7 @@ void main() {
     expect(container.read(settingsProvider).activeBookmarkGroupId, isNull);
     expect(
       container.read(bookmarkProvider).requireValue.activeTarget.groupId,
-      isNull,
+      defaultBookmarkGroupId,
     );
   });
 
@@ -347,7 +491,10 @@ void main() {
         throwsStateError,
       );
 
-      expect(await groupRepository.getGroups(), isEmpty);
+      expect(
+        (await groupRepository.getGroups()).where((g) => !g.isDefault).toList(),
+        isEmpty,
+      );
     },
   );
 
@@ -373,8 +520,14 @@ void main() {
         throwsStateError,
       );
 
-      expect(await groupRepository.getGroups(), isEmpty);
-      expect(container.read(settingsProvider).activeBookmarkGroupId, isNull);
+      expect(
+        (await groupRepository.getGroups()).where((g) => !g.isDefault).toList(),
+        isEmpty,
+      );
+      expect(
+        container.read(settingsProvider).activeBookmarkGroupId,
+        defaultBookmarkGroupId,
+      );
     },
   );
 
@@ -402,7 +555,10 @@ void main() {
         throwsStateError,
       );
 
-      expect(await groupRepository.getGroups(), isEmpty);
+      expect(
+        (await groupRepository.getGroups()).where((g) => !g.isDefault).toList(),
+        isEmpty,
+      );
       expect(
         await bookmarkRepository.getAllBookmarksOrThrow(
           imageUrlResolver: (_) => const DefaultImageUrlResolver(),
@@ -487,7 +643,10 @@ void main() {
         ),
       );
 
-      expect(await groupRepository.getGroups(), isEmpty);
+      expect(
+        (await groupRepository.getGroups()).where((g) => !g.isDefault).toList(),
+        isEmpty,
+      );
       expect(
         await bookmarkRepository.getAllBookmarksOrThrow(
           imageUrlResolver: (_) => const DefaultImageUrlResolver(),
@@ -547,7 +706,11 @@ void main() {
         await bookmarkRepository.getAllBookmarksOrEmpty(
           imageUrlResolver: (_) => const DefaultImageUrlResolver(),
         ),
-        isEmpty,
+        hasLength(1),
+      );
+      expect(
+        (await groupRepository.getGroup(defaultBookmarkGroupId))!.bookmarkIds,
+        {stored.id},
       );
     },
   );
@@ -590,7 +753,7 @@ void main() {
     });
   });
 
-  test('No Group reports unavailable for a grouped bookmark', () async {
+  test('Default can be added to a grouped bookmark', () async {
     final source = _validBookmark.copyWith(
       originalUrl: 'https://example.com/unavailable.jpg',
     );
@@ -609,14 +772,14 @@ void main() {
 
     final outcome = await notifier.togglePostTarget(config, stored.toPost());
 
-    expect(outcome, BookmarkToggleOutcome.unavailable);
+    expect(outcome, BookmarkToggleOutcome.added);
     expect((await groupRepository.getGroup(group.id))?.bookmarkIds, {
       stored.id,
     });
   });
 
   test(
-    'a stale No Group action never deletes a newly grouped bookmark',
+    'removing Default preserves a newly added group',
     () async {
       final source = _validBookmark.copyWith(
         originalUrl: 'https://example.com/stale-picker.jpg',
@@ -629,6 +792,7 @@ void main() {
       final container = createContainer(
         bookmarkRepositoryOverride: _FailingSecondReadBookmarkRepository(
           bookmarkBox,
+          failOnRead: 3,
         ),
       );
       final notifier = container.read(bookmarkProvider.notifier);
@@ -640,11 +804,11 @@ void main() {
           BooruConfig.empty.copyWith(booruIdHint: stored.booruId),
         ),
         stored.toPost(),
-        target: const BookmarkTarget.ungrouped(),
+        target: const BookmarkTarget.defaultGroup(),
         activateTarget: true,
       );
 
-      expect(outcome, BookmarkToggleOutcome.unavailable);
+      expect(outcome, BookmarkToggleOutcome.removed);
       expect((await groupRepository.getGroup(group.id))?.bookmarkIds, {
         stored.id,
       });
@@ -658,7 +822,7 @@ void main() {
   );
 
   test(
-    'a stale No Group edit removal preserves a newly grouped bookmark',
+    'a stale Default removal preserves a newly grouped bookmark',
     () async {
       final source = _validBookmark.copyWith(
         originalUrl: 'https://example.com/stale-edit.jpg',
@@ -671,6 +835,7 @@ void main() {
       final container = createContainer(
         bookmarkRepositoryOverride: _FailingSecondReadBookmarkRepository(
           bookmarkBox,
+          failOnRead: 3,
         ),
       );
       final notifier = container.read(bookmarkProvider.notifier);
@@ -681,13 +846,13 @@ void main() {
 
       await notifier.removeBookmarkFromView(
         stored,
-        const BookmarkView.ungrouped(),
+        const BookmarkView.defaultGroup(),
         onSuccess: () => succeeded = true,
         onError: () => failed = true,
       );
 
-      expect(succeeded, isFalse);
-      expect(failed, isTrue);
+      expect(succeeded, isTrue);
+      expect(failed, isFalse);
       expect((await groupRepository.getGroup(group.id))?.bookmarkIds, {
         stored.id,
       });
@@ -761,14 +926,20 @@ void main() {
         throwsA(isA<BookmarkPostBatchRollbackException>()),
       );
 
-      expect(await groupRepository.getGroups(), isEmpty);
+      expect(
+        (await groupRepository.getGroups()).where((g) => !g.isDefault).toList(),
+        isEmpty,
+      );
       expect(
         await bookmarkRepository.getAllBookmarksOrEmpty(
           imageUrlResolver: (_) => const DefaultImageUrlResolver(),
         ),
         isEmpty,
       );
-      expect(container.read(settingsProvider).activeBookmarkGroupId, isNull);
+      expect(
+        container.read(settingsProvider).activeBookmarkGroupId,
+        defaultBookmarkGroupId,
+      );
     },
   );
 
@@ -935,7 +1106,10 @@ void main() {
         (await groupRepository.getGroup(created.id))?.name,
         'Created once',
       );
-      expect(await groupRepository.getGroups(), hasLength(1));
+      expect(
+        (await groupRepository.getGroups()).where((g) => !g.isDefault).toList(),
+        hasLength(1),
+      );
       expect(container.read(bookmarkProvider).hasValue, isTrue);
       expect(
         (await notifier.snapshotForExport()).groupsById,
@@ -956,7 +1130,10 @@ void main() {
     final created = await notifier.createGroup('Committed create');
 
     expect(created.name, 'Committed create');
-    expect(await groupRepository.getGroups(), [created]);
+    expect(
+      (await groupRepository.getGroups()).where((g) => !g.isDefault).toList(),
+      [created],
+    );
   });
 
   test(
@@ -1007,7 +1184,10 @@ void main() {
       final duplicate = await notifier.duplicateGroup(source.id, 'Copy');
 
       expect((await groupRepository.getGroup(duplicate.id))?.name, 'Copy');
-      expect(await groupRepository.getGroups(), hasLength(2));
+      expect(
+        (await groupRepository.getGroups()).where((g) => !g.isDefault).toList(),
+        hasLength(2),
+      );
       expect(container.read(bookmarkProvider).hasValue, isTrue);
       expect(
         (await notifier.snapshotForExport()).groupsById,
@@ -1236,7 +1416,9 @@ class _FailingMembershipGroupRepository extends BookmarkGroupRepositoryHive {
 
   @override
   Future<BookmarkGroup> addBookmarks(String groupId, Set<int> bookmarkIds) =>
-      throw StateError('membership write failed');
+      groupId == defaultBookmarkGroupId
+      ? super.addBookmarks(groupId, bookmarkIds)
+      : throw StateError('membership write failed');
 }
 
 class _CommitsThenThrowsDeleteGroupRepository
@@ -1272,7 +1454,8 @@ class _CommitsThenThrowsAddGroupRepository extends BookmarkGroupRepositoryHive {
 }
 
 class _FailingSecondReadBookmarkRepository extends BookmarkHiveRepository {
-  _FailingSecondReadBookmarkRepository(super._box);
+  _FailingSecondReadBookmarkRepository(super._box, {this.failOnRead = 2});
+  final int failOnRead;
 
   var _readCount = 0;
 
@@ -1293,7 +1476,7 @@ class _FailingSecondReadBookmarkRepository extends BookmarkHiveRepository {
     required ImageUrlResolver Function(int? booruId) imageUrlResolver,
   }) {
     _readCount++;
-    if (_readCount == 2) {
+    if (_readCount == failOnRead) {
       return TaskEither.left(BookmarkGetError.unknown);
     }
     return super.getAllBookmarks(imageUrlResolver: imageUrlResolver);

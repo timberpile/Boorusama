@@ -9,6 +9,7 @@ import 'package:kurumi/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 // Project imports:
+import 'bookmark_group_label.dart';
 import '../../../configs/config/types.dart';
 import '../../../posts/post/types.dart';
 import '../data/bookmark_convert.dart';
@@ -94,9 +95,7 @@ class _BookmarkContextGroupPageState extends State<_BookmarkContextGroupPage> {
   Widget build(BuildContext context) {
     final library = container.read(bookmarkProvider).valueOrNull;
     final id = bookmarkIdentityForPost(post, config.booruIdHint);
-    final bookmark = library?.bookmarksByUniqueId[id];
     final memberships = library?.membershipsFor(id) ?? const <String>{};
-    final isGrouped = bookmark != null && memberships.isNotEmpty;
     return ConstrainedBox(
       constraints: BoxConstraints(maxHeight: MediaQuery.heightOf(context) * .6),
       child: BookmarkFolderPickerContents(
@@ -105,19 +104,10 @@ class _BookmarkContextGroupPageState extends State<_BookmarkContextGroupPage> {
         groups: library?.groups ?? const [],
         membershipGroupIds: memberships,
         onRootBack: KurumiContextMenuPageController.maybeOf(context)?.reset,
-        homeChildren: [
-          if (!isGrouped)
-            _item(
-              context,
-              groupId: null,
-              name: context.t.bookmark.groups.ungrouped,
-              selected: bookmark != null,
-            ),
-        ],
         groupBuilder: (context, group) => _item(
           context,
           groupId: group.id,
-          name: group.name,
+          name: group.displayName(context),
           selected: memberships.contains(group.id),
         ),
         footerBuilder: (context, folderId) => BookmarkPickerMenuItem(
@@ -157,15 +147,18 @@ class _BookmarkContextGroupPageState extends State<_BookmarkContextGroupPage> {
         config,
         post,
         target: groupId == null
-            ? const BookmarkTarget.ungrouped()
+            ? const BookmarkTarget.defaultGroup()
             : BookmarkTarget.group(groupId),
         activateTarget: true,
+        onRemoved: (r) {
+          if (navigator.mounted) notifier.showRemovalUndo(navigator.context, r);
+        },
       );
       switch (outcome) {
         case BookmarkToggleOutcome.added:
           _added();
         case BookmarkToggleOutcome.removed:
-          _removed();
+          break;
         case BookmarkToggleOutcome.missingPostIdentity:
           if (navigator.mounted) {
             Kurumi.showErrorToast(
@@ -203,15 +196,6 @@ class _BookmarkContextGroupPageState extends State<_BookmarkContextGroupPage> {
       Kurumi.showSuccessToast(
         navigator.context,
         navigator.context.t.bookmark.added,
-      );
-    }
-  }
-
-  void _removed() {
-    if (navigator.mounted) {
-      Kurumi.showSuccessToast(
-        navigator.context,
-        navigator.context.t.bookmark.removed,
       );
     }
   }

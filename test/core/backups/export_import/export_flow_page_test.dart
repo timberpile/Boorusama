@@ -1,3 +1,4 @@
+import 'package:boorusama/core/bookmarks/types.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -20,6 +21,35 @@ void main() {
     id: 'bookmarks',
     childIds: {'one', 'two'},
   );
+
+  test('legacy templates resolve No Group to the real Default group', () {
+    final container = ProviderContainer(
+      overrides: [
+        exportImportSourcesProvider.overrideWithValue(const []),
+      ],
+    );
+    addTearDown(container.dispose);
+    final notifier = container.read(exportFlowProvider.notifier);
+    notifier.applyTemplate(
+      ExportTemplate(
+        id: 'legacy',
+        name: 'Legacy',
+        selection: ExportSelection.custom(const {
+          'bookmarks': ExportNodeSelection.explicit('bookmarks', {'ungrouped'}),
+        }),
+        itemRecommendedActions: const {
+          'bookmarks': {'ungrouped': ImportAction.update},
+        },
+      ),
+    );
+    final state = container.read(exportFlowProvider);
+    expect(state.nodes['bookmarks']!.childIds, {
+      'group:$defaultBookmarkGroupId',
+    });
+    expect(state.itemRecommendedActions['bookmarks'], {
+      'group:$defaultBookmarkGroupId': ImportAction.merge,
+    });
+  });
 
   testWidgets('partially selected collections show an indeterminate parent', (
     tester,

@@ -1,6 +1,11 @@
 // Package imports:
 import 'package:equatable/equatable.dart';
 
+/// Reserved system identity. Ordinary groups may also be named Default.
+const defaultBookmarkGroupId = '00000000-0000-0000-0000-000000000000';
+
+enum BookmarkGroupSystemRole { defaultGroup }
+
 class BookmarkGroup extends Equatable {
   BookmarkGroup({
     required this.id,
@@ -9,6 +14,11 @@ class BookmarkGroup extends Equatable {
     this.folderId,
     this.position = 0,
   }) : bookmarkIds = Set.unmodifiable(bookmarkIds);
+
+  BookmarkGroupSystemRole? get systemRole => id == defaultBookmarkGroupId
+      ? BookmarkGroupSystemRole.defaultGroup
+      : null;
+  bool get isDefault => systemRole == BookmarkGroupSystemRole.defaultGroup;
 
   final String id;
   final String name;

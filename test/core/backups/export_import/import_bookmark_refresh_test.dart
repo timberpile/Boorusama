@@ -143,8 +143,8 @@ void main() {
       await container.read(_sourceProvider).restart();
 
       final library = container.read(bookmarkProvider).requireValue;
-      expect(library.groups.single.name, 'Shared');
-      expect(library.groups.single.bookmarkIds, {
+      expect(library.groups.where((g) => !g.isDefault).single.name, 'Shared');
+      expect(library.groups.where((g) => !g.isDefault).single.bookmarkIds, {
         for (final bookmark in saved) bookmark.id,
       });
       expect(library.items, hasLength(2));
@@ -178,7 +178,10 @@ void main() {
       await container.read(_sourceProvider).restart();
 
       final library = container.read(bookmarkProvider).requireValue;
-      expect(library.groups.single.bookmarkIds, hasLength(3));
+      expect(
+        library.groups.where((g) => !g.isDefault).single.bookmarkIds,
+        hasLength(3),
+      );
       expect(library.items, hasLength(3));
     },
   );

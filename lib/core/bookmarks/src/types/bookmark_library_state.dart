@@ -70,9 +70,8 @@ BookmarkTarget _effectiveTarget(
   BookmarkTarget requested,
 ) {
   return switch (requested.groupId) {
-    null => requested,
     final id when groups.any((group) => group.id == id) => requested,
-    _ => const BookmarkTarget.ungrouped(),
+    _ => const BookmarkTarget.defaultGroup(),
   };
 }
 

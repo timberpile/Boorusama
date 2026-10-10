@@ -100,7 +100,7 @@ void main() {
             folderId: 'child',
           ),
         ],
-        activeTarget: const BookmarkTarget.ungrouped(),
+        activeTarget: const BookmarkTarget.defaultGroup(),
       );
       final controller = _controller([]);
       addTearDown(controller.dispose);
@@ -139,7 +139,7 @@ void main() {
   const compactGroupId = '550e8400-e29b-41d4-a716-446655440000';
   for (final view in [
     const BookmarkView.all(),
-    const BookmarkView.ungrouped(),
+    const BookmarkView.defaultGroup(),
     BookmarkView.group(compactGroupId),
   ]) {
     testWidgets('compact bookmark header recovers empty filters in $view', (
@@ -170,12 +170,17 @@ void main() {
         bookmarks: bookmarks,
         groups: [
           BookmarkGroup(
+            id: defaultBookmarkGroupId,
+            name: 'Default',
+            bookmarkIds: const {5, 6, 7, 8},
+          ),
+          BookmarkGroup(
             id: compactGroupId,
             name: 'Saved',
             bookmarkIds: const {1, 2, 3, 4},
           ),
         ],
-        activeTarget: const BookmarkTarget.ungrouped(),
+        activeTarget: const BookmarkTarget.defaultGroup(),
       );
       final unusedController = _controller([]);
       addTearDown(unusedController.dispose);
@@ -301,16 +306,8 @@ void main() {
       );
       await pumpHeader();
       expect(find.text('Remove from group'), findsOneWidget);
-      await tester.tap(
-        find.ancestor(
-          of: find.text('Delete'),
-          matching: find.byType(KurumiPopupMenuItem),
-        ),
-      );
-      await pumpHeader();
-      expect(find.byType(AlertDialog), findsOneWidget);
-      await tester.tap(find.text('Cancel'));
-      await pumpHeader();
+      expect(find.text('Delete'), findsNothing);
+      expect(find.byType(AlertDialog), findsNothing);
       expect(container.read(bookmarkProvider).requireValue, same(library));
 
       await tester.pumpWidget(const SizedBox.shrink());
@@ -367,7 +364,7 @@ void main() {
         final state = BookmarkLibraryState(
           bookmarks: [bookmark],
           groups: const [],
-          activeTarget: const BookmarkTarget.ungrouped(),
+          activeTarget: const BookmarkTarget.defaultGroup(),
         );
         final controller = PostGridController<Post>(
           fetcher: (_) => TaskEither.right(
@@ -1114,7 +1111,7 @@ final class _EmptyBookmarkNotifier extends BookmarkLibraryNotifier {
   FutureOr<BookmarkLibraryState> build() => BookmarkLibraryState(
     bookmarks: const [],
     groups: const [],
-    activeTarget: const BookmarkTarget.ungrouped(),
+    activeTarget: const BookmarkTarget.defaultGroup(),
   );
 }
 
@@ -1236,7 +1233,7 @@ final class _RecoveryBookmarkNotifier extends BookmarkLibraryNotifier {
   FutureOr<BookmarkLibraryState> build() => BookmarkLibraryState(
     bookmarks: [bookmark],
     groups: [group],
-    activeTarget: const BookmarkTarget.ungrouped(),
+    activeTarget: const BookmarkTarget.defaultGroup(),
   );
 
   @override
@@ -1259,7 +1256,7 @@ final class _RecoveryBookmarkNotifier extends BookmarkLibraryNotifier {
       BookmarkLibraryState(
         bookmarks: [upgraded],
         groups: [group],
-        activeTarget: const BookmarkTarget.ungrouped(),
+        activeTarget: const BookmarkTarget.defaultGroup(),
       ),
     );
   }

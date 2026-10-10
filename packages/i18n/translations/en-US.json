@@ -1734,6 +1734,9 @@
     "many_added": "{0} bookmarks added",
     "failed_to_add_many": "Failed to add bookmarks",
     "removed": "Bookmark removed",
+    "removal_result": "{removed} removed · {deleted} bookmarks deleted",
+    "undo": "Undo",
+    "undo_failed": "Could not undo removal. The bookmark or group may have changed.",
     "failed_to_remove": "Failed to remove bookmark",
     "shuffle_tooltip": "Shuffle bookmarks",
     "none": "No bookmarks",
@@ -1742,6 +1745,7 @@
     "groups": {
       "all": "All",
       "ungrouped": "No Group",
+      "default_group": "Default",
       "selector": "Bookmark Groups",
       "add_folder": "Add groups folder",
       "add": "Add group",

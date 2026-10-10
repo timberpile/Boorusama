@@ -508,7 +508,12 @@ void main() {
         isNull,
       );
       await tester.runAsync(() async {
-        expect(await harness.groups.getGroups(), hasLength(2));
+        expect(
+          (await harness.groups.getGroups())
+              .where((g) => !g.isDefault)
+              .toList(),
+          hasLength(2),
+        );
         expect(
           await harness.bookmarks.getAllBookmarksOrThrow(
             imageUrlResolver: (_) => const DefaultImageUrlResolver(),
@@ -558,7 +563,12 @@ void main() {
         1,
       );
       await tester.runAsync(() async {
-        expect(await harness.groups.getGroups(), hasLength(2));
+        expect(
+          (await harness.groups.getGroups())
+              .where((g) => !g.isDefault)
+              .toList(),
+          hasLength(2),
+        );
         final context = tester.element(find.byType(ImportActionEditor));
         await harness.container
             .read(importFlowProvider.notifier)
@@ -569,7 +579,9 @@ void main() {
           ImportFlowStatus.complete,
           reason: '${state.error}',
         );
-        final groups = await harness.groups.getGroups();
+        final groups = (await harness.groups.getGroups())
+            .where((g) => !g.isDefault)
+            .toList();
         expect(groups, hasLength(2));
         final merged = groups.singleWhere((g) => g.id == _localGroupId);
         expect(merged.name, 'Local bookmarks');
@@ -680,7 +692,9 @@ void main() {
               containsAll([42, 43, if (populated) 99]),
             );
             expect(bookmarks, hasLength(populated ? 3 : 2));
-            final groups = await harness.groups.getGroups();
+            final groups = (await harness.groups.getGroups())
+                .where((g) => !g.isDefault)
+                .toList();
             final imported = groups.singleWhere(
               (group) => group.name == 'AnimeBoxes',
             );
@@ -806,7 +820,10 @@ void main() {
               hasLength(populated ? 3 : 2),
             );
             expect(
-              (await harness.groups.getGroups()).map((group) => group.id),
+              ((await harness.groups.getGroups())
+                      .where((g) => !g.isDefault)
+                      .toList())
+                  .map((group) => group.id),
               contains(imported.id),
             );
             if (populated) {

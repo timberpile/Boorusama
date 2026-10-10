@@ -296,6 +296,7 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
               goToBookmarkDetailsPage(
                 ref,
                 index,
+                sourceView: widget.view,
                 initialThumbnailUrl: ref
                     .read(
                       gridThumbnailUrlGeneratorProvider(effectiveAuth),

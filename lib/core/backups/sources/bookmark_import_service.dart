@@ -9,6 +9,7 @@ import 'package:uuid/uuid.dart';
 import '../../posts/post/types.dart';
 import 'bookmark_import_plan.dart';
 import 'bookmark_backup_data.dart';
+import '../../bookmarks/src/services/bookmark_library_service.dart';
 
 class BookmarkImportResult extends Equatable {
   const BookmarkImportResult({
@@ -64,7 +65,11 @@ class BookmarkImportService {
     );
     try {
       for (final g in oldGroups) {
-        await groupRepository.deleteGroup(g.id);
+        if (g.isDefault) {
+          await groupRepository.replaceMemberships(g.id, {});
+        } else {
+          await groupRepository.deleteGroup(g.id);
+        }
       }
       if (oldBookmarks.isNotEmpty)
         await bookmarkRepository.removeBookmarks(oldBookmarks);
@@ -78,7 +83,11 @@ class BookmarkImportService {
       };
       final restored = <BookmarkGroup>[];
       for (final g in data.groups) {
-        final group = await groupRepository.createGroup(g.name, id: g.id);
+        final group =
+            (g.isDefault
+                ? await groupRepository.getGroup(defaultBookmarkGroupId)
+                : null) ??
+            await groupRepository.createGroup(g.name, id: g.id);
         final members = await groupRepository.replaceMemberships(group.id, {
           for (final id in g.bookmarkIds) importedIds[id]!,
         });
@@ -87,6 +96,7 @@ class BookmarkImportService {
         );
       }
       await groupRepository.replaceFolderOrganization(data.folders, restored);
+      await _ensureDefault();
     } catch (error, stack) {
       final errors = await _rollback(
         oldGroups: oldGroups,
@@ -125,7 +135,7 @@ class BookmarkImportService {
     final orphanCandidates = <int>{};
     try {
       final copies = plan.groups
-          .where((g) => g.resolvedAction == ImportAction.copy)
+          .where((g) => !g.isDefault && g.resolvedAction == ImportAction.copy)
           .toList();
       if (copies.isNotEmpty && groupRepository is BookmarkFolderRepository) {
         final hierarchy = planFolderHierarchyCopy(
@@ -169,6 +179,19 @@ class BookmarkImportService {
             .map((id) => localIds[id])
             .nonNulls
             .toSet();
+        if (imported.isDefault) {
+          if (await groupRepository.getGroup(defaultBookmarkGroupId) == null) {
+            await groupRepository.createGroup(
+              'Default',
+              id: defaultBookmarkGroupId,
+            );
+          }
+          await groupRepository.addBookmarks(
+            defaultBookmarkGroupId,
+            membershipIds,
+          );
+          continue;
+        }
         final existingId = action == ImportAction.mergeIntoTarget
             ? imported.targetId
             : imported.id;
@@ -269,6 +292,7 @@ class BookmarkImportService {
           await bookmarkRepository.removeBookmarks(orphanBookmarks);
         }
       }
+      await _ensureDefault();
     } catch (error, stackTrace) {
       final rollbackErrors = await _rollback(
         oldGroups: oldGroups,
@@ -292,6 +316,18 @@ class BookmarkImportService {
     );
   }
 
+  Future<void> _ensureDefault() async {
+    await BookmarkLibraryService(
+      bookmarkRepository: bookmarkRepository,
+      groupRepository: groupRepository,
+      imageUrlResolver: imageUrlResolver,
+    ).ensureDefaultMemberships(
+      await bookmarkRepository.getAllBookmarksOrThrow(
+        imageUrlResolver: imageUrlResolver,
+      ),
+    );
+  }
+
   Future<List<Object>> _rollback({
     required List<BookmarkGroup> oldGroups,
     required List<CollectionFolder> oldFolders,
@@ -302,7 +338,7 @@ class BookmarkImportService {
     try {
       final currentGroups = await groupRepository.getGroups();
       for (final group in currentGroups) {
-        if (!oldGroupIds.contains(group.id)) {
+        if (!group.isDefault && !oldGroupIds.contains(group.id)) {
           try {
             await groupRepository.deleteGroup(group.id);
           } catch (error) {
@@ -355,7 +391,7 @@ class BookmarkImportService {
       try {
         if (await groupRepository.getGroup(group.id) == null) {
           await groupRepository.createGroup(group.name, id: group.id);
-        } else {
+        } else if (!group.isDefault) {
           await groupRepository.renameGroup(group.id, group.name);
         }
         await groupRepository.replaceMemberships(group.id, {

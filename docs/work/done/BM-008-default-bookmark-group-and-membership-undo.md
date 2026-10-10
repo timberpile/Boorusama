@@ -318,27 +318,27 @@ Do not scatter special-case checks for a display name of `Default` throughout wi
 
 ## Acceptance Criteria
 
-- [ ] Every persisted Bookmark belongs to at least one group.
-- [ ] Exactly one permanent Default Group exists.
-- [ ] Default cannot be renamed, deleted, or moved.
-- [ ] Default is visible and usable like a normal Bookmark Group for membership operations.
-- [ ] Ungrouped is no longer a separate virtual collection.
-- [ ] Old Ungrouped Bookmarks migrate to Default without data loss.
-- [ ] New Bookmarks without an explicit group target go to Default.
-- [ ] Adding a Bookmark to another group never implicitly removes it from Default.
-- [ ] Add and Remove operate on exactly one selected group.
-- [ ] Removing the last membership deletes the Bookmark.
-- [ ] No user-facing global Delete-from-all-groups action remains.
-- [ ] Single-post and multi-post removal produce identical membership results.
-- [ ] No routine confirmation appears when removing the last membership.
-- [ ] A localized Undo Snackbar appears after successful removal.
-- [ ] Undo reliably restores deleted Bookmarks and removed memberships.
-- [ ] Bulk Undo is one logical operation.
-- [ ] Ordinary group and folder deletion retain established orphan-cleanup behavior.
-- [ ] Import/export preserves the system-group invariant and remains backward compatible.
-- [ ] No duplicate Default Groups are created by restore or custom import.
-- [ ] Relevant Bookmark selectors, viewers, and actions use the new semantics.
-- [ ] Existing unrelated Bookmark functionality remains intact.
+- [x] Every persisted Bookmark belongs to at least one group.
+- [x] Exactly one permanent Default Group exists.
+- [x] Default cannot be renamed, deleted, or moved.
+- [x] Default is visible and usable like a normal Bookmark Group for membership operations.
+- [x] Ungrouped is no longer a separate virtual collection.
+- [x] Old Ungrouped Bookmarks migrate to Default without data loss.
+- [x] New Bookmarks without an explicit group target go to Default.
+- [x] Adding a Bookmark to another group never implicitly removes it from Default.
+- [x] Add and Remove operate on exactly one selected group.
+- [x] Removing the last membership deletes the Bookmark.
+- [x] No user-facing global Delete-from-all-groups action remains.
+- [x] Single-post and multi-post removal produce identical membership results.
+- [x] No routine confirmation appears when removing the last membership.
+- [x] A localized Undo Snackbar appears after successful removal.
+- [x] Undo reliably restores deleted Bookmarks and removed memberships.
+- [x] Bulk Undo is one logical operation.
+- [x] Ordinary group and folder deletion retain established orphan-cleanup behavior.
+- [x] Import/export preserves the system-group invariant and remains backward compatible.
+- [x] No duplicate Default Groups are created by restore or custom import.
+- [x] Relevant Bookmark selectors, viewers, and actions use the new semantics.
+- [x] Existing unrelated Bookmark functionality remains intact.
 
 ## Verification
 
@@ -375,7 +375,7 @@ Use `fvm dart format`, focused tests, appropriate analyzer checks, and broader r
 
 - `docs/bookmark_groups.md`
 - `docs/pinned_searches.md`
-- `docs/work/ready/IDEA-015-nested-bookmark-search-feed-folders.md` (updated parent-reference design)
+- `docs/work/done/IDEA-015-nested-bookmark-search-feed-folders.md` (updated parent-reference design)
 - `docs/work/done/BM-005-preserve-group-name-on-import-update.md`
 - `AGENTS.md`
 - `docs/work/README.md`
@@ -401,3 +401,97 @@ Bookmark membership management uses one consistent model: Bookmarks belong to at
 Ordinary removal is fast and reversible through Undo rather than being interrupted by confirmation dialogs.
 
 Existing Bookmark data, hierarchical groups, import/export, and viewer behavior remain correct.
+## Implementation record
+
+- Agent: Codex, 2026-10-09.
+- Branch: `agent/bm-008-default-group`.
+- Worktree: `/home/timber/code/Boorusama/.worktrees/bm-008-default-group`.
+- Base: `f4972eb54`; IDEA-015 parent-reference folders are integrated.
+- Implemented reserved system UUID `00000000-0000-0000-0000-000000000000`,
+  with explicit model role derived from identity. No Hive adapter migration or
+  backup version bump is needed: version 5 adds optional `systemRole: default`.
+- Library loading repairs stale references, creates Default, and assigns only
+  records without memberships. Null settings and legacy viewer/template
+  references resolve to Default. Existing explicit memberships stay unchanged.
+- Single and bulk removal persist immediately and delete records losing their
+  final membership. One localized Snackbar offers serialized snapshot Undo.
+  Undo retains newer snapshots and other memberships, rejects stale/deleted
+  source groups or superseding removals, and rolls back failed restoration.
+- Default is protected in repository and folder APIs and shown as a localized
+  normal group. Global bookmark Delete UI is removed. All-view removal opens a
+  source-group selector. Viewer lists stay stable until the route closes.
+- Full Replace restores one Default; custom Default imports merge only and do
+  not create import-wrapper copies. Ordinary group modes and folder orphan
+  cleanup remain intact. Legacy version-4 exports remain supported.
+
+### Automated verification
+
+- Real Hive/service tests cover idempotent migration and reopening storage,
+  protected identity, ordinary duplicate names, explicit membership, final
+  removal, mixed bulk Undo, metadata preservation, intervening mutations,
+  failed restoration, missing groups, and surviving Default folder membership.
+- Widget checks cover immediate viewer toggles, explicit source selection from
+  All, removal without confirmation, one aggregate Undo action, successful and
+  failed Undo feedback, 320-pixel width, 1.8 text scaling, and keyboard insets.
+- Backup tests cover system-role validation, legacy v4, full Replace, custom
+  merge-only Default behavior, rollback, previews, and legacy export templates.
+- Changed Dart files formatted with `fvm dart format`. Affected-scope analysis
+  reports no errors or warnings; informational lints remain.
+- Complete local application suite passed during implementation validation
+  (3,024 tests before the final All-view regression). Every package/CLI suite
+  passed: booru_clients, boorusama_cli, cache_manager, coreutils, dtext,
+  extended_image, filename_generator, flutter_sqlite3_migration, foundation,
+  i18n_cli, kurumi, retriable.
+- Repository tooling passed: `.github/scripts/test-pull-request-policy.sh`,
+  `.github/scripts/test-android-release-scripts.sh`, and
+  `python3 -m unittest discover -s scripts/tests` (30 tests).
+- Final commit gate repeats the complete application, all package/CLI, and
+  tooling suites after the last code and documentation edit. Final application
+  log: `/tmp/bm008-final-app.log`; package results:
+  `/tmp/bm008-package-results.json`. Commit proceeds only if every suite passes.
+
+### Limitations and delivery
+
+No emulator, physical device, installed-APK upgrade, or live production-data
+migration was exercised. Migration/restart evidence comes from real Hive tests;
+UI constraints and Undo feedback were exercised with widget tests. Generated
+localization outputs were regenerated locally and remain ignored as usual.
+
+The user authorized local integration into `develop` after testing the result.
+Integration uses one squash commit and preserves the user's detached primary
+checkout. Remote publication and PR creation remain unauthorized and unperformed.
+
+### Follow-up: Home card placement
+
+- User clarified that All and Default must share the top row above the divider;
+  ordinary groups and folders belong below it. Default had been included in the
+  alphabetical ordinary-group grid. The Home browser now renders the real
+  Default group beside All and excludes it from that lower grid by identity.
+- Regression reproduces the old placement before the fix and verifies the two
+  top cards, divider, ordinary groups named Default below the divider, and
+  disabled shortcuts during bulk selection. Layout is exercised at narrow
+  width and enlarged text. The complete local suites are repeated after the
+  final edit before committing this follow-up. Device checks remain unperformed.
+
+### Follow-up: simple Default UUID
+
+- User requested the valid nil UUID `00000000-0000-0000-0000-000000000000`
+  as Default's permanent identity. The pinned UUID validator accepts it.
+- The previous Default identity never went live. Per user instruction, there is
+  no migration or compatibility alias for that development-only UUID. Existing
+  Ungrouped-to-Default migration remains unchanged.
+- Existing real repository, service, backup codec, and import tests use the
+  shared Default identity and verify nil through those paths. The complete
+  local suites are repeated after the final edit before committing.
+
+### Merge validation: cache test synchronization
+
+Full application runs exposed existing timing failures in
+`progressive_common_cache_test.dart` and `progressive_non_admitted_cache_test.dart`:
+fixed delays could expire before request setup or image decoding, and asynchronous
+cache bookkeeping could recreate files during fixture cleanup. At the user's
+request, these fixtures now wait for requests, decode counts, and painted pixels,
+with bounded timeouts, and drain their tracked cache reads, writes, and usage
+updates before deleting temporary directories. Pixel, fetch-count, decoded-stream
+identity, and listener-release assertions remain in place. Production image and
+cache behavior is unchanged.

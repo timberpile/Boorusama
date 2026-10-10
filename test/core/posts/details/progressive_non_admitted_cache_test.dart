@@ -4,7 +4,6 @@ import 'dart:ui' as ui;
 
 import 'package:boorusama/core/posts/details/src/widgets/progressive_post_image.dart';
 import 'package:boorusama/core/posts/listing/types.dart';
-import 'package:cache_manager/cache_manager.dart';
 import 'package:dio/dio.dart';
 import 'package:extended_image/src/image/raw_image.dart';
 import 'package:flutter/material.dart';
@@ -81,7 +80,7 @@ void main() {
         final root = await Directory.systemTemp.createTemp(
           'progressive-not-admitted-',
         );
-        final cache = DefaultImageCacheManager(
+        final cache = DrainingImageCacheManager(
           cacheRootPathProvider: () => root.path,
         );
         final adapter = ControlledImageAdapter();
@@ -110,16 +109,16 @@ void main() {
               ),
             ),
           );
-          Future<void> pumpIo() async {
-            for (var i = 0; i < 8; i++) {
-              await Future<void>.delayed(const Duration(milliseconds: 50));
-              await tester.pump();
-            }
-          }
 
-          await pumpIo();
+          await pumpUntil(
+            tester,
+            () =>
+                adapter.pending.containsKey(lower) &&
+                adapter.pending.containsKey(target),
+            reason: 'both requests',
+          );
           adapter.complete(lower, lowerPng);
-          await pumpIo();
+          await waitForPixel(tester, [255, 0, 0, 255]);
           final retainedPixels = tester
               .widgetList<ExtendedRawImage>(find.byType(ExtendedRawImage))
               .map((image) => image.image)
@@ -130,7 +129,7 @@ void main() {
             [255, 0, 0, 255],
           );
           adapter.complete(target, targetPng);
-          await pumpIo();
+          await waitForPixel(tester, [0, 0, 255, 255]);
           final pixels = tester
               .widgetList<ExtendedRawImage>(find.byType(ExtendedRawImage))
               .map((image) => image.image)
@@ -168,7 +167,7 @@ void main() {
             );
           }
           await tester.pumpWidget(const SizedBox());
-          await pumpIo();
+          await cache.drain();
           expect(decodedCache.liveImageCount, 0);
           expect(decodedCache.pendingImageCount, 0);
           for (final completer
@@ -190,6 +189,7 @@ void main() {
           decodedCache.clear();
           decodedCache.clearLiveImages();
           dio.close(force: true);
+          await cache.drain();
           await cache.dispose();
           await root.delete(recursive: true);
         }
@@ -207,7 +207,7 @@ void main() {
           final root = await Directory.systemTemp.createTemp(
             'progressive-candidate-cleanup-',
           );
-          final cache = DefaultImageCacheManager(
+          final cache = DrainingImageCacheManager(
             cacheRootPathProvider: () => root.path,
           );
           final adapter = ControlledImageAdapter();
@@ -226,12 +226,6 @@ void main() {
               cacheManager: cache,
             ),
           );
-          Future<void> pumpIo() async {
-            for (var i = 0; i < 8; i++) {
-              await Future<void>.delayed(const Duration(milliseconds: 50));
-              await tester.pump();
-            }
-          }
 
           try {
             decodedCache.clear();
@@ -243,20 +237,40 @@ void main() {
             decodedCache.resolutions.clear();
             binding.decodes = 0;
             await tester.pumpWidget(page(target));
-            await pumpIo();
+            await pumpUntil(
+              tester,
+              () =>
+                  adapter.pending.containsKey(lower) &&
+                  adapter.pending.containsKey(target),
+              reason: 'both requests',
+            );
             if (targetFirst) {
               adapter.complete(target, targetPng);
-              await pumpIo();
+              await waitForPixel(tester, [0, 0, 255, 255]);
               adapter.complete(lower, lowerPng);
-              await pumpIo();
+              await cache.drain();
+              await pumpUntil(
+                tester,
+                () => binding.decodes == 2,
+                reason: 'ignored lower decode',
+              );
             } else {
               adapter.complete(lower, lowerPng);
-              await pumpIo();
+              await waitForPixel(tester, [255, 0, 0, 255]);
               await tester.pumpWidget(page(replacement));
-              await pumpIo();
+              await pumpUntil(
+                tester,
+                () => adapter.pending.containsKey(replacement),
+                reason: 'replacement request',
+              );
               adapter.complete(target, targetPng);
               adapter.complete(replacement, Uint8List.fromList([1, 2, 3]));
-              await pumpIo();
+              await pumpUntil(
+                tester,
+                () =>
+                    binding.decodes == 2 && decodedCache.pendingImageCount == 0,
+                reason: 'failed replacement decode',
+              );
             }
             final pixels = tester
                 .widgetList<ExtendedRawImage>(find.byType(ExtendedRawImage))
@@ -274,7 +288,11 @@ void main() {
               // decoder's disk bytes are separate: clear those invalid bytes
               // explicitly before the server supplies a repaired image.
               await tester.pumpWidget(page(target));
-              await pumpIo();
+              await pumpUntil(
+                tester,
+                () => binding.decodes == 3,
+                reason: 'reselected target decode',
+              );
               expect(
                 adapter.requests.where(
                   (request) => request.uri.toString() == target,
@@ -285,9 +303,18 @@ void main() {
               await cache.clearCache(cache.generateCacheKey(replacement));
               adapter.pending.remove(replacement);
               await tester.pumpWidget(page(replacement));
-              await pumpIo();
+              await pumpUntil(
+                tester,
+                () => adapter.pending.containsKey(replacement),
+                reason: 'repaired replacement request',
+              );
               adapter.complete(replacement, targetPng);
-              await pumpIo();
+              await pumpUntil(
+                tester,
+                () => binding.decodes == 4,
+                reason: 'repaired replacement decode',
+              );
+              await waitForPixel(tester, [0, 0, 255, 255]);
               final recovered = tester
                   .widgetList<ExtendedRawImage>(find.byType(ExtendedRawImage))
                   .map((image) => image.image)
@@ -307,7 +334,7 @@ void main() {
               expect(decodedCache.currentSizeBytes, 0);
             }
             await tester.pumpWidget(const SizedBox());
-            await pumpIo();
+            await cache.drain();
             expect(decodedCache.liveImageCount, 0);
             expect(decodedCache.pendingImageCount, 0);
             for (final completer
@@ -325,6 +352,7 @@ void main() {
             decodedCache.clear();
             decodedCache.clearLiveImages();
             dio.close(force: true);
+            await cache.drain();
             await cache.dispose();
             await root.delete(recursive: true);
           }

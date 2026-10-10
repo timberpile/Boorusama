@@ -42,6 +42,11 @@ void main() {
   ];
   final groups = [
     BookmarkGroup(
+      id: defaultBookmarkGroupId,
+      name: 'Default',
+      bookmarkIds: {2},
+    ),
+    BookmarkGroup(
       id: firstGroupId,
       name: 'First',
       bookmarkIds: const {1, 3},
@@ -72,7 +77,7 @@ void main() {
       groups: [
         BookmarkGroup(id: firstGroupId, name: 'Old', bookmarkIds: const {77}),
       ],
-      activeTarget: const BookmarkTarget.ungrouped(),
+      activeTarget: const BookmarkTarget.defaultGroup(),
     );
 
     expect(state.isBookmarked(invalid.post, invalid.booruId), isFalse);
@@ -82,7 +87,7 @@ void main() {
 
   final viewCases = [
     (view: const BookmarkView.all(), expected: [1, 2, 3]),
-    (view: const BookmarkView.ungrouped(), expected: [2]),
+    (view: const BookmarkView.defaultGroup(), expected: [2]),
     (view: BookmarkView.group(firstGroupId), expected: [1, 3]),
     (view: BookmarkView.group(secondGroupId), expected: [3]),
   ];
@@ -152,7 +157,7 @@ void main() {
       ),
     );
 
-    expect(state.activeTarget, const BookmarkTarget.ungrouped());
+    expect(state.activeTarget, const BookmarkTarget.defaultGroup());
   });
 
   test('reports active membership and total named memberships', () {
@@ -170,12 +175,12 @@ void main() {
 
   test('marks No Group unavailable without hiding named memberships', () {
     final presentation = selectBookmarkMembershipPresentation(
-      createState(activeTarget: const BookmarkTarget.ungrouped()),
+      createState(activeTarget: const BookmarkTarget.defaultGroup()),
       bookmarks[0].uniqueId,
     );
 
     expect(presentation.isInActiveTarget, isFalse);
-    expect(presentation.activeTargetUnavailable, isTrue);
+    expect(presentation.activeTargetUnavailable, isFalse);
     expect(presentation.showNamedGroupCount, isTrue);
   });
 
@@ -201,7 +206,6 @@ void main() {
 
     expect(counts.selectedCount, 2);
     expect(counts.byGroupId, {firstGroupId: 2, secondGroupId: 1});
-    expect(counts.ungroupedCount, 0);
   });
 
   test('summarizes bookmarked, ungrouped, and per-group selected posts', () {
@@ -213,8 +217,11 @@ void main() {
 
     expect(summary.totalPosts, 3);
     expect(summary.bookmarkedPosts, 3);
-    expect(summary.ungroupedBookmarks, 1);
-    expect(summary.membershipCounts, {firstGroupId: 2, secondGroupId: 1});
+    expect(summary.membershipCounts, {
+      firstGroupId: 2,
+      secondGroupId: 1,
+      defaultBookmarkGroupId: 1,
+    });
   });
 
   test('stored bookmark identity ignores the currently configured booru', () {

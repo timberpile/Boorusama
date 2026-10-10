@@ -14,6 +14,7 @@ import 'package:material_symbols_icons/symbols.dart';
 
 // Project imports:
 import '../../../../bookmarks/providers.dart';
+import '../../../../bookmarks/src/types/bookmark_view.dart';
 import '../../../../bookmarks/src/data/bookmark_convert.dart';
 import '../../../../bookmarks/src/providers/bookmark_details_mutation_notifier.dart';
 import '../../../../bookmarks/src/widgets/bookmark_group_label.dart';
@@ -51,10 +52,10 @@ class BookmarkPostButton extends ConsumerWidget {
     final isBookmarked = presentation?.isInActiveTarget ?? false;
     final groupLabels = library == null
         ? const <String, String>{}
-        : bookmarkGroupLabels(library.groups);
+        : {for (final g in library.groups) g.id: g.displayName(context)};
     final activeLabel = activeGroupId == null
-        ? context.t.bookmark.groups.ungrouped
-        : groupLabels[activeGroupId] ?? context.t.bookmark.groups.ungrouped;
+        ? context.t.bookmark.groups.default_group
+        : groupLabels[activeGroupId] ?? context.t.bookmark.groups.default_group;
     final isLoading = bookmarkStateAsync.isLoading;
     final actionLabel = isBookmarked
         ? context.t.bookmark.groups.remove_from(name: activeLabel)
@@ -172,6 +173,14 @@ class BookmarkPostLikeButtonButton extends ConsumerWidget {
                   return switch (outcome) {
                     BookmarkToggleOutcome.added => true,
                     BookmarkToggleOutcome.removed => false,
+                    BookmarkToggleOutcome.unavailable =>
+                      ref
+                          .read(bookmarkDetailsMutationProvider)
+                          .presentationFor(
+                            ref.read(bookmarkProvider).requireValue,
+                            uniqueId,
+                          )
+                          .isInActiveTarget,
                     _ => isLiked,
                   };
                 },
@@ -206,21 +215,25 @@ extension BookmarkPostX on WidgetRef {
     BooruConfigAuth config,
     BuildContext context,
   ) async {
-    final detailsMutations = read(bookmarkDetailsMutationProvider);
-    final bookmarkLibrary = read(bookmarkProvider).valueOrNull;
-    final outcome = detailsMutations.isVisible && bookmarkLibrary != null
-        ? read(bookmarkDetailsMutationProvider.notifier).toggle(
-            config: config,
-            post: post,
-            library: bookmarkLibrary,
-          )
-        : await read(bookmarkProvider.notifier).togglePostTarget(config, post);
+    final details = read(bookmarkDetailsMutationProvider);
+    if (details.isVisible && details.sourceView?.kind == BookmarkViewKind.all) {
+      await showBookmarkGroupPicker(context, config: config, post: post);
+      return BookmarkToggleOutcome.unavailable;
+    }
+    final notifier = read(bookmarkProvider.notifier);
+    final outcome = await notifier.togglePostTarget(
+      config,
+      post,
+      onRemoved: (r) {
+        if (context.mounted) notifier.showRemovalUndo(context, r);
+      },
+    );
     if (!context.mounted) return outcome;
     switch (outcome) {
       case BookmarkToggleOutcome.added:
         Kurumi.showSuccessToast(context, context.t.bookmark.added);
       case BookmarkToggleOutcome.removed:
-        Kurumi.showSuccessToast(context, context.t.bookmark.removed);
+        break;
       case BookmarkToggleOutcome.unavailable:
         await showBookmarkGroupPicker(context, config: config, post: post);
       case BookmarkToggleOutcome.missingPostIdentity:

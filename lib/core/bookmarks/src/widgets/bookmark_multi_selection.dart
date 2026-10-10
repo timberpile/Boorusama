@@ -8,6 +8,7 @@ import 'package:kurumi/kurumi.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 // Project imports:
+import 'bookmark_group_label.dart';
 import '../providers/bookmark_provider.dart';
 import '../data/bookmark_convert.dart';
 import '../types/bookmark_group.dart';
@@ -38,10 +39,6 @@ Future<bool> showBookmarkMultiSelectionActions(
             title: Text(context.t.bookmark.bulk.remove),
             onTap: () => Navigator.pop(context, 'remove'),
           ),
-          ListTile(
-            title: Text(context.t.bookmark.bulk.delete),
-            onTap: () => Navigator.pop(context, 'delete'),
-          ),
         ],
       ),
     ),
@@ -50,7 +47,6 @@ Future<bool> showBookmarkMultiSelectionActions(
   return switch (action) {
     'add' => _add(context, container, bookmarks),
     'remove' => _remove(context, container, bookmarks),
-    'delete' => _delete(context, container, bookmarks),
     _ => false,
   };
 }
@@ -77,40 +73,17 @@ Future<bool> _remove(
   if (groupId == null) return false;
   await container
       .read(bookmarkProvider.notifier)
-      .removeFromGroup(bookmarks, groupId);
+      .removeFromGroup(
+        bookmarks,
+        groupId,
+        onRemoved: (r) {
+          if (context.mounted)
+            container
+                .read(bookmarkProvider.notifier)
+                .showRemovalUndo(context, r);
+        },
+      );
   return false;
-}
-
-Future<bool> _delete(
-  BuildContext context,
-  ProviderContainer container,
-  List<Bookmark> bookmarks,
-) async {
-  final confirmed = await showDialog<bool>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: Text(context.t.bookmark.bulk.delete_title),
-      content: Text(
-        context.t.bookmark.bulk.delete_message.replaceAll(
-          '{count}',
-          '${bookmarks.length}',
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context, false),
-          child: Text(context.t.generic.action.cancel),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.pop(context, true),
-          child: Text(context.t.generic.action.delete),
-        ),
-      ],
-    ),
-  );
-  if (confirmed != true) return false;
-  await container.read(bookmarkProvider.notifier).removeBookmarks(bookmarks);
-  return true;
 }
 
 Future<String?> _selectGroup(
@@ -154,7 +127,7 @@ class _ExistingBookmarkGroupSelectionDialog extends ConsumerWidget {
               fill: (singleMemberships?.contains(group.id) ?? false) ? 1 : 0,
             ),
             title: Text(
-              group.name,
+              group.displayName(context),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
@@ -208,7 +181,6 @@ class BookmarkGroupSelectionSummary {
   const BookmarkGroupSelectionSummary({
     required this.totalPosts,
     required this.bookmarkedPosts,
-    required this.ungroupedBookmarks,
     required this.membershipCounts,
   });
 
@@ -218,14 +190,12 @@ class BookmarkGroupSelectionSummary {
     required int booruId,
   }) {
     var bookmarked = 0;
-    var ungrouped = 0;
     final counts = <String, int>{};
     for (final post in posts) {
       final id = bookmarkIdentityForPost(post, booruId);
       if (state?.bookmarksByUniqueId[id] == null) continue;
       bookmarked++;
       final memberships = state?.membershipsFor(id) ?? const <String>{};
-      if (memberships.isEmpty) ungrouped++;
       for (final groupId in memberships) {
         counts.update(groupId, (value) => value + 1, ifAbsent: () => 1);
       }
@@ -233,14 +203,12 @@ class BookmarkGroupSelectionSummary {
     return BookmarkGroupSelectionSummary(
       totalPosts: posts.length,
       bookmarkedPosts: bookmarked,
-      ungroupedBookmarks: ungrouped,
       membershipCounts: Map.unmodifiable(counts),
     );
   }
 
   final int totalPosts;
   final int bookmarkedPosts;
-  final int ungroupedBookmarks;
   final Map<String, int> membershipCounts;
 
   int countFor(String groupId) => membershipCounts[groupId] ?? 0;
@@ -274,12 +242,6 @@ class BookmarkMultiSelectionMenu extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(bookmarkProvider).valueOrNull;
-    final summary = BookmarkGroupSelectionSummary.fromPosts(
-      posts: posts,
-      state: state,
-      booruId: config.booruIdHint,
-    );
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -294,12 +256,6 @@ class BookmarkMultiSelectionMenu extends ConsumerWidget {
           trailing: const Icon(Icons.chevron_right),
           onTap: () =>
               _select(context, ref, BookmarkMultiSelectionOperation.remove),
-        ),
-        const Divider(),
-        KurumiPopupMenuItem(
-          icon: const Icon(Symbols.delete),
-          title: Text(context.t.bookmark.bulk.delete),
-          onTap: () => _delete(context, ref, summary.bookmarkedPosts),
         ),
       ],
     );
@@ -338,16 +294,7 @@ class BookmarkMultiSelectionMenu extends ConsumerWidget {
           target.id!,
         );
         if (!navigator.mounted) return;
-        final template = result.movedToNoGroupCount > 0
-            ? navigator.context.t.bookmark.bulk.remove_success_ungrouped
-            : navigator.context.t.bookmark.bulk.remove_success;
-        Kurumi.showSuccessToast(
-          navigator.context,
-          template
-              .replaceAll('{0}', '${result.removedCount}')
-              .replaceAll('{1}', target.name)
-              .replaceAll('{2}', '${result.movedToNoGroupCount}'),
-        );
+        notifier.showRemovalUndo(navigator.context, result);
       }
       await onCompleted();
     } catch (_) {
@@ -358,57 +305,6 @@ class BookmarkMultiSelectionMenu extends ConsumerWidget {
             ? navigator.context.t.bookmark.bulk.failed_to_add
             : navigator.context.t.bookmark.bulk.failed_to_remove,
       );
-    }
-  }
-
-  Future<void> _delete(
-    BuildContext context,
-    WidgetRef ref,
-    int count,
-  ) async {
-    final navigator = Navigator.of(context, rootNavigator: true);
-    final notifier = ref.read(bookmarkProvider.notifier);
-    final confirmed = await showDialog<bool>(
-      context: navigator.context,
-      builder: (context) => AlertDialog(
-        title: Text(context.t.bookmark.bulk.delete_title),
-        content: Text(
-          context.t.bookmark.bulk.delete_message.replaceAll(
-            '{count}',
-            '$count',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(context.t.generic.action.cancel),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text(context.t.generic.action.delete),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
-    try {
-      final changed = await notifier.deleteBookmarksForPosts(config, posts);
-      if (!navigator.mounted) return;
-      Kurumi.showSuccessToast(
-        navigator.context,
-        navigator.context.t.bookmark.bulk.delete_success.replaceAll(
-          '{0}',
-          '$changed',
-        ),
-      );
-      await onCompleted();
-    } catch (_) {
-      if (navigator.mounted) {
-        Kurumi.showErrorToast(
-          navigator.context,
-          navigator.context.t.bookmark.bulk.failed_to_delete,
-        );
-      }
     }
   }
 }
@@ -467,20 +363,9 @@ class _BookmarkGroupSelectionDialog extends ConsumerWidget {
                   bookmarkIdentityForPost(posts.single, config.booruIdHint),
                 )
               : null,
-          homeChildren: [
-            if (add)
-              _tile(
-                context,
-                BookmarkGroupSelectionTarget(
-                  null,
-                  context.t.bookmark.groups.ungrouped,
-                ),
-                summary.ungroupedBookmarks,
-              ),
-          ],
           groupBuilder: (context, group) => _tile(
             context,
-            BookmarkGroupSelectionTarget(group.id, group.name),
+            BookmarkGroupSelectionTarget(group.id, group.displayName(context)),
             summary.countFor(group.id),
           ),
           footerBuilder: (context, folderId) => Column(

@@ -286,6 +286,17 @@ final class ImportPlannedChangeProjector {
           },
         ),
     };
+    // Preflight observes the repaired library, including legacy orphan migration.
+    final localMemberships = {
+      for (final g in localGroups.values) ...g.bookmarkIds,
+    };
+    localGroups.putIfAbsent(
+      defaultBookmarkGroupId,
+      () => _BookmarkGroupValue(
+        name: 'Default',
+        bookmarkIds: localByIdentity.keys.toSet().difference(localMemberships),
+      ),
+    );
     final localEntities = <Object, Object?>{
       for (final f in local.folders) _key('bookmark-folder', f.id): f,
       for (final entry in localByIdentity.entries)
@@ -323,6 +334,17 @@ final class ImportPlannedChangeProjector {
             },
           ),
       };
+      final defaultKey = _key('bookmark-group', defaultBookmarkGroupId);
+      final existingDefault = projected[defaultKey] as _BookmarkGroupValue?;
+      final grouped = {for (final g in data.groups) ...g.bookmarkIds};
+      projected[defaultKey] = _BookmarkGroupValue(
+        name: 'Default',
+        bookmarkIds: {
+          ...?existingDefault?.bookmarkIds,
+          for (final b in data.bookmarks)
+            if (!grouped.contains(b.id)) b.transferIdentity,
+        },
+      );
       return _summarize(
         local: localEntities,
         projected: projected,
@@ -380,11 +402,12 @@ final class ImportPlannedChangeProjector {
     final copies = chosenGroups
         .where(
           (g) =>
+              !g.isDefault &&
               (actions['group:${g.id}']?.action ??
-                  (localGroups.containsKey(g.id)
-                      ? ImportAction.update
-                      : ImportAction.copy)) ==
-              ImportAction.copy,
+                      (localGroups.containsKey(g.id)
+                          ? ImportAction.update
+                          : ImportAction.copy)) ==
+                  ImportAction.copy,
         )
         .toList();
     var nextFolderId = 0;
@@ -402,11 +425,12 @@ final class ImportPlannedChangeProjector {
     for (final (index, group) in chosenGroups.indexed) {
       final sourceId = group.id ?? 'legacy-$index';
       final item = actions['group:${group.id}'];
-      final action =
-          item?.action ??
-          (projectedGroups.containsKey(sourceId)
-              ? ImportAction.update
-              : ImportAction.copy);
+      final action = group.isDefault
+          ? ImportAction.merge
+          : item?.action ??
+                (projectedGroups.containsKey(sourceId)
+                    ? ImportAction.update
+                    : ImportAction.copy);
       final memberships = {
         for (final id in group.bookmarkIds) ?incomingIdentityById[id],
       };
@@ -470,6 +494,16 @@ final class ImportPlannedChangeProjector {
       projectedBookmarks.remove(identity);
       touched.add(_key('bookmark', identity));
     }
+
+    final defaultBefore = projectedGroups[defaultBookmarkGroupId];
+    projectedGroups[defaultBookmarkGroupId] = _BookmarkGroupValue(
+      name: 'Default',
+      bookmarkIds: {
+        ...?defaultBefore?.bookmarkIds,
+        ...projectedBookmarks.keys.toSet().difference(finalMemberships),
+      },
+    );
+    touched.add(_key('bookmark-group', defaultBookmarkGroupId));
 
     return _summarize(
       local: localEntities,

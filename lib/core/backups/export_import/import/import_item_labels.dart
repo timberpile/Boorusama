@@ -1,3 +1,4 @@
+import 'package:i18n/i18n.dart';
 import '../../../configs/config/types.dart';
 import '../../sources/bookmark_backup_data.dart';
 import '../../../groups/folder_tree.dart';
@@ -63,7 +64,9 @@ ImportItemPresentationResult importItemPresentation(
       for (final group in bookmarks.groups) {
         if (group.id case final id?) {
           items[ExportSelectionIds.bookmarkGroup(id)] = ExportItemPresentation(
-            label: group.folderId == null
+            label: group.isDefault
+                ? Translations().bookmark.groups.default_group
+                : group.folderId == null
                 ? group.name
                 : '${FolderTree(bookmarks.folders).path(group.folderId)} / ${group.name}',
           );
@@ -188,7 +191,8 @@ List<ExportSelectionNode> bookmarkExportNodes(BookmarkBackupData data) => [
   for (final g in data.groups)
     if (g.folderId == null && g.id != null)
       ExportSelectionNode(id: ExportSelectionIds.bookmarkGroup(g.id!)),
-  const ExportSelectionNode(id: ExportSelectionIds.ungroupedBookmarks),
+  if (_hasUngroupedBookmarks(data))
+    const ExportSelectionNode(id: ExportSelectionIds.ungroupedBookmarks),
 ];
 List<ExportSelectionNode> buildFolderSelectionNodes({
   required List<CollectionFolder> folders,

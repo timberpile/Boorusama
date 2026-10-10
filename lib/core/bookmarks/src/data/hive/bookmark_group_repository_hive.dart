@@ -52,7 +52,9 @@ class BookmarkGroupRepositoryHive
 
     final object = BookmarkGroupHiveObject(
       id: normalizedId,
-      name: _normalizeName(name),
+      name: normalizedId == defaultBookmarkGroupId
+          ? 'Default'
+          : _normalizeName(name),
       bookmarkIds: [],
       position: _box.values.fold(
         0,
@@ -76,9 +78,10 @@ class BookmarkGroupRepositoryHive
   }
 
   @override
-  Future<BookmarkGroup> renameGroup(String id, String name) {
+  Future<BookmarkGroup> renameGroup(String id, String name) async {
     final group = _requireGroup(id);
-    return _write(group.copyWith(name: _normalizeName(name)));
+    if (group.isDefault) throw StateError('Default cannot be renamed.');
+    return await _write(group.copyWith(name: _normalizeName(name)));
   }
 
   @override
@@ -131,6 +134,7 @@ class BookmarkGroupRepositoryHive
   @override
   Future<BookmarkGroupDeletionPreview> deleteGroup(String id) async {
     final preview = await previewDeleteGroup(id);
+    if (preview.group.isDefault) throw StateError('Default cannot be deleted.');
     await _box.delete(preview.group.id);
     return preview;
   }
@@ -151,6 +155,10 @@ class BookmarkGroupRepositoryHive
   }
 
   Future<BookmarkGroup> _write(BookmarkGroup group) async {
+    if (group.isDefault &&
+        (group.folderId != null || group.name != 'Default')) {
+      throw StateError('Default must remain at Home with its system name.');
+    }
     final object = BookmarkGroupHiveObject(
       id: group.id,
       name: group.name,

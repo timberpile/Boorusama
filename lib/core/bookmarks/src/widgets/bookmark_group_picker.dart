@@ -8,6 +8,7 @@ import 'package:kurumi/kurumi.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 // Project imports:
+import 'bookmark_group_label.dart';
 import '../../../configs/config/types.dart';
 import '../../../posts/post/types.dart';
 import '../data/bookmark_convert.dart';
@@ -110,7 +111,7 @@ bool _handleToggleOutcome(
     return true;
   })(),
   BookmarkToggleOutcome.removed => (() {
-    _showPickerSuccess(navigator, added: false);
+    // The serialized removal publishes its Undo Snackbar.
     return true;
   })(),
   BookmarkToggleOutcome.missingPostIdentity => (() {
@@ -149,7 +150,6 @@ class _BookmarkGroupPickerState extends ConsumerState<BookmarkGroupPicker> {
   Widget build(BuildContext context) {
     final library = ref.watch(bookmarkProvider).valueOrNull;
     final uniqueId = bookmarkIdentityForPost(post, config.booruIdHint);
-    final bookmark = library?.bookmarksByUniqueId[uniqueId];
     final memberships = library?.membershipsFor(uniqueId) ?? const <String>{};
 
     Widget activeIndicator() => KurumiTooltip(
@@ -166,43 +166,13 @@ class _BookmarkGroupPickerState extends ConsumerState<BookmarkGroupPicker> {
       folders: library?.folders ?? const [],
       groups: library?.groups ?? const [],
       membershipGroupIds: memberships,
-      homeChildren: [
-        if (bookmark == null || memberships.isEmpty)
-          if (widget.anchored)
-            BookmarkPickerMenuItem(
-              icon: Icon(
-                Symbols.bookmark,
-                fill: bookmark != null && memberships.isEmpty ? 1 : 0,
-              ),
-              title: context.t.bookmark.groups.ungrouped,
-              trailing: library?.activeTarget.groupId == null
-                  ? activeIndicator()
-                  : null,
-              hideOnTap: false,
-              onTap: () => _toggleUngrouped(context, ref),
-            )
-          else
-            ListTile(
-              leading: Icon(
-                Symbols.bookmark,
-                fill: bookmark != null && memberships.isEmpty ? 1 : 0,
-              ),
-              title: Text(context.t.bookmark.groups.ungrouped),
-              trailing: library?.activeTarget.groupId == null
-                  ? BookmarkActiveTargetBadge(
-                      label: context.t.bookmark.groups.active,
-                    )
-                  : null,
-              onTap: () => _toggleUngrouped(context, ref),
-            ),
-      ],
       groupBuilder: (context, group) => widget.anchored
           ? BookmarkPickerMenuItem(
               icon: Icon(
                 Symbols.bookmarks,
                 fill: memberships.contains(group.id) ? 1 : 0,
               ),
-              title: group.name,
+              title: group.displayName(context),
               trailing: library?.activeTarget.groupId == group.id
                   ? activeIndicator()
                   : null,
@@ -215,7 +185,7 @@ class _BookmarkGroupPickerState extends ConsumerState<BookmarkGroupPicker> {
                 fill: memberships.contains(group.id) ? 1 : 0,
               ),
               title: Text(
-                group.name,
+                group.displayName(context),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -252,22 +222,6 @@ class _BookmarkGroupPickerState extends ConsumerState<BookmarkGroupPicker> {
     );
   }
 
-  Future<void> _toggleUngrouped(
-    BuildContext context,
-    WidgetRef ref,
-  ) async {
-    final navigator = Navigator.of(context, rootNavigator: true);
-    final notifier = ref.read(bookmarkProvider.notifier);
-    final outcome = await notifier.togglePostTarget(
-      config,
-      post,
-      target: const BookmarkTarget.ungrouped(),
-      activateTarget: true,
-    );
-    final completed = _handleToggleOutcome(navigator, outcome);
-    if (completed && navigator.mounted) _dismiss(navigator);
-  }
-
   Future<void> _toggleGroup(
     BuildContext context,
     WidgetRef ref,
@@ -280,6 +234,9 @@ class _BookmarkGroupPickerState extends ConsumerState<BookmarkGroupPicker> {
       post,
       target: BookmarkTarget.group(groupId),
       activateTarget: true,
+      onRemoved: (r) {
+        if (navigator.mounted) notifier.showRemovalUndo(navigator.context, r);
+      },
     );
     final completed = _handleToggleOutcome(navigator, outcome);
     if (completed && navigator.mounted) _dismiss(navigator);

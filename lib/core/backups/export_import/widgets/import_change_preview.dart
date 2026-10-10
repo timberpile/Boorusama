@@ -1,3 +1,4 @@
+import '../../../bookmarks/src/types/bookmark_group.dart';
 import 'package:collection/collection.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
@@ -30,16 +31,19 @@ class ImportChangePreview extends StatelessWidget {
       'bookmark_metadata' => strings.preview_bookmark_data,
       _ => sourceNames[id] ?? id,
     };
-    String rowName(ImportChangePreviewRow row) => switch (row.label) {
-      '__home' => strings.preview_home,
-      '__ungrouped' => strings.preview_ungrouped,
-      '__bookmark_metadata' => strings.preview_bookmark_data,
-      _ =>
-        row.limit == ImportPreviewLimit.database ||
-                row.limit == ImportPreviewLimit.unknown
-            ? categoryName(row.category)
-            : row.label,
-    };
+    String rowName(ImportChangePreviewRow row) =>
+        row.id == defaultBookmarkGroupId
+        ? context.t.bookmark.groups.default_group
+        : switch (row.label) {
+            '__home' => strings.preview_home,
+            '__ungrouped' => context.t.bookmark.groups.default_group,
+            '__bookmark_metadata' => strings.preview_bookmark_data,
+            _ =>
+              row.limit == ImportPreviewLimit.database ||
+                      row.limit == ImportPreviewLimit.unknown
+                  ? categoryName(row.category)
+                  : row.label,
+          };
     final counts = rows.fold(
       const ImportChangeCounts(),
       (sum, row) => sum + row.counts,

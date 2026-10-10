@@ -339,7 +339,7 @@ class _LibraryNotifier extends BookmarkLibraryNotifier {
   FutureOr<BookmarkLibraryState> build() => BookmarkLibraryState(
     bookmarks: empty ? [] : [Bookmark.empty],
     groups: const [],
-    activeTarget: const BookmarkTarget.ungrouped(),
+    activeTarget: const BookmarkTarget.defaultGroup(),
   );
 }
 

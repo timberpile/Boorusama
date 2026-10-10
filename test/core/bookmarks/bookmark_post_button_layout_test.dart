@@ -16,6 +16,7 @@ import 'package:boorusama/core/configs/manage/providers.dart';
 import 'package:boorusama/core/themes/colors/src/colors.dart';
 
 // Project imports:
+import 'package:boorusama/core/bookmarks/src/services/bookmark_library_service.dart';
 import 'package:boorusama/core/bookmarks/src/data/bookmark_convert.dart';
 import 'package:boorusama/core/bookmarks/src/providers/bookmark_provider.dart';
 import 'package:boorusama/core/bookmarks/src/providers/bookmark_details_mutation_notifier.dart';
@@ -23,6 +24,7 @@ import 'package:boorusama/core/bookmarks/src/types/bookmark.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_group.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_library_state.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_target.dart';
+import 'package:boorusama/core/bookmarks/src/types/bookmark_view.dart';
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/posts/details_parts/src/toolbars/bookmark_post_button.dart';
 import 'package:boorusama/core/posts/post/types.dart';
@@ -32,7 +34,7 @@ const _groupId = '550e8400-e29b-41d4-a716-446655440000';
 void main() {
   for (final likeButton in [false, true]) {
     testWidgets(
-      'deferred group removal updates ${likeButton ? 'like button' : 'icon button'} and second tap restores it',
+      'immediate group removal updates ${likeButton ? 'like button' : 'icon button'} and second tap restores it',
       (tester) async {
         final bookmark = Bookmark.empty.copyWith(
           sourceUrl: 'https://example.com',
@@ -50,7 +52,7 @@ void main() {
           ],
           activeTarget: BookmarkTarget.group(_groupId),
         );
-        final notifier = _FixedBookmarkNotifier(library);
+        final notifier = _FixedBookmarkNotifier(library, immediate: true);
         final container = ProviderContainer(
           overrides: [
             bookmarkProvider.overrideWith(() => notifier),
@@ -123,10 +125,16 @@ void main() {
             findsOneWidget,
           );
         }
-        expect(container.read(bookmarkProvider).valueOrNull, same(library));
+        expect(
+          container
+              .read(bookmarkProvider)
+              .valueOrNull!
+              .membershipsFor(bookmark.uniqueId),
+          isEmpty,
+        );
         expect(
           container.read(bookmarkDetailsMutationProvider.notifier).pending,
-          hasLength(1),
+          isEmpty,
         );
         await tester.tap(find.byType(likeButton ? LikeButton : IconButton));
         await tester.pumpAndSettle();
@@ -150,6 +158,25 @@ void main() {
       },
     );
   }
+
+  testWidgets('All viewer requires a group picker before changing membership', (
+    tester,
+  ) async {
+    final geometry = await _pumpButton(tester, 'Saved');
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(BookmarkPostButton)),
+    );
+    container
+        .read(bookmarkDetailsMutationProvider.notifier)
+        .begin(sourceView: const BookmarkView.all());
+    await tester.tap(find.byType(IconButton));
+    await tester.pumpAndSettle();
+    expect(geometry.notifier.toggleCallCount, 0);
+    expect(find.text('Saved'), findsNWidgets(2));
+    // This dialog selects the source group; no mutation has occurred.
+    expect(find.byType(AlertDialog), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
 
   testWidgets(
     'a short group name keeps compact margins around the caption',
@@ -268,7 +295,8 @@ Future<_ButtonGeometry> _pumpButton(
 }
 
 class _FixedBookmarkNotifier extends BookmarkLibraryNotifier {
-  _FixedBookmarkNotifier(this.value);
+  _FixedBookmarkNotifier(this.value, {this.immediate = false});
+  final bool immediate;
 
   final BookmarkLibraryState value;
   final _toggleCompleter = Completer<BookmarkToggleOutcome>();
@@ -283,8 +311,26 @@ class _FixedBookmarkNotifier extends BookmarkLibraryNotifier {
     Post post, {
     BookmarkTarget? target,
     bool activateTarget = false,
+    void Function(BookmarkGroupRemovalResult)? onRemoved,
   }) {
     toggleCallCount++;
+    if (immediate) {
+      final current = state.requireValue;
+      final group = current.groups.single;
+      final added = group.bookmarkIds.isEmpty;
+      state = AsyncData(
+        BookmarkLibraryState(
+          bookmarks: value.items,
+          groups: [
+            group.copyWith(bookmarkIds: added ? {value.items.single.id} : {}),
+          ],
+          activeTarget: current.activeTarget,
+        ),
+      );
+      return Future.value(
+        added ? BookmarkToggleOutcome.added : BookmarkToggleOutcome.removed,
+      );
+    }
     return _toggleCompleter.future;
   }
 }

@@ -7,6 +7,8 @@ import 'package:path/path.dart' as p;
 import '../../../../foundation/filesystem.dart';
 import '../../../../foundation/info/package_info.dart';
 import '../../../bookmarks/providers.dart';
+import '../../../bookmarks/types.dart';
+import 'package:i18n/i18n.dart';
 import '../../../configs/manage/providers.dart';
 import '../../../search/subscriptions/providers.dart';
 import '../../sources/providers.dart';
@@ -39,7 +41,11 @@ final exportSelectionPresentationProvider =
       }
       for (final group
           in ref.watch(bookmarkProvider).valueOrNull?.groups ?? const []) {
-        items['group:${group.id}'] = ExportItemPresentation(label: group.name);
+        items['group:${group.id}'] = ExportItemPresentation(
+          label: group.isDefault
+              ? Translations().bookmark.groups.default_group
+              : group.name,
+        );
       }
       final searches = ref.watch(searchSubscriptionsProvider).valueOrNull;
       for (final folder in searches?.organization.folders ?? const []) {
@@ -279,10 +285,31 @@ class ExportFlowNotifier extends AutoDisposeNotifier<ExportFlowState> {
   void applyTemplate(ExportTemplate template) {
     state = state.copyWith(
       isFull: false,
-      nodes: template.selection.nodes,
+      nodes: {
+        for (final entry in template.selection.nodes.entries)
+          entry.key:
+              entry.key == 'bookmarks' &&
+                  entry.value.kind == ExportNodeSelectionKind.explicit
+              ? ExportNodeSelection.explicit('bookmarks', {
+                  for (final id in entry.value.childIds)
+                    id == 'ungrouped' ? 'group:$defaultBookmarkGroupId' : id,
+                })
+              : entry.value,
+      },
       includeCredentials: template.includeCredentials,
       recommendedActions: template.recommendedActions,
-      itemRecommendedActions: template.itemRecommendedActions,
+      itemRecommendedActions: {
+        for (final entry in template.itemRecommendedActions.entries)
+          entry.key: entry.key == 'bookmarks'
+              ? {
+                  for (final action in entry.value.entries)
+                    if (action.key == 'ungrouped')
+                      'group:$defaultBookmarkGroupId': ImportAction.merge
+                    else
+                      action.key: action.value,
+                }
+              : entry.value,
+      },
       status: ExportFlowStatus.choosing,
       clearResult: true,
     );

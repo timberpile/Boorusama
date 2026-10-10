@@ -53,6 +53,117 @@ void main() {
     await directory.delete(recursive: true);
   });
 
+  test(
+    'full Replace restores Default and legacy ungrouped imports preserve metadata',
+    () async {
+      final local = (await bookmarks.addBookmarkWithBookmarks([
+        Bookmark.empty.copyWith(
+          postId: () => 99,
+          sourceUrl: 'https://example.com',
+          originalUrl: 'https://example.com/99.jpg',
+        ),
+      ])).single;
+      await groups.createGroup('Default', id: defaultBookmarkGroupId);
+      await groups.addBookmarks(defaultBookmarkGroupId, {local.id});
+      final incoming = Bookmark.empty.copyWith(
+        id: 40,
+        postId: () => 40,
+        sourceUrl: 'https://example.com',
+        originalUrl: 'https://example.com/40.jpg',
+        createdAt: DateTime.utc(2026, 1, 1),
+      );
+      final service = BookmarkImportService(
+        bookmarkRepository: bookmarks,
+        groupRepository: groups,
+        imageUrlResolver: (_) => const DefaultImageUrlResolver(),
+      );
+      await service.replace(
+        BookmarkBackupData(bookmarks: [incoming], groups: const []),
+      );
+      final restored = (await bookmarks.getAllBookmarksOrThrow(
+        imageUrlResolver: (_) => const DefaultImageUrlResolver(),
+      )).single;
+      expect(restored.uniqueId, incoming.uniqueId);
+      expect(restored.createdAt, incoming.createdAt);
+      expect((await groups.getGroup(defaultBookmarkGroupId))!.bookmarkIds, {
+        restored.id,
+      });
+      expect(
+        (await groups.getGroups()).where((g) => g.isDefault),
+        hasLength(1),
+      );
+    },
+  );
+
+  for (final action in [
+    ImportAction.copy,
+    ImportAction.update,
+    ImportAction.merge,
+  ]) {
+    test(
+      'custom Default import with $action merges members without creating folders or a second system group',
+      () async {
+        final local = (await bookmarks.addBookmarkWithBookmarks([
+          Bookmark.empty.copyWith(
+            postId: () => 99,
+            sourceUrl: 'https://example.com',
+            originalUrl: 'https://example.com/99.jpg',
+          ),
+        ])).single;
+        await groups.createGroup('Default', id: defaultBookmarkGroupId);
+        await groups.addBookmarks(defaultBookmarkGroupId, {local.id});
+        final ordinary = await groups.createGroup('Default', id: groupId);
+        final incoming = Bookmark.empty.copyWith(
+          id: 40,
+          postId: () => 40,
+          sourceUrl: 'https://example.com',
+          originalUrl: 'https://example.com/40.jpg',
+        );
+        final data = BookmarkBackupData(
+          bookmarks: [incoming],
+          groups: [
+            BookmarkGroupBackup(
+              id: defaultBookmarkGroupId,
+              name: 'Default',
+              bookmarkIds: [incoming.id],
+            ),
+          ],
+        );
+        final plan = const BookmarkImportPlanner().plan(
+          data: data,
+          currentBookmarks: [local],
+          currentGroups: await groups.getGroups(),
+        );
+        expect(plan.conflicts, isEmpty);
+        await BookmarkImportService(
+          bookmarkRepository: bookmarks,
+          groupRepository: groups,
+          imageUrlResolver: (_) => const DefaultImageUrlResolver(),
+        ).apply(
+          plan.resolveActions({
+            defaultBookmarkGroupId: plan.groups.single.resolveAction(
+              action,
+              destinationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+            ),
+          }),
+        );
+        final current = await bookmarks.getAllBookmarksOrThrow(
+          imageUrlResolver: (_) => const DefaultImageUrlResolver(),
+        );
+        expect(
+          (await groups.getGroup(defaultBookmarkGroupId))!.bookmarkIds,
+          current.map((b) => b.id).toSet(),
+        );
+        expect(
+          (await groups.getGroups()).where((g) => g.isDefault),
+          hasLength(1),
+        );
+        expect((await groups.getGroup(ordinary.id))!.isDefault, isFalse);
+        expect(await groups.getFolders(), isEmpty);
+      },
+    );
+  }
+
   for (final testCase in [
     (
       choice: BookmarkGroupConflictChoice.merge,
@@ -202,7 +313,9 @@ void main() {
       imageUrlResolver: (_) => const DefaultImageUrlResolver(),
     ).apply(plan);
     expect(
-      (await groups.getGroups()).map((group) => group.id),
+      (await groups.getGroups())
+          .where((g) => !g.isDefault)
+          .map((group) => group.id),
       unorderedEquals([groupId, newId]),
     );
     expect((await groups.getGroup(newId))!.name, 'Artists');

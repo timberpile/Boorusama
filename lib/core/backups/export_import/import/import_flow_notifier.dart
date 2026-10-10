@@ -296,7 +296,6 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
         };
         final localIds = switch (wrapper._localSnapshot) {
           final BookmarkImportLocalSnapshot local => {
-            'ungrouped',
             for (final group in local.groups) 'group:${group.id}',
           },
           final PinnedSearchImportLocalSnapshot local => {
@@ -341,15 +340,28 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
                   id: itemId,
                   matchingItemId: localIds.contains(itemId) ? itemId : null,
                   compatibleTargetIds: localIds.difference({itemId}),
-                  recommendedAction: manifest.itemRecommendedActions[itemId],
+                  recommendedAction:
+                      manifest.id == 'bookmarks' &&
+                          (itemId == 'group:$defaultBookmarkGroupId' ||
+                              itemId == 'ungrouped')
+                      ? ImportAction.merge
+                      : manifest.itemRecommendedActions[itemId],
                   availableActions:
-                      manifest.id == 'pinned_searches' &&
-                          itemId.startsWith('search:')
+                      manifest.id == 'bookmarks' &&
+                          (itemId == 'group:$defaultBookmarkGroupId' ||
+                              itemId == 'ungrouped')
+                      ? const {ImportAction.merge, ImportAction.skip}
+                      : manifest.id == 'pinned_searches' &&
+                            itemId.startsWith('search:')
                       ? const {ImportAction.copy, ImportAction.skip}
                       : null,
                   fallbackAction:
-                      manifest.id == 'pinned_searches' &&
-                          itemId.startsWith('search:')
+                      manifest.id == 'bookmarks' &&
+                          (itemId == 'group:$defaultBookmarkGroupId' ||
+                              itemId == 'ungrouped')
+                      ? ImportAction.merge
+                      : manifest.id == 'pinned_searches' &&
+                            itemId.startsWith('search:')
                       ? ImportAction.copy
                       : null,
                 ),

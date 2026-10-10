@@ -20,10 +20,6 @@ List<Bookmark> selectBookmarks({
 }) {
   final inView = switch (view.kind) {
     BookmarkViewKind.all => state.items,
-    BookmarkViewKind.ungrouped =>
-      state.items
-          .where((bookmark) => state.membershipsFor(bookmark.uniqueId).isEmpty)
-          .toList(),
     BookmarkViewKind.group =>
       state.items
           .where(
@@ -125,17 +121,12 @@ BookmarkMembershipPresentation selectBookmarkMembershipPresentation(
   final activeGroupId = state.activeTarget.groupId;
   return BookmarkMembershipPresentation(
     isBookmarked: isBookmarked,
-    isInActiveTarget: activeGroupId == null
-        ? isBookmarked && memberships.isEmpty
-        : memberships.contains(activeGroupId),
+    isInActiveTarget: memberships.contains(activeGroupId),
     namedGroupCount: memberships.length,
-    activeTargetUnavailable:
-        activeGroupId == null && isBookmarked && memberships.isNotEmpty,
+    activeTargetUnavailable: false,
     showNamedGroupCount:
         memberships.isNotEmpty &&
-        (activeGroupId == null ||
-            !memberships.contains(activeGroupId) ||
-            memberships.length > 1),
+        (!memberships.contains(activeGroupId) || memberships.length > 1),
   );
 }
 
@@ -143,15 +134,13 @@ class BulkBookmarkMembershipCounts extends Equatable {
   const BulkBookmarkMembershipCounts({
     required this.selectedCount,
     required this.byGroupId,
-    required this.ungroupedCount,
   });
 
   final int selectedCount;
   final Map<String, int> byGroupId;
-  final int ungroupedCount;
 
   @override
-  List<Object?> get props => [selectedCount, byGroupId, ungroupedCount];
+  List<Object?> get props => [selectedCount, byGroupId];
 }
 
 BulkBookmarkMembershipCounts selectBulkMembershipCounts(
@@ -160,11 +149,9 @@ BulkBookmarkMembershipCounts selectBulkMembershipCounts(
 ) {
   final selected = selection.toSet();
   final counts = <String, int>{};
-  var ungrouped = 0;
   for (final bookmarkId in selected) {
     if (!state.bookmarksByUniqueId.containsKey(bookmarkId)) continue;
     final memberships = state.membershipsFor(bookmarkId);
-    if (memberships.isEmpty) ungrouped++;
     for (final groupId in memberships) {
       counts.update(groupId, (count) => count + 1, ifAbsent: () => 1);
     }
@@ -172,6 +159,5 @@ BulkBookmarkMembershipCounts selectBulkMembershipCounts(
   return BulkBookmarkMembershipCounts(
     selectedCount: selected.length,
     byGroupId: Map.unmodifiable(counts),
-    ungroupedCount: ungrouped,
   );
 }

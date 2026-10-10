@@ -225,8 +225,8 @@ void main() {
       expect(preview.groupIds, hasLength(2));
       expect(preview.orphanBookmarkIds, {only.id});
       await service.deleteFolder(preview);
-      final state = await service.load(const BookmarkTarget.ungrouped());
-      expect(state.groups.map((g) => g.id), [id(3)]);
+      final state = await service.load(const BookmarkTarget.defaultGroup());
+      expect(state.groups.where((g) => !g.isDefault).map((g) => g.id), [id(3)]);
       expect(state.bookmarksById.keys, {shared.id, ungrouped.id});
       expect(state.folders, isEmpty);
     },
@@ -252,13 +252,13 @@ void main() {
       await groups.createGroup('Group', id: id(1));
       await groups.replaceMemberships(id(1), {b.id});
       await service.moveFolderItems(groupIds: {id(1)}, destination: folder.id);
-      final before = await service.load(const BookmarkTarget.ungrouped());
+      final before = await service.load(const BookmarkTarget.defaultGroup());
       bookmarks.failRemoval = true;
       await expectLater(
         service.deleteFolder(await service.previewDeleteFolder(folder.id)),
         throwsStateError,
       );
-      expect(await service.load(const BookmarkTarget.ungrouped()), before);
+      expect(await service.load(const BookmarkTarget.defaultGroup()), before);
     },
   );
   test(
@@ -481,11 +481,14 @@ void main() {
         ).replace(data),
         throwsStateError,
       );
-      final state = await service.load(const BookmarkTarget.ungrouped());
+      final state = await service.load(const BookmarkTarget.defaultGroup());
       expect(state.folders, [folder]);
-      expect(state.groups.single.folderId, folder.id);
       expect(
-        state.groups.single.bookmarkIds,
+        state.groups.where((g) => !g.isDefault).single.folderId,
+        folder.id,
+      );
+      expect(
+        state.groups.where((g) => !g.isDefault).single.bookmarkIds,
         state.items.map((b) => b.id).toSet(),
       );
       expect(state.items.single.transferIdentity, b.transferIdentity);

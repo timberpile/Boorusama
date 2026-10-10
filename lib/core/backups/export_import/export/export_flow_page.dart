@@ -711,8 +711,7 @@ ExportSelectionPresentation _localizedPresentation(
   items: {
     ...presentation.items,
     'ungrouped': ExportItemPresentation(
-      label:
-          context.t.settings.backup_and_restore.export_import.sources.ungrouped,
+      label: context.t.bookmark.groups.default_group,
     ),
     'home': ExportItemPresentation(label: context.t.pinned_searches.home),
   },

@@ -9,16 +9,38 @@ conflict identification and persistence.
 `BookmarkLibraryState` is the shared snapshot for bookmark UI. It builds the
 membership indexes used by the group browser, filtered grids, post actions, and
 bulk actions. A nullable `activeBookmarkGroupId` setting stores the add/remove
-target; null means `No Group`. `All` is a view and is never an assignment target.
+target. Missing, invalid, or legacy null targets resolve to the permanent Default
+group. `All` is a view and is never an assignment target.
+
+## Default and membership removal
+
+Default is a real, root-level group with reserved UUID
+`00000000-0000-0000-0000-000000000000` (the nil UUID). Its system role is derived from that
+identity, never its name. Repository APIs reject rename, deletion, and folder
+placement. At Home, All and Default appear side by side above a horizontal
+divider; user-created folders and groups appear below it. Ordinary groups may
+also be named Default. Loading repairs stale
+membership references, creates the system group, and assigns only bookmarks
+with no memberships to Default. This migration is idempotent and preserves
+snapshots and timestamps. Adding explicitly to another group never removes or
+adds a Default membership.
+
+Every bookmark belongs to at least one group. Add preserves other memberships;
+Remove targets exactly one group and deletes bookmarks losing their final
+membership. The All view requires source-group selection. Global deletion APIs
+remain internal to maintenance and replacement operations.
 
 ## Viewer removal feedback
 
-The bookmark viewer keeps a snapshot of its post list and queues target-specific
-membership changes until the route closes. A second tap cancels the queued
-change. Toolbar controls project that pending intent over the persisted library
-so their fill, action tooltip, and group count update immediately. The shared
-library and underlying grid remain unchanged while the viewer is open; the grid
-listens only to the mutation session's visibility and refreshes after closing.
+Viewer toolbar removals persist immediately. The viewer keeps its post-list
+snapshot while the underlying grid refreshes after closing. Removal shows one
+localized Undo Snackbar for the successful operation, with removed and deleted
+counts. Undo runs through the shared serialized mutation queue, restores only
+the removed membership, and restores deleted snapshots using current local IDs.
+It preserves a newer snapshot or other memberships if the bookmark was added
+again. Missing source groups, a superseding removal, and import/restore
+boundaries invalidate Undo with feedback. Expiring feedback or terminating the
+app requires no cleanup of persisted orphan records.
 
 ## Backup compatibility
 
@@ -36,6 +58,13 @@ Package imports write bookmark repositories directly, bypassing the bookmark
 provider mutation methods. After the durable transaction commits, the import
 flow must await a provider reload before showing completion; otherwise the
 group browser can keep displaying its stale pre-import snapshot.
+
+Bookmark backup version 5 includes folders, placements, and the Default group's
+`systemRole: "default"`. Compatible version-4 exports remain importable; imported
+bookmarks without memberships are assigned to Default. Full Replace restores one
+Default group. Custom import always merges incoming Default members, and never
+copies the system group into an import wrapper. Ordinary group import modes
+retain their existing semantics.
 
 Bookmark backup version 4 stores bookmarks in the top-level `data` array and
 groups in the top-level `groups` array. Each bookmark carries its full post

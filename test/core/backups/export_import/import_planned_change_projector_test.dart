@@ -183,7 +183,7 @@ void main() {
           )!
           .previewRows
           .single;
-      expect(ungrouped.id, 'ungrouped');
+      expect(ungrouped.id, defaultBookmarkGroupId);
       expect(ungrouped.counts, const ImportChangeCounts(removed: 1));
     },
   );
@@ -525,7 +525,7 @@ void main() {
           created: 1,
           updated: 1,
           deleted: 1,
-          unchanged: 1,
+          unchanged: 2,
         ),
       );
     },
@@ -574,8 +574,8 @@ void main() {
         _expectTotals(
           summary,
           action == ImportAction.replace
-              ? const PlannedChangeSummary(updated: 1, unchanged: 1)
-              : const PlannedChangeSummary(unchanged: 2),
+              ? const PlannedChangeSummary(updated: 1, unchanged: 2)
+              : const PlannedChangeSummary(unchanged: 3),
         );
         expect(
           summary!.entitySummaries['bookmark-group']?.updated,
@@ -646,7 +646,10 @@ void main() {
       ),
     );
 
-    _expectTotals(summary, const PlannedChangeSummary(created: 12));
+    _expectTotals(
+      summary,
+      const PlannedChangeSummary(created: 12, unchanged: 1),
+    );
     expect(summary!.entitySummaries['bookmark']?.created, 10);
     expect(summary.entitySummaries['bookmark-group']?.created, 1);
     expect(

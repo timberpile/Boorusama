@@ -3,7 +3,6 @@ import 'dart:typed_data';
 
 import 'package:boorusama/core/posts/details/src/widgets/progressive_post_image.dart';
 import 'package:boorusama/core/posts/listing/types.dart';
-import 'package:cache_manager/cache_manager.dart';
 import 'package:dio/dio.dart';
 import 'package:extended_image/extended_image.dart';
 import 'package:extended_image/src/image/raw_image.dart';
@@ -21,29 +20,32 @@ void main() {
         const lower = 'https://common-cache.test/lower.png';
         const target = 'https://common-cache.test/target.png';
         late Directory directory;
-        late DefaultImageCacheManager cache;
+        late DrainingImageCacheManager cache;
         final budget = lowerPng.length + targetPng.length + 10;
         await real(() async {
           directory = await Directory.systemTemp.createTemp(
             'progressive-cache-',
           );
-          cache = DefaultImageCacheManager(
+          cache = DrainingImageCacheManager(
             maxBytes: budget,
             cacheRootPathProvider: () => directory.path,
           );
           await cache.saveFile('old', Uint8List(10));
           await cache.saveFile(cache.generateCacheKey(lower), lowerPng);
         });
+        final adapter = ControlledImageAdapter();
+        final dio = Dio()..httpClientAdapter = adapter;
         addTearDown(
           () => tester.runAsync(() async {
+            await tester.pumpWidget(const SizedBox());
+            dio.close(force: true);
+            await cache.drain();
             await cache.dispose();
             await directory.delete(recursive: true);
           }),
         );
         PaintingBinding.instance.imageCache.clear();
-        final adapter = ControlledImageAdapter();
-        final dio = Dio()..httpClientAdapter = adapter;
-        addTearDown(() => dio.close(force: true));
+
         Widget page() => testApp(
           RawProgressivePostImage(
             dio: dio,
@@ -55,10 +57,7 @@ void main() {
           ),
         );
         await tester.pumpWidget(page());
-        for (var i = 0; i < 8; i++) {
-          await Future<void>.delayed(const Duration(milliseconds: 80));
-          await tester.pump();
-        }
+        await waitForPixel(tester, [255, 0, 0, 255]);
         expect(
           (await tester
                   .widget<ExtendedRawImage>(find.byType(ExtendedRawImage).first)
@@ -75,12 +74,14 @@ void main() {
             .image;
         final lowerStream = lowerProvider.resolve(ImageConfiguration.empty);
         expect(lowerStream.completer, isNotNull);
+        await pumpUntil(
+          tester,
+          () => adapter.pending.containsKey(target),
+          reason: 'target request',
+        );
         expect(adapter.requests, hasLength(1));
         adapter.complete(target, targetPng);
-        for (var i = 0; i < 8; i++) {
-          await Future<void>.delayed(const Duration(milliseconds: 80));
-          await tester.pump();
-        }
+        await waitForPixel(tester, [0, 0, 255, 255]);
         expect(
           (await tester
                   .widget<ExtendedRawImage>(find.byType(ExtendedRawImage).first)
@@ -112,10 +113,7 @@ void main() {
             ),
           ),
         );
-        for (var i = 0; i < 8; i++) {
-          await Future<void>.delayed(const Duration(milliseconds: 80));
-          await tester.pump();
-        }
+        await waitForPixel(tester, [255, 0, 0, 255]);
         final shown = tester
             .widgetList<ExtendedImage>(find.byType(ExtendedImage))
             .last
@@ -137,8 +135,9 @@ void main() {
         );
         await tester.pumpWidget(const SizedBox());
         await real(() async {
+          await cache.drain();
           await cache.dispose();
-          cache = DefaultImageCacheManager(
+          cache = DrainingImageCacheManager(
             maxBytes: budget,
             cacheRootPathProvider: () => directory.path,
           );

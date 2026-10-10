@@ -1,6 +1,9 @@
 // Dart imports:
 import 'dart:async';
 
+// Flutter imports:
+import 'package:flutter/material.dart';
+
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
@@ -99,6 +102,60 @@ final bookmarkUrlResolverProvider = Provider.autoDispose
 class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
   Future<void> _mutationTail = Future.value();
   var _requiresRefresh = false;
+  final _removals = <BookmarkUniqueId, BookmarkGroupRemovalResult>{};
+
+  void _recordRemoval(BookmarkGroupRemovalResult result) {
+    if (result.removedCount == 0) return;
+    _removals.clear();
+    for (final bookmark in result.removedBookmarks) {
+      _removals[bookmark.uniqueId] = result;
+    }
+  }
+
+  void showRemovalUndo(
+    BuildContext context,
+    BookmarkGroupRemovalResult result,
+  ) {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    if (messenger == null || result.removedCount == 0) return;
+    final strings = context.t.bookmark;
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          strings.removal_result
+              .replaceAll('{removed}', '${result.removedCount}')
+              .replaceAll('{deleted}', '${result.deletedCount}'),
+        ),
+        action: SnackBarAction(
+          label: context.t.bookmark.undo,
+          onPressed: () async {
+            try {
+              await undoRemoval(result);
+            } catch (_) {
+              if (context.mounted) {
+                Kurumi.showErrorToast(context, strings.undo_failed);
+              }
+            }
+          },
+        ),
+      ),
+    );
+  }
+
+  Future<void> undoRemoval(BookmarkGroupRemovalResult result) =>
+      runSerializedMutation(() async {
+        final eligible = result.removedBookmarks
+            .where((b) => identical(_removals[b.uniqueId], result))
+            .toList();
+        if (eligible.length != result.removedCount) {
+          throw StateError('A later removal superseded this Undo.');
+        }
+        await (await _service).undoRemoval(result);
+        for (final b in eligible) {
+          _removals.remove(b.uniqueId);
+        }
+      });
 
   Future<BookmarkRepository> get bookmarkRepository =>
       ref.read(bookmarkRepoProvider.future);
@@ -125,6 +182,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     T? result;
     try {
       result = await operation();
+      _removals.clear();
     } catch (error, stackTrace) {
       operationError = error;
       operationStackTrace = stackTrace;
@@ -146,12 +204,12 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
   Future<void> syncActiveTargetFromSettings() => _serialize(_reload);
 
   Future<bool> setActiveTarget(BookmarkTarget target) => _serialize(() async {
-    if (target.groupId case final groupId?) {
-      final group = await (await ref.read(
-        bookmarkGroupRepoProvider.future,
-      )).getGroup(groupId);
-      if (group == null) return false;
-    }
+    final groupId = target.groupId;
+    final group = await (await ref.read(
+      bookmarkGroupRepoProvider.future,
+    )).getGroup(groupId);
+    if (group == null) return false;
+
     final saved = await ref
         .read(settingsNotifierProvider.notifier)
         .updateWith(
@@ -242,20 +300,16 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       final currentState = await future;
       final existing = currentState
           .bookmarksByUniqueId[BookmarkUniqueId.fromPost(post, booruId)];
-      if (currentState.activeTarget.groupId case final groupId?) {
-        await (await _service).addBookmarkToGroup(
-          groupId: groupId,
-          existingBookmark: existing,
-          createBookmarkIdentity: BookmarkUniqueId.fromPost(post, booruId),
-          createBookmark: existing == null
-              ? () => _createBookmark(config, post)
-              : null,
-        );
-      } else {
-        if (existing == null) {
-          await _createBookmark(config, post);
-        }
-      }
+      final groupId = currentState.activeTarget.groupId;
+      await (await _service).addBookmarkToGroup(
+        groupId: groupId,
+        existingBookmark: existing,
+        createBookmarkIdentity: BookmarkUniqueId.fromPost(post, booruId),
+        createBookmark: existing == null
+            ? () => _createBookmark(config, post)
+            : null,
+      );
+
       await _publishCommittedMutation();
       onSuccess?.call();
     } catch (_) {
@@ -310,6 +364,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     Post post, {
     BookmarkTarget? target,
     bool activateTarget = false,
+    void Function(BookmarkGroupRemovalResult)? onRemoved,
   }) => _serialize(() async {
     try {
       if (BookmarkUniqueId.fromPost(post) is UnbookmarkablePostIdentity) {
@@ -318,12 +373,12 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       final current = await future;
       final selectedTarget = target ?? current.activeTarget;
       if (activateTarget) {
-        if (selectedTarget.groupId case final groupId?) {
-          final group = await (await ref.read(
-            bookmarkGroupRepoProvider.future,
-          )).getGroup(groupId);
-          if (group == null) return BookmarkToggleOutcome.failed;
-        }
+        final groupId = selectedTarget.groupId;
+        final group = await (await ref.read(
+          bookmarkGroupRepoProvider.future,
+        )).getGroup(groupId);
+        if (group == null) return BookmarkToggleOutcome.failed;
+
         final saved = await ref
             .read(settingsNotifierProvider.notifier)
             .updateWith(
@@ -336,21 +391,15 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       final uniqueId = bookmarkIdentityForPost(post, config.booruIdHint);
       final bookmark = current.bookmarksByUniqueId[uniqueId];
       final memberships = current.membershipsFor(uniqueId);
-      final bookmarked = switch (selectedTarget.groupId) {
-        final groupId? => bookmark != null && memberships.contains(groupId),
-        null => bookmark != null && memberships.isEmpty,
-      };
-      if (selectedTarget.isUngrouped &&
-          bookmark != null &&
-          memberships.isNotEmpty) {
-        return BookmarkToggleOutcome.unavailable;
-      }
+      final bookmarked =
+          bookmark != null && memberships.contains(selectedTarget.groupId);
       return _setPostTargetMembership(
         config,
         post,
         current,
         selectedTarget,
         bookmarked: !bookmarked,
+        onRemoved: onRemoved,
       );
     } catch (_) {
       await _publishCommittedMutation();
@@ -363,6 +412,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     Post post, {
     required BookmarkTarget target,
     required bool bookmarked,
+    void Function(BookmarkGroupRemovalResult)? onRemoved,
   }) => _serialize(() async {
     try {
       return await _setPostTargetMembership(
@@ -371,6 +421,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
         await future,
         target,
         bookmarked: bookmarked,
+        onRemoved: onRemoved,
       );
     } catch (_) {
       await _publishCommittedMutation();
@@ -384,6 +435,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     BookmarkLibraryState current,
     BookmarkTarget target, {
     required bool bookmarked,
+    void Function(BookmarkGroupRemovalResult)? onRemoved,
   }) async {
     final uniqueId = bookmarkIdentityForPost(post, config.booruIdHint);
     if (uniqueId is UnbookmarkablePostIdentity) {
@@ -391,50 +443,32 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     }
     final bookmark = current.bookmarksByUniqueId[uniqueId];
     final memberships = current.membershipsFor(uniqueId);
-    if (target.groupId case final groupId?) {
-      final isMember = bookmark != null && memberships.contains(groupId);
-      if (isMember == bookmarked) {
-        return bookmarked
-            ? BookmarkToggleOutcome.added
-            : BookmarkToggleOutcome.removed;
-      }
-      if (bookmarked) {
-        await (await _service).addBookmarkToGroup(
-          groupId: groupId,
-          existingBookmark: bookmark,
-          createBookmarkIdentity: uniqueId,
-          createBookmark: bookmark == null
-              ? () => _createBookmark(config, post)
-              : null,
-        );
-        await _publishCommittedMutation();
-        return BookmarkToggleOutcome.added;
-      }
-      await (await _service).removeBookmarksFromGroup(
-        [bookmark!],
-        groupId,
-        deleteWhenMembershipBecomesEmpty: true,
-      );
-      await _publishCommittedMutation();
-      return BookmarkToggleOutcome.removed;
-    }
-
-    if (bookmark != null && memberships.isNotEmpty) {
-      return BookmarkToggleOutcome.unavailable;
-    }
-    final isBookmarked = bookmark != null;
-    if (isBookmarked == bookmarked) {
+    final groupId = target.groupId;
+    final isMember = bookmark != null && memberships.contains(groupId);
+    if (isMember == bookmarked) {
       return bookmarked
           ? BookmarkToggleOutcome.added
           : BookmarkToggleOutcome.removed;
     }
     if (bookmarked) {
-      await _createBookmark(config, post);
+      await (await _service).addBookmarkToGroup(
+        groupId: groupId,
+        existingBookmark: bookmark,
+        createBookmarkIdentity: uniqueId,
+        createBookmark: bookmark == null
+            ? () => _createBookmark(config, post)
+            : null,
+      );
       await _publishCommittedMutation();
       return BookmarkToggleOutcome.added;
     }
-    await (await _service).deleteBookmarks([bookmark!]);
+    final removal = await (await _service).removeBookmarksFromGroup(
+      [bookmark!],
+      groupId,
+    );
     await _publishCommittedMutation();
+    _recordRemoval(removal);
+    onRemoved?.call(removal);
     return BookmarkToggleOutcome.removed;
   }
 
@@ -538,6 +572,9 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
         }
         try {
           await service.deleteFolder(expected);
+          for (final id in current.orphanBookmarkIds) {
+            _removals.remove(current.snapshot.bookmarksById[id]?.uniqueId);
+          }
         } catch (error, stack) {
           if (clear) {
             final ok = await ref
@@ -582,7 +619,11 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     }
     late final BookmarkGroupDeletionPreview preview;
     try {
+      final before = await future;
       preview = await (await _service).deleteGroup(groupId);
+      for (final id in preview.orphanBookmarkIds) {
+        _removals.remove(before.bookmarksById[id]?.uniqueId);
+      }
     } catch (error, stackTrace) {
       if (active != groupId) rethrow;
       final rollbackErrors = <Object>[];
@@ -614,7 +655,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       Error.throwWithStackTrace(error, stackTrace);
     }
     await _publishCommittedMutation(
-      active == groupId ? const BookmarkTarget.ungrouped() : null,
+      active == groupId ? const BookmarkTarget.defaultGroup() : null,
     );
     return preview;
   });
@@ -685,17 +726,18 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
   Future<void> removeFromGroup(
     Iterable<Bookmark> bookmarks,
     String groupId, {
-    bool deleteWhenMembershipBecomesEmpty = false,
+    void Function(BookmarkGroupRemovalResult)? onRemoved,
     void Function()? onSuccess,
     void Function()? onError,
   }) => _serialize(() async {
     try {
-      await (await _service).removeBookmarksFromGroup(
+      final removal = await (await _service).removeBookmarksFromGroup(
         bookmarks,
         groupId,
-        deleteWhenMembershipBecomesEmpty: deleteWhenMembershipBecomesEmpty,
       );
       await _publishCommittedMutation();
+      _recordRemoval(removal);
+      onRemoved?.call(removal);
       onSuccess?.call();
     } catch (_) {
       await _publishCommittedMutation();
@@ -718,7 +760,6 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     return removeFromGroup(
       [bookmark],
       groupId,
-      deleteWhenMembershipBecomesEmpty: true,
       onSuccess: onSuccess,
       onError: onError,
     );
@@ -726,6 +767,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
 
   Future<void> removeBookmarkFromId(
     BookmarkUniqueId bookmarkId, {
+    void Function(BookmarkGroupRemovalResult)? onRemoved,
     void Function()? onSuccess,
     void Function()? onError,
   }) async {
@@ -735,7 +777,13 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       onError?.call();
       return;
     }
-    return removeBookmark(bookmark, onSuccess: onSuccess, onError: onError);
+    return removeFromGroup(
+      [bookmark],
+      (await snapshotForExport()).activeTarget.groupId,
+      onRemoved: onRemoved,
+      onSuccess: onSuccess,
+      onError: onError,
+    );
   }
 
   Future<void> removeBookmark(
@@ -757,42 +805,11 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     BookmarkViewKind.group => removeFromGroup(
       [bookmark],
       view.groupId!,
-      deleteWhenMembershipBecomesEmpty: true,
       onSuccess: onSuccess,
       onError: onError,
     ),
-    BookmarkViewKind.all => removeBookmark(
-      bookmark,
-      onSuccess: onSuccess,
-      onError: onError,
-    ),
-    BookmarkViewKind.ungrouped => _removeBookmarkFromUngrouped(
-      bookmark.uniqueId,
-      onSuccess: onSuccess,
-      onError: onError,
-    ),
+    BookmarkViewKind.all => Future.error(StateError('Select a source group.')),
   };
-
-  Future<void> _removeBookmarkFromUngrouped(
-    BookmarkUniqueId bookmarkId, {
-    void Function()? onSuccess,
-    void Function()? onError,
-  }) => _serialize(() async {
-    final current = await future;
-    final bookmark = current.bookmarksByUniqueId[bookmarkId];
-    if (bookmark == null || current.membershipsFor(bookmarkId).isNotEmpty) {
-      onError?.call();
-      return;
-    }
-    try {
-      await (await _service).deleteBookmarks([bookmark]);
-      await _publishCommittedMutation();
-      onSuccess?.call();
-    } catch (_) {
-      await _publishCommittedMutation();
-      onError?.call();
-    }
-  });
 
   Future<void> removeBookmarks(
     Iterable<Bookmark> bookmarks, {
@@ -801,6 +818,9 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
   }) => _serialize(() async {
     try {
       await (await _service).deleteBookmarks(bookmarks);
+      for (final b in bookmarks) {
+        _removals.remove(b.uniqueId);
+      }
       await _publishCommittedMutation();
       onSuccess?.call();
     } catch (_) {
@@ -907,8 +927,9 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
   _addPostsToGroup(
     BooruConfigAuth config,
     Iterable<Post> posts,
-    String? groupId,
+    String? requestedGroupId,
   ) async {
+    final groupId = requestedGroupId ?? defaultBookmarkGroupId;
     final current = await future;
     final selected = posts.toList();
     for (final post in selected) {
@@ -925,26 +946,6 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
         existing.add(bookmark);
       }
     }
-    if (groupId == null) {
-      final created = <Bookmark>[];
-      try {
-        for (final post in missing) {
-          created.add(await _createBookmark(config, post));
-        }
-      } catch (error, stackTrace) {
-        final rollbackErrors = await _deleteCreatedBookmarks(created);
-        if (rollbackErrors.isNotEmpty) {
-          throw BookmarkPostBatchRollbackException(
-            operationError: error,
-            rollbackErrors: List.unmodifiable(rollbackErrors),
-            createdBookmarks: List.unmodifiable(created),
-          );
-        }
-        Error.throwWithStackTrace(error, stackTrace);
-      }
-      return (changedCount: missing.length, createdBookmarks: created);
-    }
-
     final repository = await ref.read(bookmarkGroupRepoProvider.future);
     final target = await repository.getGroup(groupId);
     if (target == null) {
@@ -1016,6 +1017,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       groupId,
     );
     await _publishCommittedMutation();
+    _recordRemoval(result);
     return result;
   });
 
@@ -1239,12 +1241,10 @@ extension BookmarkCubitToastX on BookmarkNotifier {
 
     await removeBookmarkFromId(
       bookmarkId,
-      onSuccess: () {
-        if (context.mounted) {
-          Kurumi.showSuccessToast(context, context.t.bookmark.removed);
-        }
-        onSuccess?.call();
+      onRemoved: (r) {
+        if (context.mounted) showRemovalUndo(context, r);
       },
+      onSuccess: onSuccess,
       onError: () {
         if (context.mounted) {
           Kurumi.showErrorToast(context, context.t.bookmark.failed_to_remove);

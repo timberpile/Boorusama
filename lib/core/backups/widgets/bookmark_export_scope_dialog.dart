@@ -36,16 +36,18 @@ class BookmarkExportScopeDialog extends StatefulWidget {
 
 class _BookmarkExportScopeDialogState extends State<BookmarkExportScopeDialog> {
   var _all = true;
-  var _ungrouped = false;
   final _groupIds = <String>{};
   final _folderIds = <String>{};
 
-  bool get _valid =>
-      _all || _ungrouped || (_groupIds.isNotEmpty || _folderIds.isNotEmpty);
+  bool get _valid => _all || (_groupIds.isNotEmpty || _folderIds.isNotEmpty);
 
   @override
   Widget build(BuildContext context) {
-    final labels = bookmarkGroupLabels(widget.groups, folders: widget.folders);
+    final labels = bookmarkGroupLabels(
+      widget.groups,
+      folders: widget.folders,
+      defaultGroupName: context.t.bookmark.groups.default_group,
+    );
     return AlertDialog(
       title: Text(context.t.settings.backup_and_restore.export_scope.title),
       content: SingleChildScrollView(
@@ -104,14 +106,6 @@ class _BookmarkExportScopeDialogState extends State<BookmarkExportScopeDialog> {
                     }
                   }),
                 ),
-              CheckboxListTile(
-                value: _ungrouped,
-                title: Text(
-                  context.t.settings.backup_and_restore.export_scope.no_group,
-                ),
-                onChanged: (selected) =>
-                    setState(() => _ungrouped = selected ?? false),
-              ),
             ],
           ],
         ),
@@ -130,7 +124,6 @@ class _BookmarkExportScopeDialogState extends State<BookmarkExportScopeDialog> {
                       : BookmarkExportScope.selected(
                           groupIds: _groupIds,
                           folderIds: _folderIds,
-                          includeUngrouped: _ungrouped,
                         ),
                 )
               : null,

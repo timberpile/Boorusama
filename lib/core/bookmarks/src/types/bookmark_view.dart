@@ -3,15 +3,16 @@ import 'package:equatable/equatable.dart';
 
 // Project imports:
 import 'bookmark_target.dart';
+import 'bookmark_group.dart';
 
-enum BookmarkViewKind { all, ungrouped, group }
+enum BookmarkViewKind { all, group }
 
 class BookmarkView extends Equatable {
   const BookmarkView.all() : kind = BookmarkViewKind.all, groupId = null;
 
-  const BookmarkView.ungrouped()
-    : kind = BookmarkViewKind.ungrouped,
-      groupId = null;
+  const BookmarkView.defaultGroup()
+    : kind = BookmarkViewKind.group,
+      groupId = defaultBookmarkGroupId;
 
   factory BookmarkView.group(String groupId) {
     return BookmarkView._(

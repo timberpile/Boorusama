@@ -1,3 +1,4 @@
+import 'package:boorusama/core/bookmarks/src/services/bookmark_library_service.dart';
 import 'dart:async';
 import 'dart:ui' show Tristate;
 import 'package:uuid/uuid.dart';
@@ -78,60 +79,97 @@ void main() {
     },
   );
 
-  testWidgets(
-    'Home shortcuts precede divider, folders, and alphabetical groups',
-    (tester) async {
-      final library = _state(
-        folders: [
-          const CollectionFolder(id: 'z', name: 'zebra'),
-          const CollectionFolder(id: 'a', name: 'Artists', position: 9),
-        ],
-        groups: [_group('z', 'z group'), _group('a', 'alpha group')],
-      );
-      await _pump(tester, _Library(library));
-      expect(_above(tester, 'All', 'Artists'), isTrue);
-      expect(_above(tester, 'No Group', 'Artists'), isTrue);
-      expect(_above(tester, 'Artists', 'zebra'), isTrue);
-      expect(_above(tester, 'zebra', 'alpha group'), isTrue);
-      expect(_above(tester, 'alpha group', 'z group'), isTrue);
-      final divider = tester.getRect(find.byType(Divider));
-      expect(
-        divider.top,
-        greaterThan(tester.getRect(find.text('No Group')).bottom),
-      );
-      expect(
-        divider.bottom,
-        lessThan(tester.getRect(find.text('Artists')).top),
-      );
-      expect(find.byIcon(Icons.create_new_folder_outlined), findsNothing);
-      await tester.tap(
-        find.descendant(
-          of: find.byType(AppBar),
-          matching: find.byType(PopupMenuButton<String>),
-        ),
-      );
-      await tester.pumpAndSettle();
-      expect(find.text('Add groups folder'), findsOneWidget);
-      expect(find.text('Add group'), findsOneWidget);
-      await tester.tapAt(const Offset(5, 5));
-      await tester.pumpAndSettle();
-      await _menu(tester, 'alpha group');
-      expect(find.text('Move Up'), findsNothing);
-      expect(find.text('Move Down'), findsNothing);
-      expect(find.text('Move'), findsOneWidget);
-    },
-  );
+  for (final (width, textScale) in [(400.0, 1.0), (320.0, 1.8)]) {
+    testWidgets(
+      'Home shortcuts precede divider, folders, and alphabetical groups ($width, $textScale)',
+      (tester) async {
+        final library = _state(
+          folders: [
+            const CollectionFolder(id: 'z', name: 'zebra'),
+            const CollectionFolder(id: 'a', name: 'Artists', position: 9),
+          ],
+          groups: [
+            BookmarkGroup(
+              id: defaultBookmarkGroupId,
+              name: 'Default',
+              bookmarkIds: {},
+            ),
+            _group('ordinary-default', 'Default'),
+            _group('z', 'z group'),
+            _group('a', 'alpha group'),
+          ],
+        );
+        await _pump(
+          tester,
+          _Library(library),
+          size: Size(width, 1200),
+          textScale: textScale,
+        );
+        expect(_above(tester, 'All', 'Artists'), isTrue);
+        expect(find.text('No Group'), findsNothing);
+        expect(find.text('Default'), findsNWidgets(2));
+        final all = tester.getRect(find.text('All'));
+        final systemDefault = tester.getRect(find.text('Default').first);
+        expect(systemDefault.top, all.top);
+        expect(systemDefault.left, greaterThan(all.right));
+        expect(_above(tester, 'Artists', 'zebra'), isTrue);
+        expect(_above(tester, 'zebra', 'alpha group'), isTrue);
+        expect(_above(tester, 'alpha group', 'z group'), isTrue);
+        final divider = tester.getRect(find.byType(Divider));
+        expect(
+          divider.top,
+          greaterThan(tester.getRect(find.text('All')).bottom),
+        );
+        expect(divider.top, greaterThan(systemDefault.bottom));
+        expect(
+          divider.bottom,
+          lessThan(tester.getRect(find.text('Default').last).top),
+        );
+        expect(
+          divider.bottom,
+          lessThan(tester.getRect(find.text('Artists')).top),
+        );
+        expect(find.byIcon(Icons.create_new_folder_outlined), findsNothing);
+        await tester.tap(
+          find.descendant(
+            of: find.byType(AppBar),
+            matching: find.byType(PopupMenuButton<String>),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('Add groups folder'), findsOneWidget);
+        expect(find.text('Add group'), findsOneWidget);
+        await tester.tapAt(const Offset(5, 5));
+        await tester.pumpAndSettle();
+        await _menu(tester, 'alpha group');
+        expect(find.text('Move Up'), findsNothing);
+        expect(find.text('Move Down'), findsNothing);
+        expect(find.text('Move'), findsOneWidget);
+      },
+    );
+  }
 
   testWidgets(
     'Home shortcuts are inaccessible during selection and recover navigation',
     (tester) async {
       final semantics = tester.ensureSemantics();
 
-      final library = _Library(_state(groups: [_group('g', 'Saved')]));
+      final library = _Library(
+        _state(
+          groups: [
+            BookmarkGroup(
+              id: defaultBookmarkGroupId,
+              name: 'Default',
+              bookmarkIds: {},
+            ),
+            _group('g', 'Saved'),
+          ],
+        ),
+      );
       final router = await _pump(tester, library);
       await tester.longPress(find.text('Saved'));
       await tester.pumpAndSettle();
-      for (final label in ['All', 'No Group']) {
+      for (final label in ['All', 'Default']) {
         final ink = tester.widget<InkWell>(_cardInk(label));
         expect(ink.onTap, isNull);
         final opacity = tester.widget<Opacity>(
@@ -152,12 +190,6 @@ void main() {
       }
       expect(library.targets, isEmpty);
       await tester.tap(find.byTooltip('Cancel'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('No Group'));
-      await tester.pumpAndSettle();
-      expect(library.targets.single, const BookmarkTarget.ungrouped());
-      expect(find.text('opened ungrouped'), findsOneWidget);
-      router.pop();
       await tester.pumpAndSettle();
       await tester.tap(find.text('All'));
       await tester.pumpAndSettle();
@@ -963,7 +995,7 @@ BookmarkLibraryState _state({
   bookmarks: bookmarks,
   groups: groups,
   folders: folders,
-  activeTarget: const BookmarkTarget.ungrouped(),
+  activeTarget: const BookmarkTarget.defaultGroup(),
 );
 
 Future<GoRouter> _pump(
@@ -1190,7 +1222,7 @@ class _Library extends BookmarkLibraryNotifier {
   Future<void> removeFromGroup(
     Iterable<Bookmark> bookmarks,
     String groupId, {
-    bool deleteWhenMembershipBecomesEmpty = false,
+    void Function(BookmarkGroupRemovalResult)? onRemoved,
     void Function()? onSuccess,
     void Function()? onError,
   }) async {
@@ -1214,6 +1246,7 @@ class _Library extends BookmarkLibraryNotifier {
     Post post, {
     BookmarkTarget? target,
     bool activateTarget = false,
+    void Function(BookmarkGroupRemovalResult)? onRemoved,
   }) async {
     toggles.add(target!);
     return BookmarkToggleOutcome.added;

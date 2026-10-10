@@ -1,3 +1,4 @@
+import 'package:boorusama/core/bookmarks/src/services/bookmark_library_service.dart';
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -23,8 +24,14 @@ void main() {
   final post = bookmark.toPost();
   final library = BookmarkLibraryState(
     bookmarks: [bookmark],
-    groups: const [],
-    activeTarget: const BookmarkTarget.ungrouped(),
+    groups: [
+      BookmarkGroup(
+        id: defaultBookmarkGroupId,
+        name: 'Default',
+        bookmarkIds: {bookmark.id},
+      ),
+    ],
+    activeTarget: const BookmarkTarget.defaultGroup(),
   );
 
   test(
@@ -69,7 +76,7 @@ void main() {
     final emptyLibrary = BookmarkLibraryState(
       bookmarks: const [],
       groups: const [],
-      activeTarget: const BookmarkTarget.ungrouped(),
+      activeTarget: const BookmarkTarget.defaultGroup(),
     );
 
     expect(
@@ -164,7 +171,7 @@ void main() {
     final ungrouped = BookmarkLibraryState(
       bookmarks: grouped.items,
       groups: grouped.groups,
-      activeTarget: const BookmarkTarget.ungrouped(),
+      activeTarget: const BookmarkTarget.defaultGroup(),
     );
     presentation = container
         .read(bookmarkDetailsMutationProvider)
@@ -189,7 +196,7 @@ void main() {
     final empty = BookmarkLibraryState(
       bookmarks: const [],
       groups: const [],
-      activeTarget: const BookmarkTarget.ungrouped(),
+      activeTarget: const BookmarkTarget.defaultGroup(),
     );
     notifier.toggle(config: config, post: post, library: empty);
     expect(
@@ -244,7 +251,7 @@ void main() {
       final emptyLibrary = BookmarkLibraryState(
         bookmarks: const [],
         groups: const [],
-        activeTarget: const BookmarkTarget.ungrouped(),
+        activeTarget: const BookmarkTarget.defaultGroup(),
       );
       final target = _RecordingBookmarkNotifier(failingPosts: {post});
 
@@ -270,7 +277,7 @@ final class _RecordingBookmarkNotifier extends BookmarkLibraryNotifier {
   FutureOr<BookmarkLibraryState> build() => BookmarkLibraryState(
     bookmarks: const [],
     groups: const [],
-    activeTarget: const BookmarkTarget.ungrouped(),
+    activeTarget: const BookmarkTarget.defaultGroup(),
   );
 
   @override
@@ -279,6 +286,7 @@ final class _RecordingBookmarkNotifier extends BookmarkLibraryNotifier {
     Post post, {
     required BookmarkTarget target,
     required bool bookmarked,
+    void Function(BookmarkGroupRemovalResult)? onRemoved,
   }) async {
     posts.add(post);
     if (failingPosts.contains(post)) return BookmarkToggleOutcome.failed;

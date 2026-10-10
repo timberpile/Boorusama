@@ -8,6 +8,7 @@ import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 
 // Project imports:
+import '../widgets/bookmark_group_label.dart';
 import '../../../configs/config/providers.dart';
 import '../../../configs/config/types.dart';
 import '../../../images/booru_image.dart';
@@ -140,7 +141,7 @@ class _BookmarkGroupBrowserPageState
           final tree = FolderTree(state.folders);
           final folders = bookmarkFoldersByName(tree.children(_folderId));
           final groups = bookmarkGroupsByName(
-            state.groups.where((g) => g.folderId == _folderId),
+            state.groups.where((g) => !g.isDefault && g.folderId == _folderId),
           );
           List<Bookmark> previews(BookmarkView view) => selectBookmarkPreviews(
             state: state,
@@ -148,10 +149,14 @@ class _BookmarkGroupBrowserPageState
             sortType: sort,
             shuffleState: shuffle,
           );
-          Widget specialView(String title, BookmarkView view) => _GroupCard(
+          Widget specialView(
+            String title,
+            BookmarkView view, {
+            BookmarkGroup? group,
+          }) => _GroupCard(
             title: title,
             previews: previews(view),
-            group: null,
+            group: group,
             onTap: _selecting
                 ? null
                 : () => goToBookmarkGroupPage(ref, view, title: title),
@@ -191,10 +196,13 @@ class _BookmarkGroupBrowserPageState
                                   context.t.bookmark.groups.all,
                                   const BookmarkView.all(),
                                 ),
-                                specialView(
-                                  context.t.bookmark.groups.ungrouped,
-                                  const BookmarkView.ungrouped(),
-                                ),
+                                if (state.groupsById[defaultBookmarkGroupId]
+                                    case final defaultGroup?)
+                                  specialView(
+                                    defaultGroup.displayName(context),
+                                    const BookmarkView.defaultGroup(),
+                                    group: defaultGroup,
+                                  ),
                               ]),
                             ),
                           ),
@@ -249,25 +257,35 @@ class _BookmarkGroupBrowserPageState
                                 }
                                 final group = groups[index - folders.length];
                                 return _GroupCard(
-                                  title: group.name,
+                                  title: group.displayName(context),
                                   previews: previews(
                                     BookmarkView.group(group.id),
                                   ),
                                   group: group,
                                   selected: _selectedGroups.contains(group.id),
-                                  onSelect: () => _select(group.id),
-                                  onMove: () => _move(groupIds: {group.id}),
-                                  onTap: () => _selecting
-                                      ? _select(group.id)
-                                      : goToBookmarkGroupPage(
+                                  onSelect: group.isDefault
+                                      ? null
+                                      : () => _select(group.id),
+                                  onMove: group.isDefault
+                                      ? null
+                                      : () => _move(groupIds: {group.id}),
+                                  onTap: _selecting
+                                      ? (group.isDefault
+                                            ? null
+                                            : () => _select(group.id))
+                                      : () => goToBookmarkGroupPage(
                                           ref,
                                           BookmarkView.group(group.id),
-                                          title: group.name,
+                                          title: group.displayName(context),
                                         ),
-                                  onRename: () => _rename(context, ref, group),
+                                  onRename: group.isDefault
+                                      ? null
+                                      : () => _rename(context, ref, group),
                                   onDuplicate: () =>
                                       _duplicate(context, ref, group),
-                                  onDelete: () => _delete(context, ref, group),
+                                  onDelete: group.isDefault
+                                      ? null
+                                      : () => _delete(context, ref, group),
                                 );
                               },
                               childCount: folders.length + groups.length,

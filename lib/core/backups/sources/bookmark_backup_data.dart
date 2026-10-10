@@ -38,6 +38,8 @@ class BookmarkGroupBackup extends Equatable {
     this.position = 0,
   });
 
+  bool get isDefault => id == defaultBookmarkGroupId;
+
   final String? id;
   final String name;
   final List<int> bookmarkIds;
@@ -46,6 +48,7 @@ class BookmarkGroupBackup extends Equatable {
 
   Map<String, dynamic> toJson() => {
     'id': ?id,
+    if (isDefault) 'systemRole': 'default',
     'name': name,
     'bookmarkIds': bookmarkIds,
     'folderId': folderId,
@@ -88,6 +91,7 @@ BookmarkBackupData buildBookmarkBackupData({
       if (tree.byId.containsKey(id)) ...tree.subtree(id),
   };
   final selectedGroups = {
+    if (scope.includeUngrouped) defaultBookmarkGroupId,
     ...?scope.groupIds,
     for (final g in groups)
       if (selectedFolders.contains(g.folderId)) g.id,

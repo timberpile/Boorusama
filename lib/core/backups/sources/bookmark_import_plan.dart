@@ -33,7 +33,14 @@ class BookmarkGroupImport extends Equatable {
   final String? folderId;
   final int position;
 
+  bool get isDefault => id == defaultBookmarkGroupId;
+
   ImportAction? get resolvedAction =>
+      (isDefault
+          ? (action == ImportAction.skip
+                ? ImportAction.skip
+                : ImportAction.merge)
+          : null) ??
       action ??
       switch (choice) {
         BookmarkGroupConflictChoice.merge => ImportAction.merge,

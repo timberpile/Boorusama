@@ -1,3 +1,4 @@
+import 'package:boorusama/core/bookmarks/src/types/bookmark_group.dart';
 import '../search/subscriptions/subscription_test_utils.dart';
 // Dart imports:
 import 'dart:io';
@@ -18,7 +19,7 @@ void main() {
   late BookmarkGroupRepositoryHive repository;
 
   test('bookmark targets canonicalize group identity and reject bad IDs', () {
-    expect(const BookmarkTarget.ungrouped().groupId, isNull);
+    expect(const BookmarkTarget.defaultGroup().groupId, defaultBookmarkGroupId);
     expect(
       BookmarkTarget.group(
         '550E8400-E29B-41D4-A716-446655440000',
