@@ -1,3 +1,5 @@
+import 'package:foundation/performance.dart';
+
 // Package imports:
 import 'package:equatable/equatable.dart';
 import 'package:uuid/uuid.dart';
@@ -47,28 +49,39 @@ class BookmarkLibraryService {
   final ImageUrlResolver Function(int? booruId) imageUrlResolver;
 
   Future<BookmarkLibraryState> load(BookmarkTarget activeTarget) async {
-    final bookmarks = await bookmarkRepository.getAllBookmarksOrThrow(
-      imageUrlResolver: imageUrlResolver,
+    final performanceSpan = performanceRecorder.begin(
+      PerfOperation.bookmarkLibraryLoad, PerfSpanKind.asyncWall,
     );
-    await groupRepository.repair(
-      validBookmarkIds: bookmarks.map((bookmark) => bookmark.id).toSet(),
-    );
-    final groups = await groupRepository.getGroups();
-    final folders = await groupRepository.getFolders();
-    FolderTree(folders).validatePlacements([
-      for (final g in groups)
-        FolderPlacement(
-          itemId: g.id,
-          folderId: g.folderId,
-          position: g.position,
-        ),
-    ]);
-    return BookmarkLibraryState(
-      bookmarks: bookmarks,
-      groups: groups,
-      folders: folders,
-      activeTarget: activeTarget,
-    );
+    var performanceFailed = false;
+    try {
+      final bookmarks = await bookmarkRepository.getAllBookmarksOrThrow(
+        imageUrlResolver: imageUrlResolver,
+      );
+      await groupRepository.repair(
+        validBookmarkIds: bookmarks.map((bookmark) => bookmark.id).toSet(),
+      );
+      final groups = await groupRepository.getGroups();
+      final folders = await groupRepository.getFolders();
+      FolderTree(folders).validatePlacements([
+        for (final g in groups)
+          FolderPlacement(
+            itemId: g.id,
+            folderId: g.folderId,
+            position: g.position,
+          ),
+      ]);
+      return BookmarkLibraryState(
+        bookmarks: bookmarks,
+        groups: groups,
+        folders: folders,
+        activeTarget: activeTarget,
+      );
+    } catch (_) {
+      performanceFailed = true;
+      rethrow;
+    } finally {
+      performanceSpan.finish(failed: performanceFailed);
+    }
   }
 
   Future<CollectionFolder> createFolder(String name, {String? parentId}) async {

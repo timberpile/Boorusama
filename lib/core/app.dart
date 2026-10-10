@@ -1,3 +1,5 @@
+import '../foundation/performance/performance_diagnostics.dart';
+
 // Flutter imports:
 import 'package:flutter/services.dart';
 
@@ -27,7 +29,7 @@ class App extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const OKToast(
+    return const PerformanceDiagnosticsScope(child: OKToast(
       child: AnalyticsScope(
         child: AutoBackupAppLifecycle(
           child: ReceivedExportListener(
@@ -37,7 +39,7 @@ class App extends StatelessWidget {
           ),
         ),
       ),
-    );
+    ));
   }
 }
 

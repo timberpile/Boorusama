@@ -1,3 +1,6 @@
+import 'package:foundation/performance.dart';
+import '../../../../foundation/performance/performance_navigation.dart';
+
 // Flutter imports:
 import 'package:flutter/material.dart';
 
@@ -81,7 +84,7 @@ class _BookmarkGroupBrowserPageState
   @override
   Widget build(BuildContext context) {
     final library = ref.watch(bookmarkProvider);
-    return Scaffold(
+    return PerformanceScreenScope(screen: PerfScreen.bookmarkGroups, priority: 2, child: Scaffold(
       appBar: AppBar(
         title: Text(
           _selecting
@@ -283,7 +286,7 @@ class _BookmarkGroupBrowserPageState
           );
         },
       ),
-    );
+    ));
   }
 
   Future<void> _move({Set<String>? folderIds, Set<String>? groupIds}) async {

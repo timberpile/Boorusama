@@ -1,3 +1,6 @@
+import 'package:foundation/performance.dart';
+import '../../../../foundation/performance/performance_navigation.dart';
+
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kurumi/material.dart';
@@ -36,7 +39,7 @@ class _BookmarkPageState extends ConsumerState<BookmarkPage> {
 
   @override
   Widget build(BuildContext context) {
-    return CustomContextMenuOverlay(
+    return PerformanceScreenScope(screen: PerfScreen.bookmarks, priority: 2, child: CustomContextMenuOverlay(
       child: Scaffold(
         body: BookmarkScrollView(
           scrollController: _scrollController,
@@ -45,6 +48,6 @@ class _BookmarkPageState extends ConsumerState<BookmarkPage> {
           title: widget.title,
         ),
       ),
-    );
+    ));
   }
 }

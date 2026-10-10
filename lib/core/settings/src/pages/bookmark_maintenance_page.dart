@@ -1,3 +1,5 @@
+import 'performance_diagnostics_page.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
@@ -15,6 +17,15 @@ class AdvancedDataSettingsPage extends StatelessWidget {
   Widget build(BuildContext context) => SettingsPageScaffold(
     title: Text(context.t.bookmark.maintenance.advanced),
     children: [
+      ListTile(
+        title: Text(context.t.performance_diagnostics.title),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => const PerformanceDiagnosticsPage(),
+          ),
+        ),
+      ),
       ListTile(
         title: Text(context.t.bookmark.maintenance.title),
         trailing: const Icon(Icons.chevron_right),

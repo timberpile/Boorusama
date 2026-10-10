@@ -1,3 +1,6 @@
+import 'package:foundation/performance.dart';
+import '../../../../../foundation/performance/performance_navigation.dart';
+
 import 'dart:async';
 import 'package:collection/collection.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -60,7 +63,7 @@ class _FollowingFeedsPageState extends ConsumerState<FollowingFeedsPage> {
     final profiles = ref.watch(booruConfigProvider);
     final byProfileId = {for (final profile in profiles) profile.id: profile};
     final strings = context.t.pinned_searches;
-    return Scaffold(
+    return PerformanceScreenScope(screen: PerfScreen.followingFeeds, priority: 2, child: Scaffold(
       appBar: AppBar(
         title: Text(strings.following_feeds),
       ),
@@ -325,7 +328,7 @@ class _FollowingFeedsPageState extends ConsumerState<FollowingFeedsPage> {
               );
             },
           ),
-    );
+    ));
   }
 }
 
@@ -400,7 +403,7 @@ class _FollowingFeedPageState extends ConsumerState<FollowingFeedPage> {
     final refreshing = sources.any(
       (s) => state?.refreshingIds.contains(s.id) ?? false,
     );
-    return Scaffold(
+    return PerformanceScreenScope(screen: PerfScreen.followingFeed, priority: 2, child: Scaffold(
       appBar: AppBar(
         title: Text(feed?.name ?? strings.following_feeds),
         actions: [
@@ -456,7 +459,7 @@ class _FollowingFeedPageState extends ConsumerState<FollowingFeedPage> {
                 ),
               ],
             ),
-    );
+    ));
   }
 }
 

@@ -1,3 +1,5 @@
+import 'package:foundation/performance.dart';
+
 // Package imports:
 import 'package:collection/collection.dart';
 import 'package:equatable/equatable.dart';
@@ -18,28 +20,39 @@ List<Bookmark> selectBookmarks({
   String? selectedBooruUrl,
   BookmarkShuffleState? shuffleState,
 }) {
-  final inView = switch (view.kind) {
-    BookmarkViewKind.all => state.items,
-    BookmarkViewKind.ungrouped =>
-      state.items
-          .where((bookmark) => state.membershipsFor(bookmark.uniqueId).isEmpty)
-          .toList(),
-    BookmarkViewKind.group =>
-      state.items
-          .where(
-            (bookmark) =>
-                state.membershipsFor(bookmark.uniqueId).contains(view.groupId),
-          )
-          .toList(),
-  };
-
-  return filterBookmarks(
-    bookmarks: inView,
-    selectedTags: selectedTags,
-    sortType: sortType,
-    selectedBooruUrl: selectedBooruUrl,
-    shuffleState: shuffleState,
+  final performanceSpan = performanceRecorder.begin(
+    PerfOperation.bookmarkSelect, PerfSpanKind.sync, items: state.items.length,
   );
+  var performanceFailed = false;
+  try {
+    final inView = switch (view.kind) {
+      BookmarkViewKind.all => state.items,
+      BookmarkViewKind.ungrouped =>
+        state.items
+            .where((bookmark) => state.membershipsFor(bookmark.uniqueId).isEmpty)
+            .toList(),
+      BookmarkViewKind.group =>
+        state.items
+            .where(
+              (bookmark) =>
+                  state.membershipsFor(bookmark.uniqueId).contains(view.groupId),
+            )
+            .toList(),
+    };
+
+    return filterBookmarks(
+      bookmarks: inView,
+      selectedTags: selectedTags,
+      sortType: sortType,
+      selectedBooruUrl: selectedBooruUrl,
+      shuffleState: shuffleState,
+    );
+  } catch (_) {
+    performanceFailed = true;
+    rethrow;
+  } finally {
+    performanceSpan.finish(failed: performanceFailed);
+  }
 }
 
 List<Bookmark> selectBookmarkPreviews({

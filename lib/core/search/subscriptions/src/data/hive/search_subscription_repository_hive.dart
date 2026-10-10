@@ -1,3 +1,5 @@
+import 'package:foundation/performance.dart';
+
 // Dart imports:
 import 'dart:async';
 
@@ -38,27 +40,38 @@ class HiveSearchSubscriptionRepository implements SearchSubscriptionRepository {
   Future<void> _mutationTail = Future.value();
 
   List<SearchFollowingFeed> _feeds() {
-    final feeds = [
-      for (final value in _organizationBox?.values ?? const [])
-        if (value case final Map json
-            when json['id'] is String &&
-                isCanonicalProfileId(json['profileId']) &&
-                json['name'] is String)
-          SearchFollowingFeed.fromJson({
-            ...json,
-            if (json['sourceIds'] is! List)
-              'sourceIds': [
-                for (final search in _box.values)
-                  if (search.feedId == json['id']) search.id,
-              ],
-          }),
-    ];
-    final ordered = feeds.indexed.toList()
-      ..sort((left, right) {
-        final position = left.$2.position.compareTo(right.$2.position);
-        return position != 0 ? position : left.$1.compareTo(right.$1);
-      });
-    return [for (final (_, feed) in ordered) feed];
+    final performanceSpan = performanceRecorder.begin(
+      PerfOperation.feedRepositoryRead, PerfSpanKind.sync,
+    );
+    var performanceFailed = false;
+    try {
+      final feeds = [
+        for (final value in _organizationBox?.values ?? const [])
+          if (value case final Map json
+              when json['id'] is String &&
+                  isCanonicalProfileId(json['profileId']) &&
+                  json['name'] is String)
+            SearchFollowingFeed.fromJson({
+              ...json,
+              if (json['sourceIds'] is! List)
+                'sourceIds': [
+                  for (final search in _box.values)
+                    if (search.feedId == json['id']) search.id,
+                ],
+            }),
+      ];
+      final ordered = feeds.indexed.toList()
+        ..sort((left, right) {
+          final position = left.$2.position.compareTo(right.$2.position);
+          return position != 0 ? position : left.$1.compareTo(right.$1);
+        });
+      return [for (final (_, feed) in ordered) feed];
+    } catch (_) {
+      performanceFailed = true;
+      rethrow;
+    } finally {
+      performanceSpan.finish(failed: performanceFailed);
+    }
   }
 
   Set<String> _feedSourceIds() => {

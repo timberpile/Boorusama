@@ -1,3 +1,5 @@
+import 'package:foundation/performance.dart';
+
 import 'dart:convert';
 import 'dart:io';
 
@@ -138,18 +140,29 @@ class ImageCacheIndex {
   }
 
   Future<void> checkpoint() async {
-    await directory.create(recursive: true);
-    final staged = File('${_checkpoint.path}.partial');
-    await staged.writeAsString(
-      jsonEncode({
-        'version': 1,
-        'revision': revision,
-        'entries': entries.values.map((e) => e.toJson()).toList(),
-      }),
-      flush: true,
+    final performanceSpan = performanceRecorder.begin(
+      PerfOperation.cacheCheckpoint, PerfSpanKind.asyncWall, items: entries.length,
     );
-    await staged.rename(_checkpoint.path);
-    await _journal.writeAsString('', flush: true);
-    _records = 0;
+    var performanceFailed = false;
+    try {
+      await directory.create(recursive: true);
+      final staged = File('${_checkpoint.path}.partial');
+      await staged.writeAsString(
+        performanceRecorder.measureSync(PerfOperation.cacheIndexEncode, () => jsonEncode({
+          'version': 1,
+          'revision': revision,
+          'entries': entries.values.map((e) => e.toJson()).toList(),
+        }), items: entries.length),
+        flush: true,
+      );
+      await staged.rename(_checkpoint.path);
+      await _journal.writeAsString('', flush: true);
+      _records = 0;
+    } catch (_) {
+      performanceFailed = true;
+      rethrow;
+    } finally {
+      performanceSpan.finish(failed: performanceFailed);
+    }
   }
 }

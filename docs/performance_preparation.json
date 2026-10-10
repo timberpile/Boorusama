@@ -1,0 +1,25 @@
+{
+  "base_commit": "f4972eb54119fce98360c4c2303bbce375b8e722",
+  "preparation_commit": "3b9eea410fd4bba22c271fcb90e8730d86f161d5",
+  "source_integration": "applied; not Flutter-verified",
+  "source_changes": 31,
+  "checks": [
+    "base input blobs",
+    "all source anchors",
+    "new-file destinations",
+    "13 installer tests",
+    "6 analyzer tests",
+    "git diff --check",
+    "exact changed-path set"
+  ],
+  "not_run": [
+    "FVM dependency resolution",
+    "translation generation",
+    "Dart formatting and analysis",
+    "Dart/Flutter tests",
+    "complete repository suite",
+    "APK builds",
+    "device measurements"
+  ],
+  "cache_fix_applied": false
+}

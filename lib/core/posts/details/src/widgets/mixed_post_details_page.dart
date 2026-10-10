@@ -1,3 +1,6 @@
+import 'package:foundation/performance.dart';
+import '../../../../../foundation/performance/performance_navigation.dart';
+
 // Dart imports:
 import 'dart:async';
 
@@ -199,7 +202,7 @@ class _MixedPostDetailsPageState extends State<MixedPostDetailsPage> {
       mounted && (ModalRoute.of(context)?.isCurrent ?? true);
 
   @override
-  Widget build(BuildContext context) => PostDetailsScope<Post>(
+  Widget build(BuildContext context) => PerformanceScreenScope(screen: PerfScreen.postViewer, priority: 2, child: PostDetailsScope<Post>(
     initialIndex: widget.initialIndex,
     initialThumbnailUrl: widget.initialThumbnailUrl,
     posts: _posts,
@@ -219,7 +222,7 @@ class _MixedPostDetailsPageState extends State<MixedPostDetailsPage> {
       onLoadMoreNext: _continueLoading,
       onPageChanged: _loadNearEnd,
     ),
-  );
+  ));
 }
 
 class _MixedPostDetailsView extends ConsumerStatefulWidget {

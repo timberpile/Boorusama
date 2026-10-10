@@ -8,6 +8,8 @@ environment:
 resolution: workspace
 
 dependencies:
+  foundation:
+    path: ../foundation
   path: ^1.8.3
   path_provider: ^2.1.2
   extended_image_library:

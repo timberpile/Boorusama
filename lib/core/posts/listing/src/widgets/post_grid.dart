@@ -1,3 +1,6 @@
+import 'package:foundation/performance.dart';
+import '../../../../../foundation/performance/performance_navigation.dart';
+
 // Dart imports:
 import 'dart:math';
 
@@ -106,7 +109,7 @@ class _PostGridState<T extends Post> extends ConsumerState<PostGrid<T>> {
 
   @override
   Widget build(BuildContext context) {
-    return _InheritedAutoScrollController(
+    return PerformanceScreenScope(screen: PerfScreen.searchGrid, priority: 0, child: _InheritedAutoScrollController(
       controller: _autoScrollController,
       child: RawPostGrid(
         options: PostGridOptions(
@@ -232,7 +235,7 @@ class _PostGridState<T extends Post> extends ConsumerState<PostGrid<T>> {
               ),
             ),
       ),
-    );
+    ));
   }
 }
 

@@ -1,3 +1,5 @@
+import 'package:foundation/performance.dart';
+
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kurumi/material.dart';
@@ -65,12 +67,19 @@ class _MixedPostDetailsImagePreloaderState
   void _preloadAdjacentPages(int currentPage) {
     if (!ref.read(automaticMediaLoadingEnabledProvider)) return;
 
-    final resolved = <int, _ResolvedPreloadPost>{};
-    for (var index = 0; index < widget.posts.length; index++) {
-      if (_resolve(widget.posts[index]) case final value?) {
-        resolved[index] = value;
-      }
-    }
+    final resolved = performanceRecorder.measureSync(
+      PerfOperation.mixedPreloadResolve,
+      () {
+        final resolved = <int, _ResolvedPreloadPost>{};
+        for (var index = 0; index < widget.posts.length; index++) {
+          if (_resolve(widget.posts[index]) case final value?) {
+            resolved[index] = value;
+          }
+        }
+        return resolved;
+      },
+      items: widget.posts.length,
+    );
 
     for (final auth in resolved.values.map((e) => e.auth).toSet()) {
       final manager = _managers.putIfAbsent(auth, () {
