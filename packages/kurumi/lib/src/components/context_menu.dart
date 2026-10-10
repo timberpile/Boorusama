@@ -71,11 +71,8 @@ class _KurumiContextMenuState extends State<KurumiContextMenu> {
 
     return AnchorContextMenu(
       viewPadding: const EdgeInsets.all(8),
-      backdropBuilder: kurumiIsMobilePlatform()
-          ? null
-          : (context) => Container(
-              color: Colors.transparent,
-            ),
+      // Block underlying taps while the context menu is open.
+      backdropBuilder: (_) => Container(color: Colors.transparent),
       onShow: behavior.contextMenuShowFeedback,
       onDismiss: _pageController.reset,
       menuBuilder: (context) {
