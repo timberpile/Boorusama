@@ -16,7 +16,7 @@ import 'package:boorusama/core/hive/hive_adapters.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 import 'package:boorusama/core/posts/rating/types.dart';
 import 'package:boorusama/core/posts/sources/types.dart';
-import '../../profile_uuid_utils.dart';
+import '../test/profile_uuid_utils.dart';
 
 const _bookmarkCount = 1000;
 const _catastrophicOperationLimit = Duration(seconds: 10);

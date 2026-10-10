@@ -46,6 +46,19 @@ resolved within scope or a required check cannot run, report the blocker before
 final review and do not claim readiness. Record the checked commit or final diff
 and distinguish local results from CI, device, and upgrade acceptance.
 
+## Opt-in workload benchmarks
+
+The high-volume benchmark tests under `benchmark/` do not run during the
+default application suite (`fvm flutter test` discovers `test/`).
+Run `./scripts/run_test_benchmarks.sh` explicitly when investigating
+post snapshot serialization, bookmark cold-load performance, or following-feed
+cache deserialization. The script uses the pinned FVM Flutter toolchain.
+
+These are diagnostic workloads, not a substitute for fast functional regression
+tests under `test/`. Their loose duration limits only detect catastrophic
+regressions; compare recorded results on the same machine and toolchain rather
+than treating a single wall-clock sample as a performance budget.
+
 ## Code style
 
 - For Riverpod, use `Notifier`/`AsyncNotifier` and manually declared

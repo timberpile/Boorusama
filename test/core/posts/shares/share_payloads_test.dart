@@ -59,4 +59,66 @@ void main() {
     expect(payloads.links[2].value, 'https://site.test/sample.png');
     expect(payloads.media[1].value, 'https://site.test/full.jpg');
   });
+
+  test('Original stays disabled when only a sample URL is stored', () {
+    final payloads = PostSharePayloads.build(
+      isVideo: false,
+      viewerImageUrl: 'https://site.test/sample.jpg',
+      originalUrl: '',
+      booruLink: '',
+      sourceLink: null,
+      postId: 42,
+    );
+
+    expect(payloads.media[0].available, isTrue);
+    expect(payloads.media[1].available, isFalse);
+  });
+
+  test(
+    'extractor-owned Original stays available without stored media URLs',
+    () {
+      final payloads = PostSharePayloads.build(
+        isVideo: false,
+        canResolveExactOriginal: true,
+        viewerImageUrl: '',
+        originalUrl: '',
+        booruLink: '',
+        sourceLink: null,
+        postId: 42,
+      );
+
+      expect(payloads.media[0].available, isFalse);
+      expect(payloads.media[1].available, isTrue);
+      expect(payloads.media, hasLength(2));
+    },
+  );
+
+  test('extractor-owned Video stays available without stored media URLs', () {
+    final payloads = PostSharePayloads.build(
+      isVideo: true,
+      canResolveExactVideo: true,
+      viewerImageUrl: '',
+      originalUrl: '',
+      booruLink: '',
+      sourceLink: null,
+      postId: 42,
+    );
+
+    expect(payloads.media[0].available, isTrue);
+    expect(payloads.media, hasLength(1));
+  });
+
+  test('preview-only video leaves its media row unavailable', () {
+    final payloads = PostSharePayloads.build(
+      isVideo: true,
+      viewerImageUrl: 'https://site.test/thumb.jpg',
+      originalUrl: '',
+      booruLink: '',
+      sourceLink: null,
+      postId: 42,
+    );
+
+    expect(payloads.media.first.available, isFalse);
+    expect(payloads.media, hasLength(1));
+  });
 }
