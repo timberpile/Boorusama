@@ -29,20 +29,60 @@ class _ControlCompleter extends ImageStreamCompleter {}
 
 class _DecodeBinding extends AutomatedTestWidgetsFlutterBinding {
   var decodes = 0;
+  var decodeDelay = Duration.zero;
   @override
   ImageCache createImageCache() => _CountingCache();
   @override
   Future<ui.Codec> instantiateImageCodecWithSize(
     ui.ImmutableBuffer buffer, {
     ui.TargetImageSizeCallback? getTargetSize,
-  }) {
+  }) async {
     decodes++;
+    if (decodeDelay > Duration.zero) {
+      await Future<void>.delayed(decodeDelay);
+    }
     return super.instantiateImageCodecWithSize(
       buffer,
       getTargetSize: getTargetSize,
     );
   }
 }
+
+// These tests use real disk I/O and native decoding inside runAsync. Pumping
+// frames for a fixed interval does not guarantee either operation has finished.
+Future<void> _pumpUntil(
+  WidgetTester tester,
+  bool Function() ready,
+  String description,
+) async {
+  final elapsed = Stopwatch()..start();
+  do {
+    await tester.pump();
+    if (ready()) return;
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+  } while (elapsed.elapsed < const Duration(seconds: 10));
+  fail('Timed out waiting for $description');
+}
+
+int? _displayedWidth(WidgetTester tester) => tester
+    .widgetList<ExtendedRawImage>(find.byType(ExtendedRawImage))
+    .map((widget) => widget.image)
+    .nonNulls
+    .firstOrNull
+    ?.width;
+
+bool _candidateFinished(_CountingCache cache, String url) {
+  final resolutions = cache.resolutions.where(
+    (record) => record.key.toString().contains(url),
+  );
+  return resolutions.isNotEmpty &&
+      resolutions.every((record) => !record.completer.hasListeners);
+}
+
+bool _allReleased(_CountingCache cache) =>
+    cache.liveImageCount == 0 &&
+    cache.pendingImageCount == 0 &&
+    cache.resolutions.every((record) => !record.completer.hasListeners);
 
 void main() {
   final binding = _DecodeBinding();
@@ -109,16 +149,19 @@ void main() {
               ),
             ),
           );
-
-          await pumpUntil(
+          await _pumpUntil(
             tester,
             () =>
                 adapter.pending.containsKey(lower) &&
                 adapter.pending.containsKey(target),
-            reason: 'both requests',
+            'both image requests',
           );
           adapter.complete(lower, lowerPng);
-          await waitForPixel(tester, [255, 0, 0, 255]);
+          await _pumpUntil(
+            tester,
+            () => _displayedWidth(tester) == 2,
+            'the decoded lower image',
+          );
           final retainedPixels = tester
               .widgetList<ExtendedRawImage>(find.byType(ExtendedRawImage))
               .map((image) => image.image)
@@ -128,8 +171,14 @@ void main() {
             (await retainedPixels.toByteData())!.buffer.asUint8List().take(4),
             [255, 0, 0, 255],
           );
+          // Exercise decoding that outlasts the former fixed 400 ms wait.
+          binding.decodeDelay = const Duration(milliseconds: 600);
           adapter.complete(target, targetPng);
-          await waitForPixel(tester, [0, 0, 255, 255]);
+          await _pumpUntil(
+            tester,
+            () => _displayedWidth(tester) == 8,
+            'the decoded target image',
+          );
           final pixels = tester
               .widgetList<ExtendedRawImage>(find.byType(ExtendedRawImage))
               .map((image) => image.image)
@@ -167,7 +216,11 @@ void main() {
             );
           }
           await tester.pumpWidget(const SizedBox());
-          await cache.drain();
+          await _pumpUntil(
+            tester,
+            () => _allReleased(decodedCache),
+            'image listener cleanup',
+          );
           expect(decodedCache.liveImageCount, 0);
           expect(decodedCache.pendingImageCount, 0);
           for (final completer
@@ -184,6 +237,7 @@ void main() {
           }
         } finally {
           await tester.pumpWidget(const SizedBox());
+          binding.decodeDelay = Duration.zero;
           decodedCache.maximumSize = oldCount;
           decodedCache.maximumSizeBytes = oldBytes;
           decodedCache.clear();
@@ -215,9 +269,11 @@ void main() {
           const lower = 'https://cleanup.test/lower.png';
           const target = 'https://cleanup.test/target.png';
           const replacement = 'https://cleanup.test/replacement.png';
+          var representationChanges = 0;
           Widget page(String url) => testApp(
             RawProgressivePostImage(
               key: const ValueKey('same-post'),
+              onRepresentationChanged: (_) => representationChanges++,
               dio: dio,
               imageUrl: url,
               lowerMedia: const GridThumbnailMedia(url: lower, aspectRatio: 1),
@@ -237,39 +293,47 @@ void main() {
             decodedCache.resolutions.clear();
             binding.decodes = 0;
             await tester.pumpWidget(page(target));
-            await pumpUntil(
+            await _pumpUntil(
               tester,
               () =>
                   adapter.pending.containsKey(lower) &&
                   adapter.pending.containsKey(target),
-              reason: 'both requests',
+              'both image requests',
             );
             if (targetFirst) {
               adapter.complete(target, targetPng);
-              await waitForPixel(tester, [0, 0, 255, 255]);
-              adapter.complete(lower, lowerPng);
-              await cache.drain();
-              await pumpUntil(
+              await _pumpUntil(
                 tester,
-                () => binding.decodes == 2,
-                reason: 'ignored lower decode',
+                () => _displayedWidth(tester) == 8,
+                'the decoded target image',
+              );
+              adapter.complete(lower, lowerPng);
+              await _pumpUntil(
+                tester,
+                () => _candidateFinished(decodedCache, lower),
+                'the ignored lower image to finish',
               );
             } else {
               adapter.complete(lower, lowerPng);
-              await waitForPixel(tester, [255, 0, 0, 255]);
-              await tester.pumpWidget(page(replacement));
-              await pumpUntil(
+              await _pumpUntil(
                 tester,
-                () => adapter.pending.containsKey(replacement),
-                reason: 'replacement request',
+                () => _displayedWidth(tester) == 2,
+                'the decoded lower image',
+              );
+              await tester.pumpWidget(page(replacement));
+              await _pumpUntil(
+                tester,
+                () =>
+                    adapter.pending.containsKey(replacement) &&
+                    _candidateFinished(decodedCache, target),
+                'replacement request and superseded target cancellation',
               );
               adapter.complete(target, targetPng);
               adapter.complete(replacement, Uint8List.fromList([1, 2, 3]));
-              await pumpUntil(
+              await _pumpUntil(
                 tester,
-                () =>
-                    binding.decodes == 2 && decodedCache.pendingImageCount == 0,
-                reason: 'failed replacement decode',
+                () => _candidateFinished(decodedCache, replacement),
+                'the replacement decode failure',
               );
             }
             final pixels = tester
@@ -288,10 +352,17 @@ void main() {
               // decoder's disk bytes are separate: clear those invalid bytes
               // explicitly before the server supplies a repaired image.
               await tester.pumpWidget(page(target));
-              await pumpUntil(
+              await _pumpUntil(
                 tester,
-                () => binding.decodes == 3,
-                reason: 'reselected target decode',
+                () =>
+                    adapter.requests
+                            .where(
+                              (request) => request.uri.toString() == target,
+                            )
+                            .length >=
+                        2 &&
+                    _displayedWidth(tester) == 8,
+                'the reselected target to decode and display',
               );
               expect(
                 adapter.requests.where(
@@ -303,18 +374,28 @@ void main() {
               await cache.clearCache(cache.generateCacheKey(replacement));
               adapter.pending.remove(replacement);
               await tester.pumpWidget(page(replacement));
-              await pumpUntil(
+              await _pumpUntil(
                 tester,
-                () => adapter.pending.containsKey(replacement),
-                reason: 'repaired replacement request',
+                () =>
+                    adapter.requests
+                        .where(
+                          (request) => request.uri.toString() == replacement,
+                        )
+                        .length >=
+                    2,
+                'a fresh replacement request',
               );
+              final beforeRecovery = representationChanges;
               adapter.complete(replacement, targetPng);
-              await pumpUntil(
+              await _pumpUntil(
                 tester,
-                () => binding.decodes == 4,
-                reason: 'repaired replacement decode',
+                // The superseded target can also be blue; wait for this
+                // replacement's decoded handoff before inspecting its pixels.
+                () =>
+                    representationChanges > beforeRecovery &&
+                    _displayedWidth(tester) == 8,
+                'the recovered target image',
               );
-              await waitForPixel(tester, [0, 0, 255, 255]);
               final recovered = tester
                   .widgetList<ExtendedRawImage>(find.byType(ExtendedRawImage))
                   .map((image) => image.image)
@@ -334,7 +415,11 @@ void main() {
               expect(decodedCache.currentSizeBytes, 0);
             }
             await tester.pumpWidget(const SizedBox());
-            await cache.drain();
+            await _pumpUntil(
+              tester,
+              () => _allReleased(decodedCache),
+              'image listener cleanup',
+            );
             expect(decodedCache.liveImageCount, 0);
             expect(decodedCache.pendingImageCount, 0);
             for (final completer

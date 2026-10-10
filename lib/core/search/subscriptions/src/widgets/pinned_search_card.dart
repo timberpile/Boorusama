@@ -234,7 +234,7 @@ class PinnedSearchCard extends StatelessWidget {
                               ),
                               PopupMenuItem(
                                 value: PinnedSearchAction.delete,
-                                child: Text(context.t.generic.action.delete),
+                                child: Text(strings.remove),
                               ),
                             ],
                       ),

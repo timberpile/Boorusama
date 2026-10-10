@@ -1520,18 +1520,19 @@ void main() {
   );
 
   testWidgets(
-    'delete waits for confirmation and removes the card immediately',
+    'Remove waits for confirmation and permanently removes the pin',
     (tester) async {
       initialize();
       await harness.seed([pinnedFixture()]);
       await pump(tester);
-      await choose(tester, 'Delete');
+      await choose(tester, 'Remove');
       await tester.tap(find.text('Cancel'));
       await settle(tester);
       expect(find.text('Cats'), findsOneWidget);
-      await choose(tester, 'Delete');
-      expect(find.text('Delete “Cats”?'), findsOneWidget);
-      await tester.tap(find.widgetWithText(FilledButton, 'Delete'));
+      expect(await harness.repository.getById('cats'), isNotNull);
+      await choose(tester, 'Remove');
+      expect(find.text('Remove this pinned search?'), findsOneWidget);
+      await tester.tap(find.widgetWithText(FilledButton, 'Remove'));
       await settle(tester);
       expect(find.text('Cats'), findsNothing);
       expect(find.text('No pinned searches yet'), findsOneWidget);

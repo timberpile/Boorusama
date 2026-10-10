@@ -751,13 +751,7 @@ class _PinnedSearchesPageState extends ConsumerState<PinnedSearchesPage> {
         final confirmed = await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
-            title: Text(
-              context.t.pinned_searches.delete_title.replaceAll(
-                '{name}',
-                subscription.displayName,
-              ),
-            ),
-            content: Text(context.t.pinned_searches.delete_message),
+            title: Text(context.t.pinned_searches.remove_confirmation),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
@@ -765,7 +759,7 @@ class _PinnedSearchesPageState extends ConsumerState<PinnedSearchesPage> {
               ),
               FilledButton(
                 onPressed: () => Navigator.pop(context, true),
-                child: Text(context.t.generic.action.delete),
+                child: Text(context.t.pinned_searches.remove),
               ),
             ],
           ),
