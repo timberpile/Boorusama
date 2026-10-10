@@ -168,7 +168,7 @@ class _PinnedSearchesPageState extends ConsumerState<PinnedSearchesPage> {
       refreshableProfileIds: refreshableProfileIds,
     );
     return Scaffold(
-      appBar: AppBar(
+      appBar: KurumiAppBar(
         title: Text(
           _selecting
               ? context.t.folders.selected.replaceAll(

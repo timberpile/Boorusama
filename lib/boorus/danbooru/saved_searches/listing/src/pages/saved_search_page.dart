@@ -26,7 +26,7 @@ class SavedSearchPage extends ConsumerWidget {
     );
 
     return Scaffold(
-      appBar: AppBar(
+      appBar: KurumiAppBar(
         title: Text(context.t.saved_search.saved_search),
         actions: [
           IconButton(

@@ -87,7 +87,7 @@ class _DanbooruPostVersionsPageState
     final colorScheme = Kurumi.themeOf(context).colorScheme;
 
     return Scaffold(
-      appBar: AppBar(
+      appBar: KurumiAppBar(
         leading: Container(
           margin: const EdgeInsets.all(8),
           child: KurumiCircularIconButton(

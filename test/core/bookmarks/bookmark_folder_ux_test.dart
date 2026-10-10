@@ -19,6 +19,7 @@ import 'package:boorusama/core/groups/folder_tree.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 import 'package:boorusama/core/router.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:i18n/i18n.dart';
@@ -26,6 +27,191 @@ import 'package:kurumi/kurumi.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 void main() {
+  for (final (width, scale) in [
+    (320.0, 1.0),
+    (320.0, 2.0),
+    (600.0, 2.0),
+    (900.0, 2.0),
+  ]) {
+    testWidgets(
+      'group cards stay square and fit titles at $width and ${scale}x',
+      (
+        tester,
+      ) async {
+        final titles = [
+          'A',
+          'B two line title',
+          'C three or more lines of bookmark group names',
+          "D ${List.filled(12, 'Lesezeichen 日本語').join(' ')}",
+          'E' * 100,
+        ];
+        await _pump(
+          tester,
+          _Library(
+            _state(
+              groups: [
+                for (var i = 0; i < titles.length; i++) _group('$i', titles[i]),
+              ],
+            ),
+          ),
+          size: Size(width, 5000),
+          textScale: scale,
+        );
+        for (final title in titles) {
+          final finder = find.text(title);
+          final text = tester.widget<Text>(finder);
+          expect(text.style!.fontSize, inInclusiveRange(12, 16));
+          expect(text.textScaler!.scale(12), 12 * scale);
+          final paragraph = tester.renderObject<RenderParagraph>(finder);
+          if (text.style!.fontSize! > 12) {
+            expect(paragraph.didExceedMaxLines, isFalse);
+            expect(text.overflow, TextOverflow.visible);
+          } else {
+            expect(text.overflow, TextOverflow.ellipsis);
+            expect(text.maxLines, greaterThanOrEqualTo(1));
+          }
+          final card = find
+              .ancestor(of: finder, matching: find.byType(InkWell))
+              .first;
+          final preview = find.descendant(
+            of: card,
+            matching: find.byType(BookmarkGroupPreviewGrid),
+          );
+          expect(
+            tester.getRect(preview).contains(tester.getRect(finder).topLeft),
+            isTrue,
+          );
+          expect(
+            tester
+                .getRect(preview)
+                .contains(tester.getRect(finder).bottomRight),
+            isTrue,
+          );
+          expect(
+            tester.getRect(card).contains(tester.getRect(finder).bottomLeft),
+            isTrue,
+          );
+        }
+        final cards = [
+          for (final title in titles) tester.getRect(_cardInk(title)),
+        ];
+        for (var i = 0; i < cards.length; i++) {
+          for (var j = i + 1; j < cards.length; j++) {
+            expect(cards[i].overlaps(cards[j]), isFalse);
+          }
+        }
+        for (final card in cards) {
+          expect(card.height, closeTo(card.width, 0.001));
+          expect(card.size, cards.first.size);
+        }
+        final columns = width < 500
+            ? 2
+            : width < 850
+            ? 3
+            : 4;
+        for (var i = 0; i < cards.length; i++) {
+          expect(cards[i].top, cards[i ~/ columns * columns].top);
+          if (i >= columns) {
+            expect(
+              cards[i].top - cards[i - columns].bottom,
+              closeTo(12, 0.001),
+            );
+          }
+        }
+        expect(tester.widget<Text>(find.text('A')).style!.fontSize, 16);
+        expect(tester.widget<Text>(find.text(titles.last)).style!.fontSize, 12);
+        final longCard = _cardInk(titles.last);
+        final menu = find.descendant(
+          of: longCard,
+          matching: find.byType(PopupMenuButton<String>),
+        );
+        expect(
+          tester.getRect(menu).overlaps(tester.getRect(find.text(titles.last))),
+          isFalse,
+        );
+        final titleRect = tester.getRect(find.text(titles.last));
+        final cardRect = tester.getRect(longCard);
+        expect(titleRect.bottom, greaterThan(cardRect.center.dy));
+        expect(titleRect.bottom, lessThanOrEqualTo(cardRect.bottom - 8));
+        expect(tester.getRect(menu).left - titleRect.right, closeTo(0, 0.001));
+        await tester.tap(menu);
+        await tester.pumpAndSettle();
+        expect(find.text('Rename'), findsOneWidget);
+        expect(find.text('Duplicate'), findsOneWidget);
+        expect(find.text('Delete'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  testWidgets(
+    'preview is uniformly shaded without separate title or menu backgrounds',
+    (
+      tester,
+    ) async {
+      final boundaryKey = GlobalKey();
+      await _pump(
+        tester,
+        _Library(_state(groups: [_group('g', 'Saved')])),
+        size: const Size(320, 700),
+        home: RepaintBoundary(
+          key: boundaryKey,
+          child: Theme(
+            data: ThemeData(scaffoldBackgroundColor: Colors.cyan),
+            child: const BookmarkGroupBrowserPage(),
+          ),
+        ),
+      );
+      final card = _cardInk('Saved');
+      final cardRect = tester.getRect(card);
+      final titleRect = tester.getRect(find.text('Saved'));
+      final menuRect = tester.getRect(
+        find.descendant(
+          of: card,
+          matching: find.byType(PopupMenuButton<String>),
+        ),
+      );
+      final boundary =
+          boundaryKey.currentContext!.findRenderObject()!
+              as RenderRepaintBoundary;
+      final origin = tester.getTopLeft(find.byKey(boundaryKey));
+      await tester.runAsync(() async {
+        final image = await boundary.toImage();
+        try {
+          final bytes = (await image.toByteData())!;
+          List<int> pixel(Offset point) {
+            final local = point - origin;
+            final offset =
+                (local.dy.floor() * image.width + local.dx.floor()) * 4;
+            return [for (var i = 0; i < 4; i++) bytes.getUint8(offset + i)];
+          }
+
+          final lowerPreview = pixel(
+            cardRect.bottomCenter - const Offset(0, 12),
+          );
+          expect(lowerPreview[1], inExclusiveRange(0, 188));
+          expect(lowerPreview[2], inExclusiveRange(0, 212));
+          // The same gradient continues around the text and through the menu's
+          // empty touch-target padding, without a separate dark rectangle.
+          for (final (point, referenceX) in [
+            (titleRect.topLeft + const Offset(2, -4), cardRect.center.dx),
+            (menuRect.topRight + const Offset(-2, 20), cardRect.right - 2),
+          ]) {
+            final actual = pixel(point);
+            final backdrop = pixel(Offset(referenceX, point.dy));
+            // Allow the soft text shadow's small antialiasing contribution.
+            for (var channel = 0; channel < 4; channel++) {
+              expect(actual[channel], closeTo(backdrop[channel], 3));
+            }
+          }
+        } finally {
+          image.dispose();
+        }
+      });
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   test('case-insensitive ordering uses identity to break equal-name ties', () {
     final groups = bookmarkGroupsByName([
       _group('z', 'alpha'),
@@ -946,11 +1132,9 @@ bool _above(WidgetTester tester, String a, String b) {
 Finder _cardInk(String label) =>
     find.ancestor(of: find.text(label), matching: find.byType(InkWell)).first;
 Future<void> _menu(WidgetTester tester, String label) async {
-  final stack = find
-      .ancestor(of: find.text(label), matching: find.byType(Stack))
-      .first;
+  final card = _cardInk(label);
   await tester.tap(
-    find.descendant(of: stack, matching: find.byType(PopupMenuButton<String>)),
+    find.descendant(of: card, matching: find.byType(PopupMenuButton<String>)),
   );
   await tester.pumpAndSettle();
 }

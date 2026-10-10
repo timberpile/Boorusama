@@ -24,6 +24,7 @@ import 'dart:io';
 
 // Flutter imports:
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -136,6 +137,68 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     },
   );
+  for (final scale in [1.0, 2.0]) {
+    testWidgets(
+      'long group title fits above search with status inset at ${scale}x',
+      (tester) async {
+        await tester.binding.setSurfaceSize(const Size(320, 700));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        const title =
+            'A long bookmark group title that needs several wrapped lines';
+        const id = '550e8400-e29b-41d4-a716-446655440000';
+        final controller = _controller([]);
+        addTearDown(controller.dispose);
+        await tester.pumpWidget(
+          _BookmarkViewerHarness(
+            controller: controller,
+            bookmarkNotifier: _CacheBookmarkNotifier(
+              BookmarkLibraryState(
+                bookmarks: const [],
+                groups: [
+                  BookmarkGroup(id: id, name: title, bookmarkIds: const {}),
+                ],
+                activeTarget: const BookmarkTarget.ungrouped(),
+              ),
+            ),
+            home: MediaQuery(
+              data: MediaQueryData(
+                size: const Size(320, 700),
+                padding: const EdgeInsets.only(top: 24),
+                viewPadding: const EdgeInsets.only(top: 24),
+                textScaler: TextScaler.linear(scale),
+              ),
+              child: BookmarkPage(
+                view: BookmarkView.group(id),
+                title: title,
+              ),
+            ),
+          ),
+        );
+        for (var frame = 0; frame < 12; frame++) {
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+        final text = tester.widget<Text>(find.text(title));
+        final titleRect = tester.getRect(find.text(title));
+        final searchRect = tester.getRect(find.byType(BookmarkSearchBar));
+        expect(text.style!.fontSize, lessThan(22));
+        expect(text.textScaler!.scale(12), 12 * scale);
+        expect(titleRect.top, greaterThanOrEqualTo(24));
+        expect(titleRect.bottom, lessThanOrEqualTo(24 + kToolbarHeight));
+        expect(searchRect.top, 24 + kToolbarHeight);
+        expect(titleRect.overlaps(searchRect), isFalse);
+        expect(
+          tester
+              .renderObject<RenderSliver>(find.byType(SliverAppBar))
+              .geometry!
+              .maxPaintExtent,
+          kToolbarHeight,
+        );
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox());
+      },
+    );
+  }
+
   const compactGroupId = '550e8400-e29b-41d4-a716-446655440000';
   for (final view in [
     const BookmarkView.all(),

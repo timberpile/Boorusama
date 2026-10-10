@@ -179,7 +179,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         ),
       ),
       child: Scaffold(
-        appBar: AppBar(
+        appBar: KurumiAppBar(
           title: Text(context.t.settings.settings),
         ),
         body: SettingsPageNavigationScope(

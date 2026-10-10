@@ -40,7 +40,7 @@ class ExportFlowPage extends ConsumerWidget {
       ref.watch(exportSelectionPresentationProvider),
     );
     return Scaffold(
-      appBar: AppBar(
+      appBar: KurumiAppBar(
         title: Text(
           context.t.settings.backup_and_restore.export_import.create_export,
         ),

@@ -28,7 +28,7 @@ class _ExportDataPageState extends ConsumerState<ExportDataPage> {
         }
       },
       child: Scaffold(
-        appBar: AppBar(
+        appBar: KurumiAppBar(
           title: Text(
             context.t.settings.backup_and_restore.transfer_data,
           ),

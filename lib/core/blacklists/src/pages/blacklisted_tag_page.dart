@@ -105,7 +105,7 @@ class BlacklistedTagPage extends ConsumerWidget {
           },
           error: (error, stackTrace) {
             return Scaffold(
-              appBar: AppBar(
+              appBar: KurumiAppBar(
                 title: Text(context.t.blacklist.manage.title),
               ),
               body: Center(
@@ -117,9 +117,9 @@ class BlacklistedTagPage extends ConsumerWidget {
             );
           },
           loading: () {
-            return Scaffold(
-              appBar: AppBar(),
-              body: const Center(
+            return const Scaffold(
+              appBar: KurumiAppBar(),
+              body: Center(
                 child: CircularProgressIndicator(),
               ),
             );

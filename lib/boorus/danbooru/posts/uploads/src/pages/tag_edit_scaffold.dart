@@ -54,7 +54,7 @@ class _TagEditUploadScaffoldState extends ConsumerState<TagEditUploadScaffold> {
   Widget build(BuildContext context) {
     return Scaffold(
       resizeToAvoidBottomInset: false,
-      appBar: AppBar(
+      appBar: KurumiAppBar(
         leading: IconButton(
           onPressed: () => Navigator.of(context).pop(),
           icon: const Icon(Symbols.arrow_back),

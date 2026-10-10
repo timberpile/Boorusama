@@ -228,7 +228,7 @@ class _PixivLoginPageState extends ConsumerState<PixivLoginPage> {
     final controller = _controller;
 
     return Scaffold(
-      appBar: AppBar(
+      appBar: KurumiAppBar(
         title: Text(context.t.pixiv.auth.login_title),
       ),
       body: SafeArea(

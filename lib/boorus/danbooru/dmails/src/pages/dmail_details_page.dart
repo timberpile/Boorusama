@@ -34,7 +34,7 @@ class DanbooruDmailDetailsPage extends ConsumerWidget {
           data: (dmail) {
             if (dmail == null) {
               return Scaffold(
-                appBar: AppBar(),
+                appBar: const KurumiAppBar(),
                 body: Center(
                   child: Text(context.t.profile.messages.empty),
                 ),
@@ -49,7 +49,7 @@ class DanbooruDmailDetailsPage extends ConsumerWidget {
             final theme = Kurumi.themeOf(context);
 
             return Scaffold(
-              appBar: AppBar(
+              appBar: KurumiAppBar(
                 actions: [
                   // Mark as unread
                   IconButton(
@@ -133,14 +133,14 @@ class DanbooruDmailDetailsPage extends ConsumerWidget {
               ),
             );
           },
-          loading: () => Scaffold(
-            appBar: AppBar(),
-            body: const Center(
+          loading: () => const Scaffold(
+            appBar: KurumiAppBar(),
+            body: Center(
               child: CircularProgressIndicator(),
             ),
           ),
           error: (error, stackTrace) => Scaffold(
-            appBar: AppBar(),
+            appBar: const KurumiAppBar(),
             body: Center(
               child: Text(error.toString()),
             ),

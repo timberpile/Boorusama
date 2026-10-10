@@ -9,9 +9,9 @@ class UnimplementedPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(),
-      body: const Center(
+    return const Scaffold(
+      appBar: KurumiAppBar(),
+      body: Center(
         child: Text('Page not implemented yet'),
       ),
     );
@@ -48,7 +48,7 @@ class InvalidPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(),
+      appBar: const KurumiAppBar(),
       body: Center(
         child: Text(message),
       ),

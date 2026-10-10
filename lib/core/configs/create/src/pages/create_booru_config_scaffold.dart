@@ -87,7 +87,7 @@ class CreateBooruConfigScaffold extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: backgroundColor,
-      appBar: AppBar(
+      appBar: KurumiAppBar(
         titleSpacing: 0,
         title: SelectedBooruChip(
           booruType: editId.booruType,
@@ -375,26 +375,38 @@ class SelectedBooruChip extends StatelessWidget {
     final source = PostSource.from(url);
 
     return ListTile(
+      minTileHeight: 0,
       minVerticalPadding: 0,
       horizontalTitleGap: 12,
       contentPadding: EdgeInsets.zero,
       visualDensity: VisualDensity.compact,
       leading: ConfigAwareWebsiteLogo.fromBooruType(booruType, url),
-      title: Text(
-        source.whenWeb(
-          (source) => source.uri.host,
-          () => url,
+      title: ConstrainedBox(
+        constraints: const BoxConstraints(maxHeight: kToolbarHeight / 2),
+        child: KurumiFittedText(
+          Text(
+            source.whenWeb(
+              (source) => source.uri.host,
+              () => url,
+            ),
+            // Keep both the source title and subtitle inside the toolbar.
+            style: Kurumi.themeOf(
+              context,
+            ).textTheme.titleLarge?.copyWith(height: 1),
+          ),
         ),
-        style: Kurumi.themeOf(context).textTheme.titleLarge,
-        maxLines: 1,
-        softWrap: false,
-        overflow: TextOverflow.ellipsis,
       ),
       subtitle: Row(
         children: [
           Flexible(
-            child: Text(
-              context.t.booru.using_status(booru: booruType.displayName),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: kToolbarHeight / 2),
+              child: KurumiFittedText(
+                Text(
+                  context.t.booru.using_status(booru: booruType.displayName),
+                  style: const TextStyle(height: 1),
+                ),
+              ),
             ),
           ),
           ?version,

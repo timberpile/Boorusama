@@ -66,7 +66,7 @@ class _FavoriteGroupDetailsPageState
           builder: (context, controller) => PostGrid(
             controller: controller,
             sliverHeaders: [
-              SliverAppBar(
+              KurumiSliverAppBar(
                 centerTitle: false,
                 title: Text(widget.group.name.replaceAll('_', ' ')),
                 actions: [
@@ -197,7 +197,7 @@ class _FavoriteGroupEditPageState extends State<FavoriteGroupEditPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
+      appBar: KurumiAppBar(
         title: Text(context.t.generic.action.edit),
         actions: [
           IconButton(

@@ -69,6 +69,18 @@ application components and their spacing, typography, sizing, and behavior. Pref
 styling consistent within a popup rather than mixing Material and Kurumi items.
 Make deviations intentional and explain why they are needed.
 
+Use `KurumiAppBar` and `KurumiSliverAppBar` for application toolbars. They fit
+plain `Text` titles to the existing toolbar height and available width, retaining
+fewer lines unless wrapping increases the rendered font size by at least 50%.
+Each candidate fits the full title within its actual constraints, down to 12 sp;
+only titles that cannot fit at that floor use a multiline ellipsis. They
+preserve the original text scaler without restoring removed status-bar padding.
+For compound titles, put each text label in `KurumiFittedText` with bounded
+constraints (for example, inside `Flexible` in a `Row`); keep icons, buttons, and
+editable search fields as controls. The toolbar preference is inherited by these
+labels; outside toolbars (including bookmark cards), `KurumiFittedText` keeps
+maximizing the fitting wrapped font size. These components are exported by Kurumi.
+
 ## Tests
 
 - Focus on observable behavior rather than implementation details.

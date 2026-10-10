@@ -39,7 +39,7 @@ class SzurubooruPoolDetailPage extends ConsumerWidget {
     if (effectivePool == null) {
       return CustomScrollView(
         slivers: [
-          SliverAppBar(
+          KurumiSliverAppBar(
             title: Text(context.t.pool.pool),
             floating: true,
           ),
@@ -60,7 +60,7 @@ class SzurubooruPoolDetailPage extends ConsumerWidget {
     return _SzurubooruPoolPostList(
       pool: effectivePool,
       sliverHeaders: [
-        SliverAppBar(
+        KurumiSliverAppBar(
           title: Text(context.t.pool.pool),
           floating: true,
           actions: [

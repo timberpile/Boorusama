@@ -138,7 +138,7 @@ class _GifEditorPageState extends ConsumerState<GifEditorPage>
       final estimatedBytes = selected.estimatedBytes;
       final largeEstimate = estimatedBytes > 20 * 1000 * 1000;
       return Scaffold(
-        appBar: AppBar(
+        appBar: KurumiAppBar(
           title: Text(context.t.post.action.create_gif),
           actions: [
             if (editing)

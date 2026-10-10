@@ -111,7 +111,7 @@ class _DownloadManagerPageState extends ConsumerState<DownloadManagerPage> {
       child: Scaffold(
         appBar: DefaultSelectionAppBar(
           itemsCount: tasks.length,
-          appBar: AppBar(
+          appBar: KurumiAppBar(
             title: Text(
               context.t.download.downloads,
             ),

@@ -22,7 +22,7 @@ class ExportImportPage extends ConsumerWidget {
     final strings = context.t.settings.backup_and_restore.export_import;
     final clipboard = ref.watch(exportClipboardServiceProvider);
     return Scaffold(
-      appBar: AppBar(title: Text(strings.title)),
+      appBar: KurumiAppBar(title: Text(strings.title)),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(16),

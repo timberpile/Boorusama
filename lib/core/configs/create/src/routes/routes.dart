@@ -75,9 +75,9 @@ GoRoute updateBooruConfigRoutes(Ref ref) => GoRoute(
                 : colorScheme.surface,
             initialTab: q,
           ) ??
-          Scaffold(
-            appBar: AppBar(),
-            body: const Center(
+          const Scaffold(
+            appBar: KurumiAppBar(),
+            body: Center(
               child: Text(
                 'Not implemented, maybe forgot to add the builder implementation?',
               ),

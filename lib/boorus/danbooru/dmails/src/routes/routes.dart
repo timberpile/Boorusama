@@ -26,10 +26,10 @@ final danbooruDmailRoutes = GoRoute(
         final dmailId = DmailId.tryParseFromPathParams(state.pathParameters);
 
         if (dmailId == null) {
-          return MaterialPage(
+          return const MaterialPage(
             child: Scaffold(
-              appBar: AppBar(),
-              body: const Center(
+              appBar: KurumiAppBar(),
+              body: Center(
                 child: Text('Invalid dmail ID'),
               ),
             ),

@@ -14,7 +14,7 @@ class ExploreSliverAppBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SliverAppBar(
+    return KurumiSliverAppBar(
       title: Text(
         title,
         style: Kurumi.themeOf(

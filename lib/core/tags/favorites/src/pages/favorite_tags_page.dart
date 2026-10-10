@@ -35,7 +35,7 @@ class FavoriteTagsPage extends ConsumerWidget {
     final allTags = ref.watch(favoriteTagsProvider);
 
     return Scaffold(
-      appBar: AppBar(
+      appBar: KurumiAppBar(
         title: Text(context.t.favorite_tags.title),
         actions: [
           IconButton(

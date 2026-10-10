@@ -69,7 +69,7 @@ class _ShowTagListPageScaffoldState
         child: Scaffold(
           appBar: DefaultSelectionAppBar(
             itemsCount: ref.watch(showTagsProvider(params)).valueOrNull?.length,
-            appBar: AppBar(
+            appBar: KurumiAppBar(
               title: Text(context.t.tags.title),
               centerTitle: false,
               actions: [

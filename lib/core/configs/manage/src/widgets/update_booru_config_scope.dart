@@ -26,7 +26,7 @@ class UpdateBooruConfigScope extends ConsumerWidget {
 
     if (config == null) {
       return Scaffold(
-        appBar: AppBar(),
+        appBar: const KurumiAppBar(),
         body: Center(
           child: Text(context.t.generic.no_content),
         ),

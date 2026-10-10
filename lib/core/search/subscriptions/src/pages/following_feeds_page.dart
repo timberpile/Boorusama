@@ -61,7 +61,7 @@ class _FollowingFeedsPageState extends ConsumerState<FollowingFeedsPage> {
     final byProfileId = {for (final profile in profiles) profile.id: profile};
     final strings = context.t.pinned_searches;
     return Scaffold(
-      appBar: AppBar(
+      appBar: KurumiAppBar(
         title: Text(strings.following_feeds),
       ),
       body: ref
@@ -401,7 +401,7 @@ class _FollowingFeedPageState extends ConsumerState<FollowingFeedPage> {
       (s) => state?.refreshingIds.contains(s.id) ?? false,
     );
     return Scaffold(
-      appBar: AppBar(
+      appBar: KurumiAppBar(
         title: Text(feed?.name ?? strings.following_feeds),
         actions: [
           PopupMenuButton<String>(

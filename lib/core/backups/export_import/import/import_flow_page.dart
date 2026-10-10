@@ -46,7 +46,7 @@ class _ImportFlowPageState extends ConsumerState<ImportFlowPage> {
     final state = ref.watch(importFlowProvider);
     final strings = context.t.settings.backup_and_restore.export_import;
     return Scaffold(
-      appBar: AppBar(title: Text(strings.review_import)),
+      appBar: KurumiAppBar(title: Text(strings.review_import)),
       body: SafeArea(
         child: switch (state.status) {
           ImportFlowStatus.idle || ImportFlowStatus.checking => Center(

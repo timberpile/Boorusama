@@ -44,7 +44,7 @@ class DanbooruWikiPage extends ConsumerWidget {
     final colorScheme = theme.colorScheme;
 
     return Scaffold(
-      appBar: AppBar(
+      appBar: KurumiAppBar(
         actions: [
           if (wikiValue?.type case TagWiki(:final tag))
             IconButton(

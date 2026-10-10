@@ -31,7 +31,7 @@ class SettingsPageScaffold extends StatelessWidget {
     return ConditionalParentWidget(
       condition: hasAppBar,
       conditionalBuilder: (child) => Scaffold(
-        appBar: AppBar(
+        appBar: KurumiAppBar(
           title: title,
         ),
         body: child,

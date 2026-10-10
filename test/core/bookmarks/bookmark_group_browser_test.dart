@@ -53,6 +53,36 @@ void main() {
     expect(delegate.mainAxisSpacing, 2);
   });
 
+  testWidgets('preview cells fill the square card', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Center(
+          child: SizedBox(
+            width: 200,
+            height: 200,
+            child: BookmarkGroupPreviewGrid(
+              previews: [
+                for (var i = 0; i < 4; i++) Bookmark.empty.copyWith(id: i),
+              ],
+              itemBuilder: (_, bookmark) =>
+                  ColoredBox(key: ValueKey(bookmark.id), color: Colors.red),
+            ),
+          ),
+        ),
+      ),
+    );
+    final previewRect = tester.getRect(find.byType(BookmarkGroupPreviewGrid));
+    final first = tester.getRect(find.byKey(const ValueKey(0)));
+    final last = tester.getRect(find.byKey(const ValueKey(3)));
+    expect(first.topLeft, previewRect.topLeft + const Offset(2, 2));
+    expect(last.bottomRight, previewRect.bottomRight - const Offset(2, 2));
+    expect(first.size, last.size);
+    expect(first.height, first.width);
+    expect(tester.takeException(), isNull);
+  });
+
   test('still previews use samples while video previews use thumbnails', () {
     final still = Bookmark.empty.copyWith(
       originalUrl: 'https://example.com/image.jpg',

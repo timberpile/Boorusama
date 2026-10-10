@@ -13,7 +13,7 @@ class DanbooruExplorePage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
-      appBar: AppBar(
+      appBar: KurumiAppBar(
         title: Text(context.t.explore.explore),
       ),
       body: const DanbooruExplorePageInternal(),

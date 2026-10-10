@@ -30,7 +30,7 @@ class _FavoriteTagLabelsPageState extends ConsumerState<FavoriteTagLabelsPage> {
         .toList();
 
     return Scaffold(
-      appBar: AppBar(title: Text(context.t.favorite_tags.labels.title)),
+      appBar: KurumiAppBar(title: Text(context.t.favorite_tags.labels.title)),
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(

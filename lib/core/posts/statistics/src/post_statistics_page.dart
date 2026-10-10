@@ -27,7 +27,7 @@ class PostStatisticsPage extends StatelessWidget {
     final stats = generalStats();
 
     return Scaffold(
-      appBar: AppBar(
+      appBar: KurumiAppBar(
         title: Text(context.t.post.statistics.stats_for_nerds),
       ),
       body: SingleChildScrollView(
@@ -203,7 +203,7 @@ class _StatisticsFromMapPageState extends State<StatisticsFromMapPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
+      appBar: KurumiAppBar(
         automaticallyImplyLeading: false,
         title: Text(widget.title),
         actions: [
@@ -291,7 +291,7 @@ class StatisticalSummaryDetailsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
+      appBar: KurumiAppBar(
         automaticallyImplyLeading: false,
         title: Text(title),
       ),

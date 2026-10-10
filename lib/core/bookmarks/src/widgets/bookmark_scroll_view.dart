@@ -209,7 +209,7 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                   controller,
                 ),
             sliverHeaders: [
-              SliverAppBar(
+              KurumiSliverAppBar(
                 floating: true,
                 snap: true,
                 pinned: true,
@@ -218,6 +218,9 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                 backgroundColor: Kurumi.themeOf(context).colorScheme.surface,
                 title: BookmarkAppBar(
                   title: widget.title,
+                  // Restore only scaling; restoring the full MediaQuery here
+                  // reapplies the status inset inside the outer toolbar.
+                  textScaler: MediaQuery.textScalerOf(context),
                 ),
               ),
               SliverToBoxAdapter(

@@ -87,7 +87,7 @@ class _DanbooruForumPostsPageState
     );
 
     return Scaffold(
-      appBar: AppBar(
+      appBar: KurumiAppBar(
         title: Text(widget.topic.title),
       ),
       body: Column(

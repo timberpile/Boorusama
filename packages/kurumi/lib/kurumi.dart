@@ -103,3 +103,6 @@ export 'src/foundation/preferred_layout.dart' hide kurumiPreferredLayout;
 export 'src/foundation/platform.dart'
     hide kurumiIsMobilePlatform, kurumiIsDesktopPlatform;
 export 'src/foundation/screen.dart';
+
+export 'src/components/app_bar.dart';
+export 'src/components/fitted_text.dart' show KurumiFittedText;

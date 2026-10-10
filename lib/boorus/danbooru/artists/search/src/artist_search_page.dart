@@ -72,7 +72,7 @@ class _DanbooruArtistSearchPageState
       child: GestureDetector(
         onTap: () => focusScopeNode.unfocus(),
         child: Scaffold(
-          appBar: AppBar(
+          appBar: KurumiAppBar(
             title: Text(context.t.artists.title),
             actions: [
               TextButton(

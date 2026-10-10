@@ -23,14 +23,16 @@ class Shimmie2ExtensionsPage extends ConsumerWidget {
     final extensionsState = ref.watch(shimmie2ExtensionsProvider(config.url));
 
     return Scaffold(
-      appBar: AppBar(
+      appBar: KurumiAppBar(
         title: Row(
           mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Flexible(
-              child: Text(
-                context.t.shimmie2.extension.title,
+              child: KurumiFittedText(
+                Text(
+                  context.t.shimmie2.extension.title,
+                ),
               ),
             ),
             switch (extensionsState) {

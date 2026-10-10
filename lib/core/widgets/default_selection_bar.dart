@@ -53,7 +53,7 @@ class DefaultSelectionAppBar extends StatelessWidget
     return SelectionAppBarBuilder(
       builder: (context, controller, isSelectionMode) => !isSelectionMode
           ? appBar ??
-                AppBar(
+                KurumiAppBar(
                   title: Text(
                     context.t.settings.backup_and_restore.advanced_backup,
                   ),
@@ -91,15 +91,17 @@ class _SelectionAppBar extends StatelessWidget implements PreferredSizeWidget {
         ? controller.selection.length >= count
         : false;
 
-    return AppBar(
+    return KurumiAppBar(
       title: ListenableBuilder(
         listenable: controller,
         builder: (context, _) {
           final selectedCount = controller.selection.length;
-          return Text(
-            selectedCount <= 0
-                ? context.t.select.selected_items
-                : context.t.select.items_selected(n: selectedCount),
+          return KurumiFittedText(
+            Text(
+              selectedCount <= 0
+                  ? context.t.select.selected_items
+                  : context.t.select.items_selected(n: selectedCount),
+            ),
           );
         },
       ),

@@ -44,7 +44,7 @@ class _AnimePicturesHomePageState extends ConsumerState<AnimePicturesHomePage> {
           onTap: () => Navigator.of(context).push(
             CupertinoPageRoute(
               builder: (_) => Scaffold(
-                appBar: AppBar(
+                appBar: KurumiAppBar(
                   title: Text(context.t.explore.top),
                 ),
                 body: const CustomContextMenuOverlay(

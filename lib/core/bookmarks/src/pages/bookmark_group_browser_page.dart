@@ -1,6 +1,3 @@
-// Flutter imports:
-import 'package:flutter/material.dart';
-
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
@@ -83,7 +80,7 @@ class _BookmarkGroupBrowserPageState
   Widget build(BuildContext context) {
     final library = ref.watch(bookmarkProvider);
     return Scaffold(
-      appBar: AppBar(
+      appBar: KurumiAppBar(
         title: Text(
           _selecting
               ? context.t.folders.selected.replaceAll(
@@ -613,48 +610,52 @@ class _GroupCard extends StatelessWidget {
                 onTap: onTap,
                 onLongPress: onSelect,
                 child: Stack(
-                  fit: StackFit.expand,
                   children: [
-                    BookmarkGroupPreviewGrid(
-                      previews: previews,
-                      itemBuilder: (_, bookmark) =>
-                          _BookmarkGroupPreviewImage(bookmark: bookmark),
+                    Positioned.fill(
+                      child: BookmarkGroupPreviewGrid(
+                        previews: previews,
+                        itemBuilder: (_, bookmark) =>
+                            _BookmarkGroupPreviewImage(bookmark: bookmark),
+                      ),
                     ),
-                    const DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Color(0x99000000),
-                            Color(0x00000000),
-                            Color(0x66000000),
-                          ],
-                          stops: [0, 0.45, 1],
+                    const Positioned.fill(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [Color(0x99000000), Color(0x66000000)],
+                          ),
                         ),
                       ),
                     ),
                     Positioned(
-                      top: 12,
-                      left: 12,
-                      right: onRename == null ? 12 : 52,
-                      child: Text(
-                        title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: Kurumi.themeOf(context).textTheme.titleMedium
-                            ?.copyWith(
+                      top: 8,
+                      left: 8,
+                      right: onRename == null ? 8 : 52,
+                      // Reserve the bottom indicators only when present.
+                      bottom: selected || isFolder ? 40 : 8,
+                      child: DefaultTextStyle(
+                        style: Kurumi.themeOf(context).textTheme.titleMedium!
+                            .copyWith(
                               color: Colors.white,
                               fontWeight: FontWeight.bold,
                               shadows: const [Shadow(blurRadius: 4)],
                             ),
+                        child: KurumiFittedText(
+                          Text(title),
+                          alignment: AlignmentDirectional.topStart,
+                        ),
                       ),
                     ),
                     if (selected)
                       const Positioned(
                         bottom: 8,
                         right: 8,
-                        child: Icon(Icons.check_circle, color: Colors.white),
+                        child: Icon(
+                          Icons.check_circle,
+                          color: Colors.white,
+                        ),
                       ),
                     if (isFolder)
                       const Positioned(
@@ -667,6 +668,10 @@ class _GroupCard extends StatelessWidget {
                         top: 4,
                         right: 4,
                         child: PopupMenuButton<String>(
+                          icon: const Icon(
+                            Icons.more_vert,
+                            color: Colors.white,
+                          ),
                           onSelected: (action) => switch (action) {
                             'rename' => onRename?.call(),
                             'duplicate' => onDuplicate?.call(),

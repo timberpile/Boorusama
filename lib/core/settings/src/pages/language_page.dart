@@ -30,7 +30,7 @@ class LanguagePage extends ConsumerWidget {
     return ConditionalParentWidget(
       condition: !SettingsPageScope.of(context).options.dense,
       conditionalBuilder: (child) => Scaffold(
-        appBar: AppBar(
+        appBar: KurumiAppBar(
           title: Text(context.t.settings.language.language),
         ),
         body: child,

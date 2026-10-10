@@ -186,7 +186,7 @@ class _Boorus extends ConsumerWidget {
     final context = ref.context;
 
     return Scaffold(
-      appBar: AppBar(),
+      appBar: const KurumiAppBar(),
       body: Center(
         child: Column(
           children: [

@@ -25,12 +25,14 @@ class DanbooruVoterListPage extends ConsumerWidget {
     final userRepo = ref.watch(danbooruUserRepoProvider(config));
 
     return Scaffold(
-      appBar: AppBar(
+      appBar: KurumiAppBar(
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Flexible(
-              child: Text(context.t.post.votes.user_list.title),
+              child: KurumiFittedText(
+                Text(context.t.post.votes.user_list.title),
+              ),
             ),
             const SizedBox(width: 4),
             Tooltip(

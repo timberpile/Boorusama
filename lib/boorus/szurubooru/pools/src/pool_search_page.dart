@@ -37,7 +37,7 @@ class _SzurubooruPoolSearchPageState
     final mode = ref.watch(szurubooruPoolSearchModeProvider);
 
     return Scaffold(
-      appBar: AppBar(
+      appBar: KurumiAppBar(
         automaticallyImplyLeading: false,
         title: _SzurubooruPoolSearchBar(controller: textEditingController),
       ),

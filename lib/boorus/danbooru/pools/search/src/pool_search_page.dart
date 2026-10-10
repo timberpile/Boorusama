@@ -29,7 +29,7 @@ class _PoolSearchPageState extends ConsumerState<PoolSearchPage> {
     final mode = ref.watch(danbooruPoolSearchModeProvider);
 
     return Scaffold(
-      appBar: AppBar(
+      appBar: KurumiAppBar(
         automaticallyImplyLeading: false,
         title: PoolSearchBar(controller: textEditingController),
       ),

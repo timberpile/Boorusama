@@ -32,7 +32,7 @@ class DetailsConfigPage extends ConsumerWidget {
         convertDetailsParts(uiBuilder.preview.keys.toList());
 
     return Scaffold(
-      appBar: AppBar(
+      appBar: KurumiAppBar(
         title: Text(
           context.t.booru.appearance.image_viewer_layout.widget_title,
         ),

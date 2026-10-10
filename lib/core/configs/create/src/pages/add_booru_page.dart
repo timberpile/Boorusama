@@ -104,9 +104,9 @@ class _AddBooruPageState extends ConsumerState<AddBooruPage> {
               backgroundColor: widget.backgroundColor,
             ),
           )
-        : Scaffold(
-            appBar: AppBar(),
-            body: const Center(
+        : const Scaffold(
+            appBar: KurumiAppBar(),
+            body: Center(
               child: Text('Not implemented'),
             ),
           );

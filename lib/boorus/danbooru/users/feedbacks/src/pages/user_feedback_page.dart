@@ -65,7 +65,7 @@ class _UserFeedbackPageState extends ConsumerState<UserFeedbackPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
+      appBar: KurumiAppBar(
         title: Text(
           context.t.profile.feedback.user_feedbacks,
         ),

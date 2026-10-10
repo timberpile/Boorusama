@@ -45,7 +45,7 @@ class FavoritesPageScaffold extends ConsumerWidget {
         builder: (context, controller) => PostGrid(
           controller: controller,
           sliverHeaders: [
-            SliverAppBar(
+            KurumiSliverAppBar(
               title: Text(context.t.profile.favorites),
               floating: true,
               elevation: 0,

@@ -40,7 +40,7 @@ class FollowingFeedManagementPage extends ConsumerWidget {
         if (byId[id] case final SearchSubscription source) source,
     ], ref.watch(followingFeedMemberSortProvider));
     return Scaffold(
-      appBar: AppBar(
+      appBar: KurumiAppBar(
         title: Text(feed?.name ?? strings.following_feeds),
         actions: [
           if (feed != null)
