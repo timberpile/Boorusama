@@ -16,30 +16,72 @@ function art(n,alt='') {
 }
 const notes={
  A:{title:'Familiar, everywhere.',tag:'Smallest product change',desc:'A global sidebar replaces the home-bound menu. Same destinations, now reachable from nested screens.',win:'Keeps existing habits. No bottom bar competes with the image grid. Desktop users retain a full navigation list.',cost:'On a phone, switching destinations still takes two taps and the menu is less discoverable than visible tabs.',try:'Open Bookmarks → Collections → Scenery, then use the menu. Come back: the exact folder is retained.'},
- B:{title:'Tasks, not page stacks.',tag:'Recommended balance',desc:'Browse, Following, Bookmarks, More. Four stable destinations with independent histories and a rail on wider screens.',win:'Main tasks are visible and one tap away. Following contains two explicit tabs: Feeds and Pinned searches. Their data stays separate.',cost:'Moves pinned searches into Following and replaces the old bottom profile strip with one explicit switcher.',try:'Open a pinned search from Sketchbook. Return to Following, switch to Bookmarks, then return: every location stays put.'},
+ B:{title:'One place to follow.',tag:'Selected direction · fixed four tabs',desc:'Browse, Following, Bookmarks, More. Following is one unified collection after the separate unification change lands.',win:'A visible, fixed task bar that hides on downward feed scrolling; a complete site-tool drawer with direct profile switching at the top.',cost:'The bottom bar takes screen height when visible; some low-frequency tools still take two taps through More.',try:'Open Following → Sketchbook discoveries. Notice Browse stays on its own profile. Switch profile in the drawer, then use a site tool.'},
  C:{title:'Keep several worlds open.',tag:'Power-user alternative',desc:'Named workspaces keep a profile, search, and navigation history together. Switch sessions rather than repeatedly retracing a route.',win:'Useful for comparing sites or keeping several research threads open. Desktop tabs and a searchable mobile space picker share one model.',cost:'Users must understand what a space stores and when to open or close one. More state, lifecycle, and migration work.',try:'Search for clouds, open Spaces → Keep as a new space, change profile, then switch back to the original space.'}
 };
 const models={A:new Model('A'),B:new Model('B'),C:new Model('C')};
 let concept=new URLSearchParams(location.search).get('concept')||'B';if(!models[concept])concept='B';
 let m=models[concept], ui={modal:null,filter:'',onlyNew:false,owner:'all',sort:'Upload: newest',zoom:false,immersive:false,keyboard:false}, historyDepth=0;
-const scrollPositions=new Map(),viewPreferences=new Map();let currentScrollKey='',toastTimer,dialogReturn=null;
+const scrollPositions=new Map(),viewPreferences=new Map();let currentScrollKey='',toastTimer,dialogReturn=null,menuPendingNav=null;
 function viewKey(){return concept+':'+m.activeSpace+':'+m.key()+':'+JSON.stringify(m.route);}
 function preferences(){return {filter:ui.filter,onlyNew:ui.onlyNew,owner:ui.owner,sort:ui.sort};}
 const frame=$('#app'),screen=$('#screen'),modal=$('#modal');
-function scopeLabel(){return m.nav.section==='bookmarks'?'Local library · all sites':m.nav.section==='following'?'Saved locally · all profiles':m.profile()?m.profile().site+' · '+m.profile().name:'No profile selected';}
-function currentTitle(){const r=m.route;return r.page==='group'?m.groups.find(g=>g.id===r.group)?.name||(r.group==='none'?'No group':'All bookmarks'):r.page==='feed'?m.feeds.find(f=>f.id===r.id)?.name||'Feed':r.page==='search'?r.name||'Search results':r.page==='tool'?r.tool:r.page==='settings'?'Settings':r.page==='downloads'?'Downloads':r.page==='unavailable'?'Source unavailable':m.nav.section==='following'?(concept==='B'?'Following':r.page==='feeds'?'Feeds':'Pinned searches'):m.nav.section==='bookmarks'?'Bookmarks':m.nav.section==='more'?'More':'Browse';}
+function scopeLabel(){return m.nav.section==='bookmarks'?'Local library · all sites':m.nav.section==='following'?'Following · all source profiles':m.profile()?m.profile().site+' · '+m.profile().name:'No profile selected';}
+function currentTitle(){const r=m.route;return r.page==='following-stream'?m.followings.find(f=>f.id===r.id)?.name||'Following':r.page==='following'?(m.followingFolders.find(f=>f.id===r.folder)?.name||'Following'):r.page==='group'?m.groups.find(g=>g.id===r.group)?.name||(r.group==='none'?'No group':'All bookmarks'):r.page==='feed'?m.feeds.find(f=>f.id===r.id)?.name||'Feed':r.page==='search'?r.name||'Search results':r.page==='tool'?r.tool:r.page==='settings'?'Settings':r.page==='downloads'?'Downloads':r.page==='unavailable'?'Source unavailable':m.nav.section==='following'?(concept==='B'?'Following':r.page==='feeds'?'Feeds':'Pinned searches'):m.nav.section==='bookmarks'?'Bookmarks':m.nav.section==='more'?'More':'Browse';}
 function historySnapshot(){return {lab:true,depth:historyDepth,concept,nav:m.snapshot(),viewer:copy(m.viewer),modal:copy(ui.modal),selection:m.selection.slice()};}
 function routeHash(){return '#/'+m.nav.section+(m.route.page==='search'?'/search/'+encodeURIComponent(m.route.query||''):m.route.group?'/group/'+encodeURIComponent(m.route.group):m.route.folder?'/folder/'+encodeURIComponent(m.route.folder):m.route.page==='feeds'?'/feeds':'');}
 function record(replace=false){if(!replace)historyDepth++;try{history[replace?'replaceState':'pushState'](historySnapshot(),'',location.pathname+'?concept='+concept+routeHash());}catch(_){try{history[replace?'replaceState':'pushState'](historySnapshot(),'');}catch(_){/* Some embedded previews disable history entirely. */}}}
 function saveScroll(){const el=screen.querySelector('.scroll');if(el&&currentScrollKey){scrollPositions.set(currentScrollKey,el.scrollTop);viewPreferences.set(currentScrollKey,preferences());}}
-function transition(fn,replace=false){saveScroll();const previous=viewKey();try{fn();if(previous===viewKey())viewPreferences.set(viewKey(),preferences());render();record(replace);}catch(error){toast(error.message);}}
+function transition(fn,replace=false){saveScroll();const previous=viewKey();try{fn();if(ui.modal?.type!=='menu')menuPendingNav=null;if(previous===viewKey())viewPreferences.set(viewKey(),preferences());render();record(replace);}catch(error){toast(error.message);}}
 function toast(message){clearTimeout(toastTimer);$('#toast').textContent=message;$('#toast').classList.add('show');toastTimer=setTimeout(()=>$('#toast').classList.remove('show'),4200);}
 function leaveOverlay(){if(m.viewer)m.closeViewer();ui.modal=null;ui.immersive=false;ui.zoom=false;}
 function navigate(section,route=null){transition(()=>{leaveOverlay();m.switchSection(section);if(route)m.push(route);ui.filter='';},Boolean(ui.modal));}
 function navRow(i,label,action,extra='',active=false,badge=false){return `<button type="button" class="nav-row" data-action="${action}" ${extra} ${active?'aria-current="page"':''}>${icon(i)}<span>${esc(label)}</span>${badge?'<span class="dot" aria-label="New items"></span>':''}</button>`;}
-function menuContent(side=false){const p=m.profile(),anyNew=m.pins.some(p=>p.isNew)||m.feeds.some(f=>f.isNew);return `${!side?`<div class="utility-header"><span class="profile-dot">${esc(p?.initials||'+')}</span><div class="row-copy"><strong>${esc(p?p.site+' · '+p.name:'Add a profile')}</strong><small>Browsing profile, not a library filter</small></div>${button('right','Switch browsing profile','profiles')}</div>`:''}
-${side&&concept==='B'?navRow('grid','Browse','nav','data-section="browse"',m.nav.section==='browse')+navRow('feed','Following','nav','data-section="following"',m.nav.section==='following',anyNew)+navRow('bookmark','Bookmarks','nav','data-section="bookmarks"',m.nav.section==='bookmarks')+navRow('more','More','nav','data-section="more"',m.nav.section==='more'):`<div class="menu-group-title">Discover</div>${navRow('grid','Browse','nav','data-section="browse"',m.nav.section==='browse')}<div class="menu-group-title">Your library · all profiles</div>${navRow('pin','Pinned searches','pins-root','',m.nav.section==='following'&&m.route.page==='pins',m.pins.some(p=>p.isNew))}${navRow('feed','Feeds','feeds-root','',m.nav.section==='following'&&['feeds','feed'].includes(m.route.page),m.feeds.some(p=>p.isNew))}${navRow('bookmark','Bookmarks','nav','data-section="bookmarks"',m.nav.section==='bookmarks')}`}
-<div class="drawer-only"><div class="menu-group-title">${esc(p?.site||'Site')} tools</div>${navRow('compass','Explore','tool','data-tool="Explore"')}${navRow('layers','Pools','tool','data-tool="Pools"')}${navRow('heart','Server favorites','tool','data-tool="Server favorites"')}${navRow('more','All site tools','browse-tools')}</div><div class="sidebar-spacer"></div><div class="menu-group-title">App</div>${navRow('download','Downloads','downloads')}${navRow('settings','Settings','settings')}${concept==='C'?navRow('layers','Open spaces','spaces'):''}${!side?navRow('info','Prototype help','help'):''}`;}
-function bottomNav(){return `<nav class="bottom-nav" aria-label="Main navigation">${[['browse','grid','Browse'],['following','feed','Following'],['bookmarks','bookmark','Bookmarks'],['more','more','More']].map(([key,i,label])=>`<button type="button" data-action="nav" data-section="${key}" ${m.nav.section===key?'aria-current="page"':''}><span class="nav-icon">${icon(i)}${key==='following'&&(m.pins.some(p=>p.isNew)||m.feeds.some(f=>f.isNew))?'<span class="dot" aria-label="New items"></span>':''}</span><span>${label}</span></button>`).join('')}</nav>`;}
+function profileSwitcher(){
+  const p=m.profile();
+  return `<div class="sidebar-profile-bar"><div class="profile-bar-heading"><span>ACTIVE SITE PROFILE</span><span class="profile-bar-hint">Swipe to switch</span></div>
+  <div class="profile-scroll" role="group" aria-label="Browsing profiles">${m.profiles.map(profile=>`<button type="button" class="profile-pill" data-action="sidebar-profile" data-id="${esc(profile.id)}" aria-pressed="${profile.id===p?.id}" title="${esc(profile.site+' · '+profile.name+' · '+profile.host)}"><span class="profile-avatar">${esc(profile.initials)}</span><span class="profile-pill-name"><strong>${esc(profile.name)}</strong><small>${esc(profile.site)}</small></span></button>`).join('')}${button('plus','Add demo profile','setup-profile')}</div>
+  <p class="profile-scope-hint">Controls Browse and site tools. Following and Bookmarks stay global.</p></div>`;
+}
+function menuContent(side=false){
+  const p=m.profile(),anyNew=concept==='B'?m.followings.some(f=>f.isNew):m.pins.some(x=>x.isNew)||m.feeds.some(f=>f.isNew);
+  const main=concept==='B'?`${navRow('grid','Browse','nav','data-section="browse"',m.nav.section==='browse')}${navRow('feed','Following','nav','data-section="following"',m.nav.section==='following',anyNew)}${navRow('bookmark','Bookmarks','nav','data-section="bookmarks"',m.nav.section==='bookmarks')}${navRow('more','More','nav','data-section="more"',m.nav.section==='more')}`:
+    `<div class="menu-group-title">Discover</div>${navRow('grid','Browse','nav','data-section="browse"',m.nav.section==='browse')}<div class="menu-group-title">Your library · all profiles</div>${navRow('pin','Pinned searches','pins-root','',m.nav.section==='following'&&m.route.page==='pins',m.pins.some(x=>x.isNew))}${navRow('feed','Feeds','feeds-root','',m.nav.section==='following'&&['feeds','feed'].includes(m.route.page),m.feeds.some(x=>x.isNew))}${navRow('bookmark','Bookmarks','nav','data-section="bookmarks"',m.nav.section==='bookmarks')}`;
+  const siteActions=siteTools.map(([i,label,requiresLogin])=>navRow(i,label,'tool',`data-tool="${esc(label)}"`,m.route.page==='tool'&&m.route.tool===label)+(requiresLogin&&!p?.signedIn?'<span class="tool-state">Sign in required</span>':'')).join('');
+  return `${profileSwitcher()}<div class="nav-scroller"><div class="menu-group-title">Navigation</div>${main}<div class="menu-group-title">${esc(p?.site||'Site')} tools · ${esc(p?.name||'No profile')}</div>
+  ${siteActions}<div class="sidebar-spacer"></div><div class="menu-group-title">App</div>${navRow('download','Downloads','downloads')}${navRow('settings','Settings','settings')}${concept==='C'?navRow('layers','Open spaces','spaces'):''}${!side?navRow('info','Prototype help','help'):''}</div>`;
+}
+function bottomNav(){return `<nav class="bottom-nav" aria-label="Main navigation">${[['browse','grid','Browse'],['following','feed','Following'],['bookmarks','bookmark','Bookmarks'],['more','more','More']].map(([key,i,label])=>`<button type="button" data-action="nav" data-section="${key}" ${m.nav.section===key?'aria-current="page"':''}><span class="nav-icon">${icon(i)}${key==='following'&&((concept==='B'?m.followings.some(f=>f.isNew):m.pins.some(p=>p.isNew)||m.feeds.some(f=>f.isNew)))?'<span class="dot" aria-label="New items"></span>':''}</span><span>${label}</span></button>`).join('')}</nav>`;}
 function workspaceStrip(){return `<nav class="workspace-strip" aria-label="Open workspaces">${m.spaces.map(s=>`<button type="button" data-action="switch-space" data-id="${s.id}" ${s.id===m.activeSpace?'aria-current="page"':''}>${icon('layers')} ${esc(s.name)}</button>`).join('')}${button('plus','Create or find a space','spaces')}${button('search','Jump to a destination','jump')}</nav>`;}
 function selectionBar(){return `<div class="selection-bar" role="toolbar" aria-label="Selection actions">${[['move','Move','move'],['download','Download','download-selection'],['upload','Export','export-selection'],['trash','Remove','remove-selection']].map(([i,label,a])=>`<button type="button" data-action="${a}">${icon(i)}${label}</button>`).join('')}</div>`;}
+
+// B: animate the bar over the scroll viewport rather than rebuilding the grid.
+// Small oscillations do not change state, and navigation resets visibility.
+const barScroll={key:'',last:0,down:0,up:0,hidden:false};
+function setBarHidden(hidden){
+  barScroll.hidden=hidden;
+  const bar=screen.querySelector('.bottom-nav');
+  if(!bar)return;
+  bar.classList.toggle('nav-hidden',hidden);
+  bar.setAttribute('aria-hidden',hidden?'true':'false');
+  bar.inert=hidden;
+}
+function bindBarScroll(scroll){
+  if(concept!=='B'||!scroll)return;
+  if(barScroll.key!==viewKey()){
+    barScroll.key=viewKey();barScroll.hidden=false;barScroll.down=0;barScroll.up=0;
+  }
+  barScroll.last=scroll.scrollTop;
+  const applicable=Boolean(scroll.querySelector('.grid'));
+  setBarHidden(barScroll.hidden&&applicable&&!m.selection.length);
+  if(!applicable)return;
+  scroll.addEventListener('scroll',()=>{
+    if(m.selection.length||m.viewer||ui.modal)return;
+    const y=scroll.scrollTop,delta=y-barScroll.last;
+    barScroll.last=y;
+    if(y<12||scroll.scrollHeight<=scroll.clientHeight+24){barScroll.down=0;barScroll.up=0;setBarHidden(false);return;}
+    if(Math.abs(delta)<1)return;
+    if(delta>0){barScroll.down+=delta;barScroll.up=0;if(barScroll.down>22)setBarHidden(true);}
+    else {barScroll.up-=delta;barScroll.down=0;if(barScroll.up>12)setBarHidden(false);}
+  },{passive:true});
+}

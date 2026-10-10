@@ -3,7 +3,7 @@
 Three interactive alternatives using the same synthetic content:
 
 - **A — Familiar sidebar:** global drawer, existing destination hierarchy, no phone task bar.
-- **B — Task navigation:** Browse / Following / Bookmarks / More; adaptive rail/sidebar; separate Feeds and Pins histories.
+- **B — Task navigation:** Browse / Following / Bookmarks / More; fixed four-destination bottom bar that hides on downward feed scroll; unified Following topics, horizontal sidebar profile strip, full site-tool list.
 - **C — Workspaces:** independently retained named contexts, desktop tabs, mobile space picker, searchable Jump.
 
 [Design and recommendation](../../2026-10-09-navigation-concepts.md)
@@ -33,15 +33,15 @@ These initial hash routes are illustrative. They do not implement the applicatio
 
 Use the concept buttons outside the app to switch A/B/C. Each keeps independent demo data. Phone, Tablet and Desktop change the available preview width; on an actual narrow browser the preview still respects the window. Scenario controls jump to nested folders, selection, sign-in, offline, empty and unavailable-profile states. Large text, light theme and keyboard-height controls stress the layout without changing real system settings.
 
-Navigate by clicking inside the app. Long-press a post or use Page actions → Select items. Shift-click extends a range; long-press and drag demonstrates range selection. Browser Back/Forward is chronological; the app's Back button follows the current hierarchy. Dirty forms ask before discarding changes. Outside menu taps close the menu without opening a post underneath.
+Navigate by clicking inside the app. In B, swipe the horizontal profile row at the top of the drawer/sidebar to change browsing/site-tool context without a dialog; every engine tool is listed below it without Show more. The four bottom destinations are intentionally fixed. Scroll down through a post grid to hide the bar and up to reveal it; this does not resize the feed viewport. Long-press a post or use Page actions → Select items. Shift-click extends a range; long-press and drag demonstrates range selection. Browser Back/Forward is chronological; the app's Back button follows the current hierarchy. Dirty forms ask before discarding changes. Outside menu taps close the menu without opening a post underneath.
 
 Try these journeys:
 
 1. Open Bookmarks → Collections → Scenery, leave through global navigation, and return. Compare the number of actions in A and B.
-2. Open Following/Pinned searches → Sketchbook discoveries. Check the owner, use Back, then navigate World building → Atmospheres. Switch to Feeds and back to see separate nested histories.
+2. In **B**, open Following → Sketchbook discoveries (Gelbooru source) without changing the active Browse profile. Go back, navigate World building → Atmospheres and leave/return to test retained folder history. There are no Pins/Feeds tabs in B. A/C intentionally retain the older two-view concept for comparison.
 3. Open a saved post, toggle Bookmark, inspect Details and close it, then close the viewer. The underlying bookmark mutation should wait until the viewer closes.
 4. In C, open Spaces, switch among the seeded contexts, keep one as a new space, change profile and return to the original space.
-5. Create a pin in the nested folder tree, move selected bookmarks to a real group, edit a feed's independent source queries, and pause/resume a simulated download.
+5. In B, create a Following topic inside a nested folder, edit its source profiles/queries, change the browsing profile from the **horizontal strip at the top of the sidebar**, then open Explore or server favorites directly from the full tools list. Move selected bookmarks to a real group and pause/resume a simulated download.
 
 Shortcuts: `/` opens search; Escape closes a transient surface or exits selection; left/right changes viewer posts. A/B use 1–4 for main destinations. C uses 1–6 for open spaces and Ctrl/Cmd+K for Jump. Shortcuts do not intercept text entry.
 
@@ -51,13 +51,13 @@ This is a navigation reference, **not Flutter implementation code**. The review 
 
 All content and operations use synthetic memory-only fixtures. There are no network requests, persisted credentials or real file operations. Reset restores the current concept; a page reload resets all concepts. SVG illustrations are generated locally. Times, counts, media badges and progress are illustrative.
 
-The working interactions cover destination/profile state, folder traversal, search, filters, selected items, group/pin creation and movement, pin ownership, feed editing, viewer state, modal/dirty-form handling, spaces and simulated downloads/preferences. Detailed native media playback, real pagination, account APIs, full engine pages, .bsexport generation, native file pickers, share sheets and backup transactions are explicitly bounded. The post Move demo replaces membership with one group; it is not the complete production multi-group editor. Pin-folder creation and navigation are demonstrated, not a replacement for all production folder CRUD.
+Concept B assumes the separate Following-unification work item is merged first. It uses its own synthetic unified records; it does **not** implement the real data migration. The working interactions cover destination/profile state, folder traversal, search, filters, selected items, group/Following creation and movement, source ownership, topic source editing (A/C still demonstrate legacy pins/feeds), viewer state, modal/dirty-form handling, spaces and simulated downloads/preferences. Detailed native media playback, real pagination, account APIs, full engine pages, .bsexport generation, native file pickers, share sheets and backup transactions are explicitly bounded. The post Move demo replaces membership with one group; it is not the complete production multi-group editor. Pin-folder creation and navigation are demonstrated, not a replacement for all production folder CRUD.
 
 There is no claim of native gesture compatibility, process-death restoration, screen-reader conformance or production performance. The simulated keyboard is a height stress test, not an input method.
 
 ## Files
 
-`model.js` contains synthetic data and navigation/state logic. `app.js` holds shared helpers and session context; `views.js` renders screens, `dialogs.js` renders transient surfaces, and `actions.js` binds interactions. These classic scripts share lexical scope and load in the explicit deferred order in the entry point. `styles.css` contains the responsive app and review workbench. `index.html` is the entry point. `tests/` contains isolated model and browser acceptance checks.
+`model.js` contains synthetic data and navigation/state logic. `app.js` holds shared helpers and session context; `views.js` renders shared screens, `following.js` handles B’s unified Following views and forms, `dialogs.js` renders transient surfaces, and `actions.js` binds interactions. These classic scripts share lexical scope and load in the explicit deferred order in the entry point. `styles.css` contains the responsive app and review workbench. `index.html` is the entry point. `tests/` contains isolated model and browser acceptance checks.
 
 ## Checks
 
@@ -77,6 +77,6 @@ python3 docs/designs/mockups/navigation/tests/browser_smoke.py --browser /usr/bi
 python3 docs/designs/mockups/navigation/tests/browser_smoke.py --screenshots /tmp/navigation-review
 ```
 
-The browser test deliberately inlines the exact local files with `set_content`, avoiding external navigation and network access. It checks 13 browser journeys and 24 concept/size/text combinations; it does not test local-server configuration or Flutter.
+The browser test deliberately inlines the exact local files with `set_content`, avoiding external navigation and network access. It checks 16 browser journeys and 24 concept/size/text combinations; it does not test local-server configuration or Flutter.
 
-The recorded isolated run passed 16 model tests and the browser suite with no JavaScript page errors or network requests. The project's mandatory full application/package/CLI/tooling verification **could not run**: a full checkout and pinned FVM/Flutter SDK were unavailable in the execution environment. See the design document for the remaining acceptance work. Do not treat these HTML tests as a substitute.
+The recorded isolated run passed 20 model tests and the browser suite with no JavaScript page errors or network requests. The project's mandatory full application/package/CLI/tooling verification **could not run**: a full checkout and pinned FVM/Flutter SDK were unavailable in the execution environment. See the design document for the remaining acceptance work. Do not treat these HTML tests as a substitute.

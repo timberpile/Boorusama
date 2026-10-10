@@ -31,6 +31,17 @@
         {id:'f1',name:'Quiet worlds',isNew:true,art:0,sources:[{name:'Open skies',query:'clouds scenery',profile:'personal'},{name:'Drawn places',query:'original scenery',profile:'gel'}]},
         {id:'f2',name:'Late-night inspiration',isNew:false,art:3,sources:[{name:'Night scenes',query:'night cityscape',profile:'personal'}]}
       ],
+      /* B presents one unified Following model. Each topic owns 1..n profile-bound sources;
+         folders organize topics, never raw posts. A/C retain legacy fixtures for comparison. */
+      followings:[
+        {id:'u1',name:'Quiet worlds',folder:null,isNew:true,art:0,sources:[{name:'Open skies',query:'clouds scenery',profile:'personal'},{name:'Drawn places',query:'original scenery',profile:'gel'}]},
+        {id:'u2',name:'Late-night inspiration',folder:null,isNew:false,art:3,sources:[{name:'Night scenes',query:'night cityscape',profile:'personal'}]},
+        {id:'u3',name:'Quiet landscapes',folder:'atmospheres',isNew:true,art:0,sources:[{name:'Landscape studies',query:'scenery clouds',profile:'personal'}]},
+        {id:'u4',name:'City after dark',folder:'worlds',isNew:false,art:2,sources:[{name:'After dark',query:'cityscape night',profile:'personal'}]},
+        {id:'u5',name:'Sketchbook discoveries',folder:null,isNew:true,art:4,sources:[{name:'From Sketchbook',query:'original scenery',profile:'gel'}]},
+        {id:'u6',name:'Cloud studies',folder:null,isNew:false,art:5,sources:[{name:'Open skies',query:'clouds sky',profile:'guest'}]}
+      ],
+      followingFolders:[{id:'worlds',name:'World building',parent:null},{id:'artists',name:'Artists',parent:null},{id:'atmospheres',name:'Atmospheres',parent:'worlds'}],
       downloads:[{id:'d1',name:'Quiet worlds · 8 images',status:'Downloading',progress:63},{id:'d2',name:'Blue hour.jpg',status:'Complete',progress:100}]
     };
   }
@@ -38,7 +49,7 @@
     constructor(concept='B') {
       this.concept = ['A','B','C'].includes(concept)?concept:'B';
       this.profiles=copy(PROFILES); Object.assign(this,fixtures());
-      this.nav={section:'browse',profile:'personal',followingView:'pins',branches:{}};
+      this.nav={section:'browse',profile:'personal',branches:{}};if(this.concept!=='B')this.nav.followingView='pins';
       this.selection=[]; this.anchor=null; this.offline=false; this.empty=false;
       this.viewer=null; this.pending={}; this.defaultGroup='inspiration'; this.start='browse';
       this.nextId=1; this.spaces=[]; this.activeSpace='s1';
@@ -51,9 +62,9 @@
       }
     }
     profile(id=this.nav.profile) { return this.profiles.find(p=>p.id===id)||null; }
-    key(section=this.nav.section) { return section==='browse'?'browse:'+this.nav.profile:section==='following'?'following:'+(this.nav.followingView||'pins'):section; }
+    key(section=this.nav.section) { return section==='browse'?'browse:'+this.nav.profile:section==='following'?(this.concept==='B'?'following':'following:'+(this.nav.followingView||'pins')):section; }
     root(section) {
-      return section==='browse'?{page:'browse'}:section==='following'?{page:this.nav.followingView||'pins',folder:null}:section==='bookmarks'?{page:'groups',folder:null}:{page:'more'};
+      return section==='browse'?{page:'browse'}:section==='following'?{page:this.concept==='B'?'following':this.nav.followingView||'pins',folder:null}:section==='bookmarks'?{page:'groups',folder:null}:{page:'more'};
     }
     ensure() { const k=this.key(); if(!this.nav.branches[k]) this.nav.branches[k]=[this.root(this.nav.section)]; return this.nav.branches[k]; }
     get route() { return this.ensure().at(-1); }
@@ -65,8 +76,8 @@
       this.clearSelection(); this.nav.section=section; this.ensure();
     }
     push(route) { this.clearSelection(); this.ensure().push(copy(route)); }
-    switchFollowing(page) { if(!['pins','feeds'].includes(page))throw new Error('Unknown Following view');this.nav.followingView=page;this.switchSection('following'); }
-    resetSection(section,route) { if(section==='following'&&['pins','feeds'].includes(route?.page))this.nav.followingView=route.page;this.switchSection(section); this.nav.branches[this.key()]=[copy(route||this.root(section))]; }
+    switchFollowing(page) { if(this.concept==='B')throw new Error('Following is one unified view'); if(!['pins','feeds'].includes(page))throw new Error('Unknown Following view');this.nav.followingView=page;this.switchSection('following'); }
+    resetSection(section,route) { if(this.concept!=='B'&&section==='following'&&['pins','feeds'].includes(route?.page))this.nav.followingView=route.page;this.switchSection(section); this.nav.branches[this.key()]=[copy(route||this.root(section))]; }
     switchProfile(id) {
       if(!this.profile(id)) throw new Error('Profile no longer exists');
       this.clearSelection(); this.nav.profile=id; this.ensure();
@@ -89,10 +100,43 @@
       this.switchProfile(pin.profile); this.switchSection('browse');
       this.push({page:'search',query:pin.query,name:pin.name,returnTo:origin==='browse'?null:origin});
     }
+    openFollowing(id) {
+      if(this.concept!=='B')throw new Error('Unified Following belongs to concept B');
+      const item=this.followings.find(f=>f.id===id);
+      if(!item)throw new Error('Following topic no longer exists');
+      /* Sources keep their own owner profiles. Opening a mixed-profile topic
+         must NEVER overwrite the active Browse profile. */
+      item.isNew=false;this.switchSection('following');this.push({page:'following-stream',id});
+    }
+    addFollowing(name,query,profile,folder=null) {
+      name=name.trim();query=query.trim();
+      if(!query)throw new Error('Enter a search query');
+      if(!this.profile(profile))throw new Error('Choose an existing source profile');
+      if(folder&&!this.followingFolders.some(f=>f.id===folder))throw new Error('Choose an existing folder');
+      const id='follow-'+this.nextId++;
+      this.followings.push({id,name:name||query,folder,isNew:false,art:2,sources:[{name:name||query,query,profile}]});this.empty=false;return id;
+    }
+    followingDescendants(id,seen=new Set()) {
+      if(seen.has(id))return [];seen.add(id);
+      return [...this.followings.filter(f=>f.folder===id),...this.followingFolders.filter(f=>f.parent===id).flatMap(f=>this.followingDescendants(f.id,seen))];
+    }
     visiblePosts() {
       if(this.empty) return [];
       const r=this.route;
       if(this.nav.section==='bookmarks') return this.posts.filter(p=>p.bookmarked && (r.group==='all'||!r.group||r.group==='none'&&!p.groups.length||p.groups.includes(r.group)));
+      if(r.page==='following-stream') {
+        const f=this.followings.find(f=>f.id===r.id);
+        /* Demo matching is approximate, but source ownership is strict. */
+        const sources=(f?.sources||[]).filter(s=>this.profile(s.profile));
+        return this.posts.flatMap(p=>{
+          const owner=sources.find(s=>{
+            if(this.profile(s.profile)?.site!==p.site)return false;
+            const query=s.query.toLowerCase().split(/\s+/).filter(Boolean);
+            return !query.length||query.some(word=>p.tags.includes(word)||p.title.toLowerCase().includes(word));
+          });
+          return owner?[{...p,sourceProfile:owner.profile}]:[];
+        });
+      }
       if(r.page==='feed') {const f=this.feeds.find(f=>f.id===r.id); const sites=new Set((f?.sources||[]).map(s=>this.profile(s.profile)?.site)); return this.posts.filter(p=>sites.has(p.site));}
       const site=this.profile()?.site;
       let result=this.posts.filter(p=>p.site===site);
@@ -106,8 +150,8 @@
       } else {this.selection=this.selection.includes(id)?this.selection.filter(k=>k!==id):[...this.selection,id]; this.anchor=id;}
     }
     clearSelection() {this.selection=[]; this.anchor=null;}
-    openViewer(key,keys) {this.viewer={keys:keys.slice(),index:keys.indexOf(key)};this.pending={};}
-    get viewedPost() {return this.viewer?this.posts.find(p=>p.key===this.viewer.keys[this.viewer.index]):null;}
+    openViewer(key,keys) {const candidates=this.visiblePosts();this.viewer={keys:keys.slice(),index:keys.indexOf(key),sourceProfiles:keys.map(k=>candidates.find(p=>p.key===k)?.sourceProfile||this.posts.find(p=>p.key===k)?.profile)};this.pending={};}
+    get viewedPost() {if(!this.viewer)return null;const post=this.posts.find(p=>p.key===this.viewer.keys[this.viewer.index]);return post?{...post,sourceProfile:this.viewer.sourceProfiles?.[this.viewer.index]||post.profile}:null;}
     isMarked(post) {return Object.prototype.hasOwnProperty.call(this.pending,post.key)?this.pending[post.key]:post.bookmarked;}
     toggleViewedBookmark() {const p=this.viewedPost;if(p) this.pending[p.key]=!this.isMarked(p);}
     closeViewer() {
