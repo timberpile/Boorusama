@@ -1,0 +1,120 @@
+{
+  "base_commit": "f4972eb54119fce98360c4c2303bbce375b8e722",
+  "edits": {
+    "packages/cache_manager/pubspec.yaml": [
+      {"kind": "replace", "old": "dependencies:\n  path:", "new": "dependencies:\n  foundation:\n    path: ../foundation\n  path:"}
+    ],
+    "packages/cache_manager/lib/src/image_cache_manager.dart": [
+      {"kind": "import", "library": "package:foundation/performance.dart"},
+      {"kind": "replace", "old": "  Future<T> _run<T>(Future<T> Function() operation) {\n    final result = _tail.then((_) async {\n      await _initialize();", "new": "  Future<T> _run<T>(Future<T> Function() operation) {\n    final queueSpan = performanceRecorder.begin(\n      PerfOperation.cacheQueueWait, PerfSpanKind.asyncWall,\n    );\n    final result = _tail.then((_) async {\n      queueSpan.finish();\n      await _initialize();"},
+      {"kind": "replace", "old": "    final victims = _generations.values.where((g) => g.pins == 0).toList()\n      ..sort((a, b) => a.entry.use.compareTo(b.entry.use));\n    for (final victim in victims) {\n      if (_occupied <= _maxBytes && !victim.retired) continue;\n      await _retire(victim);\n    }", "new": "    var scanSpan = performanceRecorder.begin(\n      PerfOperation.cacheEvictionScan, PerfSpanKind.sync,\n      items: _generations.length,\n    );\n    try {\n      final victims = _generations.values.where((g) => g.pins == 0).toList()\n        ..sort((a, b) => a.entry.use.compareTo(b.entry.use));\n      for (final victim in victims) {\n        if (_occupied <= _maxBytes && !victim.retired) continue;\n        // Do not label asynchronous file work as synchronous CPU work.\n        scanSpan.finish();\n        await _retire(victim);\n        scanSpan = performanceRecorder.begin(\n          PerfOperation.cacheEvictionScan, PerfSpanKind.sync,\n          items: _generations.length,\n        );\n      }\n    } catch (_) {\n      scanSpan.finish(failed: true);\n      rethrow;\n    } finally {\n      scanSpan.finish();\n    }"},
+      {"kind": "body", "anchor": "  Future<void> _initialize() async {", "operation": "cacheInitialize", "span_kind": "asyncWall"},
+      {"kind": "body", "anchor": "  Future<Uint8List?> getCachedFileBytes(String key, {Duration? maxAge}) async {", "operation": "cacheRead", "span_kind": "asyncWall"},
+      {"kind": "body", "anchor": "  Future<void> _trim() async {", "operation": "cacheTrim", "span_kind": "asyncWall", "items": "_generations.length"}
+    ],
+    "packages/cache_manager/lib/src/image_cache_index.dart": [
+      {"kind": "import", "library": "package:foundation/performance.dart"},
+      {"kind": "expression", "target": "      jsonEncode({\n        'version': 1,", "after": "  Future<void> checkpoint()", "prefix": "performanceRecorder.measureSync(PerfOperation.cacheIndexEncode, () => ", "suffix": ", items: entries.length)", "expression_offset": 6},
+      {"kind": "body", "anchor": "  Future<void> checkpoint() async {", "operation": "cacheCheckpoint", "span_kind": "asyncWall", "items": "entries.length"}
+    ],
+    "lib/core/bookmarks/src/data/bookmark_convert.dart": [
+      {"kind": "import", "library": "package:foundation/performance.dart"},
+      {"kind": "replace", "old": "  () => hiveObjects\n      .where((row) => row.snapshotSchemaVersion == 2)\n      .map((row) => _mapBookmark(row, postDataCodec))\n      .toList(),", "new": "  () => performanceRecorder.measureSync(\n    PerfOperation.bookmarkDecodeAll,\n    () => hiveObjects\n        .where((row) => row.snapshotSchemaVersion == 2)\n        .map((row) => _mapBookmark(row, postDataCodec))\n        .toList(),\n  ),"}
+    ],
+    "lib/core/bookmarks/src/providers/bookmark_group_selectors.dart": [
+      {"kind": "import", "library": "package:foundation/performance.dart"},
+      {"kind": "body", "anchor": "List<Bookmark> selectBookmarks({\n  required BookmarkLibraryState state,\n  required BookmarkView view,\n  required List<String> selectedTags,\n  required BookmarkSortType sortType,\n  String? selectedBooruUrl,\n  BookmarkShuffleState? shuffleState,\n}) {", "operation": "bookmarkSelect", "span_kind": "sync", "items": "state.items.length"}
+    ],
+    "lib/core/bookmarks/src/services/bookmark_library_service.dart": [
+      {"kind": "import", "library": "package:foundation/performance.dart"},
+      {"kind": "body", "anchor": "  Future<BookmarkLibraryState> load(BookmarkTarget activeTarget) async {", "operation": "bookmarkLibraryLoad", "span_kind": "asyncWall"}
+    ],
+    "lib/core/posts/listing/src/widgets/post_grid_controller.dart": [
+      {"kind": "import", "library": "package:foundation/performance.dart"},
+      {"kind": "body", "anchor": "List<T> _filterPosts<T extends Post>(\n  List<T> items,\n  Map<String, Set<int>> tagCounts,\n  Map<String, bool> activeFilters,\n  Set<String> blacklistedUrls,\n) {", "operation": "gridFilter", "span_kind": "sync", "items": "items.length"},
+      {"kind": "replace", "old": "  final payload = posts\n      .map((post) => (filterData: post.extractTagFilterData(), id: post.id))\n      .toList();", "new": "  final payload = performanceRecorder.measureSync(\n    PerfOperation.gridCountPayload,\n    () => posts\n        .map((post) => (filterData: post.extractTagFilterData(), id: post.id))\n        .toList(),\n  );"}
+    ],
+    "lib/core/search/subscriptions/src/data/hive/search_subscription_repository_hive.dart": [
+      {"kind": "import", "library": "package:foundation/performance.dart"},
+      {"kind": "body", "anchor": "  List<SearchFollowingFeed> _feeds() {", "operation": "feedRepositoryRead", "span_kind": "sync"}
+    ],
+    "lib/core/posts/details/src/widgets/post_details_image_preloader.dart": [
+      {"kind": "import", "library": "package:foundation/performance.dart"},
+      {"kind": "replace", "old": "    final resolved = <int, _ResolvedPreloadPost>{};\n    for (var index = 0; index < widget.posts.length; index++) {\n      if (_resolve(widget.posts[index]) case final value?) {\n        resolved[index] = value;\n      }\n    }", "new": "    final resolved = performanceRecorder.measureSync(\n      PerfOperation.mixedPreloadResolve,\n      () {\n        final resolved = <int, _ResolvedPreloadPost>{};\n        for (var index = 0; index < widget.posts.length; index++) {\n          if (_resolve(widget.posts[index]) case final value?) {\n            resolved[index] = value;\n          }\n        }\n        return resolved;\n      },\n      items: widget.posts.length,\n    );"}
+    ],
+    "lib/core/backups/sources/json_source.dart": [
+      {"kind": "import", "library": "package:foundation/performance.dart"},
+      {"kind": "expression", "target": "    return converter.encode(", "expression_offset": 11, "after": "  Future<String> encodeForExport(", "prefix": "performanceRecorder.measureSync(PerfOperation.exportEncode, () => ", "suffix": ")"}
+    ],
+    "lib/core/backups/export_import/package/export_package_writer.dart": [
+      {"kind": "import", "library": "package:foundation/performance.dart"},
+      {"kind": "body", "anchor": "  Future<String> write(ExportPackageBuild build, String requestedPath) async {", "operation": "exportPackage", "span_kind": "asyncWall", "items": "build.sources.length"}
+    ],
+    "lib/core/app.dart": [
+      {"kind": "import", "library": "../foundation/performance/performance_diagnostics.dart"},
+      {"kind": "expression", "target": "    return const OKToast(", "expression_offset": 17, "prefix": "PerformanceDiagnosticsScope(child: ", "suffix": ")"}
+    ],
+    "lib/core/router.dart": [
+      {"kind": "import", "library": "../foundation/performance/performance_navigation.dart"},
+      {"kind": "replace", "old": "    observers: [\n      AnalyticsObserver(() => ref),", "new": "    observers: [\n      PerformanceNavigationObserver(),\n      AnalyticsObserver(() => ref),"}
+    ],
+    "lib/core/settings/src/pages/bookmark_maintenance_page.dart": [
+      {"kind": "import", "library": "performance_diagnostics_page.dart"},
+      {"kind": "replace", "old": "    children: [\n      ListTile(\n        title: Text(context.t.bookmark.maintenance.title),", "new": "    children: [\n      ListTile(\n        title: Text(context.t.performance_diagnostics.title),\n        trailing: const Icon(Icons.chevron_right),\n        onTap: () => Navigator.of(context).push(\n          MaterialPageRoute<void>(\n            builder: (_) => const PerformanceDiagnosticsPage(),\n          ),\n        ),\n      ),\n      ListTile(\n        title: Text(context.t.bookmark.maintenance.title),"}
+    ],
+    "lib/core/posts/listing/src/widgets/post_grid.dart": [
+      {"kind": "import", "library": "package:foundation/performance.dart"},
+      {"kind": "import", "library": "../../../../../foundation/performance/performance_navigation.dart"},
+      {"kind": "expression", "target": "    return _InheritedAutoScrollController(", "prefix": "PerformanceScreenScope(screen: PerfScreen.searchGrid, priority: 0, child: ", "suffix": ")", "expression_offset": 11}
+    ],
+    "lib/core/bookmarks/src/pages/bookmark_page.dart": [
+      {"kind": "import", "library": "package:foundation/performance.dart"},
+      {"kind": "import", "library": "../../../../foundation/performance/performance_navigation.dart"},
+      {"kind": "expression", "target": "    return CustomContextMenuOverlay(", "prefix": "PerformanceScreenScope(screen: PerfScreen.bookmarks, priority: 2, child: ", "suffix": ")", "expression_offset": 11}
+    ],
+    "lib/core/bookmarks/src/pages/bookmark_group_browser_page.dart": [
+      {"kind": "import", "library": "package:foundation/performance.dart"},
+      {"kind": "import", "library": "../../../../foundation/performance/performance_navigation.dart"},
+      {"kind": "expression", "target": "    return Scaffold(", "prefix": "PerformanceScreenScope(screen: PerfScreen.bookmarkGroups, priority: 2, child: ", "suffix": ")", "expression_offset": 11}
+    ],
+    "lib/core/search/subscriptions/src/pages/following_feeds_page.dart": [
+      {"kind": "import", "library": "package:foundation/performance.dart"},
+      {"kind": "import", "library": "../../../../../foundation/performance/performance_navigation.dart"},
+      {"kind": "expression", "target": "    return Scaffold(", "after": "class _FollowingFeedsPageState", "prefix": "PerformanceScreenScope(screen: PerfScreen.followingFeeds, priority: 2, child: ", "suffix": ")", "expression_offset": 11},
+      {"kind": "expression", "target": "    return Scaffold(", "after": "class _FollowingFeedPageState", "prefix": "PerformanceScreenScope(screen: PerfScreen.followingFeed, priority: 2, child: ", "suffix": ")", "expression_offset": 11}
+    ],
+    "lib/core/posts/details/src/widgets/mixed_post_details_page.dart": [
+      {"kind": "import", "library": "package:foundation/performance.dart"},
+      {"kind": "import", "library": "../../../../../foundation/performance/performance_navigation.dart"},
+      {"kind": "expression", "target": "Widget build(BuildContext context) => PostDetailsScope<Post>(", "prefix": "PerformanceScreenScope(screen: PerfScreen.postViewer, priority: 2, child: ", "suffix": ")", "expression_offset": 38}
+    ],
+    "packages/i18n/translations/en-US.json": [
+      {"kind": "locale", "data": {
+        "title": "Performance diagnostics",
+        "description": "Record for up to 5 minutes, reproduce the lag, then return here to export. A new recording replaces the previous one.",
+        "privacy": "Stored only in memory until you export. No URLs, searches, post IDs, credentials or user labels. Operation overlap is not proof of a cause.",
+        "native_only": "Recording is available in native debug, profile and release builds.",
+        "recording": "Recording", "stopped": "Not recording",
+        "finishing": "Collecting the final frame timings…",
+        "summary": "{frames} frames · {slow} over budget · {delays} UI delays",
+        "start": "Start new recording", "stop": "Stop recording", "mark": "Add marker",
+        "export": "Export report", "copy": "Copy report", "clear": "Clear report",
+        "export_failed": "Could not export the report. Try copying it instead."
+      }}
+    ],
+    "packages/i18n/translations/de-DE.json": [
+      {"kind": "locale", "data": {
+        "title": "Leistungsdiagnose",
+        "description": "Bis zu 5 Minuten aufzeichnen, das Ruckeln reproduzieren und hierher zum Export zurückkehren. Eine neue Aufzeichnung ersetzt die vorherige.",
+        "privacy": "Bis zum Export nur im Arbeitsspeicher. Keine URLs, Suchanfragen, Post-IDs, Zugangsdaten oder benutzerdefinierten Namen. Zeitliche Überschneidung beweist keine Ursache.",
+        "native_only": "Die Aufzeichnung ist in nativen Debug-, Profile- und Release-Builds verfügbar.",
+        "recording": "Aufzeichnung läuft", "stopped": "Keine Aufzeichnung",
+        "finishing": "Letzte Frame-Zeiten werden gesammelt…",
+        "summary": "{frames} Frames · {slow} über Budget · {delays} UI-Verzögerungen",
+        "start": "Neue Aufzeichnung", "stop": "Aufzeichnung stoppen", "mark": "Markierung setzen",
+        "export": "Bericht exportieren", "copy": "Bericht kopieren", "clear": "Bericht löschen",
+        "export_failed": "Der Bericht konnte nicht exportiert werden. Versuche stattdessen, ihn zu kopieren."
+      }}
+    ]
+  }
+}
