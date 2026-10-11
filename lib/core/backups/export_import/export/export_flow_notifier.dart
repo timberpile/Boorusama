@@ -86,6 +86,7 @@ final class ExportFlowState {
     required this.nodes,
     required this.includeCredentials,
     required this.status,
+    this.fileNamePattern = '',
     this.recommendedActions = const {},
     this.itemRecommendedActions = const {},
     this.packagePath,
@@ -97,6 +98,7 @@ final class ExportFlowState {
       nodes = const {},
       includeCredentials = true,
       status = ExportFlowStatus.choosing,
+      fileNamePattern = '',
       recommendedActions = const {},
       itemRecommendedActions = const {},
       packagePath = null,
@@ -106,6 +108,7 @@ final class ExportFlowState {
   final Map<String, ExportNodeSelection> nodes;
   final bool includeCredentials;
   final ExportFlowStatus status;
+  final String fileNamePattern;
   final Map<String, ImportAction> recommendedActions;
   final Map<String, Map<String, ImportAction>> itemRecommendedActions;
   final String? packagePath;
@@ -116,6 +119,7 @@ final class ExportFlowState {
     Map<String, ExportNodeSelection>? nodes,
     bool? includeCredentials,
     ExportFlowStatus? status,
+    String? fileNamePattern,
     Map<String, ImportAction>? recommendedActions,
     Map<String, Map<String, ImportAction>>? itemRecommendedActions,
     String? packagePath,
@@ -126,6 +130,7 @@ final class ExportFlowState {
     nodes: Map.unmodifiable(nodes ?? this.nodes),
     includeCredentials: includeCredentials ?? this.includeCredentials,
     status: status ?? this.status,
+    fileNamePattern: fileNamePattern ?? this.fileNamePattern,
     recommendedActions: Map.unmodifiable(
       recommendedActions ?? this.recommendedActions,
     ),
@@ -257,6 +262,12 @@ class ExportFlowNotifier extends AutoDisposeNotifier<ExportFlowState> {
     }
   }
 
+  void setFileNamePattern(String value) => state = state.copyWith(
+    fileNamePattern: value,
+    clearResult: true,
+    status: ExportFlowStatus.choosing,
+  );
+
   void setIncludeCredentials(bool value) {
     if (state.isFull || !state.nodes.containsKey('profiles')) return;
     state = state.copyWith(includeCredentials: value, clearResult: true);
@@ -297,6 +308,7 @@ class ExportFlowNotifier extends AutoDisposeNotifier<ExportFlowState> {
               : entry.value,
       },
       includeCredentials: template.includeCredentials,
+      fileNamePattern: template.fileNamePattern,
       recommendedActions: template.recommendedActions,
       itemRecommendedActions: {
         for (final entry in template.itemRecommendedActions.entries)
@@ -333,10 +345,14 @@ class ExportFlowNotifier extends AutoDisposeNotifier<ExportFlowState> {
       clearResult: true,
     );
     try {
+      final fileName = resolveExportFileNamePattern(
+        state.fileNamePattern,
+        DateTime.now(),
+      );
       final directory = await ref
           .read(appFileSystemProvider)
           .createTempDirectory('boorusama_export_');
-      final outputPath = p.join(directory, exportFileName(DateTime.now()));
+      final outputPath = p.join(directory, fileName);
       final path = await ref
           .read(exportServiceProvider)
           .createPackage(

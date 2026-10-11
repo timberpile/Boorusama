@@ -19,6 +19,7 @@ void main() {
         name: 'Share',
         selection: selection,
         includeCredentials: true,
+        fileNamePattern: 'favorites-{date:yyyy-MM-dd}',
         itemRecommendedActions: const {
           'bookmarks': {'group-a': ImportAction.merge},
         },
@@ -28,6 +29,7 @@ void main() {
       expect(restored, template);
       expect(restored.selection.sourceIds, {'bookmarks', 'settings'});
       expect(restored.includeCredentials, isTrue);
+      expect(restored.fileNamePattern, 'favorites-{date:yyyy-MM-dd}');
       expect(
         restored.itemRecommendedActions['bookmarks']?['group-a'],
         ImportAction.merge,
@@ -63,5 +65,28 @@ void main() {
     });
 
     expect(restored.includeCredentials, isFalse);
+    expect(restored.fileNamePattern, isEmpty);
   });
+  test('template rejects invalid filename patterns in stored JSON', () {
+    const base = {
+      'id': 'pattern-test',
+      'name': 'Pattern test',
+      'selection': {
+        'mode': 'custom',
+        'nodes': [
+          {'nodeId': 'settings', 'kind': 'leaf'},
+        ],
+      },
+    };
+    for (final invalid in [42, 'unsafe/{other}', 'a/b']) {
+      expect(
+        () => ExportTemplate.fromJson({
+          ...base,
+          'fileNamePattern': invalid,
+        }),
+        throwsFormatException,
+      );
+    }
+  });
+
 }

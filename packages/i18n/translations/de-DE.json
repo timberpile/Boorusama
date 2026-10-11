@@ -647,6 +647,13 @@
     },
     "backup_and_restore": {
       "export_import": {
+        "file_name_pattern": "Export-Dateiname (optional)",
+        "file_name_pattern_help": "Verwende {timestamp}, {date:yyyy-MM-dd} oder {time:HH-mm-ss}. Alle Zeiten sind UTC.",
+        "file_name_pattern_preview": "Beispiel: {name} (UTC)",
+        "invalid_file_name_pattern": "Ungültiges Dateinamenmuster oder unbekannter Platzhalter.",
+        "file_name": "Dateiname",
+        "edit_file_name": "Dateinamen bearbeiten",
+        "invalid_file_name": "Bitte einen gültigen Dateinamen ohne unzulässige Zeichen eingeben.",
         "configure_items": "Einzeln",
         "preview_count": {
           "one": "${n} Änderung",

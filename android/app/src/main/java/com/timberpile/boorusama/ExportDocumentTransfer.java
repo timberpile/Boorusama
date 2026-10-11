@@ -5,6 +5,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Set;
+import java.util.Locale;
 
 /** Streams an owned export into a newly created document, never overwriting a document. */
 public final class ExportDocumentTransfer {
@@ -23,6 +24,10 @@ public final class ExportDocumentTransfer {
     }
 
     public synchronized String copy(File source, Destination destination) throws Exception {
+        return copy(source, destination, null);
+    }
+
+    public synchronized String copy(File source, Destination destination, String requestedName) throws Exception {
         File owned = source.getCanonicalFile();
         boolean inCache = false;
         for (File cache : caches) {
@@ -32,7 +37,8 @@ public final class ExportDocumentTransfer {
                 || !owned.getName().endsWith(".bsexport")) {
             throw new IOException("Export source is unavailable");
         }
-        String name = owned.getName();
+        String name = requestedName == null ? owned.getName() : requestedName;
+        if (!isValidExportName(name)) throw new IOException("Invalid export file name");
         String stem = name.substring(0, name.length() - ".bsexport".length());
         Set<String> names = destination.names();
         for (int suffix = 2; names.contains(name); suffix++) {
@@ -58,5 +64,22 @@ public final class ExportDocumentTransfer {
             }
             throw error;
         }
+    }
+
+    private static boolean isValidExportName(String name) {
+        final String extension = ".bsexport";
+        if (name.length() <= extension.length() || !name.endsWith(extension)) return false;
+        String stem = name.substring(0, name.length() - extension.length());
+        if (stem.equals(".") || stem.equals("..") || stem.endsWith(".") || !stem.equals(stem.trim())) return false;
+        for (int i = 0; i < stem.length(); i++) {
+            char c = stem.charAt(i);
+            if (c < 32 || c == 127 || "<>:\"/\\|?*".indexOf(c) >= 0) return false;
+        }
+        String reserved = stem.split("\\.", 2)[0].toUpperCase(Locale.ROOT);
+        if (reserved.equals("CON") || reserved.equals("PRN") ||
+                reserved.equals("AUX") || reserved.equals("NUL")) return false;
+        return !(reserved.length() == 4 &&
+                (reserved.startsWith("COM") || reserved.startsWith("LPT")) &&
+                reserved.charAt(3) >= '1' && reserved.charAt(3) <= '9');
     }
 }
