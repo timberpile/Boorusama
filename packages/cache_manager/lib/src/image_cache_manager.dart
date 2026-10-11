@@ -30,6 +30,8 @@ class DefaultImageCacheManager implements ManagedImageCacheManager {
   final _keyCache = <String, String>{};
   final _current = <String, _Generation>{};
   final _generations = <String, _Generation>{};
+  final _retired = <_Generation>{};
+  var _occupied = 0;
   final _keyEpochs = <String, int>{};
   final _random = Random.secure();
   Future<void> _tail = Future.value();
@@ -70,6 +72,12 @@ class DefaultImageCacheManager implements ManagedImageCacheManager {
       await _directory!.create(recursive: true);
       return;
     }
+    // A failed first reconciliation may have loaded only part of the index.
+    // No caller can own a generation until initialization has succeeded.
+    _current.clear();
+    _generations.clear();
+    _retired.clear();
+    _occupied = 0;
     final root = cacheRootPathProvider != null
         ? await cacheRootPathProvider!()
         : (await getTemporaryDirectory()).path;
@@ -90,6 +98,7 @@ class DefaultImageCacheManager implements ManagedImageCacheManager {
           final generation = _Generation(entry, file.path);
           _current[entry.key] = generation;
           _generations[entry.filename] = generation;
+          _occupied += entry.size;
           _use = max(_use, entry.use);
         } else {
           _index.entries.remove(entry.key);
@@ -127,6 +136,7 @@ class DefaultImageCacheManager implements ManagedImageCacheManager {
         if (previous != null) {
           await File(previous.path).delete();
           _generations.remove(previous.entry.filename);
+          _occupied -= previous.entry.size;
         }
         final entry = ImageCacheEntry(
           key: key,
@@ -137,6 +147,7 @@ class DefaultImageCacheManager implements ManagedImageCacheManager {
         final generation = _Generation(entry, value.file.path);
         _current[key] = generation;
         _generations[filename] = generation;
+        _occupied += size;
         _index.entries[key] = entry;
       }
     }
@@ -289,11 +300,6 @@ class DefaultImageCacheManager implements ManagedImageCacheManager {
     );
   });
 
-  int get _occupied => _generations.values.fold(
-    0,
-    (size, generation) => size + generation.entry.size,
-  );
-
   Future<ImageCacheFileLease> _commit(_WriteSession session) => _run(() async {
     if (session.finished) throw StateError('Image write already ended');
     final staged = File(session.stagedPath);
@@ -305,18 +311,20 @@ class DefaultImageCacheManager implements ManagedImageCacheManager {
         size > _maxBytes) {
       return _transient(session);
     }
-    final victims = _generations.values.where((g) => g.pins == 0).toList()
-      ..sort((a, b) {
-        if (a.entry.key == session.key && !a.retired) return -1;
-        if (b.entry.key == session.key && !b.retired) return 1;
-        return a.entry.use.compareTo(b.entry.use);
-      });
     var needed = _occupied + size - _maxBytes;
     final chosen = <_Generation>[];
-    for (final victim in victims) {
-      if (needed <= 0) break;
-      chosen.add(victim);
-      needed -= victim.entry.size;
+    if (needed > 0) {
+      final victims = _generations.values.where((g) => g.pins == 0).toList()
+        ..sort((a, b) {
+          if (a.entry.key == session.key && !a.retired) return -1;
+          if (b.entry.key == session.key && !b.retired) return 1;
+          return a.entry.use.compareTo(b.entry.use);
+        });
+      for (final victim in victims) {
+        if (needed <= 0) break;
+        chosen.add(victim);
+        needed -= victim.entry.size;
+      }
     }
     if (needed > 0) return _transient(session);
     // Prepare the immutable completed file before any destructive retirement.
@@ -338,6 +346,7 @@ class DefaultImageCacheManager implements ManagedImageCacheManager {
       final generation = _Generation(entry, file.path)..pins = 1;
       _current[session.key] = generation;
       _generations[filename] = generation;
+      _occupied += size;
       session.finished = true;
       await _persist(() => _index.put(entry));
       return _lease(generation);
@@ -360,6 +369,7 @@ class DefaultImageCacheManager implements ManagedImageCacheManager {
   Future<void> _retire(_Generation generation) async {
     if (!generation.retired) {
       generation.retired = true;
+      _retired.add(generation);
       if (identical(_current[generation.entry.key], generation)) {
         _current.remove(generation.entry.key);
         _memoryCache?.remove(generation.entry.key);
@@ -372,20 +382,32 @@ class DefaultImageCacheManager implements ManagedImageCacheManager {
   Future<void> _delete(_Generation generation) async {
     final file = File(generation.path);
     if (await file.exists()) await file.delete();
-    _generations.remove(generation.entry.filename);
+    // Missing files count as deleted. Failed I/O above leaves ownership and
+    // occupied bytes intact so a later trim can retry the retired generation.
+    if (_generations.remove(generation.entry.filename) != null) {
+      _occupied -= generation.entry.size;
+    }
+    _retired.remove(generation);
   }
 
   Future<void> _trim() async {
-    final victims = _generations.values.where((g) => g.pins == 0).toList()
-      ..sort((a, b) => a.entry.use.compareTo(b.entry.use));
-    for (final victim in victims) {
-      if (_occupied <= _maxBytes && !victim.retired) continue;
-      await _retire(victim);
+    // Retired readers still own their immutable bytes. Retry only retired
+    // generations here; ordinary lease releases must not scan the live cache.
+    for (final generation in _retired.toList()) {
+      if (generation.pins == 0) await _delete(generation);
     }
     if (_maxBytes == 0) {
       for (final generation in _current.values.toList()) {
         await _retire(generation);
       }
+      return;
+    }
+    if (_occupied <= _maxBytes) return;
+    final victims = _generations.values.where((g) => g.pins == 0).toList()
+      ..sort((a, b) => a.entry.use.compareTo(b.entry.use));
+    for (final victim in victims) {
+      if (_occupied <= _maxBytes) break;
+      await _retire(victim);
     }
   }
 

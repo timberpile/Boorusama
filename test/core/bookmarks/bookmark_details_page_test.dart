@@ -157,7 +157,7 @@ void main() {
                 groups: [
                   BookmarkGroup(id: id, name: title, bookmarkIds: const {}),
                 ],
-                activeTarget: const BookmarkTarget.ungrouped(),
+                activeTarget: const BookmarkTarget.defaultGroup(),
               ),
             ),
             home: MediaQuery(
