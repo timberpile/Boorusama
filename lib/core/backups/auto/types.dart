@@ -88,7 +88,7 @@ class AutoBackupSettings extends Equatable {
   const AutoBackupSettings({
     this.enabled = false,
     this.frequency = AutoBackupFrequency.weekly,
-    this.maxBackups = 3,
+    this.maxBackups = 30,
     this.userSelectedPath,
     this.lastBackupTime,
   });
@@ -97,7 +97,10 @@ class AutoBackupSettings extends Equatable {
     final Map<String, dynamic> json => AutoBackupSettings(
       enabled: json['enabled'] as bool? ?? false,
       frequency: AutoBackupFrequency.parse(json['frequency']),
-      maxBackups: json['maxBackups'] as int? ?? 5,
+      maxBackups: switch (json['maxBackups']) {
+        final int count when count > 0 => count,
+        _ => 30,
+      },
       userSelectedPath: json['userSelectedPath'] as String?,
       lastBackupTime: json['lastBackupTime'] != null
           ? DateTime.parse(json['lastBackupTime'] as String)
@@ -106,6 +109,7 @@ class AutoBackupSettings extends Equatable {
     _ => disabled,
   };
 
+  static const retentionOptions = <int>[2, 3, 4, 5, 7, 14, 30, 60, 90];
   static const disabled = AutoBackupSettings();
   static const defaultValue = disabled;
 

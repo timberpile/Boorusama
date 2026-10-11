@@ -37,6 +37,11 @@ class AutoBackupSection extends ConsumerWidget {
         : storagePath != null;
     final canEnableAutoBackup = !isLoading && hasValidPath;
 
+    final retentionOptions = <int>{
+      ...AutoBackupSettings.retentionOptions,
+      settings.maxBackups,
+    }.toList()..sort();
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: Material(
@@ -189,7 +194,7 @@ class AutoBackupSection extends ConsumerWidget {
               _BackupOptionTile(
                 title: Text(context.t.settings.auto_backup.maximum_backups),
                 selectedOption: settings.maxBackups,
-                items: const [2, 3, 4, 5],
+                items: retentionOptions,
                 onChanged: (maxBackups) => _updateSettings(
                   settingsNotifier,
                   settings.copyWith(maxBackups: maxBackups),
