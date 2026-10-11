@@ -1,4 +1,21 @@
 {
+  "performance_diagnostics": {
+    "title": "Performance diagnostics",
+    "description": "Record for up to 5 minutes, reproduce the lag, then return here to export. A new recording replaces the previous one.",
+    "privacy": "Stored only in memory until you export. No URLs, searches, post IDs, credentials or user labels. Operation overlap is not proof of a cause.",
+    "native_only": "Recording is available in native debug, profile and release builds.",
+    "recording": "Recording",
+    "stopped": "Not recording",
+    "finishing": "Collecting the final frame timings…",
+    "summary": "{frames} frames · {slow} over budget · {delays} UI delays",
+    "start": "Start new recording",
+    "stop": "Stop recording",
+    "mark": "Add marker",
+    "export": "Export report",
+    "copy": "Copy report",
+    "clear": "Clear report",
+    "export_failed": "Could not export the report. Try copying it instead."
+  },
   "search_backup_import": {
     "title": "Skip unmatched records?",
     "message": "No matching profile for {counts}. Those records will be skipped. Continue importing?",

@@ -2,6 +2,7 @@
 import 'package:flutter/foundation.dart';
 
 // Package imports:
+import 'package:foundation/performance.dart';
 import 'package:cache_manager/cache_manager.dart';
 import 'package:extended_image/extended_image.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -74,10 +75,13 @@ class _PostDetailsItemState<T extends Post>
     _representationState,
   ]);
   var _mediaCompatible = false;
+  late bool _isPageSettled;
 
   @override
   void initState() {
     super.initState();
+    _isPageSettled =
+        widget.detailsController.currentSettledPage.value == widget.index;
     widget.detailsController.currentSettledPage.addListener(_onPageSettled);
     _imageController.loadState.addListener(_onImageStateChanged);
   }
@@ -91,6 +95,8 @@ class _PostDetailsItemState<T extends Post>
       );
       widget.detailsController.currentSettledPage.addListener(_onPageSettled);
     }
+    _isPageSettled =
+        widget.detailsController.currentSettledPage.value == widget.index;
   }
 
   @override
@@ -102,7 +108,12 @@ class _PostDetailsItemState<T extends Post>
     super.dispose();
   }
 
-  void _onPageSettled() => setState(() {});
+  void _onPageSettled() {
+    final isPageSettled =
+        widget.detailsController.currentSettledPage.value == widget.index;
+    if (isPageSettled == _isPageSettled) return;
+    setState(() => _isPageSettled = isPageSettled);
+  }
 
   void _onRepresentationChanged(bool compatible) {
     _mediaCompatible = compatible;
@@ -117,7 +128,12 @@ class _PostDetailsItemState<T extends Post>
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => performanceRecorder.measureSync(
+    PerfOperation.viewerItemBuild,
+    () => _buildItem(context),
+  );
+
+  Widget _buildItem(BuildContext context) {
     final pageViewController = PostDetailsPageViewScope.of(context);
     final post = widget.posts[widget.index];
 
@@ -205,8 +221,7 @@ class _PostDetailsItemState<T extends Post>
           key: _videoKey,
           contentSize: Size(post.width, post.height),
           controller: widget.transformController,
-          constrainPanToContent:
-              widget.detailsController.currentSettledPage.value == widget.index,
+          constrainPanToContent: _isPageSettled,
           snapZoomToFit: snapZoomToFit,
           doubleTapZoomMode: post.isVideo
               ? DoubleTapZoomMode.classic
@@ -247,44 +262,35 @@ class _PostDetailsItemState<T extends Post>
               ValueListenableBuilder(
                 valueListenable: widget.isInitPageListenable,
                 builder: (_, isInitPage, _) {
-                  return ValueListenableBuilder(
+                  return ValueListenableBuilder<Set<String>>(
                     valueListenable:
-                        widget.detailsController.currentSettledPage,
-                    builder: (_, currentSettledPage, _) {
-                      final isPageSettled = currentSettledPage == widget.index;
+                        widget.detailsController.originalImagePostKeys,
+                    builder: (_, originalImagePostKeys, _) {
+                      final useOriginal = originalImagePostKeys.contains(
+                        postViewerIdentity(post),
+                      );
 
-                      return ValueListenableBuilder<Set<String>>(
-                        valueListenable:
-                            widget.detailsController.originalImagePostKeys,
-                        builder: (_, originalImagePostKeys, _) {
-                          final useOriginal = originalImagePostKeys.contains(
-                            postViewerIdentity(post),
-                          );
-
-                          return PostMedia<T>(
-                            post: post,
-                            config: widget.authConfig,
-                            viewer: widget.viewerConfig,
-                            imageUrlBuilder: useOriginal
-                                ? (post) => post.originalImageUrl
-                                : widget.imageUrlBuilder,
-                            mediaAspectRatioBuilder: useOriginal
-                                ? (post) => post.effectiveOriginalAspectRatio
-                                : widget.mediaAspectRatioBuilder,
-                            videoAspectRatioBuilder:
-                                widget.videoAspectRatioBuilder,
-                            imageCacheManager: widget.imageCacheManager,
-                            imageController: _imageController,
-                            onRepresentationChanged: _onRepresentationChanged,
-                            // This is used to make sure we have a thumbnail to show instead of a black placeholder
-                            placeholderMediaBuilder:
-                                isInitPage && initialThumbnailUrl != null
-                                ? (_) => initialPlaceholderMedia!
-                                : null,
-                            controller: pageViewController,
-                            isPageSettled: isPageSettled,
-                          );
-                        },
+                      return PostMedia<T>(
+                        post: post,
+                        config: widget.authConfig,
+                        viewer: widget.viewerConfig,
+                        imageUrlBuilder: useOriginal
+                            ? (post) => post.originalImageUrl
+                            : widget.imageUrlBuilder,
+                        mediaAspectRatioBuilder: useOriginal
+                            ? (post) => post.effectiveOriginalAspectRatio
+                            : widget.mediaAspectRatioBuilder,
+                        videoAspectRatioBuilder: widget.videoAspectRatioBuilder,
+                        imageCacheManager: widget.imageCacheManager,
+                        imageController: _imageController,
+                        onRepresentationChanged: _onRepresentationChanged,
+                        // This is used to make sure we have a thumbnail to show instead of a black placeholder
+                        placeholderMediaBuilder:
+                            isInitPage && initialThumbnailUrl != null
+                            ? (_) => initialPlaceholderMedia!
+                            : null,
+                        controller: pageViewController,
+                        isPageSettled: _isPageSettled,
                       );
                     },
                   );

@@ -8,26 +8,6 @@ import '../../../bookmarks/src/services/bookmark_hydration_service.dart';
 import '../widgets/bookmark_hydration_log.dart';
 import '../widgets/settings_page_scaffold.dart';
 
-class AdvancedDataSettingsPage extends StatelessWidget {
-  const AdvancedDataSettingsPage({super.key});
-
-  @override
-  Widget build(BuildContext context) => SettingsPageScaffold(
-    title: Text(context.t.bookmark.maintenance.advanced),
-    children: [
-      ListTile(
-        title: Text(context.t.bookmark.maintenance.title),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: () => Navigator.of(context).push(
-          MaterialPageRoute<void>(
-            builder: (_) => const BookmarkMaintenancePage(),
-          ),
-        ),
-      ),
-    ],
-  );
-}
-
 class BookmarkMaintenancePage extends ConsumerWidget {
   const BookmarkMaintenancePage({super.key});
 

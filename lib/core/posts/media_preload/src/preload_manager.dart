@@ -6,6 +6,7 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 
 // Package imports:
+import 'package:foundation/performance.dart';
 import 'package:collection/collection.dart';
 import 'package:dio/dio.dart';
 import 'package:equatable/equatable.dart';
@@ -113,15 +114,36 @@ class PreloadManager {
     required int itemCount,
     required PreloadMedia? Function(int index) mediaBuilder,
   }) {
-    final context = PreloadContext(
-      currentPage: currentPage,
-      itemCount: itemCount,
-      mediaBuilder: mediaBuilder,
-      activeDownloads: Set.from(_activeDownloads),
-      completedUrls: Set.from(_completedUrls),
+    final diagnosticRecording = performanceRecorder.enabled;
+    var diagnosticBuilds = 0;
+    performanceRecorder.measureSync(PerfOperation.viewerPreloadPlan, () {
+      if (!_isEnabled()) {
+        cancelAll();
+        return;
+      }
+
+      final context = PreloadContext(
+        currentPage: currentPage,
+        itemCount: itemCount,
+        mediaBuilder: diagnosticRecording
+            ? (index) {
+                diagnosticBuilds++;
+                return mediaBuilder(index);
+              }
+            : mediaBuilder,
+        activeDownloads: Set.from(_activeDownloads),
+        // Calculation is synchronous; a read-only view avoids copying the
+        // complete browsing history on every page change.
+        completedUrls: UnmodifiableSetView(_completedUrls),
+      );
+      final result = strategy.calculatePreload(context);
+      preloadMedias(result);
+    });
+    performanceRecorder.count(PerfCounter.preloadMediaBuilds, diagnosticBuilds);
+    performanceRecorder.count(
+      PerfCounter.preloadCompletedHistory,
+      _completedUrls.length,
     );
-    final result = strategy.calculatePreload(context);
-    preloadMedias(result);
   }
 
   void cancelAll() {
@@ -205,13 +227,15 @@ class PreloadManager {
 
     try {
       await _preloader(url, cancelToken);
-      // Success: mark as completed
-      _completedUrls.add(url);
-      _logState(
-        'Download completed',
-        url: url,
-        completed: _completedUrls.length,
-      );
+      if (!cancelToken.isCancelled &&
+          identical(_activeCancelTokens[url], cancelToken)) {
+        _completedUrls.add(url);
+        _logState(
+          'Download completed',
+          url: url,
+          completed: _completedUrls.length,
+        );
+      }
     } catch (error) {
       // Let caller handle all retries. If we get here, the preload failed
       // after all retries.
@@ -221,10 +245,13 @@ class PreloadManager {
         extra: {'error': error.toString().split('\n').first},
       );
     } finally {
-      // This block ALWAYS runs, ensuring cleanup
-      _activeDownloads.remove(url);
-      _activeCancelTokens.remove(url);
-      _startNextDownloads();
+      // A canceled request may finish after the same URL has been restarted.
+      // Only the request that still owns the token may release that slot.
+      if (identical(_activeCancelTokens[url], cancelToken)) {
+        _activeDownloads.remove(url);
+        _activeCancelTokens.remove(url);
+        _startNextDownloads();
+      }
     }
   }
 

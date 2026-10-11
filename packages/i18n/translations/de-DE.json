@@ -1,4 +1,21 @@
 {
+  "performance_diagnostics": {
+    "title": "Leistungsdiagnose",
+    "description": "Bis zu 5 Minuten aufzeichnen, das Ruckeln reproduzieren und hierher zum Export zurückkehren. Eine neue Aufzeichnung ersetzt die vorherige.",
+    "privacy": "Bis zum Export nur im Arbeitsspeicher. Keine URLs, Suchanfragen, Post-IDs, Zugangsdaten oder benutzerdefinierten Namen. Zeitliche Überschneidung beweist keine Ursache.",
+    "native_only": "Die Aufzeichnung ist in nativen Debug-, Profile- und Release-Builds verfügbar.",
+    "recording": "Aufzeichnung läuft",
+    "stopped": "Keine Aufzeichnung",
+    "finishing": "Letzte Frame-Zeiten werden gesammelt…",
+    "summary": "{frames} Frames · {slow} über Budget · {delays} UI-Verzögerungen",
+    "start": "Neue Aufzeichnung",
+    "stop": "Aufzeichnung stoppen",
+    "mark": "Markierung setzen",
+    "export": "Bericht exportieren",
+    "copy": "Bericht kopieren",
+    "clear": "Bericht löschen",
+    "export_failed": "Der Bericht konnte nicht exportiert werden. Versuche stattdessen, ihn zu kopieren."
+  },
   "pinned_searches": {
     "last_refresh": "Zuletzt aktualisiert: {date}",
     "sort_feed_last_refresh": "Letzte Aktualisierung (älteste zuerst)",
