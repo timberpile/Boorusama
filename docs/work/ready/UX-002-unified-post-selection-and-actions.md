@@ -1,7 +1,7 @@
 # UX-002 — Unified Post Selection and Action System
 
 Priority: Normal  
-Affected features: Post Grid, Post Context Menus, multi-selection, Bookmark actions, Downloads, Booru-specific actions, gestures, desktop input, navigation  
+Affected features: Post Grid, Post Context Menus, multi-selection across existing list/grid views, Bookmark actions, Downloads, Booru-specific actions, gestures, desktop input, navigation  
 Dependencies: BM-008 (Default Bookmark Group and consistent membership semantics)
 
 ## Problem
@@ -93,6 +93,21 @@ Desktop platforms with touchscreens should support touch selection where appropr
 
 Do not infer mouse gestures solely from the operating system when the pointer device type is available.
 
+### 1.4 Reuse Existing Touch Drag-Range Selection Everywhere Selection Exists
+
+Boorusama already supports working **Long Press + Drag** range selection *after Selection Mode has been activated*. The current implementation uses the `selection_mode` package (`SelectionCanvas`, `SelectableBuilder`, and `DragSelectionOptions`). Preserve and reuse this behavior; it is not a new interaction that requires a new gesture system.
+
+Required behavior:
+
+- In an active Selection Mode, long-press an item and drag across other selectable items to extend the selected range. Release to finish the gesture; ordinary taps continue to toggle individual items.
+- Support this interaction consistently **wherever multi-selection already exists** in the app, not just the primary Post Grid: search, favorites, following/feed post grids, Bookmark grids/groups, and other selectable collection lists/grids such as Bookmark Group/folder, Pinned Search/folder, and Feed management views *where they already offer multi-selection*.
+- Audit all existing selectable list/grid surfaces instead of assuming they share the same Post Grid widgets. Reuse the established `selection_mode` facilities when possible; adapt other selection-capable widgets to provide equivalent long-press drag behavior instead of creating a separate range-selection framework.
+- In active Selection Mode, nested context menus, profile-configured long-press actions, and competing gesture recognizers must not intercept this drag or trigger a second action. Outside Selection Mode, keep each view's existing context-menu, custom gesture, and navigation behavior (except the explicitly approved default Post Grid Long Press change).
+- Preserve normal vertical scrolling when no range drag is underway, existing selection indicators/haptics, and edge auto-scroll where supported. Do not accidentally trigger navigation, item reordering, or item actions when performing selection drags.
+- Apply ranges in the current displayed order to loaded items only. Do not load all matching remote posts solely to select a range; keep existing origin-aware selection identity handling and selection recovery on refresh/sort changes.
+- **Do not replace the working drag gesture with two separate long presses**, and do not require a new mobile Shift+Click equivalent. The first Long Press may enter Selection Mode; this ticket only requires the established drag interaction once the mode is active.
+- Do not introduce multi-selection into single-choice pickers or other controls that do not already support it as part of this change.
+
 ---
 
 ## 2. Configurable Long-Press Gestures
@@ -128,7 +143,7 @@ The following rules are approved:
 | Explicit `Select` action | Enter Selection Mode and select the post |
 | Existing explicit custom action | Execute the configured action |
 | Explicit `Disabled` action | Perform no Long Press action |
-| Selection Mode already active | Selection interaction takes precedence |
+| Selection Mode already active | Selection interaction, including Long Press + Drag range selection, takes precedence |
 
 Add `Select` as a configurable Grid Long Press action.
 
@@ -146,7 +161,7 @@ Update the gesture settings labels so the default behavior is understandable, fo
 
 ### 2.3 Gesture Scope
 
-Only change Grid Long Press behavior.
+Only change default Grid Long Press behavior outside Selection Mode; for other existing multi-select views, ensure the in-mode Long Press + Drag gesture works without changing their normal-mode interactions.
 
 Do not change Image Viewer Long Press, Swipe Down, Double Tap, or other Viewer gestures as part of this work.
 
@@ -453,6 +468,8 @@ Inspect the following areas and their callers:
 
 Inspect how gesture recognizers, selection state, origin resolution, and action handlers currently interact before restructuring them.
 
+Audit existing selection-capable non-post collection screens too (for example Bookmark Group/folder, Pinned Search/folder, and Feed management lists). Their existing selection UIs should support the same Long Press + Drag gesture while active; this is a gesture-consistency requirement, not a rewrite of their data models or actions.
+
 Use existing components where reasonable.
 
 ---
@@ -464,6 +481,10 @@ Use existing components where reasonable.
 - [ ] Mobile Long Press selects the pressed post when no explicit custom action is configured.
 - [ ] A single selected post enters the same selection mode as multiple selected posts.
 - [ ] Tapping further posts toggles their selection.
+- [ ] After entering Selection Mode, Long Press + Drag selects a range using the existing interaction, and taps still toggle individual items.
+- [ ] Drag-range selection works across all existing multi-selection list/grid surfaces, including search/favorites/feed posts, Bookmark collections, and non-post collection screens where multi-selection is already available.
+- [ ] Active-selection drag does not open a context menu, execute a custom long-press action, navigate, or reorder items.
+- [ ] The existing drag/scroll/edge-auto-scroll behavior and selected state are preserved; no duplicate gesture engine or two-long-press requirement is introduced.
 - [ ] Existing explicitly configured Long Press actions continue working.
 - [ ] `Select` can be configured as a Grid Long Press action.
 - [ ] An explicit Disabled option is available if required.
@@ -513,6 +534,7 @@ Use existing components where reasonable.
 - [ ] Desktop context menus remain functional.
 - [ ] Normal search, filtering, and sorting remain usable.
 - [ ] Bookmark Groups with multiple profiles remain supported.
+- [ ] Existing non-post selection screens retain their selection actions, scrolling, and normal-mode gestures.
 
 ---
 
@@ -528,6 +550,10 @@ Cover:
 - Explicit engine-specific custom action
 - Disabled Long Press
 - Selection Mode already active
+- Long Press + Drag across adjacent items and across rows in standard/masonry Post Grids
+- Drag selection in Bookmark grids and each existing non-post multi-select view
+- Drag interaction with nested context menus and with an explicitly configured long-press action
+- Drag selection vs. ordinary scrolling, auto-scroll, navigation, and item reordering
 - Long Press with no resolvable Booru profile
 - No duplicate callback execution
 - Viewer gesture settings unchanged
@@ -570,6 +596,7 @@ Cover:
 - Bookmark Group grid
 - Mixed-profile Bookmark Group
 - Normal Booru feed/search grid
+- Other existing selection-capable collection screens (Bookmark Group/folder, Pinned Search/folder, Feed management, where supported)
 
 Verify that ordinary page headers remain visible and usable.
 
@@ -611,16 +638,17 @@ Test actual service dispatch, not only visibility of buttons.
 A suggested sequence:
 
 1. Inspect current Post Grid, gesture, selection, and context-menu behavior.
-2. Introduce shared action definitions and origin-aware capability evaluation.
-3. Reuse existing action services for single and multi-selection.
-4. Introduce a centralized gesture dispatcher.
-5. Add explicit `Select` and Disabled semantics to Grid Long Press settings.
-6. Implement desktop modifier selection.
-7. Move selection controls into the bottom toolbar.
-8. Preserve existing AppBars, search controls, and filters during selection.
-9. Replace old context-menu-to-selection mobile interaction.
-10. Integrate Bookmark actions from BM-008.
-11. Add tests and verify mobile/desktop regressions.
+2. Inventory existing multi-select grids/lists throughout the app; keep the working in-mode Long Press + Drag behavior and extend its availability where missing.
+3. Introduce shared action definitions and origin-aware capability evaluation.
+4. Reuse existing action services for single and multi-selection.
+5. Introduce a centralized gesture dispatcher without replacing the existing drag-selection implementation.
+6. Add explicit `Select` and Disabled semantics to Grid Long Press settings.
+7. Implement desktop modifier selection.
+8. Move selection controls into the bottom toolbar.
+9. Preserve existing AppBars, search controls, and filters during selection.
+10. Replace old context-menu-to-selection mobile interaction.
+11. Integrate Bookmark actions from BM-008.
+12. Add tests and verify mobile/desktop regressions.
 
 These are implementation stages within one work item, not separate required tickets.
 
@@ -643,8 +671,10 @@ Do not implement:
 - Changing unrelated navigation shells
 - Cloud or cross-device selection persistence
 - A new global Bookmark deletion command
-- Changes to Following Feed organization
+- Changes to Following Feed organization (apart from enabling the common drag-selection gesture where multi-selection is already supported)
 - Unrelated search and filtering features
+- New selection modes for views that are not already multi-selectable
+- A new two-Long-Press range selection or replacement drag-selection engine
 
 Do not expand the work into redesigning every existing Post Viewer toolbar. Reuse the common action logic there where practical, but prioritize the Post Grid and Selection Mode experience.
 
@@ -674,7 +704,7 @@ Do not modify the user's primary checkout. Do not integrate, push, or open a PR 
 
 Post selection works naturally on mobile and desktop.
 
-Long Press selects by default on mobile while preserving configured gesture overrides. Desktop supports standard modifier-based selection and retains right-click context menus.
+Long Press selects by default on mobile while preserving configured gesture overrides. The existing Long Press + Drag selection works consistently in every existing multi-selection list/grid, without context-menu interference. Desktop supports standard modifier-based selection and retains right-click context menus.
 
 The normal page navigation and filters remain visible in Selection Mode, while selection controls and contextually available Post actions live in a responsive bottom toolbar.
 
