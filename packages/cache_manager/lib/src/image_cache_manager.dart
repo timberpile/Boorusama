@@ -29,6 +29,8 @@ class DefaultImageCacheManager implements ManagedImageCacheManager {
   final Object cacheDomain = Object();
   final _keyCache = <String, String>{};
   final _current = <String, _Generation>{};
+  // Insertion order is least-to-most recently used. Probes and lease releases
+  // do not refresh recency; real reads/touches move their generation to the end.
   final _generations = <String, _Generation>{};
   final _retired = <_Generation>{};
   var _occupied = 0;
@@ -151,6 +153,13 @@ class DefaultImageCacheManager implements ManagedImageCacheManager {
         _index.entries[key] = entry;
       }
     }
+    // Journal key order is not recency order. Rebuild once after loading,
+    // then maintain order incrementally without sorting during admission.
+    final ordered = _generations.values.toList()
+      ..sort((a, b) => a.entry.use.compareTo(b.entry.use));
+    _generations
+      ..clear()
+      ..addEntries(ordered.map((g) => MapEntry(g.entry.filename, g)));
     // This manager is the sole owner of these scratch files; after process
     // restart there cannot be a live operation owning an old partial/transient.
     try {
@@ -186,6 +195,8 @@ class DefaultImageCacheManager implements ManagedImageCacheManager {
 
   Future<void> _recordUse(_Generation generation) async {
     generation.entry.use = ++_use;
+    _generations.remove(generation.entry.filename);
+    _generations[generation.entry.filename] = generation;
     if (!generation.retired) await _persist(() => _index.put(generation.entry));
   }
 
@@ -311,28 +322,17 @@ class DefaultImageCacheManager implements ManagedImageCacheManager {
         size > _maxBytes) {
       return _transient(session);
     }
-    var needed = _occupied + size - _maxBytes;
-    final chosen = <_Generation>[];
-    if (needed > 0) {
-      final victims = _generations.values.where((g) => g.pins == 0).toList()
-        ..sort((a, b) {
-          if (a.entry.key == session.key && !a.retired) return -1;
-          if (b.entry.key == session.key && !b.retired) return 1;
-          return a.entry.use.compareTo(b.entry.use);
-        });
-      for (final victim in victims) {
-        if (needed <= 0) break;
-        chosen.add(victim);
-        needed -= victim.entry.size;
-      }
-    }
-    if (needed > 0) return _transient(session);
+    final needed = _occupied + size - _maxBytes;
+    final selection = needed > 0
+        ? _selectVictims(needed, replacing: _current[session.key])
+        : (chosen: <_Generation>[], remaining: needed);
+    if (selection.remaining > 0) return _transient(session);
     // Prepare the immutable completed file before any destructive retirement.
     // A failed final rename must leave every previous generation/index intact.
     final filename = '${session.key}.generation_${_nonce()}';
     final file = await staged.rename(p.join(_directory!.path, filename));
     try {
-      for (final victim in chosen) {
+      for (final victim in selection.chosen) {
         await _retire(victim);
       }
       // Existing readers own the old immutable generation, even for the same key.
@@ -390,6 +390,30 @@ class DefaultImageCacheManager implements ManagedImageCacheManager {
     _retired.remove(generation);
   }
 
+  ({List<_Generation> chosen, int remaining}) _selectVictims(
+    int needed, {
+    _Generation? replacing,
+  }) {
+    final chosen = <_Generation>[];
+    // Preserve replacement priority without moving any other key's recency.
+    final preferReplacement = replacing != null && replacing.pins == 0;
+    if (preferReplacement) {
+      chosen.add(replacing);
+      needed -= replacing.entry.size;
+    }
+    if (needed > 0) {
+      for (final generation in _generations.values) {
+        if (preferReplacement && identical(generation, replacing)) continue;
+        if (generation.pins != 0) continue;
+        chosen.add(generation);
+        needed -= generation.entry.size;
+        if (needed <= 0) break;
+      }
+    }
+    // Selection completes before asynchronous retirement mutates the map.
+    return (chosen: chosen, remaining: needed);
+  }
+
   Future<void> _trim() async {
     // Retired readers still own their immutable bytes. Retry only retired
     // generations here; ordinary lease releases must not scan the live cache.
@@ -403,8 +427,7 @@ class DefaultImageCacheManager implements ManagedImageCacheManager {
       return;
     }
     if (_occupied <= _maxBytes) return;
-    final victims = _generations.values.where((g) => g.pins == 0).toList()
-      ..sort((a, b) => a.entry.use.compareTo(b.entry.use));
+    final victims = _selectVictims(_occupied - _maxBytes).chosen;
     for (final victim in victims) {
       if (_occupied <= _maxBytes) break;
       await _retire(victim);
