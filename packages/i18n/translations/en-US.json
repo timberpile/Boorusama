@@ -17,6 +17,28 @@
     "export_saved": "Saved to {path}",
     "export_failed": "Could not export the report. Try copying it instead."
   },
+  "gif_trim": {
+    "title": "Trim",
+    "overview": "Full video",
+    "overview_hint": "Tap or drag to find a scene without changing the selection.",
+    "detail_hint": "Tap to scrub. Drag an edge to trim or empty space to navigate.",
+    "zoom_out": "Zoom out",
+    "zoom_in": "Zoom in",
+    "focus_selection": "To selection",
+    "source": "Source",
+    "loop": "Loop",
+    "start_here": "Start here",
+    "end_here": "End here",
+    "start_frame_back": "Start: previous source frame",
+    "start_frame_forward": "Start: next source frame",
+    "end_frame_back": "End: previous source frame",
+    "end_frame_forward": "End: next source frame",
+    "apply": "Apply",
+    "preview_speed": "Preview speed",
+    "preview_speed_hint": "100% is the original speed. This does not change the exported GIF.",
+    "preparing_preview": "Preparing smooth preview…",
+    "native_preview": "This preview may pause briefly between repetitions."
+  },
   "search_backup_import": {
     "title": "Skip unmatched records?",
     "message": "No matching profile for {counts}. Those records will be skipped. Continue importing?",
@@ -474,6 +496,14 @@
       "failed_to_copy_image": "Failed to copy image: $e"
     },
     "gif_editor": {
+      "timeline_zoom_hint": "Pinch to zoom. Drag the time ruler to scroll.",
+      "timeline_position": "Playback position",
+      "refine_loop": "Refine Loop",
+      "refining_loop": "Refining loop…",
+      "loop_refined": "Loop boundaries refined.",
+      "loop_seam_hint": "Loop transition adjusted. Repetition could not be verified.",
+      "loop_no_match": "No reliable match nearby. Selection unchanged.",
+      "undo_refinement": "Undo refinement",
       "size": "Size",
       "axes": "width & height",
       "frames": "Source frames",

@@ -347,3 +347,14 @@ abstract interface class GifTimelineBackend {
     required CancelToken cancelToken,
   });
 }
+
+/// Optional regional detail images for the zoomable editor timeline.
+abstract interface class GifTimelineRegionBackend {
+  Future<void> createTimelineRegion({
+    required String sourcePath,
+    required String outputPath,
+    required Duration start,
+    required Duration duration,
+    required CancelToken cancelToken,
+  });
+}

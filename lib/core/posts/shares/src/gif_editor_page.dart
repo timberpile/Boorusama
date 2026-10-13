@@ -4,7 +4,6 @@ import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
-import 'package:video_player/video_player.dart';
 
 import 'gif_conversion_service.dart';
 import 'gif_background_execution.dart';
@@ -12,6 +11,11 @@ import 'gif_editor_controller.dart';
 import 'gif_editor_selection.dart';
 import 'gif_error_message.dart';
 import 'gif_export_contract.dart';
+import 'gif_ffmpeg_runner.dart';
+import 'gif_loop_video_preview.dart';
+import 'gif_preview_frame.dart';
+import 'gif_trim_editor.dart';
+import 'gif_trim_navigation.dart';
 import 'gif_save_service.dart';
 import 'share_action_adapter.dart';
 import 'share_media_preparation.dart';
@@ -44,12 +48,19 @@ class _GifEditorPageState extends ConsumerState<GifEditorPage>
   late final _controller = GifEditorController(
     source: widget.source,
     service: widget.service,
+    loopRefiner: ref.read(gifLoopRefinerProvider),
     background: GifBackgroundExecution(
       title: context.t.post.gif_editor.encoding,
       cancelLabel: MaterialLocalizations.of(context).cancelButtonLabel,
     ),
   );
   var _handoff = false;
+  var _trimming = false;
+  var _previewPlaying = true;
+  late final _trimNavigation = GifTrimNavigation(
+    _controller.selection.sourceDuration,
+  );
+  final _position = ValueNotifier(Duration.zero);
 
   @override
   void initState() {
@@ -73,6 +84,8 @@ class _GifEditorPageState extends ConsumerState<GifEditorPage>
       unawaited(FileImage(File(output.path)).evict());
     }
     _controller.dispose();
+    _position.dispose();
+    _trimNavigation.dispose();
     super.dispose();
   }
 
@@ -81,6 +94,38 @@ class _GifEditorPageState extends ConsumerState<GifEditorPage>
       await FileImage(File(output.path)).evict();
     }
     await _controller.adjust();
+    if (mounted) {
+      _trimNavigation.focus(
+        _controller.selection.start,
+        _controller.selection.end,
+      );
+    }
+  }
+
+  Future<void> _trim() async {
+    if (_trimming || _controller.phase != GifEditorPhase.editing) return;
+    setState(() => _trimming = true);
+    try {
+      final result = await Navigator.of(context).push<(Duration, Duration)>(
+        MaterialPageRoute(
+          fullscreenDialog: true,
+          builder: (_) => GifTrimEditor(
+            source: widget.source,
+            service: widget.service,
+            selection: _controller.selection,
+            navigation: _trimNavigation,
+            refiner: _controller.loopRefiner,
+          ),
+        ),
+      );
+      if (mounted && result != null) {
+        _controller.update(
+          _controller.selection.copyWith(start: result.$1, end: result.$2),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _trimming = false);
+    }
   }
 
   Future<void> _export({required bool save}) async {
@@ -169,26 +214,33 @@ class _GifEditorPageState extends ConsumerState<GifEditorPage>
             child: LayoutBuilder(
               builder: (context, constraints) => Column(
                 children: [
-                  SizedBox(
+                  Padding(
                     key: const ValueKey('gif-preview'),
-                    height: (constraints.maxHeight * .35).clamp(80, 220),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    child: GifPreviewFrame(
+                      aspectRatio: selected.displayAspectRatio,
+                      maxHeight: (constraints.maxHeight * .35).clamp(80, 220),
                       child: Stack(
                         fit: StackFit.expand,
                         children: [
-                          Offstage(
-                            offstage:
-                                _controller.phase == GifEditorPhase.preview,
-                            child: _GifVideoPreview(
-                              source: widget.source,
-                              selection: selected,
-                              enabled: editing,
+                          if (!_trimming)
+                            Offstage(
+                              offstage:
+                                  _controller.phase == GifEditorPhase.preview,
+                              child: GifLoopVideoPreview(
+                                key: ObjectKey(widget.source),
+                                source: widget.source,
+                                position: _position,
+                                selection: selected,
+                                enabled: editing,
+                                autoplay: _previewPlaying,
+                                onPlaybackIntent: (value) =>
+                                    _previewPlaying = value,
+                              ),
                             ),
-                          ),
                           if (_controller.phase == GifEditorPhase.preview)
                             _GifOutputPreview(
                               key: ValueKey(_controller.result!.path),
@@ -363,52 +415,48 @@ class _GifEditorPageState extends ConsumerState<GifEditorPage>
                             child: Text(t.back_to_share),
                           ),
                         ] else ...[
-                          Text(t.trim_hint),
-                          const SizedBox(height: 8),
-                          _GifTrimTimeline(
-                            selection: selected,
-                            timeline: widget.source.timeline,
-                            onChanged: _controller.update,
+                          OutlinedButton.icon(
+                            key: const ValueKey('gif-open-trim'),
+                            onPressed: _trim,
+                            icon: const Icon(Icons.content_cut),
+                            label: Text(context.t.gif_trim.title),
                           ),
-                          const SizedBox(height: 8),
-                          Wrap(
-                            spacing: 16,
-                            runSpacing: 4,
-                            children: [
-                              Text(
-                                '${_seconds(selected.start)} s → ${_seconds(selected.end)} s',
-                              ),
-                              Text(
-                                t.selected(
-                                  seconds: _seconds(selected.duration),
-                                ),
-                              ),
-                            ],
+                          Text(
+                            '${(selected.start.inMicroseconds / 1000000).toStringAsFixed(3)} s → '
+                            '${(selected.end.inMicroseconds / 1000000).toStringAsFixed(3)} s',
+                          ),
+                          Text(
+                            t.selected(seconds: _seconds(selected.duration)),
                           ),
                           const SizedBox(height: 24),
                           Text(
                             t.size,
                             style: Theme.of(context).textTheme.titleMedium,
                           ),
-                          Wrap(
-                            spacing: 8,
-                            children: [
-                              for (final resolution in selected.resolutions)
-                                ChoiceChip(
-                                  key: ValueKey(
-                                    'gif-size-${resolution.longestEdge ?? 'original'}',
+                          SingleChildScrollView(
+                            key: const ValueKey('gif-size-options'),
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              spacing: 8,
+                              children: [
+                                for (final resolution in selected.resolutions)
+                                  ChoiceChip(
+                                    key: ValueKey(
+                                      'gif-size-${resolution.longestEdge ?? 'original'}',
+                                    ),
+                                    showCheckmark: false,
+                                    selected: selected.resolution == resolution,
+                                    label: Text(
+                                      resolution.longestEdge == null
+                                          ? t.original
+                                          : '${resolution.longestEdge}',
+                                    ),
+                                    onSelected: (_) => _controller.update(
+                                      selected.copyWith(resolution: resolution),
+                                    ),
                                   ),
-                                  selected: selected.resolution == resolution,
-                                  label: Text(
-                                    resolution.longestEdge == null
-                                        ? t.original
-                                        : '${resolution.longestEdge}',
-                                  ),
-                                  onSelected: (_) => _controller.update(
-                                    selected.copyWith(resolution: resolution),
-                                  ),
-                                ),
-                            ],
+                              ],
+                            ),
                           ),
                           Text(t.dimensions(width: width, height: height)),
                           const SizedBox(height: 20),
@@ -655,304 +703,5 @@ class _GifOutputPreviewState extends State<_GifOutputPreview> {
     fit: BoxFit.contain,
     errorBuilder: (_, _, _) =>
         Center(child: Text(context.t.post.gif_editor.preview_unavailable)),
-  );
-}
-
-class _GifTrimTimeline extends StatefulWidget {
-  const _GifTrimTimeline({
-    required this.selection,
-    required this.timeline,
-    required this.onChanged,
-  });
-  final GifEditorSelection selection;
-  final ShareMediaLease? timeline;
-  final ValueChanged<GifEditorSelection> onChanged;
-  @override
-  State<_GifTrimTimeline> createState() => _GifTrimTimelineState();
-}
-
-class _GifTrimTimelineState extends State<_GifTrimTimeline> {
-  late GifEditorSelection _dragSelection;
-  late double _dragDistance;
-  Widget _draggable({
-    required Widget child,
-    required String label,
-    required int edge,
-    required double width,
-  }) => Semantics(
-    label: label,
-    value: _timelineValue(widget.selection, edge),
-    increasedValue: _timelineValue(
-      _next(widget.selection, const Duration(milliseconds: 100), edge),
-      edge,
-    ),
-    decreasedValue: _timelineValue(
-      _next(widget.selection, const Duration(milliseconds: -100), edge),
-      edge,
-    ),
-    onIncrease: () =>
-        _move(widget.selection, const Duration(milliseconds: 100), edge),
-    onDecrease: () =>
-        _move(widget.selection, const Duration(milliseconds: -100), edge),
-    child: GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onHorizontalDragStart: (_) {
-        _dragSelection = widget.selection;
-        _dragDistance = 0;
-      },
-      onHorizontalDragUpdate: (details) {
-        _dragDistance += details.delta.dx;
-        _move(
-          _dragSelection,
-          Duration(
-            microseconds:
-                (_dragDistance /
-                        width *
-                        widget.selection.sourceDuration.inMicroseconds)
-                    .round(),
-          ),
-          edge,
-        );
-      },
-      child: child,
-    ),
-  );
-
-  String _timelineValue(GifEditorSelection selected, int edge) =>
-      '${_seconds(edge == 1 ? selected.end : selected.start)} s';
-  void _move(GifEditorSelection selected, Duration delta, int edge) =>
-      widget.onChanged(_next(selected, delta, edge));
-  GifEditorSelection _next(
-    GifEditorSelection selected,
-    Duration delta,
-    int edge,
-  ) => switch (edge) {
-    -1 => selected.moveStart(selected.start + delta),
-    1 => selected.moveEnd(selected.end + delta),
-    _ => selected.moveWindow(selected.start + delta),
-  };
-
-  @override
-  Widget build(BuildContext context) => LayoutBuilder(
-    builder: (context, constraints) {
-      final width = constraints.maxWidth - 44;
-      final selected = widget.selection;
-      final left =
-          selected.start.inMicroseconds /
-              selected.sourceDuration.inMicroseconds *
-              width +
-          22;
-      final right =
-          selected.end.inMicroseconds /
-              selected.sourceDuration.inMicroseconds *
-              width +
-          22;
-      final color = Theme.of(context).colorScheme.primary;
-      final t = context.t.post.gif_editor;
-      return SizedBox(
-        height: 68,
-        child: Stack(
-          children: [
-            Positioned(
-              left: 22,
-              right: 22,
-              top: 6,
-              bottom: 6,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: widget.timeline == null
-                    ? ColoredBox(
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.surfaceContainerHighest,
-                      )
-                    : Image.file(
-                        File(widget.timeline!.path),
-                        fit: BoxFit.fill,
-                        errorBuilder: (_, _, _) => ColoredBox(
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.surfaceContainerHighest,
-                        ),
-                      ),
-              ),
-            ),
-            Positioned(
-              left: left,
-              width: right - left,
-              top: 4,
-              bottom: 4,
-              child: _draggable(
-                label: t.move_window,
-                edge: 0,
-                width: width,
-                child: Container(
-                  key: const ValueKey('gif-trim-window'),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: color, width: 3),
-                    color: color.withValues(alpha: .12),
-                  ),
-                ),
-              ),
-            ),
-            for (final edge in [-1, 1])
-              Positioned(
-                left: (edge == -1 ? left : right) - 22,
-                width: 44,
-                top: 0,
-                bottom: 0,
-                child: _draggable(
-                  label: edge == -1 ? t.clip_start : t.clip_end,
-                  edge: edge,
-                  width: width,
-                  child: Center(
-                    child: Container(
-                      key: ValueKey('gif-trim-$edge'),
-                      width: 12,
-                      height: 60,
-                      decoration: BoxDecoration(
-                        color: color,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: const Icon(Icons.drag_indicator, size: 12),
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      );
-    },
-  );
-}
-
-class _GifVideoPreview extends StatefulWidget {
-  const _GifVideoPreview({
-    required this.source,
-    required this.selection,
-    required this.enabled,
-  });
-  final GifPreparedSource source;
-  final GifEditorSelection selection;
-  final bool enabled;
-  @override
-  State<_GifVideoPreview> createState() => _GifVideoPreviewState();
-}
-
-class _GifVideoPreviewState extends State<_GifVideoPreview>
-    with WidgetsBindingObserver {
-  late final _video = VideoPlayerController.file(
-    File(widget.source.lease.path),
-  );
-  var _ready = false;
-  var _unavailable = false;
-  var _creationFailed = false;
-  var _seeking = false;
-  late final Future<void> _initialization;
-  @override
-  void initState() {
-    super.initState();
-    widget.source.lease.retain();
-    WidgetsBinding.instance.addObserver(this);
-    _video.addListener(_loop);
-    _initialization = _initialize();
-  }
-
-  Future<void> _initialize() async {
-    try {
-      await _video.initialize();
-      if (!mounted) return;
-      await _video.setVolume(0);
-      await _video.seekTo(widget.selection.start);
-      await _video.setPlaybackSpeed(widget.selection.speed);
-      if (mounted) setState(() => _ready = true);
-    } catch (_) {
-      _creationFailed = !_video.value.isInitialized && !_video.value.hasError;
-      if (mounted) setState(() => _unavailable = true);
-    }
-  }
-
-  void _loop() {
-    if (!_ready || _seeking || !_video.value.isPlaying) return;
-    if (_video.value.position >= widget.selection.end ||
-        _video.value.position < widget.selection.start) {
-      _seeking = true;
-      unawaited(
-        _video
-            .seekTo(widget.selection.start)
-            .whenComplete(() => _seeking = false),
-      );
-    }
-  }
-
-  @override
-  void didUpdateWidget(_GifVideoPreview oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (_ready) {
-      if (!widget.enabled) unawaited(_video.pause());
-      if (oldWidget.selection.start != widget.selection.start ||
-          oldWidget.selection.end != widget.selection.end ||
-          oldWidget.selection.speed != widget.selection.speed) {
-        unawaited(_video.setPlaybackSpeed(widget.selection.speed));
-        unawaited(_video.seekTo(widget.selection.start));
-      }
-    }
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state != AppLifecycleState.resumed && _ready) unawaited(_video.pause());
-  }
-
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    _video.removeListener(_loop);
-    unawaited(_disposeVideo());
-    super.dispose();
-  }
-
-  Future<void> _disposeVideo() async {
-    try {
-      await _initialization;
-      // A platform creation failure leaves video_player's creation completer
-      // unresolved. Decoder errors arrive through value.hasError after creation
-      // and still require disposal before releasing the source file.
-      if (!_creationFailed) {
-        await _video.dispose();
-      }
-    } finally {
-      await widget.source.lease.release();
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) => SizedBox(
-    height: 220,
-    child: _unavailable
-        ? Center(child: Text(context.t.post.gif_editor.preview_unavailable))
-        : !_ready
-        ? const Center(child: CircularProgressIndicator())
-        : Stack(
-            alignment: Alignment.center,
-            children: [
-              AspectRatio(
-                aspectRatio: _video.value.aspectRatio,
-                child: VideoPlayer(_video),
-              ),
-              ValueListenableBuilder(
-                valueListenable: _video,
-                builder: (context, value, _) => IconButton.filled(
-                  tooltip: value.isPlaying
-                      ? context.t.post.gif_editor.pause
-                      : context.t.post.gif_editor.play,
-                  onPressed: widget.enabled
-                      ? () => value.isPlaying ? _video.pause() : _video.play()
-                      : null,
-                  icon: Icon(value.isPlaying ? Icons.pause : Icons.play_arrow),
-                ),
-              ),
-            ],
-          ),
   );
 }

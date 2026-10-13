@@ -468,68 +468,85 @@ void main() {
   });
 
   group('Session Resume', () {
-    test('should mark dry run session as pending when interrupted', () async {
-      // Arrange
-      var myContainer = createBulkDownloadContainer(
-        downloadRepository: repository,
-        booruBuilder: MockBooruBuilder(),
+    for (final invalidate in [false, true]) {
+      test(
+        invalidate
+            ? 'provider rebuild discards the old dry run without changing the reset session'
+            : 'should mark dry run session as pending when interrupted',
+        () async {
+          // Arrange
+          var myContainer = createBulkDownloadContainer(
+            downloadRepository: repository,
+            booruBuilder: MockBooruBuilder(),
+          );
+          final task = await repository.createTask(_options);
+          var notifier = myContainer.read(bulkDownloadProvider.notifier);
+
+          final interruptedDownload = notifier.downloadFromTask(
+            task,
+            downloadConfigs: _defaultConfigs.copyWith(
+              delayBetweenRequests: const Duration(milliseconds: 2000),
+            ),
+          );
+          final stopped = expectLater(interruptedDownload, completes);
+
+          // Wait for dry run to start
+          await Future.delayed(const Duration(milliseconds: 50));
+
+          // Get session ID from the first session
+          final sessions = await repository.getSessionsByTaskId(task.id);
+          expect(sessions.length, equals(1));
+          final sessionId = sessions.first.id;
+
+          // Verify session is in dry run
+          expect(sessions.first.status, equals(DownloadSessionStatus.dryRun));
+
+          // Simulate app restart before completing dry run
+          if (invalidate) {
+            myContainer.invalidate(bulkDownloadProvider);
+          } else {
+            myContainer.dispose();
+            myContainer = createBulkDownloadContainer(
+              downloadRepository: repository,
+              booruBuilder: MockBooruBuilder(),
+            );
+          }
+          notifier = myContainer.read(bulkDownloadProvider.notifier);
+
+          // Wait for notifier to load
+          await Future.delayed(const Duration(milliseconds: 50));
+
+          // Verify session is reset to pending
+          final resetSession = await repository.getSession(sessionId);
+          expect(
+            resetSession?.status,
+            equals(DownloadSessionStatus.pending),
+          );
+
+          // Verify state reflects changes
+          final state = myContainer.read(bulkDownloadProvider);
+          final stateSession = state.sessions.firstWhere(
+            (s) => s.session.id == sessionId,
+          );
+
+          expect(
+            stateSession.session.status,
+            equals(DownloadSessionStatus.pending),
+          );
+
+          // Verify all records are cleaned up
+          final records = await repository.getRecordsBySessionId(sessionId);
+          expect(records, isEmpty);
+
+          // The disposed worker must finish without touching the restarted session.
+          await stopped;
+          expect(
+            (await repository.getSession(sessionId))?.status,
+            DownloadSessionStatus.pending,
+          );
+        },
       );
-      final task = await repository.createTask(_options);
-      var notifier = myContainer.read(bulkDownloadProvider.notifier);
-
-      unawaited(
-        notifier.downloadFromTask(
-          task,
-          downloadConfigs: _defaultConfigs.copyWith(
-            delayBetweenRequests: const Duration(milliseconds: 2000),
-          ),
-        ),
-      );
-
-      // Wait for dry run to start
-      await Future.delayed(const Duration(milliseconds: 50));
-
-      // Get session ID from the first session
-      final sessions = await repository.getSessionsByTaskId(task.id);
-      expect(sessions.length, equals(1));
-      final sessionId = sessions.first.id;
-
-      // Verify session is in dry run
-      expect(sessions.first.status, equals(DownloadSessionStatus.dryRun));
-
-      // Simulate app restart before completing dry run
-      myContainer.dispose();
-      myContainer = createBulkDownloadContainer(
-        downloadRepository: repository,
-        booruBuilder: MockBooruBuilder(),
-      );
-      notifier = myContainer.read(bulkDownloadProvider.notifier);
-
-      // Wait for notifier to load
-      await Future.delayed(const Duration(milliseconds: 50));
-
-      // Verify session is reset to pending
-      final resetSession = await repository.getSession(sessionId);
-      expect(
-        resetSession?.status,
-        equals(DownloadSessionStatus.pending),
-      );
-
-      // Verify state reflects changes
-      final state = myContainer.read(bulkDownloadProvider);
-      final stateSession = state.sessions.firstWhere(
-        (s) => s.session.id == sessionId,
-      );
-
-      expect(
-        stateSession.session.status,
-        equals(DownloadSessionStatus.pending),
-      );
-
-      // Verify all records are cleaned up
-      final records = await repository.getRecordsBySessionId(sessionId);
-      expect(records, isEmpty);
-    });
+    }
 
     test(
       'should complete a paused session if all records are already completed',

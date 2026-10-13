@@ -17,6 +17,28 @@
     "export_saved": "Gespeichert unter {path}",
     "export_failed": "Der Bericht konnte nicht exportiert werden. Versuche stattdessen, ihn zu kopieren."
   },
+  "gif_trim": {
+    "title": "Trim",
+    "overview": "Gesamtes Video",
+    "overview_hint": "Tippen oder ziehen, um eine Szene zu finden. Die Auswahl bleibt unverändert.",
+    "detail_hint": "Tippen zum Suchen. Ränder zum Schneiden ziehen, freie Fläche zum Navigieren.",
+    "zoom_out": "Verkleinern",
+    "zoom_in": "Vergrößern",
+    "focus_selection": "Zur Auswahl",
+    "source": "Quelle",
+    "loop": "Loop",
+    "start_here": "Start hier",
+    "end_here": "Ende hier",
+    "start_frame_back": "Start: einen Quellframe zurück",
+    "start_frame_forward": "Start: einen Quellframe vor",
+    "end_frame_back": "Ende: einen Quellframe zurück",
+    "end_frame_forward": "Ende: einen Quellframe vor",
+    "apply": "Übernehmen",
+    "preview_speed": "Vorschautempo",
+    "preview_speed_hint": "100 % entspricht dem Originaltempo. Das exportierte GIF bleibt unverändert.",
+    "preparing_preview": "Flüssige Vorschau wird vorbereitet…",
+    "native_preview": "Diese Vorschau kann beim Wiederholen kurz stocken."
+  },
   "pinned_searches": {
     "last_refresh": "Zuletzt aktualisiert: {date}",
     "sort_feed_last_refresh": "Letzte Aktualisierung (älteste zuerst)",
@@ -261,6 +283,14 @@
       }
     },
     "gif_editor": {
+      "timeline_zoom_hint": "Mit zwei Fingern zoomen. Zum Scrollen die Zeitleiste oberhalb der Bilder ziehen.",
+      "timeline_position": "Wiedergabeposition",
+      "refine_loop": "Loop verfeinern",
+      "refining_loop": "Loop wird verfeinert…",
+      "loop_refined": "Loop-Grenzen verfeinert.",
+      "loop_seam_hint": "Loop-Übergang angepasst. Die Wiederholung konnte nicht bestätigt werden.",
+      "loop_no_match": "Keine zuverlässige Übereinstimmung in der Nähe. Auswahl unverändert.",
+      "undo_refinement": "Verfeinerung rückgängig",
       "size": "Größe",
       "axes": "Breite und Höhe",
       "frames": "Bilder aus dem Original",

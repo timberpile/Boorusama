@@ -241,6 +241,27 @@ void main() {
     expect(await File(source).readAsBytes(), before);
   }, skip: !File('/usr/bin/ffmpeg').existsSync());
 
+  test('zoomed filmstrip decodes only its requested source interval', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'gif-regional-filmstrip-',
+    );
+    addTearDown(() => directory.delete(recursive: true));
+    final source = '${directory.path}/source.mp4';
+    await _fixture(source, 'libx264');
+    final before = await File(source).readAsBytes();
+    final output = '${directory.path}/region.png';
+    await FfmpegGifBackend(_ProcessRunner()).createTimelineRegion(
+      sourcePath: source,
+      outputPath: output,
+      start: const Duration(seconds: 1),
+      duration: const Duration(milliseconds: 500),
+      cancelToken: CancelToken(),
+    );
+    final decoded = image.decodePng(await File(output).readAsBytes());
+    expect((decoded!.width, decoded.height), (480, 56));
+    expect(await File(source).readAsBytes(), before);
+  }, skip: !File('/usr/bin/ffmpeg').existsSync());
+
   for (final (fps, playback) in [
     (24.0, 6),
     (12.0, 24),
