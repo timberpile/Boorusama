@@ -1,56 +1,124 @@
+import 'dart:async';
+
 import 'package:boorusama/core/bookmarks/src/providers/suggestion_provider.dart';
-import 'package:boorusama/core/boorus/engine/providers.dart';
-import 'package:boorusama/core/configs/config/types.dart';
-import 'package:boorusama/core/tags/categories/providers.dart';
-import 'package:boorusama/core/tags/categories/types.dart';
-import 'package:boorusama/core/themes/colors/providers.dart';
-import 'package:flutter/material.dart';
+import 'package:boorusama/core/bookmarks/src/types/bookmark_search_token.dart';
+import 'package:boorusama/core/bookmarks/src/types/bookmark_tag_index.dart';
+import 'package:boorusama/core/bookmarks/src/types/bookmark_view.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mocktail/mocktail.dart';
-
-class _TagTypeStore extends Mock implements TagTypeStore {}
 
 void main() {
+  for (final (draft, expected) in [
+    ('one piece', 'one_piece '),
+    ('-ONE PIECE', '-one_piece '),
+    ('blue_hair one pi', 'blue_hair one_piece '),
+    ('blue_hair\t-one   piece', 'blue_hair -one_piece '),
+  ]) {
+    test('replaces the longest matching phrase in $draft', () {
+      expect(insertBookmarkTagSuggestion(draft, 'one_piece'), expected);
+    });
+  }
+
   test(
-    'local suggestions search negative tag names and clear an incomplete token',
+    'late index completion keeps typed and empty-state suggestions isolated',
     () async {
-      final config = BooruConfigAuth.fromConfig(BooruConfig.empty);
+      final pending = Completer<BookmarkTagIndex>();
       final container = ProviderContainer(
         overrides: [
-          sortedTagsProvider.overrideWith(
-            (ref) => Future.value(const [
-              MapEntry('glasses', 5),
-              MapEntry('GLASS', 2),
-              MapEntry('hat', 1),
-            ]),
-          ),
-          booruTagTypeStoreProvider.overrideWith(
-            (ref) => Future.value(_TagTypeStore()),
-          ),
-          colorSchemeProvider.overrideWithValue(const ColorScheme.light()),
-          booruRepoProvider(config).overrideWith((ref) => null),
+          bookmarkTagIndexProvider.overrideWith((ref, view) => pending.future),
         ],
       );
       addTearDown(container.dispose);
-      final subscription = container.listen(tagSuggestionsProvider, (_, _) {});
-      addTearDown(subscription.close);
-      await container.read(tagSuggestionsProvider.future);
-      final notifier = container.read(tagSuggestionsProvider.notifier);
-      for (final query in ['gla', 'blue_hair -gla', '-GLA']) {
-        await notifier.loadSuggestions(config, query);
-        expect(
-          container
-              .read(tagSuggestionsProvider)
-              .requireValue
-              .suggestions
-              .map((s) => s.tag),
-          ['glasses', 'GLASS'],
-        );
-      }
-      await notifier.loadSuggestions(config, 'blue_hair -');
+      const view = BookmarkView.all();
+      final oldQuery = bookmarkTagSuggestionsProvider((view, 'one piece', ''));
+      final newQuery = bookmarkTagSuggestionsProvider((view, '-blue', ''));
+      final cleared = bookmarkTagSuggestionsProvider((view, '', ''));
+      final subscriptions = [
+        container.listen(oldQuery, (_, _) {}),
+        container.listen(newQuery, (_, _) {}),
+        container.listen(cleared, (_, _) {}),
+      ];
+      addTearDown(() {
+        for (final subscription in subscriptions) {
+          subscription.close();
+        }
+      });
+      expect(container.read(cleared).isLoading, isTrue);
+      pending.complete(
+        BookmarkTagIndex([
+          BookmarkTagEntry(tag: 'one_piece', count: 2, sources: const {}),
+          BookmarkTagEntry(tag: 'blue_hair', count: 1, sources: const {}),
+        ]),
+      );
+      await container.read(bookmarkTagIndexProvider(view).future);
+      await container.pump();
+      expect(container.read(newQuery).requireValue.single.tag, 'blue_hair');
+      expect(container.read(oldQuery).requireValue.single.tag, 'one_piece');
       expect(
-        container.read(tagSuggestionsProvider).requireValue.suggestions,
+        container.read(cleared).requireValue.map((entry) => entry.tag),
+        ['one_piece', 'blue_hair'],
+      );
+    },
+  );
+
+  test(
+    'keeps suggestions isolated between bookmark views and selected queries',
+    () async {
+      final container = ProviderContainer(
+        overrides: [
+          bookmarkTagIndexProvider.overrideWith(
+            (ref, view) => BookmarkTagIndex([
+              BookmarkTagEntry(
+                tag: view.kind == BookmarkViewKind.all
+                    ? 'one_piece'
+                    : 'one_punch_man',
+                count: 1,
+                sources: const {},
+              ),
+            ]),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      const all = BookmarkView.all();
+      const group = BookmarkView.defaultGroup();
+      final allQuery = bookmarkTagSuggestionsProvider((all, 'one', ''));
+      final groupQuery = bookmarkTagSuggestionsProvider((group, 'one', ''));
+      final subscriptions = [
+        container.listen(allQuery, (_, _) {}),
+        container.listen(groupQuery, (_, _) {}),
+      ];
+      addTearDown(() {
+        for (final subscription in subscriptions) {
+          subscription.close();
+        }
+      });
+      await container.read(bookmarkTagIndexProvider(all).future);
+      await container.read(bookmarkTagIndexProvider(group).future);
+      await container.pump();
+      expect(container.read(allQuery).requireValue.single.tag, 'one_piece');
+      expect(
+        container.read(groupQuery).requireValue.single.tag,
+        'one_punch_man',
+      );
+      expect(
+        container
+            .read(bookmarkTagSuggestionsProvider((all, 'one', 'one_piece')))
+            .requireValue,
+        isEmpty,
+      );
+      expect(
+        container
+            .read(bookmarkTagSuggestionsProvider((group, '', '')))
+            .requireValue
+            .single
+            .tag,
+        'one_punch_man',
+      );
+      expect(
+        container
+            .read(bookmarkTagSuggestionsProvider((all, '', 'one_piece')))
+            .requireValue,
         isEmpty,
       );
     },

@@ -16,11 +16,17 @@ class SelectedTagChip extends StatelessWidget {
     super.key,
     this.onDeleted,
     this.onUpdated,
+    this.onTap,
+    this.tagColor,
+    this.textScaler,
   });
 
   final TagSearchItem tagSearchItem;
   final VoidCallback? onDeleted;
   final void Function(String tag)? onUpdated;
+  final VoidCallback? onTap;
+  final Color? tagColor;
+  final TextScaler? textScaler;
 
   @override
   Widget build(BuildContext context) {
@@ -32,24 +38,26 @@ class SelectedTagChip extends StatelessWidget {
     final tagColors = TagColors.fromBrightness(colorScheme.brightness);
 
     return GestureDetector(
-      onTap: () {
-        showDialog(
-          context: context,
-          routeSettings: const RouteSettings(name: 'selected_tag_edit'),
-          builder: (c) {
-            return SelectedTagEditDialog(
-              tag: tagSearchItem,
-              onUpdated: (tag) {
-                if (tag.isNotEmpty) {
-                  onUpdated?.call(tag);
-                } else {
-                  onDeleted?.call();
-                }
+      onTap:
+          onTap ??
+          () {
+            showDialog(
+              context: context,
+              routeSettings: const RouteSettings(name: 'selected_tag_edit'),
+              builder: (c) {
+                return SelectedTagEditDialog(
+                  tag: tagSearchItem,
+                  onUpdated: (tag) {
+                    if (tag.isNotEmpty) {
+                      onUpdated?.call(tag);
+                    } else {
+                      onDeleted?.call();
+                    }
+                  },
+                );
               },
             );
           },
-        );
-      },
       child: KurumiMaterialChip(
         visualDensity: const ShrinkVisualDensity(),
         shape: const RoundedRectangleBorder(
@@ -65,6 +73,9 @@ class SelectedTagChip extends StatelessWidget {
         onDeleted: () => onDeleted?.call(),
         labelPadding: const EdgeInsets.symmetric(horizontal: 2),
         label: RichText(
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textScaler: textScaler ?? TextScaler.noScaling,
           text: TextSpan(
             style: const TextStyle(
               fontWeight: FontWeight.w500,
@@ -106,7 +117,7 @@ class SelectedTagChip extends StatelessWidget {
                     ? tagSearchItem.tag
                     : tagSearchItem.tag.replaceAll('_', ' '),
                 style: TextStyle(
-                  color: colorScheme.onSecondaryContainer,
+                  color: tagColor ?? colorScheme.onSecondaryContainer,
                 ),
               ),
               const TextSpan(

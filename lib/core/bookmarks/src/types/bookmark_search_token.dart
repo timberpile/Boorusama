@@ -18,15 +18,53 @@ class BookmarkSearchToken {
   final bool isNegative;
 }
 
-String insertBookmarkTagSuggestion(String text, String suggestion) {
-  final trimmed = text.trim();
-  final parts = trimmed.isEmpty ? <String>[] : trimmed.split(RegExp(r'\s+'));
-  final token = BookmarkSearchToken.current(text);
-  final replacement = '${token.isNegative ? '-' : ''}$suggestion';
-  if (parts.isNotEmpty && suggestion.toLowerCase().contains(token.tag)) {
-    parts[parts.length - 1] = replacement;
-  } else {
-    parts.add(suggestion);
+String canonicalBookmarkTag(String text) =>
+    text.trim().toLowerCase().replaceAll(RegExp(r'\s+'), '_');
+
+/// Longest phrase first: a readable tag may contain several typed words.
+/// Earlier, unrelated tokens in a pasted query remain outside the replacement.
+Iterable<({String prefix, BookmarkSearchToken token})>
+bookmarkSuggestionQueries(String text) sync* {
+  final words = text.trim().split(RegExp(r'\s+'));
+  for (var start = 0; start < words.length; start++) {
+    yield (
+      prefix: words.take(start).join(' '),
+      token: BookmarkSearchToken.parse(words.skip(start).join('_')),
+    );
   }
-  return '${parts.join(' ')} ';
+}
+
+String insertBookmarkTagSuggestion(String text, String suggestion) {
+  final canonical = canonicalBookmarkTag(suggestion);
+  for (final query in bookmarkSuggestionQueries(text)) {
+    if (!canonical.contains(query.token.tag)) continue;
+    final replacement = '${query.token.isNegative ? '-' : ''}$canonical';
+    return '${[query.prefix, replacement].where((s) => s.isNotEmpty).join(' ')} ';
+  }
+  return '${[text.trim(), canonical].where((s) => s.isNotEmpty).join(' ')} ';
+}
+
+/// Prefer an exact known readable phrase, otherwise preserve the existing
+/// whitespace-delimited syntax for pasted canonical queries.
+List<String> parseBookmarkSearchInput(
+  String text, {
+  Set<String> knownTags = const {},
+}) {
+  final words = text.trim().toLowerCase().split(RegExp(r'\s+'));
+  final tags = <String>[];
+  var start = 0;
+  while (start < words.length) {
+    var end = words.length;
+    while (end > start + 1) {
+      final candidate = words.sublist(start, end).join('_');
+      if (knownTags.contains(BookmarkSearchToken.parse(candidate).tag)) break;
+      end--;
+    }
+    final candidate = words.sublist(start, end).join('_');
+    if (BookmarkSearchToken.parse(candidate).tag.isNotEmpty) {
+      tags.add(candidate);
+    }
+    start = end;
+  }
+  return tags;
 }

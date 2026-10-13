@@ -3,11 +3,38 @@ import 'package:boorusama/core/bookmarks/src/types/bookmark.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_group.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_library_state.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_search_token.dart';
+import 'package:boorusama/core/bookmarks/src/types/bookmark_tag_index.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_target.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_view.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test(
+    'suggested canonical tags match readable stored tags and exclusions',
+    () {
+      final bookmarks = [
+        Bookmark.empty.copyWith(id: 1, tags: {'One Piece', 'blue hair'}),
+        Bookmark.empty.copyWith(id: 2, tags: {'one_piece', 'glasses'}),
+      ];
+      final index = BookmarkTagIndex.fromBookmarks(bookmarks);
+      final suggestion = index.suggestions('one piece').single.tag;
+      for (final (query, expectedIds) in [
+        ([suggestion], [1, 2]),
+        ([suggestion, '-blue_hair'], [2]),
+        (['-$suggestion'], <int>[]),
+      ]) {
+        expect(
+          filterBookmarks(
+            bookmarks: bookmarks,
+            selectedTags: query,
+            sortType: BookmarkSortType.oldest,
+          ).map((bookmark) => bookmark.id),
+          expectedIds,
+        );
+      }
+    },
+  );
+
   final bookmarks = [
     for (final (index, tags) in [
       {'blue_hair', 'smile'},

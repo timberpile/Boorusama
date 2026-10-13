@@ -277,7 +277,9 @@ void main() {
       expect(search, findsOneWidget);
       expect(find.text('Source: All'), findsOneWidget);
       expect(find.text('Newest'), findsOneWidget);
-      await tester.tap(find.byIcon(Symbols.clear));
+      await tester.tap(
+        find.byTooltip(pageContext.t.search.remove_all_selected),
+      );
       await pumpHeader();
       expect(controller.items.length, expectedCount);
       // A selected source remains visible even when it has no matches in this view.
@@ -326,7 +328,14 @@ void main() {
       expect(changed, isTrue);
       expect(controller.items.length, expectedCount);
       expect(container.read(selectedBooruUrlProvider), 'gelbooru.example');
-      expect(tester.widget<TextField>(search).controller!.text, 'red');
+      expect(
+        tester
+            .widget<BookmarkSearchBar>(find.byType(BookmarkSearchBar))
+            .controller
+            .text,
+        'red',
+      );
+      expect(tester.widget<TextField>(search).controller!.text, isEmpty);
       expect(container.read(bookmarkProvider).requireValue, same(library));
       await tester.tap(
         find.descendant(

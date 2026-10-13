@@ -227,6 +227,7 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                 child: BookmarkSearchBar(
                   controller: widget.searchController,
                   postController: controller,
+                  view: widget.view,
                 ),
               ),
               SliverPinnedHeader(

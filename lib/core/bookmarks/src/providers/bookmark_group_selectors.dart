@@ -69,7 +69,7 @@ List<Bookmark> filterBookmarks({
       .where((token) => token.tag.isNotEmpty)
       .toList();
   bool matchesTags(Bookmark bookmark) {
-    final tags = bookmark.tags.map((tag) => tag.toLowerCase()).toSet();
+    final tags = bookmark.tags.map(canonicalBookmarkTag).toSet();
     return filters.every(
       (token) => tags.contains(token.tag) != token.isNegative,
     );
