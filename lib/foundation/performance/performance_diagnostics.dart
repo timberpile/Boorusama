@@ -12,6 +12,32 @@ import '../info/package_info.dart';
 export 'package:foundation/performance.dart';
 
 const _revision = String.fromEnvironment('BOORUSAMA_REVISION');
+const _configuredVariant = String.fromEnvironment('BOORUSAMA_PERF_VARIANT');
+
+String get performanceDiagnosticsBuildMode => kReleaseMode
+    ? 'release'
+    : kProfileMode
+    ? 'profile'
+    : 'debug';
+
+String get performanceDiagnosticsVariant =>
+    const {'baseline', 'fixed'}.contains(_configuredVariant)
+    ? _configuredVariant
+    : 'unspecified';
+
+String performanceDiagnosticsFileName(DateTime time) {
+  final utc = time.toUtc();
+  String digits(int value, int width) => value.toString().padLeft(width, '0');
+  final timestamp =
+      '${digits(utc.year, 4)}${digits(utc.month, 2)}'
+      '${digits(utc.day, 2)}T${digits(utc.hour, 2)}${digits(utc.minute, 2)}'
+      '${digits(utc.second, 2)}${digits(utc.millisecond, 3)}Z';
+  final revision = RegExp(r'^[a-fA-F0-9]{7,40}$').hasMatch(_revision)
+      ? _revision.substring(0, 8)
+      : 'unknown';
+  return 'boorusama-performance-$performanceDiagnosticsBuildMode-'
+      '$timestamp-$revision.json';
+}
 
 final performanceDiagnosticsProvider = Provider<PerformanceDiagnostics>((ref) {
   final service = PerformanceDiagnostics(
@@ -89,13 +115,12 @@ class PerformanceDiagnostics extends ChangeNotifier
   Map<String, Object?> report() => {
     ...recorder.snapshot(),
     'diagnostic_tool': 'viewerSwipeV1',
+    'diagnostic_features': ['viewerSwipeV1', 'cacheV1'],
     'environment': {
-      'build_mode': kReleaseMode
-          ? 'release'
-          : kProfileMode
-          ? 'profile'
-          : 'debug',
+      'build_mode': performanceDiagnosticsBuildMode,
       'platform': defaultTargetPlatform.name,
+      'flavor': kEnvironment,
+      'variant': performanceDiagnosticsVariant,
       'revision': RegExp(r'^[a-fA-F0-9]{7,40}$').hasMatch(_revision)
           ? _revision
           : 'unspecified',

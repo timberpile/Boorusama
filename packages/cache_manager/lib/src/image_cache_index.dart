@@ -1,7 +1,11 @@
+import 'package:foundation/performance.dart';
+
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
+
+import 'image_cache_checkpoint.dart';
 
 class ImageCacheEntry {
   ImageCacheEntry({
@@ -50,9 +54,15 @@ class ImageCacheEntry {
 }
 
 /// Ordered journal plus atomic checkpoints. Contents contain hashed keys only.
+/// The owner must serialize load, mutations and checkpoint calls through completion.
 class ImageCacheIndex {
-  ImageCacheIndex(this.directory);
+  ImageCacheIndex(
+    this.directory, {
+    ImageCacheCheckpointWriter checkpointWriter =
+        writeImageCacheCheckpointInBackground,
+  }) : _checkpointWriter = checkpointWriter;
   final Directory directory;
+  final ImageCacheCheckpointWriter _checkpointWriter;
   final entries = <String, ImageCacheEntry>{};
   int revision = 0;
   var _records = 0;
@@ -128,28 +138,79 @@ class ImageCacheIndex {
   }
 
   Future<void> _append(String key, Map<String, Object>? entry) async {
-    await directory.create(recursive: true);
-    await _journal.writeAsString(
-      '${jsonEncode({'revision': ++revision, 'key': key, 'entry': entry})}\n',
-      mode: FileMode.append,
-      flush: true,
+    await performanceRecorder.measureAsync(
+      PerfOperation.cacheJournalAppend,
+      () async {
+        await directory.create(recursive: true);
+        await _journal.writeAsString(
+          '${jsonEncode({'revision': ++revision, 'key': key, 'entry': entry})}\n',
+          mode: FileMode.append,
+          flush: true,
+        );
+      },
     );
     if (++_records >= 128) await checkpoint();
   }
 
   Future<void> checkpoint() async {
-    await directory.create(recursive: true);
-    final staged = File('${_checkpoint.path}.partial');
-    await staged.writeAsString(
-      jsonEncode({
-        'version': 1,
-        'revision': revision,
-        'entries': entries.values.map((e) => e.toJson()).toList(),
-      }),
-      flush: true,
+    final span = performanceRecorder.begin(
+      PerfOperation.cacheCheckpoint,
+      PerfSpanKind.asyncWall,
+      items: entries.length,
     );
-    await staged.rename(_checkpoint.path);
-    await _journal.writeAsString('', flush: true);
-    _records = 0;
+    final staged = File('${_checkpoint.path}.partial');
+    var failed = false;
+    try {
+      await directory.create(recursive: true);
+      final snapshot = performanceRecorder.measureSync(
+        PerfOperation.cacheCheckpointSnapshot,
+        () => (
+          stagedPath: staged.path,
+          revision: revision,
+          entries: List<ImageCacheCheckpointEntry>.unmodifiable(
+            entries.values.map(
+              (entry) => (
+                key: entry.key,
+                filename: entry.filename,
+                size: entry.size,
+                use: entry.use,
+              ),
+            ),
+          ),
+        ),
+        items: entries.length,
+      );
+      await performanceRecorder.measureAsync(
+        PerfOperation.cacheCheckpointWorker,
+        () => performanceRecorder.measureSync(
+          PerfOperation.cacheCheckpointDispatch,
+          () => _checkpointWriter(snapshot),
+          items: snapshot.entries.length,
+        ),
+        items: snapshot.entries.length,
+      );
+      // Remain in the owner's current queue slot throughout the worker await.
+      // Releasing/re-entering it here would lose later journal entries or deadlock.
+      await performanceRecorder.measureAsync(
+        PerfOperation.cacheCheckpointPublish,
+        () async {
+          await staged.rename(_checkpoint.path);
+          await _journal.writeAsString('', flush: true);
+        },
+      );
+      _records = 0;
+    } catch (_) {
+      failed = true;
+      // A failed attempt must leave the authoritative checkpoint/journal alone.
+      // Cleanup is best effort and must not mask the original failure.
+      try {
+        if (await staged.exists()) await staged.delete();
+      } on FileSystemException {
+        // An interrupted partial is ignored on load and overwritten on retry.
+      }
+      rethrow;
+    } finally {
+      span.finish(failed: failed);
+    }
   }
 }

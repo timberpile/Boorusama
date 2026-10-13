@@ -1,3 +1,5 @@
+import 'package:foundation/performance.dart';
+
 import 'dart:async';
 import 'dart:io';
 import 'dart:math';
@@ -8,6 +10,7 @@ import 'package:path_provider/path_provider.dart';
 
 import 'cache_utils.dart' as cache_utils;
 import 'image_cache_index.dart';
+import 'image_cache_checkpoint.dart';
 import 'managed_image_cache.dart';
 import 'memory_cache.dart';
 
@@ -17,14 +20,18 @@ class DefaultImageCacheManager implements ManagedImageCacheManager {
     this.enableLogging = false,
     this.cacheRootPathProvider,
     MemoryCache? memoryCache,
+    ImageCacheCheckpointWriter checkpointWriter =
+        writeImageCacheCheckpointInBackground,
     int maxBytes = 1024 * 1024 * 1024,
-  }) : _memoryCache = memoryCache,
+  }) : _checkpointWriter = checkpointWriter,
+       _memoryCache = memoryCache,
        _maxBytes = maxBytes < 0 ? 1024 * 1024 * 1024 : maxBytes;
 
   final String cacheDirName;
   final bool enableLogging;
   final FutureOr<String> Function()? cacheRootPathProvider;
   final MemoryCache? _memoryCache;
+  final ImageCacheCheckpointWriter _checkpointWriter;
   @override
   final Object cacheDomain = Object();
   final _keyCache = <String, String>{};
@@ -44,16 +51,47 @@ class DefaultImageCacheManager implements ManagedImageCacheManager {
   var _epoch = 0;
   var _use = 0;
   var _metadataDirty = false;
+  var _queuedOperations = 0;
 
   /// Operations enqueue synchronously. I/O holds only its file ownership, not
   /// this queue; a release must always be able to enter the same queue.
   Future<T> _run<T>(Future<T> Function() operation) {
+    final queueSpan = performanceRecorder.begin(
+      PerfOperation.cacheQueueWait,
+      PerfSpanKind.asyncWall,
+    );
+    _queuedOperations++;
+    performanceRecorder.count(PerfCounter.cacheQueueDepth, _queuedOperations);
     final result = _tail.then((_) async {
-      await _initialize();
-      return operation();
+      _queuedOperations--;
+      performanceRecorder.count(PerfCounter.cacheQueueDepth, _queuedOperations);
+      queueSpan.finish();
+      try {
+        await _initialize();
+        _recordDiagnosticsState();
+        return await operation();
+      } finally {
+        _recordDiagnosticsState();
+      }
     });
     _tail = result.then<void>((_) {}, onError: (Object _, StackTrace _) {});
     return result;
+  }
+
+  void _recordDiagnosticsState() {
+    if (!performanceRecorder.enabled || _directory == null) return;
+    // Maintained scalars and map lengths only; never getStats() or a disk scan.
+    performanceRecorder.count(PerfCounter.cacheEntries, _current.length);
+    performanceRecorder.count(
+      PerfCounter.cacheGenerations,
+      _generations.length,
+    );
+    performanceRecorder.count(
+      PerfCounter.cacheRetiredGenerations,
+      _retired.length,
+    );
+    performanceRecorder.count(PerfCounter.cacheRetainedBytes, _occupied);
+    performanceRecorder.count(PerfCounter.cacheLimitBytes, _maxBytes);
   }
 
   void _checkKey(String key) {
@@ -70,110 +108,125 @@ class DefaultImageCacheManager implements ManagedImageCacheManager {
       '${DateTime.now().microsecondsSinceEpoch}_${_random.nextInt(1 << 32)}';
 
   Future<void> _initialize() async {
-    if (_directory != null) {
-      await _directory!.create(recursive: true);
-      return;
-    }
-    // A failed first reconciliation may have loaded only part of the index.
-    // No caller can own a generation until initialization has succeeded.
-    _current.clear();
-    _generations.clear();
-    _retired.clear();
-    _occupied = 0;
-    final root = cacheRootPathProvider != null
-        ? await cacheRootPathProvider!()
-        : (await getTemporaryDirectory()).path;
-    final directory = Directory(p.join(root, cacheDirName));
-    await directory.create(recursive: true);
-    _transfers = Directory(p.join(root, '$cacheDirName-transfers'));
-    _index = ImageCacheIndex(Directory(p.join(root, '$cacheDirName-index')));
-    final indexed = await _index.load();
-    final files = await directory
-        .list(followLinks: false)
-        .where((e) => e is File)
-        .cast<File>()
-        .toList();
-    if (indexed) {
-      for (final entry in _index.entries.values.toList()) {
-        final file = File(p.join(directory.path, entry.filename));
-        if (await file.exists() && await file.length() == entry.size) {
-          final generation = _Generation(entry, file.path);
-          _current[entry.key] = generation;
-          _generations[entry.filename] = generation;
-          _occupied += entry.size;
-          _use = max(_use, entry.use);
-        } else {
-          _index.entries.remove(entry.key);
-        }
-      }
-      for (final file in files) {
-        if (!_generations.containsKey(p.basename(file.path))) {
-          await file.delete();
-        }
-      }
-    } else {
-      // Adopt only the preexisting normal cache, never durable bookmark media.
-      final dated = <({File file, DateTime modified})>[];
-      for (final file in files) {
-        if (file.path.endsWith('.partial')) {
-          await file.delete();
-        } else {
-          dated.add((file: file, modified: await file.lastModified()));
-        }
-      }
-      dated.sort((a, b) {
-        final date = a.modified.compareTo(b.modified);
-        return date == 0 ? a.file.path.compareTo(b.file.path) : date;
-      });
-      for (final value in dated) {
-        final size = await value.file.length();
-        if (size == 0) {
-          await value.file.delete();
-          continue;
-        }
-        final filename = p.basename(value.file.path);
-        final marker = filename.lastIndexOf('.generation_');
-        final key = marker > 0 ? filename.substring(0, marker) : filename;
-        final previous = _current[key];
-        if (previous != null) {
-          await File(previous.path).delete();
-          _generations.remove(previous.entry.filename);
-          _occupied -= previous.entry.size;
-        }
-        final entry = ImageCacheEntry(
-          key: key,
-          filename: filename,
-          size: size,
-          use: ++_use,
-        );
-        final generation = _Generation(entry, value.file.path);
-        _current[key] = generation;
-        _generations[filename] = generation;
-        _occupied += size;
-        _index.entries[key] = entry;
-      }
-    }
-    // Journal key order is not recency order. Rebuild once after loading,
-    // then maintain order incrementally without sorting during admission.
-    final ordered = _generations.values.toList()
-      ..sort((a, b) => a.entry.use.compareTo(b.entry.use));
-    _generations
-      ..clear()
-      ..addEntries(ordered.map((g) => MapEntry(g.entry.filename, g)));
-    // This manager is the sole owner of these scratch files; after process
-    // restart there cannot be a live operation owning an old partial/transient.
+    final performanceSpan = performanceRecorder.begin(
+      PerfOperation.cacheInitialize,
+      PerfSpanKind.asyncWall,
+    );
+    var performanceFailed = false;
     try {
-      if (await _transfers.exists()) {
-        await for (final entity in _transfers.list(followLinks: false)) {
-          if (entity is File) await entity.delete();
+      if (_directory != null) {
+        await _directory!.create(recursive: true);
+        return;
+      }
+      // A failed first reconciliation may have loaded only part of the index.
+      // No caller can own a generation until initialization has succeeded.
+      _current.clear();
+      _generations.clear();
+      _retired.clear();
+      _occupied = 0;
+      final root = cacheRootPathProvider != null
+          ? await cacheRootPathProvider!()
+          : (await getTemporaryDirectory()).path;
+      final directory = Directory(p.join(root, cacheDirName));
+      await directory.create(recursive: true);
+      _transfers = Directory(p.join(root, '$cacheDirName-transfers'));
+      _index = ImageCacheIndex(
+        Directory(p.join(root, '$cacheDirName-index')),
+        checkpointWriter: _checkpointWriter,
+      );
+      final indexed = await _index.load();
+      final files = await directory
+          .list(followLinks: false)
+          .where((e) => e is File)
+          .cast<File>()
+          .toList();
+      if (indexed) {
+        for (final entry in _index.entries.values.toList()) {
+          final file = File(p.join(directory.path, entry.filename));
+          if (await file.exists() && await file.length() == entry.size) {
+            final generation = _Generation(entry, file.path);
+            _current[entry.key] = generation;
+            _generations[entry.filename] = generation;
+            _occupied += entry.size;
+            _use = max(_use, entry.use);
+          } else {
+            _index.entries.remove(entry.key);
+          }
+        }
+        for (final file in files) {
+          if (!_generations.containsKey(p.basename(file.path))) {
+            await file.delete();
+          }
+        }
+      } else {
+        // Adopt only the preexisting normal cache, never durable bookmark media.
+        final dated = <({File file, DateTime modified})>[];
+        for (final file in files) {
+          if (file.path.endsWith('.partial')) {
+            await file.delete();
+          } else {
+            dated.add((file: file, modified: await file.lastModified()));
+          }
+        }
+        dated.sort((a, b) {
+          final date = a.modified.compareTo(b.modified);
+          return date == 0 ? a.file.path.compareTo(b.file.path) : date;
+        });
+        for (final value in dated) {
+          final size = await value.file.length();
+          if (size == 0) {
+            await value.file.delete();
+            continue;
+          }
+          final filename = p.basename(value.file.path);
+          final marker = filename.lastIndexOf('.generation_');
+          final key = marker > 0 ? filename.substring(0, marker) : filename;
+          final previous = _current[key];
+          if (previous != null) {
+            await File(previous.path).delete();
+            _generations.remove(previous.entry.filename);
+            _occupied -= previous.entry.size;
+          }
+          final entry = ImageCacheEntry(
+            key: key,
+            filename: filename,
+            size: size,
+            use: ++_use,
+          );
+          final generation = _Generation(entry, value.file.path);
+          _current[key] = generation;
+          _generations[filename] = generation;
+          _occupied += size;
+          _index.entries[key] = entry;
         }
       }
-    } on FileSystemException {
-      // Write-only scratch availability cannot prevent reading payloads.
+      // Journal key order is not recency order. Rebuild once after loading,
+      // then maintain order incrementally without sorting during admission.
+      final ordered = _generations.values.toList()
+        ..sort((a, b) => a.entry.use.compareTo(b.entry.use));
+      _generations
+        ..clear()
+        ..addEntries(ordered.map((g) => MapEntry(g.entry.filename, g)));
+      // This manager is the sole owner of these scratch files; after process
+      // restart there cannot be a live operation owning an old partial/transient.
+      try {
+        if (await _transfers.exists()) {
+          await for (final entity in _transfers.list(followLinks: false)) {
+            if (entity is File) await entity.delete();
+          }
+        }
+      } on FileSystemException {
+        // Write-only scratch availability cannot prevent reading payloads.
+      }
+      await _persist(_index.checkpoint);
+      _directory = directory;
+      await _trim();
+    } catch (_) {
+      performanceFailed = true;
+      rethrow;
+    } finally {
+      performanceSpan.finish(failed: performanceFailed);
     }
-    await _persist(_index.checkpoint);
-    _directory = directory;
-    await _trim();
   }
 
   Future<Directory> getCacheDirectory() => _run(() async => _directory!);
@@ -185,7 +238,12 @@ class DefaultImageCacheManager implements ManagedImageCacheManager {
         _metadataDirty = false;
       }
       await operation();
-    } on FileSystemException {
+    } catch (error) {
+      if (error is! FileSystemException &&
+          error is! ImageCacheCheckpointWorkerException) {
+        rethrow;
+      }
+      performanceRecorder.count(PerfCounter.cachePersistenceFailure, 1);
       _metadataDirty = true;
       if (enableLogging) {
         print('[ImageCache] Usage persistence is temporarily unavailable.');
@@ -209,7 +267,10 @@ class DefaultImageCacheManager implements ManagedImageCacheManager {
   Future<_Generation?> _valid(String key, Duration? maxAge) async {
     _checkKey(key);
     final generation = _current[key];
-    if (generation == null) return null;
+    if (generation == null) {
+      performanceRecorder.count(PerfCounter.cacheLookupMiss, 1);
+      return null;
+    }
     final file = File(generation.path);
     try {
       final stat = await file.stat();
@@ -218,11 +279,14 @@ class DefaultImageCacheManager implements ManagedImageCacheManager {
           (maxAge != null &&
               DateTime.now().subtract(maxAge).isAfter(stat.modified))) {
         await _retire(generation);
+        performanceRecorder.count(PerfCounter.cacheLookupMiss, 1);
         return null;
       }
+      performanceRecorder.count(PerfCounter.cacheLookupHit, 1);
       return generation;
     } on FileSystemException {
       await _retire(generation);
+      performanceRecorder.count(PerfCounter.cacheLookupMiss, 1);
       return null;
     }
   }
@@ -233,18 +297,21 @@ class DefaultImageCacheManager implements ManagedImageCacheManager {
 
   @override
   Future<ImageCacheFileLease?> acquireFile(String key, {Duration? maxAge}) =>
-      _run(() async {
-        final generation = await _valid(key, maxAge);
-        if (generation == null) return null;
-        generation.pins++;
-        try {
-          await _recordUse(generation);
-        } on Object {
-          generation.pins--;
-          rethrow;
-        }
-        return _lease(generation);
-      });
+      performanceRecorder.measureAsync(
+        PerfOperation.cacheAcquireFile,
+        () => _run(() async {
+          final generation = await _valid(key, maxAge);
+          if (generation == null) return null;
+          generation.pins++;
+          try {
+            await _recordUse(generation);
+          } on Object {
+            generation.pins--;
+            rethrow;
+          }
+          return _lease(generation);
+        }),
+      );
 
   ImageCacheFileLease _lease(_Generation generation) => _FileLease(
     generation.path,
@@ -258,27 +325,39 @@ class DefaultImageCacheManager implements ManagedImageCacheManager {
 
   @override
   Future<Uint8List?> getCachedFileBytes(String key, {Duration? maxAge}) async {
-    // RAM bytes still require a current entry: clear/trim must invalidate them.
-    final cached = await _run(() async {
-      final generation = await _valid(key, maxAge);
-      if (generation == null) return null;
-      final bytes = _memoryCache?.get(key);
-      if (bytes != null) await _recordUse(generation);
-      return bytes;
-    });
-    if (cached != null) return cached;
-    final lease = await acquireFile(key, maxAge: maxAge);
-    if (lease == null) return null;
+    final performanceSpan = performanceRecorder.begin(
+      PerfOperation.cacheRead,
+      PerfSpanKind.asyncWall,
+    );
+    var performanceFailed = false;
     try {
-      final bytes = await File(lease.path).readAsBytes();
-      await _run(() async {
-        if (_current[key]?.path == lease.path) _memoryCache?.put(key, bytes);
+      // RAM bytes still require a current entry: clear/trim must invalidate them.
+      final cached = await _run(() async {
+        final generation = await _valid(key, maxAge);
+        if (generation == null) return null;
+        final bytes = _memoryCache?.get(key);
+        if (bytes != null) await _recordUse(generation);
+        return bytes;
       });
-      return bytes;
-    } on FileSystemException {
-      return null;
+      if (cached != null) return cached;
+      final lease = await acquireFile(key, maxAge: maxAge);
+      if (lease == null) return null;
+      try {
+        final bytes = await File(lease.path).readAsBytes();
+        await _run(() async {
+          if (_current[key]?.path == lease.path) _memoryCache?.put(key, bytes);
+        });
+        return bytes;
+      } on FileSystemException {
+        return null;
+      } finally {
+        await lease.release();
+      }
+    } catch (_) {
+      performanceFailed = true;
+      rethrow;
     } finally {
-      await lease.release();
+      performanceSpan.finish(failed: performanceFailed);
     }
   }
 
@@ -394,43 +473,79 @@ class DefaultImageCacheManager implements ManagedImageCacheManager {
     int needed, {
     _Generation? replacing,
   }) {
-    final chosen = <_Generation>[];
-    // Preserve replacement priority without moving any other key's recency.
-    final preferReplacement = replacing != null && replacing.pins == 0;
-    if (preferReplacement) {
-      chosen.add(replacing);
-      needed -= replacing.entry.size;
-    }
-    if (needed > 0) {
-      for (final generation in _generations.values) {
-        if (preferReplacement && identical(generation, replacing)) continue;
-        if (generation.pins != 0) continue;
-        chosen.add(generation);
-        needed -= generation.entry.size;
-        if (needed <= 0) break;
+    final performanceSpan = performanceRecorder.begin(
+      PerfOperation.cacheEvictionScan,
+      PerfSpanKind.sync,
+      items: _generations.length,
+    );
+    var performanceFailed = false;
+    final recording = performanceRecorder.enabled;
+    var examined = 0;
+    try {
+      final chosen = <_Generation>[];
+      // Preserve replacement priority without moving any other key's recency.
+      final preferReplacement = replacing != null && replacing.pins == 0;
+      if (preferReplacement) {
+        chosen.add(replacing);
+        needed -= replacing.entry.size;
       }
+      if (needed > 0) {
+        for (final generation in _generations.values) {
+          if (recording) examined++;
+          if (preferReplacement && identical(generation, replacing)) continue;
+          if (generation.pins != 0) continue;
+          chosen.add(generation);
+          needed -= generation.entry.size;
+          if (needed <= 0) break;
+        }
+      }
+      if (recording) {
+        performanceRecorder.count(PerfCounter.cacheEvictionExamined, examined);
+        performanceRecorder.count(
+          PerfCounter.cacheEvictionVictims,
+          chosen.length,
+        );
+      }
+      // Selection completes before asynchronous retirement mutates the map.
+      return (chosen: chosen, remaining: needed);
+    } catch (_) {
+      performanceFailed = true;
+      rethrow;
+    } finally {
+      performanceSpan.finish(failed: performanceFailed);
     }
-    // Selection completes before asynchronous retirement mutates the map.
-    return (chosen: chosen, remaining: needed);
   }
 
   Future<void> _trim() async {
-    // Retired readers still own their immutable bytes. Retry only retired
-    // generations here; ordinary lease releases must not scan the live cache.
-    for (final generation in _retired.toList()) {
-      if (generation.pins == 0) await _delete(generation);
-    }
-    if (_maxBytes == 0) {
-      for (final generation in _current.values.toList()) {
-        await _retire(generation);
+    final performanceSpan = performanceRecorder.begin(
+      PerfOperation.cacheTrim,
+      PerfSpanKind.asyncWall,
+      items: _generations.length,
+    );
+    var performanceFailed = false;
+    try {
+      // Retired readers still own their immutable bytes. Retry only retired
+      // generations here; ordinary lease releases must not scan the live cache.
+      for (final generation in _retired.toList()) {
+        if (generation.pins == 0) await _delete(generation);
       }
-      return;
-    }
-    if (_occupied <= _maxBytes) return;
-    final victims = _selectVictims(_occupied - _maxBytes).chosen;
-    for (final victim in victims) {
-      if (_occupied <= _maxBytes) break;
-      await _retire(victim);
+      if (_maxBytes == 0) {
+        for (final generation in _current.values.toList()) {
+          await _retire(generation);
+        }
+        return;
+      }
+      if (_occupied <= _maxBytes) return;
+      final victims = _selectVictims(_occupied - _maxBytes).chosen;
+      for (final victim in victims) {
+        if (_occupied <= _maxBytes) break;
+        await _retire(victim);
+      }
+    } catch (_) {
+      performanceFailed = true;
+      rethrow;
+    } finally {
+      performanceSpan.finish(failed: performanceFailed);
     }
   }
 

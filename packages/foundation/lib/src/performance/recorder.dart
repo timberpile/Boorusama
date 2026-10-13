@@ -18,10 +18,16 @@ enum PerfOperation {
   cacheQueueWait,
   cacheInitialize,
   cacheRead,
+  cacheAcquireFile,
   cacheTrim,
   cacheEvictionScan,
   cacheCheckpoint,
+  cacheCheckpointSnapshot,
+  cacheCheckpointDispatch,
+  cacheCheckpointWorker,
+  cacheCheckpointPublish,
   cacheIndexEncode,
+  cacheJournalAppend,
   bookmarkDecodeAll,
   bookmarkSelect,
   bookmarkLibraryLoad,
@@ -43,6 +49,20 @@ enum PerfOperation {
 enum PerfSpanKind { sync, asyncWall }
 
 enum PerfCounter {
+  cacheEntries,
+  cacheGenerations,
+  cacheRetiredGenerations,
+  cacheRetainedBytes,
+  cacheLimitBytes,
+  cacheQueueDepth,
+  cacheEvictionExamined,
+  cacheEvictionVictims,
+  cacheLookupHit,
+  cacheLookupMiss,
+  cachePersistenceFailure,
+  decodedImageCacheBytes,
+  decodedImageCacheLive,
+  decodedImageCachePending,
   mixedCollectionSize,
   mixedResolvedPosts,
   preloadMediaBuilds,
@@ -56,9 +76,9 @@ final performanceRecorder = PerformanceRecorder();
 class PerformanceRecorder {
   PerformanceRecorder({
     int Function()? clock,
-    this.eventCapacity = 2048,
+    this.eventCapacity = 100000,
     this.contextCapacity = 512,
-    this.activeSpanCapacity = 128,
+    this.activeSpanCapacity = 1024,
     this.spanDetailThresholdUs = 2000,
   }) : _clock = clock ?? _timelineNow {
     if (eventCapacity < 1 ||
@@ -79,11 +99,12 @@ class PerformanceRecorder {
   final _contexts = <_Context>[];
   final _windows = <_Window>[];
   final _active = <int, PerfSpan>{};
-  final _operations = <(PerfOperation, PerfSpanKind), _Distribution>{};
-  final _counters = <PerfCounter, ({int samples, int total, int max})>{};
+  final _operations = <(PerfOperation, PerfSpanKind), _OperationDistribution>{};
+  final _counters = <PerfCounter, _CounterDistribution>{};
   final _screens = <PerfScreen, _ScreenDistribution>{};
   var _build = _Distribution();
   var _raster = _Distribution();
+  var _vsync = _Distribution();
   var _latency = _Distribution();
   var _delay = _Distribution();
   var _generation = 0;
@@ -144,6 +165,7 @@ class PerformanceRecorder {
     _screens.clear();
     _build = _Distribution();
     _raster = _Distribution();
+    _vsync = _Distribution();
     _latency = _Distribution();
     _delay = _Distribution();
     _start = null;
@@ -163,12 +185,7 @@ class PerformanceRecorder {
   /// Fixed vocabulary and constant-size aggregates; no per-post detail events.
   void count(PerfCounter counter, int value) {
     if (!enabled || value < 0) return;
-    final previous = _counters[counter] ?? (samples: 0, total: 0, max: 0);
-    _counters[counter] = (
-      samples: previous.samples + 1,
-      total: previous.total + value,
-      max: value > previous.max ? value : previous.max,
-    );
+    _counters.putIfAbsent(counter, _CounterDistribution.new).add(value);
   }
 
   void setForeground(bool foreground) {
@@ -302,8 +319,8 @@ class PerformanceRecorder {
     final duration = end - span.start;
     if (duration < 0) return;
     _operations
-        .putIfAbsent((span.operation, span.kind), _Distribution.new)
-        .add(duration);
+        .putIfAbsent((span.operation, span.kind), _OperationDistribution.new)
+        .addOperation(duration, failed: failed, items: span.items);
     if (duration < spanDetailThresholdUs && !failed) return;
     _event({
       'type': 'span',
@@ -347,6 +364,7 @@ class PerformanceRecorder {
     final total = finishUs - startUs;
     _build.add(buildUs);
     _raster.add(rasterUs);
+    _vsync.add(vsyncOverheadUs);
     _latency.add(total);
     final missedBudget =
         buildUs > context.budgetUs || rasterUs > context.budgetUs;
@@ -361,6 +379,7 @@ class PerformanceRecorder {
     if (context.estimated) screen.estimatedBudgetFrames++;
     screen.build.add(buildUs);
     screen.raster.add(rasterUs);
+    screen.vsync.add(vsyncOverheadUs);
     screen.latency.add(total);
     if (missedBudget) screen.overBudget++;
     if (highLatency) screen.highLatency++;
@@ -413,6 +432,9 @@ class PerformanceRecorder {
     required int pending,
   }) {
     if (!enabled) return;
+    count(PerfCounter.decodedImageCacheBytes, bytes);
+    count(PerfCounter.decodedImageCacheLive, live);
+    count(PerfCounter.decodedImageCachePending, pending);
     _event({
       'type': 'image_cache',
       't_us': _relative(_clock()),
@@ -429,6 +451,10 @@ class PerformanceRecorder {
       'clock': 'monotonic_microseconds_relative_to_session',
       'recording': _recording,
       'elapsed_us': start == null ? 0 : (_stop ?? _clock()) - start,
+      'foreground_us': _windows.fold<int>(
+        0,
+        (total, window) => total + (window.end ?? _clock()) - window.start,
+      ),
       'limits': {
         'events': eventCapacity,
         'active_spans': activeSpanCapacity,
@@ -452,15 +478,12 @@ class PerformanceRecorder {
         'high_latency_frames': _highLatency,
         'build': _build.toJson(),
         'raster': _raster.toJson(),
+        'vsync_overhead': _vsync.toJson(),
         'frame_latency': _latency.toJson(),
         'ui_delay': _delay.toJson(),
         'counters': {
           for (final entry in _counters.entries)
-            entry.key.name: {
-              'samples': entry.value.samples,
-              'total': entry.value.total,
-              'max': entry.value.max,
-            },
+            entry.key.name: entry.value.toJson(),
         },
         'operations': [
           for (final entry in _operations.entries)
@@ -616,6 +639,7 @@ class _ScreenDistribution {
   var estimatedBudgetFrames = 0;
   final build = _Distribution();
   final raster = _Distribution();
+  final vsync = _Distribution();
   final latency = _Distribution();
   final delay = _Distribution();
   var overBudget = 0;
@@ -629,7 +653,54 @@ class _ScreenDistribution {
     'high_latency_frames': highLatency,
     'build': build.toJson(),
     'raster': raster.toJson(),
+    'vsync_overhead': vsync.toJson(),
     'frame_latency': latency.toJson(),
     'ui_delay': delay.toJson(),
+  };
+}
+
+/// Fixed-size aggregates survive detail-ring eviction and include fast calls.
+class _CounterDistribution {
+  var samples = 0;
+  var total = 0;
+  var max = 0;
+  var min = 0;
+  var first = 0;
+  var last = 0;
+
+  void add(int value) {
+    if (samples == 0) first = min = value;
+    samples++;
+    total += value;
+    last = value;
+    if (value > max) max = value;
+    if (value < min) min = value;
+  }
+
+  Map<String, Object?> toJson() => {
+    'samples': samples,
+    'total': total,
+    'max': max,
+    'min': min,
+    'first': first,
+    'last': last,
+  };
+}
+
+class _OperationDistribution extends _Distribution {
+  var failures = 0;
+  final items = _CounterDistribution();
+
+  void addOperation(int duration, {required bool failed, int? items}) {
+    add(duration);
+    if (failed) failures++;
+    if (items != null && items >= 0) this.items.add(items);
+  }
+
+  @override
+  Map<String, Object?> toJson() => {
+    ...super.toJson(),
+    'failed': failures,
+    if (items.samples > 0) 'items': items.toJson(),
   };
 }

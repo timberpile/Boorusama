@@ -1,3 +1,7 @@
+import 'package:foundation/performance.dart';
+
+import '../../../../../foundation/performance/performance_navigation.dart';
+
 // Dart imports:
 import 'dart:async';
 
@@ -45,8 +49,10 @@ final class PostRecoveryFailure extends PostRecoveryResult {
 }
 
 typedef PostRecoveryCallback = Future<PostRecoveryResult> Function();
-typedef PostRecoveryBuilder =
-    PostRecoveryCallback? Function(Post post, BooruConfig config);
+typedef PostRecoveryBuilder = PostRecoveryCallback? Function(
+  Post post,
+  BooruConfig config,
+);
 
 class MixedPostDetailsPage extends StatefulWidget {
   const MixedPostDetailsPage({
@@ -199,25 +205,29 @@ class _MixedPostDetailsPageState extends State<MixedPostDetailsPage> {
       mounted && (ModalRoute.of(context)?.isCurrent ?? true);
 
   @override
-  Widget build(BuildContext context) => PostDetailsScope<Post>(
-    initialIndex: widget.initialIndex,
-    initialThumbnailUrl: widget.initialThumbnailUrl,
-    posts: _posts,
-    dislclaimer: widget.disclaimer,
-    scrollController: widget.scrollController,
-    child: _MixedPostDetailsView(
-      fallbackUiBuilderDecorator: widget.fallbackUiBuilderDecorator,
-      postRecoveryBuilder: widget.postRecoveryBuilder,
-      nextLoading:
-          _searchingForVisiblePost || (widget.liveSource?.loading() ?? false),
-      nextFailed:
-          (widget.liveSource?.hasMore() ?? false) &&
-          (widget.liveSource?.failed() ?? false),
-      nextCanLoad:
-          _needsManualLoadMore && (widget.liveSource?.hasMore() ?? false),
-      onRetryNext: _retryLoading,
-      onLoadMoreNext: _continueLoading,
-      onPageChanged: _loadNearEnd,
+  Widget build(BuildContext context) => PerformanceScreenScope(
+    screen: PerfScreen.postViewer,
+    priority: 2,
+    child: PostDetailsScope<Post>(
+      initialIndex: widget.initialIndex,
+      initialThumbnailUrl: widget.initialThumbnailUrl,
+      posts: _posts,
+      dislclaimer: widget.disclaimer,
+      scrollController: widget.scrollController,
+      child: _MixedPostDetailsView(
+        fallbackUiBuilderDecorator: widget.fallbackUiBuilderDecorator,
+        postRecoveryBuilder: widget.postRecoveryBuilder,
+        nextLoading:
+            _searchingForVisiblePost || (widget.liveSource?.loading() ?? false),
+        nextFailed:
+            (widget.liveSource?.hasMore() ?? false) &&
+            (widget.liveSource?.failed() ?? false),
+        nextCanLoad:
+            _needsManualLoadMore && (widget.liveSource?.hasMore() ?? false),
+        onRetryNext: _retryLoading,
+        onLoadMoreNext: _continueLoading,
+        onPageChanged: _loadNearEnd,
+      ),
     ),
   );
 }

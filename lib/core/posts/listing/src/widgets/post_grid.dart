@@ -1,3 +1,7 @@
+import 'package:foundation/performance.dart';
+
+import '../../../../../foundation/performance/performance_navigation.dart';
+
 // Dart imports:
 import 'dart:math';
 
@@ -33,13 +37,12 @@ import '../types/page_mode.dart';
 import 'infinite_scroll_listener.dart';
 import 'post_grid_controller.dart';
 
-typedef IndexedSelectableWidgetBuilder<T extends Post> =
-    Widget Function(
-      BuildContext context,
-      int index,
-      AutoScrollController autoScrollController,
-      bool useHero,
-    );
+typedef IndexedSelectableWidgetBuilder<T extends Post> = Widget Function(
+  BuildContext context,
+  int index,
+  AutoScrollController autoScrollController,
+  bool useHero,
+);
 
 class PostGrid<T extends Post> extends ConsumerStatefulWidget {
   const PostGrid({
@@ -106,131 +109,135 @@ class _PostGridState<T extends Post> extends ConsumerState<PostGrid<T>> {
 
   @override
   Widget build(BuildContext context) {
-    return _InheritedAutoScrollController(
-      controller: _autoScrollController,
-      child: RawPostGrid(
-        options: PostGridOptions(
-          cacheExtent: ref.watch(gridCacheExtentProvider),
-          hapticFeedbackLevel: ref.watch(hapticFeedbackLevelProvider),
-          gridSize: ref.watch(
-            imageListingSettingsProvider.select((v) => v.gridSize),
+    return PerformanceScreenScope(
+      screen: PerfScreen.searchGrid,
+      priority: 0,
+      child: _InheritedAutoScrollController(
+        controller: _autoScrollController,
+        child: RawPostGrid(
+          options: PostGridOptions(
+            cacheExtent: ref.watch(gridCacheExtentProvider),
+            hapticFeedbackLevel: ref.watch(hapticFeedbackLevelProvider),
+            gridSize: ref.watch(
+              imageListingSettingsProvider.select((v) => v.gridSize),
+            ),
           ),
-        ),
-        sliverHeaders: [
-          ...widget.sliverHeaders ?? [],
-          _DisableGridItemHeroOnPop(disableHero: _disableHero),
-        ],
-        scrollController: _autoScrollController,
-        footer: Consumer(
-          builder: (_, ref, _) {
-            final booruBuilder = ref.watch(
-              booruBuilderProvider(ref.watchConfigAuth),
-            );
+          sliverHeaders: [
+            ...widget.sliverHeaders ?? [],
+            _DisableGridItemHeroOnPop(disableHero: _disableHero),
+          ],
+          scrollController: _autoScrollController,
+          footer: Consumer(
+            builder: (_, ref, _) {
+              final booruBuilder = ref.watch(
+                booruBuilderProvider(ref.watchConfigAuth),
+              );
 
-            final multiSelectActions =
-                widget.multiSelectActions ??
-                switch (booruBuilder?.multiSelectionActionsBuilder) {
-                  final builder? => _OriginCompatibleMultiSelectionActions(
-                    selectionModeController: _selectionModeController,
-                    postController: widget.controller,
-                    builder: builder,
-                  ),
-                  null => null,
-                };
-
-            return multiSelectActions ?? const SizedBox.shrink();
-          },
-        ),
-        blacklistedIdString: widget.blacklistedIdString,
-        selectionModeController: _selectionModeController,
-        selectionOptions: ref.watch(selectionOptionsProvider),
-        controller: widget.controller,
-        safeArea: widget.safeArea,
-        enablePullToRefresh: widget.enablePullToRefresh ?? true,
-        gridHeader: ValueListenableBuilder(
-          valueListenable: widget.controller.errors,
-          builder: (_, errors, _) => errors == null
-              ? widget.header ?? _GridHeader<T>()
-              : const SizedBox.shrink(),
-        ),
-        topPageIndicator: Consumer(
-          builder: (_, ref, _) {
-            final visibleAtTop = ref.watch(
-              imageListingSettingsProvider.select(
-                (v) => v.pageIndicatorPosition.isVisibleAtTop,
-              ),
-            );
-
-            return visibleAtTop
-                ? Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: _PageIndicator<T>(),
-                  )
-                : const SizedBox.shrink();
-          },
-        ),
-        bottomPageIndicator: Consumer(
-          builder: (_, ref, _) {
-            final visibleAtBottom = ref.watch(
-              imageListingSettingsProvider.select(
-                (v) => v.pageIndicatorPosition.isVisibleAtBottom,
-              ),
-            );
-
-            return visibleAtBottom
-                ? SafeArea(
-                    top: false,
-                    left: false,
-                    right: false,
-                    child: _PageIndicator<T>(),
-                  )
-                : const SizedBox.shrink();
-          },
-        ),
-        scrollToTopButton:
-            widget.scrollToTopButton ??
-            PostGridScrollToTopButton(
-              controller: widget.controller,
-              autoScrollController: _autoScrollController,
-            ),
-        onNextPage: () => _goToNextPage(
-          widget.controller,
-          _autoScrollController,
-        ),
-        onPreviousPage: () => _goToPreviousPage(
-          widget.controller,
-          _autoScrollController,
-        ),
-        body:
-            widget.body ??
-            _SliverGrid(
-              postController: widget.controller,
-              itemBuilder: (context, index) => ValueListenableBuilder(
-                valueListenable: _disableHero,
-                builder: (_, disableHero, _) {
-                  final customItem = widget.itemBuilder?.call(
-                    context,
-                    index,
-                    _autoScrollController,
-                    !disableHero,
-                  );
-
-                  if (customItem != null) return customItem;
-
-                  return PostGridContextMenu(
-                    index: index,
-                    controller: widget.controller,
-                    child: DefaultImageGridItem(
-                      index: index,
-                      autoScrollController: _autoScrollController,
-                      controller: widget.controller,
-                      useHero: !disableHero,
-                      config: ref.watchConfigAuth,
+              final multiSelectActions =
+                  widget.multiSelectActions ??
+                  switch (booruBuilder?.multiSelectionActionsBuilder) {
+                    final builder? => _OriginCompatibleMultiSelectionActions(
+                      selectionModeController: _selectionModeController,
+                      postController: widget.controller,
+                      builder: builder,
                     ),
-                  );
-                },
+                    null => null,
+                  };
+
+              return multiSelectActions ?? const SizedBox.shrink();
+            },
+          ),
+          blacklistedIdString: widget.blacklistedIdString,
+          selectionModeController: _selectionModeController,
+          selectionOptions: ref.watch(selectionOptionsProvider),
+          controller: widget.controller,
+          safeArea: widget.safeArea,
+          enablePullToRefresh: widget.enablePullToRefresh ?? true,
+          gridHeader: ValueListenableBuilder(
+            valueListenable: widget.controller.errors,
+            builder: (_, errors, _) => errors == null
+                ? widget.header ?? _GridHeader<T>()
+                : const SizedBox.shrink(),
+          ),
+          topPageIndicator: Consumer(
+            builder: (_, ref, _) {
+              final visibleAtTop = ref.watch(
+                imageListingSettingsProvider.select(
+                  (v) => v.pageIndicatorPosition.isVisibleAtTop,
+                ),
+              );
+
+              return visibleAtTop
+                  ? Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: _PageIndicator<T>(),
+                    )
+                  : const SizedBox.shrink();
+            },
+          ),
+          bottomPageIndicator: Consumer(
+            builder: (_, ref, _) {
+              final visibleAtBottom = ref.watch(
+                imageListingSettingsProvider.select(
+                  (v) => v.pageIndicatorPosition.isVisibleAtBottom,
+                ),
+              );
+
+              return visibleAtBottom
+                  ? SafeArea(
+                      top: false,
+                      left: false,
+                      right: false,
+                      child: _PageIndicator<T>(),
+                    )
+                  : const SizedBox.shrink();
+            },
+          ),
+          scrollToTopButton:
+              widget.scrollToTopButton ??
+              PostGridScrollToTopButton(
+                controller: widget.controller,
+                autoScrollController: _autoScrollController,
               ),
-            ),
+          onNextPage: () => _goToNextPage(
+            widget.controller,
+            _autoScrollController,
+          ),
+          onPreviousPage: () => _goToPreviousPage(
+            widget.controller,
+            _autoScrollController,
+          ),
+          body:
+              widget.body ??
+              _SliverGrid(
+                postController: widget.controller,
+                itemBuilder: (context, index) => ValueListenableBuilder(
+                  valueListenable: _disableHero,
+                  builder: (_, disableHero, _) {
+                    final customItem = widget.itemBuilder?.call(
+                      context,
+                      index,
+                      _autoScrollController,
+                      !disableHero,
+                    );
+
+                    if (customItem != null) return customItem;
+
+                    return PostGridContextMenu(
+                      index: index,
+                      controller: widget.controller,
+                      child: DefaultImageGridItem(
+                        index: index,
+                        autoScrollController: _autoScrollController,
+                        controller: widget.controller,
+                        useHero: !disableHero,
+                        config: ref.watchConfigAuth,
+                      ),
+                    );
+                  },
+                ),
+              ),
+        ),
       ),
     );
   }

@@ -10,6 +10,7 @@ import 'package:share_plus/share_plus.dart' show ShareParams, SharePlus;
 
 import '../../../../foundation/info/package_info.dart';
 import '../../../../foundation/performance/performance_diagnostics.dart';
+import '../../../../foundation/performance/performance_diagnostics_export.dart';
 import '../../../../foundation/performance/performance_navigation.dart';
 import '../widgets/settings_page_scaffold.dart';
 
@@ -141,6 +142,18 @@ class _PerformanceDiagnosticsPageState
       if (!mounted) return;
       if (copy) {
         await Clipboard.setData(ClipboardData(text: json));
+      } else if (defaultTargetPlatform == TargetPlatform.android) {
+        final path = await const PerformanceDiagnosticsExport().save(
+          contents: json,
+          fileName: performanceDiagnosticsFileName(DateTime.now()),
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(strings.export_saved.replaceAll('{path}', path)),
+            ),
+          );
+        }
       } else {
         await SharePlus.instance.share(
           ShareParams(

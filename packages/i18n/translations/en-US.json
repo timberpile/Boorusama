@@ -14,6 +14,7 @@
     "export": "Export report",
     "copy": "Copy report",
     "clear": "Clear report",
+    "export_saved": "Saved to {path}",
     "export_failed": "Could not export the report. Try copying it instead."
   },
   "search_backup_import": {

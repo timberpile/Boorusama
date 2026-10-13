@@ -1,3 +1,5 @@
+import 'package:foundation/performance.dart';
+
 // Package imports:
 import 'package:foundation/foundation.dart';
 
@@ -19,10 +21,13 @@ Either<BookmarkGetError, List<Bookmark>> tryMapBookmarkHiveObjectsToBookmarks(
   ImageUrlResolver Function(int? booruId) imageUrlResolver, [
   BooruPostDataCodec? Function(BooruType type)? postDataCodec,
 ]) => Either.tryCatch(
-  () => hiveObjects
-      .where((row) => row.snapshotSchemaVersion == 2)
-      .map((row) => _mapBookmark(row, postDataCodec))
-      .toList(),
+  () => performanceRecorder.measureSync(
+    PerfOperation.bookmarkDecodeAll,
+    () => hiveObjects
+        .where((row) => row.snapshotSchemaVersion == 2)
+        .map((row) => _mapBookmark(row, postDataCodec))
+        .toList(),
+  ),
   (_, _) => BookmarkGetError.nullField,
 );
 

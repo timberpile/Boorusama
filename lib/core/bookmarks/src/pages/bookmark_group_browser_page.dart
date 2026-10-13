@@ -1,3 +1,7 @@
+import 'package:foundation/performance.dart';
+
+import '../../../../foundation/performance/performance_navigation.dart';
+
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
@@ -79,224 +83,236 @@ class _BookmarkGroupBrowserPageState
   @override
   Widget build(BuildContext context) {
     final library = ref.watch(bookmarkProvider);
-    return Scaffold(
-      appBar: KurumiAppBar(
-        title: Text(
-          _selecting
-              ? context.t.folders.selected.replaceAll(
-                  '{count}',
-                  '${_selectedGroups.length + _selectedFolders.length}',
-                )
-              : library.valueOrNull?.folders
-                        .where((f) => f.id == _folderId)
-                        .firstOrNull
-                        ?.name ??
-                    context.t.bookmark.groups.selector,
+    return PerformanceScreenScope(
+      screen: PerfScreen.bookmarkGroups,
+      priority: 2,
+      child: Scaffold(
+        appBar: KurumiAppBar(
+          title: Text(
+            _selecting
+                ? context.t.folders.selected.replaceAll(
+                    '{count}',
+                    '${_selectedGroups.length + _selectedFolders.length}',
+                  )
+                : library.valueOrNull?.folders
+                          .where((f) => f.id == _folderId)
+                          .firstOrNull
+                          ?.name ??
+                      context.t.bookmark.groups.selector,
+          ),
+          actions: [
+            if (_selecting) ...[
+              IconButton(
+                tooltip: context.t.folders.move,
+                icon: const Icon(Icons.drive_file_move_outline),
+                onPressed: () => _move(),
+              ),
+              IconButton(
+                tooltip: context.t.generic.action.cancel,
+                icon: const Icon(Icons.close),
+                onPressed: () => setState(() {
+                  _selectedGroups.clear();
+                  _selectedFolders.clear();
+                }),
+              ),
+            ] else
+              PopupMenuButton<String>(
+                icon: const Icon(Icons.more_vert),
+                onSelected: (action) => switch (action) {
+                  'folder' => _createFolder(),
+                  'group' => _create(context, ref),
+                  _ => null,
+                },
+                itemBuilder: (context) => [
+                  PopupMenuItem(
+                    value: 'folder',
+                    child: Text(context.t.bookmark.groups.add_folder),
+                  ),
+                  PopupMenuItem(
+                    value: 'group',
+                    child: Text(context.t.bookmark.groups.add),
+                  ),
+                ],
+              ),
+          ],
         ),
-        actions: [
-          if (_selecting) ...[
-            IconButton(
-              tooltip: context.t.folders.move,
-              icon: const Icon(Icons.drive_file_move_outline),
-              onPressed: () => _move(),
-            ),
-            IconButton(
-              tooltip: context.t.generic.action.cancel,
-              icon: const Icon(Icons.close),
-              onPressed: () => setState(() {
-                _selectedGroups.clear();
-                _selectedFolders.clear();
-              }),
-            ),
-          ] else
-            PopupMenuButton<String>(
-              icon: const Icon(Icons.more_vert),
-              onSelected: (action) => switch (action) {
-                'folder' => _createFolder(),
-                'group' => _create(context, ref),
-                _ => null,
-              },
-              itemBuilder: (context) => [
-                PopupMenuItem(
-                  value: 'folder',
-                  child: Text(context.t.bookmark.groups.add_folder),
-                ),
-                PopupMenuItem(
-                  value: 'group',
-                  child: Text(context.t.bookmark.groups.add),
-                ),
-              ],
-            ),
-        ],
-      ),
-      body: library.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (_, _) => const Center(child: Icon(Icons.error_outline)),
-        data: (state) {
-          final sort = ref.watch(selectedBookmarkSortTypeProvider);
-          final shuffle = ref.watch(bookmarkShuffleProvider);
-          final tree = FolderTree(state.folders);
-          final folders = bookmarkFoldersByName(tree.children(_folderId));
-          final groups = bookmarkGroupsByName(
-            state.groups.where((g) => !g.isDefault && g.folderId == _folderId),
-          );
-          List<Bookmark> previews(BookmarkView view) => selectBookmarkPreviews(
-            state: state,
-            view: view,
-            sortType: sort,
-            shuffleState: shuffle,
-          );
-          Widget specialView(
-            String title,
-            BookmarkView view, {
-            BookmarkGroup? group,
-          }) => _GroupCard(
-            title: title,
-            previews: previews(view),
-            group: group,
-            onTap: _selecting
-                ? null
-                : () => goToBookmarkGroupPage(ref, view, title: title),
-            onRename: null,
-            onDuplicate: null,
-            onDelete: null,
-          );
-          return Column(
-            children: [
-              if (_folderId != null)
-                FolderBreadcrumbs(
-                  tree: tree,
-                  currentId: _folderId,
-                  onOpen: _openFolder,
-                ),
-              Expanded(
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    final delegate = SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: switch (constraints.maxWidth) {
-                        < 500 => 2,
-                        < 850 => 3,
-                        _ => 4,
-                      },
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 12,
-                    );
-                    return CustomScrollView(
-                      slivers: [
-                        if (_folderId == null) ...[
+        body: library.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (_, _) => const Center(child: Icon(Icons.error_outline)),
+          data: (state) {
+            final sort = ref.watch(selectedBookmarkSortTypeProvider);
+            final shuffle = ref.watch(bookmarkShuffleProvider);
+            final tree = FolderTree(state.folders);
+            final folders = bookmarkFoldersByName(tree.children(_folderId));
+            final groups = bookmarkGroupsByName(
+              state.groups.where(
+                (g) => !g.isDefault && g.folderId == _folderId,
+              ),
+            );
+            List<Bookmark> previews(BookmarkView view) =>
+                selectBookmarkPreviews(
+                  state: state,
+                  view: view,
+                  sortType: sort,
+                  shuffleState: shuffle,
+                );
+            Widget specialView(
+              String title,
+              BookmarkView view, {
+              BookmarkGroup? group,
+            }) => _GroupCard(
+              title: title,
+              previews: previews(view),
+              group: group,
+              onTap: _selecting
+                  ? null
+                  : () => goToBookmarkGroupPage(ref, view, title: title),
+              onRename: null,
+              onDuplicate: null,
+              onDelete: null,
+            );
+            return Column(
+              children: [
+                if (_folderId != null)
+                  FolderBreadcrumbs(
+                    tree: tree,
+                    currentId: _folderId,
+                    onOpen: _openFolder,
+                  ),
+                Expanded(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final delegate =
+                          SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: switch (constraints.maxWidth) {
+                              < 500 => 2,
+                              < 850 => 3,
+                              _ => 4,
+                            },
+                            crossAxisSpacing: 12,
+                            mainAxisSpacing: 12,
+                          );
+                      return CustomScrollView(
+                        slivers: [
+                          if (_folderId == null) ...[
+                            SliverPadding(
+                              padding: const EdgeInsets.all(12),
+                              sliver: SliverGrid(
+                                gridDelegate: delegate,
+                                delegate: SliverChildListDelegate([
+                                  specialView(
+                                    context.t.bookmark.groups.all,
+                                    const BookmarkView.all(),
+                                  ),
+                                  if (state.groupsById[defaultBookmarkGroupId]
+                                      case final defaultGroup?)
+                                    specialView(
+                                      defaultGroup.displayName(context),
+                                      const BookmarkView.defaultGroup(),
+                                      group: defaultGroup,
+                                    ),
+                                ]),
+                              ),
+                            ),
+                            const SliverToBoxAdapter(
+                              child: Divider(
+                                indent: 12,
+                                endIndent: 12,
+                                height: 1,
+                              ),
+                            ),
+                          ],
                           SliverPadding(
                             padding: const EdgeInsets.all(12),
                             sliver: SliverGrid(
                               gridDelegate: delegate,
-                              delegate: SliverChildListDelegate([
-                                specialView(
-                                  context.t.bookmark.groups.all,
-                                  const BookmarkView.all(),
-                                ),
-                                if (state.groupsById[defaultBookmarkGroupId]
-                                    case final defaultGroup?)
-                                  specialView(
-                                    defaultGroup.displayName(context),
-                                    const BookmarkView.defaultGroup(),
-                                    group: defaultGroup,
-                                  ),
-                              ]),
-                            ),
-                          ),
-                          const SliverToBoxAdapter(
-                            child: Divider(
-                              indent: 12,
-                              endIndent: 12,
-                              height: 1,
+                              delegate: SliverChildBuilderDelegate(
+                                (context, index) {
+                                  if (index < folders.length) {
+                                    final folder = folders[index];
+                                    final descendants = tree.subtree(folder.id);
+                                    final descendantsGroups =
+                                        bookmarkGroupsByName(
+                                          state.groups.where(
+                                            (g) => descendants.contains(
+                                              g.folderId,
+                                            ),
+                                          ),
+                                        );
+                                    return _GroupCard(
+                                      title: folder.name,
+                                      previews: [
+                                        for (final group
+                                            in descendantsGroups.take(4))
+                                          ...previews(
+                                            BookmarkView.group(group.id),
+                                          ).take(1),
+                                      ],
+                                      group: null,
+                                      isFolder: true,
+                                      selected: _selectedFolders.contains(
+                                        folder.id,
+                                      ),
+                                      onSelect: () =>
+                                          _select(folder.id, folder: true),
+                                      onTap: () => _selecting
+                                          ? _select(folder.id, folder: true)
+                                          : _openFolder(folder.id),
+                                      onRename: () => _renameFolder(folder),
+                                      onDuplicate: null,
+                                      onDelete: () => _deleteFolder(folder),
+                                      onMove: () =>
+                                          _move(folderIds: {folder.id}),
+                                    );
+                                  }
+                                  final group = groups[index - folders.length];
+                                  return _GroupCard(
+                                    title: group.displayName(context),
+                                    previews: previews(
+                                      BookmarkView.group(group.id),
+                                    ),
+                                    group: group,
+                                    selected: _selectedGroups.contains(
+                                      group.id,
+                                    ),
+                                    onSelect: group.isDefault
+                                        ? null
+                                        : () => _select(group.id),
+                                    onMove: group.isDefault
+                                        ? null
+                                        : () => _move(groupIds: {group.id}),
+                                    onTap: _selecting
+                                        ? (group.isDefault
+                                              ? null
+                                              : () => _select(group.id))
+                                        : () => goToBookmarkGroupPage(
+                                            ref,
+                                            BookmarkView.group(group.id),
+                                            title: group.displayName(context),
+                                          ),
+                                    onRename: group.isDefault
+                                        ? null
+                                        : () => _rename(context, ref, group),
+                                    onDuplicate: () =>
+                                        _duplicate(context, ref, group),
+                                    onDelete: group.isDefault
+                                        ? null
+                                        : () => _delete(context, ref, group),
+                                  );
+                                },
+                                childCount: folders.length + groups.length,
+                              ),
                             ),
                           ),
                         ],
-                        SliverPadding(
-                          padding: const EdgeInsets.all(12),
-                          sliver: SliverGrid(
-                            gridDelegate: delegate,
-                            delegate: SliverChildBuilderDelegate(
-                              (context, index) {
-                                if (index < folders.length) {
-                                  final folder = folders[index];
-                                  final descendants = tree.subtree(folder.id);
-                                  final descendantsGroups =
-                                      bookmarkGroupsByName(
-                                        state.groups.where(
-                                          (g) =>
-                                              descendants.contains(g.folderId),
-                                        ),
-                                      );
-                                  return _GroupCard(
-                                    title: folder.name,
-                                    previews: [
-                                      for (final group
-                                          in descendantsGroups.take(4))
-                                        ...previews(
-                                          BookmarkView.group(group.id),
-                                        ).take(1),
-                                    ],
-                                    group: null,
-                                    isFolder: true,
-                                    selected: _selectedFolders.contains(
-                                      folder.id,
-                                    ),
-                                    onSelect: () =>
-                                        _select(folder.id, folder: true),
-                                    onTap: () => _selecting
-                                        ? _select(folder.id, folder: true)
-                                        : _openFolder(folder.id),
-                                    onRename: () => _renameFolder(folder),
-                                    onDuplicate: null,
-                                    onDelete: () => _deleteFolder(folder),
-                                    onMove: () => _move(folderIds: {folder.id}),
-                                  );
-                                }
-                                final group = groups[index - folders.length];
-                                return _GroupCard(
-                                  title: group.displayName(context),
-                                  previews: previews(
-                                    BookmarkView.group(group.id),
-                                  ),
-                                  group: group,
-                                  selected: _selectedGroups.contains(group.id),
-                                  onSelect: group.isDefault
-                                      ? null
-                                      : () => _select(group.id),
-                                  onMove: group.isDefault
-                                      ? null
-                                      : () => _move(groupIds: {group.id}),
-                                  onTap: _selecting
-                                      ? (group.isDefault
-                                            ? null
-                                            : () => _select(group.id))
-                                      : () => goToBookmarkGroupPage(
-                                          ref,
-                                          BookmarkView.group(group.id),
-                                          title: group.displayName(context),
-                                        ),
-                                  onRename: group.isDefault
-                                      ? null
-                                      : () => _rename(context, ref, group),
-                                  onDuplicate: () =>
-                                      _duplicate(context, ref, group),
-                                  onDelete: group.isDefault
-                                      ? null
-                                      : () => _delete(context, ref, group),
-                                );
-                              },
-                              childCount: folders.length + groups.length,
-                            ),
-                          ),
-                        ),
-                      ],
-                    );
-                  },
+                      );
+                    },
+                  ),
                 ),
-              ),
-            ],
-          );
-        },
+              ],
+            );
+          },
+        ),
       ),
     );
   }

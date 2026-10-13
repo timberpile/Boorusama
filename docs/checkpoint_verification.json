@@ -1,0 +1,334 @@
+{
+  "environment": "isolated GitHub Actions runner, not user device",
+  "develop_base": "a46521eced78ae2f31a5c2517a43fc2e4e4a6072",
+  "diagnostics_baseline": "145206e02a36a141e66010cef95c3f30484e1f0d",
+  "checks": [
+    {
+      "name": "Whitespace",
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "directory": ".",
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "name": "Performance report analyzer",
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "scripts/tests",
+        "-p",
+        "test_*performance*.py",
+        "-v"
+      ],
+      "directory": ".",
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "name": "Repository tooling",
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "scripts/tests"
+      ],
+      "directory": ".",
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "name": "test-pull-request-policy.sh",
+      "command": [
+        "bash",
+        ".github/scripts/test-pull-request-policy.sh"
+      ],
+      "directory": ".",
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "name": "test-android-release-scripts.sh",
+      "command": [
+        "bash",
+        ".github/scripts/test-android-release-scripts.sh"
+      ],
+      "directory": ".",
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "name": "Pinned FVM SDK",
+      "command": [
+        "fvm",
+        "flutter",
+        "--version"
+      ],
+      "directory": ".",
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "name": "Dart format",
+      "command": [
+        "fvm",
+        "dart",
+        "format",
+        "lib/core/app.dart",
+        "lib/core/backups/export_import/package/export_package_writer.dart",
+        "lib/core/backups/sources/json_source.dart",
+        "lib/core/bookmarks/src/data/bookmark_convert.dart",
+        "lib/core/bookmarks/src/pages/bookmark_group_browser_page.dart",
+        "lib/core/bookmarks/src/pages/bookmark_page.dart",
+        "lib/core/bookmarks/src/providers/bookmark_group_selectors.dart",
+        "lib/core/bookmarks/src/services/bookmark_library_service.dart",
+        "lib/core/posts/details/src/widgets/mixed_post_details_page.dart",
+        "lib/core/posts/details/src/widgets/post_details_image_preloader.dart",
+        "lib/core/posts/listing/src/widgets/post_grid.dart",
+        "lib/core/posts/listing/src/widgets/post_grid_controller.dart",
+        "lib/core/router.dart",
+        "lib/core/search/subscriptions/src/data/hive/search_subscription_repository_hive.dart",
+        "lib/core/search/subscriptions/src/pages/following_feeds_page.dart",
+        "lib/core/settings/src/pages/bookmark_maintenance_page.dart",
+        "lib/core/settings/src/pages/performance_diagnostics_page.dart",
+        "lib/foundation/performance/performance_diagnostics.dart",
+        "lib/foundation/performance/performance_navigation.dart",
+        "packages/cache_manager/lib/src/image_cache_checkpoint.dart",
+        "packages/cache_manager/lib/src/image_cache_index.dart",
+        "packages/cache_manager/lib/src/image_cache_manager.dart",
+        "packages/cache_manager/test/image_cache_checkpoint_test.dart",
+        "packages/foundation/lib/performance.dart",
+        "packages/foundation/lib/src/performance/recorder.dart",
+        "packages/foundation/test/performance_recorder_test.dart",
+        "test/foundation/performance_navigation_test.dart"
+      ],
+      "directory": ".",
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "name": "Dependency resolution",
+      "command": [
+        "fvm",
+        "flutter",
+        "pub",
+        "get"
+      ],
+      "directory": ".",
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "name": "CLI dependency resolution",
+      "command": [
+        "fvm",
+        "dart",
+        "pub",
+        "get"
+      ],
+      "directory": "packages/boorusama_cli",
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "name": "Required generation",
+      "command": [
+        "bash",
+        "./gen.sh"
+      ],
+      "directory": ".",
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "name": "Cache analysis",
+      "command": [
+        "fvm",
+        "flutter",
+        "analyze",
+        "--no-pub",
+        "--no-fatal-infos"
+      ],
+      "directory": "packages/cache_manager",
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "name": "Cache complete suite",
+      "command": [
+        "fvm",
+        "flutter",
+        "test",
+        "--no-pub",
+        "--concurrency=2"
+      ],
+      "directory": "packages/cache_manager",
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "name": "Foundation complete suite",
+      "command": [
+        "fvm",
+        "flutter",
+        "test",
+        "--no-pub",
+        "--concurrency=2"
+      ],
+      "directory": "packages/foundation",
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "name": "Application complete suite",
+      "command": [
+        "fvm",
+        "flutter",
+        "test",
+        "--no-pub",
+        "--concurrency=2"
+      ],
+      "directory": ".",
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "name": "booru_clients complete suite",
+      "command": [
+        "fvm",
+        "dart",
+        "test"
+      ],
+      "directory": "packages/booru_clients",
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "name": "boorusama_cli complete suite",
+      "command": [
+        "fvm",
+        "dart",
+        "test"
+      ],
+      "directory": "packages/boorusama_cli",
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "name": "coreutils complete suite",
+      "command": [
+        "fvm",
+        "dart",
+        "test"
+      ],
+      "directory": "packages/coreutils",
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "name": "dtext complete suite",
+      "command": [
+        "fvm",
+        "dart",
+        "test"
+      ],
+      "directory": "packages/dtext",
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "name": "extended_image complete suite",
+      "command": [
+        "fvm",
+        "flutter",
+        "test",
+        "--no-pub",
+        "--concurrency=2"
+      ],
+      "directory": "packages/extended_image",
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "name": "filename_generator complete suite",
+      "command": [
+        "fvm",
+        "dart",
+        "test"
+      ],
+      "directory": "packages/filename_generator",
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "name": "flutter_sqlite3_migration complete suite",
+      "command": [
+        "fvm",
+        "flutter",
+        "test",
+        "--no-pub",
+        "--concurrency=2"
+      ],
+      "directory": "packages/flutter_sqlite3_migration",
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "name": "i18n_cli complete suite",
+      "command": [
+        "fvm",
+        "dart",
+        "test"
+      ],
+      "directory": "packages/i18n_cli",
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "name": "kurumi complete suite",
+      "command": [
+        "fvm",
+        "flutter",
+        "test",
+        "--no-pub",
+        "--concurrency=2"
+      ],
+      "directory": "packages/kurumi",
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "name": "retriable complete suite",
+      "command": [
+        "fvm",
+        "dart",
+        "test"
+      ],
+      "directory": "packages/retriable",
+      "exit_code": 0,
+      "status": "passed"
+    }
+  ],
+  "device_measurements": "not run",
+  "local_repository_suite": "not run in user checkout",
+  "source_sha256": {
+    "packages/cache_manager/lib/src/image_cache_checkpoint.dart": "b9413c527fdefc4c6e77c701ec77de010b9289fa755367ee97e5ef57064b6c7d",
+    "packages/cache_manager/lib/src/image_cache_index.dart": "024ae4cc431f2a6826aa07094306e40311a77a43199d82de01b4d0aaa745b627",
+    "packages/cache_manager/lib/src/image_cache_manager.dart": "0e2bce0dbf92438f6d759bd48ad715b4ba2d63572a81e022e4fb2ee468363a46",
+    "packages/cache_manager/test/image_cache_checkpoint_test.dart": "534c48307e1ba4ec1f1932be534f6c30ba0d0d81cb3d1e118a44b6619a8a2b11"
+  },
+  "runner": "GitHub Actions; not local device verification",
+  "workflow_run": "38145368095",
+  "preparation_commit": "f5ea2b392798cee12bd4f8b4bce5a92bb5458b84",
+  "sdk_setup": "success",
+  "verification_step": "success",
+  "all_attempted_runner_checks_passed": true
+}

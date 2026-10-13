@@ -1,3 +1,5 @@
+import 'package:foundation/performance.dart';
+
 // Package imports:
 import 'package:collection/collection.dart';
 import 'package:equatable/equatable.dart';
@@ -19,24 +21,27 @@ List<Bookmark> selectBookmarks({
   String? selectedBooruUrl,
   BookmarkShuffleState? shuffleState,
 }) {
-  final inView = switch (view.kind) {
-    BookmarkViewKind.all => state.items,
-    BookmarkViewKind.group =>
-      state.items
-          .where(
-            (bookmark) =>
-                state.membershipsFor(bookmark.uniqueId).contains(view.groupId),
-          )
-          .toList(),
-  };
+  return performanceRecorder.measureSync(PerfOperation.bookmarkSelect, () {
+    final inView = switch (view.kind) {
+      BookmarkViewKind.all => state.items,
+      BookmarkViewKind.group =>
+        state.items
+            .where(
+              (bookmark) => state
+                  .membershipsFor(bookmark.uniqueId)
+                  .contains(view.groupId),
+            )
+            .toList(),
+    };
 
-  return filterBookmarks(
-    bookmarks: inView,
-    selectedTags: selectedTags,
-    sortType: sortType,
-    selectedBooruUrl: selectedBooruUrl,
-    shuffleState: shuffleState,
-  );
+    return filterBookmarks(
+      bookmarks: inView,
+      selectedTags: selectedTags,
+      sortType: sortType,
+      selectedBooruUrl: selectedBooruUrl,
+      shuffleState: shuffleState,
+    );
+  }, items: state.items.length);
 }
 
 List<Bookmark> selectBookmarkPreviews({

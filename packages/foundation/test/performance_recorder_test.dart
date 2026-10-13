@@ -21,6 +21,84 @@ List<Map<String, Object?>> _events(PerformanceRecorder r, String type) =>
         .toList();
 
 void main() {
+  test('defaults retain an extended diagnostic run', () {
+    final limits = PerformanceRecorder().snapshot()['limits'] as Map;
+
+    expect(limits['events'], 100000);
+    expect(limits['active_spans'], 1024);
+  });
+
+  test(
+    'fast operation items, failures and cache samples survive ring eviction',
+    () {
+      final clock = _Clock();
+      final recorder = PerformanceRecorder(clock: clock.call, eventCapacity: 2)
+        ..start();
+      for (var i = 0; i < 10; i++) {
+        final span = recorder.begin(
+          PerfOperation.cacheCheckpoint,
+          PerfSpanKind.asyncWall,
+          items: i,
+        );
+        clock.advance(10);
+        span.finish(failed: i == 0);
+        recorder.recordImageCache(bytes: i * 100, live: i, pending: 10 - i);
+      }
+      final summary = recorder.snapshot()['summary'] as Map;
+      final operation = (summary['operations'] as List).single as Map;
+      expect(operation['count'], 10);
+      expect(operation['failed'], 1);
+      expect((operation['items'] as Map)['total'], 45);
+      expect((operation['items'] as Map)['max'], 9);
+      final bytes =
+          (summary['counters'] as Map)['decodedImageCacheBytes'] as Map;
+      expect(bytes['samples'], 10);
+      expect(bytes['first'], 0);
+      expect(bytes['last'], 900);
+      expect(recorder.retainedEvents, 2);
+      final saved = recorder.snapshot();
+      recorder.clear();
+      expect(
+        ((saved['summary'] as Map)['counters']
+            as Map)['decodedImageCacheBytes'],
+        bytes,
+      );
+    },
+  );
+
+  test(
+    'foreground duration and vsync distributions exclude background time',
+    () {
+      final clock = _Clock();
+      final recorder = PerformanceRecorder(clock: clock.call)..start();
+      recorder.setContext(screen: PerfScreen.searchGrid, refreshRateHz: 90);
+      final start = clock.time;
+      clock.advance(20000);
+      recorder.recordFrame(
+        startUs: start,
+        finishUs: start + 20000,
+        buildUs: 1000,
+        rasterUs: 1000,
+        vsyncOverheadUs: 15000,
+      );
+      recorder.setForeground(false);
+      clock.advance(3000000);
+      recorder.setForeground(true);
+      clock.advance(10000);
+      recorder.stop();
+      final report = recorder.snapshot();
+      expect(report['elapsed_us'], 3030000);
+      expect(report['foreground_us'], 30000);
+      final summary = report['summary'] as Map;
+      expect((summary['vsync_overhead'] as Map)['max_us'], 15000);
+      expect(
+        (((summary['screens'] as Map)['searchGrid'] as Map)['vsync_overhead']
+            as Map)['count'],
+        1,
+      );
+    },
+  );
+
   test('viewer summaries survive event eviction and exclude other screens', () {
     final clock = _Clock();
     final recorder = PerformanceRecorder(clock: clock.call, eventCapacity: 1)
@@ -59,6 +137,9 @@ void main() {
       'samples': 2,
       'total': 8,
       'max': 5,
+      'min': 3,
+      'first': 5,
+      'last': 3,
     });
     recorder.start();
     expect((recorder.snapshot()['summary'] as Map)['counters'], isEmpty);

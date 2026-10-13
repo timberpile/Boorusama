@@ -36,6 +36,58 @@ def percentile_range(distribution: dict, percentile: float) -> str:
         if i < len(bounds): lower = integer(bounds[i])
     return 'unavailable'
 
+CACHE_OPERATIONS = (
+    'cacheQueueWait', 'cacheInitialize', 'cacheRead', 'cacheAcquireFile',
+    'cacheTrim', 'cacheEvictionScan', 'cacheJournalAppend', 'cacheCheckpoint',
+    'cacheCheckpointSnapshot', 'cacheCheckpointDispatch', 'cacheCheckpointWorker',
+    'cacheCheckpointPublish', 'cacheIndexEncode',
+)
+FRAME_METRICS = ('build', 'raster', 'vsync_overhead', 'frame_latency', 'ui_delay')
+CACHE_COUNTERS = (
+    'cacheEntries', 'cacheGenerations', 'cacheRetiredGenerations',
+    'cacheRetainedBytes', 'cacheLimitBytes', 'cacheQueueDepth',
+    'cacheEvictionExamined', 'cacheEvictionVictims', 'cacheLookupHit',
+    'cacheLookupMiss', 'cachePersistenceFailure',
+    'decodedImageCacheBytes', 'decodedImageCacheLive', 'decodedImageCachePending',
+)
+
+
+def distribution_text(data: object) -> str:
+    if not isinstance(data, dict) or not integer(data.get('count')):
+        return 'unavailable'
+    count = integer(data['count'])
+    return (f"count={count}, mean={integer(data.get('total_us')) / count / 1000:.3f} ms, "
+            f"max={integer(data.get('max_us')) / 1000:.3f} ms, "
+            f"p50={percentile_range(data, .50)}, p95={percentile_range(data, .95)}, "
+            f"p99={percentile_range(data, .99)}")
+
+
+def counter_text(data: object) -> str:
+    if not isinstance(data, dict) or not integer(data.get('samples')):
+        return 'unavailable'
+    count = integer(data['samples'])
+    fields = ', '.join(f"{key}={integer(data[key])}" if key in data else f"{key}=unavailable"
+                       for key in ('first', 'last', 'min', 'max'))
+    return f"samples={count}, total={integer(data.get('total'))}, mean={integer(data.get('total')) / count:.2f}, {fields}"
+
+
+def above_threshold(data: object, threshold_us: int) -> str:
+    if not isinstance(data, dict):
+        return 'unavailable'
+    bounds, counts = data.get('histogram_bounds_us'), data.get('histogram_counts')
+    if not isinstance(bounds, list) or not isinstance(counts, list) or len(counts) != len(bounds) + 1 or threshold_us not in bounds:
+        return 'unavailable'
+    return str(sum(integer(v) for v in counts[bounds.index(threshold_us) + 1:]))
+
+
+def operation_text(data: object) -> str:
+    text = distribution_text(data)
+    if text == 'unavailable':
+        return text
+    failures = str(integer(data['failed'])) if 'failed' in data else 'unavailable'
+    return f"{text}, failed={failures}, items: {counter_text(data.get('items'))}"
+
+
 def summarize(report: dict, limit: int = 12) -> str:
     if report.get('schema_version') != 1:
         raise ValueError('Unsupported performance report schema')
@@ -48,26 +100,50 @@ def summarize(report: dict, limit: int = 12) -> str:
     revision = environment.get('revision', '')
     revision = revision if isinstance(revision, str) and re.fullmatch(r'[a-fA-F0-9]{7,40}', revision) else 'unspecified'
     lines = [
-        f"Build: {label(environment.get('build_mode'))}; platform: {label(environment.get('platform'))}; revision: {revision}",
+        f"Build: {label(environment.get('build_mode'))}; variant: {label(environment.get('variant'))}; "
+        f"platform: {label(environment.get('platform'))}; revision: {revision}",
         f"Captured: {integer(summary.get('frames'))} frames; {integer(summary.get('over_budget_frames'))} over budget; "
         f"{integer(summary.get('high_latency_frames'))} high-latency frames.",
     ]
-    for name in ('build', 'raster', 'frame_latency', 'ui_delay'):
+    for name in FRAME_METRICS:
         data = summary.get(name, {})
         if not isinstance(data, dict): continue
-        lines.append(f"{name}: count={integer(data.get('count'))}, max={integer(data.get('max_us')) / 1000:.2f} ms, "
-                     f"p95 histogram interval={percentile_range(data, .95)}")
+        lines.append(f"{name}: {distribution_text(data)}")
+    lines.append('Frame latency tails: ' + ', '.join(f'>{ms} ms={above_threshold(summary.get("frame_latency"), ms * 1000)}' for ms in (50, 100, 250, 500)))
     lines.append('Coverage: ' + ', '.join(f'{key}={integer(coverage.get(key))}' for key in (
         'evicted_events', 'unrecorded_spans', 'interrupted_spans', 'rejected_frames', 'frames_without_context')))
     operation_stats = summary.get('operations', [])
     if isinstance(operation_stats, list):
-        lines.append('\nSlowest instrumented operations (all calls, elapsed time, do not sum nested spans):')
+        lines.append('\nInstrumented operations (all calls, elapsed time, do not sum nested spans):')
         for operation in sorted((op for op in operation_stats if isinstance(op, dict)),
-                                key=lambda op: integer(op.get('max_us')), reverse=True)[:10]:
+                                key=lambda op: integer(op.get('max_us')), reverse=True):
             lines.append(f"  {label(operation.get('op'))} [{label(operation.get('kind'))}]: "
-                         f"count={integer(operation.get('count'))}, "
-                         f"max={integer(operation.get('max_us')) / 1000:.2f} ms, "
-                         f"total={integer(operation.get('total_us')) / 1000:.2f} ms")
+                         f"{operation_text(operation)}")
+    lines.append('\nCache stages (missing samples are unavailable, not zero):')
+    recorded = {label(op.get('op')) for op in operation_stats if isinstance(op, dict)} if isinstance(operation_stats, list) else set()
+    for name in CACHE_OPERATIONS:
+        if name not in recorded:
+            lines.append(f'  {name}: unavailable')
+    counters = summary.get('counters', {})
+    if not isinstance(counters, dict):
+        raise ValueError('Malformed counters')
+    lines.append('\nCache state and work (numeric samples, not time-weighted averages):')
+    for name in CACHE_COUNTERS:
+        lines.append(f'  {name}: {counter_text(counters.get(name))}')
+    screens = summary.get('screens', {})
+    if not isinstance(screens, dict):
+        raise ValueError('Malformed screen summaries')
+    lines.append('\nPer-screen frames and foreground UI delays:')
+    for name, data in screens.items():
+        if not isinstance(data, dict):
+            raise ValueError('Malformed screen summary')
+        frames = integer(data.get('frames'))
+        rate = lambda key: f"{100 * integer(data.get(key)) / frames:.2f}%" if frames else 'unavailable'
+        lines.append(f"  {label(name)}: frames={frames}, over_budget={rate('over_budget_frames')}, high_latency={rate('high_latency_frames')}, "
+                     f"budgets_us={','.join(str(integer(v)) for v in data.get('frame_budgets_us', []) if type(v) is int)}, "
+                     f"estimated_budget_frames={integer(data.get('estimated_budget_frames'))}")
+        for metric in FRAME_METRICS:
+            lines.append(f'    {metric}: {distribution_text(data.get(metric))}')
     markers = [e for e in events if e.get('type') == 'marker']
     if markers:
         lines.append('Markers: ' + ', '.join(f"+{integer(e.get('t_us')) / 1e6:.3f}s" for e in markers[-12:]))

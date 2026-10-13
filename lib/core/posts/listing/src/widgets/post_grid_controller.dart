@@ -1,3 +1,5 @@
+import 'package:foundation/performance.dart';
+
 // Dart imports:
 import 'dart:async';
 import 'dart:isolate';
@@ -22,10 +24,9 @@ typedef ItemRefresher<T extends Post> = Future<PostResult<T>> Function();
 
 typedef HiddenData = ({String name, int count, bool active});
 
-typedef PostGridFetcher<T extends Post> =
-    PostsOrErrorCore<T> Function(
-      int page,
-    );
+typedef PostGridFetcher<T extends Post> = PostsOrErrorCore<T> Function(
+  int page,
+);
 
 extension TagCountX on Map<String, Set<int>> {
   int get totalNonDuplicatesPostCount => values.expand((e) => e).toSet().length;
@@ -585,18 +586,31 @@ List<T> _filterPosts<T extends Post>(
   Map<String, bool> activeFilters,
   Set<String> blacklistedUrls,
 ) {
-  return items.where((e) {
-    for (final entry in tagCounts.entries) {
-      if ((activeFilters[entry.key] ?? false) && entry.value.contains(e.id)) {
+  final performanceSpan = performanceRecorder.begin(
+    PerfOperation.gridFilter,
+    PerfSpanKind.sync,
+    items: items.length,
+  );
+  var performanceFailed = false;
+  try {
+    return items.where((e) {
+      for (final entry in tagCounts.entries) {
+        if ((activeFilters[entry.key] ?? false) && entry.value.contains(e.id)) {
+          return false;
+        }
+      }
+
+      if (blacklistedUrls.contains(e.originalImageUrl)) {
         return false;
       }
-    }
-
-    if (blacklistedUrls.contains(e.originalImageUrl)) {
-      return false;
-    }
-    return true;
-  }).toList();
+      return true;
+    }).toList();
+  } catch (_) {
+    performanceFailed = true;
+    rethrow;
+  } finally {
+    performanceSpan.finish(failed: performanceFailed);
+  }
 }
 
 typedef PostCountData = ({TagFilterData filterData, int id});
@@ -608,9 +622,12 @@ Future<Map<String, Set<int>>> _count<T extends Post>(
   // If there are no tags, return an empty map to prevent isolate overhead
   if (parsedTags.isEmpty) return {};
 
-  final payload = posts
-      .map((post) => (filterData: post.extractTagFilterData(), id: post.id))
-      .toList();
+  final payload = performanceRecorder.measureSync(
+    PerfOperation.gridCountPayload,
+    () => posts
+        .map((post) => (filterData: post.extractTagFilterData(), id: post.id))
+        .toList(),
+  );
 
   return switch (isWeb()) {
     true => _countInIsolate(
