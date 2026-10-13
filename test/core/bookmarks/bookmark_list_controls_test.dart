@@ -76,6 +76,17 @@ void main() {
           container.read(selectedBooruUrlProvider.notifier).state =
               '$_longSource/$_longSource';
           await tester.pumpAndSettle();
+          final divider = tester.getRect(find.byType(VerticalDivider));
+          final sort = tester.getRect(find.text('Random'));
+          final shuffle = tester.getRect(find.byType(IconButton));
+          final sourceRect = tester.getRect(
+            find.text('Source: $_longSource/$_longSource'),
+          );
+          expect(divider.height, 24);
+          expect(divider.left, greaterThanOrEqualTo(sort.right));
+          expect(divider.left, greaterThanOrEqualTo(shuffle.right));
+          expect(divider.right, lessThanOrEqualTo(sourceRect.left));
+          expect(divider.center.dy, closeTo(sourceRect.center.dy, 1));
           final count = find.text('12 bookmarks');
           final countCenter = tester.getCenter(count);
           final menu = find.byIcon(Icons.settings);
@@ -190,6 +201,99 @@ void main() {
     expect(container.read(selectedBooruUrlProvider), 'one.example');
   });
 
+  testWidgets('only the filter bar has a divider', (
+    tester,
+  ) async {
+    await pumpControls(tester);
+    await _tapFilter(tester, 'Newest');
+    await tester.pumpAndSettle();
+
+    final sortItems = find.byType(KurumiPopupMenuItem);
+    expect(sortItems, findsNWidgets(5));
+    expect(find.byType(Divider), findsNothing);
+    expect(find.byType(VerticalDivider), findsOneWidget);
+    final divider = tester.getRect(find.byType(VerticalDivider));
+    expect(
+      divider.left,
+      greaterThan(tester.getRect(find.text('Newest').first).right),
+    );
+    expect(
+      divider.right,
+      lessThan(tester.getRect(find.text('Source: All')).left),
+    );
+
+    await tester.tap(sortItems.first);
+    await tester.pumpAndSettle();
+    await _tapFilter(tester, 'Source: All');
+    await tester.pumpAndSettle();
+    expect(find.byType(KurumiPopupMenuItem), findsNWidgets(3));
+    expect(find.byType(Divider), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('sort choices show date source icons with clear semantics', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final container = await pumpControls(tester);
+    expect(find.text('Sort:'), findsOneWidget);
+    expect(find.text('Source: All'), findsOneWidget);
+    expect(
+      tester.getRect(find.text('Sort:')).right,
+      lessThan(tester.getRect(find.byIcon(Icons.bookmark_border)).left),
+    );
+    await _tapFilter(tester, 'Newest');
+    await tester.pumpAndSettle();
+
+    final options = find.byType(KurumiPopupMenuItem);
+    expect(options, findsNWidgets(5));
+    for (final index in [0, 1]) {
+      expect(
+        find.descendant(
+          of: options.at(index),
+          matching: find.byIcon(Icons.file_upload_outlined),
+        ),
+        findsOneWidget,
+      );
+    }
+    for (final index in [2, 3]) {
+      expect(
+        find.descendant(
+          of: options.at(index),
+          matching: find.byIcon(Icons.bookmark_border),
+        ),
+        findsOneWidget,
+      );
+    }
+    expect(
+      find.descendant(
+        of: options.at(4),
+        matching: find.byIcon(Icons.shuffle),
+      ),
+      findsOneWidget,
+    );
+    expect(find.bySemanticsLabel('Upload date: Newest'), findsOneWidget);
+    expect(find.bySemanticsLabel('Bookmarks: Oldest'), findsOneWidget);
+
+    await tester.tap(options.first);
+    await tester.pumpAndSettle();
+    expect(
+      container.read(selectedBookmarkSortTypeProvider),
+      BookmarkSortType.newestUpload,
+    );
+    expect(find.byIcon(Icons.file_upload_outlined), findsOneWidget);
+    expect(find.text('Sort:'), findsOneWidget);
+    await _tapFilter(tester, 'Newest');
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(KurumiPopupMenuItem).at(1));
+    await tester.pumpAndSettle();
+    expect(
+      container.read(selectedBookmarkSortTypeProvider),
+      BookmarkSortType.oldestUpload,
+    );
+    semantics.dispose();
+  });
+
   testWidgets('Random shuffles once, reshuffles separately, and sort resets', (
     tester,
   ) async {
@@ -237,7 +341,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(
       find.ancestor(
-        of: find.text('Oldest'),
+        of: find.text('Oldest').last,
         matching: find.byType(KurumiPopupMenuItem),
       ),
     );
@@ -252,7 +356,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(
       find.ancestor(
-        of: find.text('Newest'),
+        of: find.text('Newest').last,
         matching: find.byType(KurumiPopupMenuItem),
       ),
     );
@@ -300,7 +404,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(
         find.ancestor(
-          of: find.text('Oldest'),
+          of: find.text('Oldest').last,
           matching: find.byType(KurumiPopupMenuItem),
         ),
       );

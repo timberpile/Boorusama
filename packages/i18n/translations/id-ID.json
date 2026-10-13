@@ -44,6 +44,7 @@
   },
   "sort": {
     "sort_by": "Urutkan dengan",
+    "short": "Urutkan",
     "name": "Nama",
     "name_asc": "Nama (A-Z)",
     "name_desc": "Nama (Z-A)",

@@ -1201,6 +1201,7 @@
   },
   "sort": {
     "sort_by": "Sortieren nach",
+    "short": "Sortieren",
     "name": "Name",
     "name_asc": "Name (A-Z)",
     "name_desc": "Name (Z-A)",

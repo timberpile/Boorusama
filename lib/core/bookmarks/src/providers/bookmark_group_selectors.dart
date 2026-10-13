@@ -9,7 +9,7 @@ import '../types/bookmark_search_token.dart';
 import '../types/bookmark_view.dart';
 import 'bookmark_shuffle_provider.dart';
 
-enum BookmarkSortType { newest, oldest, random }
+enum BookmarkSortType { newestUpload, oldestUpload, newest, oldest, random }
 
 List<Bookmark> selectBookmarks({
   required BookmarkLibraryState state,
@@ -82,6 +82,16 @@ List<Bookmark> filterBookmarks({
             .toList();
   final sorted = filtered.sorted(
     (a, b) => switch (sortType) {
+      BookmarkSortType.newestUpload => _compareUploadDate(
+        a,
+        b,
+        newestFirst: true,
+      ),
+      BookmarkSortType.oldestUpload => _compareUploadDate(
+        a,
+        b,
+        newestFirst: false,
+      ),
       BookmarkSortType.newest => b.createdAt.compareTo(a.createdAt),
       BookmarkSortType.oldest => a.createdAt.compareTo(b.createdAt),
       BookmarkSortType.random => 0,
@@ -93,6 +103,27 @@ List<Bookmark> filterBookmarks({
       ? shuffleState!
       : const BookmarkShuffleState().withNewShuffle();
   return activeShuffleState.applyShuffleToList(sorted);
+}
+
+// Known upload dates always precede missing dates in both directions. A
+// stable site+post-ID fallback avoids comparing unrelated sites' ID sequences.
+int _compareUploadDate(Bookmark a, Bookmark b, {required bool newestFirst}) {
+  final aDate = a.post.createdAt;
+  final bDate = b.post.createdAt;
+  if (aDate == null && bDate != null) return 1;
+  if (aDate != null && bDate == null) return -1;
+  if (aDate != null && bDate != null) {
+    final byDate = aDate.compareTo(bDate);
+    if (byDate != 0) return newestFirst ? -byDate : byDate;
+  }
+
+  final bySite = a.post.origin.sourceHost.compareTo(b.post.origin.sourceHost);
+  if (bySite != 0) return newestFirst ? -bySite : bySite;
+
+  final byPostId = a.post.id.compareTo(b.post.id);
+  if (byPostId != 0) return newestFirst ? -byPostId : byPostId;
+
+  return a.id.compareTo(b.id);
 }
 
 class BookmarkMembershipPresentation extends Equatable {

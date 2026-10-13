@@ -788,6 +788,7 @@
   },
   "sort": {
     "sort_by": "整理基準",
+    "short": "並べ替え",
     "name": "名前順",
     "recently_added": "新しい順",
     "name_asc": "名前 (A-Z)",

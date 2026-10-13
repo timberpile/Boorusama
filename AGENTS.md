@@ -5,8 +5,16 @@
 Use an isolated task branch/worktree; work items always require one. Small
 explicit changes may use local `develop` under the
 [development workflow](docs/development_workflow.md#isolation-and-small-changes).
+When the user specifies an existing task branch, continue that branch instead of
+creating a new one. Reuse its isolated worktree if present; otherwise create an
+isolated worktree for that branch and work there. If it is checked out in the
+primary checkout, preserve its changes and detach that checkout before attaching
+the branch to the task worktree.
+
 Keep changes within the request; avoid unrelated cleanup. Follow that workflow
 for checkout setup, authorization, integration, and cleanup.
+Commit all task changes before reporting completion, unless the user explicitly
+asks to leave them uncommitted. Stage only changes belonging to the task.
 
 ## Workflow selection
 

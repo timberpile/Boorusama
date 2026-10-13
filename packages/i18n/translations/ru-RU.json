@@ -908,6 +908,7 @@
   },
   "sort": {
     "sort_by": "Сортировать по",
+    "short": "Сортировать",
     "recently_added": "Недавно добавленно",
     "recently_updated": "Недавно обновлено",
     "recently_created": "Недавно созданные",

@@ -44,6 +44,7 @@
   },
   "sort": {
     "sort_by": "Sắp xếp",
+    "short": "Sắp xếp",
     "name": "Tên",
     "name_asc": "Tên (A-Z)",
     "name_desc": "Tên (Z-A)",
