@@ -13,6 +13,10 @@ import '../../providers/settings_notifier.dart';
 import '../../providers/settings_provider.dart';
 import '../../types/settings.dart';
 import '../../types/utils.dart';
+import 'posts_per_page_dialog.dart';
+
+// No valid page count is zero; it represents the custom option in the picker.
+const _customPostsPerPageOption = 0;
 
 class ImageListingSettingsSection extends ConsumerStatefulWidget {
   const ImageListingSettingsSection({
@@ -71,6 +75,8 @@ class _ImageListingSettingsSectionState
 
   @override
   Widget build(BuildContext context) {
+    final postsPerPagePresets = getPostsPerPagePossibleValue();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -142,17 +148,37 @@ class _ImageListingSettingsSectionState
               color: Kurumi.themeOf(context).colorScheme.hintColor,
             ),
           ),
-          selectedOption: settings.postsPerPage,
-          items: getPostsPerPagePossibleValue(),
-          onChanged: (newValue) {
+          selectedOption: postsPerPagePresets.contains(settings.postsPerPage)
+              ? settings.postsPerPage
+              : _customPostsPerPageOption,
+          items: [...postsPerPagePresets, _customPostsPerPageOption],
+          onChanged: (newValue) async {
+            if (newValue == _customPostsPerPageOption) {
+              final customValue = await showPostsPerPageDialog(
+                context,
+                currentValue: settings.postsPerPage,
+              );
+              if (!mounted || customValue == null) return;
+
+              _onUpdate(
+                (current) => current.copyWith(postsPerPage: customValue),
+              );
+              return;
+            }
+
             _onUpdate(
-              (current) => current.copyWith(
-                postsPerPage: newValue,
-              ),
+              (current) => current.copyWith(postsPerPage: newValue),
             );
           },
           optionBuilder: (value) => Text(
-            value.toString(),
+            value == _customPostsPerPageOption
+                ? context.t.settings.performance.posts_per_page_custom
+                : value.toString(),
+          ),
+          selectedOptionBuilder: (value) => Text(
+            value == _customPostsPerPageOption
+                ? settings.postsPerPage.toString()
+                : value.toString(),
           ),
         ),
         KurumiSwitchListTile(

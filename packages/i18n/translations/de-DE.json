@@ -642,6 +642,8 @@
       "performance": "Leistung",
       "posts_per_page": "Beiträge pro Seite",
       "posts_per_page_explain": "Vorschaubilder pro Seite",
+      "posts_per_page_custom": "Benutzerdefiniert...",
+      "posts_per_page_invalid": "Bitte eine ganze Zahl zwischen 10 und 200 eingeben.",
       "cache_size": "Cache Größe",
       "clear_cache": "Löschen",
       "cache_size_info": "{0} in {1} Dateien"

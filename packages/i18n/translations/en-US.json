@@ -902,6 +902,8 @@
       "performance": "Performance",
       "posts_per_page": "Posts per page",
       "posts_per_page_explain": "Number of thumbnails per page",
+      "posts_per_page_custom": "Custom...",
+      "posts_per_page_invalid": "Enter a whole number between 10 and 200.",
       "cache_size": "Cache size",
       "clear_cache": "Clear",
       "cache_size_info": "{0} in {1} files"
