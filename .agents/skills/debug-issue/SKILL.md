@@ -16,8 +16,14 @@ description: Diagnose and fix a Boorusama failure with a known symptom but unest
    symptom. Switch to `design-change` only if substantial design decisions arise.
 4. Add a focused regression test when practical. Observe failure before the fix
    when inexpensive; avoid scaffolding solely to enforce RED/GREEN sequencing.
-5. Check the original behavior or failure mechanism. After the last edit, run
-   the complete local suite required by `AGENTS.md` before final review or
-   handoff; focused reproduction and CI do not replace it. Resolve failures and
-   repeat the complete suite after further edits. Report root cause, fix, checks,
-   and remaining uncertainty, without a debugging transcript.
+   For parallel-only failures, check fixture clocks, fixed sleeps and wall-time
+   assumptions. Prefer controlled clocks and completion gates over larger sleeps,
+   retries or exclusions. Preserve actual timeout/backoff/cancellation contracts;
+   rerun affected tests at the parallel setting that exposed the failure.
+5. Check the original behavior or failure mechanism and apply scope-appropriate
+   verification from `AGENTS.md`. Expand to consumer tests across meaningful
+   boundaries; broad/unclear scope needs the full suite. Before develop
+   integration, require a complete pass on the final candidate, reusing a pass
+   on that same candidate across handoffs and report-only edits. Resolve failures
+   and re-verify relevant changes. Report root cause, fix, checks and remaining
+   uncertainty, without a debugging transcript.

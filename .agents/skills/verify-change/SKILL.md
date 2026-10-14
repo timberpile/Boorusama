@@ -12,10 +12,14 @@ correctness, without reconstructing development history or auditing unrelated st
 Check requested behavior, scope, async/lifecycle, nullable external data,
 cache/state invalidation, persistence/backup compatibility, localization,
 meaningful coverage, and likely regressions. Use focused checks to investigate
-findings, then run the complete local suite required by `AGENTS.md` before the
-final review or handoff. Use the final diff; repeat the complete suite after any
-further edits. Targeted passes and CI do not replace this run. Device validation
-still needs a concrete reason.
+findings and apply scope-appropriate verification from `AGENTS.md`; broad/unclear
+scope needs the full suite. Before develop integration, require a complete pass
+on the final candidate. Reuse an existing pass on that same candidate across
+handoffs and report-only edits; relevant changes require re-verification. Device
+validation still needs a concrete reason. Review timing-sensitive tests for
+controlled clocks, explicit completion boundaries and sensible hang guards;
+fixed sleeps and tight wall-clock caps need justification. Check relevant async
+changes under parallel execution without weakening meaningful timing contracts.
 
 For your own implementation, fix straightforward confirmed defects when fixes
 are allowed and rerun affected checks. For review-only requests, report findings

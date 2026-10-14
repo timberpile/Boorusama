@@ -142,10 +142,10 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 20));
       final manual = await notifier()
           .refresh('cat')
-          .timeout(const Duration(milliseconds: 250));
+          .timeout(const Duration(seconds: 5));
       expect(manual, isA<SearchRefreshDeferred>());
       expect(
-        await automatic.timeout(const Duration(milliseconds: 250)),
+        await automatic.timeout(const Duration(seconds: 5)),
         isA<SearchRefreshDeferred>(),
       );
       expect(starts, 1);
@@ -303,7 +303,7 @@ void main() {
         if (sameOrigin) {
           try {
             expect(
-              await manual.timeout(const Duration(milliseconds: 250)),
+              await manual.timeout(const Duration(seconds: 5)),
               isA<SearchRefreshDeferred>(),
             );
           } finally {

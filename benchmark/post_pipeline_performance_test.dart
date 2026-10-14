@@ -16,7 +16,7 @@ import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 import 'package:boorusama/core/posts/rating/types.dart';
 import 'package:boorusama/core/posts/sources/types.dart';
-import '../../../profile_uuid_utils.dart';
+import '../test/profile_uuid_utils.dart';
 
 const _postCount = 1000;
 const _runCount = 3;

@@ -101,11 +101,11 @@ unintegrated features.
 - Use FVM for Dart/Flutter checks. During preparation, run the directly relevant
   version and changelog-reader tests, currently
   `test/version_test.dart` and `test/core/changelogs/changelog_repository_test.dart`,
-  and `git diff --check`. After the last edit, run the complete local suite
-  required by `AGENTS.md` before final review, handoff, or starting delivery,
-  including for version/changelog-only changes. Resolve failures and rerun the
-  complete suite after further edits. Targeted passes and release CI do not
-  replace this local qualification; required PR checks must also pass for the
+  and `git diff --check`. Follow scope-appropriate verification in `AGENTS.md`
+  during preparation. Before integration, promotion or starting delivery,
+  require a complete local pass on the final candidate; reuse a pass on that
+  same candidate across handoffs and report-only edits. Relevant runtime/test/
+  dependency changes require re-verification. Required PR checks also apply to the
   final candidate. Tests of existing release tooling remain allowed as part of
   the complete suite; never execute the excluded release commands or services
   or substitute their tests for candidate validation. Generate output only when

@@ -78,7 +78,7 @@ void main() {
     token.cancel();
     try {
       await expectLater(
-        preparation.timeout(const Duration(milliseconds: 300)),
+        preparation.timeout(const Duration(seconds: 5)),
         throwsA(
           isA<ShareMediaException>().having(
             (error) => error.failure,

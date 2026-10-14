@@ -104,7 +104,7 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 20));
       manual = true;
       changes.add(null);
-      await assertion.timeout(const Duration(milliseconds: 250));
+      await assertion.timeout(const Duration(seconds: 5));
       expect(starts, 1);
       await changes.close();
       c.dispose();

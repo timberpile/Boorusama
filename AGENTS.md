@@ -29,8 +29,8 @@ Use the applicable `.agents/skills/<name>/SKILL.md`:
 | [verify-change](.agents/skills/verify-change/SKILL.md) | Requested review or justified additional validation of a large change |
 | [prepare-release](.agents/skills/prepare-release/SKILL.md) | Next release version and changelog; explicitly requested delivery through a GitHub draft |
 
-Default: inspect → implement → full final verification → review → report. Tickets, issues,
-design/plan documents, subagents, and reviewer pairs are optional, not routine
+Default: inspect → implement → scope-appropriate verification → review → report.
+Tickets, issues, design/plan documents, subagents, and reviewer pairs are optional, not routine
 prerequisites. Use PRs only when explicitly requested. Do not automatically chain
 skills; implementation includes verification. Use Superpowers only when explicitly
 requested.
@@ -58,13 +58,37 @@ publication, releases, or upstream synchronization.
 ## Verification and devices
 
 Format changed Dart files with `fvm dart format`, run directly related behavior
-tests during implementation, and analyze affected scope when useful. After the
-last edit and before final review, handoff, or claiming changes are ready, rerun
-the [complete local test suite](docs/engineering_guidelines.md#complete-local-test-suite).
-This includes application, package, CLI, and repository-tooling tests, even for
-small or documentation-only changes. Targeted passes and CI do not replace this
-local run. Fix failures and repeat the complete suite after any further edits;
-if blocked, report the incomplete checks without presenting the change as ready.
+tests during implementation, and analyze affected scope when useful. Default
+ordinary test concurrency to detected available physical cores (minimum one),
+using `python3 scripts/physical_core_count.py`; `TEST_CONCURRENCY` overrides the
+complete runner. Workload benchmarks keep their explicit serial setting.
+Tests should use controlled clocks or completion signals instead of fixed sleeps
+and strict wall-clock budgets; retain meaningful timing contracts and bounded
+hang guards as described in the [test guidelines](docs/engineering_guidelines.md#tests).
+Choose verification by the change's scope, following the
+[verification guidance](docs/engineering_guidelines.md#scope-appropriate-verification):
+
+- Documentation, work-item status, comments, and other non-runtime-only changes:
+  run relevant documentation/tooling checks; do not run application tests.
+- Scoped application changes: run affected test files or directories and nearby
+  consumer tests when a meaningful boundary is crossed.
+- Local package changes: run that package's complete suite and relevant consumer
+  tests in the application or other packages.
+- Broad changes to shared core models/infrastructure, dependencies/toolchain,
+  generated-code infrastructure, test infrastructure, repository-wide behavior,
+  or genuinely unclear scope: run the complete local suite. Prefer broader checks
+  when uncertain.
+
+Before a task is safe to integrate into `develop`, the final integration candidate
+must pass the [complete local test suite](docs/engineering_guidelines.md#complete-local-test-suite)
+(application, every package/CLI, and repository tooling). Targeted verification
+proves the task locally; full verification proves the integration candidate.
+Reuse a complete pass on that same candidate across handoffs and documentation
+or status-only updates. Relevant code, tests, dependencies, generated runtime
+output, or changes to the combined develop candidate require re-verification.
+Record the checked commit/state, commands, results and limits in the normal task
+report; no cache or verification metadata is needed. Report failed or incomplete
+checks without claiming the candidate is ready to integrate.
 Run `./gen.sh` only when changed inputs or missing generated output require it.
 
 For UI changes, exercise affected actions at narrow width, enlarged text, and

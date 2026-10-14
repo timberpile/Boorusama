@@ -12,7 +12,9 @@ implemented and verified directly on clean local `develop`, in one scoped commit
 without further approval. This permits direct edits and a local commit only,
 not merging or integrating a task branch. If uncertainty arises or scope grows
 beyond this exception, move the change into a task worktree before continuing.
-Work items always require their own task branch/worktree.
+Work items always require their own task branch/worktree. The full regression
+gate for develop also applies to direct local develop commits; qualification of
+the unchanged runtime candidate can be reused for documentation-only updates.
 
 For work requiring isolation, run (based on current local `develop`):
 
@@ -46,8 +48,13 @@ other repositories.
 ## Integration
 
 Use a clean checkout and preserve unrelated user changes. Review the approved
-diff, stage only that change, verify the combined result, and confirm the
-integrated tree and any queue status afterward.
+diff and stage only that change. Before integration, require the complete local
+suite from [engineering guidelines](engineering_guidelines.md#complete-local-test-suite)
+on the final combined candidate. An existing pass on that same candidate remains
+valid across agent handoffs and documentation/status-only updates. Relevant
+runtime/test/dependency changes or a changed develop combination require a new
+full pass. Confirm the integrated tree and queue status afterward; record the
+checked commit/state and commands in the normal task report.
 
 | Change | Destination | Integration method |
 | --- | --- | --- |
@@ -91,7 +98,7 @@ With explicit authorization for the merge and push, fetch `origin` and
 needed for this authorized integration operation.
 
 Resolve conflicts while preserving fork behavior, regenerate required outputs,
-and run the full Flutter suite before committing. Abort rather than commit an
+and run the complete local suite before committing. Abort rather than commit an
 incomplete merge. Use `chore: merge upstream master`; verify that the upstream
 tip remains an ancestor and the checkout is clean before the authorized push.
 

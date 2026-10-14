@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 import 'package:booru_clients/gelbooru.dart';
 import 'package:booru_clients/hybooru.dart';
@@ -17,12 +18,16 @@ void main() {
     try {
       await client
           .getCommentsFromPostId(postId: 1)
-          .timeout(const Duration(milliseconds: 200));
+          .timeout(const Duration(seconds: 5));
+    } on TimeoutException {
+      rethrow;
     } catch (_) {}
     try {
       await client
           .getNotesFromPostId(postId: 1)
-          .timeout(const Duration(milliseconds: 200));
+          .timeout(const Duration(seconds: 5));
+    } on TimeoutException {
+      rethrow;
     } catch (_) {}
     expect(a.paths, ['/index.php', '/index.php']);
   });
@@ -34,7 +39,9 @@ void main() {
       await HybooruClient(
         dio: dio,
         baseUrl: 'http://127.0.0.1:1',
-      ).getTagsFromPostId(postId: 1).timeout(const Duration(milliseconds: 200));
+      ).getTagsFromPostId(postId: 1).timeout(const Duration(seconds: 5));
+    } on TimeoutException {
+      rethrow;
     } catch (_) {}
     expect(a.paths, ['/posts/1']);
   });

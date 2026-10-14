@@ -44,10 +44,11 @@ long-lived `develop` or `master`.
 
 ## Integrate and promote
 
-Before integration or promotion, complete the local test suite required by
-`AGENTS.md` against the final prepared diff. Further edits require a full local
-rerun before another final review or delivery attempt; passing PR checks alone
-do not satisfy this preparation requirement.
+Before integration or promotion, require the complete local test suite from
+`AGENTS.md` against the final candidate. Reuse a pass on that same candidate
+across handoffs and report-only edits. Relevant runtime/test/dependency changes
+or a changed combined develop candidate require a new full pass before delivery;
+passing PR checks alone does not satisfy this local requirement.
 
 1. Integrate the verified preparation as one scoped commit into clean local
    `develop`. Reconcile current `origin/develop` and any required release history

@@ -22,6 +22,7 @@ import 'package:kurumi/kurumi.dart';
 import 'package:mocktail/mocktail.dart';
 
 import '../../../bulk_downloads/common.dart';
+import 'share_test_utils.dart';
 
 class _FileSystem extends Mock implements AppFileSystem {}
 
@@ -117,7 +118,14 @@ void main() {
 
     await tester.runAsync(() async {
       await tester.tap(find.byTooltip('Share image'));
-      await Future<void>.delayed(const Duration(milliseconds: 200));
+      await pumpUntilShareCondition(
+        tester,
+        () => find
+            .text('Media sharing is not supported on this device.')
+            .evaluate()
+            .isNotEmpty,
+        reason: 'The failed native share must report unsupported media',
+      );
     });
     await tester.pumpAndSettle();
 
