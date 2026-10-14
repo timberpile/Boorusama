@@ -143,12 +143,14 @@ class SettingsPageOptions {
 class SettingsPageDynamicOptions extends Equatable {
   const SettingsPageDynamicOptions({
     this.scrollTo,
+    this.showSearch = false,
   });
 
   final String? scrollTo;
+  final bool showSearch;
 
   @override
-  List<Object?> get props => [scrollTo];
+  List<Object?> get props => [scrollTo, showSearch];
 }
 
 class SettingsPageDynamicScope extends InheritedWidget {

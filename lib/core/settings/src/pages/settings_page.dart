@@ -23,6 +23,7 @@ import '../../../debug/routes.dart';
 import '../../../developer_options/l10n.dart';
 import '../../../developer_options/widgets.dart';
 import '../providers/settings_provider.dart';
+import '../widgets/settings_navigation_pane.dart';
 import '../widgets/settings_page_scaffold.dart';
 import 'about_page.dart';
 import 'accessibility_page.dart';
@@ -140,6 +141,7 @@ class SettingsPage extends ConsumerStatefulWidget {
 class _SettingsPageState extends ConsumerState<SettingsPage> {
   final _selected = ValueNotifier<String?>(null);
   final _nestedEntry = ValueNotifier<SettingEntry?>(null);
+  bool _showSearch = false;
 
   @override
   Widget build(BuildContext context) {
@@ -181,12 +183,23 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       child: Scaffold(
         appBar: KurumiAppBar(
           title: Text(context.t.settings.settings),
+          actions: [
+            IconButton(
+              key: const ValueKey('settings-search-toggle'),
+              tooltip: _showSearch
+                  ? context.t.generic.action.cancel
+                  : context.t.generic.action.search,
+              icon: Icon(_showSearch ? Icons.close : Icons.search),
+              onPressed: () => setState(() => _showSearch = !_showSearch),
+            ),
+          ],
         ),
         body: SettingsPageNavigationScope(
           openContent: openContent,
           child: SettingsPageDynamicScope(
             options: SettingsPageDynamicOptions(
               scrollTo: widget.scrollTo,
+              showSearch: _showSearch,
             ),
             child: LayoutBuilder(
               builder: (context, constraints) {
@@ -256,6 +269,7 @@ class SettingsSmallPage extends ConsumerStatefulWidget {
 
 class _SettingsSmallPageState extends ConsumerState<SettingsSmallPage> {
   final scrollController = ScrollController();
+  bool _scrolledToSupport = false;
 
   @override
   void initState() {
@@ -304,16 +318,16 @@ class _SettingsSmallPageState extends ConsumerState<SettingsSmallPage> {
 
     final scrollTo = SettingsPageDynamicScope.of(context).options.scrollTo;
 
-    if (scrollTo != null) {
+    if (scrollTo == 'support' && !_scrolledToSupport) {
+      _scrolledToSupport = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (scrollTo == 'support') {
-          scrollController.animateToWithAccessibility(
-            scrollController.position.maxScrollExtent,
-            duration: const Duration(milliseconds: 400),
-            curve: Curves.easeInOut,
-            reduceAnimations: ref.read(settingsProvider).reduceAnimations,
-          );
-        }
+        if (!mounted || !scrollController.hasClients) return;
+        scrollController.animateToWithAccessibility(
+          scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 400),
+          curve: Curves.easeInOut,
+          reduceAnimations: ref.read(settingsProvider).reduceAnimations,
+        );
       });
     }
   }
@@ -346,41 +360,20 @@ class _SettingsSmallPageState extends ConsumerState<SettingsSmallPage> {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Expanded(
-          child: SingleChildScrollView(
-            controller: scrollController,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _SettingsSection(
-                  label: context.t.settings.app_settings,
-                ),
-                for (final entry in options.entries) ...[
-                  SettingTile(
-                    title: entry.title,
-                    leading: SettingEntryIcon(icon: entry.icon),
-                    onTap: () => Navigator.of(context).push(
-                      CupertinoPageRoute(
-                        settings: RouteSettings(
-                          name: entry.name,
-                        ),
-                        builder: (_) => SettingsPageNavigationScope(
-                          openContent: openContent,
-                          child: SettingsPageScope(
-                            options: options,
-                            child: entry.content,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-                const SettingsPageOtherSection(),
-              ],
+          child: SettingsNavigationPane(
+            entries: options.entries,
+            scrollController: scrollController,
+            header: _SettingsSection(
+              label: context.t.settings.app_settings,
             ),
+            footer: const SettingsPageOtherSection(),
+            onSelected: (entry) => openContent(context, entry),
           ),
         ),
-        const _Divider(),
-        const _Footer(),
+        if (MediaQuery.viewInsetsOf(context).bottom == 0) ...[
+          const _Divider(),
+          const _Footer(),
+        ],
       ],
     );
   }
@@ -440,38 +433,32 @@ class _SettingsLargePageState extends ConsumerState<SettingsLargePage> {
     final selectedContent =
         nestedEntry?.content ?? entries[_selectedEntry].content;
 
-    // ref.watch(settingsProvider.select((value) => value.language));
-    final options = SettingsPageScope.of(context).options;
-
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         SizedBox(
           width: 240,
-          child: ListView(
-            children: [
-              for (final entry in entries)
-                SettingTile(
-                  title: entry.title,
-                  leading: SettingEntryIcon(icon: entry.icon),
-                  selected: entries.indexOf(entry) == _selectedEntry,
-                  showLeading: options.showIcon,
-                  onTap: () => setState(() {
-                    _selectedEntry = entries.indexOf(entry);
-                    ref
-                        .read(analyticsProvider)
-                        .whenData(
-                          (a) => a?.logScreenView(entry.name),
-                        );
+          child: SettingsNavigationPane(
+            entries: entries,
+            selectedId: entries[_selectedEntry].id,
+            onSelected: (entry) => setState(() {
+              _selectedEntry = entries.indexOf(entry);
+              ref
+                  .read(analyticsProvider)
+                  .whenData(
+                    (a) => a?.logScreenView(entry.name),
+                  );
 
-                    widget.onTabChanged?.call(entry.id);
-                  }),
-                ),
-              const SettingsPageOtherSection(),
-              const _Divider(),
-              const _Footer(),
-            ],
+              widget.onTabChanged?.call(entry.id);
+            }),
+            footer: const Column(
+              children: [
+                SettingsPageOtherSection(),
+                _Divider(),
+                _Footer(),
+              ],
+            ),
           ),
         ),
         const VerticalDivider(
