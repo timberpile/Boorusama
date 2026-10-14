@@ -58,7 +58,7 @@ input_directory: translations
         '--json',
         'get',
         'generic.done',
-      ]);
+      ], packaged: true);
 
       expect(result.exitCode, 0);
       final output = jsonDecode(result.stdout as String);
@@ -325,11 +325,23 @@ Here is the manifest:
   });
 }
 
-Future<ProcessResult> _runCli(List<String> arguments) {
+Future<ProcessResult> _runCli(
+  List<String> arguments, {
+  bool packaged = false,
+}) {
+  final root = _repoRoot();
+  // Every case exercises the real child-process entrypoint and exit status.
+  // One case also checks package executable lookup through `dart run`.
+  final entrypoint = packaged
+      ? ['run', 'i18n_cli:booru_i18n']
+      : [
+          '--packages=${p.join(root, '.dart_tool', 'package_config.json')}',
+          p.join(root, 'packages', 'i18n_cli', 'bin', 'booru_i18n.dart'),
+        ];
   return Process.run(
     Platform.resolvedExecutable,
-    ['run', 'i18n_cli:booru_i18n', ...arguments],
-    workingDirectory: _repoRoot(),
+    [...entrypoint, ...arguments],
+    workingDirectory: root,
   );
 }
 

@@ -192,7 +192,8 @@ void main() {
       final directory = await Directory.systemTemp.createTemp('gif-long-real-');
       addTearDown(() => directory.delete(recursive: true));
       final source = '${directory.path}/source.mp4';
-      await _fixture(source, 'libx264', duration: 32);
+      // Duration/frame coverage needs a long clip, but only a small canvas.
+      await _fixture(source, 'libx264', duration: 32, size: '32x18');
       final backend = FfmpegGifBackend(_ProcessRunner());
       final token = CancelToken();
       final metadata = await backend.inspect(source, cancelToken: token);
@@ -217,6 +218,7 @@ void main() {
         cancelToken: token,
       );
       expect(gifOutputMatchesPlan(validation, plan), isTrue);
+      expect((validation.canvasWidth, validation.canvasHeight), (32, 18));
       expect(validation.frameCount, 624);
       expect(validation.frameDelayCentiseconds!.reduce((a, b) => a + b), 2600);
     },
@@ -338,6 +340,7 @@ Future<void> _fixture(
   String codec, {
   double fps = 24,
   int duration = 2,
+  String size = '160x90',
 }) async {
   final result = await Process.run('ffmpeg', [
     '-y',
@@ -346,7 +349,7 @@ Future<void> _fixture(
     '-f',
     'lavfi',
     '-i',
-    'testsrc2=size=160x90:rate=$fps:duration=$duration',
+    'testsrc2=size=$size:rate=$fps:duration=$duration',
     '-c:v',
     codec,
     if (codec == 'libx264') ...['-movflags', '+faststart'],

@@ -12,6 +12,7 @@ import 'package:boorusama/core/posts/post/types.dart';
 import 'package:boorusama/core/posts/rating/types.dart';
 import 'package:boorusama/core/posts/sources/types.dart';
 import 'package:boorusama/core/search/subscriptions/providers.dart';
+import 'package:boorusama/core/search/subscriptions/src/providers/feed_member_preview_provider.dart';
 import 'package:boorusama/core/search/subscriptions/src/pages/following_feed_management_page.dart';
 import 'package:boorusama/core/search/subscriptions/src/widgets/pinned_search_card.dart';
 import 'package:boorusama/core/search/subscriptions/types.dart';
@@ -121,7 +122,7 @@ void main() {
             .runSerializedMutation((_) async {});
       });
       await h.pump(tester, FollowingFeedManagementPage(feedId: feed.id));
-      await drain(tester);
+      await _drainPreviews(tester, h, feed);
       expect(_image(tester).bytes, cache.entries['native720']);
       expect(cache.reads, isNot(contains('unrelated')));
       expect(h.requests, isEmpty);
@@ -165,7 +166,7 @@ void main() {
             .runSerializedMutation((_) async {});
       });
       await h.pump(tester, FollowingFeedManagementPage(feedId: feed.id));
-      await drain(tester);
+      await _drainPreviews(tester, h, feed);
       final images = tester
           .widgetList<Image>(
             find.descendant(
@@ -204,7 +205,7 @@ void main() {
             );
       });
       await h.pump(tester, FollowingFeedManagementPage(feedId: feed.id));
-      await drain(tester);
+      await _drainPreviews(tester, h, feed);
       expect(_image(tester).bytes, cache.entries['sample']);
       await tester.runAsync(() async {
         profiles.profiles = [
@@ -221,13 +222,13 @@ void main() {
         ];
         await h.container.read(booruConfigProvider.notifier).fetch();
       });
-      await drain(tester);
+      await _drainPreviews(tester, h, feed);
       expect(_image(tester).bytes, cache.entries['thumb']);
       await tester.runAsync(() async {
         profiles.profiles = [testProfile];
         await h.container.read(booruConfigProvider.notifier).fetch();
       });
-      await drain(tester);
+      await _drainPreviews(tester, h, feed);
       expect(
         find.descendant(
           of: find.byType(PinnedSearchCard),
@@ -289,7 +290,7 @@ void main() {
         stream.addListener(listener);
       });
       await h.pump(tester, FollowingFeedManagementPage(feedId: feed.id));
-      await drain(tester);
+      await _drainPreviews(tester, h, feed);
       expect(adapter.requests, hasLength(1));
       expect(adapter.pending[url]!.isCompleted, isFalse);
       expect(
@@ -305,12 +306,12 @@ void main() {
               .read(followingFeedMemberSortProvider.notifier)
               .select(sort),
         );
-        await drain(tester);
+        await _drainPreviews(tester, h, feed);
       }
       await tester.pump(const Duration(minutes: 1));
       await tester.runAsync(() => ensureI18nInitialized('de-DE'));
       await tester.pump();
-      await drain(tester);
+      await _drainPreviews(tester, h, feed);
       expect(adapter.requests, hasLength(1));
       expect(mediaRequests, isEmpty);
       expect(h.requests, isEmpty);
@@ -318,7 +319,7 @@ void main() {
         normalToken.cancel('fixture finished');
       });
       for (var attempt = 0; attempt < 20 && !decoded.isCompleted; attempt++) {
-        await drain(tester);
+        await _drainPreviews(tester, h, feed);
       }
       expect(
         decoded.isCompleted,
@@ -342,14 +343,14 @@ void main() {
         ).readAsBytes();
       });
       await h.pump(tester, FollowingFeedManagementPage(feedId: feed.id));
-      await drain(tester);
+      await _drainPreviews(tester, h, feed);
       expect(_image(tester).bytes, cache.entries['thumb']);
       await tester.pumpWidget(const SizedBox());
       await tester.pump();
       cache.entries.clear();
       h.container.invalidate(defaultCachedImageFileProvider);
       await h.pump(tester, FollowingFeedManagementPage(feedId: feed.id));
-      await drain(tester);
+      await _drainPreviews(tester, h, feed);
       expect(
         find.descendant(
           of: find.byType(PinnedSearchCard),
@@ -373,6 +374,37 @@ MemoryImage _image(WidgetTester tester) =>
             )
             .image
         as MemoryImage;
+
+// Native image decoding has its own completion boundary beyond provider turns.
+Future<void> _drainPreviews(
+  WidgetTester tester,
+  PinnedSearchHarness harness,
+  SearchFollowingFeed feed,
+) async {
+  await drain(tester);
+  for (final sourceId in feed.sourceIds) {
+    final provider = feedMemberPreviewProvider((
+      feedId: feed.id,
+      sourceId: sourceId,
+    ));
+    for (
+      var attempt = 0;
+      attempt < 100 && harness.container.read(provider).isLoading;
+      attempt++
+    ) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 10)),
+      );
+      await tester.pump();
+    }
+    expect(
+      harness.container.read(provider).isLoading,
+      isFalse,
+      reason: 'Native cached-preview decoding must finish before assertions',
+    );
+  }
+  await tester.pump();
+}
 
 Post _post(
   BooruConfig owner,
