@@ -21,17 +21,15 @@ class UpdatesSettingsPage extends ConsumerStatefulWidget {
 }
 
 class _UpdatesSettingsPageState extends ConsumerState<UpdatesSettingsPage> {
-  bool _checking = false;
-  UpdateStatus? _manualResult;
+  var _checking = false;
 
   Future<void> _checkNow() async {
     if (_checking) return;
     setState(() => _checking = true);
-    final result = await ref.read(appUpdateCoordinatorProvider).check(force: true);
+    await ref.read(appUpdateCoordinatorProvider).check(force: true);
     if (!mounted) return;
     ref.invalidate(appUpdateStatusProvider);
     setState(() {
-      _manualResult = result;
       _checking = false;
     });
   }
@@ -41,7 +39,7 @@ class _UpdatesSettingsPageState extends ConsumerState<UpdatesSettingsPage> {
     final settings = ref.watch(settingsProvider);
     final coordinator = ref.watch(appUpdateCoordinatorProvider);
     final checkResult = ref.watch(appUpdateStatusProvider);
-    final status = _manualResult ?? checkResult.valueOrNull;
+    final status = checkResult.valueOrNull;
     final checkedAt = coordinator.lastCheckedAt;
 
     return SettingsPageScaffold(
@@ -54,8 +52,9 @@ class _UpdatesSettingsPageState extends ConsumerState<UpdatesSettingsPage> {
           onChanged: (value) async {
             await ref
                 .read(settingsNotifierProvider.notifier)
-                .updateWith((settings) =>
-                    settings.copyWith(automaticUpdateChecks: value));
+                .updateWith(
+                  (settings) => settings.copyWith(automaticUpdateChecks: value),
+                );
           },
         ),
         const SizedBox(height: 8),

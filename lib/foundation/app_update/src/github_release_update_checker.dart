@@ -7,6 +7,7 @@ import 'package:http/http.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 // Project imports:
+import '../../platform.dart';
 import 'github_apk_artifact.dart';
 import 'types/app_update_checker.dart';
 import 'types/update_status.dart';
@@ -16,11 +17,14 @@ class GitHubReleaseUpdateChecker implements AppUpdateChecker {
     required this.packageInfo,
     required this.manifestUrl,
     Client? client,
-  }) : _client = client ?? Client();
+    bool? compareAndroidBuildNumbers,
+  }) : _client = client ?? Client(),
+       compareAndroidBuildNumbers = compareAndroidBuildNumbers ?? isAndroid();
 
   final PackageInfo packageInfo;
   final String manifestUrl;
   final Client _client;
+  final bool compareAndroidBuildNumbers;
 
   @override
   Future<UpdateStatus> checkForUpdate() async {
@@ -52,7 +56,10 @@ class GitHubReleaseUpdateChecker implements AppUpdateChecker {
 
       final latestBuild = manifest.buildNumber;
       final currentBuild = int.tryParse(packageInfo.buildNumber);
-      final newer = latestBuild != null && currentBuild != null
+      final newer =
+          compareAndroidBuildNumbers &&
+              latestBuild != null &&
+              currentBuild != null
           ? latestBuild > currentBuild
           : currentVersion < latestVersion;
 
@@ -98,11 +105,14 @@ class GitHubUpdateManifest {
     if (releaseUrl is! String || releaseUrl.isEmpty) return null;
 
     final rawBuild = json['buildNumber'];
-    final buildNumber = switch (rawBuild) {
+    final parsedBuild = switch (rawBuild) {
       final int n when n > 0 => n,
       final String n => int.tryParse(n),
       _ => null,
     };
+    final buildNumber = parsedBuild != null && parsedBuild > 0
+        ? parsedBuild
+        : null;
 
     return GitHubUpdateManifest(
       version: version,

@@ -1,4 +1,5 @@
 // Dart imports:
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -20,9 +21,9 @@ void main() {
     );
   });
 
-  tearDown(() async {
-    if (await temporaryDirectory.exists()) {
-      await temporaryDirectory.delete(recursive: true);
+  tearDown(() {
+    if (temporaryDirectory.existsSync()) {
+      temporaryDirectory.deleteSync(recursive: true);
     }
   });
 
@@ -56,11 +57,12 @@ void main() {
       onProgress: (received, total) => progress.add(received),
     );
 
-    expect(apk.path, endsWith('/github-updates/update.apk'));
+    expect(apk.parent.parent.path, endsWith('/github-updates'));
+    expect(apk.path, endsWith('/update.apk'));
     expect(await apk.readAsBytes(), bytes);
     expect(progress, isNotEmpty);
     expect(
-      await File('${apk.parent.path}/pending.apk').exists(),
+      File('${apk.parent.path}/pending.apk').existsSync(),
       isFalse,
     );
   });
@@ -85,8 +87,11 @@ void main() {
       throwsA(isA<FormatException>()),
     );
     final updates = Directory('${temporaryDirectory.path}/github-updates');
-    expect(await File('${updates.path}/pending.apk').exists(), isFalse);
-    expect(await File('${updates.path}/update.apk').exists(), isFalse);
+    expect(
+      updates.listSync(recursive: true).whereType<File>().isNotEmpty,
+      isFalse,
+    );
+    expect(updates.listSync().isNotEmpty, isFalse);
   });
 
   test('cancellation never exposes an unverified APK', () async {
@@ -106,8 +111,40 @@ void main() {
     );
 
     final updates = Directory('${temporaryDirectory.path}/github-updates');
-    expect(await File('${updates.path}/pending.apk').exists(), isFalse);
-    expect(await File('${updates.path}/update.apk').exists(), isFalse);
+    expect(
+      updates.listSync(recursive: true).whereType<File>().isNotEmpty,
+      isFalse,
+    );
+    expect(updates.listSync().isNotEmpty, isFalse);
+  });
+  test('overlapping downloads cannot delete or replace each other', () async {
+    final started = Completer<void>();
+    final release = Completer<void>();
+    final firstBytes = utf8.encode('first APK');
+    final secondBytes = utf8.encode('second APK');
+    final firstServer = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(() => firstServer.close(force: true));
+    firstServer.listen((request) async {
+      started.complete();
+      await release.future;
+      request.response.add(firstBytes);
+      await request.response.close();
+    });
+    final secondServer = await _serve(secondBytes);
+    final first = downloader().download(
+      artifact(firstServer, firstBytes),
+      cancelToken: CancelToken(),
+    );
+    await started.future.timeout(const Duration(seconds: 10));
+    final second = await downloader().download(
+      artifact(secondServer, secondBytes),
+      cancelToken: CancelToken(),
+    );
+    release.complete();
+    final firstApk = await first;
+    expect(firstApk.path, isNot(second.path));
+    expect(await firstApk.readAsBytes(), firstBytes);
+    expect(await second.readAsBytes(), secondBytes);
   });
 }
 

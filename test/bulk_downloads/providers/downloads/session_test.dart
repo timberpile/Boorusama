@@ -316,23 +316,17 @@ void main() {
       );
       final notifier = container.read(bulkDownloadProvider.notifier);
 
-      // Start both downloads
-      unawaited(
+      // Await preparation and enqueueing; the mock transfers remain running.
+      await Future.wait([
         notifier.downloadFromTask(
           task1,
           downloadConfigs: _defaultConfigs,
         ),
-      );
-
-      unawaited(
         notifier.downloadFromTask(
           task2,
           downloadConfigs: _defaultConfigs,
         ),
-      );
-
-      // Wait for sessions to be created and start running
-      await Future.delayed(const Duration(milliseconds: 100));
+      ]);
 
       final sessions = await repository.getActiveSessions();
       expect(sessions.length, equals(2));

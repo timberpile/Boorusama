@@ -25,16 +25,17 @@ class GitHubApkDownloader {
     required CancelToken cancelToken,
     void Function(int received, int total)? onProgress,
   }) async {
-    final directory = Directory(
+    final root = Directory(
       '${(await _temporaryDirectory()).path}/github-updates',
     );
-    await directory.create(recursive: true);
+    await root.create(recursive: true);
+    // A closed dialog can still be cancelling while a new download starts.
+    // Keep each transfer and its verified APK independent of other dialogs.
+    final directory = await root.createTemp('download-');
     final pending = File('${directory.path}/pending.apk');
     final verified = File('${directory.path}/update.apk');
 
-    if (await pending.exists()) await pending.delete();
-    if (await verified.exists()) await verified.delete();
-
+    var published = false;
     try {
       await _dio.download(
         artifact.downloadUrl.toString(),
@@ -49,7 +50,9 @@ class GitHubApkDownloader {
 
       if (cancelToken.isCancelled) throw const FormatException('Cancelled');
       if (await pending.length() != artifact.size) {
-        throw const FormatException('APK download size does not match manifest');
+        throw const FormatException(
+          'APK download size does not match manifest',
+        );
       }
 
       final digest = await sha256.bind(pending.openRead()).first;
@@ -57,9 +60,13 @@ class GitHubApkDownloader {
         throw const FormatException('APK SHA-256 does not match manifest');
       }
 
-      return pending.rename(verified.path);
+      if (cancelToken.isCancelled) throw cancelToken.cancelError!;
+      final apk = await pending.rename(verified.path);
+      if (cancelToken.isCancelled) throw cancelToken.cancelError!;
+      published = true;
+      return apk;
     } finally {
-      if (await pending.exists()) await pending.delete();
+      if (!published) await directory.delete(recursive: true);
     }
   }
 }

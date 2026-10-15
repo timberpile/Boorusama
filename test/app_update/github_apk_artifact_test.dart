@@ -20,32 +20,35 @@ void main() {
     ], releaseUrl: releaseUrl).single;
   }
 
-  test('prefers OS ABI order and never selects an incompatible architecture', () {
-    final armv7 = artifact('armv7');
-    final arm64 = artifact('arm64');
+  test(
+    'prefers OS ABI order and never selects an incompatible architecture',
+    () {
+      final armv7 = artifact('armv7');
+      final arm64 = artifact('arm64');
 
-    expect(
-      GitHubApkArtifact.selectForAbis(
-        [armv7, arm64],
-        ['arm64-v8a', 'armeabi-v7a'],
-      ),
-      same(arm64),
-    );
-    expect(
-      GitHubApkArtifact.selectForAbis(
-        [arm64],
-        ['x86_64'],
-      ),
-      isNull,
-    );
-    expect(
-      GitHubApkArtifact.selectForAbis(
-        [arm64, artifact('universal')],
-        ['x86_64'],
-      )?.architecture,
-      'universal',
-    );
-  });
+      expect(
+        GitHubApkArtifact.selectForAbis(
+          [armv7, arm64],
+          ['arm64-v8a', 'armeabi-v7a'],
+        ),
+        same(arm64),
+      );
+      expect(
+        GitHubApkArtifact.selectForAbis(
+          [arm64],
+          ['x86_64'],
+        ),
+        isNull,
+      );
+      expect(
+        GitHubApkArtifact.selectForAbis(
+          [arm64, artifact('universal')],
+          ['x86_64'],
+        )?.architecture,
+        'universal',
+      );
+    },
+  );
 
   test('rejects malformed assets and untrusted release links', () {
     final source = [

@@ -25,10 +25,13 @@ class UpdateCheckCoordinator {
 
   Future<UpdateStatus>? _inFlight;
   DateTime? _failedAt;
+  _CachedUpdate? _successfulCheck;
+  UpdateError? _lastError;
 
-  DateTime? get lastCheckedAt => _read()?.checkedAt;
+  DateTime? get lastCheckedAt => (_successfulCheck ?? _read())?.checkedAt;
 
-  UpdateStatus? get cachedStatus => _read()?.status;
+  UpdateStatus? get cachedStatus =>
+      _lastError ?? (_successfulCheck ?? _read())?.status;
 
   bool get isCheckDue {
     final now = clock();
@@ -36,7 +39,7 @@ class UpdateCheckCoordinator {
       final elapsed = now.difference(failedAt);
       if (!elapsed.isNegative && elapsed < errorBackoff) return false;
     }
-    final cached = _read();
+    final cached = _successfulCheck ?? _read();
     if (cached == null) return true;
     final elapsed = now.difference(cached.checkedAt);
     return elapsed.isNegative || elapsed >= checkInterval;
@@ -59,39 +62,43 @@ class UpdateCheckCoordinator {
       result = await checkForUpdate();
     } on Object catch (error) {
       _failedAt = clock();
-      return UpdateError(error);
+      return _lastError = UpdateError(error);
     }
 
     if (result is UpdateError) {
       _failedAt = clock();
-      return result;
+      return _lastError = result;
     }
 
     _failedAt = null;
+    _lastError = null;
+    _successfulCheck = _CachedUpdate(clock(), result);
     try {
-      await save(jsonEncode({
-        'checkedAt': clock().toUtc().toIso8601String(),
-        'status': switch (result) {
-          UpdateAvailable(
-            :final storeVersion,
-            :final currentVersion,
-            :final releaseNotes,
-            :final storeUrl,
-            :final githubBuildNumber,
-            :final githubApks,
-          ) =>
-            {
-              'kind': 'available',
-              'storeVersion': storeVersion,
-              'currentVersion': currentVersion,
-              'releaseNotes': releaseNotes,
-              'storeUrl': storeUrl,
-              'githubBuildNumber': githubBuildNumber,
-              'artifacts': [for (final apk in githubApks) apk.toJson()],
-            },
-          _ => {'kind': 'not_available'},
-        },
-      }));
+      await save(
+        jsonEncode({
+          'checkedAt': _successfulCheck!.checkedAt.toUtc().toIso8601String(),
+          'status': switch (result) {
+            UpdateAvailable(
+              :final storeVersion,
+              :final currentVersion,
+              :final releaseNotes,
+              :final storeUrl,
+              :final githubBuildNumber,
+              :final githubApks,
+            ) =>
+              {
+                'kind': 'available',
+                'storeVersion': storeVersion,
+                'currentVersion': currentVersion,
+                'releaseNotes': releaseNotes,
+                'storeUrl': storeUrl,
+                'githubBuildNumber': githubBuildNumber,
+                'artifacts': [for (final apk in githubApks) apk.toJson()],
+              },
+            _ => {'kind': 'not_available'},
+          },
+        }),
+      );
     } on Object {
       // A read-only or full preferences store must not suppress a fresh result.
     }

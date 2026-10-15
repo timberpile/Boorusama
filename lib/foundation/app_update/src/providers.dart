@@ -6,13 +6,18 @@ import '../../../core/cache/misc_data_notifier.dart';
 import '../../../core/settings/src/providers/settings_provider.dart';
 import '../../info/package_info.dart';
 import '../../platform.dart';
-import 'update_check_coordinator.dart';
+import 'github_apk_downloader.dart';
 import 'types/app_update_checker.dart';
 import 'types/update_status.dart';
+import 'update_check_coordinator.dart';
 
 const _kReleaseChannel = String.fromEnvironment('RELEASE_CHANNEL');
 const _kReleaseChannelGithub = 'github';
 const _kReleaseChannelPlay = 'play';
+
+final githubApkDownloaderProvider = Provider<GitHubApkDownloader>(
+  (ref) => GitHubApkDownloader(),
+);
 
 final updateChecksSupportedProvider = Provider<bool>((ref) {
   if (ref.watch(isDevEnvironmentProvider) || isWeb()) return false;

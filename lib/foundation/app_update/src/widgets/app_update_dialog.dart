@@ -13,7 +13,6 @@ import 'package:kurumi/material.dart';
 import '../../../url_launcher.dart';
 import '../android_github_apk_installer.dart';
 import '../github_apk_artifact.dart';
-import '../github_apk_downloader.dart';
 import '../providers.dart';
 import '../types/update_status.dart';
 
@@ -37,9 +36,9 @@ class _AppUpdateDialogState extends ConsumerState<AppUpdateDialog> {
   File? _apk;
   GitHubApkArtifact? _selectedArtifact;
   double? _progress;
-  bool _downloading = false;
-  bool _installing = false;
-  bool _permissionNeeded = false;
+  var _downloading = false;
+  var _installing = false;
+  var _permissionNeeded = false;
   _UpdateFailure? _failure;
 
   @override
@@ -80,16 +79,18 @@ class _AppUpdateDialogState extends ConsumerState<AppUpdateDialog> {
       }
 
       setState(() => _selectedArtifact = artifact);
-      final apk = await GitHubApkDownloader().download(
-        artifact,
-        cancelToken: token,
-        onProgress: (received, total) {
-          if (!mounted || token.isCancelled) return;
-          setState(() {
-            _progress = (received / artifact.size).clamp(0.0, 1.0).toDouble();
-          });
-        },
-      );
+      final apk = await ref
+          .read(githubApkDownloaderProvider)
+          .download(
+            artifact,
+            cancelToken: token,
+            onProgress: (received, total) {
+              if (!mounted || token.isCancelled) return;
+              setState(() {
+                _progress = (received / artifact.size).clamp(0.0, 1.0);
+              });
+            },
+          );
       if (mounted && !token.isCancelled) setState(() => _apk = apk);
     } on Object {
       if (mounted && !token.isCancelled) {
@@ -114,8 +115,10 @@ class _AppUpdateDialogState extends ConsumerState<AppUpdateDialog> {
       _failure = null;
     });
     try {
-      if (!await _installer.canInstall()) {
-        if (mounted) setState(() => _permissionNeeded = true);
+      final allowed = await _installer.canInstall();
+      if (!mounted) return;
+      if (!allowed) {
+        setState(() => _permissionNeeded = true);
         return;
       }
       await _installer.install(
@@ -147,125 +150,124 @@ class _AppUpdateDialogState extends ConsumerState<AppUpdateDialog> {
     final canDownload = _canDownload;
 
     return Dialog(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Text(
-                context.t.app_update.update_available,
-                style: textTheme.titleLarge,
-              ),
-            ),
-            _VersionChangeVisualizedText(status: status),
-            const Divider(thickness: 1.5),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                context.t.app_update.whats_new,
-                style: textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            Flexible(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-                child: SingleChildScrollView(
-                  child: MarkdownBody(data: status.releaseNotes),
-                ),
-              ),
-            ),
-            if (_downloading) ...[
-              const SizedBox(height: 8),
-              if (_progress case final value?)
-                LinearProgressIndicator(value: value)
-              else
-                const LinearProgressIndicator(),
-              const SizedBox(height: 4),
-              Text(
-                '${context.t.app_update.downloading} '
-                '${_selectedArtifact == null ? '' : '(${(_selectedArtifact!.size / 1048576).toStringAsFixed(1)} MiB)'}',
-                style: textTheme.bodySmall,
-              ),
-            ],
-            if (_apk != null)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Text(context.t.app_update.verified),
-              ),
-            if (_permissionNeeded)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Text(context.t.app_update.allow_installs_detail),
-              ),
-            if (_failure case final error?)
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 child: Text(
-                  switch (error) {
-                    _UpdateFailure.download =>
-                      context.t.app_update.download_failed,
-                    _UpdateFailure.unsupported =>
-                      context.t.app_update.unsupported_apk,
-                    _UpdateFailure.install =>
-                      context.t.app_update.install_failed,
-                  },
-                  style: TextStyle(
-                    color: Kurumi.themeOf(context).colorScheme.error,
+                  context.t.app_update.update_available,
+                  style: textTheme.titleLarge,
+                ),
+              ),
+              _VersionChangeVisualizedText(status: status),
+              const Divider(thickness: 1.5),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  context.t.app_update.whats_new,
+                  style: textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
               ),
-            Wrap(
-              alignment: WrapAlignment.center,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 8,
-              runSpacing: 4,
-              children: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: Text(context.t.app_update.later),
-                ),
-                TextButton(
-                  onPressed: () => launchExternalUrlString(status.storeUrl),
-                  child: Text(context.t.app_update.open_github),
-                ),
-                if (_downloading)
-                  TextButton(
-                    onPressed: () => _cancelToken?.cancel('User cancelled'),
-                    child: Text(context.t.generic.action.cancel),
-                  )
-                else if (!canDownload)
-                  FilledButton(
-                    onPressed: () {
-                      launchExternalUrlString(status.storeUrl);
-                      Navigator.of(context).pop();
-                    },
-                    child: Text(context.t.app_update.update),
-                  )
-                else if (_apk == null)
-                  FilledButton(
-                    onPressed: _download,
-                    child: Text(context.t.app_update.download_update),
-                  )
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                child: MarkdownBody(data: status.releaseNotes),
+              ),
+              if (_downloading) ...[
+                const SizedBox(height: 8),
+                if (_progress case final value?)
+                  LinearProgressIndicator(value: value)
                 else
-                  FilledButton(
-                    onPressed: _installing
-                        ? null
-                        : _permissionNeeded
-                        ? _openPermissionSettings
-                        : _install,
-                    child: Text(
-                      _permissionNeeded
-                          ? context.t.app_update.allow_installs
-                          : context.t.app_update.install_update,
+                  const LinearProgressIndicator(),
+                const SizedBox(height: 4),
+                Text(
+                  '${context.t.app_update.downloading} '
+                  '${_selectedArtifact == null ? '' : '(${(_selectedArtifact!.size / 1048576).toStringAsFixed(1)} MiB)'}',
+                  style: textTheme.bodySmall,
+                ),
+              ],
+              if (_apk != null)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Text(context.t.app_update.verified),
+                ),
+              if (_permissionNeeded)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Text(context.t.app_update.allow_installs_detail),
+                ),
+              if (_failure case final error?)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Text(
+                    switch (error) {
+                      _UpdateFailure.download =>
+                        context.t.app_update.download_failed,
+                      _UpdateFailure.unsupported =>
+                        context.t.app_update.unsupported_apk,
+                      _UpdateFailure.install =>
+                        context.t.app_update.install_failed,
+                    },
+                    style: TextStyle(
+                      color: Kurumi.themeOf(context).colorScheme.error,
                     ),
                   ),
-              ],
-            ),
-          ],
+                ),
+              Wrap(
+                alignment: WrapAlignment.center,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 8,
+                runSpacing: 4,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: Text(context.t.app_update.later),
+                  ),
+                  if (Uri.tryParse(status.storeUrl)?.host == 'github.com')
+                    TextButton(
+                      onPressed: () => launchExternalUrlString(status.storeUrl),
+                      child: Text(context.t.app_update.open_github),
+                    ),
+                  if (_downloading)
+                    TextButton(
+                      onPressed: () => _cancelToken?.cancel('User cancelled'),
+                      child: Text(context.t.generic.action.cancel),
+                    )
+                  else if (!canDownload)
+                    FilledButton(
+                      onPressed: () {
+                        launchExternalUrlString(status.storeUrl);
+                        Navigator.of(context).pop();
+                      },
+                      child: Text(context.t.app_update.update),
+                    )
+                  else if (_apk == null)
+                    FilledButton(
+                      onPressed: _download,
+                      child: Text(context.t.app_update.download_update),
+                    )
+                  else
+                    FilledButton(
+                      onPressed: _installing
+                          ? null
+                          : _permissionNeeded
+                          ? _openPermissionSettings
+                          : _install,
+                      child: Text(
+                        _permissionNeeded
+                            ? context.t.app_update.allow_installs
+                            : context.t.app_update.install_update,
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );

@@ -10,7 +10,6 @@ import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.MethodChannel
-import java.io.File
 
 /** Lets the OS installer handle a verified update after explicit user action. */
 class GitHubApkInstallChannel(
@@ -39,7 +38,9 @@ class GitHubApkInstallChannel(
                         val path = call.argument<String>("path")
                             ?: throw IllegalArgumentException("Missing APK path")
                         val expectedBuild = call.argument<Int>("buildNumber")
+                            ?: throw IllegalArgumentException("Missing expected build number")
                         val expectedVersion = call.argument<String>("version")
+                            ?: throw IllegalArgumentException("Missing expected version")
                         if (!canInstall()) {
                             result.error("permission_required", "Allow installs from this app first", null)
                         } else {
@@ -73,14 +74,8 @@ class GitHubApkInstallChannel(
             manager.canRequestPackageInstalls()
     }
 
-    private fun install(path: String, expectedBuild: Int?, expectedVersion: String?) {
-        val updateDirectory = File(activity.cacheDir, "github-updates").canonicalFile
-        val apk = File(path).canonicalFile
-        require(
-            apk.path.startsWith(updateDirectory.path + File.separator) &&
-                apk.isFile &&
-                apk.extension.equals("apk", ignoreCase = true)
-        ) { "APK must be in private update cache" }
+    private fun install(path: String, expectedBuild: Int, expectedVersion: String) {
+        val apk = GitHubApkInstallPolicy.privateApk(path, activity.cacheDir)
 
         val manager = activity.packageManager
         @Suppress("DEPRECATION")
@@ -92,17 +87,6 @@ class GitHubApkInstallChannel(
         val archive = archiveInfo(manager, apk.path, flags)
             ?: throw IllegalArgumentException("Invalid or unreadable APK")
         val installed = installedInfo(manager, activity.packageName, flags)
-
-        require(archive.packageName == activity.packageName) { "APK package mismatch" }
-
-        val archiveCode = versionCode(archive)
-        require(archiveCode > versionCode(installed)) { "APK must be a newer build" }
-        if (expectedBuild != null) {
-            require(archiveCode == expectedBuild.toLong()) { "APK build number mismatch" }
-        }
-        if (expectedVersion != null) {
-            require(archive.versionName == expectedVersion) { "APK version mismatch" }
-        }
 
         val installedSigners = signers(installed)
         // On Android 9/10 getPackageArchiveInfo can omit signingInfo even with
@@ -117,11 +101,17 @@ class GitHubApkInstallChannel(
                 emptySet()
             }
         }
-        require(
-            installedSigners.isNotEmpty() &&
-                archiveSigners.isNotEmpty() &&
-                installedSigners == archiveSigners
-        ) { "APK signing certificate mismatch" }
+        GitHubApkInstallPolicy.validateIdentity(
+            installedPackage = activity.packageName,
+            archivePackage = archive.packageName,
+            installedCode = versionCode(installed),
+            archiveCode = versionCode(archive),
+            archiveVersion = archive.versionName,
+            expectedBuild = expectedBuild,
+            expectedVersion = expectedVersion,
+            installedSigners = installedSigners,
+            archiveSigners = archiveSigners,
+        )
 
         val uri = FileProvider.getUriForFile(
             activity,

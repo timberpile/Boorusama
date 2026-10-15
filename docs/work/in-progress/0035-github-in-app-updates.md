@@ -7,7 +7,7 @@
 | Status | In progress |
 | Branch | `feature/0035-github-in-app-updates` |
 | Agent/session | ChatGPT, 2026-10-15 |
-| Worktree | Remote GitHub branch via connector; no local checkout/worktree available in this session |
+| Worktree | `.worktrees/0035-github-in-app-updates` |
 | Base | `develop` at `d4e15586f06192f0ff4315d36a3f61ae69a752d5` |
 
 ## Problem
@@ -62,3 +62,115 @@ No PR, merge, or release was created.
 - Made temporary update storage injectable in the downloader and added HTTP-backed Flutter tests for successful SHA-256/size verification, rejection and cleanup for bad metadata, and cancellation without publishing an unverified APK.
 - Inspected the published manifest producer and consumer shapes, GitHub/Play release-channel manifest placeholder, native cache paths, and Settings wiring.
 - **Still unverified:** The execution environment has no project checkout, FVM/Flutter/Dart, Android SDK, or device. No compilation, tests, generated localization, merged-manifest check, or on-device installation was performed here. Remain in progress until the validation checklist above passes.
+
+## Local review and corrections (2026-10-15)
+
+Continued the exact requested branch from `f2c1f8a01` in an isolated local
+worktree, based on current `develop` / `origin/develop` at `d4e15586f`.
+
+Confirmed defects corrected:
+- Concurrent/reopened dialogs used the same pending and verified APK paths.
+  Each transfer now owns a private cache subdirectory; failed/cancelled
+  transfers remove their directory, including cancellation during verification.
+- A failed manual check could refresh to a misleading successful/no-update
+  status, and a retained manual result masked later foreground results.
+  Preserve the latest error during backoff and display the current provider
+  result. Successful checks retain their cooldown even if persistence fails.
+- Build-code comparison also affected desktop releases; restrict it to Android
+  and reject non-positive string build codes so version comparison can apply.
+- The Play update dialog showed an unrelated GitHub action. Keep that action
+  for GitHub release links and preserve Play's Later/Update actions.
+- Fixed-height dialog content could overflow with enlarged text/keyboard.
+  Let the complete dialog scroll so all actions remain reachable.
+- Closing a dialog during permission lookup could still launch the installer.
+  Recheck widget lifetime before launching the native install operation.
+- Require expected build/version metadata on the native channel and extract
+  the existing package/version/signer/cache-path rules for JVM safety tests.
+- Restrict the install permission placeholder to GitHub **prod** builds; dev
+  stays permission-free even if passed a GitHub release-channel define.
+- Correct the existing URL test to compare the decoded APK path segment;
+  literal `+` is valid in this URL path and need not be percent-encoded.
+
+The initial full application run exposed an inherited flaky bulk-download
+session test, unchanged from develop: a fixed 100 ms wait sometimes reached
+cancellation while the sessions were still in dry-run preparation. Its isolated
+unchanged rerun passed (34 tests). Await preparation/enqueueing explicitly,
+retaining concurrent session starts and cancellation assertions; the corrected
+whole file also passed (34 tests). Initial full runs were stopped for fixes;
+only the final complete run qualifies the corrected candidate.
+
+Focused final checks: 31 updater tests passed, including narrow 320 px layout,
+2x text, open keyboard, permission flow, close-during-async actions,
+incompatible ABI fallback, foreground cooldown, and manual error recovery.
+Affected analysis passed with no issues. Broader analysis including the existing
+Settings page reported only two pre-existing `omit_obvious_property_types`
+infos (lines 155/284), outside the changed code. Formatting and diff whitespace
+checks passed.
+
+Android emulator `emulator-5556` was reserved using the exclusive lease procedure
+and booted without wiping its existing data. ADB sees it online. Maestro MCP
+`list_devices` repeatedly did not respond, including a bounded 50-second attempt;
+interactive UI acceptance cannot yet be claimed.
+
+Final local regression gate: `./scripts/run_regression_tests.sh` passed all 16
+required suites using the default six workers: 3,315 application tests, 934
+package/CLI tests, 61 Python tests, and both repository shell suites. No test
+skips. The application suite includes the 31 focused updater cases. Opt-in
+workload benchmarks and Android instrumentation are outside this gate and were
+not run.
+
+`fvm flutter analyze --no-pub lib/foundation/app_update
+lib/core/settings/src/pages/updates_settings_page.dart
+lib/core/settings/src/types/settings.dart lib/core/boorusama_app.dart
+test/app_update test/bulk_downloads/providers/downloads/session_test.dart`
+passed with no issues. The final whole-diff formatter check exposed one
+line-wrap change in Settings; applying that formatting-only change does not
+alter the qualified runtime candidate.
+
+`fvm flutter build apk --no-pub --release --flavor prod --target-platform
+android-x64 --dart-define=RELEASE_CHANNEL=github` passed. `apksigner verify
+--verbose` verified its v2 signature (one signer). APK and merged manifest are
+retained under ignored `build/review-0035/`. The GitHub prod merged manifest
+contains `REQUEST_INSTALL_PACKAGES`.
+
+`cd android && ./gradlew :app:testProdReleaseUnitTest
+-x :app:compileFlutterBuildProdRelease
+-Pdart-defines=UkVMRUFTRV9DSEFOTkVMPWdpdGh1Yg==` passed: 40 JVM tests across
+seven classes, zero failures/errors/skips. The Flutter compile task was excluded
+because the same release APK had already been built. These tests validate the
+native preflight policy; they do not replace OS installer acceptance.
+
+The signed GitHub APK installed and launched with `fvm flutter run --no-pub
+--release --flavor prod --dart-define=RELEASE_CHANNEL=github
+--use-application-binary=build/review-0035/github-x64.apk -d emulator-5556`.
+ADB confirmed the process alive, MainActivity resumed, rendered frames, and an
+empty crash buffer for that process. This proves installation/startup on the
+x86_64 emulator; interactive Settings navigation and an N-to-N+1 update were
+not verified through the unavailable Maestro connection.
+
+`fvm flutter build appbundle --no-pub --release --flavor prod
+--dart-define=RELEASE_CHANNEL=play` passed, and `jarsigner -verify` verified the
+bundle. The Play prod merged manifest and packaged AAB manifest both omit
+`REQUEST_INSTALL_PACKAGES`. `cd android && ./gradlew
+:app:processDevDebugManifest -x :app:compileFlutterBuildDevDebug
+-Pdart-defines=UkVMRUFTRV9DSEFOTkVMPWdpdGh1Yg==` passed; its dev manifest also
+omits the permission despite the GitHub define. Saved APK/AAB/manifests remain
+in ignored `build/review-0035/` for inspection.
+
+The builds emitted non-fatal Kotlin/Gradle deprecation warnings, the documented
+libavif cache-hook warning, and a Cupertino font tree-shaking warning. None
+prevented builds or the emulator start; toolchain/font maintenance is outside
+this updater review. The app produced no Flutter/AndroidRuntime error log
+entries during the start check. The test app and the emulator started for this
+review were stopped, and the emulator lease was released.
+
+Remaining acceptance: interactive Settings/permission/download/installer flows
+through Maestro; real signed N-to-N+1 upgrades, especially arm64/armv7, signature
+mismatch/rotation handling and data preservation on-device. Exact current-signer
+matching remains intentional; signature rotation support was not redesigned.
+Keep the work item in progress until that Android acceptance is performed.
+
+The complete suite checked the candidate based on `f2c1f8a01` with the runtime
+and test corrections described above. Subsequent edits were limited to
+formatting, a comment and this report, so the complete pass remains applicable.
+No merge, PR, push, tag or remote modification was performed.

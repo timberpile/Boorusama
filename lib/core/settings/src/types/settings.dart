@@ -409,8 +409,7 @@ class Settings extends Equatable {
         downloadFileExistedBehavior ?? this.downloadFileExistedBehavior,
     downloadNotificationsEnabled:
         downloadNotificationsEnabled ?? this.downloadNotificationsEnabled,
-    automaticUpdateChecks:
-        automaticUpdateChecks ?? this.automaticUpdateChecks,
+    automaticUpdateChecks: automaticUpdateChecks ?? this.automaticUpdateChecks,
     downloadNetworkPolicy: downloadNetworkPolicy ?? this.downloadNetworkPolicy,
     colors: colors ?? this.colors,
     volumeKeyViewerNavigation:

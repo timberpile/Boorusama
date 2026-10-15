@@ -103,6 +103,7 @@ void main() {
           version: '4.5.0-timberpile.5',
           buildNumber: '188',
         ),
+        compareAndroidBuildNumbers: true,
         manifestUrl: 'https://example.com/boorusama-update.json',
         client: MockClient(
           (_) async => Response(
@@ -134,7 +135,10 @@ void main() {
       expect(update.githubBuildNumber, 189);
       expect(update.githubApks, hasLength(1));
       expect(update.githubApks.first.architecture, 'arm64');
-      expect(update.githubApks.first.downloadUrl.toString(), contains('%2B189'));
+      expect(
+        update.githubApks.first.downloadUrl.pathSegments.last,
+        'boorusama-4.5.0-timberpile.5+189-android-arm64.apk',
+      );
     });
 
     test('ignores lower Android build codes even with a newer name', () async {
@@ -143,6 +147,7 @@ void main() {
           version: '4.5.0-timberpile.4',
           buildNumber: '189',
         ),
+        compareAndroidBuildNumbers: true,
         manifestUrl: 'https://example.com/boorusama-update.json',
         client: MockClient(
           (_) async => Response(
@@ -157,6 +162,52 @@ void main() {
         ),
       );
       expect(await checker.checkForUpdate(), isA<UpdateNotAvailable>());
+    });
+
+    test(
+      'desktop comparison uses version names rather than Android build codes',
+      () async {
+        final checker = GitHubReleaseUpdateChecker(
+          packageInfo: _packageInfo(version: '4.4.0', buildNumber: '999'),
+          compareAndroidBuildNumbers: false,
+          manifestUrl: 'https://example.com/boorusama-update.json',
+          client: MockClient(
+            (_) async => Response(
+              jsonEncode({
+                'version': '4.5.0',
+                'buildNumber': 200,
+                'releaseUrl':
+                    'https://github.com/timberpile/Boorusama/releases/tag/v4.5.0',
+              }),
+              200,
+            ),
+          ),
+        );
+        expect(await checker.checkForUpdate(), isA<UpdateAvailable>());
+      },
+    );
+
+    test('invalid string build codes fall back to version comparison', () async {
+      for (final build in ['0', '-1', 'invalid']) {
+        final checker = GitHubReleaseUpdateChecker(
+          packageInfo: _packageInfo(version: '4.4.0', buildNumber: '199'),
+          compareAndroidBuildNumbers: true,
+          manifestUrl: 'https://example.com/boorusama-update.json',
+          client: MockClient(
+            (_) async => Response(
+              jsonEncode({
+                'version': '4.5.0',
+                'buildNumber': build,
+                'releaseUrl':
+                    'https://github.com/timberpile/Boorusama/releases/tag/v4.5.0',
+              }),
+              200,
+            ),
+          ),
+        );
+        final status = await checker.checkForUpdate() as UpdateAvailable;
+        expect(status.githubBuildNumber, isNull);
+      }
     });
 
     test('returns UpdateError for invalid manifest JSON', () async {

@@ -79,12 +79,8 @@ android {
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         multiDexEnabled = true
-        // A duplicate INTERNET permission merges away for Play and development builds.
-        manifestPlaceholders["updateInstallPermission"] = if (canRequestGithubInstall) {
-            "android.permission.REQUEST_INSTALL_PACKAGES"
-        } else {
-            "android.permission.INTERNET"
-        }
+        // Reuse an already requested permission for Play and development builds.
+        manifestPlaceholders["updateInstallPermission"] = "android.permission.INTERNET"
     }
 
     signingConfigs {
@@ -125,6 +121,10 @@ android {
         create("prod") {
             dimension = "boorusama"
             resValue("string", "app_name", "Boorusama Timber")
+            if (canRequestGithubInstall) {
+                manifestPlaceholders["updateInstallPermission"] =
+                    "android.permission.REQUEST_INSTALL_PACKAGES"
+            }
         }
     }
 }
