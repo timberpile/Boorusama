@@ -51,7 +51,28 @@ Vor der expliziten Nutzerentscheidung bleibt jeder Eintrag `OFFEN`; ein technisc
 
 **Status: OFFEN · X01 hat die bestehenden Hive-Indizes verbindlich festgelegt.**
 
-Zu klären: `PostOrigin`, `BookmarkIdentity`, `SankakuPostData` und das benötigte `sitePostId`-API so integrieren, dass Quell-IDs erhalten bleiben, ohne Fork-Identität oder Post-Snapshots zu destabilisieren.
+### Verifizierte Verwendung in Upstream v4.6.1
+
+`sitePostId` ist kein ungenutztes Zukunftsfeld, sondern wird aktiv benötigt:
+- `lib/core/downloads/filename/types/generator_impl.dart`: Der Download-Token `{id}` verwendet `post.sitePostId` (anstelle des internen `int`).
+- `lib/core/downloads/sidecar/src/types/sidecar_snapshot.dart`: Ein JSON-Metadaten-Sidecar verwendet die originale Site-ID.
+- `lib/core/bookmarks/src/data/hive/repository.dart`, `bookmark_convert.dart`, `types/bookmark.dart`: Speicherung, Restore und Export der externen ID.
+- `lib/core/bookmarks/src/providers/bookmark_provider.dart`: Sidecar-Metadaten beim Download eines Bookmarks verwenden `bookmark.sitePostId`.
+- `lib/boorus/sankaku/posts/types.dart`: Der Post-Link verwendet `sitePostId`, nicht eine künstliche numerische ID.
+- Bei den üblichen numerischen Boorus liefert `sitePostId` `id.toString()`, bei Sankaku die echte `sankakuId` und gegebenenfalls `null`.
+
+### Vorläufige technische Empfehlung (noch kein Beschluss)
+
+Die bestehenden `PostOrigin`-, `BookmarkIdentity`- und `StoredPostSnapshot`-Semantiken unverändert lassen. Einen kleinen, einheitlichen `String?`-Getter `Post.sitePostId` ergänzen. Für Sankaku die `SankakuPostData.sankakuId.value` verwenden; für reguläre numerische Posts die echte numerische Post-ID. Die Auflösung soll über eine kleine Kern-Abstraktion für booru-spezifische Daten erfolgen (keine zyklische Core→Sankaku-Abhängigkeit). Bei fehlender Sankaku-Original-ID `null` statt eines künstlichen IDs-Fallbacks. `Bookmark.post` kann über den bereits persistierten Snapshot dieselbe ID liefern, ohne X01s Hive-Schema zu ändern.
+
+Die neue Getter-API auch beim Download-`{id}`-Token und bei Sidecars benutzen. Legacy-Bookmarks ohne ursprüngliche Quell-ID dürfen nicht stillschweigend eine künstliche ID erhalten.
+
+**Offen für Nutzerentscheidung:** Getter-basierte Integration und benötigte Anwendungsstellen freigeben? Keine zusätzliche Hive-Persistierung vorgesehen; falls eine Ausnahme notwendig wird, erst gesondert entscheiden.
+
+### Abnahme
+
+Numerische und nichtnumerische Sankaku-IDs, unbekannte ursprüngliche ID, zwei Websites mit derselben numerischen ID, Post→Bookmark→Backup/Restore→Export, Download-`{id}`-Token und Sidecar-Metadaten.
+
 
 ## Weitere Entscheidungen
 
