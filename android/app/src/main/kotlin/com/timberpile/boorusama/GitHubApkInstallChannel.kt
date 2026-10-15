@@ -57,9 +57,21 @@ class GitHubApkInstallChannel(
 
     fun close() = channel.setMethodCallHandler(null)
 
-    private fun canInstall(): Boolean =
-        Build.VERSION.SDK_INT < Build.VERSION_CODES.O ||
-            activity.packageManager.canRequestPackageInstalls()
+    @Suppress("DEPRECATION")
+    private fun canInstall(): Boolean {
+        val manager = activity.packageManager
+        // Also fail closed on Android 7, where the OS has no unknown-sources
+        // app permission gate. Only GitHub build manifests declare this.
+        val requested = manager.getPackageInfo(
+            activity.packageName,
+            PackageManager.GET_PERMISSIONS,
+        ).requestedPermissions
+        if (requested?.contains(android.Manifest.permission.REQUEST_INSTALL_PACKAGES) != true) {
+            return false
+        }
+        return Build.VERSION.SDK_INT < Build.VERSION_CODES.O ||
+            manager.canRequestPackageInstalls()
+    }
 
     private fun install(path: String, expectedBuild: Int?, expectedVersion: String?) {
         val updateDirectory = File(activity.cacheDir, "github-updates").canonicalFile
