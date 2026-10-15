@@ -71,10 +71,10 @@ class GitHubApkInstallChannel(
         ) { "APK must be in private update cache" }
 
         val manager = activity.packageManager
+        @Suppress("DEPRECATION")
         val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             PackageManager.GET_SIGNING_CERTIFICATES
         } else {
-            @Suppress("DEPRECATION")
             PackageManager.GET_SIGNATURES
         }
         val archive = archiveInfo(manager, apk.path, flags)
@@ -112,6 +112,7 @@ class GitHubApkInstallChannel(
         activity.startActivity(intent)
     }
 
+    @Suppress("DEPRECATION")
     private fun archiveInfo(
         manager: PackageManager,
         path: String,
@@ -120,10 +121,10 @@ class GitHubApkInstallChannel(
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             manager.getPackageArchiveInfo(path, PackageManager.PackageInfoFlags.of(flags.toLong()))
         } else {
-            @Suppress("DEPRECATION")
             manager.getPackageArchiveInfo(path, flags)
         }
 
+    @Suppress("DEPRECATION")
     private fun installedInfo(
         manager: PackageManager,
         name: String,
@@ -132,23 +133,22 @@ class GitHubApkInstallChannel(
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             manager.getPackageInfo(name, PackageManager.PackageInfoFlags.of(flags.toLong()))
         } else {
-            @Suppress("DEPRECATION")
             manager.getPackageInfo(name, flags)
         }
 
+    @Suppress("DEPRECATION")
     private fun versionCode(info: PackageInfo): Long =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             info.longVersionCode
         } else {
-            @Suppress("DEPRECATION")
             info.versionCode.toLong()
         }
 
+    @Suppress("DEPRECATION")
     private fun signers(info: PackageInfo): Set<String> {
         val signatures = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             info.signingInfo?.apkContentsSigners
         } else {
-            @Suppress("DEPRECATION")
             info.signatures
         }
         return signatures?.map { it.toCharsString() }?.toSet() ?: emptySet()
