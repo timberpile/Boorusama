@@ -75,6 +75,7 @@ class Settings extends Equatable {
     this.searchRefresh = const SearchRefreshSettings(),
     this.pinnedSearchSort = 'manual',
     this.followingFeedMemberSort = 'addedDate',
+    this.automaticUpdateChecks = true,
   });
 
   Settings.fromJson(Map<String, dynamic> json)
@@ -129,6 +130,7 @@ class Settings extends Equatable {
       ),
       downloadNotificationsEnabled =
           json['downloadNotificationsEnabled'] as bool? ?? true,
+      automaticUpdateChecks = json['automaticUpdateChecks'] as bool? ?? true,
       downloadNetworkPolicy = DownloadNetworkPolicy.parse(
         json['downloadNetworkPolicy'],
       ),
@@ -295,6 +297,7 @@ class Settings extends Equatable {
   final DownloadFileExistedBehavior downloadFileExistedBehavior;
 
   final bool downloadNotificationsEnabled;
+  final bool automaticUpdateChecks;
 
   final DownloadNetworkPolicy downloadNetworkPolicy;
 
@@ -344,6 +347,7 @@ class Settings extends Equatable {
     bool? reduceAnimations,
     DownloadFileExistedBehavior? downloadFileExistedBehavior,
     bool? downloadNotificationsEnabled,
+    bool? automaticUpdateChecks,
     DownloadNetworkPolicy? downloadNetworkPolicy,
     ImageListingSettings? listing,
     ImageViewerSettings? viewer,
@@ -405,6 +409,8 @@ class Settings extends Equatable {
         downloadFileExistedBehavior ?? this.downloadFileExistedBehavior,
     downloadNotificationsEnabled:
         downloadNotificationsEnabled ?? this.downloadNotificationsEnabled,
+    automaticUpdateChecks:
+        automaticUpdateChecks ?? this.automaticUpdateChecks,
     downloadNetworkPolicy: downloadNetworkPolicy ?? this.downloadNetworkPolicy,
     colors: colors ?? this.colors,
     volumeKeyViewerNavigation:
@@ -456,6 +462,7 @@ class Settings extends Equatable {
       'reduceAnimations': reduceAnimations,
       'downloadFileExistedBehavior': downloadFileExistedBehavior.toData(),
       'downloadNotificationsEnabled': downloadNotificationsEnabled,
+      'automaticUpdateChecks': automaticUpdateChecks,
       'downloadNetworkPolicy': downloadNetworkPolicy.toData(),
       'colors': colors?.toJson(),
       'volumeKeyViewerNavigation': volumeKeyViewerNavigation,
@@ -501,6 +508,7 @@ class Settings extends Equatable {
     reduceAnimations,
     downloadFileExistedBehavior,
     downloadNotificationsEnabled,
+    automaticUpdateChecks,
     downloadNetworkPolicy,
     colors,
     volumeKeyViewerNavigation,
