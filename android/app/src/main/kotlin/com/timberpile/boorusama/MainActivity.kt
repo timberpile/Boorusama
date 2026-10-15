@@ -17,12 +17,14 @@ class MainActivity: FlutterFragmentActivity() {
     private var receivedExportChannel: ReceivedExportChannel? = null
     private var searchRefreshEnvironmentChannel: SearchRefreshEnvironmentChannel? = null
     private var performanceDiagnosticsChannel: PerformanceDiagnosticsChannel? = null
+    private var githubApkInstallChannel: GitHubApkInstallChannel? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         val messenger = flutterEngine.dartExecutor.binaryMessenger
         searchRefreshEnvironmentChannel = SearchRefreshEnvironmentChannel(applicationContext, messenger)
         performanceDiagnosticsChannel = PerformanceDiagnosticsChannel(applicationContext, messenger)
+        githubApkInstallChannel = GitHubApkInstallChannel(this, messenger)
         MediaScannerChannel(applicationContext, messenger).register()
         registerExportClipboardChannel(messenger)
         ImageClipboardChannel(applicationContext, messenger)
@@ -56,6 +58,7 @@ class MainActivity: FlutterFragmentActivity() {
         gifBackgroundChannel?.close()
         searchRefreshEnvironmentChannel?.close()
         performanceDiagnosticsChannel?.close()
+        githubApkInstallChannel?.close()
         super.onDestroy()
     }
 
