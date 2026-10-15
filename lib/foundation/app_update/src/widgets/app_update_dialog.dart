@@ -86,7 +86,7 @@ class _AppUpdateDialogState extends ConsumerState<AppUpdateDialog> {
         onProgress: (received, total) {
           if (!mounted || token.isCancelled) return;
           setState(() {
-            _progress = (received / artifact.size).clamp(0.0, 1.0);
+            _progress = (received / artifact.size).clamp(0.0, 1.0).toDouble();
           });
         },
       );
