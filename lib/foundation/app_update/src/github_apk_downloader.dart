@@ -11,9 +11,14 @@ import 'github_apk_artifact.dart';
 
 /// Downloads a release APK into private cache and validates it before use.
 class GitHubApkDownloader {
-  GitHubApkDownloader({Dio? dio}) : _dio = dio ?? Dio();
+  GitHubApkDownloader({
+    Dio? dio,
+    Future<Directory> Function()? temporaryDirectory,
+  }) : _dio = dio ?? Dio(),
+       _temporaryDirectory = temporaryDirectory ?? getTemporaryDirectory;
 
   final Dio _dio;
+  final Future<Directory> Function() _temporaryDirectory;
 
   Future<File> download(
     GitHubApkArtifact artifact, {
@@ -21,7 +26,7 @@ class GitHubApkDownloader {
     void Function(int received, int total)? onProgress,
   }) async {
     final directory = Directory(
-      '${(await getTemporaryDirectory()).path}/github-updates',
+      '${(await _temporaryDirectory()).path}/github-updates',
     );
     await directory.create(recursive: true);
     final pending = File('${directory.path}/pending.apk');
