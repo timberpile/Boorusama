@@ -97,6 +97,68 @@ void main() {
       },
     );
 
+    test('detects an update when only Android build code increases', () async {
+      final checker = GitHubReleaseUpdateChecker(
+        packageInfo: _packageInfo(
+          version: '4.5.0-timberpile.5',
+          buildNumber: '188',
+        ),
+        manifestUrl: 'https://example.com/boorusama-update.json',
+        client: MockClient(
+          (_) async => Response(
+            jsonEncode({
+              'schemaVersion': 1,
+              'version': '4.5.0-timberpile.5',
+              'buildNumber': '189',
+              'releaseUrl':
+                  'https://github.com/timberpile/Boorusama/releases/tag/v4.5.0-timberpile.5',
+              'notes': 'Maintenance',
+              'artifacts': [
+                {
+                  'target': 'apk',
+                  'fileName':
+                      'boorusama-4.5.0-timberpile.5+189-android-arm64.apk',
+                  'size': 1024,
+                  'sha256': List.filled(64, 'a').join(),
+                },
+              ],
+            }),
+            200,
+          ),
+        ),
+      );
+
+      final status = await checker.checkForUpdate();
+      expect(status, isA<UpdateAvailable>());
+      final update = status as UpdateAvailable;
+      expect(update.githubBuildNumber, 189);
+      expect(update.githubApks, hasLength(1));
+      expect(update.githubApks.first.architecture, 'arm64');
+      expect(update.githubApks.first.downloadUrl.toString(), contains('%2B189'));
+    });
+
+    test('ignores lower Android build codes even with a newer name', () async {
+      final checker = GitHubReleaseUpdateChecker(
+        packageInfo: _packageInfo(
+          version: '4.5.0-timberpile.4',
+          buildNumber: '189',
+        ),
+        manifestUrl: 'https://example.com/boorusama-update.json',
+        client: MockClient(
+          (_) async => Response(
+            jsonEncode({
+              'version': '4.5.0-timberpile.5',
+              'buildNumber': '188',
+              'releaseUrl':
+                  'https://github.com/timberpile/Boorusama/releases/tag/v4.5.0-timberpile.5',
+            }),
+            200,
+          ),
+        ),
+      );
+      expect(await checker.checkForUpdate(), isA<UpdateNotAvailable>());
+    });
+
     test('returns UpdateError for invalid manifest JSON', () async {
       final checker = GitHubReleaseUpdateChecker(
         packageInfo: _packageInfo(version: '4.4.0'),
@@ -129,11 +191,12 @@ void main() {
 
 PackageInfo _packageInfo({
   required String version,
+  String buildNumber = '1',
 }) {
   return PackageInfo(
     appName: 'Boorusama',
     packageName: 'com.timberpile.boorusama',
     version: version,
-    buildNumber: '1',
+    buildNumber: buildNumber,
   );
 }
