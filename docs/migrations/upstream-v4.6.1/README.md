@@ -30,6 +30,8 @@
 ## Fortschritt
 
 - [x] Basis-SHAs, Katalog und Checkliste gesichert
+- [x] X01: Fork-Hive-Indizes 15/16 behalten; Quell-IDs nach Möglichkeit ableiten
+- [ ] X02: Post-Identity und gemeinsames `sitePostId`-API entscheiden
 - [ ] Alle nichttrivialen Punkte entschieden
 - [ ] Merge-Resolution gegen finalen Plan implementiert
 - [ ] Datenmigrationen und vollständige Regressionstests bestanden
