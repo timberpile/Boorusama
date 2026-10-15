@@ -50,6 +50,17 @@ void main() {
     },
   );
 
+  test(
+    'matches Flutter split APK offsets without changing universal codes',
+    () {
+      expect(artifact('armv7').androidVersionCode(189), 1189);
+      expect(artifact('arm64').androidVersionCode(189), 2189);
+      expect(artifact('x64').androidVersionCode(189), 4189);
+      expect(artifact('universal').androidVersionCode(189), 189);
+      expect(artifact('x64').androidVersionCode(4192), 8192);
+    },
+  );
+
   test('rejects malformed assets and untrusted release links', () {
     final source = [
       {

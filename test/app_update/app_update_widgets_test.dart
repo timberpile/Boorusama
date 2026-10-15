@@ -134,6 +134,10 @@ void main() {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(_channel, (call) async {
             calls.add(call.method);
+            if (call.method == 'install') {
+              expect((call.arguments as Map)['buildNumber'], 2200);
+              expect((call.arguments as Map)['version'], '4.5.0');
+            }
             return switch (call.method) {
               'supportedAbis' => ['arm64-v8a'],
               'canInstall' => permission,

@@ -104,6 +104,7 @@ void main() {
           buildNumber: '188',
         ),
         compareAndroidBuildNumbers: true,
+        supportedAbis: () async => ['arm64-v8a'],
         manifestUrl: 'https://example.com/boorusama-update.json',
         client: MockClient(
           (_) async => Response(
@@ -140,6 +141,57 @@ void main() {
         'boorusama-4.5.0-timberpile.5+189-android-arm64.apk',
       );
     });
+
+    for (final (architecture, abis, installed, base, expected) in [
+      ('armv7', ['armeabi-v7a'], 1188, 189, true),
+      ('arm64', ['arm64-v8a', 'armeabi-v7a'], 2188, 189, true),
+      ('x64', ['x86_64'], 4188, 189, true),
+      ('x64', ['x86_64'], 8191, 4192, true),
+      ('arm64', ['arm64-v8a'], 2189, 189, false),
+      ('arm64', ['arm64-v8a'], 2190, 189, false),
+      ('universal', ['arm64-v8a'], 188, 189, true),
+    ]) {
+      test(
+        'compares actual $architecture Android version code $installed to release $base',
+        () async {
+          final checker = GitHubReleaseUpdateChecker(
+            packageInfo: _packageInfo(
+              version: '4.5.0-timberpile.5',
+              buildNumber: '$installed',
+            ),
+            compareAndroidBuildNumbers: true,
+            supportedAbis: () async => abis,
+            manifestUrl: 'https://example.com/manifest.json',
+            client: MockClient(
+              (_) async => Response(
+                jsonEncode({
+                  'version': '4.5.0-timberpile.5',
+                  'buildNumber': '$base',
+                  'releaseUrl':
+                      'https://github.com/timberpile/Boorusama/releases/tag/v4.5.0-timberpile.5',
+                  'artifacts': [
+                    {
+                      'target': 'apk',
+                      'fileName':
+                          'boorusama-4.5.0-timberpile.5+$base-android-$architecture.apk',
+                      'size': 1024,
+                      'sha256': List.filled(64, 'a').join(),
+                    },
+                  ],
+                }),
+                200,
+              ),
+            ),
+          );
+          final status = await checker.checkForUpdate();
+          expect(
+            status,
+            expected ? isA<UpdateAvailable>() : isA<UpdateNotAvailable>(),
+          );
+          if (status is UpdateAvailable) expect(status.githubBuildNumber, base);
+        },
+      );
+    }
 
     test('ignores lower Android build codes even with a newer name', () async {
       final checker = GitHubReleaseUpdateChecker(

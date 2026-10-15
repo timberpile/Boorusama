@@ -174,3 +174,92 @@ The complete suite checked the candidate based on `f2c1f8a01` with the runtime
 and test corrections described above. Subsequent edits were limited to
 formatting, a comment and this report, so the complete pass remains applicable.
 No merge, PR, push, tag or remote modification was performed.
+
+## Follow-up emulator upgrade validation (2026-10-15)
+
+The user supplied running `emulator-5554`. Reserved that exact serial; left the
+existing app data intact. It initially contained the signed performance build
+with Android version code 4190. Test APKs therefore use base build numbers
+4191/4192, which Flutter's x64 ABI split encodes as Android codes 8191/8192.
+Both use the existing permanent signing certificate and the production package
+ID `com.timberpile.boorusama`.
+
+The test exposed a release-contract defect missed by the initial review:
+`boorusama-update.json` records the base build number from the release receipt,
+while GitHub release APKs are built with `--split-per-abi`. The pinned Flutter
+3.47.2 Gradle plugin adds 1000 for armv7, 2000 for arm64 and 4000 for x64.
+Comparing the base receipt number to PackageInfo's encoded Android code hid
+valid upgrades, and passing that base number to native preflight would reject
+the downloaded APK. The checker now selects using the actual device ABI and
+compares the resulting Android code. Installation passes the same encoded
+code; the existing receipt schema, filenames and raw cached release build
+number remain compatible. Universal APKs keep their base code.
+
+Added regression cases for all three split architectures, universal builds,
+up-to-date/newer installed builds, base values above 1000, and the install
+channel's exact encoded build argument. Focused updater suite: 39 passed.
+Affected analysis: no issues. Complete local regression runner passed again:
+3,323 application tests, 934 package/CLI tests, 61 Python tests and both shell
+suites, no skips.
+
+The hosted Maestro connector again timed out. A separate local Maestro MCP
+STDIO session (`maestro mcp --no-viewer`, Java 17) successfully listed and
+controlled the exact reserved emulator. No shared MCP configuration/process was
+changed. The initial temporary harness used an extra outer ProviderScope and
+showed the generic import-recovery gate; the revised ignored harness injects
+only the downloader into the normal root scope, keeping initialization and the
+recovery gate intact.
+
+The temporary entrypoint and artifacts live only under ignored
+`build/upgrade-0035/`. Version N fetches a receipt-shaped manifest from a
+loopback-only HTTP server forwarded over ADB; only the matching test APK URL
+is rerouted to that server. The real parser, ABI selection, HTTP file download,
+size/SHA-256 checks, private cache, native package/version/signer preflight and
+OS confirmation installer remain active. Version N+1 uses the ordinary
+production entrypoint with no fixture overrides. This is a controlled local
+upgrade test, not a publication or GitHub CDN acceptance test.
+
+### Upgrade result: passed on x86_64
+
+- Both corrected signed APK builds passed. Source candidate: `8b832f69e` plus
+  the ABI-code changes in this follow-up; no production entrypoint or release
+  workflow changes. Base build 4191 / Android 8191 was installed with `adb
+  install -r` solely to prepare N. N+1 was **not** installed through ADB.
+- With automatic checks switched off in Settings, Check now detected the
+  same-version-name update (4.5.0-timberpile.5) using Android codes 8191→8192.
+- Explicit Download update transferred 107,950,008 bytes. The real downloader
+  displayed APK verified and ready to install after size and SHA-256 validation.
+  The target digest was
+  `8b739d830064cb169f7d3fad093b247ea6074b51557abe038d6710150d383dbf`.
+- With install-source permission initially disallowed, Install update showed
+  the localized guidance and Allow installs opened the actual Android
+  Install unknown apps screen. Enabled Allow from this source via Maestro.
+- Native package/version/current-signer validation passed. Android displayed
+  Update this app? for Boorusama Timber. Confirmed Android's Update button via
+  Maestro; Android then displayed App updated.
+- PackageManager independently reported Android version code 8192 and retained
+  firstInstallTime `2026-10-10 18:35:42`; no uninstall or data reset occurred.
+- Open from the OS installer launched the ordinary N+1 production entrypoint.
+  Maestro assertions confirmed the existing safebooru profile, Default group,
+  the local `UpdateTest0035_8191` group created before the upgrade, and the
+  persisted disabled automatic-update setting. No recovery gate appeared with
+  the corrected harness or ordinary N+1 app.
+- Removed only the empty test group and verified Default remained. Restored
+  automatic checks to their original enabled value, reset install-source
+  permission to the original non-allowed/default mode, removed the exact ADB
+  reverse mapping, and stopped the loopback server. The updated app process
+  had no Flutter/AndroidRuntime error entries. Released the emulator lease;
+  the user-started emulator was left running with test build 8192 installed.
+
+Ignored local evidence includes `package-before.txt`, `package-after.txt`,
+`sentinel-before.json`, `sentinel-after.json`, `settings-after.json`, the native
+confirmation screenshot and App updated hierarchy under `build/upgrade-0035/`.
+These are local acceptance artifacts and are not committed.
+
+Remaining limits: arm64/armv7 physical upgrades and signature rotation are not
+proved by this x64 emulator run. Download cancellation/checksum rejection and
+unsafe native identities remain covered by the previously recorded automated
+checks; those negative device paths were not rerun here. The local fixture
+proves the app/OS upgrade path, not a publication or production CDN download.
+The final full pass applies to the ABI runtime/test changes in this commit;
+subsequent changes were this report only. No push or merge was performed.

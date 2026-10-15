@@ -14,6 +14,17 @@ final class GitHubApkArtifact {
   final String sha256;
   final Uri downloadUrl;
 
+  /// GitHub releases use Flutter's --split-per-abi version-code offsets.
+  /// The receipt keeps the base build number, while Android reports this code.
+  int androidVersionCode(int releaseBuildNumber) =>
+      releaseBuildNumber +
+      switch (architecture) {
+        'armv7' => 1000,
+        'arm64' => 2000,
+        'x64' => 4000,
+        _ => 0,
+      };
+
   Map<String, Object> toJson() => {
     'target': 'apk',
     'fileName': fileName,

@@ -8,6 +8,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 
 // Project imports:
 import '../../platform.dart';
+import 'android_github_apk_installer.dart';
 import 'github_apk_artifact.dart';
 import 'types/app_update_checker.dart';
 import 'types/update_status.dart';
@@ -18,13 +19,17 @@ class GitHubReleaseUpdateChecker implements AppUpdateChecker {
     required this.manifestUrl,
     Client? client,
     bool? compareAndroidBuildNumbers,
+    Future<List<String>> Function()? supportedAbis,
   }) : _client = client ?? Client(),
+       _supportedAbis =
+           supportedAbis ?? const AndroidGitHubApkInstaller().supportedAbis,
        compareAndroidBuildNumbers = compareAndroidBuildNumbers ?? isAndroid();
 
   final PackageInfo packageInfo;
   final String manifestUrl;
   final Client _client;
   final bool compareAndroidBuildNumbers;
+  final Future<List<String>> Function() _supportedAbis;
 
   @override
   Future<UpdateStatus> checkForUpdate() async {
@@ -56,11 +61,24 @@ class GitHubReleaseUpdateChecker implements AppUpdateChecker {
 
       final latestBuild = manifest.buildNumber;
       final currentBuild = int.tryParse(packageInfo.buildNumber);
-      final newer =
+      final artifact =
           compareAndroidBuildNumbers &&
               latestBuild != null &&
+              currentBuild != null &&
+              manifest.apkArtifacts.isNotEmpty
+          ? GitHubApkArtifact.selectForAbis(
+              manifest.apkArtifacts,
+              await _supportedAbis(),
+            )
+          : null;
+      final latestAndroidCode = latestBuild == null
+          ? null
+          : artifact?.androidVersionCode(latestBuild) ?? latestBuild;
+      final newer =
+          compareAndroidBuildNumbers &&
+              latestAndroidCode != null &&
               currentBuild != null
-          ? latestBuild > currentBuild
+          ? latestAndroidCode > currentBuild
           : currentVersion < latestVersion;
 
       if (newer) {

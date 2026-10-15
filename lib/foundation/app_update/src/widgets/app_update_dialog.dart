@@ -109,7 +109,8 @@ class _AppUpdateDialogState extends ConsumerState<AppUpdateDialog> {
   Future<void> _install() async {
     final apk = _apk;
     final build = widget.status.githubBuildNumber;
-    if (apk == null || build == null || _installing) return;
+    final artifact = _selectedArtifact;
+    if (apk == null || build == null || artifact == null || _installing) return;
     setState(() {
       _installing = true;
       _failure = null;
@@ -123,7 +124,7 @@ class _AppUpdateDialogState extends ConsumerState<AppUpdateDialog> {
       }
       await _installer.install(
         apk,
-        buildNumber: build,
+        buildNumber: artifact.androidVersionCode(build),
         version: widget.status.storeVersion,
       );
       if (mounted) Navigator.of(context).pop();
