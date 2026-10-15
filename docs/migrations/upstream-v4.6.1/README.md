@@ -27,11 +27,23 @@
 - Den echten Upstream-Merge **nicht** per `-s ours` simulieren; Git-Ancestry soll die tatsächlich integrierte Arbeit widerspiegeln.
 - Keine Änderungen oder PRs nach `develop` ohne separate Freigabe. Vollständige Testsuite nach `AGENTS.md` vor Integration.
 
+## Entscheidungsstand (2026-10-15)
+
+**27 von 68 Themen beschlossen, 41 noch offen.** Alle 27 Entscheidungen stehen verbindlich in [decisions.md](decisions.md), zusammengefasst in Katalog und Checkliste. **Es wurde noch kein Upstream-Code integriert und keine Umsetzung freigegeben.**
+
+- **A02:** Implementierender Agent schreibt nach dem UI-Umbau die wichtigsten manuellen Testfälle für den Nutzer; führt diese nicht selbst manuell durch.
+- **X04 + A09:** Cache-Generationen entfernen, URL-MD5/LRU/Checkpoints behalten; OS-Temp-Share-Kopie und vorhandenes >24h-Cleanup verwenden; Upstream read-only DocumentsProvider übernehmen.
+- **N01:** `ApiRequestCoordinator` behalten, Upstream-Retry-Fixes ohne zweiten Sliding-Window-Limiter übernehmen.
+
 ## Fortschritt
 
 - [x] Basis-SHAs, Katalog und Checkliste gesichert
 - [x] X01: Fork-Hive-Indizes 15/16 behalten; Quell-IDs nach Möglichkeit ableiten
-- [ ] X02: Post-Identity und gemeinsames `sitePostId`-API entscheiden
+- [x] X02: gemeinsamer `sitePostId`-Getter, Hive/Identität unverändert
+- [x] X04: vereinfachter URL-MD5-Image-Cache ohne `generation_`; Temp-Share-Kopien
+- [x] A01–A18: Upstream-/Fork-Zielverhalten beschlossen
+- [x] N01–N06: Netzwerk-Zielverhalten beschlossen
+- [ ] X03 und D01–D08: Backup/Export/Downloads entscheiden
 - [ ] Alle nichttrivialen Punkte entschieden
 - [ ] Merge-Resolution gegen finalen Plan implementiert
 - [ ] Datenmigrationen und vollständige Regressionstests bestanden
