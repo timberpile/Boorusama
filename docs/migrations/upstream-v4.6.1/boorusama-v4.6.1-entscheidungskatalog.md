@@ -1,6 +1,6 @@
 # Boorusama – Entscheidungskatalog zum echten Merge auf Upstream v4.6.1
 
-**Stand:** 15. Oktober 2026 · **Status:** **27 von 68 Themen entschieden, 41 offen**, weiterhin **keine Freigabe zur Implementierung**.
+**Stand:** 15. Oktober 2026 · **Status:** **29 von 68 Themen entschieden, 39 offen**, weiterhin **keine Freigabe zur Implementierung**.
 
 > Grundlage: `timberpile/Boorusama` `develop` auf `d4e15586f06192f0ff4315d36a3f61ae69a752d5`, Upstream `v4.6.1` auf `5b04bf6a164f028d41701299367d0dde74dde330`; gemeinsamer Vorfahr `2c0ac699184854d363833ea4a3205aef0895a92b`. Dateien aus dem hochgeladenen Git-Bundle lokal geprüft. Bei dieser Analyse wurden keine Laufzeitänderungen am Repository vorgenommen.
 
