@@ -290,3 +290,32 @@ stay hidden. Opening the sheet does not request additional metadata.
 
 Future item 07 coordination must classify Share preparation as media transfer,
 not API metadata traffic; this flow defines no new request rate policy.
+
+### Portable Boorusama post links
+
+`BoorusamaPostLink` is a versioned public address, not a serialized profile or
+bookmark. Version 1 uses
+`boorusama://post/open?v=1&engine=<yaml-name>&site=<encoded-base-url>&key=<encoded-key>`.
+Numeric engines use `id:<id>`; Sankaku keeps its real string server ID, and
+Pixiv uses `work-page:<work-id>:<zero-based-page>`. Reject duplicate/unknown
+parameters, unsupported versions/engines, unsafe site URLs and noncanonical or
+out-of-range identifiers. Never include credentials, profile IDs or snapshots.
+The source comes from the post, not an unrelated active profile in a mixed feed.
+
+The `/open` route uses Flutter/GoRouter's existing Android and iOS custom-scheme
+registration. It chooses exactly one matching local engine/site profile,
+requires a choice for multiple matches, or offers the normal profile editor
+without changing the current browsing profile. The pending address survives
+that editor and resolves only after it closes. Fetch through the selected
+profile's origin-aware repository and verify the returned stable identity before
+displaying it. Profile shortcuts and export/import receivers remain separate.
+Desktop OS protocol registration and hosted HTTPS links are not part of V1.
+
+The Links row copies only the raw URI without media preparation. Share sends one
+prepared image plus localized plain text and the same full URI. Videos use a
+known still preview, never their video URL. Missing/failed image preparation
+leaves Copy usable. Reuse the Image preparation and lease lifecycle; Android
+attaches `EXTRA_TEXT` to the same `ACTION_SEND` intent as its owned content URI,
+and other supported file-sharing platforms receive `ShareParams(files, text)`.
+The messenger controls caption retention and whether custom URIs are clickable;
+no rich-text label, link preview, or fallback website is promised.

@@ -7,6 +7,7 @@ import 'package:boorusama/core/ddos/handler/providers.dart';
 import 'package:boorusama/core/developer_options/providers.dart';
 import 'package:boorusama/core/downloads/urls/providers.dart';
 import 'package:boorusama/core/http/client/providers.dart';
+import 'package:boorusama/core/images/providers.dart';
 import 'package:boorusama/core/posts/details/providers.dart';
 import 'package:boorusama/core/posts/details/types.dart';
 import 'package:boorusama/core/posts/links/boorusama_post_link.dart';
@@ -90,6 +91,7 @@ Future<void> _pump(
     ProviderScope(
       overrides: [
         appFileSystemProvider.overrideWithValue(fs),
+        defaultImageCacheManagerProvider.overrideWithValue(cache),
         automaticMediaLoadingEnabledProvider.overrideWithValue(false),
         mediaUrlResolverProvider.overrideWith(
           (ref, config) => const SampleMediaUrlResolver(),
@@ -126,7 +128,7 @@ Future<void> _pump(
     ),
   );
   await tester.tap(find.text('Links'));
-  await tester.pumpAndSettle();
+  await tester.pumpAndSettle(timeout: const Duration(seconds: 5));
 }
 
 void main() {
@@ -149,7 +151,7 @@ void main() {
     );
     await _pump(tester, post: _post(), cache: cache, fs: fs);
     await tester.tap(find.byTooltip('Copy Boorusama link'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(timeout: const Duration(seconds: 5));
     expect(copied, [
       BoorusamaPostLink.fromPost(_post(), auth: _auth)!.uri.toString(),
     ]);
@@ -265,7 +267,7 @@ void main() {
       fs: fs,
     );
     await tester.tap(find.byTooltip('Share image and Boorusama link'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(timeout: const Duration(seconds: 5));
     expect(
       find.text(
         'No image is available to share with this link. You can still copy the link.',
