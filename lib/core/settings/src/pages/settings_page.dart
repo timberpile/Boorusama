@@ -10,6 +10,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 // Project imports:
 import '../../../../core/widgets/widgets.dart';
+import '../../../../foundation/app_update/src/providers.dart';
 import '../../../../foundation/info/app_info.dart';
 import '../../../../foundation/info/package_info.dart';
 import '../../../../foundation/url_launcher.dart';
@@ -37,10 +38,12 @@ import 'language_page.dart';
 import 'privacy_page.dart';
 import 'pinned_searches_and_feeds_page.dart';
 import 'search_settings_page.dart';
+import 'updates_settings_page.dart';
 
 List<SettingEntry> _entries(
   BuildContext context, {
   required bool showDeveloperOptions,
+  required bool showUpdates,
 }) => [
   SettingEntry(
     id: 'appearance',
@@ -56,6 +59,14 @@ List<SettingEntry> _entries(
     icon: FontAwesomeIcons.language,
     content: const LanguagePage(),
   ),
+  if (showUpdates)
+    SettingEntry(
+      id: 'updates',
+      name: '/settings/updates',
+      title: context.t.app_update.updates,
+      icon: FontAwesomeIcons.arrowsRotate,
+      content: const UpdatesSettingsPage(),
+    ),
   SettingEntry(
     id: 'download',
     name: '/settings/download',
@@ -148,6 +159,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     final entries = _entries(
       context,
       showDeveloperOptions: ref.watch(isDevEnvironmentProvider),
+      showUpdates: ref.watch(updateChecksSupportedProvider),
     );
 
     void openContent(BuildContext context, SettingEntry entry) {
