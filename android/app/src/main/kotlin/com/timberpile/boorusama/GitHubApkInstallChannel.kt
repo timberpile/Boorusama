@@ -105,7 +105,18 @@ class GitHubApkInstallChannel(
         }
 
         val installedSigners = signers(installed)
-        val archiveSigners = signers(archive)
+        // On Android 9/10 getPackageArchiveInfo can omit signingInfo even with
+        // GET_SIGNING_CERTIFICATES. Try the legacy archive flag, but still deny
+        // installation unless both installed and archived certificates match.
+        val archiveSigners = signers(archive).ifEmpty {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                archiveInfo(manager, apk.path, PackageManager.GET_SIGNATURES)
+                    ?.let { signers(it) }
+                    .orEmpty()
+            } else {
+                emptySet()
+            }
+        }
         require(
             installedSigners.isNotEmpty() &&
                 archiveSigners.isNotEmpty() &&
@@ -159,7 +170,7 @@ class GitHubApkInstallChannel(
     @Suppress("DEPRECATION")
     private fun signers(info: PackageInfo): Set<String> {
         val signatures = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            info.signingInfo?.apkContentsSigners
+            info.signingInfo?.apkContentsSigners ?: info.signatures
         } else {
             info.signatures
         }
