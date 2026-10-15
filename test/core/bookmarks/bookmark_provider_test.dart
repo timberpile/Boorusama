@@ -164,8 +164,10 @@ void main() {
           await notifier.future;
           return values;
         });
-        await tester.binding.setSurfaceSize(const Size(320, 600));
-        addTearDown(() => tester.binding.setSurfaceSize(null));
+        tester.view.physicalSize = const Size(320, 600);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
         BuildContext? feedbackContext;
         await tester.pumpWidget(
           BooruLocalization(
@@ -173,16 +175,29 @@ void main() {
               builder: (context, child) => MediaQuery(
                 data: MediaQuery.of(context).copyWith(
                   textScaler: const TextScaler.linear(1.8),
-                  viewInsets: const EdgeInsets.only(bottom: 180),
                 ),
                 child: OKToast(child: child!),
               ),
               home: Scaffold(
-                body: Builder(
-                  builder: (context) {
-                    feedbackContext = context;
-                    return const SizedBox.expand();
-                  },
+                body: Stack(
+                  children: [
+                    Builder(
+                      builder: (context) {
+                        feedbackContext = context;
+                        return const SizedBox.expand();
+                      },
+                    ),
+                    // The viewer toolbar is overlaid in the body, rather than
+                    // registered as a Scaffold bottomNavigationBar.
+                    const Align(
+                      alignment: Alignment.bottomCenter,
+                      child: SizedBox(
+                        key: ValueKey('viewer-toolbar'),
+                        height: 80,
+                        width: double.infinity,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -198,10 +213,35 @@ void main() {
         notifier.showRemovalUndo(feedbackContext!, removal!);
         await tester.pumpAndSettle();
         expect(find.byType(AlertDialog), findsNothing);
-        expect(find.byType(SnackBar), findsOneWidget);
+        expect(find.byType(SnackBar), findsNothing);
         expect(find.text('Undo'), findsOneWidget);
+        expect(find.textContaining('|'), findsNothing);
+        final undoButton = find.widgetWithText(TextButton, 'Undo');
+        final removalMessage = count == 1
+            ? 'Bookmark removed'
+            : '$count bookmarks removed';
         expect(
-          find.text('$count removed · $count bookmarks deleted'),
+          tester.getSize(undoButton).height,
+          lessThanOrEqualTo(
+            tester.getSize(find.text(removalMessage)).height + 8,
+          ),
+        );
+        expect(tester.getRect(undoButton).right, lessThanOrEqualTo(320));
+        final toastSurface = find.byWidgetPredicate(
+          (widget) =>
+              widget is DecoratedBox &&
+              widget.decoration is BoxDecoration &&
+              (widget.decoration as BoxDecoration).color ==
+                  const Color(0xDD000000),
+        );
+        expect(
+          tester.getRect(toastSurface).bottom,
+          lessThan(
+            tester.getRect(find.byKey(const ValueKey('viewer-toolbar'))).top,
+          ),
+        );
+        expect(
+          find.text(removalMessage),
           findsOneWidget,
         );
         expect(container.read(bookmarkProvider).requireValue.items, isEmpty);
@@ -213,9 +253,7 @@ void main() {
           await notifier.snapshotForExport();
         });
         await tester.pumpAndSettle();
-        // Flush the Snackbar's real-zone dismissal callback before unmounting.
-        await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-        await tester.pumpAndSettle();
+        expect(find.text('Undo'), findsNothing);
         final restored = container.read(bookmarkProvider).requireValue;
         if (failUndo) {
           expect(restored.items, isEmpty);
@@ -234,13 +272,62 @@ void main() {
           }
         }
         dismissAllToast(showAnim: false);
-        await tester.pump(const Duration(seconds: 4));
+        // Drain OKToast's animation callbacks after tapping Undo.
+        await tester.pump(const Duration(seconds: 5));
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
         await tester.pumpWidget(const SizedBox.shrink());
       },
     );
   }
+
+  testWidgets('removal Undo automatically disappears after five seconds', (
+    tester,
+  ) async {
+    final container = createContainer();
+    late BookmarkLibraryNotifier notifier;
+    final removal = await tester.runAsync(() async {
+      final bookmark = (await bookmarkRepository.addBookmarkWithBookmarks([
+        _validBookmark,
+      ])).single;
+      await groupRepository.createGroup('Artists', id: groupId);
+      await groupRepository.addBookmarks(groupId, {bookmark.id});
+      notifier = container.read(bookmarkProvider.notifier);
+      await notifier.future;
+      return notifier.removePostsFromGroup(
+        BooruConfig.empty.auth,
+        [bookmark.toPost()],
+        groupId,
+      );
+    });
+    late BuildContext feedbackContext;
+    await tester.pumpWidget(
+      BooruLocalization(
+        child: OKToast(
+          child: MaterialApp(
+            home: Scaffold(
+              body: Builder(
+                builder: (context) {
+                  feedbackContext = context;
+                  return const SizedBox.expand();
+                },
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    notifier.showRemovalUndo(feedbackContext, removal!);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump(const Duration(seconds: 4));
+    expect(find.text('Undo'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
+    expect(find.text('Undo'), findsNothing);
+    expect(find.text('Bookmark removed'), findsNothing);
+    expect(container.read(bookmarkProvider).requireValue.items, isEmpty);
+  });
 
   test(
     'Undo preserves an intervening addition and rejects a superseded removal',

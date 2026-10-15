@@ -117,30 +117,27 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     BuildContext context,
     BookmarkGroupRemovalResult result,
   ) {
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    if (messenger == null || result.removedCount == 0) return;
+    if (result.removedCount == 0) return;
     final strings = context.t.bookmark;
-    messenger.hideCurrentSnackBar();
-    messenger.showSnackBar(
-      SnackBar(
-        content: Text(
-          strings.removal_result
-              .replaceAll('{removed}', '${result.removedCount}')
-              .replaceAll('{deleted}', '${result.deletedCount}'),
-        ),
-        action: SnackBarAction(
-          label: context.t.bookmark.undo,
-          onPressed: () async {
-            try {
-              await undoRemoval(result);
-            } catch (_) {
-              if (context.mounted) {
-                Kurumi.showErrorToast(context, strings.undo_failed);
-              }
-            }
-          },
-        ),
-      ),
+    Kurumi.showSuccessToast(
+      context,
+      result.removedCount == 1
+          ? strings.removed
+          : strings.removal_result.replaceAll(
+              '{removed}',
+              '${result.removedCount}',
+            ),
+      duration: const Duration(seconds: 5),
+      actionLabel: strings.undo,
+      onAction: () async {
+        try {
+          await undoRemoval(result);
+        } catch (_) {
+          if (context.mounted) {
+            Kurumi.showErrorToast(context, strings.undo_failed);
+          }
+        }
+      },
     );
   }
 

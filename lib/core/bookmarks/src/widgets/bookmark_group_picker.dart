@@ -111,7 +111,7 @@ bool _handleToggleOutcome(
     return true;
   })(),
   BookmarkToggleOutcome.removed => (() {
-    // The serialized removal publishes its Undo Snackbar.
+    // The serialized removal publishes its Undo toast.
     return true;
   })(),
   BookmarkToggleOutcome.missingPostIdentity => (() {

@@ -204,12 +204,16 @@ abstract final class Kurumi {
     Duration? duration,
     Color? backgroundColor,
     TextStyle? textStyle,
+    String? actionLabel,
+    VoidCallback? onAction,
   }) => toast.kurumiShowSuccessToast(
     context,
     message,
     duration: duration,
     backgroundColor: backgroundColor,
     textStyle: textStyle,
+    actionLabel: actionLabel,
+    onAction: onAction,
   );
 
   static void showErrorToast(
