@@ -1,3 +1,4 @@
+import java.util.Base64
 import java.util.Properties
 
 plugins {
@@ -42,6 +43,19 @@ fun invalidSigningReason(): String {
 }
 val splitPerAbi = project.findProperty("split-per-abi") == "true"
 
+// Flutter passes base64-encoded dart-defines as a Gradle property. The GitHub
+// APK can request user-approved installation, but Play builds must never carry
+// REQUEST_INSTALL_PACKAGES in their merged manifest.
+val releaseDartDefines = (project.findProperty("dart-defines") as? String)
+    ?.split(",")
+    ?.mapNotNull { encoded ->
+        runCatching {
+            String(Base64.getDecoder().decode(encoded), Charsets.UTF_8)
+        }.getOrNull()
+    }
+    ?: emptyList()
+val canRequestGithubInstall = "RELEASE_CHANNEL=github" in releaseDartDefines
+
 android {
     namespace = "com.timberpile.boorusama"
     compileSdk = 36
@@ -65,6 +79,12 @@ android {
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         multiDexEnabled = true
+        // A duplicate INTERNET permission merges away for Play and development builds.
+        manifestPlaceholders["updateInstallPermission"] = if (canRequestGithubInstall) {
+            "android.permission.REQUEST_INSTALL_PACKAGES"
+        } else {
+            "android.permission.INTERNET"
+        }
     }
 
     signingConfigs {
