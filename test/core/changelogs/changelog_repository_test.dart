@@ -49,14 +49,17 @@ void main() {
   test('loads all subsections of the bundled latest release', () async {
     final data = await repository.loadLatestChangelog();
 
-    expect(data.version.toString(), '4.5.0-timberpile.4');
+    expect(data.version.toString(), '4.5.0-timberpile.5');
     expect(data.content, contains('## Breaking changes\n\n'));
     expect(data.content, contains('## Features\n\n'));
     expect(data.content, contains('## Fixes and improvements\n\n'));
     expect(
       data.content,
-      contains('- Review import changes in a compact, expandable hierarchy.'),
+      contains(
+        '- Organize bookmark groups and pinned searches in nested folders.',
+      ),
     );
+    expect(data.content, isNot(contains('# 4.5.0-timberpile.4')));
     expect(data.content, isNot(contains('# 4.5.0-timberpile.3')));
     expect(data.content, isNot(contains('Unlock Boorusama Plus')));
   });
