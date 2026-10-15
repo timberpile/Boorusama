@@ -15,6 +15,7 @@ import '../boorus/registry.dart';
 import '../foundation/app_rating/app_rating.dart';
 import '../foundation/app_rating/providers.dart';
 import '../foundation/app_update/providers.dart';
+import '../foundation/app_update/src/widgets/app_update_lifecycle_listener.dart';
 import '../foundation/boot.dart';
 import '../foundation/boot/failsafe.dart';
 import '../foundation/boot/providers.dart';
@@ -353,7 +354,9 @@ class _BoorusamaAppState extends State<BoorusamaApp> {
               widget.cronetAvailable,
             ),
           ],
-          child: const ImportRecoveryGate(child: App()),
+          child: const AppUpdateLifecycleListener(
+            child: ImportRecoveryGate(child: App()),
+          ),
         ),
       ),
     );
