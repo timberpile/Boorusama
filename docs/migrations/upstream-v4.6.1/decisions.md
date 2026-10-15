@@ -1,6 +1,6 @@
 # Upstream v4.6.1 – Entscheidungsprotokoll
 
-**Autoritativer Entscheidungsstand:** **27 von 68 Themen entschieden** (2026-10-15); **41 offen**, Umsetzung nicht freigegeben. Dieses Dokument enthält ausschließlich Analyse und explizit bestätigte künftige Beschlüsse. Referenz: [Katalog](boorusama-v4.6.1-entscheidungskatalog.md) und [Checkliste](boorusama-v4.6.1-checkliste.md).
+**Autoritativer Entscheidungsstand:** **29 von 68 Themen entschieden** (2026-10-15); **41 offen**, Umsetzung nicht freigegeben. Dieses Dokument enthält ausschließlich Analyse und explizit bestätigte künftige Beschlüsse. Referenz: [Katalog](boorusama-v4.6.1-entscheidungskatalog.md) und [Checkliste](boorusama-v4.6.1-checkliste.md).
 
 ## Entscheidungsformat
 
@@ -263,6 +263,34 @@ Vor der expliziten Nutzerentscheidung bleibt jeder Eintrag `OFFEN`; ein technisc
 
 **Abnahme / Tests:** HTTP2/HTTP1, gzip, hohe Parallelität, wenig RAM.
 
+## X03 – Fork-Export/Import, Profile-UUIDs und Following bewahren
+
+**Status: ENTSCHIEDEN · 2026-10-15 · Umsetzung ausstehend.** **Beschlussart:** Fork-Architektur behalten, kompatible Upstream-Teile angepasst übernehmen.
+
+**Zielzustand / technische Grenzen:** Die Fork-spezifische Export-/Import-/Backup-Pipeline, stabile Profile-UUIDs, `PostOrigin`/`BookmarkIdentity`, Hive-/Snapshot-Kompatibilität, verschachtelte Bookmark- und Pinned-Search-Ordner sowie Following-Feeds unverändert im Verhalten und in ihren Datenidentitäten erhalten. Keine Rückmigration auf Upstream-Profile, flache Ordner oder dessen alte Feed-/Backup-Modelle; keine inkompatible Schema- oder ID-Änderung.
+
+**Gezielt übernehmen:** Aus Upstreams Headless-Refactoring die austauschbaren Plattform-, Navigation-, Dateipicker-, Repository-Factory- und Backup-Trigger-Abhängigkeiten sowie App-Flow-Tests kompatibel in den bereits beschlossenen A01-/A12-Zielzustand integrieren. Keine zweite parallele Runtime, Repository- oder Backup-Implementierung. Die Upstream-Bookmark-Library-Refresh-Ergänzung nicht zusätzlich kopieren: der Fork beobachtet `bookmarkProvider` bereits mit `BookmarkViewRefreshGate`, um Refresh/Selection korrekt zu koordinieren. Upstreams Export-Lesen von Favorite Tags direkt aus persistenter Storage statt möglicherweise uninitialisiertem UI-State ist sinnvoll, wird aber **erst im noch offenen D08 separat beschlossen**.
+
+**Daten/API:** Keine neue Persistenz oder Migration allein durch X03. Vorhandene Profil-UUIDs, Bookmark-Hive-Felder 15/16, Post-Snapshots, Ordnerstrukturen und Following-Daten erhalten; X01/X02 und die bestehenden Fork-Import-/Recovery-Garantien gelten verbindlich.
+
+**Abnahme / Tests:** Legacy- und aktueller Full-Backup-Roundtrip mit Profile-UUIDs, Bookmark-Gruppen/Unterordnern, Pinned Searches/Following und Favorite Tags; Cold-Start/Import-Recovery, Profilwechsel, Folder-Undo, Auswahl beim Bookmark-Refresh und kein doppelter Refresh. A01/A12-Headless-Flows; keine stillen Datenverluste.
+
+**Begründung / Quellen:** Upstream [`a3278c5d2`](https://github.com/khoadng/Boorusama/commit/a3278c5d2ecc3672fea63c68fb21c81a1db2bb07) refaktoriert u. a. Backup-/Bookmark-Abhängigkeiten für Tests; [`3f4ce2bd4`](https://github.com/khoadng/Boorusama/commit/3f4ce2bd4f0f94c116b2262fa9418809710278a8) ergänzt im Fork bereits abgedeckten Refresh; [`f93bdf0dd`](https://github.com/khoadng/Boorusama/commit/f93bdf0dd42c5eb0e8165d9070310a2aebfa32c1) betrifft D08. Vom Nutzer am 2026-10-15 bestätigt.
+
+## D02 – Bulk-Download-Finalisierung und Benachrichtigungen
+
+**Status: ENTSCHIEDEN · 2026-10-15 · Umsetzung ausstehend.** **Beschlussart:** angepasst übernehmen; Fork-Lifecycle-Schutz behalten.
+
+**Zielzustand / technische Grenzen:** Upstreams finale, nicht die zwischenzeitlich revertierte Timer-basierte Implementierung integrieren. Abgeschlossene Task-Records auch bei fehlgeschlagener Dateigrößenbestimmung als abgeschlossen markieren (`fileSize` dann unbekannt, Fehler protokollieren), danach Finalisierung prüfen. Concurrent Completion-Checks derselben Session serialisieren (Future-basierte `_completionChecks`-Sperre) und bereits abgeschlossene Sessions nicht erneut berechnen/aufräumen; finalen Statistik-Snapshot vor Task-/Record-Cleanup sichern. Zuletzt abgeschlossene Sessions als begrenzte `completedSessions`-Liste (Upstream: max. 100, nur im Speicher) im Download-Activity-State belassen, sodass eine kurzlebige UI-State-Änderung keine Completion-Notification verschluckt. Für abgeschlossene Aktivitäten Fortschritt 100 % anzeigen und doppelte Abschlussbenachrichtigungen vermeiden. Fork-eigene Notifier-/Session-Lifecycle-Guards und Download-Observer nicht durch vereinfachte Upstream-Version ersetzen.
+
+**Recovery / Grenzen:** Die neue In-Memory-Liste ist kein persistentes Notification-Log. Zusätzlich Crash-/Restart- und Cleanup-Fehlerfenster untersuchen, vor allem Status `completed` vor erfolgreichem `updateStatisticsAndCleanup`; idempotente/restartfähige Recovery sicherstellen, ohne Statistiken zu verlieren oder Notifications mehrfach zu senden. Eine ungeprüfte vollständige Transaktionsgarantie wird nicht behauptet.
+
+**Daten/API:** Bestehende persistente Bulk-Download-/Task-Repositories und Fork-Lifecycle-Strukturen erhalten; `completedSessions` ist zunächst ausschließlich abgeleiteter Runtime-State. Eventuell notwendige Persistenz-/Migrationsänderungen separat begründen und vor Umsetzung prüfen.
+
+**Abnahme / Tests:** Parallele vollständige Task-Events, Out-of-order/Replay, konkurrierende Finalisierung, fehlgeschlagener Dateigrößenresolver, korrekte Summen, Cleanup-Fehler/Retry, Cold-Start/Resume, Notification-Sichtbarkeit nach Entfernen aus aktiver Liste, höchstens eine Abschlussbenachrichtigung, max.-100-Limit und Lifecycle-Disposal. Vorhandene Fork-Regressionstests und Upstream-D02-Testfälle kombinieren.
+
+**Begründung / Quellen:** Upstream [`ebdfb05d9`](https://github.com/khoadng/Boorusama/commit/ebdfb05d9bec5be5c6fd6dd3e5460cea8ce1e1a1) revertiert die ursprüngliche deterministische Finalisierung nur vorübergehend; [`54b19cd4c`](https://github.com/khoadng/Boorusama/commit/54b19cd4cf77b3a75579a2b27aeccc1b1dc56ef5) führt serialisierte Completion, Fehlerbehandlung und History-for-Notifications wieder ein. Der Fork nutzt noch den älteren deterministischen Pfad plus eigene Lifecycle-Guards. Vom Nutzer am 2026-10-15 bestätigt.
+
 ## Weitere Entscheidungen
 
-**27/68 Themen ENTSCHIEDEN, 41 OFFEN.** Offen sind X03, D01–D08, B01–B10, P01–P14 und U01–U08. Die Entscheidungen sind **Planungsbeschlüsse, keine Implementierung**; weitere Merge-Arbeit erst nach ausdrücklicher Freigabe. Für U08 (Testpflege) bleibt die bisherige automatische Einordnung bestehen.
+**29/68 Themen ENTSCHIEDEN, 39 OFFEN.** Offen sind D01, D03–D08, B01–B10, P01–P14 und U01–U08. Die Entscheidungen sind **Planungsbeschlüsse, keine Implementierung**; weitere Merge-Arbeit erst nach ausdrücklicher Freigabe. Für U08 (Testpflege) bleibt die bisherige automatische Einordnung bestehen.
