@@ -1,6 +1,3 @@
-// Dart imports:
-import 'dart:io';
-
 /// A release APK described by the existing GitHub release receipt manifest.
 final class GitHubApkArtifact {
   const GitHubApkArtifact({
