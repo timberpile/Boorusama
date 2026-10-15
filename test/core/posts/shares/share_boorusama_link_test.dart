@@ -167,6 +167,9 @@ void main() {
     expect(copied.single, isNot(contains('must-not-leak')));
     verifyNever(fs.getTemporaryPath);
     verifyNever(() => cache.acquireFile(any()));
+    dismissAllToast(showAnim: false);
+    // Drain OKToast's fake-clock dismissal callbacks before disposing its host.
+    await tester.pump(const Duration(seconds: 5));
     await tester.pumpWidget(const SizedBox());
   });
 

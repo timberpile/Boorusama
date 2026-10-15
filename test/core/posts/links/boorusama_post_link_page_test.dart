@@ -425,8 +425,15 @@ void main() {
       const Duration(seconds: 5),
     );
     expect(tester.takeException(), isNull);
-    await tester.ensureVisible(find.text('Second'));
-    await tester.tap(find.text('Second'));
+    final target = find.byKey(ValueKey(second.id));
+    await Scrollable.ensureVisible(tester.element(target), alignment: 0.5);
+    await tester.pumpAndSettle(
+      const Duration(milliseconds: 100),
+      EnginePhase.sendSemanticsUpdate,
+      const Duration(seconds: 5),
+    );
+    expect(target.hitTestable(), findsOneWidget);
+    await tester.tap(target.hitTestable());
     await tester.pumpAndSettle(
       const Duration(milliseconds: 100),
       EnginePhase.sendSemanticsUpdate,
