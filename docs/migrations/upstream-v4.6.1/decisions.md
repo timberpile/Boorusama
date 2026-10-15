@@ -1,6 +1,6 @@
 # Upstream v4.6.1 – Entscheidungsprotokoll
 
-**Autoritativer Entscheidungsstand:** **29 von 68 Themen entschieden** (2026-10-15); **41 offen**, Umsetzung nicht freigegeben. Dieses Dokument enthält ausschließlich Analyse und explizit bestätigte künftige Beschlüsse. Referenz: [Katalog](boorusama-v4.6.1-entscheidungskatalog.md) und [Checkliste](boorusama-v4.6.1-checkliste.md).
+**Autoritativer Entscheidungsstand:** **29 von 68 Themen entschieden** (2026-10-15); **39 offen**, Umsetzung nicht freigegeben. Dieses Dokument enthält ausschließlich Analyse und explizit bestätigte künftige Beschlüsse. Referenz: [Katalog](boorusama-v4.6.1-entscheidungskatalog.md) und [Checkliste](boorusama-v4.6.1-checkliste.md).
 
 ## Entscheidungsformat
 
