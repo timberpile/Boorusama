@@ -16,29 +16,6 @@ final class BoorusamaPostLink extends Equatable {
     required this.postId,
   });
 
-  static const routePath = '/open';
-  static const maxLength = 4096;
-  static const _fields = {'v', 'engine', 'site', 'key'};
-  // Also safe on Dart's JavaScript targets; do not silently round a post ID.
-  static const _maxId = 9007199254740991;
-
-  final BooruType booruType;
-  final Uri site;
-  final String key;
-  final PostId postId;
-
-  Uri get uri => Uri(
-    scheme: 'boorusama',
-    host: 'post',
-    path: routePath,
-    queryParameters: {
-      'v': '1',
-      'engine': booruType.yamlName,
-      'site': site.toString(),
-      'key': key,
-    },
-  );
-
   factory BoorusamaPostLink.parse(String value) {
     if (value.length > maxLength ||
         value.isEmpty ||
@@ -81,6 +58,29 @@ final class BoorusamaPostLink extends Equatable {
       postId: postId,
     );
   }
+
+  static const routePath = '/open';
+  static const maxLength = 4096;
+  static const _fields = {'v', 'engine', 'site', 'key'};
+  // Also safe on Dart's JavaScript targets; do not silently round a post ID.
+  static const _maxId = 9007199254740991;
+
+  final BooruType booruType;
+  final Uri site;
+  final String key;
+  final PostId postId;
+
+  Uri get uri => Uri(
+    scheme: 'boorusama',
+    host: 'post',
+    path: routePath,
+    queryParameters: {
+      'v': '1',
+      'engine': booruType.yamlName,
+      'site': site.toString(),
+      'key': key,
+    },
+  );
 
   static BoorusamaPostLink? tryParse(String value) {
     try {
@@ -140,7 +140,7 @@ final class BoorusamaPostLink extends Equatable {
       };
 
   static final _unsafeText = RegExp(r'[\x00-\x20\x7f\\]');
-  static final _invalidEscape = RegExp(r'%(?![0-9a-fA-F]{2})');
+  static final _invalidEscape = RegExp('%(?![0-9a-fA-F]{2})');
   static final _positiveInteger = RegExp(r'^[1-9][0-9]*$');
   static final _sankakuId = RegExp(r'^[a-zA-Z0-9_-]{1,128}$');
 

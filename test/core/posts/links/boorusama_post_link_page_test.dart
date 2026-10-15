@@ -127,7 +127,11 @@ void main() {
         return dummyPost(id: 42);
       },
     );
-    await tester.pumpAndSettle(timeout: const Duration(seconds: 5));
+    await tester.pumpAndSettle(
+      const Duration(milliseconds: 100),
+      EnginePhase.sendSemanticsUpdate,
+      const Duration(seconds: 5),
+    );
     expect(find.text('Opened 42 with First'), findsOneWidget);
     expect(calls, [(address(42), first)]);
   });
@@ -148,14 +152,22 @@ void main() {
         return dummyPost(id: 42);
       },
     );
-    await tester.pumpAndSettle(timeout: const Duration(seconds: 5));
+    await tester.pumpAndSettle(
+      const Duration(milliseconds: 100),
+      EnginePhase.sendSemanticsUpdate,
+      const Duration(seconds: 5),
+    );
     expect(calls, isEmpty);
     expect(find.text('First'), findsOneWidget);
     expect(find.text('Second'), findsOneWidget);
     expect(find.text('second-account'), findsOneWidget);
     expect(find.text('Unrelated'), findsNothing);
     await tester.tap(find.text('Second'));
-    await tester.pumpAndSettle(timeout: const Duration(seconds: 5));
+    await tester.pumpAndSettle(
+      const Duration(milliseconds: 100),
+      EnginePhase.sendSemanticsUpdate,
+      const Duration(seconds: 5),
+    );
     expect(calls.single.$2, second);
     expect(find.text('Opened 42 with Second'), findsOneWidget);
   });
@@ -191,11 +203,19 @@ void main() {
           );
         },
       );
-      await tester.pumpAndSettle(timeout: const Duration(seconds: 5));
+      await tester.pumpAndSettle(
+        const Duration(milliseconds: 100),
+        EnginePhase.sendSemanticsUpdate,
+        const Duration(seconds: 5),
+      );
       expect(calls, isEmpty);
       expect(find.text('Add Profile'), findsOneWidget);
       await tester.tap(find.text('Add Profile'));
-      await tester.pumpAndSettle(timeout: const Duration(seconds: 5));
+      await tester.pumpAndSettle(
+        const Duration(milliseconds: 100),
+        EnginePhase.sendSemanticsUpdate,
+        const Duration(seconds: 5),
+      );
       expect(setupUri!.queryParameters['url'], 'https://site.test');
       expect(setupUri!.queryParameters['setAsCurrent'], 'false');
       await tester.tap(find.text('Create'));
@@ -206,7 +226,11 @@ void main() {
         reason: 'Do not load behind a still-open profile editor',
       );
       await tester.tap(find.text('Done'));
-      await tester.pumpAndSettle(timeout: const Duration(seconds: 5));
+      await tester.pumpAndSettle(
+        const Duration(milliseconds: 100),
+        EnginePhase.sendSemanticsUpdate,
+        const Duration(seconds: 5),
+      );
       expect(find.text('Opened 42 with First'), findsOneWidget);
       expect(calls, hasLength(1));
     },
@@ -230,15 +254,31 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle(timeout: const Duration(seconds: 5));
+    await tester.pumpAndSettle(
+      const Duration(milliseconds: 100),
+      EnginePhase.sendSemanticsUpdate,
+      const Duration(seconds: 5),
+    );
     await tester.tap(find.text('Add Profile'));
-    await tester.pumpAndSettle(timeout: const Duration(seconds: 5));
+    await tester.pumpAndSettle(
+      const Duration(milliseconds: 100),
+      EnginePhase.sendSemanticsUpdate,
+      const Duration(seconds: 5),
+    );
     await tester.tap(find.text('Cancel setup'));
-    await tester.pumpAndSettle(timeout: const Duration(seconds: 5));
+    await tester.pumpAndSettle(
+      const Duration(milliseconds: 100),
+      EnginePhase.sendSemanticsUpdate,
+      const Duration(seconds: 5),
+    );
     expect(find.text('Add Profile'), findsOneWidget);
     expect(calls, isEmpty);
     await tester.tap(find.byTooltip('Cancel'));
-    await tester.pumpAndSettle(timeout: const Duration(seconds: 5));
+    await tester.pumpAndSettle(
+      const Duration(milliseconds: 100),
+      EnginePhase.sendSemanticsUpdate,
+      const Duration(seconds: 5),
+    );
     expect(find.text('Home'), findsOneWidget);
   });
 
@@ -273,7 +313,11 @@ void main() {
     await tester.pump();
     expect(find.text('Opened 42 with First'), findsNothing);
     pending[43]!.complete(dummyPost(id: 43));
-    await tester.pumpAndSettle(timeout: const Duration(seconds: 5));
+    await tester.pumpAndSettle(
+      const Duration(milliseconds: 100),
+      EnginePhase.sendSemanticsUpdate,
+      const Duration(seconds: 5),
+    );
     expect(find.text('Opened 43 with First'), findsOneWidget);
   });
 
@@ -291,7 +335,11 @@ void main() {
         return null;
       },
     );
-    await tester.pumpAndSettle(timeout: const Duration(seconds: 5));
+    await tester.pumpAndSettle(
+      const Duration(milliseconds: 100),
+      EnginePhase.sendSemanticsUpdate,
+      const Duration(seconds: 5),
+    );
     expect(
       find.text(
         'This link is invalid or is not supported by this version of Boorusama.',
@@ -310,25 +358,46 @@ void main() {
       profiles: Profiles([first, second]),
       fetch: (request) async {
         calls++;
-        if (request.$2 == first)
+        if (request.$2 == first) {
           throw ServerError(
             httpStatusCode: 403,
             message: 'must-not-be-displayed',
           );
+        }
         return dummyPost(id: 42);
       },
     );
-    await tester.pumpAndSettle(timeout: const Duration(seconds: 5));
+    await tester.pumpAndSettle(
+      const Duration(milliseconds: 100),
+      EnginePhase.sendSemanticsUpdate,
+      const Duration(seconds: 5),
+    );
     await tester.tap(find.text('First'));
-    await tester.pumpAndSettle(timeout: const Duration(seconds: 5));
+    await tester.pumpAndSettle(
+      const Duration(milliseconds: 100),
+      EnginePhase.sendSemanticsUpdate,
+      const Duration(seconds: 5),
+    );
     expect(find.textContaining('must-not-be-displayed'), findsNothing);
     await tester.tap(find.text('Retry'));
-    await tester.pumpAndSettle(timeout: const Duration(seconds: 5));
+    await tester.pumpAndSettle(
+      const Duration(milliseconds: 100),
+      EnginePhase.sendSemanticsUpdate,
+      const Duration(seconds: 5),
+    );
     expect(calls, 2);
     await tester.tap(find.text('Choose another profile'));
-    await tester.pumpAndSettle(timeout: const Duration(seconds: 5));
+    await tester.pumpAndSettle(
+      const Duration(milliseconds: 100),
+      EnginePhase.sendSemanticsUpdate,
+      const Duration(seconds: 5),
+    );
     await tester.tap(find.text('Second'));
-    await tester.pumpAndSettle(timeout: const Duration(seconds: 5));
+    await tester.pumpAndSettle(
+      const Duration(milliseconds: 100),
+      EnginePhase.sendSemanticsUpdate,
+      const Duration(seconds: 5),
+    );
     expect(find.text('Opened 42 with Second'), findsOneWidget);
   });
 
@@ -350,11 +419,19 @@ void main() {
       textScale: 2,
       fetch: (_) async => null,
     );
-    await tester.pumpAndSettle(timeout: const Duration(seconds: 5));
+    await tester.pumpAndSettle(
+      const Duration(milliseconds: 100),
+      EnginePhase.sendSemanticsUpdate,
+      const Duration(seconds: 5),
+    );
     expect(tester.takeException(), isNull);
     await tester.ensureVisible(find.text('Second'));
     await tester.tap(find.text('Second'));
-    await tester.pumpAndSettle(timeout: const Duration(seconds: 5));
+    await tester.pumpAndSettle(
+      const Duration(milliseconds: 100),
+      EnginePhase.sendSemanticsUpdate,
+      const Duration(seconds: 5),
+    );
     expect(find.text('Retry'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

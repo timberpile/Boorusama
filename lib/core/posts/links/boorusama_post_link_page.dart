@@ -1,6 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
-import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 
 import '../../config_widgets/website_logo.dart';
@@ -59,7 +58,7 @@ class BoorusamaPostLinkPage extends ConsumerStatefulWidget {
 
 class _BoorusamaPostLinkPageState extends ConsumerState<BoorusamaPostLinkPage> {
   String? _selectedId;
-  bool _addingProfile = false;
+  var _addingProfile = false;
 
   @override
   void didUpdateWidget(BoorusamaPostLinkPage oldWidget) {
@@ -121,7 +120,7 @@ class _BoorusamaPostLinkPageState extends ConsumerState<BoorusamaPostLinkPage> {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
-                subtitle: profile.login?.isNotEmpty == true
+                subtitle: (profile.login?.isNotEmpty ?? false)
                     ? Text(profile.login!)
                     : null,
                 trailing: const Icon(Icons.chevron_right),

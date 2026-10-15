@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/configs/config/types.dart';
@@ -40,7 +39,7 @@ class _Lease extends ImageCacheFileLease {
   _Lease(this.path);
   @override
   final String path;
-  bool released = false;
+  var released = false;
   @override
   bool get isRetained => true;
   @override
@@ -128,7 +127,11 @@ Future<void> _pump(
     ),
   );
   await tester.tap(find.text('Links'));
-  await tester.pumpAndSettle(timeout: const Duration(seconds: 5));
+  await tester.pumpAndSettle(
+    const Duration(milliseconds: 100),
+    EnginePhase.sendSemanticsUpdate,
+    const Duration(seconds: 5),
+  );
 }
 
 void main() {
@@ -142,8 +145,9 @@ void main() {
     final copied = <String>[];
     final messenger = tester.binding.defaultBinaryMessenger;
     messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
-      if (call.method == 'Clipboard.setData')
+      if (call.method == 'Clipboard.setData') {
         copied.add((call.arguments as Map)['text'] as String);
+      }
       return null;
     });
     addTearDown(
@@ -151,7 +155,11 @@ void main() {
     );
     await _pump(tester, post: _post(), cache: cache, fs: fs);
     await tester.tap(find.byTooltip('Copy Boorusama link'));
-    await tester.pumpAndSettle(timeout: const Duration(seconds: 5));
+    await tester.pumpAndSettle(
+      const Duration(milliseconds: 100),
+      EnginePhase.sendSemanticsUpdate,
+      const Duration(seconds: 5),
+    );
     expect(copied, [
       BoorusamaPostLink.fromPost(_post(), auth: _auth)!.uri.toString(),
     ]);
@@ -267,7 +275,11 @@ void main() {
       fs: fs,
     );
     await tester.tap(find.byTooltip('Share image and Boorusama link'));
-    await tester.pumpAndSettle(timeout: const Duration(seconds: 5));
+    await tester.pumpAndSettle(
+      const Duration(milliseconds: 100),
+      EnginePhase.sendSemanticsUpdate,
+      const Duration(seconds: 5),
+    );
     expect(
       find.text(
         'No image is available to share with this link. You can still copy the link.',

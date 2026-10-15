@@ -41,7 +41,7 @@ abstract class AppClipboard {
   }) => _imageFileChannel.invokeMethod<void>('shareImageFile', {
     'path': path,
     'mimeType': mimeType,
-    if (text != null) 'text': text,
+    'text': ?text,
   });
 
   static Future<String?> paste(String format) async {

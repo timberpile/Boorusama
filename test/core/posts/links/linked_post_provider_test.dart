@@ -1,4 +1,3 @@
-import 'package:boorusama/boorus/pixiv/posts/post_data.dart';
 import 'package:boorusama/boorus/pixiv/posts/types.dart';
 import 'package:boorusama/boorus/sankaku/posts/post_data.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
@@ -11,7 +10,6 @@ import 'package:boorusama/core/posts/post/types.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:foundation/foundation.dart';
-import 'package:mocktail/mocktail.dart';
 
 import '../../../bulk_downloads/common.dart';
 import 'boorusama_post_link_test.dart' show config;
@@ -138,7 +136,7 @@ void main() {
       final result = await load(repository, reference, profile);
       expect(result, isNotNull);
       expect(repository.ids, [const NumericPostId(123001)]);
-      expect(BoorusamaPostLink.fromPost(result!)!, reference);
+      expect(BoorusamaPostLink.fromPost(result)!, reference);
       repository.result = dummyPost(
         id: 123001,
       ).copyWith(booruData: _pixivData(0));

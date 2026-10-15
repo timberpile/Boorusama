@@ -11,8 +11,9 @@ SharePayload boorusamaLinkImagePayload(Post post, String viewerImageUrl) {
     final uri = Uri.tryParse(value);
     if (uri == null ||
         uri.host.isEmpty ||
-        (uri.scheme != 'http' && uri.scheme != 'https'))
+        (uri.scheme != 'http' && uri.scheme != 'https')) {
       return false;
+    }
     final path = uri.path.toLowerCase();
     if (RegExp(r'\.(mp4|webm|mov|m4v|zip)$').hasMatch(path)) return false;
     // Even extensionless video URLs cannot become thumbnail payloads.
