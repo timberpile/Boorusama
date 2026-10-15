@@ -1,6 +1,6 @@
 # Boorusama v4.6.1 – kompakte Entscheidungscheckliste
 
-Grundlage `develop d4e1558` vs. Upstream `v4.6.1 5b04bf6`. **27/68 Themen entschieden, 41 offen** (2026-10-15). Beschlüsse dokumentieren Zielverhalten, noch keine Implementierung. Die vollständigen Details, Begründungen, Codestrukturen, SHA-Links und Konfliktpfade stehen in [der ausführlichen Liste](boorusama-v4.6.1-entscheidungskatalog.md).
+Grundlage `develop d4e1558` vs. Upstream `v4.6.1 5b04bf6`. **29/68 Themen entschieden, 39 offen** (2026-10-15). Beschlüsse dokumentieren Zielverhalten, noch keine Implementierung. Die vollständigen Details, Begründungen, Codestrukturen, SHA-Links und Konfliktpfade stehen in [der ausführlichen Liste](boorusama-v4.6.1-entscheidungskatalog.md).
 
 **Legende:** Kritisch = Datenverlust/Architekturrisiko · Hoch = funktionaler Merge-Konflikt · Mittel/Niedrig = gezielter Fix · „Automatisch“ nur nach Tests.
 
@@ -9,7 +9,7 @@ Grundlage `develop d4e1558` vs. Upstream `v4.6.1 5b04bf6`. **27/68 Themen entsch
 | **Querschnitt: Daten und Fork-Schutz** | | | |
 | `X01` | Hive-Feldindex 15: echte Schema-Kollision bei Bookmarks | 🔴 kritisch | **ENTSCHIEDEN (2026-10-15): Fork-Indizes 15/16 behalten; Original-ID bevorzugt aus Post-Daten ableiten; X02-Getter ebenfalls beschlossen** |
 | `X02` | Post-Identity/Origin vs Upstream sitePostId | 🔴 kritisch | **ENTSCHIEDEN (2026-10-15):** Post.sitePostId als gemeinsamen String?-Getter einführen. Für numerische Boorus die originale numerische ID als String, für Sankaku die ggf. alphanumerische Original-ID aus SankakuPo… |
-| `X03` | Fork-Export/Import, Profile-UUIDs und Following erhalten | 🔴 kritisch | OFFEN |
+| `X03` | Fork-Export/Import, Profile-UUIDs und Following erhalten | 🔴 kritisch | **ENTSCHIEDEN (2026-10-15):** Fork-Export/Import, Profile-UUIDs, Bookmark-/Pinned-Folder, Following und Identität unverändert schützen; Headless-Abstraktionen über A01/A12 kompatibel übernehmen. Kein zweiter Bookmark-Refresh-Listener; Favorite-Tag-Storage-Fix bleibt unter D08 separat offen. |
 | `X04` | Shared Post/Image Cache und Download-Lifecycle beibehalten | 🔴 kritisch | **ENTSCHIEDEN (2026-10-15):** Den gemeinsamen persistenten Fork-Image-Cache mit URL-MD5-Hash, Origin-Isolation, LRU, Quotas, Journal, Checkpoints und Performance-Fixes behalten. Physische .generation_-Dateien und… |
 | **Architektur / Plattform / Settings** | | | |
 | `A01` | App-Bootstrap, Runtime und Dependency Injection | 🔴 kritisch | **ENTSCHIEDEN (2026-10-15):** Upstream-Bootstrap/Runtime/Dependency Injection (BoorusamaBootstrapHost, Production-Bootstrap, Runtime, AppScope, External Effects) als führenden einzigen Startup-Pfad übernehmen; AL… |
@@ -39,7 +39,7 @@ Grundlage `develop d4e1558` vs. Upstream `v4.6.1 5b04bf6`. **27/68 Themen entsch
 | `N06` | HTTP/2-Window und automatisches Gzip | 🟡 mittel | **ENTSCHIEDEN (2026-10-15):** HTTP/2-Window- und Gzip-Verbesserungen übernehmen; Fork-Priorisierung, HTTP1-/Plattform-Fallback und mobile Speichergrenzen erhalten. |
 | **Downloads / Backup** | | | |
 | `D01` | Download Sidecars: TXT-Tags und JSON-Metadaten | 🟠 hoch | OFFEN |
-| `D02` | Bulk-Download-Finalisierung und Benachrichtigungen | 🔴 kritisch | OFFEN |
+| `D02` | Bulk-Download-Finalisierung und Benachrichtigungen | 🔴 kritisch | **ENTSCHIEDEN (2026-10-15):** Finale Upstream-Version angepasst übernehmen: robuste Dateigrößenfehlerbehandlung, serialisierte Session-Completion, Statistik-Snapshot und begrenzte In-Memory-Completion-History für Notifications; Fork-Lifecycle-Guards behalten, Crash-/Cleanup-Recovery absichern. |
 | `D03` | Background Downloader Plugin-Update | 🟡 niedrig–mittel | OFFEN |
 | `D04` | Download-Manager: injizierbarer Task-Client und Snapshot-Fix | 🟡 mittel | OFFEN |
 | `D05` | Anime-Pictures Bulk Download und Request-Pacing | 🟡 mittel | OFFEN |
@@ -82,6 +82,6 @@ Grundlage `develop d4e1558` vs. Upstream `v4.6.1 5b04bf6`. **27/68 Themen entsch
 | `U07` | Favorite Tags auf großen Screens im Dialog statt Sheet | 🟡 niedrig–mittel | OFFEN |
 | `U08` | Regressionstests und Flakiness-Fixes nachziehen | ⚪ niedrig | — (vorerst kein Review) |
 
-**Fortsetzung:** X03 und D01–D08; danach Booru-/Viewer-/UX-Themen. A02-Manuellcheckliste durch Agent **erstellen**, vom Nutzer **ausführen**.
+**Fortsetzung:** D01, D03–D08 sowie B01–B10 (aktuell im Review); danach Viewer-/UX-Themen. A02-Manuellcheckliste durch Agent **erstellen**, vom Nutzer **ausführen**.
 
 **Ergebnisschlüssel:** übernehmen · angepasst übernehmen · Fork beibehalten · nicht übernehmen.
