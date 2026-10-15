@@ -1,6 +1,6 @@
 # Upstream v4.6.1 – Entscheidungsprotokoll
 
-**Autoritativer Entscheidungsstand:** Noch **keine** Übernahme-/Ablehnungsentscheidung bestätigt. Dieses Dokument enthält ausschließlich Analyse und explizit bestätigte künftige Beschlüsse. Referenz: [Katalog](boorusama-v4.6.1-entscheidungskatalog.md) und [Checkliste](boorusama-v4.6.1-checkliste.md).
+**Autoritativer Entscheidungsstand:** **X01 entschieden** (2026-10-15); alle übrigen Themen weiterhin offen. Dieses Dokument enthält ausschließlich Analyse und explizit bestätigte künftige Beschlüsse. Referenz: [Katalog](boorusama-v4.6.1-entscheidungskatalog.md) und [Checkliste](boorusama-v4.6.1-checkliste.md).
 
 ## Entscheidungsformat
 
@@ -18,7 +18,7 @@ Vor der expliziten Nutzerentscheidung bleibt jeder Eintrag `OFFEN`; ein technisc
 
 ## X01 – Bookmark-Hive-Feldindex / ursprüngliche Site-Post-ID
 
-**Status: OFFEN · im Gespräch · Stand 2026-10-15.**
+**Status: ENTSCHIEDEN · 2026-10-15 · Umsetzung ausstehend.**
 
 ### Verifiziertes technisches Verhalten
 
@@ -28,14 +28,17 @@ Vor der expliziten Nutzerentscheidung bleibt jeder Eintrag `OFFEN`; ein technisc
 - Im Fork speichert `SankakuPostData` bereits die Sankaku-Original-ID; `StoredPostSnapshot` persistiert diese via `postSnapshot`. `PostOrigin` enthält die Herkunft, `BookmarkIdentity` einen standortbezogenen Post-Schlüssel.
 - **Persistenzkollision:** Fork Hive-Index `15 = snapshotSchemaVersion` (`int`), Index `16 = postSnapshot` (Map); Upstream Index `15 = sitePostId` (`String?`). Ein direkt übernommener Adapter kann vorhandene Daten falsch interpretieren.
 
-### Diskussionsgrundlage (keine Entscheidung)
+### Bestätigter Beschluss – Fork-Schema behalten; Upstream-Verhalten angepasst integrieren
 
-1. Vorhandene Hive-Indizes **15 und 16 erhalten**, nicht überschreiben.
-2. `sitePostId` als Ableitung aus der originären Post-Datenstruktur prüfen und mit X02 zusammen entscheiden.
-3. Nur falls persistente Ergänzung nötig: freien Hive-Feldindex verwenden, ältere Daten sicher migrieren und Testfixtures für beide Schemata vorsehen.
-4. Der interne, eventuell künstliche `int`-Wert darf die echte externe ID weder in Exporten noch beim Erstellen von Links oder Dateinamen ersetzen.
+**Entscheidung:** Die bestehenden Fork-Hive-Feldindizes **15 = `snapshotSchemaVersion`** und **16 = `postSnapshot`** bleiben unverändert. Den Upstream-Hive-Index 15 für `sitePostId` **nicht** übernehmen. Vorhandene Bookmark-Dateien und Backups müssen lesbar bleiben.
 
-**Noch offen:** Ist eine zusätzliche Hive-Persistierung nötig, oder reicht die schon gespeicherte Quell-ID im Fork-Snapshot? Endgültige Entscheidung gemeinsam mit X02.
+**Zielzustand:** Die ursprüngliche Site-Post-ID für Funktionen wie Links, Exporte und Dateinamen nach Möglichkeit aus bereits vorhandenen Post-Daten und Snapshots ableiten; keine redundante Persistenz ohne nachgewiesenen Bedarf einführen. Interne oder künstliche numerische IDs dürfen externe IDs nicht ersetzen.
+
+**Umsetzungsvorgabe:** Nur wenn sich bei X02 ein konkreter persistenter Datenbedarf zeigt, einen **separaten** Vorschlag für einen neuen freien Hive-Feldindex und eine rückwärtskompatible Migration vorlegen; dafür liegt mit X01 noch **keine** Freigabe vor.
+
+**Abhängigkeit:** X02 entscheidet über eine gemeinsame `sitePostId`-API beziehungsweise die genaue Quell-ID-Auflösung. X01 legt das persistente Schema fest, nicht bereits die Implementierung von X02.
+
+**Begründung:** Direkte Übernahme der Upstream-Indexbelegung würde das bestehende Fork-Schema mit einem inkompatiblen Datentyp kollidieren lassen. Bereits gespeicherte Original-IDs sollen wiederverwendet werden. Vom Nutzer am 2026-10-15 bestätigt.
 
 ### Verifikation
 
@@ -46,10 +49,10 @@ Vor der expliziten Nutzerentscheidung bleibt jeder Eintrag `OFFEN`; ein technisc
 
 ## X02 – Post-Identity / Herkunft
 
-**Status: OFFEN · anschließend gemeinsam mit X01 entscheiden.**
+**Status: OFFEN · X01 hat die bestehenden Hive-Indizes verbindlich festgelegt.**
 
 Zu klären: `PostOrigin`, `BookmarkIdentity`, `SankakuPostData` und das benötigte `sitePostId`-API so integrieren, dass Quell-IDs erhalten bleiben, ohne Fork-Identität oder Post-Snapshots zu destabilisieren.
 
 ## Weitere Entscheidungen
 
-Alle übrigen 66 Themen sind **OFFEN**. In der [Checkliste](boorusama-v4.6.1-checkliste.md) stehen die IDs in der vorgesehenen Reihenfolge; zukünftige bestätigte Beschlüsse werden hier ergänzt.
+Die übrigen **67 Themen** (einschließlich X02) sind **OFFEN**. In der [Checkliste](boorusama-v4.6.1-checkliste.md) stehen die IDs in der vorgesehenen Reihenfolge; zukünftige bestätigte Beschlüsse werden hier ergänzt.
