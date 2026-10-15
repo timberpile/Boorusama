@@ -29,21 +29,26 @@
 
 ## Entscheidungsstand (2026-10-15)
 
-**27 von 68 Themen beschlossen, 41 noch offen.** Alle 27 Entscheidungen stehen verbindlich in [decisions.md](decisions.md), zusammengefasst in Katalog und Checkliste. **Es wurde noch kein Upstream-Code integriert und keine Umsetzung freigegeben.**
+**29 von 68 Themen beschlossen, 39 noch offen.** Alle 29 Entscheidungen stehen verbindlich in [decisions.md](decisions.md), zusammengefasst in Katalog und Checkliste. **Es wurde noch kein Upstream-Code integriert und keine Umsetzung freigegeben.**
 
 - **A02:** Implementierender Agent schreibt nach dem UI-Umbau die wichtigsten manuellen Testfälle für den Nutzer; führt diese nicht selbst manuell durch.
 - **X04 + A09:** Cache-Generationen entfernen, URL-MD5/LRU/Checkpoints behalten; OS-Temp-Share-Kopie und vorhandenes >24h-Cleanup verwenden; Upstream read-only DocumentsProvider übernehmen.
 - **N01:** `ApiRequestCoordinator` behalten, Upstream-Retry-Fixes ohne zweiten Sliding-Window-Limiter übernehmen.
+- **X03:** Fork-Profile-UUIDs, Import/Export, Bookmark-/Pinned-Ordner und Following schützen; kompatible Test-/Factory-Boundaries über A01/A12; Favorite-Tag-Storage-Fix separat bei D08.
+- **D02:** Upstream-Completion-Fixes angepasst übernehmen, Fork-Lifecycle-Guards bewahren; Crash-/Cleanup-Recovery und Notification-Deduplizierung verifizieren.
 
 ## Fortschritt
 
 - [x] Basis-SHAs, Katalog und Checkliste gesichert
 - [x] X01: Fork-Hive-Indizes 15/16 behalten; Quell-IDs nach Möglichkeit ableiten
 - [x] X02: gemeinsamer `sitePostId`-Getter, Hive/Identität unverändert
+- [x] X03: Fork-Daten-/Identitätsinvarianten, Headless-Boundaries und Bookmark-Refresh geklärt
 - [x] X04: vereinfachter URL-MD5-Image-Cache ohne `generation_`; Temp-Share-Kopien
 - [x] A01–A18: Upstream-/Fork-Zielverhalten beschlossen
 - [x] N01–N06: Netzwerk-Zielverhalten beschlossen
-- [ ] X03 und D01–D08: Backup/Export/Downloads entscheiden
+- [x] D02: Bulk-Download-Finalisierung und Notification-Schutz entschieden
+- [ ] D01, D03–D08: übrige Backup-/Download-Punkte entscheiden
+- [ ] B01–B10: Booru-Kompatibilität prüfen und entscheiden
 - [ ] Alle nichttrivialen Punkte entschieden
 - [ ] Merge-Resolution gegen finalen Plan implementiert
 - [ ] Datenmigrationen und vollständige Regressionstests bestanden
