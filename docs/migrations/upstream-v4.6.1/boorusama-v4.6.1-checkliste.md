@@ -1,13 +1,13 @@
 # Boorusama v4.6.1 – kompakte Entscheidungscheckliste
 
-Grundlage `develop d4e1558` vs. Upstream `v4.6.1 5b04bf6`. **Alle Optionen offen**, bis gemeinsam entschieden. Die vollständigen Details, Begründungen, Codestrukturen, SHA-Links und Konfliktpfade stehen in [der ausführlichen Liste](boorusama-v4.6.1-entscheidungskatalog.md).
+Grundlage `develop d4e1558` vs. Upstream `v4.6.1 5b04bf6`. **X01 entschieden**, alle übrigen Optionen offen, bis gemeinsam entschieden. Die vollständigen Details, Begründungen, Codestrukturen, SHA-Links und Konfliktpfade stehen in [der ausführlichen Liste](boorusama-v4.6.1-entscheidungskatalog.md).
 
 **Legende:** Kritisch = Datenverlust/Architekturrisiko · Hoch = funktionaler Merge-Konflikt · Mittel/Niedrig = gezielter Fix · „Automatisch“ nur nach Tests.
 
 | ID | Konkrete Änderung / Entscheidungsgegenstand | Risiko | Offizieller Beschluss |
 |---|---|---|---|
 | **Querschnitt: Daten und Fork-Schutz** | | | |
-| `X01` | Hive-Feldindex 15: echte Schema-Kollision bei Bookmarks | 🔴 kritisch | OFFEN |
+| `X01` | Hive-Feldindex 15: echte Schema-Kollision bei Bookmarks | 🔴 kritisch | **ENTSCHIEDEN (2026-10-15): Fork-Indizes 15/16 behalten; Original-ID bevorzugt aus Post-Daten ableiten; API-Frage X02 offen** |
 | `X02` | Post-Identity/Origin vs Upstream sitePostId | 🔴 kritisch | OFFEN |
 | `X03` | Fork-Export/Import, Profile-UUIDs und Following erhalten | 🔴 kritisch | OFFEN |
 | `X04` | Shared Post/Image Cache und Download-Lifecycle beibehalten | 🔴 kritisch | OFFEN |
