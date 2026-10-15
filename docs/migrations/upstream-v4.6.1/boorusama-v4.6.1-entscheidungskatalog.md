@@ -846,12 +846,12 @@ Für jedes Thema eines von **(a) vollständig übernehmen**, **(b) angepasst üb
 
 ### X01 · Hive-Feldindex 15: echte Schema-Kollision bei Bookmarks
 
-**Status:** Entscheidung; Entscheidung: **OFFEN** · **Risiko:** 🔴 kritisch.
+**Status:** **ENTSCHIEDEN am 2026-10-15**, Umsetzung ausstehend · **Risiko:** 🔴 kritisch. Siehe [verbindliches Entscheidungsprotokoll](decisions.md#x01--bookmark-hive-feldindex--ursprüngliche-site-post-id).
 
 - **Änderung in Upstream:** Upstream führt `BookmarkHiveObject.sitePostId` an Hive-Feldindex **15** ein.
 - **Fork / potenzieller Konflikt:** Fork nutzt Index **15** bereits für `snapshotSchemaVersion` und **16** für `postSnapshot`; hier darf kein unverändertes generiertes Upstream-Adapter-Schema übernommen werden.
-- **Zu entscheiden:** Neuer konfliktfreier Index für `sitePostId` oder ausschließlich Fork-Snapshot-Felder nutzen? Welche Migration?
-- **Arbeitshypothese (nicht beschlossen):** Fork-Indizes 15/16 erhalten; falls `sitePostId` nötig, neuen Index ab 17 und versionierte Migration/Adapter-Tests.
+- **Beschluss:** Fork-Indizes 15/16 unverändert lassen. Die Quell-ID nach Möglichkeit aus bereits persistierten Post-/Snapshot-Daten ableiten. Keine direkte Übernahme von Upstreams `sitePostId` auf Index 15.
+- **Offene technische Abhängigkeit X02:** Eine gemeinsame `sitePostId`-Schnittstelle und eventueller Bedarf für zusätzliche Persistenz werden separat entschieden; kein weiterer Hive-Index ist bisher freigegeben.
 - **Abnahme/Test:** Echte alte SQLite/Hive/Backup-Testfixtures, Upgrades, Crash-Safety und Restore.
 - **Upstream-Commits:** [`216eb6e6d`](https://github.com/khoadng/Boorusama/commit/216eb6e6d43cef2581a110b66a8f1482d110e7b9).
 - **Betroffene Codepfade (Auswahl):** `lib/core/bookmarks/src/data/hive/bookmark_hive_object.dart`, `lib/core/hive/hive_adapters.g.yaml`.
