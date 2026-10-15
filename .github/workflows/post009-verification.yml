@@ -36,7 +36,7 @@ jobs:
         run: |
           if test -f .github/post009.patch.xz; then
             xz -dc .github/post009.patch.xz > "$RUNNER_TEMP/post009.patch"
-            printf '%s  %s\n' 'b496a11a65090b73c12783d9ea0f1b28b964339d49e2033fd78b8b2632b9a119' "$RUNNER_TEMP/post009.patch" | sha256sum --check
+            printf '%s  %s\n' '181a5f3a85a6d1c151d81a45ff2c2e780bc504a28812ac9b53f6fedca14446a4' "$RUNNER_TEMP/post009.patch" | sha256sum --check
             git apply --check "$RUNNER_TEMP/post009.patch"
             git apply --index "$RUNNER_TEMP/post009.patch"
             git rm .github/post009.patch.xz
@@ -51,7 +51,7 @@ jobs:
             xargs -0 -r -a "$RUNNER_TEMP/post009-files" git add --
             git config user.name 'Boorusama task verification'
             git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-            git commit -m 'test: correct post-link fixtures and platform route delivery'
+            git commit -m 'test: fix bounded widget pumps and post-link lint findings'
             git push origin HEAD:refs/heads/feature/POST-009-boorusama-links
           fi
           git rev-parse HEAD | tee "$RUNNER_TEMP/post009-checked.txt"
