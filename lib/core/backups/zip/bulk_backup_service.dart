@@ -22,13 +22,14 @@ import '../../configs/manage/providers.dart';
 import '../preparation/version_checking.dart';
 import '../preparation/preparation_pipeline.dart';
 import '../sources/search_backup_import_preflight.dart';
-import '../sources/following_feeds_source.dart';
-import '../sources/pinned_searches_source.dart';
+import '../sources/topic_feeds_source.dart';
+import '../sources/following_topics_source.dart';
 import '../sources/providers.dart';
 import '../types/backup_data_source.dart';
 import '../types/backup_registry.dart';
 import '../utils/backup_utils.dart';
 import 'types.dart';
+import '../../search/following_topics/src/compatibility/topic_storage_contract.dart';
 
 class ZipCreationMessage {
   const ZipCreationMessage({
@@ -615,8 +616,8 @@ class BulkBackupService {
         }
       }
 
-      final pinnedSource = registry.getSource('pinned_searches');
-      final feedSource = registry.getSource('following_feeds');
+      final topicsSource = registry.getSource(followingTopicsBackupSourceId);
+      final feedSource = registry.getSource(topicFeedsBackupSourceId);
       final selectedIds = (onlySourceIds ?? sourcesToProcess).toSet();
       var profilesFailed =
           selectedIds.contains('profiles') && !prepared.containsKey('profiles');
@@ -625,10 +626,10 @@ class BulkBackupService {
           : await preflightSearchBackups(
               prepared: prepared,
               selectedIds: selectedIds,
-              pinnedSource: pinnedSource is PinnedSearchesBackupSource
-                  ? pinnedSource
+              topicsSource: topicsSource is FollowingTopicsBackupSource
+                  ? topicsSource
                   : null,
-              feedSource: feedSource is FollowingFeedsBackupSource
+              feedSource: feedSource is TopicFeedsBackupSource
                   ? feedSource
                   : null,
               currentProfiles: () => ref.read(booruConfigRepoProvider).getAll(),
@@ -638,7 +639,10 @@ class BulkBackupService {
             );
       for (final entry in prepared.entries) {
         if (profilesFailed &&
-            {'pinned_searches', 'following_feeds'}.contains(entry.key)) {
+            {
+              followingTopicsBackupSourceId,
+              topicFeedsBackupSourceId,
+            }.contains(entry.key)) {
           failed.add(entry.key);
           continue;
         }

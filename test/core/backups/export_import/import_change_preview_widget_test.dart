@@ -146,7 +146,7 @@ void main() {
                     ],
                   ),
                 ],
-                sourceNames: const {'following_feeds': 'Following feeds'},
+                sourceNames: const {'following_feeds': 'Topic feeds'},
                 profileNames: const {'old-id': 'Personal', 'new-id': 'Work'},
               ),
             ),
@@ -156,7 +156,7 @@ void main() {
     );
     await tester.tap(find.text('Planned changes'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Following feeds'));
+    await tester.tap(find.text('Topic feeds'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Artist watch → Favorite artists'));
     await tester.pumpAndSettle();
@@ -202,7 +202,7 @@ void main() {
                       ],
                     ),
                 ],
-                sourceNames: const {'following_feeds': 'Following feeds'},
+                sourceNames: const {'following_feeds': 'Topic feeds'},
                 profileNames: const {},
               ),
             ),
@@ -214,7 +214,7 @@ void main() {
       await tester.tap(find.text('Planned changes'));
       await tester.pumpAndSettle();
       expect(find.text('5 changes'), findsNWidgets(2));
-      await tester.tap(find.text('Following feeds'));
+      await tester.tap(find.text('Topic feeds'));
       await tester.pumpAndSettle();
       expect(find.text('2 changes'), findsOneWidget);
       expect(find.text('+2'), findsOneWidget);
@@ -246,7 +246,7 @@ void main() {
               child: ImportChangePreview(
                 rows: [
                   ImportChangePreviewRow(
-                    category: 'pinned_folders',
+                    category: 'topic_folders',
                     id: 'home',
                     kind: ImportChangeKind.changed,
                     label: '__home',
@@ -255,14 +255,14 @@ void main() {
                     children: [
                       ImportChangePreviewRow(
                         category: 'pinned_searches',
-                        id: 'pin',
+                        id: 'topic',
                         kind: ImportChangeKind.added,
                         label: 'cat',
                       ),
                     ],
                   ),
                 ],
-                sourceNames: const {'pinned_searches': 'Pinned searches'},
+                sourceNames: const {'pinned_searches': 'Topics'},
                 profileNames: const {},
               ),
             ),
@@ -273,7 +273,7 @@ void main() {
     expect(find.text('1 change'), findsOneWidget);
     await tester.tap(find.text('Planned changes'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Pinned searches'));
+    await tester.tap(find.text('Topics'));
     await tester.pumpAndSettle();
     expect(find.text('1 change'), findsNWidgets(3));
     expect(find.text('+1'), findsNWidgets(3));
@@ -316,7 +316,7 @@ void main() {
                           entityChanged: false,
                         ),
                         ImportChangePreviewRow(
-                          category: 'pinned_folders',
+                          category: 'topic_folders',
                           id: 'folder',
                           kind: ImportChangeKind.changed,
                           label: 'Inspiration',
@@ -325,7 +325,7 @@ void main() {
                           children: [
                             ImportChangePreviewRow(
                               category: 'pinned_searches',
-                              id: 'pin',
+                              id: 'topic',
                               kind: ImportChangeKind.added,
                               label: 'scenery sky',
                               profileId: 'profile',
@@ -335,7 +335,7 @@ void main() {
                       ],
                       sourceNames: const {
                         'bookmarks': 'Bookmark groups',
-                        'pinned_searches': 'Pinned searches',
+                        'pinned_searches': 'Topics',
                       },
                       profileNames: const {'profile': 'Personal'},
                     ),
@@ -360,18 +360,18 @@ void main() {
         expect(find.text('Long bookmark collection title'), findsOneWidget);
         expect(find.text('scenery sky'), findsNothing);
         await tester.ensureVisible(
-          find.text('Pinned searches'),
+          find.text('Topics'),
         );
         await tester.tap(
-          find.text('Pinned searches'),
+          find.text('Topics'),
         );
         await tester.pumpAndSettle();
         expect(find.text('Long bookmark collection title'), findsOneWidget);
         expect(find.text('scenery sky'), findsNothing);
         expect(find.text('Personal'), findsNothing);
-        expect(find.text('Pinned searches'), findsOneWidget);
+        expect(find.text('Topics'), findsOneWidget);
         expect(
-          find.byKey(const ValueKey('change-category-pinned_folders')),
+          find.byKey(const ValueKey('change-category-topic_folders')),
           findsNothing,
         );
         expect(find.textContaining('Unchanged and skipped'), findsNothing);

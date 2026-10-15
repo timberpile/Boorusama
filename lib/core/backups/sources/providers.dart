@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 // Project imports:
 import '../../bookmarks/providers.dart';
 import '../../configs/manage/providers.dart';
-import '../../search/subscriptions/providers.dart';
+import '../../search/following_topics/providers.dart';
 import '../export_import/models/export_selection.dart';
 import '../export_import/sources/export_selection_ids.dart';
 import '../export_import/sources/export_import_source.dart';
@@ -19,12 +19,13 @@ import 'bookmarks_source.dart';
 import 'booru_configs_source.dart';
 import 'downloads_source.dart';
 import 'favorite_tags_source.dart';
-import 'following_feeds_source.dart';
-import 'following_feed_backup_data.dart';
-import 'pinned_searches_source.dart';
-import 'pinned_search_backup_data.dart';
+import 'topic_feeds_source.dart';
+import 'topic_feed_backup_data.dart';
+import 'following_topics_source.dart';
+import 'following_topic_backup_data.dart';
 import 'search_history_source.dart';
 import 'settings_source.dart';
+import '../../search/following_topics/src/compatibility/topic_storage_contract.dart';
 
 final booruConfigsBackupSourceProvider = Provider<BooruConfigsBackupSource>((
   ref,
@@ -61,46 +62,46 @@ final bookmarksBackupSourceProvider = Provider<BookmarksBackupSource>((ref) {
   return BookmarksBackupSource(ref);
 });
 
-final pinnedSearchesBackupSourceProvider =
+final followingTopicsBackupSourceProvider =
     NotifierProvider<
-      PinnedSearchesBackupSourceNotifier,
-      PinnedSearchesBackupSource
+      FollowingTopicsBackupSourceNotifier,
+      FollowingTopicsBackupSource
     >(
-      PinnedSearchesBackupSourceNotifier.new,
+      FollowingTopicsBackupSourceNotifier.new,
     );
 
-class PinnedSearchesBackupSourceNotifier
-    extends Notifier<PinnedSearchesBackupSource> {
+class FollowingTopicsBackupSourceNotifier
+    extends Notifier<FollowingTopicsBackupSource> {
   @override
-  PinnedSearchesBackupSource build() => PinnedSearchesBackupSource(ref);
+  FollowingTopicsBackupSource build() => FollowingTopicsBackupSource(ref);
 }
 
-final followingFeedsBackupSourceProvider =
-    NotifierProvider<
-      FollowingFeedsBackupSourceNotifier,
-      FollowingFeedsBackupSource
-    >(
-      FollowingFeedsBackupSourceNotifier.new,
+final topicFeedsBackupSourceProvider =
+    NotifierProvider<TopicFeedsBackupSourceNotifier, TopicFeedsBackupSource>(
+      TopicFeedsBackupSourceNotifier.new,
     );
 
-class FollowingFeedsBackupSourceNotifier
-    extends Notifier<FollowingFeedsBackupSource> {
+class TopicFeedsBackupSourceNotifier extends Notifier<TopicFeedsBackupSource> {
   @override
-  FollowingFeedsBackupSource build() => FollowingFeedsBackupSource(ref);
+  TopicFeedsBackupSource build() => TopicFeedsBackupSource(ref);
 }
 
 final exportImportSourcesProvider = Provider<List<ExportImportSource>>((ref) {
   final profiles = ref.watch(booruConfigProvider);
   final bookmarks = ref.watch(bookmarkProvider).valueOrNull;
-  final searches = ref.watch(searchSubscriptionsProvider).valueOrNull;
+  final searches = ref.watch(followingTopicsProvider).valueOrNull;
+  final folderIds =
+      searches?.organization.folders.map((folder) => folder.id).toSet() ??
+      <String>{};
   final internalSearchIds = <String>{
-    for (final feed in searches?.feeds ?? const []) ...feed.sourceIds,
+    for (final feed in searches?.feeds ?? const [])
+      if (!folderIds.contains(feed.id)) ...feed.sourceIds,
   };
   final selectableSearches = {
-    for (final search in searches?.subscriptions ?? const [])
+    for (final search in searches?.topics ?? const [])
       if (!internalSearchIds.contains(search.id)) search.id: search,
   };
-  final pinnedSearchChildren = [
+  final followingTopicChildren = [
     ...buildFolderSelectionNodes(
       folders: searches?.organization.folders ?? [],
       folderPrefix: 'folder:',
@@ -109,17 +110,17 @@ final exportImportSourcesProvider = Provider<List<ExportImportSource>>((ref) {
           f.id: [
             for (final id in f.searchIds)
               if (selectableSearches.containsKey(id))
-                ExportSelectionNode(id: ExportSelectionIds.pinnedSearch(id)),
+                ExportSelectionNode(id: ExportSelectionIds.followingTopic(id)),
           ],
       },
     ),
     ExportSelectionNode(
-      id: ExportSelectionIds.pinnedSearchHome,
+      id: ExportSelectionIds.followingTopicHome,
       canHaveChildren: true,
       children: [
         for (final id in searches?.organization.homeSearchIds ?? const [])
           if (selectableSearches.containsKey(id))
-            ExportSelectionNode(id: ExportSelectionIds.pinnedSearch(id)),
+            ExportSelectionNode(id: ExportSelectionIds.followingTopic(id)),
       ],
     ),
   ];
@@ -182,40 +183,41 @@ final exportImportSourcesProvider = Provider<List<ExportImportSource>>((ref) {
       },
     ),
     LegacyJsonSourceAdapter(
-      source: ref.watch(pinnedSearchesBackupSourceProvider),
+      source: ref.watch(followingTopicsBackupSourceProvider),
       descriptor: ExportSelectionDescriptor.collection(
-        id: 'pinned_searches',
-        children: pinnedSearchChildren,
+        id: followingTopicsBackupSourceId,
+        children: followingTopicChildren,
       ),
       scopeBuilder: (selection) => switch (selection.kind) {
-        ExportNodeSelectionKind.all => const PinnedSearchExportScope.all(),
-        ExportNodeSelectionKind.explicit => PinnedSearchExportScope.selected(
+        ExportNodeSelectionKind.all => const FollowingTopicExportScope.all(),
+        ExportNodeSelectionKind.explicit => FollowingTopicExportScope.selected(
           searchIds: selection.childIds
-              .map(ExportSelectionIds.pinnedSearchId)
+              .map(ExportSelectionIds.followingTopicId)
               .whereType<String>(),
           folderIds: selection.childIds
-              .map(ExportSelectionIds.pinnedSearchFolderId)
+              .map(ExportSelectionIds.followingTopicFolderId)
               .whereType<String>(),
           includeHome: selection.childIds.contains(
-            ExportSelectionIds.pinnedSearchHome,
+            ExportSelectionIds.followingTopicHome,
           ),
         ),
       },
     ),
     LegacyJsonSourceAdapter(
-      source: ref.watch(followingFeedsBackupSourceProvider),
+      source: ref.watch(topicFeedsBackupSourceProvider),
       descriptor: ExportSelectionDescriptor.collection(
-        id: 'following_feeds',
+        id: topicFeedsBackupSourceId,
         childIds: {
           for (final feed in searches?.feeds ?? const [])
-            ExportSelectionIds.followingFeed(feed.id),
+            if (!folderIds.contains(feed.id))
+              ExportSelectionIds.topicFeed(feed.id),
         },
       ),
       scopeBuilder: (selection) => switch (selection.kind) {
-        ExportNodeSelectionKind.all => const FollowingFeedExportScope.all(),
-        ExportNodeSelectionKind.explicit => FollowingFeedExportScope.selected(
+        ExportNodeSelectionKind.all => const TopicFeedExportScope.all(),
+        ExportNodeSelectionKind.explicit => TopicFeedExportScope.selected(
           selection.childIds
-              .map(ExportSelectionIds.followingFeedId)
+              .map(ExportSelectionIds.topicFeedId)
               .whereType<String>(),
         ),
       },
@@ -232,8 +234,8 @@ final backupRegistryProvider = Provider<BackupRegistry>((ref) {
     ..register(ref.read(downloadsBackupSourceProvider))
     ..register(ref.read(blacklistedTagsBackupSourceProvider))
     ..register(ref.read(bookmarksBackupSourceProvider))
-    ..register(ref.watch(pinnedSearchesBackupSourceProvider))
-    ..register(ref.watch(followingFeedsBackupSourceProvider));
+    ..register(ref.watch(followingTopicsBackupSourceProvider))
+    ..register(ref.watch(topicFeedsBackupSourceProvider));
   return registry;
 });
 
@@ -246,6 +248,6 @@ final allBackupSourcesProvider = Provider<void>((ref) {
     ..watch(downloadsBackupSourceProvider)
     ..watch(blacklistedTagsBackupSourceProvider)
     ..watch(bookmarksBackupSourceProvider)
-    ..watch(pinnedSearchesBackupSourceProvider)
-    ..watch(followingFeedsBackupSourceProvider);
+    ..watch(followingTopicsBackupSourceProvider)
+    ..watch(topicFeedsBackupSourceProvider);
 });

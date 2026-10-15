@@ -2,18 +2,18 @@ import 'package:boorusama/core/backups/export_import/import/collection_import_ac
 import 'package:boorusama/core/backups/export_import/models/import_action.dart';
 import 'package:boorusama/core/backups/sources/bookmark_backup_codec.dart';
 import 'package:boorusama/core/backups/sources/bookmark_backup_data.dart';
-import 'package:boorusama/core/backups/sources/pinned_search_backup_codec.dart';
-import 'package:boorusama/core/backups/sources/pinned_search_backup_data.dart';
-import 'package:boorusama/core/backups/sources/pinned_search_import_service.dart';
+import 'package:boorusama/core/backups/sources/following_topic_backup_codec.dart';
+import 'package:boorusama/core/backups/sources/following_topic_backup_data.dart';
+import 'package:boorusama/core/backups/sources/following_topic_import_service.dart';
 import 'package:boorusama/core/backups/sources/search_backup_profile.dart';
 import 'package:boorusama/core/backups/types.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/groups/folder_tree.dart';
-import 'package:boorusama/core/search/subscriptions/src/data/hive/search_subscription_repository_hive.dart';
-import 'package:boorusama/core/search/subscriptions/types.dart';
+import 'package:boorusama/core/search/following_topics/src/data/hive/following_topic_repository_hive.dart';
+import 'package:boorusama/core/search/following_topics/types.dart';
 import 'package:flutter_test/flutter_test.dart';
-import '../search/subscriptions/subscription_test_utils.dart';
+import '../search/following_topics/topic_test_utils.dart';
 
 String _id(int n) => '00000000-0000-4000-8000-${n.toString().padLeft(12, '0')}';
 final _profile = BooruConfig.fromJson({
@@ -41,9 +41,9 @@ ExportDataPayload _payload(
   data: rows,
   extraFields: {'source': source, ...extra},
 );
-PinnedSearchBackupData _nested() => PinnedSearchBackupData(
+FollowingTopicBackupData _nested() => FollowingTopicBackupData(
   records: [
-    PinnedSearchBackupRecord(
+    FollowingTopicBackupRecord(
       id: _id(1),
       name: 'One',
       query: 'cat',
@@ -52,7 +52,7 @@ PinnedSearchBackupData _nested() => PinnedSearchBackupData(
       folderId: _id(12),
       folderPosition: 0,
     ),
-    PinnedSearchBackupRecord(
+    FollowingTopicBackupRecord(
       id: _id(2),
       name: 'Two',
       query: 'dog',
@@ -63,27 +63,27 @@ PinnedSearchBackupData _nested() => PinnedSearchBackupData(
     ),
   ],
   folders: [
-    PinnedSearchFolderBackupRecord(
+    FollowingTopicFolderBackupRecord(
       id: _id(10),
       name: 'Literal // root',
       position: 0,
       searchIds: [],
     ),
-    PinnedSearchFolderBackupRecord(
+    FollowingTopicFolderBackupRecord(
       id: _id(11),
       name: 'Middle',
       parentId: _id(10),
       position: 0,
       searchIds: [],
     ),
-    PinnedSearchFolderBackupRecord(
+    FollowingTopicFolderBackupRecord(
       id: _id(12),
       name: 'Leaf',
       parentId: _id(11),
       position: 0,
       searchIds: [_id(1), _id(2)],
     ),
-    PinnedSearchFolderBackupRecord(
+    FollowingTopicFolderBackupRecord(
       id: _id(13),
       name: 'Empty',
       parentId: _id(11),
@@ -116,8 +116,8 @@ void main() {
         name: null,
       );
       final records = _nested().records;
-      await PinnedSearchImportService(repository: repository).apply(
-        PinnedSearchBackupData(
+      await FollowingTopicImportService(repository: repository).apply(
+        FollowingTopicBackupData(
           records: records,
           homeSearchIds: [_id(2), _id(1)],
         ),
@@ -133,7 +133,7 @@ void main() {
   test(
     'version-2 pin backups store leaf placements and restore exact nested and empty folders',
     () async {
-      final codec = PinnedSearchBackupCodec();
+      final codec = FollowingTopicBackupCodec();
       final original = _nested();
       final encoded = codec.encode(original);
       expect(
@@ -145,7 +145,7 @@ void main() {
       final parsed = codec.parse(_payload('pinned_searches', 2, encoded));
       expect(parsed, original);
       final repository = memorySubscriptionRepository();
-      await PinnedSearchImportService(
+      await FollowingTopicImportService(
         repository: repository,
       ).replace(parsed, profiles: [_profile]);
       final saved = await repository.getOrganization();
@@ -172,7 +172,7 @@ void main() {
         kind: SearchRefreshErrorKind.network,
       );
       final before = await repository.getById(existing.id);
-      final service = PinnedSearchImportService(repository: repository);
+      final service = FollowingTopicImportService(repository: repository);
       await service.apply(_nested(), profiles: [_profile]);
       final organization = await repository.getOrganization();
       expect(await repository.getById(existing.id), before);
@@ -208,7 +208,7 @@ void main() {
         name: null,
         id: _id(1),
       );
-      await PinnedSearchImportService(repository: repository).apply(
+      await FollowingTopicImportService(repository: repository).apply(
         _nested(),
         profiles: [_profile],
         recordActions: {_id(2): ImportAction.skip},
@@ -234,10 +234,10 @@ void main() {
     },
   );
   test(
-    'failed pin import restores organization and removes newly created subscriptions',
+    'failed pin import restores organization and removes newly created topics',
     () async {
       final storage = _FailOnceFolders();
-      final repository = HiveSearchSubscriptionRepository(
+      final repository = HiveFollowingTopicRepository(
         box: MemorySubscriptionBox(),
         organizationBox: storage,
       );
@@ -249,7 +249,7 @@ void main() {
       final before = await repository.getOrganization();
       storage.failNextWrite = true;
       await expectLater(
-        PinnedSearchImportService(
+        FollowingTopicImportService(
           repository: repository,
         ).apply(_nested(), profiles: [_profile]),
         throwsStateError,
@@ -261,9 +261,9 @@ void main() {
   test(
     'selective pin export keeps empty-folder ancestors and excludes sibling searches',
     () {
-      final selected = filterPinnedSearchBackupData(
+      final selected = filterFollowingTopicBackupData(
         _nested(),
-        PinnedSearchExportScope.selected(
+        FollowingTopicExportScope.selected(
           searchIds: [],
           folderIds: [_id(13)],
           includeHome: false,
@@ -271,11 +271,11 @@ void main() {
       );
       expect(selected.records, isEmpty);
       expect(selected.folders.map((f) => f.id), [_id(10), _id(11), _id(13)]);
-      final parsed = PinnedSearchBackupCodec().parse(
+      final parsed = FollowingTopicBackupCodec().parse(
         _payload(
           'pinned_searches',
           2,
-          PinnedSearchBackupCodec().encode(selected),
+          FollowingTopicBackupCodec().encode(selected),
         ),
       );
       expect(parsed, selected);
@@ -362,7 +362,7 @@ void main() {
           throwsA(isA<InvalidBackupFormatException>()),
         );
       }
-      final pinned = PinnedSearchBackupCodec();
+      final pinned = FollowingTopicBackupCodec();
       final encoded = pinned.encode(_nested());
       (encoded.first as Map)['parentId'] = _id(12);
       expect(

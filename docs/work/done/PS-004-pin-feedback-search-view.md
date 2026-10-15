@@ -36,7 +36,7 @@ feedback must not appear over a subsequently opened post.
 - `lib/core/search/search/src/widgets/search_page_scaffold.dart` currently
   shows pinning success and failure feedback through `ScaffoldMessenger`.
 - `lib/core/search/subscriptions/src/services/search_refresh_service.dart`
-- [Subsystem documentation](../../pinned_searches.md)
+- [Subsystem documentation](../../following_topics.md)
 - Validate Android UI behavior with Maestro as required by `AGENTS.md`.
 
 ## Completion evidence

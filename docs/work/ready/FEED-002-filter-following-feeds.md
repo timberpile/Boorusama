@@ -40,7 +40,7 @@ requesting posts.
 Each feed already stores one owning `profileId`; this ticket adds no feed
 storage or network search behavior.
 
-- [Pinned-search and feed subsystem](../../pinned_searches.md)
-- [Following Feeds overview](../../../lib/core/search/subscriptions/src/pages/following_feeds_page.dart)
+- [Pinned-search and feed subsystem](../../following_topics.md)
+- [Following Feeds overview](../../../lib/core/search/following_topics/src/pages/topic_feeds_page.dart)
 
 Dependencies: None.

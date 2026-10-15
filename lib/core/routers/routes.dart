@@ -26,7 +26,7 @@ import '../posts/post/routes.dart';
 import '../premiums/routes.dart';
 import '../router.dart';
 import '../search/search/routes.dart';
-import '../search/subscriptions/routes.dart';
+import '../search/following_topics/routes.dart';
 import '../settings/routes.dart';
 import '../tags/favorites/routes.dart';
 import '../widgets/widgets.dart';
@@ -80,8 +80,9 @@ class Routes {
       settingsRoutes,
       settingsDesktopRoutes,
       bookmarkRoutes,
-      pinnedSearchRoutes,
-      followingFeedRoutes,
+      followingTopicRoutes,
+      topicFeedRoutes,
+      ...legacyFollowingTopicRoutes,
       globalBlacklistedTagsRoutes,
       downloadManagerRoutes,
       bulkDownloadsRoutes,

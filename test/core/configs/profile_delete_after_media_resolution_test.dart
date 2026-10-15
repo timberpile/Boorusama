@@ -13,8 +13,8 @@ import 'package:boorusama/core/posts/details/providers.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 import 'package:boorusama/core/posts/rating/types.dart';
 import 'package:boorusama/core/posts/sources/types.dart';
-import 'package:boorusama/core/search/subscriptions/providers.dart';
-import 'package:boorusama/core/search/subscriptions/types.dart';
+import 'package:boorusama/core/search/following_topics/providers.dart';
+import 'package:boorusama/core/search/following_topics/types.dart';
 import 'package:boorusama/core/settings/providers.dart';
 import 'package:boorusama/core/settings/src/data/setting_repository_hive.dart';
 import 'package:boorusama/core/settings/types.dart';
@@ -223,7 +223,7 @@ class _Fixture {
     );
     Hive.init(directory.path);
     if (!Hive.isAdapterRegistered(6)) {
-      Hive.registerAdapter(SearchSubscriptionHiveObjectAdapter());
+      Hive.registerAdapter(FollowingTopicHiveObjectAdapter());
     }
     if (!Hive.isAdapterRegistered(7)) {
       Hive.registerAdapter(SearchPostPreviewHiveObjectAdapter());
@@ -278,7 +278,7 @@ class _Fixture {
       ],
     );
     final searches = await container.read(
-      searchSubscriptionRepositoryProvider.future,
+      followingTopicRepositoryProvider.future,
     );
     await searches.create(
       profileId: original.id,
@@ -286,7 +286,7 @@ class _Fixture {
       name: null,
     );
     await searches.create(profileId: owned.id, query: 'owned', name: null);
-    await container.read(searchSubscriptionsProvider.future);
+    await container.read(followingTopicsProvider.future);
     return _Fixture(
       directory,
       profileBox,
@@ -308,7 +308,7 @@ class _Fixture {
   final ProviderContainer container;
   final BooruConfig original;
   BooruConfig owned;
-  final SearchSubscriptionRepository searches;
+  final FollowingTopicRepository searches;
 
   String resolve() => container
       .read(mediaUrlResolverProvider(owned.auth))
@@ -341,7 +341,7 @@ class _Fixture {
 
   Future<void> dispose() async {
     final searchStorage = container.read(
-      searchSubscriptionRepositoryProvider.notifier,
+      followingTopicRepositoryProvider.notifier,
     );
     container.dispose();
     await searchStorage.closeFuture;

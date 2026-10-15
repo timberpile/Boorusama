@@ -6,15 +6,15 @@ import 'package:boorusama/core/backups/export_import/import/import_journal.dart'
 import 'package:boorusama/core/backups/export_import/import/import_plan.dart';
 import 'package:boorusama/core/backups/export_import/import/import_transaction.dart';
 import 'package:boorusama/core/backups/export_import/import/search_runtime_snapshot.dart';
-import 'package:boorusama/core/search/subscriptions/types.dart';
-import 'package:boorusama/core/search/subscriptions/src/services/conservative_refresh_policy.dart';
+import 'package:boorusama/core/search/following_topics/types.dart';
+import 'package:boorusama/core/search/following_topics/src/services/conservative_refresh_policy.dart';
 import 'package:boorusama/foundation/filesystem.dart';
 
-import '../../search/subscriptions/subscription_test_utils.dart';
+import '../../search/following_topics/topic_test_utils.dart';
 import 'import_transaction_test_utils.dart';
 
 void main() {
-  late SearchSubscriptionRepository repository;
+  late FollowingTopicRepository repository;
   late SearchRuntimeSnapshotService service;
   late SearchRuntimeSnapshot expected;
 
@@ -22,10 +22,13 @@ void main() {
     repository = memorySubscriptionRepository();
     service = SearchRuntimeSnapshotService(repository);
     final checkedAt = DateTime.utc(2026, 10, 2, 8);
-    final independent = SearchSubscription(
+    final independent = FollowingTopic(
       id: 'independent',
       profileId: '00000000-0000-4000-8000-000000000004',
       query: 'rating:safe cats',
+      autoUpdateEnabled: false,
+      newPostCountEstimate: 7,
+      newPostCountIsLowerBound: true,
       name: 'Cats',
       position: 0,
       createdAt: checkedAt.subtract(const Duration(days: 3)),
@@ -56,7 +59,7 @@ void main() {
       ),
       lastMaterialEditAt: checkedAt.subtract(const Duration(days: 2)),
     );
-    final feedSource = SearchSubscription(
+    final feedSource = FollowingTopic(
       id: 'feed-source',
       profileId: '00000000-0000-4000-8000-000000000004',
       query: 'landscape',
@@ -75,7 +78,7 @@ void main() {
       feedSource,
     ]);
     await repository.restoreFeeds('00000000-0000-4000-8000-000000000004', [
-      SearchFollowingFeed(
+      TopicFeed(
         id: 'feed',
         profileId: '00000000-0000-4000-8000-000000000004',
         name: 'Landscapes',
@@ -86,9 +89,9 @@ void main() {
       ),
     ]);
     await repository.replaceOrganization(
-      SearchOrganization(
+      TopicOrganization(
         folders: [
-          SharedSearchFolder(
+          TopicFolder(
             id: 'folder',
             name: 'Reference',
             searchIds: const ['independent'],

@@ -37,9 +37,9 @@ Reviewed `16b2e4b0f` and follow-ups through `2e5f4ead9` on 2026-09-19.
 A temporary regression test expected two restored feeds and observed one.
 The existing 242 related tests passed without covering this case.
 
-- [Import deduplication](../../../lib/core/backups/sources/pinned_search_import_service.dart)
-- [Feed creation](../../../lib/core/search/subscriptions/src/data/hive/search_subscription_repository_hive.dart)
-- [Subsystem documentation](../../pinned_searches.md)
+- [Import deduplication](../../../lib/core/backups/sources/following_topic_import_service.dart)
+- [Feed creation](../../../lib/core/search/following_topics/src/data/hive/following_topic_repository_hive.dart)
+- [Subsystem documentation](../../following_topics.md)
 
 ## Dependencies
 

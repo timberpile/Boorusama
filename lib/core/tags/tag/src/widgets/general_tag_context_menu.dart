@@ -10,8 +10,8 @@ import '../../../../configs/config/providers.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../blacklists/providers.dart';
 import '../../../../search/search/routes.dart';
-import '../../../../search/subscriptions/providers.dart';
-import '../../../../search/subscriptions/src/widgets/feed_follow_control.dart';
+import '../../../../search/following_topics/providers.dart';
+import '../../../../search/following_topics/src/widgets/topic_follow_control.dart';
 import '../../../favorites/providers.dart';
 
 class GeneralTagContextMenu extends ConsumerWidget
@@ -37,10 +37,18 @@ class GeneralTagContextMenu extends ConsumerWidget
         buttonConfigs: [
           copyButton(context, tag),
           searchButton(ref, tag),
-          if (ref.watch(pinnedSearchTrackingSupportedProvider(config.auth)))
+          if (ref.watch(followingTopicTrackingSupportedProvider(config.auth)))
             ContextMenuButtonConfig(
-              context.t.pinned_searches.add_to_feed,
-              onPressed: () => showFeedMembershipPicker(
+              ref.watch(
+                        followedTopicCountProvider((
+                          profileId: config.id,
+                          query: tag,
+                        )),
+                      ) >
+                      0
+                  ? context.t.following_topics.following
+                  : context.t.following_topics.follow,
+              onPressed: () => showTopicFolderFollowDialog(
                 context,
                 profileId: config.id,
                 query: tag,

@@ -62,11 +62,11 @@ Future<void> openDataAndStoragePage(WidgetRef ref) {
   );
 }
 
-Future<void> openPinnedSearchesAndFeedsSettingsPage(WidgetRef ref) {
+Future<void> openTopicUpdatesSettingsPage(WidgetRef ref) {
   return ref.router.push(
     Uri(
       path: '/settings',
-      queryParameters: {'initial': 'pinned_searches_and_feeds'},
+      queryParameters: {'initial': 'topic_updates'},
     ).toString(),
   );
 }

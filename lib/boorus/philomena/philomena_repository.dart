@@ -4,7 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Project imports:
-import '../../core/search/subscriptions/src/refresh/search_refresh_query_adapter.dart';
+import '../../core/search/following_topics/src/refresh/search_refresh_query_adapter.dart';
 import '../../core/boorus/defaults/types.dart';
 import '../../core/configs/config/types.dart';
 import '../../core/configs/create/create.dart';

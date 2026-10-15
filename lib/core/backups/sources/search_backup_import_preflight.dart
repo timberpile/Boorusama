@@ -5,10 +5,11 @@ import '../../configs/config/types.dart';
 import '../preparation/preparation_pipeline.dart';
 import '../preparation/version_checking.dart';
 import '../widgets/search_backup_missing_profiles_dialog.dart';
-import 'following_feed_backup_data.dart';
-import 'following_feeds_source.dart';
-import 'pinned_search_backup_data.dart';
-import 'pinned_searches_source.dart';
+import 'topic_feed_backup_data.dart';
+import 'topic_feeds_source.dart';
+import 'following_topic_backup_data.dart';
+import 'following_topics_source.dart';
+import '../../search/following_topics/src/compatibility/topic_storage_contract.dart';
 
 final class SearchBackupImportApproval {
   SearchBackupImportApproval(Iterable<String> unmatchedRecordIds)
@@ -20,15 +21,15 @@ final class SearchBackupImportApproval {
 Future<Map<String, SearchBackupImportApproval>> preflightSearchBackups({
   required Map<String, ImportPreparation> prepared,
   required Set<String> selectedIds,
-  required PinnedSearchesBackupSource? pinnedSource,
-  required FollowingFeedsBackupSource? feedSource,
+  required FollowingTopicsBackupSource? topicsSource,
+  required TopicFeedsBackupSource? feedSource,
   required Future<List<BooruConfig>> Function() currentProfiles,
   required BuildContext? context,
 }) async {
-  final pinData = prepared['pinned_searches']?.preparedData;
-  final feedData = prepared['following_feeds']?.preparedData;
-  if (pinData is! PinnedSearchBackupData &&
-      feedData is! FollowingFeedBackupData) {
+  final topicData = prepared[followingTopicsBackupSourceId]?.preparedData;
+  final feedData = prepared[topicFeedsBackupSourceId]?.preparedData;
+  if (topicData is! FollowingTopicBackupData &&
+      feedData is! TopicFeedBackupData) {
     return const {};
   }
   final Future<List<BooruConfig>> Function() projectedProfiles;
@@ -42,13 +43,13 @@ Future<Map<String, SearchBackupImportApproval>> preflightSearchBackups({
     projectedProfiles = currentProfiles;
   }
 
-  Future<({Set<String> pins, Set<String> feeds})> preview() async {
+  Future<({Set<String> topics, Set<String> feeds})> preview() async {
     final profiles = await projectedProfiles();
     return (
-      pins: pinData is PinnedSearchBackupData && pinnedSource != null
-          ? await pinnedSource.unmatchedRecordIds(pinData, profiles)
+      topics: topicData is FollowingTopicBackupData && topicsSource != null
+          ? await topicsSource.unmatchedRecordIds(topicData, profiles)
           : <String>{},
-      feeds: feedData is FollowingFeedBackupData && feedSource != null
+      feeds: feedData is TopicFeedBackupData && feedSource != null
           ? await feedSource.unmatchedRecordIds(feedData, profiles)
           : <String>{},
     );
@@ -59,21 +60,21 @@ Future<Map<String, SearchBackupImportApproval>> preflightSearchBackups({
     throw const ImportCancelledException();
   }
   await confirmSearchBackupProfiles(
-    unmatchedRecordIds: {...first.pins, ...first.feeds},
-    pinnedCount: first.pins.length,
+    unmatchedRecordIds: {...first.topics, ...first.feeds},
+    topicCount: first.topics.length,
     feedCount: first.feeds.length,
     context: context,
   );
   final latest = await preview();
   const equality = SetEquality<String>();
-  if (!equality.equals(first.pins, latest.pins) ||
+  if (!equality.equals(first.topics, latest.topics) ||
       !equality.equals(first.feeds, latest.feeds)) {
     throw const ImportCancelledException();
   }
   return {
-    if (pinData is PinnedSearchBackupData && pinnedSource != null)
-      'pinned_searches': SearchBackupImportApproval(first.pins),
-    if (feedData is FollowingFeedBackupData && feedSource != null)
-      'following_feeds': SearchBackupImportApproval(first.feeds),
+    if (topicData is FollowingTopicBackupData && topicsSource != null)
+      followingTopicsBackupSourceId: SearchBackupImportApproval(first.topics),
+    if (feedData is TopicFeedBackupData && feedSource != null)
+      topicFeedsBackupSourceId: SearchBackupImportApproval(first.feeds),
   };
 }

@@ -1,5 +1,5 @@
 import 'package:boorusama/core/groups/folder_tree.dart';
-import '../search/subscriptions/subscription_test_utils.dart';
+import '../search/following_topics/topic_test_utils.dart';
 import 'package:selection_mode/selection_mode.dart';
 import 'package:boorusama/core/widgets/multi_select_button.dart';
 import 'package:material_symbols_icons/symbols.dart';

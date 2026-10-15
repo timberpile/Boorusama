@@ -5,6 +5,7 @@ import '../../../posts/post/types.dart';
 import '../../sources/search_backup_profile.dart';
 import 'import_plan.dart';
 import 'profile_import_projection.dart';
+import '../../../search/following_topics/src/compatibility/topic_storage_contract.dart';
 
 final class ProfileReferenceKey extends Equatable {
   const ProfileReferenceKey({
@@ -225,7 +226,10 @@ final class ProfileDependencyPlanner {
               label: validSite ? siteKey.site : reference.url,
               missingProfile: candidateIds.isEmpty,
               sourceIds: sourceIds.isEmpty
-                  ? const {'pinned_searches', 'following_feeds'}
+                  ? const {
+                      followingTopicsBackupSourceId,
+                      topicFeedsBackupSourceId,
+                    }
                   : sourceIds,
             ),
           ),

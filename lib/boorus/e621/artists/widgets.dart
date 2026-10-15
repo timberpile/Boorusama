@@ -9,7 +9,7 @@ import '../../../core/posts/listing/widgets.dart';
 import '../../../core/posts/post/providers.dart';
 import '../../../core/tags/details/widgets.dart';
 import '../../../core/tags/tag/types.dart';
-import '../../../core/search/subscriptions/src/widgets/feed_follow_control.dart';
+import '../../../core/search/following_topics/src/widgets/topic_follow_control.dart';
 import 'providers.dart';
 
 class E621ArtistPage extends ConsumerStatefulWidget {
@@ -49,7 +49,7 @@ class _E621ArtistPageState extends ConsumerState<E621ArtistPage> {
           controller.refresh();
         },
         tagName: widget.artistName,
-        extras: [FeedFollowButton(query: widget.artistName)],
+        extras: [FollowTopicButton(query: widget.artistName)],
         otherNames: artist.when(
           data: (data) => TagOtherNames(otherNames: data.otherNames),
           error: (error, stackTrace) => const SizedBox(height: 40, width: 40),

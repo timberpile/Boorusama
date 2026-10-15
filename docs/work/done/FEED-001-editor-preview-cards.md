@@ -35,7 +35,7 @@ initialization. Explicit Refresh reuses the existing fetch path. Establish the
 addition-date source and preference persistence during implementation; do not
 introduce a manual ordering model.
 
-- [Following Feed architecture](../../pinned_searches.md)
+- [Following Feed architecture](../../following_topics.md)
 - [Overview cards](../done/IDEA-027-following-feed-cards.md)
 - [Feed thumbnail quality](../done/PS-029-respect-feed-thumbnail-image-quality.md)
 

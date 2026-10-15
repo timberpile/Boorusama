@@ -1,4 +1,4 @@
-import '../search/subscriptions/subscription_test_utils.dart';
+import '../search/following_topics/topic_test_utils.dart';
 import 'dart:convert';
 import 'dart:io';
 
@@ -14,8 +14,8 @@ import 'package:boorusama/core/backups/export_import/models/import_action.dart';
 import 'package:boorusama/core/backups/export_import/package/export_package_reader.dart';
 import 'package:boorusama/core/backups/sources/bookmark_backup_codec.dart';
 import 'package:boorusama/core/backups/sources/bookmark_backup_data.dart';
-import 'package:boorusama/core/backups/sources/pinned_search_backup_codec.dart';
-import 'package:boorusama/core/backups/sources/pinned_search_backup_data.dart';
+import 'package:boorusama/core/backups/sources/following_topic_backup_codec.dart';
+import 'package:boorusama/core/backups/sources/following_topic_backup_data.dart';
 import 'package:boorusama/core/backups/sources/providers.dart';
 import 'package:boorusama/core/backups/utils/data_converter.dart';
 import 'package:boorusama/core/backups/types/types.dart';
@@ -36,11 +36,11 @@ import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/configs/manage/providers.dart';
 import 'package:boorusama/core/hive/hive_adapters.dart';
 import 'package:boorusama/core/posts/post/types.dart';
-import 'package:boorusama/core/search/subscriptions/providers.dart';
-import 'package:boorusama/core/search/subscriptions/src/data/hive/search_subscription_hive_object.dart';
-import 'package:boorusama/core/search/subscriptions/src/data/hive/search_subscription_repository_hive.dart';
-import 'package:boorusama/core/search/subscriptions/src/data/providers.dart';
-import 'package:boorusama/core/search/subscriptions/types.dart';
+import 'package:boorusama/core/search/following_topics/providers.dart';
+import 'package:boorusama/core/search/following_topics/src/data/hive/following_topic_hive_object.dart';
+import 'package:boorusama/core/search/following_topics/src/data/hive/following_topic_repository_hive.dart';
+import 'package:boorusama/core/search/following_topics/src/data/providers.dart';
+import 'package:boorusama/core/search/following_topics/types.dart';
 import 'package:boorusama/core/settings/providers.dart';
 import 'package:boorusama/core/settings/src/types/settings.dart';
 import 'package:boorusama/foundation/filesystem.dart';
@@ -115,7 +115,7 @@ void main() {
         final search = Map<String, dynamic>.from(
           (folder['searches'] as List).single as Map,
         );
-        // A valid AnimeBoxes filter-only pin has blank main text.
+        // A valid AnimeBoxes filter-only topic has blank main text.
         final firstSearch = (folder['searches'] as List).single as Map;
         firstSearch['query'] = '';
         firstSearch['extraParams'] = {
@@ -123,27 +123,27 @@ void main() {
           'danbooru2_is_has': 'rating:general',
           'danbooru2_order': 'order:score',
         };
-        Map<String, dynamic> pin(int index, String query) => {
+        Map<String, dynamic> topic(int index, String query) => {
           ...search,
           'id': 'b0000000-0000-4000-8000-00000000000$index',
           'query': query,
           'position': index,
           'name': null,
         };
-        (folder['searches'] as List).add(pin(1, 'folder_second'));
+        (folder['searches'] as List).add(topic(1, 'folder_second'));
         groups.add({
           'kind': 'folder',
           'id': 'b0000000-0000-4000-8000-000000000007',
           'name': 'Second folder',
           'sourcePosition': 1,
-          'searches': [pin(2, 'side_folder')],
+          'searches': [topic(2, 'side_folder')],
         });
         groups.add({
           'kind': 'home',
           'id': null,
           'name': null,
           'sourcePosition': 2,
-          'searches': [pin(3, 'home_z'), pin(4, 'home_a')],
+          'searches': [topic(3, 'home_z'), topic(4, 'home_a')],
         });
       } else {
         final url = 'http://danbooru.donmai.us$port';
@@ -215,13 +215,16 @@ void main() {
             organization.folders.map((folder) => folder.searchIds.length),
             [0, 1, 1, 1],
           );
-          final pins = await harness.searches.getAll();
-          expect(pins.map((pin) => pin.query), [
+          final topics = await harness.searches.getAll();
+          expect(topics.map((topic) => topic.query), [
             'synthetic_query_0 order:score',
             'synthetic_query_1 order:score',
             'synthetic_query_2 order:score',
           ]);
-          expect(pins.map((pin) => pin.name), everyElement('Quoted "title"'));
+          expect(
+            topics.map((topic) => topic.name),
+            everyElement('Quoted "title"'),
+          );
         } finally {
           await harness.close();
         }
@@ -245,7 +248,7 @@ void main() {
             'pinned_searches',
           ]);
           BookmarkBackupData? bookmarks;
-          PinnedSearchBackupData? searches;
+          FollowingTopicBackupData? searches;
           for (final source in staged.manifest.sources) {
             final payload = decodeData(
               data: File(
@@ -254,7 +257,7 @@ void main() {
             );
             final data = switch (source.id) {
               'bookmarks' => bookmarks = BookmarkBackupCodec().parse(payload),
-              'pinned_searches' => searches = PinnedSearchBackupCodec().parse(
+              'pinned_searches' => searches = FollowingTopicBackupCodec().parse(
                 payload,
               ),
               _ => ListHandler<BlacklistedTag>(
@@ -338,7 +341,7 @@ void main() {
           );
           final data = switch (source.id) {
             'bookmarks' => BookmarkBackupCodec().parse(payload),
-            'pinned_searches' => PinnedSearchBackupCodec().parse(payload),
+            'pinned_searches' => FollowingTopicBackupCodec().parse(payload),
             _ => ListHandler<BlacklistedTag>(
               parser: BlacklistedTag.fromJson,
               encoder: (tag) => tag.toJson(),
@@ -358,7 +361,7 @@ void main() {
           switch (data) {
             case BookmarkBackupData():
               expect(data.bookmarks, isEmpty);
-            case PinnedSearchBackupData():
+            case FollowingTopicBackupData():
               expect(data.records, isEmpty);
               expect(data.folders, isEmpty);
               expect(data.homeSearchIds, isEmpty);
@@ -394,12 +397,12 @@ void main() {
             .syncActiveTargetFromSettings();
         final notifier = harness.container.read(importFlowProvider.notifier);
         await notifier.load(packagePaths['']!);
-        final pins = harness.container
+        final topics = harness.container
             .read(importFlowProvider)
             .resolved!
             .sources
             .singleWhere((s) => s.id == 'pinned_searches');
-        notifier.replaceSource(pins.copyWith(action: ImportAction.skip));
+        notifier.replaceSource(topics.copyWith(action: ImportAction.skip));
       });
       addTearDown(() async {
         await tester.pumpWidget(const SizedBox());
@@ -634,13 +637,13 @@ void main() {
                   : '${state.error}',
             );
             expect(state.proposed!.warnings, isEmpty);
-            final pins = state.proposed!.sources.singleWhere(
+            final topics = state.proposed!.sources.singleWhere(
               (source) => source.id == 'pinned_searches',
             );
-            expect(pins.kind, ImportSourceKind.collection);
-            expect(pins.defaultAction, ImportAction.configureItems);
+            expect(topics.kind, ImportSourceKind.collection);
+            expect(topics.defaultAction, ImportAction.configureItems);
             expect(
-              pins.availableActions,
+              topics.availableActions,
               isNot(contains(ImportAction.replace)),
             );
             expect(
@@ -719,10 +722,10 @@ void main() {
                 .singleWhere((f) => f.name == 'Folder, café')
                 .id;
             await harness.searches.replaceOrganization(
-              SearchOrganization(
+              TopicOrganization(
                 folders: [
                   for (final folder in firstOrganization.folders)
-                    SharedSearchFolder(
+                    TopicFolder(
                       id: folder.id,
                       name: folder.name,
                       parentId: folder.parentId,
@@ -738,8 +741,8 @@ void main() {
                     .toList(),
               ),
             );
-            // Explicit folder copies get a fresh wrapper. Reused searches keep
-            // their existing placement, including local-only folder contents.
+            // Explicit copies retain the original placement and local-only data,
+            // and create independent Topics under a fresh wrapper.
             await notifier.load(packagePaths['']!);
             state = harness.container.read(importFlowProvider);
             notifier.chooseProfileMapping(
@@ -761,7 +764,7 @@ void main() {
                   .read(importFlowProvider)
                   .preflight!
                   .sourceSummaries['pinned_searches']!
-                  .entitySummaries['pinned-folder']!
+                  .entitySummaries['topic-folder']!
                   .created,
               3,
             );
@@ -776,7 +779,7 @@ void main() {
             );
             expect(
               await harness.searches.getAll(),
-              hasLength(populated ? 7 : 6),
+              hasLength(populated ? 10 : 9),
             );
             final copiedOrganization = await harness.searches.getOrganization();
             expect(
@@ -811,7 +814,7 @@ void main() {
                         folder.name == 'Folder, café',
                   )
                   .searchIds,
-              isEmpty,
+              hasLength(2),
             );
             expect(
               await harness.bookmarks.getAllBookmarksOrThrow(
@@ -889,7 +892,7 @@ void main() {
             );
             expect(
               await harness.searches.getAll(),
-              hasLength(populated ? 7 : 6),
+              hasLength(populated ? 10 : 9),
             );
             expect(
               Directory(
@@ -975,7 +978,7 @@ class _Harness {
   final Directory directory;
   final BookmarkHiveRepository bookmarks;
   final BookmarkGroupRepositoryHive groups;
-  final HiveSearchSubscriptionRepository searches;
+  final HiveFollowingTopicRepository searches;
   final HiveBooruConfigRepository profiles;
   final HiveBlacklistedTagRepository blacklist;
   final ProviderContainer container;
@@ -989,15 +992,15 @@ class _Harness {
     _registerAdapter(BlacklistedTagHiveObjectAdapter());
     _registerAdapter(BookmarkHiveObjectAdapter());
     _registerAdapter(BookmarkGroupHiveObjectAdapter());
-    _registerAdapter(SearchSubscriptionHiveObjectAdapter());
+    _registerAdapter(FollowingTopicHiveObjectAdapter());
     _registerAdapter(SearchPostPreviewHiveObjectAdapter());
     _registerAdapter(RecentSearchPostHiveObjectAdapter());
     final bookmarkBox = await Hive.openBox<BookmarkHiveObject>('favorites');
     final groupBox = await Hive.openBox<BookmarkGroupHiveObject>(
       'bookmark_groups',
     );
-    final searchBox = await Hive.openBox<SearchSubscriptionHiveObject>(
-      'pinned_search_subscriptions',
+    final searchBox = await Hive.openBox<FollowingTopicHiveObject>(
+      'pinned_search_topics',
     );
     final organizationBox = await Hive.openBox<dynamic>(
       'pinned_search_folders',
@@ -1008,7 +1011,7 @@ class _Harness {
       groupBox,
       organizationBox: MemoryBox<dynamic>(),
     );
-    final searches = HiveSearchSubscriptionRepository(
+    final searches = HiveFollowingTopicRepository(
       box: searchBox,
       organizationBox: organizationBox,
     );
@@ -1035,18 +1038,18 @@ class _Harness {
       ])).single;
       await groups.createGroup('Local bookmarks', id: _localGroupId);
       await groups.addBookmarks(_localGroupId, {bookmark.id});
-      final pin = await searches.create(
+      final topic = await searches.create(
         profileId: _localProfileId,
         query: 'local_query',
         name: 'Local',
       );
       await searches.replaceOrganization(
-        SearchOrganization(
+        TopicOrganization(
           folders: [
-            SharedSearchFolder(
+            TopicFolder(
               id: _localFolderId,
               name: 'Local folder',
-              searchIds: [pin.id],
+              searchIds: [topic.id],
             ),
           ],
           homeSearchIds: const [],
@@ -1061,7 +1064,7 @@ class _Harness {
         bookmarkUrlResolverProvider.overrideWith(
           (ref, id) => const DefaultImageUrlResolver(),
         ),
-        searchSubscriptionRepositoryProvider.overrideWith(
+        followingTopicRepositoryProvider.overrideWith(
           () => _SearchRepositoryNotifier(searches),
         ),
         booruConfigRepoProvider.overrideWithValue(profiles),
@@ -1079,7 +1082,7 @@ class _Harness {
     // Keep the real source catalog loaded before import so empty/local stores
     // use exactly the descriptors shown in the application.
     await container.read(bookmarkProvider.future);
-    await container.read(searchSubscriptionsProvider.future);
+    await container.read(followingTopicsProvider.future);
     container.listen(importFlowProvider, (_, _) {});
     container.read(exportImportSourcesProvider);
     return _Harness(
@@ -1120,11 +1123,11 @@ class _FileSystem extends IoFileSystem {
   Future<String?> getTemporaryPath() async => null;
 }
 
-class _SearchRepositoryNotifier extends SearchSubscriptionRepositoryNotifier {
+class _SearchRepositoryNotifier extends FollowingTopicRepositoryNotifier {
   _SearchRepositoryNotifier(this.repository);
-  final SearchSubscriptionRepository repository;
+  final FollowingTopicRepository repository;
   @override
-  Future<SearchSubscriptionRepository> build() async => repository;
+  Future<FollowingTopicRepository> build() async => repository;
 }
 
 class _SettingsNotifier extends SettingsNotifier {

@@ -10,7 +10,7 @@ class BackupOperationResult {
     required this.bookmarkCount,
     this.groupCount = 0,
     this.alreadyExistedCount = 0,
-    this.pinnedSearchCount,
+    this.followingTopicCount,
     this.feedCount,
     this.skippedProfileCount,
   });
@@ -18,7 +18,7 @@ class BackupOperationResult {
   final int bookmarkCount;
   final int groupCount;
   final int alreadyExistedCount;
-  final int? pinnedSearchCount;
+  final int? followingTopicCount;
   final int? feedCount;
   final int? skippedProfileCount;
 }

@@ -37,7 +37,7 @@ import '../../../posts/shares/providers.dart';
 import '../../../posts/sources/types.dart';
 import '../../../search/queries/providers.dart';
 import '../../../search/queries/tag_query_composer.dart';
-import '../../../search/subscriptions/src/refresh/search_refresh_query_adapter.dart';
+import '../../../search/following_topics/src/refresh/search_refresh_query_adapter.dart';
 import '../../../settings/providers.dart';
 import '../../../tags/autocompletes/autocomplete_repository.dart';
 import '../../../tags/local/providers.dart';

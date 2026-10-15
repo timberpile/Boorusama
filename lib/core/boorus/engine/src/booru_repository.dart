@@ -19,7 +19,7 @@ import '../../../posts/listing/types.dart';
 import '../../../posts/post/types.dart';
 import '../../../posts/rating/types.dart';
 import '../../../search/queries/types.dart';
-import '../../../search/subscriptions/src/refresh/search_refresh_query_adapter.dart';
+import '../../../search/following_topics/src/refresh/search_refresh_query_adapter.dart';
 import '../../../tags/autocompletes/types.dart';
 import '../../../tags/metatag/types.dart';
 import '../../../tags/tag/colors.dart';

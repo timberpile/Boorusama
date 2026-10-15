@@ -73,17 +73,17 @@ void main() {
         formatBackupImportError(
           capture(wrongSource),
           context,
-          'Following Feeds',
+          'Topic Feeds',
         ),
-        'This file is not a Following Feeds backup.',
+        'This file is not a Topic Feeds backup.',
       );
       expect(
         formatBackupImportError(
           capture(wrongVersion),
           context,
-          'Following Feeds',
+          'Topic Feeds',
         ),
-        'This Following Feeds backup uses an unsupported format version.',
+        'This Topic Feeds backup uses an unsupported format version.',
       );
     },
   );

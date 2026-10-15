@@ -11,7 +11,7 @@ import '../../../foundation/info/package_info.dart';
 import '../../config_widgets/website_logo.dart';
 import '../../configs/config/types.dart';
 import '../../configs/manage/providers.dart';
-import '../../search/subscriptions/providers.dart';
+import '../../search/following_topics/providers.dart';
 import '../../settings/providers.dart';
 import '../../widgets/reboot.dart';
 import '../preparation/preparation_pipeline.dart';
@@ -163,7 +163,7 @@ class BooruConfigsBackupSource extends JsonBackupSource<List<BooruConfig>> {
 }
 
 Future<void> _replaceProfiles(Ref ref, List<BooruConfig> configs) => ref
-    .read(searchSubscriptionsProvider.notifier)
+    .read(followingTopicsProvider.notifier)
     .runSerializedMutation((searchRepository) async {
       final configRepository = ref.read(booruConfigRepoProvider);
       final oldProfiles = await configRepository.getAll();
@@ -180,7 +180,7 @@ Future<void> _replaceProfiles(Ref ref, List<BooruConfig> configs) => ref
       final oldSubscriptions = await searchRepository.getAll();
       final removedSubscriptions = {
         for (final id in removedIds)
-          id: oldSubscriptions.where((pin) => pin.profileId == id).toList(),
+          id: oldSubscriptions.where((topic) => topic.profileId == id).toList(),
       };
       final oldOrganization = await searchRepository.getOrganization();
       final oldFeeds = await searchRepository.getFeeds();

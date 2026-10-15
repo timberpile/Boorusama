@@ -26,7 +26,7 @@ details; this is optional, not a requirement to expand the MVP.
 
 - `lib/core/search/subscriptions/src/widgets/pinned_search_card.dart`
 - `lib/core/search/subscriptions/src/pages/pinned_searches_page.dart`
-- [Subsystem documentation](../../pinned_searches.md)
+- [Subsystem documentation](../../following_topics.md)
 - Validate Android UI behavior with Maestro as required by `AGENTS.md`.
 
 ## Completion evidence

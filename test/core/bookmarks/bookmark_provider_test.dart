@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:i18n/i18n.dart';
 import 'package:oktoast/oktoast.dart';
-import '../search/subscriptions/subscription_test_utils.dart';
+import '../search/following_topics/topic_test_utils.dart';
 // Dart imports:
 import 'dart:async';
 import 'dart:io';
@@ -28,6 +28,8 @@ import 'package:boorusama/core/bookmarks/src/types/bookmark_repository.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_target.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_view.dart';
 import 'package:boorusama/core/configs/config/types.dart';
+import 'package:boorusama/core/configs/manage/providers.dart';
+import 'package:boorusama/core/posts/post/providers.dart';
 import 'package:boorusama/core/hive/hive_adapters.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 import 'package:boorusama/core/settings/providers.dart';
@@ -72,9 +74,17 @@ void main() {
     SettingsNotifier? settingsNotifier,
     BookmarkRepository? bookmarkRepositoryOverride,
     BookmarkGroupRepository? groupRepositoryOverride,
+    List<BooruConfig> profiles = const [],
   }) {
     final container = ProviderContainer(
       overrides: [
+        booruConfigProvider.overrideWith(
+          () => BooruConfigNotifier(initialConfigs: profiles),
+        ),
+        if (profiles.isNotEmpty)
+          postLinkGeneratorProvider.overrideWith(
+            (ref, config) => _ProfileLinkGenerator(config.url),
+          ),
         bookmarkRepoProvider.overrideWith(
           (ref) => bookmarkRepositoryOverride ?? bookmarkRepository,
         ),
@@ -94,6 +104,46 @@ void main() {
     addTearDown(container.dispose);
     return container;
   }
+
+  test(
+    'mixed bulk bookmarks keep distinct site identities and source links',
+    () async {
+      final profiles = [
+        for (var i = 1; i <= 2; i++)
+          BooruConfig.fromJson({
+            ...BooruConfig.empty.toJson(),
+            'id': '00000000-0000-4000-8000-00000000000$i',
+            'url': 'https://site$i.example',
+          }),
+      ];
+      final container = createContainer(profiles: profiles);
+      final notifier = container.read(bookmarkProvider.notifier);
+      await notifier.future;
+      final posts = [
+        for (final profile in profiles)
+          testSearchPost(42, DateTime.utc(2026)).copyWith(
+            origin: PostOrigin.fromSource(
+              booruType: profile.auth.booruType,
+              booruId: profile.booruId,
+              source: profile.url,
+              profileIdHint: profile.id,
+            ),
+          ),
+      ];
+      expect(
+        await notifier.addPostsToGroup(profiles.first.auth, posts, null),
+        2,
+      );
+      final saved = await bookmarkRepository.getAllBookmarksOrThrow(
+        imageUrlResolver: (_) => const DefaultImageUrlResolver(),
+      );
+      expect(saved.map((bookmark) => bookmark.sourceUrl).toSet(), {
+        'https://site1.example/posts/42',
+        'https://site2.example/posts/42',
+      });
+      expect(saved.map((bookmark) => bookmark.uniqueId).toSet(), hasLength(2));
+    },
+  );
 
   for (final (count, failUndo) in [(1, false), (2, false), (1, true)]) {
     testWidgets(
@@ -1584,4 +1634,11 @@ Bookmark get _validBookmark {
     sourceUrl: 'https://example.com',
     postId: () => postId,
   );
+}
+
+class _ProfileLinkGenerator extends PostLinkGenerator<Post> {
+  _ProfileLinkGenerator(this.site);
+  final String site;
+  @override
+  String getLink(Post post) => '$site/posts/${post.id}';
 }

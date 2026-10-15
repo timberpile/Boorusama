@@ -5,7 +5,7 @@ import '../preparation/preparation_pipeline.dart';
 
 Future<void> confirmSearchBackupProfiles({
   required Set<String> unmatchedRecordIds,
-  required int pinnedCount,
+  required int topicCount,
   required int feedCount,
   required BuildContext? context,
 }) async {
@@ -15,7 +15,7 @@ Future<void> confirmSearchBackupProfiles({
   }
   final strings = context.t.search_backup_import;
   final counts = [
-    if (pinnedCount > 0) strings.pinned_count(n: pinnedCount),
+    if (topicCount > 0) strings.topic_count(n: topicCount),
     if (feedCount > 0) strings.feed_count(n: feedCount),
   ].join(strings.joiner);
   final accepted = await showDialog<bool>(

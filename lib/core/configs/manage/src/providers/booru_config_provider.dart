@@ -13,8 +13,8 @@ import '../../../../../foundation/utils/collection_utils.dart';
 import '../../../../analytics/analytics_interface.dart';
 import '../../../../analytics/providers.dart';
 import '../../../../settings/providers.dart';
-import '../../../../search/subscriptions/providers.dart';
-import '../../../../search/subscriptions/types.dart';
+import '../../../../search/following_topics/providers.dart';
+import '../../../../search/following_topics/types.dart';
 import '../../../config/data.dart';
 import '../../../config/providers.dart';
 import '../../../config/types.dart';
@@ -30,8 +30,8 @@ final booruConfigProvider =
       () => throw UnimplementedError(),
       dependencies: [
         booruConfigRepoProvider,
-        searchSubscriptionRepositoryProvider,
-        searchSubscriptionsProvider,
+        followingTopicRepositoryProvider,
+        followingTopicsProvider,
         settingsProvider,
       ],
       name: 'booruConfigProvider',
@@ -93,10 +93,10 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
     };
 
     try {
-      await ref.read(searchSubscriptionsProvider.notifier).runSerializedMutation((
+      await ref.read(followingTopicsProvider.notifier).runSerializedMutation((
         searchRepository,
       ) async {
-        final subscriptions = (await searchRepository.getAll())
+        final topics = (await searchRepository.getAll())
             .where((subscription) => subscription.profileId == config.id)
             .toList(growable: false);
         final organization = await searchRepository.getOrganization();
@@ -184,7 +184,7 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
             await _restoreProfileSubscriptions(
               config,
               searchRepository,
-              subscriptions,
+              topics,
               organization,
               feeds,
               error,
@@ -230,7 +230,7 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
         return;
       }
       final siteChanged = !_sameBooruSite(existingConfig, proposedConfig);
-      final searches = ref.read(searchSubscriptionsProvider.notifier);
+      final searches = ref.read(followingTopicsProvider.notifier);
       Future<BooruConfig?> save() => searches.runSerializedMutation((
         searchRepository,
       ) async {
@@ -238,12 +238,12 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
             ? (await searchRepository.getAll())
                   .where((search) => search.profileId == oldConfigId)
                   .toList()
-            : const <SearchSubscription>[];
+            : const <FollowingTopic>[];
         final oldFeeds = siteChanged
             ? (await searchRepository.getFeeds())
                   .where((feed) => feed.profileId == oldConfigId)
                   .toList()
-            : const <SearchFollowingFeed>[];
+            : const <TopicFeed>[];
         if (siteChanged) {
           await searchRepository.invalidateRuntimeForProfile(oldConfigId);
         }
@@ -319,20 +319,20 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
 
   Future<void> _restoreProfileSubscriptions(
     BooruConfig config,
-    SearchSubscriptionRepository searchRepository,
-    List<SearchSubscription> subscriptions,
-    SearchOrganization organization,
-    List<SearchFollowingFeed> feeds,
+    FollowingTopicRepository searchRepository,
+    List<FollowingTopic> topics,
+    TopicOrganization organization,
+    List<TopicFeed> feeds,
     Object originalError,
   ) async {
     try {
-      await searchRepository.restoreForProfile(config.id, subscriptions);
+      await searchRepository.restoreForProfile(config.id, topics);
       await searchRepository.restoreFeeds(config.id, feeds);
       await searchRepository.replaceOrganization(organization);
     } catch (restoreError) {
       _logError('Failed to remove config ${config.id}: $originalError');
       _logError(
-        'Failed to restore pinned searches for config ${config.id}: '
+        'Failed to restore followed topics for config ${config.id}: '
         '$restoreError',
       );
     }

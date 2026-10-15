@@ -14,6 +14,7 @@ import '../../../../foundation/data_mutation_coordinator.dart';
 import '../../../boorus/booru/types.dart';
 import '../../../boorus/engine/providers.dart';
 import '../../../configs/config/types.dart';
+import '../../../configs/manage/providers.dart';
 import '../../../download_activity/activity.dart';
 import '../../../downloads/downloader/providers.dart';
 import '../../../downloads/downloader/types.dart';
@@ -38,7 +39,7 @@ import '../types/bookmark_view.dart';
 final bookmarkLibraryProvider =
     AsyncNotifierProvider<BookmarkLibraryNotifier, BookmarkLibraryState>(
       BookmarkLibraryNotifier.new,
-      dependencies: [settingsProvider],
+      dependencies: [settingsProvider, booruConfigProvider],
     );
 
 final bookmarkProvider = bookmarkLibraryProvider;
@@ -1118,6 +1119,17 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     Post post,
   ) async {
     final identity = BookmarkIdentity.fromPost(post);
+    // Mixed selections carry independent origins. Generate each source link
+    // with that post's profile instead of the grid's surrounding profile.
+    final sourceConfig = post.origin.profileIdHint == null
+        ? config
+        : switch (const PostOriginResolver().resolve(
+            post.origin,
+            ref.read(booruConfigProvider),
+          )) {
+            ResolvedPostOrigin(:final config) => config.auth,
+            _ => config,
+          };
     final repository = await bookmarkRepository;
 
     Future<Bookmark?> findStored() async {
@@ -1133,11 +1145,12 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
 
     try {
       return await repository.addBookmark(
-        config.booruIdHint,
+        sourceConfig.booruIdHint,
         post,
         imageUrlResolver: (booruId) =>
             ref.read(bookmarkUrlResolverProvider(booruId)),
-        postLinkGenerator: (_) => ref.read(postLinkGeneratorProvider(config)),
+        postLinkGenerator: (_) =>
+            ref.read(postLinkGeneratorProvider(sourceConfig)),
       );
     } catch (error, stackTrace) {
       try {

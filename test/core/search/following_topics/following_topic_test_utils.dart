@@ -1,0 +1,409 @@
+import 'dart:async';
+import 'package:clock/clock.dart';
+import 'package:boorusama/boorus/danbooru/danbooru_repository.dart';
+import 'package:boorusama/core/blacklists/providers.dart';
+import 'package:boorusama/core/boorus/engine/providers.dart';
+import 'package:boorusama/core/boorus/engine/types.dart';
+import 'package:boorusama/core/search/following_topics/src/providers/search_refresh_coordinator.dart';
+import 'package:boorusama/core/search/following_topics/src/services/search_refresh_scheduler.dart';
+import 'dart:typed_data';
+
+import 'package:boorusama/core/configs/config/types.dart';
+import 'package:boorusama/core/configs/manage/providers.dart';
+import 'package:boorusama/core/developer_options/providers.dart';
+import 'package:boorusama/core/errors/types.dart';
+import 'package:boorusama/core/downloads/downloader/providers.dart';
+import 'package:boorusama/core/downloads/downloader/types.dart';
+import 'package:boorusama/core/http/client/providers.dart';
+import 'package:boorusama/core/http/client/coordination.dart';
+import 'package:boorusama/core/images/providers.dart';
+import 'package:boorusama/core/router.dart';
+import 'package:boorusama/core/search/following_topics/providers.dart';
+import 'package:boorusama/core/search/following_topics/src/data/providers.dart';
+import 'package:boorusama/core/search/following_topics/src/data/hive/following_topic_hive_object.dart';
+import 'package:boorusama/core/search/following_topics/src/data/hive/following_topic_repository_hive.dart';
+import 'package:boorusama/core/search/following_topics/src/refresh/chronological_search_scanner.dart';
+import 'package:boorusama/core/search/following_topics/src/refresh/search_refresh_query_adapter.dart';
+import 'package:boorusama/core/search/following_topics/src/services/search_refresh_service.dart';
+import 'package:boorusama/core/search/following_topics/types.dart';
+import 'package:boorusama/core/posts/post/types.dart';
+import 'package:boorusama/core/posts/favorites/providers.dart';
+import 'package:boorusama/core/settings/providers.dart';
+import 'package:boorusama/core/settings/src/data/setting_repository_hive.dart';
+import 'package:boorusama/core/analytics/providers.dart';
+import 'package:boorusama/foundation/loggers.dart';
+import 'package:boorusama/core/settings/src/types/settings.dart';
+import 'package:boorusama/foundation/info/device_info.dart';
+import 'package:cache_manager/cache_manager.dart';
+import 'package:dio/dio.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:foundation/foundation.dart';
+import 'package:i18n/i18n.dart';
+import 'package:kurumi/kurumi.dart';
+import 'package:oktoast/oktoast.dart';
+
+import 'topic_test_utils.dart';
+import 'package:boorusama/core/search/following_topics/src/services/search_refresh_environment.dart';
+import 'package:boorusama/core/search/following_topics/src/services/conservative_refresh_policy.dart';
+
+final selectedTestProfileProvider =
+    NotifierProvider<SelectedTestProfile, BooruConfig>(SelectedTestProfile.new);
+
+final testAutomaticSearchRefreshNetworkAllowedProvider =
+    NotifierProvider<TestAutomaticSearchRefreshNetworkAllowed, bool>(
+      TestAutomaticSearchRefreshNetworkAllowed.new,
+    );
+
+class SelectedTestProfile extends Notifier<BooruConfig> {
+  @override
+  BooruConfig build() => testProfile;
+
+  void select(BooruConfig config) => state = config;
+}
+
+class TestAutomaticSearchRefreshNetworkAllowed extends Notifier<bool> {
+  TestAutomaticSearchRefreshNetworkAllowed([this.initialValue = false]);
+
+  final bool initialValue;
+
+  @override
+  bool build() => initialValue;
+
+  void setAllowed(bool allowed) => state = allowed;
+}
+
+final testRefreshNetworkAllowedProvider =
+    testAutomaticSearchRefreshNetworkAllowedProvider;
+
+final testProfile = BooruConfig.fromJson({
+  ...BooruConfig.empty.toJson(),
+  'id': '00000000-0000-4000-8000-00000000000c',
+  'url': 'https://active.example',
+});
+final otherTestProfile = BooruConfig.fromJson({
+  ...BooruConfig.empty.toJson(),
+  'id': '00000000-0000-4000-8000-000000000063',
+  'url': 'https://other.example',
+});
+final checkedAt = DateTime.utc(2026, 9, 14, 10);
+
+FollowingTopic topicFixture({
+  String id = 'cats',
+  String profileId = '00000000-0000-4000-8000-00000000000c',
+  String query = 'cat  rating:safe order:score',
+  String? name = 'Cats',
+  int position = 0,
+  int unreadCount = 3,
+  int? newPostCountEstimate,
+  bool newPostCountIsLowerBound = false,
+  int previewCount = 0,
+  DateTime? postCreatedAt,
+  SearchRefreshErrorKind? error,
+  bool checked = true,
+  SearchQueryStructure? queryStructure,
+}) => FollowingTopic(
+  id: id,
+  profileId: profileId,
+  query: query,
+  queryStructure: queryStructure,
+  name: name,
+  position: position,
+  createdAt: checkedAt,
+  previews: [
+    for (var i = 0; i < previewCount; i++)
+      SearchPostPreview(
+        postId: i,
+        postCreatedAt: postCreatedAt ?? checkedAt,
+        thumbnailUrl: 'https://images.example/$i.jpg',
+        sampleUrl: null,
+        discoveredAt: checkedAt,
+      ),
+  ],
+  recentPostIdentities: const [],
+  unreadCount: unreadCount,
+  newPostCountEstimate: newPostCountEstimate,
+  newPostCountIsLowerBound: newPostCountIsLowerBound,
+  lastSuccessfulCheckAt: checked ? checkedAt : null,
+  lastAttemptAt: error == null ? null : checkedAt,
+  lastErrorKind: error,
+);
+
+class FollowingTopicHarness {
+  FollowingTopicHarness({
+    this.repositoryReady,
+    this.loadImages = false,
+    this.supported = true,
+    Settings? settings,
+    ImageListingSettings? listingSettings,
+    ImageCacheManager? imageCacheManager,
+    void Function(RequestOptions options)? onMediaRequest,
+    Clock clock = const Clock(),
+    SearchRefreshScheduler? scheduler,
+    bool networkAllowed = false,
+    SearchRefreshEnvironment Function(bool networkAllowed)? refreshEnvironment,
+    Future<void> Function()? beforeDispatch,
+    Future<Either<BooruError, PostResult<Post>>> Function(
+      BooruConfig config,
+      String query,
+      int page,
+      int? limit,
+    )?
+    fetchPosts,
+    List<BooruConfig>? profiles,
+    BooruConfigRepository? profileRepository,
+    BooruPostCapability<BooruPostData>? postCapability,
+    BooruBuilder? Function(BooruConfigAuth config)? booruBuilder,
+  }) {
+    final initialSettings = settings ?? Settings.defaultSettings;
+    repository = HiveFollowingTopicRepository(
+      box: box,
+      organizationBox: organizationBox,
+    );
+    container = ProviderContainer(
+      overrides: [
+        loggerProvider.overrideWithValue(
+          ConsoleLogger(options: const ConsoleLoggerOptions.defaults()),
+        ),
+        settingsNotifierProvider.overrideWith(
+          () => SettingsNotifier(initialSettings),
+        ),
+        settingsRepoProvider.overrideWithValue(
+          SettingsRepositoryHive(Future.value(settingsBox)),
+        ),
+        initialSettingsBooruConfigProvider.overrideWithValue(testProfile),
+        analyticsProvider.overrideWith((ref) => Future.value()),
+        testAutomaticSearchRefreshNetworkAllowedProvider.overrideWith(
+          () => TestAutomaticSearchRefreshNetworkAllowed(networkAllowed),
+        ),
+        automaticSearchRefreshNetworkAllowedProvider.overrideWith(
+          (ref) => ref.watch(
+            testAutomaticSearchRefreshNetworkAllowedProvider,
+          ),
+        ),
+        searchRefreshEnvironmentProvider.overrideWith(
+          (ref) =>
+              refreshEnvironment?.call(
+                ref.watch(testAutomaticSearchRefreshNetworkAllowedProvider),
+              ) ??
+              SearchRefreshEnvironment(
+                network:
+                    ref.watch(testAutomaticSearchRefreshNetworkAllowedProvider)
+                    ? RefreshNetwork.wifi
+                    : RefreshNetwork.offline,
+                powerKnown: true,
+              ),
+        ),
+        searchRefreshCoordinatorProvider.overrideWith(
+          () => SearchRefreshCoordinator(scheduler: scheduler),
+        ),
+        booruEngineRegistryProvider.overrideWithValue(BooruEngineRegistry()),
+        if (postCapability != null)
+          booruPostCapabilityProvider.overrideWith(
+            (ref, type) =>
+                type == postCapability.booruType ? postCapability : null,
+          ),
+        if (booruBuilder != null)
+          booruBuilderProvider.overrideWith(
+            (ref, config) => booruBuilder(config),
+          ),
+        booruRepoProvider.overrideWith(
+          (ref, config) => DanbooruRepository(ref: ref),
+        ),
+        canFavoriteProvider.overrideWith((ref, config) => false),
+        downloadServiceProvider.overrideWithValue(_TestDownloadService()),
+        followingTopicTrackingSupportedProvider.overrideWith(
+          (ref, config) => supported,
+        ),
+        currentReadOnlyBooruConfigProvider.overrideWith(
+          (ref) => ref.watch(selectedTestProfileProvider),
+        ),
+        if (profileRepository != null)
+          booruConfigRepoProvider.overrideWithValue(profileRepository),
+        booruConfigProvider.overrideWith(
+          () => BooruConfigNotifier(
+            initialConfigs: profiles ?? [testProfile, otherTestProfile],
+          ),
+        ),
+        followingTopicRepositoryProvider.overrideWith(
+          () => _RepositoryNotifier(repository, repositoryReady),
+        ),
+        followingTopicsProvider.overrideWith(
+          () => FollowingTopicsNotifier(
+            refreshService: SearchRefreshService(
+              repository: repository,
+              clock: clock,
+              resolvePostRepository: (config) => TestSearchPostRepository(
+                (query, page, limit) async {
+                  await beforeDispatch?.call();
+                  // This injected repository simulates remote dispatch instead
+                  // of using Dio, so signal its physical request boundary.
+                  ApiRequestContext.current().onStarted?.call();
+                  requests.add((
+                    profileId: config.auth.url == testProfile.url
+                        ? '00000000-0000-4000-8000-00000000000c'
+                        : '00000000-0000-4000-8000-000000000063',
+                    query: query,
+                  ));
+                  await refreshGate?.future;
+                  if (fetchPosts != null) {
+                    return fetchPosts(config, query, page, limit);
+                  }
+                  return Either.of(const PostResult(posts: <Post>[], total: 0));
+                },
+              ),
+              resolveQueryAdapter: (_) =>
+                  const DefaultSearchRefreshQueryAdapter(),
+              scanner: ChronologicalSearchScanner(),
+            ),
+          ),
+        ),
+        automaticMediaLoadingEnabledProvider.overrideWithValue(loadImages),
+        blacklistTagsProvider.overrideWith((ref, config) => const {}),
+        if (listingSettings != null)
+          imageListingSettingsProvider.overrideWithValue(listingSettings),
+        deviceInfoProvider.overrideWithValue(DeviceInfo.empty()),
+        defaultImageCacheManagerProvider.overrideWithValue(
+          imageCacheManager ?? _NoImageCache(),
+        ),
+        dioForWidgetProvider.overrideWith(
+          (ref, config) => Dio()
+            ..interceptors.add(
+              InterceptorsWrapper(
+                onRequest: (options, handler) {
+                  onMediaRequest?.call(options);
+                  handler.reject(
+                    DioException(
+                      requestOptions: options,
+                      type: DioExceptionType.badResponse,
+                      response: Response(
+                        requestOptions: options,
+                        statusCode: 404,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+        ),
+        httpHeadersProvider.overrideWith((ref, config) => {}),
+        routerProvider.overrideWith((_) => router),
+      ],
+    );
+    container
+        .read(testRefreshNetworkAllowedProvider.notifier)
+        .setAllowed(networkAllowed);
+  }
+
+  final Completer<void>? repositoryReady;
+  final bool loadImages;
+  final bool supported;
+  final box = ControlledSubscriptionBox();
+  final organizationBox = MemoryBox<dynamic>();
+  final settingsBox = MemoryBox<dynamic>();
+  late final FollowingTopicRepository repository;
+  late final ProviderContainer container;
+  late GoRouter router;
+  Completer<void>? refreshGate;
+  final requests = <({String profileId, String query})>[];
+
+  Future<void> seed(List<FollowingTopic> items) async {
+    for (final profileId in items.map((item) => item.profileId).toSet()) {
+      await repository.restoreForProfile(
+        profileId,
+        items.where((item) => item.profileId == profileId).toList(),
+      );
+    }
+  }
+
+  Future<void> pump(WidgetTester tester, Widget child) async {
+    await ensureI18nInitialized('en-US');
+    await tester.pumpWidget(
+      wrap(MaterialApp(home: child, builder: themeBuilder)),
+    );
+    await settle(tester);
+  }
+
+  Widget wrap(Widget child) => UncontrolledProviderScope(
+    container: container,
+    child: BooruLocalization(child: OKToast(child: child)),
+  );
+
+  void dispose() => container.dispose();
+}
+
+Widget themeBuilder(BuildContext context, Widget? child) => KurumiTheme(
+  data: KurumiThemeData.fromMaterial(Theme.of(context)),
+  child: child!,
+);
+
+Future<void> settle(WidgetTester tester) async {
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 500));
+}
+
+class ControlledSubscriptionBox extends MemorySubscriptionBox {
+  Completer<void>? writeGate;
+  var failWrites = false;
+
+  @override
+  Future<void> put(dynamic key, FollowingTopicHiveObject value) async {
+    await writeGate?.future;
+    if (failWrites) throw StateError('disk full');
+    await super.put(key, value);
+  }
+}
+
+final class _TestDownloadService implements DownloadService {
+  @override
+  Future<DownloadResult> download(DownloadOptions options) async =>
+      DownloadEnqueued(DownloadTaskInfo(path: '', id: options.url));
+
+  @override
+  Future<bool> cancelAll(String group) async => true;
+
+  @override
+  Future<void> pauseAll(String group) async {}
+
+  @override
+  Future<void> resumeAll(String group) async {}
+}
+
+class _RepositoryNotifier extends FollowingTopicRepositoryNotifier {
+  _RepositoryNotifier(this.repository, this.ready);
+  final FollowingTopicRepository repository;
+  final Completer<void>? ready;
+
+  @override
+  Future<FollowingTopicRepository> build() async {
+    await ready?.future;
+    return repository;
+  }
+}
+
+class _NoImageCache implements ImageCacheManager {
+  @override
+  FutureOr<String?> getCachedFilePath(String key, {Duration? maxAge}) => null;
+  @override
+  FutureOr<Uint8List?> getCachedFileBytes(String key, {Duration? maxAge}) =>
+      null;
+  @override
+  String generateCacheKey(String url, {String? customKey}) => url;
+  @override
+  Future<void> saveFile(String key, Uint8List bytes) async {}
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+Future<void> drain(WidgetTester tester) async {
+  // These fixtures use memory repositories and explicitly gated fetches.
+  // Yield event turns for provider work; elapsed time belongs in tester.pump
+  // at the call site when a test actually exercises a timer.
+  for (var i = 0; i < 20; i++) {
+    await tester.pump();
+    await tester.runAsync(
+      () => Future<void>.delayed(Duration.zero),
+    );
+  }
+}

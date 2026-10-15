@@ -22,6 +22,7 @@ import '../widgets/private_export_confirmation.dart';
 import 'export_filename.dart';
 import 'export_save_service.dart';
 import 'export_flow_notifier.dart';
+import '../../../search/following_topics/src/compatibility/topic_storage_contract.dart';
 
 final exportClipboardServiceProvider = Provider<ExportClipboardService>((ref) {
   return ExportClipboardService(
@@ -37,7 +38,9 @@ class ExportFlowPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(exportFlowProvider);
     final notifier = ref.read(exportFlowProvider.notifier);
-    final validFileNamePattern = isValidExportFileNamePattern(state.fileNamePattern);
+    final validFileNamePattern = isValidExportFileNamePattern(
+      state.fileNamePattern,
+    );
     final presentation = _localizedPresentation(
       context,
       ref.watch(exportSelectionPresentationProvider),
@@ -941,10 +944,16 @@ String _sourceLabel(BuildContext context, String id) => switch (id) {
         .blacklisted_tags,
   'bookmarks' =>
     context.t.settings.backup_and_restore.export_import.sources.bookmarks,
-  'pinned_searches' =>
-    context.t.settings.backup_and_restore.export_import.sources.pinned_searches,
-  'following_feeds' =>
-    context.t.settings.backup_and_restore.export_import.sources.following_feeds,
+  followingTopicsBackupSourceId =>
+    context
+        .t
+        .settings
+        .backup_and_restore
+        .export_import
+        .sources
+        .following_topics,
+  topicFeedsBackupSourceId =>
+    context.t.settings.backup_and_restore.export_import.sources.topic_feeds,
   _ => id,
 };
 
@@ -957,6 +966,6 @@ ExportSelectionPresentation _localizedPresentation(
     'ungrouped': ExportItemPresentation(
       label: context.t.bookmark.groups.default_group,
     ),
-    'home': ExportItemPresentation(label: context.t.pinned_searches.home),
+    'home': ExportItemPresentation(label: context.t.following_topics.home),
   },
 );

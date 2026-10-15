@@ -2,8 +2,8 @@ import 'dart:convert';
 
 import 'package:equatable/equatable.dart';
 
-import '../../../search/subscriptions/types.dart';
-import '../../../search/subscriptions/src/services/conservative_refresh_policy.dart';
+import '../../../search/following_topics/types.dart';
+import '../../../search/following_topics/src/services/conservative_refresh_policy.dart';
 
 final class SearchRuntimeSnapshot extends Equatable {
   const SearchRuntimeSnapshot({
@@ -15,15 +15,15 @@ final class SearchRuntimeSnapshot extends Equatable {
   factory SearchRuntimeSnapshot.empty() => SearchRuntimeSnapshot(
     searches: const [],
     feeds: const [],
-    organization: SearchOrganization(
+    organization: TopicOrganization(
       folders: const [],
       homeSearchIds: const [],
     ),
   );
 
-  final List<SearchSubscription> searches;
-  final List<SearchFollowingFeed> feeds;
-  final SearchOrganization organization;
+  final List<FollowingTopic> searches;
+  final List<TopicFeed> feeds;
+  final TopicOrganization organization;
 
   @override
   List<Object?> get props => [searches, feeds, organization];
@@ -52,16 +52,20 @@ final class SearchRuntimeSnapshotCodec {
       return SearchRuntimeSnapshot(
         searches: searches.map(_searchFromJson).toList(),
         feeds: feeds.map(_feedFromJson).toList(),
-        organization: SearchOrganization.fromJson(organization),
+        organization: TopicOrganization.fromJson(organization),
       );
     }
     throw const FormatException('Invalid search runtime snapshot');
   }
 
-  static Map<String, Object?> _searchToJson(SearchSubscription search) => {
+  static Map<String, Object?> _searchToJson(FollowingTopic search) => {
     'id': search.id,
     'profileId': search.profileId,
     'query': search.query,
+    'queryStructure': search.queryStructure?.toJson(),
+    'autoUpdateEnabled': search.autoUpdateEnabled,
+    'newPostCountEstimate': search.newPostCountEstimate,
+    'newPostCountIsLowerBound': search.newPostCountIsLowerBound,
     'name': search.name,
     'position': search.position,
     'createdAt': search.createdAt.toIso8601String(),
@@ -94,7 +98,7 @@ final class SearchRuntimeSnapshotCodec {
     'lastMaterialEditAt': search.lastMaterialEditAt?.toIso8601String(),
   };
 
-  static SearchSubscription _searchFromJson(Object? value) {
+  static FollowingTopic _searchFromJson(Object? value) {
     if (value is! Map) {
       throw const FormatException('Invalid runtime search');
     }
@@ -130,10 +134,14 @@ final class SearchRuntimeSnapshotCodec {
             postCreatedAt: _requiredDate(raw, 'postCreatedAt'),
           );
         }).toList();
-    return SearchSubscription(
+    return FollowingTopic(
       id: id,
       profileId: profileId,
       query: query,
+      queryStructure: SearchQueryStructure.tryParse(value['queryStructure']),
+      autoUpdateEnabled: value['autoUpdateEnabled'] != false,
+      newPostCountEstimate: _optionalInt(value, 'newPostCountEstimate'),
+      newPostCountIsLowerBound: value['newPostCountIsLowerBound'] == true,
       name: _optionalString(value, 'name'),
       position: position,
       createdAt: createdAt,
@@ -160,11 +168,11 @@ final class SearchRuntimeSnapshotCodec {
     );
   }
 
-  static SearchFollowingFeed _feedFromJson(Object? value) {
+  static TopicFeed _feedFromJson(Object? value) {
     if (value is! Map) {
       throw const FormatException('Invalid runtime feed');
     }
-    return SearchFollowingFeed.fromJson(value);
+    return TopicFeed.fromJson(value);
   }
 
   static List<Object?> _requiredList(Map value, String key) =>
@@ -225,7 +233,7 @@ final class SearchRuntimeSnapshotCodec {
 final class SearchRuntimeSnapshotService {
   const SearchRuntimeSnapshotService(this.repository);
 
-  final SearchSubscriptionRepository repository;
+  final FollowingTopicRepository repository;
 
   Future<SearchRuntimeSnapshot> capture() async => SearchRuntimeSnapshot(
     searches: await repository.getAll(),
@@ -241,7 +249,7 @@ final class SearchRuntimeSnapshotService {
       await repository.delete(search.id);
     }
 
-    final searchesByProfile = <String, List<SearchSubscription>>{};
+    final searchesByProfile = <String, List<FollowingTopic>>{};
     for (final search in snapshot.searches) {
       searchesByProfile.putIfAbsent(search.profileId, () => []).add(search);
     }
@@ -249,7 +257,7 @@ final class SearchRuntimeSnapshotService {
       await repository.restoreForProfile(entry.key, entry.value);
     }
 
-    final feedsByProfile = <String, List<SearchFollowingFeed>>{};
+    final feedsByProfile = <String, List<TopicFeed>>{};
     for (final feed in snapshot.feeds) {
       feedsByProfile.putIfAbsent(feed.profileId, () => []).add(feed);
     }

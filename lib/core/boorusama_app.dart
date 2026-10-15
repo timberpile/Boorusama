@@ -44,7 +44,7 @@ import 'developer_options/providers.dart';
 import 'developer_options/src/developer_options_repository.dart';
 import 'developer_options/types.dart';
 import 'hive/hive_registrar.g.dart';
-import 'hive/search_subscription_hive_adapter.dart';
+import 'hive/following_topic_hive_adapter.dart';
 import 'http/client/types.dart';
 import 'images/providers.dart';
 import 'posts/shares/src/share_media_preparation.dart';
@@ -118,7 +118,7 @@ class _BoorusamaAppState extends State<BoorusamaApp> {
       Hive
         ..init(dbDirectoryPath)
         ..registerAdapters()
-        ..registerAdapter(SearchSubscriptionHiveObjectAdapter());
+        ..registerAdapter(FollowingTopicHiveObjectAdapter());
 
       logger.debugBoot('Load app info');
       final appInfo = await getAppInfo();

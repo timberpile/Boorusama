@@ -13,10 +13,11 @@ import '../../../settings/types.dart';
 import '../../preparation/version_checking.dart';
 import '../../preparation/preparation_pipeline.dart';
 import '../../sources/search_backup_import_preflight.dart';
-import '../../sources/following_feeds_source.dart';
-import '../../sources/pinned_searches_source.dart';
+import '../../sources/topic_feeds_source.dart';
+import '../../sources/following_topics_source.dart';
 import '../../sources/providers.dart';
 import '../../types/types.dart';
+import '../../../search/following_topics/src/compatibility/topic_storage_contract.dart';
 
 final exportCategoriesProvider = Provider<List<ExportCategory>>((ref) {
   // Ensure all backup sources are registered
@@ -314,8 +315,8 @@ class ImportDataNotifier
         }
       }
       if (!uiContext.mounted) throw const ImportCancelledException();
-      final pinnedSource = registry.getSource('pinned_searches');
-      final feedSource = registry.getSource('following_feeds');
+      final topicsSource = registry.getSource(followingTopicsBackupSourceId);
+      final feedSource = registry.getSource(topicFeedsBackupSourceId);
       final selectedIds = orderedTasks.map((task) => task.id).toSet();
       var profilesFailed =
           selectedIds.contains('profiles') && !prepared.containsKey('profiles');
@@ -324,10 +325,10 @@ class ImportDataNotifier
           : await preflightSearchBackups(
               prepared: prepared,
               selectedIds: selectedIds,
-              pinnedSource: pinnedSource is PinnedSearchesBackupSource
-                  ? pinnedSource
+              topicsSource: topicsSource is FollowingTopicsBackupSource
+                  ? topicsSource
                   : null,
-              feedSource: feedSource is FollowingFeedsBackupSource
+              feedSource: feedSource is TopicFeedsBackupSource
                   ? feedSource
                   : null,
               currentProfiles: () => ref.read(booruConfigRepoProvider).getAll(),
@@ -337,7 +338,10 @@ class ImportDataNotifier
         final preparation = prepared[task.id];
         if (preparation == null) continue;
         if (profilesFailed &&
-            {'pinned_searches', 'following_feeds'}.contains(task.id)) {
+            {
+              followingTopicsBackupSourceId,
+              topicFeedsBackupSourceId,
+            }.contains(task.id)) {
           updateTask(task.id, const ImportError('Profile import failed'));
           continue;
         }

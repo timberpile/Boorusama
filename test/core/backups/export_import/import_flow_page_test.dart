@@ -339,7 +339,7 @@ void main() {
               sources: [proposed],
             ).resolveDefaults().sources.single,
             onChanged: (_) {},
-            sourceLabel: (_) => 'Pinned searches',
+            sourceLabel: (_) => 'Topics',
             itemLabel: (id) => id == 'search:unknown' ? 'Unknown search' : id,
             targetLabel: (id) => id,
             itemTree: const ExportSelectionDescriptor.collection(
@@ -381,7 +381,7 @@ void main() {
       final searchX = tester.getTopLeft(find.text('Blue sky').first).dx;
       expect(searchX - folderX, 8);
       final cardX = tester.getTopLeft(find.byType(Card).first).dx;
-      final categoryX = tester.getTopLeft(find.text('Pinned searches')).dx;
+      final categoryX = tester.getTopLeft(find.text('Topics')).dx;
       expect(categoryX - cardX, greaterThanOrEqualTo(12));
       expect(find.byType(KurumiSettingsTile<ImportAction>), findsNWidgets(4));
       expect(tester.takeException(), isNull);
@@ -400,7 +400,7 @@ void main() {
           width: 220,
           child: ImportItemLabel(
             item: ExportItemPresentation(
-              label: 'A pinned search with a deliberately long title',
+              label: 'A followed topic with a deliberately long title',
               trailingLabel: 'A very long profile name that must fit',
             ),
           ),
@@ -591,14 +591,14 @@ void main() {
         created: 131,
         updated: 1,
         entitySummaries: {
-          'pinned-search': PlannedChangeSummary(created: 131),
-          'pinned-home': PlannedChangeSummary(updated: 1),
+          'following-topic': PlannedChangeSummary(created: 131),
+          'topics-home': PlannedChangeSummary(updated: 1),
         },
       ),
       createdTemplate: 'Create {count}',
       updatedTemplate: 'Update {count}',
       deletedTemplate: 'Remove {count}',
-      entityNouns: {'pinned-search': (count) => 'searches'},
+      entityNouns: {'following-topic': (count) => 'searches'},
       homeArrangementLabel: 'Home arrangement',
     );
 

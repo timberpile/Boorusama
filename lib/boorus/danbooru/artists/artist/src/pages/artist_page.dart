@@ -4,7 +4,7 @@ import 'package:kurumi/material.dart';
 
 // Project imports:
 import '../../../../../../core/tags/details/widgets.dart';
-import '../../../../../../core/search/subscriptions/src/widgets/feed_follow_control.dart';
+import '../../../../../../core/search/following_topics/src/widgets/topic_follow_control.dart';
 import '../../../../../../core/widgets/custom_context_menu_overlay.dart';
 import '../../../../tags/details/widgets.dart';
 import '../../../urls/widgets.dart';
@@ -39,7 +39,7 @@ class _DanbooruArtistPageState extends ConsumerState<DanbooruArtistPage> {
           loading: () => const TagOtherNames(otherNames: null),
         ),
         extras: [
-          FeedFollowButton(query: widget.artistName),
+          FollowTopicButton(query: widget.artistName),
           const SizedBox(height: 8),
           artist.when(
             data: (artist) => DanbooruArtistUrlChips(

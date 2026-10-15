@@ -35,8 +35,9 @@ import 'help_us_translate_page.dart';
 import 'image_viewer_page.dart';
 import 'language_page.dart';
 import 'privacy_page.dart';
-import 'pinned_searches_and_feeds_page.dart';
+import 'topic_updates_page.dart';
 import 'search_settings_page.dart';
+import '../../../search/following_topics/src/compatibility/topic_storage_contract.dart';
 
 List<SettingEntry> _entries(
   BuildContext context, {
@@ -85,11 +86,11 @@ List<SettingEntry> _entries(
     content: const SearchSettingsPage(),
   ),
   SettingEntry(
-    id: 'pinned_searches_and_feeds',
-    name: '/settings/pinned_searches_and_feeds',
-    title: context.t.settings.pinned_searches_and_feeds.title,
+    id: 'topic_updates',
+    name: '/settings/topic_updates',
+    title: context.t.settings.topic_updates.title,
     icon: FontAwesomeIcons.rss,
-    content: const PinnedSearchesAndFeedsSettingsPage(),
+    content: const TopicUpdatesSettingsPage(),
   ),
   SettingEntry(
     id: 'accessibility',
@@ -216,7 +217,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                           builder: (_, selected, _) => ValueListenableBuilder(
                             valueListenable: _nestedEntry,
                             builder: (_, nestedEntry, _) => SettingsLargePage(
-                              initial: selected ?? widget.initial,
+                              initial:
+                                  selected ??
+                                  (widget.initial ==
+                                          legacyTopicUpdatesSettingsId
+                                      ? 'topic_updates'
+                                      : widget.initial),
                               onTabChanged: (tab) {
                                 _selected.value = tab;
                                 _nestedEntry.value = null;
@@ -235,7 +241,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                         child: ValueListenableBuilder(
                           valueListenable: _selected,
                           builder: (_, selected, _) => SettingsSmallPage(
-                            initial: selected ?? widget.initial,
+                            initial:
+                                selected ??
+                                (widget.initial == legacyTopicUpdatesSettingsId
+                                    ? 'topic_updates'
+                                    : widget.initial),
                           ),
                         ),
                       );
@@ -279,7 +289,9 @@ class _SettingsSmallPageState extends ConsumerState<SettingsSmallPage> {
     if (initial != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         // open the initial page
-        final entry = _findInitialPage(initial);
+        final entry = _findInitialPage(
+          initial == legacyTopicUpdatesSettingsId ? 'topic_updates' : initial,
+        );
         final openContent = SettingsPageNavigationScope.of(context).openContent;
 
         if (entry != null) {

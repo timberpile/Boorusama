@@ -27,7 +27,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import '../../search/subscriptions/subscription_test_utils.dart';
+import '../../search/following_topics/topic_test_utils.dart';
 
 void main() {
   test('unknown active browsing has no assumed minute or second ceiling', () {

@@ -17,7 +17,7 @@ import 'backups/auto/trigger.dart';
 import 'backups/export_import/platform/received_export_listener.dart';
 import 'router.dart';
 import 'settings/providers.dart';
-import 'search/subscriptions/src/widgets/search_refresh_lifecycle.dart';
+import 'search/following_topics/src/widgets/search_refresh_lifecycle.dart';
 import 'themes/theme/widgets.dart';
 import 'widgets/widgets.dart';
 import 'window/widgets.dart';

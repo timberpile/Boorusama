@@ -64,7 +64,7 @@ complete chronological coverage.
 - `lib/core/search/subscriptions/src/refresh/chronological_search_scanner.dart`
 - `lib/core/search/subscriptions/src/services/search_refresh_service.dart`
 - `lib/core/search/subscriptions/src/data/hive/search_subscription_repository_hive.dart`
-- [Subsystem documentation](../../pinned_searches.md)
+- [Subsystem documentation](../../following_topics.md)
 - Existing count/checkpoint requirements in the approved design and plan must
   be reconciled with this newer user request.
 

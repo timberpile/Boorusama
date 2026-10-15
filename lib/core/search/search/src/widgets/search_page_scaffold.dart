@@ -23,12 +23,12 @@ import '../../../selected_tags/providers.dart';
 import '../../../selected_tags/types.dart';
 import '../../../suggestions/providers.dart';
 import '../../../suggestions/widgets.dart';
-import '../../../subscriptions/providers.dart';
-import '../../../subscriptions/types.dart';
-import '../../../subscriptions/widgets.dart';
-import '../../../subscriptions/src/widgets/pin_search_folder_picker.dart';
-import '../../../subscriptions/src/widgets/search_folder_dialog.dart';
-import '../../../subscriptions/src/widgets/feed_follow_control.dart';
+import '../../../following_topics/providers.dart';
+import '../../../following_topics/types.dart';
+import '../../../following_topics/widgets.dart';
+import '../../../following_topics/src/widgets/topic_follow_control.dart';
+import '../../../following_topics/src/widgets/follow_topic_folder_picker.dart';
+import '../../../following_topics/src/widgets/search_folder_dialog.dart';
 import '../routes/params.dart';
 import '../types/search_bar_position.dart';
 import '../views/search_landing_view.dart';
@@ -96,7 +96,7 @@ class _SearchPageScaffoldState<T extends Post>
   late final SelectionModeController _searchModeController;
 
   late final ValueNotifier<PostGridController<T>?> _postController;
-  final _pinFeedback = ValueNotifier<String?>(null);
+  final _topicFeedback = ValueNotifier<String?>(null);
 
   @override
   void initState() {
@@ -141,7 +141,7 @@ class _SearchPageScaffoldState<T extends Post>
     _controller.dispose();
     _searchModeController.dispose();
     _postController.dispose();
-    _pinFeedback.dispose();
+    _topicFeedback.dispose();
     super.dispose();
   }
 
@@ -200,24 +200,23 @@ class _SearchPageScaffoldState<T extends Post>
                                 const SizedBox.shrink(),
                             },
                           ),
-                          _PinSearchAction(
-                            query: value,
-                            queryStructure: _typedQueryStructure(
-                              _tagsController.tags,
-                            ),
-                            onFeedback: (message) =>
-                                _pinFeedback.value = message,
-                          ),
                           ConstrainedBox(
                             constraints: BoxConstraints(
                               maxWidth: constraints.maxWidth * 0.55,
                             ),
-                            child: FeedFollowButton(query: value),
+                            child: _FollowTopicAction(
+                              query: value,
+                              queryStructure: _typedQueryStructure(
+                                _tagsController.tags,
+                              ),
+                              onFeedback: (message) =>
+                                  _topicFeedback.value = message,
+                            ),
                           ),
                         ],
                       ),
                       ValueListenableBuilder(
-                        valueListenable: _pinFeedback,
+                        valueListenable: _topicFeedback,
                         builder: (context, error, _) => switch (error) {
                           final message? when value.trim().isNotEmpty =>
                             Padding(
@@ -264,8 +263,8 @@ SearchQueryStructure? _typedQueryStructure(List<TagSearchItem> tags) =>
     ? SearchQueryStructure.typedTags(tags.map((tag) => tag.toString()))
     : null;
 
-class _PinSearchAction extends ConsumerStatefulWidget {
-  const _PinSearchAction({
+class _FollowTopicAction extends ConsumerStatefulWidget {
+  const _FollowTopicAction({
     required this.query,
     required this.queryStructure,
     required this.onFeedback,
@@ -276,24 +275,24 @@ class _PinSearchAction extends ConsumerStatefulWidget {
   final ValueChanged<String?> onFeedback;
 
   @override
-  ConsumerState<_PinSearchAction> createState() => _PinSearchActionState();
+  ConsumerState<_FollowTopicAction> createState() => _FollowTopicActionState();
 }
 
-class _PinSearchActionState extends ConsumerState<_PinSearchAction> {
+class _FollowTopicActionState extends ConsumerState<_FollowTopicAction> {
   var _busy = false;
   var _saved = false;
-  ({String profileId, String query})? _pendingPin;
+  ({String profileId, String query})? _pendingTopic;
 
-  SearchSubscription? _findPin(
-    List<SearchSubscription> subscriptions,
+  FollowingTopic? _findTopic(
+    List<FollowingTopic> topics,
     String profileId,
     String query,
   ) {
     final identity = normalizeSearchIdentity(query);
-    for (final pin in subscriptions) {
-      if (pin.profileId == profileId &&
-          normalizeSearchIdentity(pin.query) == identity) {
-        return pin;
+    for (final topic in topics) {
+      if (topic.profileId == profileId &&
+          normalizeSearchIdentity(topic.query) == identity) {
+        return topic;
       }
     }
     return null;
@@ -303,9 +302,11 @@ class _PinSearchActionState extends ConsumerState<_PinSearchAction> {
     widget.onFeedback(message);
   }
 
-  Future<void> _manage(String profileId, SearchSubscription? existing) async {
-    if (!ref.read(pinnedSearchTrackingSupportedProvider(ref.readConfigAuth))) {
-      _feedback(context.t.pinned_searches.profile_unsupported);
+  Future<void> _manage(String profileId, FollowingTopic? existing) async {
+    if (!ref.read(
+      followingTopicTrackingSupportedProvider(ref.readConfigAuth),
+    )) {
+      _feedback(context.t.following_topics.profile_unsupported);
       return;
     }
     final query = widget.query;
@@ -313,11 +314,7 @@ class _PinSearchActionState extends ConsumerState<_PinSearchAction> {
     widget.onFeedback(null);
     try {
       final folders =
-          ref
-              .read(searchSubscriptionsProvider)
-              .valueOrNull
-              ?.organization
-              .folders ??
+          ref.read(followingTopicsProvider).valueOrNull?.organization.folders ??
           [];
       var folderId = folders
           .where(
@@ -326,14 +323,14 @@ class _PinSearchActionState extends ConsumerState<_PinSearchAction> {
           .firstOrNull
           ?.id;
       var isNewFolder = false;
-      SearchSubscription? savedNewPin;
-      final notifier = ref.read(searchSubscriptionsProvider.notifier);
-      final name = await showPinSearchDialog(
+      FollowingTopic? savedNewTopic;
+      final notifier = ref.read(followingTopicsProvider.notifier);
+      final name = await showFollowTopicDialog(
         context,
         query: query,
         initialName: existing?.name,
-        isPinned: existing != null,
-        extra: PinSearchFolderPicker(
+        isFollowing: existing != null,
+        extra: FollowTopicFolderPicker(
           initialFolderId: folderId,
           onSelected: (id, isNew) {
             folderId = id;
@@ -345,42 +342,42 @@ class _PinSearchActionState extends ConsumerState<_PinSearchAction> {
           final folderName = await showSearchFolderNameDialog(dialogContext);
           if (folderName == null || !mounted) return false;
           if (existing == null) {
-            _pendingPin = (profileId: profileId, query: query);
+            _pendingTopic = (profileId: profileId, query: query);
           }
           try {
-            savedNewPin = await notifier.savePinInNewFolder(
+            savedNewTopic = await notifier.saveTopicInNewFolder(
               profileId: profileId,
               query: query,
               name: name,
               folderName: folderName,
-              existingPinId: existing?.id,
+              existingTopicId: existing?.id,
             );
             return true;
           } catch (_) {
-            _pendingPin = null;
+            _pendingTopic = null;
             _saved = false;
             rethrow;
           }
         },
       );
       if (!mounted || name == null) return;
-      if (savedNewPin case final pin?) {
+      if (savedNewTopic case final topic?) {
         if (existing == null) {
-          final refresh = await notifier.refresh(pin.id);
+          final refresh = await notifier.refresh(topic.id);
           if (mounted && refresh is SearchRefreshFailed) {
-            _feedback(context.t.pinned_searches.snapshot_failed);
+            _feedback(context.t.following_topics.snapshot_failed);
           }
         }
         return;
       }
       switch (existing) {
-        case final pin?:
-          await notifier.rename(pin.id, name);
-          await notifier.movePinToSharedFolder(pin.id, folderId);
+        case final topic?:
+          await notifier.rename(topic.id, name);
+          await notifier.moveTopicToSharedFolder(topic.id, folderId);
 
         case null:
-          _pendingPin = (profileId: profileId, query: query);
-          final result = await notifier.pin(
+          _pendingTopic = (profileId: profileId, query: query);
+          final result = await notifier.follow(
             profileId: profileId,
             query: query,
             queryStructure: widget.queryStructure,
@@ -389,19 +386,19 @@ class _PinSearchActionState extends ConsumerState<_PinSearchAction> {
           );
           if (!mounted) return;
           if (result.refresh case SearchRefreshFailed()) {
-            _feedback(context.t.pinned_searches.snapshot_failed);
+            _feedback(context.t.following_topics.snapshot_failed);
           }
       }
     } catch (_) {
       if (mounted) {
         _feedback(
           _saved
-              ? context.t.pinned_searches.snapshot_failed
-              : context.t.pinned_searches.save_failed,
+              ? context.t.following_topics.snapshot_failed
+              : context.t.following_topics.save_failed,
         );
       }
     } finally {
-      _pendingPin = null;
+      _pendingTopic = null;
       _saved = false;
       if (mounted) setState(() => _busy = false);
     }
@@ -411,16 +408,16 @@ class _PinSearchActionState extends ConsumerState<_PinSearchAction> {
   Widget build(BuildContext context) {
     if (widget.query.trim().isEmpty) return const SizedBox.shrink();
     final profileId = ref.watchConfig.id;
-    final subscriptions = ref.watch(searchSubscriptionsProvider);
-    final existing = _findPin(
-      subscriptions.valueOrNull?.subscriptions ?? const [],
+    final topics = ref.watch(followingTopicsProvider);
+    final existing = _findTopic(
+      topics.valueOrNull?.topics ?? const [],
       profileId,
       widget.query,
     );
-    ref.listen(searchSubscriptionsProvider, (_, next) {
-      if (_pendingPin case final pending? when !_saved) {
-        final saved = _findPin(
-          next.valueOrNull?.subscriptions ?? const [],
+    ref.listen(followingTopicsProvider, (_, next) {
+      if (_pendingTopic case final pending? when !_saved) {
+        final saved = _findTopic(
+          next.valueOrNull?.topics ?? const [],
           pending.profileId,
           pending.query,
         );
@@ -429,12 +426,9 @@ class _PinSearchActionState extends ConsumerState<_PinSearchAction> {
         }
       }
     });
-    return IconButton(
-      tooltip: existing == null
-          ? context.t.pinned_searches.pin_title
-          : context.t.pinned_searches.manage_title,
-      icon: Icon(Symbols.push_pin, fill: existing == null ? 0 : 1),
-      onPressed: _busy || !subscriptions.hasValue
+    return TopicFollowPill(
+      following: existing != null,
+      onPressed: _busy || !topics.hasValue
           ? null
           : () => _manage(profileId, existing),
     );

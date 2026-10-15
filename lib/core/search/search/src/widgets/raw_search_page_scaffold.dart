@@ -109,7 +109,7 @@ class _SearchPageScaffoldState<T extends Post>
   SelectedTagController get _tagsController => widget.tagsController;
   final _scrollController = AutoScrollController();
 
-  final _subscriptions = CompositeSubscription();
+  final _topics = CompositeSubscription();
   SearchPageController get _controller => widget.controller;
 
   late final _searchBarAnimController = AnimationController(
@@ -155,7 +155,7 @@ class _SearchPageScaffoldState<T extends Post>
         .listen((pair) {
           _onQueryChanged(pair.first, pair.last);
         })
-        .addTo(_subscriptions);
+        .addTo(_topics);
 
     _tagsController.addListener(_onSelectedTagChanged);
     _controller.tagString.addListener(_onTagChanged);
@@ -219,7 +219,7 @@ class _SearchPageScaffoldState<T extends Post>
       _onMultiSelectChanged,
     );
 
-    _subscriptions.dispose();
+    _topics.dispose();
     _scrollController.dispose();
     _searchBarAnimController.dispose();
 
