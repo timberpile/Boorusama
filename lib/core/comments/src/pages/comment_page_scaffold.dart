@@ -78,7 +78,7 @@ class _CommentPageScaffoldState extends ConsumerState<CommentPageScaffold> {
 
     return Scaffold(
       appBar: widget.useAppBar
-          ? AppBar(
+          ? KurumiAppBar(
               title: Text(context.t.comment.comments),
             )
           : null,

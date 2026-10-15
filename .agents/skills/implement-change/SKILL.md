@@ -16,10 +16,17 @@ description: Implement a clear, scoped Boorusama change without unresolved archi
    decision, or complete an action. Prefer icons where their meaning is clear.
 3. Add/update tests for meaningful behavior, edge cases, or regressions, not
    trivial getters, language behavior, or internal implementation details.
-4. Run targeted checks while implementing. After the last edit, run the complete
-   local suite required by `AGENTS.md` before final review or handoff. Resolve
-   failures and repeat the complete suite after any further edits; targeted
-   passes or CI are not substitutes.
+   Make tests independent of host scheduling: use fake/injected clocks for timer
+   contracts and completion signals/gates for async work. Do not use fixed sleeps
+   or tight wall-clock caps as proof of completion. Real I/O may need a bounded
+   condition wait with a generous hang guard. Preserve timing semantics and test
+   at the normal parallel setting; follow the engineering guide's test guidance.
+4. Verify according to the scope rules in `AGENTS.md`: relevant direct checks
+   for documentation-only changes, affected/consumer tests for scoped changes,
+   complete affected-package tests, or the full suite for broad/unclear scope.
+   Before develop integration, require a complete pass on the final candidate;
+   reuse an existing pass on that same candidate across handoffs and report-only
+   edits. Resolve failures and re-verify relevant changes.
 5. Report changes, significant decisions, verification, and limitations.
 
 No automatic design, implementation plan, work item, subagent, separate reviewer,

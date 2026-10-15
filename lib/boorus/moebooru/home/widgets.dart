@@ -44,7 +44,7 @@ class _MoebooruHomePageState extends ConsumerState<MoebooruHomePage> {
             CupertinoPageRoute(
               settings: const RouteSettings(name: 'popular'),
               builder: (_) => Scaffold(
-                appBar: AppBar(
+                appBar: KurumiAppBar(
                   title: Text(context.t.explore.popular),
                 ),
                 body: const CustomContextMenuOverlay(
@@ -64,7 +64,7 @@ class _MoebooruHomePageState extends ConsumerState<MoebooruHomePage> {
             CupertinoPageRoute(
               settings: const RouteSettings(name: 'hot'),
               builder: (_) => Scaffold(
-                appBar: AppBar(
+                appBar: KurumiAppBar(
                   title: Text(context.t.explore.hot),
                 ),
                 body: const CustomContextMenuOverlay(

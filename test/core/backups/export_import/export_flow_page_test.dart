@@ -1,3 +1,4 @@
+import 'package:boorusama/core/bookmarks/types.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -20,6 +21,35 @@ void main() {
     id: 'bookmarks',
     childIds: {'one', 'two'},
   );
+
+  test('legacy templates resolve No Group to the real Default group', () {
+    final container = ProviderContainer(
+      overrides: [
+        exportImportSourcesProvider.overrideWithValue(const []),
+      ],
+    );
+    addTearDown(container.dispose);
+    final notifier = container.read(exportFlowProvider.notifier);
+    notifier.applyTemplate(
+      ExportTemplate(
+        id: 'legacy',
+        name: 'Legacy',
+        selection: ExportSelection.custom(const {
+          'bookmarks': ExportNodeSelection.explicit('bookmarks', {'ungrouped'}),
+        }),
+        itemRecommendedActions: const {
+          'bookmarks': {'ungrouped': ImportAction.update},
+        },
+      ),
+    );
+    final state = container.read(exportFlowProvider);
+    expect(state.nodes['bookmarks']!.childIds, {
+      'group:$defaultBookmarkGroupId',
+    });
+    expect(state.itemRecommendedActions['bookmarks'], {
+      'group:$defaultBookmarkGroupId': ImportAction.merge,
+    });
+  });
 
   testWidgets('partially selected collections show an indeterminate parent', (
     tester,
@@ -461,7 +491,34 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byType(Checkbox).first);
     await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(find.text('Save as template'), 500);
+    final patternField = find.byWidgetPredicate(
+      (widget) =>
+          widget is TextField &&
+          widget.decoration?.labelText == 'Export file name (optional)',
+    );
+    final formScrollable = find
+        .descendant(
+          of: find.byType(ListView),
+          matching: find.byType(Scrollable),
+        )
+        .first;
+    await tester.scrollUntilVisible(
+      patternField,
+      350,
+      scrollable: formScrollable,
+    );
+    expect(tester.widget<TextField>(patternField).controller!.text, isEmpty);
+    expect(
+      tester.widget<TextField>(patternField).decoration!.hintText,
+      'boorusama-{timestamp}',
+    );
+    await tester.enterText(patternField, 'favorites-{date:yyyy-MM-dd}');
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Save as template'),
+      500,
+      scrollable: formScrollable,
+    );
     await tester.tap(find.text('Save as template'));
     await tester.pumpAndSettle();
     final dialog = find.byType(AlertDialog);
@@ -485,11 +542,32 @@ void main() {
       find.descendant(of: dialog, matching: find.text('Save & export')),
       findsNothing,
     );
-    await tester.enterText(find.byType(TextField), 'QA bookmarks');
+    await tester.enterText(
+      find.descendant(of: dialog, matching: find.byType(TextField)),
+      'QA bookmarks',
+    );
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
 
     expect(find.text('QA bookmarks'), findsOneWidget);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ExportFlowPage)),
+    );
+    final template = container
+        .read(exportTemplatesProvider)
+        .valueOrNull!
+        .single;
+    expect(template.fileNamePattern, 'favorites-{date:yyyy-MM-dd}');
+    container
+        .read(exportFlowProvider.notifier)
+        .setFileNamePattern('other-{timestamp}');
+    await tester.pumpAndSettle();
+    container.read(exportFlowProvider.notifier).applyTemplate(template);
+    await tester.pumpAndSettle();
+    expect(
+      container.read(exportFlowProvider).fileNamePattern,
+      'favorites-{date:yyyy-MM-dd}',
+    );
     expect(find.text('Saved on this device only.'), findsOneWidget);
     expect(tester.takeException(), isNull);
     await tester.pump(const Duration(seconds: 3));

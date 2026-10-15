@@ -201,6 +201,7 @@
   },
   "sort": {
     "sort_by": "Sırala",
+    "short": "Sırala",
     "name": "İsim",
     "name_asc": "İsim (A-Z)",
     "name_desc": "İsim (Z-A)",

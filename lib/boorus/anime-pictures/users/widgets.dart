@@ -28,9 +28,9 @@ class AnimePicturesCurrentUserIdScope extends ConsumerWidget {
                   child: child,
                 )
               : _buildInvalidPage(context),
-          loading: () => Scaffold(
-            appBar: AppBar(),
-            body: const Center(
+          loading: () => const Scaffold(
+            appBar: KurumiAppBar(),
+            body: Center(
               child: CircularProgressIndicator(),
             ),
           ),

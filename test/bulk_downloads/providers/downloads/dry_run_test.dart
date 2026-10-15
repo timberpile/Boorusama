@@ -413,6 +413,8 @@ void main() {
         CancelToken(),
         DownloadTestConstants.defaultConfigs.copyWith(
           fileNameBuilder: mockBuilder,
+          // This case verifies preload/record handling, not token pacing.
+          asyncTokenDelay: Duration.zero,
         ),
         shouldContinue: () async => true,
         onPageProgress: (_) async {},

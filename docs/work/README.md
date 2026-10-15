@@ -16,9 +16,11 @@ Each task or issue has its own Markdown file. Its folder determines its status:
 | [done/](done/) | Acceptance criteria verified, with completion evidence |
 
 List the status folders to discover tasks; there is no separate status index.
-Keep the same filename throughout a task's lifecycle. Use a stable identifier
-and descriptive slug for new tasks, for example `R34-001-unread-count.md`.
-Existing descriptive filenames may be retained.
+Keep the same filename throughout a task's lifecycle. For new work items,
+use a repository-wide, zero-padded four-digit number and a lowercase kebab-case
+slug, for example `0012-my-change.md`. Pick the next unused number across all
+work-item folders; do not add category prefixes such as `UX-001`.
+Existing work-item filenames may be retained.
 
 When asked to work through the queue, select an eligible task from `ready/`.
 Choose High priority before Normal, then Low; break ties by filename. Resolve

@@ -75,7 +75,7 @@ class _ImportDataPageState extends ConsumerState<ImportDataPage> {
     final currentVersion = ref.watch(appVersionProvider);
 
     return Scaffold(
-      appBar: AppBar(
+      appBar: KurumiAppBar(
         title: Text(context.t.settings.backup_and_restore.receive_data.title),
       ),
       body: Padding(

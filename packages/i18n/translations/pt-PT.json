@@ -643,6 +643,7 @@
   },
   "sort": {
     "sort_by": "Organizar por",
+    "short": "Ordenar",
     "name": "Nome",
     "name_asc": "Nome (A-Z)",
     "name_desc": "Nome (Z-A)",

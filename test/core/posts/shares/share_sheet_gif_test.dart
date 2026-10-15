@@ -13,6 +13,8 @@ import 'package:boorusama/core/posts/post/providers.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 import 'package:boorusama/core/posts/shares/src/gif_export_contract.dart';
 import 'package:boorusama/core/posts/shares/src/gif_save_service.dart';
+import 'package:boorusama/core/posts/shares/src/gif_loop_video_preview.dart';
+import 'package:boorusama/core/posts/shares/src/gif_trim_navigator.dart';
 import 'package:boorusama/core/posts/shares/src/gif_ffmpeg_runner.dart';
 import 'package:boorusama/core/posts/shares/src/gif_output_inspection.dart';
 import 'package:boorusama/core/posts/shares/src/share_action_adapter.dart';
@@ -240,6 +242,37 @@ void main() {
     expect(find.byTooltip('Share video'), findsOneWidget);
   });
 
+  testWidgets('Create GIF preserves the 1152x720 source aspect ratio', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final root = await tester.runAsync(
+      () => Directory.systemTemp.createTemp('gif-preview-ratio-'),
+    );
+    addTearDown(() => root!.delete(recursive: true));
+    await _open(
+      tester,
+      post: _video,
+      root: root,
+      backend: _Encoder(width: 1152, height: 720),
+    );
+    await tester.runAsync(
+      () => tester.tap(find.byKey(const ValueKey('create-gif'))),
+    );
+    await _driveUntil(
+      tester,
+      () => find.byKey(const ValueKey('gif-convert')).evaluate().isNotEmpty,
+    );
+    final size = tester.getSize(find.byType(GifLoopVideoPreview));
+    expect(size.width / size.height, closeTo(1.6, .0001));
+    expect(size.width, greaterThan(300));
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   for (final textScale in [1.0, 2.0]) {
     testWidgets(
       '1280 by 720 offers a selectable Original at narrow width and $textScale text scale',
@@ -267,18 +300,29 @@ void main() {
           () => find.byKey(const ValueKey('gif-convert')).evaluate().isNotEmpty,
         );
         await tester.scrollUntilVisible(
-          find.byKey(const ValueKey('gif-size-original')),
+          find.byKey(const ValueKey('gif-size-options')),
           100,
-          scrollable: find.byType(Scrollable).last,
+          scrollable: find
+              .byWidgetPredicate(
+                (widget) =>
+                    widget is Scrollable &&
+                    widget.axisDirection == AxisDirection.down,
+              )
+              .last,
         );
         await tester.pump();
         final original = find.byKey(const ValueKey('gif-size-original'));
         final smaller = find.byKey(const ValueKey('gif-size-720'));
+        await tester.drag(
+          find.byKey(const ValueKey('gif-size-options')),
+          const Offset(-800, 0),
+        );
+        await tester.pumpAndSettle();
         expect(original.hitTestable(), findsOneWidget);
         expect(smaller, findsOneWidget);
         expect(
           tester.getTopLeft(original).dy,
-          greaterThanOrEqualTo(tester.getTopLeft(smaller).dy),
+          tester.getTopLeft(smaller).dy,
         );
         expect(find.text('480 × 270 px'), findsOneWidget);
         await tester.tap(original);
@@ -328,7 +372,13 @@ void main() {
       await tester.scrollUntilVisible(
         find.byKey(const ValueKey('gif-size-original')),
         100,
-        scrollable: find.byType(Scrollable).last,
+        scrollable: find
+            .byWidgetPredicate(
+              (widget) =>
+                  widget is Scrollable &&
+                  widget.axisDirection == AxisDirection.down,
+            )
+            .last,
       );
       await tester.pumpAndSettle();
       final original = find.byKey(const ValueKey('gif-size-original'));
@@ -340,7 +390,13 @@ void main() {
       await tester.scrollUntilVisible(
         find.byKey(const ValueKey('gif-source-fps')),
         100,
-        scrollable: find.byType(Scrollable).last,
+        scrollable: find
+            .byWidgetPredicate(
+              (widget) =>
+                  widget is Scrollable &&
+                  widget.axisDirection == AxisDirection.down,
+            )
+            .last,
       );
       await tester.pump();
       final fps = tester.widget<Slider>(
@@ -428,13 +484,50 @@ void main() {
         final pinnedPreview = tester.getRect(
           find.byKey(const ValueKey('gif-preview')),
         );
-        await tester.scrollUntilVisible(
-          find.byKey(const ValueKey('gif-trim-window')),
-          160,
-          scrollable: find.byType(Scrollable).last,
+        Future<void> reveal(String key) async {
+          final target = find.byKey(ValueKey(key));
+          await tester.scrollUntilVisible(
+            target,
+            100,
+            scrollable: find
+                .byWidgetPredicate(
+                  (widget) =>
+                      widget is Scrollable &&
+                      widget.axisDirection == AxisDirection.down,
+                )
+                .last,
+          );
+          await Scrollable.ensureVisible(tester.element(target), alignment: .5);
+          await tester.pumpAndSettle();
+        }
+
+        final originalPreview = tester.widget<GifLoopVideoPreview>(
+          find.byType(GifLoopVideoPreview),
         );
+        originalPreview.position.value = const Duration(seconds: 2);
+        originalPreview.onPlaybackIntent!(false);
+        await tester.tap(find.byKey(const ValueKey('gif-open-trim')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const ValueKey('gif-trim-cancel')));
+        await tester.pumpAndSettle();
+        final restored = tester.widget<GifLoopVideoPreview>(
+          find.byType(GifLoopVideoPreview),
+        );
+        expect(restored.autoplay, isFalse);
+        expect(restored.position.value, const Duration(seconds: 2));
+        await tester.tap(find.byKey(const ValueKey('gif-open-trim')));
+        await tester.pumpAndSettle();
+        await reveal('gif-trim-focus');
+        await tester.tap(find.byKey(const ValueKey('gif-trim-focus')));
         await tester.pump();
-        expect(find.text('0.0 s → 9.0 s'), findsOneWidget);
+        await reveal('gif-trim-1');
+        expect(
+          tester
+              .widget<GifTrimNavigator>(find.byType(GifTrimNavigator))
+              .selection
+              .end,
+          const Duration(seconds: 9),
+        );
         await tester.drag(
           find.byKey(const ValueKey('gif-trim-1')),
           const Offset(-70, 0),
@@ -445,11 +538,28 @@ void main() {
           const Offset(50, 0),
         );
         await tester.pump();
-        expect(find.text('0.0 s → 6.0 s'), findsNothing);
+        final draft = tester
+            .widget<GifTrimNavigator>(find.byType(GifTrimNavigator))
+            .selection;
+        expect(draft.duration, lessThan(const Duration(seconds: 9)));
+        expect(draft.start, greaterThan(Duration.zero));
+        await tester.tap(find.byKey(const ValueKey('gif-trim-apply')));
+        await tester.pumpAndSettle();
+        expect(find.byKey(const ValueKey('gif-open-trim')), findsOneWidget);
+        final applied = tester
+            .widget<GifLoopVideoPreview>(find.byType(GifLoopVideoPreview))
+            .selection;
+        expect((applied.start, applied.end), (draft.start, draft.end));
         await tester.scrollUntilVisible(
           find.byKey(const ValueKey('gif-size-480')),
           160,
-          scrollable: find.byType(Scrollable).last,
+          scrollable: find
+              .byWidgetPredicate(
+                (widget) =>
+                    widget is Scrollable &&
+                    widget.axisDirection == AxisDirection.down,
+              )
+              .last,
         );
         await tester.pump();
         expect(
@@ -470,7 +580,13 @@ void main() {
         await tester.scrollUntilVisible(
           find.byKey(const ValueKey('gif-source-fps')),
           160,
-          scrollable: find.byType(Scrollable).last,
+          scrollable: find
+              .byWidgetPredicate(
+                (widget) =>
+                    widget is Scrollable &&
+                    widget.axisDirection == AxisDirection.down,
+              )
+              .last,
         );
         await tester.pump();
         final fps = tester.widget<Slider>(
@@ -481,7 +597,13 @@ void main() {
         await tester.scrollUntilVisible(
           find.byKey(const ValueKey('gif-speed')),
           160,
-          scrollable: find.byType(Scrollable).last,
+          scrollable: find
+              .byWidgetPredicate(
+                (widget) =>
+                    widget is Scrollable &&
+                    widget.axisDirection == AxisDirection.down,
+              )
+              .last,
         );
         await tester.pump();
         expect(
@@ -518,7 +640,13 @@ void main() {
         await tester.scrollUntilVisible(
           find.byKey(const ValueKey('gif-result-actions')),
           100,
-          scrollable: find.byType(Scrollable).last,
+          scrollable: find
+              .byWidgetPredicate(
+                (widget) =>
+                    widget is Scrollable &&
+                    widget.axisDirection == AxisDirection.down,
+              )
+              .last,
         );
         await tester.pump();
         final adjustRect = tester.getRect(
@@ -694,7 +822,7 @@ void main() {
         tester,
         () => find.byKey(const ValueKey('gif-convert')).evaluate().isNotEmpty,
       );
-      expect(find.text('0.0 s → 180.0 s'), findsOneWidget);
+      expect(find.text('0.000 s → 180.000 s'), findsOneWidget);
       await tester.runAsync(
         () => tester.tap(find.byKey(const ValueKey('gif-convert'))),
       );
@@ -826,7 +954,13 @@ void main() {
     await tester.scrollUntilVisible(
       find.byKey(const ValueKey('gif-cancel')),
       100,
-      scrollable: find.byType(Scrollable).last,
+      scrollable: find
+          .byWidgetPredicate(
+            (widget) =>
+                widget is Scrollable &&
+                widget.axisDirection == AxisDirection.down,
+          )
+          .last,
     );
     await tester.pump();
     expect(find.byKey(const ValueKey('gif-cancel')), findsOneWidget);

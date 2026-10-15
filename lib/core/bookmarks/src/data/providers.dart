@@ -16,10 +16,16 @@ final bookmarkGroupRepoProvider = FutureProvider<BookmarkGroupRepository>(
     final groupBox = await Hive.openBox<BookmarkGroupHiveObject>(
       'bookmark_groups',
     );
-    final repository = BookmarkGroupRepositoryHive(groupBox);
+    final folderBox = await Hive.openBox<dynamic>('bookmark_folders');
+    final repository = BookmarkGroupRepositoryHive(
+      groupBox,
+      organizationBox: folderBox,
+    );
 
+    await repository.initializeFolders();
     ref.onDispose(() async {
       await groupBox.close();
+      await folderBox.close();
     });
     return repository;
   },

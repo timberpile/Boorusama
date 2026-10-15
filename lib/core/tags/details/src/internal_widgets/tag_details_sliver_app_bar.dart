@@ -17,7 +17,7 @@ class TagDetailsSlilverAppBar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return SliverAppBar(
+    return KurumiSliverAppBar(
       floating: true,
       backgroundColor: Kurumi.themeOf(context).colorScheme.surface,
       actions: [

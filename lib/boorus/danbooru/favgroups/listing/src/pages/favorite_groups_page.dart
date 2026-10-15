@@ -40,7 +40,7 @@ class FavoriteGroupsPageInternal extends ConsumerWidget {
     final favoriteGroups = ref.watch(danbooruFavoriteGroupsProvider(config));
 
     return Scaffold(
-      appBar: AppBar(
+      appBar: KurumiAppBar(
         title: Text(context.t.favorite_groups.favorite_groups),
         actions: [
           IconButton(

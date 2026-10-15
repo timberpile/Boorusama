@@ -1151,6 +1151,7 @@
   },
   "sort": {
     "sort_by": "排序方式",
+    "short": "排序",
     "name": "名称",
     "name_asc": "名称 (A-Z)",
     "name_desc": "名称 (Z-A)",

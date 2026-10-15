@@ -105,7 +105,7 @@ class _OriginalImagePageState extends ConsumerState<OriginalImagePage> {
       },
       child: Scaffold(
         extendBodyBehindAppBar: true,
-        appBar: AppBar(
+        appBar: KurumiAppBar(
           toolbarHeight: kToolbarHeight * 1.3,
           automaticallyImplyLeading: false,
           leading: AnimatedSwitcher(

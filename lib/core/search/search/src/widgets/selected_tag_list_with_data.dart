@@ -13,6 +13,9 @@ import '../../../queries/providers.dart';
 import '../../../selected_tags/providers.dart';
 import '../types/search_bar_position.dart';
 import 'selected_tag_list.dart';
+import 'search_controller.dart';
+import 'search_profile_menu.dart';
+import 'search_profile_session.dart';
 
 class SelectedTagListWithData extends ConsumerWidget {
   const SelectedTagListWithData({
@@ -57,6 +60,15 @@ class SelectedTagListWithData extends ConsumerWidget {
         builder: (context, tags, child) {
           return tags.isNotEmpty
               ? SelectedTagList(
+                  profileMenu: SearchProfileSession.maybeOf(context) == null
+                      ? null
+                      : SearchProfileMenu(
+                          onSelected: (profile) =>
+                              SearchProfileSession.maybeOf(context)!.onSwitch(
+                                profile,
+                                InheritedSearchPageController.of(context),
+                              ),
+                        ),
                   extraTagsCount: tagComposer.compose([]).length,
                   onOtherTagsCountTap: () {
                     goToUpdateBooruConfigPage(

@@ -45,15 +45,15 @@ class DanbooruUploadsPage extends ConsumerWidget {
                 ? DanbooruMyUploadsPageInternal(
                     userId: data.id,
                   )
-                : Scaffold(
-                    appBar: AppBar(),
-                    body: const Center(
+                : const Scaffold(
+                    appBar: KurumiAppBar(),
+                    body: Center(
                       child: Text('Unauthorized'),
                     ),
                   ),
-            orElse: () => Scaffold(
-              appBar: AppBar(),
-              body: const Center(
+            orElse: () => const Scaffold(
+              appBar: KurumiAppBar(),
+              body: Center(
                 child: CircularProgressIndicator(),
               ),
             ),
@@ -95,7 +95,7 @@ class _DanbooruMyUploadsPageState
 
     return CustomContextMenuOverlay(
       child: Scaffold(
-        appBar: AppBar(
+        appBar: KurumiAppBar(
           title: Text('My Uploads'.hc),
           actions: [
             ref

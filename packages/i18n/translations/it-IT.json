@@ -472,6 +472,7 @@
   },
   "sort": {
     "sort_by": "Ordina per",
+    "short": "Ordina",
     "name": "Nome",
     "name_asc": "Nome (A-Z)",
     "name_desc": "Nome (Z-A)",

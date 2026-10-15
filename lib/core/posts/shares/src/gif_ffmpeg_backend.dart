@@ -17,7 +17,8 @@ abstract interface class GifCommandRunner {
   });
 }
 
-class FfmpegGifBackend implements GifEncoderBackend, GifTimelineBackend {
+class FfmpegGifBackend
+    implements GifEncoderBackend, GifTimelineBackend, GifTimelineRegionBackend {
   const FfmpegGifBackend(this.runner, {this.rotationReader});
 
   final GifCommandRunner runner;
@@ -92,6 +93,76 @@ class FfmpegGifBackend implements GifEncoderBackend, GifTimelineBackend {
     '1',
     outputPath,
   ], cancelToken);
+
+  @override
+  Future<void> createTimelineRegion({
+    required String sourcePath,
+    required String outputPath,
+    required Duration start,
+    required Duration duration,
+    required CancelToken cancelToken,
+  }) async {
+    final samples = [for (var i = 0; i < 5; i++) File('$outputPath.$i.png')];
+    try {
+      // Seek to five samples instead of decoding an entire visible interval.
+      // This keeps scrolling a long video bounded to one decoder at a time.
+      for (var i = 0; i < samples.length; i++) {
+        if (cancelToken.isCancelled) {
+          throw const GifConversionException(GifConversionFailure.cancelled);
+        }
+        final position =
+            start.inMicroseconds + duration.inMicroseconds * i ~/ 5;
+        await runner.run([
+          '-y',
+          '-v',
+          'error',
+          '-threads',
+          '1',
+          '-ss',
+          (position / 1000000).toStringAsFixed(6),
+          '-i',
+          sourcePath,
+          '-map',
+          '0:v:0',
+          '-an',
+          '-sn',
+          '-dn',
+          '-vf',
+          'scale=96:56:flags=area:force_original_aspect_ratio=decrease,pad=96:56:(ow-iw)/2:(oh-ih)/2',
+          '-frames:v',
+          '1',
+          '-threads',
+          '1',
+          samples[i].path,
+        ], cancelToken);
+      }
+      if (cancelToken.isCancelled) {
+        throw const GifConversionException(GifConversionFailure.cancelled);
+      }
+      await runner.run([
+        '-y',
+        '-v',
+        'error',
+        '-threads',
+        '1',
+        '-framerate',
+        '1',
+        '-i',
+        '$outputPath.%d.png',
+        '-vf',
+        'tile=5x1',
+        '-frames:v',
+        '1',
+        '-threads',
+        '1',
+        outputPath,
+      ], cancelToken);
+    } finally {
+      for (final sample in samples) {
+        if (sample.existsSync()) await sample.delete();
+      }
+    }
+  }
 
   @override
   Future<void> encode(

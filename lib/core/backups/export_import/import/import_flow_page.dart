@@ -46,7 +46,7 @@ class _ImportFlowPageState extends ConsumerState<ImportFlowPage> {
     final state = ref.watch(importFlowProvider);
     final strings = context.t.settings.backup_and_restore.export_import;
     return Scaffold(
-      appBar: AppBar(title: Text(strings.review_import)),
+      appBar: KurumiAppBar(title: Text(strings.review_import)),
       body: SafeArea(
         child: switch (state.status) {
           ImportFlowStatus.idle || ImportFlowStatus.checking => Center(
@@ -531,7 +531,7 @@ String _localizedItemLabel(
   String id,
   String? fallback,
 ) => id == 'ungrouped'
-    ? context.t.settings.backup_and_restore.export_import.sources.ungrouped
+    ? context.t.bookmark.groups.default_group
     : fallback ?? id;
 
 ExportSelectionPresentation _localizedImportPresentation(
@@ -541,8 +541,7 @@ ExportSelectionPresentation _localizedImportPresentation(
   items: {
     ...presentation.items,
     'ungrouped': ExportItemPresentation(
-      label:
-          context.t.settings.backup_and_restore.export_import.sources.ungrouped,
+      label: context.t.bookmark.groups.default_group,
     ),
     'home': ExportItemPresentation(label: context.t.pinned_searches.home),
   },

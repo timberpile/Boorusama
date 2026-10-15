@@ -28,7 +28,7 @@ class AddToFavoriteGroupPage extends ConsumerWidget {
     final config = profile.search;
 
     return Scaffold(
-      appBar: AppBar(
+      appBar: KurumiAppBar(
         title: Text(
           context.t.favorite_groups.add_to_group_dialog_title,
           style: Kurumi.themeOf(context).textTheme.titleLarge,

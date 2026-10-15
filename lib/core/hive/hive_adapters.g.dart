@@ -193,19 +193,25 @@ class BookmarkGroupHiveObjectAdapter
       id: fields[0] as String,
       name: fields[1] as String,
       bookmarkIds: (fields[2] as List).cast<int>(),
+      folderId: fields[3] as String?,
+      position: fields[4] as int? ?? 0,
     );
   }
 
   @override
   void write(BinaryWriter writer, BookmarkGroupHiveObject obj) {
     writer
-      ..writeByte(3)
+      ..writeByte(5)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
       ..write(obj.name)
       ..writeByte(2)
-      ..write(obj.bookmarkIds);
+      ..write(obj.bookmarkIds)
+      ..writeByte(3)
+      ..write(obj.folderId)
+      ..writeByte(4)
+      ..write(obj.position);
   }
 
   @override

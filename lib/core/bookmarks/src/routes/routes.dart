@@ -1,8 +1,10 @@
 // Package imports:
 import 'package:foundation/foundation.dart';
+import 'package:i18n/i18n.dart';
 import 'package:kurumi/cupertino.dart';
 
 // Project imports:
+import '../types/bookmark_group.dart';
 import '../../../posts/listing/providers.dart';
 import '../../../router.dart';
 import '../../../posts/post/types.dart';
@@ -28,11 +30,13 @@ final bookmarkRoutes = GoRoute(
           final view = switch ((kind, id)) {
             ('all', _) => const BookmarkView.all(),
             ('group', final String id) => BookmarkView.group(id),
-            _ => const BookmarkView.ungrouped(),
+            _ => const BookmarkView.defaultGroup(),
           };
           return BookmarkPage(
             view: view,
-            title: state.uri.queryParameters['title'],
+            title: view.groupId == defaultBookmarkGroupId
+                ? context.t.bookmark.groups.default_group
+                : state.uri.queryParameters['title'],
           );
         },
       ),

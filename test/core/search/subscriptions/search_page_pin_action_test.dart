@@ -18,6 +18,7 @@ import 'package:boorusama/core/search/search/src/widgets/search_page_scaffold.da
 import 'package:boorusama/core/search/selected_tags/types.dart';
 import 'package:boorusama/core/search/subscriptions/providers.dart';
 import 'package:boorusama/core/search/subscriptions/src/widgets/pin_search_dialog.dart';
+import 'package:boorusama/core/search/subscriptions/src/widgets/pin_search_folder_picker.dart';
 import 'package:boorusama/core/search/subscriptions/src/data/providers.dart';
 import 'package:boorusama/core/search/subscriptions/src/data/hive/search_subscription_hive_object.dart';
 import 'package:boorusama/core/search/subscriptions/src/data/hive/search_subscription_repository_hive.dart';
@@ -386,37 +387,36 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('Home and New precede existing folders in the destination menu', (
-    tester,
-  ) async {
-    await initialize();
-    await repository.replaceOrganization(
-      SearchOrganization(
-        folders: [
-          SharedSearchFolder(id: 'z', name: 'Zebra', searchIds: const []),
-          SharedSearchFolder(id: 'a', name: 'Animals', searchIds: const []),
-        ],
-        homeSearchIds: const [],
-      ),
-    );
-    await pump(tester);
-    await load(tester);
-    await tester.tap(find.byTooltip('Pin Search'));
-    await pumpTransitions(tester);
-    final folderField = tester.widget<DropdownButtonFormField<Object>>(
-      find.byType(DropdownButtonFormField<Object>),
-    );
-    expect(folderField.decoration.labelText, 'Folder');
-    await tester.tap(find.byType(DropdownButtonFormField<Object>));
-    await pumpTransitions(tester);
-    final home = tester.getCenter(find.text('[Home]').last).dy;
-    final newFolder = tester.getCenter(find.text('[New]').last).dy;
-    final zebra = tester.getCenter(find.text('Zebra').last).dy;
-    final animals = tester.getCenter(find.text('Animals').last).dy;
-    expect(home, lessThan(newFolder));
-    expect(newFolder, lessThan(zebra));
-    expect(zebra, lessThan(animals));
-  });
+  testWidgets(
+    'destination picker shows Home and direct folders in their existing order',
+    (
+      tester,
+    ) async {
+      await initialize();
+      await repository.replaceOrganization(
+        SearchOrganization(
+          folders: [
+            SharedSearchFolder(id: 'z', name: 'Zebra', searchIds: const []),
+            SharedSearchFolder(id: 'a', name: 'Animals', searchIds: const []),
+          ],
+          homeSearchIds: const [],
+        ),
+      );
+      await pump(tester);
+      await load(tester);
+      await tester.tap(find.byTooltip('Pin Search'));
+      await pumpTransitions(tester);
+      expect(find.text('Folder'), findsOneWidget);
+      await tester.tap(find.byType(PinSearchFolderPicker));
+      await pumpTransitions(tester);
+      final home = tester.getCenter(find.text('Home')).dy;
+      final zebra = tester.getCenter(find.text('Zebra').last).dy;
+      final animals = tester.getCenter(find.text('Animals').last).dy;
+      expect(home, lessThan(zebra));
+      expect(find.text('Create folder'), findsOneWidget);
+      expect(zebra, lessThan(animals));
+    },
+  );
 
   for (final c in [(width: 800.0, scale: 1.0), (width: 360.0, scale: 2.0)]) {
     testWidgets(
@@ -433,13 +433,13 @@ void main() {
         await pumpTransitions(tester);
         final name = tester.getRect(find.byType(TextField));
         final destination = tester.getRect(
-          find.byType(DropdownButtonFormField<Object>),
+          find.byType(PinSearchFolderPicker),
         );
         expect(destination.top - name.bottom, greaterThanOrEqualTo(16));
         expect(tester.takeException(), isNull);
-        await tester.tap(find.byType(DropdownButtonFormField<Object>));
+        await tester.tap(find.byType(PinSearchFolderPicker));
         await pumpTransitions(tester);
-        await tester.tap(find.text('[New]').last);
+        await tester.tap(find.text('Create folder'));
         await pumpTransitions(tester);
         expect(find.text('Create folder'), findsNothing);
         await tester.tap(find.text('Pin'));
@@ -449,9 +449,11 @@ void main() {
         await tester.tap(find.text('Cancel').last);
         await pumpTransitions(tester);
         expect(find.text('[New]'), findsOneWidget);
-        await tester.tap(find.byType(DropdownButtonFormField<Object>));
+        await tester.tap(find.byType(PinSearchFolderPicker));
         await pumpTransitions(tester);
-        await tester.tap(find.text('[Home]').last);
+        await tester.tap(find.text('Home'));
+        await pumpTransitions(tester);
+        await tester.tap(find.widgetWithText(FilledButton, 'Select'));
         await pumpTransitions(tester);
         await tester.tap(find.text('Pin'));
         await pumpTransitions(tester);
@@ -737,9 +739,11 @@ void main() {
       );
       box.failWrites = false;
       organizationBox.failWrites = false;
-      await tester.tap(find.byType(DropdownButtonFormField<Object>));
+      await tester.tap(find.byType(PinSearchFolderPicker));
       await pumpTransitions(tester);
-      await tester.tap(find.text('[Home]').last);
+      await tester.tap(find.text('Home'));
+      await pumpTransitions(tester);
+      await tester.tap(find.widgetWithText(FilledButton, 'Select'));
       await pumpTransitions(tester);
       await tester.tap(find.text('Pin'));
       await pumpTransitions(tester);
@@ -758,9 +762,11 @@ void main() {
     await pump(tester);
     await load(tester);
     await chooseNewFolder(tester);
-    await tester.tap(find.byType(DropdownButtonFormField<Object>));
+    await tester.tap(find.byType(PinSearchFolderPicker));
     await pumpTransitions(tester);
-    await tester.tap(find.text('[Home]').last);
+    await tester.tap(find.text('Home'));
+    await pumpTransitions(tester);
+    await tester.tap(find.widgetWithText(FilledButton, 'Select'));
     await pumpTransitions(tester);
     await tester.tap(find.text('Pin'));
     await tester.pump();
@@ -863,6 +869,75 @@ void main() {
     },
   );
 
+  for (final editing in [false, true]) {
+    testWidgets(
+      '${editing ? 'editing preserves' : 'pinning saves'} a deeply nested destination',
+      (tester) async {
+        await initialize();
+        final original = editing
+            ? await repository.create(
+                profileId: config.id,
+                query: query,
+                name: 'Cats',
+              )
+            : null;
+        await repository.replaceOrganization(
+          SearchOrganization(
+            folders: [
+              SharedSearchFolder(id: 'root', name: 'Artists'),
+              SharedSearchFolder(id: 'child', name: 'Cookie', parentId: 'root'),
+              SharedSearchFolder(
+                id: 'deep',
+                name: 'Deep',
+                parentId: 'child',
+                searchIds: [if (original != null) original.id],
+              ),
+            ],
+          ),
+        );
+        await pump(tester);
+        await load(tester);
+        await tester.tap(
+          find.byTooltip(editing ? 'Manage Pinned Search' : 'Pin Search'),
+        );
+        await pumpTransitions(tester);
+        await tester.tap(find.byType(PinSearchFolderPicker));
+        await pumpTransitions(tester);
+        if (editing) {
+          expect(find.text('Deep'), findsNWidgets(2));
+          expect(find.widgetWithText(ListTile, 'Artists'), findsNothing);
+        } else {
+          for (final name in ['Artists', 'Cookie', 'Deep']) {
+            await tester.tap(find.widgetWithText(ListTile, name));
+            await pumpTransitions(tester);
+          }
+        }
+        await tester.tap(find.widgetWithText(FilledButton, 'Select'));
+        await pumpTransitions(tester);
+        await tester.tap(find.text(editing ? 'Save' : 'Pin'));
+        await pumpTransitions(tester);
+        final pin = (await repository.getAll()).single;
+        expect(pin.query, query);
+        expect(
+          (await repository.getOrganization()).folders
+              .singleWhere((f) => f.id == 'deep')
+              .searchIds,
+          [pin.id],
+        );
+        if (editing) {
+          expect(pin.id, original!.id);
+          expect(snapshotCalls, 0);
+        } else {
+          snapshot.complete(
+            Either.of(const PostResult(posts: <Post>[], total: 0)),
+          );
+          await pumpTransitions(tester);
+        }
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
   testWidgets(
     'pinning lists shared folders and saves into a folder containing another owner',
     (tester) async {
@@ -890,12 +965,14 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
       expect(find.text('[Home]'), findsOneWidget);
-      await tester.tap(find.byType(DropdownButtonFormField<Object>));
+      await tester.tap(find.byType(PinSearchFolderPicker));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
       await tester.tap(find.text('Shared animals').last);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
+      await tester.tap(find.widgetWithText(FilledButton, 'Select'));
+      await pumpTransitions(tester);
       await tester.tap(find.text('Pin'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
@@ -1199,9 +1276,11 @@ Future<void> chooseNewFolder(
   );
   await pumpTransitions(tester);
   expect(find.text('Create folder'), findsNothing);
-  await tester.tap(find.byType(DropdownButtonFormField<Object>));
+  await tester.tap(find.byType(PinSearchFolderPicker));
   await pumpTransitions(tester);
-  await tester.tap(find.text('[New]').last);
+  await tester.tap(find.widgetWithText(TextButton, 'Home'));
+  await pumpTransitions(tester);
+  await tester.tap(find.text('Create folder'));
   await pumpTransitions(tester);
 }
 

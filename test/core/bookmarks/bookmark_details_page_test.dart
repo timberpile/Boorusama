@@ -1,3 +1,5 @@
+import 'package:boorusama/core/groups/folder_tree.dart';
+import '../search/subscriptions/subscription_test_utils.dart';
 import 'package:selection_mode/selection_mode.dart';
 import 'package:boorusama/core/widgets/multi_select_button.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -22,6 +24,7 @@ import 'dart:io';
 
 // Flutter imports:
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -76,10 +79,130 @@ import 'package:boorusama/foundation/loggers.dart';
 import 'package:boorusama/core/themes/colors/src/colors.dart';
 
 void main() {
+  testWidgets(
+    'nested bookmark groups render literal leaf names and restore breadcrumb history',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(320, 700));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      const root = CollectionFolder(id: 'root', name: 'Cookie');
+      const child = CollectionFolder(
+        id: 'child',
+        name: 'Deep // literal',
+        parentId: 'root',
+      );
+      final state = BookmarkLibraryState(
+        bookmarks: [],
+        folders: [root, child],
+        groups: [
+          BookmarkGroup(
+            id: '550e8400-e29b-41d4-a716-446655440099',
+            name: 'Leaf // literal',
+            bookmarkIds: {},
+            folderId: 'child',
+          ),
+        ],
+        activeTarget: const BookmarkTarget.defaultGroup(),
+      );
+      final controller = _controller([]);
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(
+        _BookmarkViewerHarness(
+          controller: controller,
+          bookmarkNotifier: _CacheBookmarkNotifier(state),
+          home: MediaQuery(
+            data: const MediaQueryData(
+              size: Size(320, 700),
+              textScaler: TextScaler.linear(2),
+            ),
+            child: const BookmarkGroupBrowserPage(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Cookie'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Deep // literal'));
+      await tester.pumpAndSettle();
+      expect(find.text('Leaf // literal'), findsOneWidget);
+      expect(
+        find.text('Cookie / Deep // literal / Leaf // literal'),
+        findsNothing,
+      );
+      expect(tester.takeException(), isNull);
+      await tester.tap(find.text('Home'));
+      await tester.pumpAndSettle();
+      expect(find.text('Bookmark Groups'), findsOneWidget);
+      expect(find.text('Leaf // literal'), findsNothing);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+  for (final scale in [1.0, 2.0]) {
+    testWidgets(
+      'long group title fits above search with status inset at ${scale}x',
+      (tester) async {
+        await tester.binding.setSurfaceSize(const Size(320, 700));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        const title =
+            'A long bookmark group title that needs several wrapped lines';
+        const id = '550e8400-e29b-41d4-a716-446655440000';
+        final controller = _controller([]);
+        addTearDown(controller.dispose);
+        await tester.pumpWidget(
+          _BookmarkViewerHarness(
+            controller: controller,
+            bookmarkNotifier: _CacheBookmarkNotifier(
+              BookmarkLibraryState(
+                bookmarks: const [],
+                groups: [
+                  BookmarkGroup(id: id, name: title, bookmarkIds: const {}),
+                ],
+                activeTarget: const BookmarkTarget.defaultGroup(),
+              ),
+            ),
+            home: MediaQuery(
+              data: MediaQueryData(
+                size: const Size(320, 700),
+                padding: const EdgeInsets.only(top: 24),
+                viewPadding: const EdgeInsets.only(top: 24),
+                textScaler: TextScaler.linear(scale),
+              ),
+              child: BookmarkPage(
+                view: BookmarkView.group(id),
+                title: title,
+              ),
+            ),
+          ),
+        );
+        for (var frame = 0; frame < 12; frame++) {
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+        final text = tester.widget<Text>(find.text(title));
+        final titleRect = tester.getRect(find.text(title));
+        final searchRect = tester.getRect(find.byType(BookmarkSearchBar));
+        expect(text.style!.fontSize, lessThan(22));
+        expect(text.textScaler!.scale(12), 12 * scale);
+        expect(titleRect.top, greaterThanOrEqualTo(24));
+        expect(titleRect.bottom, lessThanOrEqualTo(24 + kToolbarHeight));
+        expect(searchRect.top, 24 + kToolbarHeight);
+        expect(titleRect.overlaps(searchRect), isFalse);
+        expect(
+          tester
+              .renderObject<RenderSliver>(find.byType(SliverAppBar))
+              .geometry!
+              .maxPaintExtent,
+          kToolbarHeight,
+        );
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox());
+      },
+    );
+  }
+
   const compactGroupId = '550e8400-e29b-41d4-a716-446655440000';
   for (final view in [
     const BookmarkView.all(),
-    const BookmarkView.ungrouped(),
+    const BookmarkView.defaultGroup(),
     BookmarkView.group(compactGroupId),
   ]) {
     testWidgets('compact bookmark header recovers empty filters in $view', (
@@ -110,12 +233,17 @@ void main() {
         bookmarks: bookmarks,
         groups: [
           BookmarkGroup(
+            id: defaultBookmarkGroupId,
+            name: 'Default',
+            bookmarkIds: const {5, 6, 7, 8},
+          ),
+          BookmarkGroup(
             id: compactGroupId,
             name: 'Saved',
             bookmarkIds: const {1, 2, 3, 4},
           ),
         ],
-        activeTarget: const BookmarkTarget.ungrouped(),
+        activeTarget: const BookmarkTarget.defaultGroup(),
       );
       final unusedController = _controller([]);
       addTearDown(unusedController.dispose);
@@ -149,7 +277,9 @@ void main() {
       expect(search, findsOneWidget);
       expect(find.text('Source: All'), findsOneWidget);
       expect(find.text('Newest'), findsOneWidget);
-      await tester.tap(find.byIcon(Symbols.clear));
+      await tester.tap(
+        find.byTooltip(pageContext.t.search.remove_all_selected),
+      );
       await pumpHeader();
       expect(controller.items.length, expectedCount);
       // A selected source remains visible even when it has no matches in this view.
@@ -198,7 +328,14 @@ void main() {
       expect(changed, isTrue);
       expect(controller.items.length, expectedCount);
       expect(container.read(selectedBooruUrlProvider), 'gelbooru.example');
-      expect(tester.widget<TextField>(search).controller!.text, 'red');
+      expect(
+        tester
+            .widget<BookmarkSearchBar>(find.byType(BookmarkSearchBar))
+            .controller
+            .text,
+        'red',
+      );
+      expect(tester.widget<TextField>(search).controller!.text, isEmpty);
       expect(container.read(bookmarkProvider).requireValue, same(library));
       await tester.tap(
         find.descendant(
@@ -241,16 +378,8 @@ void main() {
       );
       await pumpHeader();
       expect(find.text('Remove from group'), findsOneWidget);
-      await tester.tap(
-        find.ancestor(
-          of: find.text('Delete'),
-          matching: find.byType(KurumiPopupMenuItem),
-        ),
-      );
-      await pumpHeader();
-      expect(find.byType(AlertDialog), findsOneWidget);
-      await tester.tap(find.text('Cancel'));
-      await pumpHeader();
+      expect(find.text('Delete'), findsNothing);
+      expect(find.byType(AlertDialog), findsNothing);
       expect(container.read(bookmarkProvider).requireValue, same(library));
 
       await tester.pumpWidget(const SizedBox.shrink());
@@ -307,7 +436,7 @@ void main() {
         final state = BookmarkLibraryState(
           bookmarks: [bookmark],
           groups: const [],
-          activeTarget: const BookmarkTarget.ungrouped(),
+          activeTarget: const BookmarkTarget.defaultGroup(),
         );
         final controller = PostGridController<Post>(
           fetcher: (_) => TaskEither.right(
@@ -757,7 +886,10 @@ void main() {
           bookmarkBox,
           postDataCodec: (_) => const GelbooruV2PostCodec(),
         );
-        groupRepository = BookmarkGroupRepositoryHive(groupBox);
+        groupRepository = BookmarkGroupRepositoryHive(
+          groupBox,
+          organizationBox: MemoryBox<dynamic>(),
+        );
         await bookmarkBox.put(legacy.id, favoriteToHiveObject(legacy));
         await groupRepository.createGroup(
           'Kept',
@@ -1051,7 +1183,7 @@ final class _EmptyBookmarkNotifier extends BookmarkLibraryNotifier {
   FutureOr<BookmarkLibraryState> build() => BookmarkLibraryState(
     bookmarks: const [],
     groups: const [],
-    activeTarget: const BookmarkTarget.ungrouped(),
+    activeTarget: const BookmarkTarget.defaultGroup(),
   );
 }
 
@@ -1173,7 +1305,7 @@ final class _RecoveryBookmarkNotifier extends BookmarkLibraryNotifier {
   FutureOr<BookmarkLibraryState> build() => BookmarkLibraryState(
     bookmarks: [bookmark],
     groups: [group],
-    activeTarget: const BookmarkTarget.ungrouped(),
+    activeTarget: const BookmarkTarget.defaultGroup(),
   );
 
   @override
@@ -1196,7 +1328,7 @@ final class _RecoveryBookmarkNotifier extends BookmarkLibraryNotifier {
       BookmarkLibraryState(
         bookmarks: [upgraded],
         groups: [group],
-        activeTarget: const BookmarkTarget.ungrouped(),
+        activeTarget: const BookmarkTarget.defaultGroup(),
       ),
     );
   }

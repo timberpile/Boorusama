@@ -12,8 +12,6 @@ import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
-import java.security.MessageDigest
-import java.util.UUID
 import java.util.concurrent.Executors
 
 class ReceivedExportChannel(
@@ -73,46 +71,20 @@ class ReceivedExportChannel(
     }
 
     private fun stage(uri: Uri): Map<String, String>? {
-        val directory = File(context.cacheDir, "received_exports")
-        if (!directory.exists() && !directory.mkdirs()) return null
-        val pending = File(directory, "${UUID.randomUUID()}.part")
-
         return try {
-            val digest = MessageDigest.getInstance("SHA-256")
-            var byteCount = 0L
-            context.contentResolver.openInputStream(uri)?.use { input ->
-                pending.outputStream().use { output ->
-                    val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-                    while (true) {
-                        val count = input.read(buffer)
-                        if (count < 0) break
-                        byteCount += count
-                        if (byteCount > MAX_EXPORT_BYTES) {
-                            throw IllegalArgumentException("Received export is too large")
-                        }
-                        digest.update(buffer, 0, count)
-                        output.write(buffer, 0, count)
-                    }
-                }
-            } ?: return null
-            val id = digest.digest().joinToString("") { byte ->
-                "%02x".format(byte.toInt() and 0xff)
-            }
-            val completed = File(directory, "$id.bsexport")
-            if (completed.exists()) {
-                pending.delete()
-            } else if (!pending.renameTo(completed)) {
-                return null
-            }
+            val input = context.contentResolver.openInputStream(uri) ?: return null
+            val delivery = ReceivedExportStaging.stage(
+                input,
+                File(context.cacheDir, "received_exports"),
+                MAX_EXPORT_BYTES,
+            )
             mapOf(
-                "id" to id,
-                "path" to completed.absolutePath,
+                "id" to delivery.id,
+                "path" to delivery.file.absolutePath,
                 "displayName" to (displayName(uri) ?: "received.bsexport"),
             )
         } catch (_: Exception) {
             null
-        } finally {
-            pending.delete()
         }
     }
 

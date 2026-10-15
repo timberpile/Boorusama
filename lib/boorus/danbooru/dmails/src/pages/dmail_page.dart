@@ -48,7 +48,7 @@ class _DanbooruDmailPageState extends ConsumerState<DanbooruDmailPage> {
     final selectedFolder = ref.watch(dmailFolderProvider(config));
 
     return Scaffold(
-      appBar: AppBar(
+      appBar: KurumiAppBar(
         title: Text(context.t.profile.messages.title),
         actions: [
           IconButton(

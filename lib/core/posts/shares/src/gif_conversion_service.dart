@@ -55,7 +55,6 @@ class GifConversionService {
       );
     }
     ShareMediaLease? source;
-    ShareMediaLease? timeline;
     var stage = GifConversionStage.downloading;
     try {
       source = await preparation.prepare(
@@ -83,37 +82,19 @@ class GifConversionService {
           frameRate: GifFrameRate.original,
         ),
       );
-      if (encoder is GifTimelineBackend) {
-        timeline = ShareMediaLease(
-          path: '${source.path}_timeline.png',
-          mimeType: 'image/png',
-        );
-        try {
-          await (encoder as GifTimelineBackend).createTimeline(
-            sourcePath: source.path,
-            outputPath: timeline.path,
-            duration: metadata.duration!,
-            cancelToken: cancelToken,
-          );
-        } catch (_) {
-          await timeline.release();
-          timeline = null;
-        }
-      }
+      // The Trim editor uses a time ruler, not a thumbnail strip. Avoid an
+      // additional whole-source thumbnail decode during preparation.
       checkShareCancellation(cancelToken);
       return GifPreparedSource(
         lease: source,
         metadata: metadata,
-        timeline: timeline,
       );
     } catch (error, stack) {
       final cleanupErrors = <Object>[];
-      for (final lease in [source, timeline]) {
-        try {
-          await lease?.release();
-        } catch (failure) {
-          cleanupErrors.add(failure);
-        }
+      try {
+        await source?.release();
+      } catch (failure) {
+        cleanupErrors.add(failure);
       }
       final failure = _mapFailure(error, cancelToken);
       Error.throwWithStackTrace(

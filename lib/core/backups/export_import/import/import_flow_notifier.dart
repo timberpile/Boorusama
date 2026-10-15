@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:i18n/i18n.dart';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -295,7 +296,6 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
         };
         final localIds = switch (wrapper._localSnapshot) {
           final BookmarkImportLocalSnapshot local => {
-            'ungrouped',
             for (final group in local.groups) 'group:${group.id}',
           },
           final PinnedSearchImportLocalSnapshot local => {
@@ -340,15 +340,28 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
                   id: itemId,
                   matchingItemId: localIds.contains(itemId) ? itemId : null,
                   compatibleTargetIds: localIds.difference({itemId}),
-                  recommendedAction: manifest.itemRecommendedActions[itemId],
+                  recommendedAction:
+                      manifest.id == 'bookmarks' &&
+                          (itemId == 'group:$defaultBookmarkGroupId' ||
+                              itemId == 'ungrouped')
+                      ? ImportAction.merge
+                      : manifest.itemRecommendedActions[itemId],
                   availableActions:
-                      manifest.id == 'pinned_searches' &&
-                          itemId.startsWith('search:')
+                      manifest.id == 'bookmarks' &&
+                          (itemId == 'group:$defaultBookmarkGroupId' ||
+                              itemId == 'ungrouped')
+                      ? const {ImportAction.merge, ImportAction.skip}
+                      : manifest.id == 'pinned_searches' &&
+                            itemId.startsWith('search:')
                       ? const {ImportAction.copy, ImportAction.skip}
                       : null,
                   fallbackAction:
-                      manifest.id == 'pinned_searches' &&
-                          itemId.startsWith('search:')
+                      manifest.id == 'bookmarks' &&
+                          (itemId == 'group:$defaultBookmarkGroupId' ||
+                              itemId == 'ungrouped')
+                      ? ImportAction.merge
+                      : manifest.id == 'pinned_searches' &&
+                            itemId.startsWith('search:')
                       ? ImportAction.copy
                       : null,
                 ),
@@ -878,6 +891,7 @@ final class PackageTransactionSource implements ImportTransactionSource {
             imageUrlResolver: resolver,
           ),
           groups: await groupRepository.getGroups(),
+          folders: await groupRepository.getFolders(),
         );
       case 'pinned_searches':
         final snapshot = await _captureSearchRuntimeSnapshot();
@@ -1127,7 +1141,10 @@ final class PackageTransactionSource implements ImportTransactionSource {
       await ref
           .read(searchSubscriptionsProvider.notifier)
           .runSerializedMutation((repository) async {
-            await PinnedSearchImportService(repository: repository).replace(
+            await PinnedSearchImportService(
+              repository: repository,
+              importFolderName: Translations().folders.imported_searches,
+            ).replace(
               data,
               profiles: ref.read(booruConfigProvider),
               profileIdResolver: profileIdResolver ?? _profileId,
@@ -1167,6 +1184,7 @@ final class PackageTransactionSource implements ImportTransactionSource {
         .runSerializedMutation(
           (repository) =>
               PinnedSearchImportService(
+                importFolderName: Translations().folders.imported_searches,
                 repository: repository,
               ).apply(
                 data,
@@ -1262,39 +1280,18 @@ final class PackageTransactionSource implements ImportTransactionSource {
           mappedBookmarks[bookmark.id] ?? bookmark,
       ],
       groups: incoming.groups,
+      folders: incoming.folders,
     );
     final bookmarkRepository = await ref.read(bookmarkRepoProvider.future);
     final groupRepository = await ref.read(bookmarkGroupRepoProvider.future);
     ImageUrlResolver resolver(int? booruId) =>
         ref.read(bookmarkUrlResolverProvider(booruId));
     if (resolution.action == ImportAction.replace) {
-      final currentGroups = await groupRepository.getGroups();
-      for (final group in currentGroups) {
-        await groupRepository.deleteGroup(group.id);
-      }
-      final currentBookmarks = await bookmarkRepository.getAllBookmarksOrThrow(
+      await BookmarkImportService(
+        bookmarkRepository: bookmarkRepository,
+        groupRepository: groupRepository,
         imageUrlResolver: resolver,
-      );
-      if (currentBookmarks.isNotEmpty) {
-        await bookmarkRepository.removeBookmarks(currentBookmarks);
-      }
-      final saved = await bookmarkRepository.addBookmarkWithBookmarks(
-        data.bookmarks,
-      );
-      final localIds = {
-        for (final bookmark in saved) bookmark.transferIdentity: bookmark.id,
-      };
-      final importedIds = {
-        for (final bookmark in data.bookmarks)
-          bookmark.id: localIds[bookmark.transferIdentity],
-      };
-      for (final group in data.groups) {
-        final id = group.id ?? const Uuid().v4().toLowerCase();
-        await groupRepository.createGroup(group.name, id: id);
-        await groupRepository.replaceMemberships(id, {
-          for (final bookmarkId in group.bookmarkIds) ?importedIds[bookmarkId],
-        });
-      }
+      ).replace(data);
       return;
     }
     if (resolution.action == ImportAction.skip) return;
@@ -1319,6 +1316,7 @@ final class PackageTransactionSource implements ImportTransactionSource {
           .where((bookmark) => chosenBookmarkIds.contains(bookmark.id))
           .toList(),
       groups: chosenGroups,
+      folders: data.folders,
     );
     final currentBookmarks = await bookmarkRepository.getAllBookmarksOrThrow(
       imageUrlResolver: resolver,
@@ -1362,6 +1360,7 @@ final class PackageTransactionSource implements ImportTransactionSource {
         ),
     };
     await BookmarkImportService(
+      importFolderName: Translations().folders.imported_groups,
       bookmarkRepository: bookmarkRepository,
       groupRepository: groupRepository,
       imageUrlResolver: resolver,

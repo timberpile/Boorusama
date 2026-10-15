@@ -61,6 +61,58 @@ void main() {
     expect(restored.groups, data.groups);
   });
 
+  test(
+    'version 5 preserves the system role alongside ordinary groups named Default',
+    () {
+      final data = BookmarkBackupData(
+        bookmarks: [_nativeBookmark(localId: 12)],
+        groups: const [
+          BookmarkGroupBackup(
+            id: defaultBookmarkGroupId,
+            name: 'Default',
+            bookmarkIds: [12],
+          ),
+          BookmarkGroupBackup(id: groupId, name: 'Default', bookmarkIds: [12]),
+        ],
+      );
+      expect(data.groups.first.toJson()['systemRole'], 'default');
+      expect(data.groups.last.toJson().containsKey('systemRole'), isFalse);
+      final decoded = codec.parse(
+        decodeData(
+          data: jsonEncode({
+            'version': 5,
+            'data': codec.encode(data),
+            ...data.extraFields,
+          }),
+        ),
+      );
+      expect(decoded, data);
+    },
+  );
+
+  test('rejects a system role on an ordinary UUID before import', () {
+    final row = _row(codec, _nativeBookmark(localId: 12));
+    expect(
+      () => codec.parse(
+        decodeData(
+          data: jsonEncode({
+            'version': 5,
+            'data': [row],
+            'groups': [
+              {
+                'id': groupId,
+                'name': 'Default',
+                'systemRole': 'default',
+                'bookmarkIds': [12],
+              },
+            ],
+          }),
+        ),
+      ),
+      throwsA(isA<InvalidBackupFormatException>()),
+    );
+  });
+
   test('rejects group references to bookmarks absent from the package', () {
     final row = _row(codec, _nativeBookmark(localId: 12));
     final payload = decodeData(

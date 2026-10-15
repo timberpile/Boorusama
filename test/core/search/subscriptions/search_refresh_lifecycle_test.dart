@@ -114,11 +114,4 @@ void main() {
   });
 }
 
-Future<void> drainRefresh(WidgetTester tester) async {
-  for (var i = 0; i < 20; i++) {
-    await tester.pump();
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 10)),
-    );
-  }
-}
+Future<void> drainRefresh(WidgetTester tester) => drain(tester);

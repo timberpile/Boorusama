@@ -367,6 +367,8 @@ void main() {
           'tags': ['cat', 'rating:safe'],
         },
         'position': 0,
+        'folderId': null,
+        'folderPosition': 0,
         'profile': {
           'id': profile.id,
           'booruType': 'danbooru',
@@ -376,7 +378,7 @@ void main() {
       },
       {
         'kind': 'organization',
-        'homeSearchIds': [_id],
+        'homeSearchIds': <String>[],
       },
     ]);
     final result = harness.source.exportResultBuilder!(

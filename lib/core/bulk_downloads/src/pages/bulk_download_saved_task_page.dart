@@ -25,7 +25,7 @@ class BulkDownloadSavedTaskPage extends ConsumerWidget {
 
     return CustomContextMenuOverlay(
       child: Scaffold(
-        appBar: AppBar(
+        appBar: KurumiAppBar(
           title: Text(context.t.bulk_downloads.templates.title),
           actions: const [
             _AddButton(),

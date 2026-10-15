@@ -57,7 +57,7 @@ class _BulkDownloadCompletedPageState
 
     return CustomContextMenuOverlay(
       child: Scaffold(
-        appBar: AppBar(
+        appBar: KurumiAppBar(
           title: Text(context.t.bulk_downloads.completed.title),
           actions: [
             KurumiPopupMenuButton(

@@ -1,4 +1,44 @@
 {
+  "performance_diagnostics": {
+    "title": "Leistungsdiagnose",
+    "description": "Bis zu 5 Minuten aufzeichnen, das Ruckeln reproduzieren und hierher zum Export zurückkehren. Eine neue Aufzeichnung ersetzt die vorherige.",
+    "privacy": "Bis zum Export nur im Arbeitsspeicher. Keine URLs, Suchanfragen, Post-IDs, Zugangsdaten oder benutzerdefinierten Namen. Zeitliche Überschneidung beweist keine Ursache.",
+    "native_only": "Die Aufzeichnung ist in nativen Debug-, Profile- und Release-Builds verfügbar.",
+    "recording": "Aufzeichnung läuft",
+    "stopped": "Keine Aufzeichnung",
+    "finishing": "Letzte Frame-Zeiten werden gesammelt…",
+    "summary": "{frames} Frames · {slow} über Budget · {delays} UI-Verzögerungen",
+    "start": "Neue Aufzeichnung",
+    "stop": "Aufzeichnung stoppen",
+    "mark": "Markierung setzen",
+    "export": "Bericht exportieren",
+    "copy": "Bericht kopieren",
+    "clear": "Bericht löschen",
+    "export_saved": "Gespeichert unter {path}",
+    "export_failed": "Der Bericht konnte nicht exportiert werden. Versuche stattdessen, ihn zu kopieren."
+  },
+  "gif_trim": {
+    "title": "Trim",
+    "overview": "Gesamtes Video",
+    "overview_hint": "Tippen oder ziehen, um eine Szene zu finden. Die Auswahl bleibt unverändert.",
+    "detail_hint": "Tippen zum Suchen. Ränder zum Schneiden ziehen, freie Fläche zum Navigieren.",
+    "zoom_out": "Verkleinern",
+    "zoom_in": "Vergrößern",
+    "focus_selection": "Zur Auswahl",
+    "source": "Quelle",
+    "loop": "Loop",
+    "start_here": "Start hier",
+    "end_here": "Ende hier",
+    "start_frame_back": "Start: einen Quellframe zurück",
+    "start_frame_forward": "Start: einen Quellframe vor",
+    "end_frame_back": "Ende: einen Quellframe zurück",
+    "end_frame_forward": "Ende: einen Quellframe vor",
+    "apply": "Übernehmen",
+    "preview_speed": "Vorschautempo",
+    "preview_speed_hint": "100 % entspricht dem Originaltempo. Das exportierte GIF bleibt unverändert.",
+    "preparing_preview": "Flüssige Vorschau wird vorbereitet…",
+    "native_preview": "Diese Vorschau kann beim Wiederholen kurz stocken."
+  },
   "pinned_searches": {
     "last_refresh": "Zuletzt aktualisiert: {date}",
     "sort_feed_last_refresh": "Letzte Aktualisierung (älteste zuerst)",
@@ -243,6 +283,14 @@
       }
     },
     "gif_editor": {
+      "timeline_zoom_hint": "Mit zwei Fingern zoomen. Zum Scrollen die Zeitleiste oberhalb der Bilder ziehen.",
+      "timeline_position": "Wiedergabeposition",
+      "refine_loop": "Loop verfeinern",
+      "refining_loop": "Loop wird verfeinert…",
+      "loop_refined": "Loop-Grenzen verfeinert.",
+      "loop_seam_hint": "Loop-Übergang angepasst. Die Wiederholung konnte nicht bestätigt werden.",
+      "loop_no_match": "Keine zuverlässige Übereinstimmung in der Nähe. Auswahl unverändert.",
+      "undo_refinement": "Verfeinerung rückgängig",
       "size": "Größe",
       "axes": "Breite und Höhe",
       "frames": "Bilder aus dem Original",
@@ -594,6 +642,8 @@
       "performance": "Leistung",
       "posts_per_page": "Beiträge pro Seite",
       "posts_per_page_explain": "Vorschaubilder pro Seite",
+      "posts_per_page_custom": "Benutzerdefiniert...",
+      "posts_per_page_invalid": "Bitte eine ganze Zahl zwischen 10 und 200 eingeben.",
       "cache_size": "Cache Größe",
       "clear_cache": "Löschen",
       "cache_size_info": "{0} in {1} Dateien"
@@ -647,6 +697,13 @@
     },
     "backup_and_restore": {
       "export_import": {
+        "file_name_pattern": "Export-Dateiname (optional)",
+        "file_name_pattern_help": "Verwende {timestamp}, {date:yyyy-MM-dd} oder {time:HH-mm-ss}. Alle Zeiten sind UTC.",
+        "file_name_pattern_preview": "Beispiel: {name} (UTC)",
+        "invalid_file_name_pattern": "Ungültiges Dateinamenmuster oder unbekannter Platzhalter.",
+        "file_name": "Dateiname",
+        "edit_file_name": "Dateinamen bearbeiten",
+        "invalid_file_name": "Bitte einen gültigen Dateinamen ohne unzulässige Zeichen eingeben.",
         "configure_items": "Einzeln",
         "preview_count": {
           "one": "${n} Änderung",
@@ -1071,6 +1128,15 @@
     }
   },
   "bookmark": {
+    "groups": {
+      "add_folder": "Gruppenordner hinzufügen",
+      "add": "Gruppe hinzufügen",
+      "move_here": "Hierher verschieben",
+      "folder_memberships": {
+        "one": "1 Gruppe enthält dieses Lesezeichen",
+        "other": "$n Gruppen enthalten dieses Lesezeichen"
+      }
+    },
     "added": "Lesezeichen hinzugefügt",
     "failed_to_add": "Lesezeichen konnte nicht hinzugefügt werden",
     "missing_post_identity": "Dieser Post hat keine stabile ID und kann nicht als Lesezeichen gespeichert werden",
@@ -1168,6 +1234,7 @@
   },
   "sort": {
     "sort_by": "Sortieren nach",
+    "short": "Sortieren",
     "name": "Name",
     "name_asc": "Name (A-Z)",
     "name_desc": "Name (Z-A)",
@@ -1300,5 +1367,22 @@
   "misc": {
     "trailing_more": " mehr",
     "trailing_less": " weniger"
+  },
+  "folders": {
+    "home": "Start",
+    "create": "Ordner erstellen",
+    "rename": "Ordner umbenennen",
+    "move": "Verschieben",
+    "name": "Ordnername",
+    "delete_title": "„{name}“ löschen?",
+    "delete_bookmarks": "Dadurch werden {folders} Ordner, {groups} Lesezeichengruppen und {bookmarks} Lesezeichen, die keiner anderen Gruppe angehören, endgültig gelöscht.",
+    "delete_searches": "Dadurch werden {folders} Ordner und {searches} angeheftete Suchen endgültig gelöscht.",
+    "select": "Auswählen",
+    "selected": "{count} ausgewählt",
+    "imported_groups": "Importierte Gruppen",
+    "imported_searches": "Importierte Suchen",
+    "move_up": "Nach oben",
+    "move_down": "Nach unten",
+    "invalid": "Der Ordnername oder das Ziel ist ungültig."
   }
 }

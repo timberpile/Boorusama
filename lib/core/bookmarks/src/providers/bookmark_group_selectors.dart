@@ -1,3 +1,5 @@
+import 'package:foundation/performance.dart';
+
 // Package imports:
 import 'package:collection/collection.dart';
 import 'package:equatable/equatable.dart';
@@ -5,10 +7,11 @@ import 'package:equatable/equatable.dart';
 // Project imports:
 import '../types/bookmark.dart';
 import '../types/bookmark_library_state.dart';
+import '../types/bookmark_search_token.dart';
 import '../types/bookmark_view.dart';
 import 'bookmark_shuffle_provider.dart';
 
-enum BookmarkSortType { newest, oldest, random }
+enum BookmarkSortType { newestUpload, oldestUpload, newest, oldest, random }
 
 List<Bookmark> selectBookmarks({
   required BookmarkLibraryState state,
@@ -18,28 +21,27 @@ List<Bookmark> selectBookmarks({
   String? selectedBooruUrl,
   BookmarkShuffleState? shuffleState,
 }) {
-  final inView = switch (view.kind) {
-    BookmarkViewKind.all => state.items,
-    BookmarkViewKind.ungrouped =>
-      state.items
-          .where((bookmark) => state.membershipsFor(bookmark.uniqueId).isEmpty)
-          .toList(),
-    BookmarkViewKind.group =>
-      state.items
-          .where(
-            (bookmark) =>
-                state.membershipsFor(bookmark.uniqueId).contains(view.groupId),
-          )
-          .toList(),
-  };
+  return performanceRecorder.measureSync(PerfOperation.bookmarkSelect, () {
+    final inView = switch (view.kind) {
+      BookmarkViewKind.all => state.items,
+      BookmarkViewKind.group =>
+        state.items
+            .where(
+              (bookmark) => state
+                  .membershipsFor(bookmark.uniqueId)
+                  .contains(view.groupId),
+            )
+            .toList(),
+    };
 
-  return filterBookmarks(
-    bookmarks: inView,
-    selectedTags: selectedTags,
-    sortType: sortType,
-    selectedBooruUrl: selectedBooruUrl,
-    shuffleState: shuffleState,
-  );
+    return filterBookmarks(
+      bookmarks: inView,
+      selectedTags: selectedTags,
+      sortType: sortType,
+      selectedBooruUrl: selectedBooruUrl,
+      shuffleState: shuffleState,
+    );
+  }, items: state.items.length);
 }
 
 List<Bookmark> selectBookmarkPreviews({
@@ -62,6 +64,17 @@ List<Bookmark> filterBookmarks({
   String? selectedBooruUrl,
   BookmarkShuffleState? shuffleState,
 }) {
+  final filters = selectedTags
+      .map(BookmarkSearchToken.parse)
+      .where((token) => token.tag.isNotEmpty)
+      .toList();
+  bool matchesTags(Bookmark bookmark) {
+    final tags = bookmark.tags.map(canonicalBookmarkTag).toSet();
+    return filters.every(
+      (token) => tags.contains(token.tag) != token.isNegative,
+    );
+  }
+
   final filtered = selectedBooruUrl == null && selectedTags.isEmpty
       ? bookmarks
       : bookmarks
@@ -69,12 +82,21 @@ List<Bookmark> filterBookmarks({
               (bookmark) =>
                   (selectedBooruUrl == null ||
                       bookmark.sourceUrl.contains(selectedBooruUrl)) &&
-                  (selectedTags.isEmpty ||
-                      selectedTags.every(bookmark.tags.contains)),
+                  (filters.isEmpty || matchesTags(bookmark)),
             )
             .toList();
   final sorted = filtered.sorted(
     (a, b) => switch (sortType) {
+      BookmarkSortType.newestUpload => _compareUploadDate(
+        a,
+        b,
+        newestFirst: true,
+      ),
+      BookmarkSortType.oldestUpload => _compareUploadDate(
+        a,
+        b,
+        newestFirst: false,
+      ),
       BookmarkSortType.newest => b.createdAt.compareTo(a.createdAt),
       BookmarkSortType.oldest => a.createdAt.compareTo(b.createdAt),
       BookmarkSortType.random => 0,
@@ -86,6 +108,27 @@ List<Bookmark> filterBookmarks({
       ? shuffleState!
       : const BookmarkShuffleState().withNewShuffle();
   return activeShuffleState.applyShuffleToList(sorted);
+}
+
+// Known upload dates always precede missing dates in both directions. A
+// stable site+post-ID fallback avoids comparing unrelated sites' ID sequences.
+int _compareUploadDate(Bookmark a, Bookmark b, {required bool newestFirst}) {
+  final aDate = a.post.createdAt;
+  final bDate = b.post.createdAt;
+  if (aDate == null && bDate != null) return 1;
+  if (aDate != null && bDate == null) return -1;
+  if (aDate != null && bDate != null) {
+    final byDate = aDate.compareTo(bDate);
+    if (byDate != 0) return newestFirst ? -byDate : byDate;
+  }
+
+  final bySite = a.post.origin.sourceHost.compareTo(b.post.origin.sourceHost);
+  if (bySite != 0) return newestFirst ? -bySite : bySite;
+
+  final byPostId = a.post.id.compareTo(b.post.id);
+  if (byPostId != 0) return newestFirst ? -byPostId : byPostId;
+
+  return a.id.compareTo(b.id);
 }
 
 class BookmarkMembershipPresentation extends Equatable {
@@ -125,17 +168,12 @@ BookmarkMembershipPresentation selectBookmarkMembershipPresentation(
   final activeGroupId = state.activeTarget.groupId;
   return BookmarkMembershipPresentation(
     isBookmarked: isBookmarked,
-    isInActiveTarget: activeGroupId == null
-        ? isBookmarked && memberships.isEmpty
-        : memberships.contains(activeGroupId),
+    isInActiveTarget: memberships.contains(activeGroupId),
     namedGroupCount: memberships.length,
-    activeTargetUnavailable:
-        activeGroupId == null && isBookmarked && memberships.isNotEmpty,
+    activeTargetUnavailable: false,
     showNamedGroupCount:
         memberships.isNotEmpty &&
-        (activeGroupId == null ||
-            !memberships.contains(activeGroupId) ||
-            memberships.length > 1),
+        (!memberships.contains(activeGroupId) || memberships.length > 1),
   );
 }
 
@@ -143,15 +181,13 @@ class BulkBookmarkMembershipCounts extends Equatable {
   const BulkBookmarkMembershipCounts({
     required this.selectedCount,
     required this.byGroupId,
-    required this.ungroupedCount,
   });
 
   final int selectedCount;
   final Map<String, int> byGroupId;
-  final int ungroupedCount;
 
   @override
-  List<Object?> get props => [selectedCount, byGroupId, ungroupedCount];
+  List<Object?> get props => [selectedCount, byGroupId];
 }
 
 BulkBookmarkMembershipCounts selectBulkMembershipCounts(
@@ -160,11 +196,9 @@ BulkBookmarkMembershipCounts selectBulkMembershipCounts(
 ) {
   final selected = selection.toSet();
   final counts = <String, int>{};
-  var ungrouped = 0;
   for (final bookmarkId in selected) {
     if (!state.bookmarksByUniqueId.containsKey(bookmarkId)) continue;
     final memberships = state.membershipsFor(bookmarkId);
-    if (memberships.isEmpty) ungrouped++;
     for (final groupId in memberships) {
       counts.update(groupId, (count) => count + 1, ifAbsent: () => 1);
     }
@@ -172,6 +206,5 @@ BulkBookmarkMembershipCounts selectBulkMembershipCounts(
   return BulkBookmarkMembershipCounts(
     selectedCount: selected.length,
     byGroupId: Map.unmodifiable(counts),
-    ungroupedCount: ungrouped,
   );
 }

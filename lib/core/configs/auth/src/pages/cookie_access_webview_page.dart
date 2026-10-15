@@ -36,7 +36,7 @@ class _CookieAccessWebViewPageState extends State<CookieAccessWebViewPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      appBar: AppBar(
+      appBar: KurumiAppBar(
         title: Text('Login'.hc),
       ),
       body: Column(

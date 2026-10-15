@@ -2,6 +2,7 @@
 import 'package:equatable/equatable.dart';
 
 // Project imports:
+import '../export/export_filename.dart';
 import 'export_selection.dart';
 import 'import_action.dart';
 
@@ -11,11 +12,15 @@ final class ExportTemplate extends Equatable {
     required this.name,
     required this.selection,
     this.includeCredentials = false,
+    this.fileNamePattern = '',
     this.recommendedActions = const {},
     this.itemRecommendedActions = const {},
   }) {
     if (id.trim().isEmpty || name.trim().isEmpty) {
       throw ArgumentError('Template ID and name must not be empty');
+    }
+    if (!isValidExportFileNamePattern(fileNamePattern)) {
+      throw ArgumentError.value(fileNamePattern, 'fileNamePattern');
     }
     if (selection.mode != ExportSelectionMode.custom) {
       throw ArgumentError('User templates must freeze their app sources');
@@ -26,12 +31,15 @@ final class ExportTemplate extends Equatable {
     final id = json['id'];
     final name = json['name'];
     final selection = json['selection'];
+    final rawPattern = json['fileNamePattern'];
     if (id is! String ||
         name is! String ||
         selection is! Map<String, dynamic> ||
         id.trim().isEmpty ||
         name.trim().isEmpty ||
-        selection['mode'] != 'custom') {
+        selection['mode'] != 'custom' ||
+        (rawPattern != null &&
+            (rawPattern is! String || !isValidExportFileNamePattern(rawPattern)))) {
       throw const FormatException('Invalid export template');
     }
     return ExportTemplate(
@@ -39,6 +47,7 @@ final class ExportTemplate extends Equatable {
       name: name,
       selection: ExportSelection.fromJson(selection),
       includeCredentials: json['includeCredentials'] == true,
+      fileNamePattern: rawPattern is String ? rawPattern : '',
       recommendedActions: _actionsFromJson(json['recommendedActions']),
       itemRecommendedActions: _itemActionsFromJson(
         json['itemRecommendedActions'],
@@ -50,6 +59,7 @@ final class ExportTemplate extends Equatable {
   final String name;
   final ExportSelection selection;
   final bool includeCredentials;
+  final String fileNamePattern;
   final Map<String, ImportAction> recommendedActions;
   final Map<String, Map<String, ImportAction>> itemRecommendedActions;
 
@@ -58,6 +68,7 @@ final class ExportTemplate extends Equatable {
     'name': name,
     'selection': selection.toJson(),
     'includeCredentials': includeCredentials,
+    'fileNamePattern': fileNamePattern,
     'recommendedActions': {
       for (final entry in recommendedActions.entries)
         entry.key: entry.value.name,
@@ -76,6 +87,7 @@ final class ExportTemplate extends Equatable {
     name,
     selection,
     includeCredentials,
+    fileNamePattern,
     recommendedActions,
     itemRecommendedActions,
   ];

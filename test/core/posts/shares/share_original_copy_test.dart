@@ -26,6 +26,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:oktoast/oktoast.dart';
 
 import '../../../bulk_downloads/common.dart';
+import 'share_test_utils.dart';
 
 class _FileSystem extends Mock implements AppFileSystem {}
 
@@ -158,7 +159,13 @@ void main() {
       expect(find.byTooltip('Copy original'), findsOneWidget);
       await real(() async {
         await tester.tap(find.byTooltip('Copy original'));
-        await Future<void>.delayed(const Duration(milliseconds: 150));
+        await pumpUntilShareCondition(
+          tester,
+          () =>
+              find.text('Copied').evaluate().isNotEmpty &&
+              shareActionEnabled(tester, 'Copy original'),
+          reason: 'Copy must acknowledge the clipboard and release its lease',
+        );
       });
       await tester.pumpAndSettle();
       expect(find.text('Copied'), findsOneWidget);
@@ -279,7 +286,12 @@ void main() {
 
         await real(() async {
           await tester.tap(find.byTooltip('Copy original'));
-          await Future<void>.delayed(const Duration(milliseconds: 650));
+          await readStarted.future.timeout(const Duration(seconds: 10));
+          await pumpUntilShareCondition(
+            tester,
+            () => find.byType(LinearProgressIndicator).evaluate().isNotEmpty,
+            reason: 'A pending image read must show progress',
+          );
         });
         await tester.pump();
         expect(readStarted.isCompleted, isTrue);
@@ -297,7 +309,7 @@ void main() {
 
         pendingRead.complete(png);
         await real(
-          () => Future<void>.delayed(const Duration(milliseconds: 150)),
+          () => writeStarted.future.timeout(const Duration(seconds: 10)),
         );
         await tester.pump();
         expect(writeStarted.isCompleted, isTrue);
@@ -314,8 +326,12 @@ void main() {
         );
 
         pendingWrite.complete();
-        await real(
-          () => Future<void>.delayed(const Duration(milliseconds: 150)),
+        await pumpUntilShareCondition(
+          tester,
+          () =>
+              find.text('Copied').evaluate().isNotEmpty &&
+              shareActionEnabled(tester, 'Copy original'),
+          reason: 'Copy must finish after the pending clipboard write',
         );
         await tester.pumpAndSettle();
         await tester.pump(const Duration(seconds: 3));

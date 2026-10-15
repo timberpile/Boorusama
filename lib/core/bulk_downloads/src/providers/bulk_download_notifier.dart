@@ -75,6 +75,8 @@ extension SessionActionX on BulkDownloadSession {
 }
 
 class BulkDownloadNotifier extends Notifier<BulkDownloadState> {
+  var _lifecycle = 0;
+
   Future<d.DownloadNetworkConstraint?> _resolveNetworkConstraint() {
     final policy = ref.read(settingsProvider).downloadNetworkPolicy;
     return resolveDownloadNetworkConstraint(ref, policy);
@@ -104,6 +106,7 @@ class BulkDownloadNotifier extends Notifier<BulkDownloadState> {
 
   @override
   BulkDownloadState build() {
+    final lifecycle = ++_lifecycle;
     final progressUpdateTimers = <String, Timer>{};
 
     final progressNotifier = ref.watch(bulkDownloadProgressProvider.notifier);
@@ -157,6 +160,7 @@ class BulkDownloadNotifier extends Notifier<BulkDownloadState> {
         },
       )
       ..onDispose(() {
+        if (_lifecycle == lifecycle) ++_lifecycle;
         for (final timer in progressUpdateTimers.values) {
           timer.cancel();
         }
@@ -354,6 +358,7 @@ class BulkDownloadNotifier extends Notifier<BulkDownloadState> {
     DownloadSession session, {
     DownloadConfigs? downloadConfigs,
   }) async {
+    final lifecycle = _lifecycle;
     final path = task.path;
     final fallbackChecker = ref.read(defaultDirectoryExistCheckerProvider);
     final directoryChecker =
@@ -471,6 +476,10 @@ class BulkDownloadNotifier extends Notifier<BulkDownloadState> {
         },
       );
 
+      // Cancellation can finish after disposal or a rebuild of this notifier.
+      // Old results must not read its ref or alter the replacement session.
+      if (lifecycle != _lifecycle) return;
+
       // Get final dry run state
       final dryRunState = await ref.read(
         dryRunNotifierProvider(sessionId).future,
@@ -530,6 +539,7 @@ class BulkDownloadNotifier extends Notifier<BulkDownloadState> {
         networkConstraint: networkConstraint,
       );
     } catch (e) {
+      if (lifecycle != _lifecycle) return;
       _cancelSessionToken(sessionId);
 
       await _updateSession(

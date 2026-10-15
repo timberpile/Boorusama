@@ -35,7 +35,7 @@ class _FullHistoryPageState extends ConsumerState<FullHistoryPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
+      appBar: KurumiAppBar(
         title: Text(context.t.search.history.history),
         actions: [
           TextButton(

@@ -16,12 +16,9 @@ String generateCacheKey(
     return keyToMd5(url);
   }
 
-  // Use path + query for cache key since query params can affect content
-  final pathWithQuery = uri.query.isEmpty
-      ? uri.path
-      : '${uri.path}?${uri.query}';
-
-  return keyToMd5(pathWithQuery);
+  // Include the origin to avoid collisions between unrelated sites.
+  // URL fragments do not identify a different HTTP resource.
+  return keyToMd5(uri.replace(fragment: '').toString());
 }
 
 String keyToMd5(String key) {

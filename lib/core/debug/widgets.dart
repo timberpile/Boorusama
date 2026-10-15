@@ -48,7 +48,7 @@ class _DebugLogsPageState extends ConsumerState<DebugLogsPage> {
     }
 
     return Scaffold(
-      appBar: AppBar(
+      appBar: KurumiAppBar(
         title: Text(context.t.settings.debug_logs.debug_logs),
         actions: [
           IconButton(

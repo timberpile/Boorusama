@@ -68,7 +68,7 @@ class SearchAppBar extends ConsumerWidget {
     );
 
     return LayoutBuilder(
-      builder: (context, constraints) => AppBar(
+      builder: (context, constraints) => KurumiAppBar(
         automaticallyImplyLeading: false,
         toolbarHeight: height ?? kToolbarHeight,
         title: Row(

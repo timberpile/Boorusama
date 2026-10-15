@@ -261,12 +261,14 @@ void main() {
         lessThan(tester.getTopLeft(find.text('Other folder')).dy),
       );
       await chooseFolderAction(tester, folderId, 'Delete');
-      expect(find.text('Delete “Pets”?'), findsOneWidget);
+      expect(find.text('Delete "Pets"?'), findsOneWidget);
       expect(
-        find.text('This will unpin all 2 searches in this folder.'),
+        find.text(
+          'This will permanently delete 1 folders and 2 pinned searches.',
+        ),
         findsOneWidget,
       );
-      expect(find.text('Unpinning cannot be undone.'), findsOneWidget);
+      expect(find.text('Unpinning cannot be undone.'), findsNothing);
       await tester.tap(find.text('Cancel'));
       await settle(tester);
       await drain(tester);
@@ -947,7 +949,7 @@ void main() {
     );
   }
 
-  testWidgets('a missing folder disables refresh on the opened page', (
+  testWidgets('a missing folder returns the opened page to Home', (
     tester,
   ) async {
     await harness.pump(
@@ -957,7 +959,8 @@ void main() {
 
     await tester.tap(pageOverflow());
     await settle(tester);
-    expect(actionItem(tester, 'Refresh Folder').enabled, isFalse);
+    expect(actionItem(tester, 'Refresh All').enabled, isFalse);
+    expect(find.text('Refresh Folder'), findsNothing);
   });
 
   testWidgets('folder cards remain usable on a narrow screen with large text', (

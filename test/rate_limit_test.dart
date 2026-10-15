@@ -1,5 +1,6 @@
 // Package imports:
 import 'package:dio/dio.dart';
+import 'package:fake_async/fake_async.dart';
 import 'package:test/test.dart';
 
 // Project imports:
@@ -13,158 +14,183 @@ void main() {
       handler = MockRequestInterceptorHandler();
     });
 
-    test('should skip rate limiting when resolver returns false', () async {
-      bool isImageUrl(RequestOptions options) {
-        return options.path.endsWith('.jpg') || options.path.endsWith('.png');
-      }
-
-      final config = SlidingWindowRateLimitConfig(
-        requestsPerWindow: 2,
-        windowSizeMs: 1000,
-        resolver: (options) => !isImageUrl(options), // Don't rate limit images
-      );
-      final testInterceptor = SlidingWindowRateLimitInterceptor(config: config);
-
-      // Image requests should not be rate limited
-      final imageOptions = RequestOptions(path: '/image.jpg', method: 'GET');
-
-      // Make many image requests quickly
-      for (var i = 0; i < 5; i++) {
-        final stopwatch = Stopwatch()..start();
-        await testInterceptor.onRequest(imageOptions, handler);
-        stopwatch.stop();
-
-        expect(stopwatch.elapsedMilliseconds, lessThan(50));
-        expect(handler.nextCalled, isTrue);
-        handler.reset();
-      }
+    test('should skip rate limiting when resolver returns false', () {
+      fakeAsync((time) {
+        final interceptor = _interceptor(
+          time,
+          SlidingWindowRateLimitConfig(
+            requestsPerWindow: 2,
+            windowSizeMs: 1000,
+            resolver: (options) =>
+                !(options.path.endsWith('.jpg') ||
+                    options.path.endsWith('.png')),
+          ),
+        );
+        final options = RequestOptions(path: '/image.jpg', method: 'GET');
+        for (var i = 0; i < 5; i++) {
+          _expectNoScheduledDelay(time, interceptor, options, handler);
+        }
+      });
     });
 
-    test('should apply rate limiting when resolver returns true', () async {
-      bool isImageUrl(RequestOptions options) {
-        return options.path.endsWith('.jpg') || options.path.endsWith('.png');
-      }
-
-      final config = SlidingWindowRateLimitConfig(
-        requestsPerWindow: 2,
-        windowSizeMs: 1000,
-        resolver: (options) => !isImageUrl(options), // Don't rate limit images
-      );
-      final testInterceptor = SlidingWindowRateLimitInterceptor(config: config);
-
-      // API requests should be rate limited
-      final apiOptions = RequestOptions(path: '/api/posts', method: 'GET');
-
-      // Fill the window
-      await testInterceptor.onRequest(apiOptions, handler);
-      await testInterceptor.onRequest(apiOptions, handler);
-
-      // Third request should be delayed
-      handler.reset();
-      final stopwatch = Stopwatch()..start();
-      await testInterceptor.onRequest(apiOptions, handler);
-      stopwatch.stop();
-
-      expect(stopwatch.elapsedMilliseconds, greaterThan(500));
-      expect(handler.nextCalled, isTrue);
+    test('should apply rate limiting when resolver returns true', () {
+      fakeAsync((time) {
+        final interceptor = _interceptor(
+          time,
+          SlidingWindowRateLimitConfig(
+            requestsPerWindow: 2,
+            windowSizeMs: 1000,
+            resolver: (options) =>
+                !(options.path.endsWith('.jpg') ||
+                    options.path.endsWith('.png')),
+          ),
+        );
+        final options = RequestOptions(path: '/api/posts', method: 'GET');
+        for (var i = 0; i < 2; i++) {
+          _expectNoScheduledDelay(time, interceptor, options, handler);
+        }
+        _expectScheduledDelay(
+          time,
+          interceptor,
+          options,
+          handler,
+          const Duration(seconds: 1),
+        );
+      });
     });
 
-    test('should delay requests when exceeding rate limit', () async {
-      const config = SlidingWindowRateLimitConfig(
-        requestsPerWindow: 2,
-        windowSizeMs: 1000,
-      );
-      final testInterceptor = SlidingWindowRateLimitInterceptor(config: config);
-      final options = RequestOptions(path: '/test', method: 'POST');
-
-      // Fill the window
-      await testInterceptor.onRequest(options, handler);
-      await testInterceptor.onRequest(options, handler);
-
-      // Third request should be delayed
-      handler.reset();
-      final stopwatch = Stopwatch()..start();
-      await testInterceptor.onRequest(options, handler);
-      stopwatch.stop();
-
-      expect(stopwatch.elapsedMilliseconds, greaterThan(500));
-      expect(handler.nextCalled, isTrue);
+    test('should delay requests when exceeding rate limit', () {
+      fakeAsync((time) {
+        final interceptor = _interceptor(
+          time,
+          const SlidingWindowRateLimitConfig(
+            requestsPerWindow: 2,
+            windowSizeMs: 1000,
+          ),
+        );
+        final options = RequestOptions(path: '/test', method: 'POST');
+        for (var i = 0; i < 2; i++) {
+          _expectNoScheduledDelay(time, interceptor, options, handler);
+        }
+        _expectScheduledDelay(
+          time,
+          interceptor,
+          options,
+          handler,
+          const Duration(seconds: 1),
+        );
+      });
     });
 
-    test('should clean up old timestamps', () async {
-      const config = SlidingWindowRateLimitConfig(
-        requestsPerWindow: 2,
-        windowSizeMs: 100,
-      );
-      final testInterceptor = SlidingWindowRateLimitInterceptor(config: config);
-      final options = RequestOptions(path: '/test', method: 'PUT');
-
-      // Fill the window
-      await testInterceptor.onRequest(options, handler);
-      await testInterceptor.onRequest(options, handler);
-
-      // Wait for window to expire
-      await Future.delayed(const Duration(milliseconds: 150));
-
-      // Should not be delayed
-      handler.reset();
-      final stopwatch = Stopwatch()..start();
-      await testInterceptor.onRequest(options, handler);
-      stopwatch.stop();
-
-      expect(stopwatch.elapsedMilliseconds, lessThan(50));
-      expect(handler.nextCalled, isTrue);
+    test('should clean up old timestamps', () {
+      fakeAsync((time) {
+        final interceptor = _interceptor(
+          time,
+          const SlidingWindowRateLimitConfig(
+            requestsPerWindow: 2,
+            windowSizeMs: 100,
+          ),
+        );
+        final options = RequestOptions(path: '/test', method: 'PUT');
+        for (var i = 0; i < 2; i++) {
+          _expectNoScheduledDelay(time, interceptor, options, handler);
+        }
+        time.elapse(const Duration(milliseconds: 150));
+        _expectNoScheduledDelay(time, interceptor, options, handler);
+      });
     });
 
-    test('should respect max delay limit', () async {
-      const config = SlidingWindowRateLimitConfig(
-        requestsPerWindow: 1,
-        windowSizeMs: 10000, // 10 seconds
-        maxDelayMs: 100, // Very short max delay
-      );
-      final testInterceptor = SlidingWindowRateLimitInterceptor(config: config);
-      final options = RequestOptions(path: '/test', method: 'DELETE');
-
-      // First request fills the window
-      await testInterceptor.onRequest(options, handler);
-
-      // Second request should be delayed but not exceed maxDelayMs
-      handler.reset();
-      final stopwatch = Stopwatch()..start();
-      await testInterceptor.onRequest(options, handler);
-      stopwatch.stop();
-
-      expect(stopwatch.elapsedMilliseconds, lessThan(200));
-      expect(stopwatch.elapsedMilliseconds, greaterThan(80));
-      expect(handler.nextCalled, isTrue);
+    test('should respect max delay limit', () {
+      fakeAsync((time) {
+        final interceptor = _interceptor(
+          time,
+          const SlidingWindowRateLimitConfig(
+            requestsPerWindow: 1,
+            windowSizeMs: 10000,
+            maxDelayMs: 100,
+          ),
+        );
+        final options = RequestOptions(path: '/test', method: 'DELETE');
+        _expectNoScheduledDelay(time, interceptor, options, handler);
+        _expectScheduledDelay(
+          time,
+          interceptor,
+          options,
+          handler,
+          const Duration(milliseconds: 100),
+        );
+      });
     });
 
-    test('should handle multiple requests within window correctly', () async {
-      const config = SlidingWindowRateLimitConfig(
-        requestsPerWindow: 3,
-        windowSizeMs: 1000,
-      );
-      final testInterceptor = SlidingWindowRateLimitInterceptor(config: config);
-      final options = RequestOptions(path: '/test', method: 'PATCH');
-
-      // First 3 requests should go through quickly
-      for (var i = 0; i < 3; i++) {
-        final stopwatch = Stopwatch()..start();
-        await testInterceptor.onRequest(options, handler);
-        stopwatch.stop();
-        expect(stopwatch.elapsedMilliseconds, lessThan(50));
-      }
-
-      // 4th request should be delayed
-      handler.reset();
-      final stopwatch = Stopwatch()..start();
-      await testInterceptor.onRequest(options, handler);
-      stopwatch.stop();
-
-      expect(stopwatch.elapsedMilliseconds, greaterThan(500));
-      expect(handler.nextCalled, isTrue);
+    test('should handle multiple requests within window correctly', () {
+      fakeAsync((time) {
+        final interceptor = _interceptor(
+          time,
+          const SlidingWindowRateLimitConfig(
+            requestsPerWindow: 3,
+            windowSizeMs: 1000,
+          ),
+        );
+        final options = RequestOptions(path: '/test', method: 'PATCH');
+        for (var i = 0; i < 3; i++) {
+          _expectNoScheduledDelay(time, interceptor, options, handler);
+        }
+        _expectScheduledDelay(
+          time,
+          interceptor,
+          options,
+          handler,
+          const Duration(seconds: 1),
+        );
+      });
     });
   });
+}
+
+SlidingWindowRateLimitInterceptor _interceptor(
+  FakeAsync time,
+  SlidingWindowRateLimitConfig config,
+) => SlidingWindowRateLimitInterceptor(
+  config: config,
+  now: time.getClock(DateTime.utc(2026)).now,
+);
+
+// Assert timer policy rather than the speed of the test host's scheduler.
+void _expectNoScheduledDelay(
+  FakeAsync time,
+  SlidingWindowRateLimitInterceptor interceptor,
+  RequestOptions options,
+  MockRequestInterceptorHandler handler,
+) {
+  handler.reset();
+  var completed = false;
+  interceptor.onRequest(options, handler).then((_) => completed = true);
+  time.flushMicrotasks();
+  expect(time.pendingTimers, isEmpty);
+  expect(completed, isTrue);
+  expect(handler.nextCalled, isTrue);
+}
+
+void _expectScheduledDelay(
+  FakeAsync time,
+  SlidingWindowRateLimitInterceptor interceptor,
+  RequestOptions options,
+  MockRequestInterceptorHandler handler,
+  Duration delay,
+) {
+  handler.reset();
+  var completed = false;
+  interceptor.onRequest(options, handler).then((_) => completed = true);
+  time.flushMicrotasks();
+  expect(handler.nextCalled, isFalse);
+  expect(completed, isFalse);
+  expect(time.pendingTimers.single.duration, delay);
+  time.elapse(delay - const Duration(milliseconds: 1));
+  expect(handler.nextCalled, isFalse);
+  expect(completed, isFalse);
+  time.elapse(const Duration(milliseconds: 1));
+  expect(handler.nextCalled, isTrue);
+  expect(completed, isTrue);
 }
 
 class MockRequestInterceptorHandler extends RequestInterceptorHandler {

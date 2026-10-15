@@ -36,6 +36,7 @@ import 'raw_search_page_scaffold.dart';
 import 'raw_search_region.dart';
 import 'search_button.dart';
 import 'search_controller.dart';
+import 'search_profile_session.dart';
 import 'selected_tag_list_with_data.dart';
 
 class SearchPageScaffold<T extends Post> extends ConsumerStatefulWidget {
@@ -121,6 +122,16 @@ class _SearchPageScaffoldState<T extends Post>
       tagsController: _tagsController,
     );
 
+    final snapshot = SearchProfileSession.maybeOf(context)?.snapshot;
+    snapshot?.restore(_controller);
+    if (snapshot != null && snapshot.text.text.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ref
+            .read(suggestionsNotifierProvider(ref.readConfigAuth).notifier)
+            .getSuggestions(snapshot.text.text);
+      });
+    }
     _postController = ValueNotifier(null);
   }
 
@@ -241,7 +252,7 @@ class _SearchPageScaffoldState<T extends Post>
           ),
       onPostControllerCreated: (controller) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          _postController.value = controller;
+          if (mounted) _postController.value = controller;
         });
       },
     );

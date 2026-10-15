@@ -47,7 +47,7 @@ void main() {
       expect(feedPayload['source'], 'following_feeds');
       expect(pinPayload['source'], 'pinned_searches');
       expect(feedPayload['version'], 1);
-      expect(pinPayload['version'], 1);
+      expect(pinPayload['version'], 2);
       final feedRows = feedPayload['data'] as List;
       expect(feedRows, hasLength(1));
       expect(feedRows.single['kind'], 'feed');

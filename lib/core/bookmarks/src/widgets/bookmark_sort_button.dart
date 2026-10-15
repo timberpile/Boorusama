@@ -18,17 +18,36 @@ class BookmarkSortButton extends ConsumerWidget {
     final shuffleProvider = ref.watch(bookmarkShuffleProvider.notifier);
 
     String label(BookmarkSortType value) => switch (value) {
-      BookmarkSortType.newest => context.t.explore.newest,
-      BookmarkSortType.oldest => context.t.explore.oldest,
+      BookmarkSortType.newestUpload || BookmarkSortType.newest =>
+        context.t.explore.newest,
+      BookmarkSortType.oldestUpload || BookmarkSortType.oldest =>
+        context.t.explore.oldest,
+      BookmarkSortType.random => context.t.explore.random,
+    };
+    IconData icon(BookmarkSortType value) => switch (value) {
+      BookmarkSortType.newestUpload || BookmarkSortType.oldestUpload =>
+        Icons.file_upload_outlined,
+      BookmarkSortType.newest || BookmarkSortType.oldest =>
+        Icons.bookmark_border,
+      BookmarkSortType.random => Icons.shuffle,
+    };
+    String semanticLabel(BookmarkSortType value) => switch (value) {
+      BookmarkSortType.newestUpload || BookmarkSortType.oldestUpload =>
+        '${context.t.post.detail.upload_date}: ${label(value)}',
+      BookmarkSortType.newest || BookmarkSortType.oldest =>
+        '${context.t.bookmark.title}: ${label(value)}',
       BookmarkSortType.random => context.t.explore.random,
     };
     final selected = ref.watch(selectedBookmarkSortTypeProvider);
 
     return BookmarkOptionSelector<BookmarkSortType>(
       label: label(selected),
+      prefixLabel: context.t.sort.short,
       value: selected,
       options: BookmarkSortType.values,
       optionLabel: label,
+      optionIcon: icon,
+      optionSemanticLabel: semanticLabel,
       onSelected: (value) {
         if (value == selected) return;
         ref.read(selectedBookmarkSortTypeProvider.notifier).state = value;

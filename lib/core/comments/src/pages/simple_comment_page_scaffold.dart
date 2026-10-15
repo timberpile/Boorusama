@@ -28,7 +28,7 @@ class SimpleCommentPageScaffold extends ConsumerWidget {
 
     return Scaffold(
       appBar: useAppBar
-          ? AppBar(
+          ? KurumiAppBar(
               title: Text(context.t.comment.comments),
             )
           : null,

@@ -83,7 +83,12 @@ void main() {
       final result = await Process.run(
         Platform.resolvedExecutable,
         [
-          'run',
+          // Retain one `dart run` launch; the other timezone processes reuse
+          // the package configuration already resolved by the FVM test run.
+          if (packages.isEmpty)
+            'run'
+          else
+            '--packages=${File('.dart_tool/package_config.json').absolute.path}',
           'bin/boorusama.dart',
           'animeboxes',
           'export',

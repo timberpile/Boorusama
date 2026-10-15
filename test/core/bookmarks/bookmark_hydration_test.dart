@@ -94,7 +94,7 @@ void main() {
   });
 
   Future<List<Bookmark>> load() async =>
-      (await library.load(const BookmarkTarget.ungrouped())).items;
+      (await library.load(const BookmarkTarget.defaultGroup())).items;
   BookmarkRecoveryService recovery({
     Future<Post?> Function(BooruConfig, int)? fetch,
     bool codecAvailable = true,

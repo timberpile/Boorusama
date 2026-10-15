@@ -141,7 +141,7 @@ class _SliverHomeSearchBarState
     }
 
     // Mobile variant
-    return SliverAppBar(
+    return KurumiSliverAppBar(
       primary: widget.primary ?? true,
       backgroundColor: colorScheme.surface,
       title: const HomeSearchBar(),

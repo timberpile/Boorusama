@@ -28,7 +28,7 @@ Bookmark autocomplete already attempts color resolution with `booruTagTypeStoreP
 - [Bookmark suggestions](../../../lib/core/bookmarks/src/providers/suggestion_provider.dart)
 - [Bookmark suggestion UI](../../../lib/core/bookmarks/src/widgets/bookmark_search_bar.dart)
 
-Dependencies: None. Coordinate presentation changes with [BM-007](BM-007-support-negative-tags-in-bookmark-search.md) if both alter bookmark autocomplete.
+Dependencies: None. Coordinate presentation changes with [BM-007](../done/BM-007-support-negative-tags-in-bookmark-search.md) if both alter bookmark autocomplete.
 
 ## Decision
 

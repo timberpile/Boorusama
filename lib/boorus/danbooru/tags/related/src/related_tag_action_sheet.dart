@@ -39,7 +39,7 @@ class _RelatedTagActionSheetState extends ConsumerState<RelatedTagActionSheet> {
     final auth = ref.watchConfigAuth;
 
     return Scaffold(
-      appBar: AppBar(
+      appBar: KurumiAppBar(
         actions: [
           IconButton(
             onPressed: Navigator.of(context).pop,

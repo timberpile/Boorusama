@@ -39,7 +39,7 @@ class _GalleryPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Kurumi migration gallery')),
+      appBar: const KurumiAppBar(title: Text('Kurumi migration gallery')),
       body: ListView(
         padding: const EdgeInsets.all(24),
         children: const [

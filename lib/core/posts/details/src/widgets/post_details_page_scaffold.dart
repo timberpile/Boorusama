@@ -2,6 +2,7 @@
 import 'package:flutter/services.dart';
 
 // Package imports:
+import 'package:foundation/performance.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:foundation/widgets.dart';
 import 'package:kurumi/kurumi.dart';
@@ -11,6 +12,7 @@ import 'package:sliver_tools/sliver_tools.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
 // Project imports:
+import '../../../../../foundation/performance/performance_navigation.dart';
 import '../../../../../foundation/platform.dart';
 import '../../../../analytics/providers.dart';
 import '../../../../boorus/engine/types.dart';
@@ -99,9 +101,7 @@ class _PostDetailPageScaffoldState<T extends Post>
       PostViewerTransformationController(widget.transformController);
 
   PostDetailsPageViewController? _pageViewController;
-  PostDetailsPageViewController get _controller {
-    return _pageViewController ??= PostDetailsPageViewScope.of(context);
-  }
+  PostDetailsPageViewController get _controller => _pageViewController!;
 
   VolumeKeyPageNavigator? _volumeKeyPageNavigator;
 
@@ -115,6 +115,7 @@ class _PostDetailPageScaffoldState<T extends Post>
     super.initState();
 
     WidgetsBinding.instance.addPostFrameCallback((timeStamp) {
+      if (!mounted) return;
       widget.controller.setPage(
         widget.controller.initialPage,
       );
@@ -128,23 +129,41 @@ class _PostDetailPageScaffoldState<T extends Post>
   void didChangeDependencies() {
     super.didChangeDependencies();
 
-    _volumeKeyPageNavigator ??= VolumeKeyPageNavigator(
-      pageViewController: _controller,
+    final controller = PostDetailsPageViewScope.of(context);
+    if (identical(_pageViewController, controller)) return;
+
+    _pageViewController?.precisePage.removeListener(_onPrecisePageChanged);
+    _volumeKeyPageNavigator?.dispose();
+    _pageViewController = controller;
+    controller.precisePage.addListener(_onPrecisePageChanged);
+
+    _volumeKeyPageNavigator = VolumeKeyPageNavigator(
+      pageViewController: controller,
       totalPosts: () => _posts.length,
       visibilityNotifier: visibilityNotifier,
       enableVolumeKeyViewerNavigation: () => ref.read(
         settingsProvider.select((value) => value.volumeKeyViewerNavigation),
       ),
     )..initialize();
+  }
 
-    _controller.precisePage.addListener(_onPrecisePageChanged);
+  @override
+  void didUpdateWidget(covariant PostDetailsPageScaffold<T> oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller.isVideoPlaying.removeListener(
+        _isVideoPlayingChanged,
+      );
+      widget.controller.isVideoPlaying.addListener(_isVideoPlayingChanged);
+    }
   }
 
   @override
   void dispose() {
     _volumeKeyPageNavigator?.dispose();
     widget.controller.isVideoPlaying.removeListener(_isVideoPlayingChanged);
-    _controller.precisePage.removeListener(_onPrecisePageChanged);
+    _pageViewController?.precisePage.removeListener(_onPrecisePageChanged);
+    visibilityNotifier.dispose();
 
     super.dispose();
   }
@@ -189,25 +208,32 @@ class _PostDetailPageScaffoldState<T extends Post>
   }
 
   void _onPrecisePageChanged() {
-    final precisePage = _controller.precisePage.value;
+    performanceRecorder.measureSync(
+      PerfOperation.viewerPrecisePageCallback,
+      () {
+        final precisePage = _controller.precisePage.value;
 
-    if (precisePage != null) {
-      final page = precisePage.round();
-      final distance = (page - precisePage).abs();
+        if (precisePage != null) {
+          final page = precisePage.round();
+          final distance = (page - precisePage).abs();
 
-      if (distance <= 0.25) {
-        widget.controller.updateCurrentPost(page);
-      }
+          if (distance <= 0.25) {
+            widget.controller.updateCurrentPost(page);
+          }
 
-      if (distance == 0) {
-        _onPageSettled(page);
-      }
-    }
+          if (distance == 0) {
+            _onPageSettled(page);
+          }
+        }
+      },
+    );
   }
 
   void _onPageSettled(int page) {
-    _viewerTransformationController.onPageSettled(page);
-    widget.controller.onPageSettled(page);
+    performanceRecorder.measureSync(PerfOperation.viewerSettlement, () {
+      _viewerTransformationController.onPageSettled(page);
+      widget.controller.onPageSettled(page);
+    });
   }
 
   void _onHover({
@@ -234,7 +260,15 @@ class _PostDetailPageScaffoldState<T extends Post>
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => PerformanceScreenScope(
+    screen: PerfScreen.postViewer,
+    child: performanceRecorder.measureSync(
+      PerfOperation.viewerScaffoldBuild,
+      () => _buildViewer(context),
+    ),
+  );
+
+  Widget _buildViewer(BuildContext context) {
     // Sync slideshow options with settings
     ref.listen(
       imageViewerSettingsProvider.select(

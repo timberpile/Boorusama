@@ -20,7 +20,7 @@ class SavedSearchLandingView extends ConsumerWidget {
     final loginDetails = ref.watch(danbooruLoginDetailsProvider(config));
 
     return Scaffold(
-      appBar: AppBar(
+      appBar: KurumiAppBar(
         title: Text(context.t.saved_search.saved_search_feed),
       ),
       body: SingleChildScrollView(

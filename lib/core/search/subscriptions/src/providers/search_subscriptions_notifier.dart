@@ -1,3 +1,4 @@
+import '../../../../groups/folder_tree.dart';
 // Dart imports:
 import 'dart:async';
 
@@ -268,6 +269,8 @@ class SearchSubscriptionsNotifier
                 SharedSearchFolder(
                   id: folder.id,
                   name: folder.name,
+                  parentId: folder.parentId,
+                  position: folder.position,
                   searchIds: [...folder.searchIds, ...created],
                 )
               else
@@ -497,37 +500,50 @@ class SearchSubscriptionsNotifier
         }
       });
 
-  Future<SharedSearchFolder> createSharedFolder(String name) =>
-      _mutate((repository) async {
-        final folder = SharedSearchFolder(
-          id: const Uuid().v4(),
-          name: name,
-          searchIds: const [],
-        );
-        final organization = await repository.getOrganization();
-        await repository.replaceOrganization(
-          SearchOrganization(
-            folders: [...organization.folders, folder],
-            homeSearchIds: organization.homeSearchIds,
-          ),
-        );
-        return folder;
-      });
+  Future<SharedSearchFolder> createSharedFolder(
+    String name, {
+    String? parentId,
+  }) => _mutate((repository) async {
+    final folder = SharedSearchFolder(
+      id: const Uuid().v4(),
+      name: name,
+      parentId: parentId,
+      position: (await repository.getOrganization()).tree
+          .children(parentId)
+          .length,
+      searchIds: const [],
+    );
+    final organization = await repository.getOrganization();
+    FolderTree([...organization.folders, folder]);
+    await repository.replaceOrganization(
+      SearchOrganization(
+        folders: [...organization.folders, folder],
+        homeSearchIds: organization.homeSearchIds,
+      ),
+    );
+    return folder;
+  });
 
   Future<SharedSearchFolder> createSharedFolderAndMovePin(
     String searchId,
-    String name,
-  ) => _mutate((repository) async {
+    String name, {
+    String? parentId,
+  }) => _mutate((repository) async {
     await _requireIndependentPin(repository, searchId);
     final folder = SharedSearchFolder(
       id: const Uuid().v4(),
       name: name,
+      parentId: parentId,
+      position: (await repository.getOrganization()).tree
+          .children(parentId)
+          .length,
       searchIds: [searchId],
     );
     final organization = _withoutSharedPin(
       await repository.getOrganization(),
       searchId,
     );
+    FolderTree([...organization.folders, folder]);
     await repository.replaceOrganization(
       SearchOrganization(
         folders: [...organization.folders, folder],
@@ -538,42 +554,25 @@ class SearchSubscriptionsNotifier
   });
 
   Future<void> movePinToSharedFolder(String searchId, String? folderId) =>
-      _mutate((repository) async {
-        await _requireIndependentPin(repository, searchId);
-        final current = await repository.getOrganization();
-        final alreadyInDestination = folderId == null
-            ? current.homeSearchIds.contains(searchId)
-            : current.folders.any(
-                (folder) =>
-                    folder.id == folderId &&
-                    folder.searchIds.contains(searchId),
-              );
-        if (alreadyInDestination) return;
-        final organization = _withoutSharedPin(current, searchId);
-        if (folderId != null &&
-            !organization.folders.any((folder) => folder.id == folderId)) {
-          throw StateError('Shared folder not found');
-        }
-        await repository.replaceOrganization(
-          SearchOrganization(
-            folders: [
-              for (final folder in organization.folders)
-                if (folder.id == folderId)
-                  SharedSearchFolder(
-                    id: folder.id,
-                    name: folder.name,
-                    searchIds: [...folder.searchIds, searchId],
-                  )
-                else
-                  folder,
-            ],
-            homeSearchIds: [
-              ...organization.homeSearchIds,
-              if (folderId == null) searchId,
-            ],
-          ),
-        );
-      });
+      moveFolderItems(searchIds: {searchId}, destination: folderId);
+
+  Future<void> moveFolderItems({
+    Set<String> folderIds = const {},
+    Set<String> searchIds = const {},
+    required String? destination,
+  }) => _mutate((repository) async {
+    for (final id in searchIds) {
+      await _requireIndependentPin(repository, id);
+    }
+    final current = await repository.getOrganization();
+    await repository.replaceOrganization(
+      current.move(
+        folderIds: folderIds,
+        searchIds: searchIds,
+        destination: destination,
+      ),
+    );
+  });
 
   Future<void> reorderSharedPins(
     String? folderId,
@@ -603,6 +602,8 @@ class SearchSubscriptionsNotifier
               SharedSearchFolder(
                 id: folder.id,
                 name: folder.name,
+                parentId: folder.parentId,
+                position: folder.position,
                 searchIds: ids,
               )
             else
@@ -625,6 +626,8 @@ class SearchSubscriptionsNotifier
                   SharedSearchFolder(
                     id: id,
                     name: name,
+                    parentId: folder.parentId,
+                    position: folder.position,
                     searchIds: folder.searchIds,
                   )
                 else
@@ -635,38 +638,60 @@ class SearchSubscriptionsNotifier
         );
       });
 
-  Future<void> reorderSharedFolders(int oldIndex, int newIndex) =>
-      _mutate((repository) async {
-        final organization = await repository.getOrganization();
-        final folders = organization.folders.toList();
-        if (oldIndex < 0 ||
-            oldIndex >= folders.length ||
-            newIndex < 0 ||
-            newIndex >= folders.length) {
-          return;
-        }
-        final folder = folders.removeAt(oldIndex);
-        folders.insert(newIndex, folder);
-        await repository.replaceOrganization(
-          SearchOrganization(
-            folders: folders,
-            homeSearchIds: organization.homeSearchIds,
-          ),
-        );
-      });
+  Future<void> reorderSharedFolders(
+    int oldIndex,
+    int newIndex, {
+    String? parentId,
+  }) => _mutate((repository) async {
+    final organization = await repository.getOrganization();
+    final siblings = organization.tree.children(parentId);
+    final folders = [
+      for (final f in siblings)
+        organization.folders.singleWhere((item) => item.id == f.id),
+    ];
+    if (oldIndex < 0 ||
+        oldIndex >= folders.length ||
+        newIndex < 0 ||
+        newIndex >= folders.length) {
+      return;
+    }
+    final folder = folders.removeAt(oldIndex);
+    folders.insert(newIndex, folder);
+    await repository.replaceOrganization(
+      SearchOrganization(
+        folders: [
+          for (final f in organization.folders)
+            if (f.parentId != parentId) f,
+          for (final (position, f) in folders.indexed)
+            SharedSearchFolder(
+              id: f.id,
+              name: f.name,
+              parentId: f.parentId,
+              position: position,
+              searchIds: f.searchIds,
+            ),
+        ],
+        homeSearchIds: organization.homeSearchIds,
+      ),
+    );
+  });
 
-  Future<void> deleteSharedFolderAndPins(String folderId) =>
-      _mutate((repository) => repository.deleteSharedFolderAndPins(folderId));
+  Future<void> deleteSharedFolderAndPins(
+    String folderId, {
+    SearchOrganization? expectedOrganization,
+  }) => _mutate((repository) async {
+    final current = await repository.getOrganization();
+    if (expectedOrganization != null && expectedOrganization != current)
+      throw SearchFolderChangedException(current);
+    await repository.deleteSharedFolderAndPins(folderId);
+  });
 
   Future<List<SearchRefreshOutcome>> refreshSharedFolder(
     String folderId,
   ) async {
     await future;
     final current = state.requireValue;
-    final ids = current.organization.folders
-        .singleWhere((folder) => folder.id == folderId)
-        .searchIds
-        .toSet();
+    final ids = current.organization.recursiveIds(folderId).toSet();
     final items =
         current.subscriptions
             .where((search) => ids.contains(search.id))
@@ -736,6 +761,8 @@ class SearchSubscriptionsNotifier
                   SharedSearchFolder(
                     id: folder.id,
                     name: folder.name,
+                    parentId: folder.parentId,
+                    position: folder.position,
                     searchIds: [...folder.searchIds, subscription.id],
                   )
                 else
@@ -1062,6 +1089,8 @@ class SearchSubscriptionsNotifier
         SharedSearchFolder(
           id: folder.id,
           name: folder.name,
+          parentId: folder.parentId,
+          position: folder.position,
           searchIds: folder.searchIds.where((id) => id != searchId),
         ),
     ],
@@ -1281,4 +1310,9 @@ final class SearchRefreshProgress {
     _closed = true;
     _release();
   }
+}
+
+class SearchFolderChangedException implements Exception {
+  const SearchFolderChangedException(this.organization);
+  final SearchOrganization organization;
 }

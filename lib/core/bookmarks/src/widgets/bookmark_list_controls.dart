@@ -37,6 +37,10 @@ class BookmarkListControls extends StatelessWidget {
                           children: [
                             BookmarkSortButton(),
                             BookmarkShuffleButton(),
+                            SizedBox(
+                              height: 24,
+                              child: VerticalDivider(width: 12, thickness: 1),
+                            ),
                             BookmarkBooruSourceUrlSelector(),
                           ],
                         ),

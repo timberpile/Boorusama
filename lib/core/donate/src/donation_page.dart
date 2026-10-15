@@ -20,7 +20,7 @@ class DonationPage extends ConsumerWidget {
     final appInfo = ref.watch(appInfoProvider);
 
     return Scaffold(
-      appBar: AppBar(),
+      appBar: const KurumiAppBar(),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(16),

@@ -164,7 +164,7 @@ class _CommentThreadPageScaffoldState<T>
       ),
       child: Scaffold(
         appBar: widget.useAppBar
-            ? AppBar(
+            ? KurumiAppBar(
                 title: Text(context.t.comment.comments),
               )
             : null,

@@ -1,4 +1,5 @@
 import '../../../configs/config/types.dart';
+import '../../../groups/folder_tree.dart';
 import '../../sources/bookmark_backup_data.dart';
 import '../../sources/following_feed_backup_data.dart';
 import '../../sources/pinned_search_backup_data.dart';
@@ -30,7 +31,10 @@ final class ImportSourceIntegrityValidator {
     final itemIds = importedItemIds(data);
     final selectableItemIds = {
       ...itemIds,
-      if (data is BookmarkBackupData) 'ungrouped',
+      if (data is BookmarkBackupData) ...[
+        'ungrouped',
+        for (final f in data.folders) 'group-folder:${f.id}',
+      ],
       if (data is PinnedSearchBackupData) 'home',
     };
     if (selection.kind == ExportNodeSelectionKind.explicit) {
@@ -44,19 +48,49 @@ final class ImportSourceIntegrityValidator {
         );
       }
       final allowedIds = {...selection.childIds};
+      if (data case final BookmarkBackupData bookmarks) {
+        final tree = FolderTree(bookmarks.folders);
+        final ids = {
+          for (final id in selection.childIds)
+            if (id.startsWith('group-folder:'))
+              ...tree.subtree(id.substring(13)),
+        };
+        allowedIds.addAll([
+          for (final g in bookmarks.groups)
+            if (ids.contains(g.folderId) && g.id != null) 'group:${g.id}',
+        ]);
+      }
       if (data case final PinnedSearchBackupData searches) {
         final selectedFolderIds = selection.childIds
             .where((id) => id.startsWith('folder:'))
             .map((id) => id.substring(7))
             .toSet();
+        final tree = FolderTree([
+          for (final f in searches.folders)
+            CollectionFolder(
+              id: f.id,
+              name: f.name,
+              parentId: f.parentId,
+              position: f.position,
+            ),
+        ]);
+        final descendantIds = {
+          for (final id in selectedFolderIds) ...tree.subtree(id),
+        };
+        for (final id in descendantIds) {
+          allowedIds.addAll(tree.ancestors(id).map((f) => 'folder:${f.id}'));
+        }
         for (final folder in searches.folders) {
-          if (selectedFolderIds.contains(folder.id)) {
+          if (descendantIds.contains(folder.id)) {
             allowedIds.addAll(folder.searchIds.map((id) => 'search:$id'));
           }
           if (folder.searchIds.any(
             (id) => selection.childIds.contains('search:$id'),
           )) {
-            allowedIds.add('folder:${folder.id}');
+            allowedIds.addAll([
+              for (final ancestor in tree.ancestors(folder.id))
+                'folder:${ancestor.id}',
+            ]);
           }
         }
         if (selection.childIds.contains('home')) {

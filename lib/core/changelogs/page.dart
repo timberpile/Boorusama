@@ -21,7 +21,7 @@ class ChangelogPage extends ConsumerWidget {
     final fullChangelog = ref.watch(fullChangelogProvider);
 
     return Scaffold(
-      appBar: AppBar(
+      appBar: KurumiAppBar(
         title: Text(context.t.settings.changelog),
         automaticallyImplyLeading: !dialog,
         actions: [

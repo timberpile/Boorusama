@@ -29,9 +29,12 @@ class SlidingWindowRateLimitConfig {
 class SlidingWindowRateLimitInterceptor extends Interceptor {
   SlidingWindowRateLimitInterceptor({
     required SlidingWindowRateLimitConfig config,
-  }) : _config = config;
+    DateTime Function()? now,
+  }) : _config = config,
+       _now = now ?? DateTime.now;
 
   final SlidingWindowRateLimitConfig _config;
+  final DateTime Function() _now;
   final List<DateTime> _requestTimestamps = [];
 
   @override
@@ -45,7 +48,7 @@ class SlidingWindowRateLimitInterceptor extends Interceptor {
       return;
     }
 
-    final now = DateTime.now();
+    final now = _now();
 
     // Clean old timestamps outside the window
     _requestTimestamps.removeWhere(
@@ -64,7 +67,7 @@ class SlidingWindowRateLimitInterceptor extends Interceptor {
         await Future.delayed(Duration(milliseconds: delayMs));
 
         // Update now after delay and clean timestamps again
-        final delayedNow = DateTime.now();
+        final delayedNow = _now();
         _requestTimestamps
           ..removeWhere(
             (timestamp) =>

@@ -1,9 +1,11 @@
 // Dart imports:
 import 'dart:math';
 
+// Flutter imports:
+import 'package:flutter/services.dart';
+
 // Package imports:
 import 'package:anchor_ui/anchor_ui.dart';
-import 'package:flutter_html/flutter_html.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
@@ -11,24 +13,28 @@ import 'package:kurumi/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 // Project imports:
-import '../../../../foundation/display.dart';
-import '../../../../foundation/html.dart';
 import '../../../../foundation/platform.dart';
-import '../../../configs/config/providers.dart';
 import '../../../posts/listing/providers.dart';
-import '../../../search/queries/types.dart';
 import '../../../search/search/widgets.dart';
+import '../../../search/suggestions/tag_suggestion_item.dart';
+import '../../../tags/autocompletes/types.dart';
+import '../providers/bookmark_search_controller.dart';
 import '../providers/suggestion_provider.dart';
+import '../types/bookmark_search_token.dart';
+import '../types/bookmark_tag_index.dart';
+import '../types/bookmark_view.dart';
 
 class BookmarkSearchBar extends ConsumerStatefulWidget {
   const BookmarkSearchBar({
     required this.controller,
     required this.postController,
     super.key,
+    this.view = const BookmarkView.all(),
   });
 
   final TextEditingController controller;
   final PostGridController postController;
+  final BookmarkView view;
 
   @override
   ConsumerState<BookmarkSearchBar> createState() => _BookmarkSearchBarState();
@@ -36,264 +42,312 @@ class BookmarkSearchBar extends ConsumerStatefulWidget {
 
 class _BookmarkSearchBarState extends ConsumerState<BookmarkSearchBar> {
   final _focusNode = FocusNode();
+  late BookmarkSearchController _search;
+
+  @override
+  void initState() {
+    super.initState();
+    _search = BookmarkSearchController(widget.controller);
+  }
+
+  @override
+  void didUpdateWidget(covariant BookmarkSearchBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      _focusNode.unfocus();
+      _search.dispose();
+      _search = BookmarkSearchController(widget.controller);
+    }
+  }
 
   @override
   void dispose() {
+    _search.dispose();
     _focusNode.dispose();
     super.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Flexible(
-          child: Container(
-            margin: const EdgeInsets.symmetric(
-              vertical: 8,
-              horizontal: 12,
-            ),
-            constraints: const BoxConstraints(
-              maxWidth: 600,
-            ),
-            child: AnchorPopover(
-              triggerMode: AnchorTriggerMode.focus(
-                focusNode: _focusNode,
-              ),
-              spacing: 4,
-              arrowShape: const NoArrow(),
-              backdropBuilder: (context) => isMobilePlatform()
-                  ? Container(
-                      color: Colors.black54,
-                    )
-                  : const SizedBox.shrink(),
-              placement: Placement.bottom,
-              overlayBuilder: (context) => Container(
-                constraints: BoxConstraints(
-                  maxWidth:
-                      AnchorData.of(context).geometry.childBounds?.width ??
-                      double.infinity,
-                  maxHeight: min(
-                    300,
-                    MediaQuery.heightOf(context) * 0.4,
-                  ),
-                ),
-                child: _Overlay(
-                  controller: widget.controller,
-                  onTap: (tag) {
-                    widget.controller.text = replaceOrAppendTag(
-                      widget.controller.text,
-                      tag.tag,
-                    );
-                    _search();
-                  },
-                ),
-              ),
-
-              child: ValueListenableBuilder(
-                valueListenable: widget.controller,
-                builder: (context, controller, child) =>
-                    _buildSearchBar(controller),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  void _search() {
+  void _submit() {
+    final index = ref.read(bookmarkTagIndexProvider(widget.view)).valueOrNull;
+    _search.submit(knownTags: index?.byName.keys.toSet() ?? const {});
+    _focusNode.unfocus();
     widget.postController.refresh();
   }
 
-  Widget _buildSearchBar(TextEditingValue controller) {
-    return BooruSearchBar(
-      focus: _focusNode,
-      controller: widget.controller,
-      leading: const Padding(
-        padding: EdgeInsets.symmetric(horizontal: 8),
-        child: Icon(Symbols.search),
-      ),
-      trailing: controller.text.isNotEmpty
-          ? Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: InkWell(
-                customBorder: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(Symbols.clear),
-                onTap: () {
-                  widget.controller.clear();
-                  _search();
-                },
-              ),
-            )
-          : const SizedBox.shrink(),
-      onSubmitted: (value) {
-        _search();
-      },
-    );
-  }
-}
-
-class _Overlay extends ConsumerStatefulWidget {
-  const _Overlay({
-    required this.controller,
-    required this.onTap,
-  });
-
-  final TextEditingController controller;
-  final ValueChanged<TagWithColor> onTap;
-
-  @override
-  ConsumerState<_Overlay> createState() => _OverlayState();
-}
-
-class _OverlayState extends ConsumerState<_Overlay> {
-  @override
-  void initState() {
-    super.initState();
-    widget.controller.addListener(_onTextChanged);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadSuggestions();
-    });
-  }
-
-  @override
-  void dispose() {
-    widget.controller.removeListener(_onTextChanged);
-    super.dispose();
-  }
-
-  void _onTextChanged() {
-    _loadSuggestions();
-  }
-
-  void _loadSuggestions() {
-    final config = ref.readConfigAuth;
-    ref
-        .read(tagSuggestionsProvider.notifier)
-        .loadSuggestions(config, widget.controller.text);
+  KeyEventResult _onKeyEvent(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent || !_search.draft.value.composing.isCollapsed) {
+      return KeyEventResult.ignored;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.backspace &&
+        _search.editLastTag()) {
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.escape) {
+      _search.cancelEdit();
+      _focusNode.unfocus();
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
   }
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Kurumi.themeOf(context).colorScheme;
-
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainer,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: switch (ref.watch(tagSuggestionsProvider)) {
-        AsyncData(:final value) when value.suggestions.isNotEmpty =>
-          ListView.builder(
-            shrinkWrap: true,
-            itemCount: value.suggestions.length,
-            itemBuilder: (context, index) {
-              final tag = value.suggestions[index];
-
-              return _SuggestionItem(
-                tagWithColor: tag,
-                controller: widget.controller,
-                onTap: () {
-                  widget.onTap(tag);
-                },
-              );
-            },
-          ),
-        _ => Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          child: Text(
-            context.t.generic.no_content,
-            style: TextStyle(
-              color: colorScheme.hintColor,
+    // Retain the scoped index while the bar is mounted, not only while an
+    // overlay is visible. Typing never scans or fetches the bookmark library.
+    ref.watch(bookmarkTagIndexProvider(widget.view));
+    return AnimatedBuilder(
+      // KurumiSearchBar retains its initial controller. Recreate the field
+      // and its popover when the owning query controller changes.
+      key: ObjectKey(_search),
+      animation: _search,
+      builder: (context, _) => Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Flexible(
+            child: Container(
+              margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+              constraints: const BoxConstraints(maxWidth: 600),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Focus(
+                    onKeyEvent: _onKeyEvent,
+                    child: AnchorPopover(
+                      triggerMode: AnchorTriggerMode.focus(
+                        focusNode: _focusNode,
+                      ),
+                      spacing: 4,
+                      arrowShape: const NoArrow(),
+                      backdropBuilder: (context) => isMobilePlatform()
+                          ? ClipPath(
+                              clipper: _SearchBackdropClipper(
+                                AnchorData.of(context).geometry.childBounds,
+                              ),
+                              child: const ColoredBox(color: Colors.black54),
+                            )
+                          : const SizedBox.shrink(),
+                      placement: Placement.bottom,
+                      overlayBuilder: (context) => ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxWidth:
+                              AnchorData.of(
+                                context,
+                              ).geometry.childBounds?.width ??
+                              double.infinity,
+                          maxHeight: min(
+                            300,
+                            max(
+                                  0,
+                                  MediaQuery.heightOf(context) -
+                                      MediaQuery.viewInsetsOf(context).bottom,
+                                ) *
+                                0.4,
+                          ),
+                        ),
+                        child: _BookmarkSuggestions(
+                          search: _search,
+                          view: widget.view,
+                          onSelected: (tag) {
+                            final index = ref
+                                .read(
+                                  bookmarkTagIndexProvider(widget.view),
+                                )
+                                .valueOrNull;
+                            _search.selectSuggestion(
+                              tag.tag,
+                              knownTags: index?.byName.keys.toSet() ?? const {},
+                            );
+                            _focusNode.unfocus();
+                            widget.postController.refresh();
+                          },
+                        ),
+                      ),
+                      child: BooruSearchBar(
+                        focus: _focusNode,
+                        controller: _search.draft,
+                        // The popover handles outside taps, including keeping
+                        // focus while scrolling its suggestion list.
+                        onTapOutside: () {},
+                        leading: IconButton(
+                          icon: const Icon(Symbols.search),
+                          onPressed: _submit,
+                        ),
+                        trailing:
+                            _search.draft.text.isNotEmpty ||
+                                _search.selectedTags.tags.isNotEmpty
+                            ? IconButton(
+                                tooltip: context.t.search.remove_all_selected,
+                                icon: const Icon(Symbols.clear),
+                                onPressed: () {
+                                  _search.clear();
+                                  _focusNode.unfocus();
+                                  widget.postController.refresh();
+                                },
+                              )
+                            : null,
+                        onSubmitted: (_) => _submit(),
+                      ),
+                    ),
+                  ),
+                  if (_search.selectedTags.tags.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: LayoutBuilder(
+                        builder: (context, constraints) => Wrap(
+                          spacing: 4,
+                          runSpacing: 4,
+                          children: [
+                            for (final tag in _search.selectedTags.tags)
+                              ConstrainedBox(
+                                constraints: BoxConstraints(
+                                  maxWidth: constraints.maxWidth,
+                                ),
+                                child: Consumer(
+                                  builder: (context, ref, _) => SelectedTagChip(
+                                    key: ValueKey(tag.toString()),
+                                    tagSearchItem: tag,
+                                    tagColor: ref
+                                        .watch(
+                                          bookmarkTagColorProvider((
+                                            widget.view,
+                                            tag.rawTag,
+                                            Kurumi.themeOf(
+                                              context,
+                                            ).colorScheme.brightness,
+                                          )),
+                                        )
+                                        .valueOrNull,
+                                    textScaler: MediaQuery.textScalerOf(
+                                      context,
+                                    ),
+                                    onTap: () {
+                                      _search.edit(tag);
+                                      _focusNode.requestFocus();
+                                    },
+                                    onDeleted: () {
+                                      _search.remove(tag);
+                                      widget.postController.refresh();
+                                    },
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
-        ),
-      },
+        ],
+      ),
     );
   }
 }
 
-class _SuggestionItem extends ConsumerWidget {
-  const _SuggestionItem({
-    required this.tagWithColor,
-    required this.controller,
-    required this.onTap,
-  });
+class _SearchBackdropClipper extends CustomClipper<Path> {
+  const _SearchBackdropClipper(this.fieldBounds);
 
-  final TagWithColor tagWithColor;
-  final VoidCallback onTap;
-  final TextEditingController controller;
+  final Rect? fieldBounds;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final tag = tagWithColor.tag;
-    final color = tagWithColor.color;
-    final count = tagWithColor.count;
-
-    return Material(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-      ),
-      color: Colors.transparent,
-      child: InkWell(
-        customBorder: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
-        onTap: onTap,
-        child: IgnorePointer(
-          child: Container(
-            constraints: const BoxConstraints(
-              minHeight: 36,
-            ),
-            padding: const EdgeInsets.symmetric(
-              horizontal: 4,
-            ),
-            margin: EdgeInsets.symmetric(
-              horizontal: 4,
-              vertical: kPreferredLayout.isMobile ? 4 : 0,
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: ValueListenableBuilder(
-                    valueListenable: controller,
-                    builder: (_, value, _) {
-                      final lastTag =
-                          value.text.split(' ').lastOrNull ?? value.text;
-
-                      return AppHtml(
-                        style: {
-                          'p': Style(
-                            fontSize: FontSize.medium,
-                            color: color,
-                            margin: Margins.zero,
-                          ),
-                          'b': Style(
-                            fontWeight: FontWeight.w900,
-                          ),
-                        },
-                        data:
-                            '<p>${tag.replaceAll(lastTag, '<b>$lastTag</b>')}</p>',
-                      );
-                    },
-                  ),
-                ),
-                Text(
-                  count.toString(),
-                  style: TextStyle(
-                    color: Kurumi.themeOf(context).colorScheme.hintColor,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
+  Path getClip(Size size) {
+    final path = Path()..addRect(Offset.zero & size);
+    if (fieldBounds case final bounds?) {
+      // The popover covers the screen, but the field's controls must remain
+      // reachable while autocomplete is open.
+      path
+        ..fillType = PathFillType.evenOdd
+        ..addRect(bounds);
+    }
+    return path;
   }
+
+  @override
+  bool shouldReclip(_SearchBackdropClipper oldClipper) =>
+      fieldBounds != oldClipper.fieldBounds;
+}
+
+class _BookmarkSuggestions extends StatelessWidget {
+  const _BookmarkSuggestions({
+    required this.search,
+    required this.view,
+    required this.onSelected,
+  });
+
+  final BookmarkSearchController search;
+  final BookmarkView view;
+  final ValueChanged<BookmarkTagEntry> onSelected;
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: search,
+    builder: (context, _) => Consumer(
+      builder: (context, ref, _) {
+        final colorScheme = Kurumi.themeOf(context).colorScheme;
+        final selectedQuery = search.selectedTags.tags
+            .where((tag) => tag != search.editingTag)
+            .join(' ');
+        final suggestions = ref.watch(
+          bookmarkTagSuggestionsProvider((
+            view,
+            search.draft.text,
+            selectedQuery,
+          )),
+        );
+        return Material(
+          color: colorScheme.surfaceContainer,
+          borderRadius: BorderRadius.circular(8),
+          clipBehavior: Clip.antiAlias,
+          child: switch (suggestions) {
+            AsyncData(:final value) when value.isNotEmpty => ListView.builder(
+              padding: const EdgeInsets.all(4),
+              shrinkWrap: true,
+              itemCount: value.length,
+              itemBuilder: (context, index) {
+                final tag = value[index];
+                final query = bookmarkSuggestionQueries(
+                  search.draft.text,
+                ).firstWhere((query) => tag.tag.contains(query.token.tag));
+                return Consumer(
+                  builder: (context, ref, _) => TagSuggestionItem(
+                    key: ValueKey('bookmark-suggestion-${tag.tag}'),
+                    tag: AutocompleteData(
+                      label: tag.tag,
+                      value: tag.tag,
+                      postCount: tag.count,
+                    ),
+                    currentQuery: query.token.tag,
+                    textColor:
+                        ref
+                            .watch(
+                              bookmarkTagColorProvider((
+                                view,
+                                tag.tag,
+                                colorScheme.brightness,
+                              )),
+                            )
+                            .valueOrNull ??
+                        colorScheme.onSurface,
+                    showCount: true,
+                    dense: true,
+                    metatagExtractor: null,
+                    onItemTap: (_) => onSelected(tag),
+                  ),
+                );
+              },
+            ),
+            _ => Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                context.t.generic.no_content,
+                style: TextStyle(color: colorScheme.hintColor),
+              ),
+            ),
+          },
+        );
+      },
+    ),
+  );
 }

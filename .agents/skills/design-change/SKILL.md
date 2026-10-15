@@ -19,7 +19,8 @@ automatic separate plan. If a persistent document is requested, use
 `docs/designs/<date>-<name>.md`. Preserve historical `docs/superpowers/` material;
 existing plans remain usable through `execute-plan`.
 
-For repository changes made during design work, run the complete local suite
-required by `AGENTS.md` after the last edit and before final review or handoff,
-including documentation-only changes. Resolve failures and repeat it after
-further edits; targeted passes and CI do not replace the local run.
+For repository changes made during design work, follow scope-appropriate
+verification in `AGENTS.md`. Documentation-only designs need relevant direct
+checks, not application tests. Broad/unclear runtime changes need the full suite.
+Before develop integration, require a complete pass on the final candidate;
+reuse a pass on that same candidate across handoffs and report-only edits.

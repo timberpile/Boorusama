@@ -1,3 +1,5 @@
+import 'package:foundation/performance.dart';
+
 // Dart imports:
 import 'dart:convert';
 
@@ -112,9 +114,12 @@ abstract class JsonBackupSource<T>
 
   Future<String> encodeForExport({BackupExportOptions? options}) async {
     final data = await (scopedDataGetter?.call(options) ?? dataGetter());
-    return converter.encode(
-      payload: handler.encode(data),
-      extraFields: extraPayloadEncoder?.call(data) ?? const {},
+    return performanceRecorder.measureSync(
+      PerfOperation.exportEncode,
+      () => converter.encode(
+        payload: handler.encode(data),
+        extraFields: extraPayloadEncoder?.call(data) ?? const {},
+      ),
     );
   }
 

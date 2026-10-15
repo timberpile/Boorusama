@@ -12,7 +12,11 @@ final class ImportSourceDurability {
     'profiles': ['booru_configs.hive'],
     'favorite_tags': ['favorite_tags.hive'],
     'blacklisted_tags': ['blacklisted_tags.hive'],
-    'bookmarks': ['favorites.hive', 'bookmark_groups.hive'],
+    'bookmarks': [
+      'favorites.hive',
+      'bookmark_groups.hive',
+      'bookmark_folders.hive',
+    ],
     'pinned_searches': [
       'pinned_search_subscriptions.hive',
       'pinned_search_folders.hive',

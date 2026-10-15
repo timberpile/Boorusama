@@ -18,6 +18,7 @@ import 'package:kurumi/kurumi.dart';
 import 'package:oktoast/oktoast.dart';
 
 import '../../../bulk_downloads/common.dart';
+import 'share_test_utils.dart';
 
 class _VideoExtractor
     implements DownloadFileUrlExtractor, ExactVideoUrlExtractor {
@@ -114,7 +115,13 @@ void main() {
       );
       await tester.runAsync(() async {
         await tester.tap(find.byTooltip('Copy video link'));
-        await Future<void>.delayed(const Duration(milliseconds: 650));
+        await pumpUntilShareCondition(
+          tester,
+          () =>
+              writeStarted.isCompleted &&
+              find.text('Copying to clipboard…').evaluate().isNotEmpty,
+          reason: 'A pending video clipboard write must show progress',
+        );
       });
       await tester.pump();
       expect(writeStarted.isCompleted, isTrue);
@@ -126,7 +133,13 @@ void main() {
 
       pendingWrite.complete();
       await tester.runAsync(
-        () => Future<void>.delayed(const Duration(milliseconds: 100)),
+        () => pumpUntilShareCondition(
+          tester,
+          () =>
+              find.text('Copied').evaluate().isNotEmpty &&
+              shareActionEnabled(tester, 'Copy video link'),
+          reason: 'The acknowledged video link copy must finish',
+        ),
       );
       await tester.pumpAndSettle();
       expect(find.byType(LinearProgressIndicator), findsNothing);

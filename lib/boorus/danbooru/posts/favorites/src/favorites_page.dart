@@ -61,7 +61,7 @@ class DanbooruFavoritesPageInternal extends ConsumerWidget {
                 ),
               ),
           sliverHeaders: [
-            SliverAppBar(
+            KurumiSliverAppBar(
               title: Text(context.t.profile.favorites),
               floating: true,
               actions: [

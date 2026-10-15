@@ -31,9 +31,9 @@ class UnauthorizedPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(),
-      body: const Center(
+    return const Scaffold(
+      appBar: KurumiAppBar(),
+      body: Center(
         child: Text('You must be logged in to view this page'),
       ),
     );

@@ -7,6 +7,8 @@ import 'package:path/path.dart' as p;
 import '../../../../foundation/filesystem.dart';
 import '../../../../foundation/info/package_info.dart';
 import '../../../bookmarks/providers.dart';
+import '../../../bookmarks/types.dart';
+import 'package:i18n/i18n.dart';
 import '../../../configs/manage/providers.dart';
 import '../../../search/subscriptions/providers.dart';
 import '../../sources/providers.dart';
@@ -39,7 +41,11 @@ final exportSelectionPresentationProvider =
       }
       for (final group
           in ref.watch(bookmarkProvider).valueOrNull?.groups ?? const []) {
-        items['group:${group.id}'] = ExportItemPresentation(label: group.name);
+        items['group:${group.id}'] = ExportItemPresentation(
+          label: group.isDefault
+              ? Translations().bookmark.groups.default_group
+              : group.name,
+        );
       }
       final searches = ref.watch(searchSubscriptionsProvider).valueOrNull;
       for (final folder in searches?.organization.folders ?? const []) {
@@ -80,6 +86,7 @@ final class ExportFlowState {
     required this.nodes,
     required this.includeCredentials,
     required this.status,
+    this.fileNamePattern = '',
     this.recommendedActions = const {},
     this.itemRecommendedActions = const {},
     this.packagePath,
@@ -91,6 +98,7 @@ final class ExportFlowState {
       nodes = const {},
       includeCredentials = true,
       status = ExportFlowStatus.choosing,
+      fileNamePattern = '',
       recommendedActions = const {},
       itemRecommendedActions = const {},
       packagePath = null,
@@ -100,6 +108,7 @@ final class ExportFlowState {
   final Map<String, ExportNodeSelection> nodes;
   final bool includeCredentials;
   final ExportFlowStatus status;
+  final String fileNamePattern;
   final Map<String, ImportAction> recommendedActions;
   final Map<String, Map<String, ImportAction>> itemRecommendedActions;
   final String? packagePath;
@@ -110,6 +119,7 @@ final class ExportFlowState {
     Map<String, ExportNodeSelection>? nodes,
     bool? includeCredentials,
     ExportFlowStatus? status,
+    String? fileNamePattern,
     Map<String, ImportAction>? recommendedActions,
     Map<String, Map<String, ImportAction>>? itemRecommendedActions,
     String? packagePath,
@@ -120,6 +130,7 @@ final class ExportFlowState {
     nodes: Map.unmodifiable(nodes ?? this.nodes),
     includeCredentials: includeCredentials ?? this.includeCredentials,
     status: status ?? this.status,
+    fileNamePattern: fileNamePattern ?? this.fileNamePattern,
     recommendedActions: Map.unmodifiable(
       recommendedActions ?? this.recommendedActions,
     ),
@@ -147,10 +158,9 @@ final exportFlowProvider =
 
 class ExportFlowNotifier extends AutoDisposeNotifier<ExportFlowState> {
   @override
-  ExportFlowState build() {
-    ref.watch(exportImportSourcesProvider);
-    return const ExportFlowState.initial();
-  }
+  // Descriptors are read when used; catalog refreshes must preserve the user's
+  // selection, export mode, and credential choice.
+  ExportFlowState build() => const ExportFlowState.initial();
 
   List<ExportSelectionDescriptor> get descriptors => [
     for (final source in ref.read(exportImportSourcesProvider))
@@ -252,6 +262,12 @@ class ExportFlowNotifier extends AutoDisposeNotifier<ExportFlowState> {
     }
   }
 
+  void setFileNamePattern(String value) => state = state.copyWith(
+    fileNamePattern: value,
+    clearResult: true,
+    status: ExportFlowStatus.choosing,
+  );
+
   void setIncludeCredentials(bool value) {
     if (state.isFull || !state.nodes.containsKey('profiles')) return;
     state = state.copyWith(includeCredentials: value, clearResult: true);
@@ -280,10 +296,32 @@ class ExportFlowNotifier extends AutoDisposeNotifier<ExportFlowState> {
   void applyTemplate(ExportTemplate template) {
     state = state.copyWith(
       isFull: false,
-      nodes: template.selection.nodes,
+      nodes: {
+        for (final entry in template.selection.nodes.entries)
+          entry.key:
+              entry.key == 'bookmarks' &&
+                  entry.value.kind == ExportNodeSelectionKind.explicit
+              ? ExportNodeSelection.explicit('bookmarks', {
+                  for (final id in entry.value.childIds)
+                    id == 'ungrouped' ? 'group:$defaultBookmarkGroupId' : id,
+                })
+              : entry.value,
+      },
       includeCredentials: template.includeCredentials,
+      fileNamePattern: template.fileNamePattern,
       recommendedActions: template.recommendedActions,
-      itemRecommendedActions: template.itemRecommendedActions,
+      itemRecommendedActions: {
+        for (final entry in template.itemRecommendedActions.entries)
+          entry.key: entry.key == 'bookmarks'
+              ? {
+                  for (final action in entry.value.entries)
+                    if (action.key == 'ungrouped')
+                      'group:$defaultBookmarkGroupId': ImportAction.merge
+                    else
+                      action.key: action.value,
+                }
+              : entry.value,
+      },
       status: ExportFlowStatus.choosing,
       clearResult: true,
     );
@@ -307,10 +345,14 @@ class ExportFlowNotifier extends AutoDisposeNotifier<ExportFlowState> {
       clearResult: true,
     );
     try {
+      final fileName = resolveExportFileNamePattern(
+        state.fileNamePattern,
+        DateTime.now(),
+      );
       final directory = await ref
           .read(appFileSystemProvider)
           .createTempDirectory('boorusama_export_');
-      final outputPath = p.join(directory, exportFileName(DateTime.now()));
+      final outputPath = p.join(directory, fileName);
       final path = await ref
           .read(exportServiceProvider)
           .createPackage(

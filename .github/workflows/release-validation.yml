@@ -58,11 +58,11 @@ jobs:
         run: fvm dart analyze
 
       - name: Test application
-        run: fvm flutter test --no-pub --concurrency=2
+        run: fvm flutter test --no-pub --concurrency="$(python3 scripts/physical_core_count.py)"
 
       - name: Test CLI
         working-directory: packages/boorusama_cli
-        run: fvm dart test
+        run: fvm dart test --concurrency="$(python3 ../../scripts/physical_core_count.py)"
 
       - name: Test repository tooling
         run: |

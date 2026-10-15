@@ -67,7 +67,7 @@ class DetailsLayoutManagerPage extends ConsumerWidget {
     }
 
     return Scaffold(
-      appBar: AppBar(
+      appBar: KurumiAppBar(
         title: Text(context.t.settings.appearance.customize),
         actions: [
           ElevatedButton(

@@ -28,7 +28,7 @@ class TokenOptionHelpModal extends StatelessWidget {
     final colorScheme = Kurumi.themeOf(context).colorScheme;
 
     return Scaffold(
-      appBar: AppBar(
+      appBar: KurumiAppBar(
         title: Text(context.t.booru.downloads.filename.available_token_options),
         automaticallyImplyLeading: false,
         actions: [
@@ -50,7 +50,7 @@ class TokenOptionHelpModal extends StatelessWidget {
                       ),
                     ),
                   ),
-                SliverAppBar(
+                KurumiSliverAppBar(
                   pinned: true,
                   automaticallyImplyLeading: false,
                   backgroundColor: colorScheme.surface,

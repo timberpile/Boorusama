@@ -38,7 +38,7 @@ class _E621HomePageState extends ConsumerState<E621HomePage> {
             CupertinoPageRoute(
               settings: const RouteSettings(name: 'popular'),
               builder: (_) => Scaffold(
-                appBar: AppBar(
+                appBar: KurumiAppBar(
                   title: Text(context.t.explore.popular),
                 ),
                 body: const CustomContextMenuOverlay(

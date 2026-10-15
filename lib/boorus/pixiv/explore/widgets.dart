@@ -151,7 +151,7 @@ class _PixivExploreSliverAppBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return ValueListenableBuilder<double>(
       valueListenable: headerHeight,
-      builder: (context, height, _) => SliverAppBar(
+      builder: (context, height, _) => KurumiSliverAppBar(
         title: Text(context.t.pixiv.explore.title),
         floating: true,
         bottom: PreferredSize(

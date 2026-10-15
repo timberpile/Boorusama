@@ -83,7 +83,7 @@ class _BlacklistedTagsViewScaffoldState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
+      appBar: KurumiAppBar(
         title: Text(widget.title),
         actions: [
           IconButton(

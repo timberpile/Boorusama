@@ -30,7 +30,7 @@ class HelpUseTranslatePage extends ConsumerWidget {
     );
 
     return Scaffold(
-      appBar: AppBar(
+      appBar: KurumiAppBar(
         automaticallyImplyLeading: false,
         actions: [
           IconButton(

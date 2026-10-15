@@ -1,3 +1,35 @@
+# 4.5.0-timberpile.5
+
+## Breaking changes
+
+- New bookmark and pinned-search exports require this version or newer to import. Exports from `4.5.0-timberpile.4` remain supported.
+- Removing a bookmark from its last group now deletes it instead of leaving it ungrouped. Viewer removals offer Undo.
+- Bulk bookmark-detail recovery is now available only in development builds.
+
+## Features
+
+- Organize bookmark groups and pinned searches in nested folders.
+- Replaced bookmarks `No group` with a permanent `Default` group.
+- Improved bookmarks timeline search.
+- Sort bookmarks by upload date or bookmarked date.
+- Add settings search.
+- Trim GIFs in a dedicated editor with automatic loop refinement.
+- Switch profiles from the selected-tag overflow menu while keeping your search.
+- Customize export filenames.
+- Increase max backups count to 90.
+- Improve posts-per-page picker.
+
+## Fixes and improvements
+
+- Reopen the same shared export on Android without restarting the app.
+- Fix Danbooru Explore and favorite-group previews.
+- Prevent taps from passing through dismissed context menus.
+- Fit long page and bookmark group titles.
+- Improve performance when swiping through posts.
+- Fix massively degraded performance with large cache count.
+- Improve image-cache maintenance and favicon retention.
+- Clarify some UI text.
+
 # 4.5.0-timberpile.4
 
 ## Breaking changes

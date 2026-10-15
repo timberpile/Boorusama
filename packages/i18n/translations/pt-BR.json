@@ -1153,6 +1153,7 @@
   },
   "sort": {
     "sort_by": "Ordenar por",
+    "short": "Ordenar",
     "name": "Nome",
     "name_asc": "Nome (A-Z)",
     "name_desc": "Nome (Z-A)",

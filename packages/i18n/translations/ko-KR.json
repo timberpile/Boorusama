@@ -1193,6 +1193,7 @@
   },
   "sort": {
     "sort_by": "정렬 기준",
+    "short": "정렬",
     "name": "이름 순",
     "name_asc": "이름 순 (A-Z)",
     "name_desc": "이름 순 (Z-A)",

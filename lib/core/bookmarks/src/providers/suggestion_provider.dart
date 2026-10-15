@@ -1,170 +1,89 @@
+// Dart imports:
+import 'dart:ui' show Brightness;
+
 // Flutter imports:
-import 'package:flutter/widgets.dart';
+import 'package:flutter/painting.dart';
 
 // Package imports:
-import 'package:collection/collection.dart';
-import 'package:equatable/equatable.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Project imports:
 import '../../../boorus/engine/providers.dart';
 import '../../../configs/config/types.dart';
+import '../../../configs/manage/providers.dart';
+import '../../../posts/post/types.dart';
 import '../../../tags/categories/providers.dart';
 import '../../../tags/tag/colors.dart';
-import '../../../themes/colors/providers.dart';
+import '../data/bookmark_tag_color.dart';
+import '../types/bookmark_tag_index.dart';
+import '../types/bookmark_view.dart';
+import 'bookmark_group_selectors.dart';
+import 'bookmark_provider.dart';
 import 'local_providers.dart';
 
-class TagSuggestionsNotifier
-    extends AutoDisposeAsyncNotifier<TagSuggestionsState> {
-  @override
-  Future<TagSuggestionsState> build() async {
-    return const TagSuggestionsState.initial();
-  }
-
-  Future<void> loadSuggestions(BooruConfigAuth config, String tagString) async {
-    var currentState = await future;
-
-    if (tagString == currentState.lastSearchText) return;
-
-    if (tagString.isEmpty) {
-      state = AsyncValue.data(
-        currentState.copyWith(
-          suggestions: const [],
-          lastSearchText: tagString,
-        ),
+final bookmarkTagIndexProvider = FutureProvider.autoDispose
+    .family<BookmarkTagIndex, BookmarkView>((ref, view) async {
+      final libraryFuture = ref.watch(bookmarkProvider.future);
+      final source = ref.watch(selectedBooruUrlProvider);
+      final configs = ref.watch(booruConfigProvider);
+      final library = await libraryFuture;
+      final bookmarks = selectBookmarks(
+        state: library,
+        view: view,
+        selectedTags: const [],
+        selectedBooruUrl: source,
+        sortType: BookmarkSortType.newest,
       );
-      return;
-    }
-
-    state = AsyncValue.data(
-      currentState.copyWith(
-        lastSearchText: tagString,
-      ),
-    );
-
-    try {
-      final tags = tagString.trim().split(' ');
-      final tag = tags.lastOrNull?.trim();
-
-      if (tag == null || tag.isEmpty) {
-        state = AsyncValue.data(
-          currentState.copyWith(
-            suggestions: const [],
-          ),
-        );
-        return;
-      }
-
-      final sortedTags = await ref.watch(sortedTagsProvider.future);
-
-      final filteredTags = sortedTags
-          .where((entry) => entry.key.contains(tag))
-          .take(5)
-          .toList();
-
-      final tagTypeStore = await ref.watch(booruTagTypeStoreProvider.future);
-      final colorScheme = ref.watch(colorSchemeProvider);
-      final tagColorGenerator = ref
-          .watch(booruRepoProvider(config))
-          ?.tagColorGenerator();
-
-      final result = <TagWithColor>[];
-
-      for (final entry in filteredTags) {
-        Color? color;
-        if (tagColorGenerator != null) {
-          final tagType = await tagTypeStore.getTagCategory(
-            config.url,
-            entry.key,
-          );
-          color = tagColorGenerator.generateColor(
-            TagColorOptions(
-              tagType: tagType,
-              colors: TagColors.fromBrightness(colorScheme.brightness),
-            ),
-          );
-        }
-
-        result.add(
-          TagWithColor(
-            tag: entry.key,
-            count: entry.value,
-            color: color,
-          ),
-        );
-      }
-
-      currentState = await future;
-
-      state = AsyncValue.data(
-        currentState.copyWith(
-          suggestions: result,
-        ),
+      return BookmarkTagIndex.fromBookmarks(
+        bookmarks,
+        siteUrl: (bookmark) => switch (const PostOriginResolver().resolve(
+          bookmark.post.origin,
+          configs,
+        )) {
+          ResolvedPostOrigin(:final config) => config.auth.url,
+          _ => bookmark.sourceUrl,
+        },
       );
-    } catch (error, stackTrace) {
-      state = AsyncValue.error(error, stackTrace);
-    }
-  }
-}
-
-final sortedTagsProvider =
-    FutureProvider.autoDispose<List<MapEntry<String, int>>>((
-      ref,
-    ) async {
-      final tagMap = await ref.watch(tagMapProvider.future);
-      return tagMap.entries
-          .sorted((a, b) => b.value.compareTo(a.value))
-          .toList();
     });
 
-final tagSuggestionsProvider =
-    AutoDisposeAsyncNotifierProvider<
-      TagSuggestionsNotifier,
-      TagSuggestionsState
-    >(
-      TagSuggestionsNotifier.new,
-      dependencies: [colorSchemeProvider],
+// The draft and selected query are part of the key. A previous asynchronous
+// index build cannot publish suggestions into a different search or page.
+final bookmarkTagSuggestionsProvider = Provider.autoDispose
+    .family<AsyncValue<List<BookmarkTagEntry>>, (BookmarkView, String, String)>(
+      (ref, request) {
+        final (view, draft, selectedQuery) = request;
+        return ref
+            .watch(bookmarkTagIndexProvider(view))
+            .whenData(
+              (index) => index.suggestions(
+                draft,
+                selectedTags: selectedQuery.split(RegExp(r'\s+')).toSet(),
+              ),
+            );
+      },
     );
 
-class TagSuggestionsState extends Equatable {
-  const TagSuggestionsState({
-    required this.suggestions,
-    required this.lastSearchText,
-  });
-
-  const TagSuggestionsState.initial()
-    : suggestions = const [],
-      lastSearchText = '';
-
-  final List<TagWithColor> suggestions;
-  final String lastSearchText;
-
-  TagSuggestionsState copyWith({
-    List<TagWithColor>? suggestions,
-    String? lastSearchText,
-  }) => TagSuggestionsState(
-    suggestions: suggestions ?? this.suggestions,
-    lastSearchText: lastSearchText ?? this.lastSearchText,
-  );
-
-  @override
-  List<Object> get props => [suggestions, lastSearchText];
-}
-
-class TagWithColor extends Equatable {
-  const TagWithColor({
-    required this.tag,
-    required this.count,
-    this.color,
-  });
-
-  final String tag;
-  final int count;
-  final Color? color;
-
-  @override
-  List<Object?> get props => [tag, count, color];
-
-  @override
-  String toString() => tag;
-}
+final bookmarkTagColorProvider = FutureProvider.autoDispose
+    .family<Color?, (BookmarkView, String, Brightness)>((ref, request) {
+      final (view, tag, brightness) = request;
+      final index = ref.watch(bookmarkTagIndexProvider(view));
+      final entry = index.valueOrNull?.byName[tag];
+      if (entry == null) return null;
+      final needsCache = entry.sources.values.any(
+        (categories) => categories.isEmpty,
+      );
+      final storeFuture = needsCache
+          ? ref.watch(booruTagTypeStoreProvider.future)
+          : null;
+      final engine = needsCache ? ref.watch(booruEngineRegistryProvider) : null;
+      return resolveBookmarkTagColor(
+        entry,
+        colors: TagColors.fromBrightness(brightness),
+        categoryLookup: (site, name) async {
+          final store = await storeFuture;
+          return store?.getTagCategory(site, name);
+        },
+        colorGenerator: (type) =>
+            engine?.getRepository(type)?.tagColorGenerator(),
+      );
+    });

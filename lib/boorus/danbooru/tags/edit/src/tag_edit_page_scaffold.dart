@@ -131,7 +131,7 @@ class _TagEditPageScaffoldState extends ConsumerState<TagEditPageScaffold> {
       child: Scaffold(
         resizeToAvoidBottomInset: false,
         extendBodyBehindAppBar: kPreferredLayout.isMobile && expandMode != null,
-        appBar: AppBar(
+        appBar: KurumiAppBar(
           leading: IconButton(
             onPressed: () => _pop(params),
             icon: const Icon(Symbols.arrow_back),

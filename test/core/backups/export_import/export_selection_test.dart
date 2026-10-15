@@ -10,6 +10,35 @@ import 'package:boorusama/core/backups/sources/providers.dart';
 import 'package:boorusama/core/backups/types/backup_registry.dart';
 
 void main() {
+  test('folder catalog updates preserve custom export selections', () async {
+    final catalogRevision = StateProvider<int>((ref) => 0);
+    final container = ProviderContainer(
+      overrides: [
+        exportImportSourcesProvider.overrideWith((ref) {
+          ref.watch(catalogRevision);
+          return [const _NestedSource()];
+        }),
+      ],
+    );
+    addTearDown(container.dispose);
+    final subscription = container.listen(exportFlowProvider, (_, _) {});
+    addTearDown(subscription.close);
+    final notifier = container.read(exportFlowProvider.notifier)
+      ..useCustomExport()
+      ..toggleNode(
+        _nestedDescriptor,
+        _nestedDescriptor.findNode('folder:landscapes')!,
+      );
+    container.read(catalogRevision.notifier).state++;
+    await container.pump();
+
+    final state = container.read(exportFlowProvider);
+    expect(state.isFull, isFalse);
+    expect(state.includeCredentials, isFalse);
+    expect(state.nodes['pinned_searches']?.childIds, {'folder:landscapes'});
+    expect(notifier.descriptors.single.id, 'pinned_searches');
+  });
+
   test('dynamic all remains different from every currently known child', () {
     const descriptor = ExportSelectionDescriptor.collection(
       id: 'bookmarks',

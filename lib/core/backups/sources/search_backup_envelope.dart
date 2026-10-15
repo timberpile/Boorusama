@@ -20,7 +20,8 @@ class WrongSearchBackupSourceException extends InvalidBackupFormatException {
 }
 
 void requireSearchBackupEnvelope(ExportDataPayload payload, String sourceId) {
-  if (payload.version != 1) {
+  if (payload.version != 1 &&
+      !(sourceId == 'pinned_searches' && payload.version == 2)) {
     throw UnsupportedSearchBackupVersionException(sourceId, payload.version);
   }
   if (payload.extraFields['source'] != sourceId) {

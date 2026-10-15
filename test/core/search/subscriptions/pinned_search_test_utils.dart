@@ -387,10 +387,13 @@ class _NoImageCache implements ImageCacheManager {
 }
 
 Future<void> drain(WidgetTester tester) async {
+  // These fixtures use memory repositories and explicitly gated fetches.
+  // Yield event turns for provider work; elapsed time belongs in tester.pump
+  // at the call site when a test actually exercises a timer.
   for (var i = 0; i < 20; i++) {
     await tester.pump();
     await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 10)),
+      () => Future<void>.delayed(Duration.zero),
     );
   }
 }

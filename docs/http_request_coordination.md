@@ -149,7 +149,7 @@ local cached preload does not use transport.
 (server window/pacing, passive budget, concurrency or priority). These are
 admission/permit diagnostics, not byte-transfer measurements: the physical
 adapter may not yet have started. Debug overlay UI/settings and separate media
-or native download observers belong to DEV-003.
+or native download observers belong in future dedicated diagnostics work.
 
 Favorite mutations restore their exact prior unknown/true/false state when
 interrupted before acknowledgement. A confirmed Danbooru favorite removal

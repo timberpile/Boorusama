@@ -8,6 +8,7 @@ import '../data/bookmark_convert.dart';
 import '../types/bookmark.dart';
 import '../types/bookmark_library_state.dart';
 import '../types/bookmark_target.dart';
+import '../types/bookmark_view.dart';
 import 'bookmark_provider.dart';
 import 'bookmark_group_selectors.dart';
 
@@ -26,12 +27,15 @@ class BookmarkDetailsMutationState {
   const BookmarkDetailsMutationState({
     required this.isVisible,
     this.pending = const {},
+    this.sourceView,
   });
 
   const BookmarkDetailsMutationState.initial()
     : isVisible = false,
-      pending = const {};
+      pending = const {},
+      sourceView = null;
 
+  final BookmarkView? sourceView;
   final bool isVisible;
   final Map<BookmarkDetailsMutationKey, BookmarkDetailsPendingToggle> pending;
 
@@ -44,7 +48,8 @@ class BookmarkDetailsMutationState {
     for (final entry in pending.entries) {
       if (entry.key.bookmarkId != bookmarkId) continue;
       final added = entry.value.outcome == BookmarkToggleOutcome.added;
-      if (entry.key.target.groupId case final groupId?) {
+      {
+        final groupId = entry.key.target.groupId;
         if (added) {
           memberships.add(groupId);
           bookmarked = true;
@@ -53,8 +58,6 @@ class BookmarkDetailsMutationState {
           // Removing the final group also deletes the bookmark at commit.
           bookmarked = memberships.isNotEmpty;
         }
-      } else {
-        bookmarked = added;
       }
     }
     return selectBookmarkMembershipPresentation(
@@ -91,9 +94,12 @@ class BookmarkDetailsMutationNotifier
   BookmarkDetailsMutationState build() =>
       const BookmarkDetailsMutationState.initial();
 
-  void begin() {
+  void begin({BookmarkView? sourceView}) {
     _pending.clear();
-    state = const BookmarkDetailsMutationState(isVisible: true);
+    state = BookmarkDetailsMutationState(
+      isVisible: true,
+      sourceView: sourceView,
+    );
   }
 
   void end() {
@@ -123,17 +129,9 @@ class BookmarkDetailsMutationNotifier
 
     final bookmark = library.bookmarksByUniqueId[uniqueId];
     final memberships = library.membershipsFor(uniqueId);
-    final outcome = switch (target.groupId) {
-      final groupId? =>
-        bookmark != null && memberships.contains(groupId)
-            ? BookmarkToggleOutcome.removed
-            : BookmarkToggleOutcome.added,
-      null when bookmark != null && memberships.isNotEmpty =>
-        BookmarkToggleOutcome.unavailable,
-      null when bookmark != null => BookmarkToggleOutcome.removed,
-      null => BookmarkToggleOutcome.added,
-    };
-    if (outcome == BookmarkToggleOutcome.unavailable) return outcome;
+    final outcome = bookmark != null && memberships.contains(target.groupId)
+        ? BookmarkToggleOutcome.removed
+        : BookmarkToggleOutcome.added;
 
     _pending[key] = BookmarkDetailsPendingToggle(
       config: config,
@@ -149,6 +147,7 @@ class BookmarkDetailsMutationNotifier
     state = BookmarkDetailsMutationState(
       isVisible: state.isVisible,
       pending: pending,
+      sourceView: state.sourceView,
     );
   }
 

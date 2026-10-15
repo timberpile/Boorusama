@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kurumi/material.dart';
 
 // Project imports:
+import '../foundation/info/package_info.dart';
+import '../foundation/performance/performance_navigation.dart';
 import '../boorus/danbooru/router.dart';
 import '../boorus/eshuushuu/router.dart';
 import '../boorus/pixiv/router.dart';
@@ -23,6 +25,7 @@ final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     navigatorKey: navigatorKey,
     observers: [
+      if (ref.watch(isDevEnvironmentProvider)) PerformanceNavigationObserver(),
       AnalyticsObserver(() => ref),
       routeObserver,
     ],

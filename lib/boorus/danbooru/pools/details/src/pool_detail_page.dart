@@ -28,7 +28,7 @@ class PoolDetailPage extends ConsumerWidget {
     return DanbooruInfinitePostIdList(
       pool: pool,
       sliverHeaders: [
-        SliverAppBar(
+        KurumiSliverAppBar(
           title: Text(context.t.pool.pool),
           floating: true,
           actions: [

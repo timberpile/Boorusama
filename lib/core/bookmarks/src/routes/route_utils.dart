@@ -31,9 +31,7 @@ Future<void> goToBookmarkGroupPage(
     final activated = await ref
         .read(bookmarkProvider.notifier)
         .setActiveTarget(
-          view.kind == BookmarkViewKind.ungrouped
-              ? const BookmarkTarget.ungrouped()
-              : BookmarkTarget.group(view.groupId!),
+          BookmarkTarget.group(view.groupId!),
         );
     if (!activated) {
       if (ref.context.mounted) {
@@ -62,12 +60,13 @@ Future<void> goToBookmarkDetailsPage(
   int index, {
   required String initialThumbnailUrl,
   required PostGridController<Post> controller,
+  BookmarkView sourceView = const BookmarkView.all(),
 }) async {
   final detailsMutations = ref.read(
     bookmarkDetailsMutationProvider.notifier,
   );
   final bookmarkLibrary = ref.read(bookmarkProvider.notifier);
-  detailsMutations.begin();
+  detailsMutations.begin(sourceView: sourceView);
   try {
     await ref.router.push(
       Uri(

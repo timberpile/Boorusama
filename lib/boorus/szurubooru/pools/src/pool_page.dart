@@ -24,7 +24,7 @@ class SzurubooruPoolPage extends ConsumerWidget {
             padding: const EdgeInsets.symmetric(horizontal: 8),
             child: CustomScrollView(
               slivers: [
-                SliverAppBar(
+                KurumiSliverAppBar(
                   title: Text(context.t.pool.pool_gallery),
                   floating: true,
                   snap: true,

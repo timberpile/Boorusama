@@ -5,7 +5,11 @@ import 'package:boorusama/core/bookmarks/src/providers/bookmark_provider.dart';
 import 'package:boorusama/core/bookmarks/src/services/bookmark_hydration_service.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_hydration_log.dart';
 import 'package:boorusama/core/bookmarks/types.dart';
+import 'package:boorusama/core/developer_options/providers.dart';
+import 'package:boorusama/core/developer_options/widgets.dart';
 import 'package:boorusama/core/settings/src/pages/bookmark_maintenance_page.dart';
+import 'package:boorusama/core/settings/src/pages/performance_diagnostics_page.dart';
+import 'package:boorusama/foundation/info/package_info.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -18,6 +22,8 @@ void main() {
     WidgetTester tester,
     _HydrationNotifier hydration, {
     bool empty = false,
+    Widget home = const BookmarkMaintenancePage(),
+    String environment = 'dev',
   }) async {
     tester.view.physicalSize = const Size(320, 640);
     tester.view.devicePixelRatio = 1;
@@ -26,6 +32,8 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          currentEnvironmentProvider.overrideWithValue(environment),
+          automaticMediaLoadingEnabledProvider.overrideWithValue(true),
           bookmarkProvider.overrideWith(() => _LibraryNotifier(empty)),
           bookmarkHydrationProvider.overrideWith(() => hydration),
         ],
@@ -40,13 +48,59 @@ void main() {
                 child: child!,
               ),
             ),
-            home: const BookmarkMaintenancePage(),
+            home: home,
           ),
         ),
       ),
     );
     await tester.pumpAndSettle();
   }
+
+  testWidgets('developer tools navigate at narrow width and large text', (
+    tester,
+  ) async {
+    final hydration = _HydrationNotifier();
+    await pumpPage(tester, hydration, home: const DeveloperOptionsPage());
+    await tester.tap(find.text('Performance diagnostics'));
+    await tester.pumpAndSettle();
+    expect(find.byType(PerformanceDiagnosticsPage), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('Start new recording'), 150);
+    expect(find.text('Start new recording'), findsOneWidget);
+    expect(hydration.started, 0);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Hydrate bookmark metadata'));
+    await tester.pumpAndSettle();
+    expect(find.byType(BookmarkMaintenancePage), findsOneWidget);
+    expect(hydration.started, 0);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'production flavor hides developer tools and diagnostic controls',
+    (
+      tester,
+    ) async {
+      final hydration = _HydrationNotifier();
+      await pumpPage(
+        tester,
+        hydration,
+        home: const DeveloperOptionsPage(),
+        environment: 'prod',
+      );
+      expect(find.text('Performance diagnostics'), findsNothing);
+      expect(find.text('Hydrate bookmark metadata'), findsNothing);
+      await pumpPage(
+        tester,
+        hydration,
+        home: const PerformanceDiagnosticsPage(),
+        environment: 'prod',
+      );
+      expect(find.text('Start new recording'), findsNothing);
+      expect(hydration.started, 0);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets(
     'empty library shows zero candidates and disables network action',
@@ -339,7 +393,7 @@ class _LibraryNotifier extends BookmarkLibraryNotifier {
   FutureOr<BookmarkLibraryState> build() => BookmarkLibraryState(
     bookmarks: empty ? [] : [Bookmark.empty],
     groups: const [],
-    activeTarget: const BookmarkTarget.ungrouped(),
+    activeTarget: const BookmarkTarget.defaultGroup(),
   );
 }
 

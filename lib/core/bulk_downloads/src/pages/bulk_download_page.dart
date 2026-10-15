@@ -24,7 +24,7 @@ class BulkDownloadPage extends ConsumerWidget {
 
     return config.booruType == BooruType.zerochan
         ? Scaffold(
-            appBar: AppBar(
+            appBar: KurumiAppBar(
               title: Text(context.t.sideMenu.bulk_download),
             ),
             body: Center(
@@ -47,11 +47,15 @@ class BulkDownloadPageInternal extends StatelessWidget {
   Widget build(BuildContext context) {
     return CustomContextMenuOverlay(
       child: Scaffold(
-        appBar: AppBar(
+        appBar: KurumiAppBar(
           title: LayoutBuilder(
             builder: (context, constraints) => Row(
               children: [
-                Text(context.t.sideMenu.bulk_download),
+                Flexible(
+                  child: KurumiFittedText(
+                    Text(context.t.sideMenu.bulk_download),
+                  ),
+                ),
                 Consumer(
                   builder: (_, ref, _) => constraints.maxWidth >= 432
                       ? _buildCreateButton(ref, dense: true)

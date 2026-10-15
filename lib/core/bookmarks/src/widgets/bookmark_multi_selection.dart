@@ -8,6 +8,7 @@ import 'package:kurumi/kurumi.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 // Project imports:
+import 'bookmark_group_label.dart';
 import '../providers/bookmark_provider.dart';
 import '../data/bookmark_convert.dart';
 import '../types/bookmark_group.dart';
@@ -16,7 +17,7 @@ import '../../../configs/config/types.dart';
 import '../../../posts/post/types.dart';
 import '../types/bookmark.dart';
 import 'bookmark_group_name_dialog.dart';
-import 'bookmark_group_label.dart';
+import 'bookmark_folder_picker_contents.dart';
 
 Future<bool> showBookmarkMultiSelectionActions(
   BuildContext context, {
@@ -38,10 +39,6 @@ Future<bool> showBookmarkMultiSelectionActions(
             title: Text(context.t.bookmark.bulk.remove),
             onTap: () => Navigator.pop(context, 'remove'),
           ),
-          ListTile(
-            title: Text(context.t.bookmark.bulk.delete),
-            onTap: () => Navigator.pop(context, 'delete'),
-          ),
         ],
       ),
     ),
@@ -50,7 +47,6 @@ Future<bool> showBookmarkMultiSelectionActions(
   return switch (action) {
     'add' => _add(context, container, bookmarks),
     'remove' => _remove(context, container, bookmarks),
-    'delete' => _delete(context, container, bookmarks),
     _ => false,
   };
 }
@@ -60,7 +56,7 @@ Future<bool> _add(
   ProviderContainer container,
   List<Bookmark> bookmarks,
 ) async {
-  final groupId = await _selectGroup(context, container, allowCreate: true);
+  final groupId = await _selectGroup(context, bookmarks, allowCreate: true);
   if (groupId == null) return false;
   await container
       .read(bookmarkProvider.notifier)
@@ -73,90 +69,118 @@ Future<bool> _remove(
   ProviderContainer container,
   List<Bookmark> bookmarks,
 ) async {
-  final groupId = await _selectGroup(context, container);
+  final groupId = await _selectGroup(context, bookmarks);
   if (groupId == null) return false;
   await container
       .read(bookmarkProvider.notifier)
-      .removeFromGroup(bookmarks, groupId);
+      .removeFromGroup(
+        bookmarks,
+        groupId,
+        onRemoved: (r) {
+          if (context.mounted)
+            container
+                .read(bookmarkProvider.notifier)
+                .showRemovalUndo(context, r);
+        },
+      );
   return false;
-}
-
-Future<bool> _delete(
-  BuildContext context,
-  ProviderContainer container,
-  List<Bookmark> bookmarks,
-) async {
-  final confirmed = await showDialog<bool>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: Text(context.t.bookmark.bulk.delete_title),
-      content: Text(
-        context.t.bookmark.bulk.delete_message.replaceAll(
-          '{count}',
-          '${bookmarks.length}',
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context, false),
-          child: Text(context.t.generic.action.cancel),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.pop(context, true),
-          child: Text(context.t.generic.action.delete),
-        ),
-      ],
-    ),
-  );
-  if (confirmed != true) return false;
-  await container.read(bookmarkProvider.notifier).removeBookmarks(bookmarks);
-  return true;
 }
 
 Future<String?> _selectGroup(
   BuildContext context,
-  ProviderContainer container, {
+  List<Bookmark> bookmarks, {
   bool allowCreate = false,
 }) {
-  final groups =
-      container.read(bookmarkProvider).valueOrNull?.groups ?? const [];
   return showDialog<String>(
     context: context,
-    builder: (dialogContext) => SimpleDialog(
-      title: Text(context.t.bookmark.groups.selector),
-      children: [
-        for (final group in groups)
-          SimpleDialogOption(
-            onPressed: () => Navigator.pop(dialogContext, group.id),
-            child: Text(group.name),
-          ),
-        if (allowCreate)
-          SimpleDialogOption(
-            onPressed: () async {
-              final name = await showBookmarkGroupNameDialog(
-                dialogContext,
-                title: context.t.bookmark.groups.create,
-              );
-              if (name == null || !dialogContext.mounted) return;
-              final group = await container
-                  .read(bookmarkProvider.notifier)
-                  .createGroup(name, activate: true);
-              if (dialogContext.mounted) {
-                Navigator.pop(dialogContext, group.id);
-              }
-            },
-            child: Text(context.t.bookmark.groups.create_new),
-          ),
-      ],
+    builder: (_) => _ExistingBookmarkGroupSelectionDialog(
+      allowCreate: allowCreate,
+      bookmarks: bookmarks,
     ),
   );
+}
+
+class _ExistingBookmarkGroupSelectionDialog extends ConsumerWidget {
+  const _ExistingBookmarkGroupSelectionDialog({
+    required this.allowCreate,
+    required this.bookmarks,
+  });
+  final bool allowCreate;
+  final List<Bookmark> bookmarks;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final library = ref.watch(bookmarkProvider).valueOrNull;
+    final singleMemberships = bookmarks.length == 1
+        ? library?.membershipsFor(bookmarks.single.uniqueId)
+        : null;
+    return AlertDialog(
+      title: Text(context.t.bookmark.groups.selector),
+      content: SizedBox(
+        width: 360,
+        child: BookmarkFolderPickerContents(
+          folders: library?.folders ?? const [],
+          groups: library?.groups ?? const [],
+          membershipGroupIds: singleMemberships,
+          groupBuilder: (context, group) => ListTile(
+            leading: Icon(
+              Symbols.bookmarks,
+              fill: (singleMemberships?.contains(group.id) ?? false) ? 1 : 0,
+            ),
+            title: Text(
+              group.displayName(context),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            onTap: () => Navigator.pop(context, group.id),
+          ),
+          footerBuilder: allowCreate
+              ? (context, folderId) => ListTile(
+                  leading: const Icon(Icons.add),
+                  title: Text(context.t.bookmark.groups.create_new),
+                  onTap: () async {
+                    final name = await showBookmarkGroupNameDialog(
+                      context,
+                      title: context.t.bookmark.groups.create,
+                    );
+                    if (name == null || !context.mounted) return;
+                    try {
+                      final group = await ref
+                          .read(bookmarkProvider.notifier)
+                          .createGroup(
+                            name,
+                            activate: true,
+                            folderId: folderId,
+                          );
+                      if (context.mounted) {
+                        Navigator.pop(context, group.id);
+                      }
+                    } catch (_) {
+                      if (context.mounted) {
+                        Kurumi.showErrorToast(
+                          context,
+                          context.t.bookmark.groups.operation_failed,
+                        );
+                      }
+                    }
+                  },
+                )
+              : null,
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(context.t.generic.action.cancel),
+        ),
+      ],
+    );
+  }
 }
 
 class BookmarkGroupSelectionSummary {
   const BookmarkGroupSelectionSummary({
     required this.totalPosts,
     required this.bookmarkedPosts,
-    required this.ungroupedBookmarks,
     required this.membershipCounts,
   });
 
@@ -166,14 +190,12 @@ class BookmarkGroupSelectionSummary {
     required int booruId,
   }) {
     var bookmarked = 0;
-    var ungrouped = 0;
     final counts = <String, int>{};
     for (final post in posts) {
       final id = bookmarkIdentityForPost(post, booruId);
       if (state?.bookmarksByUniqueId[id] == null) continue;
       bookmarked++;
       final memberships = state?.membershipsFor(id) ?? const <String>{};
-      if (memberships.isEmpty) ungrouped++;
       for (final groupId in memberships) {
         counts.update(groupId, (value) => value + 1, ifAbsent: () => 1);
       }
@@ -181,14 +203,12 @@ class BookmarkGroupSelectionSummary {
     return BookmarkGroupSelectionSummary(
       totalPosts: posts.length,
       bookmarkedPosts: bookmarked,
-      ungroupedBookmarks: ungrouped,
       membershipCounts: Map.unmodifiable(counts),
     );
   }
 
   final int totalPosts;
   final int bookmarkedPosts;
-  final int ungroupedBookmarks;
   final Map<String, int> membershipCounts;
 
   int countFor(String groupId) => membershipCounts[groupId] ?? 0;
@@ -222,12 +242,6 @@ class BookmarkMultiSelectionMenu extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(bookmarkProvider).valueOrNull;
-    final summary = BookmarkGroupSelectionSummary.fromPosts(
-      posts: posts,
-      state: state,
-      booruId: config.booruIdHint,
-    );
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -242,12 +256,6 @@ class BookmarkMultiSelectionMenu extends ConsumerWidget {
           trailing: const Icon(Icons.chevron_right),
           onTap: () =>
               _select(context, ref, BookmarkMultiSelectionOperation.remove),
-        ),
-        const Divider(),
-        KurumiPopupMenuItem(
-          icon: const Icon(Symbols.delete),
-          title: Text(context.t.bookmark.bulk.delete),
-          onTap: () => _delete(context, ref, summary.bookmarkedPosts),
         ),
       ],
     );
@@ -286,16 +294,7 @@ class BookmarkMultiSelectionMenu extends ConsumerWidget {
           target.id!,
         );
         if (!navigator.mounted) return;
-        final template = result.movedToNoGroupCount > 0
-            ? navigator.context.t.bookmark.bulk.remove_success_ungrouped
-            : navigator.context.t.bookmark.bulk.remove_success;
-        Kurumi.showSuccessToast(
-          navigator.context,
-          template
-              .replaceAll('{0}', '${result.removedCount}')
-              .replaceAll('{1}', target.name)
-              .replaceAll('{2}', '${result.movedToNoGroupCount}'),
-        );
+        notifier.showRemovalUndo(navigator.context, result);
       }
       await onCompleted();
     } catch (_) {
@@ -306,57 +305,6 @@ class BookmarkMultiSelectionMenu extends ConsumerWidget {
             ? navigator.context.t.bookmark.bulk.failed_to_add
             : navigator.context.t.bookmark.bulk.failed_to_remove,
       );
-    }
-  }
-
-  Future<void> _delete(
-    BuildContext context,
-    WidgetRef ref,
-    int count,
-  ) async {
-    final navigator = Navigator.of(context, rootNavigator: true);
-    final notifier = ref.read(bookmarkProvider.notifier);
-    final confirmed = await showDialog<bool>(
-      context: navigator.context,
-      builder: (context) => AlertDialog(
-        title: Text(context.t.bookmark.bulk.delete_title),
-        content: Text(
-          context.t.bookmark.bulk.delete_message.replaceAll(
-            '{count}',
-            '$count',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(context.t.generic.action.cancel),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text(context.t.generic.action.delete),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
-    try {
-      final changed = await notifier.deleteBookmarksForPosts(config, posts);
-      if (!navigator.mounted) return;
-      Kurumi.showSuccessToast(
-        navigator.context,
-        navigator.context.t.bookmark.bulk.delete_success.replaceAll(
-          '{0}',
-          '$changed',
-        ),
-      );
-      await onCompleted();
-    } catch (_) {
-      if (navigator.mounted) {
-        Kurumi.showErrorToast(
-          navigator.context,
-          navigator.context.t.bookmark.bulk.failed_to_delete,
-        );
-      }
     }
   }
 }
@@ -399,7 +347,6 @@ class _BookmarkGroupSelectionDialog extends ConsumerWidget {
     final visibleGroups = groups
         .where((group) => add || summary.countFor(group.id) > 0)
         .toList();
-    final labels = bookmarkGroupLabels(groups);
     return AlertDialog(
       title: Text(
         add
@@ -407,49 +354,44 @@ class _BookmarkGroupSelectionDialog extends ConsumerWidget {
             : context.t.bookmark.bulk.remove_title,
       ),
       content: SizedBox(
-        width: double.maxFinite,
-        child: ListView(
-          shrinkWrap: true,
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Text(
-                context.t.bookmark.bulk.selection_summary
-                    .replaceAll('{0}', '${summary.bookmarkedPosts}')
-                    .replaceAll('{1}', '${summary.totalPosts}'),
-              ),
-            ),
-            if (add)
-              _tile(
-                context,
-                BookmarkGroupSelectionTarget(
-                  null,
-                  context.t.bookmark.groups.ungrouped,
+        width: 360,
+        child: BookmarkFolderPickerContents(
+          folders: state?.folders ?? const [],
+          groups: visibleGroups,
+          membershipGroupIds: posts.length == 1
+              ? state?.membershipsFor(
+                  bookmarkIdentityForPost(posts.single, config.booruIdHint),
+                )
+              : null,
+          groupBuilder: (context, group) => _tile(
+            context,
+            BookmarkGroupSelectionTarget(group.id, group.displayName(context)),
+            summary.countFor(group.id),
+          ),
+          footerBuilder: (context, folderId) => Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (!add && visibleGroups.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(context.t.bookmark.bulk.no_applicable),
                 ),
-                summary.ungroupedBookmarks,
-              ),
-            for (final group in visibleGroups)
-              _tile(
-                context,
-                BookmarkGroupSelectionTarget(group.id, labels[group.id]!),
-                summary.countFor(group.id),
-              ),
-            if (!add && visibleGroups.isEmpty)
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Text(context.t.bookmark.bulk.no_applicable),
-              ),
-            if (add) ...[
-              const Divider(),
-              ListTile(
-                leading: const Icon(Symbols.create_new_folder),
-                title: Text(context.t.bookmark.bulk.create_group),
-                onTap: () => _create(context, ref),
-              ),
+              if (add)
+                ListTile(
+                  leading: const Icon(Icons.add),
+                  title: Text(context.t.bookmark.bulk.create_group),
+                  onTap: () => _create(context, ref, folderId),
+                ),
             ],
-          ],
+          ),
         ),
       ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(context.t.generic.action.cancel),
+        ),
+      ],
     );
   }
 
@@ -458,7 +400,10 @@ class _BookmarkGroupSelectionDialog extends ConsumerWidget {
     BookmarkGroupSelectionTarget target,
     int count,
   ) => ListTile(
-    leading: Icon(target.id == null ? Symbols.bookmark : Symbols.bookmarks),
+    leading: Icon(
+      target.id == null ? Symbols.bookmark : Symbols.bookmarks,
+      fill: posts.length == 1 && count > 0 ? 1 : 0,
+    ),
     title: Text(target.name),
     subtitle: Text(
       context.t.bookmark.bulk.membership_count
@@ -468,7 +413,11 @@ class _BookmarkGroupSelectionDialog extends ConsumerWidget {
     onTap: () => Navigator.pop(context, target),
   );
 
-  Future<void> _create(BuildContext context, WidgetRef ref) async {
+  Future<void> _create(
+    BuildContext context,
+    WidgetRef ref,
+    String? folderId,
+  ) async {
     final name = await showBookmarkGroupNameDialog(
       context,
       title: context.t.bookmark.groups.create,
@@ -477,7 +426,7 @@ class _BookmarkGroupSelectionDialog extends ConsumerWidget {
     try {
       final result = await ref
           .read(bookmarkProvider.notifier)
-          .createGroupWithPosts(name, config, posts);
+          .createGroupWithPosts(name, config, posts, folderId: folderId);
       if (context.mounted) {
         Navigator.pop(
           context,

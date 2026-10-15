@@ -82,6 +82,110 @@ void main() {
       GifEditorSelection.minimumWindow,
     );
   });
+  test(
+    'cursor boundary setting opens the source on crossing the opposite edge',
+    () {
+      final value = selection().copyWith(
+        start: const Duration(seconds: 4),
+        end: const Duration(seconds: 6),
+      );
+      final after = value.setStartAt(const Duration(seconds: 8));
+      expect(
+        (after.start, after.end),
+        (const Duration(seconds: 8), value.sourceDuration),
+      );
+      final before = value.setEndAt(const Duration(seconds: 2));
+      expect(
+        (before.start, before.end),
+        (Duration.zero, const Duration(seconds: 2)),
+      );
+      expect(value.setStartAt(const Duration(seconds: 5)).end, value.end);
+      expect(value.setEndAt(const Duration(seconds: 5)).start, value.start);
+      expect(
+        value.setStartAt(const Duration(milliseconds: 5900)).start,
+        const Duration(milliseconds: 5900),
+      );
+      expect(
+        value.setStartAt(const Duration(milliseconds: 5900)).end,
+        value.sourceDuration,
+      );
+      expect(
+        value.setEndAt(const Duration(milliseconds: 4100)).end,
+        const Duration(milliseconds: 4100),
+      );
+      expect(
+        value.setEndAt(const Duration(milliseconds: 4100)).start,
+        Duration.zero,
+      );
+    },
+  );
+
+  test(
+    'setting boundaries at source extremes preserves minimum valid duration',
+    () {
+      final value = selection().copyWith(
+        start: const Duration(seconds: 4),
+        end: const Duration(seconds: 6),
+      );
+      final endOfSource = value.setStartAt(value.sourceDuration);
+      expect(
+        endOfSource.start,
+        value.sourceDuration - GifEditorSelection.minimumWindow,
+      );
+      expect(endOfSource.end, value.sourceDuration);
+      final startOfSource = value.setEndAt(Duration.zero);
+      expect(startOfSource.start, Duration.zero);
+      expect(startOfSource.end, GifEditorSelection.minimumWindow);
+      expect(endOfSource.canCreate && startOfSource.canCreate, isTrue);
+      final tiny = selection(duration: const Duration(milliseconds: 100));
+      expect(tiny.setStartAt(tiny.sourceDuration).start, Duration.zero);
+      expect(tiny.setEndAt(Duration.zero).end, tiny.sourceDuration);
+    },
+  );
+
+  for (final fps in [30.0, 30000 / 1001]) {
+    test(
+      'frame nudges use original cadence $fps and preserve export settings',
+      () {
+        final value = selection(fps: fps).copyWith(
+          start: const Duration(seconds: 4),
+          end: const Duration(seconds: 6),
+          sourceFrameRate: 5,
+          speedPreset: 2,
+          resolution: GifResolution.px720,
+        );
+        final step = Duration(microseconds: (1000000 / fps).round());
+        final back = value.stepStart(-1);
+        expect(back.start, value.start - step);
+        expect(back.end, value.end);
+        final forward = value.stepEnd(1);
+        expect(forward.start, value.start);
+        expect(forward.end, value.end + step);
+        for (final changed in [back, forward]) {
+          expect(changed.sourceFrameRate, value.sourceFrameRate);
+          expect(changed.speedPreset, value.speedPreset);
+          expect(changed.resolution, value.resolution);
+        }
+        expect(back.stepStart(1).start, value.start);
+        expect(forward.stepEnd(-1).end, value.end);
+      },
+    );
+  }
+
+  test('frame nudges clamp at source and minimum-window edges', () {
+    final value = selection(fps: 30);
+    expect(value.stepStart(-1).start, Duration.zero);
+    expect(value.stepEnd(1).end, value.sourceDuration);
+    final minimal = value.copyWith(
+      start: const Duration(seconds: 1),
+      end: const Duration(milliseconds: 1200),
+    );
+    expect(minimal.stepStart(1).start, minimal.start);
+    expect(minimal.stepEnd(-1).end, minimal.end);
+    expect(minimal.stepStart(-1).start, lessThan(minimal.start));
+    expect(minimal.stepEnd(1).end, greaterThan(minimal.end));
+  });
+
   test('presets scale both rotated axes and estimate excludes speed', () {
     final value = selection(
       rotation: 90,

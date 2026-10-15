@@ -114,6 +114,11 @@ class GifEditorSelection {
     return (w.round(), h.round());
   }
 
+  double get displayAspectRatio {
+    final (width, height) = _displayDimensions;
+    return width / height;
+  }
+
   List<GifResolution> get resolutions {
     final (w, h) = originalDimensions;
     return [
@@ -201,6 +206,45 @@ class GifEditorSelection {
       ),
     ),
   );
+
+  /// Setting a boundary at the cursor can open the rest of the source. Dragging
+  /// and frame nudges keep using the existing, opposite-boundary clamps.
+  GifEditorSelection setStartAt(Duration position) {
+    final next = Duration(
+      microseconds: position.inMicroseconds.clamp(
+        0,
+        (sourceDuration - _minimumDuration).inMicroseconds,
+      ),
+    );
+    return copyWith(
+      start: next,
+      end: next + _minimumDuration > end ? sourceDuration : end,
+    );
+  }
+
+  GifEditorSelection setEndAt(Duration position) {
+    final next = Duration(
+      microseconds: position.inMicroseconds.clamp(
+        _minimumDuration.inMicroseconds,
+        sourceDuration.inMicroseconds,
+      ),
+    );
+    return copyWith(
+      start: next - _minimumDuration < start ? Duration.zero : start,
+      end: next,
+    );
+  }
+
+  // Use source cadence, independently of export FPS and preview/export speed.
+  Duration get _sourceFrameStep => Duration(
+    microseconds: math.max(1, (1000000 / source.frameRate!).round()),
+  );
+
+  GifEditorSelection stepStart(int frames) =>
+      moveStart(start + _sourceFrameStep * frames);
+
+  GifEditorSelection stepEnd(int frames) =>
+      moveEnd(end + _sourceFrameStep * frames);
 
   GifEditorSelection moveEnd(Duration position) => copyWith(
     end: Duration(

@@ -20,7 +20,7 @@ class MetatagListPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
+      appBar: KurumiAppBar(
         title: Text('Metatags'.hc),
         automaticallyImplyLeading: false,
         actions: [

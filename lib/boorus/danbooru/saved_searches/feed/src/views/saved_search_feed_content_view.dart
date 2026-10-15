@@ -55,7 +55,7 @@ class _SavedSearchFeedContentViewState
               ),
             ),
         sliverHeaders: [
-          SliverAppBar(
+          KurumiSliverAppBar(
             title: Text(context.t.saved_search.saved_search_feed),
             floating: true,
             actions: [

@@ -21,6 +21,7 @@ class SelectedTagList extends StatelessWidget {
     required this.onBulkDownload,
     super.key,
     this.extraTagsCount,
+    this.profileMenu,
     this.onOtherTagsCountTap,
   });
 
@@ -30,6 +31,7 @@ class SelectedTagList extends StatelessWidget {
   final void Function(TagSearchItem oldTag, String newTag)? onUpdate;
   final void Function(List<TagSearchItem> tags) onBulkDownload;
   final int? extraTagsCount;
+  final Widget? profileMenu;
   final void Function()? onOtherTagsCountTap;
 
   @override
@@ -48,6 +50,7 @@ class SelectedTagList extends StatelessWidget {
           KurumiPopupMenuButton(
             maxWidth: 250,
             items: [
+              ?profileMenu,
               KurumiPopupMenuItem(
                 title: Text(context.t.search.remove_all_selected),
                 icon: const Icon(Symbols.clear_all),
