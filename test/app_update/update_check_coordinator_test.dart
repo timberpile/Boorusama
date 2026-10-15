@@ -17,7 +17,9 @@ void main() {
         return const UpdateNotAvailable();
       },
       load: () => cache['update'],
-      save: (value) async => cache['update'] = value,
+      save: (value) async {
+        cache['update'] = value;
+      },
       clock: () => now,
     );
 
@@ -50,7 +52,9 @@ void main() {
         );
       },
       load: () => cache['update'],
-      save: (value) async => cache['update'] = value,
+      save: (value) async {
+        cache['update'] = value;
+      },
       clock: () => DateTime.utc(2026, 10, 15),
     );
 
