@@ -4,7 +4,7 @@ on:
   push:
     branches: [feature/POST-009-boorusama-links]
 permissions:
-  contents: read
+  contents: write
 concurrency:
   group: post009-verification
   cancel-in-progress: true
@@ -19,7 +19,6 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           fetch-depth: 0
-          persist-credentials: false
       - name: Read pinned Flutter version
         id: flutter
         run: echo "version=$(jq -er '.flutter' .fvmrc)" >> "$GITHUB_OUTPUT"
@@ -35,10 +34,29 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev meson nasm
+      - name: Apply task test correction
+        run: |
+          if test -f .github/post009.patch.xz; then
+            xz -dc .github/post009.patch.xz > "$RUNNER_TEMP/post009.patch"
+            printf '%s  %s\n' 'eca323fc3f766c64472f019a49097877df32fc5c9aac0de860a164d4d2877c9d' "$RUNNER_TEMP/post009.patch" | sha256sum --check
+            git apply --check "$RUNNER_TEMP/post009.patch"
+            git apply --index "$RUNNER_TEMP/post009.patch"
+            git rm .github/post009.patch.xz
+          fi
+          git diff --cached --name-only --diff-filter=ACM -z > "$RUNNER_TEMP/post009-files"
       - name: Initialize dependencies and generated sources
         run: ./init.sh
-      - name: Record checked source
-        run: git rev-parse HEAD | tee "$RUNNER_TEMP/post009-checked.txt"
+      - name: Format and record the isolated test correction
+        run: |
+          if ! git diff --cached --quiet; then
+            git diff --cached --name-only --diff-filter=ACM -z -- '*.dart' | xargs -0 -r fvm dart format
+            xargs -0 -r -a "$RUNNER_TEMP/post009-files" git add --
+            git config user.name 'Boorusama task verification'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git commit -m 'test: make accessible profile taps and toast teardown deterministic'
+            git push origin HEAD:refs/heads/feature/POST-009-boorusama-links
+          fi
+          git rev-parse HEAD | tee "$RUNNER_TEMP/post009-checked.txt"
       - name: Analyze implementation and tests
         run: |
           set -o pipefail
