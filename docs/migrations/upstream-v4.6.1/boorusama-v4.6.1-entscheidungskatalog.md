@@ -405,12 +405,15 @@ Für jedes Thema eines von **(a) vollständig übernehmen**, **(b) angepasst üb
 
 ### D02 · Bulk-Download-Finalisierung und Benachrichtigungen
 
-**Status:** Entscheidung; Entscheidung: **OFFEN** · **Risiko:** 🔴 kritisch.
+**Status:** **ENTSCHIEDEN am 2026-10-15**, Umsetzung ausstehend · **Risiko:** 🔴 kritisch.
 
+- **Bestätigter Beschluss:** Finale Upstream-Completion (nicht den Zwischen-Revert) angepasst übernehmen: fehlgeschlagene Dateigrößenbestimmung tolerieren, Completion pro Session serialisieren, Statistik vor Cleanup sichern und max. 100 abgeschlossene Sessions im Runtime-State für Notifications erhalten. Fork-Lifecycle-Guards beibehalten; Crash-/Cleanup-Fehlerfenster idempotent/restartfähig absichern.
+- **Verifikation:** Parallel-Events, Replays, Dateigrößenfehler, Race bei Cleanup/Status, Restart/Resume, korrekte Statistiken, Notification genau einmal und Completion-History.
+- **Verbindliches Protokoll:** [D02](decisions.md#d02--bulk-download-finalisierung-und-benachrichtigungen).
 - **Änderung in Upstream:** Upstream revertiert frühere deterministische Session-Finalisierung und baut Completion/Notification auf neuer Future-basierten Logik neu auf.
 - **Fork / potenzieller Konflikt:** Fork **enthält** den später von Upstream revertierten Original-Fix; beide Varianten behandeln Race Conditions und Cleanup verschieden.
-- **Zu entscheiden:** Welcher Algorithmus garantiert abgeschlossene Sessions, korrekte Dateigrößen und Benachrichtigungen bei Cleanup?
-- **Arbeitshypothese (nicht beschlossen):** Verhalten anhand beider Testsets vergleichen; neue Garantie integrieren, statt Fork-Implementierung blind zu ersetzen.
+- **Ursprüngliche Fragestellung:** Welcher Algorithmus garantiert abgeschlossene Sessions, korrekte Dateigrößen und Benachrichtigungen bei Cleanup?
+- **Frühere Arbeitshypothese (ersetzt durch obigen Beschluss):** Verhalten anhand beider Testsets vergleichen; neue Garantie integrieren, statt Fork-Implementierung blind zu ersetzen.
 - **Abnahme/Test:** Task-Stream-Races, parallel completions, Hintergrund/Resume, Notification History und Fehlerfall.
 - **Upstream-Commits:** [`ebdfb05d9`](https://github.com/khoadng/Boorusama/commit/ebdfb05d9bec5be5c6fd6dd3e5460cea8ce1e1a1), [`54b19cd4c`](https://github.com/khoadng/Boorusama/commit/54b19cd4cf77b3a75579a2b27aeccc1b1dc56ef5).
 - **Betroffene Codepfade (Auswahl):** `lib/core/bulk_downloads/src/providers/bulk_download_notifier.dart`, `lib/core/download_activity`.
@@ -922,12 +925,15 @@ Für jedes Thema eines von **(a) vollständig übernehmen**, **(b) angepasst üb
 
 ### X03 · Fork-Export/Import, Profile-UUIDs und Following erhalten
 
-**Status:** Entscheidung; Entscheidung: **OFFEN** · **Risiko:** 🔴 kritisch.
+**Status:** **ENTSCHIEDEN am 2026-10-15**, Umsetzung ausstehend · **Risiko:** 🔴 kritisch.
 
+- **Bestätigter Beschluss:** Fork-Architektur bewahren; kompatible Headless-Factory-/Picker-/Navigation-/Backup-Boundaries über A01/A12 adaptieren. Keine Änderung an UUIDs, Hive/Identity, Ordnern, Pinned Searches und Following. Kein zweiter Bookmark-Refresh-Listener; Upstream-Speicher-Fix für Favorite Tags erst mit separat offenem D08.
+- **Verifikation:** Vollständiger Legacy-/aktueller Backup-Roundtrip, Profile-UUID, verschachtelte Ordner, Following/Pinned Searches, Bookmark-Selection/Undo, Cold-Start und Recovery.
+- **Verbindliches Protokoll:** [X03](decisions.md#x03--fork-exportimport-profile-uuids-und-following-bewahren).
 - **Änderung in Upstream:** Upstream verändert App-Initialisierung, Backup-Quellen und Bookmark-Provider neben neuen Tests.
 - **Fork / potenzieller Konflikt:** Fork besitzt neu gestalteten Backup-/Import-Flow, UUID-Profile, verschachtelte Bookmark-/Pinned-Folder und Following Feeds.
-- **Zu entscheiden:** Welche Merge-Auflösungen dürfen diese Fork-Features niemals ersetzen oder rückabwickeln?
-- **Arbeitshypothese (nicht beschlossen):** Alles Fork-spezifische als harte Invariante behandeln, Upstream-Änderungen nur kompatibel adaptieren.
+- **Ursprüngliche Fragestellung:** Welche Merge-Auflösungen dürfen diese Fork-Features niemals ersetzen oder rückabwickeln?
+- **Frühere Arbeitshypothese (ersetzt durch obigen Beschluss):** Alles Fork-spezifische als harte Invariante behandeln, Upstream-Änderungen nur kompatibel adaptieren.
 - **Abnahme/Test:** Full Export/Import Roundtrip, Feed-Aktualisierung, Bookmark Folder/Undo, Profilwechsel.
 - **Upstream-Commits:** [`a3278c5d2`](https://github.com/khoadng/Boorusama/commit/a3278c5d2ecc3672fea63c68fb21c81a1db2bb07), [`3f4ce2bd4`](https://github.com/khoadng/Boorusama/commit/3f4ce2bd4f0f94c116b2262fa9418809710278a8), [`f93bdf0dd`](https://github.com/khoadng/Boorusama/commit/f93bdf0dd42c5eb0e8165d9070310a2aebfa32c1).
 - **Betroffene Codepfade (Auswahl):** `lib/core/backups/export_import`, `lib/core/search/subscriptions`, `lib/core/configs`, `lib/core/bookmarks`.
