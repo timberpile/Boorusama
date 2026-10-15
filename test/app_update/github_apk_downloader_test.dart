@@ -79,7 +79,7 @@ void main() {
     );
     await expectLater(
       client.download(
-        artifact(server, bytes, expectedHash: '0' * 64),
+        artifact(server, bytes, expectedHash: List.filled(64, '0').join()),
         cancelToken: CancelToken(),
       ),
       throwsA(isA<FormatException>()),
