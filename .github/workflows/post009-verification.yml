@@ -14,7 +14,7 @@ jobs:
       - name: Collect completed test diagnostics
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh api repos/timberpile/Boorusama/actions/jobs/116716136955/logs > "$RUNNER_TEMP/post009-test.log"
+        run: gh api --allow-escape-sequences repos/timberpile/Boorusama/actions/jobs/116716136955/logs > "$RUNNER_TEMP/post009-test.log"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: post009-diagnostics
