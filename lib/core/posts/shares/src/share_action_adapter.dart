@@ -1,4 +1,6 @@
 // ignore_for_file: avoid_catching_errors
+import 'dart:ui' show Rect;
+
 import 'package:share_plus/share_plus.dart';
 
 enum ShareActionOutcome { success, dismissed, unavailable, unsupported }
@@ -16,8 +18,18 @@ final class ShareActionAdapter {
   Future<ShareActionOutcome> shareLink(Uri uri) =>
       _share(ShareParams(uri: uri));
 
-  Future<ShareActionOutcome> shareMedia(String path, String mimeType) =>
-      _share(ShareParams(files: [XFile(path, mimeType: mimeType)]));
+  Future<ShareActionOutcome> shareMedia(
+    String path,
+    String mimeType, {
+    String? text,
+    Rect? sharePositionOrigin,
+  }) => _share(
+    ShareParams(
+      files: [XFile(path, mimeType: mimeType)],
+      text: text,
+      sharePositionOrigin: sharePositionOrigin,
+    ),
+  );
 
   Future<ShareActionOutcome> _share(ShareParams params) async {
     try {

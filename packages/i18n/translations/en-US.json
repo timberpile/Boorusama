@@ -350,6 +350,18 @@
     }
   },
   "post": {
+    "app_link": {
+      "image_unavailable": "No image is available to share with this link. You can still copy the link.",
+      "open": "Open in Boorusama",
+      "copy": "Copy Boorusama link",
+      "share": "Share image and Boorusama link",
+      "invalid": "This link is invalid or is not supported by this version of Boorusama.",
+      "missing_profile": "Add a profile for this site to open the post.",
+      "select_profile": "Choose a profile to open this post",
+      "not_found": "This post is unavailable. It may have been removed or may require another account.",
+      "load_failed": "The post could not be loaded. Check your connection and try again.",
+      "change_profile": "Choose another profile"
+    },
     "detail": {
       "file_details": "File details",
       "size": "Size",
@@ -432,6 +444,7 @@
       }
     },
     "action": {
+      "boorusama_link": "Boorusama link",
       "gif": "GIF",
       "create_gif": "Create GIF",
       "creating_gif": "Creating GIF…",

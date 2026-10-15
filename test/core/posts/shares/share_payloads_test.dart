@@ -35,12 +35,13 @@ void main() {
     );
 
     expect(payloads.links.map((p) => p.id), [
+      SharePayloadId.boorusamaLink,
       SharePayloadId.booruLink,
       SharePayloadId.sourceLink,
       SharePayloadId.imageLink,
       SharePayloadId.postId,
     ]);
-    expect(payloads.links.take(3).every((p) => !p.available), isTrue);
+    expect(payloads.links.take(4).every((p) => !p.available), isTrue);
     expect(payloads.media.first.available, isFalse);
     expect(payloads.media[1].available, isFalse);
   });
@@ -56,7 +57,10 @@ void main() {
     );
 
     expect(payloads.media.first.value, 'https://site.test/sample.png');
-    expect(payloads.links[2].value, 'https://site.test/sample.png');
+    expect(
+      payloads.links.singleWhere((p) => p.id == SharePayloadId.imageLink).value,
+      'https://site.test/sample.png',
+    );
     expect(payloads.media[1].value, 'https://site.test/full.jpg');
   });
 

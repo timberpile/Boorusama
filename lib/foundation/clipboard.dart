@@ -34,11 +34,15 @@ abstract class AppClipboard {
     }
   }
 
-  static Future<void> shareImageFile(String path, String mimeType) =>
-      _imageFileChannel.invokeMethod<void>('shareImageFile', {
-        'path': path,
-        'mimeType': mimeType,
-      });
+  static Future<void> shareImageFile(
+    String path,
+    String mimeType, {
+    String? text,
+  }) => _imageFileChannel.invokeMethod<void>('shareImageFile', {
+    'path': path,
+    'mimeType': mimeType,
+    if (text != null) 'text': text,
+  });
 
   static Future<String?> paste(String format) async {
     final data = await Clipboard.getData(format);

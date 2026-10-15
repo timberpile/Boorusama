@@ -78,6 +78,33 @@ class ImageClipboardChannelTest {
     }
 
     @Test
+    fun shareIncludesCaptionInTheSameImageIntent() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val source = File(context.cacheDir, "post_link_${System.nanoTime()}.png")
+        val caption = "Open in Boorusama\nboorusama://post/open?v=1"
+        var owned: File? = null
+        try {
+            source.writeBytes(byteArrayOf(0x89.toByte(), 0x50, 0x4e, 0x47))
+            var launched: android.content.Intent? = null
+            ImageClipboardChannel(context, null) { launched = it }
+                .shareImageFile(source.path, "image/png", caption)
+            val send = launched!!.getParcelableExtra<android.content.Intent>(android.content.Intent.EXTRA_INTENT)!!
+            val uri = send.getParcelableExtra<android.net.Uri>(android.content.Intent.EXTRA_STREAM)!!
+            owned = File(context.cacheDir, "boorusama-clipboard/${uri.lastPathSegment}")
+            assertEquals(android.content.Intent.ACTION_SEND, send.action)
+            assertEquals(caption, send.getStringExtra(android.content.Intent.EXTRA_TEXT))
+            assertEquals("image/png", send.type)
+            assertEquals(uri, send.clipData!!.getItemAt(0).uri)
+            assertTrue(send.flags and android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION != 0)
+            assertTrue(source.delete())
+            assertEquals(4, context.contentResolver.openInputStream(uri)!!.use { it.readBytes().size })
+        } finally {
+            source.delete()
+            owned?.delete()
+        }
+    }
+
+    @Test
     fun repeatedTransientCopyKeepsBothOwnedUrisReadableAfterClear() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val fixtureFiles = mutableListOf<File>()

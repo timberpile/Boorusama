@@ -33,6 +33,7 @@ class ImageClipboardChannel(
                             call.argument<String>("mimeType"),
                             call.method == "copyImageFile",
                             result,
+                            call.argument<String>("text"),
                         )
                         else -> result.notImplemented()
                     }
@@ -40,7 +41,7 @@ class ImageClipboardChannel(
         }
     }
 
-    private fun dispatch(path: String?, mimeType: String?, copy: Boolean, result: MethodChannel.Result) {
+    private fun dispatch(path: String?, mimeType: String?, copy: Boolean, result: MethodChannel.Result, text: String?) {
         // The Dart source lease remains owned until this result completes. Large
         // originals copy and sync off the UI thread; only final URI publication
         // and the channel result run on the main thread.
@@ -51,7 +52,7 @@ class ImageClipboardChannel(
                 val uri = imageUri(path, mimeType)
                 main.post {
                     try {
-                        if (copy) publishCopy(uri) else publishShare(uri, mimeType)
+                        if (copy) publishCopy(uri) else publishShare(uri, mimeType, text)
                         result.success(null)
                     } catch (_: SecurityException) {
                         result.error("CLIPBOARD_DENIED", "Image clipboard access was denied", null)
@@ -75,20 +76,21 @@ class ImageClipboardChannel(
         return uri
     }
 
-    fun shareImageFile(path: String?, mimeType: String?) {
+    fun shareImageFile(path: String?, mimeType: String?, text: String? = null) {
         require(path != null && mimeType != null)
         pruneOldFiles()
-        publishShare(imageUri(path, mimeType), mimeType)
+        publishShare(imageUri(path, mimeType), mimeType, text)
     }
 
     private fun publishCopy(uri: Uri) {
         clipboard.setPrimaryClip(ClipData.newUri(context.contentResolver, "Image", uri))
     }
 
-    private fun publishShare(uri: Uri, mimeType: String) {
+    private fun publishShare(uri: Uri, mimeType: String, text: String?) {
         val sendIntent = Intent(Intent.ACTION_SEND).apply {
             type = mimeType
             putExtra(Intent.EXTRA_STREAM, uri)
+            if (text != null) putExtra(Intent.EXTRA_TEXT, text)
             clipData = ClipData.newUri(context.contentResolver, "Image", uri)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }

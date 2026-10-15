@@ -44,6 +44,24 @@ void main() {
     });
   }
 
+  test(
+    'image plus link is one file-and-text invocation, not a URL preview',
+    () async {
+      var calls = 0;
+      const caption = 'Open in Boorusama\nboorusama://post/open?v=1';
+      final adapter = ShareActionAdapter((params) async {
+        calls++;
+        expect(params.files?.single.path, '/tmp/post.png');
+        expect(params.files?.single.mimeType, 'image/png');
+        expect(params.text, caption);
+        expect(params.uri, isNull);
+        return const ShareResult('', ShareResultStatus.success);
+      });
+      await adapter.shareMedia('/tmp/post.png', 'image/png', text: caption);
+      expect(calls, 1);
+    },
+  );
+
   test('unsupported file sharing reports a platform outcome', () async {
     final adapter = ShareActionAdapter(
       (_) => Future.error(UnimplementedError('Sharing files not supported')),

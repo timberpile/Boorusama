@@ -20,6 +20,7 @@ import '../download_manager/routes.dart';
 import '../downloads/downloader/widgets.dart';
 import '../home/widgets.dart';
 import '../posts/details/routes.dart';
+import '../posts/links/boorusama_post_link_page.dart';
 import '../posts/details_manager/routes.dart';
 import '../posts/favorites/routes.dart';
 import '../posts/post/routes.dart';
@@ -73,6 +74,7 @@ class Routes {
       searchRoutes(ref),
       postDetailsRoutes(ref),
       singlePostDetailsRoutes(ref),
+      boorusamaPostLinkRoute(),
       lazyPostDetailsRoutes(ref),
       postFavoritesRoutes(ref),
       artists(ref),
