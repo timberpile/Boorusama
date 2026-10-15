@@ -136,7 +136,7 @@ void main() {
       final result = await load(repository, reference, profile);
       expect(result, isNotNull);
       expect(repository.ids, [const NumericPostId(123001)]);
-      expect(BoorusamaPostLink.fromPost(result)!, reference);
+      expect(BoorusamaPostLink.fromPost(result!), reference);
       repository.result = dummyPost(
         id: 123001,
       ).copyWith(booruData: _pixivData(0));

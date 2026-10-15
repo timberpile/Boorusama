@@ -4,7 +4,7 @@ on:
   push:
     branches: [feature/POST-009-boorusama-links]
 permissions:
-  contents: write
+  contents: read
 concurrency:
   group: post009-verification
   cancel-in-progress: true
@@ -17,6 +17,9 @@ jobs:
       BOORUSAMA_USE_FVM: 'true'
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          fetch-depth: 0
+          persist-credentials: false
       - name: Read pinned Flutter version
         id: flutter
         run: echo "version=$(jq -er '.flutter' .fvmrc)" >> "$GITHUB_OUTPUT"
@@ -32,29 +35,10 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev meson nasm
-      - name: Apply task patch
-        run: |
-          if test -f .github/post009.patch.xz; then
-            xz -dc .github/post009.patch.xz > "$RUNNER_TEMP/post009.patch"
-            printf '%s  %s\n' '181a5f3a85a6d1c151d81a45ff2c2e780bc504a28812ac9b53f6fedca14446a4' "$RUNNER_TEMP/post009.patch" | sha256sum --check
-            git apply --check "$RUNNER_TEMP/post009.patch"
-            git apply --index "$RUNNER_TEMP/post009.patch"
-            git rm .github/post009.patch.xz
-          fi
-          git diff --cached --name-only --diff-filter=ACM -z > "$RUNNER_TEMP/post009-files"
       - name: Initialize dependencies and generated sources
         run: ./init.sh
-      - name: Format and commit the isolated task candidate
-        run: |
-          if ! git diff --cached --quiet; then
-            git diff --cached --name-only --diff-filter=ACM -z -- '*.dart' | xargs -0 -r fvm dart format
-            xargs -0 -r -a "$RUNNER_TEMP/post009-files" git add --
-            git config user.name 'Boorusama task verification'
-            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-            git commit -m 'test: fix bounded widget pumps and post-link lint findings'
-            git push origin HEAD:refs/heads/feature/POST-009-boorusama-links
-          fi
-          git rev-parse HEAD | tee "$RUNNER_TEMP/post009-checked.txt"
+      - name: Record checked source
+        run: git rev-parse HEAD | tee "$RUNNER_TEMP/post009-checked.txt"
       - name: Analyze implementation and tests
         run: |
           set -o pipefail
