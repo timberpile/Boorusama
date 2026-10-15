@@ -54,3 +54,11 @@ Implemented on this branch:
 5. Review whether signature rotation should be supported. Current preflight intentionally rejects different signers; user can fall back to the GitHub release page.
 
 No PR, merge, or release was created.
+
+## Continuation (2026-10-15)
+
+- Kept the existing branch rather than replacing the in-progress implementation.
+- Hardened Android APK signature preflight: on Android 9/10, if archive `signingInfo` is unavailable, retry via `GET_SIGNATURES` while **still requiring** the archived signer set to exactly match the installed signer set; the OS retains final installer validation.
+- Made temporary update storage injectable in the downloader and added HTTP-backed Flutter tests for successful SHA-256/size verification, rejection and cleanup for bad metadata, and cancellation without publishing an unverified APK.
+- Inspected the published manifest producer and consumer shapes, GitHub/Play release-channel manifest placeholder, native cache paths, and Settings wiring.
+- **Still unverified:** The execution environment has no project checkout, FVM/Flutter/Dart, Android SDK, or device. No compilation, tests, generated localization, merged-manifest check, or on-device installation was performed here. Remain in progress until the validation checklist above passes.
