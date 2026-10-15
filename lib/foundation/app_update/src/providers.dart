@@ -44,7 +44,7 @@ final appUpdateCoordinatorProvider = Provider<UpdateCheckCoordinator>((ref) {
   final info = ref.watch(packageInfoProvider);
   final box = ref.watch(miscDataBoxProvider);
   final key =
-      'github_update_check_${info.packageName}_${info.version}_${info.buildNumber}';
+      '${_kReleaseChannel}_update_check_${info.packageName}_${info.version}_${info.buildNumber}';
   return UpdateCheckCoordinator(
     checkForUpdate: checker.checkForUpdate,
     load: () => box.get(key),
