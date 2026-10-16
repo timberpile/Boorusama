@@ -1,6 +1,6 @@
 # Boorusama v4.6.1 – kompakte Entscheidungscheckliste
 
-Grundlage `develop d4e1558` vs. Upstream `v4.6.1 5b04bf6`. **39/68 Themen entschieden, 29 offen** (2026-10-16). Beschlüsse dokumentieren Zielverhalten, noch keine Implementierung. Die vollständigen Details, Begründungen, Codestrukturen, SHA-Links und Konfliktpfade stehen in [der ausführlichen Liste](boorusama-v4.6.1-entscheidungskatalog.md).
+Grundlage `develop d4e1558` vs. Upstream `v4.6.1 5b04bf6`. **47/68 Themen entschieden, 21 offen** (2026-10-16). Beschlüsse dokumentieren Zielverhalten, noch keine Implementierung. Die vollständigen Details, Begründungen, Codestrukturen, SHA-Links und Konfliktpfade stehen in [der ausführlichen Liste](boorusama-v4.6.1-entscheidungskatalog.md).
 
 **Legende:** Kritisch = Datenverlust/Architekturrisiko · Hoch = funktionaler Merge-Konflikt · Mittel/Niedrig = gezielter Fix · „Automatisch“ nur nach Tests.
 
@@ -59,19 +59,19 @@ Grundlage `develop d4e1558` vs. Upstream `v4.6.1 5b04bf6`. **39/68 Themen entsch
 | `B10` | Rule34: JSON-Post-API auf api.rule34.xxx | 🟠 hoch | **ENTSCHIEDEN (2026-10-16):** angepasst übernehmen, erst nach Verifikation aktivieren. Rule34-Listing-Endpoint nach gezielten Live-API-Tests auf `https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1` umstellen, da der Fork diesen Host bislang nur für Post-Details verwendet. Profil- und Site-Identität, Auth-/Cookie-Origin-Grenzen, Parsing, Pagination, Rate-Limits sowie eigene Rule… |
 | **Post / Grid / Viewer** | | | |
 | `P01` | Zwei Quick Actions auf Post-Thumbnails | 🟠 hoch | OFFEN |
-| `P02` | Profile mit unbekannten Thumbnail-Actions/Media-Host-Regeln behalten | 🟠 hoch | OFFEN |
+| `P02` | Profile mit unbekannten Thumbnail-Actions/Media-Host-Regeln behalten | 🟠 hoch | **ENTSCHIEDEN (2026-10-16):** angepasst übernehmen. Optionale unbekannte/ungültige Thumbnail-Action-Werte und Media-Host-Overrides beim Einlesen tolerant behandeln, ohne das Profil als Ganzes zu verwerfen; bei Import/Restore nachvollziehbare Validierungswarnungen anbieten. Existierende Profil-UUIDs und übrige Daten stets behalten. Unbekannte, semantisch nicht auswertbare Werte, soweit technisch s… |
 | `P03` | Bildladefehler: Tap-to-Retry nur bei passenden Error-Widgets | 🟡 mittel | OFFEN |
 | `P04` | Post-Grid: Refresh während laufendem Fetch nicht verlieren | 🟡 mittel | OFFEN |
-| `P05` | Bookmark-Library nach Bookmark-Mutation aktualisieren | 🟡 mittel | OFFEN |
-| `P06` | GIF-Autoplay respektiert Qualitätseinstellungen | 🟡 niedrig–mittel | OFFEN |
-| `P07` | Video-Thumbnail bis zum ersten gerenderten Frame anzeigen | 🟡 mittel | OFFEN |
+| `P05` | Bookmark-Library nach Bookmark-Mutation aktualisieren | 🟡 mittel | **ENTSCHIEDEN (2026-10-16):** Fork-Lösung behalten. Keinen zusätzlichen Upstream-Bookmark-Listener einbauen: Der Fork lauscht bereits auf `bookmarkProvider` und koordiniert Sichtbarkeitswechsel/Selection über `BookmarkViewRefreshGate`. Diesen einzigen autoritativen Refreshpfad behalten; nur nützliche Upstream-Regressionstests ergänzen. |
+| `P06` | GIF-Autoplay respektiert Qualitätseinstellungen | 🟡 niedrig–mittel | **ENTSCHIEDEN (2026-10-16):** angepasst übernehmen. GIF-Autoplay-Setting bei allen Grid-Qualitätsstufen einschließlich `original` respektieren: Bei deaktiviertem Autoplay nur eine statische Vorschau laden; bei aktivem Autoplay die nach Site tatsächlich verfügbare animierte URL entsprechend Qualität/Fallback wählen. Wichtig: Statische kleinere GIF-Thumbnails sind keine garantierten niedrig aufgelö… |
+| `P07` | Video-Thumbnail bis zum ersten gerenderten Frame anzeigen | 🟡 mittel | **ENTSCHIEDEN (2026-10-16):** angepasst übernehmen. Video-Thumbnail/Poster bis zum tatsächlichen Rendering des ersten Frames anzeigen und anschließend nahtlos freigeben. First-Frame-Status für jeden Quell-/Engine-Wechsel zurücksetzen und ältere asynchrone Signale anhand Generation/Source-ID ignorieren; bei fehlgeschlagener First-Frame-Benachrichtigung einen sichtbaren Fehler-/Fallbackzustand bere… |
 | `P08` | WebView-Video aus Cache-Datei und Cleanup-Schutz | 🟠 hoch | OFFEN |
 | `P09` | Kurumi InteractiveViewer: Bild-Pan vs Page-Swipe | 🟠 hoch | OFFEN |
 | `P10` | Volume Keys im Post Viewer korrekt konsumieren | 🟡 niedrig–mittel | OFFEN |
-| `P11` | Videosteuerung: Zeit-Overflow und Media-Play/Pause-Key | 🟡 niedrig–mittel | OFFEN |
-| `P12` | Hover Preview nur über Info-Badge öffnen; Long Press erhalten | 🟠 hoch | OFFEN |
-| `P13` | Post-/Tag-Kontextmenüs auf Kurumi migrieren | 🟠 hoch | OFFEN |
-| `P14` | Keyboard-Fokus auf Quick Favorite/Bookmark-Buttons | 🟡 mittel | OFFEN |
+| `P11` | Videosteuerung: Zeit-Overflow und Media-Play/Pause-Key | 🟡 niedrig–mittel | **ENTSCHIEDEN (2026-10-16):** übernehmen (Fork-Player berücksichtigen). Video-Zeitanzeigen nicht länger auf fixe 40 px beschränken (minimale Breite und sichere flexible Darstellung). Media-Play/Pause/Toggle-Hardwaretasten nur auf den aktuell sichtbaren/fokussierten Video-Post routen; bei Bild-Posts, Hidden Playern und Textfokus nicht unerwartet abspielen. Vorhandene Player-Engine- und Viewer-Shortcuts erhalten. |
+| `P12` | Hover Preview nur über Info-Badge öffnen; Long Press erhalten | 🟠 hoch | **ENTSCHIEDEN (2026-10-16):** angepasst übernehmen. Hover-Preview nicht über die gesamte Thumbnail-Fläche, sondern über ein gezieltes Info-Badge öffnen, das bei Pointer-Hover bzw. passend fokussierter Keyboard-Navigation sichtbar wird. Gesten-/Hit-Test-Fixes für Long-Press, Right-Click und Hold-and-Drag übernehmen, Selection vor Preview-Badge priorisieren und bei Tastatureingaben Preview sauber s… |
+| `P13` | Post-/Tag-Kontextmenüs auf Kurumi migrieren | 🟠 hoch | **ENTSCHIEDEN (2026-10-16):** angepasst übernehmen (A02). Post-/Tag-Kontextmenüs über Kurumi vereinheitlichen und Keyboard/Right-Click/Long-Press/Back/Escape sowie konsistente Darstellung übernehmen. ALLE Fork-Menüaktionen, Favoriten-/Bookmarks-/Following-/Gruppenaktionen, Untermenüs, Kontext-/Selection-Priorität und bestehende Tap-through-/Dismiss-Fixes behalten. Upstreams große Migration nicht pausch… |
+| `P14` | Keyboard-Fokus auf Quick Favorite/Bookmark-Buttons | 🟡 mittel | **ENTSCHIEDEN (2026-10-16):** übernehmen, abgestimmt auf P01/A02. Sichtbare Quick Favorite-/Bookmark-Buttons und weitere Thumbnail-Actions mit klarer Semantik, fokussiertem Zustand und Enter/Space-Aktivierung versehen. Bei maximal zwei Aktionen eine logisch nachvollziehbare Reihenfolge und Pfeil-/Tab-Navigation anbieten, ohne Kachelöffnung, Grid-Selection, Scroll-/Hold-and-Drag-Gesten zu übernehmen oder unsich… |
 | **Suche / Bedienung / Desktop** | | | |
 | `U01` | Suche oberhalb Soft-Keyboard bedienbar | 🟠 hoch | OFFEN |
 | `U02` | Search History als Full-Height-Sheet + Tests | 🟡 mittel | OFFEN |
@@ -82,6 +82,6 @@ Grundlage `develop d4e1558` vs. Upstream `v4.6.1 5b04bf6`. **39/68 Themen entsch
 | `U07` | Favorite Tags auf großen Screens im Dialog statt Sheet | 🟡 niedrig–mittel | OFFEN |
 | `U08` | Regressionstests und Flakiness-Fixes nachziehen | ⚪ niedrig | — (vorerst kein Review) |
 
-**Fortsetzung:** P01–P14 (Posts, Grid, Viewer, Medien); danach U01–U08 (Suche/UX) und die noch offenen D01, D03–D08. A02-Manuellcheckliste durch Agent **erstellen**, vom Nutzer **ausführen**.
+**Fortsetzung:** Detailentscheidungen P01, P03, P04, P08, P09, P10; danach U01–U08 (Suche/UX) und D01, D03–D08. A02-Manuellcheckliste durch Agent **erstellen**, vom Nutzer **ausführen**.
 
 **Ergebnisschlüssel:** übernehmen · angepasst übernehmen · Fork beibehalten · nicht übernehmen.
