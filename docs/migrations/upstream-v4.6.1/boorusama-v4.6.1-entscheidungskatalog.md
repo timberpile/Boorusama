@@ -51,7 +51,7 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** New BoorusamaBootstrapHost/ProductionBoorusamaBootstrap, main.dart and service factory overrides improve headless testing; the refactor spans 237 files.
 - **Fork divergence / merge hazard:** The fork starts through BoorusamaApp and initializes additional export, import, cache, profile and synchronization services. The earlier trial merge adopted main.dart without fully transferring that initialization.
 - **Original review question:** Retain the old startup path or migrate to upstream bootstrap? Which fork providers and startup jobs must always run?
-- **Binding decision, migration conditions and tests:** [A01](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [A01](decisions.md#a01--application-bootstrap-runtime-and-dependency-injection). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`a3278c5d2`](https://github.com/khoadng/Boorusama/commit/a3278c5d2ecc3672fea63c68fb21c81a1db2bb07).
 - **Affected code paths (examples):** `lib/main.dart`, `lib/core/boorusama_app.dart`, `lib/core/bootstrap/boorusama_bootstrap.dart`, `lib/core/app_scope.dart`.
 - **Confirmed merge conflicts in:** `lib/core/boorusama_app.dart`.
@@ -64,7 +64,7 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** Kurumi separates standalone Material/Cupertino components, replaces older UI dependencies and changes imports and widgets.
 - **Fork divergence / merge hazard:** The fork already uses Kurumi with custom menus, dialogs, viewer and other UI elements. Both source trees pin Flutter 3.47.2 in .fvmrc.
 - **Original review question:** Adopt all added Kurumi widgets and semantics globally or only where upstream features need them?
-- **Binding decision, migration conditions and tests:** [A02](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [A02](decisions.md#a02--kurumi--material-cupertino-package-migration). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`9f8ab7bca`](https://github.com/khoadng/Boorusama/commit/9f8ab7bcab67048be3bb865b98c47203d7b121b2), [`e7745aca8`](https://github.com/khoadng/Boorusama/commit/e7745aca83af95f38ac1d2e3f58fa23bf0b92234), [`6adb28be9`](https://github.com/khoadng/Boorusama/commit/6adb28be97b67181a1641df28d9b0c490e4e3f47).
 - **Affected code paths (examples):** `packages/kurumi/lib/kurumi.dart`, `packages/kurumi/lib/material.dart`, `pubspec.yaml`.
 - **Confirmed merge conflicts in:** `packages/kurumi/lib/material.dart`, `pubspec.yaml`.
@@ -77,7 +77,7 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** Stabilizes widget trees, prevents truncated sidebar titles and cancels checkmark deselection animations cleanly.
 - **Fork divergence / merge hazard:** The fork modifies Kurumi; even small framework bug fixes can have semantic merge conflicts.
 - **Original review question:** Do the isolated fixes improve actual UI/animations without regressions?
-- **Binding decision, migration conditions and tests:** [A03](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [A03](decisions.md#a03--kurumi-stability-animation-and-overflow). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`0ed1a49df`](https://github.com/khoadng/Boorusama/commit/0ed1a49df6e07787e89366ca931dd2f7b3504eef), [`485a728c9`](https://github.com/khoadng/Boorusama/commit/485a728c9802680b480ee949123624d6101cb463), [`c69b3e824`](https://github.com/khoadng/Boorusama/commit/c69b3e824d4acc4d60922ce78e391594846ff2c0).
 - **Affected code paths (examples):** `packages/kurumi/lib/src/components`.
 
@@ -89,7 +89,7 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** Introduces upstream Settings navigation state, adaptive routes and subsequent layout/Back fixes.
 - **Fork divergence / merge hazard:** The fork uses its own SettingsNavigationPane, searchable Settings added on October 14 and additional settings sections.
 - **Original review question:** What routing, sidebar, Back, search and deep-link model should survive?
-- **Binding decision, migration conditions and tests:** [A04](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [A04](decisions.md#a04--responsive-settings-navigation-model). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`1f2e90060`](https://github.com/khoadng/Boorusama/commit/1f2e90060765be4369a689522c463f740f254197), [`72c27ed64`](https://github.com/khoadng/Boorusama/commit/72c27ed64b10290bd5e1877a5fbe342572a3948d).
 - **Affected code paths (examples):** `lib/core/settings/src/pages/settings_page.dart`, `lib/core/settings/src/widgets/settings_navigation_pane.dart`.
 - **Confirmed merge conflicts in:** `lib/core/settings/src/pages/settings_page.dart`.
@@ -102,7 +102,7 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** Adds temporary generated Settings search indices and UI, subsequently reverted before v4.6.1.
 - **Fork divergence / merge hazard:** The fork has its own active Settings Search.
 - **Original review question:** No feature revival; consider isolated ideas only if explicitly requested.
-- **Binding decision, migration conditions and tests:** [A05](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [A05](decisions.md#a05--upstream-settings-search-added-and-later-reverted). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`408666ef5`](https://github.com/khoadng/Boorusama/commit/408666ef55f2b20f2e65d7eee21dcb01b0f018ca), [`685db1ad5`](https://github.com/khoadng/Boorusama/commit/685db1ad56712e00d4ef8dfe438114948ba6e86e).
 
 ### A06 · App Lock: Different Privacy Defaults
@@ -113,7 +113,7 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** Defaults Hide App Preview to false and lock timeout to 30 seconds in v4.6.1.
 - **Fork divergence / merge hazard:** The fork already supports PIN, blur and Wi-Fi downloads, but defaults Hide App Preview to true and lock timeout to zero.
 - **Original review question:** Which defaults should apply to new installs while respecting existing settings?
-- **Binding decision, migration conditions and tests:** [A06](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [A06](decisions.md#a06--app-lock-different-privacy-defaults). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`c2d3b109e`](https://github.com/khoadng/Boorusama/commit/c2d3b109ef0e2124273858b17ed577e8bdaa1add).
 - **Affected code paths (examples):** `lib/core/settings/src/types/settings.dart`.
 
@@ -125,7 +125,7 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** Adds persistent diagnostic logging, an interactive log viewer, URL/status highlighting and copy support; final upstream redaction is optional and disabled by default.
 - **Fork divergence / merge hazard:** The fork has an older logger and additional cache/diagnostic facilities, with bootstrap and provider conflicts.
 - **Original review question:** What retention/redaction/export behavior should apply to persisted logs, particularly credentials?
-- **Binding decision, migration conditions and tests:** [A07](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [A07](decisions.md#a07--debug-logging-log-persistence-and-redaction). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`3bd433423`](https://github.com/khoadng/Boorusama/commit/3bd4334235a091c51e680c28ea852d3d07571a02), [`434a2e516`](https://github.com/khoadng/Boorusama/commit/434a2e516ecae2ce236d4c7592af62961e182a87), [`948af9448`](https://github.com/khoadng/Boorusama/commit/948af94483b7662d1de9a0fbfea7381019cd821a), [`d13fe53a3`](https://github.com/khoadng/Boorusama/commit/d13fe53a3b8cbbba481b4d2d436b124009941b8f).
 - **Affected code paths (examples):** `lib/core/debug`, `lib/foundation/loggers`.
 
@@ -137,7 +137,7 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** Adds detailed solver/challenge events, structured states, polling and diagnostic logs.
 - **Fork divergence / merge hazard:** The fork already implements Rule34/Cloudflare recovery and its own diagnostics.
 - **Original review question:** Which events belong in the debug screen, and what needs redaction before storage?
-- **Binding decision, migration conditions and tests:** [A08](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [A08](decisions.md#a08--typed-cloudflareddos-diagnostics). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`480810b11`](https://github.com/khoadng/Boorusama/commit/480810b11a5a66b24be40bc8a80a2a56e681b90c), [`0def24717`](https://github.com/khoadng/Boorusama/commit/0def247178cedd1a058c3695a09b3c159ec3577d).
 - **Affected code paths (examples):** `lib/core/ddos/solver`, `lib/core/ddos/diagnostics`.
 
@@ -149,7 +149,7 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** Shows cache directories in Settings and exposes cache content via Android Files DocumentsProvider.
 - **Fork divergence / merge hazard:** The fork uses its own persistent LRU image cache and different private storage directories.
 - **Original review question:** Which caches may be exposed read-only without leaking private application files?
-- **Binding decision, migration conditions and tests:** [A09](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [A09](decisions.md#a09--android-cache-locations-and-documentsprovider). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`1e6a6607d`](https://github.com/khoadng/Boorusama/commit/1e6a6607dc7750a5c1e94d44531f8251fface3c6).
 - **Affected code paths (examples):** `android/app/src/main/AndroidManifest.xml`, `android/app/src/main/kotlin`, `lib/core/settings/src/pages/data_and_storage_page.dart`.
 - **Confirmed merge conflicts in:** `android/app/src/main/AndroidManifest.xml`, `lib/core/settings/src/pages/data_and_storage_page.dart`.
@@ -162,7 +162,7 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** Adds Windows embedded browser and WinHTTP adapter, abstract browser factories and unsupported-WebView fallbacks.
 - **Fork divergence / merge hazard:** The fork owns application service providers/bootstrapping and challenge/browser logic.
 - **Original review question:** Which Windows/browser features and platform fallback behaviors are needed?
-- **Binding decision, migration conditions and tests:** [A10](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [A10](decisions.md#a10--embedded-windows-webview-and-webview-platform-support). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`4c6138377`](https://github.com/khoadng/Boorusama/commit/4c6138377f9d5357b986584b8aee75d0b8d5dd66), [`8d8ca771b`](https://github.com/khoadng/Boorusama/commit/8d8ca771b393d18f31e21e21881f22f142179397).
 - **Affected code paths (examples):** `lib/foundation/browser`, `lib/core/http/client/src/data/winhttp_dio_adapter.dart`.
 
@@ -174,7 +174,7 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** Adds locale resources and Weblate translations, removes unused keys and preserves full locale when switching language.
 - **Fork divergence / merge hazard:** The fork has distinct Following, Bookmark Group and Settings Search strings; localization trees diverged.
 - **Original review question:** How should localization files be merged without losing keys or weakening fallbacks?
-- **Binding decision, migration conditions and tests:** [A11](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [A11](decisions.md#a11--localization-arabic-indonesian-and-other-updates). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`bdec763aa`](https://github.com/khoadng/Boorusama/commit/bdec763aa3e7d36d774b2f64b7963f79329f9bdd), [`9ba59d05b`](https://github.com/khoadng/Boorusama/commit/9ba59d05b80c07b03e7e8696ee4c4ed8d068f14b), [`d13da93a3`](https://github.com/khoadng/Boorusama/commit/d13da93a3a6e2a8d9299d5a0ef91dd00422aa303), [`a891266bb`](https://github.com/khoadng/Boorusama/commit/a891266bb668caa65f846db9ee40f9b35c840c9e), [`02a28fe7d`](https://github.com/khoadng/Boorusama/commit/02a28fe7d7e94c12a94c926442681cc8d569e2d5), [`889592e57`](https://github.com/khoadng/Boorusama/commit/889592e57f5f22962158c2d9123f1db05f836260), [`e79abb5c0`](https://github.com/khoadng/Boorusama/commit/e79abb5c093aa7e1090653f2adf1b3e68b392328).
 - **Affected code paths (examples):** `packages/i18n/translations`, `packages/i18n/lib/src/locales.dart`.
 
@@ -186,7 +186,7 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** Adds headless application flow tests and fakes for search, bookmarks, bulk downloads, network recovery and startup.
 - **Fork divergence / merge hazard:** The fork has its own integration/repository tests and startup architecture.
 - **Original review question:** Which tests can be ported without introducing a parallel runtime?
-- **Binding decision, migration conditions and tests:** [A12](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [A12](decisions.md#a12--headless-test-harness-and-application-flow-tests). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`c22d12fd6`](https://github.com/khoadng/Boorusama/commit/c22d12fd678db968af1356a21a3957ae3f3eda35).
 - **Affected code paths (examples):** `test/application`, `test/support`.
 
@@ -198,7 +198,7 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** Adds Nix flake, reproducible packaging, bundled fonts and ARM64 native/build fixes.
 - **Fork divergence / merge hazard:** The fork has its own CLI/CI setup but no corresponding Nix implementation.
 - **Original review question:** Should Nix be treated as officially supported build/release infrastructure?
-- **Binding decision, migration conditions and tests:** [A13](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [A13](decisions.md#a13--nixos-package-and-development-shell). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`d3f3a62fa`](https://github.com/khoadng/Boorusama/commit/d3f3a62fa40fc7eadd2a63cd32e145f9cd3d5acd), [`038d1287c`](https://github.com/khoadng/Boorusama/commit/038d1287c04a260faea85e360c98f4baffb8fd97), [`e16ecd2c3`](https://github.com/khoadng/Boorusama/commit/e16ecd2c35236880eea7be4c27e3f957c6609143), [`2d621b683`](https://github.com/khoadng/Boorusama/commit/2d621b68335a62337075b53289f1f986f0631fcf), [`047a5a09e`](https://github.com/khoadng/Boorusama/commit/047a5a09e5e2ff397f23eee21f1cd54672cc80a2).
 - **Affected code paths (examples):** `flake.nix`, `nix/package.nix`, `docs/nix.md`.
 
@@ -210,7 +210,7 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** Changes Windows CMake/NASM/path handling, native asset retries, long paths, smoke runs, centralized toolchain and Android resource IDs; a build change was later reverted.
 - **Fork divergence / merge hazard:** The fork has its own signed Android split APK workflow, CI and Flutter 3.47.2 pin.
 - **Original review question:** Which specific toolchain fixes should be used without replacing the fork release workflow?
-- **Binding decision, migration conditions and tests:** [A14](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [A14](decisions.md#a14--release-ci-native-assets-sdk-and-build-cli). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`08088842c`](https://github.com/khoadng/Boorusama/commit/08088842c880bd124715e3d76b73c24945d8ea9a), [`dbfe54fc4`](https://github.com/khoadng/Boorusama/commit/dbfe54fc432738bcf59ee9179a9089f629d620bf), [`430747c1a`](https://github.com/khoadng/Boorusama/commit/430747c1af0153672863213a03f25c082a29e204), [`402c4eb67`](https://github.com/khoadng/Boorusama/commit/402c4eb67a1052ab1841592c4eeb5a6967de071c), [`a9821d53e`](https://github.com/khoadng/Boorusama/commit/a9821d53eb413ea46374ab09b07668b4ebe766f5), [`914ee5fa5`](https://github.com/khoadng/Boorusama/commit/914ee5fa51d33eeaa69ba8dc8c6dde171fadad58), [`899aabf6a`](https://github.com/khoadng/Boorusama/commit/899aabf6a26c22e438750319b74ac463a4af19ee), [`df4f705d8`](https://github.com/khoadng/Boorusama/commit/df4f705d810f2cdfc2f009c6d6082ab5fb61d2df), [`d1e7c99b4`](https://github.com/khoadng/Boorusama/commit/d1e7c99b4895404548a426274e076b3710d84f79), [`87a4fae44`](https://github.com/khoadng/Boorusama/commit/87a4fae4463529474a9d161fdd45fa2047831986), [`c184be942`](https://github.com/khoadng/Boorusama/commit/c184be94249a3768e4f4d672517230c62acfb7ae), [`db33523ff`](https://github.com/khoadng/Boorusama/commit/db33523ff960712518c3c3482e33f8d9b33048b6), [`c22d22e0d`](https://github.com/khoadng/Boorusama/commit/c22d22e0dfe9f3f521a3e495fafa69ba00d07364), [`f94243dcc`](https://github.com/khoadng/Boorusama/commit/f94243dccad0eace17d674df43934424ca591f39), [`b55d1adde`](https://github.com/khoadng/Boorusama/commit/b55d1addecaf59fb36cd72d5f5e6e5b75b629f84).
 - **Affected code paths (examples):** `.github/workflows/github-release.yml`, `packages/boorusama_cli`, `android/gradle.properties`, `scripts/toolchain.sh`.
 - **Confirmed merge conflicts in:** `.github/workflows/github-release.yml`, `android/gradle.properties`.
@@ -223,7 +223,7 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** Uses a new permanent upstream key for GitHub APK signing from v4.6.1.
 - **Fork divergence / merge hazard:** The fork has its own certificate, com.timberpile.boorusama application ID, branding/flavors and update manifest.
 - **Original review question:** Never adopt upstream key/app ID/credentials; can safe signing CI checks be reused?
-- **Binding decision, migration conditions and tests:** [A15](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [A15](decisions.md#a15--apk-signing-permanent-upstream-key). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`e6511bad5`](https://github.com/khoadng/Boorusama/commit/e6511bad5c6d44f9b574bb08e1eeef4ddaed4d23).
 - **Affected code paths (examples):** `.github/workflows/github-release.yml`, `android/app/build.gradle.kts`.
 - **Confirmed merge conflicts in:** `.github/workflows/github-release.yml`, `android/app/build.gradle.kts`.
@@ -236,7 +236,7 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** Updates 4.6.0/4.6.1 metadata/changelog and fixes a recurring What's New popup.
 - **Fork divergence / merge hazard:** The fork is currently 4.5.0-timberpile.5 and has its own release history and changelog fixes.
 - **Original review question:** How should the new fork version be named, and how should upstream release notes be handled?
-- **Binding decision, migration conditions and tests:** [A16](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [A16](decisions.md#a16--versioning-changelog-and-whats-new-popup). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`0adc367df`](https://github.com/khoadng/Boorusama/commit/0adc367df3c9a3862e9663049e1af0d90bf60d21), [`a9c31322b`](https://github.com/khoadng/Boorusama/commit/a9c31322bd4d60761218bedfd317ef18f8b69359), [`ffd7e47c5`](https://github.com/khoadng/Boorusama/commit/ffd7e47c5840a922b1c885d415a28984a6bf978a), [`bc63321ec`](https://github.com/khoadng/Boorusama/commit/bc63321ec125c5d54da165c9977580cdea46448f), [`e44fff71c`](https://github.com/khoadng/Boorusama/commit/e44fff71cd79dc4c581f6b6072a85e999a89df37), [`953fee30b`](https://github.com/khoadng/Boorusama/commit/953fee30bd78245cc9113a1dfc41a7953a7b2c3a), [`2a5818b57`](https://github.com/khoadng/Boorusama/commit/2a5818b570a58071959e9d877aa4d2a3c9c25a17), [`5a2a4e82e`](https://github.com/khoadng/Boorusama/commit/5a2a4e82e827785f0c296b600e44aae2247b90a4), [`5b04bf6a1`](https://github.com/khoadng/Boorusama/commit/5b04bf6a164f028d41701299367d0dde74dde330).
 - **Affected code paths (examples):** `CHANGELOG.md`, `pubspec.yaml`, `lib/core/changelogs/repo.dart`.
 - **Confirmed merge conflicts in:** `CHANGELOG.md`, `pubspec.yaml`.
@@ -249,7 +249,7 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** Contains broad formatting and cleanup, whitespace correction and removal of a duplicated @override.
 - **Fork divergence / merge hazard:** These commits contain no requested product feature and the fork's touched code diverged heavily.
 - **Original review question:** Apply only meaningful maintenance fixes and avoid noise.
-- **Binding decision, migration conditions and tests:** [A17](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [A17](decisions.md#a17--formatting-no-op-reverts-and-small-cleanups). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`cfb231254`](https://github.com/khoadng/Boorusama/commit/cfb231254634c8ef96873847c43f5983a5ea27ed), [`ab78dc3e3`](https://github.com/khoadng/Boorusama/commit/ab78dc3e338514bd39f2ce678ade2abd2c82b133), [`ee38cd592`](https://github.com/khoadng/Boorusama/commit/ee38cd592b4d6960d49025a52de433930b7441e7), [`372dca51c`](https://github.com/khoadng/Boorusama/commit/372dca51c760bb0d070c2d4b54c20c0407648b6c), [`3c72c200e`](https://github.com/khoadng/Boorusama/commit/3c72c200e1ecbf241feb09d1a3c932957720c84a).
 
 ### A18 · Web AVIF Decoder Compatibility
@@ -260,7 +260,7 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** Adjusts the flutter_libavif migration for Web and network decoding.
 - **Fork divergence / merge hazard:** The fork already adopted AVIF but uses its own ExtendedImage and cache pipeline.
 - **Original review question:** Which Web AVIF decoding fallbacks are needed without replacing the cache?
-- **Binding decision, migration conditions and tests:** [A18](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [A18](decisions.md#a18--web-avif-decoder-compatibility). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`72702e711`](https://github.com/khoadng/Boorusama/commit/72702e7110892d046826b53a25a70c39c1e72d56).
 - **Affected code paths (examples):** `packages/extended_image/lib/src`.
 
@@ -274,7 +274,7 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** Adds configured retry policies, Retry-After cooldowns and serialized sliding-window rate admissions.
 - **Fork divergence / merge hazard:** The fork already coordinates browsing versus Following priorities and admission quotas with ApiRequestCoordinator.
 - **Original review question:** How can server waits, per-host caps and browsing priority be combined without deadlocks or double queues?
-- **Binding decision, migration conditions and tests:** [N01](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [N01](decisions.md#n01--http-retry-after-rate-limiting-and-admission-locks). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`70b523938`](https://github.com/khoadng/Boorusama/commit/70b5239384cc86fba7c479c7ce688076508575cf), [`deca1064a`](https://github.com/khoadng/Boorusama/commit/deca1064aa68abcbbb1683408f305558bef08ee3).
 - **Affected code paths (examples):** `packages/retriable`, `lib/core/http/client/src/interceptors/sliding_window_rate_limit_interceptor.dart`.
 - **Confirmed merge conflicts in:** `lib/core/http/client/src/interceptors/sliding_window_rate_limit_interceptor.dart`.
@@ -287,7 +287,7 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** Adds per-profile alternate media hosts and security filtering of forwarded headers, with settings UI.
 - **Fork divergence / merge hazard:** This feature is new to the fork, which routes media through a shared, source/profile-aware image cache.
 - **Original review question:** How should host overrides interact with cache keys, cookies, proxies, media downloads and previews?
-- **Binding decision, migration conditions and tests:** [N02](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [N02](decisions.md#n02--per-profile-media-host-overrides). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`cb5f9fade`](https://github.com/khoadng/Boorusama/commit/cb5f9fade8ed5c7e26d3f0811ef17f7187f73723).
 - **Affected code paths (examples):** `lib/core/configs/network/src/types/media_host_override.dart`, `lib/core/images/booru_image.dart`.
 - **Confirmed merge conflicts in:** `lib/core/images/booru_image.dart`.
@@ -300,7 +300,7 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** Adds request-intent distinctions to HTTP recovery so POST/PUT and other mutations are not blindly replayed.
 - **Fork divergence / merge hazard:** The fork has specialized Rule34-403/Cloudflare recovery with its own replay behavior.
 - **Original review question:** Which operations are retry-safe, particularly favorites/votes/comments?
-- **Binding decision, migration conditions and tests:** [N03](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [N03](decisions.md#n03--cloudflare-do-not-blindly-replay-state-changing-requests). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`94aa56361`](https://github.com/khoadng/Boorusama/commit/94aa56361ad31a902e7382396e958d27244cda35).
 - **Affected code paths (examples):** `lib/core/http/client/src/interceptors/dio_protection_interceptor.dart`, `packages/coreutils/lib/src/request_intent.dart`.
 - **Confirmed merge conflicts in:** `lib/core/http/client/src/interceptors/dio_protection_interceptor.dart`.
@@ -313,7 +313,7 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** Recognizes redesigned Cloudflare challenges, confirmation pages and subdomain redirects; reduces loops and dialog flashes.
 - **Fork divergence / merge hazard:** The fork has focused Rule34 403 recovery and modified solver/HTTP interceptors.
 - **Original review question:** How can challenge detection be adapted without losing Rule34 recovery?
-- **Binding decision, migration conditions and tests:** [N04](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [N04](decisions.md#n04--cloudflare-detection-block-pages-redirects-and-challenge-ux). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`99ee264db`](https://github.com/khoadng/Boorusama/commit/99ee264dbc2f9649d94b8757575e82b885623e0d), [`bcef3b5c1`](https://github.com/khoadng/Boorusama/commit/bcef3b5c1cf620ff3d67bfaef9e6d623391c3442), [`dc7b9cee9`](https://github.com/khoadng/Boorusama/commit/dc7b9cee911f28049333546c56379be8c51d955a), [`f82a62885`](https://github.com/khoadng/Boorusama/commit/f82a6288563d73e8da1943b7fed499d16f3611d7), [`b0a1d65d9`](https://github.com/khoadng/Boorusama/commit/b0a1d65d9e60131f010491f38877cfd5e5df7b60), [`399a4da47`](https://github.com/khoadng/Boorusama/commit/399a4da47587906a73a316f18c089254b58156d5).
 - **Affected code paths (examples):** `lib/core/ddos/solver`, `lib/core/ddos/handler/protection_handler.dart`.
 
@@ -325,7 +325,7 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** Reads clearance cookies from WebView/native CookieManager after solved challenges and applies them to HTTP clients on Android/iOS/macOS.
 - **Fork divergence / merge hazard:** The fork has different native channel paths and extra export/system native integrations.
 - **Original review question:** On which platforms should the bridge run and how are Secure/HttpOnly/domain scopes respected?
-- **Binding decision, migration conditions and tests:** [N05](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [N05](decisions.md#n05--clearance-cookies-and-native-webview-cookie-bridge). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`0b4dcfcc4`](https://github.com/khoadng/Boorusama/commit/0b4dcfcc40d22cff1464b34506a6b836f06d7586), [`0ad2e6465`](https://github.com/khoadng/Boorusama/commit/0ad2e646591aceac0ab726aec1213289e42311ac).
 - **Affected code paths (examples):** `android/app/src/main/kotlin`, `ios/Runner/AppDelegate.swift`, `lib/foundation/browser/webview_cookie_channel.dart`.
 - **Confirmed merge conflicts in:** `ios/Runner/AppDelegate.swift`.
@@ -338,7 +338,7 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** Increases HTTP/2 connection/stream flow-control windows and enables compressed responses.
 - **Fork divergence / merge hazard:** The fork customizes Dio/HTTP2 for interactive browsing priority and site adapters.
 - **Original review question:** Which settings should be global versus selective, considering mobile memory and problematic servers?
-- **Binding decision, migration conditions and tests:** [N06](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [N06](decisions.md#n06--http2-window-and-automatic-gzip). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`86a7ee6bb`](https://github.com/khoadng/Boorusama/commit/86a7ee6bbee7a730f9b8931c01919191bd2ad0c3).
 - **Affected code paths (examples):** `lib/core/http/client/src/providers/dio.dart`.
 
@@ -352,20 +352,20 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** Adds optional TXT tags or JSON metadata alongside downloads with post ID, source, quality, filename, atomic sidecar creation and bulk/storage integration.
 - **Fork divergence / merge hazard:** The fork has more complex download, sharing and export flows and no existing sidecar module.
 - **Original review question:** Should settings be global or per profile, and what happens on duplicate, failure, existing media and backup?
-- **Binding decision, migration conditions and tests:** [D01](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [D01](decisions.md#d01--download-sidecars-txt-tags-and-json-metadata). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`86a16a20e`](https://github.com/khoadng/Boorusama/commit/86a16a20ee1327740316005b7946b8264fa70a19).
 - **Affected code paths (examples):** `lib/core/downloads/sidecar`, `lib/core/bulk_downloads/src/providers/bulk_download_notifier.dart`.
 - **Confirmed merge conflicts in:** `lib/core/bulk_downloads/src/providers/bulk_download_notifier.dart`.
 
 ### D02 · Bulk Download Finalization and Notifications
 
-**Status:** **APPROVED** (2026-10-16; implementation pending). **Risk:** Critical.
+**Status:** **APPROVED** (2026-10-15; implementation pending). **Risk:** Critical.
 
 - **Approved resolution (summary):** Use final upstream completion logic with serial session checks, tolerant size errors, final stats before cleanup and bounded completion history; preserve fork lifecycle and idempotent recovery.
 - **Upstream change:** Temporarily reverts earlier deterministic session finalization and later rebuilds completion and notification handling around Futures.
 - **Fork divergence / merge hazard:** The fork contains the earlier fix upstream reverted, plus fork lifecycle guards; implementations differ on race handling/cleanup.
 - **Original review question:** Which completion algorithm guarantees correct final statistics and notification visibility through cleanup?
-- **Binding decision, migration conditions and tests:** [D02](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [D02](decisions.md#d02--bulk-download-finalization-and-notifications). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`ebdfb05d9`](https://github.com/khoadng/Boorusama/commit/ebdfb05d9bec5be5c6fd6dd3e5460cea8ce1e1a1), [`54b19cd4c`](https://github.com/khoadng/Boorusama/commit/54b19cd4cf77b3a75579a2b27aeccc1b1dc56ef5).
 - **Affected code paths (examples):** `lib/core/bulk_downloads/src/providers/bulk_download_notifier.dart`, `lib/core/download_activity`.
 - **Confirmed merge conflicts in:** `lib/core/bulk_downloads/src/providers/bulk_download_notifier.dart`.
@@ -378,7 +378,7 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** Updates the pinned Git revision of the background downloader plugin while retaining package v9.6.1.
 - **Fork divergence / merge hazard:** The fork uses Cronet and its own durable download/notification services.
 - **Original review question:** Is the new commit compatible with fork Flutter/Cronet/APK configuration?
-- **Binding decision, migration conditions and tests:** [D03](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [D03](decisions.md#d03--background-downloader-plugin-update). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`669b8019f`](https://github.com/khoadng/Boorusama/commit/669b8019f80eaf8d0f40e268bbf8a29dc0808ddf).
 - **Affected code paths (examples):** `pubspec.lock`, `pubspec_overrides.yaml`.
 
@@ -390,7 +390,7 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** Introduces a testable DownloadTaskClient interface and copies task lists before state updates to prevent mutation of existing snapshots.
 - **Fork divergence / merge hazard:** The fork has its own download manager and download activity behavior.
 - **Original review question:** Migrate the whole test boundary or only the state-mutation fix?
-- **Binding decision, migration conditions and tests:** [D04](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [D04](decisions.md#d04--download-manager-injectable-task-client-and-snapshot-fix). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`bd2e22c22`](https://github.com/khoadng/Boorusama/commit/bd2e22c221bcfb1a8c8c0675afbab6763a3102c9), [`90657ee4e`](https://github.com/khoadng/Boorusama/commit/90657ee4ed73f9a4bf7f2277ed1750e2f8b5d4ff).
 - **Affected code paths (examples):** `lib/core/download_manager`.
 
@@ -402,7 +402,7 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** Enables Anime-Pictures bulk downloading with conservative API/download-link request pacing.
 - **Fork divergence / merge hazard:** The fork has customized Anime-Pictures clients and download URL extraction.
 - **Original review question:** How should the upstream quota model interact with fork-wide rate limits and download behavior?
-- **Binding decision, migration conditions and tests:** [D05](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [D05](decisions.md#d05--anime-pictures-bulk-downloads-and-request-pacing). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`c5b79488c`](https://github.com/khoadng/Boorusama/commit/c5b79488c8d90b624cb17e8452d3b17e099be88f).
 - **Affected code paths (examples):** `lib/boorus/anime-pictures/client_provider.dart`, `packages/booru_clients/lib/src/anime-pictures`.
 
@@ -414,7 +414,7 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** Re-enables Zerochan bulk downloads and adds explicit download URL/quality resolution.
 - **Fork divergence / merge hazard:** The fork has custom Zerochan parsers/downloads but lacks the new bulk URL extractor modules.
 - **Original review question:** Which qualities, redirects and authentication cases must be supported?
-- **Binding decision, migration conditions and tests:** [D06](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [D06](decisions.md#d06--zerochan-bulk-downloads-and-url-resolution). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`50980b8da`](https://github.com/khoadng/Boorusama/commit/50980b8da1368aa39a44051c78dee12dd4dff2ce).
 - **Affected code paths (examples):** `lib/boorus/zerochan`, `packages/booru_clients/lib/src/zerochan`.
 
@@ -426,7 +426,7 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** Preserves genuine sitePostId in exports for non-numeric identifiers, alongside a Sankaku suggestion fix.
 - **Fork divergence / merge hazard:** The fork uses separate PostOrigin, stored post snapshots and BookmarkIdentity; the upstream schema cannot be copied unchanged.
 - **Original review question:** Where is the genuine source ID derived, persisted and exported?
-- **Binding decision, migration conditions and tests:** [D07](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [D07](decisions.md#d07--preserve-original-site-post-ids-in-exports-instead-of-only-numeric-ids). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`216eb6e6d`](https://github.com/khoadng/Boorusama/commit/216eb6e6d43cef2581a110b66a8f1482d110e7b9).
 - **Affected code paths (examples):** `lib/core/posts/post/src/types/post.dart`, `lib/core/bookmarks/src/types/bookmark.dart`.
 - **Confirmed merge conflicts in:** `lib/core/bookmarks/src/types/bookmark.dart`, `lib/core/posts/post/src/types/post.dart`.
@@ -439,7 +439,7 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** Reads all favorite tags directly from persistent repository storage instead of an uninitialized UI provider.
 - **Fork divergence / merge hazard:** The fork has extended backup/import/export flows and separate tag repositories.
 - **Original review question:** Should all applicable full backup and fork export paths use persistent reads?
-- **Binding decision, migration conditions and tests:** [D08](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [D08](decisions.md#d08--export-favorite-tags-directly-from-storage). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`f93bdf0dd`](https://github.com/khoadng/Boorusama/commit/f93bdf0dd42c5eb0e8165d9070310a2aebfa32c1).
 - **Affected code paths (examples):** `lib/core/backups/sources/favorite_tags_source.dart`.
 
@@ -453,7 +453,7 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** Adds distinct Sankaku metatag categories, suggestions and syntax highlighting.
 - **Fork divergence / merge hazard:** The fork is redesigning tag search and site-independent search abstractions and owns search bar code.
 - **Original review question:** Which metatags belong in shared Search Options versus Sankaku-specific adapters?
-- **Binding decision, migration conditions and tests:** [B01](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [B01](decisions.md#b01--sankaku-metatags-syntax-highlighting-and-typed-suggestions). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`216eb6e6d`](https://github.com/khoadng/Boorusama/commit/216eb6e6d43cef2581a110b66a8f1482d110e7b9), [`2569eaeeb`](https://github.com/khoadng/Boorusama/commit/2569eaeeb6ea01ea35386ffc8bab858dcbd1d75d).
 - **Affected code paths (examples):** `lib/boorus/sankaku/tags/metatags.dart`, `lib/boorus/sankaku/search/tag_query_composer.dart`.
 
@@ -465,7 +465,7 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** Improves Sankaku exclusion error messages and converts a single date to an API-compatible day range.
 - **Fork divergence / merge hazard:** The fork modifies search syntax parsing/composition.
 - **Original review question:** Normalize at the site API boundary or inside the shared search abstraction?
-- **Binding decision, migration conditions and tests:** [B02](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [B02](decisions.md#b02--normalize-sankaku-exclusion-and-date-filters). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`18216f412`](https://github.com/khoadng/Boorusama/commit/18216f4123586634f0756e7d5b20673638711766), [`6ad672075`](https://github.com/khoadng/Boorusama/commit/6ad672075306e5621a4dde519ad124da0b19f8cb).
 - **Affected code paths (examples):** `lib/boorus/sankaku`.
 
@@ -477,7 +477,7 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** Parses all Sankaku tag categories and deduplicates tags during post mapping.
 - **Fork divergence / merge hazard:** The fork has expanded tag and post data models with only partial parity.
 - **Original review question:** How do category values map to the fork's tag colors and groups?
-- **Binding decision, migration conditions and tests:** [B03](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [B03](decisions.md#b03--preserve-all-sankaku-tag-categories-and-remove-duplicates). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`d0fde834a`](https://github.com/khoadng/Boorusama/commit/d0fde834a413658bb50db150636c481c88a88222), [`396ae059e`](https://github.com/khoadng/Boorusama/commit/396ae059e9e5576aa0172df7fabf823963c03e92).
 - **Affected code paths (examples):** `lib/boorus/sankaku/posts/parser.dart`, `lib/boorus/sankaku/tags`.
 - **Confirmed merge conflicts in:** `lib/boorus/sankaku/posts/parser.dart`.
@@ -490,7 +490,7 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** Preserves HTTP options during Sankaku API header merges, validates auth responses and handles expired sessions/login errors.
 - **Fork divergence / merge hazard:** The fork has its own profile/auth model and extra favorite integrations.
 - **Original review question:** When is automatic recovery safe, and when must the user reauthenticate?
-- **Binding decision, migration conditions and tests:** [B04](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [B04](decisions.md#b04--sankaku-authentication-api-headers-invalid-credentials-session-recovery). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`829ec71fb`](https://github.com/khoadng/Boorusama/commit/829ec71fbaedbc60fff7d98fe1b40c494a130ebe), [`6ad691a6d`](https://github.com/khoadng/Boorusama/commit/6ad691a6de23d8a44c46d02bf3640997dbb618f4), [`6762d00f2`](https://github.com/khoadng/Boorusama/commit/6762d00f2e4ac6efc99bf969bd15a335f6767437), [`8757eb295`](https://github.com/khoadng/Boorusama/commit/8757eb2953d41716bc7c8fb3a028b71fb3f03e2c).
 - **Affected code paths (examples):** `packages/booru_clients/lib/src/sankaku/sankaku_client.dart`, `lib/boorus/sankaku/sankaku_repository.dart`.
 - **Confirmed merge conflicts in:** `lib/boorus/sankaku/sankaku_repository.dart`, `packages/booru_clients/lib/src/sankaku/sankaku_client.dart`.
@@ -503,7 +503,7 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** Converts API tag-limit error codes into understandable messages.
 - **Fork divergence / merge hazard:** The fork has its own search error and localization layer.
 - **Original review question:** How should site errors appear in the fork's error UI?
-- **Binding decision, migration conditions and tests:** [B05](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [B05](decisions.md#b05--explain-sankaku-search-limits). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`5b495f1ad`](https://github.com/khoadng/Boorusama/commit/5b495f1adec13643ee83307bb2b68eb0272766b2).
 - **Affected code paths (examples):** `lib/boorus/sankaku/errors/error_translator.dart`.
 
@@ -515,7 +515,7 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** Improves Shimmie2 file extension detection and Favorite state resolution while allowing listings when Favorite API fails.
 - **Fork divergence / merge hazard:** The fork has customized Shimmie2 client/parsing and favorites.
 - **Original review question:** Which errors should be soft failures versus actionable auth errors?
-- **Binding decision, migration conditions and tests:** [B06](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [B06](decisions.md#b06--shimmie2-media-formats-and-favorite-fallback). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`2d4f8484b`](https://github.com/khoadng/Boorusama/commit/2d4f8484ba62db8e5c5386825934b1bcc30455cf), [`d79ef1fcc`](https://github.com/khoadng/Boorusama/commit/d79ef1fcc9f59b07933e76681b6c033e12327460).
 - **Affected code paths (examples):** `lib/boorus/shimmie2`, `packages/booru_clients/lib/src/shimmie2`.
 
@@ -527,7 +527,7 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** Adds comment upvotes (no downvotes) and cursor-based comment navigation in Gelbooru v2 clients.
 - **Fork divergence / merge hazard:** The fork has custom comment/post context and Rule34-specific Gelbooru v2 behavior.
 - **Original review question:** Which sites support authenticated comment voting and how should capability checks work?
-- **Binding decision, migration conditions and tests:** [B07](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [B07](decisions.md#b07--gelbooru-v2-comment-upvotes-and-cursor-pagination). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`f459e9922`](https://github.com/khoadng/Boorusama/commit/f459e99220e4ac5b449c033d1d60a0b672ea2b58).
 - **Affected code paths (examples):** `lib/boorus/gelbooru_v2/comments`, `packages/booru_clients/lib/src/gelbooru_v2`.
 
@@ -539,7 +539,7 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** Adds server/client comment sort options depending on site API variant.
 - **Fork divergence / merge hazard:** The fork has its own Gelbooru v2 comment provider.
 - **Original review question:** Which modes are displayed, and should the selection persist per profile?
-- **Binding decision, migration conditions and tests:** [B08](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [B08](decisions.md#b08--gelbooru-v2-comment-sorting). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`43619dd49`](https://github.com/khoadng/Boorusama/commit/43619dd495d5cb79425845521f0a0e0de030670d).
 - **Affected code paths (examples):** `lib/boorus/gelbooru_v2/comments`, `packages/booru_clients`.
 
@@ -551,7 +551,7 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** Derives tag counts from Nozomi index sizes rather than search buckets and sends Accept-Encoding: identity on range requests.
 - **Fork divergence / merge hazard:** The fork already supports Nozomi with a customized client.
 - **Original review question:** Can this change be adapted directly while preserving existing client behavior?
-- **Binding decision, migration conditions and tests:** [B09](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [B09](decisions.md#b09--nozomi-tag-counts-and-http-range-encoding). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`7880a020f`](https://github.com/khoadng/Boorusama/commit/7880a020fc7ba968351ee5256d3685c347d4eca0), [`5a4498f78`](https://github.com/khoadng/Boorusama/commit/5a4498f78dbce67aa43c0d3d01c4fc8d31784a23).
 - **Affected code paths (examples):** `packages/booru_clients/lib/src/nozomi`.
 
@@ -563,7 +563,7 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** Overrides Rule34 post-list requests to https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1.
 - **Fork divergence / merge hazard:** The fork still uses rule34.xxx for listings and has specialized 403 challenge handling.
 - **Original review question:** Which host is reliable and how do auth cookies, filters, and profile isolation behave?
-- **Binding decision, migration conditions and tests:** [B10](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [B10](decisions.md#b10--rule34-json-post-api-at-apirule34xxx). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`5972548ec`](https://github.com/khoadng/Boorusama/commit/5972548ecd6e32622b8476776490251d61d6a099).
 - **Affected code paths (examples):** `packages/booru_clients/boorus.yaml`.
 - **Confirmed merge conflicts in:** `packages/booru_clients/boorus.yaml`.
@@ -578,7 +578,7 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** Adds primary and secondary per-profile thumbnail actions with adaptive layout.
 - **Fork divergence / merge hazard:** The fork supports one quick action and custom overlays, selection and planned Series grouping.
 - **Original review question:** Which actions/positions are shown during selection, hover and grouped cards?
-- **Binding decision, migration conditions and tests:** [P01](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [P01](decisions.md#p01--two-quick-actions-on-post-thumbnails). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`26ad35202`](https://github.com/khoadng/Boorusama/commit/26ad352026bb4187e399dfab422c76427aca8655).
 - **Affected code paths (examples):** `lib/core/configs/listing`, `lib/core/posts/listing/src/widgets/default_image_quick_actions.dart`.
 
@@ -590,7 +590,7 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** Handles unknown action values and invalid media-host rules defensively instead of rejecting entire profiles.
 - **Fork divergence / merge hazard:** The fork adds profile UUIDs, import remapping and custom validation.
 - **Original review question:** Which option errors can be tolerated, and how should import warnings appear?
-- **Binding decision, migration conditions and tests:** [P02](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [P02](decisions.md#p02--preserve-profiles-with-unknown-thumbnail-actions-or-media-host-rules). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`1d8c879f4`](https://github.com/khoadng/Boorusama/commit/1d8c879f406d54df86c25d334ace0ada98846886).
 - **Affected code paths (examples):** `lib/core/configs/config/src/types/booru_config.dart`, `lib/core/configs/listing/src/types/thumbnail_actions.dart`.
 
@@ -602,7 +602,7 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** First restored tap-to-retry for custom image errors, then reverted generic implicit retry gestures.
 - **Fork divergence / merge hazard:** The fork uses custom error UI and a shared cache/progressive image loader.
 - **Original review question:** Should retries use whole-image tapping or a dedicated visible control?
-- **Binding decision, migration conditions and tests:** [P03](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [P03](decisions.md#p03--retry-failed-images-using-targeted-error-controls). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`afdff42e3`](https://github.com/khoadng/Boorusama/commit/afdff42e344a585439bef34893bc2cbaa8e706df), [`58e4a0607`](https://github.com/khoadng/Boorusama/commit/58e4a06075faa8c07d8129dfdfa19156a4981a50).
 - **Affected code paths (examples):** `packages/extended_image/lib/src/extended_image.dart`.
 - **Confirmed merge conflicts in:** `packages/extended_image/lib/src/extended_image.dart`.
@@ -615,7 +615,7 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** Retains refresh requests while grid data fetches run, then applies the latest results.
 - **Fork divergence / merge hazard:** The fork has prefetch, adaptive scheduling and Following feeds with a custom queued controller.
 - **Original review question:** How should manual refresh and automatic feeds share the current request scheduler?
-- **Binding decision, migration conditions and tests:** [P04](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [P04](decisions.md#p04--preserve-grid-refresh-requests-during-fetches). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`828ddbdb7`](https://github.com/khoadng/Boorusama/commit/828ddbdb75afd02fe14cf8182774a3ef67c9128f).
 - **Affected code paths (examples):** `lib/core/posts/listing/src/widgets/post_grid_controller.dart`.
 - **Confirmed merge conflicts in:** `lib/core/posts/listing/src/widgets/post_grid_controller.dart`.
@@ -628,7 +628,7 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** Adds a listener to refresh the visible bookmark list after mutations.
 - **Fork divergence / merge hazard:** The fork already has groups/default group/Undo and asynchronous library services plus its own refresh gate.
 - **Original review question:** Reuse existing change/selection events rather than install a duplicate listener?
-- **Binding decision, migration conditions and tests:** [P05](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [P05](decisions.md#p05--refresh-bookmark-library-after-bookmark-mutation). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`3f4ce2bd4`](https://github.com/khoadng/Boorusama/commit/3f4ce2bd4f0f94c116b2262fa9418809710278a8).
 - **Affected code paths (examples):** `lib/core/bookmarks/src/widgets/bookmark_scroll_view.dart`.
 - **Confirmed merge conflicts in:** `lib/core/bookmarks/src/widgets/bookmark_scroll_view.dart`.
@@ -641,7 +641,7 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** Makes GIF autoplay setting apply to alternative image quality selections.
 - **Fork divergence / merge hazard:** The fork separates grid and viewer qualities and provides GIF export/trim tools.
 - **Original review question:** How should the fix integrate with fork-specific quality resolvers and the 5 MiB cap?
-- **Binding decision, migration conditions and tests:** [P06](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [P06](decisions.md#p06--gif-autoplay-respects-quality-settings). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`e4d645630`](https://github.com/khoadng/Boorusama/commit/e4d6456309c93f050b3a5d311ea4e2a60e0a7663).
 - **Affected code paths (examples):** `lib/core/posts`, `lib/boorus`.
 
@@ -653,7 +653,7 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** Keeps the video placeholder visible until a frame has been rendered by the player.
 - **Fork divergence / merge hazard:** The fork has its own video thumbnails and viewer transitions.
 - **Original review question:** Which thumbnail and fade source should be used until the first frame?
-- **Binding decision, migration conditions and tests:** [P07](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [P07](decisions.md#p07--keep-video-thumbnail-until-first-rendered-frame). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`2003c0c1e`](https://github.com/khoadng/Boorusama/commit/2003c0c1eb2cf6b3ef0939b33adf1b575fcae8f9).
 - **Affected code paths (examples):** `lib/core/videos/player/src/widgets/video_player.dart`.
 
@@ -665,7 +665,7 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** Plays cached video files directly through WebView and cleans up temporary pages.
 - **Fork divergence / merge hazard:** The fork has a separate video cache, shared image cache and custom viewer gesture logic.
 - **Original review question:** How are file usage lifetime and eviction coordinated?
-- **Binding decision, migration conditions and tests:** [P08](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [P08](decisions.md#p08--webview-video-playback-from-cached-file-and-cleanup-protection). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`f3d8acaa0`](https://github.com/khoadng/Boorusama/commit/f3d8acaa0a765b6d2957ddd36f68a1aa944fa328), [`0f71409de`](https://github.com/khoadng/Boorusama/commit/0f71409dea3775ae1dd033bcf7fc27bb008888a0).
 - **Affected code paths (examples):** `lib/core/videos/engines`, `lib/core/videos/cache`.
 
@@ -677,7 +677,7 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** Vendors a Flutter 3.47.2 InteractiveViewer to avoid capturing page swipes on unzoomed images.
 - **Fork divergence / merge hazard:** The fork implements custom zoom, edge-drag, swipe and Original-on-Zoom gestures.
 - **Original review question:** Which gesture wins at zoom 1x, zoom >1x, edge-drag and selection?
-- **Binding decision, migration conditions and tests:** [P09](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [P09](decisions.md#p09--kurumi-interactiveviewer-image-pan-vs-page-swipe). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`62e36f7e5`](https://github.com/khoadng/Boorusama/commit/62e36f7e5c7d40a3b5daa383a7c67ca420cb1cd3), [`c6b25213c`](https://github.com/khoadng/Boorusama/commit/c6b25213c3478abedf5c82c41dd9dd92a93a1bbe).
 - **Affected code paths (examples):** `packages/kurumi/lib/src/components/interactive_viewer.dart`, `lib/core/posts/details_pageview`.
 - **Confirmed merge conflicts in:** `packages/kurumi/lib/src/components/interactive_viewer.dart`.
@@ -690,7 +690,7 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** Marks volume keys handled while using them for post viewer navigation.
 - **Fork divergence / merge hazard:** The fork has its own viewer gestures and volume key setting.
 - **Original review question:** Should system volume be affected only when viewer navigation is active?
-- **Binding decision, migration conditions and tests:** [P10](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [P10](decisions.md#p10--consume-volume-keys-correctly-in-the-post-viewer). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`de755c0d2`](https://github.com/khoadng/Boorusama/commit/de755c0d20570d4c9e2c6d4b718517514178af44).
 - **Affected code paths (examples):** `lib/core/posts/details/src/widgets/volume_key_page_navigator.dart`.
 
@@ -702,7 +702,7 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** Makes video time labels flexible and adds hardware Media Play/Pause handling.
 - **Fork divergence / merge hazard:** The fork has custom post toolbar and player engines.
 - **Original review question:** How are the upstream controls and keys routed through fork player controls?
-- **Binding decision, migration conditions and tests:** [P11](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [P11](decisions.md#p11--video-controls-time-overflow-and-media-playpause-keys). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`c65a81074`](https://github.com/khoadng/Boorusama/commit/c65a81074f123eed5efbe368a8a44985dd8340cf), [`72bafb43d`](https://github.com/khoadng/Boorusama/commit/72bafb43d3e5063749ce663277201b01ea644a54).
 - **Affected code paths (examples):** `lib/core/posts/details/src/widgets/video_controls.dart`, `lib/core/posts/details/src/widgets/post_details_controller.dart`.
 
@@ -714,7 +714,7 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** Moves hover preview from whole thumbnail to Info badge, closes it on keypress and repairs long press/right click menus.
 - **Fork divergence / merge hazard:** The fork has hold-and-drag selection, context menus and customized grid cards.
 - **Original review question:** Where should the badge appear with two quick actions or Series cards?
-- **Binding decision, migration conditions and tests:** [P12](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [P12](decisions.md#p12--hover-preview-opens-only-from-info-badge-preserve-long-press). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`e04b3bfd1`](https://github.com/khoadng/Boorusama/commit/e04b3bfd186e8b5b88ab704189e23178ae26d098), [`5da94c1df`](https://github.com/khoadng/Boorusama/commit/5da94c1dfa6a39ef34c21c6ba1d171267ee06928), [`5feaa3dcf`](https://github.com/khoadng/Boorusama/commit/5feaa3dcf0a5069afab3f95594b3935fe08f7150).
 - **Affected code paths (examples):** `lib/core/posts/listing/src/widgets/post_preview.dart`, `lib/core/posts/listing/src/_internal/raw_post_grid.dart`.
 
@@ -726,7 +726,7 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** Replaces old context menus with Kurumi and adjusts popup sizing in the tag cloud.
 - **Fork divergence / merge hazard:** The fork extends CustomContextMenuOverlay, bookmark group/Following actions and menu dismiss behavior.
 - **Original review question:** How can Kurumi be one menu system without losing fork actions or shortcuts?
-- **Binding decision, migration conditions and tests:** [P13](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [P13](decisions.md#p13--migrate-posttag-context-menus-to-kurumi). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`8ca15fcff`](https://github.com/khoadng/Boorusama/commit/8ca15fcff2e461488bc4ced314700196d421deb5), [`1e480b775`](https://github.com/khoadng/Boorusama/commit/1e480b7751a359931c53057e86a42ff56a1c6672).
 - **Affected code paths (examples):** `lib/core/posts/post/src/context_menu.dart`, `lib/core/widgets/custom_context_menu_overlay.dart`, `packages/kurumi/lib/src/components/context_menu.dart`.
 - **Confirmed merge conflicts in:** `packages/kurumi/lib/src/components/context_menu.dart`.
@@ -739,7 +739,7 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** Makes small interactive thumbnail overlays keyboard reachable.
 - **Fork divergence / merge hazard:** The fork owns thumbnail actions and post selection behavior.
 - **Original review question:** What is the focus order for a tile with up to two quick actions?
-- **Binding decision, migration conditions and tests:** [P14](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [P14](decisions.md#p14--keyboard-focus-on-quick-favoritebookmark-buttons). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`d1047aa89`](https://github.com/khoadng/Boorusama/commit/d1047aa890c64b3baa575e0ca16f50b4724e6826).
 - **Affected code paths (examples):** `lib/core/posts/listing`, `packages/kurumi/lib/src/components`.
 
@@ -753,7 +753,7 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** Improves search layout and suggestion overlays when the software keyboard is open.
 - **Fork divergence / merge hazard:** The fork is building a compact search bar, per-term Raw Editor and tag suggestions.
 - **Original review question:** How should suggestions and Raw Editor behave with very little screen height?
-- **Binding decision, migration conditions and tests:** [U01](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [U01](decisions.md#u01--keep-search-usable-above-the-software-keyboard). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`a00d41f3a`](https://github.com/khoadng/Boorusama/commit/a00d41f3a7a1e81954e718ab1144183426a1ab89).
 - **Affected code paths (examples):** `lib/core/search/search/src/widgets/search_page_scaffold.dart`, `lib/core/search/search/src/widgets/booru_search_bar.dart`.
 - **Confirmed merge conflicts in:** `lib/core/search/search/src/widgets/search_page_scaffold.dart`.
@@ -766,7 +766,7 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** Allows Search History sheet to use available full height and adds a journey test.
 - **Fork divergence / merge hazard:** The fork adds Pinned Searches and Following and is redesigning search.
 - **Original review question:** What sheet size/entry point fits the new Search bar?
-- **Binding decision, migration conditions and tests:** [U02](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [U02](decisions.md#u02--search-history-as-a-full-height-sheet-and-tests). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`e53cdf3b3`](https://github.com/khoadng/Boorusama/commit/e53cdf3b31560cd4607431381b316b8e29349b11), [`3726d75c7`](https://github.com/khoadng/Boorusama/commit/3726d75c7eb14ea170e06e497b09198f4a9c4c71).
 - **Affected code paths (examples):** `lib/core/search/histories`, `test/application/search_history_flow_test.dart`.
 
@@ -778,7 +778,7 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** Uses one focus ring around search, keyboard highlights suggestions, blocks leaked keys to hidden pages and adds raw-query flow tests.
 - **Fork divergence / merge hazard:** The fork plans shared tag/metatag suggestions and individual editable search chips.
 - **Original review question:** Should Up/Down/Enter/Escape behavior match on phone and desktop?
-- **Binding decision, migration conditions and tests:** [U03](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [U03](decisions.md#u03--keyboard-highlight-and-selection-for-tag-suggestions). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`f7174bab4`](https://github.com/khoadng/Boorusama/commit/f7174bab405360103c48659b1c5bb72cbcd2bd61), [`e1ad37e1e`](https://github.com/khoadng/Boorusama/commit/e1ad37e1eddbb12106930e2ec983536863b5511b), [`7f5693c84`](https://github.com/khoadng/Boorusama/commit/7f5693c847ea0a88acb1fd12ff05057e0a6e5bb5).
 - **Affected code paths (examples):** `lib/core/search/search`, `packages/kurumi/lib/src/components/search_bar.dart`.
 
@@ -790,7 +790,7 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** Adds directional focus, focus rings, accessible dialogs/menus/layout manager/original viewer and keyboard/TV flow tests.
 - **Fork divergence / merge hazard:** The fork targets touch/mobile and has its own pane/sidebar navigation.
 - **Original review question:** Official TV support or best effort, and when are focus rings shown?
-- **Binding decision, migration conditions and tests:** [U04](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [U04](decisions.md#u04--app-wide-d-pad-and-keyboard-navigation). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`e80eb1210`](https://github.com/khoadng/Boorusama/commit/e80eb1210a2327dfae4eba4866a1e7cfe472dfd8), [`00feb4d99`](https://github.com/khoadng/Boorusama/commit/00feb4d9923b49a931b7b0a24a9ac6f262214cc0), [`1e3b00c3a`](https://github.com/khoadng/Boorusama/commit/1e3b00c3a8e9c9cc43b947bb42501c2e33b30bf0), [`41d0121ce`](https://github.com/khoadng/Boorusama/commit/41d0121cee07c3533042f86e0b256663a9f7134d), [`7895ce70e`](https://github.com/khoadng/Boorusama/commit/7895ce70e7b520ddd8cefe3ef640de3679ee4fde).
 - **Affected code paths (examples):** `packages/kurumi/lib/src/components/focus_ring.dart`, `lib/core/app.dart`.
 - **Confirmed merge conflicts in:** `lib/core/app.dart`.
@@ -803,7 +803,7 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** Improves pane Tab order, focus-ring input modality, visible Explore/Viewer targets, arrow traversal and mouse focus updates.
 - **Fork divergence / merge hazard:** The fork has custom sidebar, settings and viewer navigation.
 - **Original review question:** Which FocusScopes make sense around sidebar, profiles, search, posts and dialogs?
-- **Binding decision, migration conditions and tests:** [U05](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [U05](decisions.md#u05--desktop-tab-order-and-focus-boundaries). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`a555bbb3d`](https://github.com/khoadng/Boorusama/commit/a555bbb3db20d9b8c29c3c1b7d87c2b0d8546d20), [`e95a71f85`](https://github.com/khoadng/Boorusama/commit/e95a71f85d7982a797a89b0879a42e1c55d46253), [`5f57df699`](https://github.com/khoadng/Boorusama/commit/5f57df699e940fb8256aa74bdac46d2979246141), [`58254b441`](https://github.com/khoadng/Boorusama/commit/58254b441040ec4c6187018a46c4366511e3e7f0), [`84286ddc1`](https://github.com/khoadng/Boorusama/commit/84286ddc1e3da8e7cae71783c5e21641015635ae), [`d7041c4d4`](https://github.com/khoadng/Boorusama/commit/d7041c4d42b3470c45ab4ed29bbe1e3e73093aa8), [`f31f551be`](https://github.com/khoadng/Boorusama/commit/f31f551bedd31b2c75fcddf354e682b07bae5e69).
 - **Affected code paths (examples):** `packages/kurumi`, `lib/core/posts`, `lib/core/settings`.
 
@@ -815,7 +815,7 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** Closes anchored menus with Escape, highlights keyboard-selected menu rows and dismisses the innermost Kurumi layer first.
 - **Fork divergence / merge hazard:** The fork uses custom context menus, navigation and multiselection.
 - **Original review question:** What is the popup → sheet → search → selection → screen priority with Android Back?
-- **Binding decision, migration conditions and tests:** [U06](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [U06](decisions.md#u06--escape-handling-menu-selection-and-layer-hierarchy). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`3ff8b054e`](https://github.com/khoadng/Boorusama/commit/3ff8b054e558c77fd94a0419b33526d7e6d9c829), [`b925a581b`](https://github.com/khoadng/Boorusama/commit/b925a581bd361ca710d27a3e95c1eb315f9be62f), [`2d6d9f6e6`](https://github.com/khoadng/Boorusama/commit/2d6d9f6e6dacf60a52f8d0b62e7d27b8318b707c), [`76a8485de`](https://github.com/khoadng/Boorusama/commit/76a8485de122438d3f70c74de5c69bd1c8ea8987).
 - **Affected code paths (examples):** `packages/kurumi/lib/src/components/popup_menu.dart`, `lib/core/router.dart`.
 - **Confirmed merge conflicts in:** `packages/kurumi/lib/src/components/popup_menu.dart`.
@@ -828,7 +828,7 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** Uses a dialog for favorite-tag editing on wide screens and a bottom sheet on phones.
 - **Fork divergence / merge hazard:** The fork already extends Favorite Tag management with label actions.
 - **Original review question:** Which breakpoints/modals fit existing fork design?
-- **Binding decision, migration conditions and tests:** [U07](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [U07](decisions.md#u07--favorite-tags-editor-as-dialog-on-large-screens). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`20e750618`](https://github.com/khoadng/Boorusama/commit/20e750618847bbb0a84391cca0b2440667ab18e7).
 - **Affected code paths (examples):** `lib/core/tags/favorites/src/pages/edit_favorite_tag_sheet.dart`.
 
@@ -840,7 +840,7 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 - **Upstream change:** Updates hover-preview tests and removes fragile timing assumptions in bulk dry-run tests.
 - **Fork divergence / merge hazard:** The fork already has deterministic test/runner improvements.
 - **Original review question:** How should these test intentions fit new UI and controlled clocks?
-- **Binding decision, migration conditions and tests:** [U08](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [U08](decisions.md#u08--update-regression-tests-and-remove-timing-flakiness). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`71b41b8a0`](https://github.com/khoadng/Boorusama/commit/71b41b8a0f5574975f1cae673ac9cedde5b594ed).
 - **Affected code paths (examples):** `test/application`, `test/bulk_downloads`.
 
@@ -848,51 +848,51 @@ Each catalog entry retains the historical upstream change, fork divergence, revi
 
 ### X01 · Bookmark Hive Field Index / Original Site Post ID
 
-**Status:** **APPROVED** (2026-10-16; implementation pending). **Risk:** Critical.
+**Status:** **APPROVED** (2026-10-15; implementation pending). **Risk:** Critical.
 
 - **Approved resolution (summary):** Retain fork Hive fields 15=snapshotSchemaVersion, 16=postSnapshot; derive genuine site IDs rather than adopting upstream's incompatible index-15 string field.
 - **Upstream change:** Introduces BookmarkHiveObject.sitePostId at **Hive field index 15**.
 - **Fork divergence / merge hazard:** The fork already uses index 15 for snapshotSchemaVersion and index 16 for postSnapshot; upstream's generated adapter cannot be copied unchanged.
 - **Original review question:** How can true IDs be exposed without breaking stored bookmark formats?
-- **Binding decision, migration conditions and tests:** [X01](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [X01](decisions.md#x01--bookmark-hive-field-index--original-site-post-id). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`216eb6e6d`](https://github.com/khoadng/Boorusama/commit/216eb6e6d43cef2581a110b66a8f1482d110e7b9).
 - **Affected code paths (examples):** `lib/core/bookmarks/src/data/hive/bookmark_hive_object.dart`, `lib/core/hive/hive_adapters.g.yaml`.
 - **Confirmed merge conflicts in:** `lib/core/bookmarks/src/data/hive/bookmark_hive_object.dart`, `lib/core/hive/hive_adapters.g.yaml`.
 
 ### X02 · Post Identity/Origin versus Upstream sitePostId
 
-**Status:** **APPROVED** (2026-10-16; implementation pending). **Risk:** Critical.
+**Status:** **APPROVED** (2026-10-15; implementation pending). **Risk:** Critical.
 
 - **Approved resolution (summary):** Provide a nullable genuine Post.sitePostId, including alphanumeric Sankaku and original Pixiv IDs; never confuse synthetic app IDs with site IDs, and preserve fork origin/snapshot/identity.
 - **Upstream change:** Adds a source-specific sitePostId getter to Post and exports the value.
 - **Fork divergence / merge hazard:** The fork uses PostOrigin, StoredPostSnapshot, BookmarkIdentity, profile UUIDs and one unified post pipeline.
 - **Original review question:** How should original site ID interact with persistent identity without conflating different sites?
-- **Binding decision, migration conditions and tests:** [X02](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [X02](decisions.md#x02--post-identityorigin-versus-upstream-sitepostid). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`216eb6e6d`](https://github.com/khoadng/Boorusama/commit/216eb6e6d43cef2581a110b66a8f1482d110e7b9).
 - **Affected code paths (examples):** `lib/core/posts/post/src/types/post.dart`, `lib/core/posts/post/src/types/post_origin.dart`.
 - **Confirmed merge conflicts in:** `lib/core/posts/post/src/types/post.dart`.
 
 ### X03 · Preserve Fork Export/Import, Profile UUIDs and Following
 
-**Status:** **APPROVED** (2026-10-16; implementation pending). **Risk:** Critical.
+**Status:** **APPROVED** (2026-10-15; implementation pending). **Risk:** Critical.
 
 - **Approved resolution (summary):** Keep fork profiles/UUIDs, backup/import, BookmarkIdentity, post snapshots, nested bookmark/pinned-search folders, Following, refresh and recovery gates; adopt only compatible upstream test seams.
 - **Upstream change:** Changes app initialization, backup sources and bookmark providers alongside new tests.
 - **Fork divergence / merge hazard:** The fork has redesigned backup/import, UUID profiles, nested bookmark/pinned-search folders and Following feeds.
 - **Original review question:** Which upstream resolutions must never replace these fork-only features?
-- **Binding decision, migration conditions and tests:** [X03](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [X03](decisions.md#x03--preserve-fork-exportimport-profile-uuids-and-following). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`a3278c5d2`](https://github.com/khoadng/Boorusama/commit/a3278c5d2ecc3672fea63c68fb21c81a1db2bb07), [`3f4ce2bd4`](https://github.com/khoadng/Boorusama/commit/3f4ce2bd4f0f94c116b2262fa9418809710278a8), [`f93bdf0dd`](https://github.com/khoadng/Boorusama/commit/f93bdf0dd42c5eb0e8165d9070310a2aebfa32c1).
 - **Affected code paths (examples):** `lib/core/backups/export_import`, `lib/core/search/subscriptions`, `lib/core/configs`, `lib/core/bookmarks`.
 
 ### X04 · Shared Post/Image Cache and Download Lifecycle
 
-**Status:** **APPROVED** (2026-10-16; implementation pending). **Risk:** Critical.
+**Status:** **APPROVED** (2026-10-15; implementation pending). **Risk:** Critical.
 
 - **Approved resolution (summary):** Remove image-cache generations but retain URL-MD5, origin isolation, LRU, quotas, journal/checkpoints and safe parallel writes; copy images to OS temporary space for sharing.
 - **Upstream change:** Changes media hosts, download, video/cache, post refresh and image components.
 - **Fork divergence / merge hazard:** The fork has a persistent shared LRU cache, checkpoints, origin isolation and custom download observers.
 - **Original review question:** Which subsystem owns cache keys, quotas, lifetime and deduplication after the merge?
-- **Binding decision, migration conditions and tests:** [X04](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Binding decision, migration conditions and tests:** [X04](decisions.md#x04--shared-postimage-cache-and-download-lifecycle). This catalog supplements the authoritative English decision log.
 - **Upstream commits:** [`1e6a6607d`](https://github.com/khoadng/Boorusama/commit/1e6a6607dc7750a5c1e94d44531f8251fface3c6), [`86a16a20e`](https://github.com/khoadng/Boorusama/commit/86a16a20ee1327740316005b7946b8264fa70a19), [`cb5f9fade`](https://github.com/khoadng/Boorusama/commit/cb5f9fade8ed5c7e26d3f0811ef17f7187f73723), [`2003c0c1e`](https://github.com/khoadng/Boorusama/commit/2003c0c1eb2cf6b3ef0939b33adf1b575fcae8f9), [`828ddbdb7`](https://github.com/khoadng/Boorusama/commit/828ddbdb75afd02fe14cf8182774a3ef67c9128f), [`f3d8acaa0`](https://github.com/khoadng/Boorusama/commit/f3d8acaa0a765b6d2957ddd36f68a1aa944fa328), [`0f71409de`](https://github.com/khoadng/Boorusama/commit/0f71409dea3775ae1dd033bcf7fc27bb008888a0).
 - **Affected code paths (examples):** `lib/core/images`, `lib/core/cache`, `lib/core/posts`, `lib/core/downloads`.
 
