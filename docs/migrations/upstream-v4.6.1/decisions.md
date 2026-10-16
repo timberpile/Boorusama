@@ -1,6 +1,6 @@
 # Upstream v4.6.1 – Entscheidungsprotokoll
 
-**Autoritativer Entscheidungsstand:** **29 von 68 Themen entschieden** (2026-10-15); **39 offen**, Umsetzung nicht freigegeben. Dieses Dokument enthält ausschließlich Analyse und explizit bestätigte künftige Beschlüsse. Referenz: [Katalog](boorusama-v4.6.1-entscheidungskatalog.md) und [Checkliste](boorusama-v4.6.1-checkliste.md).
+**Autoritativer Entscheidungsstand:** **39 von 68 Themen entschieden** (2026-10-16); **29 offen**, Umsetzung nicht freigegeben. Dieses Dokument enthält ausschließlich Analyse und explizit bestätigte künftige Beschlüsse. Referenz: [Katalog](boorusama-v4.6.1-entscheidungskatalog.md) und [Checkliste](boorusama-v4.6.1-checkliste.md).
 
 ## Entscheidungsformat
 
@@ -291,6 +291,126 @@ Vor der expliziten Nutzerentscheidung bleibt jeder Eintrag `OFFEN`; ein technisc
 
 **Begründung / Quellen:** Upstream [`ebdfb05d9`](https://github.com/khoadng/Boorusama/commit/ebdfb05d9bec5be5c6fd6dd3e5460cea8ce1e1a1) revertiert die ursprüngliche deterministische Finalisierung nur vorübergehend; [`54b19cd4c`](https://github.com/khoadng/Boorusama/commit/54b19cd4cf77b3a75579a2b27aeccc1b1dc56ef5) führt serialisierte Completion, Fehlerbehandlung und History-for-Notifications wieder ein. Der Fork nutzt noch den älteren deterministischen Pfad plus eigene Lifecycle-Guards. Vom Nutzer am 2026-10-15 bestätigt.
 
+## B01 – Sankaku-Metatags, Syntax-Highlighting und typed Suggestions
+
+**Status: ENTSCHIEDEN · 2026-10-16 · Umsetzung ausstehend.** **Beschlussart:** angepasst übernehmen.
+
+**Zielzustand / technische Grenzen:** Sankaku-spezifische Metatag-Definitionen (u. a. `rating`, `date`, `order`, `user`, `pool`, `fav`), Parser, typed Autocomplete-Suggestions und sichere Abbildung der Quellwerte übernehmen. Metatag-Präfixe erkennbar hervorheben, aber die UI in das geplante siteübergreifende Search-Options-Interface einfügen; keine parallele/alte Upstream-Search-Bar bauen. Raw-Syntax und sitespezifische Möglichkeiten bleiben hinter der gemeinsamen Schnittstelle.
+
+**Abhängigkeiten:** Geplanter gemeinsamer Search-UX-Umbau; B02 und die bestehenden Fork-Suchzustände.
+
+**Abnahme / Tests:** Tag- vs. Metatag-Vorschläge, `fav`/`user`/`pool`, Highlighting, Raw-Query, Leer-/Alias-/unbekannte Werte und neuer Search-UX-Flow, keine Regression in Suche/Tag-Chips.
+
+**Begründung / Quellen:** Bestätigte Upstream-v4.6.1-Codeänderungen: [`2569eaeeb`](https://github.com/khoadng/Boorusama/commit/2569eaeeb6ea01ea35386ffc8bab858dcbd1d75d), [`216eb6e6d`](https://github.com/khoadng/Boorusama/commit/216eb6e6d43cef2581a110b66a8f1482d110e7b9). Nutzer hat den vollständigen B01–B10-Vorschlagsbatch am 2026-10-16 bestätigt.
+
+## B02 – Sankaku-Exclusion und Datumsfilter normalisieren
+
+**Status: ENTSCHIEDEN · 2026-10-16 · Umsetzung ausstehend.** **Beschlussart:** übernehmen (site-adaptiert).
+
+**Zielzustand / technische Grenzen:** Sankaku-Exclusion-Restriktionen verständlich übersetzen und nur für Sankaku einzelne gültige `date:YYYYMMDD`/`date:YYYY-MM-DD`-Tokens in einen API-konformen Tagesbereich übersetzen. Eine explizite Range, Operatoren, ungültige Datumsangaben und die sichtbare Raw-Query nicht unkontrolliert umschreiben; Normalisierung unmittelbar im Site-Query-Composer/Adapter.
+
+**Abhängigkeiten:** B01, B05; gemeinsamer Search-Composer darf keine Sankaku-Syntax auf andere Sites anwenden.
+
+**Abnahme / Tests:** Exclusion-Fehler/Limit-Codes, gültige/ungültige Daten, Tages-/Jahreswechsel, Leap-Day, Range und Vergleich Raw-Eingabe zu gesendetem Query.
+
+**Begründung / Quellen:** Bestätigte Upstream-v4.6.1-Codeänderungen: [`18216f412`](https://github.com/khoadng/Boorusama/commit/18216f4123586634f0756e7d5b20673638711766), [`6ad672075`](https://github.com/khoadng/Boorusama/commit/6ad672075306e5621a4dde519ad124da0b19f8cb). Nutzer hat den vollständigen B01–B10-Vorschlagsbatch am 2026-10-16 bestätigt.
+
+## B03 – Sankaku-Tag-Kategorien vollständig erhalten, Duplikate entfernen
+
+**Status: ENTSCHIEDEN · 2026-10-16 · Umsetzung ausstehend.** **Beschlussart:** angepasst übernehmen.
+
+**Zielzustand / technische Grenzen:** Alle bekannten Sankaku-Kategorien einschließlich Studio (`2`), Genre (`5`), Medium (`8`) und Meta (`9`) korrekt site-spezifisch zuordnen (generisches Fork-`TagCategory.fromLegacyId(5)` wäre für Sankaku falsch). Unbekannte Kategorien ohne stillen Verlust erhalten und doppelte API-Tag-Einträge nach echter ID bzw. Name+Kategorie konsistent deduplizieren; sinnvollere Counts übernehmen. Bestehende Fork-`PostRecord`/`PostOrigin`-/Snapshot-/Bookmark-Datenformate behalten, ggf. erweiterten Detailtag-Satz ohne persistente Schemaänderung bereitstellen.
+
+**Abhängigkeiten:** X01/X02/X03 und Fork-Tag-Modell, keine Upstream-Postmodelle blind ersetzen.
+
+**Abnahme / Tests:** Kategorien 0/1/2/3/4/5/8/9/unbekannt, doppelte Namen/IDs/Counts, Tag-Farben und Filter, Bookmark-Snapshot-Roundtrip, alte Daten.
+
+**Begründung / Quellen:** Bestätigte Upstream-v4.6.1-Codeänderungen: [`d0fde834a`](https://github.com/khoadng/Boorusama/commit/d0fde834a413658bb50db150636c481c88a88222), [`396ae059e`](https://github.com/khoadng/Boorusama/commit/396ae059e9e5576aa0172df7fabf823963c03e92). Nutzer hat den vollständigen B01–B10-Vorschlagsbatch am 2026-10-16 bestätigt.
+
+## B04 – Sankaku-Auth: API-Header, invalid credentials, Session-Recovery
+
+**Status: ENTSCHIEDEN · 2026-10-16 · Umsetzung ausstehend.** **Beschlussart:** angepasst übernehmen.
+
+**Zielzustand / technische Grenzen:** Bestehende Dio-Optionen/Interceptors/Header beim Sankaku-API-Header-Merge erhalten. Login-Response vor Token-Speicherung streng validieren. Bei erkennbar abgelaufenem/ungültigem Token GET-Requests höchstens einmal nach kontrollierter Neuanmeldung wiederholen; gleichzeitige Logins pro Client zusammenfassen, nur das tatsächlich abgelehnte Token invalidieren und Client-/Profile-Isolation bewahren. Mutierende Favorites/POST/DELETE nicht blind wiederholen, sondern Fehler melden und neue Auth für spätere Nutzeraktionen ermöglichen. Wenn Auto-Reauth scheitert, bestehende Profil-Login-UX verwenden; Tokens/Credentials nie loggen.
+
+**Abhängigkeiten:** N01/N03/N04/N05; bestehendes Fork-Profil- und Credential-Modell, kein Cross-Origin-Auth-Leak.
+
+**Abnahme / Tests:** Ungültige Credentials/Tokenformat, 401/API-Auth-Code, gleichzeitige GETs, erneute Ablehnung, Profilwechsel, Cookie/Header-Erhalt, Favoriten ohne Doppelmutation, Cancellation/Rate-Limit und Credential-Redaction.
+
+**Begründung / Quellen:** Bestätigte Upstream-v4.6.1-Codeänderungen: [`829ec71fb`](https://github.com/khoadng/Boorusama/commit/829ec71fbaedbc60fff7d98fe1b40c494a130ebe), [`6ad691a6d`](https://github.com/khoadng/Boorusama/commit/6ad691a6de23d8a44c46d02bf3640997dbb618f4), [`6762d00f2`](https://github.com/khoadng/Boorusama/commit/6762d00f2e4ac6efc99bf969bd15a335f6767437), [`8757eb295`](https://github.com/khoadng/Boorusama/commit/8757eb2953d41716bc7c8fb3a028b71fb3f03e2c). Nutzer hat den vollständigen B01–B10-Vorschlagsbatch am 2026-10-16 bestätigt.
+
+## B05 – Sankaku-Suchlimits korrekt erklären
+
+**Status: ENTSCHIEDEN · 2026-10-16 · Umsetzung ausstehend.** **Beschlussart:** vollständig übernehmen (in Fork-Fehler-UI).
+
+**Zielzustand / technische Grenzen:** Sankaku-Codes für anonyme/Account-Tag-Limits in verständliche lokalisierte Meldungen übersetzen und an den Fork-Error-Layer anbinden. Bestehendes Verhalten bei unbekannten Serverfehlern als Fallback behalten.
+
+**Abhängigkeiten:** B02 sowie vorhandener Error-Translator/i18n.
+
+**Abnahme / Tests:** Anonyme/Account-Limits, bereits durch B02 erfasste Exclusion-Limits, lokalisierte Meldungen, unbekannte Fehler und Retry.
+
+**Begründung / Quellen:** Bestätigte Upstream-v4.6.1-Codeänderungen: [`5b495f1ad`](https://github.com/khoadng/Boorusama/commit/5b495f1adec13643ee83307bb2b68eb0272766b2). Nutzer hat den vollständigen B01–B10-Vorschlagsbatch am 2026-10-16 bestätigt.
+
+## B06 – Shimmie2: Medienformate und Favorite-Fallback
+
+**Status: ENTSCHIEDEN · 2026-10-16 · Umsetzung ausstehend.** **Beschlussart:** angepasst übernehmen.
+
+**Zielzustand / technische Grenzen:** Dateiformate aus `ext`, Filename und Datei-URL robust normalisieren (ohne Punkt, lowercase). Den serverseitigen Favorite-Status bei unterstützter Erweiterung und angemeldetem Nutzer ergänzen, aber optional und möglichst asynchron nach dem eigentlichen Post-Laden: Die Timeline darf bei Ausfall, fehlender Auth oder langsamer Favorite-API nicht blockiert werden. Späte Ergebnisse mit bereits erfolgten Nutzeraktionen bzw. aktuellem Favorite-Cache zusammenführen statt überschreiben; Fehler als Soft-Failure behandeln, bekannte Auth-Probleme sinnvoll sichtbar machen.
+
+**Abhängigkeiten:** Fork-Favorite-Repository/Cache und Shimmie2-Feature-Capabilities.
+
+**Abnahme / Tests:** Erkennung verschiedener Medienextensions/URL-Formate, fehlende Extension, GraphQL/REST, 100er-ID-Batches, Favoritenabfrage mit/ohne Login, Serverfehler/Timeout, schnelle Favorite-Mutation während laufender Abfrage.
+
+**Begründung / Quellen:** Bestätigte Upstream-v4.6.1-Codeänderungen: [`2d4f8484b`](https://github.com/khoadng/Boorusama/commit/2d4f8484ba62db8e5c5386825934b1bcc30455cf), [`d79ef1fcc`](https://github.com/khoadng/Boorusama/commit/d79ef1fcc9f59b07933e76681b6c033e12327460). Nutzer hat den vollständigen B01–B10-Vorschlagsbatch am 2026-10-16 bestätigt.
+
+## B07 – Gelbooru v2: Kommentar-Upvote und Cursor-Pagination
+
+**Status: ENTSCHIEDEN · 2026-10-16 · Umsetzung ausstehend.** **Beschlussart:** angepasst übernehmen.
+
+**Zielzustand / technische Grenzen:** Upstream-Gelv2-Comment-Page-Keys, Rule34-HTML-Kommentarparser/Score und cursorbasierte Pagination kompatibel zu Fork-Comment-/Postmodell übernehmen. **Upstream implementiert nur Kommentar-Upvotes, keine Downvotes**; keine Downvote-UI behaupten oder erfinden. Voting nur bei expliziter Site-Capability und gültiger Session anzeigen, mutierenden Upvote-GET trotz HTTP-Verb als Mutation behandeln (kein automatischer Replay nach Challenge/Retry), Auth- und Fehlerfälle sichtbar machen. Andere Gelv2-Sites behalten ihre vorhandenen Kommentar-Fetchpfade.
+
+**Abhängigkeiten:** N03/N04, B08, Fork-Comment-/Selection-UI, Site-Capabilities.
+
+**Abnahme / Tests:** Rule34-HTML/Script-Scores, Kommentare/Quotes, Cursor vorwärts/Ende, wiederholte Requests/Sortwechsel, login/no-login, Score- und Action-Fehler, POST-ID-Zuordnung, keine Doppelvotes unter 403/Cloudflare.
+
+**Begründung / Quellen:** Bestätigte Upstream-v4.6.1-Codeänderungen: [`f459e9922`](https://github.com/khoadng/Boorusama/commit/f459e99220e4ac5b449c033d1d60a0b672ea2b58). Nutzer hat den vollständigen B01–B10-Vorschlagsbatch am 2026-10-16 bestätigt.
+
+## B08 – Gelbooru v2: Kommentar-Sortierung
+
+**Status: ENTSCHIEDEN · 2026-10-16 · Umsetzung ausstehend.** **Beschlussart:** übernehmen, gemeinsam mit B07.
+
+**Zielzustand / technische Grenzen:** Auf Sites, deren Comment-Capabilities es explizit vorsehen (Upstream: Rule34), `Newest`/`Oldest` über unterstützte Request-Sortierung anbieten (für Rule34 `comments_direction`-Cookie); bestehende Session-Cookies sicher mergen. Änderung nur innerhalb der aktuellen Kommentaransicht merken, ohne neue persistente Profileinstellung; Pagination/Cursor beim Umschalten vollständig zurücksetzen. Keine Optionen auf nicht unterstützten Sites zeigen.
+
+**Abhängigkeiten:** B07 und Site-Feature-/Sort-Capabilities.
+
+**Abnahme / Tests:** Newest/Oldest, Cookie-Isolation, Cursor-Reset, schnelle Sortwechsel und verspätete Requests, einzelne Seite und Reload.
+
+**Begründung / Quellen:** Bestätigte Upstream-v4.6.1-Codeänderungen: [`43619dd49`](https://github.com/khoadng/Boorusama/commit/43619dd495d5cb79425845521f0a0e0de030670d). Nutzer hat den vollständigen B01–B10-Vorschlagsbatch am 2026-10-16 bestätigt.
+
+## B09 – Nozomi: korrekte Tag-Counts und HTTP-Range-Encoding
+
+**Status: ENTSCHIEDEN · 2026-10-16 · Umsetzung ausstehend.** **Beschlussart:** angepasst übernehmen.
+
+**Zielzustand / technische Grenzen:** Nozomi-Tag-Counts aus Postindex-Dateigrößen statt Search-Buckets bestimmen; gezielte Byte-Range-Requests mit `Accept-Encoding: identity`, Behandlung 200/206/404/416 sowie Content-Range und Cache/Fallback korrekt übernehmen. Gleichzeitige Count-Lookups drosseln und mit dem Fork-`ApiRequestCoordinator` koordinieren, damit parallele Autosuggestions und Following keine unnötigen Host-Requests verursachen.
+
+**Abhängigkeiten:** N01; Nozomi-Client/Rate-Policy des Forks.
+
+**Abnahme / Tests:** Byte-Größe/4, partial/full Responses, fehlender Content-Range, 404/416/0, Range+gzip, Cache, Limits/429, parallele Suggestions und Cancellation.
+
+**Begründung / Quellen:** Bestätigte Upstream-v4.6.1-Codeänderungen: [`7880a020f`](https://github.com/khoadng/Boorusama/commit/7880a020fc7ba968351ee5256d3685c347d4eca0), [`5a4498f78`](https://github.com/khoadng/Boorusama/commit/5a4498f78dbce67aa43c0d3d01c4fc8d31784a23). Nutzer hat den vollständigen B01–B10-Vorschlagsbatch am 2026-10-16 bestätigt.
+
+## B10 – Rule34: JSON-Post-API auf api.rule34.xxx
+
+**Status: ENTSCHIEDEN · 2026-10-16 · Umsetzung ausstehend.** **Beschlussart:** angepasst übernehmen, erst nach Verifikation aktivieren.
+
+**Zielzustand / technische Grenzen:** Rule34-Listing-Endpoint nach gezielten Live-API-Tests auf `https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1` umstellen, da der Fork diesen Host bislang nur für Post-Details verwendet. Profil- und Site-Identität, Auth-/Cookie-Origin-Grenzen, Parsing, Pagination, Rate-Limits sowie eigene Rule34-403-/Cloudflare-Recovery erhalten. Bei Inkompatibilität zuerst Ursache bewerten, keinen ungetesteten Hostwechsel erzwingen.
+
+**Abhängigkeiten:** N01/N02/N04/N05; aktuelles `boorus.yaml`-Rule34-Profil.
+
+**Abnahme / Tests:** JSON-Post-Listen/Details, Pagination/Filter/Limit, mit und ohne Login, CORS/Redirect, 403-Challenge, Rate-Limit/429, Content-Shape, Cross-Host-Auth und Cache-Isolation; Live-Verifikation ist noch nicht erfolgt.
+
+**Begründung / Quellen:** Bestätigte Upstream-v4.6.1-Codeänderungen: [`5972548ec`](https://github.com/khoadng/Boorusama/commit/5972548ecd6e32622b8476776490251d61d6a099). Nutzer hat den vollständigen B01–B10-Vorschlagsbatch am 2026-10-16 bestätigt.
+
 ## Weitere Entscheidungen
 
-**29/68 Themen ENTSCHIEDEN, 39 OFFEN.** Offen sind D01, D03–D08, B01–B10, P01–P14 und U01–U08. Die Entscheidungen sind **Planungsbeschlüsse, keine Implementierung**; weitere Merge-Arbeit erst nach ausdrücklicher Freigabe. Für U08 (Testpflege) bleibt die bisherige automatische Einordnung bestehen.
+**39/68 Themen ENTSCHIEDEN, 29 OFFEN.** Offen sind D01, D03–D08, P01–P14 und U01–U08. Die Entscheidungen sind **Planungsbeschlüsse, keine Implementierung**; weitere Merge-Arbeit erst nach ausdrücklicher Freigabe. Für U08 (Testpflege) bleibt die bisherige automatische Einordnung bestehen.
