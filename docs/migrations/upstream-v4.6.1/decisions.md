@@ -1,6 +1,6 @@
 # Upstream v4.6.1 – Entscheidungsprotokoll
 
-**Autoritativer Entscheidungsstand:** **52 von 68 Themen entschieden** (2026-10-16); **16 offen**, Umsetzung nicht freigegeben. Dieses Dokument enthält ausschließlich Analyse und explizit bestätigte künftige Beschlüsse. Referenz: [Katalog](boorusama-v4.6.1-entscheidungskatalog.md) und [Checkliste](boorusama-v4.6.1-checkliste.md).
+**Autoritativer Entscheidungsstand:** **53 von 68 Themen entschieden** (2026-10-16); **15 offen**, Umsetzung nicht freigegeben. Dieses Dokument enthält ausschließlich Analyse und explizit bestätigte künftige Beschlüsse. Referenz: [Katalog](boorusama-v4.6.1-entscheidungskatalog.md) und [Checkliste](boorusama-v4.6.1-checkliste.md).
 
 ## Entscheidungsformat
 
@@ -445,7 +445,7 @@ Vor der expliziten Nutzerentscheidung bleibt jeder Eintrag `OFFEN`; ein technisc
 
 **Abnahme / Tests:** Danbooru/andere Boorus, automatische/low/high/highest/original-Qualität × autoplay/static, verfügbares/unverfügbares Sample, URL und Aspect Ratio, GIF-Animation bei deaktiviertem Autoplay im Grid.
 
-**Technischer Befund zu Automatik:** `GridThumbnailSettings.resolvedImageQuality` wählt bei Automatic für Micro/Tiny Low, Small/Normal High und Large Highest. Der Fork-Spezialfall für GIFs verwendet dagegen teils `settings.imageQuality` direkt statt `resolvedImageQuality`, wodurch Qualität und Autoplay unterschiedlich aufgelöst werden: generische GIF-High/Highest-Vorschauen verwenden auch bei statischem Modus die Sample-URL; Danbooru-GIF-Automatik liefert größenabhängig 180/360/720-Varianten ohne Prüfung des Autoplay-Status. UI bietet manuell Automatic/Low/High/Highest an, nicht Original. Fix soll die Automatikstaffelung erhalten und nie durch künstliches Hochstufen auf Original-GIF ersetzen; Animation nur bei tatsächlich animierter Mediendatei verfügbar.
+**Technisch verifizierter Befund zur GIF-Qualität (2026-10-16):** In `lib/boorus/danbooru/posts/listing/src/grid_thumbnail_url.dart` wählt **manuelles Highest** bei normalen/großen Danbooru-Grid-Kacheln `PostQualityType.sample`, welches für GIFs tatsächlich animierte Medien liefern kann (vom Nutzer live beobachtet). Der GIF-Zweig nutzt `settings.imageQuality` roh; bei **Automatic**, selbst im größten Grid, führt dies dagegen zum statischen `720x720`-Variantpfad, obwohl `resolvedImageQuality` sonst bei `GridSize.large` zu Highest auflöst. Deshalb GIF-Auto nicht versehentlich mit einer generellen höchsten Qualitätsstufe gleichsetzen. Das **gewünschte Verhalten** bleibt: `autoplay` aktiv + manuell Highest soll die animierte Sample-Vorschau weiter verwenden können; `autoplay` deaktiviert muss auch bei manuell Highest eine statische Variante wählen. Die bestehende automatische Grid-Größenstaffelung bleibt erhalten; eine Änderung, ob Automatic-Large bei GIFs künftig animieren soll, ist durch P06 **nicht** implizit freigegeben. **Upstream-v4.6.1-Einschränkung:** `e4d645630` korrigiert den generischen GIF-Resolver und für Danbooru vor allem den `Original`-Fall bei deaktiviertem Autoplay; der Danbooru-Highest-Zweig benötigt den Fork-spezifischen zusätzlichen Guard. Testcases müssen beide Pfade explizit prüfen.
 
 **Begründung / Upstream-Quellen:** [`e4d645630`](https://github.com/khoadng/Boorusama/commit/e4d6456309c93f050b3a5d311ea4e2a60e0a7663). Nutzer hat P06 am 2026-10-16 explizit bestätigt. P01 ist weiterhin offen.
 
@@ -569,6 +569,20 @@ Vor der expliziten Nutzerentscheidung bleibt jeder Eintrag `OFFEN`; ein technisc
 
 **Begründung / Quellen:** [`de755c0d2`](https://github.com/khoadng/Boorusama/commit/de755c0d20570d4c9e2c6d4b718517514178af44). Der Nutzer bestätigte P10 nach Detailbesprechung am 2026-10-16.
 
+## P01 – Zwei Quick Actions auf Post-Thumbnails
+
+**Status: ENTSCHIEDEN · 2026-10-16 · Umsetzung ausstehend.** **Beschlussart:** angepasst übernehmen, Fork-Post-Presentation bewahren.
+
+**Zielzustand / technische Grenzen:** Upstreams zwei pro Profil konfigurierbare Thumbnail-Quick-Actions (primary/secondary; Standard/Favorite je Booru, Bookmark, Download, Artist; optional keine) einschließlich kompakter adaptiver horizontaler/vertikaler Platzierung übernehmen. Primär-/Sekundäraktion sind verschieden; ohne primäre Aktion keine sekundäre. Standardmäßig weiter nur die bisherige primäre Aktion, Sekundäraktion deaktiviert. Bei knappen Kacheln nur Primäraktion anzeigen. Aktionen unten rechts gruppieren, Score unten links; Selection blendet beide aus und hat Vorrang. Auf Series-/Grouped-Post-Karten keine Post-spezifischen Mutationen auf einen beliebigen Einzelpost umbiegen: dafür erst einen klaren geeigneten Aktionsträger definieren.
+
+**Zwingende Fork-Kompatibilität:** Die 2026-09-24 mit [`c00ac614f`](https://github.com/timberpile/Boorusama/commit/c00ac614f8fb5849e57f924b6bfeaaf8a22a057c) eingeführte per-Post-Boundary erhalten: `PostGridItem` ermittelt `PostGridItemAdditions.quickActionButton` anhand der konkreten `post.origin`/`BooruPostPresentation` und übergibt diese als `defaultActionButton` an `DefaultImagePreviewQuickActionButton`. Dieser Button hat **nur bei der gewählten Default-Aktion** Vorrang vor `booruBuilder.quickFavoriteButtonBuilder`, nicht bei explizit gewählten Bookmark/Download/Artist-Actions. Beispiel: `DanbooruPostGridPresentation` liefert `DanbooruQuickFavoriteButton` mit Banned-Status-Abstimmung. Auch bei zwei Actions für jeden einzelnen Post korrekt auflösen; Mixed-Booru-Feed, Bookmark/Following und Custom-Fallbacks dürfen keine global falschen Aktionen zeigen. Direkt übergebene `quickActionButton`-Overrides/Selection-Guards ebenfalls erhalten.
+
+**Daten / Migration:** Bisheriges einzelnes String-Feld `defaultPreviewImageButtonAction` verlustfrei auf `thumbnailActions` (primär, optional sekundär) mappen; alte Import-/Export-Profile und UUIDs erhalten. Unknown/invalid Optionen über den bereits beschlossenen P02-Schutz behandeln; keine versehentliche Zurücksetzung der Nutzerwahl.
+
+**Abnahme / Tests:** Alle Legacy-Actions und ihr Default-Fallback, sitespezifische Default-Aktion in gemischten Feeds, Banned/Unsupported-Post, primär=sekundär/none, Legacy-JSON und Roundtrip, kleine Grid-Größen und großer Text, Selection/Hold-and-Drag, Series-Karten, Score-/Info-Badge-P12-Überlagerungen, Mouse/Touch/TV/Keyboard (P14).
+
+**Quelle:** Upstream [`26ad35202`](https://github.com/khoadng/Boorusama/commit/26ad352026bb4187e399dfab422c76427aca8655). Der Nutzer hat P01 am 2026-10-16 nach Klärung der Fork-spezifischen `defaultActionButton`-Semantik bestätigt.
+
 ## Weitere Entscheidungen
 
-**52/68 Themen ENTSCHIEDEN, 16 OFFEN.** Offen sind D01, D03–D08, P01 und U01–U08. Die Entscheidungen sind **Planungsbeschlüsse, keine Implementierung**; weitere Merge-Arbeit erst nach ausdrücklicher Freigabe. Für U08 (Testpflege) bleibt die bisherige automatische Einordnung bestehen.
+**53/68 Themen ENTSCHIEDEN, 15 OFFEN.** Offen sind D01, D03–D08 und U01–U08. Die Entscheidungen sind **Planungsbeschlüsse, keine Implementierung**; weitere Merge-Arbeit erst nach ausdrücklicher Freigabe. Für U08 (Testpflege) bleibt die bisherige automatische Einordnung bestehen.
