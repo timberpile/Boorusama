@@ -1,6 +1,6 @@
 # Boorusama – Entscheidungskatalog zum echten Merge auf Upstream v4.6.1
 
-**Stand:** 16. Oktober 2026 · **Status:** **52 von 68 Themen entschieden, 16 offen**, weiterhin **keine Freigabe zur Implementierung**.
+**Stand:** 16. Oktober 2026 · **Status:** **53 von 68 Themen entschieden, 15 offen**, weiterhin **keine Freigabe zur Implementierung**.
 
 > Grundlage: `timberpile/Boorusama` `develop` auf `d4e15586f06192f0ff4315d36a3f61ae69a752d5`, Upstream `v4.6.1` auf `5b04bf6a164f028d41701299367d0dde74dde330`; gemeinsamer Vorfahr `2c0ac699184854d363833ea4a3205aef0895a92b`. Dateien aus dem hochgeladenen Git-Bundle lokal geprüft. Bei dieser Analyse wurden keine Laufzeitänderungen am Repository vorgenommen.
 
@@ -661,13 +661,16 @@ Für jedes Thema eines von **(a) vollständig übernehmen**, **(b) angepasst üb
 
 ### P01 · Zwei Quick Actions auf Post-Thumbnails
 
-**Status:** Entscheidung; Entscheidung: **OFFEN** · **Risiko:** 🟠 hoch.
+**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟠 hoch.
 
+- **Bestätigter Beschluss:** Zwei pro Profil konfigurierbare verschiedene Quick Actions samt adaptiver Platzierung übernehmen, aber die Origin-gebundene Fork-`defaultActionButton`-Auflösung (Danbooru-spezifischer Favorite-Build und Mixed-Booru-Posts) erhalten; Selection hat Vorrang, Legacy-Einzelaction verlustfrei migrieren, kleine Kacheln nur primäre Action; Series-Karten nicht blind pro Einzelpost mutieren.
+- **Verifikation:** Primary/Secondary/None; Post-Origin-spezifische Default-Builds, Legacy-Profile, kleines Grid/Selection, Score-/Hover-Overlays und Keyboard P14.
+- **Verbindliches Protokoll:** [P01](decisions.md#p01-zwei-quick-actions-auf-post-thumbnails).
 - **Änderung in Upstream:** Per Profil primäre + sekundäre Action (`favorite`, `bookmark`, `download`, `artist`/default) mit adaptivem Button-Layout.
-- **Aktualisierter Fork-Befund (2026-10-16; P01 bleibt offen):** `PostGridItem` löst seine `PostGridItemAdditions.quickActionButton` per `post.origin` und passendem `BooruPostPresentation` auf und übergibt ihn als `defaultActionButton` an `DefaultImagePreviewQuickActionButton`. Nur bei der im Profil gewählten Standardaktion wird dieser sitespezifische Button verwendet; andernfalls gewählte Bookmark/Download/Artist-Actions gehen vor. `DanbooruPostGridPresentation` liefert z. B. `DanbooruQuickFavoriteButton` mit Banned-Status-Handling. Dieses Forwarding wurde am 2026-09-24 durch den [Unified-Post-Pipeline-Commit `c00ac614f`](https://github.com/timberpile/Boorusama/commit/c00ac614f8fb5849e57f924b6bfeaaf8a22a057c) eingeführt und muss bei P01 vollständig erhalten bleiben; Entscheidung über Zwei-Actions-UI steht noch aus.
+- **Aktualisierter Fork-Befund (2026-10-16; P01 bleibt offen):** `PostGridItem` löst seine `PostGridItemAdditions.quickActionButton` per `post.origin` und passendem `BooruPostPresentation` auf und übergibt ihn als `defaultActionButton` an `DefaultImagePreviewQuickActionButton`. Nur bei der im Profil gewählten Standardaktion wird dieser sitespezifische Button verwendet; andernfalls gewählte Bookmark/Download/Artist-Actions gehen vor. `DanbooruPostGridPresentation` liefert z. B. `DanbooruQuickFavoriteButton` mit Banned-Status-Handling. Dieses Forwarding wurde am 2026-09-24 durch den [Unified-Post-Pipeline-Commit `c00ac614f`](https://github.com/timberpile/Boorusama/commit/c00ac614f8fb5849e57f924b6bfeaaf8a22a057c) eingeführt und muss bei P01 vollständig erhalten bleiben; Zwei-Actions-UI wurde am 2026-10-16 mit dem oben beschriebenen Forwarding ausdrücklich bestätigt.
 - **Fork / potenzieller Konflikt:** Fork zeigt bisher eine Quick Action und hat eigene Grid-Overlays, Selection und geplantes Series Grouping.
-- **Zu entscheiden:** Welche Actions und Positionen? Wann werden sie bei Selection, Hover und Series-Karten angezeigt?
-- **Arbeitshypothese (nicht beschlossen):** Feature übernehmen, aber Layout/Hit-Targets und Post-Grid-Integration im Fork gestalten.
+- **Ursprüngliche Fragestellung:** Welche Actions und Positionen? Wann werden sie bei Selection, Hover und Series-Karten angezeigt?
+- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Feature übernehmen, aber Layout/Hit-Targets und Post-Grid-Integration im Fork gestalten.
 - **Abnahme/Test:** Kleine Grids, große Schrift, Hold-and-Drag Selection, Favoriten-APIs, Keyfocus.
 - **Upstream-Commits:** [`26ad35202`](https://github.com/khoadng/Boorusama/commit/26ad352026bb4187e399dfab422c76427aca8655).
 - **Betroffene Codepfade (Auswahl):** `lib/core/configs/listing`, `lib/core/posts/listing/src/widgets/default_image_quick_actions.dart`.
@@ -746,7 +749,7 @@ Für jedes Thema eines von **(a) vollständig übernehmen**, **(b) angepasst üb
 - **Bestätigter Beschluss:** angepasst übernehmen. GIF-Autoplay-Setting bei allen Grid-Qualitätsstufen einschließlich `original` respektieren: Bei deaktiviertem Autoplay nur eine statische Vorschau laden; bei aktivem Autoplay die nach Site tatsächlich verfügbare animierte URL entsprechend Qualität/Fallback wählen. Wichtig: Statische kleinere GIF-Thumbnails sind keine garantierten niedrig aufgelösten *animierten* GIF-Varianten; Danbooru liefert häufig statische 180/360/720-Varianten und die animierte Original-GIF. Eine fehlende animierte Preview nicht erfinden; im Viewer gelten dessen eigene Qualität-/Abspielregeln.
 - **Daten / Abhängigkeiten:** Fork-spezifische Danbooru-Variant-URL-Auflösung und generischen Thumbnail-Resolver erhalten; keine persistente Migration.
 - **Verifikation:** Danbooru/andere Boorus, automatische/low/high/highest/original-Qualität × autoplay/static, verfügbares/unverfügbares Sample, URL und Aspect Ratio, GIF-Animation bei deaktiviertem Autoplay im Grid.
-- **Automatik-Einordnung (2026-10-16):** Bei `Automatic` ergibt sich Micro/Tiny→Low, Small/Normal→High, Large→Highest im generischen `resolvedImageQuality`. GIFs nutzen teils die Roh-Einstellung, daher gelten je Engine andere Regeln; eine niedrige statische Vorschau ist keine separate niedrig aufgelöste *animierte* GIF-Datei. Manuelle UI-Qualität enthält Highest, nicht Original. Bestehende Auflösungsstaffelung erhalten, Autoplay bei allen Pfaden beachten.
+- **Korrektur / Laufzeitbeobachtung (2026-10-16):** Bei **manuell Highest** und Danbooru-GIFs in normalen/großen Grids wird die `sample`-Variante aufgelöst, welche animiert sein kann (vom Nutzer bestätigt). Bei Automatic wählt der GIF-Spezialpfad unabhängig von `resolvedImageQuality` 180/360/720; Automatic+Large ergibt bislang 720 und ist NICHT automatisch Highest. Bei aktiviertem Autoplay das animierte Highest-Sample beibehalten, bei deaktiviertem Autoplay auch dort statisch anzeigen. Die Upstream-Korrektur erfasst generische GIFs, aber der Danbooru-Highest-Pfad braucht zusätzliche Fork-Anpassung; keine implizite Änderung der Auto-Grid-Stufen.
 - **Verbindliches Protokoll:** [P06](decisions.md#p06-gif-autoplay-respektiert-qualitätseinstellungen).
 - **Änderung in Upstream:** GIF-Autoplay-Setting greift auch bei alternativen Bildqualitäten.
 - **Fork / potenzieller Konflikt:** Fork trennt Preview-/Post-Qualitäten und hat GIF-Export-/Trim-Tools.
