@@ -1,6 +1,6 @@
 # Upstream v4.6.1 — Merge Decisions
 
-**Status: ALL 68/68 DECISIONS APPROVED; LOCAL IMPLEMENTATION ASSIGNED TO AN AGENT, NOT YET IMPLEMENTED.** This directory documents the binding decisions for the genuine merge of `khoadng/Boorusama v4.6.1` into `timberpile/Boorusama`. The user authorized local implementation on 2026-10-16; integration into `develop`, remote pushes, pull requests, and releases still require separate authorization.
+**Status: ALL 68/68 DECISIONS IMPLEMENTED AND AUTOMATED VERIFICATION PASSED LOCALLY.** The genuine merge is recorded in `c08bb851acfe253e65cd307660cdbe465894fe7c`. Manual, device/native, live-endpoint, integration, remote, and release acceptance remain separate work and authorization.
 
 ## Pinned Comparison Baseline
 
@@ -17,6 +17,7 @@
 3. [Decision log](decisions.md) — **authoritative record of all explicitly user-approved decisions** and important follow-up clarifications.
 4. [Implementation handoff](IMPLEMENTATION_HANDOFF.md) — **English instructions for the local agent**, including source commits, dependency order, 68-item coverage, conflict traps, A16 versioning policy, verification and integration boundaries.
 5. [Manual acceptance checklist](MANUAL_ACCEPTANCE_CHECKLIST.md) — prioritized upgrade, data, network, media, download and responsive-UI checks for the user to perform on the final candidate.
+6. [Implementation report](IMPLEMENTATION_REPORT.md) — merge ancestry, implemented scope, verification evidence, remaining acceptance work and authorization boundaries.
 
 ## Decision and Implementation Rules
 
@@ -31,7 +32,7 @@
 
 ## Decision Status (2026-10-16)
 
-**68 of 68 items approved, none outstanding.** All binding decisions are in [`decisions.md`](decisions.md) and summarized by the catalog and checklist. **No upstream code has been integrated yet. Local implementation is authorized; integration and publication are not.**
+**68 of 68 items implemented locally, with automated verification complete.** All binding decisions are in [`decisions.md`](decisions.md) and summarized by the catalog and checklist. The task branch contains the genuine upstream merge; integration and publication are not authorized.
 
 - **A02:** Following the UI migration, the agent must prepare a short prioritized manual acceptance checklist for the user. The **user**, not the agent, performs the manual UI checks.
 - **A16 — Versioning:** The numeric base of each fork release must exactly match its integrated upstream release. Restart `timberpile.N` at `.1` on each new upstream base, increment it within the same base, and **never** reset the Android/Flutter `+buildNumber`. Current release: `4.5.0-timberpile.5+189`; expected first release after the v4.6.1 merge: `4.6.1-timberpile.1+190`, provided there is no more recent allocated build number. Recheck shipped codes before release. Update the release skill, changelog, tags, GitHub manifest and updater consistently.
@@ -64,12 +65,13 @@
 - [x] A01–A18: Approve architecture and platform behavior.
 - [x] N01–N06: Approve network behavior.
 - [x] D02: Decide download completion and notification safeguards.
-- [x] D01, D03–D06, D08: Approve six other download and backup topics (implementation pending).
+- [x] D01, D03–D06, D08: Implement the approved download and backup topics.
 - [x] D07: Switch download `{id}` to genuine site ID; retain Pixiv default filename, Hive and bookmark identity.
-- [x] B01–B10: Approve all site compatibility topics (implementation pending).
-- [x] P01–P14: Approve all 14 grid and viewer topics (implementation pending).
-- [x] U01–U08: Approve search, keyboard, desktop/TV and regression test topics (implementation pending).
+- [x] B01–B10: Implement all approved site compatibility topics.
+- [x] P01–P14: Implement all approved grid and viewer topics.
+- [x] U01–U08: Implement the approved search, keyboard, desktop/TV and regression test topics.
 - [x] Approve all 68 migration decisions.
-- [ ] Implement the true upstream merge and resolve all conflicts according to the binding decisions.
-- [ ] Pass data migrations, builds and complete regression suite.
+- [x] Implement the true upstream merge and resolve all conflicts according to the binding decisions.
+- [x] Pass targeted checks and the complete local regression suite.
+- [ ] Complete the user-run manual checklist and device/native/live acceptance checks.
 - [ ] Obtain separate approval to integrate into `develop`.
