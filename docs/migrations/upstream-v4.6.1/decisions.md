@@ -513,79 +513,79 @@ Before explicit user approval, a proposal must remain `OPEN`; technical recommen
 
 **Rationale/upstream source:** [`d1047aa89`](https://github.com/khoadng/Boorusama/commit/d1047aa890c64b3baa575e0ca16f50b4724e6826). Approved on 2026-10-16.
 
-## P03 – Bildladefehler: Tap-to-Retry nur bei passenden Error-Widgets
+## P03 — Retry Failed Images Using Targeted Error Controls
 
-**Status: ENTSCHIEDEN · 2026-10-16 · Umsetzung ausstehend.** **Beschlussart:** angepasst übernehmen.
+**Status: APPROVED · 2026-10-16 · Implementation pending.** **Resolution:** adapt.
 
-**Zielzustand / technische Grenzen:** Endgültige Upstream-Variante mit explizitem `ExtendedImageController.reload()` statt früherem flächendeckendem `GestureDetector` verwenden. In Fork-Grid und Post-Viewer gut sichtbaren, fokussierbaren Retry-Button im `ErrorPlaceholder` anbieten; Tippen auf restliche Kachel muss weiterhin den Post öffnen und Selection-/Hold-Gesten respektieren. Der Fork-`ProgressivePostImage` hat eine eigene Kandidaten-/Generations-Loading-Pipeline und muss einen separaten kontrollierten Retry des fehlgeschlagenen Ziel-/Fallback-Requests ermöglichen, ohne ein bereits erfolgreich dekodiertes niedrigeres Bild zu verlieren. Kein automatisches endloses Retry oder unkontrolliertes Disk-Cache-Löschen.
+**Target behavior / constraints:** Use the final upstream fix calling `ExtendedImageController.reload()` rather than the earlier full-surface `GestureDetector`. Show a conspicuous, focusable Retry button within `ErrorPlaceholder` in the fork grid and post viewer. Tapping elsewhere on a tile must still open the post and respect selection/hold gestures. The fork's `ProgressivePostImage` uses its own staged candidate/loading-generation pipeline and must permit a controlled retry of the failed target/fallback request **without discarding a successfully decoded lower-resolution image**. Avoid endless automated retries or uncontrolled disk-cache deletion.
 
-**Daten / Abhängigkeiten:** Keine persistente Migration; `packages/extended_image`-API und Fork-Progressive-Loader/Shared-Cache entsprechend anpassen. X04-Cache-Invarianten erhalten.
+**Data/dependencies:** No persisted migration; adapt `packages/extended_image` API, fork progressive image loader and shared cache while preserving X04 invariants.
 
-**Abnahme / Tests:** Primary/Fallback/Progressive-Fehler, Zielbild-Neuladen mit gehaltenem Placeholder, Retry nach 403/Timeout/invalidierter Datei, Kachel-Tap vs. Retry-Button, Selection/Long-Press, Accessibility/Keyboard und keine dauernde Request-Schleife.
+**Verification:** Primary/fallback/progressive failures, reload target while holding visible placeholder, retry after 403/timeout/corrupt cache, tile tap vs Retry, selection/long press, accessibility/keyboard, no infinite request loop.
 
-**Begründung / Quellen:** [`afdff42e3`](https://github.com/khoadng/Boorusama/commit/afdff42e344a585439bef34893bc2cbaa8e706df), [`58e4a0607`](https://github.com/khoadng/Boorusama/commit/58e4a06075faa8c07d8129dfdfa19156a4981a50). Der Nutzer bestätigte P03 nach Detailbesprechung am 2026-10-16.
+**Rationale/sources:** [`afdff42e3`](https://github.com/khoadng/Boorusama/commit/afdff42e344a585439bef34893bc2cbaa8e706df), [`58e4a0607`](https://github.com/khoadng/Boorusama/commit/58e4a06075faa8c07d8129dfdfa19156a4981a50). Approved after technical discussion on 2026-10-16.
 
-## P04 – Post-Grid: Refresh während laufendem Fetch nicht verlieren
+## P04 — Preserve Grid Refresh Requests During Fetches
 
-**Status: ENTSCHIEDEN · 2026-10-16 · Umsetzung ausstehend.** **Beschlussart:** Fork-Race-/Refresh-Queue behalten und gezielt ergänzen.
+**Status: APPROVED · 2026-10-16 · Implementation pending.** **Resolution:** retain fork refresh queue/race safety and supplement it.
 
-**Zielzustand / technische Grenzen:** Bestehenden `PostGridController` mit `_refreshPending`, `_pendingMaintainPage`, `_pendingPreserveSelection` und `_queuedRefreshWaiters` unverändert als einzige Refresh-Queue erhalten. Upstreams Latest-Result-Schutz ergänzen: Wenn während des laufenden Fetchs eine neue Suche/ein Refresh/ein Profilwechsel vorgemerkt wird, die veraltete Antwort nicht zwischenzeitlich in den sichtbaren Grid-State übernehmen, sondern danach den neuesten Stand laden und erst dessen Ergebnis veröffentlichen. Fehler veralteter Passes nicht als endgültige UI-Fehler anzeigen, wenn der zuletzt angeforderte Pass erfolgreich war; aber echte letzte Fehler und wartende Future-Aufrufer korrekt behandeln. Keine zusätzliche Upstream-Refresh-Queue oder Selection-Reset einführen.
+**Target behavior / constraints:** Keep the existing `PostGridController` with `_refreshPending`, `_pendingMaintainPage`, `_pendingPreserveSelection` and `_queuedRefreshWaiters` as the **one and only refresh queue**. Add upstream's latest-result protection: when a new search, refresh or profile change arrives while a fetch runs, do not publish the obsolete result even transiently. Instead fetch the latest requested state and publish its result. Do not surface obsolete errors as final UI failures if the latest pass succeeded, but still handle actual final errors and all awaiting Future callers correctly. Do not add another upstream queue or reset selection.
 
-**Daten / Abhängigkeiten:** Keine Datenmigration; Bezug auf Following Topics, automatische Suchänderungen, Profilwechsel und P05-X03-Bookmark-Library-Gate.
+**Data/dependencies:** No migration; related to Following Topics, automatic search edits, profile switching and P05/X03 bookmark refresh gate.
 
-**Abnahme / Tests:** Getaktete, konkurrierende Fetches/Refreshes, alte Antwort nicht gerendert, spätester Query/Profil-Snapshot gewinnt, Fetch-Fehler vor erfolgreichem Folgepass, maintainPage, preserveSelection, Wartende Future, Dispose, Duplicate-Fetches/Loading-State.
+**Verification:** Controlled concurrent fetch/refresh, old response never rendered, latest query/profile snapshot wins, failure before successful follow-up, maintainPage/preserveSelection flags, pending Futures, dispose, duplicate fetches and loading state.
 
-**Begründung / Quellen:** [`828ddbdb7`](https://github.com/khoadng/Boorusama/commit/828ddbdb75afd02fe14cf8182774a3ef67c9128f). Der Nutzer bestätigte P04 nach Detailbesprechung am 2026-10-16.
+**Rationale/source:** [`828ddbdb7`](https://github.com/khoadng/Boorusama/commit/828ddbdb75afd02fe14cf8182774a3ef67c9128f). Approved after discussion 2026-10-16.
 
-## P08 – WebView-Video aus Cache-Datei und Cleanup-Schutz
+## P08 — WebView Video Playback from Cached File and Cleanup Protection
 
-**Status: ENTSCHIEDEN · 2026-10-16 · Umsetzung ausstehend.** **Beschlussart:** angepasst übernehmen, Video-Cache-Lifetime schützen.
+**Status: APPROVED · 2026-10-16 · Implementation pending.** **Resolution:** adapt; protect active video-cache lifetime.
 
-**Zielzustand / technische Grenzen:** Upstreams WebView-Wiedergabe lokaler Cache-Dateien mit kleiner lokaler HTML-Seite, MIME-Erkennung aus `VideoSource`, eingeschränktem lokalen Datei-Zugriff und sicherer serieller Bereinigung alter temporärer WebView-Seiten übernehmen; den bisherigen fehleranfälligen Base64/10-MiB-Fallback vermeiden. Fork-`VideoCacheManager` bislang ohne garantierten Usage-Schutz für aktive Videodateien: während Player/WebView-Dateizugriffes Eviction, Expiration und explizites Cache-Leeren gegen diese Videodatei absichern (kurzlebige, pro Datei referenzierte Nutzung/Lease). Beim Video-/Engine-Wechsel, Error und Dispose freigeben; ggf. zur Löschung vorgemerkte Dateien anschließend bereinigen. Keine Image-Cache-Generations zurückbringen und kein dauerhaftes Leasing über den Wiedergabezeitraum hinaus. Bei beschädigter/fehlender Cache-Datei sauber auf Remote-Streaming zurückfallen, ohne Auth/Cookies an unberechtigte Datei-/Origin-Kontexte zu geben.
+**Target behavior / constraints:** Adopt upstream's WebView playback of local cached video via a small local HTML document, MIME derived from `VideoSource`, restricted local file access and safe serialized cleanup of prior temporary WebView pages. Avoid the unreliable existing Base64/10 MiB fallback. The fork's `VideoCacheManager` does not currently guarantee active-file protection: prevent eviction, expiration and explicit cache clearing from deleting the video while player/WebView is reading it, using a short-lived per-file usage lease/refcount. Release the lease on video/engine changes, errors and dispose; then remove any deferred deletions. Do **not** revive image cache generations or keep video leases beyond active playback. If the cached video file is missing/corrupted, fall back to remote streaming cleanly without leaking auth/cookies into unauthorized local-file or origin contexts.
 
-**Daten / Abhängigkeiten:** Cache-Lifetime ist separate Video-Cache-Verwaltung (`packages/cache_manager/lib/src/video_cache_manager.dart`), nicht X04-Image-Cache. Lokale `CachedVideoSource` muss gültigen Pfad bekommen; temporäre HTML-Dateien werden verlässlich beim Schließen/Start bereinigt; kein Persistenzschema erforderlich.
+**Data/dependencies:** Usage protection belongs in video cache (`packages/cache_manager/lib/src/video_cache_manager.dart`), separately from X04's image cache. `CachedVideoSource` must have a valid local path, and temporary HTML pages should be cleaned reliably on close/restart; no persisted schema change required.
 
-**Abnahme / Tests:** Kleine/große/unbekannt große gecachte Videos, WebView Android/iOS/macOS, parallele Player, Cache-Eviction und Clear während Playback, Expiration, Video-/Engine-/Source-Wechsel, lokale Seite und Datei-Race, Stale-Cleanup beim Start, Streaming-Fallback, File-Read-Grenzen.
+**Verification:** Small/large/unknown-size cached video, WebView on Android/iOS/macOS, concurrent players, evict/clear while playing, expiration, source/engine changes, local HTML/file races, stale startup cleanup, remote fallback and file-read restrictions.
 
-**Begründung / Quellen:** [`f3d8acaa0`](https://github.com/khoadng/Boorusama/commit/f3d8acaa0a765b6d2957ddd36f68a1aa944fa328), [`0f71409de`](https://github.com/khoadng/Boorusama/commit/0f71409dea3775ae1dd033bcf7fc27bb008888a0). Der Nutzer bestätigte P08 nach Detailbesprechung am 2026-10-16.
+**Rationale/sources:** [`f3d8acaa0`](https://github.com/khoadng/Boorusama/commit/f3d8acaa0a765b6d2957ddd36f68a1aa944fa328), [`0f71409de`](https://github.com/khoadng/Boorusama/commit/0f71409dea3775ae1dd033bcf7fc27bb008888a0). Approved after discussion 2026-10-16.
 
-## P09 – Kurumi InteractiveViewer: Bild-Pan vs Page-Swipe
+## P09 — Kurumi InteractiveViewer: Image Pan vs Page Swipe
 
-**Status: ENTSCHIEDEN · 2026-10-16 · Umsetzung ausstehend.** **Beschlussart:** angepasst übernehmen, Fork-Gesten erhalten.
+**Status: APPROVED · 2026-10-16 · Implementation pending.** **Resolution:** adapt; preserve fork gestures.
 
-**Zielzustand / technische Grenzen:** Bei unzoomed Bild (Zoom nahe 1x) sollen horizontale/vertikale PageView-Swipes statt `InteractiveViewer`-Panning gewinnen; bei vergrößertem Bild soll Pan/Pinch funktionieren. Upstreams Zoom-abhängiges `panEnabled` und die `ScaleGestureRecognizer.panCausesAcceptance`-Arbitration soweit notwendig integrieren. Vendored Flutter-3.47.2-Widget/Recognizer nur übernehmen, wenn eine kleinere kompatible Lösung am gepinnten Flutter nicht robust ausreicht. Sämtliche Fork-Funktionen erhalten: Double-Tap-Classic/Fit-Cycle, Snap-Zoom-to-Fit, Bildgrenzen, Auto-Comic-Strip, Original-on-Zoom sowie `ZoomEdgePageGesture` mit 160-dp-Edge-Pull, Retry-/Load-More-/Page-Actions. Panning und Page-Swiping nicht gleichzeitig aktivieren oder Pointer-Events doppelt konsumieren.
+**Target behavior / constraints:** With an unzoomed image (near 1×), horizontal/vertical PageView swipes should win over `InteractiveViewer` panning; after zooming, allow pan/pinch. Integrate upstream's zoom-dependent `panEnabled` and `ScaleGestureRecognizer.panCausesAcceptance` arbitration as required. Vendor Flutter 3.47.2 recognizer/widget code only if a smaller compatible solution does not work reliably with the pinned SDK. Preserve **all** fork behavior: classic double-tap/fit cycle, snap zoom-to-fit, image boundaries, automatic comic strip, original-on-zoom and `ZoomEdgePageGesture` with **160dp edge pull** and Retry/LoadMore/Page actions. Never enable pan and page swipe simultaneously or consume pointer events twice.
 
-**Daten / Abhängigkeiten:** Keine Persistenz; A02-Kurumi-Migration und gepinnte Flutter-Version beachten, mögliche vendored Dateien nur gezielt und mit klarer Upgrade-Strategie.
+**Data/dependencies:** No persistence. Coordinate with A02 Kurumi changes and pinned Flutter. Any vendored code requires a narrow justified scope and upgrade strategy.
 
-**Abnahme / Tests:** Schneller Flick bei 1x horizontal/vertikal auf Android-Slop, Pinch-Zoom, Pan bei >1x, Edge-Pull/160-dp-Schwelle, geändertes Zoom/Media-Representation während Gesture, Mouse/Touch/Stylus, Rotation, Double-Tap, Original-on-Zoom, Selection und Zoom-Hardwaretest.
+**Verification:** Fast horizontal/vertical flick at 1× under Android gesture slop, pinch zoom, pan beyond 1×, 160dp edge threshold, zoom/media presentation changes mid-gesture, mouse/touch/stylus, rotation, double tap, original-on-zoom, selection and hardware zoom tests.
 
-**Begründung / Quellen:** [`62e36f7e5`](https://github.com/khoadng/Boorusama/commit/62e36f7e5c7d40a3b5daa383a7c67ca420cb1cd3), [`c6b25213c`](https://github.com/khoadng/Boorusama/commit/c6b25213c3478abedf5c82c41dd9dd92a93a1bbe). Der Nutzer bestätigte P09 nach Detailbesprechung am 2026-10-16.
+**Rationale/sources:** [`62e36f7e5`](https://github.com/khoadng/Boorusama/commit/62e36f7e5c7d40a3b5daa383a7c67ca420cb1cd3), [`c6b25213c`](https://github.com/khoadng/Boorusama/commit/c6b25213c3478abedf5c82c41dd9dd92a93a1bbe). Approved after discussion 2026-10-16.
 
-## P10 – Volume Keys im Post Viewer korrekt konsumieren
+## P10 — Consume Volume Keys Correctly in the Post Viewer
 
-**Status: ENTSCHIEDEN · 2026-10-16 · Umsetzung ausstehend.** **Beschlussart:** vollständig übernehmen (mit aktiviertem Viewer-Gate).
+**Status: APPROVED · 2026-10-16 · Implementation pending.** **Resolution:** adopt with eligible viewer gating.
 
-**Zielzustand / technische Grenzen:** Bei eingeschalteter `volumeKeyViewerNavigation`, tatsächlich sichtbarem und nicht expandiertem Post-Viewer, Lauter (+) zur Navigation zum nächsten Post und Leiser (-) zum vorherigen Post verwenden und alle zugehörigen Key-Down-/Repeat-/Up-Ereignisse als verarbeitet (`true`) zurückgeben, auch am ersten oder letzten Post. Bei ausgeschalteter Funktion, verborgenem Viewer und Expand-Mode die Keys unbehandelt (`false`) lassen, damit reguläre Systemlautstärke funktioniert. Navigation selbst nicht ungewollt bei Key-Up/Repeat mehrfach auslösen; bestehende `isKeyPressed`-Down-Gestenerkennung und eventuelle Android-/Hardware-Limits bewahren. Während dieses optionalen Modus gilt Post-Navigation auch bei Videoposts.
+**Target behavior / constraints:** When `volumeKeyViewerNavigation` is enabled and the post viewer is visible and not in expanded mode, Volume Up (+) navigates to the **next** post, and Volume Down (-) to the **previous**. Return handled (`true`) for related Down/Repeat/Up events, including at the first/last post. When disabled, viewer hidden or expanded, return unhandled (`false`) so normal system volume control works. Do not unintentionally navigate more than once due to Repeat/Up events. Preserve existing `isKeyPressed` down detection and Android/hardware limits. This opt-in mode also navigates between video posts.
 
-**Daten / Abhängigkeiten:** Keine Persistenz-/Schemaänderung, vorhandene Setting/Global-Keyboard-Handler beibehalten.
+**Data/dependencies:** No persisted schema changes; retain existing setting/global keyboard handler.
 
-**Abnahme / Tests:** Key-Down/Repeat/Up, erster/letzter Post, Viewer sichtbar/verborgen, Setting an/aus, Expand-Mode, Video/Bild, Systemlautstärke außerhalb des Viewers, kein doppeltes Navigieren.
+**Verification:** Down/Repeat/Up, first/last post, viewer visible/hidden, toggle on/off, expanded mode, video/image, system volume outside viewer and no double navigation.
 
-**Begründung / Quellen:** [`de755c0d2`](https://github.com/khoadng/Boorusama/commit/de755c0d20570d4c9e2c6d4b718517514178af44). Der Nutzer bestätigte P10 nach Detailbesprechung am 2026-10-16.
+**Rationale/source:** [`de755c0d2`](https://github.com/khoadng/Boorusama/commit/de755c0d20570d4c9e2c6d4b718517514178af44). Approved after discussion 2026-10-16.
 
-## P01 – Zwei Quick Actions auf Post-Thumbnails
+## P01 — Two Quick Actions on Post Thumbnails
 
-**Status: ENTSCHIEDEN · 2026-10-16 · Umsetzung ausstehend.** **Beschlussart:** angepasst übernehmen, Fork-Post-Presentation bewahren.
+**Status: APPROVED · 2026-10-16 · Implementation pending.** **Resolution:** adapt; retain origin-specific fork post presentation.
 
-**Zielzustand / technische Grenzen:** Upstreams zwei pro Profil konfigurierbare Thumbnail-Quick-Actions (primary/secondary; Standard/Favorite je Booru, Bookmark, Download, Artist; optional keine) einschließlich kompakter adaptiver horizontaler/vertikaler Platzierung übernehmen. Primär-/Sekundäraktion sind verschieden; ohne primäre Aktion keine sekundäre. Standardmäßig weiter nur die bisherige primäre Aktion, Sekundäraktion deaktiviert. Bei knappen Kacheln nur Primäraktion anzeigen. Aktionen unten rechts gruppieren, Score unten links; Selection blendet beide aus und hat Vorrang. Auf Series-/Grouped-Post-Karten keine Post-spezifischen Mutationen auf einen beliebigen Einzelpost umbiegen: dafür erst einen klaren geeigneten Aktionsträger definieren.
+**Target behavior / constraints:** Adopt upstream's two per-profile configurable thumbnail quick actions (primary/secondary: site-default/favorite, bookmark, download, artist or None), with adaptive compact horizontal/vertical placement. Primary/secondary must be distinct; secondary is disabled when primary is None. Preserve the prior single primary choice by default, set secondary None. On cramped tiles display only primary. Group actions bottom right and score bottom left; selection hides both and wins. For grouped/Series cards, do not apply a post-specific mutation to an arbitrary single member; first determine a clear, appropriate action target.
 
-**Zwingende Fork-Kompatibilität:** Die 2026-09-24 mit [`c00ac614f`](https://github.com/timberpile/Boorusama/commit/c00ac614f8fb5849e57f924b6bfeaaf8a22a057c) eingeführte per-Post-Boundary erhalten: `PostGridItem` ermittelt `PostGridItemAdditions.quickActionButton` anhand der konkreten `post.origin`/`BooruPostPresentation` und übergibt diese als `defaultActionButton` an `DefaultImagePreviewQuickActionButton`. Dieser Button hat **nur bei der gewählten Default-Aktion** Vorrang vor `booruBuilder.quickFavoriteButtonBuilder`, nicht bei explizit gewählten Bookmark/Download/Artist-Actions. Beispiel: `DanbooruPostGridPresentation` liefert `DanbooruQuickFavoriteButton` mit Banned-Status-Abstimmung. Auch bei zwei Actions für jeden einzelnen Post korrekt auflösen; Mixed-Booru-Feed, Bookmark/Following und Custom-Fallbacks dürfen keine global falschen Aktionen zeigen. Direkt übergebene `quickActionButton`-Overrides/Selection-Guards ebenfalls erhalten.
+**Mandatory fork compatibility:** Preserve the per-post boundary introduced on 2026-09-24 in [`c00ac614f`](https://github.com/timberpile/Boorusama/commit/c00ac614f8fb5849e57f924b6bfeaaf8a22a057c): `PostGridItem` resolves `PostGridItemAdditions.quickActionButton` using the **concrete `post.origin`/`BooruPostPresentation`**, and passes it as `defaultActionButton` to `DefaultImagePreviewQuickActionButton`. This override takes precedence over `booruBuilder.quickFavoriteButtonBuilder` **only for the selected Default action**, not for explicit Bookmark/Download/Artist choices. `DanbooruPostGridPresentation` provides `DanbooruQuickFavoriteButton` with Banned post behavior. Resolve this correctly for **each post**, even with two actions, in mixed-booru feeds, bookmarks, Following and custom fallbacks; do not render favorite controls for the selected profile on unrelated posts. Preserve explicit `quickActionButton` overrides and selection guards.
 
-**Daten / Migration:** Bisheriges einzelnes String-Feld `defaultPreviewImageButtonAction` verlustfrei auf `thumbnailActions` (primär, optional sekundär) mappen; alte Import-/Export-Profile und UUIDs erhalten. Unknown/invalid Optionen über den bereits beschlossenen P02-Schutz behandeln; keine versehentliche Zurücksetzung der Nutzerwahl.
+**Data/migration:** Migrate legacy single string setting `defaultPreviewImageButtonAction` losslessly to `thumbnailActions` (primary, optional secondary), retaining existing profile exports/imports and UUIDs. Use P02 tolerance for unknown/invalid choices and never silently reset valid settings.
 
-**Abnahme / Tests:** Alle Legacy-Actions und ihr Default-Fallback, sitespezifische Default-Aktion in gemischten Feeds, Banned/Unsupported-Post, primär=sekundär/none, Legacy-JSON und Roundtrip, kleine Grid-Größen und großer Text, Selection/Hold-and-Drag, Series-Karten, Score-/Info-Badge-P12-Überlagerungen, Mouse/Touch/TV/Keyboard (P14).
+**Verification:** Legacy actions/default fallback, site-default in mixed feeds, banned/unsupported posts, equal primary-secondary/None cases, legacy JSON roundtrip, tiny tiles/large text, selection/hold-and-drag, Series cards, score/Info badge overlap under P12, pointer/touch/TV/keyboard P14.
 
-**Quelle:** Upstream [`26ad35202`](https://github.com/khoadng/Boorusama/commit/26ad352026bb4187e399dfab422c76427aca8655). Der Nutzer hat P01 am 2026-10-16 nach Klärung der Fork-spezifischen `defaultActionButton`-Semantik bestätigt.
+**Source:** Upstream [`26ad35202`](https://github.com/khoadng/Boorusama/commit/26ad352026bb4187e399dfab422c76427aca8655). User approved P01 after clarifying the fork-specific `defaultActionButton` semantics on 2026-10-16.
 
 ## U01 – Suche oberhalb Soft-Keyboard bedienbar
 
