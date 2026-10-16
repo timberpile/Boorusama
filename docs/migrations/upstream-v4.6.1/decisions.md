@@ -587,101 +587,101 @@ Before explicit user approval, a proposal must remain `OPEN`; technical recommen
 
 **Source:** Upstream [`26ad35202`](https://github.com/khoadng/Boorusama/commit/26ad352026bb4187e399dfab422c76427aca8655). User approved P01 after clarifying the fork-specific `defaultActionButton` semantics on 2026-10-16.
 
-## U01 – Suche oberhalb Soft-Keyboard bedienbar
+## U01 — Keep Search Usable Above the Software Keyboard
 
-**Status: ENTSCHIEDEN · 2026-10-16 · Umsetzung ausstehend.** **Beschlussart:** angepasst übernehmen.
+**Status: APPROVED · 2026-10-16 · Implementation pending.** **Resolution:** adapt.
 
-**Zielzustand / technische Grenzen:** Upstream-Fixes für Suche bei eingeblendeter Soft-Keyboard übernehmen: Search-Overlay innerhalb tatsächlich verfügbarem Platz positionieren (`fitToAvailableSpace` oder gleichwertige adaptive Platzierung), `MediaQuery.viewInsets.bottom` bei Top-/Bottom-Search korrekt einbeziehen und Liste/Inputs scrollbar halten. Die noch geplante kompakte, einheitliche Fork-Suche mit termbezogenem Raw Editor, automatischer Suche und Tag-/Metatag-Vorschlägen darf nicht durch alte Upstream-UI ersetzt werden. Texteingabe, vorhandene Chips und Vorschlagsauswahl bleiben bei 320dp, Landscape, Rotation und großem Text sichtbar; nicht unnötig das Keyboard schließen.
+**Target behavior / constraints:** Adopt upstream search fixes when the soft keyboard is visible. Fit the suggestion overlay within available space (`fitToAvailableSpace` or equivalent adaptive placement), honor `MediaQuery.viewInsets.bottom` for top-/bottom-positioned search, and keep results/input scrollable. Do not replace the planned compact unified fork Search UI, its per-term Raw Editor, automatic search and tag/metatag suggestions with the legacy upstream search bar. Keep entered text, selected chips and suggestions visible at 320dp, in landscape, after rotation and with large text, without unnecessarily dismissing the keyboard.
 
-**Daten / Abhängigkeiten:** Gemeinsamer Search-UX-Umbau, B01–B05, U03; Profile-/Search-Session und A02-UI-Komponenten erhalten.
+**Data/dependencies:** Unified Search UX redesign, B01–B05 and U03; retain existing profile/search sessions and A02 UI components.
 
-**Abnahme / Tests:** Phone Small/Normal/Landscape; Top- und Bottom-Position; Keyboard offen, 1.5–2× Schrift, Rotation, Suggestion-Auswahl, termbezogener Raw Editor und sichtbare aktive Chips; Upstream Headless-Keyboard-Flow adaptieren.
+**Verification:** Phone small/normal/landscape, top/bottom position, keyboard open, 1.5–2× text scaling, rotation, suggestion selection, per-term Raw Editor, visible selected chips and adapted upstream headless keyboard tests.
 
-**Begründung / Upstream-Quellen:** [`a00d41f3a`](https://github.com/khoadng/Boorusama/commit/a00d41f3a7a1e81954e718ab1144183426a1ab89). Nutzer bestätigte U01 ausdrücklich am 2026-10-16; es ist ein Planungsbeschluss ohne Code-Implementierung.
+**Rationale/upstream source:** [`a00d41f3a`](https://github.com/khoadng/Boorusama/commit/a00d41f3a7a1e81954e718ab1144183426a1ab89). User approved U01 on 2026-10-16. This is a decision, not proof of implementation.
 
-## U02 – Search History als Full-Height-Sheet + Tests
+## U02 — Search History as a Full-Height Sheet and Tests
 
-**Status: ENTSCHIEDEN · 2026-10-16 · Umsetzung ausstehend.** **Beschlussart:** übernehmen.
+**Status: APPROVED · 2026-10-16 · Implementation pending.** **Resolution:** adopt.
 
-**Zielzustand / technische Grenzen:** Search History auf Telefon als scrollkontrolliertes Bottom Sheet (`isScrollControlled: true`) mit sinnvoll nutzbarer Höhe zeigen; Liste scrollbar, Tastatur/Insets berücksichtigen und auf weitere UI-Navigation responsiv reagieren. Bestehende Filter-/History-/Pinned-Search-/Following- und Suchzustand-Wiederherstellung erhalten, keine eigene History-Datenmigration. Upstreams Flow-Tests adaptieren.
+**Target behavior / constraints:** Present mobile Search History in a scroll-controlled bottom sheet (`isScrollControlled: true`) with useful available height. Keep history scrolling, keyboard/safe-inset handling and responsive navigation. Preserve existing search history, filters, Pinned Searches, Following and search state restoration without a separate history migration. Adapt upstream flow tests.
 
-**Daten / Abhängigkeiten:** Fork SearchHistory-Route und SearchProfileSession; U01/U03 sowie neuer Search-UX-Einstieg.
+**Data/dependencies:** Fork SearchHistory route and SearchProfileSession, U01/U03 and new Search UX entry.
 
-**Abnahme / Tests:** Viele Historieneinträge, Suche/Filter, Auswahl übernimmt Query korrekt, Keyboard/Back/Escape, Route-Return, Sheet bei niedriger Höhe; keine doppelte Search-Action.
+**Verification:** Many history entries, search/filter, correct query selection, keyboard/Back/Escape, returning from route, limited viewport height and no duplicate search action.
 
-**Begründung / Upstream-Quellen:** [`e53cdf3b3`](https://github.com/khoadng/Boorusama/commit/e53cdf3b31560cd4607431381b316b8e29349b11), [`3726d75c7`](https://github.com/khoadng/Boorusama/commit/3726d75c7eb14ea170e06e497b09198f4a9c4c71). Nutzer bestätigte U02 ausdrücklich am 2026-10-16; es ist ein Planungsbeschluss ohne Code-Implementierung.
+**Rationale/upstream sources:** [`e53cdf3b3`](https://github.com/khoadng/Boorusama/commit/e53cdf3b31560cd4607431381b316b8e29349b11), [`3726d75c7`](https://github.com/khoadng/Boorusama/commit/3726d75c7eb14ea170e06e497b09198f4a9c4c71). Approved 2026-10-16.
 
-## U03 – Tag-Suggestions per Tastatur fokussieren und hervorheben
+## U03 — Keyboard Highlight and Selection for Tag Suggestions
 
-**Status: ENTSCHIEDEN · 2026-10-16 · Umsetzung ausstehend.** **Beschlussart:** angepasst übernehmen.
+**Status: APPROVED · 2026-10-16 · Implementation pending.** **Resolution:** adapt.
 
-**Zielzustand / technische Grenzen:** Vorschlagsliste als fokuserhaltende Kurumi-Listbox oder gleichwertigen gemeinsamen Mechanismus anbinden: Up/Down bewegt sichtbares Highlight, Enter wählt aktiven Vorschlag, Escape löscht zunächst nur den Highlight-Zustand, während der Textfokus im Suchfeld bleibt; danach greifen Search-/Layer-Back-Regeln. Das Listen-Highlight ist semantisch markiert und scrollt ins Sichtfeld. Keyboard-Navigation konsistent für Desktop, Hardware-Keyboard/TV und für Raw-Editor des einzelnen Suchbegriffs; keine doppelte Fokusmarkierung um Input/Bar, keine Tastenevents in verdeckte Screens durchlassen. Tag- und Metatag-Einträge des zukünftigen allgemeinen Search-Options-Interface unterstützen.
+**Target behavior / constraints:** Use a focus-preserving Kurumi Listbox or equivalent shared mechanism for suggestions: Up/Down changes visible highlight, Enter inserts the selected entry, Escape initially clears the highlight without removing focus from the search input. Subsequent Escape/Back follows Search and layer rules. Mark highlighted list items accessibly and scroll them into view. Use consistent keyboard behavior on desktop, hardware keyboards/TV and the single-term Raw Editor. Do not draw duplicate focus rings around the input/search bar or route keys to hidden screens. Support ordinary tags and metatags exposed through the planned shared Search Options interface.
 
-**Daten / Abhängigkeiten:** B01, geplanter Suchumbau, U01, U04–U06, A02-Kurumi; kein zweiter Search-Controller/Legacy-Chip-Editor.
+**Data/dependencies:** B01, Search redesign, U01/U04–U06 and A02 Kurumi; no duplicate search controller or old chip editor.
 
-**Abnahme / Tests:** Vorwärts/rückwärts/reversed Suggestions, Up/Down/Enter/Escape, Auswahlliste bei Filteränderung, Tab/Shift-Tab, Fokus bleibt im Feld, Raw-Query und Single-Term-Editor, mit/ohne Keyboard; Scroll-to-highlight; keine Tastaturaktion an verdeckter Seite.
+**Verification:** Forward/reverse suggestion navigation, Up/Down/Enter/Escape, list after filter change, Tab/Shift-Tab, input focus retained, Raw query and single-term editor, with/without soft keyboard, scroll to highlighted entry and no key leakage to background pages.
 
-**Begründung / Upstream-Quellen:** [`f7174bab4`](https://github.com/khoadng/Boorusama/commit/f7174bab405360103c48659b1c5bb72cbcd2bd61), [`e1ad37e1e`](https://github.com/khoadng/Boorusama/commit/e1ad37e1eddbb12106930e2ec983536863b5511b), [`7f5693c84`](https://github.com/khoadng/Boorusama/commit/7f5693c847ea0a88acb1fd12ff05057e0a6e5bb5). Nutzer bestätigte U03 ausdrücklich am 2026-10-16; es ist ein Planungsbeschluss ohne Code-Implementierung.
+**Rationale/upstream sources:** [`f7174bab4`](https://github.com/khoadng/Boorusama/commit/f7174bab405360103c48659b1c5bb72cbcd2bd61), [`e1ad37e1e`](https://github.com/khoadng/Boorusama/commit/e1ad37e1eddbb12106930e2ec983536863b5511b), [`7f5693c84`](https://github.com/khoadng/Boorusama/commit/7f5693c847ea0a88acb1fd12ff05057e0a6e5bb5). Approved 2026-10-16.
 
-## U04 – TV-Remote- und Tastaturnavigation auf gesamter App
+## U04 — App-Wide D-Pad and Keyboard Navigation
 
-**Status: ENTSCHIEDEN · 2026-10-16 · Umsetzung ausstehend.** **Beschlussart:** angepasst übernehmen; TV Best-Effort.
+**Status: APPROVED · 2026-10-16 · Implementation pending.** **Resolution:** adapt; TV is best effort.
 
-**Zielzustand / technische Grenzen:** Gemeinsame directional Focus-Navigation (D-Pad/Pfeiltasten), sichtbare Focus-Rings erst bei Keyboard-/Remote-Bedienung, Scroll-to-focused-Item und vernünftige Navigation über FocusScopes/Drawer/Sidebar/Toolbar/Viewer/Dialoge übernehmen. Upstreams `KurumiDirectionalFocusAction`, Ring-/Focus-Utilities, Key-Handling und Test-Harness nur in Fork-kompatibler Form integrieren; Touch-/Mouse-Navigation ungestört lassen und keine unabsichtliche Aktivierung versteckter Controls. TV/Remote zunächst ausdrücklich **Best-Effort**, keine neue offiziell unterstützte TV-Plattform samt Release-/Support-Versprechen.
+**Target behavior / constraints:** Integrate directional focus navigation (D-pad/arrow keys), focus rings visible only when a keyboard/remote is actively used, scroll-to-focused-item, and sensible traversal across FocusScopes, drawers, sidebars, toolbars, viewers and dialogs. Adopt upstream `KurumiDirectionalFocusAction`, focus-ring utilities, key handling and test harness in a fork-compatible way. Preserve touch/mouse operation and prevent activation of hidden controls. TV/remote remains explicitly **best effort**, not a newly supported official TV platform with support/release obligations.
 
-**Daten / Abhängigkeiten:** A02, P01/P13/P14, U03/U05/U06 und bestehende Fork-Navigation/Panel-Auswahl.
+**Data/dependencies:** A02, P01/P13/P14, U03/U05/U06 and existing fork navigation and panel choices.
 
-**Abnahme / Tests:** D-Pad+Enter+Back über Start/Browse/Profiles/Search/Settings/Viewer/Dialogs, Focus-Scope-Wechsel, Scroll-Reveal, nicht sichtbar/offstage, Input-Editing vs. Fokus, Touch/Mouse-Wechsel, Ring nur bei Keyboard; autom. Headless-Flows.
+**Verification:** D-pad/Enter/Back across start/browse/profiles/search/settings/viewer/dialogs, crossing focus scopes, scroll reveal, offstage controls, text editing versus navigation focus, pointer/keyboard switching and ring only in keyboard mode; headless flows.
 
-**Begründung / Upstream-Quellen:** [`e80eb1210`](https://github.com/khoadng/Boorusama/commit/e80eb1210a2327dfae4eba4866a1e7cfe472dfd8), [`00feb4d99`](https://github.com/khoadng/Boorusama/commit/00feb4d9923b49a931b7b0a24a9ac6f262214cc0), [`1e3b00c3a`](https://github.com/khoadng/Boorusama/commit/1e3b00c3a8e9c9cc43b947bb42501c2e33b30bf0), [`41d0121ce`](https://github.com/khoadng/Boorusama/commit/41d0121cee07c3533042f86e0b256663a9f7134d), [`7895ce70e`](https://github.com/khoadng/Boorusama/commit/7895ce70e7b520ddd8cefe3ef640de3679ee4fde). Nutzer bestätigte U04 ausdrücklich am 2026-10-16; es ist ein Planungsbeschluss ohne Code-Implementierung.
+**Rationale/upstream sources:** [`e80eb1210`](https://github.com/khoadng/Boorusama/commit/e80eb1210a2327dfae4eba4866a1e7cfe472dfd8), [`00feb4d99`](https://github.com/khoadng/Boorusama/commit/00feb4d9923b49a931b7b0a24a9ac6f262214cc0), [`1e3b00c3a`](https://github.com/khoadng/Boorusama/commit/1e3b00c3a8e9c9cc43b947bb42501c2e33b30bf0), [`41d0121ce`](https://github.com/khoadng/Boorusama/commit/41d0121cee07c3533042f86e0b256663a9f7134d), [`7895ce70e`](https://github.com/khoadng/Boorusama/commit/7895ce70e7b520ddd8cefe3ef640de3679ee4fde). Approved 2026-10-16.
 
-## U05 – Desktop Tab-Reihenfolge und Fokusgrenzen
+## U05 — Desktop Tab Order and Focus Boundaries
 
-**Status: ENTSCHIEDEN · 2026-10-16 · Umsetzung ausstehend.** **Beschlussart:** angepasst übernehmen.
+**Status: APPROVED · 2026-10-16 · Implementation pending.** **Resolution:** adapt.
 
-**Zielzustand / technische Grenzen:** Pane-bezogene Tab-/Shift+Tab-Reihenfolge und FocusTraversalGroup/FocusPane sinnvoll in bestehender Sidebar, Profile-Switcher, Settings-Suche, Suchergebnissen, Browse/Post-Viewer und Dialogen etablieren. Sichtbar-fokussierte Elemente gegenüber Offstage-/Scroll-Bereich priorisieren; bei Keyboard-only Interaktion Ring zeigen, nach Mouse/Touch ausblenden; beim Schließen von Dialog/Popover Fokus an den aufrufenden Control zurückgeben. Flache und verschachtelte Navigationsbereiche nicht als zufällige Focus-Scopes behandeln; aktuelle Fork-Settings-/Sidebar-Architektur erhalten.
+**Target behavior / constraints:** Establish pane-specific Tab/Shift-Tab order and `FocusTraversalGroup`/`FocusPane` for the current sidebar, profile switcher, Settings Search, search results, browse/viewer and dialogs. Prioritize **visible** focus targets over offstage or scrolled-out content. Show focus rings when using a keyboard, hide them after mouse/touch input and return focus to the trigger after closing a dialog/popover. Avoid unintended focus scopes that interrupt flat/nested navigation; preserve the current fork Settings/sidebar architecture.
 
-**Daten / Abhängigkeiten:** U04/U06, Fork Settings-Suche und responsive Settings-Panes (A04), P14.
+**Data/dependencies:** U04/U06, fork Settings Search and responsive Settings panes (A04), P14.
 
-**Abnahme / Tests:** Tab/Shift+Tab und Directional Arrows über Pane-Grenzen, lange Settings-Listen, Explore/Viewer sichtbare Controls, Focus Return nach Dialog/Sheet, Dynamic Layout/Routing/Scroll und große Textskalierung.
+**Verification:** Tab/Shift-Tab and directional arrows across pane boundaries, long settings lists, visible controls in Explore/Viewer, focus return after dialog/sheet, dynamic layout/routing/scroll and large text.
 
-**Begründung / Upstream-Quellen:** [`a555bbb3d`](https://github.com/khoadng/Boorusama/commit/a555bbb3db20d9b8c29c3c1b7d87c2b0d8546d20), [`e95a71f85`](https://github.com/khoadng/Boorusama/commit/e95a71f85d7982a797a89b0879a42e1c55d46253), [`5f57df699`](https://github.com/khoadng/Boorusama/commit/5f57df699e940fb8256aa74bdac46d2979246141), [`58254b441`](https://github.com/khoadng/Boorusama/commit/58254b441040ec4c6187018a46c4366511e3e7f0), [`84286ddc1`](https://github.com/khoadng/Boorusama/commit/84286ddc1e3da8e7cae71783c5e21641015635ae), [`d7041c4d4`](https://github.com/khoadng/Boorusama/commit/d7041c4d42b3470c45ab4ed29bbe1e3e73093aa8), [`f31f551be`](https://github.com/khoadng/Boorusama/commit/f31f551bedd31b2c75fcddf354e682b07bae5e69). Nutzer bestätigte U05 ausdrücklich am 2026-10-16; es ist ein Planungsbeschluss ohne Code-Implementierung.
+**Rationale/upstream sources:** [`a555bbb3d`](https://github.com/khoadng/Boorusama/commit/a555bbb3db20d9b8c29c3c1b7d87c2b0d8546d20), [`e95a71f85`](https://github.com/khoadng/Boorusama/commit/e95a71f85d7982a797a89b0879a42e1c55d46253), [`5f57df699`](https://github.com/khoadng/Boorusama/commit/5f57df699e940fb8256aa74bdac46d2979246141), [`58254b441`](https://github.com/khoadng/Boorusama/commit/58254b441040ec4c6187018a46c4366511e3e7f0), [`84286ddc1`](https://github.com/khoadng/Boorusama/commit/84286ddc1e3da8e7cae71783c5e21641015635ae), [`d7041c4d4`](https://github.com/khoadng/Boorusama/commit/d7041c4d42b3470c45ab4ed29bbe1e3e73093aa8), [`f31f551be`](https://github.com/khoadng/Boorusama/commit/f31f551bedd31b2c75fcddf354e682b07bae5e69). Approved 2026-10-16.
 
-## U06 – Escape-Handling, Menu Selection und Layer-Hierarchie
+## U06 — Escape Handling, Menu Selection and Layer Hierarchy
 
-**Status: ENTSCHIEDEN · 2026-10-16 · Umsetzung ausstehend.** **Beschlussart:** angepasst übernehmen.
+**Status: APPROVED · 2026-10-16 · Implementation pending.** **Resolution:** adapt.
 
-**Zielzustand / technische Grenzen:** Mit einem Fork-kompatiblen `KurumiDismissible`/BackHandler oder gleichwertig eine einzige ordentliche Keyboard-Escape/Android-Back-Präzedenz für ineinanderliegende Layer aufbauen: zuerst aktives Submenü/Popup/Popover, dann Dialog/Sheet, dann Search-Editing-/Suggestion-State, anschließend aktive Selection, zuletzt Route/Screen; tatsächliche Router-/PopScope-/Modal-Grenzen (inklusive nicht dismissbarer oder Dirty-Form-State) respektieren. Nur eine Ebene pro Tastendruck schließen; Fokus bei Schließen auf Auslöser zurückgeben und Key-Events nicht an verdeckte Seiten durchreichen. Fork-Kontextmenüs, MultiSelection- und Tap-through-Schutz erhalten, mit P13-A02-Kurumi abstimmen.
+**Target behavior / constraints:** Use a fork-compatible `KurumiDismissible`/BackHandler or equivalent to establish one predictable Escape/Android Back precedence for nested layers: **innermost active submenu/popup/popover first, dialog/sheet second, search editing/suggestion state next, active selection next, route/screen last**. Respect actual Router/PopScope/modal boundaries, including non-dismissible or dirty forms. Close exactly one layer per keypress, return focus to the opener and do not pass keys to hidden pages. Preserve fork context menus, multiselection and no-tap-through safeguards; coordinate with P13/A02 Kurumi.
 
-**Daten / Abhängigkeiten:** U03–U05, P13, bestehende Fork-Router und `CustomContextMenuOverlay`-/`KurumiContextMenuPageController`-Erweiterungen.
+**Data/dependencies:** U03–U05, P13 and existing fork routers plus `CustomContextMenuOverlay`/`KurumiContextMenuPageController` extensions.
 
-**Abnahme / Tests:** Verschachteltes Submenü/Popover in Dialog/Sheet, Escape/Android Back, Selection+Search, non-dismissable Dialog, Routing mehrfacher Navigators, kein doppelt konsumiertes Escape, Focus-Return, kein Tap-through auf Post.
+**Verification:** Nested submenu/popover within dialog/sheet, Escape/Android Back, Selection plus Search, nondismissible dialog, multiple nested Navigators, no double handling, focus return and no click-through on posts.
 
-**Begründung / Upstream-Quellen:** [`3ff8b054e`](https://github.com/khoadng/Boorusama/commit/3ff8b054e558c77fd94a0419b33526d7e6d9c829), [`b925a581b`](https://github.com/khoadng/Boorusama/commit/b925a581bd361ca710d27a3e95c1eb315f9be62f), [`2d6d9f6e6`](https://github.com/khoadng/Boorusama/commit/2d6d9f6e6dacf60a52f8d0b62e7d27b8318b707c), [`76a8485de`](https://github.com/khoadng/Boorusama/commit/76a8485de122438d3f70c74de5c69bd1c8ea8987). Nutzer bestätigte U06 ausdrücklich am 2026-10-16; es ist ein Planungsbeschluss ohne Code-Implementierung.
+**Rationale/upstream sources:** [`3ff8b054e`](https://github.com/khoadng/Boorusama/commit/3ff8b054e558c77fd94a0419b33526d7e6d9c829), [`b925a581b`](https://github.com/khoadng/Boorusama/commit/b925a581bd361ca710d27a3e95c1eb315f9be62f), [`2d6d9f6e6`](https://github.com/khoadng/Boorusama/commit/2d6d9f6e6dacf60a52f8d0b62e7d27b8318b707c), [`76a8485de`](https://github.com/khoadng/Boorusama/commit/76a8485de122438d3f70c74de5c69bd1c8ea8987). Approved 2026-10-16.
 
-## U07 – Favorite Tags auf großen Screens im Dialog statt Sheet
+## U07 — Favorite Tags Editor as Dialog on Large Screens
 
-**Status: ENTSCHIEDEN · 2026-10-16 · Umsetzung ausstehend.** **Beschlussart:** übernehmen (Fork-Labels bewahren).
+**Status: APPROVED · 2026-10-16 · Implementation pending.** **Resolution:** adopt while preserving fork labels.
 
-**Zielzustand / technische Grenzen:** Favorite-Tag-Editor auf Phones wie bisher als Bottom Sheet mit Keyboard/Inset-Schutz und ab größerem Kurumi-Screen-Breakpoint als zentrierten Dialog mit ca. 520px Maximalbreite anzeigen. Inhalt unabhängig von Keyboardhöhe und erweiterten Optionen scrollbar machen, Add/Edit/Raw-Query und sämtliche vorhandenen Fork-Label-Optionen/Warnungen/Aktionen ohne Funktionsverlust bewahren. Konsistent mit Fork-Breakpoints und anderen Einstellungenmodals gestalten.
+**Target behavior / constraints:** Keep the Favorite Tags editor as a keyboard-inset-safe bottom sheet on phones, and use a centered **max-width 520px** dialog at larger Kurumi screen breakpoints. Make contents scrollable regardless of keyboard height or advanced options. Preserve Add/Edit/Raw Query and all fork label options, warnings and actions. Follow fork responsive breakpoints and existing Settings modals.
 
-**Daten / Abhängigkeiten:** Fork Favorite-Tag-Management und Label-Verwaltung, U01/U04/U06.
+**Data/dependencies:** Fork favorite-tag and label management, U01/U04/U06.
 
-**Abnahme / Tests:** Phone/Tablet/Desktop, Keyboard offen/zu, großer Text, wechselnde Advanced-Options und Label-Chips, fehlerhafte/duplizierte Tags, Submit/Cancel/Escape und State-Restoration.
+**Verification:** Phone/tablet/desktop, keyboard open/closed, large text, changing advanced options and label chips, invalid/duplicate tags, Submit/Cancel/Escape and restoration.
 
-**Begründung / Upstream-Quellen:** [`20e750618`](https://github.com/khoadng/Boorusama/commit/20e750618847bbb0a84391cca0b2440667ab18e7). Nutzer bestätigte U07 ausdrücklich am 2026-10-16; es ist ein Planungsbeschluss ohne Code-Implementierung.
+**Rationale/upstream source:** [`20e750618`](https://github.com/khoadng/Boorusama/commit/20e750618847bbb0a84391cca0b2440667ab18e7). Approved 2026-10-16.
 
-## U08 – Regressionstests und Flakiness-Fixes nachziehen
+## U08 — Update Regression Tests and Remove Timing Flakiness
 
-**Status: ENTSCHIEDEN · 2026-10-16 · Umsetzung ausstehend.** **Beschlussart:** test-only, zusammen mit Feature-Übernahme.
+**Status: APPROVED · 2026-10-16 · Implementation pending.** **Resolution:** test-only with related feature migrations.
 
-**Zielzustand / technische Grenzen:** Upstreams Testabsichten (Info-Badge-Hover nach P12 und Bulk-Dry-Run-/Session-Status nach D02) übernehmen, jedoch an aktuelle Fork-Widgets, APIs und bestehende kontrollierte Clock-/Completion-Signale anpassen statt unkontrollierte feste Sleeps oder flakey Polling-Schleifen zu duplizieren. Keine eigenständige UI-/Produktlogik und keine neue Persistenz durch U08; Tests erst zusammen mit den betreffenden Migrationsänderungen aktualisieren.
+**Target behavior / constraints:** Adopt the intent of upstream tests (Info-badge hover after P12 and bulk dry-run/session state after D02), but adapt to current fork widgets/APIs and deterministic clocks/completion signals rather than copying fixed sleeps or flaky polling loops. U08 introduces no standalone UI/product behavior or new storage. Update tests alongside their respective feature changes.
 
-**Daten / Abhängigkeiten:** P12, D02, Fork-Regressionstests und Runner/Headless-Flows (A12).
+**Data/dependencies:** P12/D02, fork regression suite and runner/headless flows (A12).
 
-**Abnahme / Tests:** Hover öffnet Preview nur über Info-Badge, schließen via Keyboard/Maus/Selection; Bulk Dry Run/Resume/Status ohne wall-clock-race, idempotente Session-Lifecycle-Tests und kontrollierte Futures/Events.
+**Verification:** Hover preview opens only via Info badge and closes on keyboard/mouse/selection; bulk dry run/resume/status free of wall-clock races; idempotent session-lifecycle tests and controlled Futures/events.
 
-**Begründung / Upstream-Quellen:** [`71b41b8a0`](https://github.com/khoadng/Boorusama/commit/71b41b8a0f5574975f1cae673ac9cedde5b594ed). Nutzer bestätigte U08 ausdrücklich am 2026-10-16; es ist ein Planungsbeschluss ohne Code-Implementierung.
+**Rationale/upstream source:** [`71b41b8a0`](https://github.com/khoadng/Boorusama/commit/71b41b8a0f5574975f1cae673ac9cedde5b594ed). Approved 2026-10-16.
 
 ## D01 – Download Sidecars: TXT-Tags und JSON-Metadaten
 
