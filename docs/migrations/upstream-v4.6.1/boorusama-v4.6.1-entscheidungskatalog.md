@@ -1,6 +1,6 @@
 # Boorusama – Entscheidungskatalog zum echten Merge auf Upstream v4.6.1
 
-**Stand:** 16. Oktober 2026 · **Status:** **47 von 68 Themen entschieden, 21 offen**, weiterhin **keine Freigabe zur Implementierung**.
+**Stand:** 16. Oktober 2026 · **Status:** **52 von 68 Themen entschieden, 16 offen**, weiterhin **keine Freigabe zur Implementierung**.
 
 > Grundlage: `timberpile/Boorusama` `develop` auf `d4e15586f06192f0ff4315d36a3f61ae69a752d5`, Upstream `v4.6.1` auf `5b04bf6a164f028d41701299367d0dde74dde330`; gemeinsamer Vorfahr `2c0ac699184854d363833ea4a3205aef0895a92b`. Dateien aus dem hochgeladenen Git-Bundle lokal geprüft. Bei dieser Analyse wurden keine Laufzeitänderungen am Repository vorgenommen.
 
@@ -664,6 +664,7 @@ Für jedes Thema eines von **(a) vollständig übernehmen**, **(b) angepasst üb
 **Status:** Entscheidung; Entscheidung: **OFFEN** · **Risiko:** 🟠 hoch.
 
 - **Änderung in Upstream:** Per Profil primäre + sekundäre Action (`favorite`, `bookmark`, `download`, `artist`/default) mit adaptivem Button-Layout.
+- **Aktualisierter Fork-Befund (2026-10-16; P01 bleibt offen):** `PostGridItem` löst seine `PostGridItemAdditions.quickActionButton` per `post.origin` und passendem `BooruPostPresentation` auf und übergibt ihn als `defaultActionButton` an `DefaultImagePreviewQuickActionButton`. Nur bei der im Profil gewählten Standardaktion wird dieser sitespezifische Button verwendet; andernfalls gewählte Bookmark/Download/Artist-Actions gehen vor. `DanbooruPostGridPresentation` liefert z. B. `DanbooruQuickFavoriteButton` mit Banned-Status-Handling. Dieses Forwarding wurde am 2026-09-24 durch den [Unified-Post-Pipeline-Commit `c00ac614f`](https://github.com/timberpile/Boorusama/commit/c00ac614f8fb5849e57f924b6bfeaaf8a22a057c) eingeführt und muss bei P01 vollständig erhalten bleiben; Entscheidung über Zwei-Actions-UI steht noch aus.
 - **Fork / potenzieller Konflikt:** Fork zeigt bisher eine Quick Action und hat eigene Grid-Overlays, Selection und geplantes Series Grouping.
 - **Zu entscheiden:** Welche Actions und Positionen? Wann werden sie bei Selection, Hover und Series-Karten angezeigt?
 - **Arbeitshypothese (nicht beschlossen):** Feature übernehmen, aber Layout/Hit-Targets und Post-Grid-Integration im Fork gestalten.
@@ -689,12 +690,16 @@ Für jedes Thema eines von **(a) vollständig übernehmen**, **(b) angepasst üb
 
 ### P03 · Bildladefehler: Tap-to-Retry nur bei passenden Error-Widgets
 
-**Status:** Entscheidung; Entscheidung: **OFFEN** · **Risiko:** 🟡 mittel.
+**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟡 mittel.
 
+- **Bestätigter Beschluss:** angepasst übernehmen. Endgültige Upstream-Variante mit explizitem `ExtendedImageController.reload()` statt früherem flächendeckendem `GestureDetector` verwenden. In Fork-Grid und Post-Viewer gut sichtbaren, fokussierbaren Retry-Button im `ErrorPlaceholder` anbieten; Tippen auf restliche Kachel muss weiterhin den Post öffnen und Selection-/Hold-Gesten respektieren. Der Fork-`ProgressivePostImage` hat eine eigene Kandidaten-/Generations-Loading-Pipeline und muss einen separaten kontrollierten Retry des fehlgeschlagenen Ziel-/Fallback-Requests ermöglichen, ohne ein bereits erfolgreich dekodiertes niedrigeres Bild zu verlieren. Kein automatisches endloses Retry oder unkontrolliertes Disk-Cache-Löschen.
+- **Daten / Abhängigkeiten:** Keine persistente Migration; `packages/extended_image`-API und Fork-Progressive-Loader/Shared-Cache entsprechend anpassen. X04-Cache-Invarianten erhalten.
+- **Verifikation:** Primary/Fallback/Progressive-Fehler, Zielbild-Neuladen mit gehaltenem Placeholder, Retry nach 403/Timeout/invalidierter Datei, Kachel-Tap vs. Retry-Button, Selection/Long-Press, Accessibility/Keyboard und keine dauernde Request-Schleife.
+- **Verbindliches Protokoll:** [P03](decisions.md#p03-bildladefehler-tap-to-retry-nur-bei-passenden-error-widgets).
 - **Änderung in Upstream:** Upstream stellt zunächst tap-to-retry für Custom-Error-Widgets her und nimmt später pauschale implicit Retry-Gestures zurück.
 - **Fork / potenzieller Konflikt:** Fork verwendet Custom Error-UI und Shared Image Cache.
-- **Zu entscheiden:** Soll ein Thumbnail-/Viewer-Fehler direkt per Tap retryen oder über sichtbaren Button?
-- **Arbeitshypothese (nicht beschlossen):** Explizite, zuverlässige Retry-Affordance erhalten; keine unsichtbaren Gestures, die Post-Open abfangen.
+- **Ursprüngliche Fragestellung:** Soll ein Thumbnail-/Viewer-Fehler direkt per Tap retryen oder über sichtbaren Button?
+- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Explizite, zuverlässige Retry-Affordance erhalten; keine unsichtbaren Gestures, die Post-Open abfangen.
 - **Abnahme/Test:** Failed preview, viewer tap/hold, retry mit neuen Cache-Keys.
 - **Upstream-Commits:** [`afdff42e3`](https://github.com/khoadng/Boorusama/commit/afdff42e344a585439bef34893bc2cbaa8e706df), [`58e4a0607`](https://github.com/khoadng/Boorusama/commit/58e4a06075faa8c07d8129dfdfa19156a4981a50).
 - **Betroffene Codepfade (Auswahl):** `packages/extended_image/lib/src/extended_image.dart`.
@@ -702,12 +707,16 @@ Für jedes Thema eines von **(a) vollständig übernehmen**, **(b) angepasst üb
 
 ### P04 · Post-Grid: Refresh während laufendem Fetch nicht verlieren
 
-**Status:** Entscheidung; Entscheidung: **OFFEN** · **Risiko:** 🟡 mittel.
+**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟡 mittel.
 
+- **Bestätigter Beschluss:** Fork-Race-/Refresh-Queue behalten und gezielt ergänzen. Bestehenden `PostGridController` mit `_refreshPending`, `_pendingMaintainPage`, `_pendingPreserveSelection` und `_queuedRefreshWaiters` unverändert als einzige Refresh-Queue erhalten. Upstreams Latest-Result-Schutz ergänzen: Wenn während des laufenden Fetchs eine neue Suche/ein Refresh/ein Profilwechsel vorgemerkt wird, die veraltete Antwort nicht zwischenzeitlich in den sichtbaren Grid-State übernehmen, sondern danach den neuesten Stand laden und erst dessen Ergebnis veröffentlichen. Fehler veralteter Passes nicht als endgültige UI-Fehler anzeigen, wenn der zuletzt angeforderte Pass erfolgreich war; aber echte letzte Fehler und wartende Future-Aufrufer korrekt behandeln. Keine zusätzliche Upstream-Refresh-Queue oder Selection-Reset einführen.
+- **Daten / Abhängigkeiten:** Keine Datenmigration; Bezug auf Following Topics, automatische Suchänderungen, Profilwechsel und P05-X03-Bookmark-Library-Gate.
+- **Verifikation:** Getaktete, konkurrierende Fetches/Refreshes, alte Antwort nicht gerendert, spätester Query/Profil-Snapshot gewinnt, Fetch-Fehler vor erfolgreichem Folgepass, maintainPage, preserveSelection, Wartende Future, Dispose, Duplicate-Fetches/Loading-State.
+- **Verbindliches Protokoll:** [P04](decisions.md#p04-post-grid-refresh-während-laufendem-fetch-nicht-verlieren).
 - **Änderung in Upstream:** `PostGridController` merkt sich Refresh-Anfragen und führt sie nach dem aktuellen Fetch aus.
 - **Fork / potenzieller Konflikt:** Fork hat Prefetch, adaptive Timings und Following/Subscription-Feeds.
-- **Zu entscheiden:** Wie mit manuellem Refresh, automatischer Feed-Aktualisierung und bestehendem Request-Scheduling kombinieren?
-- **Arbeitshypothese (nicht beschlossen):** Race-Fix übernehmen, mit Cancel/Dedup-Mechanismen des Forks verbinden.
+- **Ursprüngliche Fragestellung:** Wie mit manuellem Refresh, automatischer Feed-Aktualisierung und bestehendem Request-Scheduling kombinieren?
+- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Race-Fix übernehmen, mit Cancel/Dedup-Mechanismen des Forks verbinden.
 - **Abnahme/Test:** gleichzeitiger Fetch+Refresh, maintainPage, kein Doppelabruf oder UI-Hang.
 - **Upstream-Commits:** [`828ddbdb7`](https://github.com/khoadng/Boorusama/commit/828ddbdb75afd02fe14cf8182774a3ef67c9128f).
 - **Betroffene Codepfade (Auswahl):** `lib/core/posts/listing/src/widgets/post_grid_controller.dart`.
@@ -737,6 +746,7 @@ Für jedes Thema eines von **(a) vollständig übernehmen**, **(b) angepasst üb
 - **Bestätigter Beschluss:** angepasst übernehmen. GIF-Autoplay-Setting bei allen Grid-Qualitätsstufen einschließlich `original` respektieren: Bei deaktiviertem Autoplay nur eine statische Vorschau laden; bei aktivem Autoplay die nach Site tatsächlich verfügbare animierte URL entsprechend Qualität/Fallback wählen. Wichtig: Statische kleinere GIF-Thumbnails sind keine garantierten niedrig aufgelösten *animierten* GIF-Varianten; Danbooru liefert häufig statische 180/360/720-Varianten und die animierte Original-GIF. Eine fehlende animierte Preview nicht erfinden; im Viewer gelten dessen eigene Qualität-/Abspielregeln.
 - **Daten / Abhängigkeiten:** Fork-spezifische Danbooru-Variant-URL-Auflösung und generischen Thumbnail-Resolver erhalten; keine persistente Migration.
 - **Verifikation:** Danbooru/andere Boorus, automatische/low/high/highest/original-Qualität × autoplay/static, verfügbares/unverfügbares Sample, URL und Aspect Ratio, GIF-Animation bei deaktiviertem Autoplay im Grid.
+- **Automatik-Einordnung (2026-10-16):** Bei `Automatic` ergibt sich Micro/Tiny→Low, Small/Normal→High, Large→Highest im generischen `resolvedImageQuality`. GIFs nutzen teils die Roh-Einstellung, daher gelten je Engine andere Regeln; eine niedrige statische Vorschau ist keine separate niedrig aufgelöste *animierte* GIF-Datei. Manuelle UI-Qualität enthält Highest, nicht Original. Bestehende Auflösungsstaffelung erhalten, Autoplay bei allen Pfaden beachten.
 - **Verbindliches Protokoll:** [P06](decisions.md#p06-gif-autoplay-respektiert-qualitätseinstellungen).
 - **Änderung in Upstream:** GIF-Autoplay-Setting greift auch bei alternativen Bildqualitäten.
 - **Fork / potenzieller Konflikt:** Fork trennt Preview-/Post-Qualitäten und hat GIF-Export-/Trim-Tools.
@@ -764,24 +774,32 @@ Für jedes Thema eines von **(a) vollständig übernehmen**, **(b) angepasst üb
 
 ### P08 · WebView-Video aus Cache-Datei und Cleanup-Schutz
 
-**Status:** Entscheidung; Entscheidung: **OFFEN** · **Risiko:** 🟠 hoch.
+**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟠 hoch.
 
+- **Bestätigter Beschluss:** angepasst übernehmen, Video-Cache-Lifetime schützen. Upstreams WebView-Wiedergabe lokaler Cache-Dateien mit kleiner lokaler HTML-Seite, MIME-Erkennung aus `VideoSource`, eingeschränktem lokalen Datei-Zugriff und sicherer serieller Bereinigung alter temporärer WebView-Seiten übernehmen; den bisherigen fehleranfälligen Base64/10-MiB-Fallback vermeiden. Fork-`VideoCacheManager` bislang ohne garantierten Usage-Schutz für aktive Videodateien: während Player/WebView-Dateizugriffes Eviction, Expiration und explizites Cache-Leeren gegen diese Videodatei absichern (kurzlebige, pro Datei referenzierte Nutzung/Lease). Beim Video-/Engine-Wechsel, Error und Dispose freigeben; ggf. zur Löschung vorgemerkte Dateien anschließend bereinigen. Keine Image-Cache-Generations zurückbringen und kein dauerhaftes Leasing über den Wiedergabezeitraum hinaus. Bei beschädigter/fehlender Cache-Datei sauber auf Remote-Streaming zurückfallen, ohne Auth/Cookies an unberechtigte Datei-/Origin-Kontexte zu geben.
+- **Daten / Abhängigkeiten:** Cache-Lifetime ist separate Video-Cache-Verwaltung (`packages/cache_manager/lib/src/video_cache_manager.dart`), nicht X04-Image-Cache. Lokale `CachedVideoSource` muss gültigen Pfad bekommen; temporäre HTML-Dateien werden verlässlich beim Schließen/Start bereinigt; kein Persistenzschema erforderlich.
+- **Verifikation:** Kleine/große/unbekannt große gecachte Videos, WebView Android/iOS/macOS, parallele Player, Cache-Eviction und Clear während Playback, Expiration, Video-/Engine-/Source-Wechsel, lokale Seite und Datei-Race, Stale-Cleanup beim Start, Streaming-Fallback, File-Read-Grenzen.
+- **Verbindliches Protokoll:** [P08](decisions.md#p08-webview-video-aus-cache-datei-und-cleanup-schutz).
 - **Änderung in Upstream:** WebView spielt lokale Cache-Dateien; Cleanup löscht keine gerade verwendeten Cached Pages.
 - **Fork / potenzieller Konflikt:** Fork hat geteilten Cache und separate Video-Cache-Verwaltung/Viewer-Gesten.
-- **Zu entscheiden:** Wie werden Dateihandles, Lebenszeit und Eviction mit unserer Cache-Pipeline koordiniert?
-- **Arbeitshypothese (nicht beschlossen):** Race-/Data-Loss-Fixes übernehmen, Cache-Eigentümer und Locking explizit integrieren.
+- **Ursprüngliche Fragestellung:** Wie werden Dateihandles, Lebenszeit und Eviction mit unserer Cache-Pipeline koordiniert?
+- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Race-/Data-Loss-Fixes übernehmen, Cache-Eigentümer und Locking explizit integrieren.
 - **Abnahme/Test:** Eviktion während Playback, WebView vs MPV, Wechsel Posts, große Videos.
 - **Upstream-Commits:** [`f3d8acaa0`](https://github.com/khoadng/Boorusama/commit/f3d8acaa0a765b6d2957ddd36f68a1aa944fa328), [`0f71409de`](https://github.com/khoadng/Boorusama/commit/0f71409dea3775ae1dd033bcf7fc27bb008888a0).
 - **Betroffene Codepfade (Auswahl):** `lib/core/videos/engines`, `lib/core/videos/cache`.
 
 ### P09 · Kurumi InteractiveViewer: Bild-Pan vs Page-Swipe
 
-**Status:** Entscheidung; Entscheidung: **OFFEN** · **Risiko:** 🟠 hoch.
+**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟠 hoch.
 
+- **Bestätigter Beschluss:** angepasst übernehmen, Fork-Gesten erhalten. Bei unzoomed Bild (Zoom nahe 1x) sollen horizontale/vertikale PageView-Swipes statt `InteractiveViewer`-Panning gewinnen; bei vergrößertem Bild soll Pan/Pinch funktionieren. Upstreams Zoom-abhängiges `panEnabled` und die `ScaleGestureRecognizer.panCausesAcceptance`-Arbitration soweit notwendig integrieren. Vendored Flutter-3.47.2-Widget/Recognizer nur übernehmen, wenn eine kleinere kompatible Lösung am gepinnten Flutter nicht robust ausreicht. Sämtliche Fork-Funktionen erhalten: Double-Tap-Classic/Fit-Cycle, Snap-Zoom-to-Fit, Bildgrenzen, Auto-Comic-Strip, Original-on-Zoom sowie `ZoomEdgePageGesture` mit 160-dp-Edge-Pull, Retry-/Load-More-/Page-Actions. Panning und Page-Swiping nicht gleichzeitig aktivieren oder Pointer-Events doppelt konsumieren.
+- **Daten / Abhängigkeiten:** Keine Persistenz; A02-Kurumi-Migration und gepinnte Flutter-Version beachten, mögliche vendored Dateien nur gezielt und mit klarer Upgrade-Strategie.
+- **Verifikation:** Schneller Flick bei 1x horizontal/vertikal auf Android-Slop, Pinch-Zoom, Pan bei >1x, Edge-Pull/160-dp-Schwelle, geändertes Zoom/Media-Representation während Gesture, Mouse/Touch/Stylus, Rotation, Double-Tap, Original-on-Zoom, Selection und Zoom-Hardwaretest.
+- **Verbindliches Protokoll:** [P09](decisions.md#p09-kurumi-interactiveviewer-bild-pan-vs-page-swipe).
 - **Änderung in Upstream:** Flutter 3.47.2 InteractiveViewer vendored; unzoomed Images sollen Page-Swipes nicht abfangen.
 - **Fork / potenzieller Konflikt:** Fork hat eigenes Zoom-/Edge-Drag-/Swipe-Verhalten inklusive „Original on Zoom“.
-- **Zu entscheiden:** Welche Geste gewinnt bei Zoom=1, Zoom>1, Edge-Drag, Swipe und Selection?
-- **Arbeitshypothese (nicht beschlossen):** Nur kompatibles Gesture-Arbitration-Verhalten portieren, Tests unserer Viewer-Gesten priorisieren.
+- **Ursprüngliche Fragestellung:** Welche Geste gewinnt bei Zoom=1, Zoom>1, Edge-Drag, Swipe und Selection?
+- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Nur kompatibles Gesture-Arbitration-Verhalten portieren, Tests unserer Viewer-Gesten priorisieren.
 - **Abnahme/Test:** Pan/Swipe über Zoomstufen, Portrait/Landscape, Mouse/Touch.
 - **Upstream-Commits:** [`62e36f7e5`](https://github.com/khoadng/Boorusama/commit/62e36f7e5c7d40a3b5daa383a7c67ca420cb1cd3), [`c6b25213c`](https://github.com/khoadng/Boorusama/commit/c6b25213c3478abedf5c82c41dd9dd92a93a1bbe).
 - **Betroffene Codepfade (Auswahl):** `packages/kurumi/lib/src/components/interactive_viewer.dart`, `lib/core/posts/details_pageview`.
@@ -789,12 +807,16 @@ Für jedes Thema eines von **(a) vollständig übernehmen**, **(b) angepasst üb
 
 ### P10 · Volume Keys im Post Viewer korrekt konsumieren
 
-**Status:** Entscheidung; Entscheidung: **OFFEN** · **Risiko:** 🟡 niedrig–mittel.
+**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟡 niedrig–mittel.
 
+- **Bestätigter Beschluss:** vollständig übernehmen (mit aktiviertem Viewer-Gate). Bei eingeschalteter `volumeKeyViewerNavigation`, tatsächlich sichtbarem und nicht expandiertem Post-Viewer, Lauter (+) zur Navigation zum nächsten Post und Leiser (-) zum vorherigen Post verwenden und alle zugehörigen Key-Down-/Repeat-/Up-Ereignisse als verarbeitet (`true`) zurückgeben, auch am ersten oder letzten Post. Bei ausgeschalteter Funktion, verborgenem Viewer und Expand-Mode die Keys unbehandelt (`false`) lassen, damit reguläre Systemlautstärke funktioniert. Navigation selbst nicht ungewollt bei Key-Up/Repeat mehrfach auslösen; bestehende `isKeyPressed`-Down-Gestenerkennung und eventuelle Android-/Hardware-Limits bewahren. Während dieses optionalen Modus gilt Post-Navigation auch bei Videoposts.
+- **Daten / Abhängigkeiten:** Keine Persistenz-/Schemaänderung, vorhandene Setting/Global-Keyboard-Handler beibehalten.
+- **Verifikation:** Key-Down/Repeat/Up, erster/letzter Post, Viewer sichtbar/verborgen, Setting an/aus, Expand-Mode, Video/Bild, Systemlautstärke außerhalb des Viewers, kein doppeltes Navigieren.
+- **Verbindliches Protokoll:** [P10](decisions.md#p10-volume-keys-im-post-viewer-korrekt-konsumieren).
 - **Änderung in Upstream:** Beim Post-Navigieren genutzte Lautstärketasten werden als verarbeitet markiert.
 - **Fork / potenzieller Konflikt:** Fork hat eigene Viewer-Gesten und Volume-Key-Einstellung.
-- **Zu entscheiden:** Soll Systemlautstärke nur beeinflusst werden, wenn Viewer-Navigation aktiv?
-- **Arbeitshypothese (nicht beschlossen):** Nur im aktivierten Viewer-Modus konsumieren.
+- **Ursprüngliche Fragestellung:** Soll Systemlautstärke nur beeinflusst werden, wenn Viewer-Navigation aktiv?
+- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Nur im aktivierten Viewer-Modus konsumieren.
 - **Abnahme/Test:** Lautstärke außerhalb Viewer, Android Volume bei Video.
 - **Upstream-Commits:** [`de755c0d2`](https://github.com/khoadng/Boorusama/commit/de755c0d20570d4c9e2c6d4b718517514178af44).
 - **Betroffene Codepfade (Auswahl):** `lib/core/posts/details/src/widgets/volume_key_page_navigator.dart`.
