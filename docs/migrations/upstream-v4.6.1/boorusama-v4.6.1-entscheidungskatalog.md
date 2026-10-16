@@ -1,6 +1,6 @@
 # Boorusama – Entscheidungskatalog zum echten Merge auf Upstream v4.6.1
 
-**Stand:** 16. Oktober 2026 · **Status:** **61 von 68 Themen entschieden, 7 offen**, weiterhin **keine Freigabe zur Implementierung**.
+**Stand:** 16. Oktober 2026 · **Status:** **67 von 68 Themen entschieden, 1 offen**, weiterhin **keine Freigabe zur Implementierung**.
 
 > Grundlage: `timberpile/Boorusama` `develop` auf `d4e15586f06192f0ff4315d36a3f61ae69a752d5`, Upstream `v4.6.1` auf `5b04bf6a164f028d41701299367d0dde74dde330`; gemeinsamer Vorfahr `2c0ac699184854d363833ea4a3205aef0895a92b`. Dateien aus dem hochgeladenen Git-Bundle lokal geprüft. Bei dieser Analyse wurden keine Laufzeitänderungen am Repository vorgenommen.
 
@@ -392,12 +392,16 @@ Für jedes Thema eines von **(a) vollständig übernehmen**, **(b) angepasst üb
 
 ### D01 · Download Sidecars: TXT-Tags und JSON-Metadaten
 
-**Status:** Entscheidung; Entscheidung: **OFFEN** · **Risiko:** 🟠 hoch.
+**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟠 hoch.
 
+- **Bestätigter Beschluss:** angepasst übernehmen. Optionales Download-Sidecar neben der tatsächlich gespeicherten Mediendatei (`<media>.txt` mit einem Tag pro Zeile oder `<media>.json` mit Tags, unverfälschter Herkunft/Site-ID sofern verfügbar, öffentlichen Quelllinks, tatsächlicher Qualität und tatsächlichem Dateinamen) implementieren. Globales Format `off` als Default; pro Bulk-Download-Task ein optionaler Override (Default/Off/TXT/JSON). Keine zusätzliche profilbezogene Einstellung. Einzel-, Bookmark- und Bulk-Downloads sowie Cache-Direktkopien über denselben sicheren, beobachtbaren Completion-Pfad integrieren. Sidecar-Daten als unveränderlichen Post-/Task-Snapshot vor dem Transfer einfrieren, damit Retry/Background-Recovery nicht auf UI-Provider angewiesen sind. Dateien ausschließlich nach bestätigter Transfer-Fertigstellung atomar publizieren; deduplizierte Tags sortiert ausgeben, vorhandene fremde/abweichende Sidecars nicht überschreiben, Konflikt als eigenständig reparierbaren Fehler anzeigen. Sidecar-Fehler dürfen die abgeschlossene Mediendatei nicht erneut herunterladen oder zerstören. Bei `skip if exists` eine vorhandene Mediendatei mitsamt Sidecar unverändert überspringen, auch wenn das Sidecar fehlt. Sensible Cookies/Auth-Header, signierte oder lokale API-/Datei-URLs nicht exportieren. Upstream-Storage/Callbacks/Recovery an Fork-Download-/Observer-/Lifecyclesystem anpassen. D07 entscheidet noch separat die genaue Herkunft der `sitePostId` in Sidecar/JSON.
+- **Daten / Abhängigkeiten:** Erfordert voraussichtlich zusätzliche nullable Sidecar-Konfiguration in globalen Settings, Bulk-Task-/Download-Record-Snapshots und additive SQLite-Migration (Upstream Version 2); existierende DB-Records bleiben gültig. Sidecar-Status/Journaling muss Crash/Reboot/Retry ohne doppelte Abschluss-Events (D02) tragen. Keine Änderung am bestehenden Bookmark-/Post-Hive-Schema. Keine erneute lokale Media-Downloadaktion durch bloßen Sidecar-Retry.
+- **Verifikation:** Default Off, TXT/JSON, Einzel/Bookmark/Bulk/Video-Cache-Kopie, Skip-if-exists mit/ohne Sidecar, Sidecar-Kollision, readonly/scoped storage, disk full, Crash vor/nach Download/Sidecar-Write, Headless Background-Callback, Recovery nach Restart, Retry nur Sidecar, 0/mehrere Tags, UTF-8/Zeilenumbrüche, URL-/Credential-Redaction und Post-Origin-Identität.
+- **Verbindliches Protokoll:** [D01](decisions.md#d01-download-sidecars-txt-tags-und-json-metadaten).
 - **Änderung in Upstream:** Optionale `.txt` Tags oder `.json` mit Post-ID, Quellen, Qualität und Dateiname; atomare Sidecar-Erzeugung, Bulk-Download/Storage-Integration.
 - **Fork / potenzieller Konflikt:** Fork besitzt komplexere Download-/Share-/Export-Flows; Sidecar-Modul fehlt.
-- **Zu entscheiden:** Globaler oder profilabhängiger Schalter? Sidecar bei Duplikaten, Fehlern, bestehenden Dateien und Backups?
-- **Arbeitshypothese (nicht beschlossen):** Optional, default off; Upstream-Datenmodell unter Beibehaltung unserer Download-Pipeline adaptieren.
+- **Ursprüngliche Fragestellung:** Globaler oder profilabhängiger Schalter? Sidecar bei Duplikaten, Fehlern, bestehenden Dateien und Backups?
+- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Optional, default off; Upstream-Datenmodell unter Beibehaltung unserer Download-Pipeline adaptieren.
 - **Abnahme/Test:** Einzel-/Bulk-Download, bereits existierende Datei, Retry, Storage Permissions, Hydrus, sensibles URL-Filtering.
 - **Upstream-Commits:** [`86a16a20e`](https://github.com/khoadng/Boorusama/commit/86a16a20ee1327740316005b7946b8264fa70a19).
 - **Betroffene Codepfade (Auswahl):** `lib/core/downloads/sidecar`, `lib/core/bulk_downloads/src/providers/bulk_download_notifier.dart`.
@@ -421,48 +425,64 @@ Für jedes Thema eines von **(a) vollständig übernehmen**, **(b) angepasst üb
 
 ### D03 · Background Downloader Plugin-Update
 
-**Status:** Entscheidung; Entscheidung: **OFFEN** · **Risiko:** 🟡 niedrig–mittel.
+**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟡 niedrig–mittel.
 
+- **Bestätigter Beschluss:** Plugin-Commit nach Verifikation übernehmen. Upstream wechselt beim git-basierten `khoadng/background_downloader` mit unveränderter Package-Version `9.6.1` von `e8ad9f9` auf `fd67fff9ee4ad4cdf415dc3285289cad9289cefe`. Commit-Diff/Native-/API-Kompatibilität vor Übernahme prüfen. Nur bei erfolgreicher Prüfung `pubspec_overrides.yaml` und Lockfile konsistent auf den neueren Commit aktualisieren; keinesfalls alte Fork-Callbacks, Cronet-Transport/Resumption, Android-Dateirechte oder Persistenzabläufe ersetzen. Mit D01, D02 und D04 als gemeinsamer Lifecycle-Integrationstest prüfen; bei Inkompatibilität dokumentiert beim alten Pin bleiben bis zur Lösung.
+- **Daten / Abhängigkeiten:** Abhängigkeit/Lockfile-Git-Pin, keine geplante eigene Datenmigration. Platform-Plugin-/Native-Build-Verhalten gesondert prüfen.
+- **Verifikation:** Android foreground/background, App-Neustart, Pause/Resume, Retry/Cancel, Notifications, Cronet, Cache-/Sidecar-Completion, Task-IDs, Android build und iOS/Desktop soweit unterstützt.
+- **Verbindliches Protokoll:** [D03](decisions.md#d03-background-downloader-plugin-update).
 - **Änderung in Upstream:** Version des Hintergrund-Downloader-Plugins aktualisiert.
 - **Fork / potenzieller Konflikt:** Fork nutzt Cronet und eigene persistente Download-/Notification-Services.
-- **Zu entscheiden:** Version übernehmen, wenn mit Fork-Flutter/Cronet/APK-Setup kompatibel?
-- **Arbeitshypothese (nicht beschlossen):** Nur mit API-/Lockfile-Kompatibilitätscheck übernehmen.
+- **Ursprüngliche Fragestellung:** Version übernehmen, wenn mit Fork-Flutter/Cronet/APK-Setup kompatibel?
+- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Nur mit API-/Lockfile-Kompatibilitätscheck übernehmen.
 - **Abnahme/Test:** Download in Background, Android Notifications, iOS, Restart.
 - **Upstream-Commits:** [`669b8019f`](https://github.com/khoadng/Boorusama/commit/669b8019f80eaf8d0f40e268bbf8a29dc0808ddf).
 - **Betroffene Codepfade (Auswahl):** `pubspec.lock`, `pubspec_overrides.yaml`.
 
 ### D04 · Download-Manager: injizierbarer Task-Client und Snapshot-Fix
 
-**Status:** Entscheidung; Entscheidung: **OFFEN** · **Risiko:** 🟡 mittel.
+**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟡 mittel.
 
+- **Bestätigter Beschluss:** vollständig übernehmen, Fork-Lifecycle bewahren. Den injizierbaren `DownloadTaskClient` für Pause/Resume/Retry/Cancel, Resumability sowie Pfad- und Dateigrößenabfragen nach Upstream-Konzept übernehmen, damit Download-Manager-Widgets und Notifier testbar sind; tatsächliches Enqueueing bleibt beim bestehenden Fork-Download-Service. Bei Task-Updates die existierende Gruppenliste vor Mutation kopieren (`[...?totalTasks[group]]`), statt alte State-Snapshots mutieren zu lassen. Doppeltes Schließen desselben Broadcast-StreamControllers abstellen: ein Provider besitzt/entsorgt den Controller; nach Upstream-Konzept optional zentraler `DownloadTaskEventIngress` veröffentlicht Ereignisse sowohl im Snapshot als auch im Stream. Fork-Retry-/Headers-/DDOS-/Notification-/Download-Activity-Integration bleibt erhalten.
+- **Daten / Abhängigkeiten:** Neue schmale Provider-/Task-Interface-Schicht ohne Datenbankänderung, vorhandene Task-IDs und Notification-/State-Strukturen behalten. D02 und D03 berücksichtigen.
+- **Verifikation:** Drei oder mehr Updates derselben Task erzeugen unveränderliche frühere Snapshots und vollständige Listener-Events, Dispose ohne double-close, Task-Ingress-Snapshot und Stream identisch, Retry/Cancel/Pause/Resume mit Fake-Client und Auth-/Bypass-Headern, parallele Updates/Grouped Tasks, FileSize-Ausfälle.
+- **Verbindliches Protokoll:** [D04](decisions.md#d04-download-manager-injizierbarer-task-client-und-snapshot-fix).
 - **Änderung in Upstream:** Downloader-Task-Interface für Testbarkeit; Task-Liste vor Statusupdate kopieren (Mutation/Iteration-Sicherheit).
 - **Fork / potenzieller Konflikt:** Fork besitzt Download-Manager und eigene Download-Aktivitätslogik.
-- **Zu entscheiden:** Abstraktion vollständig migrieren oder nur den Datenrennen-Fix übernehmen?
-- **Arbeitshypothese (nicht beschlossen):** Listenkopie direkt portieren; Task-Client nur falls für Tests sinnvoll.
+- **Ursprüngliche Fragestellung:** Abstraktion vollständig migrieren oder nur den Datenrennen-Fix übernehmen?
+- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Listenkopie direkt portieren; Task-Client nur falls für Tests sinnvoll.
 - **Abnahme/Test:** Schnelle parallele Updates, Retry/Cancel, Notifications, Manager-Filter.
 - **Upstream-Commits:** [`bd2e22c22`](https://github.com/khoadng/Boorusama/commit/bd2e22c221bcfb1a8c8c0675afbab6763a3102c9), [`90657ee4e`](https://github.com/khoadng/Boorusama/commit/90657ee4ed73f9a4bf7f2277ed1750e2f8b5d4ff).
 - **Betroffene Codepfade (Auswahl):** `lib/core/download_manager`.
 
 ### D05 · Anime-Pictures Bulk Download und Request-Pacing
 
-**Status:** Entscheidung; Entscheidung: **OFFEN** · **Risiko:** 🟡 mittel.
+**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟡 mittel.
 
+- **Bestätigter Beschluss:** angepasst übernehmen. Bulk Downloads für Anime-Pictures aktivieren, einschließlich Site-Capability und mehrseitiger Aufträge. Upstream-Konservativpacing (etwa 1 Request/Sekunde über den relevanten API-/Download-Link-Host) ausschließlich über unseren bestehenden `ApiRequestCoordinator`/sitebezogene N01-Quota abbilden, keinen zweiten `SlidingWindowRateLimitInterceptor` installieren. Den unbefristeten `_downloadUrlCache` aus `AnimePicturesClient` entfernen, da URLs/Session-Cookies veralten; den Fork-`AnimePicturesDownloadFileUrlExtractor` mit begrenztem 5-Minuten-Cache beibehalten, aber Sessionwechsel, Retry nach Auth-Fehler und Links mit begrenzter Gültigkeit verifizieren. Ein Retry soll frische signierte URLs/Cookies beziehen können. Identität/Profil-/Following-Boundaries, bestehende Bulk-Auftrags-Persistenz und Download-UI nicht regressieren.
+- **Daten / Abhängigkeiten:** Site-Capability/Generated Booru-Config anpassen (Generator-Output nur nach Änderungen an Source-YAML neu erzeugen); N01-Quota priorisierte Request-Pacing/Retry-After, D02/D04 Download-Lifecycle. Keine zusätzliche eigenständige Rate-Limit-Schicht.
+- **Verifikation:** Bulk über mehrere Seiten, rate/429/Retry-After, Link-Expire/Session-Wechsel, Parallel-Profile, Download-Cookie-Handling, vorhandene Cache-Treffer, Cancel/Pause/Resume, Seiten-Cursor und Result-Recovery.
+- **Verbindliches Protokoll:** [D05](decisions.md#d05-anime-pictures-bulk-download-und-request-pacing).
 - **Änderung in Upstream:** Bulk Download für Anime-Pictures aktivieren, konservatives Request-Pacing von API-/Download-Link-Anfragen.
 - **Fork / potenzieller Konflikt:** Fork hat eigene Anime-Pictures-Adapter und Download-URL-Extraktion.
-- **Zu entscheiden:** Gleiches Quotenmodell wie Upstream? Wie mit globalen Rate-Limits und Download-Vorgaben kombinieren?
-- **Arbeitshypothese (nicht beschlossen):** Bulk Download übernehmen; über N01 koordinieren.
+- **Ursprüngliche Fragestellung:** Gleiches Quotenmodell wie Upstream? Wie mit globalen Rate-Limits und Download-Vorgaben kombinieren?
+- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Bulk Download übernehmen; über N01 koordinieren.
 - **Abnahme/Test:** Mehrseitige Downloads, 429/Retry-After, gesperrte Links, Caching.
 - **Upstream-Commits:** [`c5b79488c`](https://github.com/khoadng/Boorusama/commit/c5b79488c8d90b624cb17e8452d3b17e099be88f).
 - **Betroffene Codepfade (Auswahl):** `lib/boorus/anime-pictures/client_provider.dart`, `packages/booru_clients/lib/src/anime-pictures`.
 
 ### D06 · Zerochan Bulk Download und URL-Auflösung
 
-**Status:** Entscheidung; Entscheidung: **OFFEN** · **Risiko:** 🟡 mittel.
+**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟡 mittel.
 
+- **Bestätigter Beschluss:** angepasst übernehmen. Explizite Sperre für Zerochan-Bulk-Downloads entfernen, sobald URL-Auflösung stabil integriert und getestet ist. API-Detail liefert vorzugsweise explizite `full`/`large`/`medium`/`small`-URLs und Dateigröße/Format; wenn Full fehlt oder JSON defekt ist, gezielt die Post-HTML-Seite lesen; Asiachan-Detail-API zuverlässig durch HTML-Fallback ersetzen. Quellen/Hosts validieren und Fehler/Redirects, 404/410 und temporäre Auth-/Rate-Limits unterscheiden. Pro Post `Preview`, `Sample`, `Original` klar unterstützen; **wenn `Original` explizit angefordert ist, niemals stillschweigend Preview/Sample als Original ausgeben**, sondern nicht auflösbar melden. Dedup gleichzeitiger URL-Requests und kurzer 5-Minuten-Cache analog Upstream übernehmen. Pacing konservativ ca. 1 Request/1,2 Sek über Fork-`ApiRequestCoordinator`, ohne neue Sliding-Window-Interceptor-Schicht; Fork-FileName-/Metadata-/Observer-/Bulk-Lifecycle erhalten.
+- **Daten / Abhängigkeiten:** Erweiterte nullable Zerochan-DTO-Felder und PostData-/Adapter-Mapping, neuer Download-URL-Extractor und Source-Capabilities, Quality-basierte Single-Download-Action; N01/N03 und D02/D04 beachten. Cache nur bei gültigen URLs und an Site/Profile geknüpft.
+- **Verifikation:** Zerochan + Asiachan API/HTML-Responses, fehlende Original-URL, 404/410, falsche HTML-Seite/Metatags, explicit original vs. degraded variant, Preview/Sample, Redirect/Authentication/429, per-Post-Parallel-Fetch, Cache/Expiry, Dateiname/Extension/Size und Bulk Skip/Retries.
+- **Verbindliches Protokoll:** [D06](decisions.md#d06-zerochan-bulk-download-und-url-auflösung).
 - **Änderung in Upstream:** Bulk Download für Zerochan reaktivieren, neue Datei-URL-Extraktion und Qualitätsauflösung.
 - **Fork / potenzieller Konflikt:** Fork hat eigene Zerochan-Parser und Downloads, neue Bulk-Extractor-Module fehlen.
-- **Zu entscheiden:** Welche Qualitätsstufen, Redirects und Auth-Situationen unterstützen?
-- **Arbeitshypothese (nicht beschlossen):** Funktion vollständig übernehmen, Adapter an Fork-Download-Pipeline anpassen.
+- **Ursprüngliche Fragestellung:** Welche Qualitätsstufen, Redirects und Auth-Situationen unterstützen?
+- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Funktion vollständig übernehmen, Adapter an Fork-Download-Pipeline anpassen.
 - **Abnahme/Test:** Preview/Sample/Original, Access Denied/Rate Limit, bereits vorhandene Files.
 - **Upstream-Commits:** [`50980b8da`](https://github.com/khoadng/Boorusama/commit/50980b8da1368aa39a44051c78dee12dd4dff2ce).
 - **Betroffene Codepfade (Auswahl):** `lib/boorus/zerochan`, `packages/booru_clients/lib/src/zerochan`.
@@ -482,12 +502,16 @@ Für jedes Thema eines von **(a) vollständig übernehmen**, **(b) angepasst üb
 
 ### D08 · Favorite Tags direkt aus Storage exportieren
 
-**Status:** Entscheidung; Entscheidung: **OFFEN** · **Risiko:** 🟡 mittel.
+**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟡 mittel.
 
+- **Bestätigter Beschluss:** übernehmen. Für Favorite-Tag-Backups statt möglicherweise uninitialisiertem UI-State `ref.read(favoriteTagsProvider)` das persistente Repository über `await ref.read(favoriteTagRepoProvider.future)` und `await repo.getAll()` verwenden. Dies gilt auch für alle anderen relevanten vollständigen Backup-/Export-Flows, die derzeit direkt einen UI-Provider-Snapshot benutzen, und für Revision-/Auto-Backups. Bestehende Import-Semantik `repo.replaceAll(tags)` samt `ref.invalidate(favoriteTagsProvider)`, Versionsgrenzen und Label-/Raw-Query-Repräsentation erhalten. Explizite 'Export simple to clipboard'-UI-Funktion bleibt separat erhalten und darf nicht mit dem Full-Backup-Format verwechselt werden.
+- **Daten / Abhängigkeiten:** Keine Backupschema-/Persistenzmigration allein wegen D08. X03-Profile-/Import-/Recovery-Invarianten und A12 Headless-Tests berücksichtigen.
+- **Verifikation:** Kaltstart Full-Backup ohne Öffnen der Favorite-Tag-Page, zuvor nicht initialisiertes UI-State, mehrere Labels/Raw-Query/Unicode, Auto-/Server-/File-/Clipboard-Backup, vollständiger Roundtrip ohne doppelte Tags, Import ersetzt Tags unverändert; Provider-Invalidation nach Import.
+- **Verbindliches Protokoll:** [D08](decisions.md#d08-favorite-tags-direkt-aus-storage-exportieren).
 - **Änderung in Upstream:** Backup liest alle Favorite Tags aus dem Repository, nicht aus möglicherweise noch uninitialisiertem UI-Provider.
 - **Fork / potenzieller Konflikt:** Fork hat erweiterten Backup-/Import-/Export-Flow und eigene Tags-Repositories.
-- **Zu entscheiden:** Änderung sowohl im alten Backup als auch in den Fork-Exportpfaden übernehmen?
-- **Arbeitshypothese (nicht beschlossen):** Ja, für alle relevanten Backup-Quellen auf vollständigen Datenbestand prüfen.
+- **Ursprüngliche Fragestellung:** Änderung sowohl im alten Backup als auch in den Fork-Exportpfaden übernehmen?
+- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Ja, für alle relevanten Backup-Quellen auf vollständigen Datenbestand prüfen.
 - **Abnahme/Test:** Kaltstart und Export ohne Tags-Page, mehrfache Labels, Roundtrip.
 - **Upstream-Commits:** [`f93bdf0dd`](https://github.com/khoadng/Boorusama/commit/f93bdf0dd42c5eb0e8165d9070310a2aebfa32c1).
 - **Betroffene Codepfade (Auswahl):** `lib/core/backups/sources/favorite_tags_source.dart`.
