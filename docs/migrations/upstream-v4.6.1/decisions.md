@@ -149,121 +149,121 @@ Before explicit user approval, a proposal must remain `OPEN`; technical recommen
 
 **Verification:** Windows login/challenges, Android/iOS/macOS, navigation and unsupported-platform fallback.
 
-## A11 – Lokalisierung: Arabisch, Indonesisch, weitere Updates
+## A11 — Localization: Arabic, Indonesian and Other Updates
 
-**Status: ENTSCHIEDEN · 2026-10-15 · Umsetzung ausstehend.** **Beschlussart:** vollständig übernehmen, mit Fork-Ergänzungen.
+**Status: APPROVED · 2026-10-15 · Implementation pending.** **Resolution:** adopt all updates, retaining fork additions.
 
-**Zielzustand / technische Grenzen:** Upstream-Sprachen/Übersetzungen einschließlich Arabisch, Indonesisch, Language-Switch-Fixes integrieren, ohne die zusätzlich im Fork eingeführten Keys/Strings oder Fallbacks zu verlieren.
+**Target behavior / constraints:** Integrate upstream languages/translations, including Arabic and Indonesian and language-switch fixes, without losing additional fork keys, messages or fallback behavior.
 
-**Abnahme / Tests:** i18n-Generierung, JSON/Placeholders, RTL, Länder-Varianten, eigene Following-/Bookmark-/Settings-Texte.
+**Verification:** i18n generation, JSON/placeholders, RTL layout, regional variants and custom Following/Bookmarks/Settings strings.
 
-## A12 – Headless Test-Harness und App-Flow-Tests
+## A12 — Headless Test Harness and Application Flow Tests
 
-**Status: ENTSCHIEDEN · 2026-10-15 · Umsetzung ausstehend.** **Beschlussart:** angepasst übernehmen.
+**Status: APPROVED · 2026-10-15 · Implementation pending.** **Resolution:** adapt for the fork.
 
-**Zielzustand / technische Grenzen:** Upstreams Headless-App-Test-Harness, Fake-Services und App-Flow-Tests mit A01-Runtime integrieren. Eigene Fork-Tests erhalten. Für visuelle/gestische A02-Abnahme schreibt Agent nur Nutzer-Checkliste; keine manuellen Geräte-Checks durch Agent.
+**Target behavior / constraints:** Integrate upstream headless app harness, fake services and app-flow tests into A01's runtime; retain fork test cases. For A02 visual/gesture verification, the agent writes a manual acceptance checklist **for the user** rather than conducting the user's manual device checks.
 
-**Abnahme / Tests:** Startup, Suche, Bookmarks, Downloads, Network Recovery, Fork-Flows; deterministische Tests.
+**Verification:** Startup, search, bookmarks, downloads, network recovery, fork app flows and deterministic tests.
 
-## A13 – NixOS-Paket und Development Shell
+## A13 — NixOS Package and Development Shell
 
-**Status: ENTSCHIEDEN · 2026-10-15 · Umsetzung ausstehend.** **Beschlussart:** optional ohne Supportpflicht.
+**Status: APPROVED · 2026-10-15 · Implementation pending.** **Resolution:** optional, without a support commitment.
 
-**Zielzustand / technische Grenzen:** NixOS-Flake, Entwicklungsshell und Paketierung nur soweit wartbar/kompatibel übernehmen; keine neue offizielle Release-Verpflichtung oder zusätzliche Wartungsinfrastruktur.
+**Target behavior / constraints:** Adopt upstream NixOS flake, development shell and packaging changes only insofar as they are maintainable and compatible. Do not create additional official release obligations or maintenance infrastructure.
 
-**Abnahme / Tests:** `nix flake check` soweit verfügbar; übrige Build-Systeme unverändert.
+**Verification:** `nix flake check` where possible; other build systems remain unchanged.
 
-## A14 – Release CI, native Assets, SDK und Build CLI
+## A14 — Release CI, Native Assets, SDK and Build CLI
 
-**Status: ENTSCHIEDEN · 2026-10-15 · Umsetzung ausstehend.** **Beschlussart:** selektiv übernehmen.
+**Status: APPROVED · 2026-10-15 · Implementation pending.** **Resolution:** selectively adopt.
 
-**Zielzustand / technische Grenzen:** Nützliche Upstream-CI-/native Assets-/SDK-/Build-CLI-Fixes übernehmen. Fork-Flavors, split-APKs, bestehende CI/Release-Workflows und Flutter-3.47.2-Pinning erhalten; zurückgenommene Upstream-Build-Fixes nicht unkritisch erneut übernehmen.
+**Target behavior / constraints:** Bring in useful upstream CI, native asset, SDK and build CLI fixes. Preserve fork flavors, split APKs, existing CI/release workflows and Flutter 3.47.2 pin. Do not blindly reintroduce upstream build changes that were reverted.
 
-**Abnahme / Tests:** Android-/Desktop-Builds, CLI, CI-Matrix, Release-Assets, Signierung gemäß A15.
+**Verification:** Android/desktop builds, CLI, CI matrix, release artifacts and A15 signing.
 
-## A15 – APK-Signing: permanenter Upstream-Key
+## A15 — APK Signing: Permanent Upstream Key
 
-**Status: ENTSCHIEDEN · 2026-10-15 · Umsetzung ausstehend.** **Beschlussart:** Upstream-Signing NICHT übernehmen.
+**Status: APPROVED · 2026-10-15 · Implementation pending.** **Resolution:** **do not adopt upstream signing credentials**.
 
-**Zielzustand / technische Grenzen:** Fork-App-ID `com.timberpile.boorusama`, Flavors, bestehende Release-Signatur, Keystore, Update-Manifest und Upgrade-Kompatibilität unverändert lassen. Upstream-Key keinesfalls übernehmen; etwaige Signing-CI-Fixes nur passend zur vorhandenen Fork-Signatur.
+**Target behavior / constraints:** Preserve the fork application ID `com.timberpile.boorusama`, flavors, existing release signing certificate/keystore, update manifest and upgrade compatibility. Never install the upstream signing key; adapt any CI signing fixes to the existing fork key.
 
-**Abnahme / Tests:** Signer-Cert vor/nach Migration, installiertes Fork-APK upgraden, Paket-ID und Release/Manifest.
+**Verification:** Compare signing certificate before/after migration; upgrade an installed fork APK; package ID, release files and manifest.
 
-## A16 – Versionierung, Changelog und What’s-New-Popup
+## A16 — Versioning, Changelog and What's New Popup
 
-**Status: ENTSCHIEDEN · 2026-10-15 · Umsetzung ausstehend.** **Beschlussart:** angepasst übernehmen.
+**Status: APPROVED · 2026-10-15 · Implementation pending.** **Resolution:** adapt for the fork.
 
-**Zielzustand / technische Grenzen:** Timberpile-Versionierung, eigene Release-History und Fork-Changelog beibehalten. Upstream-Fix für wiederkehrendes What's-New-Popup integrieren. Die neue verbindliche Versionsregel ist nachfolgend festgelegt; konkrete Buildnummer und Release-Tag vor der tatsächlichen Veröffentlichung verifizieren.
+**Target behavior / constraints:** Preserve Timberpile versioning, fork release history and fork changelog. Adopt the upstream fix for a recurring What's New popup. The binding version convention below supersedes older generic release guidance; verify the concrete build number and tag against actual history before release.
 
-**Additional binding version policy (approved 2026-10-16):** Every fork release name begins with the **exact upstream `MAJOR.MINOR.PATCH` release version actually integrated**. Use `<upstream-version>-timberpile.<N>+<build-number>`. **Reset `N` to 1** when the upstream base version changes; increment `N` for subsequent fork releases based on the same upstream version. Do not publish a `.0` release. The `+build-number` / Android `versionCode` is **globally monotonically increasing across upstream upgrades** and must exceed all previously shipped fork Android version codes / relevant store values (never reset it). With current `4.5.0-timberpile.5+189`, the first release based on upstream v4.6.1 is **`4.6.1-timberpile.1+190` if no intervening build/release occurred**; otherwise compute the next available build number from real release/store history. Keep `pubspec.yaml`, top `CHANGELOG.md` heading, `v<version-name>` GitHub tag, GitHub updater manifest, `PackageInfo`, Android Gradle `flutter.versionCode` and flavor-specific APK codes consistent. The existing `.agents/skills/prepare-release/SKILL.md` default (always increment old Timberpile suffix and preserve old upstream base) **must be updated during implementation** along with relevant release/checker tests. Preserve own Timberpile release history and What's-New fix. Setting a policy does not authorize publishing a new release or changing `develop` now.
+**Additional binding version policy (approved 2026-10-16):** Every fork release begins with the **exact upstream `MAJOR.MINOR.PATCH` version actually integrated**, followed by `-timberpile.<N>+<build-number>`. **Reset `N` to 1** when the upstream base changes, and increment `N` for subsequent fork releases based on the same upstream version; do not publish `.0`. The Flutter base build number after `+` must **increase monotonically across all fork releases** and never resets, regardless of the upstream jump. Android split-APK build codes may have ABI offsets; each effective variant must still upgrade its corresponding previous APK. The current release is `4.5.0-timberpile.5+189`, so the first v4.6.1-based release is **`4.6.1-timberpile.1+190` if no later build number has been allocated**. Otherwise select the next usable number from actual release/store history. Synchronize `pubspec.yaml`, top `CHANGELOG.md` heading, `v<version-name>` tag, GitHub updater manifest, `PackageInfo`, Gradle `flutter.versionCode` and flavor/ABI-specific codes. The prior `.agents/skills/prepare-release/SKILL.md` instruction to keep the old base and only increment the suffix **must be updated during implementation**, together with release and updater tests. Keep the fork's release history and What's New fix. This policy does not authorize releasing software or modifying `develop` now.
 
-**Abnahme / Tests:** Popup einmalig, Upgrade von älterem Fork, Versionierung, Changelog und Update-Manifest.
+**Verification:** What's New appears once, upgrades from an older fork, version parsing/comparison, Changelog and update manifest, per-base counter reset and monotonic Android build codes.
 
-## A17 – Formatierung, Reverts ohne Nettoeffekt, Kleinst-Cleanup
+## A17 — Formatting, No-op Reverts and Small Cleanups
 
-**Status: ENTSCHIEDEN · 2026-10-15 · Umsetzung ausstehend.** **Beschlussart:** Maintenance automatisch behandeln.
+**Status: APPROVED · 2026-10-15 · Implementation pending.** **Resolution:** treat routine maintenance without another product decision.
 
-**Zielzustand / technische Grenzen:** Formatierungs-, Cleanup- und effektlose/revertierte Upstream-Änderungen ohne Produktentscheidung behandeln. Nur notwendige Lint-/Format-Fixes; unnötige Diffs und Wiederbelebung revertierter Features vermeiden.
+**Target behavior / constraints:** Handle formatting, cleanup and upstream modifications with no net effect or subsequent reverts without changing user-visible behavior. Apply only necessary lint/format corrections, avoid unrelated diffs and never revive removed features.
 
-**Abnahme / Tests:** Analyzer, Formatter, Diff, Build.
+**Verification:** Analyzer, formatter, diff review and build.
 
-## A18 – AVIF-Decoder-Kompatibilität im Web
+## A18 — Web AVIF Decoder Compatibility
 
-**Status: ENTSCHIEDEN · 2026-10-15 · Umsetzung ausstehend.** **Beschlussart:** angepasst übernehmen.
+**Status: APPROVED · 2026-10-15 · Implementation pending.** **Resolution:** adapt for the fork.
 
-**Zielzustand / technische Grenzen:** AVIF-Web-/Network-Decoder-Korrekturen übernehmen, bestehende AVIF-/Extended-Image-/Fork-Cache-Pipeline erhalten.
+**Target behavior / constraints:** Integrate upstream Web and network AVIF decoder fixes while retaining the existing AVIF/ExtendedImage/fork cache pipeline.
 
-**Abnahme / Tests:** AVIF Web/Android, Thumbnail/Original, Cache-Hit/Miss und Fallback.
+**Verification:** AVIF on Web/Android, thumbnail/original, cache hit/miss and fallback.
 
-## N01 – HTTP-Retry-After, Rate-Limiter und Admission-Locks
+## N01 — HTTP Retry-After, Rate Limiting and Admission Locks
 
-**Status: ENTSCHIEDEN · 2026-10-15 · Umsetzung ausstehend.** **Beschlussart:** angepasst übernehmen und redundant vereinfachen.
+**Status: APPROVED · 2026-10-15 · Implementation pending.** **Resolution:** adapt upstream and remove redundant code.
 
-**Zielzustand / technische Grenzen:** **Fork-`ApiRequestCoordinator` behalten:** zentrale Origin-Quotas, parallele In-Flight-Limits, interaktive Priorität, Following/Preload/Bulk-Pacing und 429-Cooldowns. Upstreams Sliding-Window-Interceptor NICHT als zweite Warteschicht einführen. **Übernehmen:** `packages/retriable`-Fixes für `Retry-After` (Datum/Sekunden, insb. 503), konfigurierbare retrybare Statuscodes, korrektes Gesamttimeout und Abbruch. Alten, nach Aufrufstellenprüfung unbenutzten Sliding-Window-Interceptor samt unnötigen Tests entfernen; doppelte Parser konsolidieren. Zusätzliche Upstream-Site-Pacing-Regeln für Zerochan, Anime-Pictures, E-Shuushuu in unsere `ApiQuotaPolicy` prüfen/überführen, bestehende belegte Fork-Limits nicht blind ersetzen.
+**Target behavior / constraints:** **Retain the fork's `ApiRequestCoordinator`:** centralized per-origin quotas, concurrent in-flight limits, interactive request priority, Following/preload/bulk pacing and 429 cooldowns. **Do not add** upstream's `SlidingWindowRateLimitInterceptor` as another queue. **Adopt** fixes to `packages/retriable` handling `Retry-After` (HTTP-date/seconds, especially 503), configurable retryable codes, proper overall timeout and cancellation. After checking all callers, remove the unused legacy sliding-window interceptor and unnecessary tests; consolidate duplicate parsers. Evaluate upstream pacing policies for Zerochan, Anime-Pictures and E-Shuushuu for `ApiQuotaPolicy`, without blindly replacing already established fork limits.
 
-**Abnahme / Tests:** 429/503 Retry-After und Zeitbudget, Parallelstart/Cancellation, keine Doppelwartezeiten, Danbooru/e621/Derpi/Zerochan, Anime-Pictures/E-Shuushuu, aktive vs. Following-/Bulk-Anfragen.
+**Verification:** 429/503 Retry-After and total time budget, concurrent startup/cancellation, no doubled waits, Danbooru/e621/Derpi/Zerochan, Anime-Pictures/E-Shuushuu, interactive versus Following/bulk requests.
 
-**N01 – kein doppelter Rate-Limiter:** Upstreams neue `SlidingWindowRateLimitInterceptor`-Cooldown-/Serialisierungslogik ist im Fork durch `ApiRequestCoordinator` funktional weitgehend abgedeckt. Eine zusätzliche Instanz an `defaultDioProvider`, Zerochan, Anime-Pictures oder E-Shuushuu würde dieselben Requests doppelt verzögern. Nur relevante `retriable`-Korrekturen und passende Policy-Regeln integrieren.
+**N01 — No Duplicate Rate Limiter:** Upstream's new `SlidingWindowRateLimitInterceptor` cooldown/serialization is mostly covered by the fork's `ApiRequestCoordinator`. Adding one to `defaultDioProvider` or site clients for Zerochan, Anime-Pictures or E-Shuushuu would delay the same request twice. Integrate only relevant `retriable` fixes and site quota policies.
 
-## N02 – Per-Profile Media-Host-Overrides
+## N02 — Per-Profile Media-Host Overrides
 
-**Status: ENTSCHIEDEN · 2026-10-15 · Umsetzung ausstehend.** **Beschlussart:** angepasst übernehmen.
+**Status: APPROVED · 2026-10-15 · Implementation pending.** **Resolution:** adapt.
 
-**Zielzustand / technische Grenzen:** Media-Host-Overrides pro Profil inkl. UI für Bilder/Videos/Downloads übernehmen. Header/Cookies/Auth NICHT ohne kontrollierte Origin-Grenzen zum Ersatzhost weitergeben; Source-/Profilidentität und Cache-Isolation bewahren.
+**Target behavior / constraints:** Adopt profile-specific alternate media host support and its settings UI for images, videos and downloads. Do **not** forward Authorization headers/cookies to replacement hosts without explicit, safe origin rules. Preserve post/site/profile identity and cache isolation.
 
-**Abnahme / Tests:** CDN-Wechsel, Previews/Original/Video/Download, Proxy, Auth-Leaks, Cache.
+**Verification:** CDN changes, previews/originals/videos/downloads, proxies, credential leaks and cache behavior.
 
-## N03 – Cloudflare: state-changing Requests nicht blind erneut senden
+## N03 — Cloudflare: Do Not Blindly Replay State-Changing Requests
 
-**Status: ENTSCHIEDEN · 2026-10-15 · Umsetzung ausstehend.** **Beschlussart:** vollständig übernehmen (Replay-Sicherheit).
+**Status: APPROVED · 2026-10-15 · Implementation pending.** **Resolution:** adopt full replay-safety fix.
 
-**Zielzustand / technische Grenzen:** Upstream-Schutz vor blindem Wiederholen mutierender Requests nach Cloudflare-Challenge übernehmen. POST/PUT, Votes, Favorites, Comments nur bei explizit sicherer Idempotenz erneut senden; Fork-Request-Kontext/Rule34 berücksichtigen.
+**Target behavior / constraints:** Prevent blind retries of mutating requests after a Cloudflare challenge. Only repeat POST/PUT, votes, favorites and comments when idempotency is explicitly guaranteed; respect fork request context and Rule34-specific behavior.
 
-**Abnahme / Tests:** Mutationen höchstens einmal, sichere GET-Recovery, Abbruch/Fehler.
+**Verification:** Mutations run at most once, safe GET recovery, cancellation/errors.
 
-## N04 – Cloudflare-Erkennung, Blockseiten, Redirects und Challenge-UX
+## N04 — Cloudflare Detection, Block Pages, Redirects and Challenge UX
 
-**Status: ENTSCHIEDEN · 2026-10-15 · Umsetzung ausstehend.** **Beschlussart:** angepasst übernehmen.
+**Status: APPROVED · 2026-10-15 · Implementation pending.** **Resolution:** adapt.
 
-**Zielzustand / technische Grenzen:** Upstream Cloudflare-Challenge-Erkennung, Blockseiten, Captcha-Bestätigung, Subdomain-Redirects, Loop-Vermeidung und Dialog-UX übernehmen; Fork Rule34-403-Recovery erhalten.
+**Target behavior / constraints:** Adopt upstream challenge detection, block-page and captcha confirmation, subdomain redirects, loop prevention and dialog UX while retaining fork Rule34 403 recovery.
 
-**Abnahme / Tests:** 403/429, Captcha, Challenge-Redirect, kein unnötiges Dialog-Aufblitzen/Loop.
+**Verification:** 403/429, captcha, challenge redirects, no unnecessary dialog flashes or loops.
 
-## N05 – Clearance-Cookie und native WebView-Cookie-Bridge
+## N05 — Clearance Cookies and Native WebView Cookie Bridge
 
-**Status: ENTSCHIEDEN · 2026-10-15 · Umsetzung ausstehend.** **Beschlussart:** angepasst übernehmen.
+**Status: APPROVED · 2026-10-15 · Implementation pending.** **Resolution:** adapt.
 
-**Zielzustand / technische Grenzen:** Upstream-WebView→HTTP-Cookie-Bridge Android/iOS/macOS übernehmen, ohne Fork-App-ID, Native Channels, Cookie-Origin-/Secure-/HttpOnly-Grenzen zu beeinträchtigen.
+**Target behavior / constraints:** Integrate the upstream WebView-to-HTTP cookie bridge for Android/iOS/macOS without compromising fork package ID/native channels or cookie origin, Secure and HttpOnly boundaries.
 
-**Abnahme / Tests:** Gelöste Challenges, Domain/Subdomains, Android/iOS/macOS, unsupported platforms.
+**Verification:** Solved challenges, cookie domain/subdomain scope, Android/iOS/macOS and unsupported platforms.
 
-## N06 – HTTP/2-Window und automatisches Gzip
+## N06 — HTTP/2 Window and Automatic Gzip
 
-**Status: ENTSCHIEDEN · 2026-10-15 · Umsetzung ausstehend.** **Beschlussart:** angepasst übernehmen.
+**Status: APPROVED · 2026-10-15 · Implementation pending.** **Resolution:** adapt.
 
-**Zielzustand / technische Grenzen:** HTTP/2-Window- und Gzip-Verbesserungen übernehmen; Fork-Priorisierung, HTTP1-/Plattform-Fallback und mobile Speichergrenzen erhalten.
+**Target behavior / constraints:** Adopt upstream HTTP/2 flow-control window and gzip improvements while keeping fork prioritization, HTTP/1 and platform fallbacks, and mobile memory constraints.
 
-**Abnahme / Tests:** HTTP2/HTTP1, gzip, hohe Parallelität, wenig RAM.
+**Verification:** HTTP/2 and HTTP/1, gzip, high concurrency and low-memory devices.
 
 ## X03 – Fork-Export/Import, Profile-UUIDs und Following bewahren
 
