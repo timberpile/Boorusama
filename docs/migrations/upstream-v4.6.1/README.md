@@ -29,7 +29,7 @@
 
 ## Entscheidungsstand (2026-10-16)
 
-**61 von 68 Themen beschlossen, 7 noch offen.** Alle 61 Entscheidungen stehen verbindlich in [decisions.md](decisions.md), zusammengefasst in Katalog und Checkliste. **Es wurde noch kein Upstream-Code integriert und keine Umsetzung freigegeben.**
+**67 von 68 Themen beschlossen, 1 noch offen.** Alle 67 Entscheidungen stehen verbindlich in [decisions.md](decisions.md), zusammengefasst in Katalog und Checkliste. **Es wurde noch kein Upstream-Code integriert und keine Umsetzung freigegeben.**
 
 - **A02:** Implementierender Agent schreibt nach dem UI-Umbau die wichtigsten manuellen Testfälle für den Nutzer; führt diese nicht selbst manuell durch.
 - **X04 + A09:** Cache-Generationen entfernen, URL-MD5/LRU/Checkpoints behalten; OS-Temp-Share-Kopie und vorhandenes >24h-Cleanup verwenden; Upstream read-only DocumentsProvider übernehmen.
@@ -44,6 +44,10 @@
 - **U01–U03:** Soft-Keyboard-Layout, scrollkontrollierte Search History und Keyboard-Suggestion-Listbox in die neue kompakte Fork-Suchoberfläche integrieren.
 - **U04–U06:** Einheitliches Keyboard-/D-Pad-Focus-Handling, Focus-Panes und Escape/Back-Layer-Priorität mit Fork-Navigation verbinden; TV nur Best-Effort.
 - **U07–U08:** Favorite-Tag-Dialog ab Tabletbreite, volle Fork-Labels erhalten; Upstream-Regressionstests nur zusammen mit Features und kontrollierten Clocks übernehmen.
+- **D01:** Opt-in Download-TXT/JSON-Sidecars (Default Off, Bulk-Override), crashsichere Completion, separater Sidecar-Retry, kein nachträgliches Sidecar für geskipptes Medium. D07-Site-ID bleibt ausstehend.
+- **D03/D04:** Background-Downloader-Git-Pin nur nach Compatibility-Checks aktualisieren; injizierbaren Task-Client, kopierte Notifier-State-Liste und single StreamController-Ownership übernehmen.
+- **D05/D06:** Anime-Pictures-/Zerochan-Bulk mit Site-Pacing über **einen** `ApiRequestCoordinator` (N01); Ablauf/URLs/Dedupe/Haltbarkeit sicherstellen, keine stille Qualitätsherabstufung bei angefordertem Zerochan-Original.
+- **D08:** Favorite-Tags aus persistentem Repository exportieren, `replaceAll`-Importsemantik und alle Fork-Backup-Pfade bewahren.
 - **P06-Limit:** Animierte GIFs einschließlich Danbooru-Samples nur bei aktivem GIF-Autoplay und bekanntem Original-`fileSize` ≤ 5 MiB automatisch im Grid laden, sonst statisch (auch Highest); Viewer/Downloads unberührt.
 
 ## Fortschritt
@@ -56,7 +60,8 @@
 - [x] A01–A18: Upstream-/Fork-Zielverhalten beschlossen
 - [x] N01–N06: Netzwerk-Zielverhalten beschlossen
 - [x] D02: Bulk-Download-Finalisierung und Notification-Schutz entschieden
-- [ ] D01, D03–D08: übrige Backup-/Download-Punkte entscheiden
+- [x] D01, D03–D06 und D08: sechs Backup-/Download-Themen beschlossen (Implementierung ausstehend)
+- [ ] D07: ursprüngliche Site-Post-ID in Export und Filename-Token abschließend entscheiden
 - [x] B01–B10: Booru-Kompatibilität vollständig entschieden (Implementierung ausstehend)
 - [x] P01–P14: alle 14 Viewer-/Grid-Themen entschieden (Implementierung ausstehend)
 - [x] U01–U08: Suche/Keyboard/Desktop/TV sowie Testpflege entschieden (Implementierung ausstehend)
