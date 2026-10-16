@@ -2,7 +2,7 @@
 import 'dart:async';
 
 // Flutter imports:
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -40,7 +40,10 @@ import 'package:boorusama/core/premiums/providers.dart';
 import 'package:boorusama/core/settings/providers.dart';
 import 'package:boorusama/core/settings/types.dart';
 import 'package:boorusama/core/themes/colors/providers.dart';
+import 'package:boorusama/foundation/filesystem.dart';
 import 'package:boorusama/foundation/loggers.dart';
+
+import '../../support/fakes/memory_app_file_system.dart';
 
 void main() {
   setUp(() {
@@ -193,6 +196,7 @@ class _Harness extends StatelessWidget {
       settingsProvider.overrideWithValue(
         Settings.defaultSettings.copyWith(reduceAnimations: true),
       ),
+      appFileSystemProvider.overrideWithValue(MemoryAppFileSystem()),
       colorSchemeProvider.overrideWithValue(
         ColorScheme.fromSeed(seedColor: Colors.blue),
       ),
@@ -292,17 +296,21 @@ final class _Logger implements Logger {
   String getDebugName() => 'Realbooru full post loader test';
 
   @override
-  void debug(String serviceName, String message) {}
+  void debug(String serviceName, String message, {String? sensitiveMessage}) {}
 
   @override
-  void error(String serviceName, String message) {}
+  void error(String serviceName, String message, {String? sensitiveMessage}) {}
 
   @override
-  void info(String serviceName, String message) {}
+  void info(String serviceName, String message, {String? sensitiveMessage}) {}
 
   @override
-  void verbose(String serviceName, String message) {}
+  void verbose(
+    String serviceName,
+    String message, {
+    String? sensitiveMessage,
+  }) {}
 
   @override
-  void warn(String serviceName, String message) {}
+  void warn(String serviceName, String message, {String? sensitiveMessage}) {}
 }

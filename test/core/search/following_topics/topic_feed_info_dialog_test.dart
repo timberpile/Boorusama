@@ -1,12 +1,14 @@
 import 'dart:async';
+
 import 'package:boorusama/core/search/following_topics/providers.dart';
 import 'package:boorusama/core/search/following_topics/types.dart';
 import 'package:boorusama/core/search/following_topics/src/pages/topic_feeds_page.dart';
 import 'package:boorusama/core/search/following_topics/src/widgets/topic_feed_info_dialog.dart';
 import 'package:boorusama/core/search/following_topics/src/widgets/following_topic_info_dialog.dart';
 import 'package:boorusama/core/settings/src/types/settings.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
+
 import 'following_topic_test_utils.dart';
 import 'topic_test_utils.dart';
 

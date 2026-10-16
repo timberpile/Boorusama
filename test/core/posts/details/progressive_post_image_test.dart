@@ -3,7 +3,9 @@ import 'package:boorusama/core/posts/details/src/types/post_viewer_transformatio
 import 'package:boorusama/core/posts/details/src/widgets/zoom_edge_page_gesture.dart';
 import 'package:boorusama/core/posts/details_pageview/src/post_details_page_view_controller.dart';
 import 'package:boorusama/core/posts/details_pageview/src/zoom_page_navigation_scope.dart';
+
 import 'progressive_image_test_utils.dart';
+
 import 'dart:typed_data';
 
 import 'package:boorusama/core/posts/details/src/widgets/progressive_post_image.dart';
@@ -13,7 +15,7 @@ import 'package:boorusama/core/images/booru_image.dart' show ErrorPlaceholder;
 import 'package:dio/dio.dart';
 import 'package:extended_image/extended_image.dart';
 import 'package:extended_image/src/image/raw_image.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -412,8 +414,7 @@ void main() {
       expect(
         nextCount,
         0,
-        reason:
-            'a geometry-only compatibility change must invalidate the held drag',
+        reason: 'a geometry-only compatibility change must invalidate the held drag',
       );
       expect(matrix.value.storage, before);
       expect(fixture.controller.imageInfo.value!.image, same(image));
@@ -464,8 +465,7 @@ void main() {
         expect(
           tester.takeException(),
           isNull,
-          reason:
-              'production transport errors must have an owner while the lower image remains visible',
+          reason: 'production transport errors must have an owner while the lower image remains visible',
         );
         await fixture.finish(tester);
       },

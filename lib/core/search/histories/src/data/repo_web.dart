@@ -5,25 +5,56 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../foundation/database/indexed_db_store.dart';
 import '../../../../../foundation/data_mutation_coordinator.dart';
 import '../../../../../foundation/filesystem.dart';
+import '../../../../../foundation/loggers.dart';
 import '../../../selected_tags/types.dart';
 import '../types/search_history.dart';
 import '../types/search_history_repository.dart';
+import '../types/search_history_repository_factory.dart';
 import 'coordinated_search_history_repository.dart';
 
 const kSearchHistoryDbName = 'search_history_db';
 const _kQueryTypeIndex = 'query_type';
 const _kUpdatedAtIndex = 'updated_at';
 
+final searchHistoryRepositoryFactoryProvider =
+    Provider<SearchHistoryRepositoryFactory>(
+      (_) => throw UnimplementedError(
+        'searchHistoryRepositoryFactoryProvider must be overridden',
+      ),
+      name: 'searchHistoryRepositoryFactoryProvider',
+    );
+
 final searchHistoryRepoProvider = FutureProvider<SearchHistoryRepository>(
   (ref) async {
-    final repo = SearchHistoryRepositoryIndexedDb();
-    await repo.initialize();
+    final factory = ref.watch(searchHistoryRepositoryFactoryProvider);
+    final repository = await factory.create();
+    ref.onDispose(() => factory.dispose(repository));
     return CoordinatedSearchHistoryRepository(
-      repo,
+      repository,
       ref.watch(dataMutationCoordinatorProvider),
     );
   },
 );
+
+final class IndexedDbSearchHistoryRepositoryFactory
+    implements SearchHistoryRepositoryFactory {
+  const IndexedDbSearchHistoryRepositoryFactory();
+
+  @override
+  Future<SearchHistoryRepository> create() async {
+    final repository = SearchHistoryRepositoryIndexedDb();
+    await repository.initialize();
+    return repository;
+  }
+
+  @override
+  Future<void> dispose(SearchHistoryRepository repository) async {}
+}
+
+SearchHistoryRepositoryFactory createProductionSearchHistoryRepositoryFactory({
+  required AppFileSystem fileSystem,
+  required Logger logger,
+}) => const IndexedDbSearchHistoryRepositoryFactory();
 
 Future<String> getSearchHistoryDbPath(AppFileSystem fs) async {
   return '';

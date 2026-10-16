@@ -13,7 +13,7 @@ import 'package:boorusama/core/posts/shares/src/unified_post_share_sheet.dart';
 import 'package:boorusama/foundation/filesystem.dart';
 import 'package:cache_manager/cache_manager.dart';
 import 'package:dio/dio.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;

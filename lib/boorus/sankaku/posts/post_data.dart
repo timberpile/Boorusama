@@ -7,7 +7,7 @@ import '../../../core/posts/post/types.dart';
 import '../../../core/tags/tag/types.dart';
 
 final class SankakuPostData extends Equatable
-    implements BooruPostData, StableBookmarkPostKeyData {
+    implements BooruPostData, StableBookmarkPostKeyData, SitePostIdData {
   const SankakuPostData({
     required this.sankakuId,
     required this.isFavorited,
@@ -20,6 +20,12 @@ final class SankakuPostData extends Equatable
   });
 
   final SankakuPostIdData? sankakuId;
+
+  @override
+  String? get sitePostId {
+    final value = sankakuId?.value.trim();
+    return value == null || value.isEmpty ? null : value;
+  }
 
   @override
   String? get stableBookmarkPostKey {

@@ -1,7 +1,7 @@
 import 'package:boorusama/core/search/following_topics/providers.dart';
 import 'package:boorusama/core/search/following_topics/src/pages/topic_feed_management_page.dart';
 import 'package:boorusama/core/search/following_topics/src/pages/following_topics_page.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'following_topic_test_utils.dart';

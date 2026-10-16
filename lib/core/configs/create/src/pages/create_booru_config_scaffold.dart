@@ -133,12 +133,16 @@ class CreateBooruConfigScaffold extends ConsumerWidget {
                         constraints: const BoxConstraints(
                           maxWidth: 700,
                         ),
-                        child: TabBarView(
-                          controller: controller,
-                          physics: const NeverScrollableScrollPhysics(),
-                          children: [
-                            for (final tab in tabMap.values) tab,
-                          ],
+                        // Settings scrolled up out of view would otherwise
+                        // sort in among the tabs above them.
+                        child: KurumiFocusPane(
+                          child: TabBarView(
+                            controller: controller,
+                            physics: const NeverScrollableScrollPhysics(),
+                            children: [
+                              for (final tab in tabMap.values) tab,
+                            ],
+                          ),
                         ),
                       ),
                     ),
@@ -441,8 +445,8 @@ class BooruConfigPopScope extends ConsumerWidget {
           showDialog(
             context: context,
             builder: (_) => UnsavedAlertDialog(
-              onSave: () {
-                notifier.addOrUpdate(
+              onSave: () async {
+                await notifier.addOrUpdate(
                   id: editId,
                   newConfig: configData,
                 );

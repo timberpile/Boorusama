@@ -3,11 +3,15 @@ import 'package:flutter/widgets.dart';
 
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:webview_flutter/webview_flutter.dart';
 
 // Project imports:
+import '../../../foundation/browser/providers.dart';
+import '../../../foundation/platform.dart';
+import '../../../foundation/webview_user_agent.dart';
+import '../../debug/providers.dart';
 import '../../http/cookies/providers.dart';
 import '../../router.dart';
+import '../diagnostics/providers.dart';
 import '../solver/providers.dart';
 import '../solver/types.dart';
 import 'protection_handler.dart';
@@ -15,35 +19,61 @@ import 'protection_handler.dart';
 final httpDdosProtectionBypassProvider = Provider<HttpProtectionHandler>(
   (ref) {
     final cookieJar = ref.watch(cookieJarProvider);
+    final recorder = ref.watch(protectionLogRecorderProvider);
+    final platform = ref.watch(appPlatformProvider);
+    final supportsEmbeddedWebView = platform.supportsEmbeddedWebView;
+    final browserFactory = supportsEmbeddedWebView
+        ? ref.watch(embeddedBrowserFactoryProvider)
+        : null;
     BuildContext? contextProvider() {
-      final context =
-          navigatorKey.currentContext ?? navigatorKey.currentState?.context;
+      final key = ref.read(appNavigationProvider).navigatorKey;
+      final context = key.currentContext ?? key.currentState?.context;
 
       return context;
     }
 
     return HttpProtectionHandler(
+      onEvent: recorder.record,
       orchestrator: ProtectionOrchestrator(
-        userAgentProvider: WebViewUserAgentProvider(),
+        userAgentProvider: supportsEmbeddedWebView
+            ? WebViewUserAgentProvider(
+                service: ref.watch(webViewUserAgentServiceProvider),
+                onUserAgent: (ua) {
+                  final engine =
+                      RegExp(
+                        '(?:Chrome|AppleWebKit)/[0-9.]+',
+                      ).firstMatch(ua ?? '')?.group(0) ??
+                      'unknown';
+                  ref.read(appLoggerProvider).updateReportContext({
+                    'webViewEngineFromUserAgent': engine,
+                  });
+                },
+              )
+            : const UnavailableUserAgentProvider(),
         detectors: [
           CloudflareDetector(),
           AftDetector(),
           CaptchaAccessDeniedDetector(),
         ],
-        solvers: [
-          CloudflareSolver(
-            contextProvider: contextProvider,
-            cookieJar: cookieJar,
-          ),
-          AftSolver(
-            contextProvider: contextProvider,
-            cookieJar: cookieJar,
-          ),
-          CaptchaAccessDeniedSolver(
-            contextProvider: contextProvider,
-            cookieJar: cookieJar,
-          ),
-        ],
+        solvers: supportsEmbeddedWebView
+            ? [
+                CloudflareSolver(
+                  contextProvider: contextProvider,
+                  cookieJar: cookieJar,
+                  browserFactory: browserFactory,
+                ),
+                AftSolver(
+                  contextProvider: contextProvider,
+                  cookieJar: cookieJar,
+                  browserFactory: browserFactory,
+                ),
+                CaptchaAccessDeniedSolver(
+                  contextProvider: contextProvider,
+                  cookieJar: cookieJar,
+                  browserFactory: browserFactory,
+                ),
+              ]
+            : const [],
       ),
       contextProvider: contextProvider,
       cookieJar: cookieJar,
@@ -67,8 +97,9 @@ final bypassDdosHeadersProvider =
           .map((c) => '${c.name}=${c.value}')
           .join('; ');
 
-      final webviewController = WebViewController();
-      final userAgent = await webviewController.getUserAgent();
+      final userAgent = await ref
+          .watch(webViewUserAgentServiceProvider)
+          .getUserAgent();
 
       return {
         if (cookieString.isNotEmpty) 'cookie': cookieString,

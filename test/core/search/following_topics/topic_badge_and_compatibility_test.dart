@@ -2,7 +2,7 @@ import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/search/following_topics/src/widgets/following_topic_card.dart';
 import 'package:boorusama/core/settings/src/types/settings.dart';
 import 'package:boorusama/core/settings/src/types/search_refresh_settings.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'following_topic_test_utils.dart';

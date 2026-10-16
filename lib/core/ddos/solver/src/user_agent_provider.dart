@@ -1,11 +1,25 @@
-// Package imports:
-import 'package:webview_flutter/webview_flutter.dart';
+// Project imports:
+import '../../../../foundation/webview_user_agent.dart';
 
 abstract class UserAgentProvider {
   Future<String?> getUserAgent();
 }
 
+class UnavailableUserAgentProvider implements UserAgentProvider {
+  const UnavailableUserAgentProvider();
+
+  @override
+  Future<String?> getUserAgent() async => null;
+}
+
 class WebViewUserAgentProvider implements UserAgentProvider {
+  WebViewUserAgentProvider({
+    required this.service,
+    this.onUserAgent,
+  });
+
+  final WebViewUserAgentService service;
+  final void Function(String?)? onUserAgent;
   String? _userAgent;
 
   @override
@@ -14,9 +28,9 @@ class WebViewUserAgentProvider implements UserAgentProvider {
       return _userAgent;
     }
 
-    // ignore: join_return_with_assignment
-    _userAgent ??= await WebViewController().getUserAgent();
+    _userAgent ??= await service.getUserAgent();
 
+    onUserAgent?.call(_userAgent);
     return _userAgent;
   }
 }

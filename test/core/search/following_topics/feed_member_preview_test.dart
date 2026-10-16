@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
+
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/configs/manage/providers.dart';
 import 'package:boorusama/core/images/types.dart';
@@ -11,9 +12,10 @@ import 'package:boorusama/core/search/following_topics/src/pages/topic_feed_mana
 import 'package:boorusama/core/search/following_topics/src/widgets/following_topic_card.dart';
 import 'package:boorusama/core/settings/src/types/settings.dart';
 import 'package:cache_manager/cache_manager.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_libavif/flutter_libavif.dart';
 import 'package:flutter_test/flutter_test.dart';
+
 import 'following_topic_test_utils.dart';
 
 class ByteCache implements ImageCacheManager {
@@ -159,8 +161,7 @@ void main() {
           expect(
             h.container.read(feedMemberPreviewProvider(key)).isLoading,
             isFalse,
-            reason:
-                'Cached byte decoding must settle before checking rendered previews',
+            reason: 'Cached byte decoding must settle before checking rendered previews',
           );
           await tester.pump();
         });
@@ -299,8 +300,7 @@ void main() {
           expect(
             h.container.read(feedMemberPreviewProvider(key)).isLoading,
             isFalse,
-            reason:
-                'Cached byte decoding must settle before checking rendered previews',
+            reason: 'Cached byte decoding must settle before checking rendered previews',
           );
           await tester.pump();
         });

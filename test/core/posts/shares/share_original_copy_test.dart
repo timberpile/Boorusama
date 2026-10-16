@@ -16,7 +16,7 @@ import 'package:boorusama/foundation/utils/file_utils.dart';
 import 'package:flutter/services.dart';
 import 'package:cache_manager/cache_manager.dart';
 import 'package:dio/dio.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:i18n/src/gen/strings.g.dart' show TranslationProvider;
@@ -88,8 +88,7 @@ void main() {
         expect(
           await File(path).readAsBytes(),
           png,
-          reason:
-              'production Copy owns its lease through the native acknowledgement',
+          reason: 'production Copy owns its lease through the native acknowledgement',
         );
         clipboardPath = path;
         return null;

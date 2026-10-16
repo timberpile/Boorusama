@@ -23,7 +23,6 @@ import '../../../../premiums/providers.dart';
 import '../../../../router.dart';
 import '../../../../settings/providers.dart';
 import '../../../../videos/lock/widgets.dart';
-import '../../../../widgets/widgets.dart';
 import '../../../details_pageview/widgets.dart';
 import '../../../details_parts/types.dart';
 import '../../../post/routes.dart';
@@ -195,7 +194,7 @@ class _PostDetailPageScaffoldState<T extends Post>
   }
 
   void _isVideoPlayingChanged() {
-    if (context.isLargeScreen && isDesktopPlatform()) {
+    if (context.isLargeScreen && ref.read(appPlatformProvider).isDesktop) {
       // force overlay to be on when video is not playing
       if (!widget.controller.isVideoPlaying.value) {
         _controller.disableHoverToControlOverlay();
@@ -290,39 +289,43 @@ class _PostDetailPageScaffoldState<T extends Post>
           ref,
           widget.posts[_controller.page],
         ),
+        const SingleActivator(LogicalKeyboardKey.mediaPlayPause): () =>
+            widget.controller.toggleCurrentVideo(showAnimation: true),
+        const SingleActivator(LogicalKeyboardKey.mediaPlay): () =>
+            widget.controller.setCurrentVideoPlaying(true, showAnimation: true),
+        const SingleActivator(LogicalKeyboardKey.mediaPause): () => widget
+            .controller
+            .setCurrentVideoPlaying(false, showAnimation: true),
       },
-      child: CustomContextMenuOverlay(
-        backgroundColor: Kurumi.themeOf(context).colorScheme.secondaryContainer,
-        child: VisibilityDetector(
-          key: const Key('post_details_page_scaffold'),
-          onVisibilityChanged: (info) {
-            if (!mounted) return;
+      child: VisibilityDetector(
+        key: const Key('post_details_page_scaffold'),
+        onVisibilityChanged: (info) {
+          if (!mounted) return;
 
-            if (info.visibleFraction == 0) {
-              visibilityNotifier.value = false;
-              _previouslyPlaying = widget.controller.isVideoPlaying.value;
-              if (_previouslyPlaying) {
-                widget.controller.pauseCurrentVideo();
-              }
-            } else if (info.visibleFraction == 1) {
-              visibilityNotifier.value = true;
-              if (_previouslyPlaying) {
-                widget.controller.playCurrentVideo();
-              }
+          if (info.visibleFraction == 0) {
+            visibilityNotifier.value = false;
+            _previouslyPlaying = widget.controller.isVideoPlaying.value;
+            if (_previouslyPlaying) {
+              widget.controller.pauseCurrentVideo();
+            }
+          } else if (info.visibleFraction == 1) {
+            visibilityNotifier.value = true;
+            if (_previouslyPlaying) {
+              widget.controller.playCurrentVideo();
+            }
+          }
+        },
+        child: VideoScreenLocker(
+          onLockChanged: (isLocked) {
+            if (isLocked) {
+              _controller.hideAllUI();
+              _controller.disableKeyboardShortcuts();
+            } else {
+              _controller.showAllUI();
+              _controller.enableKeyboardShortcuts();
             }
           },
-          child: VideoScreenLocker(
-            onLockChanged: (isLocked) {
-              if (isLocked) {
-                _controller.hideAllUI();
-                _controller.disableKeyboardShortcuts();
-              } else {
-                _controller.showAllUI();
-                _controller.enableKeyboardShortcuts();
-              }
-            },
-            child: _build(),
-          ),
+          child: _build(),
         ),
       ),
     );

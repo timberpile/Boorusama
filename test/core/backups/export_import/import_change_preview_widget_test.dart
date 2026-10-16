@@ -1,6 +1,6 @@
 import 'package:boorusama/core/backups/export_import/import/import_change_preview.dart';
 import 'package:boorusama/core/backups/export_import/widgets/import_change_preview.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:i18n/src/gen/strings.g.dart' show TranslationProvider;
 

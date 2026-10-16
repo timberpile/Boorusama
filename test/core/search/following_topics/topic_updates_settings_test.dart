@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:boorusama/core/search/following_topics/src/providers/search_refresh_coordinator.dart';
 import 'package:boorusama/core/search/following_topics/src/services/conservative_refresh_policy.dart';
 
@@ -12,7 +13,7 @@ import 'package:boorusama/core/settings/src/pages/topic_updates_page.dart';
 import 'package:boorusama/core/settings/src/types/settings.dart';
 import 'package:boorusama/core/settings/src/types/settings_repository.dart';
 import 'package:boorusama/foundation/loggers.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:i18n/i18n.dart';
@@ -38,7 +39,7 @@ void main() {
             ),
             analyticsProvider.overrideWith((ref) => Future.value()),
           ],
-          child: const MaterialApp(
+          child: const _TestMaterialApp(
             home: TopicUpdatesSettingsPage(),
           ),
         ),
@@ -74,7 +75,7 @@ void main() {
               () => SettingsNotifier(reopened),
             ),
           ],
-          child: const MaterialApp(
+          child: const _TestMaterialApp(
             home: TopicUpdatesSettingsPage(),
           ),
         ),
@@ -103,7 +104,7 @@ void main() {
               ),
               analyticsProvider.overrideWith((ref) => Future.value()),
             ],
-            child: const MaterialApp(
+            child: const _TestMaterialApp(
               home: Column(
                 children: [
                   Expanded(child: TopicUpdatesSettingsPage()),
@@ -162,7 +163,7 @@ void main() {
               ConsoleLogger(options: const ConsoleLoggerOptions.defaults()),
             ),
           ],
-          child: const MaterialApp(
+          child: const _TestMaterialApp(
             home: TopicUpdatesSettingsPage(),
           ),
         ),
@@ -213,7 +214,7 @@ void main() {
               ),
               analyticsProvider.overrideWith((ref) => Future.value()),
             ],
-            child: MaterialApp(
+            child: _TestMaterialApp(
               home: Scaffold(
                 body: SingleChildScrollView(
                   child: Consumer(
@@ -274,7 +275,7 @@ void main() {
               ),
               analyticsProvider.overrideWith((ref) => Future.value()),
             ],
-            child: MaterialApp(
+            child: _TestMaterialApp(
               home: Scaffold(
                 body: SingleChildScrollView(
                   child: Consumer(
@@ -341,7 +342,7 @@ void main() {
                 () => SettingsNotifier(Settings.defaultSettings),
               ),
             ],
-            child: const MaterialApp(
+            child: const _TestMaterialApp(
               home: TopicUpdatesSettingsPage(),
             ),
           ),
@@ -389,6 +390,20 @@ Future<void> _waitForAttempts(
     await tester.pump();
   }
   expect(repository.attempts, hasLength(count));
+}
+
+class _TestMaterialApp extends StatelessWidget {
+  const _TestMaterialApp({required this.home});
+
+  final Widget home;
+
+  @override
+  Widget build(BuildContext context) => MaterialApp(
+    builder: (context, child) =>
+        // ignore: deprecated_member_use
+        MaterialUiCompatibilityBridge(child: child!),
+    home: home,
+  );
 }
 
 class _ControlledRepository implements SettingsRepository {

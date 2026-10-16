@@ -602,14 +602,20 @@ class DefaultInnerSearchButton extends StatelessWidget {
 
         return searchOnce
             ? searchButton
-            : AnimatedOpacity(
-                opacity: allowSearch ? 1.0 : 0.0,
-                duration: const Duration(milliseconds: 200),
-                child: AnimatedScale(
-                  scale: allowSearch ? 1.0 : 0.0,
-                  duration: const Duration(milliseconds: 250),
-                  curve: Curves.easeOutBack,
-                  child: searchButton,
+            : ExcludeFocus(
+                excluding: !allowSearch,
+                child: IgnorePointer(
+                  ignoring: !allowSearch,
+                  child: AnimatedOpacity(
+                    opacity: allowSearch ? 1.0 : 0.0,
+                    duration: const Duration(milliseconds: 200),
+                    child: AnimatedScale(
+                      scale: allowSearch ? 1.0 : 0.0,
+                      duration: const Duration(milliseconds: 250),
+                      curve: Curves.easeOutBack,
+                      child: searchButton,
+                    ),
+                  ),
                 ),
               );
       },
@@ -714,7 +720,11 @@ class DefaultSearchSuggestions extends ConsumerWidget {
                                 searchBarPosition == SearchBarPosition.bottom,
                             config: config,
                             tags: suggestionTags,
+                            listbox: controller.suggestionsListbox,
                             currentQuery: query.text,
+                            onItemPick: (tag) {
+                              controller.tapTag(tag.value);
+                            },
                             onItemTap: (tag) {
                               controller.tapTag(tag.value);
                             },

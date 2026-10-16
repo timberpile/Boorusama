@@ -9,6 +9,14 @@ GridThumbnailMedia defaultGridThumbnailMedia(
   Post post,
   GridThumbnailSettings settings,
 ) {
+  if (post.isGif && !shouldAutoplayGridGif(post, settings)) {
+    return GridThumbnailMedia(
+      url: post.thumbnailImageUrl,
+      aspectRatio: post.effectiveThumbnailAspectRatio,
+      placeholderUrl: post.thumbnailImageUrl,
+      placeholderAspectRatio: post.effectiveThumbnailAspectRatio,
+    );
+  }
   final aspectRatio = switch (post.isGif) {
     true => switch (settings.imageQuality) {
       ImageQuality.automatic => switch (settings.animatedPostsDefaultState) {
@@ -84,6 +92,14 @@ GridThumbnailMedia defaultGridThumbnailMedia(
     placeholderAspectRatio: aspectRatio,
   );
 }
+
+const maxAutoplayGridGifBytes = 5 * 1024 * 1024;
+
+bool shouldAutoplayGridGif(Post post, GridThumbnailSettings settings) =>
+    post.isGif &&
+    settings.animatedPostsDefaultState == AnimatedPostsDefaultState.autoplay &&
+    post.fileSize > 0 &&
+    post.fileSize <= maxAutoplayGridGifBytes;
 
 GridThumbnailMedia _thumbnailOnlyGridThumbnailMedia(
   Post post,

@@ -1,7 +1,7 @@
 import 'package:boorusama/core/posts/shares/src/gif_editor_selection.dart';
 import 'package:boorusama/core/posts/shares/src/gif_export_contract.dart';
 import 'package:boorusama/core/posts/shares/src/gif_preview_frame.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

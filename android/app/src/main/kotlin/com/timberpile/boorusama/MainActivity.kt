@@ -26,6 +26,8 @@ class MainActivity: FlutterFragmentActivity() {
         MediaScannerChannel(applicationContext, messenger).register()
         registerExportClipboardChannel(messenger)
         ImageClipboardChannel(applicationContext, messenger)
+        CacheDocumentsChannel(this, messenger).register()
+        WebViewCookieChannel(messenger).register()
         GifMetadataChannel(applicationContext, messenger)
         gifSaveChannel = GifSaveChannel(this, messenger)
         gifBackgroundChannel = GifBackgroundChannel(applicationContext, messenger)

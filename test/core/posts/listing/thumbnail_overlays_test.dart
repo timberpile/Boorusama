@@ -4,14 +4,13 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:dio/dio.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:kurumi/kurumi.dart';
-import 'package:like_button/like_button.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import 'package:boorusama/core/boorus/booru/types.dart';
@@ -53,18 +52,15 @@ void main() {
     for (final font in [
       (
         family: 'packages/material_symbols_icons/MaterialSymbolsOutlined',
-        asset:
-            'packages/material_symbols_icons/lib/fonts/MaterialSymbolsOutlined.ttf',
+        asset: 'packages/material_symbols_icons/lib/fonts/MaterialSymbolsOutlined.ttf',
       ),
       (
         family: 'packages/material_symbols_icons/MaterialSymbolsRounded',
-        asset:
-            'packages/material_symbols_icons/lib/fonts/MaterialSymbolsRounded.ttf',
+        asset: 'packages/material_symbols_icons/lib/fonts/MaterialSymbolsRounded.ttf',
       ),
       (
         family: 'packages/font_awesome_flutter/FontAwesomeSolid',
-        asset:
-            'packages/font_awesome_flutter/lib/fonts/Font-Awesome-7-Free-Solid-900.otf',
+        asset: 'packages/font_awesome_flutter/lib/fonts/Font-Awesome-7-Free-Solid-900.otf',
       ),
     ]) {
       await (FontLoader(
@@ -236,21 +232,21 @@ void main() {
       await tester.pump();
       expect(toggles, [true]);
       expect(
-        tester.state<LikeButtonState>(find.byType(LikeButton)).isLiked,
-        false,
+        tester.widget<Icon>(find.byIcon(Symbols.favorite)).fill,
+        0,
       );
       pending.complete();
       await tester.pumpAndSettle();
       expect(
-        tester.state<LikeButtonState>(find.byType(LikeButton)).isLiked,
-        true,
+        tester.widget<Icon>(find.byIcon(Symbols.favorite)).fill,
+        1,
       );
       await tester.tapAt(rect.bottomRight - const Offset(2, 2));
       await tester.pumpAndSettle();
       expect(toggles, [true, false]);
       expect(
-        tester.state<LikeButtonState>(find.byType(LikeButton)).isLiked,
-        false,
+        tester.widget<Icon>(find.byIcon(Symbols.favorite)).fill,
+        0,
       );
       await tester.tapAt(
         tester.getTopLeft(find.byType(ImageGridItem)) + const Offset(10, 30),
@@ -279,8 +275,8 @@ void main() {
     await tester.tap(find.byType(QuickFavoriteButton));
     await tester.pumpAndSettle();
     expect(
-      tester.state<LikeButtonState>(find.byType(LikeButton)).isLiked,
-      true,
+      tester.widget<Icon>(find.byIcon(Symbols.favorite)).fill,
+      1,
     );
     expect(tester.takeException(), isNull);
   });

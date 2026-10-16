@@ -34,6 +34,8 @@ class VideoCacheManager implements ImageCacheManager {
 
   Directory? _cacheDir;
   Future<Directory>? _cacheDirFuture;
+  final _activeLeases = <String, int>{};
+  final _pendingDeletes = <String>{};
 
   static const String defaultSubPath = 'cachevideo';
   static const String videoCacheGroup = 'video_cache';
@@ -120,6 +122,7 @@ class VideoCacheManager implements ImageCacheManager {
 
   File? _getValidFile(Directory cacheDir, String key, Duration? maxAge) {
     try {
+      if (_pendingDeletes.contains(key)) return null;
       final cacheFile = File(join(cacheDir.path, key));
       final stats = cacheFile.statSync();
 
@@ -132,10 +135,14 @@ class VideoCacheManager implements ImageCacheManager {
         final isExpired = now.subtract(maxAge).isAfter(stats.modified);
         if (isExpired) {
           _log('Cache expired for video file: ${cacheFile.path}');
-          try {
-            cacheFile.deleteSync();
-          } catch (e) {
-            _log('Error deleting expired video cache file: $e');
+          if ((_activeLeases[key] ?? 0) > 0) {
+            _pendingDeletes.add(key);
+          } else {
+            try {
+              cacheFile.deleteSync();
+            } catch (e) {
+              _log('Error deleting expired video cache file: $e');
+            }
           }
           return null;
         }
@@ -170,6 +177,34 @@ class VideoCacheManager implements ImageCacheManager {
     }
 
     return null;
+  }
+
+  Future<VideoCacheLease?> acquireVideo(
+    String url, {
+    Duration? maxAge,
+  }) async {
+    final key = generateCacheKey(url);
+    final file = await _getCachedFile(key, maxAge: maxAge);
+    if (file == null || !file.existsSync()) return null;
+    _activeLeases[key] = (_activeLeases[key] ?? 0) + 1;
+    await _touchFile(file);
+    return VideoCacheLease._(file.path, () => _releaseVideo(key, file));
+  }
+
+  Future<void> _releaseVideo(String key, File file) async {
+    final remaining = (_activeLeases[key] ?? 1) - 1;
+    if (remaining > 0) {
+      _activeLeases[key] = remaining;
+      return;
+    }
+    _activeLeases.remove(key);
+    if (!_pendingDeletes.contains(key)) return;
+    try {
+      if (await file.exists()) await file.delete();
+      _pendingDeletes.remove(key);
+    } catch (e) {
+      _log('Error deleting released video cache file: $e');
+    }
   }
 
   @override
@@ -262,9 +297,14 @@ class VideoCacheManager implements ImageCacheManager {
       final cacheDir = await getCacheDirectory();
       final cacheFile = File(join(cacheDir.path, key));
 
+      if ((_activeLeases[key] ?? 0) > 0) {
+        _pendingDeletes.add(key);
+        return;
+      }
       if (cacheFile.existsSync()) {
         await cacheFile.delete();
       }
+      _pendingDeletes.remove(key);
     } catch (e) {
       _log('Error clearing video cache: $e');
     }
@@ -279,8 +319,22 @@ class VideoCacheManager implements ImageCacheManager {
     try {
       final cacheDir = await getCacheDirectory();
       if (cacheDir.existsSync()) {
-        await cacheDir.delete(recursive: true);
-        invalidateCacheDirectory();
+        if (_activeLeases.isEmpty) {
+          await cacheDir.delete(recursive: true);
+          _pendingDeletes.clear();
+          invalidateCacheDirectory();
+        } else {
+          await for (final entity in cacheDir.list(followLinks: false)) {
+            if (entity is! File) continue;
+            final key = basename(entity.path);
+            if ((_activeLeases[key] ?? 0) > 0) {
+              _pendingDeletes.add(key);
+            } else {
+              await entity.delete();
+              _pendingDeletes.remove(key);
+            }
+          }
+        }
       }
     } catch (e) {
       _log('Error clearing all video cache: $e');
@@ -350,6 +404,8 @@ class VideoCacheManager implements ImageCacheManager {
 
     for (final fileWithStat in fileStats) {
       if (currentSize <= maxAllowedSize) break;
+      final key = basename(fileWithStat.file.path);
+      if ((_activeLeases[key] ?? 0) > 0) continue;
 
       try {
         await fileWithStat.file.delete();
@@ -368,6 +424,16 @@ class VideoCacheManager implements ImageCacheManager {
       print('[VideoCacheManager] $message');
     }
   }
+}
+
+class VideoCacheLease {
+  VideoCacheLease._(this.path, this._release);
+
+  final String path;
+  final Future<void> Function() _release;
+  Future<void>? _released;
+
+  Future<void> release() => _released ??= _release();
 }
 
 class _FileWithStats {

@@ -39,7 +39,10 @@ import 'package:boorusama/core/search/selected_tags/types.dart';
 import 'package:boorusama/core/settings/providers.dart';
 import 'package:boorusama/core/settings/types.dart';
 import 'package:boorusama/core/themes/colors/types.dart';
+import 'package:boorusama/foundation/filesystem.dart';
 import 'package:boorusama/foundation/loggers.dart';
+
+import '../../../support/fakes/memory_app_file_system.dart';
 
 void main() {
   testWidgets('server favorites use native cards and open the mixed viewer', (
@@ -223,6 +226,7 @@ final class _TestApp extends StatelessWidget {
       blacklistTagEntriesProvider.overrideWith((ref, config) => {}),
       canFavoriteProvider.overrideWith((ref, config) => false),
       automaticMediaLoadingEnabledProvider.overrideWithValue(false),
+      appFileSystemProvider.overrideWithValue(MemoryAppFileSystem()),
     ],
     child: BooruLocalization(
       child: MaterialApp.router(
@@ -292,6 +296,7 @@ final class _Presentation
   @override
   PostGridItemAdditions buildGridItemAdditions(
     BuildContext context, {
+    required WidgetRef ref,
     required Post post,
     required BooruConfigAuth config,
   }) => PostGridItemAdditions(
@@ -344,17 +349,21 @@ final class _Logger implements Logger {
   String getDebugName() => 'favorite post presentation test';
 
   @override
-  void debug(String serviceName, String message) {}
+  void debug(String serviceName, String message, {String? sensitiveMessage}) {}
 
   @override
-  void error(String serviceName, String message) {}
+  void error(String serviceName, String message, {String? sensitiveMessage}) {}
 
   @override
-  void info(String serviceName, String message) {}
+  void info(String serviceName, String message, {String? sensitiveMessage}) {}
 
   @override
-  void verbose(String serviceName, String message) {}
+  void verbose(
+    String serviceName,
+    String message, {
+    String? sensitiveMessage,
+  }) {}
 
   @override
-  void warn(String serviceName, String message) {}
+  void warn(String serviceName, String message, {String? sensitiveMessage}) {}
 }

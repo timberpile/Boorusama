@@ -747,6 +747,7 @@ class _ExportReadyState extends ConsumerState<_ExportReady> {
     }
     return pickDirectoryPathToastOnError(
       context: context,
+      picker: ref.read(appFilePickerProvider),
       onPick: (directory) async {
         final fs = ref.read(appFileSystemProvider);
         await copyExportToDirectory(fs, source, directory, fileName: _fileName);

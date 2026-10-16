@@ -50,6 +50,7 @@ class _ReceivedExportListenerState
     try {
       while (mounted && _pending.isNotEmpty) {
         final export = _pending.removeAt(0);
+        final navigatorKey = ref.read(appNavigationProvider).navigatorKey;
         while (mounted && navigatorKey.currentState == null) {
           await Future<void>.delayed(const Duration(milliseconds: 50));
         }

@@ -10,6 +10,7 @@ import 'package:kurumi/material.dart';
 // Project imports:
 import '../../foundation/info/device_info.dart';
 import '../configs/config/types.dart';
+import '../configs/network/providers.dart';
 import '../developer_options/blocked_media_placeholder.dart';
 import '../developer_options/providers.dart';
 import '../http/client/providers.dart';
@@ -76,6 +77,13 @@ class BooruImage extends ConsumerWidget {
     }
 
     final dio = ref.watch(dioForWidgetProvider(config));
+    final network = ref.watch(networkSettingsProvider(config));
+    final headers = ref.watch(httpHeadersProvider(config));
+    final imageRequest = network.resolveMedia(imageUrl, headers: headers);
+    final placeholderRequest = network.resolveMedia(
+      placeholderUrl ?? '',
+      headers: headers,
+    );
     final imageQualitySettings = ref.watch(
       imageListingSettingsProvider.select((value) => value.imageQuality),
     );
@@ -90,9 +98,15 @@ class BooruImage extends ConsumerWidget {
     );
 
     return BooruRawImage(
-      dio: dio,
-      imageUrl: imageUrl,
-      placeholderUrl: placeholderUrl,
+      dio: imageRequest.overridden
+          ? ref.watch(mediaOverrideDioProvider(config))
+          : dio,
+      imageUrl: imageRequest.url,
+      placeholderUrl: placeholderUrl == null ? null : placeholderRequest.url,
+      placeholderDio: placeholderRequest.overridden
+          ? ref.watch(mediaOverrideDioProvider(config))
+          : dio,
+      placeholderHeaders: placeholderRequest.headers,
       fallbackUrl: fallbackUrl,
       placeholderAspectRatio: placeholderAspectRatio,
       placeholderFit: placeholderFit,
@@ -106,7 +120,7 @@ class BooruImage extends ConsumerWidget {
       isLargeImage: imageQualitySettings != ImageQuality.low,
       forceLoadPlaceholder: forceLoadPlaceholder,
       hideMismatchedPlaceholder: hideMismatchedPlaceholder,
-      headers: ref.watch(httpHeadersProvider(config)),
+      headers: imageRequest.headers,
       placeholderWidget: placeholderWidget,
       controller: controller,
       androidVersion: deviceInfo.androidDeviceInfo?.version.sdkInt,
@@ -121,6 +135,8 @@ class BooruRawImage extends StatelessWidget {
     required this.imageUrl,
     super.key,
     this.placeholderUrl,
+    this.placeholderDio,
+    this.placeholderHeaders,
     this.fallbackUrl,
     this.placeholderAspectRatio,
     this.placeholderFit,
@@ -143,6 +159,8 @@ class BooruRawImage extends StatelessWidget {
   });
 
   final Dio dio;
+  final Dio? placeholderDio;
+  final Map<String, String>? placeholderHeaders;
   final String imageUrl;
   final String? placeholderUrl;
   final String? fallbackUrl;
@@ -233,8 +251,8 @@ class BooruRawImage extends StatelessWidget {
                                 ? _wrapPlaceholderAspectRatio(
                                     ExtendedImage.network(
                                       url,
-                                      dio: dio,
-                                      headers: headers,
+                                      dio: placeholderDio ?? dio,
+                                      headers: placeholderHeaders ?? headers,
                                       borderRadius: borderRadius,
                                       width: placeholderAspectRatio == null
                                           ? width

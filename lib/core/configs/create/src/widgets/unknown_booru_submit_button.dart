@@ -64,8 +64,8 @@ class UnknownBooruSubmitButton extends ConsumerWidget {
                     fill: true,
                     backgroundColor: value ? Colors.green : null,
                     onSubmit: isValid
-                        ? () {
-                            ref
+                        ? () async {
+                            await ref
                                 .read(booruConfigProvider.notifier)
                                 .addOrUpdate(
                                   id: editId,

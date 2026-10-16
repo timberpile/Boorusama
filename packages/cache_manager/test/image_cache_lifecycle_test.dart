@@ -36,17 +36,18 @@ void main() {
   );
 
   test(
-    'same-key replacement keeps the leased original generation immutable',
+    'same-key concurrent download reuses the valid canonical file',
     () async {
       await limit(8);
       await manager.saveFile('A', Uint8List.fromList([1, 2, 3, 4]));
       final old = await read('A');
       await manager.saveFile('A', Uint8List.fromList([5, 6, 7, 8]));
       expect(await File(old.path).readAsBytes(), [1, 2, 3, 4]);
-      expect(await manager.getCachedFileBytes('A'), [5, 6, 7, 8]);
-      expect(await manager.getCachedFilePath('A'), isNot(old.path));
+      expect(await manager.getCachedFileBytes('A'), [1, 2, 3, 4]);
+      expect(await manager.getCachedFilePath('A'), old.path);
+      expect(old.path, endsWith('/A'));
       await old.release();
-      expect(await File(old.path).exists(), isFalse);
+      expect(await File(old.path).exists(), isTrue);
     },
   );
 

@@ -23,7 +23,7 @@ import 'package:boorusama/core/posts/shares/src/unified_post_share_sheet.dart';
 import 'package:boorusama/foundation/filesystem.dart';
 import 'package:cache_manager/cache_manager.dart';
 import 'package:dio/dio.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/services.dart'
@@ -168,79 +168,82 @@ void main() {
     );
   }
 
-  testWidgets('GIF creation shares the output once and cleans temporary files', (
-    tester,
-  ) async {
-    final root = await tester.runAsync(
-      () => Directory.systemTemp.createTemp('gif-sheet-'),
-    );
-    addTearDown(() => root!.delete(recursive: true));
-    final files = <String>[];
-    final encoder = _Encoder();
-    await _open(
+  testWidgets(
+    'GIF creation shares the output once and cleans temporary files',
+    (
       tester,
-      post: _video,
-      backend: encoder,
-      root: root,
-      adapter: ShareActionAdapter((params) async {
-        expect(params.files!.single.mimeType, 'image/gif');
-        files.add(params.files!.single.path);
-        expect(await File(files.single).exists(), isTrue);
-        return const ShareResult('', ShareResultStatus.success);
-      }),
-    );
-    await tester.runAsync(() async {
-      await tester.tap(find.byKey(const ValueKey('create-gif')));
-    });
-    await _driveUntil(
-      tester,
-      () => find.byKey(const ValueKey('gif-convert')).evaluate().isNotEmpty,
-    );
-    expect(encoder.calls, 0);
-    await tester.runAsync(
-      () => tester.tap(find.byKey(const ValueKey('gif-convert'))),
-    );
-    await _driveUntil(
-      tester,
-      () => find.byKey(const ValueKey('gif-share')).evaluate().isNotEmpty,
-    );
-    await tester.runAsync(
-      () => tester.tap(find.byKey(const ValueKey('gif-share'))),
-    );
-    await _driveUntil(tester, () => files.isNotEmpty);
-    await tester.runAsync(() async {
-      await tester.pageBack();
-    });
-    await tester.pumpAndSettle();
-    await _driveUntil(
-      tester,
-      () =>
-          tester
-              .widget<IconButton>(find.byKey(const ValueKey('create-gif')))
-              .onPressed !=
-          null,
-    );
-    await _driveUntil(
-      tester,
-      () => Directory('${root!.path}/boorusama-share').listSync().isEmpty,
-    );
-    expect(encoder.calls, 1);
-    expect(files, hasLength(1));
-    expect(encoder.calls, 1);
-    expect(
-      find.text(
-        'Could not create a GIF from this video. You can still share the video.',
-      ),
-      findsNothing,
-    );
-    expect(
+    ) async {
+      final root = await tester.runAsync(
+        () => Directory.systemTemp.createTemp('gif-sheet-'),
+      );
+      addTearDown(() => root!.delete(recursive: true));
+      final files = <String>[];
+      final encoder = _Encoder();
+      await _open(
+        tester,
+        post: _video,
+        backend: encoder,
+        root: root,
+        adapter: ShareActionAdapter((params) async {
+          expect(params.files!.single.mimeType, 'image/gif');
+          files.add(params.files!.single.path);
+          expect(await File(files.single).exists(), isTrue);
+          return const ShareResult('', ShareResultStatus.success);
+        }),
+      );
+      await tester.runAsync(() async {
+        await tester.tap(find.byKey(const ValueKey('create-gif')));
+      });
+      await _driveUntil(
+        tester,
+        () => find.byKey(const ValueKey('gif-convert')).evaluate().isNotEmpty,
+      );
+      expect(encoder.calls, 0);
       await tester.runAsync(
-        () => Directory('${root!.path}/boorusama-share').list().toList(),
-      ),
-      isEmpty,
-    );
-    expect(find.byTooltip('Share video'), findsOneWidget);
-  });
+        () => tester.tap(find.byKey(const ValueKey('gif-convert'))),
+      );
+      await _driveUntil(
+        tester,
+        () => find.byKey(const ValueKey('gif-share')).evaluate().isNotEmpty,
+      );
+      await tester.runAsync(
+        () => tester.tap(find.byKey(const ValueKey('gif-share'))),
+      );
+      await _driveUntil(tester, () => files.isNotEmpty);
+      await tester.runAsync(() async {
+        await tester.pageBack();
+      });
+      await tester.pumpAndSettle();
+      await _driveUntil(
+        tester,
+        () =>
+            tester
+                .widget<IconButton>(find.byKey(const ValueKey('create-gif')))
+                .onPressed !=
+            null,
+      );
+      await _driveUntil(
+        tester,
+        () => Directory('${root!.path}/boorusama-share').listSync().isEmpty,
+      );
+      expect(encoder.calls, 1);
+      expect(files, hasLength(1));
+      expect(encoder.calls, 1);
+      expect(
+        find.text(
+          'Could not create a GIF from this video. You can still share the video.',
+        ),
+        findsNothing,
+      );
+      expect(
+        await tester.runAsync(
+          () => Directory('${root!.path}/boorusama-share').list().toList(),
+        ),
+        isEmpty,
+      );
+      expect(find.byTooltip('Share video'), findsOneWidget);
+    },
+  );
 
   testWidgets('Create GIF preserves the 1152x720 source aspect ratio', (
     tester,

@@ -12,11 +12,10 @@ import '../types/video_engine.dart';
 import '../types/video_source.dart';
 import 'fvp_manager.dart';
 
-typedef VideoControllerFactory =
-    VideoPlayerController Function(
-      VideoSource source,
-      VideoConfig? config,
-    );
+typedef VideoControllerFactory = VideoPlayerController Function(
+  VideoSource source,
+  VideoConfig? config,
+);
 
 VideoPlayerController _defaultControllerFactory(
   VideoSource source,
@@ -53,6 +52,9 @@ class VideoPlayerBooruPlayer implements BooruPlayer {
 
   var _isDisposed = false;
   var _hasPlayedOnce = false;
+
+  @override
+  final ValueNotifier<bool> firstFrameRendered = ValueNotifier(false);
 
   bool get _isInvalid => _isDisposed || _controller == null;
 
@@ -123,9 +125,9 @@ class VideoPlayerBooruPlayer implements BooruPlayer {
     _hasPlayedOnce = false;
 
     final controller = _createController(source, config);
-    await _setupController(controller);
-
     _controller = controller;
+    firstFrameRendered.value = false;
+    await _setupController(controller);
 
     // Await old controller disposal to prevent race conditions with native resources
     if (oldController != null) {
@@ -136,6 +138,7 @@ class VideoPlayerBooruPlayer implements BooruPlayer {
 
   void _onVideoPlayerChanged() => _withValidController((controller) {
     final value = controller.value;
+    if (value.hasRenderedFirstFrame) firstFrameRendered.value = true;
 
     _playingController.add(value.isPlaying);
     if (value.isPlaying) {
@@ -297,6 +300,7 @@ class VideoPlayerBooruPlayer implements BooruPlayer {
   void dispose() {
     if (_isDisposed) return;
     _isDisposed = true;
+    firstFrameRendered.dispose();
 
     wakelock.disable();
 

@@ -1,11 +1,9 @@
 // Dart imports:
 import 'dart:async';
 
-// Flutter imports:
-import 'package:flutter/material.dart';
-
 // Package imports:
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:video_player/video_player.dart';
 
@@ -20,6 +18,9 @@ class MockWakelock extends Mock implements Wakelock {}
 
 // ignore: avoid_implementing_value_types
 class FakeVideoPlayerValue extends Fake implements VideoPlayerValue {
+  @override
+  bool get hasRenderedFirstFrame => false;
+
   @override
   bool get isInitialized => true;
 
@@ -81,49 +82,52 @@ void main() {
   }
 
   group('VideoPlayerBooruPlayer switchUrl disposal', () {
-    test('old controller disposal completes before switchUrl returns', () async {
-      // This test verifies that switchUrl waits for old controller disposal
-      //
-      // EXPECTED BEHAVIOR: switchUrl should not return until old controller
-      // is fully disposed to prevent native resource conflicts
-      //
-      // CURRENT BUG: Uses unawaited((() => oldController.dispose())())
-      // which returns immediately without waiting
+    test(
+      'old controller disposal completes before switchUrl returns',
+      () async {
+        // This test verifies that switchUrl waits for old controller disposal
+        //
+        // EXPECTED BEHAVIOR: switchUrl should not return until old controller
+        // is fully disposed to prevent native resource conflicts
+        //
+        // CURRENT BUG: Uses unawaited((() => oldController.dispose())())
+        // which returns immediately without waiting
 
-      final oldControllerDisposalCompleter = Completer<void>();
+        final oldControllerDisposalCompleter = Completer<void>();
 
-      final oldController = createMockController(
-        disposalDelay: const Duration(milliseconds: 50),
-        disposalCompleter: oldControllerDisposalCompleter,
-      );
-      final newController = createMockController();
+        final oldController = createMockController(
+          disposalDelay: const Duration(milliseconds: 50),
+          disposalCompleter: oldControllerDisposalCompleter,
+        );
+        final newController = createMockController();
 
-      var controllerIndex = 0;
-      final controllers = [oldController, newController];
+        var controllerIndex = 0;
+        final controllers = [oldController, newController];
 
-      final player = VideoPlayerBooruPlayer(
-        wakelock: mockWakelock,
-        controllerFactory: (source, config) => controllers[controllerIndex++],
-        skipFvpInit: true,
-      );
+        final player = VideoPlayerBooruPlayer(
+          wakelock: mockWakelock,
+          controllerFactory: (source, config) => controllers[controllerIndex++],
+          skipFvpInit: true,
+        );
 
-      // Initialize with first controller
-      await player.initialize(_testSource);
-      expect(controllerIndex, 1);
+        // Initialize with first controller
+        await player.initialize(_testSource);
+        expect(controllerIndex, 1);
 
-      // Switch URL - this should wait for old controller disposal
-      await player.switchUrl(_testSource2);
+        // Switch URL - this should wait for old controller disposal
+        await player.switchUrl(_testSource2);
 
-      // After switchUrl returns, old controller should be disposed
-      expect(
-        oldControllerDisposalCompleter.isCompleted,
-        isTrue,
-        reason:
-            'switchUrl should wait for old controller disposal to complete. '
-            'Current implementation uses unawaited() which causes race conditions '
-            'with native resources (pthread_mutex crash).',
-      );
-    });
+        // After switchUrl returns, old controller should be disposed
+        expect(
+          oldControllerDisposalCompleter.isCompleted,
+          isTrue,
+          reason:
+              'switchUrl should wait for old controller disposal to complete. '
+              'Current implementation uses unawaited() which causes race conditions '
+              'with native resources (pthread_mutex crash).',
+        );
+      },
+    );
 
     test('rapid URL switching waits for each disposal', () async {
       // Simulates rapid swiping through posts

@@ -105,6 +105,7 @@ class _BooruScopeState extends ConsumerState<BooruScope> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Kurumi.themeOf(context).colorScheme;
+    final isDesktopPlatform = ref.watch(appPlatformProvider).isDesktop;
 
     final swipeArea = ref.watch(
       settingsProvider.select(
@@ -133,12 +134,12 @@ class _BooruScopeState extends ConsumerState<BooruScope> {
       drawerEdgeDragWidth: _calculateDrawerEdgeDragWidth(context, swipeArea),
       body: MultiSplitViewTheme(
         data: MultiSplitViewThemeData(
-          dividerThickness: !isDesktopPlatform()
+          dividerThickness: !isDesktopPlatform
               ? Screen.of(context).size != ScreenSize.small
                     ? 24
                     : 16
               : 4,
-          dividerPainter: isDesktopPlatform()
+          dividerPainter: isDesktopPlatform
               ? DividerPainters.background(
                   animationEnabled: false,
                   color: colorScheme.surface,
@@ -176,10 +177,10 @@ class _BooruScopeState extends ConsumerState<BooruScope> {
                       // no need to set state here, just a quick hack to get the current width of the menu
                       menuWidth.value = c.maxWidth;
 
-                      return widget.menu;
+                      return KurumiFocusPane(child: widget.menu);
                     },
                   ),
-                  'content' => widget.content,
+                  'content' => KurumiFocusPane(child: widget.content),
                   _ => const SizedBox.shrink(),
                 }
               : switch (area.data) {

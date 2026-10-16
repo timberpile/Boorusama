@@ -22,8 +22,7 @@ void main() {
             jsonEncode({
               'schemaVersion': 1,
               'version': '4.5.0-timberpile.2',
-              'releaseUrl':
-                  'https://github.com/timberpile/Boorusama/releases/tag/v4.5.0-timberpile.2',
+              'releaseUrl': 'https://github.com/timberpile/Boorusama/releases/tag/v4.5.0-timberpile.2',
               'notes': 'Changes',
             }),
             200,
@@ -38,6 +37,49 @@ void main() {
         kGitHubUpdateManifestUrl,
         'https://github.com/timberpile/Boorusama/releases/latest/download/boorusama-update.json',
       );
+    });
+
+    test(
+      'new upstream base outranks a higher old Timberpile counter',
+      () async {
+        final checker = GitHubReleaseUpdateChecker(
+          packageInfo: _packageInfo(version: '4.5.0-timberpile.5'),
+          manifestUrl: 'https://example.com/boorusama-update.json',
+          client: MockClient(
+            (_) async => Response(
+              jsonEncode({
+                'schemaVersion': 1,
+                'version': '4.6.1-timberpile.1',
+                'releaseUrl': 'https://github.com/timberpile/Boorusama/releases/tag/v4.6.1-timberpile.1',
+                'notes': 'Changes',
+              }),
+              200,
+            ),
+          ),
+        );
+
+        expect(await checker.checkForUpdate(), isA<UpdateAvailable>());
+      },
+    );
+
+    test('old upstream base cannot outrank a lower new-base counter', () async {
+      final checker = GitHubReleaseUpdateChecker(
+        packageInfo: _packageInfo(version: '4.6.1-timberpile.1'),
+        manifestUrl: 'https://example.com/boorusama-update.json',
+        client: MockClient(
+          (_) async => Response(
+            jsonEncode({
+              'schemaVersion': 1,
+              'version': '4.5.0-timberpile.6',
+              'releaseUrl': 'https://github.com/timberpile/Boorusama/releases/tag/v4.5.0-timberpile.6',
+              'notes': 'Changes',
+            }),
+            200,
+          ),
+        ),
+      );
+
+      expect(await checker.checkForUpdate(), isA<UpdateNotAvailable>());
     });
 
     test('returns UpdateAvailable when manifest version is newer', () async {
@@ -82,8 +124,7 @@ void main() {
               jsonEncode({
                 'schemaVersion': 1,
                 'version': '4.5.0',
-                'releaseUrl':
-                    'https://github.com/timberpile/Boorusama/releases/tag/v4.5.0',
+                'releaseUrl': 'https://github.com/timberpile/Boorusama/releases/tag/v4.5.0',
                 'notes': 'Changes',
               }),
               200,

@@ -67,7 +67,7 @@ void main() {
       try {
         expect(db.select('PRAGMA integrity_check').single.values.single, 'ok');
         expect(db.select('SELECT * FROM ${_table(id)}'), isEmpty);
-        if (id == 'downloads') expect(db.userVersion, 1);
+        if (id == 'downloads') expect(db.userVersion, 2);
       } finally {
         db.close();
       }
@@ -263,7 +263,7 @@ void main() {
         mode: OpenMode.readOnly,
       );
       try {
-        expect(db.userVersion, 1);
+        expect(db.userVersion, 2);
         for (final table in _tables('downloads')) {
           expect(db.select('SELECT * FROM $table'), isEmpty);
         }

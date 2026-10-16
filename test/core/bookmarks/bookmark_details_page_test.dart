@@ -1,5 +1,7 @@
 import 'package:boorusama/core/groups/folder_tree.dart';
+
 import '../search/following_topics/topic_test_utils.dart';
+
 import 'package:selection_mode/selection_mode.dart';
 import 'package:boorusama/core/widgets/multi_select_button.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -7,6 +9,9 @@ import 'package:flutter/foundation.dart';
 import 'package:boorusama/core/bookmarks/src/providers/local_providers.dart';
 import 'package:boorusama/core/bookmarks/src/widgets/bookmark_search_bar.dart';
 import 'package:boorusama/foundation/networking.dart';
+import 'package:boorusama/foundation/filesystem.dart';
+import 'package:boorusama/foundation/platform.dart';
+import 'package:boorusama/foundation/url_launcher.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:boorusama/core/themes/colors/providers.dart';
 import 'package:cache_manager/cache_manager.dart';
@@ -17,13 +22,18 @@ import 'package:boorusama/core/images/booru_image.dart';
 import 'package:boorusama/foundation/info/device_info.dart';
 import 'package:boorusama/core/bookmarks/src/pages/bookmark_group_browser_page.dart';
 import 'package:boorusama/core/bookmarks/src/pages/bookmark_page.dart';
+
 import '../posts/details/progressive_image_test_utils.dart';
+import '../../application/support/fake_image_dio.dart';
+import '../../support/fakes/memory_app_file_system.dart';
+import '../../support/fakes/test_platform_services.dart';
+
 // Dart imports:
 import 'dart:async';
 import 'dart:io';
 
 // Flutter imports:
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/rendering.dart';
 
 // Package imports:
@@ -1141,8 +1151,15 @@ class _BookmarkViewerHarness extends StatelessWidget {
       automaticMediaLoadingEnabledProvider.overrideWithValue(
         commonCache != null,
       ),
-      if (commonCache case final cache?)
-        defaultImageCacheManagerProvider.overrideWithValue(cache),
+      defaultImageCacheManagerProvider.overrideWithValue(
+        commonCache ?? TestImageCache({}),
+      ),
+      deterministicFaviconDioOverride(),
+      appFileSystemProvider.overrideWithValue(MemoryAppFileSystem()),
+      appPlatformProvider.overrideWithValue(AppPlatform.android),
+      externalUrlLauncherProvider.overrideWithValue(
+        RecordingExternalUrlLauncher(),
+      ),
       if (imageDio case final dio?)
         dioForWidgetProvider.overrideWith((ref, config) => dio),
       deviceInfoProvider.overrideWithValue(DeviceInfo.empty()),
@@ -1164,7 +1181,7 @@ class _BookmarkViewerHarness extends StatelessWidget {
           data: KurumiThemeData.fromMaterial(
             Theme.of(context).withBoorusamaColors(),
           ),
-          child: child!,
+          child: MaterialUiCompatibilityBridge(child: child!),
         ),
         home:
             home ??
@@ -1394,19 +1411,23 @@ final class _Logger implements Logger {
   String getDebugName() => 'bookmark details test';
 
   @override
-  void debug(String serviceName, String message) {}
+  void debug(String serviceName, String message, {String? sensitiveMessage}) {}
 
   @override
-  void error(String serviceName, String message) {}
+  void error(String serviceName, String message, {String? sensitiveMessage}) {}
 
   @override
-  void info(String serviceName, String message) {}
+  void info(String serviceName, String message, {String? sensitiveMessage}) {}
 
   @override
-  void verbose(String serviceName, String message) {}
+  void verbose(
+    String serviceName,
+    String message, {
+    String? sensitiveMessage,
+  }) {}
 
   @override
-  void warn(String serviceName, String message) {}
+  void warn(String serviceName, String message, {String? sensitiveMessage}) {}
 }
 
 final class _CodecRegistry extends BooruEngineRegistry {

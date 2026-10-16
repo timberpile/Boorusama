@@ -7,7 +7,7 @@ import 'package:boorusama/core/backups/sources/search_backup_profile.dart';
 import 'package:boorusama/core/backups/types/backup_registry.dart';
 import 'package:boorusama/core/configs/manage/providers.dart';
 import 'package:boorusama/core/configs/config/types.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:i18n/src/gen/strings.g.dart' show TranslationProvider;
 

@@ -6,7 +6,7 @@ import 'package:boorusama/core/posts/listing/types.dart';
 import 'package:dio/dio.dart';
 import 'package:extended_image/extended_image.dart';
 import 'package:extended_image/src/image/raw_image.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'progressive_image_test_utils.dart';
@@ -130,8 +130,7 @@ void main() {
         expect(
           adapter.requests,
           hasLength(1),
-          reason:
-              'staging and displaying both decoded providers must use held RAM streams',
+          reason: 'staging and displaying both decoded providers must use held RAM streams',
         );
         await tester.pumpWidget(const SizedBox());
         await real(() async {

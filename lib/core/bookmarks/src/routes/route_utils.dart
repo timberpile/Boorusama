@@ -84,7 +84,10 @@ Future<void> goToBookmarkDetailsPage(
     try {
       final committed = await detailsMutations.commit(bookmarkLibrary);
       if (!committed) {
-        final context = navigatorKey.currentContext;
+        final context = ref
+            .read(appNavigationProvider)
+            .navigatorKey
+            .currentContext;
         if (context != null && context.mounted) {
           Kurumi.showErrorToast(
             context,

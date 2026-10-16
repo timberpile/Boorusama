@@ -17,6 +17,7 @@ import '../providers/settings_notifier.dart';
 import '../providers/settings_provider.dart';
 import '../types/settings.dart';
 import '../widgets/settings_page_scaffold.dart';
+import '../widgets/cache_locations_section.dart';
 import '../widgets/storage_segment_bar.dart';
 
 final diskSpaceProvider = Provider.autoDispose<CacheSizeInfo>((
@@ -63,6 +64,7 @@ class _DataAndStoragePageState extends ConsumerState<DataAndStoragePage> {
       ),
       children: [
         _buildDiskSpace(),
+        const CacheLocationsSection(),
         _buildCacheSection(settings, notifier),
       ],
     );

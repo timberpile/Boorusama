@@ -13,7 +13,7 @@ import 'package:boorusama/core/search/following_topics/src/widgets/feed_last_che
 import 'package:boorusama/core/search/following_topics/types.dart';
 import 'package:boorusama/core/settings/src/types/settings.dart';
 import 'package:clock/clock.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:foundation/foundation.dart';

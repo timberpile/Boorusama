@@ -45,6 +45,7 @@ class MoebooruPostRecord extends Equatable
 
   @override
   final int id;
+
   @override
   final Set<String> tags;
   @override

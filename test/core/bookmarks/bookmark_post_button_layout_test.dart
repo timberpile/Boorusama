@@ -2,7 +2,8 @@
 import 'dart:async';
 
 // Flutter imports:
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
+import 'package:flutter/material.dart' as legacy;
 
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,7 +11,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:oktoast/oktoast.dart';
-import 'package:like_button/like_button.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:boorusama/core/configs/manage/providers.dart';
 import 'package:boorusama/core/themes/colors/src/colors.dart';
@@ -75,7 +75,9 @@ void main() {
                   data: KurumiThemeData.fromMaterial(
                     Theme.of(context).withBoorusamaColors(),
                   ),
-                  child: OKToast(child: child!),
+                  child: MaterialUiCompatibilityBridge(
+                    child: OKToast(child: child!),
+                  ),
                 ),
                 home: likeButton
                     ? BookmarkPostLikeButtonButton(post: bookmark.toPost())
@@ -113,7 +115,9 @@ void main() {
             findsOneWidget,
           );
         }
-        await tester.tap(find.byType(likeButton ? LikeButton : IconButton));
+        await tester.tap(
+          find.byType(likeButton ? KurumiLikeButton : IconButton),
+        );
         await tester.pumpAndSettle();
         expect(filled(), isFalse);
         if (!likeButton) {
@@ -136,7 +140,9 @@ void main() {
           container.read(bookmarkDetailsMutationProvider.notifier).pending,
           isEmpty,
         );
-        await tester.tap(find.byType(likeButton ? LikeButton : IconButton));
+        await tester.tap(
+          find.byType(likeButton ? KurumiLikeButton : IconButton),
+        );
         await tester.pumpAndSettle();
         expect(filled(), isTrue);
         if (!likeButton) {
@@ -174,7 +180,7 @@ void main() {
     expect(geometry.notifier.toggleCallCount, 0);
     expect(find.text('Saved'), findsNWidgets(2));
     // This dialog selects the source group; no mutation has occurred.
-    expect(find.byType(AlertDialog), findsOneWidget);
+    expect(find.byType(legacy.AlertDialog), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
@@ -221,7 +227,7 @@ void main() {
 
     expect(find.text(groupName), findsNWidgets(2));
     expect(find.byType(KurumiPopupMenuItem), findsWidgets);
-    expect(find.byType(AlertDialog), findsNothing);
+    expect(find.byType(legacy.AlertDialog), findsNothing);
     expect(find.byType(PopupMenuItem<String>), findsNothing);
   });
 
@@ -267,7 +273,7 @@ Future<_ButtonGeometry> _pumpButton(
         child: MaterialApp(
           builder: (context, child) => KurumiTheme(
             data: KurumiThemeData.fromMaterial(Theme.of(context)),
-            child: child!,
+            child: MaterialUiCompatibilityBridge(child: child!),
           ),
           home: Align(
             alignment: Alignment.topLeft,

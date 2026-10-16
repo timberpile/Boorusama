@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 // Package imports:
 import 'package:kurumi/kurumi.dart';
+import 'package:kurumi/src/vendor/flutter/interactive_viewer.dart' as vendor;
 
 void main() {
   for (final testCase in [
@@ -622,15 +623,15 @@ Future<void> _endInteraction(WidgetTester tester) async {
 }
 
 void _endInteractionCallback(WidgetTester tester) {
-  final viewer = tester.widget<InteractiveViewer>(
-    find.byType(InteractiveViewer),
+  final viewer = tester.widget<vendor.InteractiveViewer>(
+    find.byType(vendor.InteractiveViewer),
   );
   viewer.onInteractionEnd!(ScaleEndDetails());
 }
 
 void _startInteraction(WidgetTester tester, {int pointerCount = 2}) {
-  final viewer = tester.widget<InteractiveViewer>(
-    find.byType(InteractiveViewer),
+  final viewer = tester.widget<vendor.InteractiveViewer>(
+    find.byType(vendor.InteractiveViewer),
   );
   viewer.onInteractionStart!(ScaleStartDetails());
   viewer.onInteractionUpdate!(ScaleUpdateDetails(pointerCount: pointerCount));

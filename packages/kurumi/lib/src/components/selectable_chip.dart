@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// The app's shared selectable/tag chip surface.
 ///
@@ -136,8 +136,9 @@ class KurumiSelectableChip extends StatelessWidget {
       mouseCursor: mouseCursor,
     );
 
-    return onSelected != null || selected
-        ? Semantics(selected: selected, child: chip)
-        : chip;
+    return Semantics(
+      selected: onSelected != null || selected ? selected : null,
+      child: chip,
+    );
   }
 }

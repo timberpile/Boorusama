@@ -238,6 +238,7 @@ class ShareMediaPreparation {
         }
         await owned.release();
         owned = null;
+        await cacheManager.clearCache(key);
       }
       write = await cacheManager.beginFileWrite(key);
       checkShareCancellation(cancelToken);

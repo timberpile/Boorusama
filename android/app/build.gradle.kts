@@ -41,11 +41,21 @@ fun invalidSigningReason(): String {
     return reason
 }
 val splitPerAbi = project.findProperty("split-per-abi") == "true"
+val compileSdkVersion = providers.gradleProperty("boorusama.android.compileSdk").get().toInt()
+val targetSdkVersion = providers.gradleProperty("boorusama.android.targetSdk").get().toInt()
+val minSdkVersion = providers.gradleProperty("boorusama.android.minSdk").get().toInt()
+val androidBuildToolsVersion = providers.gradleProperty("boorusama.android.buildTools").get()
+val ndkVersionName = providers.gradleProperty("boorusama.android.ndk").get()
 
 android {
     namespace = "com.timberpile.boorusama"
-    compileSdk = 36
-    ndkVersion = "28.2.13676358"
+    compileSdk = compileSdkVersion
+    buildToolsVersion = androidBuildToolsVersion
+    ndkVersion = ndkVersionName
+
+    buildFeatures {
+        resValues = true
+    }
 
     compileOptions {
         isCoreLibraryDesugaringEnabled = true
@@ -60,8 +70,8 @@ android {
     defaultConfig {
         applicationId = "com.timberpile.boorusama"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        minSdk = 24
-        targetSdk = 36
+        minSdk = minSdkVersion
+        targetSdk = targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         multiDexEnabled = true

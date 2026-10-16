@@ -1,5 +1,5 @@
 import 'package:boorusama/core/bookmarks/types.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:i18n/src/gen/strings.g.dart' show TranslationProvider;

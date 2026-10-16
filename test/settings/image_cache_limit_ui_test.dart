@@ -1,7 +1,9 @@
 import 'dart:typed_data';
+
 import 'package:cache_manager/cache_manager.dart';
 import 'package:boorusama/core/images/providers.dart';
 import 'package:boorusama/foundation/filesystem.dart';
+
 import 'dart:io';
 
 import 'package:boorusama/core/analytics/providers.dart';
@@ -12,7 +14,7 @@ import 'package:boorusama/core/settings/src/pages/data_and_storage_page.dart';
 import 'package:boorusama/core/settings/types.dart';
 import 'package:boorusama/foundation/loggers.dart';
 import 'package:boorusama/foundation/utils/file_utils.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
@@ -74,12 +76,18 @@ void main() {
               ),
             ],
             child: MaterialApp(
-              builder: (context, child) => KurumiTheme(
-                data: KurumiThemeData.fromMaterial(
-                  Theme.of(context).copyWith(platform: TargetPlatform.iOS),
-                ),
-                child: child!,
-              ),
+              builder: (context, child) =>
+                  // ignore: deprecated_member_use
+                  MaterialUiCompatibilityBridge(
+                    child: KurumiTheme(
+                      data: KurumiThemeData.fromMaterial(
+                        Theme.of(context).copyWith(
+                          platform: TargetPlatform.iOS,
+                        ),
+                      ),
+                      child: child!,
+                    ),
+                  ),
               home: const DataAndStoragePage(),
             ),
           ),
@@ -91,9 +99,9 @@ void main() {
         final container = ProviderScope.containerOf(
           tester.element(find.byType(DataAndStoragePage)),
         );
-        final manager =
-            container.read(defaultImageCacheManagerProvider)
-                as ManagedImageCacheManager;
+        final manager = container.read(
+          defaultImageCacheManagerProvider,
+        ) as ManagedImageCacheManager;
         final domain = manager.cacheDomain;
         await real(
           () => manager.saveFile('live-limit', Uint8List.fromList([1, 2, 3])),

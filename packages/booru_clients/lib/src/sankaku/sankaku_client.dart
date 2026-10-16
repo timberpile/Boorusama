@@ -1,18 +1,19 @@
-import '../http/request_interruption.dart';
 // Package imports:
+import 'package:coreutils/coreutils.dart';
 import 'package:dio/dio.dart';
 
 // Project imports:
 import '../sankaku_idol/sankaku_idol_client.dart';
 import 'types/types.dart';
+import '../http/request_interruption.dart';
 
 const _kFakeBrowserHeader =
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/111.0';
 
-const _kFallbackSankakuHeader = {
-  'User-Agent': _kFakeBrowserHeader,
+const _kSankakuApiHeaders = {
   'Content-Type': 'application/json',
-  'Accept': 'application/json',
+  'Accept': 'application/vnd.sankaku.api+json;v=2',
+  'Origin': 'https://sankaku.app',
 };
 
 const _kSankakuApiUrl = 'https://sankakuapi.com';
@@ -46,10 +47,18 @@ class SankakuClient {
     _dio = dio ?? Dio();
     _baseUrl = baseUrl;
 
-    _dio.options = BaseOptions(
-      baseUrl: _convertBaseUrlToApiUrl(baseUrl),
-      headers: headers ?? _kFallbackSankakuHeader,
-    );
+    final mergedHeaders = <String, dynamic>{
+      ..._kSankakuApiHeaders,
+      ..._dio.options.headers,
+      ...?headers,
+    };
+    if (!mergedHeaders.keys.any((key) => key.toLowerCase() == 'user-agent')) {
+      mergedHeaders['User-Agent'] = _kFakeBrowserHeader;
+    }
+
+    _dio.options
+      ..baseUrl = _convertBaseUrlToApiUrl(baseUrl)
+      ..headers = mergedHeaders;
 
     _authStore = authStore ?? InMemoryAuthStore();
   }
@@ -84,6 +93,8 @@ class SankakuClient {
 
   late Dio _dio;
   late AuthStore _authStore;
+  Future<Token>? _authenticationInFlight;
+  var _authenticationGeneration = 0;
   final String? username;
   final String? password;
 
@@ -103,10 +114,28 @@ class SankakuClient {
     );
 
     final data = response.data;
+    if (data is! Map<String, dynamic>) {
+      throw const SankakuAuthenticationException(
+        'Invalid authentication response',
+      );
+    }
 
     final token = Token.fromJson(data);
+    if (token.success != true ||
+        token.tokenType == null ||
+        token.tokenType!.isEmpty ||
+        token.accessToken == null ||
+        token.accessToken!.isEmpty) {
+      final message = switch (data) {
+        {'error': final String error} when error.isNotEmpty => error,
+        {'code': final String code} when code.isNotEmpty => code,
+        _ => 'Authentication failed',
+      };
+      throw SankakuAuthenticationException(message);
+    }
 
     await _authStore.saveToken(token);
+    _authenticationGeneration++;
 
     return token;
   }
@@ -116,23 +145,16 @@ class SankakuClient {
     int? page = 1,
     int? limit = 60,
   }) async {
-    final token = await _getToken();
-
-    final response = await _dio.get(
-      '/posts',
-      queryParameters: {
-        'lang': 'english',
-        'page': page,
-        'limit': limit,
-        if (tags != null && tags.isNotEmpty) 'tags': tags.join(' '),
-      },
-      options: Options(
-        headers: {
-          if (token != null &&
-              token.accessToken != null &&
-              token.tokenType != null)
-            'Authorization': '${token.tokenType} ${token.accessToken}',
+    final response = await _getWithAuthenticationRecovery(
+      (token) => _dio.get(
+        '/posts',
+        queryParameters: {
+          'lang': 'english',
+          'page': page,
+          'limit': limit,
+          if (tags != null && tags.isNotEmpty) 'tags': tags.join(' '),
         },
+        options: _authOptions(token),
       ),
     );
 
@@ -144,17 +166,10 @@ class SankakuClient {
   Future<PostDto?> getPost({
     required String id,
   }) async {
-    final token = await _getToken();
-
-    final response = await _dio.get(
-      '/posts/$id',
-      options: Options(
-        headers: {
-          if (token != null &&
-              token.accessToken != null &&
-              token.tokenType != null)
-            'Authorization': '${token.tokenType} ${token.accessToken}',
-        },
+    final response = await _getWithAuthenticationRecovery(
+      (token) => _dio.get(
+        '/posts/$id',
+        options: _authOptions(token),
       ),
     );
 
@@ -165,43 +180,21 @@ class SankakuClient {
 
   Future<bool> addToFavorites({
     required SankakuId postId,
-  }) async {
-    final token = await _getToken();
-
-    if (token == null) return false;
-
-    try {
-      await _dio.post(
-        '/posts/${Uri.encodeComponent(postId.valueString)}/favorite',
-        options: _authOptions(token),
-      );
-
-      return true;
-    } catch (interruption) {
-      if (isDataRequestInterruption(interruption)) rethrow;
-      return false;
-    }
-  }
+  }) => _runAuthenticatedMutation(
+    (token) => _dio.post(
+      '/posts/${Uri.encodeComponent(postId.valueString)}/favorite',
+      options: _authOptions(token),
+    ),
+  );
 
   Future<bool> removeFromFavorites({
     required SankakuId postId,
-  }) async {
-    final token = await _getToken();
-
-    if (token == null) return false;
-
-    try {
-      await _dio.delete(
-        '/posts/${Uri.encodeComponent(postId.valueString)}/favorite',
-        options: _authOptions(token),
-      );
-
-      return true;
-    } catch (interruption) {
-      if (isDataRequestInterruption(interruption)) rethrow;
-      return false;
-    }
-  }
+  }) => _runAuthenticatedMutation(
+    (token) => _dio.delete(
+      '/posts/${Uri.encodeComponent(postId.valueString)}/favorite',
+      options: _authOptions(token),
+    ),
+  );
 
   // Only a single global autocomplete request per client is allowed for now
   CancelToken? _autocompleteCancelToken;
@@ -265,16 +258,127 @@ class SankakuClient {
   }
 
   Future<Token?> _getToken() async {
-    var token = await _authStore.getToken();
+    final token = await _authStore.getToken();
 
-    if (token == null && username != null && password != null) {
-      token = await login(
-        username: username!,
-        password: password!,
+    if (token != null) return token;
+
+    if (username == null || password == null) return null;
+
+    return _authenticateOnce();
+  }
+
+  Future<Token> _authenticateOnce() async {
+    final inFlight = _authenticationInFlight;
+    if (inFlight != null) return inFlight;
+
+    final authentication = login(
+      username: username!,
+      password: password!,
+    );
+    _authenticationInFlight = authentication;
+
+    try {
+      return await authentication;
+    } finally {
+      if (identical(_authenticationInFlight, authentication)) {
+        _authenticationInFlight = null;
+      }
+    }
+  }
+
+  Future<Response<dynamic>> _getWithAuthenticationRecovery(
+    Future<Response<dynamic>> Function(Token? token) request,
+  ) async {
+    final token = await _getToken();
+    final generation = _authenticationGeneration;
+
+    try {
+      final response = await request(token);
+      if (token == null || !_hasInvalidAuthenticationCode(response.data)) {
+        return response;
+      }
+    } on DioException catch (error) {
+      if (token == null || !_isInvalidAuthenticationError(error)) rethrow;
+    }
+
+    final recoveredToken = await _recoverAuthentication(token, generation);
+    final response = await request(recoveredToken);
+    if (_hasInvalidAuthenticationCode(response.data)) {
+      throw const SankakuAuthenticationException(
+        'Authentication failed after retry',
       );
     }
 
-    return token;
+    return response;
+  }
+
+  Future<Token?> _recoverAuthentication(
+    Token rejectedToken,
+    int requestGeneration,
+  ) async {
+    await _invalidateAuthentication(rejectedToken, requestGeneration);
+    return _getToken();
+  }
+
+  Future<void> _invalidateAuthentication(
+    Token rejectedToken,
+    int requestGeneration,
+  ) async {
+    if (_authenticationGeneration != requestGeneration) return;
+
+    final currentToken = await _authStore.getToken();
+    if (currentToken != null &&
+        currentToken.accessToken != rejectedToken.accessToken) {
+      return;
+    }
+
+    await _authStore.clearToken();
+  }
+
+  Future<bool> _runAuthenticatedMutation(
+    Future<Response<dynamic>> Function(Token token) request,
+  ) async {
+    final token = await _getToken();
+    if (token == null) return false;
+
+    final generation = _authenticationGeneration;
+    try {
+      final response = await request(token);
+      if (_hasInvalidAuthenticationCode(response.data)) {
+        await _invalidateAuthentication(token, generation);
+        return false;
+      }
+
+      return switch (response.data) {
+        {'success': false} => false,
+        _ => true,
+      };
+    } on DioException catch (error) {
+      if (isDataRequestInterruption(error)) rethrow;
+      if (_isInvalidAuthenticationError(error)) {
+        await _invalidateAuthentication(token, generation);
+      }
+      return false;
+    } catch (error) {
+      if (isDataRequestInterruption(error)) rethrow;
+      return false;
+    }
+  }
+
+  bool _isInvalidAuthenticationError(DioException error) =>
+      error.response?.statusCode == 401 ||
+      _hasInvalidAuthenticationCode(error.response?.data);
+
+  bool _hasInvalidAuthenticationCode(Object? data) {
+    final code = switch (data) {
+      {'code': final String code} => code,
+      _ => null,
+    };
+
+    return code != null &&
+        (code.endsWith('unauthorized') ||
+            code.endsWith('invalid-token') ||
+            code.endsWith('invalid_token'));
   }
 
   Options _authOptions(Token? token) => Options(
@@ -283,4 +387,14 @@ class SankakuClient {
         'Authorization': '${token.tokenType} ${token.accessToken}',
     },
   );
+}
+
+class SankakuAuthenticationException implements AuthenticationFailure {
+  const SankakuAuthenticationException(this.message);
+
+  @override
+  final String message;
+
+  @override
+  String toString() => 'SankakuAuthenticationException: $message';
 }

@@ -1,9 +1,13 @@
+import 'dart:async';
+import 'dart:typed_data';
+
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/settings/providers.dart';
 import 'package:boorusama/core/settings/types.dart';
 import 'package:boorusama/core/config_widgets/website_logo.dart';
 import 'package:boorusama/core/developer_options/providers.dart';
 import 'package:boorusama/core/downloads/urls/providers.dart';
+import 'package:boorusama/core/images/providers.dart';
 import 'package:boorusama/core/posts/details/providers.dart';
 import 'package:boorusama/core/posts/details/types.dart';
 import 'package:boorusama/core/posts/post/providers.dart';
@@ -12,7 +16,7 @@ import 'package:boorusama/core/posts/shares/src/unified_post_share_sheet.dart';
 import 'package:boorusama/core/posts/shares/src/share_payload_tile.dart';
 import 'package:cache_manager/cache_manager.dart';
 import 'package:boorusama/core/posts/sources/types.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kurumi/kurumi.dart';
@@ -20,6 +24,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:i18n/src/gen/strings.g.dart' show TranslationProvider;
 
 import '../../../bulk_downloads/common.dart';
+import '../../../application/support/fake_image_dio.dart';
 
 void main() {
   testWidgets('unavailable link result stays distinct from dismissal', (
@@ -52,10 +57,15 @@ void main() {
       calls.add(params);
       return ShareResult.unavailable;
     });
+    final imageCacheManager = _NoImageCache();
 
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          deterministicFaviconDioOverride(),
+          defaultImageCacheManagerProvider.overrideWithValue(
+            imageCacheManager,
+          ),
           settingsNotifierProvider.overrideWith(
             () => SettingsNotifier(Settings.defaultSettings),
           ),
@@ -85,7 +95,7 @@ void main() {
               post: post,
               auth: auth,
               viewer: viewer,
-              imageCacheManager: DefaultImageCacheManager(),
+              imageCacheManager: imageCacheManager,
               shareAdapter: adapter,
             ),
           ),
@@ -110,9 +120,9 @@ void main() {
     expect(find.text('Prepared when selected'), findsNothing);
 
     await tester.tap(find.text('Links'));
-    await tester.pumpAndSettle();
+    await tester.pump();
     await tester.tap(find.byTooltip('Share booru link'));
-    await tester.pumpAndSettle();
+    await tester.pump();
 
     expect(
       find.text(
@@ -150,8 +160,26 @@ void main() {
     expect(calls.single.uri, Uri.parse('https://site.test/posts/42'));
 
     await tester.tap(find.byTooltip('Share post ID'));
-    await tester.pumpAndSettle();
+    await tester.pump();
     expect(calls.last.text, '42');
     expect(calls.last.uri, isNull);
   });
+}
+
+final class _NoImageCache implements ImageCacheManager {
+  @override
+  FutureOr<String?> getCachedFilePath(String key, {Duration? maxAge}) => null;
+
+  @override
+  FutureOr<Uint8List?> getCachedFileBytes(String key, {Duration? maxAge}) =>
+      null;
+
+  @override
+  String generateCacheKey(String url, {String? customKey}) => url;
+
+  @override
+  Future<void> saveFile(String key, Uint8List bytes) async {}
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

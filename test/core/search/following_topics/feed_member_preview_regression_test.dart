@@ -20,7 +20,7 @@ import 'package:boorusama/core/settings/providers.dart';
 import 'package:boorusama/core/settings/src/types/settings.dart';
 import 'package:dio/dio.dart';
 import 'package:extended_image/src/dio_extended_image_provider.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:i18n/i18n.dart';
 
@@ -326,8 +326,7 @@ void main() {
       expect(
         decoded.isCompleted,
         isTrue,
-        reason:
-            'The owned ordinary stream must finish cancellation before teardown',
+        reason: 'The owned ordinary stream must finish cancellation before teardown',
       );
       stream.removeListener(listener);
       dio.close(force: true);

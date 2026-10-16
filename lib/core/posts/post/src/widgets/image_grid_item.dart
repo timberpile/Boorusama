@@ -79,21 +79,50 @@ class ImageGridItem extends StatelessWidget {
         child: Stack(
           children: [
             _buildImage(context),
-            if (!hideOverlay)
-              if (quickActionButton != null)
-                Positioned(
-                  bottom: 4,
-                  right: 4,
-                  child: quickActionButton!,
-                )
-              else
-                const SizedBox.shrink(),
-            if (scoreWidget != null)
-              Positioned(
-                bottom: 4,
-                left: 4,
-                child: scoreWidget!,
+            Positioned.fill(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(top: 1, left: 1),
+                    child: _buildOverlayIcon(context),
+                  ),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.all(4),
+                      child: LayoutBuilder(
+                        builder: (context, constraints) => Row(
+                          children: [
+                            if (scoreWidget != null)
+                              ConstrainedBox(
+                                constraints: BoxConstraints(
+                                  maxWidth: constraints.maxWidth,
+                                ),
+                                child: Align(
+                                  widthFactor: 1,
+                                  alignment: Alignment.bottomLeft,
+                                  child: scoreWidget,
+                                ),
+                              ),
+                            Expanded(
+                              child: Padding(
+                                padding: EdgeInsets.only(
+                                  left: scoreWidget == null ? 0 : 4,
+                                ),
+                                child: Align(
+                                  alignment: Alignment.bottomRight,
+                                  child: hideOverlay ? null : quickActionButton,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
+            ),
           ],
         ),
       ),
@@ -164,17 +193,17 @@ class ImageGridItem extends StatelessWidget {
     return Stack(
       children: [
         image,
-        Padding(
-          padding: const EdgeInsets.only(top: 1, left: 1),
-          child: _buildOverlayIcon(context),
-        ),
         Positioned.fill(
           child: Material(
             color: Colors.transparent,
-            child: ImageInkWellWithBorderOnFocus(
+            child: InkWell(
+              focusColor: Kurumi.themeOf(
+                context,
+              ).colorScheme.primary.withAlpha(50),
+              highlightColor: Colors.transparent,
+              splashFactory: FasterInkSplash.splashFactory,
+              splashColor: splashColor ?? Colors.black38,
               onTap: onTap,
-              borderRadius: borderRadius,
-              splashColor: splashColor,
             ),
           ),
         ),
@@ -204,6 +233,9 @@ class ImageScoreWidget extends StatelessWidget {
       ),
       child: Text(
         NumberFormat.compact().format(score),
+        maxLines: 1,
+        softWrap: false,
+        overflow: TextOverflow.ellipsis,
         textAlign: TextAlign.center,
         style: TextStyle(
           color: switch (score) {
@@ -214,82 +246,6 @@ class ImageScoreWidget extends StatelessWidget {
           fontWeight: FontWeight.w800,
         ),
       ),
-    );
-  }
-}
-
-class ImageInkWellWithBorderOnFocus extends StatefulWidget {
-  const ImageInkWellWithBorderOnFocus({
-    super.key,
-    this.onTap,
-    this.borderRadius,
-    this.splashColor,
-  });
-
-  final void Function()? onTap;
-  final BorderRadius? borderRadius;
-  final Color? splashColor;
-
-  @override
-  State<ImageInkWellWithBorderOnFocus> createState() =>
-      _ImageInkWellWithBorderOnFocusState();
-}
-
-class _ImageInkWellWithBorderOnFocusState
-    extends State<ImageInkWellWithBorderOnFocus> {
-  var node = FocusNode();
-  late final isFocused = ValueNotifier(node.hasFocus);
-  @override
-  void initState() {
-    super.initState();
-    node.addListener(_onFocusChange);
-  }
-
-  @override
-  void dispose() {
-    super.dispose();
-    node
-      ..removeListener(_onFocusChange)
-      ..dispose();
-  }
-
-  void _onFocusChange() {
-    isFocused.value = node.hasFocus;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        ValueListenableBuilder(
-          valueListenable: isFocused,
-          builder: (context, focused, child) {
-            return focused
-                ? Positioned.fill(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        borderRadius:
-                            widget.borderRadius ??
-                            const BorderRadius.all(Radius.circular(8)),
-                        border: Border.all(
-                          color: Kurumi.themeOf(context).colorScheme.primary,
-                          width: 6,
-                        ),
-                      ),
-                    ),
-                  )
-                : const SizedBox.shrink();
-          },
-        ),
-        InkWell(
-          focusNode: node,
-          focusColor: Kurumi.themeOf(context).colorScheme.primary.withAlpha(50),
-          highlightColor: Colors.transparent,
-          splashFactory: FasterInkSplash.splashFactory,
-          splashColor: widget.splashColor ?? Colors.black38,
-          onTap: widget.onTap,
-        ),
-      ],
     );
   }
 }

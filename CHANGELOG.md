@@ -1,3 +1,22 @@
+# 4.6.1-timberpile.1
+
+## Features
+
+- Add optional TXT or JSON metadata sidecars for downloads.
+- Support two configurable quick actions on post thumbnails.
+- Add per-profile media host overrides.
+- Add Anime-Pictures and Zerochan bulk-download support.
+- Improve keyboard, remote, search, Settings, and context-menu navigation.
+- Add Arabic and Indonesian translations and update existing translations.
+
+## Fixes and improvements
+
+- Improve Cloudflare recovery, request pacing, and retry handling.
+- Preserve genuine source post IDs in links, metadata, and download filenames.
+- Improve cached video playback, GIF autoplay limits, image retry, and viewer gestures.
+- Improve download completion recovery and notification reliability.
+- Prevent the What's New dialog from reappearing after it has been dismissed.
+
 # 4.5.0-timberpile.5
 
 ## Breaking changes

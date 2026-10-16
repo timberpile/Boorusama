@@ -6,6 +6,7 @@ class MainFlutterWindow: NSWindow {
   private var appPrivacyChannel: AppPrivacyChannel?
   private var receivedExportChannel: ReceivedExportChannel?
   private var exportClipboardChannel: ExportClipboardChannel?
+  private var webViewCookieChannel: WebViewCookieChannel?
 
   override func awakeFromNib() {
     let flutterViewController = FlutterViewController.init()
@@ -27,6 +28,10 @@ class MainFlutterWindow: NSWindow {
       messenger: flutterViewController.engine.binaryMessenger
     )
     exportClipboardChannel?.register()
+    webViewCookieChannel = WebViewCookieChannel(
+      messenger: flutterViewController.engine.binaryMessenger
+    )
+    webViewCookieChannel?.register()
     (NSApplication.shared.delegate as? AppDelegate)?.installExportURLHandler {
       [weak self] url in self?.receivedExportChannel?.receive(url)
     }

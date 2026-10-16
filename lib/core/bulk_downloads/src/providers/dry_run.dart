@@ -13,9 +13,11 @@ import '../../../configs/config/providers.dart';
 import '../../../configs/config/types.dart';
 import '../../../downloads/filename/providers.dart';
 import '../../../downloads/filename/types.dart';
+import '../../../downloads/sidecar/types.dart';
 import '../../../downloads/urls/providers.dart';
 import '../../../http/client/providers.dart';
 import '../../../http/client/types.dart';
+import '../../../posts/post/providers.dart';
 import '../../../posts/post/types.dart';
 import '../../../search/selected_tags/types.dart';
 import '../../../settings/providers.dart';
@@ -83,6 +85,7 @@ class DryRunNotifier extends FamilyAsyncNotifier<DryRunState, String> {
       );
       final fallbackSettings = ref.read(settingsProvider);
       final settings = downloadConfigs?.settings ?? fallbackSettings;
+      final sidecarFormat = session.task?.sidecarFormat ?? SidecarFormat.off;
       final fallbackExistChecker = ref.read(
         defaultDownloadExistCheckerProvider,
       );
@@ -223,6 +226,17 @@ class DryRunNotifier extends FamilyAsyncNotifier<DryRunState, String> {
               },
               thumbnailImageUrl: item.thumbnailImageUrl,
               sourceUrl: config.url,
+              sidecar: sidecarFormat == SidecarFormat.off
+                  ? null
+                  : SidecarSnapshot.fromPost(
+                      item,
+                      format: sidecarFormat,
+                      quality: task.quality ?? settings.downloadQuality.name,
+                      site: config.url,
+                      postUrl: ref
+                          .read(postLinkGeneratorProvider(config.auth))
+                          .getLink(item),
+                    ),
             ),
           );
 

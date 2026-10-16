@@ -24,12 +24,12 @@ import 'package:boorusama/core/search/following_topics/src/pages/following_topic
 import 'package:boorusama/core/search/following_topics/src/widgets/feed_post_thumbnail.dart';
 import 'package:boorusama/core/settings/src/types/settings.dart';
 import 'package:boorusama/core/themes/colors/types.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 import 'package:selection_mode/selection_mode.dart';
+
 import 'following_topic_test_utils.dart';
 import 'topic_test_utils.dart';
 
@@ -1522,6 +1522,7 @@ final class _FeedPresentation
   @override
   PostGridItemAdditions buildGridItemAdditions(
     BuildContext context, {
+    required WidgetRef ref,
     required Post post,
     required BooruConfigAuth config,
   }) => const PostGridItemAdditions(

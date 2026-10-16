@@ -38,6 +38,7 @@ void main() {
       await tester.pumpWidget(
         _TestApp(
           child: Stack(
+            fit: StackFit.expand,
             children: [
               PostGridItem(
                 post: post,
@@ -51,9 +52,11 @@ void main() {
                   key: Key('quick-action'),
                 ),
                 leadingIcons: const [Icon(Icons.star, key: Key('leading'))],
-                imageBuilder: (media) => Text(
-                  '${media.url}:${media.aspectRatio}',
-                  textDirection: TextDirection.ltr,
+                imageBuilder: (media) => SizedBox.expand(
+                  child: Text(
+                    '${media.url}:${media.aspectRatio}',
+                    textDirection: TextDirection.ltr,
+                  ),
                 ),
               ),
               Text(source, textDirection: TextDirection.ltr),
@@ -88,6 +91,7 @@ void main() {
       await tester.pumpWidget(
         _TestApp(
           child: Stack(
+            fit: StackFit.expand,
             children: [
               PostGridItem(
                 post: _post(data: _danbooruData, status: 'banned'),

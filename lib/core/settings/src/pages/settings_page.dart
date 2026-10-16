@@ -6,10 +6,8 @@ import 'package:i18n/i18n.dart';
 import 'package:kurumi/cupertino.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 // Project imports:
-import '../../../../core/widgets/widgets.dart';
 import '../../../../foundation/info/app_info.dart';
 import '../../../../foundation/info/package_info.dart';
 import '../../../../foundation/url_launcher.dart';
@@ -22,11 +20,19 @@ import '../../../configs/create/routes.dart';
 import '../../../debug/routes.dart';
 import '../../../developer_options/l10n.dart';
 import '../../../developer_options/widgets.dart';
+import '../../../premiums/providers.dart';
+import '../../../premiums/routes.dart';
+import '../../../premiums/types.dart';
+import '../../../search/following_topics/src/compatibility/topic_storage_contract.dart';
+import '../providers/settings_navigation_provider.dart';
 import '../providers/settings_provider.dart';
-import '../widgets/settings_navigation_pane.dart';
+import '../routes/settings_adaptive_page.dart';
+import '../types/settings_navigation_state.dart';
 import '../widgets/settings_page_scaffold.dart';
+import '../widgets/settings_navigation_pane.dart';
 import 'about_page.dart';
 import 'accessibility_page.dart';
+import 'app_lock_settings_page.dart';
 import 'appearance/appearance_page.dart';
 import 'backup_and_restore_page.dart';
 import 'data_and_storage_page.dart';
@@ -35,9 +41,8 @@ import 'help_us_translate_page.dart';
 import 'image_viewer_page.dart';
 import 'language_page.dart';
 import 'privacy_page.dart';
-import 'topic_updates_page.dart';
 import 'search_settings_page.dart';
-import '../../../search/following_topics/src/compatibility/topic_storage_contract.dart';
+import 'topic_updates_page.dart';
 
 List<SettingEntry> _entries(
   BuildContext context, {
@@ -74,7 +79,7 @@ List<SettingEntry> _entries(
   SettingEntry(
     id: 'backup_and_restore',
     name: '/settings/backup_and_restore',
-    title: context.t.settings.backup_and_restore.export_import.title,
+    title: context.t.settings.backup_and_restore.backup_and_restore,
     icon: FontAwesomeIcons.cloudArrowDown,
     content: const BackupAndRestorePage(),
   ),
@@ -123,9 +128,37 @@ List<SettingEntry> _entries(
     ),
 ];
 
-const double _kThresholdWidth = 650;
+Map<String, SettingEntry> _destinations(
+  BuildContext context,
+  List<SettingEntry> entries,
+) {
+  final appLock = context.t.settings.privacy.app_lock;
+  return {
+    for (final entry in entries) entry.id: entry,
+    'app_lock': SettingEntry(
+      id: 'app_lock',
+      parentId: 'privacy',
+      name: '/settings/privacy/app_lock',
+      title: appLock.title,
+      icon: Icons.lock,
+      content: const AppLockSettingsPage(),
+    ),
+  };
+}
 
-class SettingsPage extends ConsumerStatefulWidget {
+SettingsDestinationCatalog _destinationCatalog(
+  List<SettingEntry> entries,
+  Map<String, SettingEntry> destinations,
+) => SettingsDestinationCatalog(
+  categoryIds: entries.map((entry) => entry.id),
+  parentById: {
+    for (final entry in destinations.values) entry.id: ?entry.parentId,
+  },
+);
+
+double _sidebarWidthFor(double width) => (width * 0.32).clamp(240, 320);
+
+class SettingsPage extends ConsumerWidget {
   const SettingsPage({
     super.key,
     this.scrollTo,
@@ -136,44 +169,13 @@ class SettingsPage extends ConsumerStatefulWidget {
   final String? initial;
 
   @override
-  ConsumerState<SettingsPage> createState() => _SettingsPageState();
-}
-
-class _SettingsPageState extends ConsumerState<SettingsPage> {
-  final _selected = ValueNotifier<String?>(null);
-  final _nestedEntry = ValueNotifier<SettingEntry?>(null);
-  bool _showSearch = false;
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final entries = _entries(
       context,
       showDeveloperOptions: ref.watch(isDevEnvironmentProvider),
     );
-
-    void openContent(BuildContext context, SettingEntry entry) {
-      final options = SettingsPageScope.of(context).options;
-
-      if (options.dense) {
-        _nestedEntry.value = entry;
-        return;
-      }
-
-      Navigator.of(context).push(
-        CupertinoPageRoute(
-          settings: RouteSettings(
-            name: entry.name,
-          ),
-          builder: (_) => SettingsPageNavigationScope(
-            openContent: openContent,
-            child: SettingsPageScope(
-              options: options,
-              child: entry.content,
-            ),
-          ),
-        ),
-      );
-    }
+    final destinations = _destinations(context, entries);
+    final catalog = _destinationCatalog(entries, destinations);
 
     return Theme(
       data: Kurumi.themeOf(context).copyWith(
@@ -182,74 +184,188 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         ),
       ),
       child: Scaffold(
-        appBar: KurumiAppBar(
-          title: Text(context.t.settings.settings),
-          actions: [
-            IconButton(
-              key: const ValueKey('settings-search-toggle'),
-              tooltip: _showSearch
-                  ? context.t.generic.action.cancel
-                  : context.t.generic.action.search,
-              icon: Icon(_showSearch ? Icons.close : Icons.search),
-              onPressed: () => setState(() => _showSearch = !_showSearch),
+        body: LayoutBuilder(
+          builder: (context, constraints) => ProviderScope(
+            overrides: [
+              settingsDestinationCatalogProvider.overrideWithValue(catalog),
+            ],
+            child: _SettingsAdaptiveShell(
+              presentation: SettingsPresentation.fromWidth(
+                constraints.maxWidth,
+              ),
+              sidebarWidth: _sidebarWidthFor(constraints.maxWidth),
+              initial: initial,
+              entries: entries,
+              destinations: destinations,
+              scrollTo: scrollTo,
             ),
-          ],
+          ),
         ),
-        body: SettingsPageNavigationScope(
-          openContent: openContent,
-          child: SettingsPageDynamicScope(
-            options: SettingsPageDynamicOptions(
-              scrollTo: widget.scrollTo,
-              showSearch: _showSearch,
-            ),
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                //TODO: Don't separate the settings page into two pages, merge them into one to prevent code duplication and unnecessary rebuilds when resizing the window
-                return constraints.maxWidth > _kThresholdWidth
-                    ? SettingsPageScope(
-                        options: SettingsPageOptions(
-                          showIcon: false,
-                          dense: true,
-                          entries: entries,
-                        ),
-                        child: ValueListenableBuilder(
-                          valueListenable: _selected,
-                          builder: (_, selected, _) => ValueListenableBuilder(
-                            valueListenable: _nestedEntry,
-                            builder: (_, nestedEntry, _) => SettingsLargePage(
-                              initial:
-                                  selected ??
-                                  (widget.initial ==
-                                          legacyTopicUpdatesSettingsId
-                                      ? 'topic_updates'
-                                      : widget.initial),
-                              onTabChanged: (tab) {
-                                _selected.value = tab;
-                                _nestedEntry.value = null;
-                              },
-                              nestedEntry: nestedEntry,
-                            ),
-                          ),
-                        ),
-                      )
-                    : SettingsPageScope(
-                        options: SettingsPageOptions(
-                          showIcon: true,
-                          dense: false,
-                          entries: entries,
-                        ),
-                        child: ValueListenableBuilder(
-                          valueListenable: _selected,
-                          builder: (_, selected, _) => SettingsSmallPage(
-                            initial:
-                                selected ??
-                                (widget.initial == legacyTopicUpdatesSettingsId
-                                    ? 'topic_updates'
-                                    : widget.initial),
-                          ),
-                        ),
-                      );
+      ),
+    );
+  }
+}
+
+class _SettingsAdaptiveShell extends ConsumerStatefulWidget {
+  const _SettingsAdaptiveShell({
+    required this.presentation,
+    required this.sidebarWidth,
+    required this.initial,
+    required this.entries,
+    required this.destinations,
+    required this.scrollTo,
+  });
+
+  final SettingsPresentation presentation;
+  final double sidebarWidth;
+  final String? initial;
+  final List<SettingEntry> entries;
+  final Map<String, SettingEntry> destinations;
+  final String? scrollTo;
+
+  @override
+  ConsumerState<_SettingsAdaptiveShell> createState() =>
+      _SettingsAdaptiveShellState();
+}
+
+class _SettingsAdaptiveShellState
+    extends ConsumerState<_SettingsAdaptiveShell> {
+  final _hostIdentity = Object();
+  final _contentNavigatorKey = GlobalKey<NavigatorState>();
+  final _compactIndexScrollController = ScrollController();
+  final _sidebarScrollController = ScrollController();
+  late final SettingsNavigationSeed _seed;
+  var _compactScrollHandled = false;
+  var _sidebarScrollHandled = false;
+  var _closing = false;
+  var _showSearch = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _seed = SettingsNavigationSeed(
+      hostIdentity: _hostIdentity,
+      initialPath: ref
+          .read(settingsDestinationCatalogProvider)
+          .resolveInitialPath(
+            widget.initial == legacyTopicUpdatesSettingsId
+                ? 'topic_updates'
+                : widget.initial,
+          ),
+    );
+  }
+
+  SettingsNavigationNotifier get _notifier =>
+      ref.read(settingsNavigationProvider(_seed).notifier);
+
+  void _closeHost() {
+    if (_closing) return;
+    final applicationNavigator = Navigator.of(context);
+    setState(() => _closing = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) applicationNavigator.maybePop();
+    });
+  }
+
+  void _back() {
+    final navigation = ref.read(settingsNavigationProvider(_seed));
+    if (navigation.canGoBack(widget.presentation)) {
+      _notifier.back();
+    } else {
+      _closeHost();
+    }
+  }
+
+  void _selectCategory(SettingEntry entry) {
+    if (!_notifier.open(entry.id)) return;
+    ref.read(analyticsProvider).whenData((a) => a?.logScreenView(entry.name));
+  }
+
+  void _toggleSearch() => setState(() => _showSearch = !_showSearch);
+
+  @override
+  Widget build(BuildContext context) {
+    final presentation = widget.presentation;
+    final wide = presentation == SettingsPresentation.wide;
+    final entries = widget.entries;
+    final navigation = ref.watch(settingsNavigationProvider(_seed));
+    final visiblePath = navigation.visiblePath(
+      presentation: presentation,
+      catalog: ref.watch(settingsDestinationCatalogProvider),
+    );
+
+    _handleRequestedScroll(presentation);
+
+    return SettingsPageDynamicScope(
+      options: SettingsPageDynamicOptions(
+        scrollTo: widget.scrollTo,
+        showSearch: _showSearch,
+      ),
+      child: SettingsPageNavigationScope(
+        openDestination: _notifier.open,
+        applicationNavigator: Navigator.of(context),
+        child: SettingsPageScope(
+          options: SettingsPageOptions(showIcon: true, dense: wide),
+          child: KurumiDismissible(
+            onDismiss: _back,
+            child: PopScope<void>(
+              canPop: _closing || !navigation.canGoBack(presentation),
+              onPopInvokedWithResult: (didPop, result) {
+                if (!didPop) _notifier.back();
               },
+              child: Row(
+                children: [
+                  if (wide) ...[
+                    SizedBox(
+                      width: widget.sidebarWidth,
+                      child: MediaQuery.removePadding(
+                        context: context,
+                        removeRight: true,
+                        child: KurumiFocusPane(
+                          child: _SettingsSidebar(
+                            entries: entries,
+                            selectedId: visiblePath.firstOrNull,
+                            scrollController: _sidebarScrollController,
+                            onSelected: _selectCategory,
+                            onClose: _closeHost,
+                            showSearch: _showSearch,
+                            onToggleSearch: _toggleSearch,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const VerticalDivider(width: 1),
+                  ],
+                  Expanded(
+                    child: MediaQuery.removePadding(
+                      context: context,
+                      removeLeft: wide,
+                      // Routes block the semantics of earlier siblings, so the
+                      // boundary keeps the sidebar reachable by screen readers.
+                      child: Semantics(
+                        container: true,
+                        child: KurumiFocusPane(
+                          child: Navigator(
+                            key: _contentNavigatorKey,
+                            pages: _destinationPages(
+                              presentation: presentation,
+                              visiblePath: visiblePath,
+                            ),
+                            onDidRemovePage: (page) {
+                              final currentId = ref
+                                  .read(settingsNavigationProvider(_seed))
+                                  .currentDestinationId;
+                              if (page.key == ValueKey('settings-$currentId')) {
+                                _notifier.back();
+                              }
+                            },
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -257,240 +373,293 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     );
   }
 
-  @override
-  void dispose() {
-    _selected.dispose();
-    _nestedEntry.dispose();
-    super.dispose();
-  }
-}
-
-class SettingsSmallPage extends ConsumerStatefulWidget {
-  const SettingsSmallPage({
-    super.key,
-    this.initial,
-  });
-
-  final String? initial;
-
-  @override
-  ConsumerState<SettingsSmallPage> createState() => _SettingsSmallPageState();
-}
-
-class _SettingsSmallPageState extends ConsumerState<SettingsSmallPage> {
-  final scrollController = ScrollController();
-  bool _scrolledToSupport = false;
-
-  @override
-  void initState() {
-    super.initState();
-    final initial = widget.initial;
-
-    if (initial != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        // open the initial page
-        final entry = _findInitialPage(
-          initial == legacyTopicUpdatesSettingsId ? 'topic_updates' : initial,
+  List<Page<void>> _destinationPages({
+    required SettingsPresentation presentation,
+    required List<String> visiblePath,
+  }) {
+    final wide = presentation == SettingsPresentation.wide;
+    final animate =
+        !wide &&
+        !MediaQuery.disableAnimationsOf(context) &&
+        !ref.watch(
+          settingsProvider.select((settings) => settings.reduceAnimations),
         );
-        final openContent = SettingsPageNavigationScope.of(context).openContent;
 
-        if (entry != null) {
-          Navigator.of(context).push(
-            CupertinoPageRoute(
-              settings: RouteSettings(
-                name: entry.name,
+    return [
+      if (!wide)
+        _settingsPage(
+          id: 'index',
+          animate: animate,
+          child: _SettingsDestinationFrame(
+            title: context.t.settings.settings,
+            leading: BackButton(onPressed: _closeHost),
+            actions: [
+              _SettingsSearchButton(
+                showSearch: _showSearch,
+                onPressed: _toggleSearch,
               ),
-              builder: (_) => SettingsPageNavigationScope(
-                openContent: openContent,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: SettingsPageScope(
-                        options: SettingsPageScope.of(context).options,
-                        child: entry.content,
-                      ),
-                    ),
-                    const WidthThresholdPopper(
-                      targetWidth: _kThresholdWidth,
-                    ),
-                  ],
-                ),
-              ),
+            ],
+            showDivider: false,
+            child: _SettingsNavigationList(
+              key: const ValueKey('settings-compact-index-list'),
+              storageKey: const PageStorageKey('settings-compact-index-scroll'),
+              entries: widget.entries,
+              scrollController: _compactIndexScrollController,
+              onSelected: _selectCategory,
             ),
-          );
-        }
-      });
-    }
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-
-    final scrollTo = SettingsPageDynamicScope.of(context).options.scrollTo;
-
-    if (scrollTo == 'support' && !_scrolledToSupport) {
-      _scrolledToSupport = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || !scrollController.hasClients) return;
-        scrollController.animateToWithAccessibility(
-          scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 400),
-          curve: Curves.easeInOut,
-          reduceAnimations: ref.read(settingsProvider).reduceAnimations,
-        );
-      });
-    }
-  }
-
-  SettingEntry? _findInitialPage(String initial) {
-    final options = SettingsPageScope.of(context).options;
-    for (final entry in options.entries) {
-      // fuzzy search
-      if (entry.id.toLowerCase().contains(initial.toLowerCase())) {
-        return entry;
-      }
-    }
-
-    return null;
-  }
-
-  @override
-  void dispose() {
-    super.dispose();
-    scrollController.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    ref.watch(settingsProvider.select((value) => value.language));
-    final options = SettingsPageScope.of(context).options;
-    final openContent = SettingsPageNavigationScope.of(context).openContent;
-
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Expanded(
-          child: SettingsNavigationPane(
-            entries: options.entries,
-            scrollController: scrollController,
-            header: _SettingsSection(
-              label: context.t.settings.app_settings,
-            ),
-            footer: const SettingsPageOtherSection(),
-            onSelected: (entry) => openContent(context, entry),
           ),
         ),
-        if (MediaQuery.viewInsetsOf(context).bottom == 0) ...[
-          const _Divider(),
-          const _Footer(),
+      for (final (index, id) in visiblePath.indexed)
+        if (widget.destinations[id] case final entry?)
+          _settingsPage(
+            id: id,
+            animate: animate,
+            child: _SettingsDestinationFrame(
+              title: entry.title,
+              leading: !wide || index > 0
+                  ? BackButton(onPressed: _notifier.back)
+                  : null,
+              showDivider: wide,
+              child: entry.content,
+            ),
+          ),
+    ];
+  }
+
+  Page<void> _settingsPage({
+    required String id,
+    required bool animate,
+    required Widget child,
+  }) => SettingsAdaptivePage<void>(
+    key: ValueKey('settings-$id'),
+    name: id == 'index' ? '/settings/index' : '/settings/$id',
+    animate: animate,
+    child: child,
+  );
+
+  void _handleRequestedScroll(SettingsPresentation presentation) {
+    if (widget.scrollTo != 'support') return;
+    final wide = presentation == SettingsPresentation.wide;
+    final controller = wide
+        ? _sidebarScrollController
+        : _compactIndexScrollController;
+    if (wide ? _sidebarScrollHandled : _compactScrollHandled) return;
+    if (wide) {
+      _sidebarScrollHandled = true;
+    } else {
+      _compactScrollHandled = true;
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !controller.hasClients) return;
+      controller.animateToWithAccessibility(
+        controller.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeInOut,
+        reduceAnimations: ref.read(settingsProvider).reduceAnimations,
+      );
+    });
+  }
+
+  @override
+  void dispose() {
+    _compactIndexScrollController.dispose();
+    _sidebarScrollController.dispose();
+    super.dispose();
+  }
+}
+
+class _SettingsSidebar extends StatelessWidget {
+  const _SettingsSidebar({
+    required this.entries,
+    required this.selectedId,
+    required this.scrollController,
+    required this.onSelected,
+    required this.onClose,
+    required this.showSearch,
+    required this.onToggleSearch,
+  });
+
+  final List<SettingEntry> entries;
+  final String? selectedId;
+  final ScrollController scrollController;
+  final ValueChanged<SettingEntry> onSelected;
+  final VoidCallback onClose;
+  final bool showSearch;
+  final VoidCallback onToggleSearch;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    children: [
+      _SettingsPaneHeader(
+        title: context.t.settings.settings,
+        leading: IconButton(
+          tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
+          onPressed: onClose,
+          icon: const Icon(Icons.close),
+        ),
+        actions: [
+          _SettingsSearchButton(
+            showSearch: showSearch,
+            onPressed: onToggleSearch,
+          ),
         ],
-      ],
-    );
-  }
-}
-
-class SettingsLargePage extends ConsumerStatefulWidget {
-  const SettingsLargePage({
-    super.key,
-    this.initial,
-    this.onTabChanged,
-    this.nestedEntry,
-  });
-
-  final String? initial;
-  final void Function(String tab)? onTabChanged;
-  final SettingEntry? nestedEntry;
-
-  @override
-  ConsumerState<ConsumerStatefulWidget> createState() =>
-      _SettingsLargePageState();
-}
-
-class _SettingsLargePageState extends ConsumerState<SettingsLargePage> {
-  late var _selectedEntry = _findInitialIndex(widget.initial);
-
-  int _findInitialIndex(String? initial) {
-    if (initial == null) {
-      return 0;
-    }
-
-    final options = SettingsPageScope.of(context).options;
-    for (final entry in options.entries) {
-      // fuzzy search
-      final normalizedInitial = initial.toLowerCase();
-      if (entry.id.toLowerCase() == normalizedInitial ||
-          entry.title.toLowerCase().contains(normalizedInitial)) {
-        return options.entries.indexOf(entry);
-      }
-    }
-
-    return 0;
-  }
-
-  @override
-  void didUpdateWidget(covariant SettingsLargePage oldWidget) {
-    super.didUpdateWidget(oldWidget);
-
-    if (widget.initial != oldWidget.initial) {
-      _selectedEntry = _findInitialIndex(widget.initial);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final entries = SettingsPageScope.of(context).options.entries;
-    final nestedEntry = widget.nestedEntry;
-    final selectedContent =
-        nestedEntry?.content ?? entries[_selectedEntry].content;
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        SizedBox(
-          width: 240,
-          child: SettingsNavigationPane(
+      ),
+      const Divider(height: 1),
+      Expanded(
+        child: MediaQuery.removePadding(
+          context: context,
+          removeTop: true,
+          child: _SettingsNavigationList(
+            key: const ValueKey('settings-sidebar-list'),
+            storageKey: const PageStorageKey('settings-sidebar-scroll'),
             entries: entries,
-            selectedId: entries[_selectedEntry].id,
-            onSelected: (entry) => setState(() {
-              _selectedEntry = entries.indexOf(entry);
-              ref
-                  .read(analyticsProvider)
-                  .whenData(
-                    (a) => a?.logScreenView(entry.name),
-                  );
-
-              widget.onTabChanged?.call(entry.id);
-            }),
-            footer: const Column(
-              children: [
-                SettingsPageOtherSection(),
-                _Divider(),
-                _Footer(),
-              ],
-            ),
+            selectedId: selectedId,
+            scrollController: scrollController,
+            onSelected: onSelected,
           ),
         ),
-        const VerticalDivider(
-          width: 1,
+      ),
+    ],
+  );
+}
+
+class _SettingsNavigationList extends StatelessWidget {
+  const _SettingsNavigationList({
+    required this.entries,
+    required this.scrollController,
+    required this.onSelected,
+    required this.storageKey,
+    this.selectedId,
+    super.key,
+  });
+
+  final List<SettingEntry> entries;
+  final String? selectedId;
+  final ScrollController scrollController;
+  final ValueChanged<SettingEntry> onSelected;
+  final PageStorageKey<String> storageKey;
+
+  // Built all at once, so Tab can reach every tile of this short list, and
+  // in list order, since tiles tall enough to overlap their neighbours throw
+  // off reading order.
+  @override
+  Widget build(BuildContext context) => SizedBox.expand(
+    child: FocusTraversalGroup(
+      policy: WidgetOrderTraversalPolicy(),
+      child: SettingsNavigationPane(
+        entries: entries,
+        selectedId: selectedId,
+        scrollController: scrollController,
+        storageKey: storageKey,
+        onSelected: onSelected,
+        header: _SettingsSection(label: context.t.settings.app_settings),
+        footer: const Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SettingsPageOtherSection(),
+            _Divider(),
+            _Footer(),
+          ],
         ),
-        Flexible(
+      ),
+    ),
+  );
+}
+
+class _SettingsDestinationFrame extends StatelessWidget {
+  const _SettingsDestinationFrame({
+    required this.title,
+    required this.leading,
+    required this.showDivider,
+    required this.child,
+    this.actions = const [],
+  });
+
+  final String title;
+  final Widget? leading;
+  final bool showDivider;
+  final Widget child;
+  final List<Widget> actions;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: Kurumi.themeOf(context).scaffoldBackgroundColor,
+    child: Column(
+      children: [
+        _SettingsPaneHeader(title: title, leading: leading, actions: actions),
+        if (showDivider) const Divider(height: 1),
+        Expanded(
           child: MediaQuery.removePadding(
             context: context,
-            removeLeft: true,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(
-                maxWidth: 600,
-              ),
-              child: selectedContent,
+            removeTop: true,
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: child,
             ),
           ),
         ),
       ],
-    );
-  }
+    ),
+  );
+}
+
+class _SettingsPaneHeader extends StatelessWidget {
+  const _SettingsPaneHeader({
+    required this.title,
+    this.leading,
+    this.actions = const [],
+  });
+
+  final String title;
+  final Widget? leading;
+  final List<Widget> actions;
+
+  @override
+  Widget build(BuildContext context) => SafeArea(
+    bottom: false,
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 56),
+      child: Row(
+        children: [
+          SizedBox(width: 56, child: leading),
+          Expanded(
+            child: Text(
+              title,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Kurumi.themeOf(context).textTheme.titleLarge,
+            ),
+          ),
+          SizedBox(
+            width: 56,
+            child: actions.isEmpty ? null : actions.first,
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _SettingsSearchButton extends StatelessWidget {
+  const _SettingsSearchButton({
+    required this.showSearch,
+    required this.onPressed,
+  });
+
+  final bool showSearch;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => IconButton(
+    key: const ValueKey('settings-search-toggle'),
+    tooltip: showSearch
+        ? context.t.generic.action.cancel
+        : context.t.generic.action.search,
+    icon: Icon(showSearch ? Icons.close : Icons.search),
+    onPressed: onPressed,
+  );
 }
 
 class SettingsPageOtherSection extends ConsumerWidget {
@@ -523,6 +692,14 @@ class SettingsPageOtherSection extends ConsumerWidget {
         _SettingsSection(
           label: context.t.settings.other_settings,
         ),
+        if (ref.watch(showPremiumFeatsProvider) && !kForcePremium)
+          SettingTile(
+            title: kPremiumBrandNameFull,
+            leading: const FaIcon(
+              FontAwesomeIcons.solidStar,
+            ),
+            onTap: () => goToPremiumPage(ref),
+          ),
         SettingTile(
           title: context.t.settings.changelog,
           leading: const FaIcon(
@@ -561,7 +738,10 @@ class SettingsPageOtherSection extends ConsumerWidget {
                 FontAwesomeIcons.circleInfo,
               ),
               onTap: () => showDialog(
-                context: context,
+                context: SettingsPageNavigationScope.applicationNavigatorOf(
+                  context,
+                ).context,
+                useRootNavigator: false,
                 builder: (context) => const AboutPage(),
               ),
             );
@@ -576,11 +756,14 @@ class SettingsPageOtherSection extends ConsumerWidget {
           leading: const FaIcon(
             FontAwesomeIcons.language,
           ),
-          onTap: () => Navigator.of(context).push(
-            CupertinoPageRoute(
-              builder: (_) => const HelpUseTranslatePage(),
-            ),
-          ),
+          onTap: () =>
+              SettingsPageNavigationScope.applicationNavigatorOf(
+                context,
+              ).push(
+                CupertinoPageRoute(
+                  builder: (_) => const HelpUseTranslatePage(),
+                ),
+              ),
         ),
         SettingTile(
           title: context.t.settings.source_code,
@@ -589,7 +772,7 @@ class SettingsPageOtherSection extends ConsumerWidget {
           ),
           onTap: () => launchExternalUrl(
             Uri.parse(appInfo.githubUrl),
-            mode: LaunchMode.externalApplication,
+            launcher: ref.read(externalUrlLauncherProvider),
           ),
         ),
         const Divider(),
@@ -604,7 +787,7 @@ class SettingsPageOtherSection extends ConsumerWidget {
           ),
           onTap: () => launchExternalUrl(
             Uri.parse('mailto:${appInfo.supportEmail}'),
-            mode: LaunchMode.externalApplication,
+            launcher: ref.read(externalUrlLauncherProvider),
           ),
         ),
         SettingTile(
@@ -616,7 +799,7 @@ class SettingsPageOtherSection extends ConsumerWidget {
           ),
           onTap: () => launchExternalUrl(
             Uri.parse('${appInfo.githubUrl}/issues'),
-            mode: LaunchMode.externalApplication,
+            launcher: ref.read(externalUrlLauncherProvider),
           ),
         ),
         const SizedBox(height: 16),
@@ -690,14 +873,14 @@ class _Footer extends ConsumerWidget {
           IconButton(
             onPressed: () => launchExternalUrl(
               Uri.parse(ref.read(appInfoProvider).githubUrl),
-              mode: LaunchMode.externalApplication,
+              launcher: ref.read(externalUrlLauncherProvider),
             ),
             icon: const FaIcon(FontAwesomeIcons.squareGithub),
           ),
           IconButton(
             onPressed: () => launchExternalUrl(
               Uri.parse(ref.read(appInfoProvider).discordUrl),
-              mode: LaunchMode.externalApplication,
+              launcher: ref.read(externalUrlLauncherProvider),
             ),
             icon: const FaIcon(FontAwesomeIcons.discord),
           ),

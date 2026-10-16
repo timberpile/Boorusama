@@ -1,7 +1,7 @@
-import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kurumi/kurumi.dart';
+import 'package:material_ui/material_ui.dart';
 
 void main() {
   for (final sliver in [false, true]) {

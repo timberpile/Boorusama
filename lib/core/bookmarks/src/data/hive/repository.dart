@@ -19,6 +19,8 @@ class BookmarkHiveRepository implements BookmarkRepository {
   final Box<BookmarkHiveObject> _box;
   final BooruPostDataCodec? Function(BooruType type)? postDataCodec;
 
+  Future<void> close() => _box.close();
+
   @override
   Future<Bookmark> addBookmark(
     int booruId,

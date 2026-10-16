@@ -88,6 +88,7 @@ final pixivDioProvider = Provider.family<Dio, BooruConfigAuth>((ref, config) {
       ),
       onLog: (message) => loggerService.info(_kLogService, message),
       onAuthFailed: () => showPixivSessionExpiredDialog(
+        context: ref.read(appNavigationProvider).navigatorKey.currentContext,
         onReLogin: () {
           if (configId == null) return;
 

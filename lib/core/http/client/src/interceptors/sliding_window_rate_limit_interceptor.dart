@@ -1,5 +1,8 @@
+import 'dart:async';
+
 // Package imports:
 import 'package:dio/dio.dart';
+import 'package:retriable/retriable.dart';
 
 // Project imports:
 import '../types/http_utils.dart';
@@ -18,12 +21,14 @@ class SlidingWindowRateLimitConfig {
     required this.windowSizeMs,
     this.maxDelayMs = 5000,
     this.resolver = _defaultRateLimitResolver,
+    this.retryAfterFallback,
   });
 
   final int requestsPerWindow;
   final int windowSizeMs;
   final int maxDelayMs;
   final RateLimitResolver resolver;
+  final Duration? retryAfterFallback;
 }
 
 class SlidingWindowRateLimitInterceptor extends Interceptor {
@@ -36,15 +41,91 @@ class SlidingWindowRateLimitInterceptor extends Interceptor {
   final SlidingWindowRateLimitConfig _config;
   final DateTime Function() _now;
   final List<DateTime> _requestTimestamps = [];
+  Future<void> _pendingRequest = Future.value();
+  DateTime? _blockedUntil;
+
+  @override
+  void onResponse(Response response, ResponseInterceptorHandler handler) {
+    _recordCooldown(response);
+    handler.next(response);
+  }
+
+  @override
+  void onError(DioException err, ErrorInterceptorHandler handler) {
+    _recordCooldown(err.response);
+    handler.next(err);
+  }
+
+  void _recordCooldown(Response? response) {
+    final fallback = _config.retryAfterFallback;
+    if (fallback == null ||
+        response == null ||
+        response.statusCode != 429 ||
+        !_config.resolver(response.requestOptions)) {
+      return;
+    }
+
+    final delay = retryAfterFromHeaders(response.headers) ?? fallback;
+    final deadline = _now().add(delay);
+    final current = _blockedUntil;
+    if (current == null || deadline.isAfter(current)) {
+      _blockedUntil = deadline;
+    }
+  }
+
+  Future<void> _waitForCooldown(CancelToken? cancelToken) async {
+    while (cancelToken?.isCancelled != true) {
+      final deadline = _blockedUntil;
+      if (deadline == null) return;
+      final remaining = deadline.difference(_now());
+      if (remaining <= Duration.zero) return;
+      await _wait(remaining, cancelToken);
+    }
+  }
+
+  Future<void> _wait(Duration delay, CancelToken? cancelToken) async {
+    final completed = Completer<void>();
+    final timer = Timer(delay, completed.complete);
+    try {
+      await Future.any([
+        completed.future,
+        if (cancelToken != null) cancelToken.whenCancel,
+      ]);
+    } finally {
+      timer.cancel();
+    }
+  }
 
   @override
   Future<void> onRequest(
     RequestOptions options,
     RequestInterceptorHandler handler,
   ) async {
-    // Check if rate limiting should be applied using resolver
     if (!_config.resolver(options)) {
       handler.next(options);
+      return;
+    }
+
+    final previous = _pendingRequest;
+    final completed = Completer<void>();
+    _pendingRequest = completed.future;
+
+    try {
+      await previous;
+      await _admit(options, handler);
+    } finally {
+      completed.complete();
+    }
+  }
+
+  Future<void> _admit(
+    RequestOptions options,
+    RequestInterceptorHandler handler,
+  ) async {
+    final cancelToken = options.cancelToken;
+    await _waitForCooldown(cancelToken);
+    if (cancelToken?.cancelError case final error?) {
+      handler.reject(error);
       return;
     }
 
@@ -64,25 +145,31 @@ class SlidingWindowRateLimitInterceptor extends Interceptor {
 
       if (delayNeeded > 0) {
         final delayMs = delayNeeded.clamp(0, _config.maxDelayMs);
-        await Future.delayed(Duration(milliseconds: delayMs));
-
-        // Update now after delay and clean timestamps again
-        final delayedNow = _now();
-        _requestTimestamps
-          ..removeWhere(
-            (timestamp) =>
-                delayedNow.difference(timestamp).inMilliseconds >=
-                _config.windowSizeMs,
-          )
-          // Add the actual request timestamp
-          ..add(delayedNow);
-      } else {
-        _requestTimestamps.add(now);
+        await _wait(Duration(milliseconds: delayMs), cancelToken);
       }
-    } else {
-      _requestTimestamps.add(now);
     }
 
-    handler.next(options);
+    while (true) {
+      await _waitForCooldown(cancelToken);
+      if (cancelToken?.cancelError case final error?) {
+        handler.reject(error);
+        return;
+      }
+
+      final admittedAt = _now();
+      if (_blockedUntil case final deadline?
+          when deadline.isAfter(admittedAt)) {
+        continue;
+      }
+      _requestTimestamps
+        ..removeWhere(
+          (timestamp) =>
+              admittedAt.difference(timestamp).inMilliseconds >=
+              _config.windowSizeMs,
+        )
+        ..add(admittedAt);
+      handler.next(options);
+      return;
+    }
   }
 }

@@ -18,6 +18,8 @@ import '../../../../proxy/types.dart';
 import '../../../../settings/types.dart';
 import '../../../../themes/configs/types.dart';
 import '../../../gesture/types.dart';
+import '../../../listing/types.dart';
+import '../../../network/types.dart';
 import '../../../search/types.dart';
 import 'always_included_tags.dart';
 import 'booru_config_repository.dart';
@@ -52,7 +54,7 @@ class BooruConfig extends Equatable {
     required this.videoQuality,
     required this.granularRatingFilters,
     required this.postGestures,
-    required this.defaultPreviewImageButtonAction,
+    this.thumbnailActions = const ThumbnailActions.defaultActions(),
     required this.listing,
     required this.viewerConfigs,
     required this.theme,
@@ -98,8 +100,7 @@ class BooruConfig extends Equatable {
           : PostGestureConfig.fromJson(
               json['postGestures'] as Map<String, dynamic>,
             ),
-      defaultPreviewImageButtonAction:
-          json['defaultPreviewImageButtonAction'] as String?,
+      thumbnailActions: ThumbnailActions.fromConfigJson(json),
       listing: json['listing'] == null
           ? null
           : ListingConfigs.fromJson(json['listing'] as Map<String, dynamic>),
@@ -151,7 +152,6 @@ class BooruConfig extends Equatable {
     videoQuality: null,
     granularRatingFilters: null,
     postGestures: null,
-    defaultPreviewImageButtonAction: null,
     listing: null,
     viewerConfigs: null,
     theme: null,
@@ -187,7 +187,6 @@ class BooruConfig extends Equatable {
     videoQuality: null,
     granularRatingFilters: null,
     postGestures: null,
-    defaultPreviewImageButtonAction: null,
     listing: null,
     viewerConfigs: null,
     theme: null,
@@ -217,7 +216,7 @@ class BooruConfig extends Equatable {
   final String? videoQuality;
   final GranularRatingFilter? granularRatingFilters;
   final PostGestureConfig? postGestures;
-  final String? defaultPreviewImageButtonAction;
+  final ThumbnailActions thumbnailActions;
   final ListingConfigs? listing;
   final ViewerConfigs? viewerConfigs;
   final ThemeConfigs? theme;
@@ -231,6 +230,7 @@ class BooruConfig extends Equatable {
   final ProfileIconConfigs? profileIcon;
 
   BooruConfig copyWith({
+    ThumbnailActions? thumbnailActions,
     String? url,
     String? apiKey,
     String? login,
@@ -260,7 +260,7 @@ class BooruConfig extends Equatable {
       videoQuality: videoQuality,
       granularRatingFilters: granularRatingFilters,
       postGestures: postGestures,
-      defaultPreviewImageButtonAction: defaultPreviewImageButtonAction,
+      thumbnailActions: thumbnailActions ?? this.thumbnailActions,
       listing: listing,
       viewerConfigs: viewerConfigs != null
           ? viewerConfigs()
@@ -298,7 +298,7 @@ class BooruConfig extends Equatable {
     videoQuality,
     granularRatingFilters,
     postGestures,
-    defaultPreviewImageButtonAction,
+    thumbnailActions,
     listing,
     viewerConfigs,
     theme,
@@ -338,7 +338,7 @@ class BooruConfig extends Equatable {
       if (granularRatingFilters case final filter?)
         'granularRatingFilterString': filter.toFilterString(),
       'postGestures': postGestures?.toJson(),
-      'defaultPreviewImageButtonAction': defaultPreviewImageButtonAction,
+      'thumbnailActions': thumbnailActions.toJson(),
       'listing': listing?.toJson(),
       'viewer': viewerConfigs?.toJson(),
       'theme': theme?.toJson(),
@@ -594,6 +594,8 @@ class BooruConfigDownload extends Equatable {
 class NetworkSettings extends Equatable {
   const NetworkSettings({
     this.httpSettings,
+    this.mediaHostOverrides = const [],
+    this.mediaHostOverridesEnabled = true,
   });
 
   static NetworkSettings? tryParse(dynamic data) {
@@ -607,6 +609,14 @@ class NetworkSettings extends Equatable {
     return switch (json) {
       final Map<String, dynamic> map => NetworkSettings(
         httpSettings: HttpSettings.tryParse(map['http']),
+        mediaHostOverrides: switch (map['mediaHostOverrides']) {
+          final List values => List.unmodifiable(
+            values.map(MediaHostOverride.tryParse).nonNulls,
+          ),
+          _ => const [],
+        },
+        mediaHostOverridesEnabled:
+            map['mediaHostOverridesEnabled'] as bool? ?? true,
       ),
       _ => null,
     };
@@ -621,25 +631,54 @@ class NetworkSettings extends Equatable {
   }
 
   final HttpSettings? httpSettings;
+  final List<MediaHostOverride> mediaHostOverrides;
+  final bool mediaHostOverridesEnabled;
+
+  List<MediaHostOverride> get activeMediaHostOverrides =>
+      mediaHostOverridesEnabled ? mediaHostOverrides : const [];
+
+  MediaRequest resolveMedia(
+    String url, {
+    Map<String, String> headers = const {},
+  }) => MediaRequest.resolve(
+    url,
+    overrides: activeMediaHostOverrides,
+    headers: headers,
+  );
 
   NetworkSettings copyWith({
     HttpSettings? Function()? httpSettings,
+    List<MediaHostOverride>? mediaHostOverrides,
+    bool? mediaHostOverridesEnabled,
   }) {
     return NetworkSettings(
       httpSettings: httpSettings != null ? httpSettings() : this.httpSettings,
+      mediaHostOverrides: mediaHostOverrides == null
+          ? this.mediaHostOverrides
+          : List.unmodifiable(mediaHostOverrides),
+      mediaHostOverridesEnabled:
+          mediaHostOverridesEnabled ?? this.mediaHostOverridesEnabled,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
       'http': httpSettings?.toJson(),
+      'mediaHostOverrides': mediaHostOverrides
+          .map((value) => value.toJson())
+          .toList(),
+      'mediaHostOverridesEnabled': mediaHostOverridesEnabled,
     };
   }
 
   String toJsonString() => jsonEncode(toJson());
 
   @override
-  List<Object?> get props => [httpSettings];
+  List<Object?> get props => [
+    httpSettings,
+    mediaHostOverrides,
+    mediaHostOverridesEnabled,
+  ];
 }
 
 mixin BooruConfigAuthMixin {
@@ -669,28 +708,11 @@ mixin BooruConfigSearchFilterMixin {
 extension BooruConfigX on BooruConfig {
   bool isDefault() => id.isEmpty;
 
-  ImageQuickActionType get defaultPreviewImageButtonActionType =>
-      switch (defaultPreviewImageButtonAction) {
-        kDownloadAction => ImageQuickActionType.download,
-        kToggleBookmarkAction => ImageQuickActionType.bookmark,
-        kViewArtistAction => ImageQuickActionType.artist,
-        '' => ImageQuickActionType.none,
-        _ => ImageQuickActionType.defaultAction,
-      };
-
   BooruConfigAuth get auth => BooruConfigAuth.fromConfig(this);
   BooruConfigSearch get search => BooruConfigSearch.fromConfig(this);
   BooruConfigFilter get filter => BooruConfigFilter.fromConfig(this);
   BooruConfigViewer get viewer => BooruConfigViewer.fromConfig(this);
   BooruConfigDownload get download => BooruConfigDownload.fromConfig(this);
-}
-
-enum ImageQuickActionType {
-  none,
-  defaultAction,
-  download,
-  bookmark,
-  artist,
 }
 
 class LayoutConfigs extends Equatable {

@@ -1,5 +1,5 @@
 import 'package:boorusama/core/search/following_topics/src/widgets/search_folder_dialog.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:i18n/i18n.dart';
 
@@ -16,13 +16,19 @@ void main() {
       await tester.pumpWidget(
         BooruLocalization(
           child: MaterialApp(
-            builder: (context, child) => MediaQuery(
-              data: MediaQuery.of(context).copyWith(
-                textScaler: const TextScaler.linear(2),
-                viewInsets: EdgeInsets.only(bottom: keyboard ? 280 : 0),
-              ),
-              child: child!,
-            ),
+            builder: (context, child) =>
+                // ignore: deprecated_member_use
+                MaterialUiCompatibilityBridge(
+                  child: MediaQuery(
+                    data: MediaQuery.of(context).copyWith(
+                      textScaler: const TextScaler.linear(2),
+                      viewInsets: EdgeInsets.only(
+                        bottom: keyboard ? 280 : 0,
+                      ),
+                    ),
+                    child: child!,
+                  ),
+                ),
             home: Scaffold(
               body: Builder(
                 builder: (context) => TextButton(

@@ -1,4 +1,5 @@
 import '../../../profile_uuid_utils.dart';
+
 import 'dart:async';
 
 import 'package:boorusama/core/boorus/booru/types.dart';
@@ -13,7 +14,7 @@ import 'package:boorusama/core/posts/details_manager/src/providers/details_layou
 import 'package:boorusama/core/posts/details_manager/types.dart';
 import 'package:boorusama/core/posts/details_parts/types.dart';
 import 'package:boorusama/core/router.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 

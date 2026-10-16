@@ -13,6 +13,8 @@ import '../../../configs/config/providers.dart';
 import '../../../configs/search/types.dart';
 import '../../../downloads/configs/widgets/download_folder_selector_section.dart';
 import '../../../downloads/downloader/types.dart' as d;
+import '../../../downloads/sidecar/widgets.dart';
+import '../../../navigation/app_navigation.dart';
 import '../../../router.dart';
 import '../../../search/search/routes.dart';
 import '../../../search/selected_tags/types.dart' hide queryAsList;
@@ -38,7 +40,10 @@ class CreateDownloadOptionsSheet extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colorScheme = Kurumi.themeOf(context).colorScheme;
-    final navigatorContext = navigatorKey.currentContext;
+    final navigatorContext = ref
+        .read(appNavigationProvider)
+        .navigatorKey
+        .currentContext;
 
     void showSnackBar(BuildContext context, String message) {
       if (showStartNotification) {
@@ -257,6 +262,11 @@ class _CreateDownloadOptionsRawSheetState
                       _ => value,
                     },
                   ),
+                ),
+                SidecarFormatTile(
+                  allowDefault: true,
+                  value: options.sidecarFormat,
+                  onChanged: notifier.setSidecarFormat,
                 ),
               ],
             ),

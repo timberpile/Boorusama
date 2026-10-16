@@ -15,7 +15,7 @@ import 'package:boorusama/core/search/following_topics/src/data/providers.dart';
 import 'package:boorusama/core/search/following_topics/types.dart';
 import 'package:boorusama/foundation/info/package_info.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:i18n/i18n.dart';
@@ -298,6 +298,8 @@ Future<BuildContext> _pumpContext(WidgetTester tester, _Harness harness) async {
       container: harness.container,
       child: BooruLocalization(
         child: MaterialApp(
+          builder: (context, child) =>
+              MaterialUiCompatibilityBridge(child: child!),
           home: Builder(
             builder: (value) {
               context = value;

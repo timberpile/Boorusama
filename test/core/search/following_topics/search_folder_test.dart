@@ -8,7 +8,7 @@ import 'package:boorusama/core/search/following_topics/src/widgets/following_top
 import 'package:boorusama/core/search/following_topics/types.dart';
 import 'package:clock/clock.dart';
 import 'package:i18n/i18n.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_symbols_icons/symbols.dart';

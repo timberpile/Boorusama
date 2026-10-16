@@ -1,5 +1,6 @@
 import 'package:boorusama/core/bookmarks/src/widgets/bookmark_group_name_dialog.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
+import 'package:flutter/material.dart' as legacy;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:i18n/i18n.dart';
 
@@ -13,6 +14,8 @@ void main() {
       await tester.pumpWidget(
         BooruLocalization(
           child: MaterialApp(
+            builder: (context, child) =>
+                MaterialUiCompatibilityBridge(child: child!),
             home: Builder(
               builder: (context) => TextButton(
                 onPressed: () async {
@@ -31,7 +34,7 @@ void main() {
       );
       await tester.tap(find.text('Open'));
       await tester.pumpAndSettle();
-      await tester.enterText(find.byType(TextField), '  Edited  ');
+      await tester.enterText(find.byType(legacy.TextField), '  Edited  ');
       switch (action) {
         case 'Save' || 'Cancel':
           await tester.tap(find.text(action));
@@ -44,7 +47,7 @@ void main() {
       }
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
-      expect(find.byType(AlertDialog), findsNothing);
+      expect(find.byType(legacy.AlertDialog), findsNothing);
       expect(completed, isTrue);
       expect(result, action == 'Save' || action == 'Submit' ? 'Edited' : null);
     });
@@ -56,6 +59,8 @@ void main() {
     await tester.pumpWidget(
       BooruLocalization(
         child: MaterialApp(
+          builder: (context, child) =>
+              MaterialUiCompatibilityBridge(child: child!),
           home: Builder(
             builder: (context) => TextButton(
               onPressed: () => showBookmarkGroupNameDialog(
@@ -70,7 +75,7 @@ void main() {
     );
     await tester.tap(find.text('Open'));
     await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextField), 'DismissalProbe');
+    await tester.enterText(find.byType(legacy.TextField), 'DismissalProbe');
     tester.view.viewInsets = const FakeViewPadding(bottom: 300);
     addTearDown(tester.view.resetViewInsets);
     await tester.pumpAndSettle();
@@ -78,8 +83,11 @@ void main() {
     tester.view.viewInsets = FakeViewPadding.zero;
     await tester.pumpAndSettle();
     expect(find.text('DismissalProbe'), findsOneWidget);
-    expect(find.byType(AlertDialog), findsOneWidget);
-    await tester.enterText(find.byType(TextField), 'Edited after dismissal');
+    expect(find.byType(legacy.AlertDialog), findsOneWidget);
+    await tester.enterText(
+      find.byType(legacy.TextField),
+      'Edited after dismissal',
+    );
     await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);

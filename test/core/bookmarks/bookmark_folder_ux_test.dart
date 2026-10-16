@@ -1,6 +1,8 @@
 import 'package:boorusama/core/bookmarks/src/services/bookmark_library_service.dart';
+
 import 'dart:async';
 import 'dart:ui' show Tristate;
+
 import 'package:uuid/uuid.dart';
 import 'package:oktoast/oktoast.dart';
 
@@ -18,13 +20,18 @@ import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/groups/folder_tree.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 import 'package:boorusama/core/router.dart';
-import 'package:flutter/material.dart';
+import 'package:boorusama/core/images/providers.dart';
+import 'package:material_ui/material_ui.dart';
+import 'package:flutter/material.dart' as legacy;
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:material_symbols_icons/symbols.dart';
+
+import '../../application/support/fake_image_dio.dart';
+import '../posts/details/progressive_image_test_utils.dart';
 
 void main() {
   for (final (width, scale) in [
@@ -412,7 +419,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Add groups folder'));
       await tester.pumpAndSettle();
-      await tester.enterText(find.byType(TextField), ' Child ');
+      await tester.enterText(find.byType(legacy.TextField), ' Child ');
       await tester.tap(find.text('Save'));
       await tester.pumpAndSettle();
       expect(library.library.folders.last.parentId, 'root');
@@ -425,14 +432,14 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Add group'));
       await tester.pumpAndSettle();
-      await tester.enterText(find.byType(TextField), ' New ');
+      await tester.enterText(find.byType(legacy.TextField), ' New ');
       await tester.tap(find.text('Save'));
       await tester.pumpAndSettle();
       expect(library.library.groups.last.folderId, 'root');
       await _menu(tester, 'Zeta');
       await tester.tap(find.text('Rename'));
       await tester.pumpAndSettle();
-      await tester.enterText(find.byType(TextField), 'Aardvark');
+      await tester.enterText(find.byType(legacy.TextField), 'Aardvark');
       await tester.tap(find.text('Save'));
       await tester.pumpAndSettle();
       expect(_above(tester, 'Aardvark', 'Alpha'), isTrue);
@@ -467,7 +474,7 @@ void main() {
         await _menu(tester, movingFolder ? 'Child' : 'Saved');
         await tester.tap(find.text('Move'));
         await tester.pumpAndSettle();
-        final dialog = find.byType(AlertDialog);
+        final dialog = _alertDialogs();
         expect(
           find.descendant(of: dialog, matching: find.text('Artists')),
           findsOneWidget,
@@ -538,7 +545,7 @@ void main() {
       expect(_moveButton(tester).onPressed, isNull);
       await tester.tap(
         find.descendant(
-          of: find.byType(AlertDialog),
+          of: _alertDialogs(),
           matching: find.text('Home'),
         ),
       );
@@ -672,7 +679,10 @@ void main() {
       final picker = find.byType(BookmarkFolderPickerContents);
       void expectMenu() {
         expect(
-          find.descendant(of: picker, matching: find.byType(ListTile)),
+          find.descendant(
+            of: picker,
+            matching: find.byType(legacy.ListTile),
+          ),
           findsNothing,
         );
         final rows = find.descendant(
@@ -730,7 +740,7 @@ void main() {
       if (entry == 'anchored') {
         expect(find.byType(KurumiAnchor), findsWidgets);
         expect(tester.getSize(picker).width, lessThanOrEqualTo(200));
-        expect(find.byType(AlertDialog), findsNothing);
+        expect(_alertDialogs(), findsNothing);
       }
       await tester.tap(find.text('Artists'));
       await tester.pumpAndSettle();
@@ -848,7 +858,8 @@ void main() {
               of: find.text('Artists'),
               matching: find.byWidgetPredicate(
                 (widget) =>
-                    widget is ListTile || widget is BookmarkPickerMenuItem,
+                    widget is legacy.ListTile ||
+                    widget is BookmarkPickerMenuItem,
               ),
             ),
             matching: find.byType(BookmarkFolderMembershipIcon),
@@ -888,7 +899,8 @@ void main() {
               of: find.text('Artists'),
               matching: find.byWidgetPredicate(
                 (widget) =>
-                    widget is ListTile || widget is BookmarkPickerMenuItem,
+                    widget is legacy.ListTile ||
+                    widget is BookmarkPickerMenuItem,
               ),
             ),
             matching: find.byType(BookmarkFolderMembershipIcon),
@@ -962,7 +974,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Create new group'));
       await tester.pumpAndSettle();
-      await tester.enterText(find.byType(TextField), 'Nested group');
+      await tester.enterText(find.byType(legacy.TextField), 'Nested group');
       await tester.tap(find.text('Save'));
       await tester.pumpAndSettle();
       expect(library.library.groups.single.folderId, 'child');
@@ -997,7 +1009,10 @@ void main() {
           .count,
       0,
     );
-    expect(tester.widget<Badge>(find.byType(Badge)).isLabelVisible, isFalse);
+    expect(
+      tester.widget<legacy.Badge>(find.byType(legacy.Badge)).isLabelVisible,
+      isFalse,
+    );
   });
 
   for (final entry in ['dialog', 'anchored', 'context', 'bulk add']) {
@@ -1081,7 +1096,7 @@ void main() {
       await tester.pumpAndSettle();
       tester.view.viewInsets = const FakeViewPadding(bottom: 240);
       addTearDown(tester.view.resetViewInsets);
-      await tester.enterText(find.byType(TextField), 'Home group');
+      await tester.enterText(find.byType(legacy.TextField), 'Home group');
       await tester.pumpAndSettle();
       expect(find.text('Cancel').hitTestable(), findsOneWidget);
       expect(find.text('Save').hitTestable(), findsOneWidget);
@@ -1116,7 +1131,10 @@ void main() {
           ),
         ),
       );
-      expect(tester.widget<Badge>(find.byType(Badge)).isLabelVisible, isFalse);
+      expect(
+        tester.widget<legacy.Badge>(find.byType(legacy.Badge)).isLabelVisible,
+        isFalse,
+      );
       semantics.dispose();
     },
   );
@@ -1131,6 +1149,10 @@ bool _above(WidgetTester tester, String a, String b) {
 
 Finder _cardInk(String label) =>
     find.ancestor(of: find.text(label), matching: find.byType(InkWell)).first;
+
+Finder _alertDialogs() => find.byWidgetPredicate(
+  (widget) => widget.runtimeType.toString() == 'AlertDialog',
+);
 Future<void> _menu(WidgetTester tester, String label) async {
   final card = _cardInk(label);
   await tester.tap(
@@ -1139,12 +1161,13 @@ Future<void> _menu(WidgetTester tester, String label) async {
   await tester.pumpAndSettle();
 }
 
-FilledButton _moveButton(WidgetTester tester) => tester.widget<FilledButton>(
-  find.ancestor(
-    of: find.text('Move here'),
-    matching: find.byType(FilledButton),
-  ),
-);
+legacy.FilledButton _moveButton(WidgetTester tester) =>
+    tester.widget<legacy.FilledButton>(
+      find.ancestor(
+        of: find.text('Move here'),
+        matching: find.byType(legacy.FilledButton),
+      ),
+    );
 
 final _config = BooruConfig.fromJson({
   ...BooruConfig.defaultConfig(
@@ -1213,6 +1236,8 @@ Future<GoRouter> _pump(
       overrides: [
         bookmarkProvider.overrideWith(() => library),
         routerProvider.overrideWithValue(router),
+        deterministicFaviconDioOverride(),
+        defaultImageCacheManagerProvider.overrideWithValue(TestImageCache({})),
       ],
       child: OKToast(
         child: BooruLocalization(
@@ -1224,7 +1249,7 @@ Future<GoRouter> _pump(
               ).copyWith(textScaler: TextScaler.linear(textScale)),
               child: KurumiTheme(
                 data: KurumiThemeData.fromMaterial(Theme.of(context)),
-                child: child!,
+                child: MaterialUiCompatibilityBridge(child: child!),
               ),
             ),
           ),

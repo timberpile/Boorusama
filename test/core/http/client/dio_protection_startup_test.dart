@@ -16,6 +16,7 @@ import 'package:boorusama/core/ddos/solver/src/protection_detector.dart';
 import 'package:boorusama/core/ddos/solver/src/protection_orchestrator.dart';
 import 'package:boorusama/core/ddos/solver/src/protection_solver.dart';
 import 'package:boorusama/core/ddos/solver/src/user_agent_provider.dart';
+import 'package:boorusama/core/ddos/solver/types.dart';
 import 'package:boorusama/core/errors/types.dart';
 import 'package:boorusama/core/http/client/src/interceptors/dio_protection_interceptor.dart';
 import 'package:boorusama/core/http/client/coordination.dart';
@@ -261,7 +262,11 @@ class _ClearanceSolver implements ProtectionSolver {
   Future<void> cancel() async {}
 
   @override
-  Future<bool> solve({required Uri uri, String? userAgent}) async {
+  Future<bool> solve({
+    required Uri uri,
+    String? userAgent,
+    ProtectionSession? diagnostics,
+  }) async {
     solveCount++;
     await jar.saveFromResponse(uri, [Cookie('cf_clearance', 'test')]);
     return true;

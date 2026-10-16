@@ -1,7 +1,9 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:i18n/i18n.dart';
 import 'package:oktoast/oktoast.dart';
+
 import '../search/following_topics/topic_test_utils.dart';
+
 // Dart imports:
 import 'dart:async';
 import 'dart:io';

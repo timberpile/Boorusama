@@ -21,6 +21,11 @@ class BookmarkGroupRepositoryHive
   final Uuid _uuid;
   final Box<dynamic>? _organizationBox;
 
+  Future<void> close() async {
+    await _box.close();
+    await _organizationBox?.close();
+  }
+
   @override
   Future<List<BookmarkGroup>> getGroups() async {
     final groups = _box.values.map(_toGroup).toList()

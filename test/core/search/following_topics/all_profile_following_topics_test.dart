@@ -2,9 +2,10 @@ import 'package:boorusama/core/configs/manage/providers.dart';
 import 'package:boorusama/core/router.dart';
 import 'package:boorusama/core/search/following_topics/providers.dart';
 import 'package:boorusama/core/search/following_topics/src/pages/following_topics_page.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:boorusama/core/configs/config/types.dart';
+
 import 'following_topic_test_utils.dart';
 
 void main() {

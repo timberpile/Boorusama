@@ -4,7 +4,7 @@ import 'package:boorusama/core/search/following_topics/providers.dart';
 import 'package:boorusama/core/tags/tag/src/widgets/general_tag_context_menu.dart';
 import 'package:boorusama/core/widgets/custom_context_menu_overlay.dart';
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:foundation/foundation.dart';

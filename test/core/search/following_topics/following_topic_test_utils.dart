@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:clock/clock.dart';
 import 'package:boorusama/boorus/danbooru/danbooru_repository.dart';
 import 'package:boorusama/core/blacklists/providers.dart';
@@ -6,6 +7,7 @@ import 'package:boorusama/core/boorus/engine/providers.dart';
 import 'package:boorusama/core/boorus/engine/types.dart';
 import 'package:boorusama/core/search/following_topics/src/providers/search_refresh_coordinator.dart';
 import 'package:boorusama/core/search/following_topics/src/services/search_refresh_scheduler.dart';
+
 import 'dart:typed_data';
 
 import 'package:boorusama/core/configs/config/types.dart';
@@ -34,9 +36,10 @@ import 'package:boorusama/core/analytics/providers.dart';
 import 'package:boorusama/foundation/loggers.dart';
 import 'package:boorusama/core/settings/src/types/settings.dart';
 import 'package:boorusama/foundation/info/device_info.dart';
+import 'package:boorusama/foundation/filesystem.dart';
 import 'package:cache_manager/cache_manager.dart';
 import 'package:dio/dio.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:foundation/foundation.dart';
@@ -45,6 +48,8 @@ import 'package:kurumi/kurumi.dart';
 import 'package:oktoast/oktoast.dart';
 
 import 'topic_test_utils.dart';
+import '../../../support/fakes/memory_app_file_system.dart';
+
 import 'package:boorusama/core/search/following_topics/src/services/search_refresh_environment.dart';
 import 'package:boorusama/core/search/following_topics/src/services/conservative_refresh_policy.dart';
 
@@ -264,6 +269,7 @@ class FollowingTopicHarness {
         if (listingSettings != null)
           imageListingSettingsProvider.overrideWithValue(listingSettings),
         deviceInfoProvider.overrideWithValue(DeviceInfo.empty()),
+        appFileSystemProvider.overrideWithValue(MemoryAppFileSystem()),
         defaultImageCacheManagerProvider.overrideWithValue(
           imageCacheManager ?? _NoImageCache(),
         ),
@@ -320,7 +326,12 @@ class FollowingTopicHarness {
   Future<void> pump(WidgetTester tester, Widget child) async {
     await ensureI18nInitialized('en-US');
     await tester.pumpWidget(
-      wrap(MaterialApp(home: child, builder: themeBuilder)),
+      wrap(
+        MaterialApp(
+          home: child,
+          builder: themeBuilder,
+        ),
+      ),
     );
     await settle(tester);
   }
@@ -333,10 +344,14 @@ class FollowingTopicHarness {
   void dispose() => container.dispose();
 }
 
-Widget themeBuilder(BuildContext context, Widget? child) => KurumiTheme(
-  data: KurumiThemeData.fromMaterial(Theme.of(context)),
-  child: child!,
-);
+Widget themeBuilder(BuildContext context, Widget? child) =>
+    // ignore: deprecated_member_use
+    MaterialUiCompatibilityBridge(
+      child: KurumiTheme(
+        data: KurumiThemeData.fromMaterial(Theme.of(context)),
+        child: child!,
+      ),
+    );
 
 Future<void> settle(WidgetTester tester) async {
   await tester.pump();

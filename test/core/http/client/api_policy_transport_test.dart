@@ -46,7 +46,7 @@ void main() {
   );
 
   test(
-    'redirected Zerochan reads share the www sixty-start budget and isolate cancelled waiters',
+    'redirected Zerochan reads use www pacing and isolate cancelled waiters',
     () async {
       final c = ApiRequestCoordinator();
       addTearDown(c.dispose);
@@ -54,10 +54,8 @@ void main() {
       final dio = Dio(BaseOptions(baseUrl: 'https://zerochan.net'))
         ..httpClientAdapter = transport;
       coordinateApiDio(dio, c);
-      for (var i = 0; i < 60; i++) {
-        await dio.get('/data');
-      }
-      expect(transport.calls.where((s) => s == 'GET /result'), hasLength(60));
+      await dio.get('/data');
+      expect(transport.calls.where((s) => s == 'GET /result'), hasLength(1));
       final token = CancelToken();
       final wait = dio.get('/data', cancelToken: token);
       final cancelled = expectLater(wait, throwsA(isA<DioException>()));
@@ -74,7 +72,7 @@ void main() {
       token.cancel();
       await cancelled;
       expect(c.snapshot(target).queued, 0);
-      expect(transport.calls.where((s) => s == 'GET /result'), hasLength(60));
+      expect(transport.calls.where((s) => s == 'GET /result'), hasLength(1));
     },
   );
 

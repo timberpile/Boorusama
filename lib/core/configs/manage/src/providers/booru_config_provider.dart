@@ -436,11 +436,10 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
     Iterable<BooruConfig> orderedConfigs,
   ) {
     final orders = ref.read(settingsProvider).booruConfigIdOrderList;
-    final newOrders =
-        orders.isEmpty || orders.length != orderedConfigs.length
-              ? [for (final config in orderedConfigs) config.id]
-              : orders.toList()
-          ..reorder(oldIndex, newIndex);
+    final newOrders = orders.isEmpty || orders.length != orderedConfigs.length
+        ? [for (final config in orderedConfigs) config.id]
+        : orders.toList();
+    newOrders.reorder(oldIndex, newIndex);
 
     updateOrder(newOrders);
   }
@@ -463,20 +462,17 @@ bool _sameBooruSite(BooruConfig left, BooruConfig right) =>
     normalizeBooruSiteUrl(left.url) == normalizeBooruSiteUrl(right.url);
 
 extension BooruConfigNotifierX on BooruConfigNotifier {
-  void addOrUpdate({
+  Future<void> addOrUpdate({
     required EditBooruConfigId id,
     required BooruConfigData newConfig,
     BooruConfig? initialData,
   }) {
     if (id.isNew) {
-      ref
+      return ref
           .read(booruConfigProvider.notifier)
-          .add(
-            data: newConfig,
-            initialConfig: initialData,
-          );
+          .add(data: newConfig, initialConfig: initialData);
     } else {
-      ref
+      return ref
           .read(booruConfigProvider.notifier)
           .update(
             booruConfigData: newConfig,

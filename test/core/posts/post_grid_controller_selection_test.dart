@@ -244,27 +244,24 @@ void main() {
   });
 
   test('a queued refresh still runs after the active refresh fails', () async {
-    final firstFetch = Completer<PostResult<Post>>();
+    final firstFetch = Completer<void>();
+    final firstFetchStarted = Completer<void>();
     var fetchCount = 0;
-    var blacklistCount = 0;
     final controller = PostGridController<Post>(
       fetcher: (_) {
         fetchCount++;
-        return TaskEither.tryCatch(
-          () => fetchCount == 1
-              ? firstFetch.future
-              : Future.value(
-                  PostResult(posts: [Bookmark.empty.toPost()], total: 1),
-                ),
-          (error, _) => UnknownError(error: error, message: 'failed'),
-        );
+        if (fetchCount == 1) firstFetchStarted.complete();
+        return TaskEither(() async {
+          if (fetchCount == 1) {
+            await firstFetch.future;
+            throw StateError('first refresh failed');
+          }
+          return Either.of(
+            PostResult(posts: [Bookmark.empty.toPost()], total: 1),
+          );
+        });
       },
       blacklistedTagsFetcher: () async => const {},
-      blacklistedUrlsFetcher: () async {
-        blacklistCount++;
-        if (blacklistCount == 1) throw StateError('blacklist read failed');
-        return const {};
-      },
       mountedChecker: () => true,
       duplicateTracker: PostDuplicateTracker(),
       onError: (_) {},
@@ -273,11 +270,12 @@ void main() {
     addTearDown(controller.dispose);
 
     final active = controller.refresh();
-    await Future<void>.delayed(Duration.zero);
+    final activeError = expectLater(active, throwsStateError);
+    await firstFetchStarted.future;
     final queued = controller.refresh();
-    firstFetch.complete(PostResult.empty());
+    firstFetch.complete();
 
-    await expectLater(active, throwsStateError);
+    await activeError;
     await queued.timeout(const Duration(seconds: 1));
     expect(fetchCount, 2);
   });

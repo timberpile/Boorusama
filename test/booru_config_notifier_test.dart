@@ -1,4 +1,5 @@
 import 'profile_uuid_utils.dart';
+
 // Dart imports:
 import 'dart:async';
 
@@ -28,6 +29,7 @@ import 'package:boorusama/core/search/following_topics/types.dart';
 import 'package:boorusama/core/tracking/providers.dart';
 import 'package:boorusama/core/tracking/types.dart';
 import 'package:boorusama/foundation/loggers.dart';
+
 import 'riverpod_test_utils.dart';
 import 'core/search/following_topics/topic_test_utils.dart';
 

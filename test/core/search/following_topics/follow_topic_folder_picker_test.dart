@@ -2,7 +2,8 @@ import 'package:boorusama/core/groups/folder_navigation.dart';
 import 'package:boorusama/core/search/following_topics/providers.dart';
 import 'package:boorusama/core/search/following_topics/src/widgets/follow_topic_dialog.dart';
 import 'package:boorusama/core/search/following_topics/src/widgets/follow_topic_folder_picker.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' as legacy;
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -57,12 +58,12 @@ void main() {
   }
 
   Future<void> enter(WidgetTester tester, String name) async {
-    await tester.tap(find.widgetWithText(ListTile, name));
+    await tester.tap(find.widgetWithText(legacy.ListTile, name));
     await tester.pumpAndSettle();
   }
 
   Future<void> select(WidgetTester tester) async {
-    await tester.tap(find.widgetWithText(FilledButton, 'Select'));
+    await tester.tap(find.widgetWithText(legacy.FilledButton, 'Select'));
     await tester.pumpAndSettle();
   }
 
@@ -72,14 +73,14 @@ void main() {
       await initialize();
       await pump(tester);
       await open(tester);
-      expect(find.widgetWithText(ListTile, 'Artists'), findsOneWidget);
-      expect(find.widgetWithText(ListTile, 'Other'), findsOneWidget);
+      expect(find.widgetWithText(legacy.ListTile, 'Artists'), findsOneWidget);
+      expect(find.widgetWithText(legacy.ListTile, 'Other'), findsOneWidget);
       expect(find.text('Cookie'), findsNothing);
       expect(find.text('Deep'), findsNothing);
       await enter(tester, 'Artists');
       expect(choices, isEmpty);
-      expect(find.widgetWithText(ListTile, 'Cookie'), findsOneWidget);
-      expect(find.widgetWithText(ListTile, 'Other'), findsNothing);
+      expect(find.widgetWithText(legacy.ListTile, 'Cookie'), findsOneWidget);
+      expect(find.widgetWithText(legacy.ListTile, 'Other'), findsNothing);
       expect(find.text('Deep'), findsNothing);
       expect(find.text('Create folder'), findsNothing);
       await enter(tester, 'Cookie');
@@ -101,9 +102,9 @@ void main() {
         find.text('Deep'),
         findsNWidgets(2),
       ); // Selected field and breadcrumb.
-      await tester.tap(find.widgetWithText(ListTile, 'Back'));
+      await tester.tap(find.widgetWithText(legacy.ListTile, 'Back'));
       await tester.pumpAndSettle();
-      expect(find.widgetWithText(ListTile, 'Deep'), findsOneWidget);
+      expect(find.widgetWithText(legacy.ListTile, 'Deep'), findsOneWidget);
       await select(tester);
       expect(choices.last, (id: child, isNew: false));
       expect(tester.takeException(), isNull);
@@ -116,17 +117,17 @@ void main() {
       await initialize();
       await pump(tester, initial: child);
       await open(tester);
-      expect(find.widgetWithText(ListTile, 'Deep'), findsOneWidget);
-      await tester.tap(find.widgetWithText(TextButton, 'Home'));
+      expect(find.widgetWithText(legacy.ListTile, 'Deep'), findsOneWidget);
+      await tester.tap(find.widgetWithText(legacy.TextButton, 'Home'));
       await tester.pumpAndSettle();
-      await tester.tap(find.widgetWithText(TextButton, 'Cancel').last);
+      await tester.tap(find.widgetWithText(legacy.TextButton, 'Cancel').last);
       await tester.pumpAndSettle();
       expect(choices, isEmpty);
       await open(tester);
-      expect(find.widgetWithText(ListTile, 'Deep'), findsOneWidget);
-      await tester.tap(find.widgetWithText(TextButton, 'Home'));
+      expect(find.widgetWithText(legacy.ListTile, 'Deep'), findsOneWidget);
+      await tester.tap(find.widgetWithText(legacy.TextButton, 'Home'));
       await tester.pumpAndSettle();
-      expect(find.widgetWithText(ListTile, 'Artists'), findsOneWidget);
+      expect(find.widgetWithText(legacy.ListTile, 'Artists'), findsOneWidget);
       await select(tester);
       expect(choices.single, (id: null, isNew: false));
       expect(find.text('[Home]'), findsOneWidget);
@@ -153,11 +154,13 @@ void main() {
       }
       await pump(tester);
       await open(tester);
-      expect(find.byType(ListTile), findsNothing);
+      expect(find.byType(legacy.ListTile), findsNothing);
       await select(tester);
       expect(choices.single, (id: null, isNew: false));
       await open(tester);
-      await tester.tap(find.widgetWithText(TextButton, 'Create folder'));
+      await tester.tap(
+        find.widgetWithText(legacy.TextButton, 'Create folder'),
+      );
       await tester.pumpAndSettle();
       expect(choices.last, (id: null, isNew: true));
       expect(find.text('[New]'), findsOneWidget);
@@ -182,11 +185,11 @@ void main() {
       await enter(tester, 'Cookie');
       await enter(tester, 'Deep');
       expect(
-        find.widgetWithText(FilledButton, 'Select').hitTestable(),
+        find.widgetWithText(legacy.FilledButton, 'Select').hitTestable(),
         findsOneWidget,
       );
       expect(
-        find.widgetWithText(TextButton, 'Cancel').hitTestable(),
+        find.widgetWithText(legacy.TextButton, 'Cancel').hitTestable(),
         findsOneWidget,
       );
       await select(tester);

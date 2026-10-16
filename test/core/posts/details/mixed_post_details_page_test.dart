@@ -1,13 +1,17 @@
 import 'package:boorusama/core/images/types.dart';
+
 import 'progressive_image_test_utils.dart';
+
 import 'package:extended_image/src/image/raw_image.dart';
+
 import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
+
 import 'package:flutter/rendering.dart';
 
 // Flutter imports:
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -72,6 +76,10 @@ import 'package:boorusama/core/themes/colors/providers.dart';
 import 'package:boorusama/core/widgets/interactive_viewer_extended.dart';
 import 'package:boorusama/foundation/loggers.dart';
 import 'package:boorusama/foundation/info/device_info.dart';
+import 'package:boorusama/foundation/platform.dart';
+import 'package:boorusama/foundation/url_launcher.dart';
+
+import '../../../support/fakes/test_platform_services.dart';
 
 void main() {
   for (final success in [false, true]) {
@@ -182,8 +190,7 @@ void main() {
       expect(
         pages.page,
         0,
-        reason:
-            'completion while a finger is held must cancel that navigation drag',
+        reason: 'completion while a finger is held must cancel that navigation drag',
       );
       await _swipeOutwardAtRightEdge(tester);
       expect(pages.page, 1);
@@ -431,8 +438,7 @@ void main() {
       expect(
         bytes!.buffer.asUint8List().sublist(offset, offset + 4),
         [255, 0, 0, 255],
-        reason:
-            'the available preview must paint inside the actual AutoComic viewport',
+        reason: 'the available preview must paint inside the actual AutoComic viewport',
       );
       screenshot.dispose();
       expect(_zoomAction('Next page'), findsNothing);
@@ -1912,6 +1918,10 @@ class _Harness {
            downloadServiceProvider.overrideWithValue(_DownloadService()),
            httpHeadersProvider.overrideWith((ref, config) => const {}),
            loggerProvider.overrideWithValue(const _Logger()),
+           appPlatformProvider.overrideWithValue(AppPlatform.android),
+           externalUrlLauncherProvider.overrideWithValue(
+             RecordingExternalUrlLauncher(),
+           ),
            favoriteRepoProvider.overrideWith(
              (ref, config) => EmptyFavoriteRepository(),
            ),
@@ -1928,10 +1938,14 @@ class _Harness {
     container: container,
     child: BooruLocalization(
       child: MaterialApp(
-        builder: (context, child) => KurumiTheme(
-          data: KurumiThemeData.fromMaterial(Theme.of(context)),
-          child: child!,
-        ),
+        builder: (context, child) =>
+            // ignore: deprecated_member_use
+            MaterialUiCompatibilityBridge(
+              child: KurumiTheme(
+                data: KurumiThemeData.fromMaterial(Theme.of(context)),
+                child: child!,
+              ),
+            ),
         home: Directionality(
           textDirection: direction,
           child: MixedPostDetailsPage(
@@ -1951,10 +1965,14 @@ class _Harness {
     child: BooruLocalization(
       child: MaterialApp.router(
         routerConfig: router,
-        builder: (context, child) => KurumiTheme(
-          data: KurumiThemeData.fromMaterial(Theme.of(context)),
-          child: child!,
-        ),
+        builder: (context, child) =>
+            // ignore: deprecated_member_use
+            MaterialUiCompatibilityBridge(
+              child: KurumiTheme(
+                data: KurumiThemeData.fromMaterial(Theme.of(context)),
+                child: child!,
+              ),
+            ),
       ),
     ),
   );
@@ -2196,19 +2214,23 @@ final class _Logger implements Logger {
   String getDebugName() => 'mixed post details test';
 
   @override
-  void debug(String serviceName, String message) {}
+  void debug(String serviceName, String message, {String? sensitiveMessage}) {}
 
   @override
-  void error(String serviceName, String message) {}
+  void error(String serviceName, String message, {String? sensitiveMessage}) {}
 
   @override
-  void info(String serviceName, String message) {}
+  void info(String serviceName, String message, {String? sensitiveMessage}) {}
 
   @override
-  void verbose(String serviceName, String message) {}
+  void verbose(
+    String serviceName,
+    String message, {
+    String? sensitiveMessage,
+  }) {}
 
   @override
-  void warn(String serviceName, String message) {}
+  void warn(String serviceName, String message, {String? sensitiveMessage}) {}
 }
 
 final _globalConfig = BooruConfig.defaultConfig(

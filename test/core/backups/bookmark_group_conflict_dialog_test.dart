@@ -1,5 +1,6 @@
 // Package imports:
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
+import 'package:flutter/material.dart' as legacy;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:i18n/i18n.dart';
 
@@ -20,6 +21,8 @@ void main() {
     await tester.pumpWidget(
       BooruLocalization(
         child: MaterialApp(
+          builder: (context, child) =>
+              MaterialUiCompatibilityBridge(child: child!),
           home: Builder(
             builder: (context) => ElevatedButton(
               onPressed: () async {
@@ -37,7 +40,7 @@ void main() {
 
     await tester.tap(find.text('Open'));
     await tester.pumpAndSettle();
-    await tester.tap(find.byType(CheckboxListTile));
+    await tester.tap(find.byType(legacy.CheckboxListTile));
     await tester.tap(find.text('Merge'));
     await tester.pumpAndSettle();
 
@@ -57,6 +60,8 @@ void main() {
     await tester.pumpWidget(
       BooruLocalization(
         child: MaterialApp(
+          builder: (context, child) =>
+              MaterialUiCompatibilityBridge(child: child!),
           home: Builder(
             builder: (context) => ElevatedButton(
               onPressed: () async {
@@ -97,6 +102,8 @@ void main() {
     await tester.pumpWidget(
       BooruLocalization(
         child: MaterialApp(
+          builder: (context, child) =>
+              MaterialUiCompatibilityBridge(child: child!),
           home: Builder(
             builder: (context) => ElevatedButton(
               onPressed: () async {
@@ -111,7 +118,7 @@ void main() {
 
     await tester.tap(find.text('Open'));
     await tester.pumpAndSettle();
-    await tester.tap(find.byType(CheckboxListTile));
+    await tester.tap(find.byType(legacy.CheckboxListTile));
     await tester.tap(find.text('Replace'));
     await tester.pumpAndSettle();
 

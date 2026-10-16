@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:boorusama/core/errors/types.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 import 'package:boorusama/core/search/following_topics/providers.dart';
@@ -8,10 +9,11 @@ import 'package:boorusama/core/search/following_topics/src/pages/topic_feed_mana
 import 'package:boorusama/core/search/following_topics/src/widgets/following_topic_card.dart';
 import 'package:boorusama/core/settings/src/types/settings.dart';
 import 'package:clock/clock.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:foundation/foundation.dart';
+
 import 'following_topic_test_utils.dart';
 
 Future<TopicFeed> seed(

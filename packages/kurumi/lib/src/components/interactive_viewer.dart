@@ -3,8 +3,12 @@ import 'dart:async';
 import 'dart:math';
 
 // Flutter imports:
-import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
+import 'package:material_ui/material_ui.dart';
+
+// Project imports:
+import '../vendor/flutter/interactive_viewer.dart' as vendor;
 
 /// Fallback max zoom scale when content size is unknown. Limits zoom-in.
 const _kFallbackMaxScale = 10.0;
@@ -252,6 +256,10 @@ class _KurumiRawInteractiveViewerState extends State<KurumiRawInteractiveViewer>
   var _interactionWasPinch = false;
   Timer? _snapTimer;
 
+  // Single-finger drags at rest belong to the surrounding PageView. Panning
+  // becomes available only after the image has actually been zoomed.
+  late var _isZoomed = _computeIsZoomed();
+
   @override
   void initState() {
     super.initState();
@@ -277,6 +285,7 @@ class _KurumiRawInteractiveViewerState extends State<KurumiRawInteractiveViewer>
       final newController = widget.controller ?? TransformationController();
       _controller = newController;
       _controller.addListener(_onChanged);
+      _setZoomed(_computeIsZoomed());
     }
 
     if (oldWidget.enable != widget.enable) {
@@ -328,6 +337,8 @@ class _KurumiRawInteractiveViewerState extends State<KurumiRawInteractiveViewer>
       ).isIdentity(),
     );
 
+    _setZoomed(details.isZoomed);
+
     if (_enableHapticFeedback) {
       if (details.isAtMaxZoom && !_hasTriggeredMaxZoomHaptic) {
         HapticFeedback.selectionClick();
@@ -338,6 +349,28 @@ class _KurumiRawInteractiveViewerState extends State<KurumiRawInteractiveViewer>
     }
 
     widget.onTransformationChanged?.call(details);
+  }
+
+  bool _computeIsZoomed() => !Matrix4.diagonal3Values(
+    _controller.value.right.x,
+    _controller.value.up.y,
+    _controller.value.forward.z,
+  ).isIdentity();
+
+  void _setZoomed(bool value) {
+    if (value == _isZoomed) return;
+
+    void apply() {
+      if (!mounted || value == _isZoomed) return;
+      setState(() => _isZoomed = value);
+    }
+
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      SchedulerBinding.instance.addPostFrameCallback((_) => apply());
+    } else {
+      apply();
+    }
   }
 
   bool _applyContentConstraint() {
@@ -431,11 +464,11 @@ class _KurumiRawInteractiveViewerState extends State<KurumiRawInteractiveViewer>
               )
             : interactiveChild;
 
-        return InteractiveViewer(
+        return vendor.InteractiveViewer(
           minScale: _kFallbackMinScale,
           maxScale: _calcMaxScale(widget.contentSize, containerSize),
           transformationController: _controller,
-          panEnabled: enable && widget.panEnabled,
+          panEnabled: enable && widget.panEnabled && _isZoomed,
           scaleEnabled: enable && widget.scaleEnabled,
           onInteractionStart: enable ? _handleInteractionStart : null,
           onInteractionUpdate: enable

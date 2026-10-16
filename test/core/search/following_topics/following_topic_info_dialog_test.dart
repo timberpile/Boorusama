@@ -11,10 +11,11 @@ import 'package:boorusama/core/settings/providers.dart';
 import 'package:boorusama/core/settings/src/types/settings.dart';
 import 'package:clock/clock.dart';
 import 'package:timeago/timeago.dart' as timeago;
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:foundation/foundation.dart';
 import 'package:i18n/i18n.dart';
+
 import 'following_topic_test_utils.dart';
 import 'topic_test_utils.dart';
 
@@ -351,8 +352,7 @@ void main() {
       initial: 'Nächste Aktualisierung: in 30 Minuten',
       afterMinute: 'Nächste Aktualisierung: in 29 Minuten',
       due: 'Nächste Aktualisierung: Jetzt fällig',
-      note:
-          'Automatische Prüfungen laufen bei geöffneter App; sie können später beginnen.',
+      note: 'Automatische Prüfungen laufen bei geöffneter App; sie können später beginnen.',
     ),
   ]) {
     testWidgets(

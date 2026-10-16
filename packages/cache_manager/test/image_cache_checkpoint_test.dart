@@ -31,7 +31,7 @@ void main() {
 
   ImageCacheEntry entry(String key, int use) => ImageCacheEntry(
     key: key,
-    filename: '$key.generation_1',
+    filename: key,
     size: 4,
     use: use,
   );
@@ -60,7 +60,7 @@ void main() {
         stagedPath: staged.path,
         revision: 42,
         entries: <ImageCacheCheckpointEntry>[
-          (key: '日本語', filename: '日本語.generation_1', size: 9, use: 8),
+          (key: '日本語', filename: '日本語', size: 9, use: 8),
         ],
       );
       // This throws if file creation accidentally moves back to the caller isolate.
@@ -75,7 +75,7 @@ void main() {
             'version': 1,
             'revision': 42,
             'entries': [
-              {'key': '日本語', 'file': '日本語.generation_1', 'size': 9, 'use': 8},
+              {'key': '日本語', 'file': '日本語', 'size': 9, 'use': 8},
             ],
           }),
         ),

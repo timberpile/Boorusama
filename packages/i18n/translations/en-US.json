@@ -259,7 +259,8 @@
       "show_all": "Show all",
       "show_less": "Show less",
       "search": "Search",
-      "view_all": "View all"
+      "view_all": "View all",
+      "copy_path": "Copy path"
     },
     "requirement": {
       "android": {
@@ -566,6 +567,10 @@
   },
   "comment": {
     "comments": "Comments",
+    "vote": {
+      "success": "Comment upvoted",
+      "already_voted": "You already voted on this comment"
+    },
     "create": {
       "hint": "Comment"
     },
@@ -930,6 +935,13 @@
       "logs_copied": "Logs copied to clipboard"
     },
     "download": {
+      "sidecar": {
+        "title": "Save metadata",
+        "description": "Save tags or post information beside downloaded files.",
+        "off": "Off",
+        "tags": "Tags (.txt)",
+        "json": "Metadata (.json)"
+      },
       "path": "Download path",
       "select_a_folder": "Select a folder",
       "quality": "Download image quality",
@@ -962,6 +974,11 @@
       "tag_cache": "Tag cache",
       "image_only_cache": "Image only cache",
       "video_cache": "Video cache",
+      "cache_locations": {
+        "title": "Cache locations",
+        "private_storage": "Private app storage. Unavailable in file managers.",
+        "open_folder": "Open folder"
+      },
       "video_cache_limit": "Video cache limit",
       "video_cache_limit_description": "Maximum size for video cache storage",
       "custom_cache_limit_option": "Custom...",
@@ -1641,8 +1658,9 @@
     },
     "listing": {
       "title": "Listing",
-      "thumbnail_button": "Thumbnail's button",
-      "thumbnail_button_description": "Change the default button at the right bottom of the thumbnail.",
+      "thumbnail_primary_action": "Primary thumbnail action",
+      "thumbnail_secondary_action": "Secondary thumbnail action",
+      "thumbnail_secondary_action_description": "Hidden when the thumbnail is too small.",
       "tooltip_on_hover_title": "Show tooltip on hover",
       "tooltip_on_hover_description": "Show preview information when hovering over the thumbnail.",
       "enable_profile_specific_settings": "Enable profile's specific settings",
@@ -1674,6 +1692,17 @@
     },
     "network": {
       "title": "Network",
+      "media_hosts": {
+        "title": "Media host overrides",
+        "description": "Replace media hosts for this profile. Only use hosts you trust, file paths and query parameters are sent to them.",
+        "active": "Media override active",
+        "add": "Add override",
+        "from": "Original host",
+        "to": "Replacement host",
+        "invalid_host": "Enter a hostname without a scheme, port or path.",
+        "duplicate_host": "This host already has an override.",
+        "same_host": "Choose a different replacement host."
+      },
       "proxy": {
         "title": "Proxy",
         "select_type": "<Select>",
@@ -1952,7 +1981,6 @@
     "actions": {
       "create": "Create",
       "delete": "Delete",
-      "copy_path": "Copy path",
       "new_download": "New download",
       "add_to_queue": "Add to List"
     },
@@ -2008,7 +2036,8 @@
   },
   "captcha": {
     "title": "Solve the captcha",
-    "i_have_solved_it": "I have solved it"
+    "i_have_solved_it": "I have solved it",
+    "blocked_by_site": "This site blocked access from your network. Try turning off your VPN or proxy, or switching networks."
   },
   "select": {
     "selected_items": "Select items",
@@ -2162,6 +2191,13 @@
     "extension": {
       "title": "Extensions",
       "failed_to_fetch": "Cannot fetch extension list for this instance"
+    }
+  },
+  "sankaku": {
+    "errors": {
+      "anonymous_tag_limit": "Sankaku rejected this search because anonymous users can only search with a limited number of tags. Use fewer tags or sign in.",
+      "account_tag_limit": "Sankaku rejected this search because your account can only search with a limited number of tags. Use fewer tags or upgrade your account.",
+      "exclusion_search_restricted": "Sankaku restricts this exclusion search for your account. Try adding a non-excluded tag."
     }
   },
   "eshuushuu": {

@@ -7,9 +7,6 @@ import 'package:kurumi/material.dart';
 // Project imports:
 import '../../../widgets/widgets.dart';
 
-typedef SettingsPageContentOpener =
-    void Function(BuildContext context, SettingEntry entry);
-
 class SettingsPageScaffold extends StatelessWidget {
   const SettingsPageScaffold({
     required this.title,
@@ -25,11 +22,8 @@ class SettingsPageScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Kurumi.themeOf(context);
-    final options = SettingsPageScope.maybeOf(context)?.options;
-    final hasAppBar = !(options?.dense ?? false);
-
     return ConditionalParentWidget(
-      condition: hasAppBar,
+      condition: !SettingsPageScope.hostsHeader(context),
       conditionalBuilder: (child) => Scaffold(
         appBar: KurumiAppBar(
           title: title,
@@ -37,6 +31,7 @@ class SettingsPageScaffold extends StatelessWidget {
         body: child,
       ),
       child: SafeArea(
+        bottom: false,
         child: Container(
           constraints: const BoxConstraints(
             maxWidth: 600,
@@ -48,10 +43,11 @@ class SettingsPageScaffold extends StatelessWidget {
               ),
             ),
             child: ListView(
-              padding:
-                  padding ??
-                  const EdgeInsets.symmetric(
-                    horizontal: 16,
+              padding: (padding ?? const EdgeInsets.symmetric(horizontal: 16))
+                  .add(
+                    EdgeInsets.only(
+                      bottom: MediaQuery.paddingOf(context).bottom,
+                    ),
                   ),
               shrinkWrap: true,
               primary: false,
@@ -71,6 +67,7 @@ class SettingEntry {
     required this.content,
     required this.icon,
     required this.name,
+    this.parentId,
   });
 
   final String id;
@@ -78,16 +75,19 @@ class SettingEntry {
   final Widget content;
   final Object icon;
   final String name;
+  final String? parentId;
 }
 
 class SettingsPageNavigationScope extends InheritedWidget {
   const SettingsPageNavigationScope({
-    required this.openContent,
+    required this.openDestination,
     required super.child,
+    this.applicationNavigator,
     super.key,
   });
 
-  final SettingsPageContentOpener openContent;
+  final void Function(String destinationId) openDestination;
+  final NavigatorState? applicationNavigator;
 
   static SettingsPageNavigationScope of(BuildContext context) {
     final item = context
@@ -103,9 +103,14 @@ class SettingsPageNavigationScope extends InheritedWidget {
     return item;
   }
 
+  static NavigatorState applicationNavigatorOf(BuildContext context) =>
+      of(context).applicationNavigator ??
+      Navigator.of(context, rootNavigator: true);
+
   @override
   bool updateShouldNotify(SettingsPageNavigationScope oldWidget) {
-    return openContent != oldWidget.openContent;
+    return openDestination != oldWidget.openDestination ||
+        applicationNavigator != oldWidget.applicationNavigator;
   }
 }
 
@@ -127,17 +132,17 @@ class SettingEntryIcon extends StatelessWidget {
   }
 }
 
-// This should be always constant
-class SettingsPageOptions {
+class SettingsPageOptions extends Equatable {
   const SettingsPageOptions({
     required this.showIcon,
     required this.dense,
-    required this.entries,
   });
 
   final bool showIcon;
   final bool dense;
-  final List<SettingEntry> entries;
+
+  @override
+  List<Object?> get props => [showIcon, dense];
 }
 
 class SettingsPageDynamicOptions extends Equatable {
@@ -206,6 +211,10 @@ class SettingsPageScope extends InheritedWidget {
   static SettingsPageScope? maybeOf(BuildContext context) {
     return context.dependOnInheritedWidgetOfExactType<SettingsPageScope>();
   }
+
+  // Pages inside the settings shell use the shell's header instead of their own
+  // app bar.
+  static bool hostsHeader(BuildContext context) => maybeOf(context) != null;
 
   final SettingsPageOptions options;
 

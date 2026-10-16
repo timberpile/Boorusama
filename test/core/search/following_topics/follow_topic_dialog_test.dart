@@ -1,5 +1,5 @@
 import 'package:boorusama/core/search/following_topics/widgets.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
@@ -14,10 +14,14 @@ void main() {
     await tester.pumpWidget(
       BooruLocalization(
         child: MaterialApp(
-          builder: (context, child) => KurumiTheme(
-            data: KurumiThemeData.fromMaterial(Theme.of(context)),
-            child: child!,
-          ),
+          builder: (context, child) =>
+              // ignore: deprecated_member_use
+              MaterialUiCompatibilityBridge(
+                child: KurumiTheme(
+                  data: KurumiThemeData.fromMaterial(Theme.of(context)),
+                  child: child!,
+                ),
+              ),
           home: Builder(
             builder: (context) => Scaffold(
               body: TextButton(

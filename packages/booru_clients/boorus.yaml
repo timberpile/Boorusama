@@ -92,6 +92,8 @@
         type: api
         endpoint: "/index.php?page=dapi&s=comment&q=index"
         user-params: {post-id: "post_id"}
+        capabilities:
+          pagination-type: null
       
       notes:
         type: html
@@ -124,7 +126,8 @@
           authentication: required
         overrides:
           posts:
-            endpoint: "/index.php?page=dapi&s=post&q=index"
+            endpoint: "https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1"
+            parser: "parseR34PostsApi"
           autocomplete:
             endpoint: "https://api.rule34.xxx/autocomplete.php"
           favorites:
@@ -133,6 +136,32 @@
             type: api
             endpoint: "https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1"
             parser: "parseR34PostApi"
+          comments:
+            type: html
+            endpoint: "/index.php?page=post&s=view"
+            parser: "parseR34CommentsHtml"
+            user-params: {post-id: "id", cursor: "cursor", tags: "tags"}
+            capabilities:
+              pagination-type: "cursor"
+            sorting:
+              transport: cookie
+              key: comments_direction
+              default: newest
+              values: {newest: desc, oldest: asc}
+            actions:
+              upvote:
+                method: get
+                endpoint: "/index.php"
+                auth: session-cookie
+                response: integer
+                params:
+                  page: comment
+                  s: vote
+                  vote: up
+                required-user-params: [post-id, comment-id]
+                user-params:
+                  post-id: id
+                  comment-id: cid
 
       - url: https://hypnohub.net/
         quick-profile:

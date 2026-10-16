@@ -82,12 +82,12 @@ class _BookmarkSearchBarState extends ConsumerState<BookmarkSearchBar> {
         _search.editLastTag()) {
       return KeyEventResult.handled;
     }
-    if (event.logicalKey == LogicalKeyboardKey.escape) {
-      _search.cancelEdit();
-      _focusNode.unfocus();
-      return KeyEventResult.handled;
-    }
     return KeyEventResult.ignored;
+  }
+
+  void _cancelEdit() {
+    _search.cancelEdit();
+    _focusNode.unfocus();
   }
 
   @override
@@ -187,6 +187,7 @@ class _BookmarkSearchBarState extends ConsumerState<BookmarkSearchBar> {
                               )
                             : null,
                         onSubmitted: (_) => _submit(),
+                        onEscape: _cancelEdit,
                       ),
                     ),
                   ),

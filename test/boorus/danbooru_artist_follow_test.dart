@@ -11,7 +11,7 @@ import 'package:boorusama/core/search/following_topics/src/types/following_topic
 import 'package:boorusama/core/search/following_topics/src/widgets/topic_follow_control.dart';
 import 'package:boorusama/core/posts/details_parts/src/source_link.dart';
 import 'package:boorusama/boorus/danbooru/posts/details/widgets.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:i18n/i18n.dart';

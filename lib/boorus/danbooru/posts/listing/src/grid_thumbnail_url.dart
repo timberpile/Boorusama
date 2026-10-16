@@ -36,34 +36,40 @@ class DanbooruGridThumbnailUrlGenerator implements GridThumbnailUrlGenerator {
 String _danbooruGridThumbnailUrl(
   Post post,
   GridThumbnailSettings settings,
-) => switch (post.isGif
-    ? settings.imageQuality
-    : settings.resolvedImageQuality) {
-  ImageQuality.automatic => switch (settings.gridSize) {
-    GridSize.micro => _variantUrl(post, PostQualityType.v180x180),
-    GridSize.tiny => _variantUrl(post, PostQualityType.v360x360),
-    _ => _variantUrl(post, PostQualityType.v720x720),
-  },
-  ImageQuality.low => switch (settings.gridSize) {
-    GridSize.micro ||
-    GridSize.tiny => _variantUrl(post, PostQualityType.v180x180),
-    _ => _variantUrl(post, PostQualityType.v360x360),
-  },
-  ImageQuality.high => switch (settings.gridSize) {
-    GridSize.micro => _variantUrl(post, PostQualityType.v180x180),
-    GridSize.tiny => _variantUrl(post, PostQualityType.v360x360),
-    _ => _variantUrl(post, PostQualityType.v720x720),
-  },
-  ImageQuality.highest =>
-    post.isVideo
-        ? _variantUrl(post, PostQualityType.v720x720)
-        : switch (settings.gridSize) {
-            GridSize.micro => _variantUrl(post, PostQualityType.v360x360),
-            GridSize.tiny => _variantUrl(post, PostQualityType.v720x720),
-            _ => _variantUrl(post, PostQualityType.sample),
-          },
-  ImageQuality.original => _variantUrl(post, PostQualityType.original),
-};
+) {
+  if (post.isGif && !shouldAutoplayGridGif(post, settings)) {
+    return _variantUrl(post, PostQualityType.v720x720);
+  }
+
+  return switch (post.isGif
+      ? settings.imageQuality
+      : settings.resolvedImageQuality) {
+    ImageQuality.automatic => switch (settings.gridSize) {
+      GridSize.micro => _variantUrl(post, PostQualityType.v180x180),
+      GridSize.tiny => _variantUrl(post, PostQualityType.v360x360),
+      _ => _variantUrl(post, PostQualityType.v720x720),
+    },
+    ImageQuality.low => switch (settings.gridSize) {
+      GridSize.micro ||
+      GridSize.tiny => _variantUrl(post, PostQualityType.v180x180),
+      _ => _variantUrl(post, PostQualityType.v360x360),
+    },
+    ImageQuality.high => switch (settings.gridSize) {
+      GridSize.micro => _variantUrl(post, PostQualityType.v180x180),
+      GridSize.tiny => _variantUrl(post, PostQualityType.v360x360),
+      _ => _variantUrl(post, PostQualityType.v720x720),
+    },
+    ImageQuality.highest =>
+      post.isVideo
+          ? _variantUrl(post, PostQualityType.v720x720)
+          : switch (settings.gridSize) {
+              GridSize.micro => _variantUrl(post, PostQualityType.v360x360),
+              GridSize.tiny => _variantUrl(post, PostQualityType.v720x720),
+              _ => _variantUrl(post, PostQualityType.sample),
+            },
+    ImageQuality.original => _variantUrl(post, PostQualityType.original),
+  };
+}
 
 String _variantUrl(Post post, PostQualityType type) {
   final url = post.variants.getUrl(type);

@@ -28,7 +28,9 @@ import 'package:boorusama/core/search/following_topics/src/services/search_refre
 import 'package:boorusama/core/search/following_topics/types.dart';
 import 'package:boorusama/core/settings/providers.dart';
 import 'package:boorusama/core/settings/src/types/settings.dart';
-import 'package:flutter/material.dart';
+import 'package:boorusama/foundation/filesystem.dart';
+import 'package:flutter/material.dart' as legacy;
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -37,6 +39,7 @@ import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
 
 import 'topic_test_utils.dart';
+import '../../../support/fakes/memory_app_file_system.dart';
 
 void main() {
   var config = BooruConfig.empty;
@@ -98,6 +101,7 @@ void main() {
         settingsNotifierProvider.overrideWith(
           () => SettingsNotifier(Settings.defaultSettings),
         ),
+        appFileSystemProvider.overrideWithValue(MemoryAppFileSystem()),
         imageListingSettingsProvider.overrideWithValue(
           Settings.defaultSettings.listing.copyWith(
             showPostListConfigHeader: showListConfiguration,
@@ -147,15 +151,19 @@ void main() {
         container: container,
         child: BooruLocalization(
           child: MaterialApp(
-            builder: (context, child) => KurumiTheme(
-              data: KurumiThemeData.fromMaterial(Theme.of(context)),
-              child: MediaQuery(
-                data: MediaQuery.of(context).copyWith(
-                  textScaler: TextScaler.linear(textScale),
+            builder: (context, child) =>
+                // ignore: deprecated_member_use
+                MaterialUiCompatibilityBridge(
+                  child: KurumiTheme(
+                    data: KurumiThemeData.fromMaterial(Theme.of(context)),
+                    child: MediaQuery(
+                      data: MediaQuery.of(context).copyWith(
+                        textScaler: TextScaler.linear(textScale),
+                      ),
+                      child: child!,
+                    ),
+                  ),
                 ),
-                child: child!,
-              ),
-            ),
             home: Scaffold(
               body: SearchPageScaffold<Post>(
                 params: const SearchParams(),
@@ -437,7 +445,9 @@ void main() {
         await pumpTransitions(tester);
         await tester.tap(find.text('Home'));
         await pumpTransitions(tester);
-        await tester.tap(find.widgetWithText(FilledButton, 'Select'));
+        await tester.tap(
+          find.widgetWithText(legacy.FilledButton, 'Select'),
+        );
         await pumpTransitions(tester);
         await tester.tap(
           find.descendant(
@@ -772,7 +782,7 @@ void main() {
       await pumpTransitions(tester);
       await tester.tap(find.text('Home'));
       await pumpTransitions(tester);
-      await tester.tap(find.widgetWithText(FilledButton, 'Select'));
+      await tester.tap(find.widgetWithText(legacy.FilledButton, 'Select'));
       await pumpTransitions(tester);
       await tester.tap(
         find.descendant(
@@ -800,7 +810,7 @@ void main() {
     await pumpTransitions(tester);
     await tester.tap(find.text('Home'));
     await pumpTransitions(tester);
-    await tester.tap(find.widgetWithText(FilledButton, 'Select'));
+    await tester.tap(find.widgetWithText(legacy.FilledButton, 'Select'));
     await pumpTransitions(tester);
     await tester.tap(
       find.descendant(
@@ -944,14 +954,19 @@ void main() {
         await pumpTransitions(tester);
         if (editing) {
           expect(find.text('Deep'), findsNWidgets(2));
-          expect(find.widgetWithText(ListTile, 'Artists'), findsNothing);
+          expect(
+            find.widgetWithText(legacy.ListTile, 'Artists'),
+            findsNothing,
+          );
         } else {
           for (final name in ['Artists', 'Cookie', 'Deep']) {
-            await tester.tap(find.widgetWithText(ListTile, name));
+            await tester.tap(find.widgetWithText(legacy.ListTile, name));
             await pumpTransitions(tester);
           }
         }
-        await tester.tap(find.widgetWithText(FilledButton, 'Select'));
+        await tester.tap(
+          find.widgetWithText(legacy.FilledButton, 'Select'),
+        );
         await pumpTransitions(tester);
         await tester.tap(
           find.descendant(
@@ -1015,7 +1030,7 @@ void main() {
       await tester.tap(find.text('Shared animals').last);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
-      await tester.tap(find.widgetWithText(FilledButton, 'Select'));
+      await tester.tap(find.widgetWithText(legacy.FilledButton, 'Select'));
       await pumpTransitions(tester);
       await tester.tap(
         find.descendant(
@@ -1332,7 +1347,7 @@ Future<void> chooseNewFolder(
   expect(find.text('Create folder'), findsNothing);
   await tester.tap(find.byType(FollowTopicFolderPicker));
   await pumpTransitions(tester);
-  await tester.tap(find.widgetWithText(TextButton, 'Home'));
+  await tester.tap(find.widgetWithText(legacy.TextButton, 'Home'));
   await pumpTransitions(tester);
   await tester.tap(find.text('Create folder'));
   await pumpTransitions(tester);

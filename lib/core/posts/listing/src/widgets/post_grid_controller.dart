@@ -351,11 +351,11 @@ class PostGridController<T extends Post> extends ChangeNotifier {
     try {
       _setRefreshing(true);
       _eventController.add(const PostControllerRefreshStarted());
-      _page = switch (_pageMode) {
+      _setPage(switch (_pageMode) {
         PageMode.infinite => _kFirstPage,
         PageMode.paginated =>
           (maintainPage || forcedPageMode) ? _page : _kFirstPage,
-      };
+      });
       count.value = null;
       maxPage.value = null;
       notifyListeners();
@@ -365,6 +365,7 @@ class PostGridController<T extends Post> extends ChangeNotifier {
           : _fetchPosts(_page));
 
       if (!mountedChecker()) return;
+      if (_refreshPending) return;
 
       _clear();
       await _addAll(newItems.posts);

@@ -34,8 +34,10 @@ import 'package:boorusama/core/backups/export_import/import/import_journal.dart'
 import 'package:boorusama/core/backups/export_import/import/import_transaction.dart';
 import 'package:boorusama/core/search/following_topics/src/data/providers.dart';
 import 'package:boorusama/core/search/following_topics/types.dart';
+
 import '../../search/following_topics/topic_test_utils.dart';
 import 'import_transaction_test_utils.dart';
+
 import 'package:boorusama/core/backups/export_import/import/profile_dependency_planner.dart';
 import 'package:boorusama/core/backups/export_import/models/export_selection.dart';
 import 'package:boorusama/core/backups/export_import/models/import_action.dart';
@@ -47,7 +49,7 @@ import 'package:boorusama/core/configs/manage/providers.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/boorus/engine/providers.dart';
 import 'package:boorusama/core/boorus/engine/types.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 const firstId = '00000000-0000-4000-8000-000000000001';
 const secondId = '00000000-0000-4000-8000-000000000002';

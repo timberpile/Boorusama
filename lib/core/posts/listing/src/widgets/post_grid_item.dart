@@ -14,7 +14,7 @@ import '../../../post/widgets.dart';
 import '../providers/providers.dart';
 import '../types/grid_thumbnail_url_generator.dart';
 import '../types/image_list_type.dart';
-import 'default_image_quick_action_button.dart';
+import 'default_image_quick_actions.dart';
 import 'default_selectable_item.dart';
 import 'post_preview.dart';
 import 'sliver_post_grid_image_grid_item.dart';
@@ -25,6 +25,7 @@ typedef PostGridTooltipBuilder = Widget Function(Widget child);
 abstract interface class BooruPostGridPresentation {
   PostGridItemAdditions buildGridItemAdditions(
     BuildContext context, {
+    required WidgetRef ref,
     required Post post,
     required BooruConfigAuth config,
   });
@@ -137,8 +138,9 @@ class PostGridItem extends ConsumerWidget {
     )) {
       (true, _, _) => null,
       (false, final Widget quickAction, _) => quickAction,
-      _ => DefaultImagePreviewQuickActionButton(
+      _ => DefaultImagePreviewQuickActions(
         post: post,
+        config: config,
         defaultActionButton: resolvedAdditions.quickActionButton,
       ),
     };
@@ -220,6 +222,7 @@ class PostGridItem extends ConsumerWidget {
 
     return gridPresentation.buildGridItemAdditions(
       context,
+      ref: ref,
       post: post,
       config: config,
     );

@@ -632,7 +632,8 @@
       "show_less": "Mostrar menos",
       "search": "Procurar",
       "view_all": "Ver todos",
-      "ok": "OK"
+      "ok": "OK",
+      "copy_path": "Copiar caminho"
     },
     "warning": "Alerta",
     "default": "Predefinido",
@@ -970,8 +971,6 @@
     },
     "listing": {
       "title": "Listagem",
-      "thumbnail_button": "Botão de miniatura",
-      "thumbnail_button_description": "Mudar o botão predefinido no canto inferior direito da miniatura.",
       "tooltip_on_hover_title": "Mostrar dica de ferramenta ao passar o cursor",
       "tooltip_on_hover_description": "Mostrar informação de pré-visualização ao passar o cursor sobre a miniatura.",
       "enable_profile_specific_settings": "Ativar definições específicas de perfil",
@@ -1136,7 +1135,6 @@
     "actions": {
       "create": "Criar",
       "delete": "Eliminar",
-      "copy_path": "Copiar caminho",
       "new_download": "Novo download",
       "add_to_queue": "Adicionar à Lista"
     },

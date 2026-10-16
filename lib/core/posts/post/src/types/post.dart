@@ -32,7 +32,7 @@ class PostMetadata extends Equatable {
   List<Object?> get props => [page, search, limit];
 }
 
-final class Post extends Equatable
+base class Post extends Equatable
     with MediaInfoMixin, ImageInfoMixin, VideoInfoMixin
     implements
         TagDetails,
@@ -48,6 +48,15 @@ final class Post extends Equatable
   final PostOrigin origin;
   final PostCoreData core;
   final BooruPostData booruData;
+
+  /// The source site's genuine identifier for links, filenames and exports.
+  /// Conventional boorus use their positive numeric post ID. Sources whose
+  /// app ID is synthetic implement [SitePostIdData] and may return null.
+  String? get sitePostId => switch (booruData) {
+    final SitePostIdData data => data.sitePostId,
+    _ when id > 0 => id.toString(),
+    _ => null,
+  };
 
   @override
   int get id => core.id;
@@ -154,5 +163,10 @@ extension PostImageX on Post {
 }
 
 extension PostX on Post {
+  Iterable<String> get knownSourceUrls => switch (booruData) {
+    final PostSourceUrlsData data => data.sourceUrls,
+    _ => [?source.url],
+  };
+
   String get relationshipQuery => hasParent ? 'parent:$parentId' : 'parent:$id';
 }

@@ -17,6 +17,7 @@ import 'package:boorusama/core/backups/export_import/sources/export_import_sourc
 import 'package:boorusama/core/backups/types/backup_registry.dart';
 import 'package:boorusama/foundation/filesystem.dart';
 import 'package:boorusama/foundation/loggers.dart';
+import 'package:boorusama/foundation/platform.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 
@@ -287,6 +288,7 @@ void main() {
         overrides: [
           autoBackupServiceProvider.overrideWithValue(service),
           loggerProvider.overrideWithValue(const _Logger()),
+          appPlatformProvider.overrideWithValue(AppPlatform.linux),
           settingsNotifierProvider.overrideWith(
             () => SettingsNotifier(
               Settings.defaultSettings.copyWith(autoBackup: settings),
@@ -375,19 +377,23 @@ final class _Logger implements Logger {
   String getDebugName() => 'auto backup test';
 
   @override
-  void debug(String serviceName, String message) {}
+  void debug(String serviceName, String message, {String? sensitiveMessage}) {}
 
   @override
-  void error(String serviceName, String message) {}
+  void error(String serviceName, String message, {String? sensitiveMessage}) {}
 
   @override
-  void info(String serviceName, String message) {}
+  void info(String serviceName, String message, {String? sensitiveMessage}) {}
 
   @override
-  void verbose(String serviceName, String message) {}
+  void verbose(
+    String serviceName,
+    String message, {
+    String? sensitiveMessage,
+  }) {}
 
   @override
-  void warn(String serviceName, String message) {}
+  void warn(String serviceName, String message, {String? sensitiveMessage}) {}
 }
 
 class _FailingRepository extends AutoBackupRepositoryIo {

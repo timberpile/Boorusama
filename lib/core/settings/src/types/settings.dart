@@ -16,6 +16,7 @@ import '../../../backups/auto/types.dart';
 import '../../../configs/gesture/types.dart';
 import '../../../configs/config/types.dart';
 import '../../../downloads/downloader/types.dart';
+import '../../../downloads/sidecar/types.dart';
 import '../../../haptics/types.dart';
 import '../../../home/types.dart';
 import '../../../images/types.dart';
@@ -65,6 +66,7 @@ class Settings extends Equatable {
     required this.downloadFileExistedBehavior,
     required this.downloadNotificationsEnabled,
     required this.downloadNetworkPolicy,
+    this.downloadSidecarFormat = SidecarFormat.off,
     required this.colors,
     required this.volumeKeyViewerNavigation,
     required this.searchBarScrollBehavior,
@@ -108,9 +110,9 @@ class Settings extends Equatable {
       enableDynamicColoring = json['enableDynamicColoring'] ?? false,
       clearImageCacheOnStartup = json['clearImageCacheOnStartup'] ?? false,
       appLockType = AppLockType.parse(json['appLockType']),
-      appLockTimeoutSeconds = json['appLockTimeoutSeconds'] ?? 0,
+      appLockTimeoutSeconds = json['appLockTimeoutSeconds'] ?? 30,
       hideAppPreviewWhenBackgrounded =
-          json['hideAppPreviewWhenBackgrounded'] ?? true,
+          json['hideAppPreviewWhenBackgrounded'] ?? false,
       bookmarkFilterType = BookmarkFilterType.parse(json['bookmarkFilterType']),
       activeBookmarkGroupId = switch (json['activeBookmarkGroupId']) {
         final String value => value,
@@ -130,6 +132,9 @@ class Settings extends Equatable {
       ),
       downloadNotificationsEnabled =
           json['downloadNotificationsEnabled'] as bool? ?? true,
+      downloadSidecarFormat = SidecarFormat.parse(
+        json['downloadSidecarFormat'],
+      ),
       downloadNetworkPolicy = DownloadNetworkPolicy.parse(
         json['downloadNetworkPolicy'],
       ),
@@ -228,8 +233,8 @@ class Settings extends Equatable {
     enableDynamicColoring: false,
     clearImageCacheOnStartup: false,
     appLockType: AppLockType.defaultValue,
-    appLockTimeoutSeconds: 0,
-    hideAppPreviewWhenBackgrounded: true,
+    appLockTimeoutSeconds: 30,
+    hideAppPreviewWhenBackgrounded: false,
     bookmarkFilterType: BookmarkFilterType.defaultValue,
     activeBookmarkGroupId: null,
     booruConfigSelectorPosition: BooruConfigSelectorPosition.defaultValue,
@@ -299,6 +304,7 @@ class Settings extends Equatable {
   final DownloadFileExistedBehavior downloadFileExistedBehavior;
 
   final bool downloadNotificationsEnabled;
+  final SidecarFormat downloadSidecarFormat;
 
   final DownloadNetworkPolicy downloadNetworkPolicy;
 
@@ -349,6 +355,7 @@ class Settings extends Equatable {
     DownloadFileExistedBehavior? downloadFileExistedBehavior,
     bool? downloadNotificationsEnabled,
     DownloadNetworkPolicy? downloadNetworkPolicy,
+    SidecarFormat? downloadSidecarFormat,
     ImageListingSettings? listing,
     ImageViewerSettings? viewer,
     ColorSettings? colors,
@@ -410,6 +417,7 @@ class Settings extends Equatable {
     downloadNotificationsEnabled:
         downloadNotificationsEnabled ?? this.downloadNotificationsEnabled,
     downloadNetworkPolicy: downloadNetworkPolicy ?? this.downloadNetworkPolicy,
+    downloadSidecarFormat: downloadSidecarFormat ?? this.downloadSidecarFormat,
     colors: colors ?? this.colors,
     volumeKeyViewerNavigation:
         volumeKeyViewerNavigation ?? this.volumeKeyViewerNavigation,
@@ -460,6 +468,7 @@ class Settings extends Equatable {
       'downloadFileExistedBehavior': downloadFileExistedBehavior.toData(),
       'downloadNotificationsEnabled': downloadNotificationsEnabled,
       'downloadNetworkPolicy': downloadNetworkPolicy.toData(),
+      'downloadSidecarFormat': downloadSidecarFormat.name,
       'colors': colors?.toJson(),
       'volumeKeyViewerNavigation': volumeKeyViewerNavigation,
       'searchBarScrollBehavior': searchBarScrollBehavior.toData(),
@@ -505,6 +514,7 @@ class Settings extends Equatable {
     downloadFileExistedBehavior,
     downloadNotificationsEnabled,
     downloadNetworkPolicy,
+    downloadSidecarFormat,
     colors,
     volumeKeyViewerNavigation,
     searchBarScrollBehavior,

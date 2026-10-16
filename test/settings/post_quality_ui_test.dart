@@ -10,7 +10,6 @@ import 'package:foundation/foundation.dart';
 import 'package:boorusama/core/images/image_quality.dart';
 import 'package:boorusama/core/settings/src/pages/appearance/image_viewer_settings_section.dart';
 import 'package:boorusama/core/settings/types.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:i18n/i18n.dart';

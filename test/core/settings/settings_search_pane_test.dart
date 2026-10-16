@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -59,6 +59,9 @@ Future<void> _pumpPane(
   addTearDown(() => tester.binding.setSurfaceSize(null));
   await tester.pumpWidget(
     MaterialApp(
+      builder: (context, child) =>
+          // ignore: deprecated_member_use
+          MaterialUiCompatibilityBridge(child: child!),
       home: Builder(
         builder: (context) => MediaQuery(
           data: MediaQuery.of(context).copyWith(
@@ -68,7 +71,6 @@ Future<void> _pumpPane(
           child: Scaffold(
             body: SettingsPageScope(
               options: SettingsPageOptions(
-                entries: _entries,
                 showIcon: !dense,
                 dense: dense,
               ),
@@ -214,6 +216,7 @@ void main() {
       expect(selected, same(_entries.first));
 
       await tester.tap(find.byType(TextField));
+      await tester.pump();
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await tester.pump();
       expect(find.text('Other settings'), findsOneWidget);

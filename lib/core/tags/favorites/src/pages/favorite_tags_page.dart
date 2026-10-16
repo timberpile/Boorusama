@@ -159,11 +159,9 @@ class FavoriteTagsPage extends ConsumerWidget {
 
   void _showAddSheet(BuildContext context, WidgetRef ref) {
     final duplicateError = context.t.favorite_tags.duplicate_error;
-    Kurumi.showAppModalBottomSheet(
-      context: context,
-      routeSettings: const RouteSettings(name: 'add_favorite_tag'),
-      resizeToAvoidBottomInset: true,
-      showDragHandle: false,
+    showEditFavoriteTagSheet(
+      context,
+      routeName: 'add_favorite_tag',
       builder: (context) => EditFavoriteTagSheet(
         initialValue: FavoriteTag.empty(),
         availableLabels: ref.read(favoriteTagLabelsProvider),
@@ -574,71 +572,72 @@ class _FavoriteTagTile extends ConsumerWidget {
     final labels = tag.labels ?? const <String>[];
     final isRaw = tag.queryType == QueryType.simple;
 
-    return ListTile(
-      contentPadding: const EdgeInsets.only(left: 16, right: 4),
-      minVerticalPadding: 10,
-      title: Row(
-        children: [
-          Flexible(
-            child: Text(
-              tag.name,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          if (isRaw) ...[
-            const SizedBox(width: 8),
-            const _RawQueryChip(),
-          ],
-        ],
-      ),
-      onTap: () => goToSearchPage(
-        ref,
-        tag: tag.name,
-        queryType: tag.queryType,
-      ),
-      subtitle: showLabels && labels.isNotEmpty
-          ? Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  for (final label in labels)
-                    FavoriteTagLabelChip(label: label),
-                ],
+    return Material(
+      color: Colors.transparent,
+      child: ListTile(
+        contentPadding: const EdgeInsets.only(left: 16, right: 4),
+        minVerticalPadding: 10,
+        title: Row(
+          children: [
+            Flexible(
+              child: Text(
+                tag.name,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
               ),
-            )
-          : null,
-      trailing: KurumiPopupMenuButton(
-        items: [
-          KurumiPopupMenuItem(
-            title: Text(context.t.generic.action.edit),
-            icon: const Icon(Symbols.edit),
-            onTap: () => _edit(context, ref),
-          ),
-          KurumiPopupMenuItem(
-            title: Text(context.t.favorite_tags.copy_exact_value),
-            icon: const Icon(Symbols.content_copy),
-            onTap: () => AppClipboard.copyWithDefaultToast(context, tag.name),
-          ),
-          KurumiPopupMenuItem(
-            title: Text(context.t.generic.action.delete),
-            icon: const Icon(Symbols.delete),
-            onTap: () => _delete(context, ref),
-          ),
-        ],
+            ),
+            if (isRaw) ...[
+              const SizedBox(width: 8),
+              const _RawQueryChip(),
+            ],
+          ],
+        ),
+        onTap: () => goToSearchPage(
+          ref,
+          tag: tag.name,
+          queryType: tag.queryType,
+        ),
+        subtitle: showLabels && labels.isNotEmpty
+            ? Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final label in labels)
+                      FavoriteTagLabelChip(label: label),
+                  ],
+                ),
+              )
+            : null,
+        trailing: KurumiPopupMenuButton(
+          items: [
+            KurumiPopupMenuItem(
+              title: Text(context.t.generic.action.edit),
+              icon: const Icon(Symbols.edit),
+              onTap: () => _edit(context, ref),
+            ),
+            KurumiPopupMenuItem(
+              title: Text(context.t.favorite_tags.copy_exact_value),
+              icon: const Icon(Symbols.content_copy),
+              onTap: () => AppClipboard.copyWithDefaultToast(context, tag.name),
+            ),
+            KurumiPopupMenuItem(
+              title: Text(context.t.generic.action.delete),
+              icon: const Icon(Symbols.delete),
+              onTap: () => _delete(context, ref),
+            ),
+          ],
+        ),
       ),
     );
   }
 
   void _edit(BuildContext context, WidgetRef ref) {
     final duplicateError = context.t.favorite_tags.duplicate_error;
-    Kurumi.showAppModalBottomSheet(
-      context: context,
-      routeSettings: const RouteSettings(name: 'edit_favorite_tag'),
-      resizeToAvoidBottomInset: true,
-      showDragHandle: false,
+    showEditFavoriteTagSheet(
+      context,
+      routeName: 'edit_favorite_tag',
       builder: (context) => EditFavoriteTagSheet(
         initialValue: tag,
         availableLabels: ref.read(favoriteTagLabelsProvider),

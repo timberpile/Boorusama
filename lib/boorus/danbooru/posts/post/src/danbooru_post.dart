@@ -89,6 +89,7 @@ class DanbooruPostRecord extends Equatable
 
   @override
   final int id;
+
   @override
   final String thumbnailImageUrl;
   @override

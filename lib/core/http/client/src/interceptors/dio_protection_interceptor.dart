@@ -3,13 +3,14 @@ import 'dart:async';
 import 'dart:convert';
 
 // Package imports:
+import 'package:coreutils/coreutils.dart';
 import 'package:dio/dio.dart';
-import '../coordination/coordinated_dio.dart';
-import '../coordination/api_request_context.dart';
 
 // Project imports:
 import '../../../../ddos/handler/types.dart';
 import '../../../../ddos/solver/types.dart';
+import '../coordination/api_request_context.dart';
+import '../coordination/coordinated_dio.dart';
 
 class DioProtectionInterceptor extends Interceptor {
   DioProtectionInterceptor({
@@ -17,6 +18,17 @@ class DioProtectionInterceptor extends Interceptor {
     required Dio dio,
   }) : _protectionHandler = protectionHandler,
        _dio = dio;
+
+  static const _attemptKey = 'boorusama.protection_attempt';
+
+  ProtectionAttempt _attempt(RequestOptions options) =>
+      options.extra.putIfAbsent(
+        _attemptKey,
+        () => _protectionHandler.beginAttempt(
+          options.uri,
+          ProtectionSource.dio,
+        ),
+      ) as ProtectionAttempt;
 
   static const _protectionRetryKey = 'boorusama.ddos_protection_retry';
   static const _rule34ReplayDelay = Duration(seconds: 2);
@@ -29,14 +41,30 @@ class DioProtectionInterceptor extends Interceptor {
     RequestOptions options,
     RequestInterceptorHandler handler,
   ) async {
+    final attempt = _attempt(options);
+    attempt.record(
+      RequestSent(
+        method: options.method,
+        retry: _isProtectionRetry(options),
+        backend: _dio.httpClientAdapter.runtimeType.toString(),
+      ),
+      sensitive: ProtectionRequestDetails(options.uri),
+    );
     try {
       final headers = await _protectionHandler.prepareRequestHeaders(
         options.uri,
         options.headers.map((k, v) => MapEntry(k, v.toString())),
+        attempt: _attempt(options),
       );
 
       options.headers.addAll(headers);
     } catch (e) {
+      attempt.record(
+        ProtectionOperationFailed(
+          ProtectionOperation.prepareHeaders,
+          e.runtimeType.toString(),
+        ),
+      );
       // Continue with request even if header preparation fails
     }
 
@@ -48,9 +76,15 @@ class DioProtectionInterceptor extends Interceptor {
     Response response,
     ResponseInterceptorHandler handler,
   ) async {
-    if (_isBulkTransfer(response.requestOptions) ||
-        _isProtectionRetry(response.requestOptions) ||
-        !isApiSafeRead(response.requestOptions) ||
+    final attempt = _attempt(response.requestOptions);
+    attempt.record(
+      ResponseReceived(
+        status: response.statusCode,
+        retry: _isProtectionRetry(response.requestOptions),
+      ),
+    );
+    _protectionHandler.observeSuccess(response.requestOptions.uri);
+    if (_skipProtectionRecovery(response.requestOptions) ||
         response.statusCode == 429) {
       return super.onResponse(response, handler);
     }
@@ -58,10 +92,12 @@ class DioProtectionInterceptor extends Interceptor {
     try {
       final isProtection = await _protectionHandler.handleResponse(
         DioResponseAdapter(response),
+        attempt: attempt,
+        challengeUri: challengeUriFor(response.requestOptions),
       );
 
       if (isProtection) {
-        final retryResponse = await _retryAfterProtection(
+        final retryResponse = await _recoverAfterProtection(
           response.requestOptions,
         );
         _protectionHandler.resetRetryAttempts(response.requestOptions.uri);
@@ -69,6 +105,12 @@ class DioProtectionInterceptor extends Interceptor {
         return;
       }
     } catch (e) {
+      attempt.record(
+        ProtectionOperationFailed(
+          ProtectionOperation.recoveryOrRetry,
+          e.runtimeType.toString(),
+        ),
+      );
       // Continue with normal response if handling fails
     }
 
@@ -80,42 +122,90 @@ class DioProtectionInterceptor extends Interceptor {
     DioException err,
     ErrorInterceptorHandler handler,
   ) async {
-    if (_isBulkTransfer(err.requestOptions) ||
-        _isProtectionRetry(err.requestOptions) ||
-        !isApiSafeRead(err.requestOptions) ||
+    final attempt = _attempt(err.requestOptions);
+    attempt.record(
+      ResponseReceived(
+        status: err.response?.statusCode,
+        errorType: err.type.name,
+        retry: _isProtectionRetry(err.requestOptions),
+      ),
+    );
+    if (_isProtectionRetry(err.requestOptions)) {
+      _protectionHandler.observeRetryError(
+        DioErrorAdapter(err),
+        attempt: attempt,
+      );
+      return handler.next(err);
+    }
+    if (_skipProtectionRecovery(err.requestOptions) ||
         err.response?.statusCode == 429) {
       return handler.next(err);
     }
 
+    final bool solved;
     try {
-      final solved = await _protectionHandler.handleError(DioErrorAdapter(err));
+      solved = await _protectionHandler.handleError(
+        DioErrorAdapter(err),
+        attempt: attempt,
+        challengeUri: challengeUriFor(err.requestOptions),
+      );
+    } catch (e) {
+      attempt.record(
+        ProtectionOperationFailed(
+          ProtectionOperation.recoveryOrRetry,
+          e.runtimeType.toString(),
+        ),
+      );
+      return handler.next(err);
+    }
 
-      if (solved) {
-        try {
-          final response = await _retryAfterProtection(err.requestOptions);
-          handler.resolve(response);
-        } on DioException catch (replayError) {
-          if (!_shouldDelayRule34Replay(replayError)) {
-            handler.next(replayError);
-          } else {
-            try {
-              await _waitForRule34Replay(err.requestOptions.cancelToken);
-              final response = await _retryAfterProtection(err.requestOptions);
-              handler.resolve(response);
-            } on DioException catch (finalError) {
-              handler.next(finalError);
-            }
-          }
-        } finally {
-          _protectionHandler.resetRetryAttempts(err.requestOptions.uri);
-        }
+    if (solved) {
+      try {
+        final response = await _recoverRule34Safely(err.requestOptions);
+        _protectionHandler.resetRetryAttempts(err.requestOptions.uri);
+        handler.resolve(response);
         return;
+      } on DioException catch (replayError) {
+        attempt.record(
+          ProtectionOperationFailed(
+            ProtectionOperation.recoveryOrRetry,
+            replayError.runtimeType.toString(),
+          ),
+        );
+        handler.next(replayError);
+        return;
+      } catch (e) {
+        attempt.record(
+          ProtectionOperationFailed(
+            ProtectionOperation.recoveryOrRetry,
+            e.runtimeType.toString(),
+          ),
+        );
       }
-    } catch (_) {
-      // Continue with the original error if protection handling itself fails.
     }
 
     return handler.next(err);
+  }
+
+  bool _isProtectionRetry(RequestOptions options) =>
+      options.extra[_protectionRetryKey] == true;
+
+  bool _skipProtectionRecovery(RequestOptions options) =>
+      _isProtectionRetry(options) ||
+      !isApiSafeRead(options) ||
+      apiRequestContextFor(options).requestClass ==
+          ApiRequestClass.bulkTransfer;
+
+  Future<Response<dynamic>> _recoverRule34Safely(
+    RequestOptions options,
+  ) async {
+    try {
+      return await _recoverAfterProtection(options);
+    } on DioException catch (error) {
+      if (!_shouldDelayRule34Replay(error)) rethrow;
+      await _waitForRule34Replay(options.cancelToken);
+      return _recoverAfterProtection(options);
+    }
   }
 
   bool _shouldDelayRule34Replay(DioException error) {
@@ -123,7 +213,7 @@ class DioProtectionInterceptor extends Interceptor {
     final uri = options.uri;
     return error.response?.statusCode == 403 &&
         uri.host == 'rule34.xxx' &&
-        options.method.toUpperCase() == 'GET' &&
+        isApiSafeRead(options) &&
         uri.path == '/index.php' &&
         uri.queryParameters['page'] == 'dapi' &&
         uri.queryParameters['s'] == 'post' &&
@@ -135,43 +225,78 @@ class DioProtectionInterceptor extends Interceptor {
       await Future<void>.delayed(_rule34ReplayDelay);
       return;
     }
-
     if (cancelToken.isCancelled) throw cancelToken.cancelError!;
     final cancellation = await Future.any<DioException?>([
       Future<void>.delayed(_rule34ReplayDelay).then((_) => null),
       cancelToken.whenCancel,
     ]);
     if (cancellation != null) throw cancellation;
-    if (cancelToken.isCancelled) throw cancelToken.cancelError!;
   }
 
-  // Maintenance uses existing cookies but must leave interactive verification
-  // to a normal browsing action rather than solve or replay challenges itself.
-  bool _isBulkTransfer(RequestOptions options) =>
-      apiRequestContextFor(options).requestClass ==
-      ApiRequestClass.bulkTransfer;
+  /// Retries with the solver's credentials. When the challenge browser loaded
+  /// the requested page itself, that page answers the request if there is
+  /// nothing to retry with or the retry is still blocked.
+  Future<Response<dynamic>> _recoverAfterProtection(
+    RequestOptions options,
+  ) async {
+    options.extra[apiNegotiatedKey] = true;
+    final attempt = _attempt(options);
+    final browserPage = switch (attempt.loadedPageFor(options.uri)) {
+      final html? when challengeUriFor(options) == options.uri =>
+        _browserPageResponse(options, html),
+      _ => null,
+    };
+    Response<dynamic> useBrowserPage(Response<dynamic> page) {
+      attempt.record(const LoadedPageUsed());
+      return page;
+    }
 
-  bool _isProtectionRetry(RequestOptions options) =>
-      options.extra[_protectionRetryKey] == true;
+    if (browserPage != null && !attempt.receivedCredentials) {
+      return useBrowserPage(browserPage);
+    }
+    try {
+      return await _retryAfterProtection(options);
+    } on DioException {
+      if (browserPage == null) rethrow;
+      return useBrowserPage(browserPage);
+    }
+  }
 
   Future<Response<dynamic>> _retryAfterProtection(
     RequestOptions options,
   ) async {
-    options.extra[apiNegotiatedKey] = true;
+    final attempt = _attempt(options);
     final previous = options.extra[_protectionRetryKey];
     options.extra[_protectionRetryKey] = true;
 
     try {
-      final headers = await _protectionHandler.prepareRequestHeaders(
-        options.uri,
-        options.headers.map((k, v) => MapEntry(k, v.toString())),
-      );
+      while (true) {
+        attempt.retries++;
+        attempt.record(RetryDispatched(attempt.retries));
+        final headers = await _protectionHandler.prepareRequestHeaders(
+          options.uri,
+          options.headers.map((k, v) => MapEntry(k, v.toString())),
+          attempt: attempt,
+        );
 
-      options.headers
-        ..clear()
-        ..addAll(headers);
+        options.headers
+          ..clear()
+          ..addAll(headers);
 
-      return await _dio.fetch(options);
+        try {
+          final response = await _dio.fetch(options);
+          await _protectionHandler.confirmRetry(options.uri, attempt);
+          return response;
+        } on DioException catch (error) {
+          if (attempt.retries >= _protectionHandler.maxRetries ||
+              !_protectionHandler.selectAlternativeClearance(
+                DioErrorAdapter(error),
+                attempt,
+              )) {
+            rethrow;
+          }
+        }
+      }
     } finally {
       if (previous == null) {
         options.extra.remove(_protectionRetryKey);
@@ -180,6 +305,43 @@ class DioProtectionInterceptor extends Interceptor {
       }
     }
   }
+}
+
+/// The page a challenge browser opens for [options]. Replaying a request in
+/// the browser repeats its side effects, so state-changing requests open the
+/// site's base page on the same origin instead.
+Uri challengeUriFor(RequestOptions options) {
+  final uri = options.uri;
+  final replayable =
+      options.method.toUpperCase() == 'GET' &&
+      options.extra[stateChangingRequestKey] != true;
+  if (replayable) return uri;
+
+  final base = Uri.tryParse(options.baseUrl);
+  return switch (base) {
+    final base?
+        when (base.isScheme('http') || base.isScheme('https')) &&
+            base.origin == uri.origin =>
+      base,
+    _ => Uri.parse('${uri.origin}/'),
+  };
+}
+
+Response<dynamic>? _browserPageResponse(RequestOptions options, String html) {
+  final data = switch (options.responseType) {
+    ResponseType.bytes => utf8.encode(html),
+    ResponseType.stream => null,
+    ResponseType.json || ResponseType.plain => html,
+  };
+  if (data == null) return null;
+  return Response(
+    requestOptions: options,
+    data: data,
+    statusCode: 200,
+    headers: Headers.fromMap({
+      Headers.contentTypeHeader: ['text/html; charset=utf-8'],
+    }),
+  );
 }
 
 class DioResponseAdapter implements HttpResponse {

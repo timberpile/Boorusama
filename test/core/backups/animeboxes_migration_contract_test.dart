@@ -1,4 +1,5 @@
 import '../search/following_topics/topic_test_utils.dart';
+
 import 'dart:convert';
 import 'dart:io';
 
@@ -48,7 +49,7 @@ import 'package:boorusama/foundation/info/package_info.dart';
 import 'package:boorusama/core/backups/export_import/import/import_flow_page.dart';
 import 'package:boorusama/core/backups/export_import/widgets/import_action_editor.dart';
 import 'package:i18n/src/gen/strings.g.dart' show TranslationProvider;
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';

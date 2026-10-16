@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:boorusama/boorus/e621/downloads/providers.dart';
 import 'package:boorusama/boorus/e621/posts/types.dart';
 import 'package:boorusama/core/configs/config/types.dart';
@@ -9,7 +10,7 @@ import 'package:boorusama/core/posts/details/types.dart';
 import 'package:boorusama/core/posts/post/providers.dart';
 import 'package:boorusama/core/posts/shares/src/unified_post_share_sheet.dart';
 import 'package:cache_manager/cache_manager.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';

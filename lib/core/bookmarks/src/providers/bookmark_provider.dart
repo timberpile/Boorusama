@@ -1096,7 +1096,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
         .whereType<DownloadFailure>()
         .toList();
     if (failures.isEmpty) return;
-    final context = navigatorKey.currentContext;
+    final context = ref.read(appNavigationProvider).navigatorKey.currentContext;
     final uniqueErrors = failures
         .map((error) => error.error.getErrorMessage())
         .toSet()
@@ -1166,7 +1166,7 @@ extension BookmarkCubitToastX on BookmarkNotifier {
     BooruConfigAuth config,
     Post post,
   ) async {
-    final context = navigatorKey.currentContext;
+    final context = ref.read(appNavigationProvider).navigatorKey.currentContext;
 
     if (context == null || !context.mounted) {
       return;
@@ -1201,7 +1201,7 @@ extension BookmarkCubitToastX on BookmarkNotifier {
     String booruUrl,
     Iterable<Post> posts,
   ) async {
-    final context = navigatorKey.currentContext;
+    final context = ref.read(appNavigationProvider).navigatorKey.currentContext;
 
     if (context == null || !context.mounted) {
       return;
@@ -1243,7 +1243,7 @@ extension BookmarkCubitToastX on BookmarkNotifier {
     BookmarkUniqueId bookmarkId, {
     void Function()? onSuccess,
   }) async {
-    final context = navigatorKey.currentContext;
+    final context = ref.read(appNavigationProvider).navigatorKey.currentContext;
 
     if (context == null || !context.mounted) {
       return;

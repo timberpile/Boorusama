@@ -83,6 +83,7 @@ abstract class CommonPostRecord extends Equatable
 
   @override
   final int id;
+
   @override
   final DateTime? createdAt;
   @override

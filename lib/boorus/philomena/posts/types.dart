@@ -53,6 +53,7 @@ class PhilomenaPostRecord extends Equatable
 
   @override
   final int id;
+
   @override
   final DateTime? createdAt;
   @override

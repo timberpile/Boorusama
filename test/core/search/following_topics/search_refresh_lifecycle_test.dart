@@ -1,9 +1,11 @@
 import 'package:clock/clock.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:boorusama/core/search/following_topics/src/services/search_refresh_scheduler.dart';
 import 'package:boorusama/core/search/following_topics/src/widgets/search_refresh_lifecycle.dart';
+
 import 'following_topic_test_utils.dart';
+
 import 'package:boorusama/core/search/following_topics/providers.dart';
 import 'package:boorusama/core/search/following_topics/src/providers/search_refresh_coordinator.dart';
 

@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 
 import '../common/endpoint.dart';
 import '../common/feature.dart';
+import '../common/feature_sort.dart';
 import '../common/request_handler.dart';
 import '../gelbooru/gelbooru_client_favorites.dart';
 import '../gelbooru/types/types.dart';
@@ -36,7 +37,7 @@ class GelbooruV2Client with GelbooruClientFavorites {
               GelbooruV2Config.defaultFeatures[BooruFeatureId.autocomplete]!,
           parser: parseGelAutocomplete,
         ),
-        Endpoint<List<CommentDto>>.fromFeature(
+        Endpoint<CommentPageDto>.fromFeature(
           feature: GelbooruV2Config.defaultFeatures[BooruFeatureId.comments]!,
           parser: parseGelComments,
         ),
@@ -145,11 +146,21 @@ class GelbooruV2Client with GelbooruClientFavorites {
     }
   }
 
-  Future<List<CommentDto>> getComments({
+  Future<CommentPageDto> getComments({
     required int postId,
+    String? cursor,
+    FeatureSortSelection? sort,
   }) => _requestHandler.makeRequest(
     featureId: BooruFeatureId.comments,
-    params: {P.postId: postId},
+    params: {
+      P.postId: postId,
+      if (cursor != null) ...{
+        P.tags: 'id:$postId',
+        P.cursor: cursor,
+      },
+    },
+    context: {P.postId: postId},
+    sort: sort,
   );
 
   Future<List<NoteDto>> getNotesFromPostId({required int postId}) =>

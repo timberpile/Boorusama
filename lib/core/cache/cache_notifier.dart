@@ -309,9 +309,9 @@ Future<bool> clearVideoCache(Ref ref) async {
 
 Future<int> _getPersistentCacheSize(Ref ref) async {
   try {
-    final box = await ref.watch(persistentCacheBoxProvider.future);
+    final store = ref.watch(persistentCacheStoreProvider);
     // Hive doesn't provide direct size calculation, so we estimate based on entry count
-    return box.length * 1024;
+    return store.length * 1024;
   } on Exception catch (_) {
     return 0;
   }
@@ -319,8 +319,7 @@ Future<int> _getPersistentCacheSize(Ref ref) async {
 
 Future<bool> clearPersistentCache(Ref ref) async {
   try {
-    final box = await ref.read(persistentCacheBoxProvider.future);
-    await box.clear();
+    await ref.read(persistentCacheStoreProvider).clear();
     return true;
   } on Exception catch (_) {
     return false;

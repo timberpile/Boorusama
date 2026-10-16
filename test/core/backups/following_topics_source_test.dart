@@ -1,4 +1,5 @@
 import '../../profile_uuid_utils.dart';
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -40,7 +41,7 @@ import 'package:boorusama/foundation/info/device_info.dart';
 import 'package:boorusama/foundation/info/package_info.dart';
 import 'package:boorusama/foundation/loggers.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:foundation/foundation.dart';
@@ -1379,6 +1380,8 @@ Future<BuildContext> _pumpReboot(
           builder: (context, data, key) {
             if (builds++ > 0) onRestart?.call();
             return MaterialApp(
+              builder: (context, child) =>
+                  MaterialUiCompatibilityBridge(child: child!),
               home: Builder(
                 builder: (context) {
                   if (builds == 1) initialContext = context;

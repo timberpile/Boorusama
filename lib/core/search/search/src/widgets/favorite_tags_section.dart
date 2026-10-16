@@ -150,13 +150,15 @@ class OptionTagsArenaNoEdit extends ConsumerWidget {
                 ),
               ],
             ),
-            titleTrailing ?? const SizedBox.shrink(),
+            Flexible(
+              child: titleTrailing ?? const SizedBox.shrink(),
+            ),
           ],
         ),
         const SizedBox(height: 2),
         Wrap(
           spacing: 4,
-          runSpacing: isDesktopPlatform() ? 4 : 0,
+          runSpacing: ref.watch(appPlatformProvider).isDesktop ? 4 : 0,
           children: children,
         ),
       ],

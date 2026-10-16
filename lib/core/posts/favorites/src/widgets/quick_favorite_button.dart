@@ -3,8 +3,8 @@ import 'package:flutter/services.dart';
 
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
-import 'package:like_button/like_button.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 // Project imports:
@@ -47,7 +47,7 @@ class QuickFavoriteButton extends ConsumerWidget {
               color: context.extendedColorScheme.surfaceContainerOverlay,
             ),
           ),
-          LikeButton(
+          KurumiLikeButton(
             size: ThumbnailOverlayDimensions.favoriteIcon,
             // Extend the touch target toward the top and left, keeping the
             // visible button at the thumbnail's bottom-right inset. LikeButton
@@ -64,7 +64,6 @@ class QuickFavoriteButton extends ConsumerWidget {
               bottom: ThumbnailOverlayDimensions.favoritePadding,
               right: ThumbnailOverlayDimensions.favoritePadding,
             ),
-            likeCountPadding: EdgeInsets.zero,
             isLiked: isFaved,
             onTap: (isLiked) async {
               final liked = !isLiked;
@@ -79,7 +78,7 @@ class QuickFavoriteButton extends ConsumerWidget {
 
               return liked;
             },
-            likeBuilder: (isLiked) {
+            builder: (isLiked) {
               return Icon(
                 Symbols.favorite,
                 size: ThumbnailOverlayDimensions.favoriteIcon,

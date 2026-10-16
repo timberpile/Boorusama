@@ -1,31 +1,45 @@
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../foundation/data_mutation_coordinator.dart';
-
 // Project imports:
+import '../../../../foundation/data_mutation_coordinator.dart';
 import '../../../../foundation/filesystem.dart';
 import '../types/download_repository.dart';
+import '../types/download_repository_factory.dart';
 import 'coordinated_download_repository.dart';
 import 'repo_empty.dart';
 
 const kDownloadDbName = 'download.db';
 
-final downloadRepositoryProvider = FutureProvider<DownloadRepository>((
-  ref,
-) async {
-  final repo = await ref.watch(internalDownloadRepositoryProvider.future);
-
-  return CoordinatedDownloadRepository(
-    repo,
-    ref.watch(dataMutationCoordinatorProvider),
-  );
-});
-
-final internalDownloadRepositoryProvider = FutureProvider<DownloadRepository>(
-  (ref) => DownloadRepositoryEmpty(),
+final downloadRepositoryFactoryProvider = Provider<DownloadRepositoryFactory>(
+  (_) => const EmptyDownloadRepositoryFactory(),
 );
 
-Future<String> getDownloadsDbPath(AppFileSystem fs) async {
-  return '';
+final downloadRepositoryProvider = FutureProvider<DownloadRepository>(
+  (ref) => ref.watch(internalDownloadRepositoryProvider.future),
+);
+
+final internalDownloadRepositoryProvider = FutureProvider<DownloadRepository>(
+  (ref) async {
+    final factory = ref.watch(downloadRepositoryFactoryProvider);
+    final repository = await factory.create();
+    ref.onDispose(() => factory.dispose(repository));
+    return CoordinatedDownloadRepository(
+      repository,
+      ref.watch(dataMutationCoordinatorProvider),
+    );
+  },
+);
+
+final class EmptyDownloadRepositoryFactory
+    implements DownloadRepositoryFactory {
+  const EmptyDownloadRepositoryFactory();
+
+  @override
+  Future<DownloadRepository> create() async => DownloadRepositoryEmpty();
+
+  @override
+  Future<void> dispose(DownloadRepository repository) async {}
 }
+
+Future<String> getDownloadsDbPath(AppFileSystem fs) async => '';

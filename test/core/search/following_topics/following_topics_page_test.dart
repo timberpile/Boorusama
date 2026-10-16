@@ -11,7 +11,8 @@ import 'package:boorusama/core/search/following_topics/src/widgets/following_top
 import 'package:boorusama/core/search/following_topics/src/widgets/following_topic_folder_card.dart';
 import 'package:boorusama/core/search/following_topics/types.dart';
 import 'package:clock/clock.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' as legacy;
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'following_topic_test_utils.dart';
@@ -479,7 +480,9 @@ void main() {
         expect(find.text('1 selected'), findsOneWidget);
         await tester.tap(find.byTooltip('Move'));
         await settle(tester);
-        await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+        await tester.tap(
+          find.widgetWithText(legacy.TextButton, 'Cancel'),
+        );
         await settle(tester);
         expect(find.text('1 selected'), findsOneWidget);
         await tester.tap(find.byTooltip('Cancel'));
@@ -521,7 +524,7 @@ void main() {
       await settle(tester);
       await tester.tap(find.text('Destination').last);
       await settle(tester);
-      await tester.tap(find.widgetWithText(FilledButton, 'Move'));
+      await tester.tap(find.widgetWithText(legacy.FilledButton, 'Move'));
       await drain(tester);
       final saved = await harness.repository.getOrganization();
       expect(
@@ -574,7 +577,9 @@ void main() {
             find.text(scenario == 'home' ? 'Home' : 'Other owner folder').last,
           );
           await settle(tester);
-          await tester.tap(find.widgetWithText(FilledButton, 'Move'));
+          await tester.tap(
+            find.widgetWithText(legacy.FilledButton, 'Move'),
+          );
         } else {
           await tester.tap(find.text('Create folder'));
           await settle(tester);
@@ -589,7 +594,9 @@ void main() {
           );
           if (scenario == 'cancel') {
             await settle(tester);
-            await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+            await tester.tap(
+              find.widgetWithText(legacy.TextButton, 'Cancel'),
+            );
           }
         }
         await settle(tester);
@@ -1189,7 +1196,10 @@ void main() {
     await tester.tap(find.text('Favorites'));
     await settle(tester);
 
-    expect(find.widgetWithText(AppBar, 'Favorites'), findsOneWidget);
+    expect(
+      find.widgetWithText(AppBar, 'Favorites'),
+      findsOneWidget,
+    );
     expect(
       tester.getTopLeft(find.text('Older')).dy,
       lessThan(tester.getTopLeft(find.text('Newer')).dy),

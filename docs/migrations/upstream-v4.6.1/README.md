@@ -16,6 +16,7 @@
 2. [Compact decision checklist](boorusama-v4.6.1-decision-checklist.md) — stable IDs: X01–X04, A01–A18, N01–N06, D01–D08, B01–B10, P01–P14 and U01–U08.
 3. [Decision log](decisions.md) — **authoritative record of all explicitly user-approved decisions** and important follow-up clarifications.
 4. [Implementation handoff](IMPLEMENTATION_HANDOFF.md) — **English instructions for the local agent**, including source commits, dependency order, 68-item coverage, conflict traps, A16 versioning policy, verification and integration boundaries.
+5. [Manual acceptance checklist](MANUAL_ACCEPTANCE_CHECKLIST.md) — prioritized upgrade, data, network, media, download and responsive-UI checks for the user to perform on the final candidate.
 
 ## Decision and Implementation Rules
 

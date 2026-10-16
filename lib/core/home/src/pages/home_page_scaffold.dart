@@ -25,7 +25,6 @@ import '../../../search/following_topics/providers.dart';
 import '../../../search/following_topics/widgets.dart';
 import '../../../settings/routes.dart';
 import '../../../tags/favorites/widgets.dart';
-import '../../../widgets/widgets.dart';
 import '../../constants.dart';
 import '../controllers/home_page_controller.dart';
 import '../types/custom_home.dart';
@@ -71,24 +70,22 @@ class _HomePageScaffoldState extends ConsumerState<HomePageScaffold> {
       controller: controller,
       child: HomePageSidebarKeyboardListener(
         controller: controller,
-        child: CustomContextMenuOverlay(
-          child: Builder(
-            builder: (context) {
-              final menuWidth = ref.watch(miscDataProvider(kMenuWidthCacheKey));
+        child: Builder(
+          builder: (context) {
+            final menuWidth = ref.watch(miscDataProvider(kMenuWidthCacheKey));
 
-              return BooruScope(
-                controller: controller,
-                menu: HomeSideMenu(
-                  desktopMenuBuilder: widget.desktopMenuBuilder,
-                ),
-                content: HomeContent(
-                  desktopViews: widget.desktopViews,
-                ),
-                mobileMenu: widget.mobileMenu ?? [],
-                menuWidth: double.tryParse(menuWidth),
-              );
-            },
-          ),
+            return BooruScope(
+              controller: controller,
+              menu: HomeSideMenu(
+                desktopMenuBuilder: widget.desktopMenuBuilder,
+              ),
+              content: HomeContent(
+                desktopViews: widget.desktopViews,
+              ),
+              mobileMenu: widget.mobileMenu ?? [],
+              menuWidth: double.tryParse(menuWidth),
+            );
+          },
         ),
       ),
     );

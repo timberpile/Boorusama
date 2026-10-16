@@ -6,7 +6,7 @@ import 'package:boorusama/core/posts/details/src/widgets/progressive_post_image.
 import 'package:boorusama/core/posts/listing/types.dart';
 import 'package:dio/dio.dart';
 import 'package:extended_image/src/image/raw_image.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'progressive_image_test_utils.dart';
@@ -86,30 +86,32 @@ bool _allReleased(_CountingCache cache) =>
 
 void main() {
   final binding = _DecodeBinding();
-  test('framework zero-limit failed loads retain their cache-owned listener', () {
-    final cache = ImageCache()
-      ..maximumSize = 0
-      ..maximumSizeBytes = 0;
-    final completer = _ControlCompleter();
-    cache.putIfAbsent('framework-control', () => completer);
-    final listener = ImageStreamListener((_, _) {}, onError: (_, _) {});
-    completer.addListener(listener);
-    completer.reportError(
-      context: ErrorDescription('framework control'),
-      exception: StateError('failed load'),
-      silent: true,
-    );
-    completer.removeListener(listener);
-    expect(cache.pendingImageCount, 0);
-    expect(cache.liveImageCount, 1);
-    expect(
-      completer.hasListeners,
-      isTrue,
-      reason:
-          'Flutter installs a success-only listener without a pending entry when both limits are zero',
-    );
-    cache.clearLiveImages();
-  });
+  test(
+    'framework zero-limit failed loads retain their cache-owned listener',
+    () {
+      final cache = ImageCache()
+        ..maximumSize = 0
+        ..maximumSizeBytes = 0;
+      final completer = _ControlCompleter();
+      cache.putIfAbsent('framework-control', () => completer);
+      final listener = ImageStreamListener((_, _) {}, onError: (_, _) {});
+      completer.addListener(listener);
+      completer.reportError(
+        context: ErrorDescription('framework control'),
+        exception: StateError('failed load'),
+        silent: true,
+      );
+      completer.removeListener(listener);
+      expect(cache.pendingImageCount, 0);
+      expect(cache.liveImageCount, 1);
+      expect(
+        completer.hasListeners,
+        isTrue,
+        reason: 'Flutter installs a success-only listener without a pending entry when both limits are zero',
+      );
+      cache.clearLiveImages();
+    },
+  );
   testWidgets(
     'progressive live handoff reuses the exact decoded completer when decoded cache admission is disabled',
     (tester) async {
@@ -194,8 +196,7 @@ void main() {
           expect(
             binding.decodes,
             2,
-            reason:
-                'each stage decodes once; displaying its held stream must not decode again',
+            reason: 'each stage decodes once; displaying its held stream must not decode again',
           );
           for (final url in [lower, target]) {
             final stages = decodedCache.resolutions

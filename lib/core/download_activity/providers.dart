@@ -3,10 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Project imports:
 import '../../foundation/networking/network_provider.dart';
-import '../bulk_downloads/src/providers/bulk_download_notifier.dart';
-import '../bulk_downloads/src/providers/bulk_progress.dart';
-import '../bulk_downloads/src/types/bulk_download_session.dart';
-import '../bulk_downloads/src/types/download_session.dart';
+import '../bulk_downloads/providers.dart';
+import '../bulk_downloads/types.dart';
 import '../download_manager/providers.dart';
 import '../download_manager/types.dart';
 import '../downloads/background/types.dart';
@@ -77,6 +75,9 @@ class ImmediateDownloadActivitiesNotifier
 final downloadActivitiesProvider = Provider<List<DownloadActivity>>((ref) {
   final taskUpdates = ref.watch(downloadTaskUpdatesProvider);
   final bulkSessions = ref.watch(bulkDownloadSessionsProvider);
+  final completedSessions = ref.watch(
+    bulkDownloadProvider.select((value) => value.completedSessions),
+  );
   final bulkProgress =
       ref.watch(bulkDownloadProgressProvider).valueOrNull ?? {};
   final immediate = ref.watch(immediateDownloadActivitiesProvider);
@@ -92,14 +93,19 @@ final downloadActivitiesProvider = Provider<List<DownloadActivity>>((ref) {
           )
           .toList() ??
       const <DownloadActivity>[];
-  final bulk = bulkSessions
-      .map(
-        (session) => downloadActivityFromBulkSession(
-          session,
-          progress: bulkProgress[session.id],
-        ),
-      )
-      .toList();
+  final completedIds = completedSessions.map((value) => value.id).toSet();
+  final bulk =
+      [
+            ...completedSessions,
+            ...bulkSessions.where((value) => !completedIds.contains(value.id)),
+          ]
+          .map(
+            (session) => downloadActivityFromBulkSession(
+              session,
+              progress: bulkProgress[session.id],
+            ),
+          )
+          .toList();
 
   return [
     ...immediate.where(
@@ -168,19 +174,18 @@ DownloadActivity downloadActivityFromBulkSession(
     DownloadSessionStatus.suspended => DownloadActivityPhase.suspended,
     DownloadSessionStatus.cancelled => DownloadActivityPhase.cancelled,
   };
-  final resolvedProgress = switch (phase) {
-    DownloadActivityPhase.completed || DownloadActivityPhase.skipped => 1.0,
-    _ => progress,
-  };
-  final prettyTags = value.task.prettyTags;
+
+  final resolvedProgress =
+      phase == DownloadActivityPhase.completed ||
+          phase == DownloadActivityPhase.skipped
+      ? 1.0
+      : progress;
 
   return DownloadActivity(
     id: session.id,
     kind: DownloadActivityKind.bulk,
     phase: phase,
-    label: prettyTags == null || prettyTags.isEmpty
-        ? value.task.path
-        : prettyTags,
+    label: value.task.prettyTags ?? 'Download',
     progress: resolvedProgress,
     completedItems: resolvedProgress == null
         ? null

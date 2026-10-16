@@ -164,8 +164,12 @@ void main() {
       expect(
         generator
             .resolve(
-              _post(variants: true, format: 'gif'),
-              settings: _settings(size, ImageQuality.automatic),
+              _post(variants: true, format: 'gif', fileSize: 1),
+              settings: GridThumbnailSettings(
+                imageQuality: ImageQuality.automatic,
+                animatedPostsDefaultState: AnimatedPostsDefaultState.autoplay,
+                gridSize: size,
+              ),
             )
             .url,
         expected,
@@ -204,7 +208,7 @@ void main() {
     for (final size in GridSize.values) {
       test('automatic GIF keeps ${state.name} at ${size.name}', () {
         final media = const DefaultGridThumbnailUrlGenerator().resolve(
-          _post(format: 'gif'),
+          _post(format: 'gif', fileSize: 1),
           settings: GridThumbnailSettings(
             imageQuality: ImageQuality.automatic,
             animatedPostsDefaultState: state,
@@ -218,6 +222,75 @@ void main() {
       });
     }
   }
+
+  test('GIF autoplay accepts the exact 5 MiB boundary', () {
+    final generic = const DefaultGridThumbnailUrlGenerator().resolve(
+      _post(format: 'gif', fileSize: maxAutoplayGridGifBytes),
+      settings: _gifSettings(ImageQuality.highest),
+    );
+    expect(generic.url, 'sample');
+
+    final danbooru = const DanbooruGridThumbnailUrlGenerator().resolve(
+      _post(
+        variants: true,
+        format: 'gif',
+        fileSize: maxAutoplayGridGifBytes,
+      ),
+      settings: _gifSettings(ImageQuality.highest),
+    );
+    expect(danbooru.url, 'sample');
+  });
+
+  for (final fileSize in [0, -1, maxAutoplayGridGifBytes + 1]) {
+    test('GIF autoplay rejects unsafe original size $fileSize', () {
+      for (final quality in ImageQuality.values) {
+        final settings = _gifSettings(quality);
+        expect(
+          const DefaultGridThumbnailUrlGenerator()
+              .resolve(
+                _post(format: 'gif', fileSize: fileSize),
+                settings: settings,
+              )
+              .url,
+          'thumbnail',
+        );
+        expect(
+          const DanbooruGridThumbnailUrlGenerator()
+              .resolve(
+                _post(variants: true, format: 'gif', fileSize: fileSize),
+                settings: settings,
+              )
+              .url,
+          '720',
+        );
+      }
+    });
+  }
+
+  test('disabled GIF autoplay stays static even at Highest quality', () {
+    final settings = _gifSettings(
+      ImageQuality.highest,
+      state: AnimatedPostsDefaultState.static,
+    );
+    expect(
+      const DefaultGridThumbnailUrlGenerator()
+          .resolve(
+            _post(format: 'gif', fileSize: 1),
+            settings: settings,
+          )
+          .url,
+      'thumbnail',
+    );
+    expect(
+      const DanbooruGridThumbnailUrlGenerator()
+          .resolve(
+            _post(variants: true, format: 'gif', fileSize: 1),
+            settings: settings,
+          )
+          .url,
+      '720',
+    );
+  });
 }
 
 GridThumbnailSettings _settings(GridSize size, ImageQuality quality) =>
@@ -227,7 +300,20 @@ GridThumbnailSettings _settings(GridSize size, ImageQuality quality) =>
       gridSize: size,
     );
 
-Post _post({bool variants = false, String format = 'jpg'}) => Post(
+GridThumbnailSettings _gifSettings(
+  ImageQuality quality, {
+  AnimatedPostsDefaultState state = AnimatedPostsDefaultState.autoplay,
+}) => GridThumbnailSettings(
+  imageQuality: quality,
+  animatedPostsDefaultState: state,
+  gridSize: GridSize.large,
+);
+
+Post _post({
+  bool variants = false,
+  String format = 'jpg',
+  int fileSize = 0,
+}) => Post(
   origin: PostOrigin.forBooruType(BooruType.danbooru),
   core: PostCoreData(
     id: 1,
@@ -240,7 +326,7 @@ Post _post({bool variants = false, String format = 'jpg'}) => Post(
     height: 200,
     format: format,
     md5: '',
-    fileSize: 0,
+    fileSize: fileSize,
     duration: 0,
     tags: const {},
     rating: Rating.general,
