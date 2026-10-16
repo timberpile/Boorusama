@@ -1,6 +1,6 @@
 # Upstream v4.6.1 – Entscheidungsprotokoll
 
-**Autoritativer Entscheidungsstand:** **68 von 68 Themen entschieden** (2026-10-16); **0 offen**, Umsetzung nicht freigegeben. Dieses Dokument enthält ausschließlich Analyse und explizit bestätigte künftige Beschlüsse. Referenz: [Katalog](boorusama-v4.6.1-entscheidungskatalog.md) und [Checkliste](boorusama-v4.6.1-checkliste.md).
+**Autoritativer Entscheidungsstand:** **68 von 68 Themen entschieden** (2026-10-16); **0 offen**. Lokale Umsetzung wurde am 2026-10-16 einem Agenten beauftragt; Shared-Branch-Integration und Release sind nicht freigegeben. Dieses Dokument enthält ausschließlich Analyse und explizit bestätigte künftige Beschlüsse. Referenz: [Katalog](boorusama-v4.6.1-entscheidungskatalog.md) und [Checkliste](boorusama-v4.6.1-checkliste.md).
 
 ## Entscheidungsformat
 
@@ -771,4 +771,4 @@ Vor der expliziten Nutzerentscheidung bleibt jeder Eintrag `OFFEN`; ein technisc
 
 ## Weitere Entscheidungen
 
-**68/68 Themen ENTSCHIEDEN, 0 OFFEN.** Alle 68 Entscheidungen sind beschlossen. Die Entscheidungen sind **Planungsbeschlüsse, keine Implementierung**; weitere Merge-Arbeit erst nach ausdrücklicher Freigabe. U08 ist als Testpflege gemeinsam mit den betroffenen Features beschlossen.
+**68/68 Themen ENTSCHIEDEN, 0 OFFEN.** Alle 68 Entscheidungen sind beschlossen. Die Entscheidungen sind **Planungsbeschlüsse, noch keine implementierte Software**. Der Nutzer hat am 2026-10-16 die lokale Umsetzung des vollständigen Plans durch einen Agenten beauftragt (siehe [IMPLEMENTATION_HANDOFF.md](IMPLEMENTATION_HANDOFF.md)); Remote-Push, Integration in `develop`, PR und Veröffentlichung benötigen separate Freigabe. U08 ist als Testpflege gemeinsam mit den betroffenen Features beschlossen.
