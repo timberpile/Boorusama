@@ -1,6 +1,6 @@
 # Upstream v4.6.1 – Merge-Entscheidungen
 
-**Status: PLANUNG / NICHT IMPLEMENTIERT.** Dieser Ordner dokumentiert die gewünschten Ergebnisse eines künftigen echten Merges von `khoadng/Boorusama v4.6.1` in `timberpile/Boorusama`. Der Branch dient zunächst nur dazu, die Analyse und sämtliche expliziten Entscheidungen dauerhaft und nachvollziehbar zu sichern.
+**Status: 68/68 ENTSCHEIDUNGEN ABGESCHLOSSEN; LOKALE UMSETZUNG AN AGENTEN BEAUFTRAGT, NOCH NICHT IMPLEMENTIERT.** Dieser Ordner dokumentiert die verbindlich vereinbarten Ergebnisse des echten Merges von `khoadng/Boorusama v4.6.1` in `timberpile/Boorusama`. Die lokale Implementierung wurde am 2026-10-16 vom Nutzer beauftragt; Integration in `develop`, Remote-Push, PR und Release bleiben separat freigabepflichtig.
 
 ## Fixierte Vergleichsbasis
 
@@ -15,6 +15,7 @@
 1. [Detaillierter Entscheidungskatalog](boorusama-v4.6.1-entscheidungskatalog.md) – alle Änderungen, Fork-Abweichungen, Konflikte, SHA-Belege, Tests und noch unverbindliche Empfehlungen.
 2. [Kompakte Checkliste](boorusama-v4.6.1-checkliste.md) – stabile IDs (X01–X04, A01–A18, N01–N06, D01–D08, B01–B10, P01–P14, U01–U08).
 3. [Entscheidungsprotokoll](decisions.md) – **verbindliche Quelle für explizit vom Nutzer bestätigte Beschlüsse** und Gesprächsnotizen.
+4. [Implementation handoff (English)](IMPLEMENTATION_HANDOFF.md) – **Arbeitsauftrag für einen lokalen Agenten** mit Start-SHAs, Reihenfolge der 68 Entscheidungen, bekannten Konfliktfallen, A16-Versionierung, Test- und Integrationsgrenzen.
 
 ## Regeln für die Besprechung
 
@@ -22,14 +23,14 @@
 - `OFFEN` bedeutet **nicht freigegeben**. Eine Arbeitshypothese im Katalog darf ein Agent nicht als Entscheidung interpretieren.
 - Pro abgeschlossener Entscheidung: ID, Beschluss (vollständig / angepasst / Fork behalten / nicht übernehmen), konkretes Zielverhalten, Begründung, Abhängigkeiten, Datenmigration, Verifikation und Datum notieren.
 - Nach bestätigter Entscheidung die Checkliste ergänzen; bei Widersprüchen gilt das explizit bestätigte Entscheidungsprotokoll. Entscheidungen nicht ohne neue Rücksprache umdeuten.
-- Implementierende Agents erhalten erst nach Freigabe einen Merge-Auftrag. Nicht beschlossene Themen bleiben unangetastet beziehungsweise müssen erneut vorgelegt werden.
+- Die lokale Umsetzung aller 68 beschlossenen Themen ist seit 2026-10-16 beauftragt; Arbeitsauftrag und Grenzen stehen im [Handoff](IMPLEMENTATION_HANDOFF.md). Die Freigabe umfasst keine fremden Branches, Remote-Pushes, PRs, `develop`-Integration oder Release-Veröffentlichung.
 - **Schutzinvarianten:** Profile/UUIDs, Bookmarks/Hive, Post-Identität, Export/Import, Following/Pinned Searches, Cache, eigene UI, Signing/Privacy-Defaults. Veränderungen an persistenten Daten nur mit explizitem Migrationsdesign und Regressionstests.
 - Den echten Upstream-Merge **nicht** per `-s ours` simulieren; Git-Ancestry soll die tatsächlich integrierte Arbeit widerspiegeln.
 - Keine Änderungen oder PRs nach `develop` ohne separate Freigabe. Vollständige Testsuite nach `AGENTS.md` vor Integration.
 
 ## Entscheidungsstand (2026-10-16)
 
-**68 von 68 Themen beschlossen, 0 offen.** Alle 68 Entscheidungen stehen verbindlich in [decisions.md](decisions.md), zusammengefasst in Katalog und Checkliste. **Es wurde noch kein Upstream-Code integriert und keine Umsetzung freigegeben.**
+**68 von 68 Themen beschlossen, 0 offen.** Alle 68 Entscheidungen stehen verbindlich in [decisions.md](decisions.md), zusammengefasst in Katalog und Checkliste. **Es wurde noch kein Upstream-Code integriert; lokale Umsetzung ist beauftragt, Integration und Veröffentlichung sind nicht freigegeben.**
 
 - **A02:** Implementierender Agent schreibt nach dem UI-Umbau die wichtigsten manuellen Testfälle für den Nutzer; führt diese nicht selbst manuell durch.
 - **A16-Versionierung:** Bei jeder Fork-Veröffentlichung ist die führende Version exakt die integrierte Upstream-Basis. `timberpile.N` beginnt bei neuer Upstream-Basis wieder mit `.1`, danach inkrementieren; Android-`+buildNumber` steigt unabhängig davon immer weiter. Aktuell `4.5.0-timberpile.5+189` ⇒ nächste Veröffentlichung nach v4.6.1-Merge voraussichtlich `4.6.1-timberpile.1+190` (tatsächlich höchsten veröffentlichten Code vor Release prüfen). Release-Skill, Changelog, Tags, GitHub-Manifest und Updater entsprechend aktualisieren.
