@@ -1,6 +1,6 @@
 # Boorusama v4.6.1 – kompakte Entscheidungscheckliste
 
-Grundlage `develop d4e1558` vs. Upstream `v4.6.1 5b04bf6`. **29/68 Themen entschieden, 39 offen** (2026-10-15). Beschlüsse dokumentieren Zielverhalten, noch keine Implementierung. Die vollständigen Details, Begründungen, Codestrukturen, SHA-Links und Konfliktpfade stehen in [der ausführlichen Liste](boorusama-v4.6.1-entscheidungskatalog.md).
+Grundlage `develop d4e1558` vs. Upstream `v4.6.1 5b04bf6`. **39/68 Themen entschieden, 29 offen** (2026-10-16). Beschlüsse dokumentieren Zielverhalten, noch keine Implementierung. Die vollständigen Details, Begründungen, Codestrukturen, SHA-Links und Konfliktpfade stehen in [der ausführlichen Liste](boorusama-v4.6.1-entscheidungskatalog.md).
 
 **Legende:** Kritisch = Datenverlust/Architekturrisiko · Hoch = funktionaler Merge-Konflikt · Mittel/Niedrig = gezielter Fix · „Automatisch“ nur nach Tests.
 
@@ -47,16 +47,16 @@ Grundlage `develop d4e1558` vs. Upstream `v4.6.1 5b04bf6`. **29/68 Themen entsch
 | `D07` | Quellseitige Post-IDs in Exporten statt nur int IDs | 🟠 hoch | OFFEN |
 | `D08` | Favorite Tags direkt aus Storage exportieren | 🟡 mittel | OFFEN |
 | **Booru-Kompatibilität** | | | |
-| `B01` | Sankaku-Metatags, Syntax-Highlighting und typed Suggestions | 🟠 mittel–hoch | OFFEN |
-| `B02` | Sankaku-Exclusion und Datumsfilter normalisieren | 🟡 mittel | OFFEN |
-| `B03` | Sankaku-Tag-Kategorien vollständig erhalten, Duplikate entfernen | 🟡 mittel | OFFEN |
-| `B04` | Sankaku-Auth: API-Header, invalid credentials, Session-Recovery | 🟠 hoch | OFFEN |
-| `B05` | Sankaku-Suchlimits korrekt erklären | ⚪ niedrig | OFFEN |
-| `B06` | Shimmie2: Medienformate und Favorite-Fallback | 🟡 mittel | OFFEN |
-| `B07` | Gelbooru v2: Kommentar-Voting und Cursor-Pagination | 🟠 mittel–hoch | OFFEN |
-| `B08` | Gelbooru v2: Kommentar-Sortierung | 🟡 mittel | OFFEN |
-| `B09` | Nozomi: korrekte Tag-Counts und HTTP-Range-Encoding | 🟡 niedrig–mittel | OFFEN |
-| `B10` | Rule34: JSON-Post-API auf api.rule34.xxx | 🟠 hoch | OFFEN |
+| `B01` | Sankaku-Metatags, Syntax-Highlighting und typed Suggestions | 🟠 mittel–hoch | **ENTSCHIEDEN (2026-10-16):** angepasst übernehmen. Sankaku-spezifische Metatag-Definitionen (u. a. `rating`, `date`, `order`, `user`, `pool`, `fav`), Parser, typed Autocomplete-Suggestions und sichere Abbildung der Quellwerte übernehmen. Metatag-Präfixe erkennbar hervorheben, aber die UI in das geplante siteübergreifende Search-Options-Interface einfügen; … |
+| `B02` | Sankaku-Exclusion und Datumsfilter normalisieren | 🟡 mittel | **ENTSCHIEDEN (2026-10-16):** übernehmen (site-adaptiert). Sankaku-Exclusion-Restriktionen verständlich übersetzen und nur für Sankaku einzelne gültige `date:YYYYMMDD`/`date:YYYY-MM-DD`-Tokens in einen API-konformen Tagesbereich übersetzen. Eine explizite Range, Operatoren, ungültige Datumsangaben und die sichtbare Raw-Query nicht unkontrolliert umschreiben; Norma… |
+| `B03` | Sankaku-Tag-Kategorien vollständig erhalten, Duplikate entfernen | 🟡 mittel | **ENTSCHIEDEN (2026-10-16):** angepasst übernehmen. Alle bekannten Sankaku-Kategorien einschließlich Studio (`2`), Genre (`5`), Medium (`8`) und Meta (`9`) korrekt site-spezifisch zuordnen (generisches Fork-`TagCategory.fromLegacyId(5)` wäre für Sankaku falsch). Unbekannte Kategorien ohne stillen Verlust erhalten und doppelte API-Tag-Einträge nach echter ID… |
+| `B04` | Sankaku-Auth: API-Header, invalid credentials, Session-Recovery | 🟠 hoch | **ENTSCHIEDEN (2026-10-16):** angepasst übernehmen. Bestehende Dio-Optionen/Interceptors/Header beim Sankaku-API-Header-Merge erhalten. Login-Response vor Token-Speicherung streng validieren. Bei erkennbar abgelaufenem/ungültigem Token GET-Requests höchstens einmal nach kontrollierter Neuanmeldung wiederholen; gleichzeitige Logins pro Client zusammenfassen,… |
+| `B05` | Sankaku-Suchlimits korrekt erklären | ⚪ niedrig | **ENTSCHIEDEN (2026-10-16):** vollständig übernehmen (in Fork-Fehler-UI). Sankaku-Codes für anonyme/Account-Tag-Limits in verständliche lokalisierte Meldungen übersetzen und an den Fork-Error-Layer anbinden. Bestehendes Verhalten bei unbekannten Serverfehlern als Fallback behalten. |
+| `B06` | Shimmie2: Medienformate und Favorite-Fallback | 🟡 mittel | **ENTSCHIEDEN (2026-10-16):** angepasst übernehmen. Dateiformate aus `ext`, Filename und Datei-URL robust normalisieren (ohne Punkt, lowercase). Den serverseitigen Favorite-Status bei unterstützter Erweiterung und angemeldetem Nutzer ergänzen, aber optional und möglichst asynchron nach dem eigentlichen Post-Laden: Die Timeline darf bei Ausfall, fehlender Au… |
+| `B07` | Gelbooru v2: Kommentar-Voting und Cursor-Pagination | 🟠 mittel–hoch | **ENTSCHIEDEN (2026-10-16):** angepasst übernehmen. Upstream-Gelv2-Comment-Page-Keys, Rule34-HTML-Kommentarparser/Score und cursorbasierte Pagination kompatibel zu Fork-Comment-/Postmodell übernehmen. **Upstream implementiert nur Kommentar-Upvotes, keine Downvotes**; keine Downvote-UI behaupten oder erfinden. Voting nur bei expliziter Site-Capability und gü… |
+| `B08` | Gelbooru v2: Kommentar-Sortierung | 🟡 mittel | **ENTSCHIEDEN (2026-10-16):** übernehmen, gemeinsam mit B07. Auf Sites, deren Comment-Capabilities es explizit vorsehen (Upstream: Rule34), `Newest`/`Oldest` über unterstützte Request-Sortierung anbieten (für Rule34 `comments_direction`-Cookie); bestehende Session-Cookies sicher mergen. Änderung nur innerhalb der aktuellen Kommentaransicht merken, ohne neue persiste… |
+| `B09` | Nozomi: korrekte Tag-Counts und HTTP-Range-Encoding | 🟡 niedrig–mittel | **ENTSCHIEDEN (2026-10-16):** angepasst übernehmen. Nozomi-Tag-Counts aus Postindex-Dateigrößen statt Search-Buckets bestimmen; gezielte Byte-Range-Requests mit `Accept-Encoding: identity`, Behandlung 200/206/404/416 sowie Content-Range und Cache/Fallback korrekt übernehmen. Gleichzeitige Count-Lookups drosseln und mit dem Fork-`ApiRequestCoordinator` koord… |
+| `B10` | Rule34: JSON-Post-API auf api.rule34.xxx | 🟠 hoch | **ENTSCHIEDEN (2026-10-16):** angepasst übernehmen, erst nach Verifikation aktivieren. Rule34-Listing-Endpoint nach gezielten Live-API-Tests auf `https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1` umstellen, da der Fork diesen Host bislang nur für Post-Details verwendet. Profil- und Site-Identität, Auth-/Cookie-Origin-Grenzen, Parsing, Pagination, Rate-Limits sowie eigene Rule… |
 | **Post / Grid / Viewer** | | | |
 | `P01` | Zwei Quick Actions auf Post-Thumbnails | 🟠 hoch | OFFEN |
 | `P02` | Profile mit unbekannten Thumbnail-Actions/Media-Host-Regeln behalten | 🟠 hoch | OFFEN |
@@ -82,6 +82,6 @@ Grundlage `develop d4e1558` vs. Upstream `v4.6.1 5b04bf6`. **29/68 Themen entsch
 | `U07` | Favorite Tags auf großen Screens im Dialog statt Sheet | 🟡 niedrig–mittel | OFFEN |
 | `U08` | Regressionstests und Flakiness-Fixes nachziehen | ⚪ niedrig | — (vorerst kein Review) |
 
-**Fortsetzung:** D01, D03–D08 sowie B01–B10 (aktuell im Review); danach Viewer-/UX-Themen. A02-Manuellcheckliste durch Agent **erstellen**, vom Nutzer **ausführen**.
+**Fortsetzung:** P01–P14 (Posts, Grid, Viewer, Medien); danach U01–U08 (Suche/UX) und die noch offenen D01, D03–D08. A02-Manuellcheckliste durch Agent **erstellen**, vom Nutzer **ausführen**.
 
 **Ergebnisschlüssel:** übernehmen · angepasst übernehmen · Fork beibehalten · nicht übernehmen.
