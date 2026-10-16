@@ -27,15 +27,19 @@
 - Den echten Upstream-Merge **nicht** per `-s ours` simulieren; Git-Ancestry soll die tatsächlich integrierte Arbeit widerspiegeln.
 - Keine Änderungen oder PRs nach `develop` ohne separate Freigabe. Vollständige Testsuite nach `AGENTS.md` vor Integration.
 
-## Entscheidungsstand (2026-10-15)
+## Entscheidungsstand (2026-10-16)
 
-**29 von 68 Themen beschlossen, 39 noch offen.** Alle 29 Entscheidungen stehen verbindlich in [decisions.md](decisions.md), zusammengefasst in Katalog und Checkliste. **Es wurde noch kein Upstream-Code integriert und keine Umsetzung freigegeben.**
+**39 von 68 Themen beschlossen, 29 noch offen.** Alle 39 Entscheidungen stehen verbindlich in [decisions.md](decisions.md), zusammengefasst in Katalog und Checkliste. **Es wurde noch kein Upstream-Code integriert und keine Umsetzung freigegeben.**
 
 - **A02:** Implementierender Agent schreibt nach dem UI-Umbau die wichtigsten manuellen Testfälle für den Nutzer; führt diese nicht selbst manuell durch.
 - **X04 + A09:** Cache-Generationen entfernen, URL-MD5/LRU/Checkpoints behalten; OS-Temp-Share-Kopie und vorhandenes >24h-Cleanup verwenden; Upstream read-only DocumentsProvider übernehmen.
 - **N01:** `ApiRequestCoordinator` behalten, Upstream-Retry-Fixes ohne zweiten Sliding-Window-Limiter übernehmen.
 - **X03:** Fork-Profile-UUIDs, Import/Export, Bookmark-/Pinned-Ordner und Following schützen; kompatible Test-/Factory-Boundaries über A01/A12; Favorite-Tag-Storage-Fix separat bei D08.
 - **D02:** Upstream-Completion-Fixes angepasst übernehmen, Fork-Lifecycle-Guards bewahren; Crash-/Cleanup-Recovery und Notification-Deduplizierung verifizieren.
+- **B01–B05:** Sankaku-Metatags in gemeinsame Search-UX integrieren, Datums-/Fehler-/Tag-Kategorie-Fixes sowie sichere Auth-Recovery adaptieren.
+- **B06:** Shimmie2-Media-/Favorite-Fixes mit nicht-blockierendem Favorite-Status.
+- **B07–B08:** Rule34-Kommentar-Upvotes (keine Downvotes), Cursor-Pagination und capability-bedingte Sortierung übernehmen.
+- **B09–B10:** Nozomi-Index-/Range-Fixes mit Request-Koordination; Rule34-API-Host erst nach Live-Verifikation umstellen.
 
 ## Fortschritt
 
@@ -48,7 +52,8 @@
 - [x] N01–N06: Netzwerk-Zielverhalten beschlossen
 - [x] D02: Bulk-Download-Finalisierung und Notification-Schutz entschieden
 - [ ] D01, D03–D08: übrige Backup-/Download-Punkte entscheiden
-- [ ] B01–B10: Booru-Kompatibilität prüfen und entscheiden
+- [x] B01–B10: Booru-Kompatibilität vollständig entschieden (Implementierung ausstehend)
+- [ ] P01–P14: Posts, Grid, Viewer und Medien entscheiden
 - [ ] Alle nichttrivialen Punkte entschieden
 - [ ] Merge-Resolution gegen finalen Plan implementiert
 - [ ] Datenmigrationen und vollständige Regressionstests bestanden
