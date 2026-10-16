@@ -265,153 +265,153 @@ Before explicit user approval, a proposal must remain `OPEN`; technical recommen
 
 **Verification:** HTTP/2 and HTTP/1, gzip, high concurrency and low-memory devices.
 
-## X03 – Fork-Export/Import, Profile-UUIDs und Following bewahren
+## X03 — Preserve Fork Export/Import, Profile UUIDs and Following
 
-**Status: ENTSCHIEDEN · 2026-10-15 · Umsetzung ausstehend.** **Beschlussart:** Fork-Architektur behalten, kompatible Upstream-Teile angepasst übernehmen.
+**Status: APPROVED · 2026-10-15 · Implementation pending.** **Resolution:** retain fork architecture and adapt compatible upstream components.
 
-**Zielzustand / technische Grenzen:** Die Fork-spezifische Export-/Import-/Backup-Pipeline, stabile Profile-UUIDs, `PostOrigin`/`BookmarkIdentity`, Hive-/Snapshot-Kompatibilität, verschachtelte Bookmark- und Pinned-Search-Ordner sowie Following-Feeds unverändert im Verhalten und in ihren Datenidentitäten erhalten. Keine Rückmigration auf Upstream-Profile, flache Ordner oder dessen alte Feed-/Backup-Modelle; keine inkompatible Schema- oder ID-Änderung.
+**Target behavior / constraints:** Preserve the fork's export/import/backup pipeline, stable profile UUIDs, `PostOrigin`/`BookmarkIdentity`, Hive/snapshot compatibility, nested Bookmark/Pinned Search folders and Following feeds, including their exact existing behavior and persisted identity. Do not revert to upstream profiles, flat folders or older feed/backup models; avoid incompatible ID/schema changes.
 
-**Gezielt übernehmen:** Aus Upstreams Headless-Refactoring die austauschbaren Plattform-, Navigation-, Dateipicker-, Repository-Factory- und Backup-Trigger-Abhängigkeiten sowie App-Flow-Tests kompatibel in den bereits beschlossenen A01-/A12-Zielzustand integrieren. Keine zweite parallele Runtime, Repository- oder Backup-Implementierung. Die Upstream-Bookmark-Library-Refresh-Ergänzung nicht zusätzlich kopieren: der Fork beobachtet `bookmarkProvider` bereits mit `BookmarkViewRefreshGate`, um Refresh/Selection korrekt zu koordinieren. Upstreams Export-Lesen von Favorite Tags direkt aus persistenter Storage statt möglicherweise uninitialisiertem UI-State ist unter D08 inzwischen separat beschlossen.
+**Adopt selectively:** Integrate upstream's testable platform, navigation, file-picker, repository-factory and backup-trigger seams from its headless refactoring, consistent with approved A01/A12, without a parallel runtime, repository or backup layer. Do **not** install upstream's additional bookmark library refresh listener: the fork already watches `bookmarkProvider` using `BookmarkViewRefreshGate` to coordinate selection and refresh. Persistent-storage reads for favorite-tag export are separately approved under D08.
 
-**Daten/API:** Keine neue Persistenz oder Migration allein durch X03. Vorhandene Profil-UUIDs, Bookmark-Hive-Felder 15/16, Post-Snapshots, Ordnerstrukturen und Following-Daten erhalten; X01/X02 und die bestehenden Fork-Import-/Recovery-Garantien gelten verbindlich.
+**Data/API:** X03 alone requires no new persisted fields/migrations. Retain profile UUIDs, bookmark Hive indices 15/16, post snapshots, nested folders and Following data. X01/X02 and fork import/recovery guarantees remain binding.
 
-**Abnahme / Tests:** Legacy- und aktueller Full-Backup-Roundtrip mit Profile-UUIDs, Bookmark-Gruppen/Unterordnern, Pinned Searches/Following und Favorite Tags; Cold-Start/Import-Recovery, Profilwechsel, Folder-Undo, Auswahl beim Bookmark-Refresh und kein doppelter Refresh. A01/A12-Headless-Flows; keine stillen Datenverluste.
+**Verification:** Legacy and current full-backup roundtrips with profile UUIDs, bookmark groups/subfolders, Pinned Searches/Following and favorite tags; cold-start/import recovery, profile switch, folder Undo, bookmark selection/refresh and no duplicate refresh; A01/A12 headless flows without data loss.
 
-**Begründung / Quellen:** Upstream [`a3278c5d2`](https://github.com/khoadng/Boorusama/commit/a3278c5d2ecc3672fea63c68fb21c81a1db2bb07) refaktoriert u. a. Backup-/Bookmark-Abhängigkeiten für Tests; [`3f4ce2bd4`](https://github.com/khoadng/Boorusama/commit/3f4ce2bd4f0f94c116b2262fa9418809710278a8) ergänzt im Fork bereits abgedeckten Refresh; [`f93bdf0dd`](https://github.com/khoadng/Boorusama/commit/f93bdf0dd42c5eb0e8165d9070310a2aebfa32c1) betrifft D08. Vom Nutzer am 2026-10-15 bestätigt.
+**Rationale/sources:** Upstream [`a3278c5d2`](https://github.com/khoadng/Boorusama/commit/a3278c5d2ecc3672fea63c68fb21c81a1db2bb07) refactors backup/bookmark test dependencies; [`3f4ce2bd4`](https://github.com/khoadng/Boorusama/commit/3f4ce2bd4f0f94c116b2262fa9418809710278a8) adds refresh already covered by the fork; [`f93bdf0dd`](https://github.com/khoadng/Boorusama/commit/f93bdf0dd42c5eb0e8165d9070310a2aebfa32c1) relates to D08. User approved on 2026-10-15.
 
-## D02 – Bulk-Download-Finalisierung und Benachrichtigungen
+## D02 — Bulk Download Finalization and Notifications
 
-**Status: ENTSCHIEDEN · 2026-10-15 · Umsetzung ausstehend.** **Beschlussart:** angepasst übernehmen; Fork-Lifecycle-Schutz behalten.
+**Status: APPROVED · 2026-10-15 · Implementation pending.** **Resolution:** adapt upstream; preserve fork lifecycle guards.
 
-**Zielzustand / technische Grenzen:** Upstreams finale, nicht die zwischenzeitlich revertierte Timer-basierte Implementierung integrieren. Abgeschlossene Task-Records auch bei fehlgeschlagener Dateigrößenbestimmung als abgeschlossen markieren (`fileSize` dann unbekannt, Fehler protokollieren), danach Finalisierung prüfen. Concurrent Completion-Checks derselben Session serialisieren (Future-basierte `_completionChecks`-Sperre) und bereits abgeschlossene Sessions nicht erneut berechnen/aufräumen; finalen Statistik-Snapshot vor Task-/Record-Cleanup sichern. Zuletzt abgeschlossene Sessions als begrenzte `completedSessions`-Liste (Upstream: max. 100, nur im Speicher) im Download-Activity-State belassen, sodass eine kurzlebige UI-State-Änderung keine Completion-Notification verschluckt. Für abgeschlossene Aktivitäten Fortschritt 100 % anzeigen und doppelte Abschlussbenachrichtigungen vermeiden. Fork-eigene Notifier-/Session-Lifecycle-Guards und Download-Observer nicht durch vereinfachte Upstream-Version ersetzen.
+**Target behavior / constraints:** Use the **final** upstream implementation, not the temporarily reverted timer-based version. Mark completed download records complete even if file-size resolution fails (size then unknown, log failure), and run session completion checks. Serialize concurrent checks per session with the future-based `_completionChecks` lock. Do not finalize or clean up an already completed session twice; save final statistics before deleting task/record data. Keep up to **100** recently completed sessions in an in-memory `completedSessions` download-activity list, so transient UI changes do not swallow completion notifications. Show 100% for finished activities and avoid duplicate completion notices. Do not replace the fork's notifier/session lifecycle guards and observers with the simpler upstream equivalents.
 
-**Recovery / Grenzen:** Die neue In-Memory-Liste ist kein persistentes Notification-Log. Zusätzlich Crash-/Restart- und Cleanup-Fehlerfenster untersuchen, vor allem Status `completed` vor erfolgreichem `updateStatisticsAndCleanup`; idempotente/restartfähige Recovery sicherstellen, ohne Statistiken zu verlieren oder Notifications mehrfach zu senden. Eine ungeprüfte vollständige Transaktionsgarantie wird nicht behauptet.
+**Recovery / limitations:** The in-memory completed list is **not** a persistent notification log. Investigate crash/restart and cleanup failure windows, especially when `completed` is stored before `updateStatisticsAndCleanup` finishes. Ensure recoverable/idempotent behavior without losing stats or repeating notifications. Do not claim unverified transaction-level guarantees.
 
-**Daten/API:** Bestehende persistente Bulk-Download-/Task-Repositories und Fork-Lifecycle-Strukturen erhalten; `completedSessions` ist zunächst ausschließlich abgeleiteter Runtime-State. Eventuell notwendige Persistenz-/Migrationsänderungen separat begründen und vor Umsetzung prüfen.
+**Data/API:** Keep the existing persisted bulk/task repositories and fork lifecycle state. `completedSessions` is initially only derived runtime state. Justify and review any further persisted fields or migrations separately.
 
-**Abnahme / Tests:** Parallele vollständige Task-Events, Out-of-order/Replay, konkurrierende Finalisierung, fehlgeschlagener Dateigrößenresolver, korrekte Summen, Cleanup-Fehler/Retry, Cold-Start/Resume, Notification-Sichtbarkeit nach Entfernen aus aktiver Liste, höchstens eine Abschlussbenachrichtigung, max.-100-Limit und Lifecycle-Disposal. Vorhandene Fork-Regressionstests und Upstream-D02-Testfälle kombinieren.
+**Verification:** Concurrent completed events, out-of-order/replayed events, overlapping finalization, file-size resolver exceptions, correct totals, cleanup failure/retry, cold start/resume, visible completion notices after removal from active lists, at most one completion alert, 100-entry bound and lifecycle disposal. Combine upstream and fork tests.
 
-**Begründung / Quellen:** Upstream [`ebdfb05d9`](https://github.com/khoadng/Boorusama/commit/ebdfb05d9bec5be5c6fd6dd3e5460cea8ce1e1a1) revertiert die ursprüngliche deterministische Finalisierung nur vorübergehend; [`54b19cd4c`](https://github.com/khoadng/Boorusama/commit/54b19cd4cf77b3a75579a2b27aeccc1b1dc56ef5) führt serialisierte Completion, Fehlerbehandlung und History-for-Notifications wieder ein. Der Fork nutzt noch den älteren deterministischen Pfad plus eigene Lifecycle-Guards. Vom Nutzer am 2026-10-15 bestätigt.
+**Rationale/sources:** Upstream [`ebdfb05d9`](https://github.com/khoadng/Boorusama/commit/ebdfb05d9bec5be5c6fd6dd3e5460cea8ce1e1a1) temporarily reverts the earlier deterministic path; [`54b19cd4c`](https://github.com/khoadng/Boorusama/commit/54b19cd4cf77b3a75579a2b27aeccc1b1dc56ef5) restores serialized completion, failure tolerance and notification history. The fork still has the earlier deterministic path plus custom lifecycle guards. Approved 2026-10-15.
 
-## B01 – Sankaku-Metatags, Syntax-Highlighting und typed Suggestions
+## B01 — Sankaku Metatags, Syntax Highlighting and Typed Suggestions
 
-**Status: ENTSCHIEDEN · 2026-10-16 · Umsetzung ausstehend.** **Beschlussart:** angepasst übernehmen.
+**Status: APPROVED · 2026-10-16 · Implementation pending.** **Resolution:** adapt for the fork.
 
-**Zielzustand / technische Grenzen:** Sankaku-spezifische Metatag-Definitionen (u. a. `rating`, `date`, `order`, `user`, `pool`, `fav`), Parser, typed Autocomplete-Suggestions und sichere Abbildung der Quellwerte übernehmen. Metatag-Präfixe erkennbar hervorheben, aber die UI in das geplante siteübergreifende Search-Options-Interface einfügen; keine parallele/alte Upstream-Search-Bar bauen. Raw-Syntax und sitespezifische Möglichkeiten bleiben hinter der gemeinsamen Schnittstelle.
+**Target behavior / constraints:** Integrate Sankaku metatag definitions (including `rating`, `date`, `order`, `user`, `pool` and `fav`), parsing, typed autocomplete and safe source value mappings. Highlight metatag prefixes, but put the UI within the planned cross-site search-options interface. **Do not build a second, older upstream search bar.** Raw syntax and site capabilities remain behind the shared abstraction.
 
-**Abhängigkeiten:** Geplanter gemeinsamer Search-UX-Umbau; B02 und die bestehenden Fork-Suchzustände.
+**Dependencies:** Planned unified Search UX, B02 and current fork search state.
 
-**Abnahme / Tests:** Tag- vs. Metatag-Vorschläge, `fav`/`user`/`pool`, Highlighting, Raw-Query, Leer-/Alias-/unbekannte Werte und neuer Search-UX-Flow, keine Regression in Suche/Tag-Chips.
+**Verification:** Ordinary versus metatag suggestions, `fav`/`user`/`pool`, highlighting, raw query, empty/alias/unknown values, new Search UX and existing tag-chip/search behavior.
 
-**Begründung / Quellen:** Bestätigte Upstream-v4.6.1-Codeänderungen: [`2569eaeeb`](https://github.com/khoadng/Boorusama/commit/2569eaeeb6ea01ea35386ffc8bab858dcbd1d75d), [`216eb6e6d`](https://github.com/khoadng/Boorusama/commit/216eb6e6d43cef2581a110b66a8f1482d110e7b9). Nutzer hat den vollständigen B01–B10-Vorschlagsbatch am 2026-10-16 bestätigt.
+**Rationale/sources:** Verified upstream v4.6.1 commits [`2569eaeeb`](https://github.com/khoadng/Boorusama/commit/2569eaeeb6ea01ea35386ffc8bab858dcbd1d75d), [`216eb6e6d`](https://github.com/khoadng/Boorusama/commit/216eb6e6d43cef2581a110b66a8f1482d110e7b9). User approved the complete B01–B10 batch on 2026-10-16.
 
-## B02 – Sankaku-Exclusion und Datumsfilter normalisieren
+## B02 — Normalize Sankaku Exclusion and Date Filters
 
-**Status: ENTSCHIEDEN · 2026-10-16 · Umsetzung ausstehend.** **Beschlussart:** übernehmen (site-adaptiert).
+**Status: APPROVED · 2026-10-16 · Implementation pending.** **Resolution:** adopt with site-specific adaptation.
 
-**Zielzustand / technische Grenzen:** Sankaku-Exclusion-Restriktionen verständlich übersetzen und nur für Sankaku einzelne gültige `date:YYYYMMDD`/`date:YYYY-MM-DD`-Tokens in einen API-konformen Tagesbereich übersetzen. Eine explizite Range, Operatoren, ungültige Datumsangaben und die sichtbare Raw-Query nicht unkontrolliert umschreiben; Normalisierung unmittelbar im Site-Query-Composer/Adapter.
+**Target behavior / constraints:** Present Sankaku exclusion restrictions intelligibly. For Sankaku **only**, convert a valid standalone `date:YYYYMMDD` or `date:YYYY-MM-DD` token to the API-supported single-day range. Never rewrite explicit ranges, operators, invalid dates or the visible Raw query indiscriminately; normalize at the site-specific query composer/adapter boundary.
 
-**Abhängigkeiten:** B01, B05; gemeinsamer Search-Composer darf keine Sankaku-Syntax auf andere Sites anwenden.
+**Dependencies:** B01/B05; the common Search composer must not apply Sankaku rules to other sites.
 
-**Abnahme / Tests:** Exclusion-Fehler/Limit-Codes, gültige/ungültige Daten, Tages-/Jahreswechsel, Leap-Day, Range und Vergleich Raw-Eingabe zu gesendetem Query.
+**Verification:** Exclusion limit/error codes, valid/invalid dates, day/year rollover, leap day, explicit range and visible versus transmitted query.
 
-**Begründung / Quellen:** Bestätigte Upstream-v4.6.1-Codeänderungen: [`18216f412`](https://github.com/khoadng/Boorusama/commit/18216f4123586634f0756e7d5b20673638711766), [`6ad672075`](https://github.com/khoadng/Boorusama/commit/6ad672075306e5621a4dde519ad124da0b19f8cb). Nutzer hat den vollständigen B01–B10-Vorschlagsbatch am 2026-10-16 bestätigt.
+**Rationale/sources:** Verified upstream commits [`18216f412`](https://github.com/khoadng/Boorusama/commit/18216f4123586634f0756e7d5b20673638711766), [`6ad672075`](https://github.com/khoadng/Boorusama/commit/6ad672075306e5621a4dde519ad124da0b19f8cb). B01–B10 batch approved 2026-10-16.
 
-## B03 – Sankaku-Tag-Kategorien vollständig erhalten, Duplikate entfernen
+## B03 — Preserve All Sankaku Tag Categories and Remove Duplicates
 
-**Status: ENTSCHIEDEN · 2026-10-16 · Umsetzung ausstehend.** **Beschlussart:** angepasst übernehmen.
+**Status: APPROVED · 2026-10-16 · Implementation pending.** **Resolution:** adapt.
 
-**Zielzustand / technische Grenzen:** Alle bekannten Sankaku-Kategorien einschließlich Studio (`2`), Genre (`5`), Medium (`8`) und Meta (`9`) korrekt site-spezifisch zuordnen (generisches Fork-`TagCategory.fromLegacyId(5)` wäre für Sankaku falsch). Unbekannte Kategorien ohne stillen Verlust erhalten und doppelte API-Tag-Einträge nach echter ID bzw. Name+Kategorie konsistent deduplizieren; sinnvollere Counts übernehmen. Bestehende Fork-`PostRecord`/`PostOrigin`-/Snapshot-/Bookmark-Datenformate behalten, ggf. erweiterten Detailtag-Satz ohne persistente Schemaänderung bereitstellen.
+**Target behavior / constraints:** Correctly map all known Sankaku categories including Studio (2), Genre (5), Medium (8) and Meta (9), which do **not** follow the generic fork `TagCategory.fromLegacyId` assumptions (particularly category 5). Preserve unknown categories instead of silently dropping them; deduplicate repeated API tags consistently by genuine ID or name+category, and use more useful post counts. Retain fork `PostRecord`/`PostOrigin`/snapshot/bookmark data formats; expose richer detailed tags without a persisted schema change if possible.
 
-**Abhängigkeiten:** X01/X02/X03 und Fork-Tag-Modell, keine Upstream-Postmodelle blind ersetzen.
+**Dependencies:** X01–X03 and fork tag models; do not overwrite fork post models with upstream structures.
 
-**Abnahme / Tests:** Kategorien 0/1/2/3/4/5/8/9/unbekannt, doppelte Namen/IDs/Counts, Tag-Farben und Filter, Bookmark-Snapshot-Roundtrip, alte Daten.
+**Verification:** Categories 0/1/2/3/4/5/8/9/unknown, duplicate names/IDs/counts, tag colors/filtering, snapshot roundtrips and older data.
 
-**Begründung / Quellen:** Bestätigte Upstream-v4.6.1-Codeänderungen: [`d0fde834a`](https://github.com/khoadng/Boorusama/commit/d0fde834a413658bb50db150636c481c88a88222), [`396ae059e`](https://github.com/khoadng/Boorusama/commit/396ae059e9e5576aa0172df7fabf823963c03e92). Nutzer hat den vollständigen B01–B10-Vorschlagsbatch am 2026-10-16 bestätigt.
+**Rationale/sources:** Verified upstream commits [`d0fde834a`](https://github.com/khoadng/Boorusama/commit/d0fde834a413658bb50db150636c481c88a88222), [`396ae059e`](https://github.com/khoadng/Boorusama/commit/396ae059e9e5576aa0172df7fabf823963c03e92). B01–B10 approved 2026-10-16.
 
-## B04 – Sankaku-Auth: API-Header, invalid credentials, Session-Recovery
+## B04 — Sankaku Authentication: API Headers, Invalid Credentials, Session Recovery
 
-**Status: ENTSCHIEDEN · 2026-10-16 · Umsetzung ausstehend.** **Beschlussart:** angepasst übernehmen.
+**Status: APPROVED · 2026-10-16 · Implementation pending.** **Resolution:** adapt.
 
-**Zielzustand / technische Grenzen:** Bestehende Dio-Optionen/Interceptors/Header beim Sankaku-API-Header-Merge erhalten. Login-Response vor Token-Speicherung streng validieren. Bei erkennbar abgelaufenem/ungültigem Token GET-Requests höchstens einmal nach kontrollierter Neuanmeldung wiederholen; gleichzeitige Logins pro Client zusammenfassen, nur das tatsächlich abgelehnte Token invalidieren und Client-/Profile-Isolation bewahren. Mutierende Favorites/POST/DELETE nicht blind wiederholen, sondern Fehler melden und neue Auth für spätere Nutzeraktionen ermöglichen. Wenn Auto-Reauth scheitert, bestehende Profil-Login-UX verwenden; Tokens/Credentials nie loggen.
+**Target behavior / constraints:** Preserve existing Dio options/interceptors/headers when merging Sankaku API headers. Strictly validate login responses before saving tokens. On a clearly expired/invalid token, retry safe **GET** requests at most once after controlled reauthentication; coalesce concurrent re-logins per client; invalidate only the token actually rejected, respecting client/profile isolation. **Never blindly retry mutating Favorites/POST/DELETE.** Show the error and allow fresh login for subsequent user actions. If automatic reauth fails, use existing profile login UI. Never log tokens/credentials.
 
-**Abhängigkeiten:** N01/N03/N04/N05; bestehendes Fork-Profil- und Credential-Modell, kein Cross-Origin-Auth-Leak.
+**Dependencies:** N01/N03/N04/N05, existing fork profile/credential model and cross-origin credential protections.
 
-**Abnahme / Tests:** Ungültige Credentials/Tokenformat, 401/API-Auth-Code, gleichzeitige GETs, erneute Ablehnung, Profilwechsel, Cookie/Header-Erhalt, Favoriten ohne Doppelmutation, Cancellation/Rate-Limit und Credential-Redaction.
+**Verification:** Invalid login credentials/token shapes, 401/API auth errors, parallel GETs, repeated rejection, profile switches, header/cookie retention, favorites without double mutation, cancellation, rate limiting and credential redaction.
 
-**Begründung / Quellen:** Bestätigte Upstream-v4.6.1-Codeänderungen: [`829ec71fb`](https://github.com/khoadng/Boorusama/commit/829ec71fbaedbc60fff7d98fe1b40c494a130ebe), [`6ad691a6d`](https://github.com/khoadng/Boorusama/commit/6ad691a6de23d8a44c46d02bf3640997dbb618f4), [`6762d00f2`](https://github.com/khoadng/Boorusama/commit/6762d00f2e4ac6efc99bf969bd15a335f6767437), [`8757eb295`](https://github.com/khoadng/Boorusama/commit/8757eb2953d41716bc7c8fb3a028b71fb3f03e2c). Nutzer hat den vollständigen B01–B10-Vorschlagsbatch am 2026-10-16 bestätigt.
+**Rationale/sources:** Verified upstream commits [`829ec71fb`](https://github.com/khoadng/Boorusama/commit/829ec71fbaedbc60fff7d98fe1b40c494a130ebe), [`6ad691a6d`](https://github.com/khoadng/Boorusama/commit/6ad691a6de23d8a44c46d02bf3640997dbb618f4), [`6762d00f2`](https://github.com/khoadng/Boorusama/commit/6762d00f2e4ac6efc99bf969bd15a335f6767437), [`8757eb295`](https://github.com/khoadng/Boorusama/commit/8757eb2953d41716bc7c8fb3a028b71fb3f03e2c). B01–B10 approved 2026-10-16.
 
-## B05 – Sankaku-Suchlimits korrekt erklären
+## B05 — Explain Sankaku Search Limits
 
-**Status: ENTSCHIEDEN · 2026-10-16 · Umsetzung ausstehend.** **Beschlussart:** vollständig übernehmen (in Fork-Fehler-UI).
+**Status: APPROVED · 2026-10-16 · Implementation pending.** **Resolution:** adopt fully within fork error UI.
 
-**Zielzustand / technische Grenzen:** Sankaku-Codes für anonyme/Account-Tag-Limits in verständliche lokalisierte Meldungen übersetzen und an den Fork-Error-Layer anbinden. Bestehendes Verhalten bei unbekannten Serverfehlern als Fallback behalten.
+**Target behavior / constraints:** Convert Sankaku codes for anonymous/account tag limits into clear, localized error messages attached to the fork error layer. Keep the existing fallback for unknown server errors.
 
-**Abhängigkeiten:** B02 sowie vorhandener Error-Translator/i18n.
+**Dependencies:** B02 and existing error translator/i18n.
 
-**Abnahme / Tests:** Anonyme/Account-Limits, bereits durch B02 erfasste Exclusion-Limits, lokalisierte Meldungen, unbekannte Fehler und Retry.
+**Verification:** Anonymous/account limits, exclusion limits covered by B02, localized strings, unknown errors and retry.
 
-**Begründung / Quellen:** Bestätigte Upstream-v4.6.1-Codeänderungen: [`5b495f1ad`](https://github.com/khoadng/Boorusama/commit/5b495f1adec13643ee83307bb2b68eb0272766b2). Nutzer hat den vollständigen B01–B10-Vorschlagsbatch am 2026-10-16 bestätigt.
+**Rationale/sources:** Verified upstream commit [`5b495f1ad`](https://github.com/khoadng/Boorusama/commit/5b495f1adec13643ee83307bb2b68eb0272766b2). B01–B10 approved 2026-10-16.
 
-## B06 – Shimmie2: Medienformate und Favorite-Fallback
+## B06 — Shimmie2 Media Formats and Favorite Fallback
 
-**Status: ENTSCHIEDEN · 2026-10-16 · Umsetzung ausstehend.** **Beschlussart:** angepasst übernehmen.
+**Status: APPROVED · 2026-10-16 · Implementation pending.** **Resolution:** adapt.
 
-**Zielzustand / technische Grenzen:** Dateiformate aus `ext`, Filename und Datei-URL robust normalisieren (ohne Punkt, lowercase). Den serverseitigen Favorite-Status bei unterstützter Erweiterung und angemeldetem Nutzer ergänzen, aber optional und möglichst asynchron nach dem eigentlichen Post-Laden: Die Timeline darf bei Ausfall, fehlender Auth oder langsamer Favorite-API nicht blockiert werden. Späte Ergebnisse mit bereits erfolgten Nutzeraktionen bzw. aktuellem Favorite-Cache zusammenführen statt überschreiben; Fehler als Soft-Failure behandeln, bekannte Auth-Probleme sinnvoll sichtbar machen.
+**Target behavior / constraints:** Normalize media extensions from `ext` fields, filenames and file URLs (lowercase, no leading period). Add server-provided Favorite status where an extension supports it and the user is authenticated, but retrieve it optionally/asynchronously after normal post loading. The timeline must not block on slow/failed Favorite endpoints or missing login. Merge late results with already completed user actions and the current Favorite cache rather than overwriting them; treat errors as soft failures and surface known authentication problems meaningfully.
 
-**Abhängigkeiten:** Fork-Favorite-Repository/Cache und Shimmie2-Feature-Capabilities.
+**Dependencies:** Fork Favorite repository/cache and Shimmie2 capabilities.
 
-**Abnahme / Tests:** Erkennung verschiedener Medienextensions/URL-Formate, fehlende Extension, GraphQL/REST, 100er-ID-Batches, Favoritenabfrage mit/ohne Login, Serverfehler/Timeout, schnelle Favorite-Mutation während laufender Abfrage.
+**Verification:** Media extensions/URL forms, missing extensions, GraphQL/REST, batches of 100 IDs, Favorite lookup with/without login, error/timeout and a Favorite mutation during in-flight lookup.
 
-**Begründung / Quellen:** Bestätigte Upstream-v4.6.1-Codeänderungen: [`2d4f8484b`](https://github.com/khoadng/Boorusama/commit/2d4f8484ba62db8e5c5386825934b1bcc30455cf), [`d79ef1fcc`](https://github.com/khoadng/Boorusama/commit/d79ef1fcc9f59b07933e76681b6c033e12327460). Nutzer hat den vollständigen B01–B10-Vorschlagsbatch am 2026-10-16 bestätigt.
+**Rationale/sources:** Verified upstream commits [`2d4f8484b`](https://github.com/khoadng/Boorusama/commit/2d4f8484ba62db8e5c5386825934b1bcc30455cf), [`d79ef1fcc`](https://github.com/khoadng/Boorusama/commit/d79ef1fcc9f59b07933e76681b6c033e12327460). B01–B10 approved 2026-10-16.
 
-## B07 – Gelbooru v2: Kommentar-Upvote und Cursor-Pagination
+## B07 — Gelbooru v2: Comment Upvotes and Cursor Pagination
 
-**Status: ENTSCHIEDEN · 2026-10-16 · Umsetzung ausstehend.** **Beschlussart:** angepasst übernehmen.
+**Status: APPROVED · 2026-10-16 · Implementation pending.** **Resolution:** adapt.
 
-**Zielzustand / technische Grenzen:** Upstream-Gelv2-Comment-Page-Keys, Rule34-HTML-Kommentarparser/Score und cursorbasierte Pagination kompatibel zu Fork-Comment-/Postmodell übernehmen. **Upstream implementiert nur Kommentar-Upvotes, keine Downvotes**; keine Downvote-UI behaupten oder erfinden. Voting nur bei expliziter Site-Capability und gültiger Session anzeigen, mutierenden Upvote-GET trotz HTTP-Verb als Mutation behandeln (kein automatischer Replay nach Challenge/Retry), Auth- und Fehlerfälle sichtbar machen. Andere Gelv2-Sites behalten ihre vorhandenen Kommentar-Fetchpfade.
+**Target behavior / constraints:** Integrate upstream Gelbooru v2 comment-page keys, Rule34 HTML comment/score parsing and cursor pagination into fork Comment/Post models. Upstream supports **comment upvotes only, no downvotes**—do not add a fictional downvote action. Show voting only under an explicit site capability and a valid user session. Treat a mutating GET upvote as a **mutation** despite the HTTP method, and never replay it automatically after challenge/retry; display auth and operational errors. Other Gelbooru v2 sites retain their current comment fetch behavior.
 
-**Abhängigkeiten:** N03/N04, B08, Fork-Comment-/Selection-UI, Site-Capabilities.
+**Dependencies:** N03/N04, B08, fork comment/selection UI and site capabilities.
 
-**Abnahme / Tests:** Rule34-HTML/Script-Scores, Kommentare/Quotes, Cursor vorwärts/Ende, wiederholte Requests/Sortwechsel, login/no-login, Score- und Action-Fehler, POST-ID-Zuordnung, keine Doppelvotes unter 403/Cloudflare.
+**Verification:** Rule34 HTML/script scores, comments/quotes, cursor forward/end, repeats and sort changes, login/no login, score/action errors, post-ID mapping, no duplicate votes during Cloudflare 403.
 
-**Begründung / Quellen:** Bestätigte Upstream-v4.6.1-Codeänderungen: [`f459e9922`](https://github.com/khoadng/Boorusama/commit/f459e99220e4ac5b449c033d1d60a0b672ea2b58). Nutzer hat den vollständigen B01–B10-Vorschlagsbatch am 2026-10-16 bestätigt.
+**Rationale/sources:** Verified upstream commit [`f459e9922`](https://github.com/khoadng/Boorusama/commit/f459e99220e4ac5b449c033d1d60a0b672ea2b58). B01–B10 approved 2026-10-16.
 
-## B08 – Gelbooru v2: Kommentar-Sortierung
+## B08 — Gelbooru v2: Comment Sorting
 
-**Status: ENTSCHIEDEN · 2026-10-16 · Umsetzung ausstehend.** **Beschlussart:** übernehmen, gemeinsam mit B07.
+**Status: APPROVED · 2026-10-16 · Implementation pending.** **Resolution:** adopt together with B07.
 
-**Zielzustand / technische Grenzen:** Auf Sites, deren Comment-Capabilities es explizit vorsehen (Upstream: Rule34), `Newest`/`Oldest` über unterstützte Request-Sortierung anbieten (für Rule34 `comments_direction`-Cookie); bestehende Session-Cookies sicher mergen. Änderung nur innerhalb der aktuellen Kommentaransicht merken, ohne neue persistente Profileinstellung; Pagination/Cursor beim Umschalten vollständig zurücksetzen. Keine Optionen auf nicht unterstützten Sites zeigen.
+**Target behavior / constraints:** Offer `Newest`/`Oldest` sorting only on sites whose explicit comment capabilities support it (upstream: Rule34). For Rule34 use the `comments_direction` cookie and merge it safely with existing session cookies. Remember the choice only within the current comments view, without another persisted profile setting. Fully reset pagination/cursor on sort switch; hide options for unsupported sites.
 
-**Abhängigkeiten:** B07 und Site-Feature-/Sort-Capabilities.
+**Dependencies:** B07 and site feature/sort capabilities.
 
-**Abnahme / Tests:** Newest/Oldest, Cookie-Isolation, Cursor-Reset, schnelle Sortwechsel und verspätete Requests, einzelne Seite und Reload.
+**Verification:** Newest/Oldest, cookie isolation, cursor reset, rapid switches with late requests, single-page results and reload.
 
-**Begründung / Quellen:** Bestätigte Upstream-v4.6.1-Codeänderungen: [`43619dd49`](https://github.com/khoadng/Boorusama/commit/43619dd495d5cb79425845521f0a0e0de030670d). Nutzer hat den vollständigen B01–B10-Vorschlagsbatch am 2026-10-16 bestätigt.
+**Rationale/sources:** Verified upstream commit [`43619dd49`](https://github.com/khoadng/Boorusama/commit/43619dd495d5cb79425845521f0a0e0de030670d). B01–B10 approved 2026-10-16.
 
-## B09 – Nozomi: korrekte Tag-Counts und HTTP-Range-Encoding
+## B09 — Nozomi Tag Counts and HTTP Range Encoding
 
-**Status: ENTSCHIEDEN · 2026-10-16 · Umsetzung ausstehend.** **Beschlussart:** angepasst übernehmen.
+**Status: APPROVED · 2026-10-16 · Implementation pending.** **Resolution:** adapt.
 
-**Zielzustand / technische Grenzen:** Nozomi-Tag-Counts aus Postindex-Dateigrößen statt Search-Buckets bestimmen; gezielte Byte-Range-Requests mit `Accept-Encoding: identity`, Behandlung 200/206/404/416 sowie Content-Range und Cache/Fallback korrekt übernehmen. Gleichzeitige Count-Lookups drosseln und mit dem Fork-`ApiRequestCoordinator` koordinieren, damit parallele Autosuggestions und Following keine unnötigen Host-Requests verursachen.
+**Target behavior / constraints:** Determine Nozomi tag counts from post-index file sizes rather than search buckets. Use targeted byte-range requests with `Accept-Encoding: identity`, correctly handling 200/206/404/416 responses, `Content-Range` and cache/fallback paths. Throttle concurrent count lookups through the fork's `ApiRequestCoordinator` so tag autocomplete and Following do not generate excessive host requests.
 
-**Abhängigkeiten:** N01; Nozomi-Client/Rate-Policy des Forks.
+**Dependencies:** N01, fork Nozomi client/rate policy.
 
-**Abnahme / Tests:** Byte-Größe/4, partial/full Responses, fehlender Content-Range, 404/416/0, Range+gzip, Cache, Limits/429, parallele Suggestions und Cancellation.
+**Verification:** File bytes divided by four, partial/full responses, missing Content-Range, 404/416/zero, Range+gzip, cache, quotas/429, concurrent suggestions and cancellation.
 
-**Begründung / Quellen:** Bestätigte Upstream-v4.6.1-Codeänderungen: [`7880a020f`](https://github.com/khoadng/Boorusama/commit/7880a020fc7ba968351ee5256d3685c347d4eca0), [`5a4498f78`](https://github.com/khoadng/Boorusama/commit/5a4498f78dbce67aa43c0d3d01c4fc8d31784a23). Nutzer hat den vollständigen B01–B10-Vorschlagsbatch am 2026-10-16 bestätigt.
+**Rationale/sources:** Verified upstream commits [`7880a020f`](https://github.com/khoadng/Boorusama/commit/7880a020fc7ba968351ee5256d3685c347d4eca0), [`5a4498f78`](https://github.com/khoadng/Boorusama/commit/5a4498f78dbce67aa43c0d3d01c4fc8d31784a23). B01–B10 approved 2026-10-16.
 
-## B10 – Rule34: JSON-Post-API auf api.rule34.xxx
+## B10 — Rule34 JSON Post API at api.rule34.xxx
 
-**Status: ENTSCHIEDEN · 2026-10-16 · Umsetzung ausstehend.** **Beschlussart:** angepasst übernehmen, erst nach Verifikation aktivieren.
+**Status: APPROVED · 2026-10-16 · Implementation pending.** **Resolution:** adapt; activate only after verification.
 
-**Zielzustand / technische Grenzen:** Rule34-Listing-Endpoint nach gezielten Live-API-Tests auf `https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1` umstellen, da der Fork diesen Host bislang nur für Post-Details verwendet. Profil- und Site-Identität, Auth-/Cookie-Origin-Grenzen, Parsing, Pagination, Rate-Limits sowie eigene Rule34-403-/Cloudflare-Recovery erhalten. Bei Inkompatibilität zuerst Ursache bewerten, keinen ungetesteten Hostwechsel erzwingen.
+**Target behavior / constraints:** After targeted **live API tests**, switch the Rule34 post listing endpoint to `https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1`. The fork currently uses that host only for details. Preserve profile/site identity, authentication/cookie origin boundaries, parsing, pagination, rate limits and Rule34 Cloudflare/403 recovery. If incompatible, assess the cause instead of forcing an untested host change.
 
-**Abhängigkeiten:** N01/N02/N04/N05; aktuelles `boorus.yaml`-Rule34-Profil.
+**Dependencies:** N01/N02/N04/N05 and current Rule34 `boorus.yaml` settings.
 
-**Abnahme / Tests:** JSON-Post-Listen/Details, Pagination/Filter/Limit, mit und ohne Login, CORS/Redirect, 403-Challenge, Rate-Limit/429, Content-Shape, Cross-Host-Auth und Cache-Isolation; Live-Verifikation ist noch nicht erfolgt.
+**Verification:** JSON list/details, pagination/filter/limit, auth/no auth, CORS/redirects, 403 challenge, rate limit/429, content shape, cross-host credentials and cache isolation. Live verification has **not yet been performed**.
 
-**Begründung / Quellen:** Bestätigte Upstream-v4.6.1-Codeänderungen: [`5972548ec`](https://github.com/khoadng/Boorusama/commit/5972548ecd6e32622b8476776490251d61d6a099). Nutzer hat den vollständigen B01–B10-Vorschlagsbatch am 2026-10-16 bestätigt.
+**Rationale/sources:** Verified upstream commit [`5972548ec`](https://github.com/khoadng/Boorusama/commit/5972548ecd6e32622b8476776490251d61d6a099). B01–B10 approved 2026-10-16.
 
 ## P02 – Profile mit unbekannten Thumbnail-Actions/Media-Host-Regeln behalten
 
