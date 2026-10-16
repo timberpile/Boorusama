@@ -10,8 +10,8 @@
 
 1. `AGENTS.md`, `docs/development_workflow.md`, `docs/engineering_guidelines.md`, `.agents/skills/execute-plan/SKILL.md` — operating rules, isolation, test requirements and integration permissions.
 2. [`decisions.md`](decisions.md) — **binding authoritative record of all 68 approved decisions**, including the new A16 upstream-based version scheme. **Apply every decision**, not merely this summary.
-3. [`boorusama-v4.6.1-entscheidungskatalog.md`](boorusama-v4.6.1-entscheidungskatalog.md) — upstream commits and their SHAs, file paths, conflicts, implementation context and tests.
-4. [`boorusama-v4.6.1-checkliste.md`](boorusama-v4.6.1-checkliste.md) — all 68 IDs and short resolution summaries. Decisions marked APPROVED mean **approved in principle, not implemented**.
+3. [`boorusama-v4.6.1-decision-catalog.md`](boorusama-v4.6.1-decision-catalog.md) — upstream commits and their SHAs, file paths, conflicts, implementation context and tests.
+4. [`boorusama-v4.6.1-decision-checklist.md`](boorusama-v4.6.1-decision-checklist.md) — all 68 IDs and short resolution summaries. Decisions marked APPROVED mean **approved in principle, not implemented**.
 5. [`README.md`](README.md) — pinned comparison baseline and safeguards.
 6. The **current** fork `develop` tree, after refreshing your local references. Do not assume the October 15 pinned comparison is still current.
 
