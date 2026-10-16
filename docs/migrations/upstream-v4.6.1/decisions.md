@@ -1,153 +1,153 @@
-# Upstream v4.6.1 – Entscheidungsprotokoll
+# Upstream v4.6.1 — Decision Log
 
-**Autoritativer Entscheidungsstand:** **68 von 68 Themen entschieden** (2026-10-16); **0 offen**. Lokale Umsetzung wurde am 2026-10-16 einem Agenten beauftragt; Shared-Branch-Integration und Release sind nicht freigegeben. Dieses Dokument enthält ausschließlich Analyse und explizit bestätigte künftige Beschlüsse. Referenz: [Katalog](boorusama-v4.6.1-entscheidungskatalog.md) und [Checkliste](boorusama-v4.6.1-checkliste.md).
+**Authoritative decision status:** **68 of 68 items approved** (2026-10-16); **none outstanding**. Local implementation was assigned to an agent on 2026-10-16. Integration into shared branches and releases are **not** authorized. This document records only the analysis and explicitly approved future behavior. See the [catalog](boorusama-v4.6.1-entscheidungskatalog.md) and [checklist](boorusama-v4.6.1-checkliste.md).
 
-## Entscheidungsformat
+## Decision Record Format
 
-Für jede abgeschlossene ID einen Eintrag in diesem Schema pflegen:
+Each completed ID should record:
 
-- **ID / Datum / Status:** `OFFEN`, `ENTSCHIEDEN`, `UMGESETZT`, `VERIFIZIERT`
-- **Beschluss:** `vollständig übernehmen` / `angepasst übernehmen` / `Fork-Lösung behalten` / `nicht übernehmen`
-- **Zielzustand:** beobachtbares Verhalten und zu bewahrende Fork-Eigenschaften
-- **Daten/API:** notwendige Modell-, Schema- und Migrationsänderungen
-- **Abhängigkeiten:** zu anderen IDs
-- **Tests/Abnahme:** konkrete Regressionstests und Ergebnisse
-- **Begründung/Quellen:** Upstream-Commit und lokale Codebefunde
+- **ID / date / status:** `OPEN`, `APPROVED`, `IMPLEMENTED`, or `VERIFIED`.
+- **Resolution:** adopt completely / adapt for the fork / retain fork implementation / do not adopt.
+- **Target behavior:** observable result and preserved fork features.
+- **Data/API:** model, schema and migration implications.
+- **Dependencies:** other decision IDs.
+- **Verification:** specific regression tests and outcomes.
+- **Rationale/sources:** upstream commit and confirmed fork code paths.
 
-Vor der expliziten Nutzerentscheidung bleibt jeder Eintrag `OFFEN`; ein technischer Vorschlag ist nicht verbindlich. Änderungen an einer Entscheidung werden mit Datum und Begründung nachvollziehbar ergänzt.
+Before explicit user approval, a proposal must remain `OPEN`; technical recommendations are not binding. Record any amendment with its date and rationale.
 
-## X01 – Bookmark-Hive-Feldindex / ursprüngliche Site-Post-ID
+## X01 — Bookmark Hive Field Index / Original Site Post ID
 
-**Status: ENTSCHIEDEN · 2026-10-15 · Umsetzung ausstehend.**
+**Status: APPROVED · 2026-10-15 · Implementation pending.**
 
-### Verifiziertes technisches Verhalten
+### Verified Technical Behavior
 
-- Upstream `Post.sitePostId` bezeichnet die **unveränderte Original-Post-ID der jeweiligen Website als String**, unabhängig von `Post.id` (numerische/interne ID).
-- Relevant besonders für Sankaku: Die Original-ID kann alphanumerisch sein; der Dart-`int`-Wert ist dann nur eine erzeugte interne ID. Bei üblichen numerischen Sites entspricht `sitePostId` meist `post.id.toString()`.
-- Upstream nutzt `sitePostId` für den Bookmark-Datensatz und dessen Export, den originalen Link beziehungsweise die ursprüngliche ID, Download-Dateinamen und optionale Metadata-Sidecars.
-- Im Fork speichert `SankakuPostData` bereits die Sankaku-Original-ID; `StoredPostSnapshot` persistiert diese via `postSnapshot`. `PostOrigin` enthält die Herkunft, `BookmarkIdentity` einen standortbezogenen Post-Schlüssel.
-- **Persistenzkollision:** Fork Hive-Index `15 = snapshotSchemaVersion` (`int`), Index `16 = postSnapshot` (Map); Upstream Index `15 = sitePostId` (`String?`). Ein direkt übernommener Adapter kann vorhandene Daten falsch interpretieren.
+- Upstream `Post.sitePostId` means the **unchanged, original identifier assigned by the source site, as a string**, independent of the numeric/internal `Post.id`.
+- This is important for Sankaku: original IDs may contain letters, whereas the Dart `int` value may be only a synthetic app ID. On conventional numeric-ID sites, `sitePostId` normally equals `post.id.toString()`.
+- Upstream uses `sitePostId` for bookmark records and exports, source links, download filenames and optional metadata sidecars.
+- The fork already keeps the original Sankaku ID in `SankakuPostData`. Its `StoredPostSnapshot` persists that value via `postSnapshot`; `PostOrigin` identifies the originating site, while `BookmarkIdentity` contains a site-specific stable post key.
+- **Storage schema collision:** Fork Hive index **15 = `snapshotSchemaVersion`** (`int`) and index **16 = `postSnapshot`** (map). Upstream uses index **15 = `sitePostId`** (`String?`). Blindly adopting that adapter could misinterpret existing stored data.
 
-### Bestätigter Beschluss – Fork-Schema behalten; Upstream-Verhalten angepasst integrieren
+### Approved Decision — Retain Fork Schema and Adapt Upstream Behavior
 
-**Entscheidung:** Die bestehenden Fork-Hive-Feldindizes **15 = `snapshotSchemaVersion`** und **16 = `postSnapshot`** bleiben unverändert. Den Upstream-Hive-Index 15 für `sitePostId` **nicht** übernehmen. Vorhandene Bookmark-Dateien und Backups müssen lesbar bleiben.
+**Resolution:** The fork's existing Hive indices **15 = `snapshotSchemaVersion`** and **16 = `postSnapshot`** must remain unchanged. **Do not** adopt upstream's index-15 field for `sitePostId`. Existing bookmark databases and backups must remain readable.
 
-**Zielzustand:** Die ursprüngliche Site-Post-ID für Funktionen wie Links, Exporte und Dateinamen nach Möglichkeit aus bereits vorhandenen Post-Daten und Snapshots ableiten; keine redundante Persistenz ohne nachgewiesenen Bedarf einführen. Interne oder künstliche numerische IDs dürfen externe IDs nicht ersetzen.
+**Target behavior:** Derive the true site ID for links, exports and filenames from existing post data and snapshots wherever possible. Do not create redundant persistence without demonstrated need. Internal or synthetic numeric IDs must never masquerade as external IDs.
 
-**Umsetzungsvorgabe:** Nur wenn sich bei X02 ein konkreter persistenter Datenbedarf zeigt, einen **separaten** Vorschlag für einen neuen freien Hive-Feldindex und eine rückwärtskompatible Migration vorlegen; dafür liegt mit X01 noch **keine** Freigabe vor.
+**Implementation constraint:** If X02 revealed a concrete requirement for another persisted value, that would require a **separate** proposal for an unused Hive index and backward-compatible migration; X01 alone grants no such permission. X02 has since explicitly approved a getter **without** a new field.
 
-**Abhängigkeit:** X02 ist inzwischen ebenfalls entschieden: Getter `sitePostId` ohne zusätzlichen Hive-Index. X01s persistente Indizes 15/16 bleiben unverändert.
+**Dependency:** X02 is also approved: `sitePostId` is derived without any additional Hive field. X01's fork indices 15 and 16 remain binding.
 
-**Begründung:** Direkte Übernahme der Upstream-Indexbelegung würde das bestehende Fork-Schema mit einem inkompatiblen Datentyp kollidieren lassen. Bereits gespeicherte Original-IDs sollen wiederverwendet werden. Vom Nutzer am 2026-10-15 bestätigt.
+**Rationale:** Upstream's index assignment collides with an existing fork field of a different type. Reuse already-stored original IDs rather than changing the Hive schema. Approved by the user on 2026-10-15.
 
-### Verifikation
+### Verification
 
-- Unveränderte Lese-/Schreibbarkeit existierender Fork-Hive-Dateien (Indizes 15/16).
-- Nichtnumerische Sankaku-ID bleibt über Bookmark → Backup/Restore → Link/Export/Dateinamen exakt erhalten.
-- Identische numerische Post-IDs auf unterschiedlichen Sites kollidieren nicht.
-- Altes/upstream-kompatibles Backup und ungültige/fehlende Quell-ID sicher behandeln.
+- Read and write existing fork Hive bookmarks with indices 15/16 intact.
+- Preserve a non-numeric Sankaku ID exactly across bookmark → backup/restore → link/export/filename.
+- Prevent collisions between equal numeric post IDs on different sites.
+- Handle older/upstream-compatible backups and missing or invalid original site IDs safely.
 
-## X02 – Post-Identity/Origin vs Upstream sitePostId
+## X02 — Post Identity/Origin versus Upstream sitePostId
 
-**Status: ENTSCHIEDEN · 2026-10-15 · Umsetzung ausstehend.** **Beschlussart:** angepasst übernehmen.
+**Status: APPROVED · 2026-10-15 · Implementation pending.** **Resolution:** adapt upstream behavior.
 
-**Zielzustand / technische Grenzen:** `Post.sitePostId` als gemeinsamen `String?`-Getter einführen. Für numerische Boorus die originale numerische ID als String, für Sankaku die ggf. alphanumerische Original-ID aus `SankakuPostData`, bei unbekannter Original-ID `null` statt künstlichem Fallback. `PostOrigin`, `BookmarkIdentity` und Snapshots nicht umbauen; keine neuen Hive-Felder.
+**Target behavior / constraints:** Introduce a common nullable `Post.sitePostId: String?` getter. For numeric boorus, return the genuine original numeric ID as a string. For Sankaku, obtain its potentially alphanumeric ID from `SankakuPostData`. When the genuine ID is unknown, return `null` rather than an artificial fallback. Do not remodel `PostOrigin`, `BookmarkIdentity` or snapshots, or add new Hive fields.
 
-**Abnahme / Tests:** Download-`{id}`, JSON-Sidecars, Links, Bookmark-Speichern/Export und Backup/Restore; Sankaku mit numerischen/alphanumerischen/fehlenden IDs; zwei Sites mit gleicher Post-Zahl.
+**Verification:** Download `{id}` token, JSON sidecars, links, bookmark save/export and backup/restore; numeric/alphanumeric/missing Sankaku IDs; equal post numbers on two sites.
 
-**Verifizierte Upstream-Verwendungen:** Download-`{id}`-Token, JSON-Sidecars, Bookmark-Speichern/Restore/Export und Sankaku-Links. Getter möglichst über kleine Core-seitige Original-ID-Abstraktion, ohne Core→Sankaku-Abhängigkeit und ohne zusätzlichen Hive-Index. X01s alte Hive-Felder 15/16 bleiben verbindlich. D07 bestätigt die Umstellung von Download-`{id}` auf die echte Site-Post-ID ohne zusätzlichen `{site_post_id}`-Token; Pixivs Standardvorlage `{illust_id}_p{page}.{extension}` bleibt.
+**Verified upstream usage:** Download `{id}`, JSON sidecars, bookmark save/restore/export and Sankaku links. Prefer a small Core-level source-ID capability instead of a Core→Sankaku dependency. The existing Hive indices 15/16 remain protected under X01. D07 further confirms that download `{id}` must use the **real site ID**, without adding a `{site_post_id}` token. Keep Pixiv's `{illust_id}_p{page}.{extension}` default filename format.
 
-## X04 – Shared Post/Image Cache und Download-Lifecycle beibehalten
+## X04 — Shared Post/Image Cache and Download Lifecycle
 
-**Status: ENTSCHIEDEN · 2026-10-15 · Umsetzung ausstehend.** **Beschlussart:** angepasst übernehmen / Cache gezielt vereinfachen.
+**Status: APPROVED · 2026-10-15 · Implementation pending.** **Resolution:** adapt upstream behavior and intentionally simplify the cache.
 
-**Zielzustand / technische Grenzen:** Den gemeinsamen persistenten Fork-Image-Cache mit URL-MD5-Hash, Origin-Isolation, LRU, Quotas, Journal, Checkpoints und Performance-Fixes behalten. Physische `.generation_`-Dateien und langfristige File-Leases entfernen; Cache-Dateiname = URL-Hash. Einzigartige temporäre Downloads erst nach erfolgreichem Schreiben sicher/atomar veröffentlichen; falls gültige Datei bereits da ist, konkurrierendes Ergebnis verwerfen. Ungültige Dateien entfernen und neu laden. Image-Sharing nutzt eine eigene Temp-Kopie im existierenden Betriebssystem-Cache-Unterordner `boorusama-share` (ggf. `share_plus`), bestehende Bereinigung alter Dateien (>24 h beim App-Start) wiederverwenden; keinen neuen Cleanup-Service erfinden. Video-Cache und Download-Observer/Lifecycle erhalten.
+**Target behavior / constraints:** Retain the fork's unified, persistent image cache, including URL-MD5 file keys, origin isolation, LRU, quotas, journal, checkpoints and performance fixes. Remove physical `.generation_` files and long-lived image file leases; use the URL hash as the cache filename. Publish unique temporary downloads safely/atomically only after completion. If another valid file already exists for the key, discard the competing result. Delete invalid cache files and redownload. Image sharing uses a separate temporary copy in the existing OS cache directory `boorusama-share` (potentially via `share_plus`); reuse the cleanup at app startup for files older than 24 hours, instead of adding a new service. Preserve the video cache and download observer/lifecycle behavior.
 
-**Abnahme / Tests:** Parallele Cache-Misses, partielle/fehlgeschlagene Downloads, Invalidierung, Cache-Clear während Anzeige/Share, Race mit Eviction, Restart/Index/LRU, Limits, Cross-Site-Isolation, Temp-Cleanup und A09.
+**Verification:** Concurrent cache misses, partial/failed downloads, invalidation, clearing during view/share, eviction races, restart/index/LRU, quotas, cross-site origin isolation, temporary file cleanup and A09.
 
-**X04 – vorhandene Share-Infrastruktur:** `ShareMediaPreparation` nutzt bereits einen `boorusama-share`-Ordner in der App-Temp-Root und `cleanupExpiredShareFiles` entfernt beim nächsten Start Dateien über 24 Stunden. Für das neue Modell nur Cache→Share-Kopie statt dauerhafter Cache-Datei-Lease; keine neue Hintergrundaufräumung oder genereller OS-Cache-Cleanup-Versprechen.
+**Existing fork sharing infrastructure:** `ShareMediaPreparation` already uses `boorusama-share` under app temporary storage, and `cleanupExpiredShareFiles` removes entries older than 24 hours on the next startup. The new approach needs only a cache→share copy instead of a durable cache-file lease; do not add background cleanup or promise OS-wide cache cleanup.
 
-## A01 – App-Bootstrap, Runtime und Dependency Injection
+## A01 — Application Bootstrap, Runtime and Dependency Injection
 
-**Status: ENTSCHIEDEN · 2026-10-15 · Umsetzung ausstehend.** **Beschlussart:** angepasst übernehmen.
+**Status: APPROVED · 2026-10-15 · Implementation pending.** **Resolution:** adapt upstream behavior.
 
-**Zielzustand / technische Grenzen:** Upstream-Bootstrap/Runtime/Dependency Injection (`BoorusamaBootstrapHost`, Production-Bootstrap, Runtime, AppScope, External Effects) als führenden einzigen Startup-Pfad übernehmen; ALLE Fork-Dienste und Startjobs (Profile/UUID, ImportRecoveryGate, DataMutationCoordinator, SearchRefreshLifecycle, Following, Backups, Cache, GIF-/Share-Cleanup, native Kanäle) korrekt integrieren.
+**Target behavior / constraints:** Adopt upstream's bootstrap/runtime/dependency injection (`BoorusamaBootstrapHost`, production bootstrap, runtime, AppScope and external effects) as the **single primary startup path**, integrating **all** fork services and initialization tasks: profile UUIDs, `ImportRecoveryGate`, `DataMutationCoordinator`, `SearchRefreshLifecycle`, Following, backups, cache, GIF/share cleanup and native channels.
 
-**Abnahme / Tests:** Cold start/Retry, alte Daten/Profile, Import/Restore, Following, Cache, Android/Desktop/Web; Headless-Flows A12.
+**Verification:** Cold start/retry, preexisting data and profiles, import/restore, Following, cache, Android/Desktop/Web, and A12 headless flows.
 
-## A02 – Kurumi / Material-Cupertino-Paketmigration
+## A02 — Kurumi / Material-Cupertino Package Migration
 
-**Status: ENTSCHIEDEN · 2026-10-15 · Umsetzung ausstehend.** **Beschlussart:** angepasst übernehmen.
+**Status: APPROVED · 2026-10-15 · Implementation pending.** **Resolution:** adapt upstream behavior.
 
-**Zielzustand / technische Grenzen:** Kurumi-/Material-Cupertino-Migration, KurumiLikeButton, LinearProgressIndicator, PulseIndicator, PageIndicator und Kurumi-Kontextmenüs übernehmen; kein zusätzliches Redesign. ALLE Fork-spezifischen Actions und Long-Press-/Hold-and-Drag-/Rechtsklick-Interaktionen erhalten. **Der Agent erstellt NACH Umsetzung nur eine kurze priorisierte manuelle UI-Testliste für den Nutzer. Die manuellen Checks führt der Nutzer selbst durch, NICHT der Agent.** Automatisierte Tests/Builds macht der Agent weiterhin.
+**Target behavior / constraints:** Adopt the Kurumi/Material-Cupertino migration, `KurumiLikeButton`, `LinearProgressIndicator`, `PulseIndicator`, `PageIndicator` and Kurumi context menus, without a separate redesign. Retain **all** fork actions and long-press, hold-and-drag, and right-click interactions. **After implementation, the agent only writes a short prioritized manual UI acceptance checklist for the user. The user—not the agent—performs these manual checks.** Automated tests and builds remain the agent's responsibility.
 
-**Abnahme / Tests:** Manuelle Liste mit konkreten betroffenen Screens: Post-Grid/Selection/Viewer/Toolbar, Bookmark-Groups, Pinned Searches/Following, Suche/Tag-Chips, Danbooru-Favorites, Share/GIF, Profile, Download-Actions, Desktop-Hover/Rechtsklick/Escape und mobile Menüs.
+**Verification:** A user-facing manual checklist covering post grid/selection/viewer/toolbar, bookmark groups, Pinned Searches/Following, search/tag chips, Danbooru favorites, sharing/GIF, profiles, download actions, desktop hover/right-click/Escape and mobile menus.
 
-**A02 – manuelle Abnahme verbindlich:** Der Agent dokumentiert NACH dem UI-Merge die wichtigsten konkret vorhandenen Funktionen als kurze manuelle Checkliste für den Nutzer; **nicht vom Agent manuell ausführen lassen**. Automatisierte Unit-/Widget-/Build-Checks bleiben vorgeschrieben.
+**Binding manual acceptance rule:** After UI integration, the agent documents a short checklist of important actually implemented features for user verification. **Do not have the agent perform the manual UI checks.** Automated unit/widget/build verification is still required.
 
-## A03 – Kurumi-Stabilität, Animationen und Overflow
+## A03 — Kurumi Stability, Animation and Overflow
 
-**Status: ENTSCHIEDEN · 2026-10-15 · Umsetzung ausstehend.** **Beschlussart:** vollständig übernehmen, soweit regressionsfrei.
+**Status: APPROVED · 2026-10-15 · Implementation pending.** **Resolution:** adopt upstream fixes completely where they introduce no regressions.
 
-**Zielzustand / technische Grenzen:** Upstreams Kurumi-Fixes für Menüs, Fokus, Escape, Animationen, Overflow und Stabilität übernehmen; eigene Actions/Selection-Gesten nicht verlieren.
+**Target behavior / constraints:** Adopt upstream Kurumi fixes for menus, focus, Escape, animation, overflow and stability without losing fork actions or selection gestures.
 
-**Abnahme / Tests:** Widget-/Build-Prüfungen und Benutzer-UI-Abnahme gemäß A02.
+**Verification:** Widget/build checks and user UI acceptance under A02.
 
-## A04 – Responsives Settings-Navigationsmodell
+## A04 — Responsive Settings Navigation Model
 
-**Status: ENTSCHIEDEN · 2026-10-15 · Umsetzung ausstehend.** **Beschlussart:** angepasst übernehmen.
+**Status: APPROVED · 2026-10-15 · Implementation pending.** **Resolution:** adapt upstream behavior.
 
-**Zielzustand / technische Grenzen:** Upstreams responsive Settings-Navigation (neuer State, Unterseiten, Sidebar, kleine visuelle Änderungen) übernehmen. Vorhandene Fork-Settings Search, neue Kategorien/Einstellungen und **dynamische Titelgröße in der App-Top-Bar** unbedingt erhalten; kein abweichendes Fork-Redesign erzwingen.
+**Target behavior / constraints:** Adopt upstream responsive Settings navigation (new state model, nested pages, sidebar and minor visual changes). Preserve the existing fork Settings Search, added sections and settings, and especially the **dynamic title size in the app top bar**. Do not force an unrelated fork redesign.
 
-**Abnahme / Tests:** Settings-Suche samt Zielen, mobile/desktop, Resize in Unterseite, Zurück-/Escape-Navigation, Titelgröße.
+**Verification:** Settings Search and destinations, phone/desktop, resizing while on a nested settings page, Back/Escape navigation and title sizing.
 
-## A05 – Upstream Settings Search wurde hinzugefügt und wieder revertiert
+## A05 — Upstream Settings Search Added and Later Reverted
 
-**Status: ENTSCHIEDEN · 2026-10-15 · Umsetzung ausstehend.** **Beschlussart:** nicht übernehmen.
+**Status: APPROVED · 2026-10-15 · Implementation pending.** **Resolution:** do not adopt the reverted feature.
 
-**Zielzustand / technische Grenzen:** Die kurzzeitig eingeführte und in Upstream v4.6.1 wieder entfernte Settings Search ignorieren. Ausschließlich die bestehende Fork-Settings-Search behalten. Grund für Revert ist nicht öffentlich verifiziert (Einführung `408666ef5`, Revert `685db1ad5`).
+**Target behavior / constraints:** Ignore the short-lived upstream Settings Search feature that was removed again before v4.6.1. Keep only the fork's existing Settings Search. The reason for upstream's revert has not been publicly verified (introduction `408666ef5`, revert `685db1ad5`).
 
-**Abnahme / Tests:** Settings-Suche nach A04 vollständig nutzbar.
+**Verification:** Fork Settings Search remains fully functional after A04.
 
-## A06 – App-Lock: abweichende Privacy-Defaults
+## A06 — App Lock: Different Privacy Defaults
 
-**Status: ENTSCHIEDEN · 2026-10-15 · Umsetzung ausstehend.** **Beschlussart:** vollständig übernehmen (Defaults).
+**Status: APPROVED · 2026-10-15 · Implementation pending.** **Resolution:** fully adopt upstream defaults.
 
-**Zielzustand / technische Grenzen:** Upstream-Defaults übernehmen: App-Preview-Blur/Hide-App-Preview `false`, Lock-Timeout `30 Sekunden`. Bestehende vom Nutzer gespeicherte Werte beim Upgrade respektieren.
+**Target behavior / constraints:** Use upstream defaults: Hide App Preview / preview blur = `false`, and lock timeout = **30 seconds**. Respect existing user-saved values during upgrade.
 
-**Abnahme / Tests:** Erstinstallation/Upgrade, vorhandene Settings, PIN/Biometrie, Lock/Preview.
+**Verification:** Fresh install and upgrade, saved Settings, PIN/biometric unlocking, app lock and app preview.
 
-## A07 – Debug-Logging, Logspeicherung und Redaction
+## A07 — Debug Logging, Log Persistence and Redaction
 
-**Status: ENTSCHIEDEN · 2026-10-15 · Umsetzung ausstehend.** **Beschlussart:** 1:1 übernehmen.
+**Status: APPROVED · 2026-10-15 · Implementation pending.** **Resolution:** adopt upstream behavior unchanged.
 
-**Zielzustand / technische Grenzen:** Upstreams persistentes Logging, Logansicht, Copy/Export, aktuelle Redaction-Defaults und übrige Konfiguration **1:1** integrieren. Keine vorgezogene Änderung an Privacy-/Redaction-Defaults; zukünftiges Fork-Logging-Work-Item baut darauf auf. Fork-Diagnosen erhalten.
+**Target behavior / constraints:** Integrate upstream persistent logging, log viewer, copy/export, existing redaction defaults and other settings **as provided upstream**. Do not bring forward unrelated privacy/redaction changes; a future fork logging work item will build on this. Retain fork diagnostics.
 
-**Abnahme / Tests:** Startup-/Crash-Logging, Logpersistenz, Kopieren/Export, Rotation und bestehende Diagnosefunktionen.
+**Verification:** Startup/crash logging, persistence, copy/export, log rotation and existing diagnostic paths.
 
-## A08 – Typisierte Cloudflare-/DDoS-Diagnostics
+## A08 — Typed Cloudflare/DDoS Diagnostics
 
-**Status: ENTSCHIEDEN · 2026-10-15 · Umsetzung ausstehend.** **Beschlussart:** vollständig übernehmen.
+**Status: APPROVED · 2026-10-15 · Implementation pending.** **Resolution:** fully adopt.
 
-**Zielzustand / technische Grenzen:** Upstreams typisierte Cloudflare-/DDoS-Diagnostics mit ausführlichen Challenge-/Solver-Status- und Fehlerereignissen in A07-Logging integrieren; Rule34-Fork-Recovery erhalten.
+**Target behavior / constraints:** Integrate detailed typed Cloudflare/DDoS challenge, solver status and error events into A07 logging while retaining fork Rule34 recovery.
 
-**Abnahme / Tests:** Cloudflare Erfolg/Fehler, Loop-Vermeidung, lesbare Logs.
+**Verification:** Successful and failed challenges, redirect/loop protection and legible diagnostics.
 
-## A09 – Android-Cachepfade und DocumentsProvider
+## A09 — Android Cache Locations and DocumentsProvider
 
-**Status: ENTSCHIEDEN · 2026-10-15 · Umsetzung ausstehend.** **Beschlussart:** angepasst übernehmen.
+**Status: APPROVED · 2026-10-15 · Implementation pending.** **Resolution:** adapt upstream behavior.
 
-**Zielzustand / technische Grenzen:** Upstreams Cache-Locations-Settings und schreibgeschützten Android-DocumentsProvider übernehmen. Nur gültige, fertig gespeicherte Image-/Video-Cachedateien zeigen; keine Indizes, Partials, anderen privaten App-Dateien. An Fork-Package-ID/Native-Channels und **X04s normale Hash-Dateinamen** anpassen. Cache selbst nicht doppelt implementieren.
+**Target behavior / constraints:** Adopt upstream cache-location settings and Android **read-only** DocumentsProvider. Expose only valid, fully saved image/video cache files; never indexes, partial downloads or unrelated private app data. Adapt to the fork's package ID/native channels and **X04's simple hash filenames**. Do not implement a second cache.
 
-**Abnahme / Tests:** Dateimanager-Öffnen/Kopieren, read-only, MIME, Android-Versionen, Cache-Clear/Eviction, Private-Data-Grenze.
+**Verification:** File-manager opening/copying, read-only access, MIME identification, Android versions, cache clear/eviction and private-data isolation.
 
-## A10 – Windows Embedded WebView, WebView-Plattformfähigkeit
+## A10 — Embedded Windows WebView and WebView Platform Support
 
-**Status: ENTSCHIEDEN · 2026-10-15 · Umsetzung ausstehend.** **Beschlussart:** angepasst übernehmen.
+**Status: APPROVED · 2026-10-15 · Implementation pending.** **Resolution:** adapt upstream behavior.
 
-**Zielzustand / technische Grenzen:** Windows-Embedded-WebView, Browser-Factories, WinHTTP und Unsupported-Platform-Fallbacks übernehmen; vorhandenes Fork-Cloudflare-/Browserverhalten bewahren.
+**Target behavior / constraints:** Adopt embedded Windows WebView, browser factories, WinHTTP and unsupported-platform fallbacks while preserving existing fork Cloudflare/browser behavior.
 
-**Abnahme / Tests:** Windows Challenge/Login, Android/iOS/macOS, Navigation, Unsupported-Fallback.
+**Verification:** Windows login/challenges, Android/iOS/macOS, navigation and unsupported-platform fallback.
 
 ## A11 – Lokalisierung: Arabisch, Indonesisch, weitere Updates
 
