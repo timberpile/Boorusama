@@ -11,11 +11,15 @@
 1. `AGENTS.md`, `docs/development_workflow.md`, `docs/engineering_guidelines.md`, `.agents/skills/execute-plan/SKILL.md` — operating rules, isolation, test requirements and integration permissions.
 2. [`decisions.md`](decisions.md) — **binding authoritative record of all 68 approved decisions**, including the new A16 upstream-based version scheme. **Apply every decision**, not merely this summary.
 3. [`boorusama-v4.6.1-entscheidungskatalog.md`](boorusama-v4.6.1-entscheidungskatalog.md) — upstream commits and their SHAs, file paths, conflicts, implementation context and tests.
-4. [`boorusama-v4.6.1-checkliste.md`](boorusama-v4.6.1-checkliste.md) — all 68 IDs and short resolution summaries. Decisions marked ENTSCHIEDEN mean **approved in principle, not implemented**.
+4. [`boorusama-v4.6.1-checkliste.md`](boorusama-v4.6.1-checkliste.md) — all 68 IDs and short resolution summaries. Decisions marked APPROVED mean **approved in principle, not implemented**.
 5. [`README.md`](README.md) — pinned comparison baseline and safeguards.
 6. The **current** fork `develop` tree, after refreshing your local references. Do not assume the October 15 pinned comparison is still current.
 
 When documents disagree, use the explicit **latest user-approved decision in `decisions.md`** and the current repository's safety rules. The source catalog's earlier hypotheses/old review prompts are not permissions to override final decisions. Report truly new, substantive conflicts instead of improvising a change to data identity, privacy, or product behavior.
+
+## Repository language
+
+Write all repository documentation, source comments, issue/work item text, commit messages, tests, plans and implementation reports **in English**. The sole exception is UI translation/localization resource content in its target language. The migration documents are written in English even though the two existing catalog/checklist filenames are historical identifiers.
 
 ## 1. Fixed upstream target, and moving fork baseline
 
