@@ -1,1122 +1,906 @@
-# Boorusama – Entscheidungskatalog zum echten Merge auf Upstream v4.6.1
-
-**Stand:** 16. Oktober 2026 · **Status:** **68 von 68 Themen entschieden, 0 offen**, **lokale Implementierung durch Agenten am 2026-10-16 beauftragt**; noch keine Codeintegration und keine Freigabe für `develop`/Push/Release.
+# Boorusama — Detailed Decision Catalog for the Real Upstream v4.6.1 Merge
 
-> Grundlage: `timberpile/Boorusama` `develop` auf `d4e15586f06192f0ff4315d36a3f61ae69a752d5`, Upstream `v4.6.1` auf `5b04bf6a164f028d41701299367d0dde74dde330`; gemeinsamer Vorfahr `2c0ac699184854d363833ea4a3205aef0895a92b`. Dateien aus dem hochgeladenen Git-Bundle lokal geprüft. Bei dieser Analyse wurden keine Laufzeitänderungen am Repository vorgenommen.
+**As of:** October 16, 2026 · **Status:** **68/68 decisions approved, 0 open.** Local implementation was commissioned on 2026-10-16 but has not yet been integrated. Separate authorization is required before changes to `develop`, remote pushes, PRs or releases.
 
-## Was wird hier verglichen?
+> **Pinned comparison:** `timberpile/Boorusama` `develop` at `d4e15586f06192f0ff4315d36a3f61ae69a752d5`; upstream `v4.6.1` peeled at `5b04bf6a164f028d41701299367d0dde74dde330`; merge base `2c0ac699184854d363833ea4a3205aef0895a92b`. The original analysis inspected a supplied Git bundle. No runtime changes were made during that review.
 
-- **150 Upstream-Commits** nach dem gemeinsamen Vorfahren, also Änderungen, die nicht schon über die gemeinsame Git-Ancestry im Fork sind. Sie können ältere Arbeiten vervollständigen oder rückgängig machen; nicht jeder Commit ist ein neues Feature.
-- **Ca. 891 vom Upstream gegenüber dem Vorfahren geänderte Dateien** und **106 echte Git-Konfliktpfade** bei `git merge` ohne Sonderoption. Ein konfliktfreier Merge beweist keine semantische Kompatibilität.
-- Der Fork hat bereits wichtige 4.6-Features **vor der Verzweigung** übernommen: PIN/App Lock, Wi-Fi-Downloads, erstes Favorite-Tag-Redesign, Kurumi und AVIF. Diese werden nicht als „neu“ erneut eingeplant.
-- Zusätzlich schützt der Katalog Fork-only-Funktionen: UUID-Profile, Bookmark-Groups und Snapshot-Daten, Following/Pinned Searches, eigene Suche/Settings, Shared Cache, Exporte, Signierung.
-- **Katalog-IDs bleiben stabil.** Entschiedene Themen folgen dem [verbindlichen Entscheidungsprotokoll](decisions.md), nicht den historischen Arbeitshypothesen. Offene Themen bedürfen weiterer Nutzerbestätigung.
-
-## Ergebnis-/Entscheidungsregel
+## Comparison Scope
 
-Für jedes Thema eines von **(a) vollständig übernehmen**, **(b) angepasst übernehmen**, **(c) Fork-Lösung beibehalten**, **(d) weglassen**. Danach: Zielverhalten, Datenmigration, Abhängigkeiten, Tests, Abnahmekriterien festlegen. Nichts gilt allein aufgrund eines Auto-Merges als fachlich akzeptiert.
+- **150 upstream commits** since the shared ancestor. Some extend or revert older changes; not every commit introduces a new feature.
+- Approximately **891 paths changed in upstream** versus the ancestor; a straightforward test merge exposed **106 actual Git conflict paths**. A conflict-free Git merge does **not** guarantee semantic compatibility.
+- The fork already incorporated certain upstream 4.6-era ideas before the divergence: PIN/app lock, Wi-Fi downloads, initial favorite-tag redesign, Kurumi and AVIF. Do not count these as new implementation work.
+- Protect fork-only architecture: profile UUIDs, bookmark groups/snapshots, Following/Pinned Searches, custom Search/Settings, shared cache, export/import and signing.
+- **IDs are stable.** [The authoritative decision log](decisions.md) contains every user's approved final requirement and full test contract. Earlier historical questions or proposals in this catalog do not supersede that log.
 
-## Übersicht
+## Resolution Policy
 
-| Bereich | Themen | Nichttriviale Entscheidungen |
-|---|---:|---:|
-| Architektur, Datenschutz, Plattform und Toolchain | 18 | 16 |
-| Netzwerk und Cloudflare | 6 | 6 |
-| Downloads, Backups und Export | 8 | 8 |
-| Booru-spezifische Änderungen | 10 | 10 |
-| Posts, Grid, Viewer und Medien | 14 | 14 |
-| Suche, Bedienung, Desktop und TV | 8 | 7 |
-| Querschnitt: Schutz unserer Fork-Architektur | 4 | 4 |
-
-**Summe:** 68 katalogisierte Einzelpunkte (65 Entscheidungen, 3 als trivial/obsolet/Testpflege eingestuft). Alle 150 Commits sind in mindestens einem Einzelpunkt referenziert.
+For each item either **adopt completely**, **adapt upstream for the fork**, **retain the fork implementation**, or **omit the reverted/unneeded change**. Specify target behavior, data migration, dependencies and regression checks. A successful Git auto-merge alone is **never** evidence that user-visible behavior is correct.
 
-## Nachvollziehbare Reihenfolge für die Besprechung
+## Topic Summary
 
-1. **Daten- und Startup-Sicherheit:** X01, X02, A01, X03, X04, A15. Ohne diese Entscheidungen ist ein Merge-Stand nicht sicher.
-2. **Aktive Features/UX:** P01, P12, P13, A04, U01–U03, D01, N02; dann Site-Features.
-3. **Stabilität/Plattform:** N03–N05, D02, B04, P08, A10, U04–U06.
-4. **Rest/Automatik:** niedrig-riskante Bugfixes, i18n, CI, Tests, Dokumentation.
-
-## Detaillierte Einzelpunkte
-
-## Architektur, Datenschutz, Plattform und Toolchain
-
-### A01 · App-Bootstrap, Runtime und Dependency Injection
-
-**Status:** **ENTSCHIEDEN am 2026-10-15**, Umsetzung ausstehend · **Risiko:** 🔴 kritisch.
-
-- **Bestätigter Beschluss:** angepasst übernehmen. Upstream-Bootstrap/Runtime/Dependency Injection (`BoorusamaBootstrapHost`, Production-Bootstrap, Runtime, AppScope, External Effects) als führenden einzigen Startup-Pfad übernehmen; ALLE Fork-Dienste und Startjobs (Profile/UUID, ImportRecoveryGate, DataMutationCoordinator, SearchRefreshLifecycle, Following, Backups, Cache, GIF-/Share-Cleanup, native Kanäle) korrekt integrieren.
-- **Verifikation:** Cold start/Retry, alte Daten/Profile, Import/Restore, Following, Cache, Android/Desktop/Web; Headless-Flows A12.
-- **Verbindliches Protokoll:** [A01](decisions.md#a01--app-bootstrap-runtime-und-dependency-injection).
-- **Änderung in Upstream:** Neues `BoorusamaBootstrapHost`/`ProductionBoorusamaBootstrap`, `lib/main.dart`, Factory-/Service-Overrides und bessere headless Testbarkeit; umfangreicher 237-Dateien-Refactor.
-- **Fork / potenzieller Konflikt:** Fork startet über `BoorusamaApp` und initialisiert zusätzliche Export-, Import-, Cache-, Profil- und Sync-Funktionen. Der Merge-Probelauf übernahm den neuen `main.dart`, ohne die alte Initialisierung vollständig zu übertragen.
-- **Ursprüngliche Fragestellung:** Startup-Pfad behalten oder auf Upstream-Bootstrap migrieren? Welche Fork-Provider/Startjobs müssen garantiert ausgeführt werden?
-- **Abnahme/Test:** Cold start, Backup-/Import-Provider, Cache-Initialisierung, Fehlerfall, Desktop/Web und alle Profile.
-- **Upstream-Commits:** [`a3278c5d2`](https://github.com/khoadng/Boorusama/commit/a3278c5d2ecc3672fea63c68fb21c81a1db2bb07).
-- **Betroffene Codepfade (Auswahl):** `lib/main.dart`, `lib/core/boorusama_app.dart`, `lib/core/bootstrap/boorusama_bootstrap.dart`, `lib/core/app_scope.dart`.
-- **Bestätigter Merge-Konflikt in:** `lib/core/boorusama_app.dart`.
-
-### A02 · Kurumi / Material-Cupertino-Paketmigration
-
-**Status:** **ENTSCHIEDEN am 2026-10-15**, Umsetzung ausstehend · **Risiko:** 🟠 hoch.
-
-- **Bestätigter Beschluss:** angepasst übernehmen. Kurumi-/Material-Cupertino-Migration, KurumiLikeButton, LinearProgressIndicator, PulseIndicator, PageIndicator und Kurumi-Kontextmenüs übernehmen; kein zusätzliches Redesign. ALLE Fork-spezifischen Actions und Long-Press-/Hold-and-Drag-/Rechtsklick-Interaktionen erhalten. **Der Agent erstellt NACH Umsetzung nur eine kurze priorisierte manuelle UI-Testliste für den Nutzer. Die manuellen Checks führt der Nutzer selbst durch, NICHT der Agent.** Automatisierte Tests/Builds macht der Agent weiterhin.
-- **Verifikation:** Manuelle Liste mit konkreten betroffenen Screens: Post-Grid/Selection/Viewer/Toolbar, Bookmark-Groups, Pinned Searches/Following, Suche/Tag-Chips, Danbooru-Favorites, Share/GIF, Profile, Download-Actions, Desktop-Hover/Rechtsklick/Escape und mobile Menüs.
-- **Verbindliches Protokoll:** [A02](decisions.md#a02--kurumi-material-cupertino-paketmigration).
-- **Änderung in Upstream:** Kurumi trennt Material/Cupertino-Komponenten und ersetzt ältere UI-Abhängigkeiten; Formatierungen und teilweise geänderte Imports/Widgets.
-- **Fork / potenzieller Konflikt:** Fork verwendet Kurumi bereits, hat aber eigene Menüs, Dialoge, Viewer- und UI-Komponenten. Beide Bäume nutzen in `.fvmrc` Flutter 3.47.2.
-- **Ursprüngliche Fragestellung:** Übernehmen wir die zusätzlichen Kurumi-Komponenten und Widget-Semantik global oder nur für benötigte Upstream-Features?
-- **Abnahme/Test:** Kompilierung aller Plattformen; Golden-/Widget-Checks für Popup, Dialog, Sliver, Viewer.
-- **Upstream-Commits:** [`9f8ab7bca`](https://github.com/khoadng/Boorusama/commit/9f8ab7bcab67048be3bb865b98c47203d7b121b2), [`e7745aca8`](https://github.com/khoadng/Boorusama/commit/e7745aca83af95f38ac1d2e3f58fa23bf0b92234), [`6adb28be9`](https://github.com/khoadng/Boorusama/commit/6adb28be97b67181a1641df28d9b0c490e4e3f47).
-- **Betroffene Codepfade (Auswahl):** `packages/kurumi/lib/kurumi.dart`, `packages/kurumi/lib/material.dart`, `pubspec.yaml`.
-- **Bestätigter Merge-Konflikt in:** `packages/kurumi/lib/material.dart`, `pubspec.yaml`.
-
-### A03 · Kurumi-Stabilität, Animationen und Overflow
-
-**Status:** **ENTSCHIEDEN am 2026-10-15**, Umsetzung ausstehend · **Risiko:** 🟡 mittel.
-
-- **Bestätigter Beschluss:** vollständig übernehmen, soweit regressionsfrei. Upstreams Kurumi-Fixes für Menüs, Fokus, Escape, Animationen, Overflow und Stabilität übernehmen; eigene Actions/Selection-Gesten nicht verlieren.
-- **Verifikation:** Widget-/Build-Prüfungen und Benutzer-UI-Abnahme gemäß A02.
-- **Verbindliches Protokoll:** [A03](decisions.md#a03--kurumi-stabilitat-animationen-und-overflow).
-- **Änderung in Upstream:** Stabiler Widget-Tree, kein abgeschnittener Side-Menu-Titel, Checkmark-Animation beim Abwählen sauber abbrechen.
-- **Fork / potenzieller Konflikt:** Kurumi ist im Fork verändert; auch kleine Framework-Fixes können semantisch kollidieren.
-- **Ursprüngliche Fragestellung:** Diese isolierten Korrekturen übernehmen? UI-Verhalten und Animationen vergleichen.
-- **Abnahme/Test:** Kurumi Widget-Tests, schmale Displays, große Schrift.
-- **Upstream-Commits:** [`0ed1a49df`](https://github.com/khoadng/Boorusama/commit/0ed1a49df6e07787e89366ca931dd2f7b3504eef), [`485a728c9`](https://github.com/khoadng/Boorusama/commit/485a728c9802680b480ee949123624d6101cb463), [`c69b3e824`](https://github.com/khoadng/Boorusama/commit/c69b3e824d4acc4d60922ce78e391594846ff2c0).
-- **Betroffene Codepfade (Auswahl):** `packages/kurumi/lib/src/components`.
-
-### A04 · Responsives Settings-Navigationsmodell
-
-**Status:** **ENTSCHIEDEN am 2026-10-15**, Umsetzung ausstehend · **Risiko:** 🟠 hoch.
-
-- **Bestätigter Beschluss:** angepasst übernehmen. Upstreams responsive Settings-Navigation (neuer State, Unterseiten, Sidebar, kleine visuelle Änderungen) übernehmen. Vorhandene Fork-Settings Search, neue Kategorien/Einstellungen und **dynamische Titelgröße in der App-Top-Bar** unbedingt erhalten; kein abweichendes Fork-Redesign erzwingen.
-- **Verifikation:** Settings-Suche samt Zielen, mobile/desktop, Resize in Unterseite, Zurück-/Escape-Navigation, Titelgröße.
-- **Verbindliches Protokoll:** [A04](decisions.md#a04--responsives-settings-navigationsmodell).
-- **Änderung in Upstream:** Upstream-eigene Settings-Navigation mit Navigation-State, adaptiven Routen und späteren Layout-/Back-Fixes.
-- **Fork / potenzieller Konflikt:** Fork hat eigene `SettingsNavigationPane` und seit 14.10. eigene suchbare Settings-Navigation sowie zusätzliche Einstellungsbereiche.
-- **Ursprüngliche Fragestellung:** Welches Navigationsmodell soll nach dem Merge gelten (Routing, Sidebar, Back, Suche, Deep Links)?
-- **Abnahme/Test:** Compact und Wide, Backstack, Suche, Direktnavigation, Deep Links, Tastatur geöffnet.
-- **Upstream-Commits:** [`1f2e90060`](https://github.com/khoadng/Boorusama/commit/1f2e90060765be4369a689522c463f740f254197), [`72c27ed64`](https://github.com/khoadng/Boorusama/commit/72c27ed64b10290bd5e1877a5fbe342572a3948d).
-- **Betroffene Codepfade (Auswahl):** `lib/core/settings/src/pages/settings_page.dart`, `lib/core/settings/src/widgets/settings_navigation_pane.dart`.
-- **Bestätigter Merge-Konflikt in:** `lib/core/settings/src/pages/settings_page.dart`.
-
-### A05 · Upstream Settings Search wurde hinzugefügt und wieder revertiert
-
-**Status:** **ENTSCHIEDEN am 2026-10-15**, Umsetzung ausstehend · **Risiko:** ⚪ niedrig.
-
-- **Bestätigter Beschluss:** nicht übernehmen. Die kurzzeitig eingeführte und in Upstream v4.6.1 wieder entfernte Settings Search ignorieren. Ausschließlich die bestehende Fork-Settings-Search behalten. Grund für Revert ist nicht öffentlich verifiziert (Einführung `408666ef5`, Revert `685db1ad5`).
-- **Verifikation:** Settings-Suche nach A04 vollständig nutzbar.
-- **Verbindliches Protokoll:** [A05](decisions.md#a05--upstream-settings-search-wurde-hinzugefugt-und-wieder-revertiert).
-- **Änderung in Upstream:** Temporäre Settings-Indexgenerierung und Suchoberfläche; 4.6.1 enthält diese Implementierung nicht mehr.
-- **Fork / potenzieller Konflikt:** Fork hat eine eigene aktive Settings Search.
-- **Ursprüngliche Fragestellung:** Keine produktbezogene Entscheidung, außer explizit gewünschte Einzelideen aus dem verworfenen Upstream-Code.
-- **Abnahme/Test:** Settings-Suche bleibt nach dem Merge nutzbar.
-- **Upstream-Commits:** [`408666ef5`](https://github.com/khoadng/Boorusama/commit/408666ef55f2b20f2e65d7eee21dcb01b0f018ca), [`685db1ad5`](https://github.com/khoadng/Boorusama/commit/685db1ad56712e00d4ef8dfe438114948ba6e86e).
-
-### A06 · App-Lock: abweichende Privacy-Defaults
-
-**Status:** **ENTSCHIEDEN am 2026-10-15**, Umsetzung ausstehend · **Risiko:** 🟠 hoch.
-
-- **Bestätigter Beschluss:** vollständig übernehmen (Defaults). Upstream-Defaults übernehmen: App-Preview-Blur/Hide-App-Preview `false`, Lock-Timeout `30 Sekunden`. Bestehende vom Nutzer gespeicherte Werte beim Upgrade respektieren.
-- **Verifikation:** Erstinstallation/Upgrade, vorhandene Settings, PIN/Biometrie, Lock/Preview.
-- **Verbindliches Protokoll:** [A06](decisions.md#a06--app-lock-abweichende-privacy-defaults).
-- **Änderung in Upstream:** Hide-App-Preview standardmäßig `false`; auf v4.6.1 steht außerdem Lock-Timeout-Default auf 30 Sekunden.
-- **Fork / potenzieller Konflikt:** Fork besitzt PIN/Blur/Wi-Fi bereits, aber Hide-App-Preview-Default `true` und Lock-Timeout-Default `0`.
-- **Ursprüngliche Fragestellung:** Welche Defaults und Migrationssemantik wollen wir für bestehende und neue Installationen?
-- **Abnahme/Test:** Upgrade mit bestehenden gespeicherten Werten, neue Installation, biometrische und PIN-Lock-Flows.
-- **Upstream-Commits:** [`c2d3b109e`](https://github.com/khoadng/Boorusama/commit/c2d3b109ef0e2124273858b17ed577e8bdaa1add).
-- **Betroffene Codepfade (Auswahl):** `lib/core/settings/src/types/settings.dart`.
-
-### A07 · Debug-Logging, Logspeicherung und Redaction
-
-**Status:** **ENTSCHIEDEN am 2026-10-15**, Umsetzung ausstehend · **Risiko:** 🟠 hoch.
-
-- **Bestätigter Beschluss:** 1:1 übernehmen. Upstreams persistentes Logging, Logansicht, Copy/Export, aktuelle Redaction-Defaults und übrige Konfiguration **1:1** integrieren. Keine vorgezogene Änderung an Privacy-/Redaction-Defaults; zukünftiges Fork-Logging-Work-Item baut darauf auf. Fork-Diagnosen erhalten.
-- **Verifikation:** Startup-/Crash-Logging, Logpersistenz, Kopieren/Export, Rotation und bestehende Diagnosefunktionen.
-- **Verbindliches Protokoll:** [A07](decisions.md#a07--debug-logging-logspeicherung-und-redaction).
-- **Änderung in Upstream:** Neues persistentes Logging mit interaktiver Logansicht, URL-/Status-Hervorhebung, Copy; sensible Redaction in finaler Upstream-Konfiguration optional und standardmäßig aus.
-- **Fork / potenzieller Konflikt:** Fork besitzt älteren Logger und zusätzliche Diagnose-/Cache-Funktionen; Startup-/Provider-Konflikte.
-- **Ursprüngliche Fragestellung:** Persistente Logs? Aufbewahrungsfrist? Standardmäßig anonymisiert? Export inklusive Cookies/Auth-Tokens?
-- **Abnahme/Test:** Credential-/Cookie-Test, Log-Datei-Rotation, Crash-/Startup-Pfade, Android/iOS/Desktop.
-- **Upstream-Commits:** [`3bd433423`](https://github.com/khoadng/Boorusama/commit/3bd4334235a091c51e680c28ea852d3d07571a02), [`434a2e516`](https://github.com/khoadng/Boorusama/commit/434a2e516ecae2ce236d4c7592af62961e182a87), [`948af9448`](https://github.com/khoadng/Boorusama/commit/948af94483b7662d1de9a0fbfea7381019cd821a), [`d13fe53a3`](https://github.com/khoadng/Boorusama/commit/d13fe53a3b8cbbba481b4d2d436b124009941b8f).
-- **Betroffene Codepfade (Auswahl):** `lib/core/debug`, `lib/foundation/loggers`.
-
-### A08 · Typisierte Cloudflare-/DDoS-Diagnostics
-
-**Status:** **ENTSCHIEDEN am 2026-10-15**, Umsetzung ausstehend · **Risiko:** 🟡 mittel.
-
-- **Bestätigter Beschluss:** vollständig übernehmen. Upstreams typisierte Cloudflare-/DDoS-Diagnostics mit ausführlichen Challenge-/Solver-Status- und Fehlerereignissen in A07-Logging integrieren; Rule34-Fork-Recovery erhalten.
-- **Verifikation:** Cloudflare Erfolg/Fehler, Loop-Vermeidung, lesbare Logs.
-- **Verbindliches Protokoll:** [A08](decisions.md#a08--typisierte-cloudflare-ddos-diagnostics).
-- **Änderung in Upstream:** Ausführliche Solver-/Challenge-Ereignisse, Polling- und Diagnostics-Logs, strukturierte Zustände.
-- **Fork / potenzieller Konflikt:** Fork besitzt Rule34- und Cloudflare-Recovery sowie eigene Fehlerdiagnostik.
-- **Ursprüngliche Fragestellung:** Welche Logs/Diagnosen in Debug-Screen übernehmen; welche Daten vor Persistenz bereinigen?
-- **Abnahme/Test:** Cloudflare erfolgreich/fehlgeschlagen, sensitive query strings, kein Event-Spam.
-- **Upstream-Commits:** [`480810b11`](https://github.com/khoadng/Boorusama/commit/480810b11a5a66b24be40bc8a80a2a56e681b90c), [`0def24717`](https://github.com/khoadng/Boorusama/commit/0def247178cedd1a058c3695a09b3c159ec3577d).
-- **Betroffene Codepfade (Auswahl):** `lib/core/ddos/solver`, `lib/core/ddos/diagnostics`.
-
-### A09 · Android-Cachepfade und DocumentsProvider
-
-**Status:** **ENTSCHIEDEN am 2026-10-15**, Umsetzung ausstehend · **Risiko:** 🟡 mittel.
-
-- **Bestätigter Beschluss:** angepasst übernehmen. Upstreams Cache-Locations-Settings und schreibgeschützten Android-DocumentsProvider übernehmen. Nur gültige, fertig gespeicherte Image-/Video-Cachedateien zeigen; keine Indizes, Partials, anderen privaten App-Dateien. An Fork-Package-ID/Native-Channels und **X04s normale Hash-Dateinamen** anpassen. Cache selbst nicht doppelt implementieren.
-- **Verifikation:** Dateimanager-Öffnen/Kopieren, read-only, MIME, Android-Versionen, Cache-Clear/Eviction, Private-Data-Grenze.
-- **Verbindliches Protokoll:** [A09](decisions.md#a09--android-cachepfade-und-documentsprovider).
-- **Änderung in Upstream:** Cache-Dateiverzeichnisse in Settings anzeigen; Android Files kann per DocumentsProvider auf Cache zugreifen.
-- **Fork / potenzieller Konflikt:** Fork hat eigene persistente Shared-Image-Cache-Pipeline mit LRU und unterschiedliche private Datenverzeichnisse.
-- **Ursprüngliche Fragestellung:** Welche Caches sichtbar? Nur read-only? Wie schützen wir andere private App-Dateien?
-- **Abnahme/Test:** Scoped Storage, Zugriffskontrolle, Cache-Eviction, Backup/Restore, mehrere Android-Versionen.
-- **Upstream-Commits:** [`1e6a6607d`](https://github.com/khoadng/Boorusama/commit/1e6a6607dc7750a5c1e94d44531f8251fface3c6).
-- **Betroffene Codepfade (Auswahl):** `android/app/src/main/AndroidManifest.xml`, `android/app/src/main/kotlin`, `lib/core/settings/src/pages/data_and_storage_page.dart`.
-- **Bestätigter Merge-Konflikt in:** `android/app/src/main/AndroidManifest.xml`, `lib/core/settings/src/pages/data_and_storage_page.dart`.
-
-### A10 · Windows Embedded WebView, WebView-Plattformfähigkeit
-
-**Status:** **ENTSCHIEDEN am 2026-10-15**, Umsetzung ausstehend · **Risiko:** 🟠 hoch.
-
-- **Bestätigter Beschluss:** angepasst übernehmen. Windows-Embedded-WebView, Browser-Factories, WinHTTP und Unsupported-Platform-Fallbacks übernehmen; vorhandenes Fork-Cloudflare-/Browserverhalten bewahren.
-- **Verifikation:** Windows Challenge/Login, Android/iOS/macOS, Navigation, Unsupported-Fallback.
-- **Verbindliches Protokoll:** [A10](decisions.md#a10--windows-embedded-webview-webview-plattformfahigkeit).
-- **Änderung in Upstream:** Windows-Embedded-Browser und WinHTTP-Adapter, abstrahierte Browser-Factories, Fallback bei nicht unterstützten WebView-Funktionen.
-- **Fork / potenzieller Konflikt:** Fork hat eigene App-Service-Provider/Bootstrapping und Cloudflare-/Browser-Handling.
-- **Ursprüngliche Fragestellung:** Windows offiziell unterstützen? Welche Browser-Funktionalität und Fallbacks für andere Plattformen?
-- **Abnahme/Test:** Windows Login/Cloudflare, Android/iOS, Web nicht verfügbar, Navigation/Exit.
-- **Upstream-Commits:** [`4c6138377`](https://github.com/khoadng/Boorusama/commit/4c6138377f9d5357b986584b8aee75d0b8d5dd66), [`8d8ca771b`](https://github.com/khoadng/Boorusama/commit/8d8ca771b393d18f31e21e21881f22f142179397).
-- **Betroffene Codepfade (Auswahl):** `lib/foundation/browser`, `lib/core/http/client/src/data/winhttp_dio_adapter.dart`.
-
-### A11 · Lokalisierung: Arabisch, Indonesisch, weitere Updates
-
-**Status:** **ENTSCHIEDEN am 2026-10-15**, Umsetzung ausstehend · **Risiko:** 🟡 niedrig–mittel.
-
-- **Bestätigter Beschluss:** vollständig übernehmen, mit Fork-Ergänzungen. Upstream-Sprachen/Übersetzungen einschließlich Arabisch, Indonesisch, Language-Switch-Fixes integrieren, ohne die zusätzlich im Fork eingeführten Keys/Strings oder Fallbacks zu verlieren.
-- **Verifikation:** i18n-Generierung, JSON/Placeholders, RTL, Länder-Varianten, eigene Following-/Bookmark-/Settings-Texte.
-- **Verbindliches Protokoll:** [A11](decisions.md#a11--lokalisierung-arabisch-indonesisch-weitere-updates).
-- **Änderung in Upstream:** Locale-Ergänzungen, neue Übersetzungen aus Weblate, unbenutzte Keys entfernen, vollständige Locale beim Sprachwechsel erhalten.
-- **Fork / potenzieller Konflikt:** Fork hat eigene Strings (Following, Bookmark-Groups, Settings Search); Lokalisierungsdateien teils unabhängig angepasst.
-- **Ursprüngliche Fragestellung:** Sprachdateien zusammenführen, Key-Kollisionen und unübersetzte Fork-Keys fallbacken?
-- **Abnahme/Test:** i18n CLI/Placeholders, Ländervarianten, RTL-Screens, JSON-Parsing.
-- **Upstream-Commits:** [`bdec763aa`](https://github.com/khoadng/Boorusama/commit/bdec763aa3e7d36d774b2f64b7963f79329f9bdd), [`9ba59d05b`](https://github.com/khoadng/Boorusama/commit/9ba59d05b80c07b03e7e8696ee4c4ed8d068f14b), [`d13da93a3`](https://github.com/khoadng/Boorusama/commit/d13da93a3a6e2a8d9299d5a0ef91dd00422aa303), [`a891266bb`](https://github.com/khoadng/Boorusama/commit/a891266bb668caa65f846db9ee40f9b35c840c9e), [`02a28fe7d`](https://github.com/khoadng/Boorusama/commit/02a28fe7d7e94c12a94c926442681cc8d569e2d5), [`889592e57`](https://github.com/khoadng/Boorusama/commit/889592e57f5f22962158c2d9123f1db05f836260), [`e79abb5c0`](https://github.com/khoadng/Boorusama/commit/e79abb5c093aa7e1090653f2adf1b3e68b392328).
-- **Betroffene Codepfade (Auswahl):** `packages/i18n/translations`, `packages/i18n/lib/src/locales.dart`.
-
-### A12 · Headless Test-Harness und App-Flow-Tests
-
-**Status:** **ENTSCHIEDEN am 2026-10-15**, Umsetzung ausstehend · **Risiko:** 🟠 mittel–hoch.
-
-- **Bestätigter Beschluss:** angepasst übernehmen. Upstreams Headless-App-Test-Harness, Fake-Services und App-Flow-Tests mit A01-Runtime integrieren. Eigene Fork-Tests erhalten. Für visuelle/gestische A02-Abnahme schreibt Agent nur Nutzer-Checkliste; keine manuellen Geräte-Checks durch Agent.
-- **Verifikation:** Startup, Suche, Bookmarks, Downloads, Network Recovery, Fork-Flows; deterministische Tests.
-- **Verbindliches Protokoll:** [A12](decisions.md#a12--headless-test-harness-und-app-flow-tests).
-- **Änderung in Upstream:** Neue App-Flow-Tests und Fake-Infrastruktur für Search, Bookmarks, Bulk Download, Network Recovery, Startup.
-- **Fork / potenzieller Konflikt:** Fork hat viele eigene Integration-/Repository-Tests und eigene Startup-Architektur.
-- **Ursprüngliche Fragestellung:** Welche Tests lassen sich portieren, ohne die ganze Runtime für Testbarkeit umzubauen?
-- **Abnahme/Test:** Vollständige Testsuite und isolierte test/application-Suites, deterministische Provider.
-- **Upstream-Commits:** [`c22d12fd6`](https://github.com/khoadng/Boorusama/commit/c22d12fd678db968af1356a21a3957ae3f3eda35).
-- **Betroffene Codepfade (Auswahl):** `test/application`, `test/support`.
-
-### A13 · NixOS-Paket und Development Shell
-
-**Status:** **ENTSCHIEDEN am 2026-10-15**, Umsetzung ausstehend · **Risiko:** ⚪ niedrig.
-
-- **Bestätigter Beschluss:** optional ohne Supportpflicht. NixOS-Flake, Entwicklungsshell und Paketierung nur soweit wartbar/kompatibel übernehmen; keine neue offizielle Release-Verpflichtung oder zusätzliche Wartungsinfrastruktur.
-- **Verifikation:** `nix flake check` soweit verfügbar; übrige Build-Systeme unverändert.
-- **Verbindliches Protokoll:** [A13](decisions.md#a13--nixos-paket-und-development-shell).
-- **Änderung in Upstream:** Nix Flake, reproduzierbare Paketierung, Fonts und ARM64-Build-Fixes.
-- **Fork / potenzieller Konflikt:** Fork hat eigene CI/CLI, aber keinen entsprechenden Nix-Baum.
-- **Ursprüngliche Fragestellung:** Wollen wir Nix als unterstützte Build-/Release-Plattform?
-- **Abnahme/Test:** nix flake check, Linux Desktop, Fonts, native Assets.
-- **Upstream-Commits:** [`d3f3a62fa`](https://github.com/khoadng/Boorusama/commit/d3f3a62fa40fc7eadd2a63cd32e145f9cd3d5acd), [`038d1287c`](https://github.com/khoadng/Boorusama/commit/038d1287c04a260faea85e360c98f4baffb8fd97), [`e16ecd2c3`](https://github.com/khoadng/Boorusama/commit/e16ecd2c35236880eea7be4c27e3f957c6609143), [`2d621b683`](https://github.com/khoadng/Boorusama/commit/2d621b68335a62337075b53289f1f986f0631fcf), [`047a5a09e`](https://github.com/khoadng/Boorusama/commit/047a5a09e5e2ff397f23eee21f1cd54672cc80a2).
-- **Betroffene Codepfade (Auswahl):** `flake.nix`, `nix/package.nix`, `docs/nix.md`.
-
-### A14 · Release CI, native Assets, SDK und Build CLI
-
-**Status:** **ENTSCHIEDEN am 2026-10-15**, Umsetzung ausstehend · **Risiko:** 🟠 hoch.
-
-- **Bestätigter Beschluss:** selektiv übernehmen. Nützliche Upstream-CI-/native Assets-/SDK-/Build-CLI-Fixes übernehmen. Fork-Flavors, split-APKs, bestehende CI/Release-Workflows und Flutter-3.47.2-Pinning erhalten; zurückgenommene Upstream-Build-Fixes nicht unkritisch erneut übernehmen.
-- **Verifikation:** Android-/Desktop-Builds, CLI, CI-Matrix, Release-Assets, Signierung gemäß A15.
-- **Verbindliches Protokoll:** [A14](decisions.md#a14--release-ci-native-assets-sdk-und-build-cli).
-- **Änderung in Upstream:** Windows CMake/NASM/Pfade, Native-Asset-Retries, Git longpaths, Smoke Runs, zentralisierte Toolchain, Android Resource-IDs. Ein Build-Fix wurde rückgängig gemacht.
-- **Fork / potenzieller Konflikt:** Fork besitzt eigene Android split-APK-Signierung, eigene CI und Flutter 3.47.2.
-- **Ursprüngliche Fragestellung:** Welche konkreten Toolchain-Fixes statt des gesamten Release-Workflows übernehmen?
-- **Abnahme/Test:** CI Android+Windows+Linux+macOS+iOS soweit verfügbar, CLI-Tests, separate Smoke Run.
-- **Upstream-Commits:** [`08088842c`](https://github.com/khoadng/Boorusama/commit/08088842c880bd124715e3d76b73c24945d8ea9a), [`dbfe54fc4`](https://github.com/khoadng/Boorusama/commit/dbfe54fc432738bcf59ee9179a9089f629d620bf), [`430747c1a`](https://github.com/khoadng/Boorusama/commit/430747c1af0153672863213a03f25c082a29e204), [`402c4eb67`](https://github.com/khoadng/Boorusama/commit/402c4eb67a1052ab1841592c4eeb5a6967de071c), [`a9821d53e`](https://github.com/khoadng/Boorusama/commit/a9821d53eb413ea46374ab09b07668b4ebe766f5), [`914ee5fa5`](https://github.com/khoadng/Boorusama/commit/914ee5fa51d33eeaa69ba8dc8c6dde171fadad58), [`899aabf6a`](https://github.com/khoadng/Boorusama/commit/899aabf6a26c22e438750319b74ac463a4af19ee), [`df4f705d8`](https://github.com/khoadng/Boorusama/commit/df4f705d810f2cdfc2f009c6d6082ab5fb61d2df), [`d1e7c99b4`](https://github.com/khoadng/Boorusama/commit/d1e7c99b4895404548a426274e076b3710d84f79), [`87a4fae44`](https://github.com/khoadng/Boorusama/commit/87a4fae4463529474a9d161fdd45fa2047831986), [`c184be942`](https://github.com/khoadng/Boorusama/commit/c184be94249a3768e4f4d672517230c62acfb7ae), [`db33523ff`](https://github.com/khoadng/Boorusama/commit/db33523ff960712518c3c3482e33f8d9b33048b6), [`c22d22e0d`](https://github.com/khoadng/Boorusama/commit/c22d22e0dfe9f3f521a3e495fafa69ba00d07364), [`f94243dcc`](https://github.com/khoadng/Boorusama/commit/f94243dccad0eace17d674df43934424ca591f39), [`b55d1adde`](https://github.com/khoadng/Boorusama/commit/b55d1addecaf59fb36cd72d5f5e6e5b75b629f84).
-- **Betroffene Codepfade (Auswahl):** `.github/workflows/github-release.yml`, `packages/boorusama_cli`, `android/gradle.properties`, `scripts/toolchain.sh`.
-- **Bestätigter Merge-Konflikt in:** `.github/workflows/github-release.yml`, `android/gradle.properties`.
-
-### A15 · APK-Signing: permanenter Upstream-Key
-
-**Status:** **ENTSCHIEDEN am 2026-10-15**, Umsetzung ausstehend · **Risiko:** 🔴 kritisch.
-
-- **Bestätigter Beschluss:** Upstream-Signing NICHT übernehmen. Fork-App-ID `com.timberpile.boorusama`, Flavors, bestehende Release-Signatur, Keystore, Update-Manifest und Upgrade-Kompatibilität unverändert lassen. Upstream-Key keinesfalls übernehmen; etwaige Signing-CI-Fixes nur passend zur vorhandenen Fork-Signatur.
-- **Verifikation:** Signer-Cert vor/nach Migration, installiertes Fork-APK upgraden, Paket-ID und Release/Manifest.
-- **Verbindliches Protokoll:** [A15](decisions.md#a15--apk-signing-permanenter-upstream-key).
-- **Änderung in Upstream:** Upstream signiert GitHub-APKs seit 4.6.1 mit einem neuen permanenten Release-Key.
-- **Fork / potenzieller Konflikt:** Fork hat eigene Signatur, App-ID `com.timberpile.boorusama`, Icon/Flavor und Update-Manifest.
-- **Ursprüngliche Fragestellung:** Auf keinen Fall Upstream-Key/App-ID/Release-Credentials übernehmen; eventuell Signing-CI-Prüfungen portieren?
-- **Abnahme/Test:** Upgrade bestehender APK, signer certificate, Release Assets, Update-Manifest, build variants.
-- **Upstream-Commits:** [`e6511bad5`](https://github.com/khoadng/Boorusama/commit/e6511bad5c6d44f9b574bb08e1eeef4ddaed4d23).
-- **Betroffene Codepfade (Auswahl):** `.github/workflows/github-release.yml`, `android/app/build.gradle.kts`.
-- **Bestätigter Merge-Konflikt in:** `.github/workflows/github-release.yml`, `android/app/build.gradle.kts`.
-
-### A16 · Versionierung, Changelog und What’s-New-Popup
-
-**Status:** **ENTSCHIEDEN am 2026-10-15**, Umsetzung ausstehend · **Risiko:** 🟡 mittel.
-
-- **Bestätigter Beschluss:** angepasst übernehmen. Timberpile-Versionierung, eigene Release-History und Fork-Changelog beibehalten. Upstream-Fix für wiederkehrendes What's-New-Popup integrieren. Beschlossen: Bei integrierter Upstream-Basis `4.6.1` die erste Fork-Veröffentlichung `4.6.1-timberpile.1`, danach `.2`, `.3` usw. (pro Upstream-Basis Reset auf `.1`); Android Buildcode steigt global monoton (+190 als nächster Kandidat nach +189, sofern keine neueren Veröffentlichungen existieren).
-- **Verbindlicher Nachtrag vom 2026-10-16:** **Additional binding version policy (approved 2026-10-16):** Every fork release name begins with the **exact upstream `MAJOR.MINOR.PATCH` release version actually integrated**. Use `<upstream-version>-timberpile.<N>+<build-number>`. **Reset `N` to 1** when the upstream base version changes; increment `N` for subsequent fork releases based on the same upstream version. Do not publish a `.0` release. The `+build-number` / Android `versionCode` is **globally monotonically increasing across upstream upgrades** and must exceed all previously shipped fork Android version codes / relevant store values (never reset it). With current `4.5.0-timberpile.5+189`, the first release based on upstream v4.6.1 is **`4.6.1-timberpile.1+190` if no intervening build/release occurred**; otherwise compute the next available build number from real release/store history. Keep `pubspec.yaml`, top `CHANGELOG.md` heading, `v<version-name>` GitHub tag, GitHub updater manifest, `PackageInfo`, Android Gradle `flutter.versionCode` and flavor-specific APK codes consistent. The existing `.agents/skills/prepare-release/SKILL.md` default (always increment old Timberpile suffix and preserve old upstream base) **must be updated during implementation** along with relevant release/checker tests. Preserve own Timberpile release history and What's-New fix. Setting a policy does not authorize publishing a new release or changing `develop` now.
-- **Verifikation:** Popup einmalig, Upgrade `4.5.0-timberpile.5` → `4.6.1-timberpile.1`, version/build code monotonic, fork revision within same upstream base, reset with new upstream base, changelog/tag/manifest, parsed SemVer and Play/API compatibility.
-- **Verbindliches Protokoll:** [A16](decisions.md#a16--versionierung-changelog-und-whats-new-popup).
-- **Änderung in Upstream:** Upstream 4.6.0/4.6.1 Metadaten/Changelog; Fix für wiederkehrendes What’s-New-Popup.
-- **Fork / potenzieller Konflikt:** Fork hat Version `4.5.0-timberpile.5`, eigene Release History und bereits eigene Changelog-Fixes.
-- **Ursprüngliche Fragestellung:** Wie nennen wir die nächste Fork-Version? Werden Upstream-Release Notes getrennt dargestellt?
-- **Abnahme/Test:** Migration alte Versionsnummer, Release Dialog nur einmal, Update-Manifest.
-- **Upstream-Commits:** [`0adc367df`](https://github.com/khoadng/Boorusama/commit/0adc367df3c9a3862e9663049e1af0d90bf60d21), [`a9c31322b`](https://github.com/khoadng/Boorusama/commit/a9c31322bd4d60761218bedfd317ef18f8b69359), [`ffd7e47c5`](https://github.com/khoadng/Boorusama/commit/ffd7e47c5840a922b1c885d415a28984a6bf978a), [`bc63321ec`](https://github.com/khoadng/Boorusama/commit/bc63321ec125c5d54da165c9977580cdea46448f), [`e44fff71c`](https://github.com/khoadng/Boorusama/commit/e44fff71cd79dc4c581f6b6072a85e999a89df37), [`953fee30b`](https://github.com/khoadng/Boorusama/commit/953fee30bd78245cc9113a1dfc41a7953a7b2c3a), [`2a5818b57`](https://github.com/khoadng/Boorusama/commit/2a5818b570a58071959e9d877aa4d2a3c9c25a17), [`5a2a4e82e`](https://github.com/khoadng/Boorusama/commit/5a2a4e82e827785f0c296b600e44aae2247b90a4), [`5b04bf6a1`](https://github.com/khoadng/Boorusama/commit/5b04bf6a164f028d41701299367d0dde74dde330).
-- **Betroffene Codepfade (Auswahl):** `CHANGELOG.md`, `pubspec.yaml`, `lib/core/changelogs/repo.dart`.
-- **Bestätigter Merge-Konflikt in:** `CHANGELOG.md`, `pubspec.yaml`.
-
-### A17 · Formatierung, Reverts ohne Nettoeffekt, Kleinst-Cleanup
-
-**Status:** **ENTSCHIEDEN am 2026-10-15**, Umsetzung ausstehend · **Risiko:** ⚪ niedrig.
-
-- **Bestätigter Beschluss:** Maintenance automatisch behandeln. Formatierungs-, Cleanup- und effektlose/revertierte Upstream-Änderungen ohne Produktentscheidung behandeln. Nur notwendige Lint-/Format-Fixes; unnötige Diffs und Wiederbelebung revertierter Features vermeiden.
-- **Verifikation:** Analyzer, Formatter, Diff, Build.
-- **Verbindliches Protokoll:** [A17](decisions.md#a17--formatierung-reverts-ohne-nettoeffekt-kleinst-cleanup).
-- **Änderung in Upstream:** Großflächiges Formatieren, Aufräumen, unnötigen Abstand bzw. doppeltes `@override` entfernen.
-- **Fork / potenzieller Konflikt:** Keine gewünschte Funktion; fork-spezifischer Code stark verändert.
-- **Ursprüngliche Fragestellung:** Keine Produktentscheidung; bei Merge nur minimale Formatierungs-/Lint-Regressionskorrekturen.
-- **Abnahme/Test:** format --output=none, analyzer, Diff-Prüfung.
-- **Upstream-Commits:** [`cfb231254`](https://github.com/khoadng/Boorusama/commit/cfb231254634c8ef96873847c43f5983a5ea27ed), [`ab78dc3e3`](https://github.com/khoadng/Boorusama/commit/ab78dc3e338514bd39f2ce678ade2abd2c82b133), [`ee38cd592`](https://github.com/khoadng/Boorusama/commit/ee38cd592b4d6960d49025a52de433930b7441e7), [`372dca51c`](https://github.com/khoadng/Boorusama/commit/372dca51c760bb0d070c2d4b54c20c0407648b6c), [`3c72c200e`](https://github.com/khoadng/Boorusama/commit/3c72c200e1ecbf241feb09d1a3c932957720c84a).
-
-### A18 · AVIF-Decoder-Kompatibilität im Web
-
-**Status:** **ENTSCHIEDEN am 2026-10-15**, Umsetzung ausstehend · **Risiko:** 🟡 mittel.
-
-- **Bestätigter Beschluss:** angepasst übernehmen. AVIF-Web-/Network-Decoder-Korrekturen übernehmen, bestehende AVIF-/Extended-Image-/Fork-Cache-Pipeline erhalten.
-- **Verifikation:** AVIF Web/Android, Thumbnail/Original, Cache-Hit/Miss und Fallback.
-- **Verbindliches Protokoll:** [A18](decisions.md#a18--avif-decoder-kompatibilitat-im-web).
-- **Änderung in Upstream:** Upstream passt die neue `flutter_libavif`-Integration an Web-Umgebung und Network Decoder an.
-- **Fork / potenzieller Konflikt:** Fork hat AVIF-Wechsel schon früher übernommen, aber eigene `extended_image`-/Caching-Pipeline.
-- **Ursprüngliche Fragestellung:** Web-AVIF-Fallback/Decode-Logik portieren und Cache-Abstraktion erhalten?
-- **Abnahme/Test:** AVIF in Web und Android, Thumbnail/Original, Cache-Hit/Miss.
-- **Upstream-Commits:** [`72702e711`](https://github.com/khoadng/Boorusama/commit/72702e7110892d046826b53a25a70c39c1e72d56).
-- **Betroffene Codepfade (Auswahl):** `packages/extended_image/lib/src`.
-
-## Netzwerk und Cloudflare
-
-### N01 · HTTP-Retry-After, Rate-Limiter und Admission-Locks
-
-**Status:** **ENTSCHIEDEN am 2026-10-15**, Umsetzung ausstehend · **Risiko:** 🟠 hoch.
-
-- **Bestätigter Beschluss:** angepasst übernehmen und redundant vereinfachen. **Fork-`ApiRequestCoordinator` behalten:** zentrale Origin-Quotas, parallele In-Flight-Limits, interaktive Priorität, Following/Preload/Bulk-Pacing und 429-Cooldowns. Upstreams Sliding-Window-Interceptor NICHT als zweite Warteschicht einführen. **Übernehmen:** `packages/retriable`-Fixes für `Retry-After` (Datum/Sekunden, insb. 503), konfigurierbare retrybare Statuscodes, korrektes Gesamttimeout und Abbruch. Alten, nach Aufrufstellenprüfung unbenutzten Sliding-Window-Interceptor samt unnötigen Tests entfernen; doppelte Parser konsolidieren. Zusätzliche Upstream-Site-Pacing-Regeln für Zerochan, Anime-Pictures, E-Shuushuu in unsere `ApiQuotaPolicy` prüfen/überführen, bestehende belegte Fork-Limits nicht blind ersetzen.
-- **Verifikation:** 429/503 Retry-After und Zeitbudget, Parallelstart/Cancellation, keine Doppelwartezeiten, Danbooru/e621/Derpi/Zerochan, Anime-Pictures/E-Shuushuu, aktive vs. Following-/Bulk-Anfragen.
-- **Verbindliches Protokoll:** [N01](decisions.md#n01--http-retry-after-rate-limiter-und-admission-locks).
-- **Änderung in Upstream:** Konfigurierte Retry-Policies, `Retry-After`-Cooldowns und serialisierte Rate-Limit-Zulassung.
-- **Fork / potenzieller Konflikt:** Fork priorisiert Browsing/Following-Requests und hat eigene Request-Koordination.
-- **Ursprüngliche Fragestellung:** Wie integrieren wir Wartezeiten, Host-Limits und Browsing-Priorität, ohne Deadlocks?
-- **Abnahme/Test:** 429/503, Retry-After als Datum/Sekunden, parallele Feeds/Downloads, Abbruch.
-- **Upstream-Commits:** [`70b523938`](https://github.com/khoadng/Boorusama/commit/70b5239384cc86fba7c479c7ce688076508575cf), [`deca1064a`](https://github.com/khoadng/Boorusama/commit/deca1064aa68abcbbb1683408f305558bef08ee3).
-- **Betroffene Codepfade (Auswahl):** `packages/retriable`, `lib/core/http/client/src/interceptors/sliding_window_rate_limit_interceptor.dart`.
-- **Bestätigter Merge-Konflikt in:** `lib/core/http/client/src/interceptors/sliding_window_rate_limit_interceptor.dart`.
-
-### N02 · Per-Profile Media-Host-Overrides
-
-**Status:** **ENTSCHIEDEN am 2026-10-15**, Umsetzung ausstehend · **Risiko:** 🟠 hoch.
-
-- **Bestätigter Beschluss:** angepasst übernehmen. Media-Host-Overrides pro Profil inkl. UI für Bilder/Videos/Downloads übernehmen. Header/Cookies/Auth NICHT ohne kontrollierte Origin-Grenzen zum Ersatzhost weitergeben; Source-/Profilidentität und Cache-Isolation bewahren.
-- **Verifikation:** CDN-Wechsel, Previews/Original/Video/Download, Proxy, Auth-Leaks, Cache.
-- **Verbindliches Protokoll:** [N02](decisions.md#n02--per-profile-media-host-overrides).
-- **Änderung in Upstream:** Pro Profil Host-Austausch für Bild-/Video-/Download-Requests, Sicherheitsfilter für weitergereichte Header; Konfigurations-UI.
-- **Fork / potenzieller Konflikt:** Im Fork nicht vorhanden; Medienzugriff läuft durch eigenen gemeinsamen Image-Cache, mit Source- und Profile-Identität.
-- **Ursprüngliche Fragestellung:** Overrides für Cache-Key, Cookies, DNS/Proxies, Medien-Download und Preview? Stufe der UI-Kontrolle?
-- **Abnahme/Test:** Original-/Ersatz-Host, Cookie-/Auth-Leakage, Download & Playback, Cache-Isolation.
-- **Upstream-Commits:** [`cb5f9fade`](https://github.com/khoadng/Boorusama/commit/cb5f9fade8ed5c7e26d3f0811ef17f7187f73723).
-- **Betroffene Codepfade (Auswahl):** `lib/core/configs/network/src/types/media_host_override.dart`, `lib/core/images/booru_image.dart`.
-- **Bestätigter Merge-Konflikt in:** `lib/core/images/booru_image.dart`.
-
-### N03 · Cloudflare: state-changing Requests nicht blind erneut senden
-
-**Status:** **ENTSCHIEDEN am 2026-10-15**, Umsetzung ausstehend · **Risiko:** 🟠 hoch.
-
-- **Bestätigter Beschluss:** vollständig übernehmen (Replay-Sicherheit). Upstream-Schutz vor blindem Wiederholen mutierender Requests nach Cloudflare-Challenge übernehmen. POST/PUT, Votes, Favorites, Comments nur bei explizit sicherer Idempotenz erneut senden; Fork-Request-Kontext/Rule34 berücksichtigen.
-- **Verifikation:** Mutationen höchstens einmal, sichere GET-Recovery, Abbruch/Fehler.
-- **Verbindliches Protokoll:** [N03](decisions.md#n03--cloudflare-state-changing-requests-nicht-blind-erneut-senden).
-- **Änderung in Upstream:** HTTP-Recovery unterscheidet Request-Intent; POST/PUT/andere mutations können nicht unkontrolliert erneut abgesendet werden.
-- **Fork / potenzieller Konflikt:** Fork hat eigene Rule34-403- und Cloudflare-Recovery mit Replays.
-- **Ursprüngliche Fragestellung:** Welche Requests sind retrybar, und wie verhalten wir uns bei Favorite-/Vote-/Comment-Aktionen?
-- **Abnahme/Test:** POST/Vote/Favorite nach Challenge maximal einmal, GET mit Clearance, Fehlerpfad.
-- **Upstream-Commits:** [`94aa56361`](https://github.com/khoadng/Boorusama/commit/94aa56361ad31a902e7382396e958d27244cda35).
-- **Betroffene Codepfade (Auswahl):** `lib/core/http/client/src/interceptors/dio_protection_interceptor.dart`, `packages/coreutils/lib/src/request_intent.dart`.
-- **Bestätigter Merge-Konflikt in:** `lib/core/http/client/src/interceptors/dio_protection_interceptor.dart`.
-
-### N04 · Cloudflare-Erkennung, Blockseiten, Redirects und Challenge-UX
-
-**Status:** **ENTSCHIEDEN am 2026-10-15**, Umsetzung ausstehend · **Risiko:** 🟠 hoch.
-
-- **Bestätigter Beschluss:** angepasst übernehmen. Upstream Cloudflare-Challenge-Erkennung, Blockseiten, Captcha-Bestätigung, Subdomain-Redirects, Loop-Vermeidung und Dialog-UX übernehmen; Fork Rule34-403-Recovery erhalten.
-- **Verifikation:** 403/429, Captcha, Challenge-Redirect, kein unnötiges Dialog-Aufblitzen/Loop.
-- **Verbindliches Protokoll:** [N04](decisions.md#n04--cloudflare-erkennung-blockseiten-redirects-und-challenge-ux).
-- **Änderung in Upstream:** Erkennt umgestaltete Cloudflare-Challenges, akzeptiert Captcha in bestätigter Seite und Subdomain-Redirects, verhindert endlose Challenge-Loops und unnötiges Aufblitzen.
-- **Fork / potenzieller Konflikt:** Fork hat gezielte Rule34-403-Recovery, Solver- und HTTP-Interceptors sind verändert.
-- **Ursprüngliche Fragestellung:** Wie adaptieren wir die Schutz-Seiten-Erkennung ohne unsere Rule34-Wiederherstellung zu verlieren?
-- **Abnahme/Test:** Cloudflare 403/429, Challenge-Subdomain, blockierte Seiten, Splash/Hang, Rule34.
-- **Upstream-Commits:** [`99ee264db`](https://github.com/khoadng/Boorusama/commit/99ee264dbc2f9649d94b8757575e82b885623e0d), [`bcef3b5c1`](https://github.com/khoadng/Boorusama/commit/bcef3b5c1cf620ff3d67bfaef9e6d623391c3442), [`dc7b9cee9`](https://github.com/khoadng/Boorusama/commit/dc7b9cee911f28049333546c56379be8c51d955a), [`f82a62885`](https://github.com/khoadng/Boorusama/commit/f82a6288563d73e8da1943b7fed499d16f3611d7), [`b0a1d65d9`](https://github.com/khoadng/Boorusama/commit/b0a1d65d9e60131f010491f38877cfd5e5df7b60), [`399a4da47`](https://github.com/khoadng/Boorusama/commit/399a4da47587906a73a316f18c089254b58156d5).
-- **Betroffene Codepfade (Auswahl):** `lib/core/ddos/solver`, `lib/core/ddos/handler/protection_handler.dart`.
-
-### N05 · Clearance-Cookie und native WebView-Cookie-Bridge
-
-**Status:** **ENTSCHIEDEN am 2026-10-15**, Umsetzung ausstehend · **Risiko:** 🟠 hoch.
-
-- **Bestätigter Beschluss:** angepasst übernehmen. Upstream-WebView→HTTP-Cookie-Bridge Android/iOS/macOS übernehmen, ohne Fork-App-ID, Native Channels, Cookie-Origin-/Secure-/HttpOnly-Grenzen zu beeinträchtigen.
-- **Verifikation:** Gelöste Challenges, Domain/Subdomains, Android/iOS/macOS, unsupported platforms.
-- **Verbindliches Protokoll:** [N05](decisions.md#n05--clearance-cookie-und-native-webview-cookie-bridge).
-- **Änderung in Upstream:** Cookies nach erfolgreich gelöster Challenge aus WebView und Native CookieManager lesen, für HTTP-Clients korrekt anwenden; Android/iOS/macOS-Kanäle.
-- **Fork / potenzieller Konflikt:** Fork hat eigene App-ID/Package-Pfade und zusätzliche Native Channels für Export und Systemsteuerung.
-- **Ursprüngliche Fragestellung:** Cookie-Bridge in welchen Plattformen aktiv? Wie werden Cookie-Domain, Secure/HttpOnly und Redirect-Origin behandelt?
-- **Abnahme/Test:** Android, iOS, macOS, Cookies auf mehreren Subdomains, Plattform nicht unterstützt.
-- **Upstream-Commits:** [`0b4dcfcc4`](https://github.com/khoadng/Boorusama/commit/0b4dcfcc40d22cff1464b34506a6b836f06d7586), [`0ad2e6465`](https://github.com/khoadng/Boorusama/commit/0ad2e646591aceac0ab726aec1213289e42311ac).
-- **Betroffene Codepfade (Auswahl):** `android/app/src/main/kotlin`, `ios/Runner/AppDelegate.swift`, `lib/foundation/browser/webview_cookie_channel.dart`.
-- **Bestätigter Merge-Konflikt in:** `ios/Runner/AppDelegate.swift`.
-
-### N06 · HTTP/2-Window und automatisches Gzip
-
-**Status:** **ENTSCHIEDEN am 2026-10-15**, Umsetzung ausstehend · **Risiko:** 🟡 mittel.
-
-- **Bestätigter Beschluss:** angepasst übernehmen. HTTP/2-Window- und Gzip-Verbesserungen übernehmen; Fork-Priorisierung, HTTP1-/Plattform-Fallback und mobile Speichergrenzen erhalten.
-- **Verifikation:** HTTP2/HTTP1, gzip, hohe Parallelität, wenig RAM.
-- **Verbindliches Protokoll:** [N06](decisions.md#n06--http2-window-und-automatisches-gzip).
-- **Änderung in Upstream:** Größere HTTP/2-Stream/Connection-Windows und komprimierte Responses.
-- **Fork / potenzieller Konflikt:** Fork modifiziert Dio/HTTP2 für aktive Browser-Priorität und Site-Adapter.
-- **Ursprüngliche Fragestellung:** Globale oder selektive Einstellung? Grenzen bei mobilen Verbindungen und problematischen Servern?
-- **Abnahme/Test:** HTTP/2 Downloads/Lists, HTTP1 fallback, gzip/deflate, low-memory.
-- **Upstream-Commits:** [`86a7ee6bb`](https://github.com/khoadng/Boorusama/commit/86a7ee6bbee7a730f9b8931c01919191bd2ad0c3).
-- **Betroffene Codepfade (Auswahl):** `lib/core/http/client/src/providers/dio.dart`.
-
-## Downloads, Backups und Export
-
-### D01 · Download Sidecars: TXT-Tags und JSON-Metadaten
-
-**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟠 hoch.
-
-- **Bestätigter Beschluss:** angepasst übernehmen. Optionales Download-Sidecar neben der tatsächlich gespeicherten Mediendatei (`<media>.txt` mit einem Tag pro Zeile oder `<media>.json` mit Tags, unverfälschter Herkunft/Site-ID sofern verfügbar, öffentlichen Quelllinks, tatsächlicher Qualität und tatsächlichem Dateinamen) implementieren. Globales Format `off` als Default; pro Bulk-Download-Task ein optionaler Override (Default/Off/TXT/JSON). Keine zusätzliche profilbezogene Einstellung. Einzel-, Bookmark- und Bulk-Downloads sowie Cache-Direktkopien über denselben sicheren, beobachtbaren Completion-Pfad integrieren. Sidecar-Daten als unveränderlichen Post-/Task-Snapshot vor dem Transfer einfrieren, damit Retry/Background-Recovery nicht auf UI-Provider angewiesen sind. Dateien ausschließlich nach bestätigter Transfer-Fertigstellung atomar publizieren; deduplizierte Tags sortiert ausgeben, vorhandene fremde/abweichende Sidecars nicht überschreiben, Konflikt als eigenständig reparierbaren Fehler anzeigen. Sidecar-Fehler dürfen die abgeschlossene Mediendatei nicht erneut herunterladen oder zerstören. Bei `skip if exists` eine vorhandene Mediendatei mitsamt Sidecar unverändert überspringen, auch wenn das Sidecar fehlt. Sensible Cookies/Auth-Header, signierte oder lokale API-/Datei-URLs nicht exportieren. Upstream-Storage/Callbacks/Recovery an Fork-Download-/Observer-/Lifecyclesystem anpassen. D07 entscheidet noch separat die genaue Herkunft der `sitePostId` in Sidecar/JSON.
-- **Daten / Abhängigkeiten:** Erfordert voraussichtlich zusätzliche nullable Sidecar-Konfiguration in globalen Settings, Bulk-Task-/Download-Record-Snapshots und additive SQLite-Migration (Upstream Version 2); existierende DB-Records bleiben gültig. Sidecar-Status/Journaling muss Crash/Reboot/Retry ohne doppelte Abschluss-Events (D02) tragen. Keine Änderung am bestehenden Bookmark-/Post-Hive-Schema. Keine erneute lokale Media-Downloadaktion durch bloßen Sidecar-Retry.
-- **Verifikation:** Default Off, TXT/JSON, Einzel/Bookmark/Bulk/Video-Cache-Kopie, Skip-if-exists mit/ohne Sidecar, Sidecar-Kollision, readonly/scoped storage, disk full, Crash vor/nach Download/Sidecar-Write, Headless Background-Callback, Recovery nach Restart, Retry nur Sidecar, 0/mehrere Tags, UTF-8/Zeilenumbrüche, URL-/Credential-Redaction und Post-Origin-Identität.
-- **Verbindliches Protokoll:** [D01](decisions.md#d01-download-sidecars-txt-tags-und-json-metadaten).
-- **Änderung in Upstream:** Optionale `.txt` Tags oder `.json` mit Post-ID, Quellen, Qualität und Dateiname; atomare Sidecar-Erzeugung, Bulk-Download/Storage-Integration.
-- **Fork / potenzieller Konflikt:** Fork besitzt komplexere Download-/Share-/Export-Flows; Sidecar-Modul fehlt.
-- **Ursprüngliche Fragestellung:** Globaler oder profilabhängiger Schalter? Sidecar bei Duplikaten, Fehlern, bestehenden Dateien und Backups?
-- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Optional, default off; Upstream-Datenmodell unter Beibehaltung unserer Download-Pipeline adaptieren.
-- **Abnahme/Test:** Einzel-/Bulk-Download, bereits existierende Datei, Retry, Storage Permissions, Hydrus, sensibles URL-Filtering.
-- **Upstream-Commits:** [`86a16a20e`](https://github.com/khoadng/Boorusama/commit/86a16a20ee1327740316005b7946b8264fa70a19).
-- **Betroffene Codepfade (Auswahl):** `lib/core/downloads/sidecar`, `lib/core/bulk_downloads/src/providers/bulk_download_notifier.dart`.
-- **Bestätigter Merge-Konflikt in:** `lib/core/bulk_downloads/src/providers/bulk_download_notifier.dart`.
-
-### D02 · Bulk-Download-Finalisierung und Benachrichtigungen
-
-**Status:** **ENTSCHIEDEN am 2026-10-15**, Umsetzung ausstehend · **Risiko:** 🔴 kritisch.
-
-- **Bestätigter Beschluss:** Finale Upstream-Completion (nicht den Zwischen-Revert) angepasst übernehmen: fehlgeschlagene Dateigrößenbestimmung tolerieren, Completion pro Session serialisieren, Statistik vor Cleanup sichern und max. 100 abgeschlossene Sessions im Runtime-State für Notifications erhalten. Fork-Lifecycle-Guards beibehalten; Crash-/Cleanup-Fehlerfenster idempotent/restartfähig absichern.
-- **Verifikation:** Parallel-Events, Replays, Dateigrößenfehler, Race bei Cleanup/Status, Restart/Resume, korrekte Statistiken, Notification genau einmal und Completion-History.
-- **Verbindliches Protokoll:** [D02](decisions.md#d02--bulk-download-finalisierung-und-benachrichtigungen).
-- **Änderung in Upstream:** Upstream revertiert frühere deterministische Session-Finalisierung und baut Completion/Notification auf neuer Future-basierten Logik neu auf.
-- **Fork / potenzieller Konflikt:** Fork **enthält** den später von Upstream revertierten Original-Fix; beide Varianten behandeln Race Conditions und Cleanup verschieden.
-- **Ursprüngliche Fragestellung:** Welcher Algorithmus garantiert abgeschlossene Sessions, korrekte Dateigrößen und Benachrichtigungen bei Cleanup?
-- **Frühere Arbeitshypothese (ersetzt durch obigen Beschluss):** Verhalten anhand beider Testsets vergleichen; neue Garantie integrieren, statt Fork-Implementierung blind zu ersetzen.
-- **Abnahme/Test:** Task-Stream-Races, parallel completions, Hintergrund/Resume, Notification History und Fehlerfall.
-- **Upstream-Commits:** [`ebdfb05d9`](https://github.com/khoadng/Boorusama/commit/ebdfb05d9bec5be5c6fd6dd3e5460cea8ce1e1a1), [`54b19cd4c`](https://github.com/khoadng/Boorusama/commit/54b19cd4cf77b3a75579a2b27aeccc1b1dc56ef5).
-- **Betroffene Codepfade (Auswahl):** `lib/core/bulk_downloads/src/providers/bulk_download_notifier.dart`, `lib/core/download_activity`.
-- **Bestätigter Merge-Konflikt in:** `lib/core/bulk_downloads/src/providers/bulk_download_notifier.dart`.
-
-### D03 · Background Downloader Plugin-Update
-
-**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟡 niedrig–mittel.
-
-- **Bestätigter Beschluss:** Plugin-Commit nach Verifikation übernehmen. Upstream wechselt beim git-basierten `khoadng/background_downloader` mit unveränderter Package-Version `9.6.1` von `e8ad9f9` auf `fd67fff9ee4ad4cdf415dc3285289cad9289cefe`. Commit-Diff/Native-/API-Kompatibilität vor Übernahme prüfen. Nur bei erfolgreicher Prüfung `pubspec_overrides.yaml` und Lockfile konsistent auf den neueren Commit aktualisieren; keinesfalls alte Fork-Callbacks, Cronet-Transport/Resumption, Android-Dateirechte oder Persistenzabläufe ersetzen. Mit D01, D02 und D04 als gemeinsamer Lifecycle-Integrationstest prüfen; bei Inkompatibilität dokumentiert beim alten Pin bleiben bis zur Lösung.
-- **Daten / Abhängigkeiten:** Abhängigkeit/Lockfile-Git-Pin, keine geplante eigene Datenmigration. Platform-Plugin-/Native-Build-Verhalten gesondert prüfen.
-- **Verifikation:** Android foreground/background, App-Neustart, Pause/Resume, Retry/Cancel, Notifications, Cronet, Cache-/Sidecar-Completion, Task-IDs, Android build und iOS/Desktop soweit unterstützt.
-- **Verbindliches Protokoll:** [D03](decisions.md#d03-background-downloader-plugin-update).
-- **Änderung in Upstream:** Version des Hintergrund-Downloader-Plugins aktualisiert.
-- **Fork / potenzieller Konflikt:** Fork nutzt Cronet und eigene persistente Download-/Notification-Services.
-- **Ursprüngliche Fragestellung:** Version übernehmen, wenn mit Fork-Flutter/Cronet/APK-Setup kompatibel?
-- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Nur mit API-/Lockfile-Kompatibilitätscheck übernehmen.
-- **Abnahme/Test:** Download in Background, Android Notifications, iOS, Restart.
-- **Upstream-Commits:** [`669b8019f`](https://github.com/khoadng/Boorusama/commit/669b8019f80eaf8d0f40e268bbf8a29dc0808ddf).
-- **Betroffene Codepfade (Auswahl):** `pubspec.lock`, `pubspec_overrides.yaml`.
-
-### D04 · Download-Manager: injizierbarer Task-Client und Snapshot-Fix
-
-**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟡 mittel.
-
-- **Bestätigter Beschluss:** vollständig übernehmen, Fork-Lifecycle bewahren. Den injizierbaren `DownloadTaskClient` für Pause/Resume/Retry/Cancel, Resumability sowie Pfad- und Dateigrößenabfragen nach Upstream-Konzept übernehmen, damit Download-Manager-Widgets und Notifier testbar sind; tatsächliches Enqueueing bleibt beim bestehenden Fork-Download-Service. Bei Task-Updates die existierende Gruppenliste vor Mutation kopieren (`[...?totalTasks[group]]`), statt alte State-Snapshots mutieren zu lassen. Doppeltes Schließen desselben Broadcast-StreamControllers abstellen: ein Provider besitzt/entsorgt den Controller; nach Upstream-Konzept optional zentraler `DownloadTaskEventIngress` veröffentlicht Ereignisse sowohl im Snapshot als auch im Stream. Fork-Retry-/Headers-/DDOS-/Notification-/Download-Activity-Integration bleibt erhalten.
-- **Daten / Abhängigkeiten:** Neue schmale Provider-/Task-Interface-Schicht ohne Datenbankänderung, vorhandene Task-IDs und Notification-/State-Strukturen behalten. D02 und D03 berücksichtigen.
-- **Verifikation:** Drei oder mehr Updates derselben Task erzeugen unveränderliche frühere Snapshots und vollständige Listener-Events, Dispose ohne double-close, Task-Ingress-Snapshot und Stream identisch, Retry/Cancel/Pause/Resume mit Fake-Client und Auth-/Bypass-Headern, parallele Updates/Grouped Tasks, FileSize-Ausfälle.
-- **Verbindliches Protokoll:** [D04](decisions.md#d04-download-manager-injizierbarer-task-client-und-snapshot-fix).
-- **Änderung in Upstream:** Downloader-Task-Interface für Testbarkeit; Task-Liste vor Statusupdate kopieren (Mutation/Iteration-Sicherheit).
-- **Fork / potenzieller Konflikt:** Fork besitzt Download-Manager und eigene Download-Aktivitätslogik.
-- **Ursprüngliche Fragestellung:** Abstraktion vollständig migrieren oder nur den Datenrennen-Fix übernehmen?
-- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Listenkopie direkt portieren; Task-Client nur falls für Tests sinnvoll.
-- **Abnahme/Test:** Schnelle parallele Updates, Retry/Cancel, Notifications, Manager-Filter.
-- **Upstream-Commits:** [`bd2e22c22`](https://github.com/khoadng/Boorusama/commit/bd2e22c221bcfb1a8c8c0675afbab6763a3102c9), [`90657ee4e`](https://github.com/khoadng/Boorusama/commit/90657ee4ed73f9a4bf7f2277ed1750e2f8b5d4ff).
-- **Betroffene Codepfade (Auswahl):** `lib/core/download_manager`.
-
-### D05 · Anime-Pictures Bulk Download und Request-Pacing
-
-**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟡 mittel.
-
-- **Bestätigter Beschluss:** angepasst übernehmen. Bulk Downloads für Anime-Pictures aktivieren, einschließlich Site-Capability und mehrseitiger Aufträge. Upstream-Konservativpacing (etwa 1 Request/Sekunde über den relevanten API-/Download-Link-Host) ausschließlich über unseren bestehenden `ApiRequestCoordinator`/sitebezogene N01-Quota abbilden, keinen zweiten `SlidingWindowRateLimitInterceptor` installieren. Den unbefristeten `_downloadUrlCache` aus `AnimePicturesClient` entfernen, da URLs/Session-Cookies veralten; den Fork-`AnimePicturesDownloadFileUrlExtractor` mit begrenztem 5-Minuten-Cache beibehalten, aber Sessionwechsel, Retry nach Auth-Fehler und Links mit begrenzter Gültigkeit verifizieren. Ein Retry soll frische signierte URLs/Cookies beziehen können. Identität/Profil-/Following-Boundaries, bestehende Bulk-Auftrags-Persistenz und Download-UI nicht regressieren.
-- **Daten / Abhängigkeiten:** Site-Capability/Generated Booru-Config anpassen (Generator-Output nur nach Änderungen an Source-YAML neu erzeugen); N01-Quota priorisierte Request-Pacing/Retry-After, D02/D04 Download-Lifecycle. Keine zusätzliche eigenständige Rate-Limit-Schicht.
-- **Verifikation:** Bulk über mehrere Seiten, rate/429/Retry-After, Link-Expire/Session-Wechsel, Parallel-Profile, Download-Cookie-Handling, vorhandene Cache-Treffer, Cancel/Pause/Resume, Seiten-Cursor und Result-Recovery.
-- **Verbindliches Protokoll:** [D05](decisions.md#d05-anime-pictures-bulk-download-und-request-pacing).
-- **Änderung in Upstream:** Bulk Download für Anime-Pictures aktivieren, konservatives Request-Pacing von API-/Download-Link-Anfragen.
-- **Fork / potenzieller Konflikt:** Fork hat eigene Anime-Pictures-Adapter und Download-URL-Extraktion.
-- **Ursprüngliche Fragestellung:** Gleiches Quotenmodell wie Upstream? Wie mit globalen Rate-Limits und Download-Vorgaben kombinieren?
-- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Bulk Download übernehmen; über N01 koordinieren.
-- **Abnahme/Test:** Mehrseitige Downloads, 429/Retry-After, gesperrte Links, Caching.
-- **Upstream-Commits:** [`c5b79488c`](https://github.com/khoadng/Boorusama/commit/c5b79488c8d90b624cb17e8452d3b17e099be88f).
-- **Betroffene Codepfade (Auswahl):** `lib/boorus/anime-pictures/client_provider.dart`, `packages/booru_clients/lib/src/anime-pictures`.
-
-### D06 · Zerochan Bulk Download und URL-Auflösung
-
-**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟡 mittel.
-
-- **Bestätigter Beschluss:** angepasst übernehmen. Explizite Sperre für Zerochan-Bulk-Downloads entfernen, sobald URL-Auflösung stabil integriert und getestet ist. API-Detail liefert vorzugsweise explizite `full`/`large`/`medium`/`small`-URLs und Dateigröße/Format; wenn Full fehlt oder JSON defekt ist, gezielt die Post-HTML-Seite lesen; Asiachan-Detail-API zuverlässig durch HTML-Fallback ersetzen. Quellen/Hosts validieren und Fehler/Redirects, 404/410 und temporäre Auth-/Rate-Limits unterscheiden. Pro Post `Preview`, `Sample`, `Original` klar unterstützen; **wenn `Original` explizit angefordert ist, niemals stillschweigend Preview/Sample als Original ausgeben**, sondern nicht auflösbar melden. Dedup gleichzeitiger URL-Requests und kurzer 5-Minuten-Cache analog Upstream übernehmen. Pacing konservativ ca. 1 Request/1,2 Sek über Fork-`ApiRequestCoordinator`, ohne neue Sliding-Window-Interceptor-Schicht; Fork-FileName-/Metadata-/Observer-/Bulk-Lifecycle erhalten.
-- **Daten / Abhängigkeiten:** Erweiterte nullable Zerochan-DTO-Felder und PostData-/Adapter-Mapping, neuer Download-URL-Extractor und Source-Capabilities, Quality-basierte Single-Download-Action; N01/N03 und D02/D04 beachten. Cache nur bei gültigen URLs und an Site/Profile geknüpft.
-- **Verifikation:** Zerochan + Asiachan API/HTML-Responses, fehlende Original-URL, 404/410, falsche HTML-Seite/Metatags, explicit original vs. degraded variant, Preview/Sample, Redirect/Authentication/429, per-Post-Parallel-Fetch, Cache/Expiry, Dateiname/Extension/Size und Bulk Skip/Retries.
-- **Verbindliches Protokoll:** [D06](decisions.md#d06-zerochan-bulk-download-und-url-auflösung).
-- **Änderung in Upstream:** Bulk Download für Zerochan reaktivieren, neue Datei-URL-Extraktion und Qualitätsauflösung.
-- **Fork / potenzieller Konflikt:** Fork hat eigene Zerochan-Parser und Downloads, neue Bulk-Extractor-Module fehlen.
-- **Ursprüngliche Fragestellung:** Welche Qualitätsstufen, Redirects und Auth-Situationen unterstützen?
-- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Funktion vollständig übernehmen, Adapter an Fork-Download-Pipeline anpassen.
-- **Abnahme/Test:** Preview/Sample/Original, Access Denied/Rate Limit, bereits vorhandene Files.
-- **Upstream-Commits:** [`50980b8da`](https://github.com/khoadng/Boorusama/commit/50980b8da1368aa39a44051c78dee12dd4dff2ce).
-- **Betroffene Codepfade (Auswahl):** `lib/boorus/zerochan`, `packages/booru_clients/lib/src/zerochan`.
-
-### D07 · Quellseitige Post-IDs in Exporten statt nur int IDs
-
-**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟠 hoch.
-
-- **Änderung in Upstream:** Exports sichern zusätzliche `sitePostId`-Information, damit nicht-numerische/andere Site-IDs erhalten bleiben; enthält außerdem einen Sankaku-Suggestion-Fix.
-- **Fork / potenzieller Konflikt:** Fork hat eigene PostOrigin-/Snapshot- und Bookmark-Identität, daher gilt nicht automatisch die Upstream-Struktur.
-- **Verifizierter Fork-Befund (2026-10-16):** Die aktuelle Bookmark-Backup-Quelle schreibt Format **v5** (Importer akzeptiert v4/v5): `BookmarkBackupCodec` exportiert `localId` (lokaler Bookmark-Schlüssel), `postId` (`int`, laufzeitinterner/kompatibler Post-Schlüssel), `snapshot` und `identity` (`site` + `postKey`). Sankaku-Postparser weist für alphanumerische Original-IDs einen synthetischen `Post.id` zu, speichert jedoch `SankakuPostData.sankakuId` als native ID; `SankakuPostCodec` serialisiert sie in `snapshot.custom.sankakuId` (Wert + numeric-Flag). Somit bleibt die echte Sankaku-Site-ID im vollständigen aktuellen Backup bereits erhalten. `PostOrigin` repräsentiert **Site/Profilkontext**, nicht die Post-ID. `BookmarkIdentity` kann `id:<siteId>`, für Pixiv aber z. B. `work-page:<illustId>:<pageIndex>` enthalten; ihr vollständiger Key ist keine direkt ausgebbare einfache Site-ID. Pixiv ist ein zusätzlicher Grenzfall: Pro Seite synthetischer `Post.id=illustId*1000+pageIndex`, während alle Seiten eine gemeinsame originale Illust-ID besitzen. Hive-Felder 15/16 bleiben nach X01 belegt. Im aktuellen `DownloadFileNameBuilder` ergibt `{id}` weiterhin `post.id.toString()`. **Auf neue Backup-Speicherung oder Verifikation der Site-ID per Site-API darf man hier nicht schließen.**
-- **Bestätigter Beschluss (2026-10-16):** `Post.sitePostId: String?` (X02) liefert die echte Quell-Post-ID als String. Numerische Sites: echte numerische ID; Sankaku: originale numerische oder alphanumerische ID aus `SankakuPostData`; Pixiv: echte `illustId`, nicht synthetische `Post.id`. Bei unbekannter Original-ID `null`, kein künstlicher int-Fallback. Der bestehende Download-Dateinamen-Token **`{id}` wird wie bei Upstream auf `post.sitePostId` umgestellt**. Kein zusätzlicher `{site_post_id}`-Token. Das bisherige Dateinamensverhalten muss laut Nutzer nicht rückwärtskompatibel bleiben, weil Downloads im Fork noch kaum verwendet wurden. Pixiv benutzt bereits als **unverändertes Standardformat `{illust_id}_p{page}.{extension}`**, sodass mehrseitige Artworks eindeutig benannt sind; ein selbstdefiniertes Format nur mit `{id}` kann Seitenkollisionen verursachen, die über bestehende Skip-/Overwrite-Schutzregeln verhindert werden müssen. Bei fehlender echter ID: sicheren nicht als Site-ID ausgegebenen Fallback-Dateinamen oder verständlichen Fehler verwenden, keine synthetische ID als Original ausgeben.
-- **Daten / Abhängigkeiten:** D01-JSON-Sidecars und externe Post-Links mit echter Site-ID; bestehende vollständige Bookmark-Snapshots (`custom.sankakuId`), `PostOrigin`, `BookmarkIdentity`, Profil-UUIDs, Backup-Importer v4/v5 und `BookmarksBackupSource` v5 erhalten. Kein redundantes `Bookmark.sitePostId`, kein neues Hive-Feld: 15 = `snapshotSchemaVersion`, 16 = `postSnapshot` (Upstream-Kollision Index 15 nicht übernehmen). Core-seitigen Getter ohne Sankaku-/Pixiv-spezifische direkte Core-Abhängigkeit modellieren.
-- **Verifikation:** Danbooru/Gelbooru/Sankaku/Pixiv mit echten IDs für `{id}`; alphanumerische/missing Site-ID; Pixiv-Multi-Page-Default und eigene `{id}`-Only-Kollisionsvorlage; sichere Dateinamen bei unbekannter ID; unveränderte Hive 15/16 und Backup-v4/v5-Roundtrips; gleiche numerische ID auf unterschiedlichen Installationen; D01-Sidecar-ID/Link-Generator ohne synthetische IDs.
-- **Verbindliches Protokoll:** [D07](decisions.md#d07-quellseitige-post-ids-in-exporten-statt-nur-int-ids).
-- **Ursprüngliche Fragestellung:** In welches bestehende Feld gehört die Quell-ID; wann wird sie persistiert und exportiert?
-- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Funktion übernehmen, **ohne** unsere PostIdentity/BookmarkIdentity zu ersetzen; mit X01 abstimmen.
-- **Abnahme/Test:** Export/Import, mehrere Boorus gleicher numerischer ID, nicht-numerische IDs, Migration alter Daten.
-- **Upstream-Commits:** [`216eb6e6d`](https://github.com/khoadng/Boorusama/commit/216eb6e6d43cef2581a110b66a8f1482d110e7b9).
-- **Betroffene Codepfade (Auswahl):** `lib/core/posts/post/src/types/post.dart`, `lib/core/bookmarks/src/types/bookmark.dart`.
-- **Bestätigter Merge-Konflikt in:** `lib/core/bookmarks/src/types/bookmark.dart`, `lib/core/posts/post/src/types/post.dart`.
-
-### D08 · Favorite Tags direkt aus Storage exportieren
-
-**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟡 mittel.
-
-- **Bestätigter Beschluss:** übernehmen. Für Favorite-Tag-Backups statt möglicherweise uninitialisiertem UI-State `ref.read(favoriteTagsProvider)` das persistente Repository über `await ref.read(favoriteTagRepoProvider.future)` und `await repo.getAll()` verwenden. Dies gilt auch für alle anderen relevanten vollständigen Backup-/Export-Flows, die derzeit direkt einen UI-Provider-Snapshot benutzen, und für Revision-/Auto-Backups. Bestehende Import-Semantik `repo.replaceAll(tags)` samt `ref.invalidate(favoriteTagsProvider)`, Versionsgrenzen und Label-/Raw-Query-Repräsentation erhalten. Explizite 'Export simple to clipboard'-UI-Funktion bleibt separat erhalten und darf nicht mit dem Full-Backup-Format verwechselt werden.
-- **Daten / Abhängigkeiten:** Keine Backupschema-/Persistenzmigration allein wegen D08. X03-Profile-/Import-/Recovery-Invarianten und A12 Headless-Tests berücksichtigen.
-- **Verifikation:** Kaltstart Full-Backup ohne Öffnen der Favorite-Tag-Page, zuvor nicht initialisiertes UI-State, mehrere Labels/Raw-Query/Unicode, Auto-/Server-/File-/Clipboard-Backup, vollständiger Roundtrip ohne doppelte Tags, Import ersetzt Tags unverändert; Provider-Invalidation nach Import.
-- **Verbindliches Protokoll:** [D08](decisions.md#d08-favorite-tags-direkt-aus-storage-exportieren).
-- **Änderung in Upstream:** Backup liest alle Favorite Tags aus dem Repository, nicht aus möglicherweise noch uninitialisiertem UI-Provider.
-- **Fork / potenzieller Konflikt:** Fork hat erweiterten Backup-/Import-/Export-Flow und eigene Tags-Repositories.
-- **Ursprüngliche Fragestellung:** Änderung sowohl im alten Backup als auch in den Fork-Exportpfaden übernehmen?
-- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Ja, für alle relevanten Backup-Quellen auf vollständigen Datenbestand prüfen.
-- **Abnahme/Test:** Kaltstart und Export ohne Tags-Page, mehrfache Labels, Roundtrip.
-- **Upstream-Commits:** [`f93bdf0dd`](https://github.com/khoadng/Boorusama/commit/f93bdf0dd42c5eb0e8165d9070310a2aebfa32c1).
-- **Betroffene Codepfade (Auswahl):** `lib/core/backups/sources/favorite_tags_source.dart`.
-
-## Booru-spezifische Änderungen
-
-### B01 · Sankaku-Metatags, Syntax-Highlighting und typed Suggestions
-
-**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟠 mittel–hoch.
-
-- **Bestätigter Beschluss:** angepasst übernehmen. Sankaku-spezifische Metatag-Definitionen (u. a. `rating`, `date`, `order`, `user`, `pool`, `fav`), Parser, typed Autocomplete-Suggestions und sichere Abbildung der Quellwerte übernehmen. Metatag-Präfixe erkennbar hervorheben, aber die UI in das geplante siteübergreifende Search-Options-Interface einfügen; keine parallele/alte Upstream-Search-Bar bauen. Raw-Syntax und sitespezifische Möglichkeiten bleiben hinter der gemeinsamen Schnittstelle.
-- **Abhängigkeiten:** Geplanter gemeinsamer Search-UX-Umbau; B02 und die bestehenden Fork-Suchzustände.
-- **Verifikation:** Tag- vs. Metatag-Vorschläge, `fav`/`user`/`pool`, Highlighting, Raw-Query, Leer-/Alias-/unbekannte Werte und neuer Search-UX-Flow, keine Regression in Suche/Tag-Chips.
-- **Verbindliches Protokoll:** [B01](decisions.md#b01-sankaku-metatags-syntax-highlighting-und-typed-suggestions).
-- **Änderung in Upstream:** Sankaku-Metatags erhalten separate Kategorisierung/Suggestions und syntaktische Highlighting-Regeln.
-- **Fork / potenzieller Konflikt:** Fork baut die Tag-Suche und siteübergreifende Abstraktion um; eigener Search-Bar-Code.
-- **Ursprüngliche Fragestellung:** Welche Metatags gehören in unser allgemeines Search-Options-Interface, welche sind Sankaku-spezifisch?
-- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Parser/Backend-Support übernehmen; UX in das geplante vereinheitlichte Search Interface integrieren.
-- **Abnahme/Test:** Sankaku `rating`, `date`, sort/exclude, getrennte Tag- und Metatag-Vorschläge.
-- **Upstream-Commits:** [`216eb6e6d`](https://github.com/khoadng/Boorusama/commit/216eb6e6d43cef2581a110b66a8f1482d110e7b9), [`2569eaeeb`](https://github.com/khoadng/Boorusama/commit/2569eaeeb6ea01ea35386ffc8bab858dcbd1d75d).
-- **Betroffene Codepfade (Auswahl):** `lib/boorus/sankaku/tags/metatags.dart`, `lib/boorus/sankaku/search/tag_query_composer.dart`.
-
-### B02 · Sankaku-Exclusion und Datumsfilter normalisieren
-
-**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟡 mittel.
-
-- **Bestätigter Beschluss:** übernehmen (site-adaptiert). Sankaku-Exclusion-Restriktionen verständlich übersetzen und nur für Sankaku einzelne gültige `date:YYYYMMDD`/`date:YYYY-MM-DD`-Tokens in einen API-konformen Tagesbereich übersetzen. Eine explizite Range, Operatoren, ungültige Datumsangaben und die sichtbare Raw-Query nicht unkontrolliert umschreiben; Normalisierung unmittelbar im Site-Query-Composer/Adapter.
-- **Abhängigkeiten:** B01, B05; gemeinsamer Search-Composer darf keine Sankaku-Syntax auf andere Sites anwenden.
-- **Verifikation:** Exclusion-Fehler/Limit-Codes, gültige/ungültige Daten, Tages-/Jahreswechsel, Leap-Day, Range und Vergleich Raw-Eingabe zu gesendetem Query.
-- **Verbindliches Protokoll:** [B02](decisions.md#b02-sankaku-exclusion-und-datumsfilter-normalisieren).
-- **Änderung in Upstream:** Klarere Fehlermeldungen bei Exclusion-Restriktionen; Einzeldatum in API-tauglichen Tageszeitraum umschreiben.
-- **Fork / potenzieller Konflikt:** Fork hat eigene Search-Syntax-Handling-Änderungen.
-- **Ursprüngliche Fragestellung:** Direkte API-Normalisierung pro Site oder über die neue allgemeine Search-Abstraktion?
-- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Funktionale Fixes übernehmen, Syntaxauflösung im Site-Adapter belassen.
-- **Abnahme/Test:** Datum mit Zeitzonen, Ausschlussbegrenzungen, rohe Query.
-- **Upstream-Commits:** [`18216f412`](https://github.com/khoadng/Boorusama/commit/18216f4123586634f0756e7d5b20673638711766), [`6ad672075`](https://github.com/khoadng/Boorusama/commit/6ad672075306e5621a4dde519ad124da0b19f8cb).
-- **Betroffene Codepfade (Auswahl):** `lib/boorus/sankaku`.
-
-### B03 · Sankaku-Tag-Kategorien vollständig erhalten, Duplikate entfernen
-
-**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟡 mittel.
-
-- **Bestätigter Beschluss:** angepasst übernehmen. Alle bekannten Sankaku-Kategorien einschließlich Studio (`2`), Genre (`5`), Medium (`8`) und Meta (`9`) korrekt site-spezifisch zuordnen (generisches Fork-`TagCategory.fromLegacyId(5)` wäre für Sankaku falsch). Unbekannte Kategorien ohne stillen Verlust erhalten und doppelte API-Tag-Einträge nach echter ID bzw. Name+Kategorie konsistent deduplizieren; sinnvollere Counts übernehmen. Bestehende Fork-`PostRecord`/`PostOrigin`-/Snapshot-/Bookmark-Datenformate behalten, ggf. erweiterten Detailtag-Satz ohne persistente Schemaänderung bereitstellen.
-- **Abhängigkeiten:** X01/X02/X03 und Fork-Tag-Modell, keine Upstream-Postmodelle blind ersetzen.
-- **Verifikation:** Kategorien 0/1/2/3/4/5/8/9/unbekannt, doppelte Namen/IDs/Counts, Tag-Farben und Filter, Bookmark-Snapshot-Roundtrip, alte Daten.
-- **Verbindliches Protokoll:** [B03](decisions.md#b03-sankaku-tag-kategorien-vollständig-erhalten-duplikate-entfernen).
-- **Änderung in Upstream:** Alle Tag-Kategorien parsen und beim Post-Mapping deduplizieren.
-- **Fork / potenzieller Konflikt:** Fork erweitert Tag- und Post-Datenmodelle; nur teilweiser Gleichstand.
-- **Ursprüngliche Fragestellung:** Sind alle upstream Tag-Kategorien sinnvoll und stabil auf unsere Farben/Tag-Gruppen abbildbar?
-- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Parsing-Fixtures und Category-Mapping übernehmen, bestehendes Fork-Tagmodell erhalten.
-- **Abnahme/Test:** Kategorien, doppelte Namen mit abweichenden Counts, Bookmark-Snapshot-Roundtrip.
-- **Upstream-Commits:** [`d0fde834a`](https://github.com/khoadng/Boorusama/commit/d0fde834a413658bb50db150636c481c88a88222), [`396ae059e`](https://github.com/khoadng/Boorusama/commit/396ae059e9e5576aa0172df7fabf823963c03e92).
-- **Betroffene Codepfade (Auswahl):** `lib/boorus/sankaku/posts/parser.dart`, `lib/boorus/sankaku/tags`.
-- **Bestätigter Merge-Konflikt in:** `lib/boorus/sankaku/posts/parser.dart`.
-
-### B04 · Sankaku-Auth: API-Header, invalid credentials, Session-Recovery
-
-**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟠 hoch.
-
-- **Bestätigter Beschluss:** angepasst übernehmen. Bestehende Dio-Optionen/Interceptors/Header beim Sankaku-API-Header-Merge erhalten. Login-Response vor Token-Speicherung streng validieren. Bei erkennbar abgelaufenem/ungültigem Token GET-Requests höchstens einmal nach kontrollierter Neuanmeldung wiederholen; gleichzeitige Logins pro Client zusammenfassen, nur das tatsächlich abgelehnte Token invalidieren und Client-/Profile-Isolation bewahren. Mutierende Favorites/POST/DELETE nicht blind wiederholen, sondern Fehler melden und neue Auth für spätere Nutzeraktionen ermöglichen. Wenn Auto-Reauth scheitert, bestehende Profil-Login-UX verwenden; Tokens/Credentials nie loggen.
-- **Abhängigkeiten:** N01/N03/N04/N05; bestehendes Fork-Profil- und Credential-Modell, kein Cross-Origin-Auth-Leak.
-- **Verifikation:** Ungültige Credentials/Tokenformat, 401/API-Auth-Code, gleichzeitige GETs, erneute Ablehnung, Profilwechsel, Cookie/Header-Erhalt, Favoriten ohne Doppelmutation, Cancellation/Rate-Limit und Credential-Redaction.
-- **Verbindliches Protokoll:** [B04](decisions.md#b04-sankaku-auth-api-header-invalid-credentials-session-recovery).
-- **Änderung in Upstream:** Client-Optionen beim API-Header-Merge bewahren; Auth-Responses validieren; abgelaufene Sessions recovern; Login-Rejections korrekt anzeigen.
-- **Fork / potenzieller Konflikt:** Fork nutzt eigenes Profil-/Auth-Modell, zusätzliche Favorite-Integration.
-- **Ursprüngliche Fragestellung:** Welche Recovery ist automatisch und wann muss neu authentifiziert werden?
-- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Fixes übernehmen, bestehende Token-/Credential-Speicherung und Auth-Prompts nutzen.
-- **Abnahme/Test:** Falsche Daten, abgelaufenes Cookie, mehrere Profile, Rate Limit, keine Credentials in Logs.
-- **Upstream-Commits:** [`829ec71fb`](https://github.com/khoadng/Boorusama/commit/829ec71fbaedbc60fff7d98fe1b40c494a130ebe), [`6ad691a6d`](https://github.com/khoadng/Boorusama/commit/6ad691a6de23d8a44c46d02bf3640997dbb618f4), [`6762d00f2`](https://github.com/khoadng/Boorusama/commit/6762d00f2e4ac6efc99bf969bd15a335f6767437), [`8757eb295`](https://github.com/khoadng/Boorusama/commit/8757eb2953d41716bc7c8fb3a028b71fb3f03e2c).
-- **Betroffene Codepfade (Auswahl):** `packages/booru_clients/lib/src/sankaku/sankaku_client.dart`, `lib/boorus/sankaku/sankaku_repository.dart`.
-- **Bestätigter Merge-Konflikt in:** `lib/boorus/sankaku/sankaku_repository.dart`, `packages/booru_clients/lib/src/sankaku/sankaku_client.dart`.
-
-### B05 · Sankaku-Suchlimits korrekt erklären
-
-**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** ⚪ niedrig.
-
-- **Bestätigter Beschluss:** vollständig übernehmen (in Fork-Fehler-UI). Sankaku-Codes für anonyme/Account-Tag-Limits in verständliche lokalisierte Meldungen übersetzen und an den Fork-Error-Layer anbinden. Bestehendes Verhalten bei unbekannten Serverfehlern als Fallback behalten.
-- **Abhängigkeiten:** B02 sowie vorhandener Error-Translator/i18n.
-- **Verifikation:** Anonyme/Account-Limits, bereits durch B02 erfasste Exclusion-Limits, lokalisierte Meldungen, unbekannte Fehler und Retry.
-- **Verbindliches Protokoll:** [B05](decisions.md#b05-sankaku-suchlimits-korrekt-erklären).
-- **Änderung in Upstream:** API-Fehler zu Tag-Limits in verständliche Fehlermeldungen übersetzen.
-- **Fork / potenzieller Konflikt:** Fork hat Suchfehler-/Translation-Layer.
-- **Ursprüngliche Fragestellung:** Site-Meldung übernehmen und in unsere Error-UI einhängen?
-- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Ja, sofern die Fehlermeldung der aktuellen API entspricht.
-- **Abnahme/Test:** Grenzwert überschritten, lokalisierte Fehlermeldung, Retry.
-- **Upstream-Commits:** [`5b495f1ad`](https://github.com/khoadng/Boorusama/commit/5b495f1adec13643ee83307bb2b68eb0272766b2).
-- **Betroffene Codepfade (Auswahl):** `lib/boorus/sankaku/errors/error_translator.dart`.
-
-### B06 · Shimmie2: Medienformate und Favorite-Fallback
-
-**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟡 mittel.
-
-- **Bestätigter Beschluss:** angepasst übernehmen. Dateiformate aus `ext`, Filename und Datei-URL robust normalisieren (ohne Punkt, lowercase). Den serverseitigen Favorite-Status bei unterstützter Erweiterung und angemeldetem Nutzer ergänzen, aber optional und möglichst asynchron nach dem eigentlichen Post-Laden: Die Timeline darf bei Ausfall, fehlender Auth oder langsamer Favorite-API nicht blockiert werden. Späte Ergebnisse mit bereits erfolgten Nutzeraktionen bzw. aktuellem Favorite-Cache zusammenführen statt überschreiben; Fehler als Soft-Failure behandeln, bekannte Auth-Probleme sinnvoll sichtbar machen.
-- **Abhängigkeiten:** Fork-Favorite-Repository/Cache und Shimmie2-Feature-Capabilities.
-- **Verifikation:** Erkennung verschiedener Medienextensions/URL-Formate, fehlende Extension, GraphQL/REST, 100er-ID-Batches, Favoritenabfrage mit/ohne Login, Serverfehler/Timeout, schnelle Favorite-Mutation während laufender Abfrage.
-- **Verbindliches Protokoll:** [B06](decisions.md#b06-shimmie2-medienformate-und-favorite-fallback).
-- **Änderung in Upstream:** Dateiformate genauer erkennen, Favorite-State zuverlässig abfragen; wenn Favorite-API fehlschlägt, Listings trotzdem laden.
-- **Fork / potenzieller Konflikt:** Fork hat Shimmie2-Client, Parsing und eigene Favoriten-Änderungen.
-- **Ursprüngliche Fragestellung:** Welche Fehler sind soft failures, welche Auth-Fehler?
-- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Fixes übernehmen und Seite nie wegen eines optionalen Favorite-States blockieren.
-- **Abnahme/Test:** API teilweise offline, verschiedene Media-Extensions, Auth abgelaufen.
-- **Upstream-Commits:** [`2d4f8484b`](https://github.com/khoadng/Boorusama/commit/2d4f8484ba62db8e5c5386825934b1bcc30455cf), [`d79ef1fcc`](https://github.com/khoadng/Boorusama/commit/d79ef1fcc9f59b07933e76681b6c033e12327460).
-- **Betroffene Codepfade (Auswahl):** `lib/boorus/shimmie2`, `packages/booru_clients/lib/src/shimmie2`.
-
-### B07 · Gelbooru v2: Kommentar-Voting und Cursor-Pagination
-
-**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟠 mittel–hoch.
-
-- **Bestätigter Beschluss:** angepasst übernehmen. Upstream-Gelv2-Comment-Page-Keys, Rule34-HTML-Kommentarparser/Score und cursorbasierte Pagination kompatibel zu Fork-Comment-/Postmodell übernehmen. **Upstream implementiert nur Kommentar-Upvotes, keine Downvotes**; keine Downvote-UI behaupten oder erfinden. Voting nur bei expliziter Site-Capability und gültiger Session anzeigen, mutierenden Upvote-GET trotz HTTP-Verb als Mutation behandeln (kein automatischer Replay nach Challenge/Retry), Auth- und Fehlerfälle sichtbar machen. Andere Gelv2-Sites behalten ihre vorhandenen Kommentar-Fetchpfade.
-- **Abhängigkeiten:** N03/N04, B08, Fork-Comment-/Selection-UI, Site-Capabilities.
-- **Verifikation:** Rule34-HTML/Script-Scores, Kommentare/Quotes, Cursor vorwärts/Ende, wiederholte Requests/Sortwechsel, login/no-login, Score- und Action-Fehler, POST-ID-Zuordnung, keine Doppelvotes unter 403/Cloudflare.
-- **Verbindliches Protokoll:** [B07](decisions.md#b07-gelbooru-v2-kommentar-upvote-und-cursor-pagination).
-- **Änderung in Upstream:** Kommentar-Upvote (kein Downvote) und Cursor-basierte Navigation in Gelbooru-v2-Clients.
-- **Fork / potenzieller Konflikt:** Fork hat eigenen Comment-/Post-Kontext und Rule34-Gelv2-Sonderfälle.
-- **Ursprüngliche Fragestellung:** Für welche Gelv2-Sites ist Voting erlaubt, wie bestimmen wir Capabilities und Auth?
-- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Funktion übernehmen, im Site-Feature-Interface capability-abhängig machen.
-- **Abnahme/Test:** Mit/ohne Login, Cursor vor/zurück, API-Antwortvarianten und Rule34.
-- **Upstream-Commits:** [`f459e9922`](https://github.com/khoadng/Boorusama/commit/f459e99220e4ac5b449c033d1d60a0b672ea2b58).
-- **Betroffene Codepfade (Auswahl):** `lib/boorus/gelbooru_v2/comments`, `packages/booru_clients/lib/src/gelbooru_v2`.
-
-### B08 · Gelbooru v2: Kommentar-Sortierung
-
-**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟡 mittel.
-
-- **Bestätigter Beschluss:** übernehmen, gemeinsam mit B07. Auf Sites, deren Comment-Capabilities es explizit vorsehen (Upstream: Rule34), `Newest`/`Oldest` über unterstützte Request-Sortierung anbieten (für Rule34 `comments_direction`-Cookie); bestehende Session-Cookies sicher mergen. Änderung nur innerhalb der aktuellen Kommentaransicht merken, ohne neue persistente Profileinstellung; Pagination/Cursor beim Umschalten vollständig zurücksetzen. Keine Optionen auf nicht unterstützten Sites zeigen.
-- **Abhängigkeiten:** B07 und Site-Feature-/Sort-Capabilities.
-- **Verifikation:** Newest/Oldest, Cookie-Isolation, Cursor-Reset, schnelle Sortwechsel und verspätete Requests, einzelne Seite und Reload.
-- **Verbindliches Protokoll:** [B08](decisions.md#b08-gelbooru-v2-kommentar-sortierung).
-- **Änderung in Upstream:** Server-/Client-Sortoptionen für Kommentare je nach API-Variante.
-- **Fork / potenzieller Konflikt:** Fork nutzt eigenen Gelbooru-v2-Comment-Provider.
-- **Ursprüngliche Fragestellung:** Welche Sortmodi anzeigen, Site-Capability und Persistenz pro Profil?
-- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Sortoptionen nur anbieten, wenn der jeweilige Server sie unterstützt.
-- **Abnahme/Test:** Cursor+Sort, unbekannte Parameternamen, Reload.
-- **Upstream-Commits:** [`43619dd49`](https://github.com/khoadng/Boorusama/commit/43619dd495d5cb79425845521f0a0e0de030670d).
-- **Betroffene Codepfade (Auswahl):** `lib/boorus/gelbooru_v2/comments`, `packages/booru_clients`.
-
-### B09 · Nozomi: korrekte Tag-Counts und HTTP-Range-Encoding
-
-**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟡 niedrig–mittel.
-
-- **Bestätigter Beschluss:** angepasst übernehmen. Nozomi-Tag-Counts aus Postindex-Dateigrößen statt Search-Buckets bestimmen; gezielte Byte-Range-Requests mit `Accept-Encoding: identity`, Behandlung 200/206/404/416 sowie Content-Range und Cache/Fallback korrekt übernehmen. Gleichzeitige Count-Lookups drosseln und mit dem Fork-`ApiRequestCoordinator` koordinieren, damit parallele Autosuggestions und Following keine unnötigen Host-Requests verursachen.
-- **Abhängigkeiten:** N01; Nozomi-Client/Rate-Policy des Forks.
-- **Verifikation:** Byte-Größe/4, partial/full Responses, fehlender Content-Range, 404/416/0, Range+gzip, Cache, Limits/429, parallele Suggestions und Cancellation.
-- **Verbindliches Protokoll:** [B09](decisions.md#b09-nozomi-korrekte-tag-counts-und-http-range-encoding).
-- **Änderung in Upstream:** Tag-Counts aus Index-Größen statt Search-Buckets; Range-Requests senden `Accept-Encoding: identity`.
-- **Fork / potenzieller Konflikt:** Fork unterstützt Nozomi bereits.
-- **Ursprüngliche Fragestellung:** Direkter Cherry-pick möglich? Prüfen, ob Site-Client im Fork abweicht.
-- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Als isolierten Adapter-Fix übernehmen.
-- **Abnahme/Test:** Tag-Count-Fixtures, Status 200/206/416, komprimierte Antworten.
-- **Upstream-Commits:** [`7880a020f`](https://github.com/khoadng/Boorusama/commit/7880a020fc7ba968351ee5256d3685c347d4eca0), [`5a4498f78`](https://github.com/khoadng/Boorusama/commit/5a4498f78dbce67aa43c0d3d01c4fc8d31784a23).
-- **Betroffene Codepfade (Auswahl):** `packages/booru_clients/lib/src/nozomi`.
-
-### B10 · Rule34: JSON-Post-API auf api.rule34.xxx
-
-**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟠 hoch.
-
-- **Bestätigter Beschluss:** angepasst übernehmen, erst nach Verifikation aktivieren. Rule34-Listing-Endpoint nach gezielten Live-API-Tests auf `https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1` umstellen, da der Fork diesen Host bislang nur für Post-Details verwendet. Profil- und Site-Identität, Auth-/Cookie-Origin-Grenzen, Parsing, Pagination, Rate-Limits sowie eigene Rule34-403-/Cloudflare-Recovery erhalten. Bei Inkompatibilität zuerst Ursache bewerten, keinen ungetesteten Hostwechsel erzwingen.
-- **Abhängigkeiten:** N01/N02/N04/N05; aktuelles `boorus.yaml`-Rule34-Profil.
-- **Verifikation:** JSON-Post-Listen/Details, Pagination/Filter/Limit, mit und ohne Login, CORS/Redirect, 403-Challenge, Rate-Limit/429, Content-Shape, Cross-Host-Auth und Cache-Isolation; Live-Verifikation ist noch nicht erfolgt.
-- **Verbindliches Protokoll:** [B10](decisions.md#b10-rule34-json-post-api-auf-apirule34xxx).
-- **Änderung in Upstream:** Override für `posts` auf `https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1`.
-- **Fork / potenzieller Konflikt:** Fork nutzt bisher `rule34.xxx/index.php?...` und hat besondere 403-Challenge-Recovery.
-- **Ursprüngliche Fragestellung:** Welcher API-Host funktioniert zuverlässiger und wie verhalten sich Cookies, Suche und Profile?
-- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Endpoint nach Live-API-Tests übernehmen; mit N02/N04 abstimmen.
-- **Abnahme/Test:** Posts, Pagination, Auth, Error-403, Domain-/Cache-Isolation, Rate Limits.
-- **Upstream-Commits:** [`5972548ec`](https://github.com/khoadng/Boorusama/commit/5972548ecd6e32622b8476776490251d61d6a099).
-- **Betroffene Codepfade (Auswahl):** `packages/booru_clients/boorus.yaml`.
-- **Bestätigter Merge-Konflikt in:** `packages/booru_clients/boorus.yaml`.
-
-## Posts, Grid, Viewer und Medien
-
-### P01 · Zwei Quick Actions auf Post-Thumbnails
-
-**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟠 hoch.
-
-- **Bestätigter Beschluss:** Zwei pro Profil konfigurierbare verschiedene Quick Actions samt adaptiver Platzierung übernehmen, aber die Origin-gebundene Fork-`defaultActionButton`-Auflösung (Danbooru-spezifischer Favorite-Build und Mixed-Booru-Posts) erhalten; Selection hat Vorrang, Legacy-Einzelaction verlustfrei migrieren, kleine Kacheln nur primäre Action; Series-Karten nicht blind pro Einzelpost mutieren.
-- **Verifikation:** Primary/Secondary/None; Post-Origin-spezifische Default-Builds, Legacy-Profile, kleines Grid/Selection, Score-/Hover-Overlays und Keyboard P14.
-- **Verbindliches Protokoll:** [P01](decisions.md#p01-zwei-quick-actions-auf-post-thumbnails).
-- **Änderung in Upstream:** Per Profil primäre + sekundäre Action (`favorite`, `bookmark`, `download`, `artist`/default) mit adaptivem Button-Layout.
-- **Aktualisierter Fork-Befund (2026-10-16; P01 bleibt offen):** `PostGridItem` löst seine `PostGridItemAdditions.quickActionButton` per `post.origin` und passendem `BooruPostPresentation` auf und übergibt ihn als `defaultActionButton` an `DefaultImagePreviewQuickActionButton`. Nur bei der im Profil gewählten Standardaktion wird dieser sitespezifische Button verwendet; andernfalls gewählte Bookmark/Download/Artist-Actions gehen vor. `DanbooruPostGridPresentation` liefert z. B. `DanbooruQuickFavoriteButton` mit Banned-Status-Handling. Dieses Forwarding wurde am 2026-09-24 durch den [Unified-Post-Pipeline-Commit `c00ac614f`](https://github.com/timberpile/Boorusama/commit/c00ac614f8fb5849e57f924b6bfeaaf8a22a057c) eingeführt und muss bei P01 vollständig erhalten bleiben; Zwei-Actions-UI wurde am 2026-10-16 mit dem oben beschriebenen Forwarding ausdrücklich bestätigt.
-- **Fork / potenzieller Konflikt:** Fork zeigt bisher eine Quick Action und hat eigene Grid-Overlays, Selection und geplantes Series Grouping.
-- **Ursprüngliche Fragestellung:** Welche Actions und Positionen? Wann werden sie bei Selection, Hover und Series-Karten angezeigt?
-- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Feature übernehmen, aber Layout/Hit-Targets und Post-Grid-Integration im Fork gestalten.
-- **Abnahme/Test:** Kleine Grids, große Schrift, Hold-and-Drag Selection, Favoriten-APIs, Keyfocus.
-- **Upstream-Commits:** [`26ad35202`](https://github.com/khoadng/Boorusama/commit/26ad352026bb4187e399dfab422c76427aca8655).
-- **Betroffene Codepfade (Auswahl):** `lib/core/configs/listing`, `lib/core/posts/listing/src/widgets/default_image_quick_actions.dart`.
-
-### P02 · Profile mit unbekannten Thumbnail-Actions/Media-Host-Regeln behalten
-
-**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟠 hoch.
-
-- **Bestätigter Beschluss:** angepasst übernehmen. Optionale unbekannte/ungültige Thumbnail-Action-Werte und Media-Host-Overrides beim Einlesen tolerant behandeln, ohne das Profil als Ganzes zu verwerfen; bei Import/Restore nachvollziehbare Validierungswarnungen anbieten. Existierende Profil-UUIDs und übrige Daten stets behalten. Unbekannte, semantisch nicht auswertbare Werte, soweit technisch sicher möglich, für Forward-Compatibility im Originaldatensatz erhalten; andernfalls nur die betroffene Option mit dokumentiertem Fallback behandeln.
-- **Daten / Abhängigkeiten:** Keine Änderung an Profil-UUIDs oder Identitäten. Die noch offene P01-Konfigurationsmigration sowie N02-Media-Host-Regeln müssen das Fallback- und Warnmodell gemeinsam nutzen.
-- **Verifikation:** Alte/neue Profil-JSONs; unbekannte Action, fehlender/ungültiger Host oder Datentyp, doppelte Aktionen, Restore ohne Profilverlust und sichtbare Import-Warnungen.
-- **Verbindliches Protokoll:** [P02](decisions.md#p02-profile-mit-unbekannten-thumbnail-actionsmedia-host-regeln-behalten).
-- **Änderung in Upstream:** Defensive Deserialisierung ignoriert unbekannte Action-Werte und ungültige Host-Regeln statt gesamtes Profil zu verwerfen.
-- **Fork / potenzieller Konflikt:** Fork hat Profil-UUIDs und Import-Mapping mit eigenen Validierungen.
-- **Ursprüngliche Fragestellung:** Welche Konfigurationsfehler tolerieren wir und wie informieren wir Nutzer beim Import?
-- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Profil nie wegen optionalem neuen Feature verlieren; Validierungswarnung statt Datenverlust.
-- **Abnahme/Test:** Forward-/Backward-Profile-Import, unknown enum, invalid hostname, doppelte Actions.
-- **Upstream-Commits:** [`1d8c879f4`](https://github.com/khoadng/Boorusama/commit/1d8c879f406d54df86c25d334ace0ada98846886).
-- **Betroffene Codepfade (Auswahl):** `lib/core/configs/config/src/types/booru_config.dart`, `lib/core/configs/listing/src/types/thumbnail_actions.dart`.
-
-### P03 · Bildladefehler: Tap-to-Retry nur bei passenden Error-Widgets
-
-**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟡 mittel.
-
-- **Bestätigter Beschluss:** angepasst übernehmen. Endgültige Upstream-Variante mit explizitem `ExtendedImageController.reload()` statt früherem flächendeckendem `GestureDetector` verwenden. In Fork-Grid und Post-Viewer gut sichtbaren, fokussierbaren Retry-Button im `ErrorPlaceholder` anbieten; Tippen auf restliche Kachel muss weiterhin den Post öffnen und Selection-/Hold-Gesten respektieren. Der Fork-`ProgressivePostImage` hat eine eigene Kandidaten-/Generations-Loading-Pipeline und muss einen separaten kontrollierten Retry des fehlgeschlagenen Ziel-/Fallback-Requests ermöglichen, ohne ein bereits erfolgreich dekodiertes niedrigeres Bild zu verlieren. Kein automatisches endloses Retry oder unkontrolliertes Disk-Cache-Löschen.
-- **Daten / Abhängigkeiten:** Keine persistente Migration; `packages/extended_image`-API und Fork-Progressive-Loader/Shared-Cache entsprechend anpassen. X04-Cache-Invarianten erhalten.
-- **Verifikation:** Primary/Fallback/Progressive-Fehler, Zielbild-Neuladen mit gehaltenem Placeholder, Retry nach 403/Timeout/invalidierter Datei, Kachel-Tap vs. Retry-Button, Selection/Long-Press, Accessibility/Keyboard und keine dauernde Request-Schleife.
-- **Verbindliches Protokoll:** [P03](decisions.md#p03-bildladefehler-tap-to-retry-nur-bei-passenden-error-widgets).
-- **Änderung in Upstream:** Upstream stellt zunächst tap-to-retry für Custom-Error-Widgets her und nimmt später pauschale implicit Retry-Gestures zurück.
-- **Fork / potenzieller Konflikt:** Fork verwendet Custom Error-UI und Shared Image Cache.
-- **Ursprüngliche Fragestellung:** Soll ein Thumbnail-/Viewer-Fehler direkt per Tap retryen oder über sichtbaren Button?
-- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Explizite, zuverlässige Retry-Affordance erhalten; keine unsichtbaren Gestures, die Post-Open abfangen.
-- **Abnahme/Test:** Failed preview, viewer tap/hold, retry mit neuen Cache-Keys.
-- **Upstream-Commits:** [`afdff42e3`](https://github.com/khoadng/Boorusama/commit/afdff42e344a585439bef34893bc2cbaa8e706df), [`58e4a0607`](https://github.com/khoadng/Boorusama/commit/58e4a06075faa8c07d8129dfdfa19156a4981a50).
-- **Betroffene Codepfade (Auswahl):** `packages/extended_image/lib/src/extended_image.dart`.
-- **Bestätigter Merge-Konflikt in:** `packages/extended_image/lib/src/extended_image.dart`.
-
-### P04 · Post-Grid: Refresh während laufendem Fetch nicht verlieren
-
-**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟡 mittel.
-
-- **Bestätigter Beschluss:** Fork-Race-/Refresh-Queue behalten und gezielt ergänzen. Bestehenden `PostGridController` mit `_refreshPending`, `_pendingMaintainPage`, `_pendingPreserveSelection` und `_queuedRefreshWaiters` unverändert als einzige Refresh-Queue erhalten. Upstreams Latest-Result-Schutz ergänzen: Wenn während des laufenden Fetchs eine neue Suche/ein Refresh/ein Profilwechsel vorgemerkt wird, die veraltete Antwort nicht zwischenzeitlich in den sichtbaren Grid-State übernehmen, sondern danach den neuesten Stand laden und erst dessen Ergebnis veröffentlichen. Fehler veralteter Passes nicht als endgültige UI-Fehler anzeigen, wenn der zuletzt angeforderte Pass erfolgreich war; aber echte letzte Fehler und wartende Future-Aufrufer korrekt behandeln. Keine zusätzliche Upstream-Refresh-Queue oder Selection-Reset einführen.
-- **Daten / Abhängigkeiten:** Keine Datenmigration; Bezug auf Following Topics, automatische Suchänderungen, Profilwechsel und P05-X03-Bookmark-Library-Gate.
-- **Verifikation:** Getaktete, konkurrierende Fetches/Refreshes, alte Antwort nicht gerendert, spätester Query/Profil-Snapshot gewinnt, Fetch-Fehler vor erfolgreichem Folgepass, maintainPage, preserveSelection, Wartende Future, Dispose, Duplicate-Fetches/Loading-State.
-- **Verbindliches Protokoll:** [P04](decisions.md#p04-post-grid-refresh-während-laufendem-fetch-nicht-verlieren).
-- **Änderung in Upstream:** `PostGridController` merkt sich Refresh-Anfragen und führt sie nach dem aktuellen Fetch aus.
-- **Fork / potenzieller Konflikt:** Fork hat Prefetch, adaptive Timings und Following/Subscription-Feeds.
-- **Ursprüngliche Fragestellung:** Wie mit manuellem Refresh, automatischer Feed-Aktualisierung und bestehendem Request-Scheduling kombinieren?
-- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Race-Fix übernehmen, mit Cancel/Dedup-Mechanismen des Forks verbinden.
-- **Abnahme/Test:** gleichzeitiger Fetch+Refresh, maintainPage, kein Doppelabruf oder UI-Hang.
-- **Upstream-Commits:** [`828ddbdb7`](https://github.com/khoadng/Boorusama/commit/828ddbdb75afd02fe14cf8182774a3ef67c9128f).
-- **Betroffene Codepfade (Auswahl):** `lib/core/posts/listing/src/widgets/post_grid_controller.dart`.
-- **Bestätigter Merge-Konflikt in:** `lib/core/posts/listing/src/widgets/post_grid_controller.dart`.
-
-### P05 · Bookmark-Library nach Bookmark-Mutation aktualisieren
-
-**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟡 mittel.
-
-- **Bestätigter Beschluss:** Fork-Lösung behalten. Keinen zusätzlichen Upstream-Bookmark-Listener einbauen: Der Fork lauscht bereits auf `bookmarkProvider` und koordiniert Sichtbarkeitswechsel/Selection über `BookmarkViewRefreshGate`. Diesen einzigen autoritativen Refreshpfad behalten; nur nützliche Upstream-Regressionstests ergänzen.
-- **Daten / Abhängigkeiten:** Keine API-/Datenmigration. Überschneidet sich mit dem verbindlichen X03-Beschluss.
-- **Verifikation:** Bookmark hinzugefügt/gelöscht, Undo, Group-Switch, Sortierung, Filter, Details-Overlay und Selection-Stabilität; nur ein sichtbarer Refresh pro Mutation.
-- **Verbindliches Protokoll:** [P05](decisions.md#p05-bookmark-library-nach-bookmark-mutation-aktualisieren).
-- **Änderung in Upstream:** Listener aktualisiert sichtbare Bookmark-Liste nach Änderungen.
-- **Fork / potenzieller Konflikt:** Fork hat lokale Bookmark-Groups, Default Group, Undo und eigene asynchrone Library-Services.
-- **Ursprüngliche Fragestellung:** An bestehendes Change-Event- / Selection-Modell anbinden oder Upstream-Listener zusätzlich verwenden?
-- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Nur ein autoritatives Update-Signal, um doppelte Refreshes/Selection-Resets zu vermeiden.
-- **Abnahme/Test:** Bookmark hinzufügen/entfernen, Gruppenwechsel, Undo, aktive Filter/Sort.
-- **Upstream-Commits:** [`3f4ce2bd4`](https://github.com/khoadng/Boorusama/commit/3f4ce2bd4f0f94c116b2262fa9418809710278a8).
-- **Betroffene Codepfade (Auswahl):** `lib/core/bookmarks/src/widgets/bookmark_scroll_view.dart`.
-- **Bestätigter Merge-Konflikt in:** `lib/core/bookmarks/src/widgets/bookmark_scroll_view.dart`.
-
-### P06 · GIF-Autoplay respektiert Qualitätseinstellungen
-
-**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟡 niedrig–mittel.
-
-- **Bestätigter Beschluss:** angepasst übernehmen. GIF-Autoplay-Setting bei allen Grid-Qualitätsstufen einschließlich `original` respektieren: Bei deaktiviertem Autoplay nur eine statische Vorschau laden; bei aktivem Autoplay die nach Site tatsächlich verfügbare animierte URL entsprechend Qualität/Fallback wählen. Wichtig: Statische kleinere GIF-Thumbnails sind keine garantierten niedrig aufgelösten *animierten* GIF-Varianten; Danbooru liefert häufig statische 180/360/720-Varianten und die animierte Original-GIF. Eine fehlende animierte Preview nicht erfinden; im Viewer gelten dessen eigene Qualität-/Abspielregeln.
-- **Daten / Abhängigkeiten:** Fork-spezifische Danbooru-Variant-URL-Auflösung und generischen Thumbnail-Resolver erhalten; keine persistente Migration.
-- **Verifikation:** Danbooru/andere Boorus, automatische/low/high/highest/original-Qualität × autoplay/static, verfügbares/unverfügbares Sample, URL und Aspect Ratio, GIF-Animation bei deaktiviertem Autoplay im Grid.
-- **5-MiB-Originaldateigrößen-Limit (2026-10-16, bestätigt):** Automatische animierte GIF-URLs im Grid (auch `sample`) nur laden bei aktiviertem GIF-Autoplay und positivem, bekanntem `post.fileSize` des Originals ≤ `5 * 1024 * 1024`. Originalgröße > Limit oder unbekannt/0: statische Vorschau unabhängig von `Highest`, keine zusätzliche HEAD-Anfrage. `VariantDto` bietet keine Sample-Dateigröße; damit kann `sample` die Schranke nicht umgehen. Bestehende Qualitäts-/Variantenwahl für erlaubte kleine GIFs respektieren; expliziter Viewer/Downloads ausgenommen. Tests für exakten Grenzwert, unbekannten Wert und mögliche Animations-/Decoder-Kosten.
-- **Korrektur / Laufzeitbeobachtung (2026-10-16):** Bei **manuell Highest** und Danbooru-GIFs in normalen/großen Grids wird die `sample`-Variante aufgelöst, welche animiert sein kann (vom Nutzer bestätigt). Bei Automatic wählt der GIF-Spezialpfad unabhängig von `resolvedImageQuality` 180/360/720; Automatic+Large ergibt bislang 720 und ist NICHT automatisch Highest. Bei aktiviertem Autoplay das animierte Highest-Sample beibehalten, bei deaktiviertem Autoplay auch dort statisch anzeigen. Die Upstream-Korrektur erfasst generische GIFs, aber der Danbooru-Highest-Pfad braucht zusätzliche Fork-Anpassung; keine implizite Änderung der Auto-Grid-Stufen.
-- **Verbindliches Protokoll:** [P06](decisions.md#p06-gif-autoplay-respektiert-qualitätseinstellungen).
-- **Änderung in Upstream:** GIF-Autoplay-Setting greift auch bei alternativen Bildqualitäten.
-- **Fork / potenzieller Konflikt:** Fork trennt Preview-/Post-Qualitäten und hat GIF-Export-/Trim-Tools.
-- **Ursprüngliche Fragestellung:** Fix in unsere Quality-Resolver übertragen?
-- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Ja, falls nicht bereits durch eigene Quality-Änderungen behoben.
-- **Abnahme/Test:** GIF preview/sample/original, Energie-/Datenspar-Setting.
-- **Upstream-Commits:** [`e4d645630`](https://github.com/khoadng/Boorusama/commit/e4d6456309c93f050b3a5d311ea4e2a60e0a7663).
-- **Betroffene Codepfade (Auswahl):** `lib/core/posts`, `lib/boorus`.
-
-### P07 · Video-Thumbnail bis zum ersten gerenderten Frame anzeigen
-
-**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟡 mittel.
-
-- **Bestätigter Beschluss:** angepasst übernehmen. Video-Thumbnail/Poster bis zum tatsächlichen Rendering des ersten Frames anzeigen und anschließend nahtlos freigeben. First-Frame-Status für jeden Quell-/Engine-Wechsel zurücksetzen und ältere asynchrone Signale anhand Generation/Source-ID ignorieren; bei fehlgeschlagener First-Frame-Benachrichtigung einen sichtbaren Fehler-/Fallbackzustand bereitstellen, keinen dauerhaft verdeckten Player. Fork-Video-Viewer, Cache und Hero-/Thumbnail-Logik erhalten.
-- **Daten / Abhängigkeiten:** `BooruPlayer`-fähige First-Frame-Signale für unterstützte Engines; nur Runtime-State, keine Migration.
-- **Verifikation:** Langsame Initialisierung, Cache/Stream, MPV/MediaKit/video_player/WebView, schnelle URL-Wechsel, First-Frame-/Player-Fehler, dispose und Reinitialize, Overlay/Transition.
-- **Verbindliches Protokoll:** [P07](decisions.md#p07-video-thumbnail-bis-zum-ersten-gerenderten-frame-anzeigen).
-- **Änderung in Upstream:** Video-Placeholder verschwindet erst, wenn Player tatsächlich einen Frame gerendert hat.
-- **Fork / potenzieller Konflikt:** Fork hat Post-Viewer- und Video-Thumbnail-Anpassungen.
-- **Ursprüngliche Fragestellung:** Welche Quelle für Placeholder und Fade-Transition nutzen?
-- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Perceived-performance-Fix übernehmen.
-- **Abnahme/Test:** langsamer Decoder, Wiederaufnahme aus Cache, Video-Player-Wechsel.
-- **Upstream-Commits:** [`2003c0c1e`](https://github.com/khoadng/Boorusama/commit/2003c0c1eb2cf6b3ef0939b33adf1b575fcae8f9).
-- **Betroffene Codepfade (Auswahl):** `lib/core/videos/player/src/widgets/video_player.dart`.
-
-### P08 · WebView-Video aus Cache-Datei und Cleanup-Schutz
-
-**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟠 hoch.
-
-- **Bestätigter Beschluss:** angepasst übernehmen, Video-Cache-Lifetime schützen. Upstreams WebView-Wiedergabe lokaler Cache-Dateien mit kleiner lokaler HTML-Seite, MIME-Erkennung aus `VideoSource`, eingeschränktem lokalen Datei-Zugriff und sicherer serieller Bereinigung alter temporärer WebView-Seiten übernehmen; den bisherigen fehleranfälligen Base64/10-MiB-Fallback vermeiden. Fork-`VideoCacheManager` bislang ohne garantierten Usage-Schutz für aktive Videodateien: während Player/WebView-Dateizugriffes Eviction, Expiration und explizites Cache-Leeren gegen diese Videodatei absichern (kurzlebige, pro Datei referenzierte Nutzung/Lease). Beim Video-/Engine-Wechsel, Error und Dispose freigeben; ggf. zur Löschung vorgemerkte Dateien anschließend bereinigen. Keine Image-Cache-Generations zurückbringen und kein dauerhaftes Leasing über den Wiedergabezeitraum hinaus. Bei beschädigter/fehlender Cache-Datei sauber auf Remote-Streaming zurückfallen, ohne Auth/Cookies an unberechtigte Datei-/Origin-Kontexte zu geben.
-- **Daten / Abhängigkeiten:** Cache-Lifetime ist separate Video-Cache-Verwaltung (`packages/cache_manager/lib/src/video_cache_manager.dart`), nicht X04-Image-Cache. Lokale `CachedVideoSource` muss gültigen Pfad bekommen; temporäre HTML-Dateien werden verlässlich beim Schließen/Start bereinigt; kein Persistenzschema erforderlich.
-- **Verifikation:** Kleine/große/unbekannt große gecachte Videos, WebView Android/iOS/macOS, parallele Player, Cache-Eviction und Clear während Playback, Expiration, Video-/Engine-/Source-Wechsel, lokale Seite und Datei-Race, Stale-Cleanup beim Start, Streaming-Fallback, File-Read-Grenzen.
-- **Verbindliches Protokoll:** [P08](decisions.md#p08-webview-video-aus-cache-datei-und-cleanup-schutz).
-- **Änderung in Upstream:** WebView spielt lokale Cache-Dateien; Cleanup löscht keine gerade verwendeten Cached Pages.
-- **Fork / potenzieller Konflikt:** Fork hat geteilten Cache und separate Video-Cache-Verwaltung/Viewer-Gesten.
-- **Ursprüngliche Fragestellung:** Wie werden Dateihandles, Lebenszeit und Eviction mit unserer Cache-Pipeline koordiniert?
-- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Race-/Data-Loss-Fixes übernehmen, Cache-Eigentümer und Locking explizit integrieren.
-- **Abnahme/Test:** Eviktion während Playback, WebView vs MPV, Wechsel Posts, große Videos.
-- **Upstream-Commits:** [`f3d8acaa0`](https://github.com/khoadng/Boorusama/commit/f3d8acaa0a765b6d2957ddd36f68a1aa944fa328), [`0f71409de`](https://github.com/khoadng/Boorusama/commit/0f71409dea3775ae1dd033bcf7fc27bb008888a0).
-- **Betroffene Codepfade (Auswahl):** `lib/core/videos/engines`, `lib/core/videos/cache`.
-
-### P09 · Kurumi InteractiveViewer: Bild-Pan vs Page-Swipe
-
-**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟠 hoch.
-
-- **Bestätigter Beschluss:** angepasst übernehmen, Fork-Gesten erhalten. Bei unzoomed Bild (Zoom nahe 1x) sollen horizontale/vertikale PageView-Swipes statt `InteractiveViewer`-Panning gewinnen; bei vergrößertem Bild soll Pan/Pinch funktionieren. Upstreams Zoom-abhängiges `panEnabled` und die `ScaleGestureRecognizer.panCausesAcceptance`-Arbitration soweit notwendig integrieren. Vendored Flutter-3.47.2-Widget/Recognizer nur übernehmen, wenn eine kleinere kompatible Lösung am gepinnten Flutter nicht robust ausreicht. Sämtliche Fork-Funktionen erhalten: Double-Tap-Classic/Fit-Cycle, Snap-Zoom-to-Fit, Bildgrenzen, Auto-Comic-Strip, Original-on-Zoom sowie `ZoomEdgePageGesture` mit 160-dp-Edge-Pull, Retry-/Load-More-/Page-Actions. Panning und Page-Swiping nicht gleichzeitig aktivieren oder Pointer-Events doppelt konsumieren.
-- **Daten / Abhängigkeiten:** Keine Persistenz; A02-Kurumi-Migration und gepinnte Flutter-Version beachten, mögliche vendored Dateien nur gezielt und mit klarer Upgrade-Strategie.
-- **Verifikation:** Schneller Flick bei 1x horizontal/vertikal auf Android-Slop, Pinch-Zoom, Pan bei >1x, Edge-Pull/160-dp-Schwelle, geändertes Zoom/Media-Representation während Gesture, Mouse/Touch/Stylus, Rotation, Double-Tap, Original-on-Zoom, Selection und Zoom-Hardwaretest.
-- **Verbindliches Protokoll:** [P09](decisions.md#p09-kurumi-interactiveviewer-bild-pan-vs-page-swipe).
-- **Änderung in Upstream:** Flutter 3.47.2 InteractiveViewer vendored; unzoomed Images sollen Page-Swipes nicht abfangen.
-- **Fork / potenzieller Konflikt:** Fork hat eigenes Zoom-/Edge-Drag-/Swipe-Verhalten inklusive „Original on Zoom“.
-- **Ursprüngliche Fragestellung:** Welche Geste gewinnt bei Zoom=1, Zoom>1, Edge-Drag, Swipe und Selection?
-- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Nur kompatibles Gesture-Arbitration-Verhalten portieren, Tests unserer Viewer-Gesten priorisieren.
-- **Abnahme/Test:** Pan/Swipe über Zoomstufen, Portrait/Landscape, Mouse/Touch.
-- **Upstream-Commits:** [`62e36f7e5`](https://github.com/khoadng/Boorusama/commit/62e36f7e5c7d40a3b5daa383a7c67ca420cb1cd3), [`c6b25213c`](https://github.com/khoadng/Boorusama/commit/c6b25213c3478abedf5c82c41dd9dd92a93a1bbe).
-- **Betroffene Codepfade (Auswahl):** `packages/kurumi/lib/src/components/interactive_viewer.dart`, `lib/core/posts/details_pageview`.
-- **Bestätigter Merge-Konflikt in:** `packages/kurumi/lib/src/components/interactive_viewer.dart`.
-
-### P10 · Volume Keys im Post Viewer korrekt konsumieren
-
-**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟡 niedrig–mittel.
-
-- **Bestätigter Beschluss:** vollständig übernehmen (mit aktiviertem Viewer-Gate). Bei eingeschalteter `volumeKeyViewerNavigation`, tatsächlich sichtbarem und nicht expandiertem Post-Viewer, Lauter (+) zur Navigation zum nächsten Post und Leiser (-) zum vorherigen Post verwenden und alle zugehörigen Key-Down-/Repeat-/Up-Ereignisse als verarbeitet (`true`) zurückgeben, auch am ersten oder letzten Post. Bei ausgeschalteter Funktion, verborgenem Viewer und Expand-Mode die Keys unbehandelt (`false`) lassen, damit reguläre Systemlautstärke funktioniert. Navigation selbst nicht ungewollt bei Key-Up/Repeat mehrfach auslösen; bestehende `isKeyPressed`-Down-Gestenerkennung und eventuelle Android-/Hardware-Limits bewahren. Während dieses optionalen Modus gilt Post-Navigation auch bei Videoposts.
-- **Daten / Abhängigkeiten:** Keine Persistenz-/Schemaänderung, vorhandene Setting/Global-Keyboard-Handler beibehalten.
-- **Verifikation:** Key-Down/Repeat/Up, erster/letzter Post, Viewer sichtbar/verborgen, Setting an/aus, Expand-Mode, Video/Bild, Systemlautstärke außerhalb des Viewers, kein doppeltes Navigieren.
-- **Verbindliches Protokoll:** [P10](decisions.md#p10-volume-keys-im-post-viewer-korrekt-konsumieren).
-- **Änderung in Upstream:** Beim Post-Navigieren genutzte Lautstärketasten werden als verarbeitet markiert.
-- **Fork / potenzieller Konflikt:** Fork hat eigene Viewer-Gesten und Volume-Key-Einstellung.
-- **Ursprüngliche Fragestellung:** Soll Systemlautstärke nur beeinflusst werden, wenn Viewer-Navigation aktiv?
-- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Nur im aktivierten Viewer-Modus konsumieren.
-- **Abnahme/Test:** Lautstärke außerhalb Viewer, Android Volume bei Video.
-- **Upstream-Commits:** [`de755c0d2`](https://github.com/khoadng/Boorusama/commit/de755c0d20570d4c9e2c6d4b718517514178af44).
-- **Betroffene Codepfade (Auswahl):** `lib/core/posts/details/src/widgets/volume_key_page_navigator.dart`.
-
-### P11 · Videosteuerung: Zeit-Overflow und Media-Play/Pause-Key
-
-**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟡 niedrig–mittel.
-
-- **Bestätigter Beschluss:** übernehmen (Fork-Player berücksichtigen). Video-Zeitanzeigen nicht länger auf fixe 40 px beschränken (minimale Breite und sichere flexible Darstellung). Media-Play/Pause/Toggle-Hardwaretasten nur auf den aktuell sichtbaren/fokussierten Video-Post routen; bei Bild-Posts, Hidden Playern und Textfokus nicht unerwartet abspielen. Vorhandene Player-Engine- und Viewer-Shortcuts erhalten.
-- **Daten / Abhängigkeiten:** Keine Persistenz. Keyboard-Shortcut-Routing bei U04/U05/U06 auf Konflikte prüfen.
-- **Verifikation:** Lange Zeiten/schmale Screens, Text-Scaling, MediaPlay/MediaPause/MediaPlayPause, Bildpost vs. Videopost, Fokus/Seitenwechsel, unterschiedliche Engines.
-- **Verbindliches Protokoll:** [P11](decisions.md#p11-videosteuerung-zeit-overflow-und-media-playpause-key).
-- **Änderung in Upstream:** Zeit-Text darf wachsen; Play/Pause per Medien-Hardwaretaste.
-- **Fork / potenzieller Konflikt:** Fork hat eigene Post-Detail-Toolbar und Player-Engines.
-- **Ursprüngliche Fragestellung:** Hotkeys und Controls an unsere Controls binden?
-- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Ja, sofern mit Focus-/Routing-System kompatibel.
-- **Abnahme/Test:** Schmale Player, Keyboard/Remote, Player-Engine-Wechsel.
-- **Upstream-Commits:** [`c65a81074`](https://github.com/khoadng/Boorusama/commit/c65a81074f123eed5efbe368a8a44985dd8340cf), [`72bafb43d`](https://github.com/khoadng/Boorusama/commit/72bafb43d3e5063749ce663277201b01ea644a54).
-- **Betroffene Codepfade (Auswahl):** `lib/core/posts/details/src/widgets/video_controls.dart`, `lib/core/posts/details/src/widgets/post_details_controller.dart`.
-
-### P12 · Hover Preview nur über Info-Badge öffnen; Long Press erhalten
-
-**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟠 hoch.
-
-- **Bestätigter Beschluss:** angepasst übernehmen. Hover-Preview nicht über die gesamte Thumbnail-Fläche, sondern über ein gezieltes Info-Badge öffnen, das bei Pointer-Hover bzw. passend fokussierter Keyboard-Navigation sichtbar wird. Gesten-/Hit-Test-Fixes für Long-Press, Right-Click und Hold-and-Drag übernehmen, Selection vor Preview-Badge priorisieren und bei Tastatureingaben Preview sauber schließen. Badge-Positionierung mit noch offenem P01 (bis zu zwei Quick Actions) und Series-Gruppenkarten abstimmen; keine neue unruhige permanente Overlay-Reihe.
-- **Daten / Abhängigkeiten:** Nur UI/Interaktion, keine neuen persistenten Felder. Bestehenden `tooltipDisplayMode` respektieren.
-- **Verifikation:** Desktop Hover/Badeg-Tap, Touch Long-Press, Rechtsklick, Hold-and-Drag-Selection, Keyboard/Escape/Textinput, enge Grid-Kacheln, Series-Karte, disabled Tooltip.
-- **Verbindliches Protokoll:** [P12](decisions.md#p12-hover-preview-nur-über-info-badge-öffnen-long-press-erhalten).
-- **Änderung in Upstream:** Nicht mehr gesamte Thumbnail-Fläche als Hover-Preview; gezieltes Info-Badge; Hover schließt bei Keypress; Longpress/Rightclick öffnet Menü wieder.
-- **Fork / potenzieller Konflikt:** Fork hat Kontextmenüs/Selection über Hold-and-Drag sowie eigene Grid-Karten.
-- **Ursprüngliche Fragestellung:** Möchten wir ein Info-Badge oder bestehendes Hover? Wo liegt Badge bei zwei Quick Actions/Series-Karten?
-- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Getrennte Designentscheidung nach P01 und Context-Menu-Review; sichere Longpress-Fixes übernehmen.
-- **Abnahme/Test:** Mouse Hover, Touch Longpress, Drag Selection, Keyboard, Series Tile.
-- **Upstream-Commits:** [`e04b3bfd1`](https://github.com/khoadng/Boorusama/commit/e04b3bfd186e8b5b88ab704189e23178ae26d098), [`5da94c1df`](https://github.com/khoadng/Boorusama/commit/5da94c1dfa6a39ef34c21c6ba1d171267ee06928), [`5feaa3dcf`](https://github.com/khoadng/Boorusama/commit/5feaa3dcf0a5069afab3f95594b3935fe08f7150).
-- **Betroffene Codepfade (Auswahl):** `lib/core/posts/listing/src/widgets/post_preview.dart`, `lib/core/posts/listing/src/_internal/raw_post_grid.dart`.
-
-### P13 · Post-/Tag-Kontextmenüs auf Kurumi migrieren
-
-**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟠 hoch.
-
-- **Bestätigter Beschluss:** angepasst übernehmen (A02). Post-/Tag-Kontextmenüs über Kurumi vereinheitlichen und Keyboard/Right-Click/Long-Press/Back/Escape sowie konsistente Darstellung übernehmen. ALLE Fork-Menüaktionen, Favoriten-/Bookmarks-/Following-/Gruppenaktionen, Untermenüs, Kontext-/Selection-Priorität und bestehende Tap-through-/Dismiss-Fixes behalten. Upstreams große Migration nicht pauschal über die Fork-`KurumiContextMenuPageController`- und `CustomContextMenuOverlay`-Erweiterungen legen; dieselbe Menükomponente mit kompatiblen Funktionen verwenden.
-- **Daten / Abhängigkeiten:** Keine persistente Migration, A02-Kurumi-/Menü-Migration koordinieren; Anchor-Dependency-Fix nur im kompatiblen Lockfile-Stand anwenden.
-- **Verifikation:** Post/Tag/Grid/Selection, Long-Press, Right-Click, Untermenüs, ESC/Back, Keyboard-Rückfokus, outside click, RTL/kompakt/Tag-Cloud und Overlay-Schichtreihenfolge.
-- **Verbindliches Protokoll:** [P13](decisions.md#p13-post-tag-kontextmenüs-auf-kurumi-migrieren).
-- **Änderung in Upstream:** Ersetzt alte Context Menus durch Kurumi; bei Tag Cloud sichert eine Abhängigkeitsanpassung die Popup-Größe.
-- **Fork / potenzieller Konflikt:** Fork hat `CustomContextMenuOverlay`, weitere Actions (Following, Bookmark Groups) und eigene Menu-Dismiss-Fixes.
-- **Ursprüngliche Fragestellung:** Kurumi als einheitliche Menükomponente verwenden, aber alle Fork-Actions/Shortcuts erhalten?
-- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Kurumi wo kompatibel übernehmen, Fork-Actions und Tap-through-Schutz als Pflicht.
-- **Abnahme/Test:** Longpress/Rightclick, Tap outside, Undo, Compact, RTL, Selection.
-- **Upstream-Commits:** [`8ca15fcff`](https://github.com/khoadng/Boorusama/commit/8ca15fcff2e461488bc4ced314700196d421deb5), [`1e480b775`](https://github.com/khoadng/Boorusama/commit/1e480b7751a359931c53057e86a42ff56a1c6672).
-- **Betroffene Codepfade (Auswahl):** `lib/core/posts/post/src/context_menu.dart`, `lib/core/widgets/custom_context_menu_overlay.dart`, `packages/kurumi/lib/src/components/context_menu.dart`.
-- **Bestätigter Merge-Konflikt in:** `packages/kurumi/lib/src/components/context_menu.dart`.
-
-### P14 · Keyboard-Fokus auf Quick Favorite/Bookmark-Buttons
-
-**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟡 mittel.
-
-- **Bestätigter Beschluss:** übernehmen, abgestimmt auf P01/A02. Sichtbare Quick Favorite-/Bookmark-Buttons und weitere Thumbnail-Actions mit klarer Semantik, fokussiertem Zustand und Enter/Space-Aktivierung versehen. Bei maximal zwei Aktionen eine logisch nachvollziehbare Reihenfolge und Pfeil-/Tab-Navigation anbieten, ohne Kachelöffnung, Grid-Selection, Scroll-/Hold-and-Drag-Gesten zu übernehmen oder unsichtbare Buttons fokussierbar zu machen.
-- **Daten / Abhängigkeiten:** Kein Datenmodell/Schema. Abhängig vom noch offenen Layout P01 und A02-Focus-/Kurumi-Änderungen.
-- **Verifikation:** Keyboard/TV Focus/Enter/Space/Arrow/Tab, Scroll mit Recycling, Selection, Hidden/Disabled Actions, kleine Kacheln und visuelle Focus-Indication.
-- **Verbindliches Protokoll:** [P14](decisions.md#p14-keyboard-fokus-auf-quick-favoritebookmark-buttons).
-- **Änderung in Upstream:** Kleine interaktive Overlays auf Thumbnail sind mit Keyboard erreichbar.
-- **Fork / potenzieller Konflikt:** Fork verwendet eigene Thumbnail-Action und Post-Selection.
-- **Ursprüngliche Fragestellung:** Fokusreihenfolge für Card plus bis zu zwei Quick Actions?
-- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Buttons erreichbar, aber Keyboard-Bedienung darf Grid-Selection nicht behindern.
-- **Abnahme/Test:** Tab/Arrow, Fokus nach Scroll, Favorite/Bookmark Toggle.
-- **Upstream-Commits:** [`d1047aa89`](https://github.com/khoadng/Boorusama/commit/d1047aa890c64b3baa575e0ca16f50b4724e6826).
-- **Betroffene Codepfade (Auswahl):** `lib/core/posts/listing`, `packages/kurumi/lib/src/components`.
-
-## Suche, Bedienung, Desktop und TV
-
-### U01 · Suche oberhalb Soft-Keyboard bedienbar
-
-**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟠 hoch.
-
-- **Bestätigter Beschluss:** angepasst übernehmen. Upstream-Fixes für Suche bei eingeblendeter Soft-Keyboard übernehmen: Search-Overlay innerhalb tatsächlich verfügbarem Platz positionieren (`fitToAvailableSpace` oder gleichwertige adaptive Platzierung), `MediaQuery.viewInsets.bottom` bei Top-/Bottom-Search korrekt einbeziehen und Liste/Inputs scrollbar halten. Die noch geplante kompakte, einheitliche Fork-Suche mit termbezogenem Raw Editor, automatischer Suche und Tag-/Metatag-Vorschlägen darf nicht durch alte Upstream-UI ersetzt werden. Texteingabe, vorhandene Chips und Vorschlagsauswahl bleiben bei 320dp, Landscape, Rotation und großem Text sichtbar; nicht unnötig das Keyboard schließen.
-- **Daten / Abhängigkeiten:** Gemeinsamer Search-UX-Umbau, B01–B05, U03; Profile-/Search-Session und A02-UI-Komponenten erhalten.
-- **Verifikation:** Phone Small/Normal/Landscape; Top- und Bottom-Position; Keyboard offen, 1.5–2× Schrift, Rotation, Suggestion-Auswahl, termbezogener Raw Editor und sichtbare aktive Chips; Upstream Headless-Keyboard-Flow adaptieren.
-- **Verbindliches Protokoll:** [U01](decisions.md#u01-suche-oberhalb-soft-keyboard-bedienbar).
-- **Änderung in Upstream:** Layout und Overlay-Handling für Search mit eingeblendeter Bildschirmtastatur verbessert.
-- **Fork / potenzieller Konflikt:** Fork baut bereits kompakte Search-Bar, Raw Editor, Tag-Vorschläge und ausgewählte Tags um.
-- **Ursprüngliche Fragestellung:** Wie verhalten sich Suggestion-Liste und Raw Editor bei geringer Höhe?
-- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Funktionales Keyboard-Fix in den endgültigen Fork-Suchfluss übertragen.
-- **Abnahme/Test:** 320dp Breite, Tastatur offen, Textscaling 1.5–2, Scroll/Vorschläge.
-- **Upstream-Commits:** [`a00d41f3a`](https://github.com/khoadng/Boorusama/commit/a00d41f3a7a1e81954e718ab1144183426a1ab89).
-- **Betroffene Codepfade (Auswahl):** `lib/core/search/search/src/widgets/search_page_scaffold.dart`, `lib/core/search/search/src/widgets/booru_search_bar.dart`.
-- **Bestätigter Merge-Konflikt in:** `lib/core/search/search/src/widgets/search_page_scaffold.dart`.
-
-### U02 · Search History als Full-Height-Sheet + Tests
-
-**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟡 mittel.
-
-- **Bestätigter Beschluss:** übernehmen. Search History auf Telefon als scrollkontrolliertes Bottom Sheet (`isScrollControlled: true`) mit sinnvoll nutzbarer Höhe zeigen; Liste scrollbar, Tastatur/Insets berücksichtigen und auf weitere UI-Navigation responsiv reagieren. Bestehende Filter-/History-/Pinned-Search-/Following- und Suchzustand-Wiederherstellung erhalten, keine eigene History-Datenmigration. Upstreams Flow-Tests adaptieren.
-- **Daten / Abhängigkeiten:** Fork SearchHistory-Route und SearchProfileSession; U01/U03 sowie neuer Search-UX-Einstieg.
-- **Verifikation:** Viele Historieneinträge, Suche/Filter, Auswahl übernimmt Query korrekt, Keyboard/Back/Escape, Route-Return, Sheet bei niedriger Höhe; keine doppelte Search-Action.
-- **Verbindliches Protokoll:** [U02](decisions.md#u02-search-history-als-full-height-sheet-tests).
-- **Änderung in Upstream:** Search-History-Sheet beansprucht nutzbare volle Höhe; Journey-Test für Historienfluss.
-- **Fork / potenzieller Konflikt:** Fork hat zusätzliche Pinned Searches und Following, überarbeitet Suchoberfläche.
-- **Ursprüngliche Fragestellung:** Sheet-Größe und Einstieg unter der neuen Search-Bar festlegen?
-- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Nützliche Höhe übernehmen, passende Tests portieren.
-- **Abnahme/Test:** Tastatur, Zurück, Suchbegriff übernehmen, Pinned Search.
-- **Upstream-Commits:** [`e53cdf3b3`](https://github.com/khoadng/Boorusama/commit/e53cdf3b31560cd4607431381b316b8e29349b11), [`3726d75c7`](https://github.com/khoadng/Boorusama/commit/3726d75c7eb14ea170e06e497b09198f4a9c4c71).
-- **Betroffene Codepfade (Auswahl):** `lib/core/search/histories`, `test/application/search_history_flow_test.dart`.
-
-### U03 · Tag-Suggestions per Tastatur fokussieren und hervorheben
-
-**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟠 hoch.
-
-- **Bestätigter Beschluss:** angepasst übernehmen. Vorschlagsliste als fokuserhaltende Kurumi-Listbox oder gleichwertigen gemeinsamen Mechanismus anbinden: Up/Down bewegt sichtbares Highlight, Enter wählt aktiven Vorschlag, Escape löscht zunächst nur den Highlight-Zustand, während der Textfokus im Suchfeld bleibt; danach greifen Search-/Layer-Back-Regeln. Das Listen-Highlight ist semantisch markiert und scrollt ins Sichtfeld. Keyboard-Navigation konsistent für Desktop, Hardware-Keyboard/TV und für Raw-Editor des einzelnen Suchbegriffs; keine doppelte Fokusmarkierung um Input/Bar, keine Tastenevents in verdeckte Screens durchlassen. Tag- und Metatag-Einträge des zukünftigen allgemeinen Search-Options-Interface unterstützen.
-- **Daten / Abhängigkeiten:** B01, geplanter Suchumbau, U01, U04–U06, A02-Kurumi; kein zweiter Search-Controller/Legacy-Chip-Editor.
-- **Verifikation:** Vorwärts/rückwärts/reversed Suggestions, Up/Down/Enter/Escape, Auswahlliste bei Filteränderung, Tab/Shift-Tab, Fokus bleibt im Feld, Raw-Query und Single-Term-Editor, mit/ohne Keyboard; Scroll-to-highlight; keine Tastaturaktion an verdeckter Seite.
-- **Verbindliches Protokoll:** [U03](decisions.md#u03-tag-suggestions-per-tastatur-fokussieren-und-hervorheben).
-- **Änderung in Upstream:** Suchbar zeichnet einen einzelnen Focus-Ring; Suggestions werden beim Tippen hervorgehoben; Tastaturevents erreichen nicht die verdeckte Seite; Desktop-Raw-Query-Tests.
-- **Fork / potenzieller Konflikt:** Fork plant siteübergreifende Tag-/Metatag-Vorschläge und editierbare Einzel-Search-Chips.
-- **Ursprüngliche Fragestellung:** Wird Navigation mit Pfeilen/Enter/Escape genauso auf Phone/Desktop angewendet?
-- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Keyboard-UX übernehmen, Tag-Suggestion-Komponenten an unsere Suchabstraktion anpassen.
-- **Abnahme/Test:** Typed suggestions, raw syntax, Enter/Suggestion-Auswahl, Fokuswechsel, Overlay.
-- **Upstream-Commits:** [`f7174bab4`](https://github.com/khoadng/Boorusama/commit/f7174bab405360103c48659b1c5bb72cbcd2bd61), [`e1ad37e1e`](https://github.com/khoadng/Boorusama/commit/e1ad37e1eddbb12106930e2ec983536863b5511b), [`7f5693c84`](https://github.com/khoadng/Boorusama/commit/7f5693c847ea0a88acb1fd12ff05057e0a6e5bb5).
-- **Betroffene Codepfade (Auswahl):** `lib/core/search/search`, `packages/kurumi/lib/src/components/search_bar.dart`.
-
-### U04 · TV-Remote- und Tastaturnavigation auf gesamter App
-
-**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟠 mittel–hoch.
-
-- **Bestätigter Beschluss:** angepasst übernehmen; TV Best-Effort. Gemeinsame directional Focus-Navigation (D-Pad/Pfeiltasten), sichtbare Focus-Rings erst bei Keyboard-/Remote-Bedienung, Scroll-to-focused-Item und vernünftige Navigation über FocusScopes/Drawer/Sidebar/Toolbar/Viewer/Dialoge übernehmen. Upstreams `KurumiDirectionalFocusAction`, Ring-/Focus-Utilities, Key-Handling und Test-Harness nur in Fork-kompatibler Form integrieren; Touch-/Mouse-Navigation ungestört lassen und keine unabsichtliche Aktivierung versteckter Controls. TV/Remote zunächst ausdrücklich **Best-Effort**, keine neue offiziell unterstützte TV-Plattform samt Release-/Support-Versprechen.
-- **Daten / Abhängigkeiten:** A02, P01/P13/P14, U03/U05/U06 und bestehende Fork-Navigation/Panel-Auswahl.
-- **Verifikation:** D-Pad+Enter+Back über Start/Browse/Profiles/Search/Settings/Viewer/Dialogs, Focus-Scope-Wechsel, Scroll-Reveal, nicht sichtbar/offstage, Input-Editing vs. Fokus, Touch/Mouse-Wechsel, Ring nur bei Keyboard; autom. Headless-Flows.
-- **Verbindliches Protokoll:** [U04](decisions.md#u04-tv-remote-und-tastaturnavigation-auf-gesamter-app).
-- **Änderung in Upstream:** Directional Focus, Focus Rings, Menüs/Dialoge, Layout Manager, Original-Image Viewer für TV-/Remote erreichbar; App-Flow-Tests.
-- **Fork / potenzieller Konflikt:** Fork fokussiert Touch/Mobile und eigenes Pane-/Sidebar-Navigationsmodell.
-- **Ursprüngliche Fragestellung:** TV als offiziell unterstützte Plattform oder Best-Effort? Wie aktivieren wir Focus Rings?
-- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Navigation beibehalten als Accessibility-Gewinn, ohne Phone-Touch zu verschlechtern.
-- **Abnahme/Test:** D-Pad/Remote, Mouse/Touch-Wechsel, Focus Scope, TV Back.
-- **Upstream-Commits:** [`e80eb1210`](https://github.com/khoadng/Boorusama/commit/e80eb1210a2327dfae4eba4866a1e7cfe472dfd8), [`00feb4d99`](https://github.com/khoadng/Boorusama/commit/00feb4d9923b49a931b7b0a24a9ac6f262214cc0), [`1e3b00c3a`](https://github.com/khoadng/Boorusama/commit/1e3b00c3a8e9c9cc43b947bb42501c2e33b30bf0), [`41d0121ce`](https://github.com/khoadng/Boorusama/commit/41d0121cee07c3533042f86e0b256663a9f7134d), [`7895ce70e`](https://github.com/khoadng/Boorusama/commit/7895ce70e7b520ddd8cefe3ef640de3679ee4fde).
-- **Betroffene Codepfade (Auswahl):** `packages/kurumi/lib/src/components/focus_ring.dart`, `lib/core/app.dart`.
-- **Bestätigter Merge-Konflikt in:** `lib/core/app.dart`.
-
-### U05 · Desktop Tab-Reihenfolge und Fokusgrenzen
-
-**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟡 mittel.
-
-- **Bestätigter Beschluss:** angepasst übernehmen. Pane-bezogene Tab-/Shift+Tab-Reihenfolge und FocusTraversalGroup/FocusPane sinnvoll in bestehender Sidebar, Profile-Switcher, Settings-Suche, Suchergebnissen, Browse/Post-Viewer und Dialogen etablieren. Sichtbar-fokussierte Elemente gegenüber Offstage-/Scroll-Bereich priorisieren; bei Keyboard-only Interaktion Ring zeigen, nach Mouse/Touch ausblenden; beim Schließen von Dialog/Popover Fokus an den aufrufenden Control zurückgeben. Flache und verschachtelte Navigationsbereiche nicht als zufällige Focus-Scopes behandeln; aktuelle Fork-Settings-/Sidebar-Architektur erhalten.
-- **Daten / Abhängigkeiten:** U04/U06, Fork Settings-Suche und responsive Settings-Panes (A04), P14.
-- **Verifikation:** Tab/Shift+Tab und Directional Arrows über Pane-Grenzen, lange Settings-Listen, Explore/Viewer sichtbare Controls, Focus Return nach Dialog/Sheet, Dynamic Layout/Routing/Scroll und große Textskalierung.
-- **Verbindliches Protokoll:** [U05](decisions.md#u05-desktop-tab-reihenfolge-und-fokusgrenzen).
-- **Änderung in Upstream:** Tab bleibt in Pane, Focus Ring erst bei Keyboard, Explore/Post-Details nur sichtbare Ziele, Arrows folgen aktuellem Control, Mouse-Fokus aktualisiert, Textfield zeichnet eigenen Ring.
-- **Fork / potenzieller Konflikt:** Fork besitzt eigens angepasste Navigation, Browse/Post Viewer und Sidebar.
-- **Ursprüngliche Fragestellung:** Welche Fokus-Scopes sind logisch (Sidebar, Profile, Search, Posts, Dialoge)?
-- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Fokusregeln adaptieren, damit UX über Tastatur konsistent wird.
-- **Abnahme/Test:** Desktop Tab/Shift+Tab, Mouse Click, Touch, Dialog-Pop, Scroll, Large Text.
-- **Upstream-Commits:** [`a555bbb3d`](https://github.com/khoadng/Boorusama/commit/a555bbb3db20d9b8c29c3c1b7d87c2b0d8546d20), [`e95a71f85`](https://github.com/khoadng/Boorusama/commit/e95a71f85d7982a797a89b0879a42e1c55d46253), [`5f57df699`](https://github.com/khoadng/Boorusama/commit/5f57df699e940fb8256aa74bdac46d2979246141), [`58254b441`](https://github.com/khoadng/Boorusama/commit/58254b441040ec4c6187018a46c4366511e3e7f0), [`84286ddc1`](https://github.com/khoadng/Boorusama/commit/84286ddc1e3da8e7cae71783c5e21641015635ae), [`d7041c4d4`](https://github.com/khoadng/Boorusama/commit/d7041c4d42b3470c45ab4ed29bbe1e3e73093aa8), [`f31f551be`](https://github.com/khoadng/Boorusama/commit/f31f551bedd31b2c75fcddf354e682b07bae5e69).
-- **Betroffene Codepfade (Auswahl):** `packages/kurumi`, `lib/core/posts`, `lib/core/settings`.
-
-### U06 · Escape-Handling, Menu Selection und Layer-Hierarchie
-
-**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟠 mittel–hoch.
-
-- **Bestätigter Beschluss:** angepasst übernehmen. Mit einem Fork-kompatiblen `KurumiDismissible`/BackHandler oder gleichwertig eine einzige ordentliche Keyboard-Escape/Android-Back-Präzedenz für ineinanderliegende Layer aufbauen: zuerst aktives Submenü/Popup/Popover, dann Dialog/Sheet, dann Search-Editing-/Suggestion-State, anschließend aktive Selection, zuletzt Route/Screen; tatsächliche Router-/PopScope-/Modal-Grenzen (inklusive nicht dismissbarer oder Dirty-Form-State) respektieren. Nur eine Ebene pro Tastendruck schließen; Fokus bei Schließen auf Auslöser zurückgeben und Key-Events nicht an verdeckte Seiten durchreichen. Fork-Kontextmenüs, MultiSelection- und Tap-through-Schutz erhalten, mit P13-A02-Kurumi abstimmen.
-- **Daten / Abhängigkeiten:** U03–U05, P13, bestehende Fork-Router und `CustomContextMenuOverlay`-/`KurumiContextMenuPageController`-Erweiterungen.
-- **Verifikation:** Verschachteltes Submenü/Popover in Dialog/Sheet, Escape/Android Back, Selection+Search, non-dismissable Dialog, Routing mehrfacher Navigators, kein doppelt konsumiertes Escape, Focus-Return, kein Tap-through auf Post.
-- **Verbindliches Protokoll:** [U06](decisions.md#u06-escape-handling-menu-selection-und-layer-hierarchie).
-- **Änderung in Upstream:** Anchored Menus schließen mit Escape, fokussierte Menüzeile hervorgehoben; innerste offene Kurumi-Layer zuerst; Escape folgt Back.
-- **Fork / potenzieller Konflikt:** Fork verwendet Custom-Kontextmenüs, neue Navigation und Multiselection.
-- **Ursprüngliche Fragestellung:** Reihenfolge: Popup → Sheet → Search → Selection → Screen; wie verhält sich Android Back?
-- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Einheitliche Layer-Prioritäten definieren, dann Back-/Escape-Semantik synchronisieren.
-- **Abnahme/Test:** Verschachtelte Menüs, Keyboard, Popover, Dialoge, Auswahlscreen.
-- **Upstream-Commits:** [`3ff8b054e`](https://github.com/khoadng/Boorusama/commit/3ff8b054e558c77fd94a0419b33526d7e6d9c829), [`b925a581b`](https://github.com/khoadng/Boorusama/commit/b925a581bd361ca710d27a3e95c1eb315f9be62f), [`2d6d9f6e6`](https://github.com/khoadng/Boorusama/commit/2d6d9f6e6dacf60a52f8d0b62e7d27b8318b707c), [`76a8485de`](https://github.com/khoadng/Boorusama/commit/76a8485de122438d3f70c74de5c69bd1c8ea8987).
-- **Betroffene Codepfade (Auswahl):** `packages/kurumi/lib/src/components/popup_menu.dart`, `lib/core/router.dart`.
-- **Bestätigter Merge-Konflikt in:** `packages/kurumi/lib/src/components/popup_menu.dart`.
-
-### U07 · Favorite Tags auf großen Screens im Dialog statt Sheet
-
-**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟡 niedrig–mittel.
-
-- **Bestätigter Beschluss:** übernehmen (Fork-Labels bewahren). Favorite-Tag-Editor auf Phones wie bisher als Bottom Sheet mit Keyboard/Inset-Schutz und ab größerem Kurumi-Screen-Breakpoint als zentrierten Dialog mit ca. 520px Maximalbreite anzeigen. Inhalt unabhängig von Keyboardhöhe und erweiterten Optionen scrollbar machen, Add/Edit/Raw-Query und sämtliche vorhandenen Fork-Label-Optionen/Warnungen/Aktionen ohne Funktionsverlust bewahren. Konsistent mit Fork-Breakpoints und anderen Einstellungenmodals gestalten.
-- **Daten / Abhängigkeiten:** Fork Favorite-Tag-Management und Label-Verwaltung, U01/U04/U06.
-- **Verifikation:** Phone/Tablet/Desktop, Keyboard offen/zu, großer Text, wechselnde Advanced-Options und Label-Chips, fehlerhafte/duplizierte Tags, Submit/Cancel/Escape und State-Restoration.
-- **Verbindliches Protokoll:** [U07](decisions.md#u07-favorite-tags-auf-großen-screens-im-dialog-statt-sheet).
-- **Änderung in Upstream:** Editor öffnet sich auf breiten Screens als Dialog, auf Phones als Bottom Sheet.
-- **Fork / potenzieller Konflikt:** Fork hat Favorite-Tag-Management schon erweitert und zusätzliche Label-Aktionen.
-- **Ursprüngliche Fragestellung:** Welche Breakpoints/Modals passen zum Fork-Design?
-- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Responsive Verhalten übernehmen, ohne bestehende Label-Funktionen zu ersetzen.
-- **Abnahme/Test:** Wide/Mobile, Tastatur geöffnet, Dialog ohne Overflow.
-- **Upstream-Commits:** [`20e750618`](https://github.com/khoadng/Boorusama/commit/20e750618847bbb0a84391cca0b2440667ab18e7).
-- **Betroffene Codepfade (Auswahl):** `lib/core/tags/favorites/src/pages/edit_favorite_tag_sheet.dart`.
-
-### U08 · Regressionstests und Flakiness-Fixes nachziehen
-
-**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** ⚪ niedrig.
-
-- **Bestätigter Beschluss:** test-only, zusammen mit Feature-Übernahme. Upstreams Testabsichten (Info-Badge-Hover nach P12 und Bulk-Dry-Run-/Session-Status nach D02) übernehmen, jedoch an aktuelle Fork-Widgets, APIs und bestehende kontrollierte Clock-/Completion-Signale anpassen statt unkontrollierte feste Sleeps oder flakey Polling-Schleifen zu duplizieren. Keine eigenständige UI-/Produktlogik und keine neue Persistenz durch U08; Tests erst zusammen mit den betreffenden Migrationsänderungen aktualisieren.
-- **Daten / Abhängigkeiten:** P12, D02, Fork-Regressionstests und Runner/Headless-Flows (A12).
-- **Verifikation:** Hover öffnet Preview nur über Info-Badge, schließen via Keyboard/Maus/Selection; Bulk Dry Run/Resume/Status ohne wall-clock-race, idempotente Session-Lifecycle-Tests und kontrollierte Futures/Events.
-- **Verbindliches Protokoll:** [U08](decisions.md#u08-regressionstests-und-flakiness-fixes-nachziehen).
-- **Änderung in Upstream:** Aktualisiert Hover-Preview-Test und entfernt fragile Warte-/Timing-Annahme bei Bulk-Dry-Run.
-- **Fork / potenzieller Konflikt:** Fork hat bereits eigene deterministische Testsuite und Runner-Fixes.
-- **Ursprüngliche Fragestellung:** Betroffene Testabsichten an neue UI und unsere kontrollierten Clocks anpassen?
-- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Teständerungen nur bei Übernahme der korrespondierenden Funktionen.
-- **Abnahme/Test:** Post Preview UI und Bulk Dry Run.
-- **Upstream-Commits:** [`71b41b8a0`](https://github.com/khoadng/Boorusama/commit/71b41b8a0f5574975f1cae673ac9cedde5b594ed).
-- **Betroffene Codepfade (Auswahl):** `test/application`, `test/bulk_downloads`.
-
-## Querschnitt: Schutz unserer Fork-Architektur
-
-### X01 · Hive-Feldindex 15: echte Schema-Kollision bei Bookmarks
-
-**Status:** **ENTSCHIEDEN am 2026-10-15**, Umsetzung ausstehend · **Risiko:** 🔴 kritisch. Siehe [verbindliches Entscheidungsprotokoll](decisions.md#x01--bookmark-hive-feldindex--ursprüngliche-site-post-id).
-
-- **Änderung in Upstream:** Upstream führt `BookmarkHiveObject.sitePostId` an Hive-Feldindex **15** ein.
-- **Fork / potenzieller Konflikt:** Fork nutzt Index **15** bereits für `snapshotSchemaVersion` und **16** für `postSnapshot`; hier darf kein unverändertes generiertes Upstream-Adapter-Schema übernommen werden.
-- **Beschluss:** Fork-Indizes 15/16 unverändert lassen. Die Quell-ID nach Möglichkeit aus bereits persistierten Post-/Snapshot-Daten ableiten. Keine direkte Übernahme von Upstreams `sitePostId` auf Index 15.
-- **Entschiedene Abhängigkeit X02:** `Post.sitePostId` als Getter, kein zusätzlicher Hive-Index; Original-ID aus vorhandenem Post-/Snapshot-Kontext ableiten.
-- **Abnahme/Test:** Echte alte SQLite/Hive/Backup-Testfixtures, Upgrades, Crash-Safety und Restore.
-- **Upstream-Commits:** [`216eb6e6d`](https://github.com/khoadng/Boorusama/commit/216eb6e6d43cef2581a110b66a8f1482d110e7b9).
-- **Betroffene Codepfade (Auswahl):** `lib/core/bookmarks/src/data/hive/bookmark_hive_object.dart`, `lib/core/hive/hive_adapters.g.yaml`.
-- **Bestätigter Merge-Konflikt in:** `lib/core/bookmarks/src/data/hive/bookmark_hive_object.dart`, `lib/core/hive/hive_adapters.g.yaml`.
-
-### X02 · Post-Identity/Origin vs Upstream sitePostId
-
-**Status:** **ENTSCHIEDEN am 2026-10-15**, Umsetzung ausstehend · **Risiko:** 🔴 kritisch.
-
-- **Bestätigter Beschluss:** angepasst übernehmen. `Post.sitePostId` als gemeinsamen `String?`-Getter einführen. Für numerische Boorus die originale numerische ID als String, für Sankaku die ggf. alphanumerische Original-ID aus `SankakuPostData`, bei unbekannter Original-ID `null` statt künstlichem Fallback. `PostOrigin`, `BookmarkIdentity` und Snapshots nicht umbauen; keine neuen Hive-Felder.
-- **Verifikation:** Download-`{id}`, JSON-Sidecars, Links, Bookmark-Speichern/Export und Backup/Restore; Sankaku mit numerischen/alphanumerischen/fehlenden IDs; zwei Sites mit gleicher Post-Zahl.
-- **Verbindliches Protokoll:** [X02](decisions.md#x02--post-identityorigin-vs-upstream-sitepostid).
-- **Änderung in Upstream:** Upstream erweitert `Post` mit quellseitiger `sitePostId` und exportiert sie.
-- **Fork / potenzieller Konflikt:** Fork verwendet `PostOrigin`, `StoredPostSnapshot`, `BookmarkIdentity`, Profile-UUIDs und einen Unified-Post-Pipeline-Ansatz.
-- **Ursprüngliche Fragestellung:** Wie soll die quellseitige ID in unsere persistente Identität eingebettet werden, ohne globale IDs zu verwechseln?
-- **Abnahme/Test:** Zwei gleiche numerische IDs auf unterschiedlichen Sites, Cross-Site-Recovery, Import alte Version.
-- **Upstream-Commits:** [`216eb6e6d`](https://github.com/khoadng/Boorusama/commit/216eb6e6d43cef2581a110b66a8f1482d110e7b9).
-- **Betroffene Codepfade (Auswahl):** `lib/core/posts/post/src/types/post.dart`, `lib/core/posts/post/src/types/post_origin.dart`.
-- **Bestätigter Merge-Konflikt in:** `lib/core/posts/post/src/types/post.dart`.
-
-### X03 · Fork-Export/Import, Profile-UUIDs und Following erhalten
-
-**Status:** **ENTSCHIEDEN am 2026-10-15**, Umsetzung ausstehend · **Risiko:** 🔴 kritisch.
-
-- **Bestätigter Beschluss:** Fork-Architektur bewahren; kompatible Headless-Factory-/Picker-/Navigation-/Backup-Boundaries über A01/A12 adaptieren. Keine Änderung an UUIDs, Hive/Identity, Ordnern, Pinned Searches und Following. Kein zweiter Bookmark-Refresh-Listener; Upstream-Speicher-Fix für Favorite Tags erst mit separat offenem D08.
-- **Verifikation:** Vollständiger Legacy-/aktueller Backup-Roundtrip, Profile-UUID, verschachtelte Ordner, Following/Pinned Searches, Bookmark-Selection/Undo, Cold-Start und Recovery.
-- **Verbindliches Protokoll:** [X03](decisions.md#x03--fork-exportimport-profile-uuids-und-following-bewahren).
-- **Änderung in Upstream:** Upstream verändert App-Initialisierung, Backup-Quellen und Bookmark-Provider neben neuen Tests.
-- **Fork / potenzieller Konflikt:** Fork besitzt neu gestalteten Backup-/Import-Flow, UUID-Profile, verschachtelte Bookmark-/Pinned-Folder und Following Feeds.
-- **Ursprüngliche Fragestellung:** Welche Merge-Auflösungen dürfen diese Fork-Features niemals ersetzen oder rückabwickeln?
-- **Frühere Arbeitshypothese (ersetzt durch obigen Beschluss):** Alles Fork-spezifische als harte Invariante behandeln, Upstream-Änderungen nur kompatibel adaptieren.
-- **Abnahme/Test:** Full Export/Import Roundtrip, Feed-Aktualisierung, Bookmark Folder/Undo, Profilwechsel.
-- **Upstream-Commits:** [`a3278c5d2`](https://github.com/khoadng/Boorusama/commit/a3278c5d2ecc3672fea63c68fb21c81a1db2bb07), [`3f4ce2bd4`](https://github.com/khoadng/Boorusama/commit/3f4ce2bd4f0f94c116b2262fa9418809710278a8), [`f93bdf0dd`](https://github.com/khoadng/Boorusama/commit/f93bdf0dd42c5eb0e8165d9070310a2aebfa32c1).
-- **Betroffene Codepfade (Auswahl):** `lib/core/backups/export_import`, `lib/core/search/subscriptions`, `lib/core/configs`, `lib/core/bookmarks`.
-
-### X04 · Shared Post/Image Cache und Download-Lifecycle beibehalten
-
-**Status:** **ENTSCHIEDEN am 2026-10-15**, Umsetzung ausstehend · **Risiko:** 🔴 kritisch.
-
-- **Bestätigter Beschluss:** angepasst übernehmen / Cache gezielt vereinfachen. Den gemeinsamen persistenten Fork-Image-Cache mit URL-MD5-Hash, Origin-Isolation, LRU, Quotas, Journal, Checkpoints und Performance-Fixes behalten. Physische `.generation_`-Dateien und langfristige File-Leases entfernen; Cache-Dateiname = URL-Hash. Einzigartige temporäre Downloads erst nach erfolgreichem Schreiben sicher/atomar veröffentlichen; falls gültige Datei bereits da ist, konkurrierendes Ergebnis verwerfen. Ungültige Dateien entfernen und neu laden. Image-Sharing nutzt eine eigene Temp-Kopie im existierenden Betriebssystem-Cache-Unterordner `boorusama-share` (ggf. `share_plus`), bestehende Bereinigung alter Dateien (>24 h beim App-Start) wiederverwenden; keinen neuen Cleanup-Service erfinden. Video-Cache und Download-Observer/Lifecycle erhalten.
-- **Verifikation:** Parallele Cache-Misses, partielle/fehlgeschlagene Downloads, Invalidierung, Cache-Clear während Anzeige/Share, Race mit Eviction, Restart/Index/LRU, Limits, Cross-Site-Isolation, Temp-Cleanup und A09.
-- **Verbindliches Protokoll:** [X04](decisions.md#x04--shared-postimage-cache-und-download-lifecycle-beibehalten).
-- **Änderung in Upstream:** Upstream erweitert Media-Host-, Download-, Video-/Cache-, Post-Refresh- und Image-Pfade.
-- **Fork / potenzieller Konflikt:** Fork hat geteilten persistenten LRU-Cache, Checkpoint-Optimierungen, Image-Origin-Isolation und eigene Download-Observer.
-- **Ursprüngliche Fragestellung:** Welche Komponente ist Eigentümer von Cache-Key, Quota, Lifetime und Deduplication nach dem Merge?
-- **Abnahme/Test:** Cache Checkpoints, Eviction, Cross-Site Identität, Replay, Background Download.
-- **Upstream-Commits:** [`1e6a6607d`](https://github.com/khoadng/Boorusama/commit/1e6a6607dc7750a5c1e94d44531f8251fface3c6), [`86a16a20e`](https://github.com/khoadng/Boorusama/commit/86a16a20ee1327740316005b7946b8264fa70a19), [`cb5f9fade`](https://github.com/khoadng/Boorusama/commit/cb5f9fade8ed5c7e26d3f0811ef17f7187f73723), [`2003c0c1e`](https://github.com/khoadng/Boorusama/commit/2003c0c1eb2cf6b3ef0939b33adf1b575fcae8f9), [`828ddbdb7`](https://github.com/khoadng/Boorusama/commit/828ddbdb75afd02fe14cf8182774a3ef67c9128f), [`f3d8acaa0`](https://github.com/khoadng/Boorusama/commit/f3d8acaa0a765b6d2957ddd36f68a1aa944fa328), [`0f71409de`](https://github.com/khoadng/Boorusama/commit/0f71409dea3775ae1dd033bcf7fc27bb008888a0).
-- **Betroffene Codepfade (Auswahl):** `lib/core/images`, `lib/core/cache`, `lib/core/posts`, `lib/core/downloads`.
-
-## Anhang A – Lückenlose Zuordnung der 150 Upstream-Commits
-
-Jeder Commit ist hier in Upstream-Reihenfolge aufgeführt und auf mindestens einen Entscheidungsgegenstand abgebildet. Ein Commit-Link ist zur Codeprüfung gedacht; bei mehreren IDs ist die Änderung bereichsübergreifend. Wieder zurückgenommene Änderungen sind entsprechend gekennzeichnet.
-
-| Nr. | SHA | Commit-Beschreibung | Katalogpunkt(e) |
+| Area | Items | Originally nontrivial decisions |
+| --- | ---: | ---: |
+| Architecture, privacy, platforms and tooling | 18 | 16 |
+| Networking and Cloudflare | 6 | 6 |
+| Downloads, backups and export | 8 | 8 |
+| Booru-specific changes | 10 | 10 |
+| Posts, grid, viewer and media | 14 | 14 |
+| Search, interaction, desktop and TV | 8 | 7 |
+| Cross-cutting fork architecture safeguards | 4 | 4 |
+
+**Total:** 68 review items (65 originally assessed as substantive and 3 originally treated as routine/obsolete/test maintenance). All **150** upstream commits map to at least one item.
+
+## Dependency-Oriented Review Sequence
+
+1. **Data and bootstrap integrity:** X01/X02, A01, X03/X04 and A15. A merged build is not safe without these.
+2. **Active features/UX:** P01/P12/P13, A04, U01–U03, D01 and N02; then site features.
+3. **Stability and platforms:** N03–N05, D02, B04, P08, A10 and U04–U06.
+4. **Routine maintenance:** lower-risk bug fixes, i18n, CI, tests and docs.
+
+## Detailed Items
+
+Each catalog entry retains the historical upstream change, fork divergence, review question, original commit references and affected/conflicting paths. **Its approved target behavior, migration safeguards, dependencies and full test cases are in the linked English [decision log](decisions.md)**; do not use old questions to reinterpret an approved decision.
+
+## Architecture, Privacy, Platforms and Tooling
+
+### A01 · Application Bootstrap, Runtime and Dependency Injection
+
+**Status:** **APPROVED** (2026-10-15; implementation pending). **Risk:** Critical.
+
+- **Approved resolution (summary):** Use upstream's single bootstrap/runtime and integrate all fork services, recovery gates, profile UUIDs, Following, cache, sharing and native integration without a second startup path.
+- **Upstream change:** New BoorusamaBootstrapHost/ProductionBoorusamaBootstrap, main.dart and service factory overrides improve headless testing; the refactor spans 237 files.
+- **Fork divergence / merge hazard:** The fork starts through BoorusamaApp and initializes additional export, import, cache, profile and synchronization services. The earlier trial merge adopted main.dart without fully transferring that initialization.
+- **Original review question:** Retain the old startup path or migrate to upstream bootstrap? Which fork providers and startup jobs must always run?
+- **Binding decision, migration conditions and tests:** [A01](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`a3278c5d2`](https://github.com/khoadng/Boorusama/commit/a3278c5d2ecc3672fea63c68fb21c81a1db2bb07).
+- **Affected code paths (examples):** `lib/main.dart`, `lib/core/boorusama_app.dart`, `lib/core/bootstrap/boorusama_bootstrap.dart`, `lib/core/app_scope.dart`.
+- **Confirmed merge conflicts in:** `lib/core/boorusama_app.dart`.
+
+### A02 · Kurumi / Material-Cupertino Package Migration
+
+**Status:** **APPROVED** (2026-10-15; implementation pending). **Risk:** High.
+
+- **Approved resolution (summary):** Adopt upstream UI components while retaining fork actions, long-press/selection gestures and menus; the agent writes a prioritized manual UI checklist for the user, not performs manual acceptance.
+- **Upstream change:** Kurumi separates standalone Material/Cupertino components, replaces older UI dependencies and changes imports and widgets.
+- **Fork divergence / merge hazard:** The fork already uses Kurumi with custom menus, dialogs, viewer and other UI elements. Both source trees pin Flutter 3.47.2 in .fvmrc.
+- **Original review question:** Adopt all added Kurumi widgets and semantics globally or only where upstream features need them?
+- **Binding decision, migration conditions and tests:** [A02](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`9f8ab7bca`](https://github.com/khoadng/Boorusama/commit/9f8ab7bcab67048be3bb865b98c47203d7b121b2), [`e7745aca8`](https://github.com/khoadng/Boorusama/commit/e7745aca83af95f38ac1d2e3f58fa23bf0b92234), [`6adb28be9`](https://github.com/khoadng/Boorusama/commit/6adb28be97b67181a1641df28d9b0c490e4e3f47).
+- **Affected code paths (examples):** `packages/kurumi/lib/kurumi.dart`, `packages/kurumi/lib/material.dart`, `pubspec.yaml`.
+- **Confirmed merge conflicts in:** `packages/kurumi/lib/material.dart`, `pubspec.yaml`.
+
+### A03 · Kurumi Stability, Animation and Overflow
+
+**Status:** **APPROVED** (2026-10-15; implementation pending). **Risk:** Medium.
+
+- **Approved resolution (summary):** Adopt upstream focus, Escape, animation, menu, layout/overflow fixes without regressing fork interactions.
+- **Upstream change:** Stabilizes widget trees, prevents truncated sidebar titles and cancels checkmark deselection animations cleanly.
+- **Fork divergence / merge hazard:** The fork modifies Kurumi; even small framework bug fixes can have semantic merge conflicts.
+- **Original review question:** Do the isolated fixes improve actual UI/animations without regressions?
+- **Binding decision, migration conditions and tests:** [A03](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`0ed1a49df`](https://github.com/khoadng/Boorusama/commit/0ed1a49df6e07787e89366ca931dd2f7b3504eef), [`485a728c9`](https://github.com/khoadng/Boorusama/commit/485a728c9802680b480ee949123624d6101cb463), [`c69b3e824`](https://github.com/khoadng/Boorusama/commit/c69b3e824d4acc4d60922ce78e391594846ff2c0).
+- **Affected code paths (examples):** `packages/kurumi/lib/src/components`.
+
+### A04 · Responsive Settings Navigation Model
+
+**Status:** **APPROVED** (2026-10-15; implementation pending). **Risk:** High.
+
+- **Approved resolution (summary):** Integrate responsive Settings navigation/state/sidebar while preserving fork Settings Search, categories and dynamic app-toolbar title sizing.
+- **Upstream change:** Introduces upstream Settings navigation state, adaptive routes and subsequent layout/Back fixes.
+- **Fork divergence / merge hazard:** The fork uses its own SettingsNavigationPane, searchable Settings added on October 14 and additional settings sections.
+- **Original review question:** What routing, sidebar, Back, search and deep-link model should survive?
+- **Binding decision, migration conditions and tests:** [A04](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`1f2e90060`](https://github.com/khoadng/Boorusama/commit/1f2e90060765be4369a689522c463f740f254197), [`72c27ed64`](https://github.com/khoadng/Boorusama/commit/72c27ed64b10290bd5e1877a5fbe342572a3948d).
+- **Affected code paths (examples):** `lib/core/settings/src/pages/settings_page.dart`, `lib/core/settings/src/widgets/settings_navigation_pane.dart`.
+- **Confirmed merge conflicts in:** `lib/core/settings/src/pages/settings_page.dart`.
+
+### A05 · Upstream Settings Search Added and Later Reverted
+
+**Status:** **APPROVED** (2026-10-15; implementation pending). **Risk:** Low.
+
+- **Approved resolution (summary):** Do not restore upstream's reverted Settings Search; keep the existing fork feature.
+- **Upstream change:** Adds temporary generated Settings search indices and UI, subsequently reverted before v4.6.1.
+- **Fork divergence / merge hazard:** The fork has its own active Settings Search.
+- **Original review question:** No feature revival; consider isolated ideas only if explicitly requested.
+- **Binding decision, migration conditions and tests:** [A05](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`408666ef5`](https://github.com/khoadng/Boorusama/commit/408666ef55f2b20f2e65d7eee21dcb01b0f018ca), [`685db1ad5`](https://github.com/khoadng/Boorusama/commit/685db1ad56712e00d4ef8dfe438114948ba6e86e).
+
+### A06 · App Lock: Different Privacy Defaults
+
+**Status:** **APPROVED** (2026-10-15; implementation pending). **Risk:** High.
+
+- **Approved resolution (summary):** Use upstream defaults (Hide App Preview=false, timeout=30s), but preserve previously saved user choices.
+- **Upstream change:** Defaults Hide App Preview to false and lock timeout to 30 seconds in v4.6.1.
+- **Fork divergence / merge hazard:** The fork already supports PIN, blur and Wi-Fi downloads, but defaults Hide App Preview to true and lock timeout to zero.
+- **Original review question:** Which defaults should apply to new installs while respecting existing settings?
+- **Binding decision, migration conditions and tests:** [A06](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`c2d3b109e`](https://github.com/khoadng/Boorusama/commit/c2d3b109ef0e2124273858b17ed577e8bdaa1add).
+- **Affected code paths (examples):** `lib/core/settings/src/types/settings.dart`.
+
+### A07 · Debug Logging, Log Persistence and Redaction
+
+**Status:** **APPROVED** (2026-10-15; implementation pending). **Risk:** High.
+
+- **Approved resolution (summary):** Integrate upstream logs, viewer/copy/export and redaction without losing fork diagnostics or changing privacy defaults unexpectedly.
+- **Upstream change:** Adds persistent diagnostic logging, an interactive log viewer, URL/status highlighting and copy support; final upstream redaction is optional and disabled by default.
+- **Fork divergence / merge hazard:** The fork has an older logger and additional cache/diagnostic facilities, with bootstrap and provider conflicts.
+- **Original review question:** What retention/redaction/export behavior should apply to persisted logs, particularly credentials?
+- **Binding decision, migration conditions and tests:** [A07](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`3bd433423`](https://github.com/khoadng/Boorusama/commit/3bd4334235a091c51e680c28ea852d3d07571a02), [`434a2e516`](https://github.com/khoadng/Boorusama/commit/434a2e516ecae2ce236d4c7592af62961e182a87), [`948af9448`](https://github.com/khoadng/Boorusama/commit/948af94483b7662d1de9a0fbfea7381019cd821a), [`d13fe53a3`](https://github.com/khoadng/Boorusama/commit/d13fe53a3b8cbbba481b4d2d436b124009941b8f).
+- **Affected code paths (examples):** `lib/core/debug`, `lib/foundation/loggers`.
+
+### A08 · Typed Cloudflare/DDoS Diagnostics
+
+**Status:** **APPROVED** (2026-10-15; implementation pending). **Risk:** Medium.
+
+- **Approved resolution (summary):** Integrate typed solver, challenge and error diagnostics into A07 logging while preserving Rule34 recovery.
+- **Upstream change:** Adds detailed solver/challenge events, structured states, polling and diagnostic logs.
+- **Fork divergence / merge hazard:** The fork already implements Rule34/Cloudflare recovery and its own diagnostics.
+- **Original review question:** Which events belong in the debug screen, and what needs redaction before storage?
+- **Binding decision, migration conditions and tests:** [A08](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`480810b11`](https://github.com/khoadng/Boorusama/commit/480810b11a5a66b24be40bc8a80a2a56e681b90c), [`0def24717`](https://github.com/khoadng/Boorusama/commit/0def247178cedd1a058c3695a09b3c159ec3577d).
+- **Affected code paths (examples):** `lib/core/ddos/solver`, `lib/core/ddos/diagnostics`.
+
+### A09 · Android Cache Locations and DocumentsProvider
+
+**Status:** **APPROVED** (2026-10-15; implementation pending). **Risk:** Medium.
+
+- **Approved resolution (summary):** Adopt cache-path settings and read-only DocumentsProvider for valid completed media only, adjusted to fork cache filenames, package ID and native channels.
+- **Upstream change:** Shows cache directories in Settings and exposes cache content via Android Files DocumentsProvider.
+- **Fork divergence / merge hazard:** The fork uses its own persistent LRU image cache and different private storage directories.
+- **Original review question:** Which caches may be exposed read-only without leaking private application files?
+- **Binding decision, migration conditions and tests:** [A09](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`1e6a6607d`](https://github.com/khoadng/Boorusama/commit/1e6a6607dc7750a5c1e94d44531f8251fface3c6).
+- **Affected code paths (examples):** `android/app/src/main/AndroidManifest.xml`, `android/app/src/main/kotlin`, `lib/core/settings/src/pages/data_and_storage_page.dart`.
+- **Confirmed merge conflicts in:** `android/app/src/main/AndroidManifest.xml`, `lib/core/settings/src/pages/data_and_storage_page.dart`.
+
+### A10 · Embedded Windows WebView and WebView Platform Support
+
+**Status:** **APPROVED** (2026-10-15; implementation pending). **Risk:** High.
+
+- **Approved resolution (summary):** Adopt WebView/browser factory and unsupported-platform fallbacks compatible with fork challenge/browser behavior.
+- **Upstream change:** Adds Windows embedded browser and WinHTTP adapter, abstract browser factories and unsupported-WebView fallbacks.
+- **Fork divergence / merge hazard:** The fork owns application service providers/bootstrapping and challenge/browser logic.
+- **Original review question:** Which Windows/browser features and platform fallback behaviors are needed?
+- **Binding decision, migration conditions and tests:** [A10](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`4c6138377`](https://github.com/khoadng/Boorusama/commit/4c6138377f9d5357b986584b8aee75d0b8d5dd66), [`8d8ca771b`](https://github.com/khoadng/Boorusama/commit/8d8ca771b393d18f31e21e21881f22f142179397).
+- **Affected code paths (examples):** `lib/foundation/browser`, `lib/core/http/client/src/data/winhttp_dio_adapter.dart`.
+
+### A11 · Localization: Arabic, Indonesian and Other Updates
+
+**Status:** **APPROVED** (2026-10-15; implementation pending). **Risk:** Low-medium.
+
+- **Approved resolution (summary):** Import Arabic, Indonesian and other upstream localization fixes without losing fork translation keys or fallbacks; UI localization remains multilingual.
+- **Upstream change:** Adds locale resources and Weblate translations, removes unused keys and preserves full locale when switching language.
+- **Fork divergence / merge hazard:** The fork has distinct Following, Bookmark Group and Settings Search strings; localization trees diverged.
+- **Original review question:** How should localization files be merged without losing keys or weakening fallbacks?
+- **Binding decision, migration conditions and tests:** [A11](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`bdec763aa`](https://github.com/khoadng/Boorusama/commit/bdec763aa3e7d36d774b2f64b7963f79329f9bdd), [`9ba59d05b`](https://github.com/khoadng/Boorusama/commit/9ba59d05b80c07b03e7e8696ee4c4ed8d068f14b), [`d13da93a3`](https://github.com/khoadng/Boorusama/commit/d13da93a3a6e2a8d9299d5a0ef91dd00422aa303), [`a891266bb`](https://github.com/khoadng/Boorusama/commit/a891266bb668caa65f846db9ee40f9b35c840c9e), [`02a28fe7d`](https://github.com/khoadng/Boorusama/commit/02a28fe7d7e94c12a94c926442681cc8d569e2d5), [`889592e57`](https://github.com/khoadng/Boorusama/commit/889592e57f5f22962158c2d9123f1db05f836260), [`e79abb5c0`](https://github.com/khoadng/Boorusama/commit/e79abb5c093aa7e1090653f2adf1b3e68b392328).
+- **Affected code paths (examples):** `packages/i18n/translations`, `packages/i18n/lib/src/locales.dart`.
+
+### A12 · Headless Test Harness and Application Flow Tests
+
+**Status:** **APPROVED** (2026-10-15; implementation pending). **Risk:** Medium-high.
+
+- **Approved resolution (summary):** Integrate upstream fake-service/headless app-flow test harness into the unified fork runtime; preserve all fork tests and the user's manual A02 verification boundary.
+- **Upstream change:** Adds headless application flow tests and fakes for search, bookmarks, bulk downloads, network recovery and startup.
+- **Fork divergence / merge hazard:** The fork has its own integration/repository tests and startup architecture.
+- **Original review question:** Which tests can be ported without introducing a parallel runtime?
+- **Binding decision, migration conditions and tests:** [A12](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`c22d12fd6`](https://github.com/khoadng/Boorusama/commit/c22d12fd678db968af1356a21a3957ae3f3eda35).
+- **Affected code paths (examples):** `test/application`, `test/support`.
+
+### A13 · NixOS Package and Development Shell
+
+**Status:** **APPROVED** (2026-10-15; implementation pending). **Risk:** Low.
+
+- **Approved resolution (summary):** Adopt useful NixOS flake/dev-shell changes only when maintainable; no new platform-support commitment.
+- **Upstream change:** Adds Nix flake, reproducible packaging, bundled fonts and ARM64 native/build fixes.
+- **Fork divergence / merge hazard:** The fork has its own CLI/CI setup but no corresponding Nix implementation.
+- **Original review question:** Should Nix be treated as officially supported build/release infrastructure?
+- **Binding decision, migration conditions and tests:** [A13](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`d3f3a62fa`](https://github.com/khoadng/Boorusama/commit/d3f3a62fa40fc7eadd2a63cd32e145f9cd3d5acd), [`038d1287c`](https://github.com/khoadng/Boorusama/commit/038d1287c04a260faea85e360c98f4baffb8fd97), [`e16ecd2c3`](https://github.com/khoadng/Boorusama/commit/e16ecd2c35236880eea7be4c27e3f957c6609143), [`2d621b683`](https://github.com/khoadng/Boorusama/commit/2d621b68335a62337075b53289f1f986f0631fcf), [`047a5a09e`](https://github.com/khoadng/Boorusama/commit/047a5a09e5e2ff397f23eee21f1cd54672cc80a2).
+- **Affected code paths (examples):** `flake.nix`, `nix/package.nix`, `docs/nix.md`.
+
+### A14 · Release CI, Native Assets, SDK and Build CLI
+
+**Status:** **APPROVED** (2026-10-15; implementation pending). **Risk:** High.
+
+- **Approved resolution (summary):** Adopt useful upstream SDK, native asset, build and CI fixes without changing fork flavors, split APKs, signing, pinned Flutter or protected workflows.
+- **Upstream change:** Changes Windows CMake/NASM/path handling, native asset retries, long paths, smoke runs, centralized toolchain and Android resource IDs; a build change was later reverted.
+- **Fork divergence / merge hazard:** The fork has its own signed Android split APK workflow, CI and Flutter 3.47.2 pin.
+- **Original review question:** Which specific toolchain fixes should be used without replacing the fork release workflow?
+- **Binding decision, migration conditions and tests:** [A14](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`08088842c`](https://github.com/khoadng/Boorusama/commit/08088842c880bd124715e3d76b73c24945d8ea9a), [`dbfe54fc4`](https://github.com/khoadng/Boorusama/commit/dbfe54fc432738bcf59ee9179a9089f629d620bf), [`430747c1a`](https://github.com/khoadng/Boorusama/commit/430747c1af0153672863213a03f25c082a29e204), [`402c4eb67`](https://github.com/khoadng/Boorusama/commit/402c4eb67a1052ab1841592c4eeb5a6967de071c), [`a9821d53e`](https://github.com/khoadng/Boorusama/commit/a9821d53eb413ea46374ab09b07668b4ebe766f5), [`914ee5fa5`](https://github.com/khoadng/Boorusama/commit/914ee5fa51d33eeaa69ba8dc8c6dde171fadad58), [`899aabf6a`](https://github.com/khoadng/Boorusama/commit/899aabf6a26c22e438750319b74ac463a4af19ee), [`df4f705d8`](https://github.com/khoadng/Boorusama/commit/df4f705d810f2cdfc2f009c6d6082ab5fb61d2df), [`d1e7c99b4`](https://github.com/khoadng/Boorusama/commit/d1e7c99b4895404548a426274e076b3710d84f79), [`87a4fae44`](https://github.com/khoadng/Boorusama/commit/87a4fae4463529474a9d161fdd45fa2047831986), [`c184be942`](https://github.com/khoadng/Boorusama/commit/c184be94249a3768e4f4d672517230c62acfb7ae), [`db33523ff`](https://github.com/khoadng/Boorusama/commit/db33523ff960712518c3c3482e33f8d9b33048b6), [`c22d22e0d`](https://github.com/khoadng/Boorusama/commit/c22d22e0dfe9f3f521a3e495fafa69ba00d07364), [`f94243dcc`](https://github.com/khoadng/Boorusama/commit/f94243dccad0eace17d674df43934424ca591f39), [`b55d1adde`](https://github.com/khoadng/Boorusama/commit/b55d1addecaf59fb36cd72d5f5e6e5b75b629f84).
+- **Affected code paths (examples):** `.github/workflows/github-release.yml`, `packages/boorusama_cli`, `android/gradle.properties`, `scripts/toolchain.sh`.
+- **Confirmed merge conflicts in:** `.github/workflows/github-release.yml`, `android/gradle.properties`.
+
+### A15 · APK Signing: Permanent Upstream Key
+
+**Status:** **APPROVED** (2026-10-15; implementation pending). **Risk:** Critical.
+
+- **Approved resolution (summary):** Do not adopt upstream signing key; retain com.timberpile.boorusama, production certificate, flavors and upgrade compatibility.
+- **Upstream change:** Uses a new permanent upstream key for GitHub APK signing from v4.6.1.
+- **Fork divergence / merge hazard:** The fork has its own certificate, com.timberpile.boorusama application ID, branding/flavors and update manifest.
+- **Original review question:** Never adopt upstream key/app ID/credentials; can safe signing CI checks be reused?
+- **Binding decision, migration conditions and tests:** [A15](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`e6511bad5`](https://github.com/khoadng/Boorusama/commit/e6511bad5c6d44f9b574bb08e1eeef4ddaed4d23).
+- **Affected code paths (examples):** `.github/workflows/github-release.yml`, `android/app/build.gradle.kts`.
+- **Confirmed merge conflicts in:** `.github/workflows/github-release.yml`, `android/app/build.gradle.kts`.
+
+### A16 · Versioning, Changelog and What's New Popup
+
+**Status:** **APPROVED** (2026-10-15; implementation pending). **Risk:** Medium.
+
+- **Approved resolution (summary):** Base version exactly matches merged upstream; reset timberpile.N to .1 per new upstream version, then increment. Keep +buildNumber monotonic. First v4.6.1 candidate is 4.6.1-timberpile.1+190 if no later build exists. Retain fork changelog and fix repeated What's New.
+- **Upstream change:** Updates 4.6.0/4.6.1 metadata/changelog and fixes a recurring What's New popup.
+- **Fork divergence / merge hazard:** The fork is currently 4.5.0-timberpile.5 and has its own release history and changelog fixes.
+- **Original review question:** How should the new fork version be named, and how should upstream release notes be handled?
+- **Binding decision, migration conditions and tests:** [A16](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`0adc367df`](https://github.com/khoadng/Boorusama/commit/0adc367df3c9a3862e9663049e1af0d90bf60d21), [`a9c31322b`](https://github.com/khoadng/Boorusama/commit/a9c31322bd4d60761218bedfd317ef18f8b69359), [`ffd7e47c5`](https://github.com/khoadng/Boorusama/commit/ffd7e47c5840a922b1c885d415a28984a6bf978a), [`bc63321ec`](https://github.com/khoadng/Boorusama/commit/bc63321ec125c5d54da165c9977580cdea46448f), [`e44fff71c`](https://github.com/khoadng/Boorusama/commit/e44fff71cd79dc4c581f6b6072a85e999a89df37), [`953fee30b`](https://github.com/khoadng/Boorusama/commit/953fee30bd78245cc9113a1dfc41a7953a7b2c3a), [`2a5818b57`](https://github.com/khoadng/Boorusama/commit/2a5818b570a58071959e9d877aa4d2a3c9c25a17), [`5a2a4e82e`](https://github.com/khoadng/Boorusama/commit/5a2a4e82e827785f0c296b600e44aae2247b90a4), [`5b04bf6a1`](https://github.com/khoadng/Boorusama/commit/5b04bf6a164f028d41701299367d0dde74dde330).
+- **Affected code paths (examples):** `CHANGELOG.md`, `pubspec.yaml`, `lib/core/changelogs/repo.dart`.
+- **Confirmed merge conflicts in:** `CHANGELOG.md`, `pubspec.yaml`.
+
+### A17 · Formatting, No-op Reverts and Small Cleanups
+
+**Status:** **APPROVED** (2026-10-15; implementation pending). **Risk:** Low.
+
+- **Approved resolution (summary):** Integrate necessary fixes only, avoid unrelated formatting and resurrecting reverted features.
+- **Upstream change:** Contains broad formatting and cleanup, whitespace correction and removal of a duplicated @override.
+- **Fork divergence / merge hazard:** These commits contain no requested product feature and the fork's touched code diverged heavily.
+- **Original review question:** Apply only meaningful maintenance fixes and avoid noise.
+- **Binding decision, migration conditions and tests:** [A17](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`cfb231254`](https://github.com/khoadng/Boorusama/commit/cfb231254634c8ef96873847c43f5983a5ea27ed), [`ab78dc3e3`](https://github.com/khoadng/Boorusama/commit/ab78dc3e338514bd39f2ce678ade2abd2c82b133), [`ee38cd592`](https://github.com/khoadng/Boorusama/commit/ee38cd592b4d6960d49025a52de433930b7441e7), [`372dca51c`](https://github.com/khoadng/Boorusama/commit/372dca51c760bb0d070c2d4b54c20c0407648b6c), [`3c72c200e`](https://github.com/khoadng/Boorusama/commit/3c72c200e1ecbf241feb09d1a3c932957720c84a).
+
+### A18 · Web AVIF Decoder Compatibility
+
+**Status:** **APPROVED** (2026-10-15; implementation pending). **Risk:** Medium.
+
+- **Approved resolution (summary):** Adopt AVIF Web/network compatibility changes while retaining fork cache and media pipeline.
+- **Upstream change:** Adjusts the flutter_libavif migration for Web and network decoding.
+- **Fork divergence / merge hazard:** The fork already adopted AVIF but uses its own ExtendedImage and cache pipeline.
+- **Original review question:** Which Web AVIF decoding fallbacks are needed without replacing the cache?
+- **Binding decision, migration conditions and tests:** [A18](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`72702e711`](https://github.com/khoadng/Boorusama/commit/72702e7110892d046826b53a25a70c39c1e72d56).
+- **Affected code paths (examples):** `packages/extended_image/lib/src`.
+
+## Networking and Cloudflare
+
+### N01 · HTTP Retry-After, Rate Limiting and Admission Locks
+
+**Status:** **APPROVED** (2026-10-15; implementation pending). **Risk:** High.
+
+- **Approved resolution (summary):** Keep ApiRequestCoordinator as the sole per-origin admission/priority/429 authority; integrate upstream retries/timeouts/cancellation without a second sliding-window limiter.
+- **Upstream change:** Adds configured retry policies, Retry-After cooldowns and serialized sliding-window rate admissions.
+- **Fork divergence / merge hazard:** The fork already coordinates browsing versus Following priorities and admission quotas with ApiRequestCoordinator.
+- **Original review question:** How can server waits, per-host caps and browsing priority be combined without deadlocks or double queues?
+- **Binding decision, migration conditions and tests:** [N01](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`70b523938`](https://github.com/khoadng/Boorusama/commit/70b5239384cc86fba7c479c7ce688076508575cf), [`deca1064a`](https://github.com/khoadng/Boorusama/commit/deca1064aa68abcbbb1683408f305558bef08ee3).
+- **Affected code paths (examples):** `packages/retriable`, `lib/core/http/client/src/interceptors/sliding_window_rate_limit_interceptor.dart`.
+- **Confirmed merge conflicts in:** `lib/core/http/client/src/interceptors/sliding_window_rate_limit_interceptor.dart`.
+
+### N02 · Per-Profile Media-Host Overrides
+
+**Status:** **APPROVED** (2026-10-15; implementation pending). **Risk:** High.
+
+- **Approved resolution (summary):** Adopt image/video/download host overrides with strict cookie, Authorization, cache and source-origin safeguards.
+- **Upstream change:** Adds per-profile alternate media hosts and security filtering of forwarded headers, with settings UI.
+- **Fork divergence / merge hazard:** This feature is new to the fork, which routes media through a shared, source/profile-aware image cache.
+- **Original review question:** How should host overrides interact with cache keys, cookies, proxies, media downloads and previews?
+- **Binding decision, migration conditions and tests:** [N02](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`cb5f9fade`](https://github.com/khoadng/Boorusama/commit/cb5f9fade8ed5c7e26d3f0811ef17f7187f73723).
+- **Affected code paths (examples):** `lib/core/configs/network/src/types/media_host_override.dart`, `lib/core/images/booru_image.dart`.
+- **Confirmed merge conflicts in:** `lib/core/images/booru_image.dart`.
+
+### N03 · Cloudflare: Do Not Blindly Replay State-Changing Requests
+
+**Status:** **APPROVED** (2026-10-15; implementation pending). **Risk:** High.
+
+- **Approved resolution (summary):** Never blindly replay POST/PUT/votes/favorites/comments after Cloudflare unless idempotent; preserve Rule34 safeguards.
+- **Upstream change:** Adds request-intent distinctions to HTTP recovery so POST/PUT and other mutations are not blindly replayed.
+- **Fork divergence / merge hazard:** The fork has specialized Rule34-403/Cloudflare recovery with its own replay behavior.
+- **Original review question:** Which operations are retry-safe, particularly favorites/votes/comments?
+- **Binding decision, migration conditions and tests:** [N03](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`94aa56361`](https://github.com/khoadng/Boorusama/commit/94aa56361ad31a902e7382396e958d27244cda35).
+- **Affected code paths (examples):** `lib/core/http/client/src/interceptors/dio_protection_interceptor.dart`, `packages/coreutils/lib/src/request_intent.dart`.
+- **Confirmed merge conflicts in:** `lib/core/http/client/src/interceptors/dio_protection_interceptor.dart`.
+
+### N04 · Cloudflare Detection, Block Pages, Redirects and Challenge UX
+
+**Status:** **APPROVED** (2026-10-15; implementation pending). **Risk:** High.
+
+- **Approved resolution (summary):** Integrate block-page/captcha recognition, redirects, loop prevention and UI while preserving fork Rule34 403 recovery.
+- **Upstream change:** Recognizes redesigned Cloudflare challenges, confirmation pages and subdomain redirects; reduces loops and dialog flashes.
+- **Fork divergence / merge hazard:** The fork has focused Rule34 403 recovery and modified solver/HTTP interceptors.
+- **Original review question:** How can challenge detection be adapted without losing Rule34 recovery?
+- **Binding decision, migration conditions and tests:** [N04](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`99ee264db`](https://github.com/khoadng/Boorusama/commit/99ee264dbc2f9649d94b8757575e82b885623e0d), [`bcef3b5c1`](https://github.com/khoadng/Boorusama/commit/bcef3b5c1cf620ff3d67bfaef9e6d623391c3442), [`dc7b9cee9`](https://github.com/khoadng/Boorusama/commit/dc7b9cee911f28049333546c56379be8c51d955a), [`f82a62885`](https://github.com/khoadng/Boorusama/commit/f82a6288563d73e8da1943b7fed499d16f3611d7), [`b0a1d65d9`](https://github.com/khoadng/Boorusama/commit/b0a1d65d9e60131f010491f38877cfd5e5df7b60), [`399a4da47`](https://github.com/khoadng/Boorusama/commit/399a4da47587906a73a316f18c089254b58156d5).
+- **Affected code paths (examples):** `lib/core/ddos/solver`, `lib/core/ddos/handler/protection_handler.dart`.
+
+### N05 · Clearance Cookies and Native WebView Cookie Bridge
+
+**Status:** **APPROVED** (2026-10-15; implementation pending). **Risk:** High.
+
+- **Approved resolution (summary):** Adopt Android/iOS/macOS WebView-to-HTTP cookie handling with correct origin, Secure, HttpOnly and native bounds.
+- **Upstream change:** Reads clearance cookies from WebView/native CookieManager after solved challenges and applies them to HTTP clients on Android/iOS/macOS.
+- **Fork divergence / merge hazard:** The fork has different native channel paths and extra export/system native integrations.
+- **Original review question:** On which platforms should the bridge run and how are Secure/HttpOnly/domain scopes respected?
+- **Binding decision, migration conditions and tests:** [N05](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`0b4dcfcc4`](https://github.com/khoadng/Boorusama/commit/0b4dcfcc40d22cff1464b34506a6b836f06d7586), [`0ad2e6465`](https://github.com/khoadng/Boorusama/commit/0ad2e646591aceac0ab726aec1213289e42311ac).
+- **Affected code paths (examples):** `android/app/src/main/kotlin`, `ios/Runner/AppDelegate.swift`, `lib/foundation/browser/webview_cookie_channel.dart`.
+- **Confirmed merge conflicts in:** `ios/Runner/AppDelegate.swift`.
+
+### N06 · HTTP/2 Window and Automatic Gzip
+
+**Status:** **APPROVED** (2026-10-15; implementation pending). **Risk:** Medium.
+
+- **Approved resolution (summary):** Adopt HTTP/2 flow-control and gzip improvements without regressing fallback transports, priorities or mobile memory use.
+- **Upstream change:** Increases HTTP/2 connection/stream flow-control windows and enables compressed responses.
+- **Fork divergence / merge hazard:** The fork customizes Dio/HTTP2 for interactive browsing priority and site adapters.
+- **Original review question:** Which settings should be global versus selective, considering mobile memory and problematic servers?
+- **Binding decision, migration conditions and tests:** [N06](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`86a7ee6bb`](https://github.com/khoadng/Boorusama/commit/86a7ee6bbee7a730f9b8931c01919191bd2ad0c3).
+- **Affected code paths (examples):** `lib/core/http/client/src/providers/dio.dart`.
+
+## Downloads, Backups and Export
+
+### D01 · Download Sidecars: TXT Tags and JSON Metadata
+
+**Status:** **APPROVED** (2026-10-16; implementation pending). **Risk:** High.
+
+- **Approved resolution (summary):** Off by default; optional tag-TXT/JSON sidecars with bulk override and safe immutable metadata. Atomic post-completion write, durable independent retry, no secret URLs or sidecar creation for skipped existing media.
+- **Upstream change:** Adds optional TXT tags or JSON metadata alongside downloads with post ID, source, quality, filename, atomic sidecar creation and bulk/storage integration.
+- **Fork divergence / merge hazard:** The fork has more complex download, sharing and export flows and no existing sidecar module.
+- **Original review question:** Should settings be global or per profile, and what happens on duplicate, failure, existing media and backup?
+- **Binding decision, migration conditions and tests:** [D01](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`86a16a20e`](https://github.com/khoadng/Boorusama/commit/86a16a20ee1327740316005b7946b8264fa70a19).
+- **Affected code paths (examples):** `lib/core/downloads/sidecar`, `lib/core/bulk_downloads/src/providers/bulk_download_notifier.dart`.
+- **Confirmed merge conflicts in:** `lib/core/bulk_downloads/src/providers/bulk_download_notifier.dart`.
+
+### D02 · Bulk Download Finalization and Notifications
+
+**Status:** **APPROVED** (2026-10-16; implementation pending). **Risk:** Critical.
+
+- **Approved resolution (summary):** Use final upstream completion logic with serial session checks, tolerant size errors, final stats before cleanup and bounded completion history; preserve fork lifecycle and idempotent recovery.
+- **Upstream change:** Temporarily reverts earlier deterministic session finalization and later rebuilds completion and notification handling around Futures.
+- **Fork divergence / merge hazard:** The fork contains the earlier fix upstream reverted, plus fork lifecycle guards; implementations differ on race handling/cleanup.
+- **Original review question:** Which completion algorithm guarantees correct final statistics and notification visibility through cleanup?
+- **Binding decision, migration conditions and tests:** [D02](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`ebdfb05d9`](https://github.com/khoadng/Boorusama/commit/ebdfb05d9bec5be5c6fd6dd3e5460cea8ce1e1a1), [`54b19cd4c`](https://github.com/khoadng/Boorusama/commit/54b19cd4cf77b3a75579a2b27aeccc1b1dc56ef5).
+- **Affected code paths (examples):** `lib/core/bulk_downloads/src/providers/bulk_download_notifier.dart`, `lib/core/download_activity`.
+- **Confirmed merge conflicts in:** `lib/core/bulk_downloads/src/providers/bulk_download_notifier.dart`.
+
+### D03 · Background Downloader Plugin Update
+
+**Status:** **APPROVED** (2026-10-16; implementation pending). **Risk:** Low-medium.
+
+- **Approved resolution (summary):** After API/native/Cronet checks, update background_downloader Git ref e8ad9f9 to fd67fff9ee4ad4cdf415dc3285289cad9289cefe, remaining at package version 9.6.1.
+- **Upstream change:** Updates the pinned Git revision of the background downloader plugin while retaining package v9.6.1.
+- **Fork divergence / merge hazard:** The fork uses Cronet and its own durable download/notification services.
+- **Original review question:** Is the new commit compatible with fork Flutter/Cronet/APK configuration?
+- **Binding decision, migration conditions and tests:** [D03](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`669b8019f`](https://github.com/khoadng/Boorusama/commit/669b8019f80eaf8d0f40e268bbf8a29dc0808ddf).
+- **Affected code paths (examples):** `pubspec.lock`, `pubspec_overrides.yaml`.
+
+### D04 · Download Manager: Injectable Task Client and Snapshot Fix
+
+**Status:** **APPROVED** (2026-10-16; implementation pending). **Risk:** Medium.
+
+- **Approved resolution (summary):** Introduce injectable pause/resume/retry/cancel/file access; copy task group lists before updating state and prevent double-closing the stream controller.
+- **Upstream change:** Introduces a testable DownloadTaskClient interface and copies task lists before state updates to prevent mutation of existing snapshots.
+- **Fork divergence / merge hazard:** The fork has its own download manager and download activity behavior.
+- **Original review question:** Migrate the whole test boundary or only the state-mutation fix?
+- **Binding decision, migration conditions and tests:** [D04](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`bd2e22c22`](https://github.com/khoadng/Boorusama/commit/bd2e22c221bcfb1a8c8c0675afbab6763a3102c9), [`90657ee4e`](https://github.com/khoadng/Boorusama/commit/90657ee4ed73f9a4bf7f2277ed1750e2f8b5d4ff).
+- **Affected code paths (examples):** `lib/core/download_manager`.
+
+### D05 · Anime-Pictures Bulk Downloads and Request Pacing
+
+**Status:** **APPROVED** (2026-10-16; implementation pending). **Risk:** Medium.
+
+- **Approved resolution (summary):** Enable bulk with about 1 req/sec via ApiRequestCoordinator; remove indefinitely cached client links, preserve bounded fork extractor cache and validate expired auth/URLs.
+- **Upstream change:** Enables Anime-Pictures bulk downloading with conservative API/download-link request pacing.
+- **Fork divergence / merge hazard:** The fork has customized Anime-Pictures clients and download URL extraction.
+- **Original review question:** How should the upstream quota model interact with fork-wide rate limits and download behavior?
+- **Binding decision, migration conditions and tests:** [D05](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`c5b79488c`](https://github.com/khoadng/Boorusama/commit/c5b79488c8d90b624cb17e8452d3b17e099be88f).
+- **Affected code paths (examples):** `lib/boorus/anime-pictures/client_provider.dart`, `packages/booru_clients/lib/src/anime-pictures`.
+
+### D06 · Zerochan Bulk Downloads and URL Resolution
+
+**Status:** **APPROVED** (2026-10-16; implementation pending). **Risk:** Medium.
+
+- **Approved resolution (summary):** Enable robust detail-API and HTML fallback, quality selection, request coalescing and ~1.2s pacing via N01. Never silently downgrade explicitly requested Original quality.
+- **Upstream change:** Re-enables Zerochan bulk downloads and adds explicit download URL/quality resolution.
+- **Fork divergence / merge hazard:** The fork has custom Zerochan parsers/downloads but lacks the new bulk URL extractor modules.
+- **Original review question:** Which qualities, redirects and authentication cases must be supported?
+- **Binding decision, migration conditions and tests:** [D06](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`50980b8da`](https://github.com/khoadng/Boorusama/commit/50980b8da1368aa39a44051c78dee12dd4dff2ce).
+- **Affected code paths (examples):** `lib/boorus/zerochan`, `packages/booru_clients/lib/src/zerochan`.
+
+### D07 · Preserve Original Site Post IDs in Exports Instead of Only Numeric IDs
+
+**Status:** **APPROVED** (2026-10-16; implementation pending). **Risk:** High.
+
+- **Approved resolution (summary):** Use Post.sitePostId in JSON sidecars and links; change {id} filename token to genuine site ID including Sankaku strings. Retain Pixiv {illust_id}_p{page}.{extension} default; no new token, Hive field or bookmark identity.
+- **Upstream change:** Preserves genuine sitePostId in exports for non-numeric identifiers, alongside a Sankaku suggestion fix.
+- **Fork divergence / merge hazard:** The fork uses separate PostOrigin, stored post snapshots and BookmarkIdentity; the upstream schema cannot be copied unchanged.
+- **Original review question:** Where is the genuine source ID derived, persisted and exported?
+- **Binding decision, migration conditions and tests:** [D07](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`216eb6e6d`](https://github.com/khoadng/Boorusama/commit/216eb6e6d43cef2581a110b66a8f1482d110e7b9).
+- **Affected code paths (examples):** `lib/core/posts/post/src/types/post.dart`, `lib/core/bookmarks/src/types/bookmark.dart`.
+- **Confirmed merge conflicts in:** `lib/core/bookmarks/src/types/bookmark.dart`, `lib/core/posts/post/src/types/post.dart`.
+
+### D08 · Export Favorite Tags Directly from Storage
+
+**Status:** **APPROVED** (2026-10-16; implementation pending). **Risk:** Medium.
+
+- **Approved resolution (summary):** Read all favorite tags from repository storage, not an uninitialized UI provider; preserve labels, repo.replaceAll imports and simple clipboard export.
+- **Upstream change:** Reads all favorite tags directly from persistent repository storage instead of an uninitialized UI provider.
+- **Fork divergence / merge hazard:** The fork has extended backup/import/export flows and separate tag repositories.
+- **Original review question:** Should all applicable full backup and fork export paths use persistent reads?
+- **Binding decision, migration conditions and tests:** [D08](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`f93bdf0dd`](https://github.com/khoadng/Boorusama/commit/f93bdf0dd42c5eb0e8165d9070310a2aebfa32c1).
+- **Affected code paths (examples):** `lib/core/backups/sources/favorite_tags_source.dart`.
+
+## Booru-Specific Changes
+
+### B01 · Sankaku Metatags, Syntax Highlighting and Typed Suggestions
+
+**Status:** **APPROVED** (2026-10-16; implementation pending). **Risk:** Medium-high.
+
+- **Approved resolution (summary):** Adopt Sankaku-native search filters, parsing and typed suggestions within the fork's unified search-options UX, not a duplicate legacy search bar.
+- **Upstream change:** Adds distinct Sankaku metatag categories, suggestions and syntax highlighting.
+- **Fork divergence / merge hazard:** The fork is redesigning tag search and site-independent search abstractions and owns search bar code.
+- **Original review question:** Which metatags belong in shared Search Options versus Sankaku-specific adapters?
+- **Binding decision, migration conditions and tests:** [B01](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`216eb6e6d`](https://github.com/khoadng/Boorusama/commit/216eb6e6d43cef2581a110b66a8f1482d110e7b9), [`2569eaeeb`](https://github.com/khoadng/Boorusama/commit/2569eaeeb6ea01ea35386ffc8bab858dcbd1d75d).
+- **Affected code paths (examples):** `lib/boorus/sankaku/tags/metatags.dart`, `lib/boorus/sankaku/search/tag_query_composer.dart`.
+
+### B02 · Normalize Sankaku Exclusion and Date Filters
+
+**Status:** **APPROVED** (2026-10-16; implementation pending). **Risk:** Medium.
+
+- **Approved resolution (summary):** Normalize only supported single-date input to API day ranges; preserve explicit ranges/operators and source query, with clear exclusion-limit errors.
+- **Upstream change:** Improves Sankaku exclusion error messages and converts a single date to an API-compatible day range.
+- **Fork divergence / merge hazard:** The fork modifies search syntax parsing/composition.
+- **Original review question:** Normalize at the site API boundary or inside the shared search abstraction?
+- **Binding decision, migration conditions and tests:** [B02](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`18216f412`](https://github.com/khoadng/Boorusama/commit/18216f4123586634f0756e7d5b20673638711766), [`6ad672075`](https://github.com/khoadng/Boorusama/commit/6ad672075306e5621a4dde519ad124da0b19f8cb).
+- **Affected code paths (examples):** `lib/boorus/sankaku`.
+
+### B03 · Preserve All Sankaku Tag Categories and Remove Duplicates
+
+**Status:** **APPROVED** (2026-10-16; implementation pending). **Risk:** Medium.
+
+- **Approved resolution (summary):** Handle site-specific Studio 2, Genre 5, Medium 8 and Meta 9 categories plus unknown values; deduplicate by genuine tag identity.
+- **Upstream change:** Parses all Sankaku tag categories and deduplicates tags during post mapping.
+- **Fork divergence / merge hazard:** The fork has expanded tag and post data models with only partial parity.
+- **Original review question:** How do category values map to the fork's tag colors and groups?
+- **Binding decision, migration conditions and tests:** [B03](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`d0fde834a`](https://github.com/khoadng/Boorusama/commit/d0fde834a413658bb50db150636c481c88a88222), [`396ae059e`](https://github.com/khoadng/Boorusama/commit/396ae059e9e5576aa0172df7fabf823963c03e92).
+- **Affected code paths (examples):** `lib/boorus/sankaku/posts/parser.dart`, `lib/boorus/sankaku/tags`.
+- **Confirmed merge conflicts in:** `lib/boorus/sankaku/posts/parser.dart`.
+
+### B04 · Sankaku Authentication: API Headers, Invalid Credentials, Session Recovery
+
+**Status:** **APPROVED** (2026-10-16; implementation pending). **Risk:** High.
+
+- **Approved resolution (summary):** Preserve headers, validate token responses and coalesce safe GET reauthentication; do not automatically replay mutating favorite requests.
+- **Upstream change:** Preserves HTTP options during Sankaku API header merges, validates auth responses and handles expired sessions/login errors.
+- **Fork divergence / merge hazard:** The fork has its own profile/auth model and extra favorite integrations.
+- **Original review question:** When is automatic recovery safe, and when must the user reauthenticate?
+- **Binding decision, migration conditions and tests:** [B04](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`829ec71fb`](https://github.com/khoadng/Boorusama/commit/829ec71fbaedbc60fff7d98fe1b40c494a130ebe), [`6ad691a6d`](https://github.com/khoadng/Boorusama/commit/6ad691a6de23d8a44c46d02bf3640997dbb618f4), [`6762d00f2`](https://github.com/khoadng/Boorusama/commit/6762d00f2e4ac6efc99bf969bd15a335f6767437), [`8757eb295`](https://github.com/khoadng/Boorusama/commit/8757eb2953d41716bc7c8fb3a028b71fb3f03e2c).
+- **Affected code paths (examples):** `packages/booru_clients/lib/src/sankaku/sankaku_client.dart`, `lib/boorus/sankaku/sankaku_repository.dart`.
+- **Confirmed merge conflicts in:** `lib/boorus/sankaku/sankaku_repository.dart`, `packages/booru_clients/lib/src/sankaku/sankaku_client.dart`.
+
+### B05 · Explain Sankaku Search Limits
+
+**Status:** **APPROVED** (2026-10-16; implementation pending). **Risk:** Low.
+
+- **Approved resolution (summary):** Surface comprehensible localized anonymous/account tag-limit errors with fallback for unknown cases.
+- **Upstream change:** Converts API tag-limit error codes into understandable messages.
+- **Fork divergence / merge hazard:** The fork has its own search error and localization layer.
+- **Original review question:** How should site errors appear in the fork's error UI?
+- **Binding decision, migration conditions and tests:** [B05](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`5b495f1ad`](https://github.com/khoadng/Boorusama/commit/5b495f1adec13643ee83307bb2b68eb0272766b2).
+- **Affected code paths (examples):** `lib/boorus/sankaku/errors/error_translator.dart`.
+
+### B06 · Shimmie2 Media Formats and Favorite Fallback
+
+**Status:** **APPROVED** (2026-10-16; implementation pending). **Risk:** Medium.
+
+- **Approved resolution (summary):** Normalize media formats and load authenticated favorite status only where supported, without blocking post listing or overwriting newer user choices.
+- **Upstream change:** Improves Shimmie2 file extension detection and Favorite state resolution while allowing listings when Favorite API fails.
+- **Fork divergence / merge hazard:** The fork has customized Shimmie2 client/parsing and favorites.
+- **Original review question:** Which errors should be soft failures versus actionable auth errors?
+- **Binding decision, migration conditions and tests:** [B06](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`2d4f8484b`](https://github.com/khoadng/Boorusama/commit/2d4f8484ba62db8e5c5386825934b1bcc30455cf), [`d79ef1fcc`](https://github.com/khoadng/Boorusama/commit/d79ef1fcc9f59b07933e76681b6c033e12327460).
+- **Affected code paths (examples):** `lib/boorus/shimmie2`, `packages/booru_clients/lib/src/shimmie2`.
+
+### B07 · Gelbooru v2: Comment Upvotes and Cursor Pagination
+
+**Status:** **APPROVED** (2026-10-16; implementation pending). **Risk:** Medium-high.
+
+- **Approved resolution (summary):** Integrate Rule34 comment upvotes only, cursor pagination and score/parser fixes under explicit site capabilities and safe mutation handling.
+- **Upstream change:** Adds comment upvotes (no downvotes) and cursor-based comment navigation in Gelbooru v2 clients.
+- **Fork divergence / merge hazard:** The fork has custom comment/post context and Rule34-specific Gelbooru v2 behavior.
+- **Original review question:** Which sites support authenticated comment voting and how should capability checks work?
+- **Binding decision, migration conditions and tests:** [B07](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`f459e9922`](https://github.com/khoadng/Boorusama/commit/f459e99220e4ac5b449c033d1d60a0b672ea2b58).
+- **Affected code paths (examples):** `lib/boorus/gelbooru_v2/comments`, `packages/booru_clients/lib/src/gelbooru_v2`.
+
+### B08 · Gelbooru v2: Comment Sorting
+
+**Status:** **APPROVED** (2026-10-16; implementation pending). **Risk:** Medium.
+
+- **Approved resolution (summary):** Expose Newest/Oldest only on supported sites, preserve cookies, reset pagination/cursor and avoid new persisted options.
+- **Upstream change:** Adds server/client comment sort options depending on site API variant.
+- **Fork divergence / merge hazard:** The fork has its own Gelbooru v2 comment provider.
+- **Original review question:** Which modes are displayed, and should the selection persist per profile?
+- **Binding decision, migration conditions and tests:** [B08](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`43619dd49`](https://github.com/khoadng/Boorusama/commit/43619dd495d5cb79425845521f0a0e0de030670d).
+- **Affected code paths (examples):** `lib/boorus/gelbooru_v2/comments`, `packages/booru_clients`.
+
+### B09 · Nozomi Tag Counts and HTTP Range Encoding
+
+**Status:** **APPROVED** (2026-10-16; implementation pending). **Risk:** Low-medium.
+
+- **Approved resolution (summary):** Read index size with Accept-Encoding identity, validate Content-Range and 200/206/404/416 responses; throttle counts using ApiRequestCoordinator.
+- **Upstream change:** Derives tag counts from Nozomi index sizes rather than search buckets and sends Accept-Encoding: identity on range requests.
+- **Fork divergence / merge hazard:** The fork already supports Nozomi with a customized client.
+- **Original review question:** Can this change be adapted directly while preserving existing client behavior?
+- **Binding decision, migration conditions and tests:** [B09](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`7880a020f`](https://github.com/khoadng/Boorusama/commit/7880a020fc7ba968351ee5256d3685c347d4eca0), [`5a4498f78`](https://github.com/khoadng/Boorusama/commit/5a4498f78dbce67aa43c0d3d01c4fc8d31784a23).
+- **Affected code paths (examples):** `packages/booru_clients/lib/src/nozomi`.
+
+### B10 · Rule34 JSON Post API at api.rule34.xxx
+
+**Status:** **APPROVED** (2026-10-16; implementation pending). **Risk:** High.
+
+- **Approved resolution (summary):** Switch to api.rule34.xxx only after live verification; protect pagination, parsing, cookies, Cloudflare and profile/source identity.
+- **Upstream change:** Overrides Rule34 post-list requests to https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1.
+- **Fork divergence / merge hazard:** The fork still uses rule34.xxx for listings and has specialized 403 challenge handling.
+- **Original review question:** Which host is reliable and how do auth cookies, filters, and profile isolation behave?
+- **Binding decision, migration conditions and tests:** [B10](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`5972548ec`](https://github.com/khoadng/Boorusama/commit/5972548ecd6e32622b8476776490251d61d6a099).
+- **Affected code paths (examples):** `packages/booru_clients/boorus.yaml`.
+- **Confirmed merge conflicts in:** `packages/booru_clients/boorus.yaml`.
+
+## Posts, Grid, Viewer and Media
+
+### P01 · Two Quick Actions on Post Thumbnails
+
+**Status:** **APPROVED** (2026-10-16; implementation pending). **Risk:** High.
+
+- **Approved resolution (summary):** Migrate the existing primary action and default secondary to none. Preserve per-post origin defaultActionButton, mixed feeds, Danbooru banned-state behavior, selection and Series cards.
+- **Upstream change:** Adds primary and secondary per-profile thumbnail actions with adaptive layout.
+- **Fork divergence / merge hazard:** The fork supports one quick action and custom overlays, selection and planned Series grouping.
+- **Original review question:** Which actions/positions are shown during selection, hover and grouped cards?
+- **Binding decision, migration conditions and tests:** [P01](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`26ad35202`](https://github.com/khoadng/Boorusama/commit/26ad352026bb4187e399dfab422c76427aca8655).
+- **Affected code paths (examples):** `lib/core/configs/listing`, `lib/core/posts/listing/src/widgets/default_image_quick_actions.dart`.
+
+### P02 · Preserve Profiles with Unknown Thumbnail Actions or Media Host Rules
+
+**Status:** **APPROVED** (2026-10-16; implementation pending). **Risk:** High.
+
+- **Approved resolution (summary):** Do not discard profiles for unknown thumbnail-action or media-host options; preserve UUIDs/data, allow safe fallback and clear import warnings.
+- **Upstream change:** Handles unknown action values and invalid media-host rules defensively instead of rejecting entire profiles.
+- **Fork divergence / merge hazard:** The fork adds profile UUIDs, import remapping and custom validation.
+- **Original review question:** Which option errors can be tolerated, and how should import warnings appear?
+- **Binding decision, migration conditions and tests:** [P02](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`1d8c879f4`](https://github.com/khoadng/Boorusama/commit/1d8c879f406d54df86c25d334ace0ada98846886).
+- **Affected code paths (examples):** `lib/core/configs/config/src/types/booru_config.dart`, `lib/core/configs/listing/src/types/thumbnail_actions.dart`.
+
+### P03 · Retry Failed Images Using Targeted Error Controls
+
+**Status:** **APPROVED** (2026-10-16; implementation pending). **Risk:** Medium.
+
+- **Approved resolution (summary):** Use targeted accessible Retry in error widgets, including ProgressivePostImage staged loads, without replacing valid low-res fallbacks or hijacking tile/selection gestures.
+- **Upstream change:** First restored tap-to-retry for custom image errors, then reverted generic implicit retry gestures.
+- **Fork divergence / merge hazard:** The fork uses custom error UI and a shared cache/progressive image loader.
+- **Original review question:** Should retries use whole-image tapping or a dedicated visible control?
+- **Binding decision, migration conditions and tests:** [P03](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`afdff42e3`](https://github.com/khoadng/Boorusama/commit/afdff42e344a585439bef34893bc2cbaa8e706df), [`58e4a0607`](https://github.com/khoadng/Boorusama/commit/58e4a06075faa8c07d8129dfdfa19156a4981a50).
+- **Affected code paths (examples):** `packages/extended_image/lib/src/extended_image.dart`.
+- **Confirmed merge conflicts in:** `packages/extended_image/lib/src/extended_image.dart`.
+
+### P04 · Preserve Grid Refresh Requests During Fetches
+
+**Status:** **APPROVED** (2026-10-16; implementation pending). **Risk:** Medium.
+
+- **Approved resolution (summary):** Keep the fork's pending refresh waiters/page/selection semantics and add guard against publishing superseded fetch results or stale errors.
+- **Upstream change:** Retains refresh requests while grid data fetches run, then applies the latest results.
+- **Fork divergence / merge hazard:** The fork has prefetch, adaptive scheduling and Following feeds with a custom queued controller.
+- **Original review question:** How should manual refresh and automatic feeds share the current request scheduler?
+- **Binding decision, migration conditions and tests:** [P04](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`828ddbdb7`](https://github.com/khoadng/Boorusama/commit/828ddbdb75afd02fe14cf8182774a3ef67c9128f).
+- **Affected code paths (examples):** `lib/core/posts/listing/src/widgets/post_grid_controller.dart`.
+- **Confirmed merge conflicts in:** `lib/core/posts/listing/src/widgets/post_grid_controller.dart`.
+
+### P05 · Refresh Bookmark Library After Bookmark Mutation
+
+**Status:** **APPROVED** (2026-10-16; implementation pending). **Risk:** Medium.
+
+- **Approved resolution (summary):** Keep BookmarkViewRefreshGate as the only authoritative listener; do not duplicate upstream's refresh trigger.
+- **Upstream change:** Adds a listener to refresh the visible bookmark list after mutations.
+- **Fork divergence / merge hazard:** The fork already has groups/default group/Undo and asynchronous library services plus its own refresh gate.
+- **Original review question:** Reuse existing change/selection events rather than install a duplicate listener?
+- **Binding decision, migration conditions and tests:** [P05](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`3f4ce2bd4`](https://github.com/khoadng/Boorusama/commit/3f4ce2bd4f0f94c116b2262fa9418809710278a8).
+- **Affected code paths (examples):** `lib/core/bookmarks/src/widgets/bookmark_scroll_view.dart`.
+- **Confirmed merge conflicts in:** `lib/core/bookmarks/src/widgets/bookmark_scroll_view.dart`.
+
+### P06 · GIF Autoplay Respects Quality Settings
+
+**Status:** **APPROVED** (2026-10-16; implementation pending). **Risk:** Low-medium.
+
+- **Approved resolution (summary):** Animate grid GIFs only with autoplay and known original file size >0 and <=5 MiB, otherwise static even at Highest. Retain Danbooru Automatic-versus-manual quality semantics; viewer/download exempt.
+- **Upstream change:** Makes GIF autoplay setting apply to alternative image quality selections.
+- **Fork divergence / merge hazard:** The fork separates grid and viewer qualities and provides GIF export/trim tools.
+- **Original review question:** How should the fix integrate with fork-specific quality resolvers and the 5 MiB cap?
+- **Binding decision, migration conditions and tests:** [P06](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`e4d645630`](https://github.com/khoadng/Boorusama/commit/e4d6456309c93f050b3a5d311ea4e2a60e0a7663).
+- **Affected code paths (examples):** `lib/core/posts`, `lib/boorus`.
+
+### P07 · Keep Video Thumbnail Until First Rendered Frame
+
+**Status:** **APPROVED** (2026-10-16; implementation pending). **Risk:** Medium.
+
+- **Approved resolution (summary):** Show thumbnail until actual first rendered frame, protecting source/engine changes from stale signals and providing fallback errors.
+- **Upstream change:** Keeps the video placeholder visible until a frame has been rendered by the player.
+- **Fork divergence / merge hazard:** The fork has its own video thumbnails and viewer transitions.
+- **Original review question:** Which thumbnail and fade source should be used until the first frame?
+- **Binding decision, migration conditions and tests:** [P07](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`2003c0c1e`](https://github.com/khoadng/Boorusama/commit/2003c0c1eb2cf6b3ef0939b33adf1b575fcae8f9).
+- **Affected code paths (examples):** `lib/core/videos/player/src/widgets/video_player.dart`.
+
+### P08 · WebView Video Playback from Cached File and Cleanup Protection
+
+**Status:** **APPROVED** (2026-10-16; implementation pending). **Risk:** High.
+
+- **Approved resolution (summary):** Use a local HTML/video file and cleanup, protect video cache files with active-use leases against expiry, LRU or clear; stream on cache miss.
+- **Upstream change:** Plays cached video files directly through WebView and cleans up temporary pages.
+- **Fork divergence / merge hazard:** The fork has a separate video cache, shared image cache and custom viewer gesture logic.
+- **Original review question:** How are file usage lifetime and eviction coordinated?
+- **Binding decision, migration conditions and tests:** [P08](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`f3d8acaa0`](https://github.com/khoadng/Boorusama/commit/f3d8acaa0a765b6d2957ddd36f68a1aa944fa328), [`0f71409de`](https://github.com/khoadng/Boorusama/commit/0f71409dea3775ae1dd033bcf7fc27bb008888a0).
+- **Affected code paths (examples):** `lib/core/videos/engines`, `lib/core/videos/cache`.
+
+### P09 · Kurumi InteractiveViewer: Image Pan vs Page Swipe
+
+**Status:** **APPROVED** (2026-10-16; implementation pending). **Risk:** High.
+
+- **Approved resolution (summary):** At 1x favor PageView swipes, when zoomed favor pan/pinch. Preserve fork 160dp edge-pull, double tap, original-on-zoom and other zoom features.
+- **Upstream change:** Vendors a Flutter 3.47.2 InteractiveViewer to avoid capturing page swipes on unzoomed images.
+- **Fork divergence / merge hazard:** The fork implements custom zoom, edge-drag, swipe and Original-on-Zoom gestures.
+- **Original review question:** Which gesture wins at zoom 1x, zoom >1x, edge-drag and selection?
+- **Binding decision, migration conditions and tests:** [P09](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`62e36f7e5`](https://github.com/khoadng/Boorusama/commit/62e36f7e5c7d40a3b5daa383a7c67ca420cb1cd3), [`c6b25213c`](https://github.com/khoadng/Boorusama/commit/c6b25213c3478abedf5c82c41dd9dd92a93a1bbe).
+- **Affected code paths (examples):** `packages/kurumi/lib/src/components/interactive_viewer.dart`, `lib/core/posts/details_pageview`.
+- **Confirmed merge conflicts in:** `packages/kurumi/lib/src/components/interactive_viewer.dart`.
+
+### P10 · Consume Volume Keys Correctly in the Post Viewer
+
+**Status:** **APPROVED** (2026-10-16; implementation pending). **Risk:** Low-medium.
+
+- **Approved resolution (summary):** Consume volume up/down only when configured and eligible visible non-expanded viewer; handle key lifecycle without repeated navigation or suppressing system volume elsewhere.
+- **Upstream change:** Marks volume keys handled while using them for post viewer navigation.
+- **Fork divergence / merge hazard:** The fork has its own viewer gestures and volume key setting.
+- **Original review question:** Should system volume be affected only when viewer navigation is active?
+- **Binding decision, migration conditions and tests:** [P10](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`de755c0d2`](https://github.com/khoadng/Boorusama/commit/de755c0d20570d4c9e2c6d4b718517514178af44).
+- **Affected code paths (examples):** `lib/core/posts/details/src/widgets/volume_key_page_navigator.dart`.
+
+### P11 · Video Controls: Time Overflow and Media Play/Pause Keys
+
+**Status:** **APPROVED** (2026-10-16; implementation pending). **Risk:** Low-medium.
+
+- **Approved resolution (summary):** Fix time-display width and handle media play/pause only on active visible video, not image/hidden viewer or text input.
+- **Upstream change:** Makes video time labels flexible and adds hardware Media Play/Pause handling.
+- **Fork divergence / merge hazard:** The fork has custom post toolbar and player engines.
+- **Original review question:** How are the upstream controls and keys routed through fork player controls?
+- **Binding decision, migration conditions and tests:** [P11](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`c65a81074`](https://github.com/khoadng/Boorusama/commit/c65a81074f123eed5efbe368a8a44985dd8340cf), [`72bafb43d`](https://github.com/khoadng/Boorusama/commit/72bafb43d3e5063749ce663277201b01ea644a54).
+- **Affected code paths (examples):** `lib/core/posts/details/src/widgets/video_controls.dart`, `lib/core/posts/details/src/widgets/post_details_controller.dart`.
+
+### P12 · Hover Preview Opens Only from Info Badge; Preserve Long Press
+
+**Status:** **APPROVED** (2026-10-16; implementation pending). **Risk:** High.
+
+- **Approved resolution (summary):** Open hover previews only through a dedicated info badge; preserve long press, right click, selection/drag, click-through safeguards and keyboard access.
+- **Upstream change:** Moves hover preview from whole thumbnail to Info badge, closes it on keypress and repairs long press/right click menus.
+- **Fork divergence / merge hazard:** The fork has hold-and-drag selection, context menus and customized grid cards.
+- **Original review question:** Where should the badge appear with two quick actions or Series cards?
+- **Binding decision, migration conditions and tests:** [P12](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`e04b3bfd1`](https://github.com/khoadng/Boorusama/commit/e04b3bfd186e8b5b88ab704189e23178ae26d098), [`5da94c1df`](https://github.com/khoadng/Boorusama/commit/5da94c1dfa6a39ef34c21c6ba1d171267ee06928), [`5feaa3dcf`](https://github.com/khoadng/Boorusama/commit/5feaa3dcf0a5069afab3f95594b3935fe08f7150).
+- **Affected code paths (examples):** `lib/core/posts/listing/src/widgets/post_preview.dart`, `lib/core/posts/listing/src/_internal/raw_post_grid.dart`.
+
+### P13 · Migrate Post/Tag Context Menus to Kurumi
+
+**Status:** **APPROVED** (2026-10-16; implementation pending). **Risk:** High.
+
+- **Approved resolution (summary):** Migrate menus while retaining fork favorite, bookmark group, Following, selection, nested menu and dismissal actions with no tap-through.
+- **Upstream change:** Replaces old context menus with Kurumi and adjusts popup sizing in the tag cloud.
+- **Fork divergence / merge hazard:** The fork extends CustomContextMenuOverlay, bookmark group/Following actions and menu dismiss behavior.
+- **Original review question:** How can Kurumi be one menu system without losing fork actions or shortcuts?
+- **Binding decision, migration conditions and tests:** [P13](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`8ca15fcff`](https://github.com/khoadng/Boorusama/commit/8ca15fcff2e461488bc4ced314700196d421deb5), [`1e480b775`](https://github.com/khoadng/Boorusama/commit/1e480b7751a359931c53057e86a42ff56a1c6672).
+- **Affected code paths (examples):** `lib/core/posts/post/src/context_menu.dart`, `lib/core/widgets/custom_context_menu_overlay.dart`, `packages/kurumi/lib/src/components/context_menu.dart`.
+- **Confirmed merge conflicts in:** `packages/kurumi/lib/src/components/context_menu.dart`.
+
+### P14 · Keyboard Focus on Quick Favorite/Bookmark Buttons
+
+**Status:** **APPROVED** (2026-10-16; implementation pending). **Risk:** Medium.
+
+- **Approved resolution (summary):** Ensure visible quick favorite/bookmark buttons support focus and Enter/Space; preserve selection precedence and tile controls.
+- **Upstream change:** Makes small interactive thumbnail overlays keyboard reachable.
+- **Fork divergence / merge hazard:** The fork owns thumbnail actions and post selection behavior.
+- **Original review question:** What is the focus order for a tile with up to two quick actions?
+- **Binding decision, migration conditions and tests:** [P14](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`d1047aa89`](https://github.com/khoadng/Boorusama/commit/d1047aa890c64b3baa575e0ca16f50b4724e6826).
+- **Affected code paths (examples):** `lib/core/posts/listing`, `packages/kurumi/lib/src/components`.
+
+## Search, Interaction, Desktop and TV
+
+### U01 · Keep Search Usable Above the Software Keyboard
+
+**Status:** **APPROVED** (2026-10-16; implementation pending). **Risk:** High.
+
+- **Approved resolution (summary):** Keep compact tags, single-term Raw Editor and suggestions usable with keyboard open, narrow screens, changing insets and automatic search.
+- **Upstream change:** Improves search layout and suggestion overlays when the software keyboard is open.
+- **Fork divergence / merge hazard:** The fork is building a compact search bar, per-term Raw Editor and tag suggestions.
+- **Original review question:** How should suggestions and Raw Editor behave with very little screen height?
+- **Binding decision, migration conditions and tests:** [U01](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`a00d41f3a`](https://github.com/khoadng/Boorusama/commit/a00d41f3a7a1e81954e718ab1144183426a1ab89).
+- **Affected code paths (examples):** `lib/core/search/search/src/widgets/search_page_scaffold.dart`, `lib/core/search/search/src/widgets/booru_search_bar.dart`.
+- **Confirmed merge conflicts in:** `lib/core/search/search/src/widgets/search_page_scaffold.dart`.
+
+### U02 · Search History as a Full-Height Sheet and Tests
+
+**Status:** **APPROVED** (2026-10-16; implementation pending). **Risk:** Medium.
+
+- **Approved resolution (summary):** Use scroll-controlled history sheet, preserving search state, keyboard, profile switching and correct query selection.
+- **Upstream change:** Allows Search History sheet to use available full height and adds a journey test.
+- **Fork divergence / merge hazard:** The fork adds Pinned Searches and Following and is redesigning search.
+- **Original review question:** What sheet size/entry point fits the new Search bar?
+- **Binding decision, migration conditions and tests:** [U02](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`e53cdf3b3`](https://github.com/khoadng/Boorusama/commit/e53cdf3b31560cd4607431381b316b8e29349b11), [`3726d75c7`](https://github.com/khoadng/Boorusama/commit/3726d75c7eb14ea170e06e497b09198f4a9c4c71).
+- **Affected code paths (examples):** `lib/core/search/histories`, `test/application/search_history_flow_test.dart`.
+
+### U03 · Keyboard Highlight and Selection for Tag Suggestions
+
+**Status:** **APPROVED** (2026-10-16; implementation pending). **Risk:** High.
+
+- **Approved resolution (summary):** Up/Down highlights, Enter selects, Escape clears highlight first; keep focus in the input, use listbox semantics and preserve per-term Raw Editor.
+- **Upstream change:** Uses one focus ring around search, keyboard highlights suggestions, blocks leaked keys to hidden pages and adds raw-query flow tests.
+- **Fork divergence / merge hazard:** The fork plans shared tag/metatag suggestions and individual editable search chips.
+- **Original review question:** Should Up/Down/Enter/Escape behavior match on phone and desktop?
+- **Binding decision, migration conditions and tests:** [U03](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`f7174bab4`](https://github.com/khoadng/Boorusama/commit/f7174bab405360103c48659b1c5bb72cbcd2bd61), [`e1ad37e1e`](https://github.com/khoadng/Boorusama/commit/e1ad37e1eddbb12106930e2ec983536863b5511b), [`7f5693c84`](https://github.com/khoadng/Boorusama/commit/7f5693c847ea0a88acb1fd12ff05057e0a6e5bb5).
+- **Affected code paths (examples):** `lib/core/search/search`, `packages/kurumi/lib/src/components/search_bar.dart`.
+
+### U04 · App-Wide D-Pad and Keyboard Navigation
+
+**Status:** **APPROVED** (2026-10-16; implementation pending). **Risk:** Medium-high.
+
+- **Approved resolution (summary):** Add cross-scope focus movement, keyboard-only focus rings and scroll reveal; touch/mouse unchanged. TV is best-effort only.
+- **Upstream change:** Adds directional focus, focus rings, accessible dialogs/menus/layout manager/original viewer and keyboard/TV flow tests.
+- **Fork divergence / merge hazard:** The fork targets touch/mobile and has its own pane/sidebar navigation.
+- **Original review question:** Official TV support or best effort, and when are focus rings shown?
+- **Binding decision, migration conditions and tests:** [U04](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`e80eb1210`](https://github.com/khoadng/Boorusama/commit/e80eb1210a2327dfae4eba4866a1e7cfe472dfd8), [`00feb4d99`](https://github.com/khoadng/Boorusama/commit/00feb4d9923b49a931b7b0a24a9ac6f262214cc0), [`1e3b00c3a`](https://github.com/khoadng/Boorusama/commit/1e3b00c3a8e9c9cc43b947bb42501c2e33b30bf0), [`41d0121ce`](https://github.com/khoadng/Boorusama/commit/41d0121cee07c3533042f86e0b256663a9f7134d), [`7895ce70e`](https://github.com/khoadng/Boorusama/commit/7895ce70e7b520ddd8cefe3ef640de3679ee4fde).
+- **Affected code paths (examples):** `packages/kurumi/lib/src/components/focus_ring.dart`, `lib/core/app.dart`.
+- **Confirmed merge conflicts in:** `lib/core/app.dart`.
+
+### U05 · Desktop Tab Order and Focus Boundaries
+
+**Status:** **APPROVED** (2026-10-16; implementation pending). **Risk:** Medium.
+
+- **Approved resolution (summary):** Group sidebar, Settings and viewer controls into predictable Tab/Shift-Tab regions, excluding hidden controls and returning focus after dismissal.
+- **Upstream change:** Improves pane Tab order, focus-ring input modality, visible Explore/Viewer targets, arrow traversal and mouse focus updates.
+- **Fork divergence / merge hazard:** The fork has custom sidebar, settings and viewer navigation.
+- **Original review question:** Which FocusScopes make sense around sidebar, profiles, search, posts and dialogs?
+- **Binding decision, migration conditions and tests:** [U05](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`a555bbb3d`](https://github.com/khoadng/Boorusama/commit/a555bbb3db20d9b8c29c3c1b7d87c2b0d8546d20), [`e95a71f85`](https://github.com/khoadng/Boorusama/commit/e95a71f85d7982a797a89b0879a42e1c55d46253), [`5f57df699`](https://github.com/khoadng/Boorusama/commit/5f57df699e940fb8256aa74bdac46d2979246141), [`58254b441`](https://github.com/khoadng/Boorusama/commit/58254b441040ec4c6187018a46c4366511e3e7f0), [`84286ddc1`](https://github.com/khoadng/Boorusama/commit/84286ddc1e3da8e7cae71783c5e21641015635ae), [`d7041c4d4`](https://github.com/khoadng/Boorusama/commit/d7041c4d42b3470c45ab4ed29bbe1e3e73093aa8), [`f31f551be`](https://github.com/khoadng/Boorusama/commit/f31f551bedd31b2c75fcddf354e682b07bae5e69).
+- **Affected code paths (examples):** `packages/kurumi`, `lib/core/posts`, `lib/core/settings`.
+
+### U06 · Escape Handling, Menu Selection and Layer Hierarchy
+
+**Status:** **APPROVED** (2026-10-16; implementation pending). **Risk:** Medium-high.
+
+- **Approved resolution (summary):** Close exactly the innermost menu, popover, dialog, search or selection state before routing; preserve modal guards and focus restoration.
+- **Upstream change:** Closes anchored menus with Escape, highlights keyboard-selected menu rows and dismisses the innermost Kurumi layer first.
+- **Fork divergence / merge hazard:** The fork uses custom context menus, navigation and multiselection.
+- **Original review question:** What is the popup → sheet → search → selection → screen priority with Android Back?
+- **Binding decision, migration conditions and tests:** [U06](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`3ff8b054e`](https://github.com/khoadng/Boorusama/commit/3ff8b054e558c77fd94a0419b33526d7e6d9c829), [`b925a581b`](https://github.com/khoadng/Boorusama/commit/b925a581bd361ca710d27a3e95c1eb315f9be62f), [`2d6d9f6e6`](https://github.com/khoadng/Boorusama/commit/2d6d9f6e6dacf60a52f8d0b62e7d27b8318b707c), [`76a8485de`](https://github.com/khoadng/Boorusama/commit/76a8485de122438d3f70c74de5c69bd1c8ea8987).
+- **Affected code paths (examples):** `packages/kurumi/lib/src/components/popup_menu.dart`, `lib/core/router.dart`.
+- **Confirmed merge conflicts in:** `packages/kurumi/lib/src/components/popup_menu.dart`.
+
+### U07 · Favorite Tags Editor as Dialog on Large Screens
+
+**Status:** **APPROVED** (2026-10-16; implementation pending). **Risk:** Low-medium.
+
+- **Approved resolution (summary):** Use keyboard-safe bottom sheet on phones and scrollable roughly 520px dialog on large screens; preserve chips, validation and advanced settings.
+- **Upstream change:** Uses a dialog for favorite-tag editing on wide screens and a bottom sheet on phones.
+- **Fork divergence / merge hazard:** The fork already extends Favorite Tag management with label actions.
+- **Original review question:** Which breakpoints/modals fit existing fork design?
+- **Binding decision, migration conditions and tests:** [U07](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`20e750618`](https://github.com/khoadng/Boorusama/commit/20e750618847bbb0a84391cca0b2440667ab18e7).
+- **Affected code paths (examples):** `lib/core/tags/favorites/src/pages/edit_favorite_tag_sheet.dart`.
+
+### U08 · Update Regression Tests and Remove Timing Flakiness
+
+**Status:** **APPROVED** (2026-10-16; implementation pending). **Risk:** Low.
+
+- **Approved resolution (summary):** Update info-badge-hover and bulk-download lifecycle tests with controlled completion rather than fixed sleeps; ship with affected features.
+- **Upstream change:** Updates hover-preview tests and removes fragile timing assumptions in bulk dry-run tests.
+- **Fork divergence / merge hazard:** The fork already has deterministic test/runner improvements.
+- **Original review question:** How should these test intentions fit new UI and controlled clocks?
+- **Binding decision, migration conditions and tests:** [U08](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`71b41b8a0`](https://github.com/khoadng/Boorusama/commit/71b41b8a0f5574975f1cae673ac9cedde5b594ed).
+- **Affected code paths (examples):** `test/application`, `test/bulk_downloads`.
+
+## Cross-Cutting Fork Safeguards
+
+### X01 · Bookmark Hive Field Index / Original Site Post ID
+
+**Status:** **APPROVED** (2026-10-16; implementation pending). **Risk:** Critical.
+
+- **Approved resolution (summary):** Retain fork Hive fields 15=snapshotSchemaVersion, 16=postSnapshot; derive genuine site IDs rather than adopting upstream's incompatible index-15 string field.
+- **Upstream change:** Introduces BookmarkHiveObject.sitePostId at **Hive field index 15**.
+- **Fork divergence / merge hazard:** The fork already uses index 15 for snapshotSchemaVersion and index 16 for postSnapshot; upstream's generated adapter cannot be copied unchanged.
+- **Original review question:** How can true IDs be exposed without breaking stored bookmark formats?
+- **Binding decision, migration conditions and tests:** [X01](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`216eb6e6d`](https://github.com/khoadng/Boorusama/commit/216eb6e6d43cef2581a110b66a8f1482d110e7b9).
+- **Affected code paths (examples):** `lib/core/bookmarks/src/data/hive/bookmark_hive_object.dart`, `lib/core/hive/hive_adapters.g.yaml`.
+- **Confirmed merge conflicts in:** `lib/core/bookmarks/src/data/hive/bookmark_hive_object.dart`, `lib/core/hive/hive_adapters.g.yaml`.
+
+### X02 · Post Identity/Origin versus Upstream sitePostId
+
+**Status:** **APPROVED** (2026-10-16; implementation pending). **Risk:** Critical.
+
+- **Approved resolution (summary):** Provide a nullable genuine Post.sitePostId, including alphanumeric Sankaku and original Pixiv IDs; never confuse synthetic app IDs with site IDs, and preserve fork origin/snapshot/identity.
+- **Upstream change:** Adds a source-specific sitePostId getter to Post and exports the value.
+- **Fork divergence / merge hazard:** The fork uses PostOrigin, StoredPostSnapshot, BookmarkIdentity, profile UUIDs and one unified post pipeline.
+- **Original review question:** How should original site ID interact with persistent identity without conflating different sites?
+- **Binding decision, migration conditions and tests:** [X02](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`216eb6e6d`](https://github.com/khoadng/Boorusama/commit/216eb6e6d43cef2581a110b66a8f1482d110e7b9).
+- **Affected code paths (examples):** `lib/core/posts/post/src/types/post.dart`, `lib/core/posts/post/src/types/post_origin.dart`.
+- **Confirmed merge conflicts in:** `lib/core/posts/post/src/types/post.dart`.
+
+### X03 · Preserve Fork Export/Import, Profile UUIDs and Following
+
+**Status:** **APPROVED** (2026-10-16; implementation pending). **Risk:** Critical.
+
+- **Approved resolution (summary):** Keep fork profiles/UUIDs, backup/import, BookmarkIdentity, post snapshots, nested bookmark/pinned-search folders, Following, refresh and recovery gates; adopt only compatible upstream test seams.
+- **Upstream change:** Changes app initialization, backup sources and bookmark providers alongside new tests.
+- **Fork divergence / merge hazard:** The fork has redesigned backup/import, UUID profiles, nested bookmark/pinned-search folders and Following feeds.
+- **Original review question:** Which upstream resolutions must never replace these fork-only features?
+- **Binding decision, migration conditions and tests:** [X03](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`a3278c5d2`](https://github.com/khoadng/Boorusama/commit/a3278c5d2ecc3672fea63c68fb21c81a1db2bb07), [`3f4ce2bd4`](https://github.com/khoadng/Boorusama/commit/3f4ce2bd4f0f94c116b2262fa9418809710278a8), [`f93bdf0dd`](https://github.com/khoadng/Boorusama/commit/f93bdf0dd42c5eb0e8165d9070310a2aebfa32c1).
+- **Affected code paths (examples):** `lib/core/backups/export_import`, `lib/core/search/subscriptions`, `lib/core/configs`, `lib/core/bookmarks`.
+
+### X04 · Shared Post/Image Cache and Download Lifecycle
+
+**Status:** **APPROVED** (2026-10-16; implementation pending). **Risk:** Critical.
+
+- **Approved resolution (summary):** Remove image-cache generations but retain URL-MD5, origin isolation, LRU, quotas, journal/checkpoints and safe parallel writes; copy images to OS temporary space for sharing.
+- **Upstream change:** Changes media hosts, download, video/cache, post refresh and image components.
+- **Fork divergence / merge hazard:** The fork has a persistent shared LRU cache, checkpoints, origin isolation and custom download observers.
+- **Original review question:** Which subsystem owns cache keys, quotas, lifetime and deduplication after the merge?
+- **Binding decision, migration conditions and tests:** [X04](decisions.md). Use the English decision log section; this catalog is supplementary.
+- **Upstream commits:** [`1e6a6607d`](https://github.com/khoadng/Boorusama/commit/1e6a6607dc7750a5c1e94d44531f8251fface3c6), [`86a16a20e`](https://github.com/khoadng/Boorusama/commit/86a16a20ee1327740316005b7946b8264fa70a19), [`cb5f9fade`](https://github.com/khoadng/Boorusama/commit/cb5f9fade8ed5c7e26d3f0811ef17f7187f73723), [`2003c0c1e`](https://github.com/khoadng/Boorusama/commit/2003c0c1eb2cf6b3ef0939b33adf1b575fcae8f9), [`828ddbdb7`](https://github.com/khoadng/Boorusama/commit/828ddbdb75afd02fe14cf8182774a3ef67c9128f), [`f3d8acaa0`](https://github.com/khoadng/Boorusama/commit/f3d8acaa0a765b6d2957ddd36f68a1aa944fa328), [`0f71409de`](https://github.com/khoadng/Boorusama/commit/0f71409dea3775ae1dd033bcf7fc27bb008888a0).
+- **Affected code paths (examples):** `lib/core/images`, `lib/core/cache`, `lib/core/posts`, `lib/core/downloads`.
+
+## Appendix A — Complete Mapping of 150 Upstream Commits
+
+Every commit is listed in upstream order and mapped to at least one decision item. Commit links support source inspection. Commits assigned to multiple IDs span several subsystems, and subsequent reverts are identified.
+
+| No. | SHA | Commit subject | Related item(s) |
 |---:|---|---|---|
 | 1 | [`480810b11`](https://github.com/khoadng/Boorusama/commit/480810b11a5a66b24be40bc8a80a2a56e681b90c) | feat: add more logging for ddos solver | A08 |
 | 2 | [`1e6a6607d`](https://github.com/khoadng/Boorusama/commit/1e6a6607dc7750a5c1e94d44531f8251fface3c6) | feat(settings): show cache locations and expose Android caches in Files | A09, X04 |
@@ -1269,11 +1053,11 @@ Jeder Commit ist hier in Upstream-Reihenfolge aufgeführt und auf mindestens ein
 | 149 | [`5a2a4e82e`](https://github.com/khoadng/Boorusama/commit/5a2a4e82e827785f0c296b600e44aae2247b90a4) | docs: keep the 4.6.0 notes for 4.6.1 | A16 |
 | 150 | [`5b04bf6a1`](https://github.com/khoadng/Boorusama/commit/5b04bf6a164f028d41701299367d0dde74dde330) | build: prepare for 4.6.1 | A16 |
 
-## Anhang B – 106 bestätigte Merge-Konfliktpfade
+## Appendix B — 106 Confirmed Git Merge Conflict Paths
 
-Direkt mit `git merge-tree --write-tree --name-only develop v4.6.1` aus dem Bundle ermittelt; enthält auch Mod/Delete- und Verzeichnisumbenennungs-Konflikte. Die Liste ist kein Ersatz für semantische Abnahme.
+Computed directly using `git merge-tree --write-tree --name-only develop v4.6.1` from the original Git bundle. Includes modify/delete and directory rename conflicts. The list does **not** replace semantic acceptance tests.
 
-| Pfad | |
+| Path | |
 |---|---|
 | `.fvmrc` | |
 | `.github/workflows/github-release.yml` | |
@@ -1382,22 +1166,23 @@ Direkt mit `git merge-tree --write-tree --name-only develop v4.6.1` aus dem Bund
 | `test/bulk_downloads/providers/downloads/skip_test.dart` | |
 | `test/image_url_resolver_test.dart` | |
 
-## Anhang C – Leitplanken für den geplanten Endstand
+## Appendix C — Invariants of the Intended Final State
 
-Vor Integration unbedingt bestätigen und in allen Konfliktauflösungen berücksichtigen:
+Before integration, verify all of these and preserve them in every conflict resolution:
 
-- **Kein Verlust von Bookmarks** (inkl. neuer StoredPostSnapshots, Ordner, Profile, lokaler Suche und Undo).
-- **Keine Regression unserer Profile UUIDs, Following/Pinned Searches und Suchoberfläche.**
-- **Shared Cache/Origin-Trennung, Browser-Priorität und Android-Exportpipeline erhalten.**
-- **Timberpile App-ID, Paketnamen, Signing-Key, Icons und Updates bleiben unverändert.**
-- **Keine stille Veränderung bestehender Privacy-Einstellungen oder Weitergabe von Auth-Daten.**
-- **Funktionaler Upstream-Fix zählt erst als übernommen, wenn sein Verhalten getestet ist.**
-- **Vollständige Testsuite nach AGENTS.md** vor Integration; Targeted Tests pro Thema.
+- **No loss of bookmarks**, including `StoredPostSnapshot`, groups/folders, profiles, local search and Undo.
+- **No regression in profile UUIDs, Following/Pinned Searches or Search UI.**
+- **Retain shared cache/origin isolation, interactive browser request priority and Android export pipeline.**
+- **Preserve Timberpile application ID, package names, signing key, icons and updates.**
+- **No silent changes to saved privacy settings or forwarding of authentication data.**
+- **An upstream fix counts as integrated only after its behavior has been tested.**
+- **Run the complete test suite per `AGENTS.md` before integration; targeted tests for every affected item.**
 
-## Entscheidungsprotokoll – vollständig abgeschlossen
+## Decision Record — All Items Approved
 
-**68/68 Themen sind explizit beschlossen.** Das [autoritative Entscheidungsprotokoll](decisions.md) enthält Zielverhalten, Abhängigkeiten, Datenmigration und Abnahmetests. Die [kompakte Checkliste](boorusama-v4.6.1-checkliste.md) bildet denselben Stand ab. Die frühere pauschal „offene“ Anhang-Tabelle war eine unbefüllte Planungsvorlage und wird nicht mehr als zweite Statusquelle geführt.
+**68/68 items were explicitly approved.** The [authoritative decision log](decisions.md) contains expected behavior, dependencies, migrations and regression criteria; the [compact checklist](boorusama-v4.6.1-checkliste.md) shows the same approved status. The original appendix table of unfilled "open" placeholders was removed because it contradicted completed decisions and is not maintained as a second source of truth.
 
 ---
 
-Diese Datei ist eine **Planungs- und Entscheidungsgrundlage**, keine Aussage, dass alle Änderungen erfolgreich gemerged oder getestet wurden. Der experimentelle Merge-Patch aus der vorherigen Sitzung ist weiterhin unvalidiert.
+This is a **planning and decision reference**, **not** a claim that all changes have been successfully merged or tested. The old experimental merge patch has not been validated.
+
