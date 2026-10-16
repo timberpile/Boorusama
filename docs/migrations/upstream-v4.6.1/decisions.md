@@ -411,7 +411,7 @@ Vor der expliziten Nutzerentscheidung bleibt jeder Eintrag `OFFEN`; ein technisc
 
 **Begründung / Quellen:** Bestätigte Upstream-v4.6.1-Codeänderungen: [`5972548ec`](https://github.com/khoadng/Boorusama/commit/5972548ecd6e32622b8476776490251d61d6a099). Nutzer hat den vollständigen B01–B10-Vorschlagsbatch am 2026-10-16 bestätigt.
 
-## P02 – angepasst übernehmen
+## P02 – Profile mit unbekannten Thumbnail-Actions/Media-Host-Regeln behalten
 
 **Status: ENTSCHIEDEN · 2026-10-16 · Umsetzung ausstehend.** **Beschlussart:** angepasst übernehmen.
 
@@ -423,7 +423,7 @@ Vor der expliziten Nutzerentscheidung bleibt jeder Eintrag `OFFEN`; ein technisc
 
 **Begründung / Upstream-Quellen:** [`1d8c879f4`](https://github.com/khoadng/Boorusama/commit/1d8c879f406d54df86c25d334ace0ada98846886). Nutzer hat P02 am 2026-10-16 explizit bestätigt. Die übrigen P01/P03/P04/P08/P09/P10 bleiben offen.
 
-## P05 – Fork-Lösung behalten
+## P05 – Bookmark-Library nach Bookmark-Mutation aktualisieren
 
 **Status: ENTSCHIEDEN · 2026-10-16 · Umsetzung ausstehend.** **Beschlussart:** Fork-Lösung behalten.
 
@@ -435,7 +435,7 @@ Vor der expliziten Nutzerentscheidung bleibt jeder Eintrag `OFFEN`; ein technisc
 
 **Begründung / Upstream-Quellen:** [`3f4ce2bd4`](https://github.com/khoadng/Boorusama/commit/3f4ce2bd4f0f94c116b2262fa9418809710278a8). Nutzer hat P05 am 2026-10-16 explizit bestätigt. Die übrigen P01/P03/P04/P08/P09/P10 bleiben offen.
 
-## P06 – angepasst übernehmen
+## P06 – GIF-Autoplay respektiert Qualitätseinstellungen
 
 **Status: ENTSCHIEDEN · 2026-10-16 · Umsetzung ausstehend.** **Beschlussart:** angepasst übernehmen.
 
@@ -447,7 +447,7 @@ Vor der expliziten Nutzerentscheidung bleibt jeder Eintrag `OFFEN`; ein technisc
 
 **Begründung / Upstream-Quellen:** [`e4d645630`](https://github.com/khoadng/Boorusama/commit/e4d6456309c93f050b3a5d311ea4e2a60e0a7663). Nutzer hat P06 am 2026-10-16 explizit bestätigt. Die übrigen P01/P03/P04/P08/P09/P10 bleiben offen.
 
-## P07 – angepasst übernehmen
+## P07 – Video-Thumbnail bis zum ersten gerenderten Frame anzeigen
 
 **Status: ENTSCHIEDEN · 2026-10-16 · Umsetzung ausstehend.** **Beschlussart:** angepasst übernehmen.
 
@@ -459,7 +459,7 @@ Vor der expliziten Nutzerentscheidung bleibt jeder Eintrag `OFFEN`; ein technisc
 
 **Begründung / Upstream-Quellen:** [`2003c0c1e`](https://github.com/khoadng/Boorusama/commit/2003c0c1eb2cf6b3ef0939b33adf1b575fcae8f9). Nutzer hat P07 am 2026-10-16 explizit bestätigt. Die übrigen P01/P03/P04/P08/P09/P10 bleiben offen.
 
-## P11 – übernehmen (Fork-Player berücksichtigen)
+## P11 – Videosteuerung: Zeit-Overflow und Media-Play/Pause-Key
 
 **Status: ENTSCHIEDEN · 2026-10-16 · Umsetzung ausstehend.** **Beschlussart:** übernehmen (Fork-Player berücksichtigen).
 
@@ -471,7 +471,7 @@ Vor der expliziten Nutzerentscheidung bleibt jeder Eintrag `OFFEN`; ein technisc
 
 **Begründung / Upstream-Quellen:** [`c65a81074`](https://github.com/khoadng/Boorusama/commit/c65a81074f123eed5efbe368a8a44985dd8340cf), [`72bafb43d`](https://github.com/khoadng/Boorusama/commit/72bafb43d3e5063749ce663277201b01ea644a54). Nutzer hat P11 am 2026-10-16 explizit bestätigt. Die übrigen P01/P03/P04/P08/P09/P10 bleiben offen.
 
-## P12 – angepasst übernehmen
+## P12 – Hover Preview nur über Info-Badge öffnen; Long Press erhalten
 
 **Status: ENTSCHIEDEN · 2026-10-16 · Umsetzung ausstehend.** **Beschlussart:** angepasst übernehmen.
 
@@ -483,7 +483,7 @@ Vor der expliziten Nutzerentscheidung bleibt jeder Eintrag `OFFEN`; ein technisc
 
 **Begründung / Upstream-Quellen:** [`e04b3bfd1`](https://github.com/khoadng/Boorusama/commit/e04b3bfd186e8b5b88ab704189e23178ae26d098), [`5da94c1df`](https://github.com/khoadng/Boorusama/commit/5da94c1dfa6a39ef34c21c6ba1d171267ee06928), [`5feaa3dcf`](https://github.com/khoadng/Boorusama/commit/5feaa3dcf0a5069afab3f95594b3935fe08f7150). Nutzer hat P12 am 2026-10-16 explizit bestätigt. Die übrigen P01/P03/P04/P08/P09/P10 bleiben offen.
 
-## P13 – angepasst übernehmen (A02)
+## P13 – Post-/Tag-Kontextmenüs auf Kurumi migrieren
 
 **Status: ENTSCHIEDEN · 2026-10-16 · Umsetzung ausstehend.** **Beschlussart:** angepasst übernehmen (A02).
 
@@ -495,7 +495,7 @@ Vor der expliziten Nutzerentscheidung bleibt jeder Eintrag `OFFEN`; ein technisc
 
 **Begründung / Upstream-Quellen:** [`8ca15fcff`](https://github.com/khoadng/Boorusama/commit/8ca15fcff2e461488bc4ced314700196d421deb5), [`1e480b775`](https://github.com/khoadng/Boorusama/commit/1e480b7751a359931c53057e86a42ff56a1c6672). Nutzer hat P13 am 2026-10-16 explizit bestätigt. Die übrigen P01/P03/P04/P08/P09/P10 bleiben offen.
 
-## P14 – übernehmen, abgestimmt auf P01/A02
+## P14 – Keyboard-Fokus auf Quick Favorite/Bookmark-Buttons
 
 **Status: ENTSCHIEDEN · 2026-10-16 · Umsetzung ausstehend.** **Beschlussart:** übernehmen, abgestimmt auf P01/A02.
 
