@@ -3,8 +3,8 @@
 **Created:** 2026-10-16  
 **Repository:** `timberpile/Boorusama`  
 **Task:** Implement the **entire approved 68-item migration** from upstream `khoadng/Boorusama` **tag `v4.6.1`**, including the subsequent A16 versioning-policy amendment.  
-**Approval:** The user approved **implementation of this migration plan**. That approval is **not** permission to push or merge into protected/shared branches, open or merge a PR, create/push a public release tag, or publish a GitHub/Play Store release. Follow `AGENTS.md` and `docs/development_workflow.md` for those distinct actions.  
-**Status on handoff:** **68/68 product/technical decisions approved; application merge and implementation NOT started by the planning agent.**
+**Approval:** On 2026-10-16 the user commissioned a local agent to **implement this entire migration plan**. This permits local task-branch work, not a push, merge into protected/shared branches, PR publication, release tagging, or public GitHub/Play Store release. Follow `AGENTS.md` and `docs/development_workflow.md` for those distinct actions.  
+**Status on handoff:** **68/68 product/technical decisions approved; local implementation is commissioned but was NOT started by the planning agent.**
 
 ## 0. Read this first: sources of truth
 
@@ -143,8 +143,8 @@ The user specifically approved **an upstream-synchronized base version and a per
 - Version **name** format: `<upstream-MAJOR.MINOR.PATCH>-timberpile.<N>`.
 - Use exactly the upstream release version **actually merged** (for this task **4.6.1**).
 - On the **first** Timberpile release built on a new upstream version, reset `N = 1` (**not zero**); for subsequent releases with the same upstream base, increment `N`.
-- Android/Flutter build number (after `+`) is **strictly monotonically increasing** across *all* fork releases, even when `N` resets.
-- Current verified `pubspec.yaml`: **`4.5.0-timberpile.5+189`**. Assuming no intervening published version/build code, prepare **`4.6.1-timberpile.1+190`** for the first finished v4.6.1-based fork release. **Inspect current release tags, highest shipped/staged Android build codes and any Play Store code before deciding the actual number**.
+- The Flutter **base build number** (after `+`) is **strictly monotonically increasing** across *all* fork releases, even when `N` resets. Android split APKs can add ABI-specific versionCode offsets, so confirm each resulting APK's effective code increases relative to its applicable previously installed/staged store artifact; the base `+190` need not exceed all ABI-offset APK codes.
+- Current verified `pubspec.yaml`: **`4.5.0-timberpile.5+189`**. Assuming no intervening published version/build code, prepare **`4.6.1-timberpile.1+190`** for the first finished v4.6.1-based fork release. **Inspect current release tags, highest previously allocated base build number, effective per-ABI APK codes and any Play Store codes before deciding the actual number**.
 - Subsequent same-upstream release: e.g. `4.6.1-timberpile.2+191`. Next upstream base (hypothetical v4.6.2): `4.6.2-timberpile.1+192`, if sequential.
 - Keep the historical fork `CHANGELOG.md` entries; append the real user-visible new release notes at the top, with heading `# 4.6.1-timberpile.1`; never replace the fork changelog with the upstream changelog.
 - Keep tag naming `v4.6.1-timberpile.1` and GitHub updater manifest `version` consistent; compare app update versions using existing SemVer implementation, and ensure update detection succeeds from `4.5.0-timberpile.5` to `4.6.1-timberpile.1` despite the fork counter reset. Check APK `versionCode` (including ABI-specific build-code rules), package ID and signer when validating upgrade.
