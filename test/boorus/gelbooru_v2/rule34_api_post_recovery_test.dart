@@ -120,8 +120,9 @@ void main() {
   );
 
   test(
-    'listing uses the authenticated API host and handles no matches',
+    'listing retains the established host and XML until live API verification',
     () async {
+      responseData = '<posts count="1"><post id="42" file_url="https://images.example/abc.mp4" md5="abc" tags="portrait" /></posts>';
       final client = container.read(gelbooruV2ClientProvider(config.auth));
 
       final listed = await client.getPosts(
@@ -130,27 +131,25 @@ void main() {
         tags: const ['portrait'],
       );
       final uri = requests.single.uri;
-      expect(uri.host, 'api.rule34.xxx');
-      expect(uri.queryParameters, containsPair('json', '1'));
+      expect(uri.host, 'rule34.xxx');
+      expect(uri.queryParameters, isNot(contains('json')));
       expect(uri.queryParameters, containsPair('tags', 'portrait'));
       expect(uri.queryParameters, containsPair('user_id', config.login));
       expect(uri.queryParameters, containsPair('api_key', config.apiKey));
       expect(listed.posts.single.id, 42);
 
       requests.clear();
-      responseData = '';
+      responseData = '<posts count="0" />';
       final empty = await client.getPosts(tags: const ['no-match']);
       expect(empty.posts, isEmpty);
     },
   );
 
-  test('listing explains an API authentication error', () async {
+  test('details explain an API authentication error', () async {
     responseData = jsonEncode('Missing authentication');
 
     await expectLater(
-      container
-          .read(gelbooruV2ClientProvider(config.auth))
-          .getPosts(tags: const ['portrait']),
+      container.read(gelbooruV2ClientProvider(config.auth)).getPost(42),
       throwsA(
         isA<FormatException>().having(
           (error) => error.message,

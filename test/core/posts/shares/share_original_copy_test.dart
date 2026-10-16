@@ -88,7 +88,7 @@ void main() {
         expect(
           await File(path).readAsBytes(),
           png,
-          reason: 'production Copy owns its lease through the native acknowledgement',
+          reason: 'the share copy survives cache clearing until native acknowledgement',
         );
         clipboardPath = path;
         return null;
@@ -170,13 +170,13 @@ void main() {
       expect(find.text('Copied'), findsOneWidget);
       expect(find.text('exact.png'), findsNothing);
       final staging = Directory('${root.path}/boorusama-share');
-      expect(staging.existsSync(), isFalse);
+      expect(staging.listSync(), isEmpty);
       expect(clipboardPath, isNotNull);
       expect(
         File(clipboardPath!).existsSync(),
         isFalse,
         reason:
-            'the cleared retired source releases after native acknowledgement',
+            'the temporary share copy is removed after native acknowledgement',
       );
       await tester.pump(const Duration(seconds: 3));
       await tester.pumpAndSettle();

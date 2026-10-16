@@ -50,6 +50,7 @@ void main() {
           headers: const {},
         );
         expect(lease.mimeType, 'image/png');
+        expect(lease.path, contains('/boorusama-share/'));
         expect(requests, limit == 1024 ? 0 : 1);
         await manager.clearAllCache();
         await clearCache(_TestFileSystem(root.path));
@@ -57,7 +58,7 @@ void main() {
         expect(await manager.getCachedFilePath(key), isNull);
         expect(
           (await manager.getStats()).retainedBytes,
-          limit == 1024 ? png.length : 0,
+          0,
         );
         lease.retain();
         await lease.release();
