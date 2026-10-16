@@ -32,6 +32,7 @@
 **68 von 68 Themen beschlossen, 0 offen.** Alle 68 Entscheidungen stehen verbindlich in [decisions.md](decisions.md), zusammengefasst in Katalog und Checkliste. **Es wurde noch kein Upstream-Code integriert und keine Umsetzung freigegeben.**
 
 - **A02:** Implementierender Agent schreibt nach dem UI-Umbau die wichtigsten manuellen Testfälle für den Nutzer; führt diese nicht selbst manuell durch.
+- **A16-Versionierung:** Bei jeder Fork-Veröffentlichung ist die führende Version exakt die integrierte Upstream-Basis. `timberpile.N` beginnt bei neuer Upstream-Basis wieder mit `.1`, danach inkrementieren; Android-`+buildNumber` steigt unabhängig davon immer weiter. Aktuell `4.5.0-timberpile.5+189` ⇒ nächste Veröffentlichung nach v4.6.1-Merge voraussichtlich `4.6.1-timberpile.1+190` (tatsächlich höchsten veröffentlichten Code vor Release prüfen). Release-Skill, Changelog, Tags, GitHub-Manifest und Updater entsprechend aktualisieren.
 - **X04 + A09:** Cache-Generationen entfernen, URL-MD5/LRU/Checkpoints behalten; OS-Temp-Share-Kopie und vorhandenes >24h-Cleanup verwenden; Upstream read-only DocumentsProvider übernehmen.
 - **N01:** `ApiRequestCoordinator` behalten, Upstream-Retry-Fixes ohne zweiten Sliding-Window-Limiter übernehmen.
 - **X03:** Fork-Profile-UUIDs, Import/Export, Bookmark-/Pinned-Ordner und Following schützen; kompatible Test-/Factory-Boundaries über A01/A12; Favorite-Tag-Storage-Fix separat bei D08.
