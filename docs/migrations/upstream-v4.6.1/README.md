@@ -41,6 +41,7 @@
 - **B07–B08:** Rule34-Kommentar-Upvotes (keine Downvotes), Cursor-Pagination und capability-bedingte Sortierung übernehmen.
 - **B09–B10:** Nozomi-Index-/Range-Fixes mit Request-Koordination; Rule34-API-Host erst nach Live-Verifikation umstellen.
 - **P01–P14:** Alle 14 Post/Grid/Viewer-Migrationsthemen beschlossen. P01-Zwei-Actions-UI integriert pro-Post-Fork-`defaultActionButton` samt Legacy-Migration. P06 lässt Danbooru-Highest-Sample-GIFs bei aktiviertem Autoplay animiert, bei deaktiviertem statisch; Automatic-Large ist derzeit ein eigener 720-Variantpfad. Besonders P04: bestehende Refresh-Queue behalten, stale Ergebnisse verwerfen; P08: gecachte Videos und temporäre Seiten während Playback schützen; P09: Swipe/Pan-Gesten ohne Verlust der Fork-Zoom-Funktionen; P10: Lautstärketasten nur bei aktivem Viewer-Modus konsumieren.
+- **P06-Limit:** Animierte GIFs einschließlich Danbooru-Samples nur bei aktivem GIF-Autoplay und bekanntem Original-`fileSize` ≤ 5 MiB automatisch im Grid laden, sonst statisch (auch Highest); Viewer/Downloads unberührt.
 
 ## Fortschritt
 
