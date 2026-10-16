@@ -12,8 +12,8 @@
 
 ## Documents
 
-1. [Detailed decision catalog](boorusama-v4.6.1-entscheidungskatalog.md) — upstream changes, fork divergences, conflicts, commit SHA references, verification and the original review context.
-2. [Compact decision checklist](boorusama-v4.6.1-checkliste.md) — stable IDs: X01–X04, A01–A18, N01–N06, D01–D08, B01–B10, P01–P14 and U01–U08.
+1. [Detailed decision catalog](boorusama-v4.6.1-decision-catalog.md) — upstream changes, fork divergences, conflicts, commit SHA references, verification and the original review context.
+2. [Compact decision checklist](boorusama-v4.6.1-decision-checklist.md) — stable IDs: X01–X04, A01–A18, N01–N06, D01–D08, B01–B10, P01–P14 and U01–U08.
 3. [Decision log](decisions.md) — **authoritative record of all explicitly user-approved decisions** and important follow-up clarifications.
 4. [Implementation handoff](IMPLEMENTATION_HANDOFF.md) — **English instructions for the local agent**, including source commits, dependency order, 68-item coverage, conflict traps, A16 versioning policy, verification and integration boundaries.
 
