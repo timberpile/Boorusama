@@ -1,6 +1,6 @@
 # Upstream v4.6.1 – Entscheidungsprotokoll
 
-**Autoritativer Entscheidungsstand:** **61 von 68 Themen entschieden** (2026-10-16); **7 offen**, Umsetzung nicht freigegeben. Dieses Dokument enthält ausschließlich Analyse und explizit bestätigte künftige Beschlüsse. Referenz: [Katalog](boorusama-v4.6.1-entscheidungskatalog.md) und [Checkliste](boorusama-v4.6.1-checkliste.md).
+**Autoritativer Entscheidungsstand:** **67 von 68 Themen entschieden** (2026-10-16); **1 offen**, Umsetzung nicht freigegeben. Dieses Dokument enthält ausschließlich Analyse und explizit bestätigte künftige Beschlüsse. Referenz: [Katalog](boorusama-v4.6.1-entscheidungskatalog.md) und [Checkliste](boorusama-v4.6.1-checkliste.md).
 
 ## Entscheidungsformat
 
@@ -681,6 +681,78 @@ Vor der expliziten Nutzerentscheidung bleibt jeder Eintrag `OFFEN`; ein technisc
 
 **Begründung / Upstream-Quellen:** [`71b41b8a0`](https://github.com/khoadng/Boorusama/commit/71b41b8a0f5574975f1cae673ac9cedde5b594ed). Nutzer bestätigte U08 ausdrücklich am 2026-10-16; es ist ein Planungsbeschluss ohne Code-Implementierung.
 
+## D01 – Download Sidecars: TXT-Tags und JSON-Metadaten
+
+**Status: ENTSCHIEDEN · 2026-10-16 · Umsetzung ausstehend.** **Beschlussart:** angepasst übernehmen.
+
+**Zielzustand / technische Grenzen:** Optionales Download-Sidecar neben der tatsächlich gespeicherten Mediendatei (`<media>.txt` mit einem Tag pro Zeile oder `<media>.json` mit Tags, unverfälschter Herkunft/Site-ID sofern verfügbar, öffentlichen Quelllinks, tatsächlicher Qualität und tatsächlichem Dateinamen) implementieren. Globales Format `off` als Default; pro Bulk-Download-Task ein optionaler Override (Default/Off/TXT/JSON). Keine zusätzliche profilbezogene Einstellung. Einzel-, Bookmark- und Bulk-Downloads sowie Cache-Direktkopien über denselben sicheren, beobachtbaren Completion-Pfad integrieren. Sidecar-Daten als unveränderlichen Post-/Task-Snapshot vor dem Transfer einfrieren, damit Retry/Background-Recovery nicht auf UI-Provider angewiesen sind. Dateien ausschließlich nach bestätigter Transfer-Fertigstellung atomar publizieren; deduplizierte Tags sortiert ausgeben, vorhandene fremde/abweichende Sidecars nicht überschreiben, Konflikt als eigenständig reparierbaren Fehler anzeigen. Sidecar-Fehler dürfen die abgeschlossene Mediendatei nicht erneut herunterladen oder zerstören. Bei `skip if exists` eine vorhandene Mediendatei mitsamt Sidecar unverändert überspringen, auch wenn das Sidecar fehlt. Sensible Cookies/Auth-Header, signierte oder lokale API-/Datei-URLs nicht exportieren. Upstream-Storage/Callbacks/Recovery an Fork-Download-/Observer-/Lifecyclesystem anpassen. D07 entscheidet noch separat die genaue Herkunft der `sitePostId` in Sidecar/JSON.
+
+**Daten / Abhängigkeiten:** Erfordert voraussichtlich zusätzliche nullable Sidecar-Konfiguration in globalen Settings, Bulk-Task-/Download-Record-Snapshots und additive SQLite-Migration (Upstream Version 2); existierende DB-Records bleiben gültig. Sidecar-Status/Journaling muss Crash/Reboot/Retry ohne doppelte Abschluss-Events (D02) tragen. Keine Änderung am bestehenden Bookmark-/Post-Hive-Schema. Keine erneute lokale Media-Downloadaktion durch bloßen Sidecar-Retry.
+
+**Abnahme / Tests:** Default Off, TXT/JSON, Einzel/Bookmark/Bulk/Video-Cache-Kopie, Skip-if-exists mit/ohne Sidecar, Sidecar-Kollision, readonly/scoped storage, disk full, Crash vor/nach Download/Sidecar-Write, Headless Background-Callback, Recovery nach Restart, Retry nur Sidecar, 0/mehrere Tags, UTF-8/Zeilenumbrüche, URL-/Credential-Redaction und Post-Origin-Identität.
+
+**Begründung / Quellen:** [`86a16a20e`](https://github.com/khoadng/Boorusama/commit/86a16a20ee1327740316005b7946b8264fa70a19). Vom Nutzer am 2026-10-16 bestätigt; D07 (Site-ID-Export) bleibt getrennt offen.
+
+## D03 – Background Downloader Plugin-Update
+
+**Status: ENTSCHIEDEN · 2026-10-16 · Umsetzung ausstehend.** **Beschlussart:** Plugin-Commit nach Verifikation übernehmen.
+
+**Zielzustand / technische Grenzen:** Upstream wechselt beim git-basierten `khoadng/background_downloader` mit unveränderter Package-Version `9.6.1` von `e8ad9f9` auf `fd67fff9ee4ad4cdf415dc3285289cad9289cefe`. Commit-Diff/Native-/API-Kompatibilität vor Übernahme prüfen. Nur bei erfolgreicher Prüfung `pubspec_overrides.yaml` und Lockfile konsistent auf den neueren Commit aktualisieren; keinesfalls alte Fork-Callbacks, Cronet-Transport/Resumption, Android-Dateirechte oder Persistenzabläufe ersetzen. Mit D01, D02 und D04 als gemeinsamer Lifecycle-Integrationstest prüfen; bei Inkompatibilität dokumentiert beim alten Pin bleiben bis zur Lösung.
+
+**Daten / Abhängigkeiten:** Abhängigkeit/Lockfile-Git-Pin, keine geplante eigene Datenmigration. Platform-Plugin-/Native-Build-Verhalten gesondert prüfen.
+
+**Abnahme / Tests:** Android foreground/background, App-Neustart, Pause/Resume, Retry/Cancel, Notifications, Cronet, Cache-/Sidecar-Completion, Task-IDs, Android build und iOS/Desktop soweit unterstützt.
+
+**Begründung / Quellen:** [`669b8019f`](https://github.com/khoadng/Boorusama/commit/669b8019f80eaf8d0f40e268bbf8a29dc0808ddf). Vom Nutzer am 2026-10-16 bestätigt; D07 (Site-ID-Export) bleibt getrennt offen.
+
+## D04 – Download-Manager: injizierbarer Task-Client und Snapshot-Fix
+
+**Status: ENTSCHIEDEN · 2026-10-16 · Umsetzung ausstehend.** **Beschlussart:** vollständig übernehmen, Fork-Lifecycle bewahren.
+
+**Zielzustand / technische Grenzen:** Den injizierbaren `DownloadTaskClient` für Pause/Resume/Retry/Cancel, Resumability sowie Pfad- und Dateigrößenabfragen nach Upstream-Konzept übernehmen, damit Download-Manager-Widgets und Notifier testbar sind; tatsächliches Enqueueing bleibt beim bestehenden Fork-Download-Service. Bei Task-Updates die existierende Gruppenliste vor Mutation kopieren (`[...?totalTasks[group]]`), statt alte State-Snapshots mutieren zu lassen. Doppeltes Schließen desselben Broadcast-StreamControllers abstellen: ein Provider besitzt/entsorgt den Controller; nach Upstream-Konzept optional zentraler `DownloadTaskEventIngress` veröffentlicht Ereignisse sowohl im Snapshot als auch im Stream. Fork-Retry-/Headers-/DDOS-/Notification-/Download-Activity-Integration bleibt erhalten.
+
+**Daten / Abhängigkeiten:** Neue schmale Provider-/Task-Interface-Schicht ohne Datenbankänderung, vorhandene Task-IDs und Notification-/State-Strukturen behalten. D02 und D03 berücksichtigen.
+
+**Abnahme / Tests:** Drei oder mehr Updates derselben Task erzeugen unveränderliche frühere Snapshots und vollständige Listener-Events, Dispose ohne double-close, Task-Ingress-Snapshot und Stream identisch, Retry/Cancel/Pause/Resume mit Fake-Client und Auth-/Bypass-Headern, parallele Updates/Grouped Tasks, FileSize-Ausfälle.
+
+**Begründung / Quellen:** [`bd2e22c22`](https://github.com/khoadng/Boorusama/commit/bd2e22c221bcfb1a8c8c0675afbab6763a3102c9), [`90657ee4e`](https://github.com/khoadng/Boorusama/commit/90657ee4ed73f9a4bf7f2277ed1750e2f8b5d4ff). Vom Nutzer am 2026-10-16 bestätigt; D07 (Site-ID-Export) bleibt getrennt offen.
+
+## D05 – Anime-Pictures Bulk Download und Request-Pacing
+
+**Status: ENTSCHIEDEN · 2026-10-16 · Umsetzung ausstehend.** **Beschlussart:** angepasst übernehmen.
+
+**Zielzustand / technische Grenzen:** Bulk Downloads für Anime-Pictures aktivieren, einschließlich Site-Capability und mehrseitiger Aufträge. Upstream-Konservativpacing (etwa 1 Request/Sekunde über den relevanten API-/Download-Link-Host) ausschließlich über unseren bestehenden `ApiRequestCoordinator`/sitebezogene N01-Quota abbilden, keinen zweiten `SlidingWindowRateLimitInterceptor` installieren. Den unbefristeten `_downloadUrlCache` aus `AnimePicturesClient` entfernen, da URLs/Session-Cookies veralten; den Fork-`AnimePicturesDownloadFileUrlExtractor` mit begrenztem 5-Minuten-Cache beibehalten, aber Sessionwechsel, Retry nach Auth-Fehler und Links mit begrenzter Gültigkeit verifizieren. Ein Retry soll frische signierte URLs/Cookies beziehen können. Identität/Profil-/Following-Boundaries, bestehende Bulk-Auftrags-Persistenz und Download-UI nicht regressieren.
+
+**Daten / Abhängigkeiten:** Site-Capability/Generated Booru-Config anpassen (Generator-Output nur nach Änderungen an Source-YAML neu erzeugen); N01-Quota priorisierte Request-Pacing/Retry-After, D02/D04 Download-Lifecycle. Keine zusätzliche eigenständige Rate-Limit-Schicht.
+
+**Abnahme / Tests:** Bulk über mehrere Seiten, rate/429/Retry-After, Link-Expire/Session-Wechsel, Parallel-Profile, Download-Cookie-Handling, vorhandene Cache-Treffer, Cancel/Pause/Resume, Seiten-Cursor und Result-Recovery.
+
+**Begründung / Quellen:** [`c5b79488c`](https://github.com/khoadng/Boorusama/commit/c5b79488c8d90b624cb17e8452d3b17e099be88f). Vom Nutzer am 2026-10-16 bestätigt; D07 (Site-ID-Export) bleibt getrennt offen.
+
+## D06 – Zerochan Bulk Download und URL-Auflösung
+
+**Status: ENTSCHIEDEN · 2026-10-16 · Umsetzung ausstehend.** **Beschlussart:** angepasst übernehmen.
+
+**Zielzustand / technische Grenzen:** Explizite Sperre für Zerochan-Bulk-Downloads entfernen, sobald URL-Auflösung stabil integriert und getestet ist. API-Detail liefert vorzugsweise explizite `full`/`large`/`medium`/`small`-URLs und Dateigröße/Format; wenn Full fehlt oder JSON defekt ist, gezielt die Post-HTML-Seite lesen; Asiachan-Detail-API zuverlässig durch HTML-Fallback ersetzen. Quellen/Hosts validieren und Fehler/Redirects, 404/410 und temporäre Auth-/Rate-Limits unterscheiden. Pro Post `Preview`, `Sample`, `Original` klar unterstützen; **wenn `Original` explizit angefordert ist, niemals stillschweigend Preview/Sample als Original ausgeben**, sondern nicht auflösbar melden. Dedup gleichzeitiger URL-Requests und kurzer 5-Minuten-Cache analog Upstream übernehmen. Pacing konservativ ca. 1 Request/1,2 Sek über Fork-`ApiRequestCoordinator`, ohne neue Sliding-Window-Interceptor-Schicht; Fork-FileName-/Metadata-/Observer-/Bulk-Lifecycle erhalten.
+
+**Daten / Abhängigkeiten:** Erweiterte nullable Zerochan-DTO-Felder und PostData-/Adapter-Mapping, neuer Download-URL-Extractor und Source-Capabilities, Quality-basierte Single-Download-Action; N01/N03 und D02/D04 beachten. Cache nur bei gültigen URLs und an Site/Profile geknüpft.
+
+**Abnahme / Tests:** Zerochan + Asiachan API/HTML-Responses, fehlende Original-URL, 404/410, falsche HTML-Seite/Metatags, explicit original vs. degraded variant, Preview/Sample, Redirect/Authentication/429, per-Post-Parallel-Fetch, Cache/Expiry, Dateiname/Extension/Size und Bulk Skip/Retries.
+
+**Begründung / Quellen:** [`50980b8da`](https://github.com/khoadng/Boorusama/commit/50980b8da1368aa39a44051c78dee12dd4dff2ce). Vom Nutzer am 2026-10-16 bestätigt; D07 (Site-ID-Export) bleibt getrennt offen.
+
+## D08 – Favorite Tags direkt aus Storage exportieren
+
+**Status: ENTSCHIEDEN · 2026-10-16 · Umsetzung ausstehend.** **Beschlussart:** übernehmen.
+
+**Zielzustand / technische Grenzen:** Für Favorite-Tag-Backups statt möglicherweise uninitialisiertem UI-State `ref.read(favoriteTagsProvider)` das persistente Repository über `await ref.read(favoriteTagRepoProvider.future)` und `await repo.getAll()` verwenden. Dies gilt auch für alle anderen relevanten vollständigen Backup-/Export-Flows, die derzeit direkt einen UI-Provider-Snapshot benutzen, und für Revision-/Auto-Backups. Bestehende Import-Semantik `repo.replaceAll(tags)` samt `ref.invalidate(favoriteTagsProvider)`, Versionsgrenzen und Label-/Raw-Query-Repräsentation erhalten. Explizite 'Export simple to clipboard'-UI-Funktion bleibt separat erhalten und darf nicht mit dem Full-Backup-Format verwechselt werden.
+
+**Daten / Abhängigkeiten:** Keine Backupschema-/Persistenzmigration allein wegen D08. X03-Profile-/Import-/Recovery-Invarianten und A12 Headless-Tests berücksichtigen.
+
+**Abnahme / Tests:** Kaltstart Full-Backup ohne Öffnen der Favorite-Tag-Page, zuvor nicht initialisiertes UI-State, mehrere Labels/Raw-Query/Unicode, Auto-/Server-/File-/Clipboard-Backup, vollständiger Roundtrip ohne doppelte Tags, Import ersetzt Tags unverändert; Provider-Invalidation nach Import.
+
+**Begründung / Quellen:** [`f93bdf0dd`](https://github.com/khoadng/Boorusama/commit/f93bdf0dd42c5eb0e8165d9070310a2aebfa32c1). Vom Nutzer am 2026-10-16 bestätigt; D07 (Site-ID-Export) bleibt getrennt offen.
+
 ## Weitere Entscheidungen
 
-**61/68 Themen ENTSCHIEDEN, 7 OFFEN.** Offen sind D01 und D03–D08. Die Entscheidungen sind **Planungsbeschlüsse, keine Implementierung**; weitere Merge-Arbeit erst nach ausdrücklicher Freigabe. Für U08 (Testpflege) bleibt die bisherige automatische Einordnung bestehen.
+**67/68 Themen ENTSCHIEDEN, 1 OFFEN.** Offen ist D07. Die Entscheidungen sind **Planungsbeschlüsse, keine Implementierung**; weitere Merge-Arbeit erst nach ausdrücklicher Freigabe. Für U08 (Testpflege) bleibt die bisherige automatische Einordnung bestehen.
