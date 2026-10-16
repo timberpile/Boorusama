@@ -678,7 +678,7 @@ Für jedes Thema eines von **(a) vollständig übernehmen**, **(b) angepasst üb
 - **Bestätigter Beschluss:** angepasst übernehmen. Optionale unbekannte/ungültige Thumbnail-Action-Werte und Media-Host-Overrides beim Einlesen tolerant behandeln, ohne das Profil als Ganzes zu verwerfen; bei Import/Restore nachvollziehbare Validierungswarnungen anbieten. Existierende Profil-UUIDs und übrige Daten stets behalten. Unbekannte, semantisch nicht auswertbare Werte, soweit technisch sicher möglich, für Forward-Compatibility im Originaldatensatz erhalten; andernfalls nur die betroffene Option mit dokumentiertem Fallback behandeln.
 - **Daten / Abhängigkeiten:** Keine Änderung an Profil-UUIDs oder Identitäten. Die noch offene P01-Konfigurationsmigration sowie N02-Media-Host-Regeln müssen das Fallback- und Warnmodell gemeinsam nutzen.
 - **Verifikation:** Alte/neue Profil-JSONs; unbekannte Action, fehlender/ungültiger Host oder Datentyp, doppelte Aktionen, Restore ohne Profilverlust und sichtbare Import-Warnungen.
-- **Verbindliches Protokoll:** [P02](decisions.md#p02-angepasst-bernehmen).
+- **Verbindliches Protokoll:** [P02](decisions.md#p02-profile-mit-unbekannten-thumbnail-actionsmedia-host-regeln-behalten).
 - **Änderung in Upstream:** Defensive Deserialisierung ignoriert unbekannte Action-Werte und ungültige Host-Regeln statt gesamtes Profil zu verwerfen.
 - **Fork / potenzieller Konflikt:** Fork hat Profil-UUIDs und Import-Mapping mit eigenen Validierungen.
 - **Ursprüngliche Fragestellung:** Welche Konfigurationsfehler tolerieren wir und wie informieren wir Nutzer beim Import?
@@ -720,7 +720,7 @@ Für jedes Thema eines von **(a) vollständig übernehmen**, **(b) angepasst üb
 - **Bestätigter Beschluss:** Fork-Lösung behalten. Keinen zusätzlichen Upstream-Bookmark-Listener einbauen: Der Fork lauscht bereits auf `bookmarkProvider` und koordiniert Sichtbarkeitswechsel/Selection über `BookmarkViewRefreshGate`. Diesen einzigen autoritativen Refreshpfad behalten; nur nützliche Upstream-Regressionstests ergänzen.
 - **Daten / Abhängigkeiten:** Keine API-/Datenmigration. Überschneidet sich mit dem verbindlichen X03-Beschluss.
 - **Verifikation:** Bookmark hinzugefügt/gelöscht, Undo, Group-Switch, Sortierung, Filter, Details-Overlay und Selection-Stabilität; nur ein sichtbarer Refresh pro Mutation.
-- **Verbindliches Protokoll:** [P05](decisions.md#p05-forklsung-behalten).
+- **Verbindliches Protokoll:** [P05](decisions.md#p05-bookmark-library-nach-bookmark-mutation-aktualisieren).
 - **Änderung in Upstream:** Listener aktualisiert sichtbare Bookmark-Liste nach Änderungen.
 - **Fork / potenzieller Konflikt:** Fork hat lokale Bookmark-Groups, Default Group, Undo und eigene asynchrone Library-Services.
 - **Ursprüngliche Fragestellung:** An bestehendes Change-Event- / Selection-Modell anbinden oder Upstream-Listener zusätzlich verwenden?
@@ -737,7 +737,7 @@ Für jedes Thema eines von **(a) vollständig übernehmen**, **(b) angepasst üb
 - **Bestätigter Beschluss:** angepasst übernehmen. GIF-Autoplay-Setting bei allen Grid-Qualitätsstufen einschließlich `original` respektieren: Bei deaktiviertem Autoplay nur eine statische Vorschau laden; bei aktivem Autoplay die nach Site tatsächlich verfügbare animierte URL entsprechend Qualität/Fallback wählen. Wichtig: Statische kleinere GIF-Thumbnails sind keine garantierten niedrig aufgelösten *animierten* GIF-Varianten; Danbooru liefert häufig statische 180/360/720-Varianten und die animierte Original-GIF. Eine fehlende animierte Preview nicht erfinden; im Viewer gelten dessen eigene Qualität-/Abspielregeln.
 - **Daten / Abhängigkeiten:** Fork-spezifische Danbooru-Variant-URL-Auflösung und generischen Thumbnail-Resolver erhalten; keine persistente Migration.
 - **Verifikation:** Danbooru/andere Boorus, automatische/low/high/highest/original-Qualität × autoplay/static, verfügbares/unverfügbares Sample, URL und Aspect Ratio, GIF-Animation bei deaktiviertem Autoplay im Grid.
-- **Verbindliches Protokoll:** [P06](decisions.md#p06-angepasst-bernehmen).
+- **Verbindliches Protokoll:** [P06](decisions.md#p06-gif-autoplay-respektiert-qualitätseinstellungen).
 - **Änderung in Upstream:** GIF-Autoplay-Setting greift auch bei alternativen Bildqualitäten.
 - **Fork / potenzieller Konflikt:** Fork trennt Preview-/Post-Qualitäten und hat GIF-Export-/Trim-Tools.
 - **Ursprüngliche Fragestellung:** Fix in unsere Quality-Resolver übertragen?
@@ -753,7 +753,7 @@ Für jedes Thema eines von **(a) vollständig übernehmen**, **(b) angepasst üb
 - **Bestätigter Beschluss:** angepasst übernehmen. Video-Thumbnail/Poster bis zum tatsächlichen Rendering des ersten Frames anzeigen und anschließend nahtlos freigeben. First-Frame-Status für jeden Quell-/Engine-Wechsel zurücksetzen und ältere asynchrone Signale anhand Generation/Source-ID ignorieren; bei fehlgeschlagener First-Frame-Benachrichtigung einen sichtbaren Fehler-/Fallbackzustand bereitstellen, keinen dauerhaft verdeckten Player. Fork-Video-Viewer, Cache und Hero-/Thumbnail-Logik erhalten.
 - **Daten / Abhängigkeiten:** `BooruPlayer`-fähige First-Frame-Signale für unterstützte Engines; nur Runtime-State, keine Migration.
 - **Verifikation:** Langsame Initialisierung, Cache/Stream, MPV/MediaKit/video_player/WebView, schnelle URL-Wechsel, First-Frame-/Player-Fehler, dispose und Reinitialize, Overlay/Transition.
-- **Verbindliches Protokoll:** [P07](decisions.md#p07-angepasst-bernehmen).
+- **Verbindliches Protokoll:** [P07](decisions.md#p07-video-thumbnail-bis-zum-ersten-gerenderten-frame-anzeigen).
 - **Änderung in Upstream:** Video-Placeholder verschwindet erst, wenn Player tatsächlich einen Frame gerendert hat.
 - **Fork / potenzieller Konflikt:** Fork hat Post-Viewer- und Video-Thumbnail-Anpassungen.
 - **Ursprüngliche Fragestellung:** Welche Quelle für Placeholder und Fade-Transition nutzen?
@@ -806,7 +806,7 @@ Für jedes Thema eines von **(a) vollständig übernehmen**, **(b) angepasst üb
 - **Bestätigter Beschluss:** übernehmen (Fork-Player berücksichtigen). Video-Zeitanzeigen nicht länger auf fixe 40 px beschränken (minimale Breite und sichere flexible Darstellung). Media-Play/Pause/Toggle-Hardwaretasten nur auf den aktuell sichtbaren/fokussierten Video-Post routen; bei Bild-Posts, Hidden Playern und Textfokus nicht unerwartet abspielen. Vorhandene Player-Engine- und Viewer-Shortcuts erhalten.
 - **Daten / Abhängigkeiten:** Keine Persistenz. Keyboard-Shortcut-Routing bei U04/U05/U06 auf Konflikte prüfen.
 - **Verifikation:** Lange Zeiten/schmale Screens, Text-Scaling, MediaPlay/MediaPause/MediaPlayPause, Bildpost vs. Videopost, Fokus/Seitenwechsel, unterschiedliche Engines.
-- **Verbindliches Protokoll:** [P11](decisions.md#p11-bernehmen-forkplayer-bercksichtigen).
+- **Verbindliches Protokoll:** [P11](decisions.md#p11-videosteuerung-zeit-overflow-und-media-playpause-key).
 - **Änderung in Upstream:** Zeit-Text darf wachsen; Play/Pause per Medien-Hardwaretaste.
 - **Fork / potenzieller Konflikt:** Fork hat eigene Post-Detail-Toolbar und Player-Engines.
 - **Ursprüngliche Fragestellung:** Hotkeys und Controls an unsere Controls binden?
@@ -822,7 +822,7 @@ Für jedes Thema eines von **(a) vollständig übernehmen**, **(b) angepasst üb
 - **Bestätigter Beschluss:** angepasst übernehmen. Hover-Preview nicht über die gesamte Thumbnail-Fläche, sondern über ein gezieltes Info-Badge öffnen, das bei Pointer-Hover bzw. passend fokussierter Keyboard-Navigation sichtbar wird. Gesten-/Hit-Test-Fixes für Long-Press, Right-Click und Hold-and-Drag übernehmen, Selection vor Preview-Badge priorisieren und bei Tastatureingaben Preview sauber schließen. Badge-Positionierung mit noch offenem P01 (bis zu zwei Quick Actions) und Series-Gruppenkarten abstimmen; keine neue unruhige permanente Overlay-Reihe.
 - **Daten / Abhängigkeiten:** Nur UI/Interaktion, keine neuen persistenten Felder. Bestehenden `tooltipDisplayMode` respektieren.
 - **Verifikation:** Desktop Hover/Badeg-Tap, Touch Long-Press, Rechtsklick, Hold-and-Drag-Selection, Keyboard/Escape/Textinput, enge Grid-Kacheln, Series-Karte, disabled Tooltip.
-- **Verbindliches Protokoll:** [P12](decisions.md#p12-angepasst-bernehmen).
+- **Verbindliches Protokoll:** [P12](decisions.md#p12-hover-preview-nur-über-info-badge-öffnen-long-press-erhalten).
 - **Änderung in Upstream:** Nicht mehr gesamte Thumbnail-Fläche als Hover-Preview; gezieltes Info-Badge; Hover schließt bei Keypress; Longpress/Rightclick öffnet Menü wieder.
 - **Fork / potenzieller Konflikt:** Fork hat Kontextmenüs/Selection über Hold-and-Drag sowie eigene Grid-Karten.
 - **Ursprüngliche Fragestellung:** Möchten wir ein Info-Badge oder bestehendes Hover? Wo liegt Badge bei zwei Quick Actions/Series-Karten?
@@ -838,7 +838,7 @@ Für jedes Thema eines von **(a) vollständig übernehmen**, **(b) angepasst üb
 - **Bestätigter Beschluss:** angepasst übernehmen (A02). Post-/Tag-Kontextmenüs über Kurumi vereinheitlichen und Keyboard/Right-Click/Long-Press/Back/Escape sowie konsistente Darstellung übernehmen. ALLE Fork-Menüaktionen, Favoriten-/Bookmarks-/Following-/Gruppenaktionen, Untermenüs, Kontext-/Selection-Priorität und bestehende Tap-through-/Dismiss-Fixes behalten. Upstreams große Migration nicht pauschal über die Fork-`KurumiContextMenuPageController`- und `CustomContextMenuOverlay`-Erweiterungen legen; dieselbe Menükomponente mit kompatiblen Funktionen verwenden.
 - **Daten / Abhängigkeiten:** Keine persistente Migration, A02-Kurumi-/Menü-Migration koordinieren; Anchor-Dependency-Fix nur im kompatiblen Lockfile-Stand anwenden.
 - **Verifikation:** Post/Tag/Grid/Selection, Long-Press, Right-Click, Untermenüs, ESC/Back, Keyboard-Rückfokus, outside click, RTL/kompakt/Tag-Cloud und Overlay-Schichtreihenfolge.
-- **Verbindliches Protokoll:** [P13](decisions.md#p13-angepasst-bernehmen-a02).
+- **Verbindliches Protokoll:** [P13](decisions.md#p13-post-tag-kontextmenüs-auf-kurumi-migrieren).
 - **Änderung in Upstream:** Ersetzt alte Context Menus durch Kurumi; bei Tag Cloud sichert eine Abhängigkeitsanpassung die Popup-Größe.
 - **Fork / potenzieller Konflikt:** Fork hat `CustomContextMenuOverlay`, weitere Actions (Following, Bookmark Groups) und eigene Menu-Dismiss-Fixes.
 - **Ursprüngliche Fragestellung:** Kurumi als einheitliche Menükomponente verwenden, aber alle Fork-Actions/Shortcuts erhalten?
@@ -855,7 +855,7 @@ Für jedes Thema eines von **(a) vollständig übernehmen**, **(b) angepasst üb
 - **Bestätigter Beschluss:** übernehmen, abgestimmt auf P01/A02. Sichtbare Quick Favorite-/Bookmark-Buttons und weitere Thumbnail-Actions mit klarer Semantik, fokussiertem Zustand und Enter/Space-Aktivierung versehen. Bei maximal zwei Aktionen eine logisch nachvollziehbare Reihenfolge und Pfeil-/Tab-Navigation anbieten, ohne Kachelöffnung, Grid-Selection, Scroll-/Hold-and-Drag-Gesten zu übernehmen oder unsichtbare Buttons fokussierbar zu machen.
 - **Daten / Abhängigkeiten:** Kein Datenmodell/Schema. Abhängig vom noch offenen Layout P01 und A02-Focus-/Kurumi-Änderungen.
 - **Verifikation:** Keyboard/TV Focus/Enter/Space/Arrow/Tab, Scroll mit Recycling, Selection, Hidden/Disabled Actions, kleine Kacheln und visuelle Focus-Indication.
-- **Verbindliches Protokoll:** [P14](decisions.md#p14-bernehmen-abgestimmt-auf-p01a02).
+- **Verbindliches Protokoll:** [P14](decisions.md#p14-keyboard-fokus-auf-quick-favoritebookmark-buttons).
 - **Änderung in Upstream:** Kleine interaktive Overlays auf Thumbnail sind mit Keyboard erreichbar.
 - **Fork / potenzieller Konflikt:** Fork verwendet eigene Thumbnail-Action und Post-Selection.
 - **Ursprüngliche Fragestellung:** Fokusreihenfolge für Card plus bis zu zwei Quick Actions?
