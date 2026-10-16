@@ -19,7 +19,7 @@ When documents disagree, use the explicit **latest user-approved decision in `de
 
 ## Repository language
 
-Write all repository documentation, source comments, issue/work item text, commit messages, tests, plans and implementation reports **in English**. The sole exception is UI translation/localization resource content in its target language. The migration documents are written in English even though the two existing catalog/checklist filenames are historical identifiers.
+Write all repository documentation, source comments, issue/work item text, commit messages, tests, plans and implementation reports **in English**. The sole exception is UI translation/localization resource content in its target language. All migration documents, filenames and agent reports are maintained in English. UI translation resources are the only language exception.
 
 ## 1. Fixed upstream target, and moving fork baseline
 
