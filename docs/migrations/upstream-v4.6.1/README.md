@@ -29,7 +29,7 @@
 
 ## Entscheidungsstand (2026-10-16)
 
-**53 von 68 Themen beschlossen, 15 noch offen.** Alle 53 Entscheidungen stehen verbindlich in [decisions.md](decisions.md), zusammengefasst in Katalog und Checkliste. **Es wurde noch kein Upstream-Code integriert und keine Umsetzung freigegeben.**
+**61 von 68 Themen beschlossen, 7 noch offen.** Alle 61 Entscheidungen stehen verbindlich in [decisions.md](decisions.md), zusammengefasst in Katalog und Checkliste. **Es wurde noch kein Upstream-Code integriert und keine Umsetzung freigegeben.**
 
 - **A02:** Implementierender Agent schreibt nach dem UI-Umbau die wichtigsten manuellen Testfälle für den Nutzer; führt diese nicht selbst manuell durch.
 - **X04 + A09:** Cache-Generationen entfernen, URL-MD5/LRU/Checkpoints behalten; OS-Temp-Share-Kopie und vorhandenes >24h-Cleanup verwenden; Upstream read-only DocumentsProvider übernehmen.
@@ -41,6 +41,9 @@
 - **B07–B08:** Rule34-Kommentar-Upvotes (keine Downvotes), Cursor-Pagination und capability-bedingte Sortierung übernehmen.
 - **B09–B10:** Nozomi-Index-/Range-Fixes mit Request-Koordination; Rule34-API-Host erst nach Live-Verifikation umstellen.
 - **P01–P14:** Alle 14 Post/Grid/Viewer-Migrationsthemen beschlossen. P01-Zwei-Actions-UI integriert pro-Post-Fork-`defaultActionButton` samt Legacy-Migration. P06 lässt Danbooru-Highest-Sample-GIFs bei aktiviertem Autoplay animiert, bei deaktiviertem statisch; Automatic-Large ist derzeit ein eigener 720-Variantpfad. Besonders P04: bestehende Refresh-Queue behalten, stale Ergebnisse verwerfen; P08: gecachte Videos und temporäre Seiten während Playback schützen; P09: Swipe/Pan-Gesten ohne Verlust der Fork-Zoom-Funktionen; P10: Lautstärketasten nur bei aktivem Viewer-Modus konsumieren.
+- **U01–U03:** Soft-Keyboard-Layout, scrollkontrollierte Search History und Keyboard-Suggestion-Listbox in die neue kompakte Fork-Suchoberfläche integrieren.
+- **U04–U06:** Einheitliches Keyboard-/D-Pad-Focus-Handling, Focus-Panes und Escape/Back-Layer-Priorität mit Fork-Navigation verbinden; TV nur Best-Effort.
+- **U07–U08:** Favorite-Tag-Dialog ab Tabletbreite, volle Fork-Labels erhalten; Upstream-Regressionstests nur zusammen mit Features und kontrollierten Clocks übernehmen.
 - **P06-Limit:** Animierte GIFs einschließlich Danbooru-Samples nur bei aktivem GIF-Autoplay und bekanntem Original-`fileSize` ≤ 5 MiB automatisch im Grid laden, sonst statisch (auch Highest); Viewer/Downloads unberührt.
 
 ## Fortschritt
@@ -56,6 +59,7 @@
 - [ ] D01, D03–D08: übrige Backup-/Download-Punkte entscheiden
 - [x] B01–B10: Booru-Kompatibilität vollständig entschieden (Implementierung ausstehend)
 - [x] P01–P14: alle 14 Viewer-/Grid-Themen entschieden (Implementierung ausstehend)
+- [x] U01–U08: Suche/Keyboard/Desktop/TV sowie Testpflege entschieden (Implementierung ausstehend)
 - [ ] Alle nichttrivialen Punkte entschieden
 - [ ] Merge-Resolution gegen finalen Plan implementiert
 - [ ] Datenmigrationen und vollständige Regressionstests bestanden
