@@ -1,6 +1,6 @@
 # Boorusama – Entscheidungskatalog zum echten Merge auf Upstream v4.6.1
 
-**Stand:** 16. Oktober 2026 · **Status:** **39 von 68 Themen entschieden, 29 offen**, weiterhin **keine Freigabe zur Implementierung**.
+**Stand:** 16. Oktober 2026 · **Status:** **47 von 68 Themen entschieden, 21 offen**, weiterhin **keine Freigabe zur Implementierung**.
 
 > Grundlage: `timberpile/Boorusama` `develop` auf `d4e15586f06192f0ff4315d36a3f61ae69a752d5`, Upstream `v4.6.1` auf `5b04bf6a164f028d41701299367d0dde74dde330`; gemeinsamer Vorfahr `2c0ac699184854d363833ea4a3205aef0895a92b`. Dateien aus dem hochgeladenen Git-Bundle lokal geprüft. Bei dieser Analyse wurden keine Laufzeitänderungen am Repository vorgenommen.
 
@@ -673,12 +673,16 @@ Für jedes Thema eines von **(a) vollständig übernehmen**, **(b) angepasst üb
 
 ### P02 · Profile mit unbekannten Thumbnail-Actions/Media-Host-Regeln behalten
 
-**Status:** Entscheidung; Entscheidung: **OFFEN** · **Risiko:** 🟠 hoch.
+**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟠 hoch.
 
+- **Bestätigter Beschluss:** angepasst übernehmen. Optionale unbekannte/ungültige Thumbnail-Action-Werte und Media-Host-Overrides beim Einlesen tolerant behandeln, ohne das Profil als Ganzes zu verwerfen; bei Import/Restore nachvollziehbare Validierungswarnungen anbieten. Existierende Profil-UUIDs und übrige Daten stets behalten. Unbekannte, semantisch nicht auswertbare Werte, soweit technisch sicher möglich, für Forward-Compatibility im Originaldatensatz erhalten; andernfalls nur die betroffene Option mit dokumentiertem Fallback behandeln.
+- **Daten / Abhängigkeiten:** Keine Änderung an Profil-UUIDs oder Identitäten. Die noch offene P01-Konfigurationsmigration sowie N02-Media-Host-Regeln müssen das Fallback- und Warnmodell gemeinsam nutzen.
+- **Verifikation:** Alte/neue Profil-JSONs; unbekannte Action, fehlender/ungültiger Host oder Datentyp, doppelte Aktionen, Restore ohne Profilverlust und sichtbare Import-Warnungen.
+- **Verbindliches Protokoll:** [P02](decisions.md#p02-angepasst-bernehmen).
 - **Änderung in Upstream:** Defensive Deserialisierung ignoriert unbekannte Action-Werte und ungültige Host-Regeln statt gesamtes Profil zu verwerfen.
 - **Fork / potenzieller Konflikt:** Fork hat Profil-UUIDs und Import-Mapping mit eigenen Validierungen.
-- **Zu entscheiden:** Welche Konfigurationsfehler tolerieren wir und wie informieren wir Nutzer beim Import?
-- **Arbeitshypothese (nicht beschlossen):** Profil nie wegen optionalem neuen Feature verlieren; Validierungswarnung statt Datenverlust.
+- **Ursprüngliche Fragestellung:** Welche Konfigurationsfehler tolerieren wir und wie informieren wir Nutzer beim Import?
+- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Profil nie wegen optionalem neuen Feature verlieren; Validierungswarnung statt Datenverlust.
 - **Abnahme/Test:** Forward-/Backward-Profile-Import, unknown enum, invalid hostname, doppelte Actions.
 - **Upstream-Commits:** [`1d8c879f4`](https://github.com/khoadng/Boorusama/commit/1d8c879f406d54df86c25d334ace0ada98846886).
 - **Betroffene Codepfade (Auswahl):** `lib/core/configs/config/src/types/booru_config.dart`, `lib/core/configs/listing/src/types/thumbnail_actions.dart`.
@@ -711,12 +715,16 @@ Für jedes Thema eines von **(a) vollständig übernehmen**, **(b) angepasst üb
 
 ### P05 · Bookmark-Library nach Bookmark-Mutation aktualisieren
 
-**Status:** Entscheidung; Entscheidung: **OFFEN** · **Risiko:** 🟡 mittel.
+**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟡 mittel.
 
+- **Bestätigter Beschluss:** Fork-Lösung behalten. Keinen zusätzlichen Upstream-Bookmark-Listener einbauen: Der Fork lauscht bereits auf `bookmarkProvider` und koordiniert Sichtbarkeitswechsel/Selection über `BookmarkViewRefreshGate`. Diesen einzigen autoritativen Refreshpfad behalten; nur nützliche Upstream-Regressionstests ergänzen.
+- **Daten / Abhängigkeiten:** Keine API-/Datenmigration. Überschneidet sich mit dem verbindlichen X03-Beschluss.
+- **Verifikation:** Bookmark hinzugefügt/gelöscht, Undo, Group-Switch, Sortierung, Filter, Details-Overlay und Selection-Stabilität; nur ein sichtbarer Refresh pro Mutation.
+- **Verbindliches Protokoll:** [P05](decisions.md#p05-forklsung-behalten).
 - **Änderung in Upstream:** Listener aktualisiert sichtbare Bookmark-Liste nach Änderungen.
 - **Fork / potenzieller Konflikt:** Fork hat lokale Bookmark-Groups, Default Group, Undo und eigene asynchrone Library-Services.
-- **Zu entscheiden:** An bestehendes Change-Event- / Selection-Modell anbinden oder Upstream-Listener zusätzlich verwenden?
-- **Arbeitshypothese (nicht beschlossen):** Nur ein autoritatives Update-Signal, um doppelte Refreshes/Selection-Resets zu vermeiden.
+- **Ursprüngliche Fragestellung:** An bestehendes Change-Event- / Selection-Modell anbinden oder Upstream-Listener zusätzlich verwenden?
+- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Nur ein autoritatives Update-Signal, um doppelte Refreshes/Selection-Resets zu vermeiden.
 - **Abnahme/Test:** Bookmark hinzufügen/entfernen, Gruppenwechsel, Undo, aktive Filter/Sort.
 - **Upstream-Commits:** [`3f4ce2bd4`](https://github.com/khoadng/Boorusama/commit/3f4ce2bd4f0f94c116b2262fa9418809710278a8).
 - **Betroffene Codepfade (Auswahl):** `lib/core/bookmarks/src/widgets/bookmark_scroll_view.dart`.
@@ -724,24 +732,32 @@ Für jedes Thema eines von **(a) vollständig übernehmen**, **(b) angepasst üb
 
 ### P06 · GIF-Autoplay respektiert Qualitätseinstellungen
 
-**Status:** Entscheidung; Entscheidung: **OFFEN** · **Risiko:** 🟡 niedrig–mittel.
+**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟡 niedrig–mittel.
 
+- **Bestätigter Beschluss:** angepasst übernehmen. GIF-Autoplay-Setting bei allen Grid-Qualitätsstufen einschließlich `original` respektieren: Bei deaktiviertem Autoplay nur eine statische Vorschau laden; bei aktivem Autoplay die nach Site tatsächlich verfügbare animierte URL entsprechend Qualität/Fallback wählen. Wichtig: Statische kleinere GIF-Thumbnails sind keine garantierten niedrig aufgelösten *animierten* GIF-Varianten; Danbooru liefert häufig statische 180/360/720-Varianten und die animierte Original-GIF. Eine fehlende animierte Preview nicht erfinden; im Viewer gelten dessen eigene Qualität-/Abspielregeln.
+- **Daten / Abhängigkeiten:** Fork-spezifische Danbooru-Variant-URL-Auflösung und generischen Thumbnail-Resolver erhalten; keine persistente Migration.
+- **Verifikation:** Danbooru/andere Boorus, automatische/low/high/highest/original-Qualität × autoplay/static, verfügbares/unverfügbares Sample, URL und Aspect Ratio, GIF-Animation bei deaktiviertem Autoplay im Grid.
+- **Verbindliches Protokoll:** [P06](decisions.md#p06-angepasst-bernehmen).
 - **Änderung in Upstream:** GIF-Autoplay-Setting greift auch bei alternativen Bildqualitäten.
 - **Fork / potenzieller Konflikt:** Fork trennt Preview-/Post-Qualitäten und hat GIF-Export-/Trim-Tools.
-- **Zu entscheiden:** Fix in unsere Quality-Resolver übertragen?
-- **Arbeitshypothese (nicht beschlossen):** Ja, falls nicht bereits durch eigene Quality-Änderungen behoben.
+- **Ursprüngliche Fragestellung:** Fix in unsere Quality-Resolver übertragen?
+- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Ja, falls nicht bereits durch eigene Quality-Änderungen behoben.
 - **Abnahme/Test:** GIF preview/sample/original, Energie-/Datenspar-Setting.
 - **Upstream-Commits:** [`e4d645630`](https://github.com/khoadng/Boorusama/commit/e4d6456309c93f050b3a5d311ea4e2a60e0a7663).
 - **Betroffene Codepfade (Auswahl):** `lib/core/posts`, `lib/boorus`.
 
 ### P07 · Video-Thumbnail bis zum ersten gerenderten Frame anzeigen
 
-**Status:** Entscheidung; Entscheidung: **OFFEN** · **Risiko:** 🟡 mittel.
+**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟡 mittel.
 
+- **Bestätigter Beschluss:** angepasst übernehmen. Video-Thumbnail/Poster bis zum tatsächlichen Rendering des ersten Frames anzeigen und anschließend nahtlos freigeben. First-Frame-Status für jeden Quell-/Engine-Wechsel zurücksetzen und ältere asynchrone Signale anhand Generation/Source-ID ignorieren; bei fehlgeschlagener First-Frame-Benachrichtigung einen sichtbaren Fehler-/Fallbackzustand bereitstellen, keinen dauerhaft verdeckten Player. Fork-Video-Viewer, Cache und Hero-/Thumbnail-Logik erhalten.
+- **Daten / Abhängigkeiten:** `BooruPlayer`-fähige First-Frame-Signale für unterstützte Engines; nur Runtime-State, keine Migration.
+- **Verifikation:** Langsame Initialisierung, Cache/Stream, MPV/MediaKit/video_player/WebView, schnelle URL-Wechsel, First-Frame-/Player-Fehler, dispose und Reinitialize, Overlay/Transition.
+- **Verbindliches Protokoll:** [P07](decisions.md#p07-angepasst-bernehmen).
 - **Änderung in Upstream:** Video-Placeholder verschwindet erst, wenn Player tatsächlich einen Frame gerendert hat.
 - **Fork / potenzieller Konflikt:** Fork hat Post-Viewer- und Video-Thumbnail-Anpassungen.
-- **Zu entscheiden:** Welche Quelle für Placeholder und Fade-Transition nutzen?
-- **Arbeitshypothese (nicht beschlossen):** Perceived-performance-Fix übernehmen.
+- **Ursprüngliche Fragestellung:** Welche Quelle für Placeholder und Fade-Transition nutzen?
+- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Perceived-performance-Fix übernehmen.
 - **Abnahme/Test:** langsamer Decoder, Wiederaufnahme aus Cache, Video-Player-Wechsel.
 - **Upstream-Commits:** [`2003c0c1e`](https://github.com/khoadng/Boorusama/commit/2003c0c1eb2cf6b3ef0939b33adf1b575fcae8f9).
 - **Betroffene Codepfade (Auswahl):** `lib/core/videos/player/src/widgets/video_player.dart`.
@@ -785,36 +801,48 @@ Für jedes Thema eines von **(a) vollständig übernehmen**, **(b) angepasst üb
 
 ### P11 · Videosteuerung: Zeit-Overflow und Media-Play/Pause-Key
 
-**Status:** Entscheidung; Entscheidung: **OFFEN** · **Risiko:** 🟡 niedrig–mittel.
+**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟡 niedrig–mittel.
 
+- **Bestätigter Beschluss:** übernehmen (Fork-Player berücksichtigen). Video-Zeitanzeigen nicht länger auf fixe 40 px beschränken (minimale Breite und sichere flexible Darstellung). Media-Play/Pause/Toggle-Hardwaretasten nur auf den aktuell sichtbaren/fokussierten Video-Post routen; bei Bild-Posts, Hidden Playern und Textfokus nicht unerwartet abspielen. Vorhandene Player-Engine- und Viewer-Shortcuts erhalten.
+- **Daten / Abhängigkeiten:** Keine Persistenz. Keyboard-Shortcut-Routing bei U04/U05/U06 auf Konflikte prüfen.
+- **Verifikation:** Lange Zeiten/schmale Screens, Text-Scaling, MediaPlay/MediaPause/MediaPlayPause, Bildpost vs. Videopost, Fokus/Seitenwechsel, unterschiedliche Engines.
+- **Verbindliches Protokoll:** [P11](decisions.md#p11-bernehmen-forkplayer-bercksichtigen).
 - **Änderung in Upstream:** Zeit-Text darf wachsen; Play/Pause per Medien-Hardwaretaste.
 - **Fork / potenzieller Konflikt:** Fork hat eigene Post-Detail-Toolbar und Player-Engines.
-- **Zu entscheiden:** Hotkeys und Controls an unsere Controls binden?
-- **Arbeitshypothese (nicht beschlossen):** Ja, sofern mit Focus-/Routing-System kompatibel.
+- **Ursprüngliche Fragestellung:** Hotkeys und Controls an unsere Controls binden?
+- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Ja, sofern mit Focus-/Routing-System kompatibel.
 - **Abnahme/Test:** Schmale Player, Keyboard/Remote, Player-Engine-Wechsel.
 - **Upstream-Commits:** [`c65a81074`](https://github.com/khoadng/Boorusama/commit/c65a81074f123eed5efbe368a8a44985dd8340cf), [`72bafb43d`](https://github.com/khoadng/Boorusama/commit/72bafb43d3e5063749ce663277201b01ea644a54).
 - **Betroffene Codepfade (Auswahl):** `lib/core/posts/details/src/widgets/video_controls.dart`, `lib/core/posts/details/src/widgets/post_details_controller.dart`.
 
 ### P12 · Hover Preview nur über Info-Badge öffnen; Long Press erhalten
 
-**Status:** Entscheidung; Entscheidung: **OFFEN** · **Risiko:** 🟠 hoch.
+**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟠 hoch.
 
+- **Bestätigter Beschluss:** angepasst übernehmen. Hover-Preview nicht über die gesamte Thumbnail-Fläche, sondern über ein gezieltes Info-Badge öffnen, das bei Pointer-Hover bzw. passend fokussierter Keyboard-Navigation sichtbar wird. Gesten-/Hit-Test-Fixes für Long-Press, Right-Click und Hold-and-Drag übernehmen, Selection vor Preview-Badge priorisieren und bei Tastatureingaben Preview sauber schließen. Badge-Positionierung mit noch offenem P01 (bis zu zwei Quick Actions) und Series-Gruppenkarten abstimmen; keine neue unruhige permanente Overlay-Reihe.
+- **Daten / Abhängigkeiten:** Nur UI/Interaktion, keine neuen persistenten Felder. Bestehenden `tooltipDisplayMode` respektieren.
+- **Verifikation:** Desktop Hover/Badeg-Tap, Touch Long-Press, Rechtsklick, Hold-and-Drag-Selection, Keyboard/Escape/Textinput, enge Grid-Kacheln, Series-Karte, disabled Tooltip.
+- **Verbindliches Protokoll:** [P12](decisions.md#p12-angepasst-bernehmen).
 - **Änderung in Upstream:** Nicht mehr gesamte Thumbnail-Fläche als Hover-Preview; gezieltes Info-Badge; Hover schließt bei Keypress; Longpress/Rightclick öffnet Menü wieder.
 - **Fork / potenzieller Konflikt:** Fork hat Kontextmenüs/Selection über Hold-and-Drag sowie eigene Grid-Karten.
-- **Zu entscheiden:** Möchten wir ein Info-Badge oder bestehendes Hover? Wo liegt Badge bei zwei Quick Actions/Series-Karten?
-- **Arbeitshypothese (nicht beschlossen):** Getrennte Designentscheidung nach P01 und Context-Menu-Review; sichere Longpress-Fixes übernehmen.
+- **Ursprüngliche Fragestellung:** Möchten wir ein Info-Badge oder bestehendes Hover? Wo liegt Badge bei zwei Quick Actions/Series-Karten?
+- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Getrennte Designentscheidung nach P01 und Context-Menu-Review; sichere Longpress-Fixes übernehmen.
 - **Abnahme/Test:** Mouse Hover, Touch Longpress, Drag Selection, Keyboard, Series Tile.
 - **Upstream-Commits:** [`e04b3bfd1`](https://github.com/khoadng/Boorusama/commit/e04b3bfd186e8b5b88ab704189e23178ae26d098), [`5da94c1df`](https://github.com/khoadng/Boorusama/commit/5da94c1dfa6a39ef34c21c6ba1d171267ee06928), [`5feaa3dcf`](https://github.com/khoadng/Boorusama/commit/5feaa3dcf0a5069afab3f95594b3935fe08f7150).
 - **Betroffene Codepfade (Auswahl):** `lib/core/posts/listing/src/widgets/post_preview.dart`, `lib/core/posts/listing/src/_internal/raw_post_grid.dart`.
 
 ### P13 · Post-/Tag-Kontextmenüs auf Kurumi migrieren
 
-**Status:** Entscheidung; Entscheidung: **OFFEN** · **Risiko:** 🟠 hoch.
+**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟠 hoch.
 
+- **Bestätigter Beschluss:** angepasst übernehmen (A02). Post-/Tag-Kontextmenüs über Kurumi vereinheitlichen und Keyboard/Right-Click/Long-Press/Back/Escape sowie konsistente Darstellung übernehmen. ALLE Fork-Menüaktionen, Favoriten-/Bookmarks-/Following-/Gruppenaktionen, Untermenüs, Kontext-/Selection-Priorität und bestehende Tap-through-/Dismiss-Fixes behalten. Upstreams große Migration nicht pauschal über die Fork-`KurumiContextMenuPageController`- und `CustomContextMenuOverlay`-Erweiterungen legen; dieselbe Menükomponente mit kompatiblen Funktionen verwenden.
+- **Daten / Abhängigkeiten:** Keine persistente Migration, A02-Kurumi-/Menü-Migration koordinieren; Anchor-Dependency-Fix nur im kompatiblen Lockfile-Stand anwenden.
+- **Verifikation:** Post/Tag/Grid/Selection, Long-Press, Right-Click, Untermenüs, ESC/Back, Keyboard-Rückfokus, outside click, RTL/kompakt/Tag-Cloud und Overlay-Schichtreihenfolge.
+- **Verbindliches Protokoll:** [P13](decisions.md#p13-angepasst-bernehmen-a02).
 - **Änderung in Upstream:** Ersetzt alte Context Menus durch Kurumi; bei Tag Cloud sichert eine Abhängigkeitsanpassung die Popup-Größe.
 - **Fork / potenzieller Konflikt:** Fork hat `CustomContextMenuOverlay`, weitere Actions (Following, Bookmark Groups) und eigene Menu-Dismiss-Fixes.
-- **Zu entscheiden:** Kurumi als einheitliche Menükomponente verwenden, aber alle Fork-Actions/Shortcuts erhalten?
-- **Arbeitshypothese (nicht beschlossen):** Kurumi wo kompatibel übernehmen, Fork-Actions und Tap-through-Schutz als Pflicht.
+- **Ursprüngliche Fragestellung:** Kurumi als einheitliche Menükomponente verwenden, aber alle Fork-Actions/Shortcuts erhalten?
+- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Kurumi wo kompatibel übernehmen, Fork-Actions und Tap-through-Schutz als Pflicht.
 - **Abnahme/Test:** Longpress/Rightclick, Tap outside, Undo, Compact, RTL, Selection.
 - **Upstream-Commits:** [`8ca15fcff`](https://github.com/khoadng/Boorusama/commit/8ca15fcff2e461488bc4ced314700196d421deb5), [`1e480b775`](https://github.com/khoadng/Boorusama/commit/1e480b7751a359931c53057e86a42ff56a1c6672).
 - **Betroffene Codepfade (Auswahl):** `lib/core/posts/post/src/context_menu.dart`, `lib/core/widgets/custom_context_menu_overlay.dart`, `packages/kurumi/lib/src/components/context_menu.dart`.
@@ -822,12 +850,16 @@ Für jedes Thema eines von **(a) vollständig übernehmen**, **(b) angepasst üb
 
 ### P14 · Keyboard-Fokus auf Quick Favorite/Bookmark-Buttons
 
-**Status:** Entscheidung; Entscheidung: **OFFEN** · **Risiko:** 🟡 mittel.
+**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟡 mittel.
 
+- **Bestätigter Beschluss:** übernehmen, abgestimmt auf P01/A02. Sichtbare Quick Favorite-/Bookmark-Buttons und weitere Thumbnail-Actions mit klarer Semantik, fokussiertem Zustand und Enter/Space-Aktivierung versehen. Bei maximal zwei Aktionen eine logisch nachvollziehbare Reihenfolge und Pfeil-/Tab-Navigation anbieten, ohne Kachelöffnung, Grid-Selection, Scroll-/Hold-and-Drag-Gesten zu übernehmen oder unsichtbare Buttons fokussierbar zu machen.
+- **Daten / Abhängigkeiten:** Kein Datenmodell/Schema. Abhängig vom noch offenen Layout P01 und A02-Focus-/Kurumi-Änderungen.
+- **Verifikation:** Keyboard/TV Focus/Enter/Space/Arrow/Tab, Scroll mit Recycling, Selection, Hidden/Disabled Actions, kleine Kacheln und visuelle Focus-Indication.
+- **Verbindliches Protokoll:** [P14](decisions.md#p14-bernehmen-abgestimmt-auf-p01a02).
 - **Änderung in Upstream:** Kleine interaktive Overlays auf Thumbnail sind mit Keyboard erreichbar.
 - **Fork / potenzieller Konflikt:** Fork verwendet eigene Thumbnail-Action und Post-Selection.
-- **Zu entscheiden:** Fokusreihenfolge für Card plus bis zu zwei Quick Actions?
-- **Arbeitshypothese (nicht beschlossen):** Buttons erreichbar, aber Keyboard-Bedienung darf Grid-Selection nicht behindern.
+- **Ursprüngliche Fragestellung:** Fokusreihenfolge für Card plus bis zu zwei Quick Actions?
+- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Buttons erreichbar, aber Keyboard-Bedienung darf Grid-Selection nicht behindern.
 - **Abnahme/Test:** Tab/Arrow, Fokus nach Scroll, Favorite/Bookmark Toggle.
 - **Upstream-Commits:** [`d1047aa89`](https://github.com/khoadng/Boorusama/commit/d1047aa890c64b3baa575e0ca16f50b4724e6826).
 - **Betroffene Codepfade (Auswahl):** `lib/core/posts/listing`, `packages/kurumi/lib/src/components`.
