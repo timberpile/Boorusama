@@ -1,6 +1,6 @@
 # Upstream v4.6.1 — Decision Log
 
-**Authoritative decision status:** **68 of 68 items approved** (2026-10-16); **none outstanding**. Local implementation was assigned to an agent on 2026-10-16. Integration into shared branches and releases are **not** authorized. This document records only the analysis and explicitly approved future behavior. See the [catalog](boorusama-v4.6.1-entscheidungskatalog.md) and [checklist](boorusama-v4.6.1-checkliste.md).
+**Authoritative decision status:** **68 of 68 items approved** (2026-10-16); **none outstanding**. Local implementation was assigned to an agent on 2026-10-16. Integration into shared branches and releases are **not** authorized. This document records only the analysis and explicitly approved future behavior. See the [catalog](boorusama-v4.6.1-decision-catalog.md) and [checklist](boorusama-v4.6.1-decision-checklist.md).
 
 ## Decision Record Format
 
