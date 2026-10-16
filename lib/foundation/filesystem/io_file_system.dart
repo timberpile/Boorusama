@@ -15,6 +15,7 @@ import 'package:path_provider/path_provider.dart';
 // Project imports:
 import 'app_file_system.dart';
 import 'durable_sync.dart';
+import 'publish_file.dart' as atomic;
 
 const _kAppTemporaryDirectoryName = String.fromEnvironment('APP_NAME');
 
@@ -162,6 +163,10 @@ class IoFileSystem implements AppFileSystem {
   @override
   Future<void> renameFile(String source, String destination) =>
       File(source).rename(destination);
+
+  @override
+  Future<bool> publishFileIfAbsent(String source, String destination) async =>
+      atomic.publishFileIfAbsent(source, destination);
 
   @override
   Future<void> syncFile(String path) async {

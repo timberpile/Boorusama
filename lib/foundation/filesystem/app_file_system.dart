@@ -35,6 +35,9 @@ abstract interface class AppFileSystem {
 
   Future<void> renameFile(String source, String destination);
 
+  /// Atomically publishes a complete file. Returns false if destination exists.
+  Future<bool> publishFileIfAbsent(String source, String destination);
+
   Future<void> syncFile(String path);
 
   Future<int> fileSize(String path);

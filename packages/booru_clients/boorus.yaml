@@ -126,8 +126,7 @@
           authentication: required
         overrides:
           posts:
-            endpoint: "https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1"
-            parser: "parseR34PostsApi"
+            endpoint: "/index.php?page=dapi&s=post&q=index"
           autocomplete:
             endpoint: "https://api.rule34.xxx/autocomplete.php"
           favorites:

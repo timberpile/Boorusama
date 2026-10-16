@@ -29,6 +29,7 @@ final animePicturesDioProvider = Provider.family<Dio, BooruConfigAuth>((
   config,
 ) {
   return newDio(
+    apiCoordinator: ref.watch(apiRequestCoordinatorProvider),
     options: DioOptions(
       ddosProtectionHandler: ref.watch(httpDdosProtectionBypassProvider),
       userAgent: ref.watch(defaultUserAgentProvider),

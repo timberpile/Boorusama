@@ -226,6 +226,7 @@ class BulkDownloadNotifier extends Notifier<BulkDownloadState> {
       DownloadSessionStatus.running,
       DownloadSessionStatus.dryRun,
       DownloadSessionStatus.paused,
+      DownloadSessionStatus.completed,
     ]);
 
     final dryRunSessions = interruptedSessions
@@ -238,6 +239,21 @@ class BulkDownloadNotifier extends Notifier<BulkDownloadState> {
               e.status == DownloadSessionStatus.paused,
         )
         .toList();
+
+    // Resume finalization after interruption. Also repair completed sessions
+    // written by the former non-atomic path when they still retain records.
+    // Startup recovery does not replay transient completion notifications.
+    for (final session in interruptedSessions) {
+      if (session.status == DownloadSessionStatus.dryRun) continue;
+      final total = await repo.getRecordsCountBySessionId(session.id);
+      final completed = await repo.getRecordsCountBySessionId(
+        session.id,
+        status: DownloadRecordStatus.completed,
+      );
+      if (total == 0 || total != completed) continue;
+      await repo.updateStatisticsAndCleanup(session.id);
+      runningSessions.removeWhere((value) => value.id == session.id);
+    }
 
     // For dry run sessions, just reset to pending cause the data are already stale
     // Also do cleanup by deleting all records associated with the session
@@ -1083,14 +1099,14 @@ class BulkDownloadNotifier extends Notifier<BulkDownloadState> {
     final finished = state.sessions
         .where((value) => value.id == sessionId)
         .firstOrNull;
+    // The repository commits statistics, cleanup and terminal status atomically.
+    // A failure leaves the session retryable, including after a process restart.
+    final stats = await _withRepo(
+      (repo) => repo.updateStatisticsAndCleanup(sessionId),
+    );
     session = await _updateSession(
       sessionId,
       status: DownloadSessionStatus.completed,
-    );
-
-    // Calculate final statistics and cleanup
-    final stats = await _withRepo(
-      (repo) => repo.updateStatisticsAndCleanup(sessionId),
     );
 
     if (finished != null) {

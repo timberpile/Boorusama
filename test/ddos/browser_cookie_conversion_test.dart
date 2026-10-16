@@ -22,6 +22,43 @@ BrowserCookie _cookie(
 );
 
 void main() {
+  test(
+    'unknown attributes fail closed and native request paths never broaden',
+    () {
+      final cookies = browserCookiesForRequest(
+        uri: Uri.parse('https://example.com/protected/page'),
+        cookies: [
+          const BrowserCookie(
+            name: 'clearance',
+            value: 'fixture',
+            domain: 'example.com',
+            path: '/protected/page',
+          ),
+        ],
+        now: _newer,
+      );
+      expect(cookies.single.secure, isTrue);
+      expect(cookies.single.httpOnly, isTrue);
+      expect(cookies.single.domain, isNull);
+      expect(cookies.single.path, '/protected/page');
+      expect(
+        browserCookiesForRequest(
+          uri: Uri.parse('http://example.com/protected/page'),
+          cookies: [
+            const BrowserCookie(
+              name: 'clearance',
+              value: 'fixture',
+              domain: 'example.com',
+              path: '/',
+            ),
+          ],
+          now: _newer,
+        ),
+        isEmpty,
+      );
+    },
+  );
+
   final cases = [
     (
       description: 'keeps only the newest of same-scope duplicates',

@@ -21,8 +21,7 @@ final class HiveFavoriteTagRepositoryFactory
 
   @override
   Future<void> dispose(FavoriteTagRepository repository) async {
-    if (repository case final FavoriteTagRepositoryHive hiveRepository) {
-      await hiveRepository.close();
-    }
+    // Hive shares boxes across overlapping runtime scopes. The application owns
+    // their lifetime; disposing one repository must not close another's box.
   }
 }

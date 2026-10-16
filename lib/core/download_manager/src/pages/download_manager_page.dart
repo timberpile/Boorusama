@@ -14,6 +14,7 @@ import '../../../configs/config/providers.dart';
 import '../../../configs/config/types.dart';
 import '../../../ddos/handler/providers.dart';
 import '../../../downloads/background/types.dart';
+import '../../../downloads/sidecar/widgets.dart';
 import '../../../http/client/providers.dart';
 import '../../../settings/routes.dart';
 import '../../../widgets/default_selection_bar.dart';
@@ -163,6 +164,7 @@ class _DownloadManagerPageState extends ConsumerState<DownloadManagerPage> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  const SidecarFailureNotice(),
                   SelectionConsumer(
                     builder: (_, controller, _) {
                       final multiSelect = controller.isActive;

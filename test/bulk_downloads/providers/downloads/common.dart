@@ -238,7 +238,7 @@ final dummyDownloadFileNameBuilder = DownloadFileNameBuilder<Post>(
   tokenHandlers: const [],
   sampleData: const [],
   defaultFileNameFormat: 'test-default-format',
-  defaultBulkDownloadFileNameFormat: 'test-default-bulk-format',
+  defaultBulkDownloadFileNameFormat: 'test-default-bulk-format-{index}',
 );
 
 class AlwaysExistsDirectoryExistChecker implements DirectoryExistChecker {

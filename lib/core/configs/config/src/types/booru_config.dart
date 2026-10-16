@@ -26,6 +26,7 @@ import 'booru_config_repository.dart';
 import 'granular_rating_filter.dart';
 import 'profile_icon_configs.dart';
 import 'profile_id.dart';
+import 'profile_option_warnings.dart';
 import 'types.dart';
 
 export 'always_included_tags.dart';
@@ -66,10 +67,15 @@ class BooruConfig extends Equatable {
     required this.tooltipDisplayMode,
     this.networkSettings,
     this.profileIcon,
+    this.optionWarnings = const [],
   });
+
+  /// Transient import diagnostics; not part of persisted profile identity.
+  final List<String> optionWarnings;
 
   factory BooruConfig.fromJson(Map<String, dynamic> json) {
     return BooruConfig(
+      optionWarnings: profileOptionWarnings(json),
       id: readProfileId(json['id']),
       booruId: json['booruId'] as int,
       booruIdHint: json['booruIdHint'] as int,
@@ -243,6 +249,7 @@ class BooruConfig extends Equatable {
   }) {
     return BooruConfig(
       id: id,
+      optionWarnings: optionWarnings,
       booruId: booruId,
       booruIdHint: booruIdHint ?? this.booruIdHint,
       url: url ?? this.url,
@@ -615,8 +622,10 @@ class NetworkSettings extends Equatable {
           ),
           _ => const [],
         },
-        mediaHostOverridesEnabled:
-            map['mediaHostOverridesEnabled'] as bool? ?? true,
+        mediaHostOverridesEnabled: switch (map['mediaHostOverridesEnabled']) {
+          final bool enabled => enabled,
+          _ => true,
+        },
       ),
       _ => null,
     };

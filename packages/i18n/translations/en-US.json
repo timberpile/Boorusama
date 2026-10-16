@@ -638,7 +638,23 @@
     },
     "no_result_notice": "No result",
     "search_in_progress_notice": "Searching...",
-    "raw_query": "Raw query"
+    "raw_query": "Raw query",
+    "options": {
+      "rating": "Rating",
+      "date": "Date",
+      "order": "Sort order",
+      "user": "Uploader",
+      "pool": "Pool",
+      "favorites": "Favorites by user",
+      "safe": "Safe",
+      "questionable": "Questionable",
+      "explicit": "Explicit",
+      "general": "General",
+      "newest": "Newest",
+      "score": "Score",
+      "date_hint": "YYYY-MM-DD or a date range",
+      "sensitive": "Sensitive"
+    }
   },
   "pool": {
     "pool": "Pool",
@@ -940,7 +956,10 @@
         "description": "Save tags or post information beside downloaded files.",
         "off": "Off",
         "tags": "Tags (.txt)",
-        "json": "Metadata (.json)"
+        "json": "Metadata (.json)",
+        "failures_title": "Metadata needs attention",
+        "failures_description": "Some downloads were saved without their metadata. Retry metadata without downloading media again.",
+        "retry_failed_error": "Metadata could not be saved. Check the folder permissions and existing metadata files, then retry."
       },
       "path": "Download path",
       "select_a_folder": "Select a folder",
@@ -1218,7 +1237,10 @@
           "unresolved_profile_feeds": "{profile}: Choose a target profile or create a new profile for the selected feeds.",
           "unresolved_profile_import": "Choose a valid import action and target for {item}.",
           "incomplete_checks": "Boorusama could not complete all safety checks for {source}.",
-          "unknown_problem": "Boorusama found a problem with {source}."
+          "unknown_problem": "Boorusama found a problem with {source}.",
+          "profile_thumbnail_actions_fallback": "Profile {item}: unsupported thumbnail actions were ignored or reset to supported defaults.",
+          "profile_media_rules_fallback": "Profile {item}: invalid media host rules were ignored. Review the profile network settings.",
+          "profile_media_enabled_fallback": "Profile {item}: an invalid media host switch was reset to its default."
         },
         "preview_count": {
           "one": "${n} change",

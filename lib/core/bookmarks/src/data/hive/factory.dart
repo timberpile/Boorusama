@@ -24,8 +24,7 @@ final class HiveBookmarkRepositoryFactory implements BookmarkRepositoryFactory {
 
   @override
   Future<void> dispose(BookmarkRepository repository) async {
-    if (repository case final BookmarkHiveRepository hiveRepository) {
-      await hiveRepository.close();
-    }
+    // Hive shares boxes across overlapping runtime scopes. The application owns
+    // their lifetime; disposing one repository must not close another's box.
   }
 }

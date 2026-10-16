@@ -1,9 +1,9 @@
 # Implementation handoff — real merge of Boorusama upstream v4.6.1
 
-**Created:** 2026-10-16  
-**Repository:** `timberpile/Boorusama`  
-**Task:** Implement the **entire approved 68-item migration** from upstream `khoadng/Boorusama` **tag `v4.6.1`**, including the subsequent A16 versioning-policy amendment.  
-**Approval:** On 2026-10-16 the user commissioned a local agent to **implement this entire migration plan**. This permits local task-branch work, not a push, merge into protected/shared branches, PR publication, release tagging, or public GitHub/Play Store release. Follow `AGENTS.md` and `docs/development_workflow.md` for those distinct actions.  
+**Created:** 2026-10-16
+**Repository:** `timberpile/Boorusama`
+**Task:** Implement the **entire approved 68-item migration** from upstream `khoadng/Boorusama` **tag `v4.6.1`**, including the subsequent A16 versioning-policy amendment.
+**Approval:** On 2026-10-16 the user commissioned a local agent to **implement this entire migration plan**. This permits local task-branch work, not a push, merge into protected/shared branches, PR publication, release tagging, or public GitHub/Play Store release. Follow `AGENTS.md` and `docs/development_workflow.md` for those distinct actions.
 **Status on handoff:** **68/68 product/technical decisions approved; local implementation is commissioned but was NOT started by the planning agent.**
 
 ## 0. Read this first: sources of truth

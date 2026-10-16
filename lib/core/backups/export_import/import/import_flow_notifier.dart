@@ -1,5 +1,7 @@
 import 'dart:async';
+
 import 'package:i18n/i18n.dart';
+
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -386,6 +388,16 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
             revisionToken: capturedRevision,
             rollbackBytes: wrapper.preflightRollbackBytes,
             errors: integrityIssues,
+            warnings: [
+              if (wrapper.preparedData case final List<BooruConfig> profiles)
+                for (final profile in profiles)
+                  for (final code in profile.optionWarnings)
+                    ImportPlanIssue(
+                      code: code,
+                      sourceId: 'profiles',
+                      itemId: profile.id,
+                    ),
+            ],
           ),
         );
       }

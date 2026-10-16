@@ -60,6 +60,20 @@ void main() {
       );
       expect(await paintedPixel(tester), [255, 0, 0, 255]);
       expect(tester.getSize(find.byType(ExtendedRawImage).first), bounds);
+      expect(find.text('Retry'), findsOneWidget);
+      adapter.pending.remove('https://fixture.test/target');
+      await tester.tap(find.text('Retry'));
+      await tester.runAsync(
+        () => pumpUntil(
+          tester,
+          () => adapter.pending.containsKey('https://fixture.test/target'),
+          reason: 'explicit retry of failed target',
+        ),
+      );
+      expect(await paintedPixel(tester), [255, 0, 0, 255]);
+      adapter.complete('https://fixture.test/target', targetPng);
+      await tester.runAsync(() => waitForPixel(tester, [0, 0, 255, 255]));
+      expect(find.text('Retry'), findsNothing);
       await tester.pumpWidget(const SizedBox());
       controller.dispose();
       dio.close(force: true);

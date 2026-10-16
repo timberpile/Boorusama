@@ -134,7 +134,7 @@ class PostGridController<T extends Post> extends ChangeNotifier {
 
     return result.fold(
       (l) {
-        if (mountedChecker()) {
+        if (!_disposed && mountedChecker() && !_refreshPending) {
           errors.value = l;
         }
 
@@ -294,8 +294,6 @@ class PostGridController<T extends Post> extends ChangeNotifier {
       _queuedRefreshWaiters.add(waiter);
       return waiter.future;
     }
-    Object? firstError;
-    StackTrace? firstStackTrace;
     Object? lastPassError;
     StackTrace? lastPassStackTrace;
     try {
@@ -313,8 +311,6 @@ class PostGridController<T extends Post> extends ChangeNotifier {
           lastPassError = null;
           lastPassStackTrace = null;
         } catch (error, stackTrace) {
-          firstError ??= error;
-          firstStackTrace ??= stackTrace;
           lastPassError = error;
           lastPassStackTrace = stackTrace;
         }
@@ -328,8 +324,8 @@ class PostGridController<T extends Post> extends ChangeNotifier {
           waiter.completeError(lastPassError, lastPassStackTrace);
         }
       }
-      if (firstError != null) {
-        Error.throwWithStackTrace(firstError, firstStackTrace!);
+      if (lastPassError != null) {
+        Error.throwWithStackTrace(lastPassError, lastPassStackTrace!);
       }
     } finally {
       _queuedRefreshWaiters.clear();

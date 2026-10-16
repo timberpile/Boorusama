@@ -1,3 +1,5 @@
+import '../../core/search/search/src/types/search_option.dart';
+
 // Package imports:
 import 'package:booru_clients/sankaku.dart';
 import 'package:coreutils/coreutils.dart';
@@ -23,8 +25,36 @@ import 'posts/types.dart';
 import 'search/tag_query_composer.dart';
 import 'tags/providers.dart';
 
-class SankakuRepository extends BooruRepositoryDefault {
+class SankakuRepository extends BooruRepositoryDefault
+    implements SearchOptionsCapability {
   const SankakuRepository({required this.ref});
+
+  @override
+  List<SearchOption> get searchOptions => const [
+    SearchOption(
+      kind: SearchOptionKind.rating,
+      prefix: 'rating',
+      values: ['s', 'q', 'e'],
+      valueLabels: {
+        's': SearchOptionValueLabel.safe,
+        'q': SearchOptionValueLabel.questionable,
+        'e': SearchOptionValueLabel.explicit,
+      },
+    ),
+    SearchOption(kind: SearchOptionKind.date, prefix: 'date'),
+    SearchOption(
+      kind: SearchOptionKind.order,
+      prefix: 'order',
+      values: ['id', 'score'],
+      valueLabels: {
+        'id': SearchOptionValueLabel.newest,
+        'score': SearchOptionValueLabel.score,
+      },
+    ),
+    SearchOption(kind: SearchOptionKind.user, prefix: 'user'),
+    SearchOption(kind: SearchOptionKind.pool, prefix: 'pool'),
+    SearchOption(kind: SearchOptionKind.favorites, prefix: 'fav'),
+  ];
 
   @override
   final Ref ref;

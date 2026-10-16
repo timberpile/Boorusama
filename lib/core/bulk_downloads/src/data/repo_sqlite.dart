@@ -944,9 +944,59 @@ class DownloadRepositorySqlite
   Future<DownloadSessionStats> updateStatisticsAndCleanup(
     String sessionId,
   ) async {
-    final stats = await getActiveSessionStats(sessionId);
-
+    late final DownloadSessionStats stats;
     transaction(() {
+      final records = db
+          .select(
+            'SELECT * FROM download_records WHERE session_id = ? ORDER BY page ASC, page_index ASC',
+            [sessionId],
+          )
+          .map(mapToRecord)
+          .toList();
+      if (records.isEmpty) {
+        final rows = db.select(
+          'SELECT * FROM download_session_statistics WHERE session_id = ?',
+          [sessionId],
+        );
+        if (rows.isNotEmpty) {
+          final row = rows.single;
+          stats = DownloadSessionStats(
+            id: row['id'] as int?,
+            sessionId: sessionId,
+            coverUrl: row['cover_url'] as String?,
+            siteUrl: row['site_url'] as String?,
+            totalItems: row['total_files'] as int,
+            totalSize: row['total_size'] as int?,
+            averageDuration: switch (row['average_duration']) {
+              final int duration => Duration(milliseconds: duration),
+              _ => null,
+            },
+            averageFileSize: row['average_file_size'] as int?,
+            largestFileSize: row['largest_file_size'] as int?,
+            smallestFileSize: row['smallest_file_size'] as int?,
+            medianFileSize: row['median_file_size'] as int?,
+            avgFilesPerPage: (row['avg_files_per_page'] as num?)?.toDouble(),
+            maxFilesPerPage: row['max_files_per_page'] as int?,
+            minFilesPerPage: row['min_files_per_page'] as int?,
+            extensionCounts: Map<String, int>.from(
+              jsonDecode(row['extension_counts'] as String),
+            ),
+          );
+          return;
+        }
+      }
+      final sessions = db.select(
+        'SELECT * FROM download_sessions WHERE id = ? AND deleted_at IS NULL',
+        [sessionId],
+      );
+      stats = calculateDownloadSessionStats(
+        records,
+        sessions.isEmpty ? null : mapToSession(sessions.single),
+      );
+      db.execute(
+        "UPDATE download_sessions SET status = 'completed', completed_at = COALESCE(completed_at, ?) WHERE id = ?",
+        [DateTime.now().millisecondsSinceEpoch, sessionId],
+      );
       db
         ..execute(
           '''

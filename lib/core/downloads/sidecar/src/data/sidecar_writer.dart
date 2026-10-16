@@ -55,12 +55,10 @@ class SidecarWriter {
     final temporary = '$destination.${const Uuid().v4()}.tmp';
     try {
       await fs.writeString(temporary, content, flush: true);
-      // Do not knowingly replace a sidecar created while preparing the output.
-      if (await fs.fileExists(destination)) {
+      if (!await fs.publishFileIfAbsent(temporary, destination)) {
         if (await fs.readString(destination) == content) return;
         throw StateError('Existing metadata file conflicts: $destination');
       }
-      await fs.renameFile(temporary, destination);
     } finally {
       await fs.deleteFileIfExists(temporary);
     }

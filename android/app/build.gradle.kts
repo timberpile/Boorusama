@@ -41,20 +41,21 @@ fun invalidSigningReason(): String {
     return reason
 }
 val splitPerAbi = project.findProperty("split-per-abi") == "true"
-val compileSdkVersion = providers.gradleProperty("boorusama.android.compileSdk").get().toInt()
-val targetSdkVersion = providers.gradleProperty("boorusama.android.targetSdk").get().toInt()
-val minSdkVersion = providers.gradleProperty("boorusama.android.minSdk").get().toInt()
+val appCompileSdk = providers.gradleProperty("boorusama.android.compileSdk").get().toInt()
+val appTargetSdk = providers.gradleProperty("boorusama.android.targetSdk").get().toInt()
+val appMinSdk = providers.gradleProperty("boorusama.android.minSdk").get().toInt()
 val androidBuildToolsVersion = providers.gradleProperty("boorusama.android.buildTools").get()
 val ndkVersionName = providers.gradleProperty("boorusama.android.ndk").get()
 
 android {
     namespace = "com.timberpile.boorusama"
-    compileSdk = compileSdkVersion
+    compileSdk = appCompileSdk
     buildToolsVersion = androidBuildToolsVersion
     ndkVersion = ndkVersionName
 
     buildFeatures {
         resValues = true
+        buildConfig = true
     }
 
     compileOptions {
@@ -63,15 +64,11 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_17.toString()
-    }
-
     defaultConfig {
         applicationId = "com.timberpile.boorusama"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        minSdk = minSdkVersion
-        targetSdk = targetSdkVersion
+        minSdk = appMinSdk
+        targetSdk = appTargetSdk
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         multiDexEnabled = true
@@ -116,6 +113,12 @@ android {
             dimension = "boorusama"
             resValue("string", "app_name", "Boorusama Timber")
         }
+    }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
     }
 }
 

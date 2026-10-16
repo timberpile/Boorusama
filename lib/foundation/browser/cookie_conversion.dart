@@ -21,7 +21,7 @@ List<Cookie> browserCookiesForRequest({
     if (browserCookie.name.isEmpty) continue;
     final expires = browserCookie.expiresUtc?.toUtc();
     if (expires != null && !expires.isAfter(now.toUtc())) continue;
-    if ((browserCookie.isSecure ?? false) && uri.scheme != 'https') continue;
+    if ((browserCookie.isSecure ?? true) && uri.scheme != 'https') continue;
 
     final rawDomain = browserCookie.domain.trim().toLowerCase();
     final comparisonDomain = rawDomain.startsWith('.')
@@ -39,8 +39,8 @@ List<Cookie> browserCookiesForRequest({
     final cookie = Cookie(browserCookie.name, browserCookie.value)
       ..path = path
       ..expires = expires
-      ..secure = browserCookie.isSecure ?? false
-      ..httpOnly = browserCookie.isHttpOnly ?? false;
+      ..secure = browserCookie.isSecure ?? true
+      ..httpOnly = browserCookie.isHttpOnly ?? true;
 
     // A native cookie with an undotted domain is ambiguous across the mobile
     // and Windows adapters. Keep it host-only by leaving Cookie.domain unset.

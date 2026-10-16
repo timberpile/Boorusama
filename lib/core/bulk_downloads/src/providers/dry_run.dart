@@ -99,6 +99,7 @@ class DryRunNotifier extends FamilyAsyncNotifier<DryRunState, String> {
       final tags = SearchTagSet.fromString(task.tags);
       final sessionId = session.id;
       final allRecords = <DownloadRecord>[];
+      final destinations = <String>{};
 
       if (tags.isEmpty) {
         await _setFailedState(const EmptyTagsError().toString());
@@ -197,6 +198,17 @@ class DryRunNotifier extends FamilyAsyncNotifier<DryRunState, String> {
           );
 
           l._log('Resolved filename for post ${item.id}: $fileName');
+
+          // Real site IDs can repeat across Pixiv pages and custom templates.
+          // Reserve paths across the whole batch, including earlier pages.
+          final destination = normalize(join(task.path, fileName));
+          if (!destinations.add(destination)) {
+            if (!task.skipIfExists) {
+              throw StateError('Download filenames conflict: $fileName');
+            }
+            cumulativeIndex++;
+            continue;
+          }
 
           if (task.skipIfExists) {
             final exists = fileExistChecker.exists(fileName, task.path);

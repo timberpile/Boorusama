@@ -1,6 +1,10 @@
 # Upstream v4.6.1 migration implementation report
 
-**Completed locally:** 2026-10-16
+**Initial local implementation:** 2026-10-16
+
+**Review correction:** The original completeness claim below was not supported
+by independent review. See [consolidated remediation](REVIEW_REMEDIATION.md) for
+validated findings, repairs and verification of the revised candidate.
 
 **Task branch:** `maintenance/upstream-v4.6.1-migration`
 
@@ -19,8 +23,9 @@ ancestor of the result.
 
 ## Implemented scope
 
-All 68 approved decisions in `decisions.md` were applied while resolving the
-upstream merge. The result includes the approved bootstrap/runtime boundaries,
+The initial merge attempted all 68 approved decisions in `decisions.md`.
+Independent review established implementation and acceptance gaps, documented
+in the remediation report. The result includes the approved bootstrap/runtime boundaries,
 storage and identity safeguards, cache and native platform changes, coordinated
 network recovery, site compatibility, Kurumi and input/accessibility updates,
 grid/viewer/search behavior, durable download sidecars and lifecycle work, and

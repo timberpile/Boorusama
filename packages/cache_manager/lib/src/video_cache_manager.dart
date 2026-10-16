@@ -217,6 +217,12 @@ class VideoCacheManager implements ImageCacheManager {
     Map<String, String>? headers,
     int? fileSize,
   }) async {
+    final key = generateCacheKey(url);
+    // A deferred deletion still owns the physical path until its last reader
+    // releases it. A new transfer must never replace that active payload.
+    if (_pendingDeletes.contains(key) || (_activeLeases[key] ?? 0) > 0) {
+      return null;
+    }
     if (await isVideoCached(url)) {
       return null;
     }
@@ -274,6 +280,10 @@ class VideoCacheManager implements ImageCacheManager {
         return existingTask.taskId;
       }
 
+      // HEAD/quota/downloader checks above can yield to a clear or acquisition.
+      if (_pendingDeletes.contains(key) || (_activeLeases[key] ?? 0) > 0) {
+        return null;
+      }
       await fileDownloader.enqueue(task);
       return task.taskId;
     } catch (e) {

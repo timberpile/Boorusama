@@ -54,3 +54,17 @@ and 2 provide broader UI and platform confidence.
 
 Record the candidate commit, device/OS, installed source and destination
 versions, ABI, results and any screenshots or logs that contain no credentials.
+
+## Review repair acceptance
+
+- Fail a grid/viewer image request, then use Retry. Check that ordinary tile taps
+  and selection still work, and that the viewer retains its preview during retry.
+- Create a metadata conflict after a successful download. Open the metadata
+  notice from Downloads or Bulk Downloads, correct the folder/conflict and retry;
+  the media must not download again.
+- Use Sankaku Search Options on phone and desktop for rating, date, sort order,
+  uploader, pool and user favorites; check chips, raw syntax and results together.
+- Import a profile with an unknown thumbnail action or invalid media host option.
+  Check the warning before approval and preservation of its UUID and other data.
+- On Android, solve a challenge at a protected path and confirm cookie transfer
+  works without making it eligible for HTTP or unrelated paths.

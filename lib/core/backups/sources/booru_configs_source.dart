@@ -86,10 +86,12 @@ class BooruConfigsBackupSource extends JsonBackupSource<List<BooruConfig>> {
         executor: (configs, _) => _replaceProfiles(ref, configs),
         restartAfterImport: (uiContext) async {
           final configs = await ref.read(booruConfigRepoProvider).getAll();
-          if ((uiContext, configs.firstOrNull) case (
-            final context?,
-            final firstConfig?,
-          ) when context.mounted) {
+          if ((uiContext, configs.firstOrNull)
+              case (
+                final context?,
+                final firstConfig?,
+              )
+              when context.mounted) {
             Reboot.start(
               context,
               RebootData(
@@ -256,7 +258,10 @@ class _BooruConfigConfirmationStep extends PreparationStep<List<BooruConfig>> {
     final existingConfigs = ref.read(booruConfigProvider);
 
     // Skip confirmation if no existing configs
-    if (existingConfigs.isEmpty) return context;
+    if (existingConfigs.isEmpty &&
+        context.parsedData.every((profile) => profile.optionWarnings.isEmpty)) {
+      return context;
+    }
 
     final exportData = BooruConfigExportData(
       data: context.parsedData,

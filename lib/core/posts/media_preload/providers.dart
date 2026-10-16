@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Project imports:
 import '../../configs/config/types.dart';
+import '../../configs/network/providers.dart';
 import '../../developer_options/providers.dart';
 import '../../http/client/providers.dart';
 import '../../images/providers.dart';
@@ -20,12 +21,23 @@ final preloadManagerProvider =
         );
         final headers = ref.watch(httpHeadersProvider(params.authConfig));
 
+        final network = ref.watch(networkSettingsProvider(params.authConfig));
+        final overridePreloader = network.activeMediaHostOverrides.isEmpty
+            ? imagePreloader
+            : ImagePreloader(
+                cacheManager: cacheManager,
+                dio: ref.watch(mediaOverrideDioProvider(params.authConfig)),
+              );
         final manager = PreloadManager(
-          preloader: (url, cancelToken) => imagePreloader.preloadImage(
-            url,
-            headers: headers,
-            cancelToken: cancelToken,
-          ),
+          preloader: (url, cancelToken) {
+            final request = network.resolveMedia(url, headers: headers);
+            return (request.overridden ? overridePreloader : imagePreloader)
+                .preloadImage(
+                  request.url,
+                  headers: request.headers,
+                  cancelToken: cancelToken,
+                );
+          },
           downloadConfiguration: const DownloadConfiguration(),
           isEnabled: () => ref.read(automaticMediaLoadingEnabledProvider),
         );

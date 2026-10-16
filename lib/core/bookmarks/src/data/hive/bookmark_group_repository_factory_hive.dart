@@ -25,8 +25,7 @@ final class HiveBookmarkGroupRepositoryFactory
 
   @override
   Future<void> dispose(BookmarkGroupRepository repository) async {
-    if (repository case final BookmarkGroupRepositoryHive hiveRepository) {
-      await hiveRepository.close();
-    }
+    // Hive shares boxes across overlapping runtime scopes. The application owns
+    // their lifetime; disposing one repository must not close another's box.
   }
 }

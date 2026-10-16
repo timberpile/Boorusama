@@ -30,6 +30,38 @@ void main() {
     ).writeAsBytes(bytes);
   }
 
+  test(
+    'a deferred deletion blocks replacement until the last reader releases',
+    () async {
+      const url = 'https://example.test/video.mp4';
+      final downloader = _RecordingDownloader();
+      await manager.dispose();
+      manager = VideoCacheManager(
+        fileDownloader: downloader,
+        dio: Dio(),
+        cacheRootPathProvider: () => root.path,
+      );
+      final original = await seed(url, [1, 2, 3]);
+      final first = (await manager.acquireVideo(url))!;
+      final second = (await manager.acquireVideo(url))!;
+      await manager.clearVideo(url);
+      expect(await manager.cacheVideo(url, fileSize: 3), isNull);
+      expect(downloader.queued, isEmpty);
+      await first.release();
+      expect(await original.readAsBytes(), [1, 2, 3]);
+      expect(await manager.cacheVideo(url, fileSize: 3), isNull);
+      await second.release();
+      expect(await original.exists(), isFalse);
+      expect(await manager.cacheVideo(url, fileSize: 3), isNotNull);
+      expect(downloader.queued, hasLength(1));
+      await File(
+        await downloader.queued.single.filePath(),
+      ).writeAsBytes([4, 5, 6]);
+      await first.release();
+      expect(await original.readAsBytes(), [4, 5, 6]);
+    },
+  );
+
   test('clear defers deletion until the active lease is released', () async {
     const url = 'https://example.test/video.mp4';
     final file = await seed(url, [1, 2, 3]);
@@ -80,4 +112,18 @@ void main() {
     await lease!.release();
     expect(await file.exists(), isFalse);
   });
+}
+
+class _RecordingDownloader implements FileDownloader {
+  final queued = <DownloadTask>[];
+  @override
+  Future<Task?> taskForId(String taskId) async => null;
+  @override
+  Future<bool> enqueue(Task task) async {
+    queued.add(task as DownloadTask);
+    return true;
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

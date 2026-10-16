@@ -18,8 +18,7 @@ final class HiveGlobalBlacklistedTagRepositoryFactory
 
   @override
   Future<void> dispose(GlobalBlacklistedTagRepository repository) async {
-    if (repository case final HiveBlacklistedTagRepository hiveRepository) {
-      await hiveRepository.close();
-    }
+    // Hive shares boxes across overlapping runtime scopes. The application owns
+    // their lifetime; disposing one repository must not close another's box.
   }
 }

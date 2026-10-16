@@ -14,10 +14,15 @@ import 'sidecar_writer.dart';
 /// Durable intent, separate from the transfer queue. Waiting records never
 /// infer transfer completion just because a file exists at the destination.
 class SidecarStore {
-  const SidecarStore({required this.directory, required this.fs});
+  const SidecarStore({
+    required this.directory,
+    required this.fs,
+    this.onChanged,
+  });
 
   final String directory;
   final AppFileSystem fs;
+  final void Function()? onChanged;
 
   SidecarWriter get writer => SidecarWriter(fs: fs);
 
@@ -48,6 +53,7 @@ class SidecarStore {
     try {
       await fs.writeString(temporary, jsonEncode(record), flush: true);
       await fs.renameFile(temporary, destination);
+      if (record['state'] == 'failed') onChanged?.call();
     } finally {
       await fs.deleteFileIfExists(temporary);
     }
@@ -65,6 +71,7 @@ class SidecarStore {
   Future<void> discard(String id) async {
     await fs.deleteFileIfExists(_file(id));
     await fs.deleteFileIfExists(_readyFile(id));
+    onChanged?.call();
   }
 
   Future<void> complete(String id, String path) async {

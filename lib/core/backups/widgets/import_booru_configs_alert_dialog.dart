@@ -5,6 +5,8 @@ import 'package:kurumi/material.dart';
 
 // Project imports:
 import '../sources/booru_configs_source.dart';
+import '../export_import/import/import_issue_message.dart';
+import '../export_import/import/import_plan.dart';
 
 class ImportBooruConfigsAlertDialog extends StatelessWidget {
   const ImportBooruConfigsAlertDialog({
@@ -17,67 +19,87 @@ class ImportBooruConfigsAlertDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return KurumiDialogContent(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const SizedBox(height: 20),
-          Text(
-            'Importing ${data.data.length} profiles'.hc,
-            style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w700,
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 20),
+            Text(
+              'Importing ${data.data.length} profiles'.hc,
+              style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+              ),
             ),
-          ),
-          const SizedBox(height: 20),
-          Text(
-            'This will override ALL your current profiles, are you sure?'.hc,
-            style: const TextStyle(
-              fontWeight: FontWeight.w400,
-              fontSize: 14,
+            const SizedBox(height: 20),
+            Text(
+              'This will override ALL your current profiles, are you sure?'.hc,
+              style: const TextStyle(
+                fontWeight: FontWeight.w400,
+                fontSize: 14,
+              ),
             ),
-          ),
-          const SizedBox(height: 20),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Kurumi.themeOf(
-                context,
-              ).colorScheme.errorContainer,
-              shadowColor: Colors.transparent,
-              elevation: 0,
-            ),
-            onPressed: () {
-              Navigator.of(context).pop(true);
-            },
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              child: Text(
-                'Sure'.hc,
-                style: TextStyle(
-                  color: Kurumi.themeOf(context).colorScheme.onErrorContainer,
-                  fontWeight: FontWeight.w600,
+            for (final profile in data.data)
+              for (final code in profile.optionWarnings)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.warning_amber),
+                  title: Text(
+                    importIssueMessage(
+                      context,
+                      ImportPlanIssue(
+                        code: code,
+                        sourceId: 'profiles',
+                        itemId: profile.id,
+                      ),
+                      sourceNames: const {},
+                      itemLabels: {profile.id: profile.name},
+                    ),
+                  ),
+                ),
+            const SizedBox(height: 20),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: Kurumi.themeOf(
+                  context,
+                ).colorScheme.errorContainer,
+                shadowColor: Colors.transparent,
+                elevation: 0,
+              ),
+              onPressed: () {
+                Navigator.of(context).pop(true);
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                child: Text(
+                  'Sure'.hc,
+                  style: TextStyle(
+                    color: Kurumi.themeOf(context).colorScheme.onErrorContainer,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ),
-          ),
-          const SizedBox(height: 8),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.of(context).pop(false);
-            },
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              child: Text(
-                context.t.generic.action.cancel,
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  color: Kurumi.themeOf(context).colorScheme.onSurface,
+            const SizedBox(height: 8),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop(false);
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                child: Text(
+                  context.t.generic.action.cancel,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: Kurumi.themeOf(context).colorScheme.onSurface,
+                  ),
                 ),
               ),
             ),
-          ),
-          const SizedBox(height: 12),
-        ],
+            const SizedBox(height: 12),
+          ],
+        ),
       ),
     );
   }

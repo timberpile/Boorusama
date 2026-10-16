@@ -98,6 +98,13 @@ final class MemoryAppFileSystem implements AppFileSystem {
   }
 
   @override
+  Future<bool> publishFileIfAbsent(String source, String destination) async {
+    if (fileExistsSync(destination)) return false;
+    copyFileSync(source, destination);
+    return true;
+  }
+
+  @override
   Future<void> renameFile(String source, String destination) async {
     copyFileSync(source, destination);
     await deleteFile(source);

@@ -1,3 +1,7 @@
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
+
 // Package imports:
 import 'package:coreutils/coreutils.dart';
 import 'package:dio/dio.dart';
@@ -190,6 +194,17 @@ class DownloadFileNameBuilder<T extends Post>
 
     if (format == null || format.isEmpty) {
       return _joinFileWithExtension(fallbackName, post.format);
+    }
+    if (formatContainsAnyToken(format, const [
+          'id',
+        ], configs: tokenizerConfigs) &&
+        (post.sitePostId?.isEmpty ?? true)) {
+      // This labels a media URL hash, never a synthesized external post ID.
+      final hash = sha256.convert(utf8.encode(downloadUrl));
+      return _joinFileWithExtension(
+        'media_$hash',
+        _extensionFromUrlOrPost(post, downloadUrl),
+      );
     }
 
     final options = DownloadFilenameTokenOptions(

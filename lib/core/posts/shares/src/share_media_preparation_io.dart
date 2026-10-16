@@ -227,14 +227,7 @@ class ShareMediaPreparation {
         final actual = await validateShareImageFile(File(owned.path));
         checkShareCancellation(cancelToken);
         if (actual != null) {
-          final result = ShareMediaLease(
-            path: owned.path,
-            mimeType: _mimeType(actual),
-            deleteOnRelease: false,
-            onReleased: owned.release,
-          );
-          owned = null;
-          return result;
+          return await _copyImageForSharing(owned.path, actual, cancelToken);
         }
         await owned.release();
         owned = null;
@@ -284,14 +277,11 @@ class ShareMediaPreparation {
       write = null;
       checkShareCancellation(cancelToken);
       onProgress?.call(1);
-      final result = ShareMediaLease(
-        path: owned.path,
-        mimeType: _mimeType(actualExtension),
-        deleteOnRelease: false,
-        onReleased: owned.release,
+      return await _copyImageForSharing(
+        owned.path,
+        actualExtension,
+        cancelToken,
       );
-      owned = null;
-      return result;
     } on ShareMediaException {
       rethrow;
     } on DioException catch (error) {
@@ -308,6 +298,29 @@ class ShareMediaPreparation {
     } finally {
       await owned?.release();
       await write?.abort();
+    }
+  }
+
+  Future<ShareMediaLease> _copyImageForSharing(
+    String path,
+    String extension,
+    CancelToken? cancelToken,
+  ) async {
+    await _directory.create(recursive: true);
+    final file = File(
+      p.join(
+        _directory.path,
+        'boorusama_share_${DateTime.now().microsecondsSinceEpoch}_${Random.secure().nextInt(1 << 32)}.$extension',
+      ),
+    );
+    try {
+      checkShareCancellation(cancelToken);
+      await File(path).copy(file.path);
+      checkShareCancellation(cancelToken);
+      return ShareMediaLease(path: file.path, mimeType: _mimeType(extension));
+    } catch (_) {
+      if (await file.exists()) await file.delete();
+      rethrow;
     }
   }
 

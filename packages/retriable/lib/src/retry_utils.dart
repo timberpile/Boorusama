@@ -21,7 +21,9 @@ Future<Response<T>?> tryGetResponse<T>(
   }
   final stopwatch = Stopwatch()..start();
   final builder = fetchStrategy ?? _defaultFetchStrategy;
-  final strategy = builder.build();
+  final strategy = builder.build(
+    wait: (delay) => _waitForRetry(delay, cancelToken),
+  );
   var instructions = await strategy(uri, null);
   _debugCheckInstructions(instructions);
   var attemptCount = 0;
@@ -78,6 +80,23 @@ Future<Response<T>?> tryGetResponse<T>(
     throw lastFailure;
   } else {
     return null;
+  }
+}
+
+Future<void> _waitForRetry(Duration delay, CancelToken? cancellation) async {
+  if (cancellation == null) return Future<void>.delayed(delay);
+  if (cancellation.isCancelled) throw cancellation.cancelError!;
+  final completed = Completer<void>();
+  final timer = Timer(delay, completed.complete);
+  unawaited(
+    cancellation.whenCancel.then((error) {
+      if (!completed.isCompleted) completed.completeError(error);
+    }),
+  );
+  try {
+    await completed.future;
+  } finally {
+    timer.cancel();
   }
 }
 

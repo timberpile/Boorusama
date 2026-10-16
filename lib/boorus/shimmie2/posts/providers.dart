@@ -1,3 +1,5 @@
+import 'dart:async';
+
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -17,6 +19,8 @@ final shimmie2PostRepoProvider =
     Provider.family<PostRepository, BooruConfigSearch>(
       (ref, config) {
         final client = ref.watch(shimmie2ClientProvider(config.auth));
+        var disposed = false;
+        ref.onDispose(() => disposed = true);
         final tagComposer = ref.watch(defaultTagQueryComposerProvider(config));
 
         return PostRepositoryBuilder(
@@ -62,16 +66,21 @@ final shimmie2PostRepoProvider =
                 )
                 .toList();
 
-            // Favorite status is extra; failing to load it must not fail the page.
-            try {
-              if (await ref.read(
-                shimmie2CanFavoriteProvider(config.auth).future,
-              )) {
-                await ref
-                    .read(favoritesProvider(config.auth).notifier)
-                    .checkFavorites(result.map((post) => post.id).toList());
+            // Optional capability discovery and lookup must not hold up listing.
+            unawaited(() async {
+              try {
+                if (await ref.read(
+                  shimmie2CanFavoriteProvider(config.auth).future,
+                )) {
+                  if (disposed) return;
+                  await ref
+                      .read(favoritesProvider(config.auth).notifier)
+                      .checkFavorites(result.map((post) => post.id).toList());
+                }
+              } catch (_) {
+                // Favorite enrichment is best effort; mutations report failures.
               }
-            } catch (_) {}
+            }());
             return result.toResult();
           },
           getSettings: () async => ref.read(imageListingSettingsProvider),

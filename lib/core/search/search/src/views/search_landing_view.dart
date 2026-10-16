@@ -19,6 +19,7 @@ import '../pages/selected_tag_edit_dialog.dart';
 import '../types/search_bar_position.dart';
 import '../widgets/constants.dart';
 import '../widgets/favorite_tags_section.dart';
+import '../widgets/shared_search_options_section.dart';
 
 class SearchLandingView extends ConsumerStatefulWidget {
   const SearchLandingView({
@@ -149,7 +150,9 @@ class DefaultQueryActionsSection extends StatelessWidget {
     return QueryActionsSection(
       titleTrailing: titleTrailing,
       onTagAdded: onTagAdded,
-      childrenBuilder: () => [],
+      childrenBuilder: () => [
+        SharedSearchOptionsSection(onTagAdded: onTagAdded),
+      ],
     );
   }
 }
@@ -237,7 +240,6 @@ class QueryActionsSection extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Container(
-            height: 32,
             margin: const EdgeInsets.symmetric(vertical: 4),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -303,6 +305,7 @@ class QueryActionsSection extends StatelessWidget {
               ],
             ),
           ),
+          ...childrenBuilder(),
         ],
       ),
     );

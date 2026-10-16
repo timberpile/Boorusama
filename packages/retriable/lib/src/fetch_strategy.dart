@@ -37,45 +37,46 @@ class FetchStrategyBuilder {
   final bool Function(int statusCode) transientHttpStatusCodePredicate;
   final bool? silent;
 
-  FetchStrategy build() => (uri, failure) async {
-    if (failure == null) {
-      return FetchInstructions.attempt(
-        uri: uri,
-        timeout: _boundedTimeout(totalFetchTimeout),
-      );
-    }
+  FetchStrategy build({Future<void> Function(Duration)? wait}) =>
+      (uri, failure) async {
+        if (failure == null) {
+          return FetchInstructions.attempt(
+            uri: uri,
+            timeout: _boundedTimeout(totalFetchTimeout),
+          );
+        }
 
-    final retriable = switch (failure.httpStatusCode) {
-      final status? => transientHttpStatusCodePredicate(status),
-      _ => failure.isRetriableFailure,
-    };
-    final remaining = totalFetchTimeout - failure.totalDuration;
-    if (!retriable ||
-        remaining <= Duration.zero ||
-        failure.attemptCount >= maxAttempts) {
-      return FetchInstructions.giveUp(uri: uri, silent: silent);
-    }
+        final retriable = switch (failure.httpStatusCode) {
+          final status? => transientHttpStatusCodePredicate(status),
+          _ => failure.isRetriableFailure,
+        };
+        final remaining = totalFetchTimeout - failure.totalDuration;
+        if (!retriable ||
+            remaining <= Duration.zero ||
+            failure.attemptCount >= maxAttempts) {
+          return FetchInstructions.giveUp(uri: uri, silent: silent);
+        }
 
-    final backoff =
-        initialPauseBetweenRetries *
-        math.pow(exponentialBackoffMultiplier, failure.attemptCount - 1);
-    final retryAfter = failure.retryAfter ?? Duration.zero;
-    final pauseBetweenRetries = retryAfter > backoff ? retryAfter : backoff;
-    if (pauseBetweenRetries >= remaining) {
-      return FetchInstructions.giveUp(uri: uri, silent: silent);
-    }
+        final backoff =
+            initialPauseBetweenRetries *
+            math.pow(exponentialBackoffMultiplier, failure.attemptCount - 1);
+        final retryAfter = failure.retryAfter ?? Duration.zero;
+        final pauseBetweenRetries = retryAfter > backoff ? retryAfter : backoff;
+        if (pauseBetweenRetries >= remaining) {
+          return FetchInstructions.giveUp(uri: uri, silent: silent);
+        }
 
-    final waiting = Stopwatch()..start();
-    await Future<void>.delayed(pauseBetweenRetries);
-    final budget = remaining - waiting.elapsed;
-    if (budget <= Duration.zero) {
-      return FetchInstructions.giveUp(uri: uri, silent: silent);
-    }
-    return FetchInstructions.attempt(
-      uri: uri,
-      timeout: _boundedTimeout(budget),
-    );
-  };
+        final waiting = Stopwatch()..start();
+        await (wait ?? Future<void>.delayed)(pauseBetweenRetries);
+        final budget = remaining - waiting.elapsed;
+        if (budget <= Duration.zero) {
+          return FetchInstructions.giveUp(uri: uri, silent: silent);
+        }
+        return FetchInstructions.attempt(
+          uri: uri,
+          timeout: _boundedTimeout(budget),
+        );
+      };
   Duration _boundedTimeout(Duration remaining) =>
       timeout < remaining ? timeout : remaining;
 }

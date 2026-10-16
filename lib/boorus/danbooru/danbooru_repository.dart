@@ -1,3 +1,5 @@
+import '../../core/search/search/src/types/search_option.dart';
+
 // Dart imports:
 import 'dart:async';
 
@@ -67,10 +69,39 @@ import 'tags/tag/providers.dart';
 import 'tags/user_metatags/providers.dart';
 import 'text_markup/providers.dart';
 
-class DanbooruRepository extends BooruRepositoryDefault {
+class DanbooruRepository extends BooruRepositoryDefault
+    implements SearchOptionsCapability {
   const DanbooruRepository({
     required this.ref,
   });
+
+  @override
+  List<SearchOption> get searchOptions => const [
+    SearchOption(
+      kind: SearchOptionKind.rating,
+      prefix: 'rating',
+      values: ['g', 's', 'q', 'e'],
+      valueLabels: {
+        'g': SearchOptionValueLabel.general,
+        's': SearchOptionValueLabel.sensitive,
+        'q': SearchOptionValueLabel.questionable,
+        'e': SearchOptionValueLabel.explicit,
+      },
+    ),
+    SearchOption(kind: SearchOptionKind.date, prefix: 'date'),
+    SearchOption(
+      kind: SearchOptionKind.order,
+      prefix: 'order',
+      values: ['id', 'score'],
+      valueLabels: {
+        'id': SearchOptionValueLabel.newest,
+        'score': SearchOptionValueLabel.score,
+      },
+    ),
+    SearchOption(kind: SearchOptionKind.user, prefix: 'user'),
+    SearchOption(kind: SearchOptionKind.pool, prefix: 'pool'),
+    SearchOption(kind: SearchOptionKind.favorites, prefix: 'fav'),
+  ];
 
   @override
   BooruPostDataCodec<DanbooruPostData> get postDataCodec =>
