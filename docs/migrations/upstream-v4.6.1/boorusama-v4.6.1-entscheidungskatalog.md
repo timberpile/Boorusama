@@ -1,6 +1,6 @@
 # Boorusama – Entscheidungskatalog zum echten Merge auf Upstream v4.6.1
 
-**Stand:** 16. Oktober 2026 · **Status:** **67 von 68 Themen entschieden, 1 offen**, weiterhin **keine Freigabe zur Implementierung**.
+**Stand:** 16. Oktober 2026 · **Status:** **68 von 68 Themen entschieden, 0 offen**, weiterhin **keine Freigabe zur Implementierung**.
 
 > Grundlage: `timberpile/Boorusama` `develop` auf `d4e15586f06192f0ff4315d36a3f61ae69a752d5`, Upstream `v4.6.1` auf `5b04bf6a164f028d41701299367d0dde74dde330`; gemeinsamer Vorfahr `2c0ac699184854d363833ea4a3205aef0895a92b`. Dateien aus dem hochgeladenen Git-Bundle lokal geprüft. Bei dieser Analyse wurden keine Laufzeitänderungen am Repository vorgenommen.
 
@@ -489,14 +489,17 @@ Für jedes Thema eines von **(a) vollständig übernehmen**, **(b) angepasst üb
 
 ### D07 · Quellseitige Post-IDs in Exporten statt nur int IDs
 
-**Status:** Entscheidung; Entscheidung: **OFFEN** · **Risiko:** 🟠 hoch.
+**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟠 hoch.
 
 - **Änderung in Upstream:** Exports sichern zusätzliche `sitePostId`-Information, damit nicht-numerische/andere Site-IDs erhalten bleiben; enthält außerdem einen Sankaku-Suggestion-Fix.
 - **Fork / potenzieller Konflikt:** Fork hat eigene PostOrigin-/Snapshot- und Bookmark-Identität, daher gilt nicht automatisch die Upstream-Struktur.
 - **Verifizierter Fork-Befund (2026-10-16):** Die aktuelle Bookmark-Backup-Quelle schreibt Format **v5** (Importer akzeptiert v4/v5): `BookmarkBackupCodec` exportiert `localId` (lokaler Bookmark-Schlüssel), `postId` (`int`, laufzeitinterner/kompatibler Post-Schlüssel), `snapshot` und `identity` (`site` + `postKey`). Sankaku-Postparser weist für alphanumerische Original-IDs einen synthetischen `Post.id` zu, speichert jedoch `SankakuPostData.sankakuId` als native ID; `SankakuPostCodec` serialisiert sie in `snapshot.custom.sankakuId` (Wert + numeric-Flag). Somit bleibt die echte Sankaku-Site-ID im vollständigen aktuellen Backup bereits erhalten. `PostOrigin` repräsentiert **Site/Profilkontext**, nicht die Post-ID. `BookmarkIdentity` kann `id:<siteId>`, für Pixiv aber z. B. `work-page:<illustId>:<pageIndex>` enthalten; ihr vollständiger Key ist keine direkt ausgebbare einfache Site-ID. Pixiv ist ein zusätzlicher Grenzfall: Pro Seite synthetischer `Post.id=illustId*1000+pageIndex`, während alle Seiten eine gemeinsame originale Illust-ID besitzen. Hive-Felder 15/16 bleiben nach X01 belegt. Im aktuellen `DownloadFileNameBuilder` ergibt `{id}` weiterhin `post.id.toString()`. **Auf neue Backup-Speicherung oder Verifikation der Site-ID per Site-API darf man hier nicht schließen.**
-- **Offene D07-Produktentscheidung / Empfehlung:** Die unter X02 bereits beschlossene, readonly abgeleitete `Post.sitePostId: String?` für externe Metadaten (D01-JSON-Sidecar `post.id`, ggf. explizite JSON-/Clipboard-Exporte, korrekte Quell-Links) verwenden; bei nicht verfügbarer/verifizierter Original-ID null/fehlend ausgeben, niemals eine synthetische int-ID als Ersatz. Aktuelle Bookmark-v4/v5-Snapshots/Identitäten weder duplizieren noch ändern, keine neue Hive-Spalte und keine automatische Änderung der Backup-Version. Beim Filename-Token besteht eine **noch vom Nutzer zu entscheidende** Abwägung: Upstream definiert `{id}` neu als Site-ID, was im Fork bei Sankaku bereits bestehende Download-Namen und bei Pixiv den Page-Unterschied verändert; sicherer Vorschlag ist `{id}` aus Kompatibilitätsgründen beizubehalten, daneben `{site_post_id}` als expliziten neuen Token bereitzustellen. Auf Pixiv muss die Seitenidentität bei multi-page Downloads erhalten bleiben. Keine stillschweigende Umbenennung/Überschreibung und kein Rückschluss aus Booru-Basis-`sourceUrl` auf eine unbekannte Original-ID.
-- **Zu entscheiden:** In welches bestehende Feld gehört die Quell-ID; wann wird sie persistiert und exportiert?
-- **Arbeitshypothese (nicht beschlossen):** Funktion übernehmen, **ohne** unsere PostIdentity/BookmarkIdentity zu ersetzen; mit X01 abstimmen.
+- **Bestätigter Beschluss (2026-10-16):** `Post.sitePostId: String?` (X02) liefert die echte Quell-Post-ID als String. Numerische Sites: echte numerische ID; Sankaku: originale numerische oder alphanumerische ID aus `SankakuPostData`; Pixiv: echte `illustId`, nicht synthetische `Post.id`. Bei unbekannter Original-ID `null`, kein künstlicher int-Fallback. Der bestehende Download-Dateinamen-Token **`{id}` wird wie bei Upstream auf `post.sitePostId` umgestellt**. Kein zusätzlicher `{site_post_id}`-Token. Das bisherige Dateinamensverhalten muss laut Nutzer nicht rückwärtskompatibel bleiben, weil Downloads im Fork noch kaum verwendet wurden. Pixiv benutzt bereits als **unverändertes Standardformat `{illust_id}_p{page}.{extension}`**, sodass mehrseitige Artworks eindeutig benannt sind; ein selbstdefiniertes Format nur mit `{id}` kann Seitenkollisionen verursachen, die über bestehende Skip-/Overwrite-Schutzregeln verhindert werden müssen. Bei fehlender echter ID: sicheren nicht als Site-ID ausgegebenen Fallback-Dateinamen oder verständlichen Fehler verwenden, keine synthetische ID als Original ausgeben.
+- **Daten / Abhängigkeiten:** D01-JSON-Sidecars und externe Post-Links mit echter Site-ID; bestehende vollständige Bookmark-Snapshots (`custom.sankakuId`), `PostOrigin`, `BookmarkIdentity`, Profil-UUIDs, Backup-Importer v4/v5 und `BookmarksBackupSource` v5 erhalten. Kein redundantes `Bookmark.sitePostId`, kein neues Hive-Feld: 15 = `snapshotSchemaVersion`, 16 = `postSnapshot` (Upstream-Kollision Index 15 nicht übernehmen). Core-seitigen Getter ohne Sankaku-/Pixiv-spezifische direkte Core-Abhängigkeit modellieren.
+- **Verifikation:** Danbooru/Gelbooru/Sankaku/Pixiv mit echten IDs für `{id}`; alphanumerische/missing Site-ID; Pixiv-Multi-Page-Default und eigene `{id}`-Only-Kollisionsvorlage; sichere Dateinamen bei unbekannter ID; unveränderte Hive 15/16 und Backup-v4/v5-Roundtrips; gleiche numerische ID auf unterschiedlichen Installationen; D01-Sidecar-ID/Link-Generator ohne synthetische IDs.
+- **Verbindliches Protokoll:** [D07](decisions.md#d07-quellseitige-post-ids-in-exporten-statt-nur-int-ids).
+- **Ursprüngliche Fragestellung:** In welches bestehende Feld gehört die Quell-ID; wann wird sie persistiert und exportiert?
+- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Funktion übernehmen, **ohne** unsere PostIdentity/BookmarkIdentity zu ersetzen; mit X01 abstimmen.
 - **Abnahme/Test:** Export/Import, mehrere Boorus gleicher numerischer ID, nicht-numerische IDs, Migration alter Daten.
 - **Upstream-Commits:** [`216eb6e6d`](https://github.com/khoadng/Boorusama/commit/216eb6e6d43cef2581a110b66a8f1482d110e7b9).
 - **Betroffene Codepfade (Auswahl):** `lib/core/posts/post/src/types/post.dart`, `lib/core/bookmarks/src/types/bookmark.dart`.
@@ -1390,75 +1393,9 @@ Vor Integration unbedingt bestätigen und in allen Konfliktauflösungen berücks
 - **Funktionaler Upstream-Fix zählt erst als übernommen, wenn sein Verhalten getestet ist.**
 - **Vollständige Testsuite nach AGENTS.md** vor Integration; Targeted Tests pro Thema.
 
-## Entscheidungsprotokoll (wird im Dialog schrittweise ergänzt)
+## Entscheidungsprotokoll – vollständig abgeschlossen
 
-| ID | Entscheidung | Zielverhalten und Migrationsnotizen | Tests / Ticket |
-|---|---|---|---|
-| A01 | offen | – | – |
-| A02 | offen | – | – |
-| A03 | offen | – | – |
-| A04 | offen | – | – |
-| A06 | offen | – | – |
-| A07 | offen | – | – |
-| A08 | offen | – | – |
-| A09 | offen | – | – |
-| A10 | offen | – | – |
-| A11 | offen | – | – |
-| A12 | offen | – | – |
-| A13 | offen | – | – |
-| A14 | offen | – | – |
-| A15 | offen | – | – |
-| A16 | offen | – | – |
-| A18 | offen | – | – |
-| N01 | offen | – | – |
-| N02 | offen | – | – |
-| N03 | offen | – | – |
-| N04 | offen | – | – |
-| N05 | offen | – | – |
-| N06 | offen | – | – |
-| D01 | offen | – | – |
-| D02 | offen | – | – |
-| D03 | offen | – | – |
-| D04 | offen | – | – |
-| D05 | offen | – | – |
-| D06 | offen | – | – |
-| D07 | offen | – | – |
-| D08 | offen | – | – |
-| B01 | offen | – | – |
-| B02 | offen | – | – |
-| B03 | offen | – | – |
-| B04 | offen | – | – |
-| B05 | offen | – | – |
-| B06 | offen | – | – |
-| B07 | offen | – | – |
-| B08 | offen | – | – |
-| B09 | offen | – | – |
-| B10 | offen | – | – |
-| P01 | offen | – | – |
-| P02 | offen | – | – |
-| P03 | offen | – | – |
-| P04 | offen | – | – |
-| P05 | offen | – | – |
-| P06 | offen | – | – |
-| P07 | offen | – | – |
-| P08 | offen | – | – |
-| P09 | offen | – | – |
-| P10 | offen | – | – |
-| P11 | offen | – | – |
-| P12 | offen | – | – |
-| P13 | offen | – | – |
-| P14 | offen | – | – |
-| U01 | offen | – | – |
-| U02 | offen | – | – |
-| U03 | offen | – | – |
-| U04 | offen | – | – |
-| U05 | offen | – | – |
-| U06 | offen | – | – |
-| U07 | offen | – | – |
-| X01 | offen | – | – |
-| X02 | offen | – | – |
-| X03 | offen | – | – |
-| X04 | offen | – | – |
+**68/68 Themen sind explizit beschlossen.** Das [autoritative Entscheidungsprotokoll](decisions.md) enthält Zielverhalten, Abhängigkeiten, Datenmigration und Abnahmetests. Die [kompakte Checkliste](boorusama-v4.6.1-checkliste.md) bildet denselben Stand ab. Die frühere pauschal „offene“ Anhang-Tabelle war eine unbefüllte Planungsvorlage und wird nicht mehr als zweite Statusquelle geführt.
 
 ---
 
