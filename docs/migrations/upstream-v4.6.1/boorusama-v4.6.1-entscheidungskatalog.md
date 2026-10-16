@@ -1,6 +1,6 @@
 # Boorusama – Entscheidungskatalog zum echten Merge auf Upstream v4.6.1
 
-**Stand:** 15. Oktober 2026 · **Status:** **29 von 68 Themen entschieden, 39 offen**, weiterhin **keine Freigabe zur Implementierung**.
+**Stand:** 16. Oktober 2026 · **Status:** **39 von 68 Themen entschieden, 29 offen**, weiterhin **keine Freigabe zur Implementierung**.
 
 > Grundlage: `timberpile/Boorusama` `develop` auf `d4e15586f06192f0ff4315d36a3f61ae69a752d5`, Upstream `v4.6.1` auf `5b04bf6a164f028d41701299367d0dde74dde330`; gemeinsamer Vorfahr `2c0ac699184854d363833ea4a3205aef0895a92b`. Dateien aus dem hochgeladenen Git-Bundle lokal geprüft. Bei dieser Analyse wurden keine Laufzeitänderungen am Repository vorgenommen.
 
@@ -496,36 +496,48 @@ Für jedes Thema eines von **(a) vollständig übernehmen**, **(b) angepasst üb
 
 ### B01 · Sankaku-Metatags, Syntax-Highlighting und typed Suggestions
 
-**Status:** Entscheidung; Entscheidung: **OFFEN** · **Risiko:** 🟠 mittel–hoch.
+**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟠 mittel–hoch.
 
+- **Bestätigter Beschluss:** angepasst übernehmen. Sankaku-spezifische Metatag-Definitionen (u. a. `rating`, `date`, `order`, `user`, `pool`, `fav`), Parser, typed Autocomplete-Suggestions und sichere Abbildung der Quellwerte übernehmen. Metatag-Präfixe erkennbar hervorheben, aber die UI in das geplante siteübergreifende Search-Options-Interface einfügen; keine parallele/alte Upstream-Search-Bar bauen. Raw-Syntax und sitespezifische Möglichkeiten bleiben hinter der gemeinsamen Schnittstelle.
+- **Abhängigkeiten:** Geplanter gemeinsamer Search-UX-Umbau; B02 und die bestehenden Fork-Suchzustände.
+- **Verifikation:** Tag- vs. Metatag-Vorschläge, `fav`/`user`/`pool`, Highlighting, Raw-Query, Leer-/Alias-/unbekannte Werte und neuer Search-UX-Flow, keine Regression in Suche/Tag-Chips.
+- **Verbindliches Protokoll:** [B01](decisions.md#b01-sankaku-metatags-syntax-highlighting-und-typed-suggestions).
 - **Änderung in Upstream:** Sankaku-Metatags erhalten separate Kategorisierung/Suggestions und syntaktische Highlighting-Regeln.
 - **Fork / potenzieller Konflikt:** Fork baut die Tag-Suche und siteübergreifende Abstraktion um; eigener Search-Bar-Code.
-- **Zu entscheiden:** Welche Metatags gehören in unser allgemeines Search-Options-Interface, welche sind Sankaku-spezifisch?
-- **Arbeitshypothese (nicht beschlossen):** Parser/Backend-Support übernehmen; UX in das geplante vereinheitlichte Search Interface integrieren.
+- **Ursprüngliche Fragestellung:** Welche Metatags gehören in unser allgemeines Search-Options-Interface, welche sind Sankaku-spezifisch?
+- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Parser/Backend-Support übernehmen; UX in das geplante vereinheitlichte Search Interface integrieren.
 - **Abnahme/Test:** Sankaku `rating`, `date`, sort/exclude, getrennte Tag- und Metatag-Vorschläge.
 - **Upstream-Commits:** [`216eb6e6d`](https://github.com/khoadng/Boorusama/commit/216eb6e6d43cef2581a110b66a8f1482d110e7b9), [`2569eaeeb`](https://github.com/khoadng/Boorusama/commit/2569eaeeb6ea01ea35386ffc8bab858dcbd1d75d).
 - **Betroffene Codepfade (Auswahl):** `lib/boorus/sankaku/tags/metatags.dart`, `lib/boorus/sankaku/search/tag_query_composer.dart`.
 
 ### B02 · Sankaku-Exclusion und Datumsfilter normalisieren
 
-**Status:** Entscheidung; Entscheidung: **OFFEN** · **Risiko:** 🟡 mittel.
+**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟡 mittel.
 
+- **Bestätigter Beschluss:** übernehmen (site-adaptiert). Sankaku-Exclusion-Restriktionen verständlich übersetzen und nur für Sankaku einzelne gültige `date:YYYYMMDD`/`date:YYYY-MM-DD`-Tokens in einen API-konformen Tagesbereich übersetzen. Eine explizite Range, Operatoren, ungültige Datumsangaben und die sichtbare Raw-Query nicht unkontrolliert umschreiben; Normalisierung unmittelbar im Site-Query-Composer/Adapter.
+- **Abhängigkeiten:** B01, B05; gemeinsamer Search-Composer darf keine Sankaku-Syntax auf andere Sites anwenden.
+- **Verifikation:** Exclusion-Fehler/Limit-Codes, gültige/ungültige Daten, Tages-/Jahreswechsel, Leap-Day, Range und Vergleich Raw-Eingabe zu gesendetem Query.
+- **Verbindliches Protokoll:** [B02](decisions.md#b02-sankaku-exclusion-und-datumsfilter-normalisieren).
 - **Änderung in Upstream:** Klarere Fehlermeldungen bei Exclusion-Restriktionen; Einzeldatum in API-tauglichen Tageszeitraum umschreiben.
 - **Fork / potenzieller Konflikt:** Fork hat eigene Search-Syntax-Handling-Änderungen.
-- **Zu entscheiden:** Direkte API-Normalisierung pro Site oder über die neue allgemeine Search-Abstraktion?
-- **Arbeitshypothese (nicht beschlossen):** Funktionale Fixes übernehmen, Syntaxauflösung im Site-Adapter belassen.
+- **Ursprüngliche Fragestellung:** Direkte API-Normalisierung pro Site oder über die neue allgemeine Search-Abstraktion?
+- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Funktionale Fixes übernehmen, Syntaxauflösung im Site-Adapter belassen.
 - **Abnahme/Test:** Datum mit Zeitzonen, Ausschlussbegrenzungen, rohe Query.
 - **Upstream-Commits:** [`18216f412`](https://github.com/khoadng/Boorusama/commit/18216f4123586634f0756e7d5b20673638711766), [`6ad672075`](https://github.com/khoadng/Boorusama/commit/6ad672075306e5621a4dde519ad124da0b19f8cb).
 - **Betroffene Codepfade (Auswahl):** `lib/boorus/sankaku`.
 
 ### B03 · Sankaku-Tag-Kategorien vollständig erhalten, Duplikate entfernen
 
-**Status:** Entscheidung; Entscheidung: **OFFEN** · **Risiko:** 🟡 mittel.
+**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟡 mittel.
 
+- **Bestätigter Beschluss:** angepasst übernehmen. Alle bekannten Sankaku-Kategorien einschließlich Studio (`2`), Genre (`5`), Medium (`8`) und Meta (`9`) korrekt site-spezifisch zuordnen (generisches Fork-`TagCategory.fromLegacyId(5)` wäre für Sankaku falsch). Unbekannte Kategorien ohne stillen Verlust erhalten und doppelte API-Tag-Einträge nach echter ID bzw. Name+Kategorie konsistent deduplizieren; sinnvollere Counts übernehmen. Bestehende Fork-`PostRecord`/`PostOrigin`-/Snapshot-/Bookmark-Datenformate behalten, ggf. erweiterten Detailtag-Satz ohne persistente Schemaänderung bereitstellen.
+- **Abhängigkeiten:** X01/X02/X03 und Fork-Tag-Modell, keine Upstream-Postmodelle blind ersetzen.
+- **Verifikation:** Kategorien 0/1/2/3/4/5/8/9/unbekannt, doppelte Namen/IDs/Counts, Tag-Farben und Filter, Bookmark-Snapshot-Roundtrip, alte Daten.
+- **Verbindliches Protokoll:** [B03](decisions.md#b03-sankaku-tag-kategorien-vollständig-erhalten-duplikate-entfernen).
 - **Änderung in Upstream:** Alle Tag-Kategorien parsen und beim Post-Mapping deduplizieren.
 - **Fork / potenzieller Konflikt:** Fork erweitert Tag- und Post-Datenmodelle; nur teilweiser Gleichstand.
-- **Zu entscheiden:** Sind alle upstream Tag-Kategorien sinnvoll und stabil auf unsere Farben/Tag-Gruppen abbildbar?
-- **Arbeitshypothese (nicht beschlossen):** Parsing-Fixtures und Category-Mapping übernehmen, bestehendes Fork-Tagmodell erhalten.
+- **Ursprüngliche Fragestellung:** Sind alle upstream Tag-Kategorien sinnvoll und stabil auf unsere Farben/Tag-Gruppen abbildbar?
+- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Parsing-Fixtures und Category-Mapping übernehmen, bestehendes Fork-Tagmodell erhalten.
 - **Abnahme/Test:** Kategorien, doppelte Namen mit abweichenden Counts, Bookmark-Snapshot-Roundtrip.
 - **Upstream-Commits:** [`d0fde834a`](https://github.com/khoadng/Boorusama/commit/d0fde834a413658bb50db150636c481c88a88222), [`396ae059e`](https://github.com/khoadng/Boorusama/commit/396ae059e9e5576aa0172df7fabf823963c03e92).
 - **Betroffene Codepfade (Auswahl):** `lib/boorus/sankaku/posts/parser.dart`, `lib/boorus/sankaku/tags`.
@@ -533,12 +545,16 @@ Für jedes Thema eines von **(a) vollständig übernehmen**, **(b) angepasst üb
 
 ### B04 · Sankaku-Auth: API-Header, invalid credentials, Session-Recovery
 
-**Status:** Entscheidung; Entscheidung: **OFFEN** · **Risiko:** 🟠 hoch.
+**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟠 hoch.
 
+- **Bestätigter Beschluss:** angepasst übernehmen. Bestehende Dio-Optionen/Interceptors/Header beim Sankaku-API-Header-Merge erhalten. Login-Response vor Token-Speicherung streng validieren. Bei erkennbar abgelaufenem/ungültigem Token GET-Requests höchstens einmal nach kontrollierter Neuanmeldung wiederholen; gleichzeitige Logins pro Client zusammenfassen, nur das tatsächlich abgelehnte Token invalidieren und Client-/Profile-Isolation bewahren. Mutierende Favorites/POST/DELETE nicht blind wiederholen, sondern Fehler melden und neue Auth für spätere Nutzeraktionen ermöglichen. Wenn Auto-Reauth scheitert, bestehende Profil-Login-UX verwenden; Tokens/Credentials nie loggen.
+- **Abhängigkeiten:** N01/N03/N04/N05; bestehendes Fork-Profil- und Credential-Modell, kein Cross-Origin-Auth-Leak.
+- **Verifikation:** Ungültige Credentials/Tokenformat, 401/API-Auth-Code, gleichzeitige GETs, erneute Ablehnung, Profilwechsel, Cookie/Header-Erhalt, Favoriten ohne Doppelmutation, Cancellation/Rate-Limit und Credential-Redaction.
+- **Verbindliches Protokoll:** [B04](decisions.md#b04-sankaku-auth-api-header-invalid-credentials-session-recovery).
 - **Änderung in Upstream:** Client-Optionen beim API-Header-Merge bewahren; Auth-Responses validieren; abgelaufene Sessions recovern; Login-Rejections korrekt anzeigen.
 - **Fork / potenzieller Konflikt:** Fork nutzt eigenes Profil-/Auth-Modell, zusätzliche Favorite-Integration.
-- **Zu entscheiden:** Welche Recovery ist automatisch und wann muss neu authentifiziert werden?
-- **Arbeitshypothese (nicht beschlossen):** Fixes übernehmen, bestehende Token-/Credential-Speicherung und Auth-Prompts nutzen.
+- **Ursprüngliche Fragestellung:** Welche Recovery ist automatisch und wann muss neu authentifiziert werden?
+- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Fixes übernehmen, bestehende Token-/Credential-Speicherung und Auth-Prompts nutzen.
 - **Abnahme/Test:** Falsche Daten, abgelaufenes Cookie, mehrere Profile, Rate Limit, keine Credentials in Logs.
 - **Upstream-Commits:** [`829ec71fb`](https://github.com/khoadng/Boorusama/commit/829ec71fbaedbc60fff7d98fe1b40c494a130ebe), [`6ad691a6d`](https://github.com/khoadng/Boorusama/commit/6ad691a6de23d8a44c46d02bf3640997dbb618f4), [`6762d00f2`](https://github.com/khoadng/Boorusama/commit/6762d00f2e4ac6efc99bf969bd15a335f6767437), [`8757eb295`](https://github.com/khoadng/Boorusama/commit/8757eb2953d41716bc7c8fb3a028b71fb3f03e2c).
 - **Betroffene Codepfade (Auswahl):** `packages/booru_clients/lib/src/sankaku/sankaku_client.dart`, `lib/boorus/sankaku/sankaku_repository.dart`.
@@ -546,72 +562,96 @@ Für jedes Thema eines von **(a) vollständig übernehmen**, **(b) angepasst üb
 
 ### B05 · Sankaku-Suchlimits korrekt erklären
 
-**Status:** Entscheidung; Entscheidung: **OFFEN** · **Risiko:** ⚪ niedrig.
+**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** ⚪ niedrig.
 
+- **Bestätigter Beschluss:** vollständig übernehmen (in Fork-Fehler-UI). Sankaku-Codes für anonyme/Account-Tag-Limits in verständliche lokalisierte Meldungen übersetzen und an den Fork-Error-Layer anbinden. Bestehendes Verhalten bei unbekannten Serverfehlern als Fallback behalten.
+- **Abhängigkeiten:** B02 sowie vorhandener Error-Translator/i18n.
+- **Verifikation:** Anonyme/Account-Limits, bereits durch B02 erfasste Exclusion-Limits, lokalisierte Meldungen, unbekannte Fehler und Retry.
+- **Verbindliches Protokoll:** [B05](decisions.md#b05-sankaku-suchlimits-korrekt-erklären).
 - **Änderung in Upstream:** API-Fehler zu Tag-Limits in verständliche Fehlermeldungen übersetzen.
 - **Fork / potenzieller Konflikt:** Fork hat Suchfehler-/Translation-Layer.
-- **Zu entscheiden:** Site-Meldung übernehmen und in unsere Error-UI einhängen?
-- **Arbeitshypothese (nicht beschlossen):** Ja, sofern die Fehlermeldung der aktuellen API entspricht.
+- **Ursprüngliche Fragestellung:** Site-Meldung übernehmen und in unsere Error-UI einhängen?
+- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Ja, sofern die Fehlermeldung der aktuellen API entspricht.
 - **Abnahme/Test:** Grenzwert überschritten, lokalisierte Fehlermeldung, Retry.
 - **Upstream-Commits:** [`5b495f1ad`](https://github.com/khoadng/Boorusama/commit/5b495f1adec13643ee83307bb2b68eb0272766b2).
 - **Betroffene Codepfade (Auswahl):** `lib/boorus/sankaku/errors/error_translator.dart`.
 
 ### B06 · Shimmie2: Medienformate und Favorite-Fallback
 
-**Status:** Entscheidung; Entscheidung: **OFFEN** · **Risiko:** 🟡 mittel.
+**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟡 mittel.
 
+- **Bestätigter Beschluss:** angepasst übernehmen. Dateiformate aus `ext`, Filename und Datei-URL robust normalisieren (ohne Punkt, lowercase). Den serverseitigen Favorite-Status bei unterstützter Erweiterung und angemeldetem Nutzer ergänzen, aber optional und möglichst asynchron nach dem eigentlichen Post-Laden: Die Timeline darf bei Ausfall, fehlender Auth oder langsamer Favorite-API nicht blockiert werden. Späte Ergebnisse mit bereits erfolgten Nutzeraktionen bzw. aktuellem Favorite-Cache zusammenführen statt überschreiben; Fehler als Soft-Failure behandeln, bekannte Auth-Probleme sinnvoll sichtbar machen.
+- **Abhängigkeiten:** Fork-Favorite-Repository/Cache und Shimmie2-Feature-Capabilities.
+- **Verifikation:** Erkennung verschiedener Medienextensions/URL-Formate, fehlende Extension, GraphQL/REST, 100er-ID-Batches, Favoritenabfrage mit/ohne Login, Serverfehler/Timeout, schnelle Favorite-Mutation während laufender Abfrage.
+- **Verbindliches Protokoll:** [B06](decisions.md#b06-shimmie2-medienformate-und-favorite-fallback).
 - **Änderung in Upstream:** Dateiformate genauer erkennen, Favorite-State zuverlässig abfragen; wenn Favorite-API fehlschlägt, Listings trotzdem laden.
 - **Fork / potenzieller Konflikt:** Fork hat Shimmie2-Client, Parsing und eigene Favoriten-Änderungen.
-- **Zu entscheiden:** Welche Fehler sind soft failures, welche Auth-Fehler?
-- **Arbeitshypothese (nicht beschlossen):** Fixes übernehmen und Seite nie wegen eines optionalen Favorite-States blockieren.
+- **Ursprüngliche Fragestellung:** Welche Fehler sind soft failures, welche Auth-Fehler?
+- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Fixes übernehmen und Seite nie wegen eines optionalen Favorite-States blockieren.
 - **Abnahme/Test:** API teilweise offline, verschiedene Media-Extensions, Auth abgelaufen.
 - **Upstream-Commits:** [`2d4f8484b`](https://github.com/khoadng/Boorusama/commit/2d4f8484ba62db8e5c5386825934b1bcc30455cf), [`d79ef1fcc`](https://github.com/khoadng/Boorusama/commit/d79ef1fcc9f59b07933e76681b6c033e12327460).
 - **Betroffene Codepfade (Auswahl):** `lib/boorus/shimmie2`, `packages/booru_clients/lib/src/shimmie2`.
 
 ### B07 · Gelbooru v2: Kommentar-Voting und Cursor-Pagination
 
-**Status:** Entscheidung; Entscheidung: **OFFEN** · **Risiko:** 🟠 mittel–hoch.
+**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟠 mittel–hoch.
 
-- **Änderung in Upstream:** Kommentar-Up/Downvote und Cursor-basierte Navigation in Gelbooru-v2-Clients.
+- **Bestätigter Beschluss:** angepasst übernehmen. Upstream-Gelv2-Comment-Page-Keys, Rule34-HTML-Kommentarparser/Score und cursorbasierte Pagination kompatibel zu Fork-Comment-/Postmodell übernehmen. **Upstream implementiert nur Kommentar-Upvotes, keine Downvotes**; keine Downvote-UI behaupten oder erfinden. Voting nur bei expliziter Site-Capability und gültiger Session anzeigen, mutierenden Upvote-GET trotz HTTP-Verb als Mutation behandeln (kein automatischer Replay nach Challenge/Retry), Auth- und Fehlerfälle sichtbar machen. Andere Gelv2-Sites behalten ihre vorhandenen Kommentar-Fetchpfade.
+- **Abhängigkeiten:** N03/N04, B08, Fork-Comment-/Selection-UI, Site-Capabilities.
+- **Verifikation:** Rule34-HTML/Script-Scores, Kommentare/Quotes, Cursor vorwärts/Ende, wiederholte Requests/Sortwechsel, login/no-login, Score- und Action-Fehler, POST-ID-Zuordnung, keine Doppelvotes unter 403/Cloudflare.
+- **Verbindliches Protokoll:** [B07](decisions.md#b07-gelbooru-v2-kommentar-upvote-und-cursor-pagination).
+- **Änderung in Upstream:** Kommentar-Upvote (kein Downvote) und Cursor-basierte Navigation in Gelbooru-v2-Clients.
 - **Fork / potenzieller Konflikt:** Fork hat eigenen Comment-/Post-Kontext und Rule34-Gelv2-Sonderfälle.
-- **Zu entscheiden:** Für welche Gelv2-Sites ist Voting erlaubt, wie bestimmen wir Capabilities und Auth?
-- **Arbeitshypothese (nicht beschlossen):** Funktion übernehmen, im Site-Feature-Interface capability-abhängig machen.
+- **Ursprüngliche Fragestellung:** Für welche Gelv2-Sites ist Voting erlaubt, wie bestimmen wir Capabilities und Auth?
+- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Funktion übernehmen, im Site-Feature-Interface capability-abhängig machen.
 - **Abnahme/Test:** Mit/ohne Login, Cursor vor/zurück, API-Antwortvarianten und Rule34.
 - **Upstream-Commits:** [`f459e9922`](https://github.com/khoadng/Boorusama/commit/f459e99220e4ac5b449c033d1d60a0b672ea2b58).
 - **Betroffene Codepfade (Auswahl):** `lib/boorus/gelbooru_v2/comments`, `packages/booru_clients/lib/src/gelbooru_v2`.
 
 ### B08 · Gelbooru v2: Kommentar-Sortierung
 
-**Status:** Entscheidung; Entscheidung: **OFFEN** · **Risiko:** 🟡 mittel.
+**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟡 mittel.
 
+- **Bestätigter Beschluss:** übernehmen, gemeinsam mit B07. Auf Sites, deren Comment-Capabilities es explizit vorsehen (Upstream: Rule34), `Newest`/`Oldest` über unterstützte Request-Sortierung anbieten (für Rule34 `comments_direction`-Cookie); bestehende Session-Cookies sicher mergen. Änderung nur innerhalb der aktuellen Kommentaransicht merken, ohne neue persistente Profileinstellung; Pagination/Cursor beim Umschalten vollständig zurücksetzen. Keine Optionen auf nicht unterstützten Sites zeigen.
+- **Abhängigkeiten:** B07 und Site-Feature-/Sort-Capabilities.
+- **Verifikation:** Newest/Oldest, Cookie-Isolation, Cursor-Reset, schnelle Sortwechsel und verspätete Requests, einzelne Seite und Reload.
+- **Verbindliches Protokoll:** [B08](decisions.md#b08-gelbooru-v2-kommentar-sortierung).
 - **Änderung in Upstream:** Server-/Client-Sortoptionen für Kommentare je nach API-Variante.
 - **Fork / potenzieller Konflikt:** Fork nutzt eigenen Gelbooru-v2-Comment-Provider.
-- **Zu entscheiden:** Welche Sortmodi anzeigen, Site-Capability und Persistenz pro Profil?
-- **Arbeitshypothese (nicht beschlossen):** Sortoptionen nur anbieten, wenn der jeweilige Server sie unterstützt.
+- **Ursprüngliche Fragestellung:** Welche Sortmodi anzeigen, Site-Capability und Persistenz pro Profil?
+- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Sortoptionen nur anbieten, wenn der jeweilige Server sie unterstützt.
 - **Abnahme/Test:** Cursor+Sort, unbekannte Parameternamen, Reload.
 - **Upstream-Commits:** [`43619dd49`](https://github.com/khoadng/Boorusama/commit/43619dd495d5cb79425845521f0a0e0de030670d).
 - **Betroffene Codepfade (Auswahl):** `lib/boorus/gelbooru_v2/comments`, `packages/booru_clients`.
 
 ### B09 · Nozomi: korrekte Tag-Counts und HTTP-Range-Encoding
 
-**Status:** Entscheidung; Entscheidung: **OFFEN** · **Risiko:** 🟡 niedrig–mittel.
+**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟡 niedrig–mittel.
 
+- **Bestätigter Beschluss:** angepasst übernehmen. Nozomi-Tag-Counts aus Postindex-Dateigrößen statt Search-Buckets bestimmen; gezielte Byte-Range-Requests mit `Accept-Encoding: identity`, Behandlung 200/206/404/416 sowie Content-Range und Cache/Fallback korrekt übernehmen. Gleichzeitige Count-Lookups drosseln und mit dem Fork-`ApiRequestCoordinator` koordinieren, damit parallele Autosuggestions und Following keine unnötigen Host-Requests verursachen.
+- **Abhängigkeiten:** N01; Nozomi-Client/Rate-Policy des Forks.
+- **Verifikation:** Byte-Größe/4, partial/full Responses, fehlender Content-Range, 404/416/0, Range+gzip, Cache, Limits/429, parallele Suggestions und Cancellation.
+- **Verbindliches Protokoll:** [B09](decisions.md#b09-nozomi-korrekte-tag-counts-und-http-range-encoding).
 - **Änderung in Upstream:** Tag-Counts aus Index-Größen statt Search-Buckets; Range-Requests senden `Accept-Encoding: identity`.
 - **Fork / potenzieller Konflikt:** Fork unterstützt Nozomi bereits.
-- **Zu entscheiden:** Direkter Cherry-pick möglich? Prüfen, ob Site-Client im Fork abweicht.
-- **Arbeitshypothese (nicht beschlossen):** Als isolierten Adapter-Fix übernehmen.
+- **Ursprüngliche Fragestellung:** Direkter Cherry-pick möglich? Prüfen, ob Site-Client im Fork abweicht.
+- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Als isolierten Adapter-Fix übernehmen.
 - **Abnahme/Test:** Tag-Count-Fixtures, Status 200/206/416, komprimierte Antworten.
 - **Upstream-Commits:** [`7880a020f`](https://github.com/khoadng/Boorusama/commit/7880a020fc7ba968351ee5256d3685c347d4eca0), [`5a4498f78`](https://github.com/khoadng/Boorusama/commit/5a4498f78dbce67aa43c0d3d01c4fc8d31784a23).
 - **Betroffene Codepfade (Auswahl):** `packages/booru_clients/lib/src/nozomi`.
 
 ### B10 · Rule34: JSON-Post-API auf api.rule34.xxx
 
-**Status:** Entscheidung; Entscheidung: **OFFEN** · **Risiko:** 🟠 hoch.
+**Status:** **ENTSCHIEDEN am 2026-10-16**, Umsetzung ausstehend · **Risiko:** 🟠 hoch.
 
+- **Bestätigter Beschluss:** angepasst übernehmen, erst nach Verifikation aktivieren. Rule34-Listing-Endpoint nach gezielten Live-API-Tests auf `https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1` umstellen, da der Fork diesen Host bislang nur für Post-Details verwendet. Profil- und Site-Identität, Auth-/Cookie-Origin-Grenzen, Parsing, Pagination, Rate-Limits sowie eigene Rule34-403-/Cloudflare-Recovery erhalten. Bei Inkompatibilität zuerst Ursache bewerten, keinen ungetesteten Hostwechsel erzwingen.
+- **Abhängigkeiten:** N01/N02/N04/N05; aktuelles `boorus.yaml`-Rule34-Profil.
+- **Verifikation:** JSON-Post-Listen/Details, Pagination/Filter/Limit, mit und ohne Login, CORS/Redirect, 403-Challenge, Rate-Limit/429, Content-Shape, Cross-Host-Auth und Cache-Isolation; Live-Verifikation ist noch nicht erfolgt.
+- **Verbindliches Protokoll:** [B10](decisions.md#b10-rule34-json-post-api-auf-apirule34xxx).
 - **Änderung in Upstream:** Override für `posts` auf `https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1`.
 - **Fork / potenzieller Konflikt:** Fork nutzt bisher `rule34.xxx/index.php?...` und hat besondere 403-Challenge-Recovery.
-- **Zu entscheiden:** Welcher API-Host funktioniert zuverlässiger und wie verhalten sich Cookies, Suche und Profile?
-- **Arbeitshypothese (nicht beschlossen):** Endpoint nach Live-API-Tests übernehmen; mit N02/N04 abstimmen.
+- **Ursprüngliche Fragestellung:** Welcher API-Host funktioniert zuverlässiger und wie verhalten sich Cookies, Suche und Profile?
+- **Frühere Arbeitshypothese (durch Beschluss ersetzt):** Endpoint nach Live-API-Tests übernehmen; mit N02/N04 abstimmen.
 - **Abnahme/Test:** Posts, Pagination, Auth, Error-403, Domain-/Cache-Isolation, Rate Limits.
 - **Upstream-Commits:** [`5972548ec`](https://github.com/khoadng/Boorusama/commit/5972548ecd6e32622b8476776490251d61d6a099).
 - **Betroffene Codepfade (Auswahl):** `packages/booru_clients/boorus.yaml`.
