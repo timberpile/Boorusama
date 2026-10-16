@@ -1,6 +1,6 @@
 # Upstream v4.6.1 – Entscheidungsprotokoll
 
-**Autoritativer Entscheidungsstand:** **67 von 68 Themen entschieden** (2026-10-16); **1 offen**, Umsetzung nicht freigegeben. Dieses Dokument enthält ausschließlich Analyse und explizit bestätigte künftige Beschlüsse. Referenz: [Katalog](boorusama-v4.6.1-entscheidungskatalog.md) und [Checkliste](boorusama-v4.6.1-checkliste.md).
+**Autoritativer Entscheidungsstand:** **68 von 68 Themen entschieden** (2026-10-16); **0 offen**, Umsetzung nicht freigegeben. Dieses Dokument enthält ausschließlich Analyse und explizit bestätigte künftige Beschlüsse. Referenz: [Katalog](boorusama-v4.6.1-entscheidungskatalog.md) und [Checkliste](boorusama-v4.6.1-checkliste.md).
 
 ## Entscheidungsformat
 
@@ -55,7 +55,7 @@ Vor der expliziten Nutzerentscheidung bleibt jeder Eintrag `OFFEN`; ein technisc
 
 **Abnahme / Tests:** Download-`{id}`, JSON-Sidecars, Links, Bookmark-Speichern/Export und Backup/Restore; Sankaku mit numerischen/alphanumerischen/fehlenden IDs; zwei Sites mit gleicher Post-Zahl.
 
-**Verifizierte Upstream-Verwendungen:** Download-`{id}`-Token, JSON-Sidecars, Bookmark-Speichern/Restore/Export und Sankaku-Links. Getter möglichst über kleine Core-seitige Original-ID-Abstraktion, ohne Core→Sankaku-Abhängigkeit und ohne zusätzlichen Hive-Index. X01s alte Hive-Felder 15/16 bleiben verbindlich.
+**Verifizierte Upstream-Verwendungen:** Download-`{id}`-Token, JSON-Sidecars, Bookmark-Speichern/Restore/Export und Sankaku-Links. Getter möglichst über kleine Core-seitige Original-ID-Abstraktion, ohne Core→Sankaku-Abhängigkeit und ohne zusätzlichen Hive-Index. X01s alte Hive-Felder 15/16 bleiben verbindlich. D07 bestätigt die Umstellung von Download-`{id}` auf die echte Site-Post-ID ohne zusätzlichen `{site_post_id}`-Token; Pixivs Standardvorlage `{illust_id}_p{page}.{extension}` bleibt.
 
 ## X04 – Shared Post/Image Cache und Download-Lifecycle beibehalten
 
@@ -269,7 +269,7 @@ Vor der expliziten Nutzerentscheidung bleibt jeder Eintrag `OFFEN`; ein technisc
 
 **Zielzustand / technische Grenzen:** Die Fork-spezifische Export-/Import-/Backup-Pipeline, stabile Profile-UUIDs, `PostOrigin`/`BookmarkIdentity`, Hive-/Snapshot-Kompatibilität, verschachtelte Bookmark- und Pinned-Search-Ordner sowie Following-Feeds unverändert im Verhalten und in ihren Datenidentitäten erhalten. Keine Rückmigration auf Upstream-Profile, flache Ordner oder dessen alte Feed-/Backup-Modelle; keine inkompatible Schema- oder ID-Änderung.
 
-**Gezielt übernehmen:** Aus Upstreams Headless-Refactoring die austauschbaren Plattform-, Navigation-, Dateipicker-, Repository-Factory- und Backup-Trigger-Abhängigkeiten sowie App-Flow-Tests kompatibel in den bereits beschlossenen A01-/A12-Zielzustand integrieren. Keine zweite parallele Runtime, Repository- oder Backup-Implementierung. Die Upstream-Bookmark-Library-Refresh-Ergänzung nicht zusätzlich kopieren: der Fork beobachtet `bookmarkProvider` bereits mit `BookmarkViewRefreshGate`, um Refresh/Selection korrekt zu koordinieren. Upstreams Export-Lesen von Favorite Tags direkt aus persistenter Storage statt möglicherweise uninitialisiertem UI-State ist sinnvoll, wird aber **erst im noch offenen D08 separat beschlossen**.
+**Gezielt übernehmen:** Aus Upstreams Headless-Refactoring die austauschbaren Plattform-, Navigation-, Dateipicker-, Repository-Factory- und Backup-Trigger-Abhängigkeiten sowie App-Flow-Tests kompatibel in den bereits beschlossenen A01-/A12-Zielzustand integrieren. Keine zweite parallele Runtime, Repository- oder Backup-Implementierung. Die Upstream-Bookmark-Library-Refresh-Ergänzung nicht zusätzlich kopieren: der Fork beobachtet `bookmarkProvider` bereits mit `BookmarkViewRefreshGate`, um Refresh/Selection korrekt zu koordinieren. Upstreams Export-Lesen von Favorite Tags direkt aus persistenter Storage statt möglicherweise uninitialisiertem UI-State ist unter D08 inzwischen separat beschlossen.
 
 **Daten/API:** Keine neue Persistenz oder Migration allein durch X03. Vorhandene Profil-UUIDs, Bookmark-Hive-Felder 15/16, Post-Snapshots, Ordnerstrukturen und Following-Daten erhalten; X01/X02 und die bestehenden Fork-Import-/Recovery-Garantien gelten verbindlich.
 
@@ -479,7 +479,7 @@ Vor der expliziten Nutzerentscheidung bleibt jeder Eintrag `OFFEN`; ein technisc
 
 **Status: ENTSCHIEDEN · 2026-10-16 · Umsetzung ausstehend.** **Beschlussart:** angepasst übernehmen.
 
-**Zielzustand / technische Grenzen:** Hover-Preview nicht über die gesamte Thumbnail-Fläche, sondern über ein gezieltes Info-Badge öffnen, das bei Pointer-Hover bzw. passend fokussierter Keyboard-Navigation sichtbar wird. Gesten-/Hit-Test-Fixes für Long-Press, Right-Click und Hold-and-Drag übernehmen, Selection vor Preview-Badge priorisieren und bei Tastatureingaben Preview sauber schließen. Badge-Positionierung mit noch offenem P01 (bis zu zwei Quick Actions) und Series-Gruppenkarten abstimmen; keine neue unruhige permanente Overlay-Reihe.
+**Zielzustand / technische Grenzen:** Hover-Preview nicht über die gesamte Thumbnail-Fläche, sondern über ein gezieltes Info-Badge öffnen, das bei Pointer-Hover bzw. passend fokussierter Keyboard-Navigation sichtbar wird. Gesten-/Hit-Test-Fixes für Long-Press, Right-Click und Hold-and-Drag übernehmen, Selection vor Preview-Badge priorisieren und bei Tastatureingaben Preview sauber schließen. Badge-Positionierung mit dem beschlossenen P01 (bis zu zwei Quick Actions) und Series-Gruppenkarten abstimmen; keine neue unruhige permanente Overlay-Reihe.
 
 **Daten / Abhängigkeiten:** Nur UI/Interaktion, keine neuen persistenten Felder. Bestehenden `tooltipDisplayMode` respektieren.
 
@@ -685,13 +685,13 @@ Vor der expliziten Nutzerentscheidung bleibt jeder Eintrag `OFFEN`; ein technisc
 
 **Status: ENTSCHIEDEN · 2026-10-16 · Umsetzung ausstehend.** **Beschlussart:** angepasst übernehmen.
 
-**Zielzustand / technische Grenzen:** Optionales Download-Sidecar neben der tatsächlich gespeicherten Mediendatei (`<media>.txt` mit einem Tag pro Zeile oder `<media>.json` mit Tags, unverfälschter Herkunft/Site-ID sofern verfügbar, öffentlichen Quelllinks, tatsächlicher Qualität und tatsächlichem Dateinamen) implementieren. Globales Format `off` als Default; pro Bulk-Download-Task ein optionaler Override (Default/Off/TXT/JSON). Keine zusätzliche profilbezogene Einstellung. Einzel-, Bookmark- und Bulk-Downloads sowie Cache-Direktkopien über denselben sicheren, beobachtbaren Completion-Pfad integrieren. Sidecar-Daten als unveränderlichen Post-/Task-Snapshot vor dem Transfer einfrieren, damit Retry/Background-Recovery nicht auf UI-Provider angewiesen sind. Dateien ausschließlich nach bestätigter Transfer-Fertigstellung atomar publizieren; deduplizierte Tags sortiert ausgeben, vorhandene fremde/abweichende Sidecars nicht überschreiben, Konflikt als eigenständig reparierbaren Fehler anzeigen. Sidecar-Fehler dürfen die abgeschlossene Mediendatei nicht erneut herunterladen oder zerstören. Bei `skip if exists` eine vorhandene Mediendatei mitsamt Sidecar unverändert überspringen, auch wenn das Sidecar fehlt. Sensible Cookies/Auth-Header, signierte oder lokale API-/Datei-URLs nicht exportieren. Upstream-Storage/Callbacks/Recovery an Fork-Download-/Observer-/Lifecyclesystem anpassen. D07 entscheidet noch separat die genaue Herkunft der `sitePostId` in Sidecar/JSON.
+**Zielzustand / technische Grenzen:** Optionales Download-Sidecar neben der tatsächlich gespeicherten Mediendatei (`<media>.txt` mit einem Tag pro Zeile oder `<media>.json` mit Tags, unverfälschter Herkunft/Site-ID sofern verfügbar, öffentlichen Quelllinks, tatsächlicher Qualität und tatsächlichem Dateinamen) implementieren. Globales Format `off` als Default; pro Bulk-Download-Task ein optionaler Override (Default/Off/TXT/JSON). Keine zusätzliche profilbezogene Einstellung. Einzel-, Bookmark- und Bulk-Downloads sowie Cache-Direktkopien über denselben sicheren, beobachtbaren Completion-Pfad integrieren. Sidecar-Daten als unveränderlichen Post-/Task-Snapshot vor dem Transfer einfrieren, damit Retry/Background-Recovery nicht auf UI-Provider angewiesen sind. Dateien ausschließlich nach bestätigter Transfer-Fertigstellung atomar publizieren; deduplizierte Tags sortiert ausgeben, vorhandene fremde/abweichende Sidecars nicht überschreiben, Konflikt als eigenständig reparierbaren Fehler anzeigen. Sidecar-Fehler dürfen die abgeschlossene Mediendatei nicht erneut herunterladen oder zerstören. Bei `skip if exists` eine vorhandene Mediendatei mitsamt Sidecar unverändert überspringen, auch wenn das Sidecar fehlt. Sensible Cookies/Auth-Header, signierte oder lokale API-/Datei-URLs nicht exportieren. Upstream-Storage/Callbacks/Recovery an Fork-Download-/Observer-/Lifecyclesystem anpassen. D07 bestimmt verbindlich die echte Site-Post-ID für Sidecar/JSON.
 
 **Daten / Abhängigkeiten:** Erfordert voraussichtlich zusätzliche nullable Sidecar-Konfiguration in globalen Settings, Bulk-Task-/Download-Record-Snapshots und additive SQLite-Migration (Upstream Version 2); existierende DB-Records bleiben gültig. Sidecar-Status/Journaling muss Crash/Reboot/Retry ohne doppelte Abschluss-Events (D02) tragen. Keine Änderung am bestehenden Bookmark-/Post-Hive-Schema. Keine erneute lokale Media-Downloadaktion durch bloßen Sidecar-Retry.
 
 **Abnahme / Tests:** Default Off, TXT/JSON, Einzel/Bookmark/Bulk/Video-Cache-Kopie, Skip-if-exists mit/ohne Sidecar, Sidecar-Kollision, readonly/scoped storage, disk full, Crash vor/nach Download/Sidecar-Write, Headless Background-Callback, Recovery nach Restart, Retry nur Sidecar, 0/mehrere Tags, UTF-8/Zeilenumbrüche, URL-/Credential-Redaction und Post-Origin-Identität.
 
-**Begründung / Quellen:** [`86a16a20e`](https://github.com/khoadng/Boorusama/commit/86a16a20ee1327740316005b7946b8264fa70a19). Vom Nutzer am 2026-10-16 bestätigt; D07 (Site-ID-Export) bleibt getrennt offen.
+**Begründung / Quellen:** [`86a16a20e`](https://github.com/khoadng/Boorusama/commit/86a16a20ee1327740316005b7946b8264fa70a19). Vom Nutzer am 2026-10-16 bestätigt; D07 ist inzwischen ebenfalls entschieden.
 
 ## D03 – Background Downloader Plugin-Update
 
@@ -703,7 +703,7 @@ Vor der expliziten Nutzerentscheidung bleibt jeder Eintrag `OFFEN`; ein technisc
 
 **Abnahme / Tests:** Android foreground/background, App-Neustart, Pause/Resume, Retry/Cancel, Notifications, Cronet, Cache-/Sidecar-Completion, Task-IDs, Android build und iOS/Desktop soweit unterstützt.
 
-**Begründung / Quellen:** [`669b8019f`](https://github.com/khoadng/Boorusama/commit/669b8019f80eaf8d0f40e268bbf8a29dc0808ddf). Vom Nutzer am 2026-10-16 bestätigt; D07 (Site-ID-Export) bleibt getrennt offen.
+**Begründung / Quellen:** [`669b8019f`](https://github.com/khoadng/Boorusama/commit/669b8019f80eaf8d0f40e268bbf8a29dc0808ddf). Vom Nutzer am 2026-10-16 bestätigt; D07 ist inzwischen ebenfalls entschieden.
 
 ## D04 – Download-Manager: injizierbarer Task-Client und Snapshot-Fix
 
@@ -715,7 +715,7 @@ Vor der expliziten Nutzerentscheidung bleibt jeder Eintrag `OFFEN`; ein technisc
 
 **Abnahme / Tests:** Drei oder mehr Updates derselben Task erzeugen unveränderliche frühere Snapshots und vollständige Listener-Events, Dispose ohne double-close, Task-Ingress-Snapshot und Stream identisch, Retry/Cancel/Pause/Resume mit Fake-Client und Auth-/Bypass-Headern, parallele Updates/Grouped Tasks, FileSize-Ausfälle.
 
-**Begründung / Quellen:** [`bd2e22c22`](https://github.com/khoadng/Boorusama/commit/bd2e22c221bcfb1a8c8c0675afbab6763a3102c9), [`90657ee4e`](https://github.com/khoadng/Boorusama/commit/90657ee4ed73f9a4bf7f2277ed1750e2f8b5d4ff). Vom Nutzer am 2026-10-16 bestätigt; D07 (Site-ID-Export) bleibt getrennt offen.
+**Begründung / Quellen:** [`bd2e22c22`](https://github.com/khoadng/Boorusama/commit/bd2e22c221bcfb1a8c8c0675afbab6763a3102c9), [`90657ee4e`](https://github.com/khoadng/Boorusama/commit/90657ee4ed73f9a4bf7f2277ed1750e2f8b5d4ff). Vom Nutzer am 2026-10-16 bestätigt; D07 ist inzwischen ebenfalls entschieden.
 
 ## D05 – Anime-Pictures Bulk Download und Request-Pacing
 
@@ -727,7 +727,7 @@ Vor der expliziten Nutzerentscheidung bleibt jeder Eintrag `OFFEN`; ein technisc
 
 **Abnahme / Tests:** Bulk über mehrere Seiten, rate/429/Retry-After, Link-Expire/Session-Wechsel, Parallel-Profile, Download-Cookie-Handling, vorhandene Cache-Treffer, Cancel/Pause/Resume, Seiten-Cursor und Result-Recovery.
 
-**Begründung / Quellen:** [`c5b79488c`](https://github.com/khoadng/Boorusama/commit/c5b79488c8d90b624cb17e8452d3b17e099be88f). Vom Nutzer am 2026-10-16 bestätigt; D07 (Site-ID-Export) bleibt getrennt offen.
+**Begründung / Quellen:** [`c5b79488c`](https://github.com/khoadng/Boorusama/commit/c5b79488c8d90b624cb17e8452d3b17e099be88f). Vom Nutzer am 2026-10-16 bestätigt; D07 ist inzwischen ebenfalls entschieden.
 
 ## D06 – Zerochan Bulk Download und URL-Auflösung
 
@@ -739,7 +739,7 @@ Vor der expliziten Nutzerentscheidung bleibt jeder Eintrag `OFFEN`; ein technisc
 
 **Abnahme / Tests:** Zerochan + Asiachan API/HTML-Responses, fehlende Original-URL, 404/410, falsche HTML-Seite/Metatags, explicit original vs. degraded variant, Preview/Sample, Redirect/Authentication/429, per-Post-Parallel-Fetch, Cache/Expiry, Dateiname/Extension/Size und Bulk Skip/Retries.
 
-**Begründung / Quellen:** [`50980b8da`](https://github.com/khoadng/Boorusama/commit/50980b8da1368aa39a44051c78dee12dd4dff2ce). Vom Nutzer am 2026-10-16 bestätigt; D07 (Site-ID-Export) bleibt getrennt offen.
+**Begründung / Quellen:** [`50980b8da`](https://github.com/khoadng/Boorusama/commit/50980b8da1368aa39a44051c78dee12dd4dff2ce). Vom Nutzer am 2026-10-16 bestätigt; D07 ist inzwischen ebenfalls entschieden.
 
 ## D08 – Favorite Tags direkt aus Storage exportieren
 
@@ -751,8 +751,22 @@ Vor der expliziten Nutzerentscheidung bleibt jeder Eintrag `OFFEN`; ein technisc
 
 **Abnahme / Tests:** Kaltstart Full-Backup ohne Öffnen der Favorite-Tag-Page, zuvor nicht initialisiertes UI-State, mehrere Labels/Raw-Query/Unicode, Auto-/Server-/File-/Clipboard-Backup, vollständiger Roundtrip ohne doppelte Tags, Import ersetzt Tags unverändert; Provider-Invalidation nach Import.
 
-**Begründung / Quellen:** [`f93bdf0dd`](https://github.com/khoadng/Boorusama/commit/f93bdf0dd42c5eb0e8165d9070310a2aebfa32c1). Vom Nutzer am 2026-10-16 bestätigt; D07 (Site-ID-Export) bleibt getrennt offen.
+**Begründung / Quellen:** [`f93bdf0dd`](https://github.com/khoadng/Boorusama/commit/f93bdf0dd42c5eb0e8165d9070310a2aebfa32c1). Vom Nutzer am 2026-10-16 bestätigt; D07 ist inzwischen ebenfalls entschieden.
+
+## D07 – Quellseitige Post-IDs in Exporten statt nur int IDs
+
+**Status: ENTSCHIEDEN · 2026-10-16 · Umsetzung ausstehend.** **Beschlussart:** angepasst übernehmen; Upstreams neue `{id}`-Semantik im Fork übernehmen.
+
+**Zielzustand / technische Grenzen:** Den unter X02 beschlossenen `Post.sitePostId: String?`-Getter für die **tatsächliche ursprüngliche ID auf der Quellwebsite** bereitstellen. Bei üblichen numerischen Boorus die wirkliche Post-ID als String, bei Sankaku die numerische oder alphanumerische Original-ID aus `SankakuPostData`, bei Pixiv die ursprüngliche `illustId` statt des synthetischen, seitenbezogenen `Post.id`. Unbekannte Original-ID bleibt `null`: niemals eine generierte interne ID als echte Site-ID ausgeben. Herkunft per vorhandener Post-/Codec-Fähigkeit ableiten, ohne Core→Sankaku/Pixiv-Kopplung.
+
+**Download-Dateinamen:** Den bestehenden Dateinamen-Token `{id}` von `post.id.toString()` auf die originale `post.sitePostId` umstellen, genauso wie Upstream. **Keinen zusätzlichen `{site_post_id}`-Token einführen.** Die bisherige Dateinamens-Rückwärtskompatibilität ist laut Nutzer nicht erforderlich, weil die Downloadfunktion im Fork kaum genutzt wurde. **Pixivs eigene Standardvorlage `{illust_id}_p{page}.{extension}` bleibt unverändert**, damit mehrere Seiten desselben Artworks eindeutige Namen erhalten. Benutzerdefinierte Pixiv-Vorlagen nur mit `{id}` können kollidieren; vorhandene Skip-/Dateikonfliktregeln müssen Überschreibungen verhindern. Ist die Site-ID unbekannt und die Vorlage braucht `{id}`, einen sicheren explizit nicht als Site-ID dargestellten Fallback-Namen verwenden oder eine verständliche Fehlermeldung liefern; niemals synthetische `Post.id` als echte ID einsetzen.
+
+**Exports / Datenmigration:** D01-JSON-Sidecars, externe Post-Links und andere externe Metadaten, die die ursprüngliche Post-ID ausgeben, verwenden `post.sitePostId`. Das Bookmark-Backup v5 enthält die echte Sankaku-ID bereits im vollständigen `snapshot.custom.sankakuId`; Importer v4/v5, `StoredPostSnapshot`, `PostOrigin`, `BookmarkIdentity`, Profil-UUIDs, Bookmark-Gruppen und Following-Identitäten bleiben unverändert. Kein zusätzliches `Bookmark.sitePostId`, kein neuer Hive-Feldindex, kein Backup-Versionssprung; insbesondere Fork-Hive-Index 15=`snapshotSchemaVersion`, 16=`postSnapshot` erhalten (Upstream-Kollision auf Index 15 vermeiden).
+
+**Abnahme / Tests:** `Post.sitePostId` für numerische/Alphanumerik/fehlende Site-IDs und Pixiv; `{id}`-Dateinamen bei Danbooru, Gelbooru, Sankaku, Pixiv inklusive korrekt unveränderter Pixiv-Standardnamen mehrseitiger Artworks; benutzerdefinierte Pixiv-`{id}`-Vorlagen und sichere Datei-Kollisionen; keine ungültigen generischen Namen, wenn ID fehlt; Links und D01-JSON-Sidecars liefern echte statt synthetische ID; bestehende Hive-Felder 15/16, Backup-/Restore-Versionen 4/5 und `BookmarkIdentity` durch Roundtrip ohne Datenverlust; gleiche numerische IDs verschiedener Booru-Installationen bleiben getrennt.
+
+**Begründung / Quellen:** Upstream [`216eb6e6d`](https://github.com/khoadng/Boorusama/commit/216eb6e6d43cef2581a110b66a8f1482d110e7b9). Nutzer bestätigte nach expliziter Klärung der Auswirkungen auf Pixiv und des mangelnden Rückwärtskompatibilitätsbedarfs am 2026-10-16, `{id}` direkt auf die echte Site-ID umzustellen. Das ist eine Planungsentscheidung und **keine Freigabe zur Code-Implementierung**.
 
 ## Weitere Entscheidungen
 
-**67/68 Themen ENTSCHIEDEN, 1 OFFEN.** Offen ist D07. Die Entscheidungen sind **Planungsbeschlüsse, keine Implementierung**; weitere Merge-Arbeit erst nach ausdrücklicher Freigabe. Für U08 (Testpflege) bleibt die bisherige automatische Einordnung bestehen.
+**68/68 Themen ENTSCHIEDEN, 0 OFFEN.** Alle 68 Entscheidungen sind beschlossen. Die Entscheidungen sind **Planungsbeschlüsse, keine Implementierung**; weitere Merge-Arbeit erst nach ausdrücklicher Freigabe. U08 ist als Testpflege gemeinsam mit den betroffenen Features beschlossen.
