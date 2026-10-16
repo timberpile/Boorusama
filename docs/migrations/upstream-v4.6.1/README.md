@@ -1,6 +1,11 @@
 # Upstream v4.6.1 — Merge Decisions
 
-**Status: ALL 68/68 DECISIONS IMPLEMENTED AND AUTOMATED VERIFICATION PASSED LOCALLY.** The genuine merge is recorded in `c08bb851acfe253e65cd307660cdbe465894fe7c`. Manual, device/native, live-endpoint, integration, remote, and release acceptance remain separate work and authorization.
+**Status: REVIEW REPAIRS IMPLEMENTED; FINAL LOCAL REGRESSION, ANALYSIS AND DEV APK BUILD PASSED.**
+The genuine merge remains in `c08bb851acfe253e65cd307660cdbe465894fe7c`.
+[Consolidated remediation](REVIEW_REMEDIATION.md) records 21 validated review
+items and the checked candidate. The Rule34 listing-host switch is deferred
+until its approved live-verification gate passes. Manual, installed-upgrade,
+other-native-platform, integration and publication acceptance remain separate.
 
 ## Pinned Comparison Baseline
 
@@ -18,6 +23,7 @@
 4. [Implementation handoff](IMPLEMENTATION_HANDOFF.md) — **English instructions for the local agent**, including source commits, dependency order, 68-item coverage, conflict traps, A16 versioning policy, verification and integration boundaries.
 5. [Manual acceptance checklist](MANUAL_ACCEPTANCE_CHECKLIST.md) — prioritized upgrade, data, network, media, download and responsive-UI checks for the user to perform on the final candidate.
 6. [Implementation report](IMPLEMENTATION_REPORT.md) — merge ancestry, implemented scope, verification evidence, remaining acceptance work and authorization boundaries.
+7. [Consolidated review remediation](REVIEW_REMEDIATION.md) — all claimed findings, validation, repairs, final verification and remaining limits.
 
 ## Decision and Implementation Rules
 
@@ -32,7 +38,7 @@
 
 ## Decision Status (2026-10-16)
 
-**68 of 68 items implemented locally, with automated verification complete.** All binding decisions are in [`decisions.md`](decisions.md) and summarized by the catalog and checklist. The task branch contains the genuine upstream merge; integration and publication are not authorized.
+**All 68 decisions remain approved. Review repairs and final automated verification are complete locally; B10 activation remains gated on live verification.** All binding decisions are in [`decisions.md`](decisions.md) and summarized by the catalog and checklist. The task branch contains the genuine upstream merge; integration and publication are not authorized.
 
 - **A02:** Following the UI migration, the agent must prepare a short prioritized manual acceptance checklist for the user. The **user**, not the agent, performs the manual UI checks.
 - **A16 — Versioning:** The numeric base of each fork release must exactly match its integrated upstream release. Restart `timberpile.N` at `.1` on each new upstream base, increment it within the same base, and **never** reset the Android/Flutter `+buildNumber`. Current release: `4.5.0-timberpile.5+189`; expected first release after the v4.6.1 merge: `4.6.1-timberpile.1+190`, provided there is no more recent allocated build number. Recheck shipped codes before release. Update the release skill, changelog, tags, GitHub manifest and updater consistently.
@@ -67,7 +73,8 @@
 - [x] D02: Decide download completion and notification safeguards.
 - [x] D01, D03–D06, D08: Implement the approved download and backup topics.
 - [x] D07: Switch download `{id}` to genuine site ID; retain Pixiv default filename, Hive and bookmark identity.
-- [x] B01–B10: Implement all approved site compatibility topics.
+- [x] B01–B09: Implement the approved site compatibility topics.
+- [ ] B10: Activate the new Rule34 listing host only after targeted live verification.
 - [x] P01–P14: Implement all approved grid and viewer topics.
 - [x] U01–U08: Implement the approved search, keyboard, desktop/TV and regression test topics.
 - [x] Approve all 68 migration decisions.

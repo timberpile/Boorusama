@@ -49,7 +49,9 @@ Key protected outcomes include:
 
 ## Verification
 
-The final runtime tree represented by merge commit `c08bb851a` passed:
+The following results are historical evidence for the initial merge, not the
+repaired candidate. Current results are in [the remediation report](REVIEW_REMEDIATION.md).
+The initial runtime tree represented by merge commit `c08bb851a` passed:
 
 - `./scripts/run_regression_tests.sh` — exit 0. This covered 3,796 application
   tests, every package and the CLI, pull-request policy tests, Android release

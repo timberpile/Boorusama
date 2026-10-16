@@ -47,11 +47,51 @@ established. No speculative behavior change was made for this concern.
 
 ## Verification
 
-In progress. The initial nine application reproduction checks failed against
-`49f2b9ade`; repaired focused checks and the complete cache/retry package suites
-have passed. The final runtime candidate still requires the complete regression
-runner, final analysis, Android build and diff review. This section will record
-the checked commit and actual results before handoff.
+Checked candidate: `0c1ade6eec43a1104b24391c702c4bf1972b3541`.
+Runtime fixes are in `d5af43e58`; `0c1ade6ee` aligns consumer tests with the
+approved behavior. The report/README changes after this candidate are
+documentation-only. Local `develop` and `origin/develop` remain at
+`e8bf883912ecd5a8c4154472a962aa0aabf0c09a`, an ancestor of the candidate;
+the pinned upstream v4.6.1 commit also remains an ancestor.
+
+- `./scripts/run_regression_tests.sh` — **exit 0** on the final candidate.
+  All 3,802 application tests, all 12 package/CLI suites, pull-request policy
+  tests, Android release-script tests and all 61 Python tests passed. No declared
+  test skips appeared in this run. Ordinary test concurrency was six physical
+  cores, detected by `python3 scripts/physical_core_count.py`.
+- `fvm flutter analyze --no-pub --no-fatal-infos` — **exit 0**, with no errors
+  or warnings and 198 informational diagnostics. Fatal-info analysis is not
+  claimed.
+- `fvm flutter build apk --debug --flavor dev --no-pub` — **exit 0** on the
+  final runtime, producing `build/app/outputs/flutter-apk/app-dev-debug.apk`.
+  Flutter emits compatibility warnings about the retained AGP/Kotlin/Gradle
+  versions; dependency Java/deprecation warnings also remain.
+- `./gen.sh`, followed by focused `./gen.sh i18n` / `./gen.sh booru` runs as
+  inputs were finalized — **passed**. The final tests/build used outputs
+  generated from the committed localization and booru inputs.
+- Changed Dart files were formatted with `fvm dart format`. Diff whitespace,
+  unresolved-index and merge ancestry checks passed.
+- Focused reproduction, recovery/UI, bulk, sharing, cookie, filename, cache and
+  retry checks passed. UI automation covered narrow width, enlarged text,
+  keyboard-constrained entry, pointer/keyboard Retry and metadata-only recovery.
+
+The initial nine application reproductions failed against `49f2b9ade` and pass
+with the repairs. The original Dev build reproduced SDK-name/DSL compilation
+errors. A separate minimal **offline** AGP 9.0.1 project reproduced removal of
+`android.defaults.buildfeatures.buildconfig`.
+
+The first complete attempt failed five assertions that encoded superseded
+endpoint/share/refresh contracts and one intermittent pending-image-request
+timer in the keyboard focus test. Consumer expectations were corrected while
+retaining media lifetime, latest-result, final-error and API-details checks.
+The keyboard case passed its isolated rerun, and the subsequent complete run
+passed on the final candidate. Recurring nonfatal Flutter native callback
+messages also occur in the supplied baseline-run logs; the final run still
+completed successfully.
+
+Evidence logs are retained locally under `/tmp/migration-fixes-*`, including
+`regression-final.log`, `regression-first-attempt.log`, `analyze-final.log`,
+`build-final.log`, `repro-baseline.log` and `agp-property-repro.log`.
 
 ## Limits
 
