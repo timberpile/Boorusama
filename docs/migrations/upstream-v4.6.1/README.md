@@ -29,7 +29,7 @@
 
 ## Entscheidungsstand (2026-10-16)
 
-**39 von 68 Themen beschlossen, 29 noch offen.** Alle 39 Entscheidungen stehen verbindlich in [decisions.md](decisions.md), zusammengefasst in Katalog und Checkliste. **Es wurde noch kein Upstream-Code integriert und keine Umsetzung freigegeben.**
+**47 von 68 Themen beschlossen, 21 noch offen.** Alle 47 Entscheidungen stehen verbindlich in [decisions.md](decisions.md), zusammengefasst in Katalog und Checkliste. **Es wurde noch kein Upstream-Code integriert und keine Umsetzung freigegeben.**
 
 - **A02:** Implementierender Agent schreibt nach dem UI-Umbau die wichtigsten manuellen Testfälle für den Nutzer; führt diese nicht selbst manuell durch.
 - **X04 + A09:** Cache-Generationen entfernen, URL-MD5/LRU/Checkpoints behalten; OS-Temp-Share-Kopie und vorhandenes >24h-Cleanup verwenden; Upstream read-only DocumentsProvider übernehmen.
@@ -40,6 +40,7 @@
 - **B06:** Shimmie2-Media-/Favorite-Fixes mit nicht-blockierendem Favorite-Status.
 - **B07–B08:** Rule34-Kommentar-Upvotes (keine Downvotes), Cursor-Pagination und capability-bedingte Sortierung übernehmen.
 - **B09–B10:** Nozomi-Index-/Range-Fixes mit Request-Koordination; Rule34-API-Host erst nach Live-Verifikation umstellen.
+- **P02, P05–P07, P11–P14:** Acht explizit bestätigte Viewer-/Grid-Beschlüsse (siehe `decisions.md`); P01/P03/P04/P08/P09/P10 bleiben zur Detailklärung offen.
 
 ## Fortschritt
 
@@ -53,7 +54,8 @@
 - [x] D02: Bulk-Download-Finalisierung und Notification-Schutz entschieden
 - [ ] D01, D03–D08: übrige Backup-/Download-Punkte entscheiden
 - [x] B01–B10: Booru-Kompatibilität vollständig entschieden (Implementierung ausstehend)
-- [ ] P01–P14: Posts, Grid, Viewer und Medien entscheiden
+- [x] P02, P05, P06, P07, P11, P12, P13, P14: acht Viewer-/Grid-Themen entschieden
+- [ ] P01, P03, P04, P08, P09, P10: Detailentscheidung ausstehend
 - [ ] Alle nichttrivialen Punkte entschieden
 - [ ] Merge-Resolution gegen finalen Plan implementiert
 - [ ] Datenmigrationen und vollständige Regressionstests bestanden
