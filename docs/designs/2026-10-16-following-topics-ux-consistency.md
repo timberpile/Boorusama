@@ -2,7 +2,7 @@
 
 Date: 2026-10-16
 
-Status: implementation specification; four product decisions pending
+Status: implementation specification; D1–D4 resolved on 2026-10-16
 
 Branch: `feature/following-topics-ux-consistency`
 
@@ -61,16 +61,23 @@ rewrite its historical verification report. No additional ticket is a prerequisi
 
 ## Product decision register
 
-All four entries are **pending**, not approved by the review or by this document.
-Recommended choices are proposals. Record the user's answer and date here before
-implementing a gated behavior. Independent work should continue meanwhile.
+D1–D4 are **resolved as of 2026-10-16**. The user approved D1 and D2, delegated
+D3 to the option consistent with a future context-specific profile model, and
+changed D4 to automatic continuation with a small warning. The selected D3
+implementation is route-scoped ownership. These are requirements, not pending
+recommendations; do not ask the user to decide them again.
 
-| ID | Question | Recommendation | Safe behavior until answered | Gated work |
-| --- | --- | --- | --- | --- |
-| D1 | May users follow a valid, normally searchable query when automatic new-post tracking is unsupported? | Yes: allow a manual-only Topic, explicitly show tracking unavailable, and exclude it from automatic/feed fetching that the engine cannot perform. Never pretend an unsupported query was checked. | Preserve existing creation availability; keep existing Topics editable/openable. Improve the explanation without enabling unsupported transports. | FTC-08 |
-| D2 | Should bulk actions on selected folders apply to their descendant Topics? | Yes for Refresh, Mark read, and Auto-update, with an explicit count of unique affected Topic IDs including subfolders. Folder selection must never mean a persistent folder update policy. | Keep these bulk actions scoped to explicitly selected Topics and say so; folder Move remains available. Recursive bulk Unfollow must not ship without explicit destructive scope confirmation. | Recursive scope in FTC-14 |
-| D3 | Should opening a Topic change the app's global active profile? | No: use route-scoped owner configuration, as feed post actions already aim to do, and leave the user's other browsing context unchanged. | Preserve current profile-switching behavior; carry exact Topic identity without also changing global-profile policy. | FTC-20 |
-| D4 | May older feed history continue when one source fails? | Keep cached posts visible; offer an explicit **Continue with available topics** action with a persistent partial-coverage warning. Do not silently present incomplete history as complete. | Preserve strict history loading, but identify the failing source and provide a targeted retry. No fail-open merge by default. | Degraded continuation in FTC-13 |
+| ID | Decision | Implementation boundary | Applies to |
+| --- | --- | --- | --- |
+| D1 | Allow valid, normally searchable manual-only Topics when automatic tracking is unsupported. | Save, organize, edit, and open the normal search. Explain tracking unavailability and do not issue automatic or feed requests the engine/query cannot support. | FTC-08 |
+| D2 | Bulk Topic actions on selected folders include descendant Topics. | Deduplicate by Topic ID across selected parents, children, and individual Topics; independent copies of the same query remain separate. Show the affected count. Unfollow still needs explicit scope confirmation and never implicitly deletes the folder tree. | FTC-14 |
+| D3 | Use the Topic owner's profile only within its search and dependent operations; do not switch the global active profile merely to open a Topic. | Chosen under the user's delegation because it fits profiles having effect only where endpoint, auth, query semantics, or actions differ. Preserve the correct account for all child operations; the wider profile overhaul is out of scope. | FTC-01, FTC-20 |
+| D4 | Continue automatically with available feed sources and show only a small non-blocking warning when some are unavailable. | No Continue prompt or required Retry action. Keep cached/successful posts, isolate source failures, use bounded coordinated recovery, and merge recovered results without duplicates or disruptive scroll jumps. | FTC-09, FTC-10, FTC-13 |
+
+D4 supersedes the earlier recommendation for opt-in partial continuation. The
+warning must remain while coverage is incomplete and may expose optional details,
+but must not become a blocking dialog, repeated error toast, or action required
+to keep browsing. A source failure is not evidence that its history is exhausted.
 
 The number of confirmation taps for first-time Follow, the RSS family, the
 Following Topics name, 1000-post default, independent Topic copies, and the
@@ -142,7 +149,7 @@ collection root label, without changing unrelated collection terminology globall
 
 Priority: P1 means correctness/trust first; P2 means core UX consistency; P3 means
 measured improvement. Check a task only after its acceptance cases are verified.
-Any gated subsection stays pending until the corresponding D entry is answered.
+D1–D4 are resolved; their subsections are part of the implementation scope.
 
 ### FTC-01 — Resolve exact Topic targets (P1; S1, S2)
 
@@ -274,14 +281,21 @@ power, and unsupported queries. Migration never silently enables old preferences
   points. Engine-level support alone must not claim every query is trackable.
 - [ ] Keep existing Topic management and normal search reachable when refresh
   support disappears. Never call an unsupported refresh transport accidentally.
-- [ ] If D1 is approved, allow valid searchable manual-only Topics, show tracking
-  unavailable explicitly, and state why their results cannot join a live feed
-  that requires unsupported fetching. Update bulk creation/editor validation.
-- [ ] If D1 is declined, retain supported-creation restrictions consistently;
-  avoid the present hidden/disabled/click-to-error variation.
+- [ ] Allow valid searchable manual-only Topics from every Follow entry point,
+  including bulk creation. Saving must not require a supported refresh adapter.
+  Show tracking unavailability explicitly; normal opening still uses ordinary
+  search. Update editor validation without weakening actual query validation.
+- [ ] Evaluate capabilities per operation: do not issue automatic or feed fetches
+  that the engine/query cannot support. Explain excluded manual-only sources in
+  feed status, and let supported sources continue under D4. Do not reinterpret
+  unsupported tracking as zero matching posts or a successful check.
+- [ ] Preserve existing user Auto-update preferences; capability unavailability
+  is an effective state, not permission to overwrite stored overrides. A later
+  supported configuration must not silently enable a previously disabled Topic.
 
-**Acceptance:** manual-only behavior matches the recorded decision; no silent
-empty-success result for an unsupported query. Existing data remains accessible.
+**Acceptance:** a valid searchable query can be followed, organized, edited, and
+opened without tracking support. No unsupported transport or fake empty-success
+result is issued, and existing disabled preferences remain intact.
 
 ### FTC-09 — Accurate feed initialization and freshness presentation (P2; S5, S6)
 
@@ -290,22 +304,30 @@ empty-success result for an unsupported query. Existing data remains accessible.
   baseline is not evidence it initialized this particular feed.
 - [ ] Distinguish no Topics, loading N of M Topics, paused/waiting, partial
   failures, completed zero matches, unavailable profile, and cleared cache.
-- [ ] Show cached results while refreshing or paused. Provide actionable controls
-  such as Follow a topic, Retry failed topics, or Open update settings.
+- [ ] Show cached results while refreshing or paused. Continue healthy sources
+  automatically when others fail; use D4's small non-blocking warning rather
+  than a mandatory Continue/Retry action or a large permanent error panel.
+  Follow a topic or Open update settings can remain useful for genuinely empty
+  or user-paused states; source-failure recovery must not require them.
 - [ ] Share the same summary with Feed Info; identify initialization versus
   periodic updates. Do not promise a paused queue is making progress.
-- [ ] Use compact status UI; a large permanent explanatory panel is unnecessary.
+- [ ] Use compact status UI. If all sources are unavailable, retain cached posts
+  and show an honest unavailable state, not endless loading or a false no-posts
+  result. Do not mislabel intentionally manual-only Topics as transient failures.
 
 **Acceptance:** old-baseline/new-feed, empty, offline, battery-saver, rate-limit,
-partial-success, missing-profile, and resumed states all have truthful text and
-appropriate actions without discarding successful results.
+partial-success, missing-profile, and resumed states all have truthful text.
+Partial availability never requires a user action to continue healthy sources;
+successful cached results remain visible.
 
 ### FTC-10 — Consistent Refresh and outcome feedback (P2; S4–S6)
 
 - [ ] Wire feed pull-to-refresh and menu refresh into the same existing guarded
   operation. Honor batch ownership, limits, and cancellation; no parallel fetcher.
 - [ ] Report failures returned as SearchRefreshOutcome as well as exceptions;
-  distinguish partial success and deferred work from total failure.
+  distinguish partial success and deferred work from total failure. For partial
+  feed-source unavailability, aggregate feedback into D4's small warning instead
+  of one toast per source or a blocking confirmation.
 - [ ] Route success, errors, undo where supported, and rate-limit messaging through
   the application's established feedback components. Do not mix unrelated
   SnackBar and toast conventions in otherwise identical operations.
@@ -349,22 +371,35 @@ periodic Topic updates remain independent of route visibility.
 a profile during history requests. Old results cannot reappear; unaffected posts
 remain; late completions cannot mutate the replacement session.
 
-### FTC-13 — Source-specific history failures (P1/P2; D4; S5)
+### FTC-13 — Automatic partial-source continuation and recovery (P1/P2; D4; S5)
 
-- [ ] Identify failed sources and retryable error causes instead of reducing all
-  history failures to an opaque merge error. Keep cached and successful data.
-- [ ] Under the safe default, retain strict chronology and expose targeted Retry;
-  do not silently skip the broken source or claim a complete timeline.
-- [ ] Only if D4 is approved, add explicit partial continuation. Persistently show
-  excluded sources and partial coverage for the session; define how retry merges
-  recovered posts without duplicate IDs or pretending they arrived in order.
-- [ ] Do not turn this into a broad pagination rewrite. If partial recovery cannot
-  be made safe within scope, complete diagnostics/retry and report that gated
-  continuation remains blocked.
+- [ ] Isolate failures per source. Keep cached posts and successful cursor data
+  visible, and continue fetching available sources automatically. Do not require
+  a Continue/Retry tap or fail the entire history merge for one unavailable site.
+- [ ] Show a small warning such as "Some topics are unavailable" while coverage
+  is incomplete. Keep it stable and accessible without repeated announcements,
+  repeated toasts, or a blocking modal. Optional details must remain optional.
+- [ ] Preserve the failed source's cursor/checkpoint and pending gap. Failure
+  must not mark it exhausted or advance past unfetched data. Only actual terminal
+  results can exhaust a source; reject stale results using FTC-12's ownership.
+- [ ] Retry through the existing coordinator, quotas, cooldowns, and network/power
+  guards at bounded eligible opportunities. Do not add a scheduler or a tight
+  retry loop, and do not reattempt a failing source for every healthy-source row.
+  Available sources must not wait for a failed source's backoff to finish.
+- [ ] Merge recovered posts automatically by upload order and origin-aware ID,
+  preserving the visible scroll anchor and deduplicating overlaps. Keep the
+  warning until the session's relevant gaps are covered, not merely until one
+  retry succeeds. No action is required to resume a recovered source.
+- [ ] If all sources are temporarily unavailable, retain the cache and stop
+  active loading honestly until an eligible recovery trigger. Distinguish this
+  from an empty result or exhausted history. Keep this a focused failure/recovery
+  change, not a general pagination rewrite.
 
-**Acceptance:** one failing site never blanks the cache. Strict mode does not
-silently omit it. Any approved partial mode is opt-in, visibly incomplete, and
-handles retries and same-ID/different-origin posts correctly.
+**Acceptance:** one unavailable source does not blank or block healthy results;
+no Continue/Retry action is required. Test one, several, and all source failures,
+rate limits, later automatic recovery, preserved gap cursors, source edits during
+recovery, scroll stability, and same-ID/different-origin posts. Incomplete coverage
+remains visible via the small warning until repaired.
 
 ### FTC-14 — Reliable selection and explicit bulk scope (P2; D2; S4)
 
@@ -377,11 +412,15 @@ handles retries and same-ID/different-origin posts correctly.
   only with exact scope and established confirmation/undo policy.
 - [ ] Snapshot selected IDs before asynchronous operations and revalidate changes;
   include hidden/deleted items safely and prevent action sets changing mid-save.
-- [ ] Implement D2's scope. Recommended recursive actions deduplicate Topic IDs
-  across selected ancestors/descendants while preserving independent query copies.
-  Show both selected container count and affected Topic count when they differ.
-- [ ] Recursive Unfollow requires an explicit preview and confirmation; do not
-  infer permission to delete an entire folder tree from an Auto-update selection.
+- [ ] Apply bulk Topic actions to the union of directly selected Topic IDs and
+  all descendants of selected folders. Refresh, Mark read, and Auto-update use
+  this same resolver. Deduplicate by Topic ID, not query; independent copies
+  remain separate targets. Show selected containers and affected Topics when
+  counts differ, and explain capability-based skips without blocking other work.
+- [ ] Unfollow selected uses that same descendant scope with an explicit preview
+  and confirmation. It removes the confirmed Topic records, not the containing
+  folder tree. Folder Move remains a structural move; never flatten descendants
+  or introduce a persistent inherited policy through a bulk action.
 
 **Acceptance:** failed moves, nested selections, changed lists, cancellation,
 Back/Escape, and mixed folder/Topic selections keep predictable state and exact
@@ -479,19 +518,22 @@ is lost through an old-format replace operation.
 
 ### FTC-20 — Route-scoped Topic search ownership (P2; D3; S4, S9)
 
-- [ ] If D3 is approved, allow the search route helper to receive the Topic owner's
-  explicit BooruConfig and originating Topic ID. Avoid updating global current
-  profile merely to open this search.
+- [ ] Pass the Topic owner's explicit BooruConfig and originating Topic ID to
+  the search route helper. Do not update the global active profile merely to
+  open a Topic; use the existing route-scoped configuration infrastructure.
 - [ ] Resolve all search actions, auth, suggestions, Follow management, viewer
   navigation, and downloads from the scoped owner; do not fix only fetching.
 - [ ] Returning leaves the previous global browse profile unchanged. A deliberate
   user profile switch inside search follows established app behavior.
-- [ ] If D3 is declined, retain global switching but test and describe it; do not
-  conflate FTC-01's exact identity propagation with approval to change this policy.
+- [ ] Keep organization and local discovery profile-independent; apply profiles
+  only where request endpoint, account/auth, query behavior, rendering, or actions
+  require them. This choice aligns with the user's planned future profile model
+  but does not authorize implementing that broader overhaul in this task.
 
 **Acceptance:** a Topic owned by profile B opens while globally browsing A with
-correct B auth/actions; Back and unrelated tabs follow the approved D3 behavior.
-No fallback silently performs a site/account action using the wrong profile.
+correct B auth/actions throughout dependent routes. Back and unrelated tabs stay
+on A unless the user deliberately switched them. Same-site/different-account
+cases keep the intended credentials; no fallback chooses the wrong account.
 
 ### FTC-21 — Measured collection-scale performance (P3; S4, S7, S11)
 
@@ -523,20 +565,21 @@ identity, or rollback regressions. No SQLite migration or unrelated optimization
   consumers, and run the complete repository regression gate on the final runtime
   candidate. Report device and upgrade coverage separately.
 
-**Acceptance:** every settled task is verified; every unresolved gated task is
-explicitly blocked rather than called complete. Final report names the checked
-commit/state and actual commands/results, including failures/skips/limits.
+**Acceptance:** every task and the resolved D1–D4 contracts are verified. Report
+any genuine implementation limitation explicitly rather than treating a resolved
+decision as pending. Final report names the checked commit/state and actual
+commands/results, including failures/skips/limits.
 
 ## Dependency and delivery order
 
 | Phase | Tasks | Why |
 | --- | --- | --- |
-| 0. Establish current behavior | FTC-22 baseline scenarios; identify approved D answers | Reproduce findings without undoing completed feature work. |
+| 0. Establish current behavior | FTC-22 baseline scenarios; read resolved D1–D4 | Reproduce findings without undoing completed feature work. |
 | 1. Targeting and saves | FTC-01, FTC-02, FTC-03, then FTC-04 | No cosmetic redesign over inconsistent mutation behavior. |
 | 2. Status and material correctness | FTC-07, FTC-11, FTC-12, FTC-18 | Fix misleading eligibility, stale requests, navigation ownership, and clear races. |
 | 3. Cohesive browsing/editing | FTC-05, FTC-06, FTC-09, FTC-10, FTC-17 | Shared editor/actions plus truthful progress and feedback. |
 | 4. Collection-scale interaction | FTC-14, FTC-15, FTC-16, FTC-19 | Explicit selection scope, ordering, discovery, and exports. |
-| 5. Decision-gated extensions | FTC-08, recursive FTC-14, FTC-20, partial FTC-13 | Only implement the behavior recorded in D1–D4. FTC-13 strict diagnostics need not wait. |
+| 5. Resolved capability and context behavior | FTC-08, recursive FTC-14, FTC-20, automatic partial FTC-13 | Implement D1–D4; no further product answers are needed. Pull FTC-20 forward with targeting, and FTC-13 with lifecycle work when practical. |
 | 6. Measurement and qualification | FTC-21, final FTC-22 | Optimize demonstrated hot paths and qualify the resulting candidate. |
 
 Batch related mechanical changes. Phase boundaries do not require user approval
@@ -555,20 +598,20 @@ per-task commit, extra plan, PR, or reviewer-agent workflow is implied.
 | A06: create nested feed-enabled folder from Follow, Move, browser | Equivalent settings, full path, no accidental root-only behavior | 05, 06 |
 | A07: same Topic Info directly and via Feed Info | Identical effective scheduling and disabled reason | 07 |
 | A08: legacy global flags and individual disabled override | No update preference silently enabled by UI consolidation | 07, 19 |
-| A09: unsupported-but-searchable query | D1 behavior; no unsupported transport or fake successful check | 08 |
+| A09: unsupported-but-searchable query | Manual-only Topic saves, edits, and opens; no unsupported transport, false zero results, or lost overrides | 08 |
 | A10: old baseline, newly opened feed, partial initialization | Feed-specific progress, successful cache retained | 09 |
-| A11: empty/offline/paused/missing profile/no matches | Distinct state plus useful next action | 09, 10 |
+| A11: empty/offline/paused/missing profile/no matches | Truthful distinct states; available sources continue with a small warning, no required action | 09, 10, 13 |
 | A12: nested feed/folder routes and rapid Open Feed taps | One intended route, preserved scroll, correct active ownership | 11 |
 | A13: source query/profile/removal during history request | Stale session/results rejected; unaffected posts remain | 12 |
 | A14: additive refresh while reading older posts | No involuntary jump; show-updates action remains available | 10, 12 |
-| A15: one failed history source, retry and optional continuation | Strict or visibly opt-in partial behavior per D4 | 13 |
+| A15: one/several/all unavailable sources and automatic recovery | Healthy data continues without a tap; small warning, bounded retries, gap-safe cursors, dedup and stable scroll | 13 |
 | A16: failed move, Back/Escape, source list changes in selection | Selection exits/persists only when appropriate | 14 |
-| A17: selected parent and child plus independent duplicate query | Scope counts unique IDs, no double operation; D2 honored | 14 |
+| A17: selected parent and child plus independent duplicate query | Descendant union by Topic ID; independent copies retained; scoped Unfollow confirmation, no implicit folder deletion | 14 |
 | A18: folder/Topic unread and date sorting, return to Manual | Summary and sort agree; manual placement unchanged | 15 |
 | A19: local subtree and profile filters; empty creation | No network/global-profile side effects; correct destination | 16 |
 | A20: cache clear versus late writer; disable/re-enable | No resurrection or unexpected eviction; explicit reopen semantics | 18 |
 | A21: modern export and legacy import in same installation | Clear presentation, stable compatibility and rollback | 19 |
-| A22: global profile A, Topic owner B | D3 behavior and correct auth/actions in every child route | 20 |
+| A22: global profile A, Topic owner B | Route-scoped B auth/actions throughout child routes; global A unchanged, including same-site different accounts | 20 |
 | A23: same numeric ID across sites/accounts and cached origins | Cross-site entries distinct; same-site identity dedup safe | 01, 12, 19, 20 |
 | A24: 240/320px controls, 2x text, keyboard insets, dark/light | Reachable actions, coherent labels, no overflow or stale state | 04–06, 14, 17 |
 | A25: realistic multi-feed performance fixtures | Before/after evidence, unchanged functional contracts | 21 |

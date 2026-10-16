@@ -11,7 +11,7 @@ Planning base: `e8bf883912ecd5a8c4154472a962aa0aabf0c09a` on `develop`
 Integrated feature reviewed: `ae13f2d44c658561df8d9b3095c9d1bb028c2291`
 
 Read the [implementation specification](2026-10-16-following-topics-ux-consistency.md)
-first. It contains 22 scoped tasks (FTC-01 through FTC-22), four decision gates,
+first. It contains 22 scoped tasks (FTC-01 through FTC-22), four resolved decisions,
 a source map, dependency order, and 25 acceptance scenarios. It is the authoritative
 scope for this follow-up, not the old original-feature handoff.
 
@@ -67,27 +67,30 @@ force-push, or delete branches. Follow any subsequently supplied explicit
 publication/integration authorization. Do not reopen completed work item 0035.
 The FTC IDs are local checklist references, not issue numbers.
 
-## Decisions to load before implementation
+## Resolved decisions to implement
 
-Read the specification's D1–D4 table and any newer user decisions in this branch
-or the execution prompt. Write actual answers and dates into that table. Do not
-promote recommendations to accepted requirements without an answer.
+D1–D4 were resolved on 2026-10-16. Read the specification's decision register and
+honor any newer explicit user instructions. These decisions no longer block work;
+do not reopen them or keep their tasks marked as awaiting approval.
 
-| Decision | Recommended choice | What can proceed without it |
+| Decision | Required behavior | Important boundary |
 | --- | --- | --- |
-| D1: manual-only Topics on searchable but untrackable queries | Allow local following; explicitly mark tracking unavailable | Consistent explanations, preserving/editing existing Topics, all supported workflows |
-| D2: selected folders in bulk Topic actions | Apply non-destructive actions to descendant Topic IDs with an explicit scope count | Selection fixes, Move, direct-Topic actions, safety confirmations |
-| D3: Topic search versus global profile | Use route-scoped owner configuration without changing the global profile | Exact originating Topic IDs, existing profile behavior, origin correctness tests |
-| D4: failed source during older history | Cached results stay visible; partial continuation only after explicit user choice | Strict-mode diagnostics, failed-source identification, targeted retry, stale-session fixes |
+| D1: manual-only Topics | Allow local following of valid searchable but untrackable queries; preserve normal opening, editing, and organization. | Show tracking unavailable. Never issue automatic or feed requests that the capability cannot support or report a fake successful check. |
+| D2: selected folders | Include descendant Topics in bulk Topic actions, deduplicated by Topic ID. | Independent query copies remain separate. Show affected counts; scoped Unfollow requires confirmation and does not delete folder trees. |
+| D3: profile scope | Use route-scoped Topic-owner configuration, leaving the global active profile unchanged. | The user delegated the choice to fit a future context-specific profile model; this is the selected approach. Preserve correct auth/actions and do not implement the wider profile overhaul. |
+| D4: unavailable feed sources | Continue available sources automatically with a small non-blocking warning; no user action needed. | No Continue prompt or required Retry tap. Preserve cached data and failed cursors, recover through existing bounded coordination, merge recovered results safely, and keep the warning while gaps remain. |
 
-Do not repeatedly interrupt the user for decisions already recorded. If an
-answer is still missing, implement unrelated work and leave only its gated
-behavior explicitly pending. Do not claim all work complete with gates unresolved.
+D4 explicitly supersedes the earlier opt-in partial-history recommendation. Do
+not accidentally retain strict all-source blocking or build a confirmation action
+under the old wording. Optional diagnostic details are fine; the default warning
+must stay small, and healthy results plus source recovery must require no tap.
 
-Other choices are settled: keep first-Follow confirmation/destination editing,
+Other choices remain settled: keep first-Follow confirmation/destination editing,
 Following opens management, keep RSS identity and familiar cards, opt-in folder
 feeds, default retention 1000, independent duplicate Topics, no automatic cache
-eviction, and read-all-contained-Topics when a feed opens.
+eviction, and read-all-contained-Topics when a feed opens. Implement all 22 tasks
+when execution is requested; this decision update itself changes documentation
+only and does not expand publication or integration authorization.
 
 ## Implementation sequence
 
@@ -146,10 +149,21 @@ Do not replace a working card design because a prototype looked different.
 
 ### 5. Finish collection-scale work and compatibility
 
-Execute FTC-14–16 and FTC-19; apply approved D gates to FTC-08/13/14/20.
-Scope bulk actions explicitly, retain failed selections, sort folder summaries,
-provide local discovery, and hide misleading empty legacy export choices without
-removing their import decoder or IDs.
+Execute FTC-14–16 and FTC-19, plus the resolved behavior in FTC-08/13/20.
+Allow manual-only Topics without unsupported transport. Use a shared descendant
+Topic-ID resolver for bulk actions; retain failed selections, sort folder
+summaries, provide local discovery, and hide misleading empty legacy export
+choices without removing their import decoder or IDs.
+
+Use route-scoped profiles for Topic searches and all dependent actions, without
+switching global browsing state. Keep the wider profile redesign out of scope.
+For unavailable feed sources, continue healthy sources automatically and show a
+small warning. Preserve gap/checkpoint state; use bounded existing retry/refresh
+opportunities, not a new scheduler or per-row retry loop. Automatically merge
+recovered data with origin-aware deduplication and a stable scroll anchor. If all
+sources are unavailable, retain cached content and report that state honestly;
+do not spin indefinitely or mark the sources exhausted. No Continue/Retry action
+may be required to keep browsing available results or resume a recovered source.
 
 Preserve exact independent-copy identity through backup import/export and
 rollback. A label cleanup must not become a persisted schema incompatibility.
@@ -191,6 +205,10 @@ not only a passing name-filtered subset.
 Use completion signals, controlled clocks, and failure injection for async work.
 Do not weaken tests or add sleeps to hide races. In particular exercise cache
 clearing during refresh, cancelled route owners, and material history edits.
+Also test manual-only creation, overlapping descendant selections, same-site
+profiles with different accounts, and automatic partial-source continuation with
+no Continue/Retry tap. Cover one/several/all unavailable sources, cooldowns,
+later recovery, unresolved gaps, deduplication, and scroll-anchor preservation.
 
 Exercise the specification's A01–A25 matrix, with narrow 240/320px control
 constraints where relevant, 2x text, keyboard insets, English/German, dark/light,
@@ -219,8 +237,10 @@ limitations. Passing tests do not authorize merging or publication.
 
 - Every settled FTC task is implemented and its acceptance behavior verified, or
   explicitly reconciled with evidence that it was already correct.
-- D1–D4 decisions are recorded; unresolved gated behavior is reported as blocked,
-  not silently implemented or marked complete.
+- D1–D4 are implemented as resolved: manual-only Topics, descendant bulk scope,
+  route-scoped profiles, and automatic partial-source continuation with a small
+  warning. Genuine implementation limits are explicit, not mislabeled as open
+  product decisions or silently replaced with the earlier defaults.
 - Follow/Following behavior is consistent from actual search, artist, inline,
   and tag-menu entry points, including real persistence and failure outcomes.
 - Folder/feed navigation, global/topic scheduling state, and cache/history
@@ -235,6 +255,6 @@ limitations. Passing tests do not authorize merging or publication.
   occurs without the separately required authorization.
 
 The final user report should summarize implemented contracts, the checked commit,
-verification evidence, and remaining decisions or limitations. It should not be a
+verification evidence, and any genuine remaining limitations. It should not be a
 transcript of every operation, and should not claim completion based only on a
 visual button refactor or the absence of analyzer errors.
