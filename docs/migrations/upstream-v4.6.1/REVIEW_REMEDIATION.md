@@ -441,3 +441,75 @@ Final logs are under `/tmp/migration-regressions-`: `full.log`,
 `focused-final.log`, `video-green.log`, `analyze-final.log`, and `build-final.log`.
 The migration worktree is retained; develop, remotes and release state are not
 modified by this follow-up.
+
+
+## Unfavorite vote synchronization and settings naming — 2026-10-17
+
+This repair follows `c61324c93944f2ee5f6d8505141464cbad25a6bf`. The user supplied
+a more precise sequence: favorite → automatic upvote → unfavorite → the upvote
+still appears → manual vote removal fails. The earlier preload-race repair did
+not cover this separate unfavorite transition.
+
+[Danbooru's Favorite model](https://github.com/danbooru/danbooru/blob/master/app/models/favorite.rb)
+invokes `unvote_post_on_destroy` after favorite deletion and soft-deletes the
+user's positive vote. The application then redundantly looked up that vote for
+another deletion. The server returned no active vote, so the notifier returned
+false and retained the cached upvote. A later manual lookup also found no vote,
+producing the reported failure despite the vote already being absent remotely.
+
+Successful unfavoriting now mirrors Danbooru's acknowledged positive-vote removal
+locally, without a vote lookup or second mutation. It preserves downvotes, as the
+server does. The notifier caches the confirmed absence so a preload that started
+before favorite/unfavorite cannot resurrect the upvote. Failed/cancelled/429
+favorite deletions retain their existing state and interruption behavior.
+
+Four regressions use the actual Danbooru client, favorite repository, vote
+repository and notifiers against a controlled HTTP adapter reproducing the
+server's callback. Before the fix, three failed: stale upvote after unfavorite,
+unintended downvote removal, and stale-preload resurrection. The failed-unfavorite case
+already passed. All four pass after the fix, including ordinary manual voting
+and removal using the real server vote ID. Existing generic favorite interruption
+coverage remains; Danbooru-specific expectations now assert no redundant cleanup
+request after an acknowledged deletion.
+
+Both the settings navigation entry and destination heading now use the same
+localized title, whose English text is exactly **Export and Import**. The
+separate header-title override is no longer needed. The route identifier stays
+`backup_and_restore` for navigation compatibility. Translation generation passed.
+The real settings-flow test checks both wide labels and the single visible label
+at 320 px width and 200% text scale.
+
+Live authenticated Danbooru UI acceptance remains user-run; no account mutations,
+emulator actions or physical-device operations were performed for this repair.
+The other migration acceptance limits above remain open.
+
+
+### Unfavorite repair verification
+
+The checked candidate is the runtime, English translation input and tests in
+this follow-up commit, based on `c61324c93944f2ee5f6d8505141464cbad25a6bf`, with
+develop at `d52b6694eb370a8099c820c397250b5199b0baa5`. Only documentation was
+extended after the complete test pass.
+
+- `./gen.sh i18n`: translation validation and generation passed.
+- `fvm dart format --output=none --set-exit-if-changed` on all seven changed Dart
+  files: exit 0, no changes.
+- `fvm flutter test --no-pub --concurrency=6` with
+  `test/boorus/danbooru_unfavorite_vote_test.dart`,
+  `test/boorus/danbooru_vote_race_test.dart`, `test/core/posts/favorites`,
+  `test/application/backup_restore_flow_test.dart`, and
+  `test/core/backups/export_import/export_import_page_test.dart`: all 41 tests
+  passed, including the constrained settings layout and exact English labels.
+- `./scripts/run_regression_tests.sh`: exit 0, all **3,798 application tests**,
+  **1,024 tests in all 12 package/CLI suites**, pull-request policy and Android
+  release shell checks, and **61 Python tooling tests** passed. No test suites
+  or individual tests were skipped; the default six physical cores were used.
+- `fvm flutter analyze --no-pub --no-fatal-infos`: exit 0, no errors or warnings;
+  the same 177 informational diagnostics as the preceding verified candidate.
+- `fvm flutter build apk --debug --flavor dev --no-pub`: exit 0, updated normal
+  Dev APK at `build/app/outputs/flutter-apk/app-dev-debug.apk`.
+- Whitespace, unresolved-index and required ancestry checks passed. Develop is
+  unchanged; only the migration branch is updated. No push or release action.
+
+Logs: `/tmp/migration-unfavorite-{i18n,focused,full,analyze,build}.log`.
+The pre-fix reproduction failures are in `/tmp/migration-unfavorite-red.log`.

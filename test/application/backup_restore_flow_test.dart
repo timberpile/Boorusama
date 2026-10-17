@@ -103,9 +103,9 @@ void main() {
     await harness.settle(tester);
 
     await _openBackupAndRestore(tester, harness);
-    expect(find.text('Export & import'), findsOneWidget);
-    // The category remains in the wide sidebar; it is no longer a second header.
-    expect(find.text('Backup and Restore'), findsOneWidget);
+    // The sidebar category and destination heading use exactly the same label.
+    expect(find.text('Export and Import'), findsNWidgets(2));
+    expect(find.text('Backup and Restore'), findsNothing);
 
     await _openAdvancedBackup(tester, harness);
     final settingsTile = find.ancestor(
@@ -141,7 +141,7 @@ void main() {
       tester.platformDispatcher.textScaleFactorTestValue = 2;
       addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
       await harness.settle(tester);
-      expect(find.text('Export & import'), findsOneWidget);
+      expect(find.text('Export and Import'), findsOneWidget);
       expect(find.text('Backup and Restore'), findsNothing);
       expect(tester.takeException(), isNull);
       await tester.scrollUntilVisible(
@@ -307,7 +307,7 @@ Future<void> _openBackupAndRestore(
   await tester.pump();
   await harness.settle(tester);
 
-  final backupCategory = find.text('Backup and Restore');
+  final backupCategory = find.text('Export and Import');
   await tester.ensureVisible(backupCategory);
   await tester.tap(backupCategory);
   await tester.pump();

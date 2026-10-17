@@ -1082,7 +1082,7 @@
       "backup_data": "Backup data",
       "advanced_export_import": "Advanced export/import",
       "export_import": {
-        "title": "Export & import",
+        "title": "Export and Import",
         "description": "Back up all of your data or share selected collections.",
         "create_export": "Create export",
         "full_export": "Full export",

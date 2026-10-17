@@ -79,9 +79,8 @@ List<SettingEntry> _entries(
   SettingEntry(
     id: 'backup_and_restore',
     name: '/settings/backup_and_restore',
-    title: context.t.settings.backup_and_restore.backup_and_restore,
+    title: context.t.settings.backup_and_restore.export_import.title,
     icon: FontAwesomeIcons.cloudArrowDown,
-    headerTitle: context.t.settings.backup_and_restore.export_import.title,
     content: const BackupAndRestorePage(showAppBar: false),
   ),
   SettingEntry(
@@ -416,7 +415,7 @@ class _SettingsAdaptiveShellState
             id: id,
             animate: animate,
             child: _SettingsDestinationFrame(
-              title: entry.headerTitle ?? entry.title,
+              title: entry.title,
               leading: !wide || index > 0
                   ? BackButton(onPressed: _notifier.back)
                   : null,

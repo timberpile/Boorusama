@@ -76,6 +76,14 @@ class PostVotesNotifier
     state = VotesStateHelpers.removeVoteFromState(state, postId);
   }
 
+  void removeLocalUpvote(int postId) {
+    if (state[postId]?.voteState != VoteState.upvoted) return;
+
+    // Cache the acknowledged absence so an older preload cannot restore it.
+    // Unfavoriting does not remove downvotes on Danbooru.
+    state = state.add(postId, null);
+  }
+
   Future<bool> removeVote(
     int postId,
     PostVoteId? voteId,

@@ -75,7 +75,7 @@ These checks remain user-run acceptance on the final candidate; automated tests
 cover the failure mechanisms but do not replace Android document-provider or
 live-site playback/voting checks.
 
-- From Settings → Backup and Restore, confirm there is one **Export & import**
+- From Settings → Export and Import, confirm there is one **Export and Import**
   heading. Select a `.bsexport` from Android Downloads and another document
   provider; neither should be greyed out. Confirm `.zip` also reaches import
   review, an unrelated file shows the localized error, and cancellation is quiet.
@@ -89,8 +89,9 @@ live-site playback/voting checks.
   freezing. Repeat while paused; opening/closing details must keep it paused.
   Other engines and WebM still need device coverage. The earlier whole-video
   freeze was no longer reproducible after the user's fresh installation.
-- On Danbooru, favorite a post and remove its automatic upvote while keeping the
-  favorite. Repeat after opening a fresh result page while votes are loading.
-  Confirm ordinary upvote/removal also still works. The intermittent server
-  toast needs live confirmation even though the stale-preload race is covered
-  by a controlled regression test.
+- On Danbooru, favorite a post and confirm its automatic upvote. Unfavorite it:
+  both the favorite and positive vote must clear, without a second vote deletion.
+  Repeat while initial votes are loading. A downvote made before unfavoriting
+  must stay active. Also check manual upvote/removal and removing an automatic
+  upvote while keeping the favorite. The local client/repository reproduction
+  covers these state transitions; live-account UI acceptance remains user-run.
