@@ -70,6 +70,7 @@ class _KurumiContextMenuState extends State<KurumiContextMenu> {
   static _KurumiContextMenuState? _open;
   static final _mounted = <_KurumiContextMenuState>{};
 
+  final _triggerKey = GlobalKey();
   final _controller = AnchorContextMenuController();
   final _menuScope = FocusScopeNode(debugLabel: 'KurumiContextMenu');
   final _pageController = KurumiContextMenuPageController();
@@ -111,27 +112,26 @@ class _KurumiContextMenuState extends State<KurumiContextMenu> {
   }
 
   void _switchTo(Offset position) {
-    final target = _mounted
-        .map((menu) => (menu: menu, area: menu._areaAt(position)))
-        .where((hit) => hit.area != null)
-        .fold<({_KurumiContextMenuState menu, double? area})?>(
-          null,
-          (best, hit) => switch (best) {
-            final best? when best.area! <= hit.area! => best,
-            _ => hit,
-          },
-        );
+    final viewId = View.of(context).viewId;
     _controller.hide();
-    target?.menu._show(position, byKeyboard: false);
+    // Resolve after the backdrop is removed so covered/offstage triggers cannot
+    // win simply because their layout rectangles contain the pointer.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _open != null) return;
+      final result = HitTestResult();
+      WidgetsBinding.instance.hitTestInView(result, position, viewId);
+      for (final entry in result.path) {
+        for (final menu in _mounted) {
+          if (menu.widget.triggers &&
+              menu._triggerKey.currentContext?.findRenderObject() ==
+                  entry.target) {
+            menu._show(position, byKeyboard: false);
+            return;
+          }
+        }
+      }
+    });
   }
-
-  double? _areaAt(Offset position) => switch (context.findRenderObject()) {
-    final RenderBox box
-        when box.hasSize &&
-            (Offset.zero & box.size).contains(box.globalToLocal(position)) =>
-      box.size.width * box.size.height,
-    _ => null,
-  };
 
   void _showForFocus() {
     final rect = FocusManager.instance.primaryFocus?.rect;
@@ -227,9 +227,13 @@ class _KurumiContextMenuState extends State<KurumiContextMenu> {
               for (final trigger in KurumiContextMenu.keyboardTriggers)
                 trigger: _showForFocus,
             },
-            child: KurumiAdaptiveContextMenuGestureTrigger(
-              onShow: (position) => _show(position, byKeyboard: false),
-              child: widget.child,
+            child: Listener(
+              key: _triggerKey,
+              behavior: HitTestBehavior.opaque,
+              child: KurumiAdaptiveContextMenuGestureTrigger(
+                onShow: (position) => _show(position, byKeyboard: false),
+                child: widget.child,
+              ),
             ),
           ),
         },
@@ -273,6 +277,7 @@ class KurumiAdaptiveContextMenuGestureTrigger extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       // Convertible devices and desktop-class Android builds can use touch and
       // a mouse in the same session. Keep both established entry points active
       // instead of selecting one from the target platform at build time.

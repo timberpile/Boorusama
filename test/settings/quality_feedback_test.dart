@@ -224,6 +224,49 @@ void main() {
     }
   }
 
+  for (final state in AnimatedPostsDefaultState.values) {
+    for (final bytes in [0, -1, maxAutoplayGridGifBytes + 1, 1024]) {
+      if (state == AnimatedPostsDefaultState.autoplay && bytes == 1024)
+        continue;
+      for (final quality in ImageQuality.values) {
+        for (final size in GridSize.values) {
+          test(
+            'static GIF ${state.name} $bytes ${quality.name} ${size.name}',
+            () {
+              final expected = switch (quality) {
+                ImageQuality.low =>
+                  size == GridSize.micro || size == GridSize.tiny
+                      ? '180'
+                      : '360',
+                ImageQuality.automatic || ImageQuality.high =>
+                  size == GridSize.micro
+                      ? '180'
+                      : size == GridSize.tiny
+                      ? '360'
+                      : '720',
+                ImageQuality.highest => size == GridSize.micro ? '360' : '720',
+                ImageQuality.original => '720',
+              };
+              expect(
+                const DanbooruGridThumbnailUrlGenerator()
+                    .resolve(
+                      _post(variants: true, format: 'gif', fileSize: bytes),
+                      settings: GridThumbnailSettings(
+                        imageQuality: quality,
+                        animatedPostsDefaultState: state,
+                        gridSize: size,
+                      ),
+                    )
+                    .url,
+                expected,
+              );
+            },
+          );
+        }
+      }
+    }
+  }
+
   for (final fileSize in [0, -1, maxAutoplayGridGifBytes + 1]) {
     test(
       'a transcoded GIF sample cannot bypass original-size guard $fileSize',
@@ -327,7 +370,7 @@ void main() {
                 settings: settings,
               )
               .url,
-          '720',
+          quality == ImageQuality.low ? '360' : '720',
         );
       }
     });
