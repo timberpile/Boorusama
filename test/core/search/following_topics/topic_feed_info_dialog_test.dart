@@ -3,8 +3,6 @@ import 'package:boorusama/core/search/following_topics/providers.dart';
 import 'package:boorusama/core/search/following_topics/types.dart';
 import 'package:boorusama/core/search/following_topics/src/pages/topic_feeds_page.dart';
 import 'package:boorusama/core/search/following_topics/src/widgets/topic_feed_info_dialog.dart';
-import 'package:boorusama/core/search/following_topics/src/widgets/following_topic_info_dialog.dart';
-import 'package:boorusama/core/settings/src/types/settings.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'following_topic_test_utils.dart';
@@ -46,15 +44,8 @@ void main() {
     return feed;
   }
 
-  Future<void> openInfo(WidgetTester tester) async {
-    await tester.tap(find.byWidgetPredicate((w) => w is PopupMenuButton).first);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Info').last);
-    await tester.pumpAndSettle();
-  }
-
   testWidgets(
-    'opened feed moves cached status into a dismissible reactive Info dialog',
+    'opened feed shows status in the timeline and keeps old actions out of its menu',
     (tester) async {
       final feed = await seed(tester);
       await h.pump(
@@ -62,34 +53,16 @@ void main() {
         TopicFeedPage(feedId: feed.id, profileId: testProfile.id),
       );
       await drain(tester);
-      expect(find.textContaining('checked'), findsNothing);
-      expect(find.textContaining('Last checked:'), findsNothing);
-      expect(
-        find.text('Rate limited by the site. Try again later.'),
-        findsNothing,
-      );
-      final before = await tester.runAsync(h.repository.getAll);
-      await openInfo(tester);
-      expect(find.byType(TopicFeedInfoDialog), findsOneWidget);
-      expect(find.text('1/2 topics checked · 1 errors'), findsOneWidget);
       expect(find.textContaining('Last checked:'), findsOneWidget);
-      expect(
-        find.text('Rate limited by the site. Try again later.'),
-        findsOneWidget,
-      );
+      final before = await tester.runAsync(h.repository.getAll);
+      await tester.tap(find.byType(PopupMenuButton<String>).first);
+      await tester.pumpAndSettle();
+      expect(find.text('Refresh'), findsOneWidget);
+      expect(find.text('Feed details'), findsNothing);
+      expect(find.text('Topics'), findsNothing);
+      expect(find.text('Clear feed cache'), findsNothing);
       expect(h.requests, isEmpty);
       expect(await tester.runAsync(h.repository.getAll), before);
-      final refresh = h.container
-          .read(followingTopicsProvider.notifier)
-          .refresh(feed.sourceIds.last);
-      await drain(tester);
-      await refresh;
-      await drain(tester);
-      expect(find.textContaining('2/2'), findsOneWidget);
-      await tester.tap(find.widgetWithText(TextButton, 'OK'));
-      await tester.pumpAndSettle();
-      expect(find.byType(TopicFeedInfoDialog), findsNothing);
-      expect(find.textContaining('Last checked:'), findsNothing);
     },
   );
 
@@ -105,7 +78,7 @@ void main() {
       h.refreshGate = Completer<void>();
       final refresh = h.container
           .read(followingTopicsProvider.notifier)
-          .refresh(feed.sourceIds.last);
+          .refreshFeed(feed.id);
       await drain(tester);
       expect(find.byType(LinearProgressIndicator), findsOneWidget);
       expect(find.textContaining('sources checked'), findsNothing);
@@ -264,36 +237,17 @@ void main() {
     },
   );
 
-  for (final feedEnabled in [true, false]) {
-    testWidgets(
-      'source Info uses feed refresh scope ($feedEnabled) and starts no requests',
-      (tester) async {
-        h.dispose();
-        h = FollowingTopicHarness(
-          settings: Settings.defaultSettings.copyWith(
-            searchRefresh: SearchRefreshSettings(
-              followingTopicsEnabled: !feedEnabled,
-              topicFeedsEnabled: feedEnabled,
-            ),
-          ),
-        );
-        final feed = await seed(tester);
-        await h.pump(tester, TopicFeedInfoDialog(feedId: feed.id));
-        await tester.tap(find.text('Cats · Info'));
-        await tester.pumpAndSettle();
-        expect(find.byType(FollowingTopicInfoDialog), findsOneWidget);
-        expect(
-          find.textContaining('Refresh interval: Adaptive'),
-          findsOneWidget,
-        );
-        expect(
-          find.textContaining('Next refresh: Not scheduled'),
-          feedEnabled ? findsNothing : findsOneWidget,
-        );
-        expect(h.requests, isEmpty);
-      },
-    );
-  }
+  testWidgets('feed Info omits the redundant topic entries list', (
+    tester,
+  ) async {
+    final feed = await seed(tester);
+    await h.pump(tester, TopicFeedInfoDialog(feedId: feed.id));
+    expect(find.text('Artists'), findsOneWidget);
+    expect(find.text('Cats'), findsNothing);
+    expect(find.text('Dogs'), findsNothing);
+    expect(find.byType(TextButton), findsOneWidget);
+    expect(h.requests, isEmpty);
+  });
 
   testWidgets(
     'Info remains scrollable and dismissible at 280dp with enlarged text and keyboard',

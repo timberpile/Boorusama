@@ -230,10 +230,6 @@ class FollowingTopicCard extends StatelessWidget {
                                   child: Text(strings.move_down),
                                 ),
                               PopupMenuItem(
-                                value: FollowingTopicAction.moveFolder,
-                                child: Text(strings.move_to_folder),
-                              ),
-                              PopupMenuItem(
                                 value: FollowingTopicAction.delete,
                                 child: Text(strings.remove),
                               ),

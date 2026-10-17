@@ -1,9 +1,10 @@
 // Flutter imports:
-import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 // Package imports:
+import 'package:context_menus/context_menus.dart';
 import 'package:kurumi/kurumi.dart';
 
 void main() {
@@ -70,4 +71,43 @@ void main() {
     await tester.pump();
     expect(otherPostTaps, 1);
   }, variant: TargetPlatformVariant({TargetPlatform.android}));
+
+  testWidgets('custom context menus render configured icons and badges', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: KurumiCustomContextMenuOverlay(
+          mobileLayout: false,
+          child: Scaffold(
+            body: ContextMenuRegion(
+              contextMenu: GenericContextMenu(
+                buttonConfigs: [
+                  ContextMenuButtonConfig(
+                    'Following',
+                    onPressed: () {},
+                    icon: const Badge(
+                      label: Text('2'),
+                      child: Icon(Icons.rss_feed),
+                    ),
+                  ),
+                ],
+              ),
+              child: const Text('Target'),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(
+      find.text('Target'),
+      buttons: kSecondaryMouseButton,
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Following'), findsOneWidget);
+    expect(find.byType(Badge), findsOneWidget);
+    expect(find.text('2'), findsOneWidget);
+  });
 }

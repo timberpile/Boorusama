@@ -76,13 +76,13 @@ class TopicFeedsBackupSource extends JsonBackupSource<TopicFeedBackupData> {
   }
 
   @override
-  String get displayName => Translations().topic_feeds_backup.title;
+  String get displayName => Translations().topic_feeds_backup.legacy_title;
 
   @override
   Widget buildTile(BuildContext context) => Consumer(
     builder: (context, ref, child) => DefaultBackupTile(
       source: this,
-      title: context.t.topic_feeds_backup.title,
+      title: context.t.topic_feeds_backup.legacy_title,
       icon: Symbols.dynamic_feed,
       subtitle: ref
           .watch(followingTopicsProvider)

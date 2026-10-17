@@ -197,7 +197,6 @@ class TopicFeedManagementPage extends ConsumerWidget {
             context: context,
             builder: (_) => FollowingTopicInfoDialog(
               topicId: source.id,
-              feedSource: true,
             ),
           );
           return;

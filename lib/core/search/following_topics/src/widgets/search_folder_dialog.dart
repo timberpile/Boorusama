@@ -1,6 +1,8 @@
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
 
+import '../types/topic_organization.dart';
+
 Future<String?> showSearchFolderNameDialog(
   BuildContext context, {
   String? name,
@@ -57,11 +59,13 @@ class _SearchFolderNameDialogState extends State<_SearchFolderNameDialog> {
 final class SearchFolderSettings {
   const SearchFolderSettings({
     required this.name,
+    required this.parentId,
     required this.feedEnabled,
     required this.maxPosts,
   });
 
   final String name;
+  final String? parentId;
   final bool feedEnabled;
   final int maxPosts;
 }
@@ -69,12 +73,18 @@ final class SearchFolderSettings {
 Future<SearchFolderSettings?> showSearchFolderSettingsDialog(
   BuildContext context, {
   String? name,
+  List<TopicFolder> folders = const [],
+  String? parentId,
+  String? editingFolderId,
   bool feedEnabled = false,
   int maxPosts = 1000,
 }) => showDialog<SearchFolderSettings>(
   context: context,
   builder: (_) => _SearchFolderSettingsDialog(
     name: name,
+    folders: folders,
+    parentId: parentId,
+    editingFolderId: editingFolderId,
     feedEnabled: feedEnabled,
     maxPosts: maxPosts,
   ),
@@ -83,11 +93,17 @@ Future<SearchFolderSettings?> showSearchFolderSettingsDialog(
 class _SearchFolderSettingsDialog extends StatefulWidget {
   const _SearchFolderSettingsDialog({
     this.name,
+    required this.folders,
+    this.parentId,
+    this.editingFolderId,
     required this.feedEnabled,
     required this.maxPosts,
   });
 
   final String? name;
+  final List<TopicFolder> folders;
+  final String? parentId;
+  final String? editingFolderId;
   final bool feedEnabled;
   final int maxPosts;
 
@@ -98,11 +114,23 @@ class _SearchFolderSettingsDialog extends StatefulWidget {
 
 class _SearchFolderSettingsDialogState
     extends State<_SearchFolderSettingsDialog> {
-  late final TextEditingController _name = TextEditingController(
+  late final _name = TextEditingController(
     text: widget.name,
   );
   late bool _feedEnabled = widget.feedEnabled;
   late int _maxPosts = widget.maxPosts;
+  late final String? _parentId = widget.parentId;
+
+  bool get _duplicateName {
+    final value = _name.text.trim().toLowerCase();
+    return value.isNotEmpty &&
+        widget.folders.any(
+          (folder) =>
+              folder.id != widget.editingFolderId &&
+              folder.parentId == _parentId &&
+              folder.name.toLowerCase() == value,
+        );
+  }
 
   @override
   void dispose() {
@@ -130,6 +158,13 @@ class _SearchFolderSettingsDialogState
             decoration: InputDecoration(labelText: strings.folder_name),
             onChanged: (_) => setState(() {}),
           ),
+          if (_duplicateName) ...[
+            const SizedBox(height: 8),
+            Text(
+              strings.folder_name_duplicate,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          ],
           const SizedBox(height: 12),
           CheckboxListTile(
             title: Text(strings.enable_feed),
@@ -138,7 +173,7 @@ class _SearchFolderSettingsDialogState
             onChanged: (enabled) =>
                 setState(() => _feedEnabled = enabled ?? false),
           ),
-          if (_feedEnabled)
+          if (_feedEnabled) ...[
             DropdownButtonFormField<int>(
               initialValue: _maxPosts,
               decoration: InputDecoration(
@@ -151,6 +186,7 @@ class _SearchFolderSettingsDialogState
               onChanged: (limit) =>
                   setState(() => _maxPosts = limit ?? _maxPosts),
             ),
+          ],
         ],
       ),
       actions: [
@@ -159,12 +195,13 @@ class _SearchFolderSettingsDialogState
           child: Text(context.t.generic.action.cancel),
         ),
         FilledButton(
-          onPressed: _name.text.trim().isEmpty
+          onPressed: _name.text.trim().isEmpty || _duplicateName
               ? null
               : () => Navigator.pop(
                   context,
                   SearchFolderSettings(
                     name: _name.text.trim(),
+                    parentId: _parentId,
                     feedEnabled: _feedEnabled,
                     maxPosts: _maxPosts,
                   ),

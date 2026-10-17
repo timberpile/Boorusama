@@ -94,19 +94,19 @@ void main() {
       ),
     );
     await settle(tester);
-    await tester.tap(find.text('Follow Topics'));
+    await tester.tap(find.text('Bulk Follow').last);
     await settle(tester);
     await tester.enterText(find.byType(TextField).last, 'cat\ndog');
     await tester.pump();
     expect(
       tester
           .widget<FilledButton>(
-            find.widgetWithText(FilledButton, 'Follow Topics'),
+            find.widgetWithText(FilledButton, 'Bulk Follow'),
           )
           .onPressed,
       isNotNull,
     );
-    await tester.tap(find.widgetWithText(FilledButton, 'Follow Topics'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Bulk Follow'));
     await tester.pumpAndSettle();
     await drain(tester);
 
@@ -132,19 +132,19 @@ void main() {
     });
     await harness.pump(tester, TopicFeedManagementPage(feedId: feedId));
 
-    await tester.tap(find.byTooltip('Follow Topics'));
+    await tester.tap(find.byTooltip('Bulk Follow'));
     await settle(tester);
     await tester.enterText(find.byType(TextField).last, 'dog\nbird');
     await tester.pump();
     expect(
       tester
           .widget<FilledButton>(
-            find.widgetWithText(FilledButton, 'Follow Topics'),
+            find.widgetWithText(FilledButton, 'Bulk Follow'),
           )
           .onPressed,
       isNotNull,
     );
-    await tester.tap(find.widgetWithText(FilledButton, 'Follow Topics'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Bulk Follow'));
     await tester.pumpAndSettle();
     await drain(tester);
 

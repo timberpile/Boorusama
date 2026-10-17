@@ -10,6 +10,7 @@ import '../types/topic_organization.dart';
 import '../types/following_topic_sort.dart';
 import '../types/following_topic.dart';
 import 'following_topic_card.dart';
+import 'topic_new_posts_badge.dart';
 
 final class FollowingTopicFolderPreview {
   const FollowingTopicFolderPreview({
@@ -96,7 +97,8 @@ class FollowingTopicFolderCard extends StatelessWidget {
   const FollowingTopicFolderCard({
     required this.name,
     required this.itemCount,
-    required this.hasNewPosts,
+    required this.newPostCount,
+    this.newPostCountIsLowerBound = false,
     required this.previews,
     required this.lastPostAt,
     required this.hasBaseline,
@@ -117,7 +119,8 @@ class FollowingTopicFolderCard extends StatelessWidget {
 
   final String name;
   final int itemCount;
-  final bool hasNewPosts;
+  final int newPostCount;
+  final bool newPostCountIsLowerBound;
   final List<FollowingTopicFolderPreview> previews;
   final DateTime? lastPostAt;
   final bool hasBaseline;
@@ -177,11 +180,10 @@ class FollowingTopicFolderCard extends StatelessWidget {
                         ],
                       ),
                     ),
-                    if (hasNewPosts)
-                      Semantics(
-                        label: strings.new_posts,
-                        excludeSemantics: true,
-                        child: Badge(label: Text(strings.new_badge)),
+                    if (newPostCount > 0)
+                      TopicNewPostsBadge(
+                        count: newPostCount,
+                        isLowerBound: newPostCountIsLowerBound,
                       ),
                     if (selected)
                       Icon(
@@ -200,10 +202,6 @@ class FollowingTopicFolderCard extends StatelessWidget {
                         icon: const Icon(Symbols.more_vert),
                         onSelected: onAction,
                         itemBuilder: (context) => [
-                          PopupMenuItem(
-                            value: FollowingTopicAction.moveFolder,
-                            child: Text(context.t.folders.move),
-                          ),
                           PopupMenuItem(
                             value: FollowingTopicAction.refresh,
                             enabled: canRefresh,

@@ -42,6 +42,8 @@ class FollowingTopicsState extends Equatable {
     required this.batchTotal,
     this.batchProfileId,
     this.refreshingFeedId,
+    this.feedRefreshChecked = 0,
+    this.feedRefreshTotal = 0,
     Set<String> pendingRefreshIds = const {},
     this.feeds = const [],
     required this.organization,
@@ -56,6 +58,8 @@ class FollowingTopicsState extends Equatable {
   final int batchTotal;
   final String? batchProfileId;
   final String? refreshingFeedId;
+  final int feedRefreshChecked;
+  final int feedRefreshTotal;
   final List<TopicFeed> feeds;
   final TopicOrganization organization;
 
@@ -68,6 +72,8 @@ class FollowingTopicsState extends Equatable {
     batchTotal,
     batchProfileId,
     refreshingFeedId,
+    feedRefreshChecked,
+    feedRefreshTotal,
     feeds,
     organization,
   ];
@@ -88,16 +94,15 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
   Future<void> _batchTail = Future.value();
   Future<List<SearchRefreshOutcome>>? _feedRefreshFuture;
   String? _refreshingFeedId;
+  var _feedRefreshChecked = 0;
+  var _feedRefreshTotal = 0;
   CancelToken? _feedRefreshToken;
   var _batchCompleted = 0;
   var _batchTotal = 0;
   String? _batchProfileId;
   var _disposed = false;
   List<TopicFeed> _feeds = const [];
-  var _organization = TopicOrganization(
-    folders: const [],
-    homeSearchIds: const [],
-  );
+  var _organization = TopicOrganization(folders: const []);
 
   @override
   Future<FollowingTopicsState> build() async {
@@ -396,6 +401,8 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
     final result = _feedRefreshFuture = _refreshFeedBatch(id).whenComplete(() {
       _feedRefreshFuture = null;
       _refreshingFeedId = null;
+      _feedRefreshChecked = 0;
+      _feedRefreshTotal = 0;
       _publishActivity();
     });
     _publishActivity();
@@ -445,6 +452,9 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
             return order == 0 ? left.id.compareTo(right.id) : order;
           });
     final planned = sources.take(10).toList();
+    _feedRefreshChecked = 0;
+    _feedRefreshTotal = planned.length;
+    _publishActivity();
     final token = _feedRefreshToken = CancelToken();
     final deadline = Timer(const Duration(seconds: 20), () => token.cancel());
     final progress = beginRefreshProgress(planned.map((s) => s.id));
@@ -456,6 +466,8 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
         if (blockedHosts.contains(host)) {
           pending.remove(source.id);
           progress.update(pending);
+          _feedRefreshChecked++;
+          _publishActivity();
           continue;
         }
         bool canContinue() =>
@@ -484,6 +496,8 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
         outcomes.add(outcome);
         pending.remove(source.id);
         progress.update(pending);
+        _feedRefreshChecked++;
+        _publishActivity();
         // Pause only the affected site in a mixed-profile folder feed.
         if (outcome is SearchRefreshDeferred ||
             outcome is SearchRefreshFailed &&
@@ -550,8 +564,9 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
               ),
             ),
           );
-      if (!saved)
+      if (!saved) {
         throw StateError('Could not save unified topic refresh settings');
+      }
     }
   }
 
@@ -584,7 +599,6 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
       position: (await repository.getOrganization()).tree
           .children(parentId)
           .length,
-      searchIds: const [],
     );
     final organization = await repository.getOrganization();
     FolderTree([...organization.folders, folder]);
@@ -724,15 +738,17 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
   Future<void> renameSharedFolder(
     String id,
     String name, {
+    required String? parentId,
     bool? feedEnabled,
     int? maxPosts,
   }) => _mutate((repository) async {
     final organization = await repository.getOrganization();
     organization.folders.singleWhere((folder) => folder.id == id);
+    final moved = organization.move(folderIds: {id}, destination: parentId);
     await repository.replaceOrganization(
       TopicOrganization(
         folders: [
-          for (final folder in organization.folders)
+          for (final folder in moved.folders)
             if (folder.id == id)
               TopicFolder(
                 id: id,
@@ -746,7 +762,7 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
             else
               folder,
         ],
-        homeSearchIds: organization.homeSearchIds,
+        placements: moved.placements,
       ),
     );
   });
@@ -796,8 +812,9 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
     TopicOrganization? expectedOrganization,
   }) => _mutate((repository) async {
     final current = await repository.getOrganization();
-    if (expectedOrganization != null && expectedOrganization != current)
+    if (expectedOrganization != null && expectedOrganization != current) {
       throw SearchFolderChangedException(current);
+    }
     await repository.deleteSharedFolderAndTopics(folderId);
   });
 
@@ -834,81 +851,223 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
     String? folderId,
     String? newFolderName,
   }) async {
-    final topic = await _mutate((repository) async {
-      if (newFolderName case final folderName?) {
-        return repository.saveTopicInNewFolder(
-          profileId: profileId,
-          query: query,
-          name: name,
-          folderName: folderName,
-        );
-      }
-      final organization = await repository.getOrganization();
-      final destinationIds = organization.directIds(folderId).toSet();
-      final identity = normalizeSearchIdentity(query);
-      final existing = (await repository.getAll())
-          .where(
-            (search) =>
-                destinationIds.contains(search.id) &&
-                search.profileId == profileId &&
-                normalizeSearchIdentity(search.query) == identity,
-          )
-          .firstOrNull;
-      final topic = switch (existing) {
-        null => await repository.create(
-          profileId: profileId,
-          query: query,
-          queryStructure: queryStructure,
-          name: name,
-        ),
-        final saved when name != null => await repository.rename(
-          saved.id,
-          name,
-        ),
-        final saved => saved,
-      };
-      if (folderId != null) {
-        final organization = _withoutSharedTopic(
-          await repository.getOrganization(),
-          topic.id,
-        );
-        if (!organization.folders.any((f) => f.id == folderId)) {
-          throw StateError('Folder not found');
-        }
-        await repository.replaceOrganization(
-          TopicOrganization(
-            folders: [
-              for (final folder in organization.folders)
-                if (folder.id == folderId)
-                  TopicFolder(
-                    id: folder.id,
-                    name: folder.name,
-                    feedEnabled: folder.feedEnabled,
-                    feedMaxPosts: folder.feedMaxPosts,
-                    parentId: folder.parentId,
-                    position: folder.position,
-                    searchIds: [...folder.searchIds, topic.id],
-                  )
-                else
-                  folder,
-            ],
-            homeSearchIds: organization.homeSearchIds,
-          ),
-        );
-      }
-      return topic;
-    });
+    final topic = await followLocally(
+      profileId: profileId,
+      query: query,
+      queryStructure: queryStructure,
+      name: name,
+      folderId: folderId,
+      newFolderName: newFolderName,
+    );
     return (
       topic: topic,
       refresh: await refresh(topic.id),
     );
   }
 
+  Future<FollowingTopic> followLocally({
+    required String profileId,
+    required String query,
+    SearchQueryStructure? queryStructure,
+    required String? name,
+    String? folderId,
+    String? newFolderName,
+    String? newFolderParentId,
+    bool newFolderFeedEnabled = false,
+    int newFolderMaxPosts = topicFeedRetention,
+  }) => _mutate((repository) async {
+    if (newFolderName case final folderName?) {
+      return repository.saveTopicInNewFolder(
+        profileId: profileId,
+        query: query,
+        queryStructure: queryStructure,
+        name: name,
+        folderName: folderName,
+        parentFolderId: newFolderParentId,
+        feedEnabled: newFolderFeedEnabled,
+        feedMaxPosts: newFolderMaxPosts,
+      );
+    }
+    final organization = await repository.getOrganization();
+    final destinationIds = organization.directIds(folderId).toSet();
+    final identity = normalizeSearchIdentity(query);
+    final existing = (await repository.getAll())
+        .where(
+          (search) =>
+              destinationIds.contains(search.id) &&
+              search.profileId == profileId &&
+              normalizeSearchIdentity(search.query) == identity,
+        )
+        .firstOrNull;
+    final topic = switch (existing) {
+      null => await repository.create(
+        profileId: profileId,
+        query: query,
+        queryStructure: queryStructure,
+        name: name,
+      ),
+      final saved when name != null => await repository.rename(
+        saved.id,
+        name,
+      ),
+      final saved => saved,
+    };
+    if (folderId != null) {
+      final organization = _withoutSharedTopic(
+        await repository.getOrganization(),
+        topic.id,
+      );
+      if (!organization.folders.any((f) => f.id == folderId)) {
+        throw StateError('Folder not found');
+      }
+      await repository.replaceOrganization(
+        TopicOrganization(
+          folders: [
+            for (final folder in organization.folders)
+              if (folder.id == folderId)
+                TopicFolder(
+                  id: folder.id,
+                  name: folder.name,
+                  feedEnabled: folder.feedEnabled,
+                  feedMaxPosts: folder.feedMaxPosts,
+                  parentId: folder.parentId,
+                  position: folder.position,
+                  searchIds: [...folder.searchIds, topic.id],
+                )
+              else
+                folder,
+          ],
+          homeSearchIds: organization.homeSearchIds,
+        ),
+      );
+    }
+    return topic;
+  });
+
+  Future<
+    ({
+      List<FollowingTopic> added,
+      List<FollowingTopic> removed,
+    })
+  >
+  setFollowDestinations({
+    required String profileId,
+    required String query,
+    SearchQueryStructure? queryStructure,
+    String? name,
+    required Set<String?> folderIds,
+  }) => _mutate((repository) async {
+    final identity = normalizeSearchIdentity(query);
+    if (identity.isEmpty) {
+      throw const FormatException('Followed topic queries cannot be empty.');
+    }
+    var organization = await repository.getOrganization();
+    final topics = {
+      for (final topic in await repository.getAll()) topic.id: topic,
+    };
+    final existingByFolder = <String?, FollowingTopic>{};
+    for (final placement in organization.placements) {
+      final topic = topics[placement.itemId];
+      if (topic != null &&
+          topic.profileId == profileId &&
+          normalizeSearchIdentity(topic.query) == identity) {
+        existingByFolder[placement.folderId] = topic;
+      }
+    }
+    final knownFolderIds = organization.folders
+        .map((folder) => folder.id)
+        .toSet();
+    if (folderIds.whereType<String>().any(
+      (id) => !knownFolderIds.contains(id),
+    )) {
+      throw StateError('Folder not found');
+    }
+
+    final removed = <FollowingTopic>[];
+    for (final entry in existingByFolder.entries) {
+      if (!folderIds.contains(entry.key)) {
+        removed.add(entry.value);
+        await repository.delete(entry.value.id);
+      }
+    }
+
+    final template = existingByFolder.values.firstOrNull;
+    final added = <FollowingTopic>[];
+    final addedByFolder = <String, List<String>>{};
+    for (final folderId in folderIds) {
+      if (existingByFolder.containsKey(folderId)) continue;
+      final topic = await repository.create(
+        profileId: profileId,
+        query: query,
+        queryStructure: queryStructure ?? template?.queryStructure,
+        name: name ?? template?.name,
+      );
+      if (template != null && !template.autoUpdateEnabled) {
+        await repository.setAutoUpdate([topic.id], false);
+      }
+      if (folderId != null) {
+        addedByFolder.putIfAbsent(folderId, () => []).add(topic.id);
+      }
+      added.add(topic);
+    }
+    if (addedByFolder.isNotEmpty) {
+      organization = await repository.getOrganization();
+      final filedIds = addedByFolder.values.expand((ids) => ids).toSet();
+      await repository.replaceOrganization(
+        TopicOrganization(
+          folders: [
+            for (final folder in organization.folders)
+              TopicFolder(
+                id: folder.id,
+                name: folder.name,
+                parentId: folder.parentId,
+                position: folder.position,
+                searchIds: [
+                  ...folder.searchIds.where((id) => !filedIds.contains(id)),
+                  ...?addedByFolder[folder.id],
+                ],
+                feedEnabled: folder.feedEnabled,
+                feedMaxPosts: folder.feedMaxPosts,
+              ),
+          ],
+          homeSearchIds: organization.homeSearchIds.where(
+            (id) => !filedIds.contains(id),
+          ),
+        ),
+      );
+    }
+    return (added: added, removed: removed);
+  });
+
   Future<({FollowingTopic topic, SearchRefreshOutcome? refresh})> edit(
     String id, {
     required String profileId,
     required String query,
     required String? name,
+    bool? autoUpdateEnabled,
+  }) async {
+    final result = await editLocally(
+      id,
+      profileId: profileId,
+      query: query,
+      name: name,
+      autoUpdateEnabled: autoUpdateEnabled,
+    );
+    if (!result.material) {
+      return (topic: result.topic, refresh: null);
+    }
+    return (
+      topic: result.topic,
+      refresh: await refresh(id),
+    );
+  }
+
+  Future<({FollowingTopic topic, bool material})> editLocally(
+    String id, {
+    required String profileId,
+    required String query,
+    required String? name,
+    bool? autoUpdateEnabled,
   }) async {
     final result = await _mutate((repository) async {
       if (!ref.read(booruConfigProvider).any((c) => c.id == profileId)) {
@@ -924,18 +1083,19 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
         query: query,
         name: name,
       );
+      if (autoUpdateEnabled != null &&
+          autoUpdateEnabled != previous.autoUpdateEnabled) {
+        await repository.setAutoUpdate([id], autoUpdateEnabled);
+      }
       return (topic: edited, material: material);
     });
     if (!result.material) {
-      return (topic: result.topic, refresh: null);
+      return result;
     }
     _refreshTokens.remove(id)?.cancel();
     _refreshOperations.remove(id);
     unawaited(_inFlight.remove(id));
-    return (
-      topic: result.topic,
-      refresh: await refresh(id),
-    );
+    return result;
   }
 
   Future<void> rename(String id, String? name) async {
@@ -947,13 +1107,21 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
     required String query,
     required String? name,
     required String folderName,
+    SearchQueryStructure? queryStructure,
+    String? parentFolderId,
+    bool feedEnabled = false,
+    int feedMaxPosts = topicFeedRetention,
     String? existingTopicId,
   }) => _mutate(
     (repository) => repository.saveTopicInNewFolder(
       profileId: profileId,
       query: query,
+      queryStructure: queryStructure,
       name: name,
       folderName: folderName,
+      parentFolderId: parentFolderId,
+      feedEnabled: feedEnabled,
+      feedMaxPosts: feedMaxPosts,
       existingTopicId: existingTopicId,
     ),
   );
@@ -969,6 +1137,58 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
 
   Future<void> markRead(String id) async {
     await _mutate((repository) => repository.markRead(id));
+  }
+
+  Future<void> markTopicsRead(Iterable<String> ids) =>
+      _mutate((repository) async {
+        for (final id in ids.toSet()) {
+          await repository.markRead(id);
+        }
+      });
+
+  Future<void> deleteTopics(Iterable<String> ids) =>
+      _mutate((repository) async {
+        for (final id in ids.toSet()) {
+          await repository.delete(id);
+        }
+      });
+
+  Future<void> removeSelection({
+    required Iterable<String> folderIds,
+    required Iterable<String> topicIds,
+    TopicOrganization? expectedOrganization,
+  }) => _mutate((repository) async {
+    final organization = await repository.getOrganization();
+    if (expectedOrganization != null && expectedOrganization != organization) {
+      throw SearchFolderChangedException(organization);
+    }
+    final tree = organization.tree;
+    final selectedFolders = folderIds.where(tree.byId.containsKey).toSet();
+    final rootFolders = selectedFolders
+        .where(
+          (id) => !tree
+              .ancestors(tree.byId[id]!.parentId)
+              .any((folder) => selectedFolders.contains(folder.id)),
+        )
+        .toSet();
+    final topicsInFolders = {
+      for (final folderId in rootFolders)
+        ...organization.recursiveIds(folderId),
+    };
+    for (final folderId in rootFolders) {
+      await repository.deleteSharedFolderAndTopics(folderId);
+    }
+    for (final topicId in topicIds.toSet().difference(topicsInFolders)) {
+      await repository.delete(topicId);
+    }
+  });
+
+  Future<List<SearchRefreshOutcome>> refreshTopics(Iterable<String> ids) async {
+    final outcomes = <SearchRefreshOutcome>[];
+    for (final id in ids.toSet()) {
+      outcomes.add(await refresh(id));
+    }
+    return outcomes;
   }
 
   Future<void> delete(String id) =>
@@ -1170,7 +1390,7 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
         .map((folder) => folder.id)
         .toSet();
     final legacyFeedSourceIds = {
-      for (final feed in await repository.getFeeds())
+      for (final feed in await repository.getFeedMetadata())
         if (!folderIds.contains(feed.id)) ...feed.sourceIds,
     };
     final topics =
@@ -1230,7 +1450,7 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
         .map((folder) => folder.id)
         .toSet();
     if (search == null ||
-        (await repository.getFeeds()).any(
+        (await repository.getFeedMetadata()).any(
           (feed) => !folderIds.contains(feed.id) && feed.sourceIds.contains(id),
         )) {
       throw StateError('Independent followed topic not found');
@@ -1337,6 +1557,8 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
         batchTotal: _batchTotal,
         batchProfileId: _batchProfileId,
         refreshingFeedId: _refreshingFeedId,
+        feedRefreshChecked: _feedRefreshChecked,
+        feedRefreshTotal: _feedRefreshTotal,
       );
 }
 

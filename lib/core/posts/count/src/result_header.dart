@@ -15,11 +15,13 @@ class ResultHeaderWithProvider extends ConsumerWidget {
     required this.onRefresh,
     super.key,
     this.cache = false,
+    this.fallback = const SizedBox.shrink(),
   });
 
   final bool cache;
   final String selectedTagsString;
   final Future<void> Function(bool maintainPage)? onRefresh;
+  final Widget fallback;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -27,7 +29,7 @@ class ResultHeaderWithProvider extends ConsumerWidget {
     final params = (config, selectedTagsString);
     final fetcher = ref.watch(postCountRepoProvider(config));
 
-    if (fetcher == null) return const SizedBox.shrink();
+    if (fetcher == null) return fallback;
 
     final provider = cache
         ? cachedPostCountProvider(params)
@@ -42,7 +44,7 @@ class ResultHeaderWithProvider extends ConsumerWidget {
         },
       ),
       AsyncLoading() => const ResultHeader.loading(),
-      _ => const SizedBox.shrink(),
+      _ => fallback,
     };
   }
 }

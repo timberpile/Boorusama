@@ -85,6 +85,9 @@ class _KurumiContextMenuTileState extends State<_KurumiContextMenuTile> {
                 ? Theme.of(context).colorScheme.primary
                 : widget.config.labelStyle?.color,
             onTap: handleTap,
+            leading: isMouseOver
+                ? widget.config.iconHover ?? widget.config.icon
+                : widget.config.icon,
             title: isMouseOver
                 ? Text(
                     widget.config.label,
@@ -122,12 +125,14 @@ class _KurumiContextMenuTileSurface extends StatelessWidget {
     required this.mobileLayout,
     this.onTap,
     this.hoverColor,
+    this.leading,
   });
 
   final Widget title;
   final bool mobileLayout;
   final VoidCallback? onTap;
   final Color? hoverColor;
+  final Widget? leading;
 
   @override
   Widget build(BuildContext context) {
@@ -145,7 +150,13 @@ class _KurumiContextMenuTileSurface extends StatelessWidget {
             horizontal: 8,
           ),
           child: Row(
-            children: [title],
+            children: [
+              if (leading case final leading?) ...[
+                SizedBox.square(dimension: 24, child: leading),
+                const SizedBox(width: 8),
+              ],
+              Expanded(child: title),
+            ],
           ),
         ),
       ),

@@ -100,11 +100,9 @@ class FollowingTopicsBackupSource
                 for (final feed in state.feeds)
                   if (!folderIds.contains(feed.id)) ...feed.sourceIds,
               };
-              return context.t.following_topics.backup_count(
-                n: state.topics
-                    .where((search) => !internalIds.contains(search.id))
-                    .length,
-              );
+              return '${context.t.following_topics.backup_count(
+                n: state.topics.where((search) => !internalIds.contains(search.id)).length,
+              )} · ${context.t.following_topics.backup_contents}';
             },
             loading: () => context.t.following_topics.backup_loading,
             error: (_, _) => context.t.following_topics.load_failed,

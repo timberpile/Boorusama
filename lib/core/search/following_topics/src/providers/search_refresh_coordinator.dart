@@ -68,7 +68,7 @@ class SearchRefreshCoordinator extends Notifier<bool> {
   Future<int>? _runFuture;
   Future<void>? _initializationFuture;
   var _foreground = false;
-  var _feedsOverviewActive = false;
+  final Map<Object, String?> _feedInitializationOwners = {};
   var _disposed = false;
   CancelToken? _runToken;
   CancelToken? _initializationToken;
@@ -113,7 +113,9 @@ class SearchRefreshCoordinator extends Notifier<bool> {
           [source.id, source.createdAt, source.runtimeRevision],
         for (final feed in value?.feeds ?? []) [feed.id, feed.sourceIds],
       ];
-      if (_feedsOverviewActive && !_initializingRun && _canInitialize) {
+      if (_hasFeedInitializationInterest &&
+          !_initializingRun &&
+          _canInitialize) {
         unawaited(initializeFeeds());
       }
       if (_canRun &&
@@ -148,14 +150,30 @@ class SearchRefreshCoordinator extends Notifier<bool> {
     }
   }
 
-  void setFeedsOverviewActive(bool active) {
-    _feedsOverviewActive = active;
-    if (!active) {
-      _initializationToken?.cancel();
-      if (_initializingRun) _runToken?.cancel();
-    }
-    if (active) unawaited(initializeFeeds());
+  FeedInitializationInterest acquireFeedInitializationInterest({
+    String? feedId,
+  }) {
+    final owner = Object();
+    _feedInitializationOwners[owner] = feedId;
+    unawaited(initializeFeeds());
+    return FeedInitializationInterest(() {
+      if (_feedInitializationOwners.remove(owner) == null &&
+          !_feedInitializationOwners.containsKey(owner)) {
+        if (!_hasFeedInitializationInterest) {
+          _initializationToken?.cancel();
+          if (_initializingRun) _runToken?.cancel();
+        }
+      }
+    });
   }
+
+  bool get _hasFeedInitializationInterest =>
+      _feedInitializationOwners.isNotEmpty;
+
+  bool _feedHasInitializationInterest(String feedId) =>
+      _feedInitializationOwners.values.any(
+        (ownedFeedId) => ownedFeedId == null || ownedFeedId == feedId,
+      );
 
   void _configure() {
     _revokeDisabledAutomaticOwners();
@@ -169,7 +187,7 @@ class SearchRefreshCoordinator extends Notifier<bool> {
       _timer = Timer.periodic(const Duration(minutes: 1), (_) {
         _publishStatus();
         unawaited(run());
-        if (_feedsOverviewActive) unawaited(initializeFeeds());
+        if (_hasFeedInitializationInterest) unawaited(initializeFeeds());
       });
     }
   }
@@ -307,13 +325,15 @@ class SearchRefreshCoordinator extends Notifier<bool> {
   }
 
   Future<void> initializeFeeds() {
-    if (!_canInitialize || !_feedsOverviewActive) return Future.value();
+    if (!_canInitialize || !_hasFeedInitializationInterest) {
+      return Future.value();
+    }
     return _initializationFuture ??= _initializeFeeds().whenComplete(
       () {
         _initializationFuture = null;
         if ((_initializationToken?.isCancelled ?? false) &&
             _canInitialize &&
-            _feedsOverviewActive) {
+            _hasFeedInitializationInterest) {
           scheduleMicrotask(() => unawaited(initializeFeeds()));
         }
       },
@@ -335,7 +355,9 @@ class SearchRefreshCoordinator extends Notifier<bool> {
           ),
     );
     final attemptedIds = _initialAttemptRevisions.keys.toSet();
-    while (!token.isCancelled && _canInitialize && _feedsOverviewActive) {
+    while (!token.isCancelled &&
+        _canInitialize &&
+        _hasFeedInitializationInterest) {
       final checked = await _startRun(initialAttemptIds: attemptedIds);
       if (checked == 0) break;
       if (_scheduler.spacing > Duration.zero) {
@@ -355,8 +377,9 @@ class SearchRefreshCoordinator extends Notifier<bool> {
 
   Future<int> _run({Set<String>? initialAttemptIds}) async {
     final initializing = initialAttemptIds != null;
-    bool canRun() =>
-        initializing ? _canInitialize && _feedsOverviewActive : _canRun;
+    bool canRun() => initializing
+        ? _canInitialize && _hasFeedInitializationInterest
+        : _canRun;
     if (!canRun() || state) return 0;
     state = true;
     _initializingRun = initializing;
@@ -389,7 +412,8 @@ class SearchRefreshCoordinator extends Notifier<bool> {
       };
       final initializationIds = <String>{
         for (final feed in topics.feeds)
-          if ((folders[feed.id]?.feedEnabled ?? true))
+          if ((folders[feed.id]?.feedEnabled ?? true) &&
+              (!initializing || _feedHasInitializationInterest(feed.id)))
             for (final id in feed.sourceIds)
               if (!feed.initializedSourceIds.contains(id)) id,
       };
@@ -544,5 +568,18 @@ class SearchRefreshCoordinator extends Notifier<bool> {
         _publishStatus();
       }
     }
+  }
+}
+
+final class FeedInitializationInterest {
+  FeedInitializationInterest(this._onClose);
+
+  final void Function() _onClose;
+  var _closed = false;
+
+  void close() {
+    if (_closed) return;
+    _closed = true;
+    _onClose();
   }
 }

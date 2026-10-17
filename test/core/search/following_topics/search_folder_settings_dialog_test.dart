@@ -1,4 +1,5 @@
 import 'package:boorusama/core/search/following_topics/src/widgets/search_folder_dialog.dart';
+import 'package:boorusama/core/search/following_topics/types.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:i18n/i18n.dart';
@@ -27,7 +28,11 @@ void main() {
               body: Builder(
                 builder: (context) => TextButton(
                   onPressed: () async {
-                    saved = await showSearchFolderSettingsDialog(context);
+                    saved = await showSearchFolderSettingsDialog(
+                      context,
+                      folders: [TopicFolder(id: 'parent', name: 'Root')],
+                      parentId: 'parent',
+                    );
                   },
                   child: const Text('Open'),
                 ),
@@ -38,6 +43,7 @@ void main() {
       );
       await tester.tap(find.text('Open'));
       await tester.pumpAndSettle();
+      expect(find.text('Folder location'), findsNothing);
       await tester.enterText(find.byType(TextField), 'Mixed topics');
       await tester.ensureVisible(find.byType(CheckboxListTile));
       await tester.tap(find.byType(CheckboxListTile));
@@ -53,6 +59,7 @@ void main() {
       await tester.tap(find.widgetWithText(FilledButton, 'Save'));
       await tester.pumpAndSettle();
       expect(saved?.name, 'Mixed topics');
+      expect(saved?.parentId, 'parent');
       expect(saved?.feedEnabled, isTrue);
       expect(saved?.maxPosts, 2000);
       expect(tester.takeException(), isNull);

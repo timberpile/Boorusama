@@ -56,7 +56,6 @@ class TopicUpdatesSettingsPage extends ConsumerWidget {
           strings.automatic_section,
           style: Theme.of(context).textTheme.titleMedium,
         ),
-        Text(strings.periodic_description),
         KurumiSwitchListTile(
           title: Text(strings.enabled),
           value: refresh.enabled,
@@ -116,7 +115,6 @@ class TopicUpdatesSettingsPage extends ConsumerWidget {
                 )
               : null,
         ),
-        Text(strings.foreground_only),
         const SizedBox(height: 20),
         Text(
           strings.status_section,

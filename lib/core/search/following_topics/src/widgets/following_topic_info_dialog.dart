@@ -3,7 +3,6 @@ import 'package:collection/collection.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
-import 'package:kurumi/kurumi.dart';
 import 'package:timeago/timeago.dart' as timeago;
 
 import '../../../../boorus/engine/providers.dart';
@@ -21,11 +20,9 @@ import 'search_refresh_error_text.dart';
 class FollowingTopicInfoDialog extends ConsumerWidget {
   const FollowingTopicInfoDialog({
     required this.topicId,
-    this.feedSource = false,
     super.key,
   });
   final String topicId;
-  final bool feedSource;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -35,6 +32,16 @@ class FollowingTopicInfoDialog extends ConsumerWidget {
         .valueOrNull
         ?.topics
         .firstWhereOrNull((source) => source.id == topicId);
+    final topicState = ref.watch(followingTopicsProvider).valueOrNull;
+    final folderIds =
+        topicState?.organization.folders.map((folder) => folder.id).toSet() ??
+        const <String>{};
+    final legacyFeedSource =
+        topicState?.feeds.any(
+          (feed) =>
+              !folderIds.contains(feed.id) && feed.sourceIds.contains(topicId),
+        ) ??
+        false;
     final settings = ref.watch(settingsProvider).searchRefresh;
     final status = ref.watch(searchRefreshStatusProvider);
     final profile = ref
@@ -77,8 +84,8 @@ class FollowingTopicInfoDialog extends ConsumerWidget {
                 final timing = conservativeRefreshTiming(
                   source: RefreshSourceCandidate(
                     id: source.id,
-                    followedTopic: !feedSource,
-                    feedSource: feedSource,
+                    followedTopic: !legacyFeedSource,
+                    feedSource: legacyFeedSource,
                     createdAt: source.createdAt,
                     lastMaterialEditAt: source.lastMaterialEditAt,
                     lastAttemptAt: source.lastAttemptAt,
@@ -94,7 +101,7 @@ class FollowingTopicInfoDialog extends ConsumerWidget {
                     supported &&
                     settings.enabled &&
                     source.autoUpdateEnabled &&
-                    (feedSource
+                    (legacyFeedSource
                         ? settings.topicFeedsEnabled
                         : settings.followingTopicsEnabled);
                 final next = profile == null
@@ -105,7 +112,7 @@ class FollowingTopicInfoDialog extends ConsumerWidget {
                     ? strings.refresh_not_scheduled_disabled
                     : !source.autoUpdateEnabled
                     ? strings.refresh_not_scheduled_topic
-                    : !(feedSource
+                    : !(legacyFeedSource
                           ? settings.topicFeedsEnabled
                           : settings.followingTopicsEnabled)
                     ? strings.refresh_not_scheduled_scope
@@ -142,24 +149,6 @@ class FollowingTopicInfoDialog extends ConsumerWidget {
                       Text(strings.name_line(name: name)),
                     Text(strings.query_line(query: source.query)),
                     const SizedBox(height: 12),
-                    KurumiSwitchListTile(
-                      title: Text(strings.auto_update_topic),
-                      value: source.autoUpdateEnabled,
-                      onChanged: (enabled) async {
-                        try {
-                          await ref
-                              .read(followingTopicsProvider.notifier)
-                              .setAutoUpdate([source.id], enabled);
-                        } catch (_) {
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text(strings.operation_failed)),
-                            );
-                          }
-                        }
-                      },
-                    ),
-                    const SizedBox(height: 16),
                     Text(
                       source.lastSuccessfulCheckAt == null
                           ? strings.never_checked

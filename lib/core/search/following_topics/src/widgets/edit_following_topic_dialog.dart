@@ -14,7 +14,12 @@ showEditFollowingTopicDialog(
   required List<BooruConfig> profiles,
   required bool Function(BooruConfigAuth) trackingSupported,
   required Future<({FollowingTopic topic, SearchRefreshOutcome? refresh})>
-  Function(String profileId, String query, String? name)
+  Function(
+    String profileId,
+    String query,
+    String? name,
+    bool autoUpdateEnabled,
+  )
   onSave,
 }) => showDialog(
   context: context,
@@ -40,7 +45,12 @@ class EditFollowingTopicDialog extends StatefulWidget {
   final List<BooruConfig> profiles;
   final bool Function(BooruConfigAuth) trackingSupported;
   final Future<({FollowingTopic topic, SearchRefreshOutcome? refresh})>
-  Function(String profileId, String query, String? name)
+  Function(
+    String profileId,
+    String query,
+    String? name,
+    bool autoUpdateEnabled,
+  )
   onSave;
 
   @override
@@ -54,6 +64,7 @@ class _EditFollowingTopicDialogState extends State<EditFollowingTopicDialog> {
   late final _name = TextEditingController(text: widget.topic.name);
   late final _query = TextEditingController(text: widget.topic.query);
   late String? _profileId = widget.topic.profileId;
+  late bool _autoUpdateEnabled = widget.topic.autoUpdateEnabled;
   _EditError? _error;
   var _saving = false;
 
@@ -76,7 +87,12 @@ class _EditFollowingTopicDialogState extends State<EditFollowingTopicDialog> {
       _error = null;
     });
     try {
-      final result = await widget.onSave(profileId, _query.text, _name.text);
+      final result = await widget.onSave(
+        profileId,
+        _query.text,
+        _name.text,
+        _autoUpdateEnabled,
+      );
       if (mounted) {
         setState(() => _saving = false);
         await WidgetsBinding.instance.endOfFrame;
@@ -159,6 +175,15 @@ class _EditFollowingTopicDialogState extends State<EditFollowingTopicDialog> {
                           _profileId = value;
                           _error = null;
                         }),
+                ),
+                const SizedBox(height: 8),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(strings.auto_update_topic),
+                  value: _autoUpdateEnabled,
+                  onChanged: _saving
+                      ? null
+                      : (value) => setState(() => _autoUpdateEnabled = value),
                 ),
                 if (warning != null) ...[
                   const SizedBox(height: 12),

@@ -362,14 +362,11 @@ void main() {
       await repository.setAutoUpdate(['a'], false);
       final topics = await repository.getAll();
       final organization = await repository.getOrganization();
+      expect(await repository.getFeeds(), hasLength(2));
       await repository.clearAllFeedCaches();
       expect(await repository.getAll(), topics);
       expect(await repository.getOrganization(), organization);
-      for (final feed in await repository.getFeeds()) {
-        expect(feed.posts, isEmpty);
-        expect(feed.postSources, isEmpty);
-        expect(feed.initializedSourceIds, isEmpty);
-      }
+      expect(await repository.getFeeds(), isEmpty);
     },
   );
 

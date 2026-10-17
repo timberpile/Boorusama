@@ -7,7 +7,6 @@ import 'package:kurumi/material.dart';
 // Project imports:
 import '../../../../../foundation/clipboard.dart';
 import '../../../../configs/config/providers.dart';
-import '../../../../configs/config/types.dart';
 import '../../../../blacklists/providers.dart';
 import '../../../../search/search/routes.dart';
 import '../../../../search/following_topics/providers.dart';
@@ -31,29 +30,32 @@ class GeneralTagContextMenu extends ConsumerWidget
   Widget build(BuildContext context, WidgetRef ref) {
     final globalNotifier = ref.watch(globalBlacklistedTagsProvider.notifier);
     final config = ref.watchConfig;
+    final followCount = ref.watch(
+      followedTopicCountProvider((profileId: config.id, query: tag)),
+    );
 
     return ContextMenuRegion(
       contextMenu: GenericContextMenu(
         buttonConfigs: [
           copyButton(context, tag),
           searchButton(ref, tag),
-          if (ref.watch(followingTopicTrackingSupportedProvider(config.auth)))
-            ContextMenuButtonConfig(
-              ref.watch(
-                        followedTopicCountProvider((
-                          profileId: config.id,
-                          query: tag,
-                        )),
-                      ) >
-                      0
-                  ? context.t.following_topics.following
-                  : context.t.following_topics.follow,
-              onPressed: () => showTopicFolderFollowDialog(
-                context,
-                profileId: config.id,
-                query: tag,
-              ),
+          ContextMenuButtonConfig(
+            followCount > 0
+                ? context.t.following_topics.following
+                : context.t.following_topics.follow,
+            icon: followCount > 0
+                ? Badge(
+                    label: Text('$followCount'),
+                    child: const Icon(Icons.rss_feed),
+                  )
+                : const Icon(Icons.rss_feed),
+            onPressed: () => showTopicFollowFlow(
+              context,
+              ref,
+              profileId: config.id,
+              query: tag,
             ),
+          ),
           ContextMenuButtonConfig(
             context.t.post.detail.add_to_favorites,
             onPressed: () {

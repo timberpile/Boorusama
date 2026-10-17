@@ -1774,6 +1774,53 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  testWidgets(
+    'launching profile restores native presentation when origin is unspecified',
+    (tester) async {
+      BooruType? requestedType;
+      final post = _posts.first.copyWith(
+        origin: PostOrigin.fromSource(
+          booruType: BooruType.unknown,
+          booruId: 0,
+          source: '',
+        ),
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            booruConfigProvider.overrideWith(
+              () => BooruConfigNotifier(initialConfigs: const []),
+            ),
+            booruPostPresentationProvider.overrideWith((ref, request) {
+              requestedType = request.origin.booruType;
+              return const _Presentation('danbooru');
+            }),
+          ],
+          child: MaterialApp(
+            home: PostPagePresentationScope(
+              post: post,
+              fallbackConfig: _configs.first,
+              builder: (context, ref, presentation) => Text(
+                '${presentation.fallbackReason}|${ref.watchConfig.url}|'
+                '${presentation.context.presentation.runtimeType}',
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(requestedType, BooruType.danbooru);
+      expect(
+        find.text(
+          'null|https://danbooru.example|_Presentation',
+        ),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
 }
 
 PostDetailsController<Post> _detailsController(WidgetTester tester) {

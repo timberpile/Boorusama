@@ -375,8 +375,89 @@ void main() {
     expect(find.text('Refresh All'), findsOneWidget);
   });
 
+  testWidgets('topic filters stay closed until requested and clear on close', (
+    tester,
+  ) async {
+    initialize();
+    await harness.seed([
+      topicFixture(),
+      topicFixture(id: 'dogs', name: 'Dogs', query: 'dog', position: 1),
+    ]);
+    await pump(tester);
+
+    expect(find.byType(TextField), findsNothing);
+    await tester.tap(find.byTooltip('Filter topics'));
+    await settle(tester);
+    expect(find.byType(TextField), findsOneWidget);
+    await tester.enterText(find.byType(TextField), 'dogs');
+    await settle(tester);
+    expect(find.text('Dogs'), findsOneWidget);
+    expect(find.text('Cats'), findsNothing);
+
+    await tester.tap(find.byTooltip('Filter topics'));
+    await settle(tester);
+    expect(find.byType(TextField), findsNothing);
+    expect(find.text('Dogs'), findsOneWidget);
+    expect(find.text('Cats'), findsOneWidget);
+  });
+
+  testWidgets('cancelling empty-folder Follow a topic disposes safely', (
+    tester,
+  ) async {
+    initialize();
+    await harness.seed([]);
+    await pump(tester);
+
+    await tester.tap(find.text('Follow a topic'));
+    await settle(tester);
+    expect(find.text('Follow Topic'), findsOneWidget);
+    expect(find.text('Next'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await settle(tester);
+
+    expect(find.text('Follow Topic'), findsNothing);
+    expect(find.text('Following Topics'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Follow a topic in an open folder saves there without a picker', (
+    tester,
+  ) async {
+    initialize();
+    await harness.seed([topicFixture(query: 'cat')]);
+    final notifier = harness.container.read(followingTopicsProvider.notifier);
+    final folder = await notifier.createSharedFolder('Empty');
+    await harness.pump(tester, FollowingTopicsPage(folderId: folder.id));
+
+    await tester.tap(find.text('Follow a topic'));
+    await settle(tester);
+    await tester.enterText(find.byType(TextField), 'cat');
+    await tester.pump();
+    final follow = find.widgetWithText(FilledButton, 'Follow');
+    expect(find.widgetWithText(FilledButton, 'Next'), findsNothing);
+    expect(tester.widget<FilledButton>(follow).onPressed, isNotNull);
+    await tester.ensureVisible(follow);
+    await tester.tap(follow);
+    await settle(tester);
+    await drain(tester);
+
+    expect(find.text('Follow Topic'), findsNothing);
+    expect(find.text('Done'), findsNothing);
+    final topics = await harness.repository.getAll();
+    expect(topics, hasLength(2));
+    expect(topics.every((topic) => topic.query == 'cat'), isTrue);
+    final organization = await harness.repository.getOrganization();
+    expect(organization.homeSearchIds, hasLength(1));
+    expect(
+      organization.folders
+          .singleWhere((item) => item.id == folder.id)
+          .searchIds,
+      hasLength(1),
+    );
+  });
+
   testWidgets(
-    'empty nested search folders retain breadcrumb navigation without requests',
+    'empty nested search folders omit breadcrumb navigation',
     (tester) async {
       initialize();
       await harness.container.read(followingTopicsProvider.future);
@@ -391,8 +472,8 @@ void main() {
       await tester.binding.setSurfaceSize(const Size(320, 700));
       addTearDown(() => tester.binding.setSurfaceSize(null));
       await harness.pump(tester, FollowingTopicsPage(folderId: empty.id));
-      expect(find.text('Home'), findsOneWidget);
-      expect(find.text('Root'), findsOneWidget);
+      expect(find.text('Home'), findsNothing);
+      expect(find.text('Root'), findsNothing);
       expect(find.text('No topics yet'), findsOneWidget);
       expect(harness.requests, isEmpty);
       expect(tester.takeException(), isNull);
@@ -404,6 +485,41 @@ void main() {
       expect(harness.requests, isEmpty);
     },
   );
+
+  testWidgets('folder badges aggregate updates from nested descendants', (
+    tester,
+  ) async {
+    initialize();
+    await harness.seed([
+      topicFixture(newPostCountEstimate: 5),
+      topicFixture(
+        id: 'dogs',
+        name: 'Dogs',
+        query: 'dog',
+        position: 1,
+        newPostCountEstimate: 7,
+        newPostCountIsLowerBound: true,
+      ),
+    ]);
+    final notifier = harness.container.read(followingTopicsProvider.notifier);
+    final parent = await notifier.createSharedFolder('Artists');
+    final child = await notifier.createSharedFolder(
+      'Nested',
+      parentId: parent.id,
+    );
+    await notifier.moveTopicToSharedFolder('cats', parent.id);
+    await notifier.moveTopicToSharedFolder('dogs', child.id);
+    await pump(tester);
+
+    final parentCard = find.ancestor(
+      of: find.text('Artists'),
+      matching: find.byType(FollowingTopicFolderCard),
+    );
+    expect(
+      find.descendant(of: parentCard, matching: find.text('12+')),
+      findsOneWidget,
+    );
+  });
   for (final startWithFolder in [false, true]) {
     testWidgets(
       'long press ${startWithFolder ? 'folder' : 'topic'} selects, deselects, and cancels at narrow width',
@@ -439,7 +555,29 @@ void main() {
         expect(find.byTooltip('Move'), findsOneWidget);
         expect(find.byTooltip('Cancel'), findsOneWidget);
         expect(find.byTooltip('Sort by'), findsNothing);
-        expect(pageOverflow(), findsNothing);
+        expect(
+          pageOverflow(),
+          findsOneWidget,
+        );
+        if (startWithFolder) {
+          await openPageMenu(tester);
+          expect(find.text('Remove'), findsOneWidget);
+          expect(find.text('Unfollow'), findsNothing);
+          expect(find.text('Refresh'), findsNothing);
+          await tester.tapAt(const Offset(5, 5));
+          await settle(tester);
+        } else {
+          expect(
+            tester.getCenter(pageOverflow()).dx,
+            greaterThan(tester.getCenter(find.byTooltip('Cancel')).dx),
+          );
+          await openPageMenu(tester);
+          expect(find.text('Enable auto-update'), findsNothing);
+          expect(find.text('Disable auto-update'), findsNothing);
+          expect(find.text('Mark read'), findsOneWidget);
+          await tester.tapAt(const Offset(5, 5));
+          await settle(tester);
+        }
         expect(
           find.byType(PopupMenuButton<FollowingTopicAction>),
           findsNothing,
@@ -456,6 +594,7 @@ void main() {
         await tester.tap(find.text(other));
         await settle(tester);
         expect(find.text('2 selected'), findsOneWidget);
+        expect(pageOverflow(), findsOneWidget);
         expect(find.byIcon(Icons.check_circle), findsNWidgets(2));
         await tester.tap(find.text(start));
         await settle(tester);
@@ -487,8 +626,8 @@ void main() {
         // Normal folder navigation is restored.
         await tester.tap(find.text('Favorites'));
         await settle(tester);
-        expect(find.text('Home'), findsOneWidget);
-        expect(find.text('Favorites'), findsNWidgets(2));
+        expect(find.text('Home'), findsNothing);
+        expect(find.text('Favorites'), findsOneWidget);
         expect(
           (await harness.repository.getOrganization()).folders.single.id,
           folder.id,
@@ -541,87 +680,88 @@ void main() {
       expect(harness.requests, isEmpty);
     },
   );
-  for (final scenario in ['existing', 'home', 'create', 'cancel', 'failure']) {
-    testWidgets(
-      'moving a topic to $scenario preserves its owner and commits only on success',
-      (tester) async {
-        initialize();
-        await harness.seed([
-          topicFixture(),
-          topicFixture(
-            id: 'dogs',
-            profileId: '00000000-0000-4000-8000-000000000063',
-            name: 'Dogs',
-          ),
-        ]);
-        await harness.container.read(followingTopicsProvider.future);
-        final notifier = harness.container.read(
-          followingTopicsProvider.notifier,
-        );
-        final oldFolder = await notifier.createSharedFolder('Original');
-        final otherFolder = await notifier.createSharedFolder(
-          'Other owner folder',
-        );
-        await notifier.moveTopicToSharedFolder('cats', oldFolder.id);
-        await notifier.moveTopicToSharedFolder('dogs', otherFolder.id);
-        await harness.pump(tester, FollowingTopicsPage(folderId: oldFolder.id));
-        await choose(tester, 'Move');
-        expect(find.text('Home'), findsWidgets);
-        expect(find.text('Other owner folder'), findsOneWidget);
-        expect(find.text('Create folder'), findsOneWidget);
-        if (scenario == 'existing' || scenario == 'home') {
-          await tester.tap(
-            find.text(scenario == 'home' ? 'Home' : 'Other owner folder').last,
-          );
-          await settle(tester);
-          await tester.tap(find.widgetWithText(FilledButton, 'Move'));
-        } else {
-          await tester.tap(find.text('Create folder'));
-          await settle(tester);
-          expect(find.textContaining('any profile'), findsNothing);
-          await tester.enterText(
-            find.byType(TextField),
-            scenario == 'failure' ? 'Original' : 'New folder',
-          );
-          await tester.pump();
-          await tester.tap(
-            find.text(scenario == 'cancel' ? 'Cancel' : 'Save').last,
-          );
-          if (scenario == 'cancel') {
-            await settle(tester);
-            await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
-          }
-        }
-        await settle(tester);
-        await drain(tester);
-        final organization = await harness.repository.getOrganization();
-        final destination = organization.folders
-            .where((f) => f.searchIds.contains('cats'))
-            .firstOrNull;
-        expect(
-          (await harness.repository.getById('cats'))!.profileId,
-          '00000000-0000-4000-8000-00000000000c',
-        );
-        switch (scenario) {
-          case 'existing':
-            expect(destination?.id, otherFolder.id);
-          case 'home':
-            expect(organization.homeSearchIds, contains('cats'));
-          case 'create':
-            expect(destination?.name, 'New folder');
-          case 'cancel' || 'failure':
-            expect(destination?.id, oldFolder.id);
-        }
-        if (scenario == 'failure') {
-          expect(
-            find.text('Could not update the topic. Try again.'),
-            findsOneWidget,
-          );
-          await tester.pump(const Duration(seconds: 5));
-        }
-      },
+
+  testWidgets('selection omits Mark read when every topic is read', (
+    tester,
+  ) async {
+    initialize();
+    await harness.seed([topicFixture(unreadCount: 0)]);
+    await pump(tester);
+    await tester.longPress(find.text('Cats'));
+    await settle(tester);
+    await openPageMenu(tester);
+    expect(find.text('Mark read'), findsNothing);
+    expect(find.text('Enable auto-update'), findsNothing);
+    expect(find.text('Disable auto-update'), findsNothing);
+    expect(find.text('Remove'), findsOneWidget);
+    expect(find.text('Unfollow'), findsNothing);
+  });
+
+  testWidgets('Remove deletes selected folders and separate topics', (
+    tester,
+  ) async {
+    initialize();
+    await harness.seed([
+      topicFixture(),
+      topicFixture(id: 'dogs', name: 'Dogs', query: 'dog', position: 1),
+    ]);
+    final notifier = harness.container.read(followingTopicsProvider.notifier);
+    final parent = await notifier.createSharedFolder('Selected folder');
+    final child = await notifier.createSharedFolder(
+      'Nested',
+      parentId: parent.id,
     );
-  }
+    await notifier.moveTopicToSharedFolder('cats', child.id);
+    await pump(tester);
+
+    await tester.longPress(find.text('Selected folder'));
+    await tester.tap(find.text('Dogs'));
+    await settle(tester);
+    await openPageMenu(tester);
+    expect(find.text('Remove'), findsOneWidget);
+    expect(find.text('Unfollow'), findsNothing);
+    await tester.tap(find.text('Remove'));
+    await settle(tester);
+    expect(find.text('Remove selection?'), findsOneWidget);
+    expect(
+      find.text(
+        'Selected topics, folders, and everything inside those folders will be removed.',
+      ),
+      findsOneWidget,
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Remove'));
+    await drain(tester);
+    await settle(tester);
+
+    expect(await harness.repository.getAll(), isEmpty);
+    expect((await harness.repository.getOrganization()).folders, isEmpty);
+    expect(find.text('No topics yet'), findsOneWidget);
+  });
+
+  testWidgets('topic and folder menus omit the generic Move action', (
+    tester,
+  ) async {
+    initialize();
+    await harness.seed([topicFixture()]);
+    final notifier = harness.container.read(followingTopicsProvider.notifier);
+    await notifier.createSharedFolder('Other');
+    await pump(tester);
+
+    await openMenu(tester);
+    expect(find.text('Move'), findsNothing);
+    await tester.tapAt(const Offset(1, 1));
+    await settle(tester);
+
+    final folderCard = find.byType(FollowingTopicFolderCard);
+    await tester.tap(
+      find.descendant(
+        of: folderCard,
+        matching: find.byType(PopupMenuButton<FollowingTopicAction>),
+      ),
+    );
+    await settle(tester);
+    expect(find.text('Move'), findsNothing);
+  });
 
   testWidgets(
     'unsupported profiles keep their cached topics visible and disable refresh all',
@@ -649,14 +789,14 @@ void main() {
       await pump(tester);
 
       expect(find.byTooltip('Sort by'), findsOneWidget);
-      expect(find.byTooltip('Follow Topics'), findsNothing);
+      expect(find.byTooltip('Bulk Follow'), findsNothing);
       expect(find.byTooltip('Refresh settings'), findsNothing);
       expect(find.byTooltip('Manage folders'), findsNothing);
       expect(find.byTooltip('Refresh All'), findsNothing);
 
       await openPageMenu(tester);
       for (final label in [
-        'Follow Topics',
+        'Bulk Follow',
         'Create folder',
         'Refresh All',
       ]) {
@@ -682,7 +822,7 @@ void main() {
 
     expect(find.byTooltip('Sort by'), findsOneWidget);
     await openPageMenu(tester);
-    for (final label in ['Follow Topics', 'Create folder', 'Refresh']) {
+    for (final label in ['Bulk Follow', 'Create folder', 'Refresh']) {
       expect(find.text(label), findsOneWidget);
     }
     for (final label in [
@@ -698,20 +838,23 @@ void main() {
     ]);
   });
 
-  testWidgets('routine check details are available through Info only', (
-    tester,
-  ) async {
-    initialize();
-    await harness.seed([topicFixture()]);
-    await pump(tester);
-    expect(find.textContaining('Last checked:'), findsNothing);
-    await choose(tester, 'Info');
-    expect(find.textContaining('Last checked:'), findsOneWidget);
-    expect(find.text('Refresh interval: Adaptive · 1 day'), findsOneWidget);
-    expect(harness.requests, isEmpty);
-  });
+  testWidgets(
+    'routine check details are available through Details only',
+    (
+      tester,
+    ) async {
+      initialize();
+      await harness.seed([topicFixture()]);
+      await pump(tester);
+      expect(find.textContaining('Last checked:'), findsNothing);
+      await choose(tester, 'Details');
+      expect(find.textContaining('Last checked:'), findsOneWidget);
+      expect(find.text('Refresh interval: Adaptive · 1 day'), findsOneWidget);
+      expect(harness.requests, isEmpty);
+    },
+  );
 
-  testWidgets('does not expose settings for disabled automatic refresh', (
+  testWidgets('Details is read-only and Edit contains Auto Update', (
     tester,
   ) async {
     initialize();
@@ -719,7 +862,15 @@ void main() {
     await pump(tester);
 
     expect(find.byTooltip('Refresh settings'), findsNothing);
-    expect(find.text('Automatic refresh'), findsNothing);
+    await choose(tester, 'Details');
+    expect(find.text('Auto Update'), findsNothing);
+    expect(find.byType(SwitchListTile), findsNothing);
+    await tester.tapAt(const Offset(5, 5));
+    await settle(tester);
+
+    await choose(tester, 'Edit');
+    expect(find.text('Auto Update'), findsOneWidget);
+    expect(find.byType(SwitchListTile), findsOneWidget);
   });
 
   testWidgets('shows the cached last post time on the profile metadata line', (
@@ -1528,23 +1679,22 @@ void main() {
   );
 
   testWidgets(
-    'Remove waits for confirmation and permanently removes the topic',
+    'Unfollow removes immediately and offers Undo',
     (tester) async {
       initialize();
       await harness.seed([topicFixture()]);
       await pump(tester);
       await choose(tester, 'Unfollow');
-      await tester.tap(find.text('Cancel'));
-      await settle(tester);
-      expect(find.text('Cats'), findsOneWidget);
-      expect(await harness.repository.getById('cats'), isNotNull);
-      await choose(tester, 'Unfollow');
-      expect(find.text('Unfollow this topic?'), findsOneWidget);
-      await tester.tap(find.widgetWithText(FilledButton, 'Unfollow'));
       await settle(tester);
       expect(find.text('Cats'), findsNothing);
       expect(find.text('No topics yet'), findsOneWidget);
       expect(await harness.repository.getAll(), isEmpty);
+      expect(find.text('Undo'), findsOneWidget);
+      await tester.tap(find.text('Undo'));
+      await settle(tester);
+      expect(find.text('Cats'), findsOneWidget);
+      expect(await harness.repository.getAll(), hasLength(1));
+      await tester.pump(const Duration(seconds: 5));
     },
   );
 

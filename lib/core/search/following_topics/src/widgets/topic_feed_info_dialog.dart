@@ -6,7 +6,6 @@ import 'package:kurumi/material.dart';
 import '../providers/following_topics_notifier.dart';
 import '../types/search_refresh.dart';
 import 'feed_last_checked.dart';
-import 'following_topic_info_dialog.dart';
 
 class TopicFeedInfoDialog extends ConsumerWidget {
   const TopicFeedInfoDialog({required this.feedId, super.key});
@@ -30,7 +29,7 @@ class TopicFeedInfoDialog extends ConsumerWidget {
             .toList()
           ..sort();
     return AlertDialog(
-      title: Text(strings.info),
+      title: Text(strings.feed_info),
       scrollable: true,
       content: feed == null
           ? Text(strings.feeds_empty)
@@ -56,18 +55,6 @@ class TopicFeedInfoDialog extends ConsumerWidget {
                     ),
                   ),
                 FeedLastChecked(checkedAt: dates.firstOrNull),
-                if (sources.isNotEmpty) const SizedBox(height: 16),
-                for (final source in sources)
-                  TextButton(
-                    onPressed: () => showDialog<void>(
-                      context: context,
-                      builder: (_) => FollowingTopicInfoDialog(
-                        topicId: source.id,
-                        feedSource: true,
-                      ),
-                    ),
-                    child: Text('${source.displayName} · ${strings.info}'),
-                  ),
               ],
             ),
       actions: [

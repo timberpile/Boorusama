@@ -372,6 +372,37 @@ void main() {
     );
   });
 
+  test(
+    'hides an empty legacy feed choice without removing its decoder',
+    () async {
+      final harness = _Harness();
+      addTearDown(harness.container.dispose);
+      await harness.container.read(followingTopicsProvider.future);
+
+      final presented = harness.container.read(
+        backupPresentationSourcesProvider,
+      );
+      final exportSources = harness.container.read(
+        exportImportSourcesProvider,
+      );
+
+      expect(
+        presented.map((source) => source.id),
+        isNot(contains('following_feeds')),
+      );
+      expect(
+        exportSources.map((source) => source.id),
+        isNot(contains('following_feeds')),
+      );
+      expect(
+        harness.container
+            .read(backupRegistryProvider)
+            .getSource('following_feeds'),
+        same(harness.feedSource),
+      );
+    },
+  );
+
   test('exports only definitions and portable profile references', () async {
     final harness = _Harness();
     addTearDown(harness.container.dispose);
@@ -875,7 +906,8 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('Topics'), findsOneWidget);
-      expect(find.text('1 topic'), findsOneWidget);
+      expect(find.textContaining('1 topic'), findsOneWidget);
+      expect(find.textContaining('folders and feed settings'), findsOneWidget);
       final tile = tester.widget<DefaultBackupTile>(
         find.byType(DefaultBackupTile),
       );

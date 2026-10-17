@@ -17,7 +17,7 @@ void main() {
   tearDown(() => harness.dispose());
   for (final following in [false, true]) {
     testWidgets(
-      'tag menu offers ${following ? 'Following' : 'Follow'} and opens the topic dialog',
+      'tag menu offers ${following ? 'Following management' : 'Follow creation'}',
       (tester) async {
         if (following) {
           await tester.runAsync(
@@ -55,11 +55,14 @@ void main() {
         final label = following ? 'Following' : 'Follow';
         expect(find.text('Add to feed'), findsNothing);
         expect(find.text(label), findsOneWidget);
+        expect(find.text('1'), following ? findsOneWidget : findsNothing);
         await tester.tap(find.text(label));
         await tester.pumpAndSettle();
-        expect(find.text('Follow Topic'), findsOneWidget);
-        expect(find.text('Query: artist_tag'), findsOneWidget);
-        await tester.tap(find.text('Cancel'));
+        expect(find.text('Follow'), findsOneWidget);
+        expect(find.text('artist_tag'), findsOneWidget);
+        expect(find.text('Home'), findsOneWidget);
+        expect(find.widgetWithText(FilledButton, 'Done'), findsOneWidget);
+        await tester.tapAt(const Offset(5, 5));
         await tester.pumpAndSettle();
         expect(
           (await tester.runAsync(harness.repository.getAll))!.length,
