@@ -3,7 +3,6 @@ import 'dart:async';
 import 'dart:convert';
 
 // Package imports:
-import 'package:coreutils/coreutils.dart';
 import 'package:dio/dio.dart';
 
 // Project imports:
@@ -313,8 +312,7 @@ class DioProtectionInterceptor extends Interceptor {
 Uri challengeUriFor(RequestOptions options) {
   final uri = options.uri;
   final replayable =
-      options.method.toUpperCase() == 'GET' &&
-      options.extra[stateChangingRequestKey] != true;
+      options.method.toUpperCase() == 'GET' && isApiSafeRead(options);
   if (replayable) return uri;
 
   final base = Uri.tryParse(options.baseUrl);

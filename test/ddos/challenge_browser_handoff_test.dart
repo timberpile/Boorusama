@@ -48,6 +48,7 @@ const _browserChallengePage = '''
 </html>''';
 
 const _actionPath = '/action';
+const _readPath = '/posts.json';
 const _openPath = '/open';
 
 void main() {
@@ -117,7 +118,7 @@ void main() {
         ],
       );
 
-      final sent = await harness.sendAction(tester);
+      final sent = await harness.send(tester, _readPath);
 
       expect(sent.result, 'HTTP 200 "done"');
       expect(find.byType(ProtectionOverlay), findsNothing);
@@ -125,16 +126,18 @@ void main() {
   );
 
   testWidgets(
-    'solving a captcha for a state-changing request does not replay that request in the challenge browser',
+    'a state-changing request does not launch browser recovery or replay',
     (tester) async {
       final site = _Site(blockedBody: _turnstileCaptchaPage);
       final harness = await _Harness.pump(tester, site: site);
 
-      await harness.sendAction(tester);
-      await harness.cancelChallenge(tester);
+      final sent = await harness.sendAction(tester);
 
-      expect(site.browserPaths, isNotEmpty);
+      expect(sent.result, 'HTTP 403');
+      expect(sent.challengeShown, isFalse);
+      expect(site.browserPaths, isEmpty);
       expect(site.actionsPerformedByBrowser, 0);
+      expect(site.appRequests, 1);
     },
   );
 
@@ -310,8 +313,8 @@ void main() {
       final site = _Site(blockedBody: _turnstileCaptchaPage);
       final harness = await _Harness.pump(tester, site: site);
 
-      final first = await harness.sendAction(tester);
-      final second = await harness.sendAction(tester);
+      final first = await harness.send(tester, _readPath);
+      final second = await harness.send(tester, _readPath);
 
       expect(first.result, 'HTTP 403');
       expect(first.challengeShown, isTrue);
@@ -327,9 +330,9 @@ void main() {
       final site = _Site(blockedBody: _turnstileCaptchaPage);
       final harness = await _Harness.pump(tester, site: site);
 
-      await harness.sendAction(tester);
+      await harness.send(tester, _readPath);
       final open = await harness.send(tester, _openPath);
-      final retried = await harness.sendAction(tester);
+      final retried = await harness.send(tester, _readPath);
 
       expect(open.result, 'HTTP 200 "done"');
       expect(retried.challengeShown, isTrue);
@@ -348,11 +351,11 @@ void main() {
         clock: Clock(() => now),
       );
 
-      final first = await harness.sendAction(tester);
+      final first = await harness.send(tester, _readPath);
       now = now.add(const Duration(seconds: 29));
-      final immediate = await harness.sendAction(tester);
+      final immediate = await harness.send(tester, _readPath);
       now = now.add(const Duration(seconds: 1));
-      final later = await harness.sendAction(tester);
+      final later = await harness.send(tester, _readPath);
 
       expect(first.challengeShown, isTrue);
       expect(immediate.challengeShown, isFalse);
@@ -504,9 +507,9 @@ class _Harness {
   }
 }
 
-/// The app's HTTP client is blocked on [_actionPath] unless its cookie header
-/// carries [unblockedBy]. A real browser, already logged in, is never
-/// challenged.
+/// The app's HTTP client is blocked on read and mutation paths unless its
+/// cookie header carries [unblockedBy]. The fixture browser is already logged in
+/// and is never challenged unless [browserBody] contains a challenge page.
 class _Site implements HttpClientAdapter {
   _Site({required this.blockedBody, this.unblockedBy, this.browserBody});
 

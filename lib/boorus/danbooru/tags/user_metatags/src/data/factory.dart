@@ -16,8 +16,9 @@ final class HiveDanbooruUserMetatagRepositoryFactory
 
   @override
   Future<UserMetatagRepository> create() async {
+    final exists = await Hive.boxExists('user_metatags');
     final box = await Hive.openBox<String>('user_metatags');
-    if (box.isEmpty) {
+    if (!exists) {
       for (final tag in ['age', 'rating', 'order', 'score', 'id', 'user']) {
         await box.put(tag, tag);
       }
