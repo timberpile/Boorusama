@@ -20,6 +20,7 @@ import 'package:boorusama/core/developer_options/providers.dart';
 import 'package:boorusama/core/http/client/providers.dart';
 import 'package:boorusama/core/images/providers.dart';
 import 'package:boorusama/core/posts/favorites/widgets.dart';
+import 'package:boorusama/core/posts/listing/src/widgets/default_image_quick_actions.dart';
 import 'package:boorusama/core/posts/post/src/widgets/image_overlay_icon.dart';
 import 'package:boorusama/core/posts/post/src/widgets/thumbnail_overlay.dart';
 import 'package:boorusama/core/posts/post/widgets.dart';
@@ -256,6 +257,79 @@ void main() {
     },
   );
 
+  for (final layout in [
+    (name: 'single', size: const Size(33, 33)),
+    (name: 'horizontal', size: const Size(70, 33)),
+    (name: 'vertical', size: const Size(33, 70)),
+  ]) {
+    for (final liked in [false, true]) {
+      testWidgets(
+        'grouped favorite stays centered in ${layout.name} layout (liked: $liked)',
+        (tester) async {
+          final toggles = <bool>[];
+          var neighborTaps = 0;
+          await tester.pumpWidget(
+            _app(
+              SizedBox.fromSize(
+                size: layout.size,
+                child: ThumbnailActionGroup(
+                  children: [
+                    QuickFavoriteButton(
+                      isFaved: liked,
+                      onFavToggle: (value) async => toggles.add(value),
+                    ),
+                    IconButton(
+                      onPressed: () => neighborTaps++,
+                      icon: const Icon(Symbols.bookmark),
+                    ),
+                  ],
+                ),
+              ),
+              scale: 2,
+            ),
+          );
+          final button = find.byType(QuickFavoriteButton);
+          final background = find.descendant(
+            of: button,
+            matching: find.byWidgetPredicate(
+              (widget) =>
+                  widget is Container &&
+                  widget.decoration is BoxDecoration &&
+                  (widget.decoration! as BoxDecoration).shape ==
+                      BoxShape.circle,
+            ),
+          );
+          void expectCentered() {
+            expect(
+              tester.getCenter(find.byIcon(Symbols.favorite)),
+              tester.getCenter(background),
+            );
+            expect(tester.getSize(background), const Size(24, 24));
+            expect(tester.widget<Icon>(find.byIcon(Symbols.favorite)).size, 20);
+          }
+
+          expect(tester.getSize(button), const Size(33, 33));
+          expectCentered();
+          // Padding still belongs to this action, even next to another action.
+          await tester.tapAt(tester.getTopLeft(button) + const Offset(2, 2));
+          await tester.pump();
+          await tester.pump(const Duration(milliseconds: 350));
+          expectCentered();
+          await tester.pumpAndSettle();
+          expectCentered();
+          expect(toggles, [!liked]);
+          expect(neighborTaps, 0);
+          if (layout.name != 'single') {
+            await tester.tap(find.byIcon(Symbols.bookmark));
+            expect(neighborTaps, 1);
+            expect(toggles, [!liked]);
+          }
+          expect(tester.takeException(), isNull);
+        },
+      );
+    }
+  }
+
   testWidgets('an interrupted favorite action keeps its previous state', (
     tester,
   ) async {
@@ -347,6 +421,16 @@ void main() {
                       customIconUrl: 'https://icons.test/loading.png',
                     ),
                     favorite: const QuickFavoriteButton(isFaved: true),
+                  ),
+                ),
+                _sample(
+                  'Compact favorite',
+                  _tile(
+                    favorite: const ThumbnailActionGroup(
+                      children: [
+                        QuickFavoriteButton(isFaved: true),
+                      ],
+                    ),
                   ),
                 ),
                 _sample(

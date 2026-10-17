@@ -48,7 +48,9 @@ and 2 provide broader UI and platform confidence.
   time with Escape/Back.
 - Configure two thumbnail quick actions and verify each on normal, banned and
   mixed-origin posts. Check long press, right click, selection, Kurumi menus,
-  bookmark-group actions and no tap-through after dismissal.
+  bookmark-group actions and no tap-through after dismissal. Confirm the favorite
+  heart stays centered on its circular background in single, horizontal and
+  vertical quick-action layouts, before and after toggling it.
 - Open the favorite-tag editor at phone and tablet widths. Confirm the compact
   sheet/dialog choice, all existing labels and keyboard accessibility.
 

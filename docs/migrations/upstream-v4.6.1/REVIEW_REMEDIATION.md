@@ -513,3 +513,62 @@ extended after the complete test pass.
 
 Logs: `/tmp/migration-unfavorite-{i18n,focused,full,analyze,build}.log`.
 The pre-fix reproduction failures are in `/tmp/migration-unfavorite-red.log`.
+
+
+## Favorite quick-action alignment — 2026-10-17
+
+This repair follows `6b1012278d39061db2cedd7ce87f6fd93dcd7d28` on the existing
+migration branch. The favorite widget calculated its transparent padding from
+its preferred 48 px touch target even when `ThumbnailActionGroup` constrained
+it to 33 px. That compressed the icon's layout box and moved its center 7.5 px
+right and down relative to the circular background.
+
+The widget now derives its top/left padding from the actual layout constraints.
+The existing 20 px icon, 24 px circle, bottom/right inset, animation and async
+favorite flow are retained. The padding remains interactive; unconstrained
+standalone favorites retain their 48 px touch target.
+
+Six widget regressions cover unselected/selected states in single, horizontal
+and vertical action groups at 200% text scale. All six reproduced the offset
+before the fix. They now verify matching centers before, during and after the
+animation, padding taps and separate neighboring actions. Existing coverage
+also checks the standalone touch target, narrow thumbnails, interrupted actions
+and ordinary post taps. The focused overlay/grid/configuration/bookmark/favorite
+consumer run passed all 59 tests.
+
+The widget review sheet includes a compact grouped favorite and was rendered to
+`/tmp/migration-favorite-alignment.png` and visually inspected. This is controlled
+widget rendering, not a device screenshot. No emulator, phone or live account
+was operated. The previously open manual migration acceptance remains open.
+
+
+### Favorite alignment verification
+
+The checked runtime and tests are in this follow-up commit, based on
+`6b1012278d39061db2cedd7ce87f6fd93dcd7d28`, with develop unchanged at
+`d52b6694eb370a8099c820c397250b5199b0baa5`. Only this report was extended after
+the complete pass.
+
+- `fvm dart format --output=none --set-exit-if-changed` on both changed Dart
+  files: exit 0, no changes.
+- `fvm flutter test --no-pub --concurrency=6` with the thumbnail overlay,
+  shared post-grid, thumbnail action configuration, bookmark button layout and
+  favorite consumer tests: all **59 tests passed**. The review-sheet run used
+  `--dart-define=POST_010_CAPTURE_PATH=/tmp/migration-favorite-alignment.png`.
+- `./scripts/run_regression_tests.sh`: exit 0, all **3,804 application tests**,
+  **1,024 tests across all 12 package/CLI suites**, repository shell checks and
+  **61 Python tooling tests** passed. No suites or individual tests were skipped;
+  the default six physical cores were used.
+- `fvm flutter analyze --no-pub --no-fatal-infos`: exit 0, no errors or warnings;
+  177 informational diagnostics, with no new diagnostics compared to the
+  preceding verified candidate.
+- `fvm flutter build apk --debug --flavor dev --no-pub`: exit 0 on the final
+  source, producing `build/app/outputs/flutter-apk/app-dev-debug.apk`.
+- Whitespace, unresolved-index and required ancestry checks passed. No new
+  generation was needed because no generation inputs changed.
+
+Logs are under `/tmp/migration-favorite-alignment-`: `red.log`, `focused.log`,
+`full.log`, `analyze-final.log`, and `build-final.log`. The interrupted focused
+run was restarted; the completed run and final complete gate both passed.
+The migration worktree is retained. Develop, the primary checkout, remotes and
+release state are not changed by this repair.
