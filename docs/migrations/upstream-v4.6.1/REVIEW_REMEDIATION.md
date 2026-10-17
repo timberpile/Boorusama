@@ -6,6 +6,10 @@ explicitly conditional concern. Repeated mentions are one item, not additional
 independent defects. The original implementation report's 68/68 completeness
 claim is superseded by this reconciliation.
 
+Follow-up: targeted authenticated live API and Android checks passed on
+2026-10-17. B10 is now activated. Those checks found and fixed one additional
+empty-listing parser defect, documented below.
+
 ## Findings, evidence and changes
 
 R1/R2/R3 refer to the user's three supplied reports. "Confirmed" distinguishes
@@ -33,7 +37,7 @@ The approved decision log remains authoritative.
 | 17 | N01 / all | Confirmed reference audit found only the obsolete sliding-window implementation, its export and its own tests. Remove those files/export; retain the coordinator and its regression coverage. |
 | 18 | D07 / R3 | Confirmed dry run checked disk existence but never reserved destinations within a batch. Reserve normalized destinations across all pages: skip a duplicate when skipping is enabled, otherwise fail preparation visibly before any transfer. Pixiv's page-specific default remains unchanged. Tests exercise both conflict policies; ordinary bulk fixtures now use distinct names. |
 | 19 | N01 / R3 | Confirmed retry backoff could not be interrupted. Make retry waiting cancelable and cancel its timer. A controlled-clock regression proves cancellation settles without waiting for Retry-After or issuing another attempt. |
-| 20 | B10 / R3 | Confirmed acceptance violation, not a demonstrated endpoint failure: the new listing host was enabled without the required live matrix. Restore the established relative XML listing endpoint and default parser; keep the existing details/autocomplete endpoints. The generated configuration reflects this. Activation remains gated on targeted authenticated/unauthenticated live checks. |
+| 20 | B10 / R3 | Confirmed acceptance violation, not a demonstrated endpoint failure: the new listing host was enabled without the required live checks. Initially restore the established relative XML listing endpoint and default parser. The subsequent authenticated live/Android checks below passed after fixing the empty-response defect; the JSON listing endpoint is now activated with the dedicated parser. Profile identity and existing details/autocomplete endpoints are retained. |
 | 21 | Documentation / all | Confirmed `git diff --check e8bf883 -- docs/migrations/upstream-v4.6.1` reported handoff trailing whitespace and the catalog's extra EOF line. Remove those whitespace defects. |
 
 ## Conditional concern
@@ -45,7 +49,7 @@ profile's auth to `DefaultImageGridItem`. The generic grid uses the selected
 profile, but no currently affected mixed-origin use of that default builder was
 established. No speculative behavior change was made for this concern.
 
-## Verification
+## Original repair verification (before live follow-up)
 
 Checked candidate: `0c1ade6eec43a1104b24391c702c4bf1972b3541`.
 Runtime fixes are in `d5af43e58`; `0c1ade6ee` aligns consumer tests with the
@@ -97,11 +101,13 @@ Evidence logs are retained locally under `/tmp/migration-fixes-*`, including
 
 The user subsequently requested emulator verification. The bounded checks below
 supplement A02's manual checklist; they do not complete that checklist.
-Installed upgrade/signing acceptance, live authenticated service checks, and
-Windows/macOS/iOS native execution remain unverified. Linux atomic sidecar
+Installed upgrade/signing acceptance and Windows/macOS/iOS native execution
+remain unverified. Authenticated Android API and native cookie checks are
+recorded in the follow-up below. Linux atomic sidecar
 publication is exercised locally; other platform implementations require native
 acceptance.
-The gated Rule34 listing switch remains deferred. Local fixes do not authorize
+The Rule34 listing switch is now activated after targeted live verification.
+Local fixes do not authorize
 integration, pushing, PR creation, tagging or release publication.
 
 ## Live verification — 2026-10-17
@@ -153,7 +159,7 @@ emulator UI checks above. No account credentials were transmitted.
 The CORS header observation is not browser CORS acceptance. Neither probe
 returned `Retry-After`; no live 429 was induced.
 
-### Outstanding live acceptance
+### Initial outstanding live acceptance (superseded by the follow-up)
 
 Authenticated list/details, pagination, filter/limit semantics, successful
 challenge completion, cookie origin/path/transport isolation, and cache
@@ -162,8 +168,108 @@ stored Rule34 test user ID/API key to the external API without explicit approval
 for that payload/destination. Approval was requested; the authenticated probe
 was not run. The emulator contained no pre-signed-in Boorusama account.
 
-No runtime files changed for this verification. The complete local suite result
-above remains applicable to the same runtime candidate. These observations do
-not activate B10 or establish production-signed upgrades, other ABIs, enlarged
+No runtime files changed in this initial verification session. The complete
+local suite result above applied to that runtime candidate. These initial
+observations did not activate B10 or establish production-signed upgrades, other ABIs, enlarged
 text/narrow-width acceptance, native sidecar publication, or the remaining media
 and download checklist.
+
+## Authenticated live follow-up — 2026-10-17
+
+Runtime candidate: `81691486c`. The user explicitly approved sending the stored
+Rule34 test user ID/API key to `https://api.rule34.xxx` for read-only listing,
+pagination and detail checks. The earlier approval block is resolved. Credentials
+were not embedded in source/APKs, printed, or committed. Android received them
+through stdin into a mode-restricted app-private file; the temporary target
+deleted that file immediately after reading it, and deletion was verified.
+
+### Results and the additional defect
+
+Authenticated host probes returned valid JSON for unfiltered/`landscape`
+listings, two disjoint pages, `limit=1`, an exact `id:` filter and matching
+details. No-result queries returned HTTP 200 with a **zero-byte, chunked
+`application/json` body**, rather than `[]`. The initial `rating:safe landscape`
+query also returned an empty body; it was not evidence of failed authentication.
+A successful authenticated response had no redirect and
+`Access-Control-Allow-Origin: *`. No live 429 or Retry-After was observed.
+
+The real Android Dio/client path exposed one additional B10 defect: Dio decodes
+that empty JSON body as `null`, which `parseR34PostsApi` rejected. The scoped fix
+uses the listing caller's empty value for null input. Detail parsing stays
+strict. The new deterministic `rule34_empty_response_test.dart` reproduces the
+actual bodyless/chunked transport through Dio: the listing test failed before
+the fix and passed afterward; a null detail response still throws.
+
+The approved JSON listing endpoint is now activated with `parseR34PostsApi`.
+The generated configuration and consumer regression assert HTTPS API host,
+`json=1`, page-to-`pid` translation, limit, tags and existing profile credentials.
+Profile/site identity, details and autocomplete endpoints remain unchanged.
+
+### Real Android client and native checks
+
+Reused exclusively leased `emulator-5554` (Android 16 / API 36, x86_64).
+A temporary credential-free Flutter entrypoint used the real
+`GelbooruV2Client`, the proposed endpoint/parser and the application's
+`AuthErrorResponseInterceptor`. It displayed only pass/fail text and requested
+no media. Maestro MCP launched it and successfully asserted completion.
+The final current-process log and UI showed all **11 checks passing**:
+
+1. Authenticated listing includes IDs, hashes, media URLs and the requested tag.
+2. Pagination returns disjoint post IDs.
+3. Limit one returns one post.
+4. Exact ID filtering returns the requested post.
+5. Detail ID/hash/file URL match the listing.
+6. The bodyless no-result response parses as zero posts.
+7. Anonymous missing-authentication JSON becomes HTTP 401 through the app's
+   actual interceptor.
+8. A synthetic Secure/HttpOnly cookie exported by the native channel retains
+   conservative host, exact requested path, Secure and HttpOnly attributes.
+9. The native cookie is excluded from HTTP.
+10. It is excluded from an unrelated path.
+11. It is excluded from an unrelated host.
+
+The cookie fixture used an isolated `.invalid` hostname and was expired after
+the checks. A preliminary harness assertion incorrectly expected the standalone
+parser to retain the decoded authentication message; the final harness uses the
+production interceptor instead. This was a diagnostic correction, not another
+production defect. Both failed/partial runs and the final passing markers are
+retained separately; only the final run supports the 11-check pass claim.
+
+The normal app was rebuilt and installed with `install -r` afterward; existing
+profiles were preserved. Its default Safebooru feed loaded 60 posts. Switching
+to the anonymous Rule34 profile showed `401 / Authentication failed`, an
+`Edit API key` action and the server's missing-authentication explanation.
+Maestro asserted those labels, switched back to the default profile and
+asserted 60 posts. The emulator lease was then released. Final normal APK SHA-256:
+`c0a5a410a247cddb90e6be41c744a906c28e6f6e9e9afd6d351f42171da37a4c`.
+The temporary entrypoint is ignored under `.tmp/` and is not production code.
+
+### Automated verification and limits
+
+- Complete `booru_clients` package: 102 tests passed after the parser fix.
+- Related application/client/coordinator/cookie consumers: 41 tests passed.
+- Scoped Dart analysis: no issues.
+- `./gen.sh booru`: passed; generated output reflects the committed endpoint.
+- Normal Dev debug APK build: passed.
+- Full application analysis with `--no-fatal-infos`: exit 0, no errors/warnings,
+  198 informational diagnostics.
+
+`./scripts/run_regression_tests.sh` completed with **exit 0** on runtime candidate
+`81691486c70af58e600913197263adefc1e6646c`: all 3,802 application tests, all 12
+package/CLI suites, pull-request policy checks, Android release-script checks and
+61 Python tooling tests passed. The runner used the detected six physical cores.
+Documentation-only edits after that commit do not change the tested runtime.
+Diff whitespace and local documentation-target checks also passed.
+
+Sanitized evidence is in `/tmp/migration-auth-live-*.json`,
+`/tmp/migration-live-emulator-before.log`,
+`/tmp/migration-live-emulator-passed.log`, and `/tmp/migration-rule34-*`.
+
+This establishes targeted native Android API compatibility and native cookie
+export restrictions. It does not establish successful CAPTCHA solving, browser
+CORS execution, an induced real 429, live cross-profile cache isolation,
+production-signed upgrades, other ABIs/platforms, or the rest of the manual
+checklist. The temporary client target does not exercise the complete production
+bootstrap, UI, coordinated transport or persistent cache; those boundaries have
+separate local regression coverage. Live JSON records omitted upload timestamps;
+they remain unknown rather than being synthesized from metadata-change times.

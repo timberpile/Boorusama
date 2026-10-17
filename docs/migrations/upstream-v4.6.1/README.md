@@ -3,8 +3,8 @@
 **Status: REVIEW REPAIRS IMPLEMENTED; FINAL LOCAL REGRESSION, ANALYSIS AND DEV APK BUILD PASSED.**
 The genuine merge remains in `c08bb851acfe253e65cd307660cdbe465894fe7c`.
 [Consolidated remediation](REVIEW_REMEDIATION.md) records 21 validated review
-items and the checked candidate. The Rule34 listing-host switch is deferred
-until its approved live-verification gate passes. Manual, installed-upgrade,
+items and the checked candidate. The Rule34 listing-host switch is now activated
+after targeted authenticated live API and Android checks. Manual, installed-upgrade,
 other-native-platform, integration and publication acceptance remain separate.
 
 ## Pinned Comparison Baseline
@@ -36,9 +36,9 @@ other-native-platform, integration and publication acceptance remain separate.
 - **Do not** fake the upstream merge with `git merge -s ours`. Git ancestry must reflect the upstream code that was genuinely integrated.
 - Do not modify or submit PRs to `develop` without separate authorization. The complete test suite required by `AGENTS.md` must pass before integration.
 
-## Decision Status (2026-10-16)
+## Decision Status (2026-10-17)
 
-**All 68 decisions remain approved. Review repairs and final automated verification are complete locally; B10 activation remains gated on live verification.** All binding decisions are in [`decisions.md`](decisions.md) and summarized by the catalog and checklist. The task branch contains the genuine upstream merge; integration and publication are not authorized.
+**All 68 decisions remain approved. Review repairs include B10 activation after targeted authenticated live API and Android checks.** See [verification evidence and remaining acceptance limits](REVIEW_REMEDIATION.md). All binding decisions are in [`decisions.md`](decisions.md) and summarized by the catalog and checklist. The task branch contains the genuine upstream merge; integration and publication are not authorized.
 
 - **A02:** Following the UI migration, the agent must prepare a short prioritized manual acceptance checklist for the user. The **user**, not the agent, performs the manual UI checks.
 - **A16 — Versioning:** The numeric base of each fork release must exactly match its integrated upstream release. Restart `timberpile.N` at `.1` on each new upstream base, increment it within the same base, and **never** reset the Android/Flutter `+buildNumber`. Current release: `4.5.0-timberpile.5+189`; expected first release after the v4.6.1 merge: `4.6.1-timberpile.1+190`, provided there is no more recent allocated build number. Recheck shipped codes before release. Update the release skill, changelog, tags, GitHub manifest and updater consistently.
@@ -74,7 +74,7 @@ other-native-platform, integration and publication acceptance remain separate.
 - [x] D01, D03–D06, D08: Implement the approved download and backup topics.
 - [x] D07: Switch download `{id}` to genuine site ID; retain Pixiv default filename, Hive and bookmark identity.
 - [x] B01–B09: Implement the approved site compatibility topics.
-- [ ] B10: Activate the new Rule34 listing host only after targeted live verification.
+- [x] B10: Activate the new Rule34 listing host after targeted live verification; broader platform acceptance limits are recorded in the remediation report.
 - [x] P01–P14: Implement all approved grid and viewer topics.
 - [x] U01–U08: Implement the approved search, keyboard, desktop/TV and regression test topics.
 - [x] Approve all 68 migration decisions.

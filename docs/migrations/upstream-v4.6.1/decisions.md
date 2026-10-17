@@ -403,13 +403,13 @@ Before explicit user approval, a proposal must remain `OPEN`; technical recommen
 
 ## B10 — Rule34 JSON Post API at api.rule34.xxx
 
-**Status: APPROVED · 2026-10-16 · Implementation pending.** **Resolution:** adapt; activate only after verification.
+**Status: APPROVED · 2026-10-16 · Activated after targeted live verification on 2026-10-17.** **Resolution:** adapt; activate only after verification.
 
-**Target behavior / constraints:** After targeted **live API tests**, switch the Rule34 post listing endpoint to `https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1`. The fork currently uses that host only for details. Preserve profile/site identity, authentication/cookie origin boundaries, parsing, pagination, rate limits and Rule34 Cloudflare/403 recovery. If incompatible, assess the cause instead of forcing an untested host change.
+**Target behavior / constraints:** After targeted **live API tests**, switch the Rule34 post listing endpoint to `https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1`. The fork already uses that host for details. Preserve profile/site identity, authentication/cookie origin boundaries, parsing, pagination, rate limits and Rule34 Cloudflare/403 recovery. If incompatible, assess the cause instead of forcing an untested host change.
 
 **Dependencies:** N01/N02/N04/N05 and current Rule34 `boorus.yaml` settings.
 
-**Verification:** JSON list/details, pagination/filter/limit, auth/no auth, CORS/redirects, 403 challenge, rate limit/429, content shape, cross-host credentials and cache isolation. Live verification has **not yet been performed**.
+**Verification:** JSON list/details, pagination/filter/limit, auth/no auth, CORS/redirects, 403 challenge, rate limit/429, content shape, cross-host credentials and cache isolation. Targeted authenticated host and Android client checks passed on 2026-10-17, after fixing Dio's null representation of a bodyless empty listing. Android native cookie fixtures also passed. See [the remediation report](REVIEW_REMEDIATION.md) for exact coverage and remaining limits: successful CAPTCHA solving, browser CORS execution, a real 429 and live cross-profile cache isolation are not claimed.
 
 **Rationale/sources:** Verified upstream commit [`5972548ec`](https://github.com/khoadng/Boorusama/commit/5972548ecd6e32622b8476776490251d61d6a099). B01–B10 approved 2026-10-16.
 
