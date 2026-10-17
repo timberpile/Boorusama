@@ -226,8 +226,9 @@ void main() {
 
   for (final state in AnimatedPostsDefaultState.values) {
     for (final bytes in [0, -1, maxAutoplayGridGifBytes + 1, 1024]) {
-      if (state == AnimatedPostsDefaultState.autoplay && bytes == 1024)
+      if (state == AnimatedPostsDefaultState.autoplay && bytes == 1024) {
         continue;
+      }
       for (final quality in ImageQuality.values) {
         for (final size in GridSize.values) {
           test(

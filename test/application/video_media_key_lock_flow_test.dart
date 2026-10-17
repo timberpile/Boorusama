@@ -69,7 +69,7 @@ void main() {
             await harness.settle(tester);
             expect(container.read(screenLockProvider), locked);
             expect(pages.keyboardShortcutsEnabled.value, !locked);
-            details.setCurrentVideoPlaying(playing);
+            await details.setCurrentVideoPlaying(playing);
             await harness.settle(tester);
             expect(details.isVideoPlaying.value, playing);
             await keys.press(key);
