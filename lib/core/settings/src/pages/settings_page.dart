@@ -81,7 +81,8 @@ List<SettingEntry> _entries(
     name: '/settings/backup_and_restore',
     title: context.t.settings.backup_and_restore.backup_and_restore,
     icon: FontAwesomeIcons.cloudArrowDown,
-    content: const BackupAndRestorePage(),
+    headerTitle: context.t.settings.backup_and_restore.export_import.title,
+    content: const BackupAndRestorePage(showAppBar: false),
   ),
   SettingEntry(
     id: 'search',
@@ -415,7 +416,7 @@ class _SettingsAdaptiveShellState
             id: id,
             animate: animate,
             child: _SettingsDestinationFrame(
-              title: entry.title,
+              title: entry.headerTitle ?? entry.title,
               leading: !wide || index > 0
                   ? BackButton(onPressed: _notifier.back)
                   : null,

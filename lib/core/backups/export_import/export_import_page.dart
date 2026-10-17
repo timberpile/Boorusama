@@ -3,7 +3,6 @@ import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 
-import '../../../foundation/info/device_info.dart';
 import '../../../foundation/picker.dart';
 import '../../../foundation/platform.dart';
 import '../auto/widgets.dart';
@@ -16,16 +15,21 @@ import 'import/import_flow_page.dart';
 import 'widgets/private_export_confirmation.dart';
 
 class ExportImportPage extends ConsumerWidget {
-  const ExportImportPage({super.key, this.includeAutomaticExports = false});
+  const ExportImportPage({
+    super.key,
+    this.includeAutomaticExports = false,
+    this.showAppBar = true,
+  });
 
   final bool includeAutomaticExports;
+  final bool showAppBar;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final strings = context.t.settings.backup_and_restore.export_import;
     final clipboard = ref.watch(exportClipboardServiceProvider);
     return Scaffold(
-      appBar: KurumiAppBar(title: Text(strings.title)),
+      appBar: showAppBar ? KurumiAppBar(title: Text(strings.title)) : null,
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(16),
@@ -48,14 +52,15 @@ class ExportImportPage extends ConsumerWidget {
                 leading: const Icon(Icons.file_open_outlined),
                 title: Text(strings.import_file),
                 trailing: const Icon(Icons.chevron_right),
-                onTap: () => BackupFilePicker.pickFile(
+                onTap: () => pickSingleFilePathToastOnError(
                   context: context,
                   picker: ref.read(appFilePickerProvider),
-                  platform: ref.read(appPlatformProvider),
-                  androidDeviceInfo: ref
-                      .read(deviceInfoProvider)
-                      .androidDeviceInfo,
-                  allowedExtensions: const ['bsexport', 'zip'],
+                  // Android cannot map .bsexport to a MIME type. Let users
+                  // select any document, then validate its extension below.
+                  customFileType: !ref.read(appPlatformProvider).isAndroid,
+                  allowedExtensions: ref.read(appPlatformProvider).isAndroid
+                      ? null
+                      : const ['bsexport', 'zip'],
                   onPick: (path) {
                     if (!BackupFilePicker.hasAllowedExtension(path, const [
                       'bsexport',

@@ -68,6 +68,7 @@ class SettingEntry {
     required this.icon,
     required this.name,
     this.parentId,
+    this.headerTitle,
   });
 
   final String id;
@@ -76,6 +77,7 @@ class SettingEntry {
   final Object icon;
   final String name;
   final String? parentId;
+  final String? headerTitle;
 }
 
 class SettingsPageNavigationScope extends InheritedWidget {

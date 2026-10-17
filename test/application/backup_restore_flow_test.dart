@@ -103,6 +103,9 @@ void main() {
     await harness.settle(tester);
 
     await _openBackupAndRestore(tester, harness);
+    expect(find.text('Export & import'), findsOneWidget);
+    // The category remains in the wide sidebar; it is no longer a second header.
+    expect(find.text('Backup and Restore'), findsOneWidget);
 
     await _openAdvancedBackup(tester, harness);
     final settingsTile = find.ancestor(
@@ -127,6 +130,33 @@ void main() {
       isNotEmpty,
     );
   });
+
+  testWidgets(
+    'backup settings has a single header on a narrow screen with large text',
+    (tester) async {
+      final harness = await HeadlessAppHarness.mount(tester);
+      await harness.settle(tester);
+      await _openBackupAndRestore(tester, harness);
+      harness.setViewport(tester, const Size(320, 640));
+      tester.platformDispatcher.textScaleFactorTestValue = 2;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      await harness.settle(tester);
+      expect(find.text('Export & import'), findsOneWidget);
+      expect(find.text('Backup and Restore'), findsNothing);
+      expect(tester.takeException(), isNull);
+      await tester.scrollUntilVisible(
+        find.text('Import file'),
+        200,
+        scrollable: find
+            .descendant(
+              of: find.byType(BackupAndRestorePage),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
+      expect(find.text('Import file').hitTestable(), findsOneWidget);
+    },
+  );
 
   testWidgets(
     'exports saved favorite tags in a full backup before opening favorites',

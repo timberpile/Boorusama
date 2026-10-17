@@ -1,4 +1,6 @@
 import 'package:boorusama/boorus/nozomi/nozomi_repository.dart';
+import 'package:boorusama/boorus/danbooru/posts/post/types.dart';
+import 'package:boorusama/boorus/danbooru/posts/post/src/danbooru_post_codec.dart';
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/posts/details/types.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -154,27 +156,26 @@ void main() {
   }
 
   for (final size in GridSize.values) {
-    test('Danbooru automatic GIF keeps its existing ${size.name} variant', () {
-      final expected = switch (size) {
-        GridSize.micro => '180',
-        GridSize.tiny => '360',
-        _ => '720',
-      };
-      const generator = DanbooruGridThumbnailUrlGenerator();
-      expect(
-        generator
-            .resolve(
-              _post(variants: true, format: 'gif', fileSize: 1),
-              settings: GridThumbnailSettings(
-                imageQuality: ImageQuality.automatic,
-                animatedPostsDefaultState: AnimatedPostsDefaultState.autoplay,
-                gridSize: size,
-              ),
-            )
-            .url,
-        expected,
-      );
-    });
+    test(
+      'Danbooru automatic GIF animates an eligible original at ${size.name}',
+      () {
+        const expected = 'sample';
+        const generator = DanbooruGridThumbnailUrlGenerator();
+        expect(
+          generator
+              .resolve(
+                _post(variants: true, format: 'gif', fileSize: 1),
+                settings: GridThumbnailSettings(
+                  imageQuality: ImageQuality.automatic,
+                  animatedPostsDefaultState: AnimatedPostsDefaultState.autoplay,
+                  gridSize: size,
+                ),
+              )
+              .url,
+          expected,
+        );
+      },
+    );
   }
   test('variantless cached posts use the common sample at automatic Large', () {
     expect(
@@ -221,6 +222,71 @@ void main() {
         );
       });
     }
+  }
+
+  for (final fileSize in [0, -1, maxAutoplayGridGifBytes + 1]) {
+    test(
+      'a transcoded GIF sample cannot bypass original-size guard $fileSize',
+      () {
+        final gif = _nativeGif(fileSize: fileSize);
+        for (final quality in ImageQuality.values) {
+          for (final generator in [
+            const DefaultGridThumbnailUrlGenerator(),
+            const DanbooruGridThumbnailUrlGenerator(),
+          ]) {
+            expect(
+              generator.resolve(gif, settings: _gifSettings(quality)).url,
+              gif.thumbnailImageUrl,
+            );
+          }
+        }
+      },
+    );
+  }
+
+  for (final sample in [
+    '',
+    'https://site.test/sample.webm',
+    'https://site.test/sample.mp4',
+    'https://site.test/sample.jpg',
+  ]) {
+    test(
+      'eligible GIF uses its original when image sample is unavailable ($sample)',
+      () {
+        final gif = _nativeGif(
+          fileSize: maxAutoplayGridGifBytes,
+          sample: sample,
+        );
+        for (final generator in [
+          const DefaultGridThumbnailUrlGenerator(),
+          const DanbooruGridThumbnailUrlGenerator(),
+        ]) {
+          for (final quality in [
+            ImageQuality.automatic,
+            ImageQuality.highest,
+          ]) {
+            final media = generator.resolve(
+              gif,
+              settings: _gifSettings(quality),
+            );
+            expect(media.url, gif.originalImageUrl);
+            expect(media.aspectRatio, gif.effectiveOriginalAspectRatio);
+            expect(
+              generator
+                  .resolve(
+                    gif,
+                    settings: _gifSettings(
+                      quality,
+                      state: AnimatedPostsDefaultState.static,
+                    ),
+                  )
+                  .url,
+              gif.thumbnailImageUrl,
+            );
+          }
+        }
+      },
+    );
   }
 
   test('GIF autoplay accepts the exact 5 MiB boundary', () {
@@ -348,4 +414,19 @@ Post _post({
         : null,
   ),
   booruData: const LegacyPostData(typeKey: 'fixture', custom: {}),
+);
+
+Post _nativeGif({
+  required int fileSize,
+  String sample = 'https://site.test/sample.webm',
+}) => danbooruPostFromRecord(
+  DanbooruPostRecord.empty().copyWith(
+    format: 'gif',
+    fileSize: fileSize,
+    sampleImageUrl: sample,
+    originalImageUrl: 'https://site.test/original.gif',
+    width: 100,
+    height: 200,
+  ),
+  PostOrigin.forBooruType(BooruType.danbooru),
 );

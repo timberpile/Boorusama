@@ -37,13 +37,18 @@ String _danbooruGridThumbnailUrl(
   Post post,
   GridThumbnailSettings settings,
 ) {
-  if (post.isGif && !shouldAutoplayGridGif(post, settings)) {
+  final isGif = isOriginalGridGif(post);
+  if (isGif && !shouldAutoplayGridGif(post, settings)) {
     return _variantUrl(post, PostQualityType.v720x720);
   }
 
-  return switch (post.isGif
+  return switch (isGif
       ? settings.imageQuality
       : settings.resolvedImageQuality) {
+    ImageQuality.automatic when isGif => gridGifSampleUrl(
+      post,
+      _variantUrl(post, PostQualityType.sample),
+    ),
     ImageQuality.automatic => switch (settings.gridSize) {
       GridSize.micro => _variantUrl(post, PostQualityType.v180x180),
       GridSize.tiny => _variantUrl(post, PostQualityType.v360x360),
@@ -59,6 +64,11 @@ String _danbooruGridThumbnailUrl(
       GridSize.tiny => _variantUrl(post, PostQualityType.v360x360),
       _ => _variantUrl(post, PostQualityType.v720x720),
     },
+    ImageQuality.highest
+        when isGif &&
+            settings.gridSize != GridSize.micro &&
+            settings.gridSize != GridSize.tiny =>
+      gridGifSampleUrl(post, _variantUrl(post, PostQualityType.sample)),
     ImageQuality.highest =>
       post.isVideo
           ? _variantUrl(post, PostQualityType.v720x720)

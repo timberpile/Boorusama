@@ -339,3 +339,105 @@ in the existing checklist. No emulator/device actions were performed for this
 synchronization. Local develop remains unchanged, and the migration worktree is
 retained. No push, pull request, develop/master integration, tag or release action
 is included.
+
+
+## Reported regression repairs — 2026-10-17
+
+This follow-up starts at the verified develop merge `92dd044f82d7f0add4ca5749b74252b5a677d8ee`
+on `maintenance/upstream-v4.6.1-migration`. It preserves the upstream history and
+updates this migration branch only.
+
+The Android picker supplied both `.bsexport` and `.zip` to the upgraded plugin's
+MIME filter. Android recognizes ZIP but cannot map the custom export extension,
+so document providers excluded `.bsexport`. Export import now requests any Android
+document and validates the selected extension using the existing localized
+error. Other platforms retain their custom-extension filter. This changes file
+selection, not container format or import persistence. The user independently
+confirmed that a 4.6.1 export imports in 4.5.0.
+
+Backup settings now uses the adaptive settings header as its only header,
+labelled **Export & import**. Standalone uses retain their app bar; the settings
+navigation category remains **Backup and Restore**.
+
+The Danbooru vote repair protects newer local vote/favorite changes from stale
+preload responses and fetches only entries still needing lookup. A controlled
+preload/favorite/removal test reproduced a lost automatic upvote before the fix
+and verifies lookup of the actual server vote ID before removal afterward. This
+is a confirmed local race consistent with the intermittent toast, not proof that
+every live Danbooru failure has the same cause.
+
+GIF grid eligibility now follows the original format and API byte length. A
+transcoded sample previously masked the original GIF format and bypassed the
+5 MiB guard. Automatic now animates eligible GIFs at every grid size, as the user
+explicitly requested on 2026-10-17; `decisions.md` P06 records that policy update.
+Known original sizes must be positive and at most 5 MiB at every quality. Missing
+or non-animated samples fall back to the eligible original. Still-image quality,
+explicit viewers and downloads retain their own policies; no network size probes
+or data migrations were added.
+
+The user reported that reinstalling resolved the original whole-video freeze.
+The newly reported details-panel reset had a separate reproducible lifecycle
+cause: toggling viewer gestures inserted/removed a Semantics wrapper and disposed
+the video child. Kurumi now keeps that wrapper stable while updating its semantic
+actions. A stateful media regression fails before the repair and passes afterward,
+retaining position and playback state through both panel transitions.
+
+### Acceptance limits
+
+Android document-provider selection, live Danbooru voting, and native MP4 playback
+across the details panel still require user-run checks in
+`MANUAL_ACCEPTANCE_CHECKLIST.md`. WebM and alternative playback engines remain
+unverified on a device. These fixes and automated checks do not close the other
+migration acceptance gates.
+
+The backup destination was checked at 320 px and 200% text after opening it.
+Starting the entire main-screen journey at those constraints also exposed an
+existing overflow in the unchanged `post_list_configuration_header.dart` Row;
+that listing-header issue is outside these reported regression repairs and is
+not covered by a claim of complete responsive UI acceptance.
+
+A bounded synthetic-media emulator probe did not complete: Maestro launch timed
+out, and APK installs did not complete within their bounds. Package metadata
+retained its prior update time, so no new installation was confirmed. The local
+probe server and reverse port mapping were removed and the emulator lease was
+released. The normal application Dev APK was rebuilt after the temporary probe
+build. No physical phone was operated and no app data was cleared.
+
+
+### Follow-up verification
+
+The checked state is the runtime and tests in this follow-up commit, based on
+`92dd044f82d7f0add4ca5749b74252b5a677d8ee`, with local develop still at
+`d52b6694eb370a8099c820c397250b5199b0baa5`. Only this report was extended after
+the complete pass; runtime, tests, dependencies and generated output did not
+change afterward.
+
+- `fvm dart format --output=none --set-exit-if-changed` on all 13 changed Dart
+  files: exit 0, no changes.
+- Final focused import, backup, GIF and vote checks: all 80 tests passed.
+  The viewer lifecycle regression also passed with all 34 interactive-viewer
+  tests. Broader viewer/video consumers ran during implementation and are
+  included in the successful complete gate below.
+- `./scripts/run_regression_tests.sh`: exit 0, all **3,794 application tests**,
+  **1,024 tests across all 12 package/CLI suites** (including all 123 Kurumi
+  tests), pull-request policy and Android release-script checks, and all
+  **61 Python tooling tests** passed. Six detected physical cores were used;
+  no suites or individual tests were skipped. An earlier complete run was
+  interrupted to add the static-JPEG sample regression; the final complete
+  run passed after that fix. Initial narrow-layout fixture failures were
+  corrected before this final run.
+- `fvm flutter analyze --no-pub --no-fatal-infos`: exit 0, no errors or warnings;
+  177 informational diagnostics. Comparison with the previous merge analysis
+  found no new diagnostics.
+- `fvm flutter build apk --debug --flavor dev --no-pub`: exit 0 after the final
+  runtime change, producing the normal application at
+  `build/app/outputs/flutter-apk/app-dev-debug.apk`. Translation inputs did not
+  change, so no new generation was required for this follow-up.
+- Whitespace and unresolved-index/conflict-marker checks passed. Both original
+  migration/develop tips and pinned upstream `5b04bf6a164f028d41701299367d0dde74dde330`
+  remain ancestors.
+
+Final logs are under `/tmp/migration-regressions-`: `full.log`,
+`focused-final.log`, `video-green.log`, `analyze-final.log`, and `build-final.log`.
+The migration worktree is retained; develop, remotes and release state are not
+modified by this follow-up.

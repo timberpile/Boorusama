@@ -68,3 +68,29 @@ versions, ABI, results and any screenshots or logs that contain no credentials.
   Check the warning before approval and preservation of its UUID and other data.
 - On Android, solve a challenge at a protected path and confirm cookie transfer
   works without making it eligible for HTTP or unrelated paths.
+
+## Reported regression follow-up — 2026-10-17
+
+These checks remain user-run acceptance on the final candidate; automated tests
+cover the failure mechanisms but do not replace Android document-provider or
+live-site playback/voting checks.
+
+- From Settings → Backup and Restore, confirm there is one **Export & import**
+  heading. Select a `.bsexport` from Android Downloads and another document
+  provider; neither should be greyed out. Confirm `.zip` also reaches import
+  review, an unrelated file shows the localized error, and cancellation is quiet.
+- With GIF autoplay enabled, check eligible Danbooru GIFs in **Automatic** at
+  small and large grid sizes. At every quality, originals larger than 5 MiB
+  remain static; disabling autoplay makes all GIF previews static. Check both
+  ordinary browsing and Following timelines. Original size/format, rather than
+  a transcoded sample's extension, controls the limit.
+- With Auto engine and an MP4, play beyond 0:00, open the post details panel,
+  then close it twice. Position and playback must continue without resetting or
+  freezing. Repeat while paused; opening/closing details must keep it paused.
+  Other engines and WebM still need device coverage. The earlier whole-video
+  freeze was no longer reproducible after the user's fresh installation.
+- On Danbooru, favorite a post and remove its automatic upvote while keeping the
+  favorite. Repeat after opening a fresh result page while votes are loading.
+  Confirm ordinary upvote/removal also still works. The intermittent server
+  toast needs live confirmation even though the stale-preload race is covered
+  by a controlled regression test.
