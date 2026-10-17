@@ -64,9 +64,10 @@ final class HivePinCredentialRepositoryFactory
     Hive.openBox<String>('app_lock_credentials'),
   );
 
+  // Hive's named box belongs to the process and may already be in use by a
+  // replacement application scope when the old scope is disposed.
   @override
-  Future<void> dispose(PinCredentialRepository repository) =>
-      repository.close();
+  Future<void> dispose(PinCredentialRepository repository) async {}
 }
 
 final pinCredentialRepositoryFactoryProvider =
