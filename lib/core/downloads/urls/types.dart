@@ -11,17 +11,23 @@ class DownloadUrlData extends Equatable {
   const DownloadUrlData({
     required this.url,
     required this.cookie,
+    this.resolvedQuality,
   });
 
   const DownloadUrlData.urlOnly(
-    this.url,
-  ) : cookie = null;
+    this.url, {
+    this.resolvedQuality,
+  }) : cookie = null;
 
   final String url;
   final String? cookie;
 
+  /// The selected media variant, which may differ from the requested quality.
+  /// Null means the extractor did not establish a variant identity.
+  final String? resolvedQuality;
+
   @override
-  List<Object?> get props => [url, cookie];
+  List<Object?> get props => [url, cookie, resolvedQuality];
 }
 
 abstract interface class DownloadFileUrlExtractor {

@@ -243,7 +243,7 @@ class DryRunNotifier extends FamilyAsyncNotifier<DryRunState, String> {
                   : SidecarSnapshot.fromPost(
                       item,
                       format: sidecarFormat,
-                      quality: task.quality ?? settings.downloadQuality.name,
+                      quality: urlData.resolvedQuality ?? 'custom',
                       site: config.url,
                       postUrl: ref
                           .read(postLinkGeneratorProvider(config.auth))

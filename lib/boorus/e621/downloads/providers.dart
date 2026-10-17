@@ -112,21 +112,26 @@ final class E621DownloadFileUrlExtractor
     required String quality,
   }) async {
     if (post case final Post p when p.isVideo && p.videoVariants.isNotEmpty) {
-      final url = switch (quality) {
-        'original' =>
+      final (url, resolvedQuality) = switch (quality) {
+        'sample' => switch ((
+          p.videoVariants[E621VideoVariantType.v720p],
+          p.videoVariants[E621VideoVariantType.v480p],
+        )) {
+          (final v720?, _) => (v720.url, '720p'),
+          (_, final v480?) => (v480.url, '480p'),
+          _ => (p.videoUrl, _resolvedVideoQuality(p)),
+        },
+        'preview' => (p.thumbnailImageUrl, 'preview'),
+        _ => (
           p.videoVariants[E621VideoVariantType.original]?.url ??
               p.originalImageUrl,
-        'sample' =>
-          p.videoVariants[E621VideoVariantType.v720p]?.url ??
-              p.videoVariants[E621VideoVariantType.v480p]?.url ??
-              p.videoUrl,
-        'preview' => p.thumbnailImageUrl,
-        _ =>
-          p.videoVariants[E621VideoVariantType.original]?.url ??
-              p.originalImageUrl,
+          'original',
+        ),
       };
 
-      return url.isNotEmpty ? DownloadUrlData.urlOnly(url) : null;
+      return url.isNotEmpty
+          ? DownloadUrlData.urlOnly(url, resolvedQuality: resolvedQuality)
+          : null;
     }
 
     return const UrlInsidePostExtractor().getDownloadFileUrl(
@@ -134,6 +139,21 @@ final class E621DownloadFileUrlExtractor
       quality: quality,
     );
   }
+}
+
+String _resolvedVideoQuality(Post post) {
+  final qualities = {
+    if (post.videoUrl == post.originalImageUrl) 'original',
+    for (final entry in post.videoVariants.entries)
+      if (entry.value.url == post.videoUrl)
+        switch (entry.key) {
+          E621VideoVariantType.original => 'original',
+          E621VideoVariantType.sample => 'sample',
+          E621VideoVariantType.v480p => '480p',
+          E621VideoVariantType.v720p => '720p',
+        },
+  };
+  return qualities.length == 1 ? qualities.single : 'custom';
 }
 
 final class E621DownloadSource implements DownloadSourceProvider {

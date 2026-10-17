@@ -161,7 +161,7 @@ Future<DownloadTaskInfo?> _download(
       quality ??
       (overrideUrl != null ? 'custom' : params.settings.downloadQuality.name);
   final urlData = overrideUrl != null
-      ? DownloadUrlData.urlOnly(overrideUrl)
+      ? DownloadUrlData.urlOnly(overrideUrl, resolvedQuality: effectiveQuality)
       : await params.downloadFileUrlExtractor.getDownloadFileUrl(
           post: downloadable,
           quality: effectiveQuality,
@@ -193,7 +193,9 @@ Future<DownloadTaskInfo?> _download(
           label: downloadable.sitePostId ?? downloadable.id.toString(),
           thumbnailUrl: downloadable.thumbnailImageUrl,
         );
-    showDownloadErrorToast(context, message);
+    if (context != null && context.mounted) {
+      showDownloadErrorToast(context, message);
+    }
     return null;
   }
 
@@ -245,7 +247,7 @@ Future<DownloadTaskInfo?> _download(
             : SidecarSnapshot.fromPost(
                 downloadable,
                 format: params.settings.downloadSidecarFormat,
-                quality: effectiveQuality,
+                quality: urlData.resolvedQuality ?? 'custom',
                 site: params.auth.url,
                 postUrl: ref
                     .read(postLinkGeneratorProvider(params.auth))

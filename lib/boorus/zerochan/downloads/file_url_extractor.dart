@@ -27,17 +27,25 @@ class ZerochanDownloadFileUrlExtractor implements DownloadFileUrlExtractor {
     required String quality,
   }) async {
     if (quality == 'preview' && post.thumbnailImageUrl.isNotEmpty) {
-      return DownloadUrlData.urlOnly(post.thumbnailImageUrl);
+      return DownloadUrlData.urlOnly(
+        post.thumbnailImageUrl,
+        resolvedQuality: 'preview',
+      );
     }
 
     final urls = await _getUrls(post.id);
-    final url = switch (quality) {
-      'preview' => urls?.medium ?? urls?.small,
-      'sample' => urls?.large ?? urls?.full,
-      _ => urls?.full,
+    final (url, resolvedQuality) = switch (quality) {
+      'preview' => (urls?.medium ?? urls?.small, 'preview'),
+      'sample' => switch (urls?.large) {
+        final large? => (large, 'sample'),
+        null => (urls?.full, 'original'),
+      },
+      _ => (urls?.full, 'original'),
     };
 
-    return url != null ? DownloadUrlData.urlOnly(url) : null;
+    return url != null
+        ? DownloadUrlData.urlOnly(url, resolvedQuality: resolvedQuality)
+        : null;
   }
 
   Future<ZerochanDownloadUrls?> _getUrls(int postId) async {

@@ -8,12 +8,10 @@ import 'package:material_ui/material_ui.dart' as material_ui;
 // Project imports:
 import 'package:boorusama/boorus/danbooru/posts/post/src/providers.dart';
 import 'package:boorusama/boorus/e621/downloads/providers.dart';
-import 'package:boorusama/boorus/e621/posts/post_data.dart';
 import 'package:boorusama/boorus/e621/posts/types.dart';
 import 'package:boorusama/boorus/moebooru/downloads/providers.dart';
 import 'package:boorusama/boorus/moebooru/posts/post_data.dart';
 import 'package:boorusama/boorus/philomena/downloads/providers.dart';
-import 'package:boorusama/boorus/philomena/posts/post_data.dart';
 import 'package:boorusama/boorus/philomena/posts/types.dart';
 import 'package:boorusama/core/app_scope.dart';
 import 'package:boorusama/core/bookmarks/src/providers/bookmark_provider.dart';
@@ -53,7 +51,7 @@ Bookmark _bookmark(BooruConfig config, {bool video = false}) => Bookmark(
   width: 100,
   height: 100,
   md5: '00000000000000000000000000000101',
-  tags: {'cat', 'blue_hair'},
+  tags: const {'cat', 'blue_hair'},
   realSourceUrl: 'https://source.test/101',
   format: video ? '.mp4' : '.jpg',
   imageUrlResolver: const DefaultImageUrlResolver(),
@@ -129,7 +127,7 @@ void main() {
         final backend = FakeBooruBackend();
         backend.posts[0] = TestPost(
           id: 101,
-          tags: {'cat', 'blue_hair'},
+          tags: const {'cat', 'blue_hair'},
           thumbnailImageUrl: 'https://images.test/101-preview.jpg',
           sampleImageUrl: 'https://images.test/101-sample.jpg',
           originalImageUrl: 'https://images.test/101-original.jpg',
@@ -242,9 +240,9 @@ void main() {
               };
             },
           ),
-          bypassDdosHeadersProvider.overrideWith((ref, url) async {
+          bypassDdosHeadersProvider.overrideWith((ref, url) {
             expect(url, 'https://mirror.test/101-original.jpg');
-            return {'cookie': 'destination-clearance'};
+            return Future.value({'cookie': 'destination-clearance'});
           }),
         ],
       );
@@ -327,7 +325,7 @@ void main() {
     (tester) async {
       final post = TestPost(
         id: 101,
-        tags: {'cat'},
+        tags: const {'cat'},
         thumbnailImageUrl: 'https://images.test/preview.jpg',
         sampleImageUrl: 'https://images.test/sample.jpg',
         originalImageUrl: 'https://images.test/original.png',
@@ -364,7 +362,7 @@ void main() {
   testWidgets('e621 empty concrete video variants are unavailable', (
     tester,
   ) async {
-    final post = TestPost(id: 101, tags: {'cat'}).copyWith(
+    final post = TestPost(id: 101, tags: const {'cat'}).copyWith(
       booruData: const E621PostData(
         generalTags: {},
         metaTags: {},
@@ -493,7 +491,7 @@ typedef _SourceFixture = ({
 List<_SourceFixture> _siteSourceFixtures() {
   final base = TestPost(
     id: 101,
-    tags: {'cat'},
+    tags: const {'cat'},
     thumbnailImageUrl: 'https://images.test/preview.jpg',
     sampleImageUrl: 'https://images.test/sample.jpg',
     originalImageUrl: 'https://images.test/original.png',
@@ -520,7 +518,7 @@ List<_SourceFixture> _siteSourceFixtures() {
       hasParentOrChildren: core.hasParentOrChildren,
       source: core.source,
       score: core.score,
-      mediaVariants: {
+      mediaVariants: const {
         '180x180': 'https://images.test/180.jpg',
         '360x360': 'https://images.test/360.jpg',
         '720x720': 'https://images.test/720.jpg',
