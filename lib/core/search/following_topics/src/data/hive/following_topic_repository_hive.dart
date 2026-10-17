@@ -85,10 +85,37 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
     // Modern folder feeds reference ordinary visible followed topics. Only
     // legacy standalone feeds still own hidden search sources.
     return {
-      for (final feed in _feeds())
+      for (final feed in _feedMetadata())
         if (!folderIds.contains(feed.id)) ...feed.sourceIds,
     };
   }
+
+  List<TopicFeedMetadata> _feedMetadata() {
+    final metadata = [
+      for (final value in _organizationBox?.values ?? const [])
+        if (value case final Map json
+            when json['id'] is String &&
+                isCanonicalProfileId(json['profileId']) &&
+                json['name'] is String)
+          TopicFeedMetadata.fromJson({
+            ...json,
+            if (json['sourceIds'] is! List)
+              'sourceIds': [
+                for (final search in _box.values)
+                  if (search.feedId == json['id']) search.id,
+              ],
+          }),
+    ];
+    metadata.sort((left, right) {
+      final position = left.position.compareTo(right.position);
+      return position != 0 ? position : left.id.compareTo(right.id);
+    });
+    return metadata;
+  }
+
+  @override
+  Future<List<TopicFeedMetadata>> getFeedMetadata() =>
+      _serialize(() async => _feedMetadata());
 
   @override
   Future<List<TopicFeed>> getFeeds() => _serialize(() async {
@@ -215,14 +242,12 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
         sourceIds: ids,
         posts: feed.posts,
         initializedSourceIds: [
-          for (final id in feed.initializedSourceIds)
-            if (mapping[id] case final mapped?) mapped,
+          for (final id in feed.initializedSourceIds) ?mapping[id],
         ],
         postSources: {
           for (final entry in feed.postSources.entries)
             entry.key: [
-              for (final id in entry.value)
-                if (mapping[id] case final mapped?) mapped,
+              for (final id in entry.value) ?mapping[id],
             ],
         },
       );
@@ -315,17 +340,41 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
   Future<void> clearAllFeedCaches() => _serialize(() async {
     final storage = _organizationBox;
     if (storage == null) return;
-    for (final feed in _feeds()) {
-      await storage.put(
-        'feed:${feed.id}',
-        feed
-            .copyWith(
-              posts: const [],
-              postSources: const {},
-              initializedSourceIds: const [],
-            )
-            .toJson(),
-      );
+    final folderIds = _organization().folders
+        .map((folder) => folder.id)
+        .toSet();
+    final feeds = _feeds();
+    final previous = {
+      for (final feed in feeds)
+        'feed:${feed.id}': storage.get('feed:${feed.id}'),
+    };
+    try {
+      for (final feed in feeds) {
+        final key = 'feed:${feed.id}';
+        if (folderIds.contains(feed.id)) {
+          await storage.delete(key);
+        } else {
+          await storage.put(
+            key,
+            feed
+                .copyWith(
+                  posts: const [],
+                  postSources: const {},
+                  initializedSourceIds: const [],
+                )
+                .toJson(),
+          );
+        }
+      }
+    } catch (_) {
+      for (final entry in previous.entries) {
+        if (entry.value == null) {
+          await storage.delete(entry.key);
+        } else {
+          await storage.put(entry.key, entry.value);
+        }
+      }
+      rethrow;
     }
   });
 
@@ -640,15 +689,19 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
                 .firstOrNull;
             if (folder == null) continue;
             final sourceIds = organization.recursiveIds(folder.id);
-            final updated = feed
-                .reconcileSources(sourceIds)
-                .copyWith(
-                  name: folder.name,
-                  profileId: sourceIds.isEmpty
-                      ? feed.profileId
-                      : _box.get(sourceIds.first)?.profileId ?? feed.profileId,
-                  maxPosts: folder.feedMaxPosts,
-                );
+            final reconciled = feed.reconcileSources(sourceIds);
+            final updated = reconciled.copyWith(
+              name: folder.name,
+              profileId: sourceIds.isEmpty
+                  ? feed.profileId
+                  : _box.get(sourceIds.first)?.profileId ?? feed.profileId,
+              maxPosts: folder.feedMaxPosts,
+              // Raising the limit must make the next refresh backfill each
+              // source instead of treating the smaller cache as complete.
+              initializedSourceIds: folder.feedMaxPosts > feed.maxPosts
+                  ? const []
+                  : reconciled.initializedSourceIds,
+            );
             if (updated != feed) {
               await storage.put('feed:${feed.id}', updated.toJson());
             }
@@ -817,7 +870,7 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
           await storage.putAll({
             for (final entry in originals.entries)
               entry.key: <dynamic, dynamic>{
-                if (entry.value is Map) ...entry.value as Map,
+                ...?(entry.value as Map?),
               }..remove(topic.id),
           });
         }
@@ -942,8 +995,12 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
   Future<FollowingTopic> saveTopicInNewFolder({
     required String profileId,
     required String query,
+    SearchQueryStructure? queryStructure,
     required String? name,
     required String folderName,
+    String? parentFolderId,
+    bool feedEnabled = false,
+    int feedMaxPosts = topicFeedRetention,
     String? existingTopicId,
   }) => _serialize(() async {
     final storage = _organizationBox;
@@ -951,15 +1008,24 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
     final identity = normalizeSearchIdentity(query);
     if (identity.isEmpty) throw const FormatException('Empty topic query');
     final current = _organization();
+    if (parentFolderId != null &&
+        !current.folders.any((folder) => folder.id == parentFolderId)) {
+      throw StateError('Parent folder not found');
+    }
+    if (feedMaxPosts < 1) {
+      throw ArgumentError.value(feedMaxPosts, 'feedMaxPosts');
+    }
     final folder = TopicFolder(
       id: _uuid.v4(),
       name: folderName,
-      position: current.tree.children(null).length,
-      searchIds: const [],
+      parentId: parentFolderId,
+      feedEnabled: feedEnabled,
+      feedMaxPosts: feedMaxPosts,
+      position: current.tree.children(parentFolderId).length,
     );
     if (current.folders.any(
       (f) =>
-          f.parentId == null &&
+          f.parentId == parentFolderId &&
           f.name.toLowerCase() == folder.name.toLowerCase(),
     )) {
       throw StateError('Duplicate shared search folder');
@@ -981,6 +1047,7 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
         id: _uuid.v4(),
         profileId: profileId,
         query: query,
+        queryStructure: queryStructure,
         name: name,
         position: topics.fold(
           0,
@@ -1544,7 +1611,7 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
   TopicOrganization _organization() {
     final stored = switch (_organizationBox?.get('search:organization')) {
       final Map json => TopicOrganization.fromJson(json),
-      _ => TopicOrganization(folders: const [], homeSearchIds: const []),
+      _ => TopicOrganization(folders: const []),
     };
     final internalIds = _feedSourceIds();
     final topics = {

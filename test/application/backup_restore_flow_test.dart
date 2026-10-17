@@ -184,6 +184,7 @@ void main() {
       await harness.settle(tester);
       await _openBackupAndRestore(tester, harness);
       await _openAdvancedBackup(tester, harness);
+      expect(find.text('Legacy Topic Feeds'), findsNothing);
 
       await tester.tap(find.text('Select'));
       await tester.pump();
@@ -225,7 +226,6 @@ void main() {
           'blacklisted_tags',
           'bookmarks',
           'pinned_searches',
-          'following_feeds',
           'search_histories',
           'downloads',
         ]),

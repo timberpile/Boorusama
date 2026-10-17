@@ -110,8 +110,13 @@ void main() {
       );
 
       expect((await session.load(1)).posts.map((post) => post.id), [10]);
-      await expectLater(session.load(2), throwsStateError);
+      final unavailable = await session.load(2);
+      expect(unavailable.posts, isEmpty);
+      expect(unavailable.hasMore, isFalse);
+      expect(session.unavailableSourceIds, {'artist'});
+      session.allowRecovery();
       expect((await session.load(2)).posts.map((post) => post.id), [9]);
+      expect(session.coverageIncomplete, isFalse);
       expect(attempts, 2);
     },
   );
@@ -151,8 +156,14 @@ void main() {
     );
 
     expect((await session.load(1)).posts.map((post) => post.id), [11]);
-    await expectLater(session.load(2), throwsStateError);
-    expect((await session.load(2)).posts.map((post) => post.id), [10, 9, 8]);
+    final partial = await session.load(2);
+    expect(partial.posts.map((post) => post.id), [10, 9]);
+    expect(partial.hasMore, isFalse);
+    expect(session.unavailableSourceIds, {'artist'});
+    session.allowRecovery();
+    expect((await session.load(2)).posts.map((post) => post.id), [10, 9]);
+    expect((await session.load(3)).posts.map((post) => post.id), [8]);
+    expect(session.coverageIncomplete, isFalse);
     expect(pageTwoAttempts, 2);
   });
 

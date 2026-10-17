@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:boorusama/core/errors/types.dart';
+import 'package:boorusama/core/router.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 import 'package:boorusama/core/search/following_topics/providers.dart';
 import 'package:boorusama/core/search/following_topics/src/pages/topic_feeds_page.dart';
@@ -51,6 +52,69 @@ void main() {
         ? null
         : (config, query, page, limit) => fetch(query, page, limit),
   );
+
+  for (final overview in [true, false]) {
+    testWidgets(
+      '${overview ? 'feed overview' : 'single feed'} pauses initialization behind another route and resumes through app navigation',
+      (tester) async {
+        final harness = createHarness(networkAllowed: false);
+        addTearDown(harness.dispose);
+        await seedFeeds(
+          tester,
+          harness,
+          [topicFixture(id: 'a', query: 'a', checked: false)],
+          [
+            TopicFeed(
+              id: 'feed',
+              profileId: testProfile.id,
+              name: 'Feed',
+              sourceIds: const ['a'],
+            ),
+          ],
+        );
+        final navigation = harness.container.read(appNavigationProvider);
+        tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.resumed,
+        );
+        await tester.pumpWidget(
+          harness.wrap(
+            MaterialApp(
+              navigatorKey: navigation.navigatorKey,
+              navigatorObservers: [navigation.routeObserver],
+              builder: themeBuilder,
+              home: SearchRefreshLifecycle(
+                child: overview
+                    ? const TopicFeedsPage()
+                    : TopicFeedPage(feedId: 'feed', profileId: testProfile.id),
+              ),
+            ),
+          ),
+        );
+        await settle(tester);
+        await drain(tester);
+        expect(harness.requests, isEmpty);
+        unawaited(
+          navigation.navigatorKey.currentState!.push<void>(
+            MaterialPageRoute(
+              builder: (_) => const Scaffold(body: Text('Covered')),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        harness.container
+            .read(testRefreshNetworkAllowedProvider.notifier)
+            .setAllowed(true);
+        await drain(tester);
+        expect(harness.requests, isEmpty);
+        navigation.navigatorKey.currentState!.pop();
+        await tester.pumpAndSettle();
+        await drain(tester);
+        expect(harness.requests.map((request) => request.query), ['a']);
+        await tester.pumpWidget(const SizedBox.shrink());
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
 
   for (final unknownPower in [false, true]) {
     testWidgets(
@@ -569,7 +633,7 @@ void main() {
   ];
   for (final date in dates) {
     testWidgets(
-      'feed Info last checked displays ${date.label} instead of a technical timestamp',
+      'feed status displays ${date.label} instead of a technical timestamp',
       (tester) async {
         final harness = createHarness(networkAllowed: false);
         addTearDown(harness.dispose);
@@ -597,8 +661,6 @@ void main() {
               profileId: '00000000-0000-4000-8000-00000000000c',
             ),
           );
-          expect(find.textContaining('Last checked:'), findsNothing);
-          await openFeedInfo(tester);
           expect(find.text('Last checked: ${date.label}'), findsOneWidget);
           expect(find.textContaining('2026-09-14'), findsNothing);
         });
@@ -632,7 +694,7 @@ void main() {
     },
   );
 
-  testWidgets('feed Info shows a localized never-checked state', (
+  testWidgets('feed status shows a localized never-checked state', (
     tester,
   ) async {
     final harness = createHarness(networkAllowed: false);
@@ -660,17 +722,8 @@ void main() {
         profileId: '00000000-0000-4000-8000-00000000000c',
       ),
     );
-    expect(find.text('Never checked'), findsNothing);
-    await openFeedInfo(tester);
     expect(find.text('Never checked'), findsOneWidget);
   });
-}
-
-Future<void> openFeedInfo(WidgetTester tester) async {
-  await tester.tap(find.byType(PopupMenuButton<String>).first);
-  await tester.pumpAndSettle();
-  await tester.tap(find.text('Info').last);
-  await tester.pumpAndSettle();
 }
 
 Future<void> seedFeeds(

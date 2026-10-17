@@ -67,7 +67,7 @@ void main() {
           startedAt: checkedAt,
           identityRetentionBoundary: checkedAt,
           baseline: true,
-          discoveredPosts: [],
+          discoveredPosts: const [],
           feedPosts: [
             for (final profile in [_feedConfig, otherSite])
               feedPostSnapshotFromPost(
@@ -216,7 +216,7 @@ void main() {
         searchIds: [cats.id, dogs.id],
       );
       await harness.repository.replaceOrganization(
-        TopicOrganization(folders: [folder], homeSearchIds: const []),
+        TopicOrganization(folders: [folder]),
       );
       final initial = await harness.repository.ensureFolderFeed(id);
       expect(initial?.posts, isEmpty);
@@ -1097,6 +1097,7 @@ void main() {
 
       expect(find.text('mixed feed viewer'), findsOneWidget);
       expect(opened?.useMixedViewer, isTrue);
+      expect(opened?.config, _feedConfig);
       expect(opened?.posts.length, 2);
       expect(
         opened!.posts.last.booruData,

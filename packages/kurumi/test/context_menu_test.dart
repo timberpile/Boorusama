@@ -1,4 +1,5 @@
 // Flutter imports:
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -69,4 +70,38 @@ void main() {
     await tester.pump();
     expect(otherPostTaps, 1);
   }, variant: TargetPlatformVariant({TargetPlatform.android}));
+
+  testWidgets('context menu tiles render trailing icons and badges', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: KurumiContextMenu(
+            menuItemsBuilder: (_) => [
+              KurumiContextMenuTile(
+                title: 'Following',
+                onTap: () {},
+                trailing: const Badge(
+                  label: Text('2'),
+                  child: Icon(Icons.rss_feed),
+                ),
+              ),
+            ],
+            child: const Text('Target'),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(
+      find.text('Target'),
+      buttons: kSecondaryMouseButton,
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Following'), findsOneWidget);
+    expect(find.byType(Badge), findsOneWidget);
+    expect(find.text('2'), findsOneWidget);
+  });
 }

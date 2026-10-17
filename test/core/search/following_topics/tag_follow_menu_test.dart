@@ -15,14 +15,20 @@ void main() {
   late FollowingTopicHarness harness;
   setUp(() => harness = FollowingTopicHarness());
   tearDown(() => harness.dispose());
-  for (final following in [false, true]) {
+  for (final scenario in [
+    (count: 0, tracked: true),
+    (count: 1, tracked: true),
+    (count: 2, tracked: false),
+  ]) {
+    final following = scenario.count > 0;
     testWidgets(
-      'tag menu offers ${following ? 'Following' : 'Follow'} and opens the topic dialog',
+      'tag menu offers ${following ? 'Following management' : 'Follow creation'} for ${scenario.count} copies (tracking: ${scenario.tracked})',
       (tester) async {
         if (following) {
           await tester.runAsync(
             () => harness.seed([
-              topicFixture(query: 'artist_tag'),
+              for (var i = 0; i < scenario.count; i++)
+                topicFixture(id: 'copy-$i', query: 'artist_tag'),
             ]),
           );
         }
@@ -34,6 +40,9 @@ void main() {
           ProviderScope(
             overrides: [
               globalBlacklistedTagsProvider.overrideWith(_EmptyBlacklist.new),
+              followingTopicTrackingSupportedProvider.overrideWith(
+                (ref, config) => scenario.tracked,
+              ),
             ],
             child: const CustomContextMenuOverlay(
               child: Scaffold(
@@ -55,15 +64,22 @@ void main() {
         final label = following ? 'Following' : 'Follow';
         expect(find.text('Add to feed'), findsNothing);
         expect(find.text(label), findsOneWidget);
+        expect(find.byIcon(Icons.rss_feed), findsOneWidget);
+        expect(
+          find.text('${scenario.count}'),
+          following ? findsOneWidget : findsNothing,
+        );
         await tester.tap(find.text(label));
         await tester.pumpAndSettle();
-        expect(find.text('Follow Topic'), findsOneWidget);
-        expect(find.text('Query: artist_tag'), findsOneWidget);
-        await tester.tap(find.text('Cancel'));
+        expect(find.text('Follow'), findsOneWidget);
+        expect(find.text('artist_tag'), findsOneWidget);
+        expect(find.text('Home'), findsOneWidget);
+        expect(find.widgetWithText(FilledButton, 'Done'), findsOneWidget);
+        await tester.tapAt(const Offset(5, 5));
         await tester.pumpAndSettle();
         expect(
           (await tester.runAsync(harness.repository.getAll))!.length,
-          following ? 1 : 0,
+          scenario.count,
         );
       },
     );

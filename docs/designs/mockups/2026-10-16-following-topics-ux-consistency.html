@@ -1,0 +1,926 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Boorusama · Following Topics UX consistency mockup</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Roboto, Inter, system-ui, sans-serif;
+      --page: #101412;
+      --page-panel: #17201c;
+      --phone: #111513;
+      --surface: #1b221f;
+      --surface-high: #242d29;
+      --surface-top: #2d3833;
+      --line: #3b4942;
+      --ink: #e6eee9;
+      --muted: #a9b6af;
+      --hint: #829088;
+      --accent: #9ae5c2;
+      --accent-ink: #123527;
+      --selected: #244638;
+      --danger: #ffb4ab;
+      --danger-surface: #5c2322;
+      --warning: #ffdb9b;
+      --warning-surface: #49391f;
+      --shadow: #0009;
+      --phone-width: 390px;
+      --type-scale: 1;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { min-height: 100%; }
+    body { margin: 0; background: radial-gradient(circle at 50% 0, #24372f 0, var(--page) 38%); color: var(--ink); }
+    button, input, select { font: inherit; }
+    button { cursor: pointer; color: inherit; }
+    button:disabled { cursor: default; opacity: .44; }
+    button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+    [hidden] { display: none !important; }
+
+    .studio {
+      display: grid;
+      grid-template-columns: minmax(245px, 1fr) minmax(280px, var(--phone-width)) minmax(245px, 1fr);
+      gap: clamp(24px, 4vw, 68px);
+      align-items: center;
+      width: min(1420px, 100%);
+      min-height: 100vh;
+      margin: auto;
+      padding: 34px;
+    }
+
+    .rail { max-width: 355px; }
+    .rail.right { justify-self: end; }
+    .eyebrow { color: var(--accent); font-size: 11px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
+    h1 { margin: 12px 0 10px; font-size: clamp(31px, 4vw, 48px); line-height: 1.02; letter-spacing: -.045em; }
+    .lede, .rail p, .rail li { color: var(--muted); font-size: 13px; line-height: 1.55; }
+    .rail h2 { margin: 24px 0 10px; font-size: 15px; }
+    .rail ul { padding-left: 20px; }
+    .scenarios { display: grid; gap: 7px; max-height: 52vh; overflow: auto; padding: 2px; }
+    .scenario {
+      display: grid;
+      grid-template-columns: 24px 1fr;
+      gap: 9px;
+      align-items: center;
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--surface);
+      color: var(--ink);
+      text-align: left;
+    }
+    .scenario:hover, .scenario[aria-current="true"] { border-color: var(--accent); background: var(--selected); }
+    .scenario b { display: grid; place-items: center; width: 23px; height: 23px; border-radius: 50%; background: var(--surface-top); color: var(--accent); font-size: 11px; }
+    .scenario span { font-size: 12px; font-weight: 700; }
+    .lab-controls { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 14px; }
+    .lab-controls button { min-height: 36px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface-high); font-size: 11px; }
+    .lab-controls button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+    .note { padding-left: 14px; border-left: 3px solid var(--accent); }
+    .note strong { color: var(--ink); }
+    .removed { margin-top: 16px; padding: 12px; border: 1px solid #574a39; border-radius: 12px; background: #27221b; color: #d3c4ac; font-size: 12px; line-height: 1.5; }
+
+    .phone {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      height: min(820px, calc(100vh - 58px));
+      min-height: 610px;
+      overflow: hidden;
+      border: 7px solid #37423d;
+      border-radius: 38px;
+      background: var(--phone);
+      box-shadow: 0 30px 90px var(--shadow), 0 0 0 1px #53625a;
+      font-size: calc(14px * var(--type-scale));
+      transition: width .2s ease;
+    }
+    .phone.narrow { width: 280px; justify-self: center; }
+    .phone.large { --type-scale: 1.22; }
+    .phone.light {
+      color-scheme: light;
+      --phone: #f8fbf8;
+      --surface: #eef3ef;
+      --surface-high: #e4ebe6;
+      --surface-top: #d9e5dd;
+      --line: #b9c7be;
+      --ink: #1b201d;
+      --muted: #526158;
+      --hint: #6f7d75;
+      --accent: #256c4f;
+      --accent-ink: #f1fff7;
+      --selected: #ccebdc;
+      --danger: #8b1d1d;
+      --danger-surface: #ffd9d5;
+      --warning: #694f13;
+      --warning-surface: #ffedc4;
+      --shadow: #0004;
+    }
+    .statusbar { flex: none; display: flex; justify-content: space-between; height: 30px; padding: 8px 20px 0; font-size: 11px; font-weight: 800; }
+    .appbar { flex: none; display: flex; align-items: center; min-height: 57px; gap: 5px; padding: 0 10px 0 8px; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--phone) 92%, transparent); }
+    .appbar-title { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 19px; font-weight: 700; }
+    .icon-button { position: relative; display: grid; flex: none; place-items: center; width: 40px; height: 40px; padding: 0; border: 0; border-radius: 50%; background: transparent; font-size: 21px; }
+    .icon-button:hover { background: var(--surface-high); }
+    .appbar .compact-label { font-size: 11px; font-weight: 700; }
+    .screen { min-height: 0; flex: 1; overflow: auto; overscroll-behavior: contain; }
+    .bottom-nav { flex: none; display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--line); background: var(--surface); }
+    .bottom-nav button { min-height: 56px; padding: 6px 2px; border: 0; background: transparent; color: var(--muted); font-size: 10px; line-height: 1.3; }
+    .bottom-nav button.active { color: var(--accent); background: var(--selected); }
+
+    .search-wrap { display: flex; gap: 7px; align-items: center; width: min(100% - 24px, 600px); margin: 12px auto 8px; }
+    .search-box { display: flex; flex: 1; align-items: center; min-width: 0; height: 46px; padding: 0 10px; border: 1px solid var(--line); border-radius: 24px; background: var(--surface-high); }
+    .search-box:focus-within { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+    .search-box span { color: var(--muted); font-size: 19px; }
+    .search-box input { min-width: 0; flex: 1; border: 0; outline: 0; background: transparent; color: var(--ink); padding: 0 8px; }
+    .filter-button { position: relative; border: 1px solid var(--line); background: var(--surface-high); }
+    .filter-button.active::after { content: ""; position: absolute; right: 3px; top: 3px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+    .section-copy { margin: 12px 16px 6px; color: var(--muted); font-size: 12px; }
+    .card { margin: 8px 12px; border: 1px solid var(--line); border-radius: 13px; background: var(--surface); overflow: hidden; }
+    .card.selected { border-color: var(--accent); background: var(--selected); }
+    .card-main { display: flex; align-items: center; gap: 10px; width: 100%; padding: 12px; border: 0; background: transparent; text-align: left; }
+    .card-main .leading { display: grid; place-items: center; width: 38px; height: 38px; flex: none; border-radius: 10px; background: var(--surface-top); color: var(--accent); font-size: 20px; }
+    .card-body { flex: 1; min-width: 0; }
+    .card-title { display: flex; align-items: center; gap: 7px; font-weight: 700; }
+    .card-title span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .card-subtitle { margin-top: 3px; color: var(--muted); font-size: 11px; line-height: 1.35; }
+    .badge { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 20px; background: var(--accent); color: var(--accent-ink); font-size: 10px; font-weight: 900; }
+    .follow-button { display: inline-flex; align-items: center; gap: 7px; min-height: 38px; padding: 7px 11px; border: 0; border-radius: 20px; background: var(--accent); color: var(--accent-ink); font-size: 12px; font-weight: 800; }
+    .follow-icon { position: relative; font-size: 18px; }
+    .follow-icon .badge { position: absolute; top: -10px; right: -12px; min-width: 17px; height: 17px; padding: 0 4px; border: 2px solid var(--accent); background: var(--phone); color: var(--ink); font-size: 9px; }
+    .hero { display: flex; align-items: center; gap: 12px; padding: 18px 16px 10px; }
+    .hero h2 { flex: 1; margin: 0; font-size: 20px; }
+    .tag-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 10px 12px; padding: 11px 12px; border: 1px solid var(--line); border-radius: 11px; background: var(--surface); }
+    .post-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 8px 10px 16px; }
+    .post { aspect-ratio: .78; border-radius: 5px; background: linear-gradient(140deg, #66877a, #293b35 55%, #a28391); }
+    .post:nth-child(4n+2) { background: linear-gradient(145deg, #7b7fa2, #353650 58%, #629089); }
+    .post:nth-child(4n+3) { background: linear-gradient(125deg, #9a7280, #4e3b55 56%, #273b3c); }
+    .post:nth-child(4n+4) { background: linear-gradient(150deg, #b09274, #41574f 50%, #666c8b); }
+    .empty { display: grid; place-items: center; min-height: 390px; padding: 24px; text-align: center; }
+    .empty h2 { margin: 0 0 8px; }
+    .empty p { margin: 0 0 20px; color: var(--muted); }
+    .primary, .secondary, .text-action { min-height: 40px; border-radius: 10px; padding: 8px 13px; font-weight: 700; }
+    .primary { border: 0; background: var(--accent); color: var(--accent-ink); }
+    .secondary { border: 1px solid var(--line); background: var(--surface-high); }
+    .text-action { border: 0; background: transparent; color: var(--accent); }
+    .danger { color: var(--danger) !important; }
+    .stack-actions { display: grid; gap: 8px; justify-items: center; }
+
+    .popup { position: absolute; z-index: 8; top: 82px; right: 12px; width: min(245px, calc(100% - 24px)); padding: 6px; border: 1px solid var(--line); border-radius: 13px; background: var(--surface-high); box-shadow: 0 18px 45px var(--shadow); }
+    .popup button { display: flex; align-items: center; gap: 11px; width: 100%; min-height: 43px; padding: 8px 11px; border: 0; border-radius: 9px; background: transparent; text-align: left; }
+    .popup button:hover { background: var(--surface-top); }
+    .popup .menu-icon { width: 23px; color: var(--muted); text-align: center; }
+    .popup .menu-badge { margin-left: auto; }
+
+    .overlay { position: absolute; z-index: 12; inset: 30px 0 0; display: none; align-items: center; justify-content: center; padding: 15px; background: #0009; }
+    .overlay.open { display: flex; }
+    .dialog { width: 100%; max-height: 88%; overflow: auto; padding: 20px; border: 1px solid var(--line); border-radius: 22px; background: var(--surface-high); box-shadow: 0 26px 65px var(--shadow); }
+    .dialog h2 { margin: 0 0 4px; font-size: 20px; }
+    .dialog-title-row { display: flex; align-items: center; gap: 9px; }
+    .dialog .subtitle { margin: 0 0 16px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+    .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+    .field { display: grid; gap: 5px; margin: 12px 0; color: var(--muted); font-size: 11px; }
+    .field input, .field select { width: 100%; min-height: 44px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); color: var(--ink); }
+    .switch-row, .check-row { display: flex; align-items: center; gap: 10px; min-height: 48px; }
+    .switch-row { justify-content: space-between; margin-top: 8px; }
+    input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--accent); }
+    .picker-nav { display: flex; align-items: center; gap: 6px; min-height: 38px; margin-bottom: 6px; color: var(--muted); font-size: 11px; }
+    .picker-nav button { width: 34px; height: 34px; border: 0; border-radius: 50%; background: transparent; }
+    .picker-row { display: flex; align-items: center; width: 100%; min-height: 50px; padding: 0 5px; border: 0; border-bottom: 1px solid var(--line); background: transparent; text-align: left; }
+    .picker-row label { display: flex; flex: 1; align-items: center; gap: 10px; min-height: 50px; cursor: pointer; }
+    .picker-open { display: grid; flex: none; place-items: center; width: 42px; height: 42px; padding: 0; border: 0; border-radius: 50%; background: transparent; }
+    .picker-open:hover { background: var(--surface-top); }
+    .picker-row .chevron { margin-left: auto; color: var(--muted); font-size: 20px; }
+    .picker-row.new-folder { gap: 10px; padding: 7px 5px; color: var(--accent); font-weight: 700; }
+    .info-list { display: grid; gap: 11px; margin-top: 16px; }
+    .info-line { display: grid; gap: 3px; }
+    .info-line span { color: var(--muted); font-size: 11px; }
+
+    .feed-layout { display: flex; min-height: 100%; flex-direction: column; }
+    .feed-status { flex: none; padding: 11px 14px; border-bottom: 1px solid var(--line); background: var(--surface); }
+    .feed-status strong { display: block; font-size: 12px; }
+    .feed-status small { color: var(--muted); font-size: 10px; }
+    .warning-line { margin-top: 7px; padding: 7px 8px; border-radius: 8px; background: var(--warning-surface); color: var(--warning); font-size: 10px; }
+    progress { display: block; width: 100%; height: 5px; margin-top: 8px; accent-color: var(--accent); }
+    .feed-grid-scroll { min-height: 0; flex: 1; }
+    .feed-count { padding: 8px 14px 0; color: var(--muted); font-size: 10px; }
+    .settings-list { padding: 8px 12px 22px; }
+    .settings-card { margin: 10px 0; border: 1px solid var(--line); border-radius: 13px; background: var(--surface); overflow: hidden; }
+    .settings-row { display: flex; align-items: center; gap: 11px; min-height: 64px; padding: 11px 13px; border-bottom: 1px solid var(--line); }
+    .settings-row:last-child { border-bottom: 0; }
+    .settings-row .grow { flex: 1; }
+    .settings-row strong { display: block; font-size: 13px; }
+    .settings-row small { color: var(--muted); font-size: 10px; }
+    .settings-row button { min-height: 35px; padding: 6px 10px; border: 0; border-radius: 9px; background: var(--accent); color: var(--accent-ink); font-size: 11px; font-weight: 800; }
+    .selection-note { padding: 6px 14px; color: var(--muted); font-size: 10px; text-align: center; }
+    .toast { position: absolute; z-index: 20; left: 12px; right: 12px; bottom: 68px; display: none; align-items: center; gap: 10px; min-height: 50px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-top); box-shadow: 0 12px 35px var(--shadow); }
+    .toast.show { display: flex; }
+    .toast span { flex: 1; font-size: 12px; }
+    .toast button { border: 0; background: transparent; color: var(--accent); font-weight: 900; }
+
+    @media (max-width: 980px) {
+      .studio { grid-template-columns: 1fr; justify-items: center; padding: 26px 18px; }
+      .rail, .rail.right { width: min(680px, 100%); max-width: none; justify-self: center; }
+      .scenarios { grid-template-columns: repeat(2, minmax(0, 1fr)); max-height: none; }
+      .phone { width: min(var(--phone-width), 100%); height: 760px; }
+    }
+    @media (max-width: 520px) {
+      .studio { padding: 18px 10px; }
+      .scenarios { grid-template-columns: 1fr; }
+      .phone { min-height: 600px; border-width: 4px; border-radius: 28px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="studio">
+    <aside class="rail">
+      <div class="eyebrow">Interactive design mockup</div>
+      <h1>Following Topics</h1>
+      <p class="lede">A focused pass on following, folders, selection, feed status, settings, and recovery. State carries between scenarios—try changing memberships, deleting a topic, or raising the feed limit.</p>
+      <h2>Scenarios</h2>
+      <nav class="scenarios" id="scenarios" aria-label="Mockup scenarios"></nav>
+      <div class="lab-controls" aria-label="Preview controls">
+        <button id="theme-toggle" type="button" aria-pressed="false">Light theme</button>
+        <button id="text-toggle" type="button" aria-pressed="false">Large text</button>
+        <button id="width-toggle" type="button" aria-pressed="false">Narrow width</button>
+        <button id="reset" type="button">Reset demo</button>
+      </div>
+    </aside>
+
+    <section class="phone" id="phone" aria-label="Boorusama Following Topics preview">
+      <div class="statusbar"><span>9:41</span><span>▰ ▰ ◕</span></div>
+      <header class="appbar" id="appbar"></header>
+      <div class="screen" id="screen"></div>
+      <nav class="bottom-nav" id="bottom-nav" aria-label="App navigation">
+        <button type="button" data-nav="topics" class="active">☷<br>Topics</button>
+        <button type="button" data-nav="search">⌕<br>Search</button>
+        <button type="button" data-nav="settings">⚙<br>Settings</button>
+      </nav>
+      <div class="popup" id="popup" hidden></div>
+      <div class="overlay" id="overlay" aria-hidden="true"></div>
+      <div class="toast" id="toast" role="status" aria-live="polite"><span id="toast-message"></span><button id="toast-action" type="button" hidden>Undo</button></div>
+    </section>
+
+    <aside class="rail right">
+      <div class="eyebrow">Design intent</div>
+      <h2 id="note-title">One Follow surface</h2>
+      <p class="note" id="design-note"></p>
+      <div class="removed" id="removed-note"></div>
+      <h2>Prototype conventions</h2>
+      <ul>
+        <li>Abstract gradients stand in for cached post thumbnails.</li>
+        <li>Refresh and retention are simulated locally.</li>
+        <li>Dialog and menu labels mirror the planned app copy.</li>
+      </ul>
+    </aside>
+  </main>
+
+  <script>
+    'use strict';
+
+    const $ = id => document.getElementById(id);
+    const escapeHtml = value => String(value).replace(/[&<>"']/g, char => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    })[char]);
+
+    const scenarioDefinitions = [
+      ['search', 'Follow button + tag menu'],
+      ['follow', 'Nested Follow picker'],
+      ['empty', 'Empty folder flow'],
+      ['topics', 'Topics + folder counts'],
+      ['selection', 'Selection actions'],
+      ['topic', 'Details, Edit + Undo'],
+      ['feed', 'Scrolling feed status'],
+      ['retention', 'Settings + retention'],
+      ['storage', 'Cache storage'],
+      ['settings', 'Settings labels'],
+    ];
+
+    const designNotes = {
+      search: ['Follow state is explicit', 'The primary control and tag menu both read “Following” when at least one copy exists, and both carry the exact count.', 'Removed: the dropdown arrow and any unlabeled management state.'],
+      follow: ['Every destination is selectable in place', 'Home and every visible folder have direct checkboxes. A separate arrow appears only when a folder has children and changes location without changing membership.', 'Removed: row instructions and the need to open a folder before following there.'],
+      empty: ['Safe two-step creation', 'The empty-folder entry first collects query and profile, then opens the same membership picker. Cancel owns and tears down its form state safely.', 'Changed: Cancel / Next describes the actual flow; no Topic is created before a folder is checked.'],
+      topics: ['Search only when requested', 'The app-bar search action reveals the bookmark-style text and profile filters. Closing it restores the full list and frees the vertical space.', 'Removed: an always-open search row, the breadcrumb tree, and per-card Move actions.'],
+      selection: ['Selection stays legible', 'Move and Close remain visible because they define selection mode. Topic operations move into one text-labeled overflow menu.', 'Removed: the row of unexplained Refresh, Mark read, Auto Update, and Unfollow icons.'],
+      topic: ['Editing in one place', 'Details is read-only runtime information. Edit owns name, query, profile, and Auto Update. Unfollow is immediate and recoverable.', 'Removed: Auto Update from Details, the singular confirmation dialog, and Topic Move.'],
+      feed: ['Status starts the timeline', 'Freshness, failures, and active progress appear before the cached posts and scroll away naturally with the timeline.', 'Removed: sticky status behavior, Feed Details, Topics, and Clear Feed Cache.'],
+      retention: ['A limit that can grow again', 'Lowering the limit trims immediately. Raising it preserves the current cache and marks sources for a full refill on Refresh.', 'Removed: folder location, the long metadata helper, and the cache-retention explanation.'],
+      storage: ['Honest cache language', '“Estimated” labels the logical serialized-payload size, while feed and post counts remain exact. Clearing stays a global Data & Storage action.', 'Not claimed: exact per-feed bytes on disk; Hive does not expose a supported cache-only value.'],
+      settings: ['Names match the user model', 'Settings says Following Topics. Page actions say Bulk Follow and Settings; Topic controls say Details and Auto Update.', 'Renamed: Topic updates, Follow Topics, Folder settings, Topic details, and Automatic topic updates.'],
+    };
+
+    function initialState() {
+      return {
+        scenario: 'search',
+        query: 'hiten',
+        queryProfile: 'Gelbooru',
+        pickerFolderId: null,
+        memberships: new Set(['home', 'illustrators', 'favorites']),
+        folders: [
+          { id: 'illustrators', name: 'Illustrators', parentId: null },
+          { id: 'favorites', name: 'Favorites', parentId: 'illustrators' },
+          { id: 'studies', name: 'Studies', parentId: 'illustrators' },
+          { id: 'characters', name: 'Characters', parentId: null },
+        ],
+        filter: '',
+        profile: 'all',
+        filterVisible: false,
+        selected: new Set(['folder:illustrators', 'topic:hiten']),
+        topicPresent: true,
+        topicName: 'Hiten illustrations',
+        topicQuery: 'hiten',
+        topicProfile: 'Gelbooru',
+        autoUpdate: true,
+        feedLimit: 250,
+        cachedPosts: 250,
+        refreshCompleted: 0,
+        refreshTotal: 8,
+        refreshing: false,
+        cacheBytes: '9.8 MB',
+        cachedFeeds: 1,
+      };
+    }
+
+    let state = initialState();
+    let refreshTimer = null;
+    let toastTimer = null;
+    let undoAction = null;
+    let returnFocus = null;
+
+    function followCount() { return state.memberships.size; }
+    function folderById(id) { return state.folders.find(folder => folder.id === id); }
+    function folderChildren(id) { return state.folders.filter(folder => folder.parentId === id); }
+    function folderPath(id) {
+      const parts = [];
+      let current = folderById(id);
+      while (current) { parts.unshift(current.name); current = folderById(current.parentId); }
+      return parts.join(' / ');
+    }
+
+    function renderScenarioButtons() {
+      $('scenarios').innerHTML = scenarioDefinitions.map(([id, label], index) => `
+        <button type="button" class="scenario" data-scenario="${id}" aria-current="${state.scenario === id}">
+          <b>${index + 1}</b><span>${escapeHtml(label)}</span>
+        </button>`).join('');
+    }
+
+    function setDesignNote() {
+      const [title, copy, removed] = designNotes[state.scenario];
+      $('note-title').textContent = title;
+      $('design-note').innerHTML = copy;
+      $('removed-note').textContent = removed;
+    }
+
+    function appBar(title, { back = false, actions = '' } = {}) {
+      $('appbar').innerHTML = `
+        ${back ? '<button class="icon-button" type="button" data-action="back" aria-label="Back">‹</button>' : '<span style="width:8px"></span>'}
+        <div class="appbar-title">${escapeHtml(title)}</div>${actions}`;
+    }
+
+    function followButton() {
+      const count = followCount();
+      const label = count > 0 ? 'Following' : 'Follow';
+      return `<button type="button" class="follow-button" data-action="follow" aria-label="${label}; currently followed in ${count} folders">
+        <span class="follow-icon" aria-hidden="true">◉${count > 0 ? `<b class="badge">${count}</b>` : ''}</span><span>${label}</span>
+      </button>`;
+    }
+
+    function posts(count = 18) {
+      return `<div class="post-grid" aria-label="Abstract post thumbnail grid">${Array.from({ length: count }, (_, index) => `<div class="post" role="img" aria-label="Post thumbnail ${index + 1}"></div>`).join('')}</div>`;
+    }
+
+    function renderSearch() {
+      appBar('Search');
+      $('screen').innerHTML = `
+        <div class="search-wrap"><div class="search-box"><span>⌕</span><input aria-label="Search query" value="hiten"></div></div>
+        <div class="hero"><h2>hiten</h2>${followButton()}</div>
+        <p class="section-copy">Artist · Gelbooru</p>
+        ${posts(9)}
+        <div class="tag-row"><span><b>hiten</b><br><small style="color:var(--muted)">artist tag</small></span><button class="secondary" type="button" data-action="tag-menu">⋮</button></div>
+        ${posts(6)}`;
+    }
+
+    function topicCard({ id, title, query, profile, badge, selected = false }) {
+      return `<article class="card ${selected ? 'selected' : ''}" data-card="${id}">
+        <div class="card-main">
+          ${state.scenario === 'selection' ? `<input type="checkbox" data-select="topic:${id}" ${selected ? 'checked' : ''} aria-label="Select ${escapeHtml(title)}">` : '<span class="leading">⌕</span>'}
+          <button type="button" class="card-body" data-action="open-topic" style="border:0;background:transparent;color:inherit;text-align:left;padding:0">
+            <span class="card-title"><span>${escapeHtml(title)}</span>${badge ? `<b class="badge">${badge}</b>` : ''}</span>
+            <span class="card-subtitle">${escapeHtml(query)} · ${escapeHtml(profile)}</span>
+          </button>
+          ${state.scenario === 'selection' ? '<span aria-hidden="true">✓</span>' : `<button type="button" class="icon-button" data-action="topic-menu" data-topic="${id}" aria-label="Topic actions">⋮</button>`}
+        </div>
+      </article>`;
+    }
+
+    function folderCard(id, name, badge, subtitle, selected = false) {
+      return `<article class="card ${selected ? 'selected' : ''}"><div class="card-main">
+        ${state.scenario === 'selection' ? `<input type="checkbox" data-select="folder:${id}" ${selected ? 'checked' : ''} aria-label="Select ${escapeHtml(name)}">` : '<span class="leading">▣</span>'}
+        <button type="button" class="card-body" data-folder="${id}" style="border:0;background:transparent;color:inherit;text-align:left;padding:0">
+          <span class="card-title"><span>${escapeHtml(name)}</span><b class="badge">${badge}</b></span>
+          <span class="card-subtitle">${escapeHtml(subtitle)}</span>
+        </button>
+        ${state.scenario === 'selection' ? '<span aria-hidden="true">✓</span>' : `<button type="button" class="icon-button" data-action="folder-menu" data-folder-menu="${id}" aria-label="Folder actions">⋮</button>`}
+      </div></article>`;
+    }
+
+    function topicsActions(selection = false) {
+      if (selection) return `
+        <button class="icon-button" type="button" data-action="move-selected" aria-label="Move selected">▣</button>
+        <button class="icon-button" type="button" data-action="selection-menu" aria-label="More selection actions">⋮</button>
+        <button class="icon-button" type="button" data-action="close-selection" aria-label="Close selection">×</button>`;
+      return `<button class="icon-button filter-button ${state.filterVisible ? 'active' : ''}" type="button" data-action="toggle-filter" aria-label="Search and filter topics" aria-pressed="${state.filterVisible}">⌕</button>
+        <button class="icon-button" type="button" data-action="page-menu" aria-label="More page actions">⋮</button>`;
+    }
+
+    function filterHeader() {
+      if (!state.filterVisible) return '';
+      return `<div class="search-wrap">
+        <div class="search-box"><span>⌕</span><input id="topic-filter" aria-label="Search followed topics" placeholder="Search topics" value="${escapeHtml(state.filter)}"><button class="icon-button" type="button" data-action="clear-filter" aria-label="Clear search" ${state.filter ? '' : 'hidden'}>×</button></div>
+        <button class="icon-button filter-button ${state.profile !== 'all' ? 'active' : ''}" type="button" data-action="profile-filter" aria-label="Filter profile">≡</button>
+      </div>`;
+    }
+
+    function renderTopics({ nested = false } = {}) {
+      const selection = state.scenario === 'selection';
+      const title = selection ? `${state.selected.size} selected` : nested ? 'Illustrators' : 'Following Topics';
+      appBar(title, { back: nested, actions: topicsActions(selection) });
+      const filter = state.filter.toLowerCase();
+      const matches = (name, query, profile) =>
+        (!filter || `${name} ${query}`.toLowerCase().includes(filter)) &&
+        (state.profile === 'all' || state.profile === profile);
+      const filtering = Boolean(filter) || state.profile !== 'all';
+      const showHiten = state.topicPresent && matches(state.topicName, state.topicQuery, state.topicProfile);
+      const showMika = matches('Mika Pikazo', 'mika_pikazo', 'Danbooru');
+      const showLandscape = matches('Landscape studies', 'scenery score:>50', 'Gelbooru');
+      const body = nested
+        ? `${filtering ? '' : folderCard('favorites', 'Favorites', '7+', '4 Topics · includes nested folders', state.selected.has('folder:favorites'))}${filtering ? '' : folderCard('studies', 'Studies', '5', '3 Topics', state.selected.has('folder:studies'))}${showHiten ? topicCard({ id: 'hiten', title: state.topicName, query: state.topicQuery, profile: state.topicProfile, badge: '4', selected: state.selected.has('topic:hiten') }) : ''}${showMika ? topicCard({ id: 'mika', title: 'Mika Pikazo', query: 'mika_pikazo', profile: 'Danbooru', badge: '8', selected: state.selected.has('topic:mika') }) : ''}`
+        : `${filtering ? '' : folderCard('illustrators', 'Illustrators', '12+', '7 Topics · 2 folders', state.selected.has('folder:illustrators'))}${filtering ? '' : folderCard('characters', 'Characters', '3', '5 Topics', state.selected.has('folder:characters'))}${showHiten ? topicCard({ id: 'hiten', title: state.topicName, query: state.topicQuery, profile: state.topicProfile, badge: '4', selected: state.selected.has('topic:hiten') }) : ''}${showLandscape ? topicCard({ id: 'landscape', title: 'Landscape studies', query: 'scenery score:>50', profile: 'Gelbooru', selected: state.selected.has('topic:landscape') }) : ''}`;
+      $('screen').innerHTML = `${selection ? `<div class="selection-note">${state.selected.size} selected ${state.selected.size === 1 ? 'item' : 'items'} include descendant Topics</div>` : ''}${filterHeader()}${body || '<div class="empty"><p>No matching topics</p></div>'}`;
+    }
+
+    function renderEmptyFolder() {
+      appBar('Reference', { back: true, actions: `<button class="icon-button" type="button" data-action="page-menu" aria-label="More page actions">⋮</button>` });
+      $('screen').innerHTML = `<div class="empty"><div><h2>No topics yet</h2><div class="stack-actions"><button class="primary" type="button" data-action="empty-follow">◉ &nbsp; Follow a topic</button><button class="text-action" type="button" data-action="bulk-follow">Bulk Follow</button></div></div></div>`;
+    }
+
+    function renderFeed() {
+      appBar('Favorite artists', { back: true, actions: `<button class="icon-button" type="button" data-action="feed-menu" aria-label="Feed actions">⋮</button>` });
+      const completed = state.refreshing ? state.refreshCompleted : 8;
+      const statusTitle = state.refreshing ? `Refreshing ${completed} of ${state.refreshTotal} topics` : '7 of 8 topics checked';
+      $('screen').innerHTML = `<div class="feed-layout">
+        <section class="feed-status" aria-live="polite">
+          <strong>${statusTitle}</strong>
+          ${state.refreshing ? '' : '<small>Last checked 3 minutes ago · 1 source waiting</small>'}
+          ${state.refreshing ? `<progress max="${state.refreshTotal}" value="${state.refreshCompleted}"></progress>` : ''}
+          <div class="warning-line">One topic is temporarily unavailable.</div>
+        </section>
+        <div class="feed-grid-scroll"><div class="feed-count">${state.cachedPosts} cached posts · limit ${state.feedLimit}</div>${posts(state.cachedPosts > 250 ? 42 : 24)}</div>
+      </div>`;
+    }
+
+    function renderStorage() {
+      appBar('Data & Storage', { back: true });
+      $('screen').innerHTML = `<div class="settings-list">
+        <p class="section-copy">Cache</p>
+        <section class="settings-card">
+          <div class="settings-row"><span>▧</span><div class="grow"><strong>Image cache</strong><small>186 MB</small></div><button type="button">Clear</button></div>
+          <div class="settings-row"><span>◉</span><div class="grow"><strong>Feed cache</strong><small>Estimated ${state.cacheBytes} · ${state.cachedPosts} posts in ${state.cachedFeeds} feed</small></div><button type="button" data-action="clear-global-cache">Clear</button></div>
+          <div class="settings-row"><span>⌗</span><div class="grow"><strong>Tag cache</strong><small>4.2 MB</small></div><button type="button">Clear</button></div>
+        </section>
+      </div>`;
+    }
+
+    function renderSettings() {
+      appBar('Settings');
+      $('screen').innerHTML = `<div class="settings-list">
+        <section class="settings-card">
+          <div class="settings-row"><span>◉</span><div class="grow"><strong>Following Topics</strong><small>Automatic checks, network and battery behavior</small></div><span>›</span></div>
+          <div class="settings-row" data-action="open-storage" role="button" tabindex="0"><span>▧</span><div class="grow"><strong>Data & Storage</strong><small>Cache usage and cleanup</small></div><span>›</span></div>
+        </section>
+        <section class="settings-card">
+          <div class="settings-row"><span>◌</span><div class="grow"><strong>Appearance</strong><small>Theme, layout and gestures</small></div><span>›</span></div>
+        </section>
+      </div>`;
+    }
+
+    function render() {
+      closePopup();
+      renderScenarioButtons();
+      setDesignNote();
+      document.querySelectorAll('[data-nav]').forEach(button => button.classList.toggle('active', button.dataset.nav === (state.scenario === 'settings' || state.scenario === 'storage' ? 'settings' : state.scenario === 'search' || state.scenario === 'follow' ? 'search' : 'topics')));
+      switch (state.scenario) {
+        case 'search': case 'follow': renderSearch(); break;
+        case 'empty': renderEmptyFolder(); break;
+        case 'topics': renderTopics(); break;
+        case 'selection': renderTopics(); break;
+        case 'topic': renderTopics({ nested: true }); break;
+        case 'feed': case 'retention': renderFeed(); break;
+        case 'storage': renderStorage(); break;
+        case 'settings': renderSettings(); break;
+      }
+    }
+
+    function openPopup(html, trigger) {
+      returnFocus = trigger || document.activeElement;
+      $('popup').innerHTML = html;
+      $('popup').hidden = false;
+      $('popup').querySelector('button')?.focus();
+    }
+
+    function closePopup() {
+      if (!$('popup').hidden) {
+        $('popup').hidden = true;
+        $('popup').replaceChildren();
+      }
+    }
+
+    function showDialog(html, focusSelector) {
+      returnFocus = document.activeElement;
+      $('overlay').innerHTML = `<section class="dialog" role="dialog" aria-modal="true">${html}</section>`;
+      $('overlay').classList.add('open');
+      $('overlay').setAttribute('aria-hidden', 'false');
+      requestAnimationFrame(() => $(focusSelector)?.focus() || $('overlay').querySelector('button, input, select')?.focus());
+    }
+
+    function closeDialog({ restoreFocus = true } = {}) {
+      $('overlay').classList.remove('open');
+      $('overlay').setAttribute('aria-hidden', 'true');
+      $('overlay').replaceChildren();
+      if (restoreFocus) returnFocus?.focus?.();
+    }
+
+    function pickerDestinationRow(id, name, canOpen = false) {
+      return `<div class="picker-row">
+        <label><input type="checkbox" data-membership="${id}" ${state.memberships.has(id) ? 'checked' : ''}><b>${escapeHtml(name)}</b></label>
+        ${canOpen ? `<button type="button" class="picker-open" data-enter-folder="${id}" aria-label="Open ${escapeHtml(name)}"><span class="chevron" aria-hidden="true">›</span></button>` : ''}
+      </div>`;
+    }
+
+    function pickerDialog() {
+      const current = state.pickerFolderId;
+      const children = folderChildren(current);
+      const count = followCount();
+      showDialog(`
+        <h2 class="dialog-title-row"><span>Follow</span>${count > 0 ? `<b class="badge" aria-label="${count} current follows">${count}</b>` : ''}</h2><p class="subtitle">${escapeHtml(state.query)} · ${escapeHtml(state.queryProfile)}</p>
+        ${current ? `<div class="picker-nav"><button type="button" data-dialog-action="picker-back" aria-label="Parent folder">‹</button><span>Home / ${escapeHtml(folderPath(current))}</span></div>` : ''}
+        ${current == null ? pickerDestinationRow('home', 'Home') : ''}
+        ${children.map(folder => pickerDestinationRow(folder.id, folder.name, folderChildren(folder.id).length > 0)).join('')}
+        <button type="button" class="picker-row new-folder" data-dialog-action="new-folder"><span>＋</span><span>New Folder</span></button>
+        <div class="dialog-actions"><button type="button" class="primary" data-dialog-action="done">Done</button></div>
+      `);
+    }
+
+    function emptyFollowDialog() {
+      showDialog(`
+        <h2>Follow a topic</h2>
+        <label class="field">Query<input id="empty-query" value="artist_name" autocomplete="off"></label>
+        <label class="field">Profile<select id="empty-profile"><option>Gelbooru</option><option>Danbooru</option></select></label>
+        <div class="dialog-actions"><button class="text-action" type="button" data-dialog-action="cancel">Cancel</button><button class="primary" type="button" data-dialog-action="next">Next</button></div>
+      `, 'empty-query');
+    }
+
+    function newFolderDialog() {
+      showDialog(`
+        <h2>New Folder</h2><p class="subtitle">Create inside ${state.pickerFolderId ? escapeHtml(folderPath(state.pickerFolderId)) : 'Home'} and follow this topic there.</p>
+        <label class="field">Folder name<input id="new-folder-name" placeholder="Folder name" autocomplete="off"></label>
+        <div class="dialog-actions"><button class="text-action" type="button" data-dialog-action="back-to-picker">Cancel</button><button class="primary" type="button" data-dialog-action="create-folder">Create</button></div>
+      `, 'new-folder-name');
+    }
+
+    function detailsDialog() {
+      showDialog(`
+        <h2>Details</h2>
+        <div class="info-list">
+          <div class="info-line"><span>Name</span><b>${escapeHtml(state.topicName)}</b></div>
+          <div class="info-line"><span>Query</span><b>${escapeHtml(state.topicQuery)}</b></div>
+          <div class="info-line"><span>Last checked</span><b>3 minutes ago</b></div>
+          <div class="info-line"><span>Current refresh interval</span><b>4 hours · adaptive</b></div>
+          <div class="info-line"><span>Next scheduled refresh</span><b>In about 2 hours</b></div>
+        </div>
+        <div class="dialog-actions"><button class="primary" type="button" data-dialog-action="done">OK</button></div>
+      `);
+    }
+
+    function editDialog() {
+      showDialog(`
+        <h2>Edit Topic</h2>
+        <label class="field">Name<input id="edit-name" value="${escapeHtml(state.topicName)}"></label>
+        <label class="field">Query<input id="edit-query" value="${escapeHtml(state.topicQuery)}"></label>
+        <label class="field">Profile<select id="edit-profile"><option ${state.topicProfile === 'Gelbooru' ? 'selected' : ''}>Gelbooru</option><option ${state.topicProfile === 'Danbooru' ? 'selected' : ''}>Danbooru</option></select></label>
+        <label class="switch-row"><span><b>Auto Update</b><br><small style="color:var(--muted)">Include in automatic checks</small></span><input id="edit-auto" type="checkbox" ${state.autoUpdate ? 'checked' : ''}></label>
+        <div class="dialog-actions"><button class="text-action" type="button" data-dialog-action="cancel">Cancel</button><button class="primary" type="button" data-dialog-action="save-topic">Save</button></div>
+      `, 'edit-name');
+    }
+
+    function feedSettingsDialog() {
+      showDialog(`
+        <h2>Settings</h2><p class="subtitle">Favorite artists</p>
+        <label class="field">Folder name<input id="feed-name" value="Favorite artists"></label>
+        <label class="switch-row"><span><b>Enable feed</b></span><input id="feed-enabled" type="checkbox" checked></label>
+        <label class="field">Post limit<select id="post-limit">${[250, 500, 1000, 2000, 5000].map(value => `<option value="${value}" ${state.feedLimit === value ? 'selected' : ''}>${value}</option>`).join('')}</select></label>
+        <div class="dialog-actions"><button class="text-action" type="button" data-dialog-action="cancel">Cancel</button><button class="primary" type="button" data-dialog-action="save-feed">Save</button></div>
+      `, 'feed-name');
+    }
+
+    function showToast(message, action) {
+      clearTimeout(toastTimer);
+      undoAction = action || null;
+      $('toast-message').textContent = message;
+      $('toast-action').hidden = !action;
+      $('toast').classList.add('show');
+      toastTimer = setTimeout(hideToast, 5200);
+    }
+
+    function hideToast() {
+      clearTimeout(toastTimer);
+      $('toast').classList.remove('show');
+      undoAction = null;
+    }
+
+    function unfollowTopic() {
+      state.topicPresent = false;
+      render();
+      showToast('Topic unfollowed', () => {
+        state.topicPresent = true;
+        render();
+        showToast('Topic restored');
+      });
+    }
+
+    function startRefresh() {
+      if (state.refreshing) return;
+      clearInterval(refreshTimer);
+      state.refreshing = true;
+      state.refreshCompleted = 0;
+      state.scenario = 'feed';
+      render();
+      refreshTimer = setInterval(() => {
+        state.refreshCompleted += 1;
+        if (state.refreshCompleted >= state.refreshTotal) {
+          clearInterval(refreshTimer);
+          state.refreshing = false;
+          if (state.feedLimit > state.cachedPosts) {
+            state.cachedPosts = state.feedLimit;
+            state.cacheBytes = state.feedLimit >= 1000 ? '38.4 MB' : '19.2 MB';
+          }
+          render();
+          showToast(`Refresh complete · ${state.cachedPosts} posts cached`);
+        } else {
+          render();
+        }
+      }, 360);
+    }
+
+    function showTagMenu(trigger) {
+      const count = followCount();
+      const label = count > 0 ? 'Following' : 'Follow';
+      openPopup(`
+        <button type="button"><span class="menu-icon">⧉</span><span>Copy tag</span></button>
+        <button type="button"><span class="menu-icon">⌕</span><span>Search</span></button>
+        <button type="button" data-action="follow"><span class="menu-icon">◉</span><span>${label}</span>${count > 0 ? `<b class="badge menu-badge">${count}</b>` : ''}</button>
+        <button type="button"><span class="menu-icon">★</span><span>Add to favorites</span></button>
+      `, trigger);
+    }
+
+    function showTopicMenu(trigger) {
+      openPopup(`
+        <button type="button" data-action="details"><span class="menu-icon">ⓘ</span><span>Details</span></button>
+        <button type="button" data-action="refresh-topic"><span class="menu-icon">↻</span><span>Refresh</span></button>
+        <button type="button" data-action="edit-topic"><span class="menu-icon">✎</span><span>Edit</span></button>
+        <button type="button"><span class="menu-icon">↑</span><span>Move up</span></button>
+        <button type="button"><span class="menu-icon">↓</span><span>Move down</span></button>
+        <button type="button" class="danger" data-action="unfollow"><span class="menu-icon">⊘</span><span>Unfollow</span></button>
+      `, trigger);
+    }
+
+    function showFolderMenu(trigger) {
+      openPopup(`
+        <button type="button"><span class="menu-icon">↻</span><span>Refresh folder</span></button>
+        <button type="button" data-action="folder-settings"><span class="menu-icon">⚙</span><span>Settings</span></button>
+        <button type="button"><span class="menu-icon">↑</span><span>Move up</span></button>
+        <button type="button"><span class="menu-icon">↓</span><span>Move down</span></button>
+        <button type="button" class="danger"><span class="menu-icon">⊘</span><span>Delete</span></button>
+      `, trigger);
+    }
+
+    function showSelectionMenu(trigger) {
+      openPopup(`
+        <button type="button"><span class="menu-icon">↻</span><span>Refresh 8 Topics</span></button>
+        <button type="button"><span class="menu-icon">✓</span><span>Mark read</span></button>
+        <button type="button"><span class="menu-icon">◌</span><span>Enable Auto Update</span></button>
+        <button type="button"><span class="menu-icon">⊘</span><span>Disable Auto Update</span></button>
+        <button type="button" class="danger"><span class="menu-icon">−</span><span>Unfollow 8 Topics</span></button>
+      `, trigger);
+    }
+
+    function showPageMenu(trigger) {
+      openPopup(`
+        <button type="button" data-action="bulk-follow"><span class="menu-icon">＋</span><span>Bulk Follow</span></button>
+        <button type="button"><span class="menu-icon">▣</span><span>Create Folder</span></button>
+        <button type="button" data-action="folder-settings"><span class="menu-icon">⚙</span><span>Settings</span></button>
+        <button type="button"><span class="menu-icon">↻</span><span>Refresh folder</span></button>
+      `, trigger);
+    }
+
+    function showFeedMenu(trigger) {
+      openPopup(`
+        <button type="button" data-action="refresh-feed"><span class="menu-icon">↻</span><span>Refresh</span></button>
+        <button type="button" data-action="feed-settings"><span class="menu-icon">⚙</span><span>Settings</span></button>
+      `, trigger);
+    }
+
+    $('scenarios').addEventListener('click', event => {
+      const button = event.target.closest('[data-scenario]');
+      if (!button) return;
+      state.scenario = button.dataset.scenario;
+      state.pickerFolderId = null;
+      render();
+      if (state.scenario === 'follow') pickerDialog();
+      if (state.scenario === 'selection') showToast('Move and Close stay visible; other actions are in ⋮');
+      if (state.scenario === 'topic') showTopicMenu($('screen').querySelector('[data-action="topic-menu"]'));
+      if (state.scenario === 'retention') feedSettingsDialog();
+    });
+
+    $('bottom-nav').addEventListener('click', event => {
+      const button = event.target.closest('[data-nav]');
+      if (!button) return;
+      state.scenario = button.dataset.nav;
+      render();
+    });
+
+    $('screen').addEventListener('input', event => {
+      if (event.target.id === 'topic-filter') { state.filter = event.target.value; renderTopics({ nested: state.scenario === 'topic' }); $('topic-filter')?.focus(); }
+    });
+
+    $('screen').addEventListener('change', event => {
+      const selection = event.target.dataset.select;
+      if (!selection) return;
+      if (event.target.checked) state.selected.add(selection); else state.selected.delete(selection);
+      renderTopics({ nested: state.scenario === 'topic' });
+    });
+
+    $('screen').addEventListener('click', event => {
+      const action = event.target.closest('[data-action]')?.dataset.action;
+      const folder = event.target.closest('[data-folder]')?.dataset.folder;
+      if (folder) { state.scenario = folder === 'illustrators' ? 'topic' : 'topics'; renderTopics({ nested: folder === 'illustrators' }); return; }
+      switch (action) {
+        case 'follow': state.query = 'hiten'; state.queryProfile = 'Gelbooru'; state.pickerFolderId = null; pickerDialog(); break;
+        case 'tag-menu': showTagMenu(event.target.closest('button')); break;
+        case 'empty-follow': emptyFollowDialog(); break;
+        case 'bulk-follow': showToast('Bulk Follow opens a multi-query importer · demo'); break;
+        case 'page-menu': showPageMenu(event.target.closest('button')); break;
+        case 'topic-menu': showTopicMenu(event.target.closest('button')); break;
+        case 'folder-menu': showFolderMenu(event.target.closest('button')); break;
+        case 'selection-menu': showSelectionMenu(event.target.closest('button')); break;
+        case 'close-selection': state.scenario = 'topics'; render(); break;
+        case 'move-selected': showToast('Choose a destination for 2 selected items · demo'); break;
+        case 'profile-filter': openPopup(`<button type="button" data-profile="all">All profiles</button><button type="button" data-profile="Gelbooru">Gelbooru</button><button type="button" data-profile="Danbooru">Danbooru</button>`, event.target.closest('button')); break;
+        case 'clear-filter': state.filter = ''; render(); break;
+        case 'feed-menu': showFeedMenu(event.target.closest('button')); break;
+        case 'open-storage': state.scenario = 'storage'; render(); break;
+        case 'clear-global-cache': state.cachedPosts = 0; state.cachedFeeds = 0; state.cacheBytes = '0 B'; render(); showToast('Feed cache cleared'); break;
+        case 'back': state.scenario = state.scenario === 'feed' || state.scenario === 'retention' ? 'topics' : state.scenario === 'storage' ? 'settings' : 'topics'; render(); break;
+      }
+    });
+
+    $('appbar').addEventListener('click', event => {
+      const button = event.target.closest('[data-action]');
+      if (!button) return;
+      switch (button.dataset.action) {
+        case 'back': state.scenario = state.scenario === 'feed' || state.scenario === 'retention' ? 'topics' : state.scenario === 'storage' ? 'settings' : 'topics'; render(); break;
+        case 'page-menu': showPageMenu(button); break;
+        case 'toggle-filter':
+          state.filterVisible = !state.filterVisible;
+          if (!state.filterVisible) {
+            state.filter = '';
+            state.profile = 'all';
+          }
+          renderTopics({ nested: state.scenario === 'topic' });
+          if (state.filterVisible) $('topic-filter')?.focus();
+          break;
+        case 'selection-menu': showSelectionMenu(button); break;
+        case 'close-selection': state.scenario = 'topics'; render(); break;
+        case 'move-selected': showToast(`Choose a destination for ${state.selected.size} selected items · demo`); break;
+        case 'feed-menu': showFeedMenu(button); break;
+      }
+    });
+
+    $('popup').addEventListener('click', event => {
+      const button = event.target.closest('button');
+      if (!button) return;
+      const action = button.dataset.action;
+      const profile = button.dataset.profile;
+      closePopup();
+      if (profile) { state.profile = profile; render(); return; }
+      switch (action) {
+        case 'follow': pickerDialog(); break;
+        case 'details': detailsDialog(); break;
+        case 'edit-topic': editDialog(); break;
+        case 'refresh-topic': showToast('Topic refresh started'); break;
+        case 'unfollow': unfollowTopic(); break;
+        case 'bulk-follow': showToast('Bulk Follow opens a multi-query importer · demo'); break;
+        case 'folder-settings': feedSettingsDialog(); break;
+        case 'refresh-feed': startRefresh(); break;
+        case 'feed-settings': feedSettingsDialog(); break;
+      }
+    });
+
+    $('overlay').addEventListener('change', event => {
+      const membership = event.target.dataset.membership;
+      if (!membership) return;
+      if (event.target.checked) {
+        state.memberships.add(membership);
+        pickerDialog();
+      } else {
+        state.memberships.delete(membership);
+        const removed = membership;
+        pickerDialog();
+        showToast('Topic unfollowed from this folder', () => { state.memberships.add(removed); pickerDialog(); });
+      }
+    });
+
+    $('overlay').addEventListener('click', event => {
+      const entered = event.target.closest('[data-enter-folder]')?.dataset.enterFolder;
+      if (entered) { state.pickerFolderId = entered; pickerDialog(); return; }
+      const action = event.target.closest('[data-dialog-action]')?.dataset.dialogAction;
+      switch (action) {
+        case 'done': closeDialog(); render(); break;
+        case 'cancel': closeDialog(); break;
+        case 'next': {
+          const query = $('empty-query')?.value.trim();
+          if (!query) { $('empty-query')?.focus(); return; }
+          state.query = query;
+          state.queryProfile = $('empty-profile').value;
+          state.pickerFolderId = null;
+          closeDialog({ restoreFocus: false });
+          pickerDialog();
+          break;
+        }
+        case 'picker-back': state.pickerFolderId = folderById(state.pickerFolderId)?.parentId || null; pickerDialog(); break;
+        case 'new-folder': newFolderDialog(); break;
+        case 'back-to-picker': pickerDialog(); break;
+        case 'create-folder': {
+          const input = $('new-folder-name');
+          const name = input?.value.trim();
+          if (!name) { input?.focus(); return; }
+          const id = `folder-${Date.now()}`;
+          state.folders.push({ id, name, parentId: state.pickerFolderId });
+          state.memberships.add(id);
+          pickerDialog();
+          showToast(`Created ${name} and followed here`);
+          break;
+        }
+        case 'save-topic':
+          state.topicName = $('edit-name').value.trim() || $('edit-query').value.trim();
+          state.topicQuery = $('edit-query').value.trim();
+          state.topicProfile = $('edit-profile').value;
+          state.autoUpdate = $('edit-auto').checked;
+          closeDialog(); render(); showToast('Topic saved'); break;
+        case 'save-feed': {
+          const nextLimit = Number($('post-limit').value);
+          const increased = nextLimit > state.feedLimit;
+          state.feedLimit = nextLimit;
+          if (nextLimit < state.cachedPosts) state.cachedPosts = nextLimit;
+          closeDialog(); render();
+          showToast(increased ? `${state.cachedPosts} posts kept · Refresh can fill the ${nextLimit} limit` : `Post limit saved at ${nextLimit}`);
+          break;
+        }
+      }
+    });
+
+    $('toast-action').addEventListener('click', () => { const action = undoAction; hideToast(); action?.(); });
+    $('theme-toggle').addEventListener('click', event => { const on = $('phone').classList.toggle('light'); event.currentTarget.setAttribute('aria-pressed', on); event.currentTarget.textContent = on ? 'Dark theme' : 'Light theme'; });
+    $('text-toggle').addEventListener('click', event => { const on = $('phone').classList.toggle('large'); event.currentTarget.setAttribute('aria-pressed', on); });
+    $('width-toggle').addEventListener('click', event => { const on = $('phone').classList.toggle('narrow'); event.currentTarget.setAttribute('aria-pressed', on); });
+    $('reset').addEventListener('click', () => {
+      clearInterval(refreshTimer);
+      hideToast();
+      closeDialog({ restoreFocus: false });
+      $('phone').classList.remove('light', 'large', 'narrow');
+      $('theme-toggle').setAttribute('aria-pressed', 'false');
+      $('theme-toggle').textContent = 'Light theme';
+      $('text-toggle').setAttribute('aria-pressed', 'false');
+      $('width-toggle').setAttribute('aria-pressed', 'false');
+      state = initialState();
+      render();
+    });
+
+    document.addEventListener('keydown', event => {
+      if (event.key !== 'Escape') return;
+      if ($('overlay').classList.contains('open')) { closeDialog(); return; }
+      if (!$('popup').hidden) { closePopup(); returnFocus?.focus?.(); }
+    });
+
+    document.addEventListener('click', event => {
+      if (!$('popup').hidden &&
+          !event.target.closest('#popup') &&
+          !event.target.closest('[data-scenario]') &&
+          !event.target.closest('[data-action$="menu"]') &&
+          !event.target.closest('[data-action="profile-filter"]')) closePopup();
+    });
+
+    render();
+  </script>
+</body>
+</html>

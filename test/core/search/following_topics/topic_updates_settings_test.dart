@@ -330,7 +330,7 @@ void main() {
   );
 
   testWidgets(
-    'the page explains conservative checks and publishes live status',
+    'the page keeps explanations concise and publishes live status',
     (
       tester,
     ) async {
@@ -350,9 +350,9 @@ void main() {
       );
       expect(
         find.textContaining('Adaptive checks start after 24 hours'),
-        findsOneWidget,
+        findsNothing,
       );
-      expect(find.textContaining('Manual refresh'), findsWidgets);
+      expect(find.textContaining('Manual refresh'), findsNothing);
       final context = tester.element(
         find.byType(TopicUpdatesSettingsPage),
       );
@@ -371,12 +371,12 @@ void main() {
           );
       await tester.pump();
       expect(find.text('Paused: battery saver is active'), findsOneWidget);
-      expect(find.text('Due sources this run: 3'), findsOneWidget);
+      expect(find.text('Topics ready to check: 3'), findsOneWidget);
       container
           .read(searchRefreshStatusProvider.notifier)
           .update(SearchRefreshStatus(running: true));
       await tester.pump();
-      expect(find.text('Checking due sources…'), findsOneWidget);
+      expect(find.text('Checking topics…'), findsOneWidget);
     },
   );
 }

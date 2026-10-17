@@ -111,7 +111,11 @@ void main() {
       expect(folder.feedEnabled, isTrue);
       expect(folder.feedMaxPosts, 2000);
 
-      await notifier.renameSharedFolder(folder.id, 'Favorite artists');
+      await notifier.renameSharedFolder(
+        folder.id,
+        'Favorite artists',
+        parentId: null,
+      );
       await notifier.moveFolderItems(
         folderIds: {folder.id},
         destination: null,
@@ -281,6 +285,21 @@ void main() {
     'creating a folder from More keeps text input alive through dialog closing',
     (tester) async {
       await harness.pump(tester, const FollowingTopicsPage());
+      for (
+        var i = 0;
+        i < 20 &&
+            harness.container.read(followingTopicsProvider).valueOrNull == null;
+        i++
+      ) {
+        await tester.pump(const Duration(milliseconds: 100));
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 1)),
+        );
+      }
+      expect(
+        harness.container.read(followingTopicsProvider).valueOrNull,
+        isNotNull,
+      );
       expect(find.byTooltip('Manage folders'), findsNothing);
       await tester.tap(pageOverflow());
       await settle(tester);
@@ -349,7 +368,7 @@ void main() {
       expect(
         find.descendant(
           of: folderCard(folderId),
-          matching: find.text('NEW'),
+          matching: find.text('2+'),
         ),
         findsOneWidget,
       );
@@ -805,7 +824,7 @@ void main() {
         );
         final folderBadge = find.descendant(
           of: folder,
-          matching: find.text('NEW'),
+          matching: find.text('1+'),
         );
         final searchBadge = find.descendant(
           of: search,

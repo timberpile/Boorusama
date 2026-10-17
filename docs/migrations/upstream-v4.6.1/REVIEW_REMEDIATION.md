@@ -273,3 +273,69 @@ checklist. The temporary client target does not exercise the complete production
 bootstrap, UI, coordinated transport or persistent cache; those boundaries have
 separate local regression coverage. Live JSON records omitted upload timestamps;
 they remain unknown rather than being synthesized from metadata-change times.
+
+
+## Develop synchronization - 2026-10-17
+
+The checked candidate combines migration tip `5a1267461e80b7afbc5c226a4a9194a016739d94`
+with local develop `d52b6694eb370a8099c820c397250b5199b0baa5` (Following Topics UX
+consistency). Develop was merged into the existing migration branch rather than
+rebasing upstream history. The original upstream merge and all later migration
+repairs remain intact, including pinned upstream commit
+`5b04bf6a164f028d41701299367d0dde74dde330`.
+
+Conflict resolutions retain the migration's Kurumi menus and Material UI test
+compatibility while adopting develop's shared Follow/Following destination flow,
+manual-only following, duplicate counts, route-scoped profile ownership, backup
+presentation, and translations. The obsolete context-menu overlay stays deleted;
+its icon/badge coverage now exercises the current Kurumi tile's trailing slot.
+Search regression coverage retains typed/raw query preservation, local save and
+preview failure separation, and feedback isolation after navigation/query changes.
+
+Integration checks also found and corrected two compatibility gaps:
+
+- Feed pages subscribed to the removed global route observer. Both pages now
+  retain the app-scoped navigation observer for subscription and disposal. Real
+  navigation tests cover pausing first-check initialization while another route
+  covers either feed page, then resuming when it is uncovered.
+- The headless full-backup test expected an empty legacy Topic Feeds source.
+  Its expectation now follows develop's deliberate presentation change. Legacy
+  source registration and import/export compatibility retain their existing
+  dedicated regression coverage.
+
+### Verification
+
+The final combined runtime and tests passed:
+
+- `./gen.sh i18n` - translation validation and generation succeeded.
+- `fvm dart format --output=none --set-exit-if-changed` on all 61 changed Dart
+  files - no changes required.
+- Affected Following, navigation, backup, viewer and artist tests were exercised
+  during integration. After correcting stale widget selectors, the repaired
+  cases passed; the final search-action file passed all 21 tests. The complete
+  Kurumi package passed all 122 tests.
+- `./scripts/run_regression_tests.sh` - exit 0: all 3,782 application tests, all
+  12 package/CLI suites, pull-request policy and Android release-script checks,
+  and all 61 Python tooling tests passed. No suites or individual tests were
+  skipped. The runner used the detected six physical cores.
+- `fvm flutter analyze --no-pub --no-fatal-infos` - exit 0, no errors or warnings,
+  177 informational diagnostics. Strict fatal-info analysis is not a clean gate.
+- `fvm flutter build apk --debug --flavor dev --no-pub` - exit 0 on the final
+  runtime, producing `build/app/outputs/flutter-apk/app-dev-debug.apk`.
+- Diff whitespace, unresolved-index and conflict-marker checks passed.
+
+The first complete application run finished with only the stale backup-source
+expectation failing. Its complete test file passed after correction, followed by
+an entirely successful complete runner on the final candidate. The report update
+is documentation-only and does not change the verified runtime or tests.
+
+Logs are retained locally under `/tmp/migration-develop-*.log`, including
+`regression.log`, `regression-first-attempt.log`, `analyze.log`, and `build.log`
+with that filename prefix.
+
+This synchronization qualifies the combined candidate locally. It does not close
+remaining user-run manual UI, production upgrade, live-site, or release acceptance
+in the existing checklist. No emulator/device actions were performed for this
+synchronization. Local develop remains unchanged, and the migration worktree is
+retained. No push, pull request, develop/master integration, tag or release action
+is included.

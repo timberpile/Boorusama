@@ -13,6 +13,7 @@ import 'package:boorusama/core/search/following_topics/src/data/hive/search_post
 import 'package:boorusama/core/search/following_topics/src/data/hive/following_topic_hive_object.dart';
 import 'package:boorusama/core/search/following_topics/src/data/hive/following_topic_repository_hive.dart';
 import 'package:boorusama/core/search/following_topics/types.dart';
+
 import 'topic_test_utils.dart';
 
 class FailingOrganizationBox extends MemoryBox<dynamic> {
@@ -132,6 +133,27 @@ void main() {
     },
   );
 
+  test('feed metadata reads do not materialize cached snapshots', () async {
+    await organizationBox.put('feed:metadata-only', {
+      'id': 'metadata-only',
+      'profileId': '00000000-0000-4000-8000-00000000000c',
+      'name': 'Metadata only',
+      'position': 4,
+      'maxPosts': 2000,
+      'sourceIds': ['topic-a', 'topic-b'],
+      'posts': [
+        {'malformed': true},
+      ],
+    });
+
+    final metadata = await repository.getFeedMetadata();
+
+    expect(metadata, hasLength(1));
+    expect(metadata.single.id, 'metadata-only');
+    expect(metadata.single.sourceIds, ['topic-a', 'topic-b']);
+    expect(metadata.single.maxPosts, 2000);
+  });
+
   test(
     'editing a query resets runtime while retaining identity and placement',
     () async {
@@ -165,14 +187,12 @@ void main() {
         attemptedAt: createdAt.add(const Duration(minutes: 1)),
         kind: SearchRefreshErrorKind.network,
       );
-      final edited =
-          await (repository as dynamic).edit(
-                original.id,
-                profileId: '00000000-0000-4000-8000-00000000000c',
-                query: 'dog',
-                name: 'Dogs',
-              )
-              as FollowingTopic;
+      final edited = await (repository as dynamic).edit(
+        original.id,
+        profileId: '00000000-0000-4000-8000-00000000000c',
+        query: 'dog',
+        name: 'Dogs',
+      ) as FollowingTopic;
 
       expect(edited.id, original.id);
       expect(edited.createdAt, original.createdAt);
@@ -432,6 +452,58 @@ void main() {
 
       expect(updated.maxPosts, 250);
       expect((await repository.getFeeds()).single.maxPosts, 250);
+    },
+  );
+
+  test(
+    'raising a folder feed limit makes every source eligible for backfill',
+    () async {
+      const profileId = '00000000-0000-4000-8000-00000000000c';
+      final source = await repository.create(
+        profileId: profileId,
+        query: 'cat',
+        name: null,
+      );
+      final folder = TopicFolder(
+        id: 'artists',
+        name: 'Artists',
+        feedEnabled: true,
+        feedMaxPosts: 250,
+        searchIds: [source.id],
+      );
+      await repository.replaceOrganization(
+        TopicOrganization(folders: [folder]),
+      );
+      await repository.ensureFolderFeed(folder.id);
+      await repository.commitRefresh(
+        SearchRefreshCommit(
+          topicId: source.id,
+          expectedCreatedAt: source.createdAt,
+          expectedRevision: source.runtimeRevision,
+          expectedCheckpoint: null,
+          startedAt: createdAt,
+          identityRetentionBoundary: createdAt,
+          baseline: true,
+          discoveredPosts: const [],
+          feedPosts: [
+            feedPostSnapshotFromPost(testSearchPost(1, createdAt)),
+          ],
+        ),
+      );
+      expect((await repository.getFeeds()).single.initializedSourceIds, [
+        source.id,
+      ]);
+
+      await repository.replaceOrganization(
+        TopicOrganization(
+          folders: [folder.copyWith(feedMaxPosts: 1000)],
+        ),
+      );
+
+      final expanded = (await repository.getFeeds()).single;
+      expect(expanded.maxPosts, 1000);
+      expect(expanded.posts.map(feedPostId), [1]);
+      expect(expanded.initializedSourceIds, isEmpty);
     },
   );
 

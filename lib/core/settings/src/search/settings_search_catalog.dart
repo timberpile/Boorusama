@@ -240,7 +240,6 @@ List<SettingsSearchItem> buildSettingsSearchCatalog(
     'topic_updates',
     'automatic_refresh',
     refresh.enabled,
-    description: refresh.periodic_description,
     keywords: ['following topics subscriptions updates'],
   );
   add('topic_updates', 'following_topics', refresh.following_topics);

@@ -56,6 +56,11 @@ void main() {
               currentReadOnlyBooruConfigProvider.overrideWithValue(
                 BooruConfig.empty,
               ),
+              booruConfigProvider.overrideWith(
+                () => BooruConfigNotifier(
+                  initialConfigs: const [BooruConfig.empty],
+                ),
+              ),
               followingTopicTrackingSupportedProvider.overrideWith(
                 (ref, config) => true,
               ),
@@ -120,14 +125,14 @@ void main() {
     (
       label: 'Following',
       isFollowing: true,
-      background: colors.surfaceContainerHighest,
-      foreground: colors.onSurfaceVariant,
+      background: colorScheme.secondaryContainer,
+      foreground: colorScheme.onSecondaryContainer,
     ),
   ];
 
   for (final testCase in visualCases) {
     testWidgets(
-      'shows an accessible icon-free ${testCase.label} pill using theme colors',
+      'shows an accessible ${testCase.label} pill using theme colors',
       (tester) async {
         final semantics = tester.ensureSemantics();
 
@@ -136,6 +141,11 @@ void main() {
             overrides: [
               currentReadOnlyBooruConfigProvider.overrideWithValue(
                 BooruConfig.empty,
+              ),
+              booruConfigProvider.overrideWith(
+                () => BooruConfigNotifier(
+                  initialConfigs: const [BooruConfig.empty],
+                ),
               ),
               followingTopicTrackingSupportedProvider.overrideWith(
                 (ref, config) => true,
@@ -174,11 +184,17 @@ void main() {
 
         final label = find.text(testCase.label);
         expect(label, findsOneWidget);
-        expect(find.byIcon(Symbols.rss_feed), findsNothing);
-        expect(find.bySemanticsLabel(testCase.label), findsOneWidget);
+        expect(find.byIcon(Symbols.rss_feed), findsOneWidget);
+        final semanticLabel = testCase.isFollowing
+            ? '${testCase.label}, 1'
+            : testCase.label;
+        final semanticsTarget = find.bySemanticsLabel(
+          RegExp(RegExp.escape(semanticLabel)),
+        );
+        expect(semanticsTarget, findsWidgets);
         expect(
           tester
-              .getSemantics(find.bySemanticsLabel(testCase.label))
+              .getSemantics(semanticsTarget.first)
               .getSemanticsData()
               .hasAction(SemanticsAction.tap),
           isTrue,
@@ -203,9 +219,18 @@ void main() {
         semantics.dispose();
 
         await tester.tap(label);
-        await tester.pumpAndSettle();
-        expect(find.text('Follow Topic'), findsOneWidget);
-        expect(find.byType(TextField), findsOneWidget);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 500));
+        expect(find.byType(AlertDialog), findsOneWidget);
+        expect(find.text('Follow'), findsWidgets);
+        expect(
+          find.descendant(
+            of: find.byType(AlertDialog),
+            matching: find.text('artist_one'),
+          ),
+          findsOneWidget,
+        );
+        expect(find.byType(Checkbox), findsOneWidget);
         expect(find.byType(CheckboxListTile), findsNothing);
       },
     );
@@ -272,7 +297,7 @@ void main() {
         final followButton = tester.getRect(find.byType(FollowTopicButton));
         expect(artistTile.overlaps(followButton), isTrue);
         expect(find.byIcon(Symbols.keyboard_arrow_down), findsOneWidget);
-        expect(find.byIcon(Symbols.rss_feed), findsNothing);
+        expect(find.byIcon(Symbols.rss_feed), findsOneWidget);
         expect(
           followButton.overlaps(
             tester.getRect(find.byIcon(Symbols.keyboard_arrow_down)),
@@ -320,7 +345,7 @@ class _TestFollowingTopicsNotifier extends FollowingTopicsNotifier {
     batchTotal: 0,
     organization: TopicOrganization(
       folders: const [],
-      homeSearchIds: const [],
+      homeSearchIds: following ? const ['artist-search'] : const [],
     ),
   );
 }

@@ -1,5 +1,6 @@
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:collection/collection.dart';
 
 // Project imports:
 import '../../../../boorus/engine/providers.dart';
@@ -38,19 +39,77 @@ final profileFollowingTopicsProvider =
 
 final followedTopicCountProvider =
     Provider.family<int, ({String profileId, String query})>((ref, key) {
-      final identity = normalizeSearchIdentity(key.query);
       return ref
-              .watch(followingTopicsProvider)
+              .watch(matchingFollowingTopicsProvider(key))
               .valueOrNull
-              ?.topics
-              .where(
-                (topic) =>
-                    topic.profileId == key.profileId &&
-                    normalizeSearchIdentity(topic.query) == identity,
-              )
-              .length ??
+              ?.length ??
           0;
     });
+
+final matchingFollowingTopicsProvider =
+    Provider.family<
+      AsyncValue<List<FollowingTopicMatch>>,
+      ({String profileId, String query})
+    >((ref, key) {
+      return ref
+          .watch(followingTopicsProvider)
+          .whenData(
+            (state) => selectMatchingFollowingTopics(
+              state,
+              profileId: key.profileId,
+              query: key.query,
+            ),
+          );
+    });
+
+final class FollowingTopicMatch {
+  const FollowingTopicMatch({
+    required this.topic,
+    required this.folderId,
+    required this.folderPath,
+  });
+
+  final FollowingTopic topic;
+  final String? folderId;
+  final String folderPath;
+}
+
+List<FollowingTopicMatch> selectMatchingFollowingTopics(
+  FollowingTopicsState state, {
+  required String profileId,
+  required String query,
+}) {
+  final identity = normalizeSearchIdentity(query);
+  if (identity.isEmpty) return const [];
+  final topics = {for (final topic in state.topics) topic.id: topic};
+  final tree = state.organization.tree;
+  final matches = <FollowingTopicMatch>[];
+  for (final placement in state.organization.placements) {
+    final topic = topics[placement.itemId];
+    if (topic == null ||
+        topic.profileId != profileId ||
+        normalizeSearchIdentity(topic.query) != identity) {
+      continue;
+    }
+    matches.add(
+      FollowingTopicMatch(
+        topic: topic,
+        folderId: placement.folderId,
+        folderPath: tree.path(placement.folderId),
+      ),
+    );
+  }
+  return List.unmodifiable(matches);
+}
+
+FollowingTopicMatch? resolveOriginatingFollowingTopic(
+  List<FollowingTopicMatch> matches,
+  String? originatingTopicId,
+) => originatingTopicId == null
+    ? null
+    : matches
+          .where((match) => match.topic.id == originatingTopicId)
+          .firstOrNull;
 
 final profileFollowingTopicHasNewPostsProvider = Provider.family<bool, String>((
   ref,

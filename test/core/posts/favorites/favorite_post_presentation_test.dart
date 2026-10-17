@@ -17,6 +17,7 @@ import 'package:boorusama/core/boorus/engine/providers.dart';
 import 'package:boorusama/core/boorus/engine/types.dart';
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/configs/manage/providers.dart';
+import 'package:boorusama/core/configs/manage/widgets.dart';
 import 'package:boorusama/core/developer_options/providers.dart';
 import 'package:boorusama/core/downloads/downloader/providers.dart';
 import 'package:boorusama/core/downloads/downloader/types.dart';
@@ -77,7 +78,7 @@ void main() {
     );
     addTearDown(router.dispose);
 
-    await tester.pumpWidget(_TestApp(router: router));
+    await tester.pumpWidget(_TestApp(router: router, globalConfig: _config));
     await tester.pumpAndSettle();
 
     expect(find.text('native@gelbooru.example'), findsOneWidget);
@@ -94,6 +95,7 @@ void main() {
 
     expect(find.text('mixed viewer'), findsOneWidget);
     expect(opened?.useMixedViewer, isTrue);
+    expect(opened?.config, _config);
     expect(opened?.posts.single, isA<Post>());
   });
 
@@ -107,9 +109,12 @@ void main() {
       routes: [
         GoRoute(
           path: '/',
-          builder: (_, _) => const Scaffold(
-            body: DefaultSearchPage(
-              params: SearchParams(query: 'cat', page: 1),
+          builder: (_, _) => CurrentBooruConfigScope(
+            config: _config,
+            child: const Scaffold(
+              body: DefaultSearchPage(
+                params: SearchParams(query: 'cat', page: 1),
+              ),
             ),
           ),
         ),
@@ -127,6 +132,7 @@ void main() {
     await tester.pumpWidget(
       _TestApp(
         router: router,
+        globalConfig: _globalConfig,
         originAwareRepository: _OriginAwareRepository(post),
       ),
     );
@@ -142,6 +148,7 @@ void main() {
 
     expect(find.text('mixed viewer'), findsOneWidget);
     expect(opened?.useMixedViewer, isTrue);
+    expect(opened?.config, _config);
     expect(opened?.posts.single, same(post));
   });
 }
@@ -155,6 +162,15 @@ final _config = BooruConfig.fromJson({
   'id': '00000000-0000-4000-8000-00000000002a',
 });
 
+final _globalConfig = BooruConfig.fromJson({
+  ...BooruConfig.defaultConfig(
+    booruType: BooruType.danbooru,
+    url: 'https://global.example',
+    customDownloadFileNameFormat: null,
+  ).toJson(),
+  'id': '00000000-0000-4000-8000-00000000002b',
+});
+
 final _origin = PostOrigin.fromSource(
   booruType: BooruType.gelbooru,
   booruId: _config.booruId,
@@ -163,31 +179,42 @@ final _origin = PostOrigin.fromSource(
 );
 
 final class _TestApp extends StatelessWidget {
-  const _TestApp({required this.router, this.originAwareRepository});
+  const _TestApp({
+    required this.router,
+    required this.globalConfig,
+    this.originAwareRepository,
+  });
 
   final GoRouter router;
   final PostRepository<Post>? originAwareRepository;
+  final BooruConfig globalConfig;
 
   @override
   Widget build(BuildContext context) => ProviderScope(
     overrides: [
       routerProvider.overrideWithValue(router),
-      currentReadOnlyBooruConfigProvider.overrideWithValue(_config),
-      currentReadOnlyBooruConfigAuthProvider.overrideWithValue(_config.auth),
+      currentReadOnlyBooruConfigProvider.overrideWithValue(globalConfig),
+      currentReadOnlyBooruConfigAuthProvider.overrideWithValue(
+        globalConfig.auth,
+      ),
       currentReadOnlyBooruConfigSearchProvider.overrideWithValue(
-        _config.search,
+        globalConfig.search,
       ),
       currentReadOnlyBooruConfigFilterProvider.overrideWithValue(
-        _config.filter,
+        globalConfig.filter,
       ),
       currentReadOnlyBooruConfigGestureProvider.overrideWithValue(
-        _config.postGestures,
+        globalConfig.postGestures,
       ),
       currentReadOnlyBooruConfigDownloadProvider.overrideWithValue(
-        _config.download,
+        globalConfig.download,
       ),
       booruConfigProvider.overrideWith(
-        () => BooruConfigNotifier(initialConfigs: [_config]),
+        () => BooruConfigNotifier(
+          initialConfigs: globalConfig.id == _config.id
+              ? [_config]
+              : [globalConfig, _config],
+        ),
       ),
       settingsProvider.overrideWithValue(Settings.defaultSettings),
       settingsNotifierProvider.overrideWith(

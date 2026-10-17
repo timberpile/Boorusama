@@ -95,8 +95,6 @@ void main() {
       ))!;
       await harness.pump(tester, const FollowingTopicsPage());
       await drain(tester);
-      final before = await tester.runAsync(harness.repository.getAll);
-
       Future<void> remove() async {
         await tester.tap(
           find.descendant(
@@ -107,20 +105,34 @@ void main() {
         await tester.pumpAndSettle();
         expect(find.text('Delete'), findsNothing);
         await tester.tap(find.text('Unfollow'));
-        await tester.pumpAndSettle();
-        expect(find.text('Unfollow this topic?'), findsOneWidget);
-        expect(find.widgetWithText(FilledButton, 'Unfollow'), findsOneWidget);
+        await drain(tester);
+        await tester.pump();
+        expect(find.text('Topic unfollowed'), findsOneWidget);
+        expect(find.text('Undo'), findsOneWidget);
         expect(find.textContaining('cached previews'), findsNothing);
       }
 
       await remove();
-      await tester.tap(find.text('Cancel'));
-      await tester.pumpAndSettle();
-      expect(await tester.runAsync(harness.repository.getAll), before);
-      await remove();
-      await tester.tap(find.widgetWithText(FilledButton, 'Unfollow'));
+      expect(
+        await tester.runAsync(() => harness.repository.getById('cats')),
+        isNull,
+      );
+      await tester.tap(find.text('Undo'));
       await drain(tester);
-      await tester.pumpAndSettle();
+      await tester.pump();
+      final afterUndo = await tester.runAsync(harness.repository.getAll);
+      expect(afterUndo!.map((topic) => topic.id), containsAll(feed.sourceIds));
+      final restored = afterUndo
+          .where((topic) => !feed.sourceIds.contains(topic.id))
+          .single;
+      expect(restored.query, 'cat');
+      expect(restored.name, 'Cats');
+      expect(
+        (await tester.runAsync(harness.repository.getOrganization))!
+            .homeSearchIds,
+        contains(restored.id),
+      );
+      await remove();
       expect(
         await tester.runAsync(() => harness.repository.getById('cats')),
         isNull,
@@ -134,6 +146,7 @@ void main() {
       ))!.single;
       expect(retainedFeed.id, feed.id);
       expect(retainedFeed.sourceIds, feed.sourceIds);
+      await tester.pump(const Duration(seconds: 6));
 
       await tester.tap(
         find.descendant(

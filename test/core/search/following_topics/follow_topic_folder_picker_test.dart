@@ -4,6 +4,7 @@ import 'package:boorusama/core/search/following_topics/src/widgets/follow_topic_
 import 'package:boorusama/core/search/following_topics/src/widgets/follow_topic_folder_picker.dart';
 import 'package:flutter/material.dart' as legacy;
 import 'package:material_ui/material_ui.dart';
+import 'package:boorusama/core/search/following_topics/src/widgets/search_folder_dialog.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -14,7 +15,7 @@ void main() {
   late String root;
   late String child;
   late String deep;
-  final choices = <({String? id, bool isNew})>[];
+  final choices = <({String? id, SearchFolderSettings? newFolder})>[];
 
   Future<void> initialize() async {
     choices.clear();
@@ -44,7 +45,8 @@ void main() {
               isFollowing: initial != null,
               extra: FollowTopicFolderPicker(
                 initialFolderId: initial,
-                onSelected: (id, isNew) => choices.add((id: id, isNew: isNew)),
+                onSelected: (id, newFolder) =>
+                    choices.add((id: id, newFolder: newFolder)),
               ),
             ),
           ),
@@ -82,31 +84,31 @@ void main() {
       expect(find.widgetWithText(legacy.ListTile, 'Cookie'), findsOneWidget);
       expect(find.widgetWithText(legacy.ListTile, 'Other'), findsNothing);
       expect(find.text('Deep'), findsNothing);
-      expect(find.text('Create folder'), findsNothing);
+      expect(find.text('Create folder'), findsOneWidget);
       await enter(tester, 'Cookie');
       await enter(tester, 'Deep');
       expect(choices, isEmpty);
       expect(find.byType(FolderBreadcrumbs), findsOneWidget);
       expect(find.text('Artists / Cookie / Deep'), findsNothing);
       await select(tester);
-      expect(choices, [(id: deep, isNew: false)]);
+      expect(choices, [(id: deep, newFolder: null)]);
       expect(
         find.descendant(
           of: find.byType(FollowTopicFolderPicker),
-          matching: find.text('Deep'),
+          matching: find.text('Artists / Cookie / Deep'),
         ),
         findsOneWidget,
       );
       await open(tester);
       expect(
         find.text('Deep'),
-        findsNWidgets(2),
-      ); // Selected field and breadcrumb.
+        findsOneWidget,
+      ); // Breadcrumb; field shows path.
       await tester.tap(find.widgetWithText(legacy.ListTile, 'Back'));
       await tester.pumpAndSettle();
       expect(find.widgetWithText(legacy.ListTile, 'Deep'), findsOneWidget);
       await select(tester);
-      expect(choices.last, (id: child, isNew: false));
+      expect(choices.last, (id: child, newFolder: null));
       expect(tester.takeException(), isNull);
     },
   );
@@ -129,14 +131,14 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.widgetWithText(legacy.ListTile, 'Artists'), findsOneWidget);
       await select(tester);
-      expect(choices.single, (id: null, isNew: false));
-      expect(find.text('[Home]'), findsOneWidget);
+      expect(choices.single, (id: null, newFolder: null));
+      expect(find.text('No folder'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );
 
   testWidgets(
-    'Home remains selectable with no folders and New Folder keeps its existing result',
+    'No folder remains selectable and a nested new-folder draft is returned',
     (tester) async {
       await initialize();
       final notifier = harness.container.read(
@@ -156,14 +158,17 @@ void main() {
       await open(tester);
       expect(find.byType(legacy.ListTile), findsNothing);
       await select(tester);
-      expect(choices.single, (id: null, isNew: false));
+      expect(choices.single, (id: null, newFolder: null));
       await open(tester);
       await tester.tap(
         find.widgetWithText(legacy.TextButton, 'Create folder'),
       );
       await tester.pumpAndSettle();
-      expect(choices.last, (id: null, isNew: true));
-      expect(find.text('[New]'), findsOneWidget);
+      expect(choices.last.id, isNull);
+      expect(choices.last.newFolder?.name, isEmpty);
+      expect(choices.last.newFolder?.parentId, isNull);
+      expect(choices.last.newFolder?.feedEnabled, isFalse);
+      expect(find.text('New folder'), findsOneWidget);
       expect(harness.requests, isEmpty);
       expect(tester.takeException(), isNull);
     },
@@ -193,7 +198,7 @@ void main() {
         findsOneWidget,
       );
       await select(tester);
-      expect(choices.single, (id: deep, isNew: false));
+      expect(choices.single, (id: deep, newFolder: null));
       expect(
         tester.widget<TextField>(find.byType(TextField)).controller!.text,
         'Cats',

@@ -4,9 +4,11 @@ import 'package:kurumi/material.dart';
 
 // Project imports:
 import '../../../../boorus/engine/providers.dart';
+import '../../../../boorus/booru/types.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../configs/manage/providers.dart';
 import '../../../../configs/manage/widgets.dart';
+import '../../../post/providers.dart';
 import '../../../post/types.dart';
 import '../types/inherited_post.dart';
 import '../types/post_presentation_context.dart';
@@ -37,21 +39,22 @@ final class PostPagePresentation {
   BooruConfig get effectiveConfig => config ?? BooruConfig.empty;
 }
 
-typedef PostPagePresentationBuilder =
-    Widget Function(
-      BuildContext context,
-      WidgetRef ref,
-      PostPagePresentation presentation,
-    );
+typedef PostPagePresentationBuilder = Widget Function(
+  BuildContext context,
+  WidgetRef ref,
+  PostPagePresentation presentation,
+);
 
 class PostPagePresentationScope extends ConsumerWidget {
   const PostPagePresentationScope({
     required this.post,
     required this.builder,
+    this.fallbackConfig,
     super.key,
   });
 
   final Post post;
+  final BooruConfig? fallbackConfig;
   final PostPagePresentationBuilder builder;
 
   @override
@@ -72,18 +75,23 @@ class PostPagePresentationScope extends ConsumerWidget {
   }
 
   PostPagePresentation _resolve(WidgetRef ref) {
-    final originResolution = const PostOriginResolver().resolve(
+    const resolver = PostOriginResolver();
+    final originResolution = resolver.resolve(
       post.origin,
       ref.watch(booruConfigProvider),
     );
-    final config = switch (originResolution) {
+    final resolvedConfig = switch (originResolution) {
       ResolvedPostOrigin(:final config) => config,
       _ => null,
     };
+    final config = resolvedConfig ?? _resolveFallbackConfig(resolver);
     final originFailure = switch (originResolution) {
-      MissingPostOrigin() => PostPresentationFallbackReason.missingProfile,
-      AmbiguousPostOrigin() => PostPresentationFallbackReason.ambiguousProfile,
+      MissingPostOrigin() when config == null =>
+        PostPresentationFallbackReason.missingProfile,
+      AmbiguousPostOrigin() when config == null =>
+        PostPresentationFallbackReason.ambiguousProfile,
       ResolvedPostOrigin() => null,
+      _ => null,
     };
     if (originFailure != null) {
       return PostPagePresentation(
@@ -96,10 +104,13 @@ class PostPagePresentationScope extends ConsumerWidget {
       );
     }
 
+    final presentationOrigin = resolvedConfig == null
+        ? postOriginFromConfig(config!)
+        : post.origin;
     final enginePresentation = ref.watch(
       booruPostPresentationProvider(
         PostPresentationRequest(
-          origin: post.origin,
+          origin: presentationOrigin,
           data: post.booruData,
         ),
       ),
@@ -119,6 +130,22 @@ class PostPagePresentationScope extends ConsumerWidget {
       config: config,
       fallbackReason: fallbackReason,
     );
+  }
+
+  BooruConfig? _resolveFallbackConfig(PostOriginResolver resolver) {
+    final fallback = fallbackConfig;
+    if (fallback == null) return null;
+
+    if (resolver.resolve(post.origin, [fallback]) is ResolvedPostOrigin) {
+      return fallback;
+    }
+
+    final origin = post.origin;
+    final isUnspecified =
+        origin.booruType == BooruType.unknown &&
+        origin.sourceHost.isEmpty &&
+        (origin.profileIdHint == null || origin.profileIdHint == fallback.id);
+    return isUnspecified ? fallback : null;
   }
 }
 

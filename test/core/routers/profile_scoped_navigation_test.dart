@@ -93,7 +93,7 @@ void main() {
         GoRoute(
           path: '/search',
           builder: (context, state) {
-            openedConfig = state.extra as BooruConfig?;
+            openedConfig = (state.extra! as SearchRouteContext).config;
             return const Scaffold(body: Text('Results'));
           },
         ),

@@ -85,13 +85,13 @@ void main() {
       expect(find.text('Refresh'), findsOneWidget);
       expect(find.text('Edit'), findsOneWidget);
       expect(find.text('Unfollow'), findsOneWidget);
-      expect(find.text('Info'), findsOneWidget);
+      expect(find.text('Details'), findsOneWidget);
       expect(find.text('Move to folder'), findsNothing);
       expect(find.text('Move up'), findsNothing);
     },
   );
   testWidgets(
-    'member Info opens cached timing without changing sources or membership',
+    'member Details opens cached timing without changing membership',
     (tester) async {
       final feed = await seed(tester);
       final before = await tester.runAsync(h.repository.getAll);
@@ -104,13 +104,12 @@ void main() {
             .first,
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Info'));
+      await tester.tap(find.text('Details'));
       await tester.pumpAndSettle();
       final info = tester.widget<FollowingTopicInfoDialog>(
         find.byType(FollowingTopicInfoDialog),
       );
       expect(info.topicId, feed.sourceIds.first);
-      expect(info.feedSource, isTrue);
       expect(find.textContaining('Refresh interval: Adaptive'), findsOneWidget);
       expect(await tester.runAsync(h.repository.getAll), before);
       expect((await tester.runAsync(h.repository.getFeeds))!.single, feed);

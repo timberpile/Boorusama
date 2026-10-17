@@ -24,6 +24,54 @@ never repeats NEW beside that number. Legacy unread state without a reliable
 count retains **NEW**; accessible labels announce the known count or lower bound.
 Folder and navigation indicators retain NEW when no independent count exists.
 
+The October 2026 consistency pass uses the same Follow/Following control in
+search results, artist surfaces, and tag menus. Follow saves the local Topic and
+its exact folder placement before any preview request. Following manages the
+originating Topic when its UUID is known; otherwise it presents every matching
+copy with its full folder path. Management offers Open, Edit Topic, Move, Add
+another copy, Topic details, and scoped Unfollow. Valid queries that cannot be
+tracked automatically remain usable as manual-only Topics and never issue an
+unsupported automatic or feed request.
+
+Folder creation and editing share one settings result: name, parent folder,
+feed enablement, and retention. The editor validates sibling names before
+dismissal and preserves entered values after storage or destination races.
+Folder feeds use explicit Topics, Feed settings, and Feed details actions.
+Retention counts cached metadata entries; disabling a feed retains its cache and
+does not change contained Topics' Auto-update preferences.
+
+Collection browsing includes local name/query and optional profile filtering,
+descendant-aware bulk actions, and stable Name, Updates first, Last post oldest,
+and Manual sorting. Selecting folders affects the union of their descendant
+Topic UUIDs; independent copies remain independent. Back or Escape exits
+selection first, failed mutations retain selection, and scoped Unfollow confirms
+the affected Topic count without deleting folders.
+
+Topic searches carry their owning profile and optional originating Topic UUID as
+route context. This keeps authentication, suggestions, management, and viewer
+actions on the exact owner without changing the global browse profile. Feed
+history isolates source failures: healthy sources continue automatically,
+cached results remain visible, and a compact unavailable warning persists until
+the existing bounded refresh path recovers the source. Definition fingerprints
+reject late pages after query, profile, revision, or membership changes.
+
+Clearing all feed caches removes modern folder-feed materializations while
+preserving folders, Topics, settings, and legacy feed definitions. Clearing an
+open folder feed ends that cached session and offers an explicit reload. Topics
+is the current backup/export source and includes folders and feed settings but
+not cached posts or images. The empty legacy Topic Feeds choice is hidden from
+current export/backup presentation while its source ID, registry entry, decoder,
+and import compatibility remain available.
+
+Membership checks read `TopicFeedMetadata` without decoding cached post
+snapshots, and the collection uses lazy keyed rows. A repeated Linux/JIT
+diagnostic with four feeds, 10 sources/feed, 50 tags/post, provenance, and
+1000/2000 posts per feed measured median in-memory full decode at 39,863/71,674
+microseconds versus metadata-only decode at 22/27 microseconds. These figures
+demonstrate avoided work on that host only; they are not an Android capacity or
+latency guarantee. No Android profile/release or live-site measurement was run
+for this pass.
+
 **Name (A–Z)** sorts Topics by display name (query fallback) and child folders by
 name, ignoring letter case. Equal Topic names retain manual order. The selection
 uses the existing global view preference and survives settings reload; it does

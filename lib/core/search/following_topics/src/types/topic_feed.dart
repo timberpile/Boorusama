@@ -9,6 +9,63 @@ import '../../../../posts/sources/types.dart';
 const topicFeedRetention = 1000;
 const topicFeedSourceLimit = 1000;
 
+class TopicFeedMetadata extends Equatable {
+  const TopicFeedMetadata({
+    required this.id,
+    required this.profileId,
+    required this.name,
+    required this.position,
+    required this.maxPosts,
+    required this.sourceIds,
+  });
+
+  factory TopicFeedMetadata.fromJson(Map json) => TopicFeedMetadata(
+    id: switch (json['id']) {
+      final String value when value.isNotEmpty => value,
+      _ => throw const FormatException('Invalid feed id'),
+    },
+    profileId: switch (json['profileId']) {
+      final String value when isCanonicalProfileId(value) => value,
+      _ => throw const FormatException('Invalid feed profile'),
+    },
+    name: switch (json['name']) {
+      final String value when value.trim().isNotEmpty => value.trim(),
+      _ => throw const FormatException('Invalid feed name'),
+    },
+    position: switch (json['position']) {
+      final int value => value,
+      _ => 0,
+    },
+    maxPosts: switch (json['maxPosts']) {
+      final int value when value > 0 => value,
+      _ => topicFeedRetention,
+    },
+    sourceIds: List.unmodifiable(
+      switch (json['sourceIds']) {
+        final List values => values.whereType<String>().toList(),
+        _ => const <String>[],
+      },
+    ),
+  );
+
+  final String id;
+  final String profileId;
+  final String name;
+  final int position;
+  final int maxPosts;
+  final List<String> sourceIds;
+
+  @override
+  List<Object?> get props => [
+    id,
+    profileId,
+    name,
+    position,
+    maxPosts,
+    sourceIds,
+  ];
+}
+
 class TopicFeed extends Equatable {
   TopicFeed({
     required this.id,
@@ -20,7 +77,7 @@ class TopicFeed extends Equatable {
     List<StoredPostSnapshot> posts = const [],
     List<String> initializedSourceIds = const [],
     Map<String, List<String>> postSources = const {},
-  }) : assert(maxPosts > 0),
+  }) : assert(maxPosts > 0, 'maxPosts must be positive'),
        sourceIds = List.unmodifiable(sourceIds),
        posts = List.unmodifiable(posts.take(maxPosts)),
        initializedSourceIds = List.unmodifiable(initializedSourceIds),

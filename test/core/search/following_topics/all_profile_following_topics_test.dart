@@ -3,6 +3,7 @@ import 'package:boorusama/core/router.dart';
 import 'package:boorusama/core/search/following_topics/providers.dart';
 import 'package:boorusama/core/search/following_topics/src/pages/following_topics_page.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:boorusama/core/search/search/routes.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:boorusama/core/configs/config/types.dart';
 
@@ -80,7 +81,7 @@ void main() {
   );
 
   testWidgets(
-    'opening another profile search switches to its owner and marks only that search read',
+    'opening another profile search scopes its owner and marks only that search read',
     (tester) async {
       final harness = FollowingTopicHarness();
       addTearDown(harness.dispose);
@@ -103,7 +104,7 @@ void main() {
           GoRoute(
             path: '/search',
             builder: (_, state) {
-              owner = harness.container.read(currentBooruConfigProvider).id;
+              owner = (state.extra! as SearchRouteContext).config.id;
               return Scaffold(
                 body: Text('Opened ${state.uri.queryParameters['query']}'),
               );
@@ -124,6 +125,10 @@ void main() {
       await tester.tap(find.text('Other search'));
       await drain(tester);
       expect(owner, '00000000-0000-4000-8000-000000000063');
+      expect(
+        harness.container.read(currentBooruConfigProvider).id,
+        '00000000-0000-4000-8000-00000000000c',
+      );
       expect(find.text('Opened dog'), findsOneWidget);
       final saved = await tester.runAsync(() => harness.repository.getAll());
       expect(saved!.singleWhere((s) => s.id == 'cats').hasNewPosts, true);

@@ -1,11 +1,10 @@
 import '../../../../posts/post/types.dart';
 import '../types/following_topic.dart';
 
-typedef FeedSourcePageFetcher =
-    Future<PostResult<Post>> Function(
-      FollowingTopic source,
-      int page,
-    );
+typedef FeedSourcePageFetcher = Future<PostResult<Post>> Function(
+  FollowingTopic source,
+  int page,
+);
 
 class FeedHistorySession {
   FeedHistorySession({
@@ -28,6 +27,28 @@ class FeedHistorySession {
   var _initialized = false;
   var _disposed = false;
 
+  Set<String> get unavailableSourceIds => {
+    for (final cursor in _cursors)
+      if (cursor.failure != null) cursor.source.id,
+  };
+
+  bool get coverageIncomplete => unavailableSourceIds.isNotEmpty;
+
+  void allowRecovery() {
+    if (_disposed) return;
+    for (final cursor in _cursors) {
+      cursor.failure = null;
+    }
+    for (final entry in _loadedPages.entries.toList()) {
+      if (entry.key == 1) continue;
+      if (entry.value.posts.isEmpty) {
+        _loadedPages.remove(entry.key);
+      } else {
+        _loadedPages[entry.key] = entry.value.copyWith(hasMore: () => true);
+      }
+    }
+  }
+
   void dispose() {
     _disposed = true;
     _pendingPosts.clear();
@@ -41,7 +62,7 @@ class FeedHistorySession {
       return _loadedPages[page] = PostResult(
         posts: _recent,
         total: null,
-        hasMore: _cursors.isNotEmpty,
+        hasMore: _cursors.any((cursor) => cursor.failure == null),
       );
     }
     if (!_initialized) {
@@ -73,7 +94,9 @@ class FeedHistorySession {
       posts: List.unmodifiable(posts),
       total: null,
       hasMore: _cursors.any(
-        (cursor) => cursor.hasMore || cursor.current != null,
+        (cursor) =>
+            cursor.failure == null &&
+            (cursor.hasMore || cursor.current != null),
       ),
     );
     posts.clear();
@@ -83,11 +106,14 @@ class FeedHistorySession {
   Future<void> _fillEmptyCursors() async {
     if (_disposed) throw StateError('Feed history session closed');
     final pending = _cursors
-        .where((cursor) => cursor.hasMore && cursor.current == null)
+        .where(
+          (cursor) =>
+              cursor.hasMore &&
+              cursor.current == null &&
+              cursor.failure == null,
+        )
         .toList();
     var next = 0;
-    Object? failure;
-    StackTrace? failureStack;
     Future<void> worker() async {
       while (!_disposed && next < pending.length) {
         final cursor = pending[next++];
@@ -108,8 +134,7 @@ class FeedHistorySession {
           if (cursor.posts.isEmpty) cursor.hasMore = false;
         } catch (error, stackTrace) {
           if (_disposed) return;
-          failure ??= error;
-          failureStack ??= stackTrace;
+          cursor.failure = (error, stackTrace);
         }
       }
     }
@@ -119,9 +144,6 @@ class FeedHistorySession {
         worker(),
     ]);
     if (_disposed) throw StateError('Feed history session closed');
-    if (failure case final error?) {
-      Error.throwWithStackTrace(error, failureStack!);
-    }
   }
 }
 
@@ -141,6 +163,7 @@ class _FeedCursor {
   var offset = 0;
   var hasMore = true;
   List<Post> posts = const [];
+  (Object, StackTrace)? failure;
 
   Post? get current => offset < posts.length ? posts[offset] : null;
 }

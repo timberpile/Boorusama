@@ -18,6 +18,7 @@ import '../../../../downloads/downloader/providers.dart';
 import '../../../../configs/manage/providers.dart';
 import '../../../../configs/manage/widgets.dart';
 import '../../../../boorus/engine/providers.dart';
+import '../../../../boorus/booru/types.dart';
 import '../../../../errors/types.dart';
 import '../../../../posts/details/routes.dart';
 import '../../../../posts/listing/widgets.dart';
@@ -25,19 +26,22 @@ import '../../../../posts/listing/providers.dart';
 import '../../../../posts/listing/src/types/page_mode.dart';
 import '../../../../posts/post/types.dart';
 import '../../../../posts/post/providers.dart';
+import '../../../../router.dart';
 import '../refresh/search_refresh_query_adapter.dart';
 import '../services/feed_history_session.dart';
 import '../providers/following_topics_notifier.dart';
 import '../providers/search_refresh_coordinator.dart';
 import '../types/topic_feed.dart';
+import '../types/topic_organization.dart';
 import '../types/following_topic.dart';
 import '../types/following_topic_sort.dart';
 import '../types/search_refresh.dart';
 import '../widgets/feed_post_thumbnail.dart';
+import '../widgets/feed_last_checked.dart';
 import '../widgets/topic_feed_info_dialog.dart';
 import '../widgets/following_topic_card.dart';
+import '../widgets/search_folder_dialog.dart';
 import 'topic_feed_management_page.dart';
-import 'following_topics_page.dart';
 
 class TopicFeedsPage extends ConsumerStatefulWidget {
   const TopicFeedsPage({super.key});
@@ -46,21 +50,54 @@ class TopicFeedsPage extends ConsumerStatefulWidget {
   ConsumerState<TopicFeedsPage> createState() => _TopicFeedsPageState();
 }
 
-class _TopicFeedsPageState extends ConsumerState<TopicFeedsPage> {
+class _TopicFeedsPageState extends ConsumerState<TopicFeedsPage>
+    with RouteAware {
   late final SearchRefreshCoordinator _coordinator;
+  late final RouteObserver<ModalRoute<dynamic>> _routeObserver;
+  FeedInitializationInterest? _feedInterest;
 
   @override
   void initState() {
     super.initState();
     _coordinator = ref.read(searchRefreshCoordinatorProvider.notifier);
+    _routeObserver = ref.read(appNavigationProvider).routeObserver;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _coordinator.setFeedsOverviewActive(true);
+      if (mounted) _activate();
     });
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (route != null) _routeObserver.subscribe(this, route);
+  }
+
+  void _activate() {
+    _feedInterest ??= _coordinator.acquireFeedInitializationInterest();
+  }
+
+  void _deactivate() {
+    _feedInterest?.close();
+    _feedInterest = null;
+  }
+
+  @override
+  void didPush() => _activate();
+
+  @override
+  void didPopNext() => _activate();
+
+  @override
+  void didPushNext() => _deactivate();
+
+  @override
+  void didPop() => _deactivate();
+
+  @override
   void dispose() {
-    _coordinator.setFeedsOverviewActive(false);
+    _routeObserver.unsubscribe(this);
+    _deactivate();
     super.dispose();
   }
 
@@ -215,7 +252,7 @@ class _TopicFeedsPageState extends ConsumerState<TopicFeedsPage> {
                               ),
                               PopupMenuItem(
                                 value: 'info',
-                                child: Text(strings.info),
+                                child: Text(strings.feed_info),
                               ),
                               PopupMenuItem(
                                 value: 'up',
@@ -297,6 +334,7 @@ class _TopicFeedsPageState extends ConsumerState<TopicFeedsPage> {
                                                       post: _decodeFeedPost(
                                                         ref,
                                                         post,
+                                                        config,
                                                       ),
                                                       config: config.auth,
                                                     ),
@@ -386,16 +424,19 @@ class TopicFeedPage extends ConsumerStatefulWidget {
   ConsumerState<TopicFeedPage> createState() => _TopicFeedPageState();
 }
 
-class _TopicFeedPageState extends ConsumerState<TopicFeedPage> {
+class _TopicFeedPageState extends ConsumerState<TopicFeedPage> with RouteAware {
   late final SearchRefreshCoordinator _coordinator;
+  late final RouteObserver<ModalRoute<dynamic>> _routeObserver;
+  FeedInitializationInterest? _feedInterest;
 
   @override
   void initState() {
     super.initState();
     _coordinator = ref.read(searchRefreshCoordinatorProvider.notifier);
+    _routeObserver = ref.read(appNavigationProvider).routeObserver;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      _coordinator.setFeedsOverviewActive(true);
+      _activate();
       unawaited(
         ref.read(followingTopicsProvider.notifier).markFeedRead(widget.feedId),
       );
@@ -403,8 +444,39 @@ class _TopicFeedPageState extends ConsumerState<TopicFeedPage> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (route != null) _routeObserver.subscribe(this, route);
+  }
+
+  void _activate() {
+    _feedInterest ??= _coordinator.acquireFeedInitializationInterest(
+      feedId: widget.feedId,
+    );
+  }
+
+  void _deactivate() {
+    _feedInterest?.close();
+    _feedInterest = null;
+  }
+
+  @override
+  void didPush() => _activate();
+
+  @override
+  void didPopNext() => _activate();
+
+  @override
+  void didPushNext() => _deactivate();
+
+  @override
+  void didPop() => _deactivate();
+
+  @override
   void dispose() {
-    _coordinator.setFeedsOverviewActive(false);
+    _routeObserver.unsubscribe(this);
+    _deactivate();
     super.dispose();
   }
 
@@ -423,13 +495,17 @@ class _TopicFeedPageState extends ConsumerState<TopicFeedPage> {
             .firstOrNull
             ?.feedEnabled ??
         true;
+    final folder = state?.organization.folders
+        .where((folder) => folder.id == widget.feedId)
+        .firstOrNull;
+    final isFolderFeed = folder != null;
     final sourceIds = feed?.sourceIds.toSet() ?? const <String>{};
     final sources =
         state?.topics.where((s) => sourceIds.contains(s.id)).toList() ?? [];
     final strings = context.t.following_topics;
-    final refreshing = sources.any(
-      (s) => state?.refreshingIds.contains(s.id) ?? false,
-    );
+    final refreshing = state?.refreshingFeedId == widget.feedId;
+    final refreshChecked = refreshing ? state?.feedRefreshChecked ?? 0 : 0;
+    final refreshTotal = refreshing ? state?.feedRefreshTotal ?? 0 : 0;
     return PerformanceScreenScope(
       screen: PerfScreen.topicFeed,
       priority: 2,
@@ -438,27 +514,11 @@ class _TopicFeedPageState extends ConsumerState<TopicFeedPage> {
           title: Text(feed?.name ?? strings.topic_feeds),
           actions: [
             PopupMenuButton<String>(
-              onSelected: (action) {
+              onSelected: (action) async {
                 if (action == 'refresh') {
-                  unawaited(_refreshFeed(context, ref, widget.feedId));
-                } else if (action == 'info') {
-                  showDialog<void>(
-                    context: context,
-                    builder: (_) => TopicFeedInfoDialog(feedId: widget.feedId),
-                  );
-                } else {
-                  final isFolderFeed =
-                      state?.organization.folders.any(
-                        (folder) => folder.id == widget.feedId,
-                      ) ??
-                      false;
-                  Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => isFolderFeed
-                          ? FollowingTopicsPage(folderId: widget.feedId)
-                          : TopicFeedManagementPage(feedId: widget.feedId),
-                    ),
-                  );
+                  await _refreshFeed(context, ref, widget.feedId);
+                } else if (action == 'settings' && folder != null) {
+                  await _editFolderSettings(folder);
                 }
               },
               itemBuilder: (context) => [
@@ -470,11 +530,11 @@ class _TopicFeedPageState extends ConsumerState<TopicFeedPage> {
                       state?.refreshingFeedId == null,
                   child: Text(strings.refresh),
                 ),
-                PopupMenuItem(value: 'info', child: Text(strings.info)),
-                PopupMenuItem(
-                  value: 'edit',
-                  child: Text(context.t.generic.action.edit),
-                ),
+                if (isFolderFeed)
+                  PopupMenuItem(
+                    value: 'settings',
+                    child: Text(strings.feed_settings),
+                  ),
               ],
             ),
           ],
@@ -496,24 +556,59 @@ class _TopicFeedPageState extends ConsumerState<TopicFeedPage> {
               )
             : feed == null || config == null
             ? Center(child: Text(strings.feeds_empty))
-            : Column(
-                children: [
-                  if (refreshing || state?.refreshingFeedId == widget.feedId)
-                    const LinearProgressIndicator(),
-                  Expanded(
-                    child: feed.posts.isEmpty
-                        ? Center(child: Text(strings.feed_posts_empty))
-                        : _CachedFeedGrid(
-                            key: ValueKey(feed.id),
-                            feed: feed,
-                            config: config,
-                            sources: sources,
-                          ),
+            : feed.posts.isEmpty
+            ? CustomScrollView(
+                slivers: [
+                  SliverToBoxAdapter(
+                    child: _FeedStatusHeader(
+                      sources: sources,
+                      refreshChecked: refreshChecked,
+                      refreshTotal: refreshTotal,
+                      unavailable: false,
+                    ),
+                  ),
+                  SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: Center(child: Text(strings.feed_posts_empty)),
                   ),
                 ],
+              )
+            : _CachedFeedGrid(
+                key: ValueKey(feed.id),
+                feed: feed,
+                config: config,
+                sources: sources,
+                refreshChecked: refreshChecked,
+                refreshTotal: refreshTotal,
               ),
       ),
     );
+  }
+
+  Future<void> _editFolderSettings(TopicFolder folder) async {
+    final organization = ref
+        .read(followingTopicsProvider)
+        .requireValue
+        .organization;
+    final settings = await showSearchFolderSettingsDialog(
+      context,
+      name: folder.name,
+      folders: organization.folders,
+      parentId: folder.parentId,
+      editingFolderId: folder.id,
+      feedEnabled: folder.feedEnabled,
+      maxPosts: folder.feedMaxPosts,
+    );
+    if (settings == null || !mounted) return;
+    await ref
+        .read(followingTopicsProvider.notifier)
+        .renameSharedFolder(
+          folder.id,
+          settings.name,
+          parentId: settings.parentId,
+          feedEnabled: settings.feedEnabled,
+          maxPosts: settings.maxPosts,
+        );
   }
 }
 
@@ -522,11 +617,15 @@ class _CachedFeedGrid extends ConsumerStatefulWidget {
     required this.feed,
     required this.config,
     required this.sources,
+    required this.refreshChecked,
+    required this.refreshTotal,
     super.key,
   });
   final TopicFeed feed;
   final BooruConfig config;
   final List<FollowingTopic> sources;
+  final int refreshChecked;
+  final int refreshTotal;
   @override
   ConsumerState<_CachedFeedGrid> createState() => _CachedFeedGridState();
 }
@@ -537,7 +636,7 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
   var _prefetchedAtLength = -1;
   var _historyStarted = false;
   var _hasUpdates = false;
-  var _historyError = false;
+  var _historyCoverageIncomplete = false;
 
   @override
   void initState() {
@@ -554,7 +653,8 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
   FeedHistorySession _createHistory() => FeedHistorySession(
     sources: widget.sources,
     recent: [
-      for (final post in widget.feed.posts) _decodeFeedPost(ref, post),
+      for (final post in widget.feed.posts)
+        _decodeFeedPost(ref, post, widget.config),
     ],
     fetchPage: (source, page) async {
       final owner = ref
@@ -587,25 +687,73 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
   @override
   void didUpdateWidget(covariant _CachedFeedGrid oldWidget) {
     super.didUpdateWidget(oldWidget);
-    final sourcesChanged = !const ListEquality<String>().equals(
-      oldWidget.feed.sourceIds,
-      widget.feed.sourceIds,
+    final sourceDefinitionsChanged = !const DeepCollectionEquality().equals(
+      [
+        for (final source in oldWidget.sources)
+          (
+            source.id,
+            source.runtimeRevision,
+            source.profileId,
+            source.query,
+            source.createdAt,
+          ),
+      ],
+      [
+        for (final source in widget.sources)
+          (
+            source.id,
+            source.runtimeRevision,
+            source.profileId,
+            source.query,
+            source.createdAt,
+          ),
+      ],
+    );
+    final sourceStatusChanged = !const DeepCollectionEquality().equals(
+      [
+        for (final source in oldWidget.sources)
+          (
+            source.id,
+            source.lastAttemptAt,
+            source.lastSuccessfulCheckAt,
+            source.lastErrorKind,
+          ),
+      ],
+      [
+        for (final source in widget.sources)
+          (
+            source.id,
+            source.lastAttemptAt,
+            source.lastSuccessfulCheckAt,
+            source.lastErrorKind,
+          ),
+      ],
     );
     final postsChanged = !const ListEquality<StoredPostSnapshot>().equals(
       oldWidget.feed.posts,
       widget.feed.posts,
     );
-    if (postsChanged && _historyStarted && !sourcesChanged) {
+    if (postsChanged && _historyStarted && !sourceDefinitionsChanged) {
       _hasUpdates = true;
+      if (sourceStatusChanged && _history.coverageIncomplete) {
+        _history.allowRecovery();
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            unawaited(
+              _controller?.refresh(maintainPage: true) ?? Future.value(),
+            );
+          }
+        });
+      }
       return;
     }
-    if (sourcesChanged || postsChanged) {
+    if (sourceDefinitionsChanged || postsChanged) {
       _history.dispose();
       _history = _createHistory();
       _prefetchedAtLength = -1;
       _historyStarted = false;
       _hasUpdates = false;
-      _historyError = false;
+      _historyCoverageIncomplete = false;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
           unawaited(_controller?.refresh(maintainPage: true) ?? Future.value());
@@ -621,13 +769,8 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
     setState(() {
       _historyStarted = false;
       _hasUpdates = false;
-      _historyError = false;
+      _historyCoverageIncomplete = false;
     });
-    unawaited(_controller?.refresh() ?? Future.value());
-  }
-
-  void _retryHistory() {
-    setState(() => _historyError = false);
     unawaited(_controller?.refresh() ?? Future.value());
   }
 
@@ -644,6 +787,7 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
       controller: controller,
       scrollController: scrollController,
       initialThumbnailUrl: post.thumbnailImageUrl,
+      config: widget.config,
     );
   });
 
@@ -664,13 +808,18 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
       fetcher: (page) {
         final history = _history;
         return TaskEither.tryCatch(
-          () => history.load(page),
-          (error, _) {
+          () async {
+            final result = await history.load(page);
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (mounted && identical(history, _history)) {
-                setState(() => _historyError = true);
+                setState(
+                  () => _historyCoverageIncomplete = history.coverageIncomplete,
+                );
               }
             });
+            return result;
+          },
+          (error, _) {
             return AppError(
               type: AppErrorType.loadDataFromServerFailed,
               message: '$error',
@@ -684,6 +833,16 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
           children: [
             PostGrid<Post>(
               controller: controller,
+              sliverHeaders: [
+                SliverToBoxAdapter(
+                  child: _FeedStatusHeader(
+                    sources: widget.sources,
+                    refreshChecked: widget.refreshChecked,
+                    refreshTotal: widget.refreshTotal,
+                    unavailable: _historyCoverageIncomplete,
+                  ),
+                ),
+              ],
               enablePullToRefresh: false,
               multiSelectActions: _FeedSelectionActions(controller: controller),
               itemBuilder: (context, index, scroll, useHero) {
@@ -727,7 +886,7 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
               },
             ),
             if (_hasUpdates ||
-                _historyError ||
+                _historyCoverageIncomplete ||
                 (widget.feed.posts.length < 12 &&
                     !_historyStarted &&
                     !controller.refreshing &&
@@ -746,14 +905,9 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
                           context.t.following_topics.feed_updates_available,
                         ),
                       ),
-                    if (_historyError)
-                      FilledButton(
-                        onPressed: _retryHistory,
-                        child: Text(context.t.generic.action.retry),
-                      ),
                     if (widget.feed.posts.length < 12 &&
                         !_historyStarted &&
-                        !_historyError &&
+                        !_historyCoverageIncomplete &&
                         !controller.refreshing &&
                         controller.hasMore)
                       FilledButton(
@@ -770,6 +924,64 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
       },
     ),
   );
+}
+
+class _FeedStatusHeader extends StatelessWidget {
+  const _FeedStatusHeader({
+    required this.sources,
+    required this.refreshChecked,
+    required this.refreshTotal,
+    required this.unavailable,
+  });
+
+  final List<FollowingTopic> sources;
+  final int refreshChecked;
+  final int refreshTotal;
+  final bool unavailable;
+
+  @override
+  Widget build(BuildContext context) {
+    final refreshing = refreshTotal > 0;
+    final remaining = (refreshTotal - refreshChecked).clamp(0, refreshTotal);
+    final checkedAt = sources
+        .map((source) => source.lastSuccessfulCheckAt)
+        .whereType<DateTime>()
+        .fold<DateTime?>(
+          null,
+          (latest, value) =>
+              latest == null || value.isAfter(latest) ? value : latest,
+        );
+    return Semantics(
+      liveRegion: refreshing,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            FeedLastChecked(checkedAt: checkedAt),
+            if (refreshing) ...[
+              const SizedBox(height: 8),
+              Text(
+                context.t.following_topics.feed_refresh_progress
+                    .replaceAll('{checked}', '$refreshChecked')
+                    .replaceAll('{total}', '$refreshTotal')
+                    .replaceAll('{remaining}', '$remaining'),
+              ),
+              const SizedBox(height: 4),
+              LinearProgressIndicator(value: refreshChecked / refreshTotal),
+            ],
+            if (unavailable) ...[
+              const SizedBox(height: 8),
+              Text(
+                context.t.following_topics.some_topics_unavailable,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 // Use native actions when the selection belongs to one profile, and the
@@ -842,7 +1054,11 @@ class _FeedSelectionActions extends ConsumerWidget {
   }
 }
 
-Post _decodeFeedPost(WidgetRef ref, StoredPostSnapshot snapshot) {
+Post _decodeFeedPost(
+  WidgetRef ref,
+  StoredPostSnapshot snapshot,
+  BooruConfig fallbackConfig,
+) {
   final codec = ref
       .read(
         booruPostCapabilityProvider(
@@ -850,5 +1066,14 @@ Post _decodeFeedPost(WidgetRef ref, StoredPostSnapshot snapshot) {
         ),
       )
       ?.codec;
-  return decodeFeedPost(snapshot, dataCodec: codec);
+  final post = decodeFeedPost(snapshot, dataCodec: codec);
+  final origin = post.origin;
+  final needsFallbackOrigin =
+      origin.booruType == BooruType.unknown &&
+      origin.sourceHost.isEmpty &&
+      (origin.profileIdHint == null ||
+          origin.profileIdHint == fallbackConfig.id);
+  return needsFallbackOrigin
+      ? post.copyWith(origin: postOriginFromConfig(fallbackConfig))
+      : post;
 }

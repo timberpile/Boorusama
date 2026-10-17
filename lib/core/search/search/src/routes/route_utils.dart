@@ -21,6 +21,8 @@ void goToSearchPage(
   QueryType? queryType,
   bool? fromSearchBar,
   String? order,
+  BooruConfig? config,
+  String? originatingTopicId,
 }) {
   ref.router.push(
     Uri(
@@ -38,8 +40,26 @@ void goToSearchPage(
         _ => null,
       },
     ).toString(),
-    extra: ref.readConfig,
+    extra: SearchRouteContext(
+      config: config ?? ref.readConfig,
+      originatingTopicId: originatingTopicId,
+    ),
   );
+}
+
+/// Route-local ownership for searches opened from a saved Topic.
+///
+/// Keeping the owner here prevents a Topic from changing the global browsing
+/// profile, while the originating ID lets Follow/Following resolve an exact
+/// independent copy until the query or profile no longer matches it.
+final class SearchRouteContext {
+  const SearchRouteContext({
+    required this.config,
+    this.originatingTopicId,
+  });
+
+  final BooruConfig config;
+  final String? originatingTopicId;
 }
 
 void goToQuickSearchPage(

@@ -1,5 +1,6 @@
 import '../types/search_refresh.dart';
 import '../../../../errors/types.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
@@ -197,7 +198,6 @@ class TopicFeedManagementPage extends ConsumerWidget {
             context: context,
             builder: (_) => FollowingTopicInfoDialog(
               topicId: source.id,
-              feedSource: true,
             ),
           );
           return;

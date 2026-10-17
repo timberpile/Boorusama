@@ -30,30 +30,31 @@ class GeneralTagContextMenu extends ConsumerWidget
   Widget build(BuildContext context, WidgetRef ref) {
     final globalNotifier = ref.watch(globalBlacklistedTagsProvider.notifier);
     final config = ref.watchConfig;
-    final configAuth = ref.watchConfigAuth;
+    final followCount = ref.watch(
+      followedTopicCountProvider((profileId: config.id, query: tag)),
+    );
 
     return KurumiContextMenu(
       menuItemsBuilder: (_) => [
         copyButton(context, tag),
         searchButton(ref, tag),
-        if (ref.watch(followingTopicTrackingSupportedProvider(configAuth)))
-          KurumiContextMenuTile(
-            title:
-                ref.watch(
-                      followedTopicCountProvider((
-                        profileId: config.id,
-                        query: tag,
-                      )),
-                    ) >
-                    0
-                ? context.t.following_topics.following
-                : context.t.following_topics.follow,
-            onTap: () => showTopicFolderFollowDialog(
-              context,
-              profileId: config.id,
-              query: tag,
-            ),
+        KurumiContextMenuTile(
+          title: followCount > 0
+              ? context.t.following_topics.following
+              : context.t.following_topics.follow,
+          trailing: followCount > 0
+              ? Badge(
+                  label: Text('$followCount'),
+                  child: const Icon(Icons.rss_feed),
+                )
+              : const Icon(Icons.rss_feed),
+          onTap: () => showTopicFollowFlow(
+            context,
+            ref,
+            profileId: config.id,
+            query: tag,
           ),
+        ),
         KurumiContextMenuTile(
           title: context.t.post.detail.add_to_favorites,
           onTap: () {

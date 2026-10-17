@@ -37,15 +37,18 @@ void main() {
     'Follow creates an ordinary visible Topic without a parallel feed',
     (tester) async {
       await openPicker(tester);
-      expect(find.text('Follow Topic'), findsOneWidget);
+      expect(find.text('Follow'), findsOneWidget);
       expect(find.text('Create feed'), findsNothing);
-      await tester.enterText(find.byType(TextField), 'Artist');
-      await tester.tap(find.widgetWithText(FilledButton, 'Follow'));
+      expect(find.text('artist_tag'), findsOneWidget);
+      expect(find.text('Home'), findsOneWidget);
+      expect(tester.widget<Checkbox>(find.byType(Checkbox)).value, isFalse);
+      await tester.tap(find.text('Home'));
+      await tester.tap(find.widgetWithText(FilledButton, 'Done'));
       await drain(tester);
       await tester.pumpAndSettle();
       final topics = (await tester.runAsync(harness.repository.getAll))!;
       expect(topics.single.query, 'artist_tag');
-      expect(topics.single.name, 'Artist');
+      expect(topics.single.name, isNull);
       expect(
         (await tester.runAsync(
           harness.repository.getOrganization,
@@ -61,8 +64,7 @@ void main() {
   ) async {
     await tester.runAsync(() => harness.seed([topicFixture()]));
     await openPicker(tester);
-    await tester.enterText(find.byType(TextField), 'Unsaved');
-    await tester.tap(find.text('Cancel'));
+    await tester.tapAt(const Offset(5, 5));
     await tester.pumpAndSettle();
     expect(
       (await tester.runAsync(harness.repository.getAll))!.single.id,

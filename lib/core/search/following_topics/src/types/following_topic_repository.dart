@@ -11,6 +11,17 @@ final class MissingFollowingTopicProfileException implements Exception {}
 abstract interface class FollowingTopicRepository {
   Future<List<FollowingTopic>> getAll();
   Future<List<TopicFeed>> getFeeds();
+  Future<List<TopicFeedMetadata>> getFeedMetadata() async => [
+    for (final feed in await getFeeds())
+      TopicFeedMetadata(
+        id: feed.id,
+        profileId: feed.profileId,
+        name: feed.name,
+        position: feed.position,
+        maxPosts: feed.maxPosts,
+        sourceIds: feed.sourceIds,
+      ),
+  ];
   Future<bool> migrateLegacyTopicFeeds({
     bool topicsAutoUpdateEnabled = true,
     bool feedsAutoUpdateEnabled = true,
@@ -57,8 +68,12 @@ abstract interface class FollowingTopicRepository {
   Future<FollowingTopic> saveTopicInNewFolder({
     required String profileId,
     required String query,
+    SearchQueryStructure? queryStructure,
     required String? name,
     required String folderName,
+    String? parentFolderId,
+    bool feedEnabled = false,
+    int feedMaxPosts = 1000,
     String? existingTopicId,
   });
   Future<List<FollowingTopic>> reorder(

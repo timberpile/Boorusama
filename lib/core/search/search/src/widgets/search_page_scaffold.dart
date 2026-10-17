@@ -1,6 +1,5 @@
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -23,12 +22,8 @@ import '../../../selected_tags/providers.dart';
 import '../../../selected_tags/types.dart';
 import '../../../suggestions/providers.dart';
 import '../../../suggestions/widgets.dart';
-import '../../../following_topics/providers.dart';
 import '../../../following_topics/types.dart';
-import '../../../following_topics/widgets.dart';
 import '../../../following_topics/src/widgets/topic_follow_control.dart';
-import '../../../following_topics/src/widgets/follow_topic_folder_picker.dart';
-import '../../../following_topics/src/widgets/search_folder_dialog.dart';
 import '../routes/params.dart';
 import '../types/search_bar_position.dart';
 import '../views/search_landing_view.dart';
@@ -189,6 +184,11 @@ class _SearchPageScaffoldState<T extends Post>
                                 ResultHeaderWithProvider(
                                   selectedTagsString: value,
                                   onRefresh: null,
+                                  fallback: ResultHeaderFromController(
+                                    controller: postController,
+                                    onRefresh: null,
+                                    hasCount: true,
+                                  ),
                                 ),
                               PostCountMethod.search =>
                                 ResultHeaderFromController(
@@ -204,11 +204,14 @@ class _SearchPageScaffoldState<T extends Post>
                             constraints: BoxConstraints(
                               maxWidth: constraints.maxWidth * 0.55,
                             ),
-                            child: _FollowTopicAction(
+                            child: FollowTopicButton(
                               query: value,
                               queryStructure: _typedQueryStructure(
                                 _tagsController.tags,
                               ),
+                              originatingTopicId:
+                                  widget.params.originatingTopicId,
+                              compact: true,
                               onFeedback: (message) =>
                                   _topicFeedback.value = message,
                             ),
@@ -262,178 +265,6 @@ SearchQueryStructure? _typedQueryStructure(List<TagSearchItem> tags) =>
     tags.isNotEmpty && tags.every((tag) => !tag.isRaw)
     ? SearchQueryStructure.typedTags(tags.map((tag) => tag.toString()))
     : null;
-
-class _FollowTopicAction extends ConsumerStatefulWidget {
-  const _FollowTopicAction({
-    required this.query,
-    required this.queryStructure,
-    required this.onFeedback,
-  });
-
-  final String query;
-  final SearchQueryStructure? queryStructure;
-  final ValueChanged<String?> onFeedback;
-
-  @override
-  ConsumerState<_FollowTopicAction> createState() => _FollowTopicActionState();
-}
-
-class _FollowTopicActionState extends ConsumerState<_FollowTopicAction> {
-  var _busy = false;
-  var _saved = false;
-  ({String profileId, String query})? _pendingTopic;
-
-  FollowingTopic? _findTopic(
-    List<FollowingTopic> topics,
-    String profileId,
-    String query,
-  ) {
-    final identity = normalizeSearchIdentity(query);
-    for (final topic in topics) {
-      if (topic.profileId == profileId &&
-          normalizeSearchIdentity(topic.query) == identity) {
-        return topic;
-      }
-    }
-    return null;
-  }
-
-  void _feedback(String message) {
-    widget.onFeedback(message);
-  }
-
-  Future<void> _manage(String profileId, FollowingTopic? existing) async {
-    if (!ref.read(
-      followingTopicTrackingSupportedProvider(ref.readConfigAuth),
-    )) {
-      _feedback(context.t.following_topics.profile_unsupported);
-      return;
-    }
-    final query = widget.query;
-    setState(() => _busy = true);
-    widget.onFeedback(null);
-    try {
-      final folders =
-          ref.read(followingTopicsProvider).valueOrNull?.organization.folders ??
-          [];
-      var folderId = folders
-          .where(
-            (f) => f.searchIds.contains(existing?.id),
-          )
-          .firstOrNull
-          ?.id;
-      var isNewFolder = false;
-      FollowingTopic? savedNewTopic;
-      final notifier = ref.read(followingTopicsProvider.notifier);
-      final name = await showFollowTopicDialog(
-        context,
-        query: query,
-        initialName: existing?.name,
-        isFollowing: existing != null,
-        extra: FollowTopicFolderPicker(
-          initialFolderId: folderId,
-          onSelected: (id, isNew) {
-            folderId = id;
-            isNewFolder = isNew;
-          },
-        ),
-        onSubmit: (dialogContext, name) async {
-          if (!isNewFolder) return true;
-          final folderName = await showSearchFolderNameDialog(dialogContext);
-          if (folderName == null || !mounted) return false;
-          if (existing == null) {
-            _pendingTopic = (profileId: profileId, query: query);
-          }
-          try {
-            savedNewTopic = await notifier.saveTopicInNewFolder(
-              profileId: profileId,
-              query: query,
-              name: name,
-              folderName: folderName,
-              existingTopicId: existing?.id,
-            );
-            return true;
-          } catch (_) {
-            _pendingTopic = null;
-            _saved = false;
-            rethrow;
-          }
-        },
-      );
-      if (!mounted || name == null) return;
-      if (savedNewTopic case final topic?) {
-        if (existing == null) {
-          final refresh = await notifier.refresh(topic.id);
-          if (mounted && refresh is SearchRefreshFailed) {
-            _feedback(context.t.following_topics.snapshot_failed);
-          }
-        }
-        return;
-      }
-      switch (existing) {
-        case final topic?:
-          await notifier.rename(topic.id, name);
-          await notifier.moveTopicToSharedFolder(topic.id, folderId);
-
-        case null:
-          _pendingTopic = (profileId: profileId, query: query);
-          final result = await notifier.follow(
-            profileId: profileId,
-            query: query,
-            queryStructure: widget.queryStructure,
-            name: name,
-            folderId: folderId,
-          );
-          if (!mounted) return;
-          if (result.refresh case SearchRefreshFailed()) {
-            _feedback(context.t.following_topics.snapshot_failed);
-          }
-      }
-    } catch (_) {
-      if (mounted) {
-        _feedback(
-          _saved
-              ? context.t.following_topics.snapshot_failed
-              : context.t.following_topics.save_failed,
-        );
-      }
-    } finally {
-      _pendingTopic = null;
-      _saved = false;
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (widget.query.trim().isEmpty) return const SizedBox.shrink();
-    final profileId = ref.watchConfig.id;
-    final topics = ref.watch(followingTopicsProvider);
-    final existing = _findTopic(
-      topics.valueOrNull?.topics ?? const [],
-      profileId,
-      widget.query,
-    );
-    ref.listen(followingTopicsProvider, (_, next) {
-      if (_pendingTopic case final pending? when !_saved) {
-        final saved = _findTopic(
-          next.valueOrNull?.topics ?? const [],
-          pending.profileId,
-          pending.query,
-        );
-        if (saved != null) {
-          _saved = true;
-        }
-      }
-    });
-    return TopicFollowPill(
-      following: existing != null,
-      onPressed: _busy || !topics.hasValue
-          ? null
-          : () => _manage(profileId, existing),
-    );
-  }
-}
 
 class DefaultMobileSearchLandingView extends StatelessWidget {
   const DefaultMobileSearchLandingView({

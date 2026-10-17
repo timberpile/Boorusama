@@ -225,6 +225,49 @@ void main() {
     },
   );
 
+  testWidgets('feed refresh shows stable determinate batch progress', (
+    tester,
+  ) async {
+    final secondCheck = Completer<void>();
+    var checks = 0;
+    final h = FollowingTopicHarness(
+      fetchPosts: (_, _, _, _) async {
+        checks++;
+        if (checks == 2) await secondCheck.future;
+        return Either.of(const PostResult(posts: <Post>[], total: 0));
+      },
+    );
+    addTearDown(h.dispose);
+    final feed = await seed(tester, h, count: 2);
+    await h.pump(
+      tester,
+      TopicFeedPage(feedId: feed.id, profileId: testProfile.id),
+    );
+
+    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Refresh'));
+    await drain(tester);
+
+    final running = h.container.read(followingTopicsProvider).requireValue;
+    expect(running.refreshingFeedId, feed.id);
+    expect(running.feedRefreshChecked, 1);
+    expect(running.feedRefreshTotal, 2);
+    expect(find.text('Checked 1 of 2 · 1 remaining'), findsOneWidget);
+    expect(
+      tester
+          .widget<LinearProgressIndicator>(
+            find.byType(LinearProgressIndicator),
+          )
+          .value,
+      0.5,
+    );
+
+    secondCheck.complete();
+    await drain(tester);
+    expect(find.byType(LinearProgressIndicator), findsNothing);
+  });
+
   for (final narrow in [false, true]) {
     testWidgets(
       'profile and last post share a row aligned to the right (narrow: $narrow)',

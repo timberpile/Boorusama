@@ -4,6 +4,7 @@ import 'package:scroll_to_index/scroll_to_index.dart';
 
 // Project imports:
 import '../../../../../foundation/display.dart';
+import '../../../../configs/config/providers.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../router.dart';
 import '../../../listing/providers.dart';
@@ -18,6 +19,7 @@ void goToPostDetailsPageFromPosts<T extends Post>({
   required int initialIndex,
   required String? initialThumbnailUrl,
   AutoScrollController? scrollController,
+  BooruConfig? config,
 }) => goToPostDetailsPageCore(
   ref: ref,
   posts: posts,
@@ -25,6 +27,7 @@ void goToPostDetailsPageFromPosts<T extends Post>({
   scrollController: scrollController,
   initialThumbnailUrl: initialThumbnailUrl,
   hero: false,
+  config: config,
 );
 
 void goToPostDetailsPageFromController<T extends Post>({
@@ -33,6 +36,7 @@ void goToPostDetailsPageFromController<T extends Post>({
   required PostGridController<T> controller,
   required String? initialThumbnailUrl,
   AutoScrollController? scrollController,
+  BooruConfig? config,
 }) => goToPostDetailsPageCore(
   ref: ref,
   posts: controller.items.toList(),
@@ -40,6 +44,7 @@ void goToPostDetailsPageFromController<T extends Post>({
   scrollController: scrollController,
   initialThumbnailUrl: initialThumbnailUrl,
   hero: true,
+  config: config,
   liveSource: PostDetailsLiveSource(
     changes: controller,
     posts: () => controller.items,
@@ -59,6 +64,7 @@ void goToPostDetailsPageCore<T extends Post>({
   required String? initialThumbnailUrl,
   AutoScrollController? scrollController,
   PostDetailsLiveSource? liveSource,
+  BooruConfig? config,
 }) {
   ref.router.push(
     Uri(
@@ -71,7 +77,10 @@ void goToPostDetailsPageCore<T extends Post>({
       isDesktop: ref.context.isLargeScreen,
       hero: hero,
       initialThumbnailUrl: initialThumbnailUrl,
-      config: null,
+      // Preserve the profile that owns this listing. The mixed viewer still
+      // resolves every post by origin first, but this gives it an exact
+      // fallback for older rows and duplicate profiles on the same host.
+      config: config ?? ref.readConfig,
       useMixedViewer: true,
       liveSource: liveSource,
     ),
