@@ -1,5 +1,6 @@
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:foundation/foundation.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
@@ -156,7 +157,9 @@ Future<DownloadTaskInfo?> _download(
     deviceStoragePermissionProvider.notifier,
   );
 
-  final effectiveQuality = quality ?? params.settings.downloadQuality.name;
+  final effectiveQuality =
+      quality ??
+      (overrideUrl != null ? 'custom' : params.settings.downloadQuality.name);
   final urlData = overrideUrl != null
       ? DownloadUrlData.urlOnly(overrideUrl)
       : await params.downloadFileUrlExtractor.getDownloadFileUrl(
@@ -174,9 +177,23 @@ Future<DownloadTaskInfo?> _download(
 
   if (urlData == null || urlData.url.isEmpty) {
     logger.error('Single Download', 'No download url found, aborting...');
-    // if (ref.context.mounted) {
-    //   Kurumi.showErrorToast(ref.context, 'Download aborted, no download url found');
-    // }
+    final context = ref.read(appNavigationProvider).navigatorKey.currentContext;
+    final message =
+        (context?.t ?? Translations()).post.action.share_media_unavailable;
+    ref
+        .read(immediateDownloadActivitiesProvider.notifier)
+        .recordImmediateOutcome(
+          DownloadFailure(
+            GenericDownloadError(
+              savedPath: const None(),
+              fileName: downloadable.sitePostId ?? downloadable.id.toString(),
+              message: message,
+            ),
+          ),
+          label: downloadable.sitePostId ?? downloadable.id.toString(),
+          thumbnailUrl: downloadable.thumbnailImageUrl,
+        );
+    showDownloadErrorToast(context, message);
     return null;
   }
 

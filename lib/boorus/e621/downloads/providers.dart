@@ -145,28 +145,35 @@ final class E621DownloadSource implements DownloadSourceProvider {
       if (post.thumbnailImageUrl.isNotEmpty)
         DownloadSource(
           url: post.thumbnailImageUrl,
+          quality: 'preview',
           name: context.t.settings.download.qualities.preview,
         ),
       if (post.sampleImageUrl.isNotEmpty)
         DownloadSource(
           url: post.sampleImageUrl,
+          quality: 'sample',
           name: context.t.settings.download.qualities.sample,
         ),
       if (post case final Post e621Post) ...[
-        if (e621Post.videoVariants[E621VideoVariantType.v480p] case final v?)
+        if (e621Post.videoVariants[E621VideoVariantType.v480p] case final v?
+            when v.url.isNotEmpty)
           DownloadSource(
             url: v.url,
+            quality: '480p',
             name: '480p',
           ),
-        if (e621Post.videoVariants[E621VideoVariantType.v720p] case final v?)
+        if (e621Post.videoVariants[E621VideoVariantType.v720p] case final v?
+            when v.url.isNotEmpty)
           DownloadSource(
             url: v.url,
+            quality: '720p',
             name: '720p',
           ),
       ],
       if (post.originalImageUrl.isNotEmpty)
         DownloadSource(
           url: post.originalImageUrl,
+          quality: 'original',
           name: context.t.settings.download.qualities.original,
         ),
     ];

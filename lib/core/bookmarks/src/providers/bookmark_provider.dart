@@ -15,10 +15,13 @@ import '../../../boorus/booru/types.dart';
 import '../../../boorus/engine/providers.dart';
 import '../../../configs/config/types.dart';
 import '../../../configs/manage/providers.dart';
+import '../../../configs/network/providers.dart';
+import '../../../ddos/handler/providers.dart';
 import '../../../download_activity/activity.dart';
 import '../../../downloads/downloader/providers.dart';
 import '../../../downloads/downloader/types.dart';
 import '../../../downloads/filename/types.dart';
+import '../../../downloads/sidecar/types.dart';
 import '../../../http/client/providers.dart';
 import '../../../posts/post/providers.dart';
 import '../../../posts/post/types.dart';
@@ -1050,8 +1053,28 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     if (networkConstraint == null) return;
 
     final downloader = ref.read(downloadServiceProvider);
-    final headers = ref.read(httpHeadersProvider(auth));
+    final configs = ref.read(booruConfigProvider);
     final tasks = bookmarks.map((bookmark) async {
+      final post = bookmark.toPost();
+      final sourceAuth = switch (const PostOriginResolver().resolve(
+        post.origin,
+        configs,
+      )) {
+        ResolvedPostOrigin(:final config) => config.auth,
+        _ => null,
+      };
+      // Missing or ambiguous origins must not borrow another profile's credentials.
+      final request = sourceAuth == null
+          ? const NetworkSettings().resolveMedia(bookmark.originalUrl)
+          : ref
+                .read(networkSettingsProvider(sourceAuth))
+                .resolveMedia(
+                  bookmark.originalUrl,
+                  headers: ref.read(httpHeadersProvider(sourceAuth)),
+                );
+      final bypassHeaders = await ref.read(
+        bypassDdosHeadersProvider(request.url).future,
+      );
       final fileName = await fallbackFileNameBuilder.generate(
         settings,
         download,
@@ -1062,15 +1085,28 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
         DownloadOptions.fromSettings(
           settings,
           config: download,
-          url: bookmark.originalUrl,
+          url: request.url,
+          sidecar: settings.downloadSidecarFormat == SidecarFormat.off
+              ? null
+              : SidecarSnapshot.fromPost(
+                  post,
+                  format: settings.downloadSidecarFormat,
+                  quality: 'original',
+                  site: post.origin.sourceHost.isEmpty
+                      ? null
+                      : 'https://${post.origin.sourceHost}',
+                  postUrl: bookmark.sourceUrl,
+                ),
           metadata: DownloaderMetadata(
             thumbnailUrl: bookmark.thumbnailUrl,
+            isVideo: bookmark.isVideo,
+            mediaHostOverridden: request.overridden,
             fileSize: null,
             siteUrl: bookmark.sourceUrl,
             group: null,
           ),
           filename: fileName,
-          headers: headers,
+          headers: {...request.headers, ...bypassHeaders},
           networkConstraint: networkConstraint,
         ),
       );

@@ -19,41 +19,49 @@ final class PhilomenaDownloadSource implements DownloadSourceProvider {
         if (rep.thumbTiny.isNotEmpty)
           DownloadSource(
             url: rep.thumbTiny,
+            quality: 'thumb_tiny',
             name: 'Thumb Tiny',
           ),
         if (rep.thumbSmall.isNotEmpty)
           DownloadSource(
             url: rep.thumbSmall,
+            quality: 'thumb_small',
             name: 'Thumb Small',
           ),
         if (rep.thumb.isNotEmpty)
           DownloadSource(
             url: rep.thumb,
+            quality: 'thumb',
             name: 'Thumb',
           ),
         if (rep.small.isNotEmpty)
           DownloadSource(
             url: rep.small,
+            quality: 'small',
             name: 'Small',
           ),
         if (rep.medium.isNotEmpty)
           DownloadSource(
             url: rep.medium,
+            quality: 'medium',
             name: 'Medium',
           ),
         if (rep.tall.isNotEmpty)
           DownloadSource(
             url: rep.tall,
+            quality: 'tall',
             name: 'Tall',
           ),
         if (rep.large.isNotEmpty)
           DownloadSource(
             url: rep.large,
+            quality: 'large',
             name: context.t.settings.download.qualities.large,
           ),
         if (rep.full.isNotEmpty)
           DownloadSource(
             url: rep.full,
+            quality: 'original',
             name: context.t.settings.download.qualities.original,
           ),
       ];
@@ -63,16 +71,19 @@ final class PhilomenaDownloadSource implements DownloadSourceProvider {
       if (post.thumbnailImageUrl.isNotEmpty)
         DownloadSource(
           url: post.thumbnailImageUrl,
+          quality: 'preview',
           name: context.t.settings.download.qualities.preview,
         ),
       if (post.sampleImageUrl.isNotEmpty)
         DownloadSource(
           url: post.sampleImageUrl,
+          quality: 'sample',
           name: context.t.settings.download.qualities.sample,
         ),
       if (post.originalImageUrl.isNotEmpty)
         DownloadSource(
           url: post.originalImageUrl,
+          quality: 'original',
           name: context.t.settings.download.qualities.original,
         ),
     ];

@@ -45,16 +45,18 @@ abstract interface class DownloadSourceProvider {
 
 class DownloadSource extends Equatable {
   const DownloadSource({
-    required this.url,
+    required String url,
     required this.name,
-  }) : quality = null;
+    this.quality,
+  }) : url = url;
 
   const DownloadSource.quality({
     required this.quality,
     required this.name,
-  }) : url = '';
+  }) : url = null;
 
-  final String url;
+  /// Null selects the quality resolver; an empty concrete URL is invalid.
+  final String? url;
   final String name;
   final String? quality;
 
