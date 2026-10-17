@@ -167,6 +167,20 @@ class _PostDetailPageScaffoldState<T extends Post>
     super.dispose();
   }
 
+  void _handleMediaKey(VoidCallback action) {
+    final focusedContext = FocusManager.instance.primaryFocus?.context;
+    final editing =
+        focusedContext?.widget is EditableText ||
+        focusedContext?.findAncestorWidgetOfExactType<EditableText>() != null;
+    if (!_controller.keyboardShortcutsEnabled.value ||
+        !visibilityNotifier.value ||
+        !widget.controller.currentPost.value.isVideo ||
+        editing) {
+      return;
+    }
+    action();
+  }
+
   var _previouslyPlaying = false;
 
   Set<DetailsPart> _resolveFullDetailsParts({
@@ -290,12 +304,23 @@ class _PostDetailPageScaffoldState<T extends Post>
           widget.posts[_controller.page],
         ),
         const SingleActivator(LogicalKeyboardKey.mediaPlayPause): () =>
-            widget.controller.toggleCurrentVideo(showAnimation: true),
+            _handleMediaKey(
+              () => widget.controller.toggleCurrentVideo(showAnimation: true),
+            ),
         const SingleActivator(LogicalKeyboardKey.mediaPlay): () =>
-            widget.controller.setCurrentVideoPlaying(true, showAnimation: true),
-        const SingleActivator(LogicalKeyboardKey.mediaPause): () => widget
-            .controller
-            .setCurrentVideoPlaying(false, showAnimation: true),
+            _handleMediaKey(
+              () => widget.controller.setCurrentVideoPlaying(
+                true,
+                showAnimation: true,
+              ),
+            ),
+        const SingleActivator(LogicalKeyboardKey.mediaPause): () =>
+            _handleMediaKey(
+              () => widget.controller.setCurrentVideoPlaying(
+                false,
+                showAnimation: true,
+              ),
+            ),
       },
       child: VisibilityDetector(
         key: const Key('post_details_page_scaffold'),

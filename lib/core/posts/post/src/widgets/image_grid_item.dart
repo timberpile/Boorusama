@@ -80,47 +80,61 @@ class ImageGridItem extends StatelessWidget {
           children: [
             _buildImage(context),
             Positioned.fill(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(top: 1, left: 1),
-                    child: _buildOverlayIcon(context),
-                  ),
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.all(4),
-                      child: LayoutBuilder(
-                        builder: (context, constraints) => Row(
-                          children: [
-                            if (scoreWidget != null)
-                              ConstrainedBox(
-                                constraints: BoxConstraints(
-                                  maxWidth: constraints.maxWidth,
-                                ),
-                                child: Align(
-                                  widthFactor: 1,
-                                  alignment: Alignment.bottomLeft,
-                                  child: scoreWidget,
-                                ),
-                              ),
-                            Expanded(
-                              child: Padding(
-                                padding: EdgeInsets.only(
-                                  left: scoreWidget == null ? 0 : 4,
-                                ),
-                                child: Align(
-                                  alignment: Alignment.bottomRight,
-                                  child: hideOverlay ? null : quickActionButton,
-                                ),
-                              ),
-                            ),
-                          ],
+              child: LayoutBuilder(
+                builder: (context, tileConstraints) => Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Bound metadata without clipping the quick-action burst.
+                    ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxHeight: tileConstraints.maxHeight,
+                      ),
+                      child: ClipRect(
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 1, left: 1),
+                          child: _buildOverlayIcon(context),
                         ),
                       ),
                     ),
-                  ),
-                ],
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.all(4),
+                        child: LayoutBuilder(
+                          builder: (context, constraints) => Row(
+                            children: [
+                              if (scoreWidget != null)
+                                ConstrainedBox(
+                                  constraints: BoxConstraints(
+                                    maxWidth: constraints.maxWidth,
+                                  ),
+                                  child: ClipRect(
+                                    child: Align(
+                                      widthFactor: 1,
+                                      alignment: Alignment.bottomLeft,
+                                      child: scoreWidget,
+                                    ),
+                                  ),
+                                ),
+                              Expanded(
+                                child: Padding(
+                                  padding: EdgeInsets.only(
+                                    left: scoreWidget == null ? 0 : 4,
+                                  ),
+                                  child: Align(
+                                    alignment: Alignment.bottomRight,
+                                    child: hideOverlay
+                                        ? null
+                                        : quickActionButton,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],

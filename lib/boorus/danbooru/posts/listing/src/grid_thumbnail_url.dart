@@ -39,7 +39,22 @@ String _danbooruGridThumbnailUrl(
 ) {
   final isGif = isOriginalGridGif(post);
   if (isGif && !shouldAutoplayGridGif(post, settings)) {
-    return _variantUrl(post, PostQualityType.v720x720);
+    final tier = switch (settings.imageQuality) {
+      ImageQuality.low => switch (settings.gridSize) {
+        GridSize.micro || GridSize.tiny => PostQualityType.v180x180,
+        _ => PostQualityType.v360x360,
+      },
+      ImageQuality.automatic ||
+      ImageQuality.high => switch (settings.gridSize) {
+        GridSize.micro => PostQualityType.v180x180,
+        GridSize.tiny => PostQualityType.v360x360,
+        _ => PostQualityType.v720x720,
+      },
+      ImageQuality.highest when settings.gridSize == GridSize.micro =>
+        PostQualityType.v360x360,
+      ImageQuality.highest || ImageQuality.original => PostQualityType.v720x720,
+    };
+    return _variantUrl(post, tier);
   }
 
   return switch (isGif

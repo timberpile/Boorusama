@@ -122,6 +122,54 @@ void main() {
     }
   }
 
+  for (final width in [40.0, 80.0]) {
+    for (final height in [1.0, 20.0, 40.0]) {
+      testWidgets('short metadata tile $width x $height at 200% text', (
+        tester,
+      ) async {
+        var actionTaps = 0;
+        final actionFocus = FocusNode();
+        addTearDown(actionFocus.dispose);
+        await tester.pumpWidget(
+          _app(
+            SizedBox(
+              width: width,
+              child: ImageGridItem(
+                image: SizedBox(width: width, height: height),
+                isGif: true,
+                hasComments: true,
+                isTranslated: true,
+                hasParentOrChildren: true,
+                isAI: true,
+                scoreWidget: const ImageScoreWidget(score: 123456),
+                quickActionButton: ThumbnailActionGroup(
+                  children: [
+                    IconButton(
+                      focusNode: actionFocus,
+                      onPressed: () => actionTaps++,
+                      icon: const Icon(Icons.download),
+                    ),
+                    QuickFavoriteButton(
+                      isFaved: false,
+                      onFavToggle: (_) async => actionTaps++,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            scale: 2,
+          ),
+        );
+        expect(tester.takeException(), isNull);
+        expect(find.byType(IconButton), findsNothing);
+        expect(find.byType(QuickFavoriteButton), findsNothing);
+        expect(actionFocus.context, isNull);
+        await tester.tapAt(tester.getCenter(find.byType(ImageGridItem)));
+        expect(actionTaps, 0);
+      });
+    }
+  }
+
   testWidgets(
     'profile and network logo states stay inside the thumbnail area',
     (tester) async {
