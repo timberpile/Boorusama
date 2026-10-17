@@ -51,8 +51,8 @@ class _NoOriginalAdapter implements HttpClientAdapter {
               'medium': 'https://static.zerochan.net/post.101.240.jpg',
               'tags': ['cat'],
             })
-          : '<html><head><title>Post 101</title></head><body>'
-                '<img src="https://static.zerochan.net/post.101.600.jpg">'
+          : '<html><head><title>Post 101</title></head><body> '
+                '<img src="https://static.zerochan.net/post.101.600.jpg"> '
                 '</body></html>',
       200,
       headers: {
@@ -118,7 +118,7 @@ void main() {
         .download(
           TestPost(
             id: 101,
-            tags: {'cat'},
+            tags: const {'cat'},
             thumbnailImageUrl: 'https://static.zerochan.net/post.101.240.jpg',
             // A guessed listing URL must not silently replace unresolved Original.
             originalImageUrl: 'https://static.zerochan.net/post.101.full.jpg',
@@ -204,7 +204,7 @@ void main() {
         expect(service.requests, isEmpty);
         expect(adapter.requests.map((uri) => uri.query), ['json', '']);
       } finally {
-        dismissAllToast(showAnim: false);
+        dismissAllToast();
         await harness.teardown(tester);
         // OKToast schedules animation callbacks that outlive its disposed widget.
         await tester.pump(const Duration(seconds: 5));
