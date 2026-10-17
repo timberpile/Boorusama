@@ -95,9 +95,75 @@ Evidence logs are retained locally under `/tmp/migration-fixes-*`, including
 
 ## Limits
 
-Manual UI acceptance is assigned to the user by A02. No phone/emulator operation,
-installed upgrade/signing acceptance, live authenticated service checks, or
-Windows/macOS/iOS native execution is claimed. Linux atomic sidecar publication
-is exercised locally; other platform implementations require native acceptance.
+The user subsequently requested emulator verification. The bounded checks below
+supplement A02's manual checklist; they do not complete that checklist.
+Installed upgrade/signing acceptance, live authenticated service checks, and
+Windows/macOS/iOS native execution remain unverified. Linux atomic sidecar
+publication is exercised locally; other platform implementations require native
+acceptance.
 The gated Rule34 listing switch remains deferred. Local fixes do not authorize
 integration, pushing, PR creation, tagging or release publication.
+
+## Live verification — 2026-10-17
+
+Candidate: `2fedcb0df` (runtime/test candidate `0c1ade6ee`, followed by a
+documentation-only commit). Installed the previously built development APK
+with `adb -s emulator-5554 install -r`, without clearing data. This emulator had
+no Boorusama installation, so this was a fresh install, not an upgrade test.
+
+- Device: exclusively leased `emulator-5554`, Android 16 / API 36, x86_64.
+- Package: `com.timberpile.boorusama.dev`,
+  `4.6.1-timberpile.1-dev`, version code 190, target SDK 36.
+- APK SHA-256:
+  `ce78683d78ba2b351069b54c1c77f3785db297e0b467a138668c652aa99b7624`.
+- UI control: Maestro MCP, explicitly targeted to the leased emulator. The
+  physical device discovered by ADB was not used. Lease released after checks.
+
+### Confirmed on the emulator
+
+- Fresh startup completed and the default Safebooru profile loaded 60 posts.
+  Dismissed What's New; it did not reappear on the subsequent app launch.
+- Created an anonymous Rule34 profile and switched to it. The live listing
+  request opened the native challenge recovery screen, showing Rule34's CAPTCHA.
+  Cancel returned to the usable `403 / Access denied` page with a Retry button.
+  No challenge was solved and no successful cookie transfer is claimed.
+- Tapping Retry completed with `0 posts / No data available`. A flow expecting
+  the CAPTCHA to reopen failed its assertion. This is a separate observation,
+  not a passing challenge retry/solve test; the response behind the empty result
+  was not captured, so its cause is unestablished.
+- Switched back to the default profile. Shared Search Options exposed Rating,
+  Date, Sort order, Uploader, Pool and Favorites by user. Rating offered General,
+  Sensitive, Questionable and Explicit. Selecting General and Add produced
+  `RAW   rating:g `; submitting loaded 60 live posts. The final Maestro assertion
+  used the complete chip label after an initial exact-text selector mismatch.
+  Android's first-use stylus tutorial interrupted an earlier interaction and
+  was dismissed before repeating it.
+
+### Anonymous live API probes from the host
+
+These were bounded, read-only HTTPS requests with `limit=2`, `pid=0`, and
+`tags=rating:safe landscape`. They are host-network evidence, distinct from the
+emulator UI checks above. No account credentials were transmitted.
+
+| Endpoint | Observed response |
+| --- | --- |
+| Proposed `https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1` | HTTP 200, JSON string: `Missing authentication. Go to api.rule34.xxx for more information`; no redirect; `Access-Control-Allow-Origin: *`. |
+| Existing `https://rule34.xxx/index.php?page=dapi&s=post&q=index` | HTTP 403, HTML CAPTCHA page; no redirect; no CORS header. |
+
+The CORS header observation is not browser CORS acceptance. Neither probe
+returned `Retry-After`; no live 429 was induced.
+
+### Outstanding live acceptance
+
+Authenticated list/details, pagination, filter/limit semantics, successful
+challenge completion, cookie origin/path/transport isolation, and cache
+isolation remain open. Automatic approval review rejected transmitting the
+stored Rule34 test user ID/API key to the external API without explicit approval
+for that payload/destination. Approval was requested; the authenticated probe
+was not run. The emulator contained no pre-signed-in Boorusama account.
+
+No runtime files changed for this verification. The complete local suite result
+above remains applicable to the same runtime candidate. These observations do
+not activate B10 or establish production-signed upgrades, other ABIs, enlarged
+text/narrow-width acceptance, native sidecar publication, or the remaining media
+and download checklist.
