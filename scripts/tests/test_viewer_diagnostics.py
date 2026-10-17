@@ -13,6 +13,8 @@ import compare_viewer_performance as comparison
 
 
 def fixture(name, *, legacy=True):
+    if name.endswith('.dart'):
+        name += '.fixture'
     bounded = FIXTURES / 'bounded' / name
     path = bounded if not legacy and bounded.exists() else FIXTURES / 'legacy' / name
     return path.read_text()

@@ -14,6 +14,8 @@ remain unchanged.
   containing an unrelated sentinel. They are not historical translation dumps.
   Overlay translations come from the current repository, as in production.
 
-Test fixtures are transformation inputs, not runnable replacement application
-sources. Tests retain legacy/bounded behavior assertions, complete installation,
+Dart inputs use a `.dart.fixture` suffix so static analysis does not treat
+historical snippets with relative imports as current application sources. Their
+bytes remain identical to the recorded revisions. Test fixtures are
+transformation inputs, not runnable replacement application sources. Tests retain legacy/bounded behavior assertions, complete installation,
 unknown/dirty-revision rejection, and atomic no-write failure behavior.
