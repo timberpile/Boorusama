@@ -1,0 +1,405 @@
+// Flutter imports:
+import 'package:flutter/foundation.dart';
+
+// Package imports:
+import 'package:cache_manager/cache_manager.dart';
+import 'package:extended_image/extended_image.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:kurumi/kurumi.dart';
+import 'package:kurumi/material.dart';
+
+// Project imports:
+import '../../../../../foundation/platform.dart';
+import '../../../../boorus/engine/providers.dart';
+import '../../../../configs/config/types.dart';
+import '../../../../configs/gesture/types.dart';
+import '../../../../videos/player/widgets.dart';
+import '../../../../developer_options/providers.dart';
+import '../../../../widgets/widgets.dart';
+import '../../../details_pageview/widgets.dart';
+import '../../../listing/providers.dart';
+import '../../../listing/types.dart';
+import '../../../post/types.dart';
+import '../providers/note_overlay_provider.dart';
+import '../../../../settings/providers.dart';
+import 'play_pause_animation_overlay.dart';
+import 'post_details_controller.dart';
+import 'post_details_page_view_scope.dart';
+import 'post_media.dart';
+import 'seek_animation_overlay.dart';
+import 'post_viewer_transformation_scope.dart';
+import 'zoom_edge_page_gesture.dart';
+
+class PostDetailsItem<T extends Post> extends ConsumerStatefulWidget {
+  const PostDetailsItem({
+    required this.index,
+    required this.posts,
+    required this.transformController,
+    required this.isInitPageListenable,
+    required this.imageCacheManager,
+    required this.detailsController,
+    required this.authConfig,
+    required this.viewerConfig,
+    required this.gestureConfig,
+    required this.imageUrlBuilder,
+    required this.mediaAspectRatioBuilder,
+    required this.videoAspectRatioBuilder,
+    super.key,
+  });
+
+  final int index;
+  final List<T> posts;
+  final TransformationController transformController;
+  final ValueListenable<bool> isInitPageListenable;
+  final ImageCacheManager? imageCacheManager;
+  final PostDetailsController<T> detailsController;
+  final BooruConfigAuth authConfig;
+  final BooruConfigViewer viewerConfig;
+  final PostGestureConfig? gestureConfig;
+  final String Function(T post) imageUrlBuilder;
+  final double? Function(T post) mediaAspectRatioBuilder;
+  final double? Function(T post) videoAspectRatioBuilder;
+
+  @override
+  ConsumerState<PostDetailsItem<T>> createState() => _PostDetailsItemState<T>();
+}
+
+class _PostDetailsItemState<T extends Post>
+    extends ConsumerState<PostDetailsItem<T>> {
+  final _videoKey = GlobalKey();
+  final _imageController = ExtendedImageController();
+  final _representationState = _MediaRepresentationState();
+  late final _mediaState = Listenable.merge([
+    _imageController.loadState,
+    _representationState,
+  ]);
+  var _mediaCompatible = false;
+  late bool _isPageSettled;
+
+  @override
+  void initState() {
+    super.initState();
+    _isPageSettled =
+        widget.detailsController.currentSettledPage.value == widget.index;
+    widget.detailsController.currentSettledPage.addListener(_onPageSettled);
+    _imageController.loadState.addListener(_onImageStateChanged);
+  }
+
+  @override
+  void didUpdateWidget(covariant PostDetailsItem<T> oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.detailsController != widget.detailsController) {
+      oldWidget.detailsController.currentSettledPage.removeListener(
+        _onPageSettled,
+      );
+      widget.detailsController.currentSettledPage.addListener(_onPageSettled);
+    }
+    _isPageSettled =
+        widget.detailsController.currentSettledPage.value == widget.index;
+  }
+
+  @override
+  void dispose() {
+    widget.detailsController.currentSettledPage.removeListener(_onPageSettled);
+    _imageController.loadState.removeListener(_onImageStateChanged);
+    _imageController.dispose();
+    _representationState.dispose();
+    super.dispose();
+  }
+
+  void _onPageSettled() {
+    final isPageSettled =
+        widget.detailsController.currentSettledPage.value == widget.index;
+    if (isPageSettled == _isPageSettled) return;
+    setState(() => _isPageSettled = isPageSettled);
+  }
+
+  void _onRepresentationChanged(bool compatible) {
+    _mediaCompatible = compatible;
+    _representationState.changed();
+    _onImageStateChanged();
+  }
+
+  void _onImageStateChanged() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final pageViewController = PostDetailsPageViewScope.of(context);
+    final post = widget.posts[widget.index];
+
+    final loadOriginalOnZoom = ref.watch(
+      imageViewerSettingsProvider.select(
+        (settings) => settings.loadOriginalOnZoom,
+      ),
+    );
+    final snapZoomToFit = ref.watch(
+      imageViewerSettingsProvider.select(
+        (settings) => settings.snapZoomToFit,
+      ),
+    );
+    final doubleTapZoomMode = ref.watch(
+      imageViewerSettingsProvider.select(
+        (settings) => settings.doubleTapZoomMode,
+      ),
+    );
+
+    final booruRepo = ref.watch(booruRepoProvider(widget.authConfig));
+    final gestures = widget.gestureConfig?.fullview;
+    final noteOverlayShown = ref.watch(
+      noteOverlayProvider((widget.authConfig, post)),
+    );
+    final navigation = ZoomPageNavigationScope.maybeOf(context);
+    final viewerTransform = PostViewerTransformationScope.maybeOf(context);
+    final automaticMediaLoadingEnabled = ref.watch(
+      automaticMediaLoadingEnabledProvider,
+    );
+
+    void onItemTap() {
+      final controller = widget.detailsController;
+
+      if (isDesktopPlatform()) {
+        if (controller.currentPost.value.isVideo) {
+          if (controller.isVideoPlaying.value) {
+            controller.pauseCurrentVideo(showAnimation: true);
+          } else {
+            controller.playCurrentVideo(showAnimation: true);
+          }
+        } else {
+          if (pageViewController.isExpanded) return;
+
+          pageViewController.toggleOverlay();
+        }
+      } else {
+        if (pageViewController.isExpanded) return;
+
+        pageViewController.toggleOverlay();
+      }
+    }
+
+    void onVideoDoubleTap(Offset? tapPosition) {
+      final renderBox =
+          _videoKey.currentContext?.findRenderObject() as RenderBox?;
+      if (renderBox == null || tapPosition == null) return;
+
+      widget.detailsController.seekFromDoubleTap(
+        tapPosition,
+        renderBox.size,
+      );
+    }
+
+    void onTransformationChanged(KurumiTransformationDetails details) {
+      final startedZooming = !pageViewController.zoom.value && details.isZoomed;
+
+      pageViewController.onTransformationChanged(details);
+
+      if (startedZooming && loadOriginalOnZoom && post.hasFullView) {
+        widget.detailsController.loadOriginalImage(post);
+      }
+    }
+
+    final initialThumbnailUrl = widget.detailsController.initialThumbnailUrl;
+    final initialPlaceholderMedia = initialThumbnailUrl != null
+        ? _initialPlaceholderMedia(post, initialThumbnailUrl)
+        : null;
+
+    final viewer = ValueListenableBuilder(
+      valueListenable: pageViewController.sheetState,
+      builder: (_, state, _) => GestureDetector(
+        // let the user tap the image to toggle overlay
+        onTap: onItemTap,
+        child: InteractiveViewerExtended(
+          key: _videoKey,
+          contentSize: Size(post.width, post.height),
+          controller: widget.transformController,
+          constrainPanToContent: _isPageSettled,
+          snapZoomToFit: snapZoomToFit,
+          doubleTapZoomMode: post.isVideo
+              ? DoubleTapZoomMode.classic
+              : doubleTapZoomMode,
+          enable: switch (noteOverlayShown) {
+            // If the note overlay is shown, disable all interactions to prevent gesture conflicts
+            true => false,
+            false => switch (state.isExpanded) {
+              true => context.isLargeScreen,
+              false => true,
+            },
+          },
+          onTransformationChanged: onTransformationChanged,
+          onTap: onItemTap,
+          onDoubleTap: switch ((
+            doubleTap: gestures.canDoubleTap,
+            handler: booruRepo?.handlePostGesture,
+          )) {
+            (doubleTap: true, handler: final h?) => (_) => h(
+              ref,
+              gestures?.doubleTap,
+              post,
+            ),
+            (doubleTap: false, handler: _) when post.isVideo =>
+              (details) => onVideoDoubleTap(details?.localPosition),
+            _ => null,
+          },
+          onLongPress: gestures.canLongPress && booruRepo != null
+              ? () => booruRepo.handlePostGesture(
+                  ref,
+                  gestures?.longPress,
+                  post,
+                )
+              : null,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              ValueListenableBuilder(
+                valueListenable: widget.isInitPageListenable,
+                builder: (_, isInitPage, _) {
+                  return ValueListenableBuilder<Set<String>>(
+                    valueListenable:
+                        widget.detailsController.originalImagePostKeys,
+                    builder: (_, originalImagePostKeys, _) {
+                      final useOriginal = originalImagePostKeys.contains(
+                        postViewerIdentity(post),
+                      );
+
+                      return PostMedia<T>(
+                        post: post,
+                        config: widget.authConfig,
+                        viewer: widget.viewerConfig,
+                        imageUrlBuilder: useOriginal
+                            ? (post) => post.originalImageUrl
+                            : widget.imageUrlBuilder,
+                        mediaAspectRatioBuilder: useOriginal
+                            ? (post) => post.effectiveOriginalAspectRatio
+                            : widget.mediaAspectRatioBuilder,
+                        videoAspectRatioBuilder: widget.videoAspectRatioBuilder,
+                        imageCacheManager: widget.imageCacheManager,
+                        imageController: _imageController,
+                        onRepresentationChanged: _onRepresentationChanged,
+                        // This is used to make sure we have a thumbnail to show instead of a black placeholder
+                        placeholderMediaBuilder:
+                            isInitPage && initialThumbnailUrl != null
+                            ? (_) => initialPlaceholderMedia!
+                            : null,
+                        controller: pageViewController,
+                        isPageSettled: _isPageSettled,
+                      );
+                    },
+                  );
+                },
+              ),
+              if (post.isVideo)
+                Align(
+                  alignment: Alignment.bottomRight,
+                  child: state.isExpanded && !context.isLargeScreen
+                      ? Padding(
+                          padding: const EdgeInsets.all(8),
+                          child: Row(
+                            children: [
+                              // duplicate codes, maybe refactor later
+                              PlayPauseButton(
+                                isPlaying:
+                                    widget.detailsController.isVideoPlaying,
+                                onPlayingChanged: (value) {
+                                  if (value) {
+                                    widget.detailsController.pauseVideo(
+                                      post,
+                                      showAnimation: true,
+                                    );
+                                  } else if (!value) {
+                                    widget.detailsController.playVideo(
+                                      post,
+                                      showAnimation: true,
+                                    );
+                                  } else {
+                                    // do nothing
+                                  }
+                                },
+                              ),
+                              const SoundControlButton(
+                                padding: EdgeInsets.all(8),
+                              ),
+                            ],
+                          ),
+                        )
+                      : const SizedBox.shrink(),
+                ),
+              if (post.isVideo)
+                SeekAnimationOverlay(
+                  controller: widget.detailsController,
+                ),
+              if (post.isVideo)
+                PlayPauseAnimationOverlay(
+                  controller: widget.detailsController,
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    return switch ((navigation, viewerTransform)) {
+      (final nav?, final transform?) => ValueListenableBuilder(
+        valueListenable: widget.detailsController.originalImagePostKeys,
+        builder: (_, _, _) {
+          final useOriginal = widget
+              .detailsController
+              .originalImagePostKeys
+              .value
+              .contains(postViewerIdentity(post));
+          final imageUrl = useOriginal
+              ? post.originalImageUrl
+              : widget.imageUrlBuilder(post);
+
+          return ZoomEdgePageGesture(
+            transform: transform,
+            pageController: pageViewController,
+            currentSettledPage: widget.detailsController.currentSettledPage,
+            pageIndex: widget.index,
+            contentSize: Size(post.width, post.height),
+            navigation: nav,
+            mediaState: _mediaState,
+            enabled:
+                !post.isVideo &&
+                !noteOverlayShown &&
+                automaticMediaLoadingEnabled &&
+                imageUrl.isNotEmpty &&
+                _mediaCompatible &&
+                _imageController.loadState.value == LoadState.completed &&
+                _imageController.imageInfo.value != null,
+            child: viewer,
+          );
+        },
+      ),
+      _ => viewer,
+    };
+  }
+
+  GridThumbnailMedia _initialPlaceholderMedia(
+    T post,
+    String initialThumbnailUrl,
+  ) {
+    final generator = ref.watch(
+      gridThumbnailUrlGeneratorProvider(widget.authConfig),
+    );
+    final settings = ref.watch(
+      gridThumbnailSettingsProvider(widget.authConfig),
+    );
+    final media = generator.resolve(post, settings: settings);
+
+    return GridThumbnailMedia(
+      url: initialThumbnailUrl,
+      aspectRatio: media.aspectRatio,
+      placeholderUrl: media.placeholderUrl,
+      fallbackUrl: media.fallbackUrl,
+      placeholderAspectRatio: media.placeholderAspectRatio,
+      placeholderFit: media.placeholderFit,
+    );
+  }
+}
+
+class _MediaRepresentationState extends ChangeNotifier {
+  void changed() => notifyListeners();
+}
