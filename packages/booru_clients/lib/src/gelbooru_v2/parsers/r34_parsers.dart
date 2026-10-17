@@ -64,6 +64,9 @@ dynamic _decodeR34ApiResponse(
   dynamic raw, {
   dynamic emptyValue,
 }) {
+  // Rule34 sends a bodyless JSON 200 for empty listings. Dio decodes that
+  // transport response as null; only the listing caller supplies an empty value.
+  if (raw == null) return emptyValue;
   if (raw is! String) return raw;
   final value = raw.trim();
   if (value.isEmpty && emptyValue != null) return emptyValue;

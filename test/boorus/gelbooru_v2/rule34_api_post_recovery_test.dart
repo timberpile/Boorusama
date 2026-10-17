@@ -120,9 +120,9 @@ void main() {
   );
 
   test(
-    'listing retains the established host and XML until live API verification',
+    'listing uses the live-verified JSON endpoint with profile credentials',
     () async {
-      responseData = '<posts count="1"><post id="42" file_url="https://images.example/abc.mp4" md5="abc" tags="portrait" /></posts>';
+      responseData = [post];
       final client = container.read(gelbooruV2ClientProvider(config.auth));
 
       final listed = await client.getPosts(
@@ -131,15 +131,18 @@ void main() {
         tags: const ['portrait'],
       );
       final uri = requests.single.uri;
-      expect(uri.host, 'rule34.xxx');
-      expect(uri.queryParameters, isNot(contains('json')));
+      expect(uri.scheme, 'https');
+      expect(uri.host, 'api.rule34.xxx');
+      expect(uri.queryParameters, containsPair('json', '1'));
+      expect(uri.queryParameters, containsPair('pid', '0'));
+      expect(uri.queryParameters, containsPair('limit', '20'));
       expect(uri.queryParameters, containsPair('tags', 'portrait'));
       expect(uri.queryParameters, containsPair('user_id', config.login));
       expect(uri.queryParameters, containsPair('api_key', config.apiKey));
       expect(listed.posts.single.id, 42);
 
       requests.clear();
-      responseData = '<posts count="0" />';
+      responseData = null; // Dio's decoded bodyless JSON response.
       final empty = await client.getPosts(tags: const ['no-match']);
       expect(empty.posts, isEmpty);
     },
