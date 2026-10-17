@@ -8,6 +8,7 @@ import 'sidecar_store.dart';
 import '../types/sidecar_result.dart';
 
 final sidecarStoreProvider = FutureProvider<SidecarStore>((ref) async {
+  final container = ref.container;
   final fs = ref.watch(appFileSystemProvider);
   final storagePath = await fs.getAppStoragePath();
   var disposed = false;
@@ -16,7 +17,8 @@ final sidecarStoreProvider = FutureProvider<SidecarStore>((ref) async {
     directory: p.join(storagePath, 'download-sidecars'),
     fs: fs,
     onChanged: () {
-      if (!disposed) ref.invalidate(sidecarFailuresProvider);
+      // This notifies a dependent; it must not declare a dependency back to it.
+      if (!disposed) container.invalidate(sidecarFailuresProvider);
     },
   );
 }, name: 'sidecarStoreProvider');
