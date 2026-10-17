@@ -26,7 +26,8 @@ final class HiveDanbooruUserMetatagRepositoryFactory
     return UserMetatagRepository(box: box);
   }
 
+  // A replacement application scope may already use the same named Hive box.
+  // The process owns its lifetime; disposing one scope must not close it.
   @override
-  Future<void> dispose(UserMetatagRepository repository) =>
-      repository.box.close();
+  Future<void> dispose(UserMetatagRepository repository) async {}
 }
