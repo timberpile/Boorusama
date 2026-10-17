@@ -51,16 +51,19 @@ final class DefaultDownloadSource implements DownloadSourceProvider {
       if (post.thumbnailImageUrl.isNotEmpty)
         DownloadSource(
           url: post.thumbnailImageUrl,
+          quality: 'preview',
           name: context.t.settings.download.qualities.preview,
         ),
       if (post.sampleImageUrl.isNotEmpty)
         DownloadSource(
           url: post.sampleImageUrl,
+          quality: 'sample',
           name: context.t.settings.download.qualities.sample,
         ),
       if (post.originalImageUrl.isNotEmpty)
         DownloadSource(
           url: post.originalImageUrl,
+          quality: 'original',
           name: context.t.settings.download.qualities.original,
         ),
     ];

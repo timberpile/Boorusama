@@ -67,18 +67,11 @@ class _DownloadPostButtonState extends ConsumerState<DownloadPostButton> {
           (e) => KurumiPopupMenuItem(
             title: Text(e.name),
             onTap: () {
-              final quality = e.quality;
-              if (quality != null) {
-                notifier.download(
-                  widget.post,
-                  quality: quality,
-                );
-              } else {
-                notifier.download(
-                  widget.post,
-                  overrideUrl: e.url,
-                );
-              }
+              notifier.download(
+                widget.post,
+                quality: e.quality,
+                overrideUrl: e.url,
+              );
             },
           ),
         ),

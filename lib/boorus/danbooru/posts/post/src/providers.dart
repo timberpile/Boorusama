@@ -74,10 +74,9 @@ final danbooruPostRepoProvider =
       );
     });
 
-typedef PostFetchTransformer =
-    Future<PostResult<Post>> Function(
-      PostResult<Post> posts,
-    );
+typedef PostFetchTransformer = Future<PostResult<Post>> Function(
+  PostResult<Post> posts,
+);
 
 Future<PostResult<Post>> transformPosts(
   Ref ref,
@@ -152,31 +151,37 @@ final class DanbooruDownloadSource implements DownloadSourceProvider {
       if (post.thumbnailImageUrl.isNotEmpty)
         DownloadSource(
           url: post.thumbnailImageUrl,
+          quality: 'preview',
           name: context.t.settings.download.qualities.preview,
         ),
       if (post case final Post danPost when danPost.url180x180.isNotEmpty)
         DownloadSource(
           url: danPost.url180x180,
+          quality: '180x180',
           name: '180x180',
         ),
       if (post case final Post danPost when danPost.url360x360.isNotEmpty)
         DownloadSource(
           url: danPost.url360x360,
+          quality: '360x360',
           name: '360x360',
         ),
       if (post case final Post danPost when danPost.url720x720.isNotEmpty)
         DownloadSource(
           url: danPost.url720x720,
+          quality: '720x720',
           name: '720x720',
         ),
       if (post.sampleImageUrl.isNotEmpty)
         DownloadSource(
           url: post.sampleImageUrl,
+          quality: 'sample',
           name: context.t.settings.download.qualities.sample,
         ),
       if (post.originalImageUrl.isNotEmpty)
         DownloadSource(
           url: post.originalImageUrl,
+          quality: 'original',
           name: context.t.settings.download.qualities.original,
         ),
     ];

@@ -49,21 +49,25 @@ final class MoebooruDownloadSource implements DownloadSourceProvider {
       if (post.thumbnailImageUrl.isNotEmpty)
         DownloadSource(
           url: post.thumbnailImageUrl,
+          quality: 'preview',
           name: context.t.settings.download.qualities.preview,
         ),
-      if (post case final Post moePost)
+      if (post case final Post moePost when moePost.largeImageUrl.isNotEmpty)
         DownloadSource(
           url: moePost.largeImageUrl,
+          quality: 'large',
           name: context.t.settings.download.qualities.large,
         ),
       if (post.sampleImageUrl.isNotEmpty)
         DownloadSource(
           url: post.sampleImageUrl,
+          quality: 'sample',
           name: context.t.settings.download.qualities.sample,
         ),
       if (post.originalImageUrl.isNotEmpty)
         DownloadSource(
           url: post.originalImageUrl,
+          quality: 'original',
           name: context.t.settings.download.qualities.original,
         ),
     ];
