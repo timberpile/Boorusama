@@ -56,7 +56,7 @@ void main() {
     expect(
       data.content,
       contains(
-        '- Add optional TXT or JSON metadata sidecars for downloads.',
+        '- Save tags and post information alongside downloads.',
       ),
     );
     expect(data.content, isNot(contains('# 4.5.0-timberpile.5')));
