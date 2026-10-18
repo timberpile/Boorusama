@@ -157,8 +157,8 @@ checks prove a fresh ordinary TXT download has no false ready failure and the
 exact deliberately faulted record can retry metadata without changing media
 hash/mtime. The final native review and cleanup evidence is consolidated below.
 
-See [FINAL_ACCEPTANCE.md](FINAL_ACCEPTANCE.md) for the concrete user-run checklist
-and [MANUAL_ACCEPTANCE_CHECKLIST.md](MANUAL_ACCEPTANCE_CHECKLIST.md) for broader
+The final phone checklist was removed at the user's request after review.
+See [MANUAL_ACCEPTANCE_CHECKLIST.md](MANUAL_ACCEPTANCE_CHECKLIST.md) for broader
 migration acceptance. Automated/controller tests, local native UI, live transport,
 physical device and production-signed upgrade acceptance are separate boundaries.
 
@@ -324,8 +324,8 @@ and committed. The final runtime/test candidate passed the complete local gate,
 analysis assessment and dev build. All three independent Luna Max reviews and
 the requested local emulator/Maestro phase are complete with the exact limits
 above. The branch is ready for the user's final review; production upgrade,
-remaining native/live/platform cases and integration approval remain open in
-[FINAL_ACCEPTANCE.md](FINAL_ACCEPTANCE.md). This does not assert that all broader
+remaining native/live/platform cases are recorded above and in
+[MANUAL_ACCEPTANCE_CHECKLIST.md](MANUAL_ACCEPTANCE_CHECKLIST.md). This does not assert that all broader
 migration acceptance criteria have passed.
 
 The final documentation commit contains only this report, that checklist and the
