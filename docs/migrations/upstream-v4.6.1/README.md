@@ -1,6 +1,14 @@
 # Upstream v4.6.1 — Merge Decisions
 
 **Status: REVIEW REPAIRS IMPLEMENTED; FINAL LOCAL REGRESSION, ANALYSIS AND DEV APK BUILD PASSED.**
+The latest R01–R11 regression repairs and three additional independent-review
+findings are recorded in [regression repairs and final verification](REGRESSION_FIXES.md),
+with the [final manual acceptance checklist](FINAL_ACCEPTANCE.md). Their checked
+runtime/test candidate is `bc55de7c2`. Three independent Luna Max reviews and the
+bounded emulator/Maestro phase are complete; remaining manual, live and production
+upgrade acceptance is listed explicitly. The earlier 21-item remediation report
+remains historical evidence for preceding work.
+
 The genuine merge remains in `c08bb851acfe253e65cd307660cdbe465894fe7c`.
 [Consolidated remediation](REVIEW_REMEDIATION.md) records 21 validated review
 items and the checked candidate. The Rule34 listing-host switch is now activated
@@ -24,6 +32,8 @@ other-native-platform, integration and publication acceptance remain separate.
 5. [Manual acceptance checklist](MANUAL_ACCEPTANCE_CHECKLIST.md) — prioritized upgrade, data, network, media, download and responsive-UI checks for the user to perform on the final candidate.
 6. [Implementation report](IMPLEMENTATION_REPORT.md) — merge ancestry, implemented scope, verification evidence, remaining acceptance work and authorization boundaries.
 7. [Consolidated review remediation](REVIEW_REMEDIATION.md) — all claimed findings, validation, repairs, final verification and remaining limits.
+8. [Regression repairs and final verification](REGRESSION_FIXES.md) — R01–R11, three independent-review follow-ups, exact candidate, complete gate, APK and local native evidence.
+9. [Final manual acceptance](FINAL_ACCEPTANCE.md) — remaining concrete user-run checks after local verification, with separate automated/native/upgrade limits.
 
 ## Decision and Implementation Rules
 
