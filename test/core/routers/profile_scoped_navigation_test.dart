@@ -2,7 +2,7 @@
 import 'dart:async';
 
 // Flutter imports:
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -93,7 +93,7 @@ void main() {
         GoRoute(
           path: '/search',
           builder: (context, state) {
-            openedConfig = state.extra as BooruConfig?;
+            openedConfig = (state.extra! as SearchRouteContext).config;
             return const Scaffold(body: Text('Results'));
           },
         ),

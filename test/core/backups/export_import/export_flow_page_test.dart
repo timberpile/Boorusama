@@ -1,5 +1,5 @@
 import 'package:boorusama/core/bookmarks/types.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:i18n/src/gen/strings.g.dart' show TranslationProvider;
@@ -254,7 +254,7 @@ void main() {
           selections: const {},
           onToggleSource: (_) {},
           onToggleNode: (_, _) {},
-          sourceLabel: (_) => 'Pinned searches',
+          sourceLabel: (_) => 'Topics',
           presentation: const ExportSelectionPresentation(
             items: {
               'folder:empty': ExportItemPresentation(label: 'Empty folder'),
@@ -264,7 +264,7 @@ void main() {
       ),
     );
 
-    await tester.tap(find.text('Pinned searches'));
+    await tester.tap(find.text('Topics'));
     await tester.pumpAndSettle();
     expect(find.byType(ExpansionTile), findsNWidgets(2));
     expect(find.text('Empty folder'), findsOneWidget);
@@ -319,7 +319,7 @@ void main() {
           },
           onToggleSource: (_) {},
           onToggleNode: (_, _) {},
-          sourceLabel: (_) => 'Pinned searches',
+          sourceLabel: (_) => 'Topics',
           presentation: presentation,
         ),
       ),
@@ -625,7 +625,7 @@ void main() {
         ProviderScope(
           overrides: [
             exportImportSourcesProvider.overrideWithValue(
-              const [_FakePinnedSearchSource()],
+              const [_FakeFollowingTopicSource()],
             ),
             exportSelectionPresentationProvider.overrideWithValue(
               const ExportSelectionPresentation(
@@ -818,8 +818,8 @@ class _FakeCollectionSource implements ExportImportSource {
   }
 }
 
-class _FakePinnedSearchSource implements ExportImportSource {
-  const _FakePinnedSearchSource();
+class _FakeFollowingTopicSource implements ExportImportSource {
+  const _FakeFollowingTopicSource();
 
   @override
   String get id => 'pinned_searches';

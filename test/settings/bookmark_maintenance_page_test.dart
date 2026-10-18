@@ -10,7 +10,7 @@ import 'package:boorusama/core/developer_options/widgets.dart';
 import 'package:boorusama/core/settings/src/pages/bookmark_maintenance_page.dart';
 import 'package:boorusama/core/settings/src/pages/performance_diagnostics_page.dart';
 import 'package:boorusama/foundation/info/package_info.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -39,15 +39,19 @@ void main() {
         ],
         child: BooruLocalization(
           child: MaterialApp(
-            builder: (context, child) => KurumiTheme(
-              data: KurumiThemeData.fromMaterial(Theme.of(context)),
-              child: MediaQuery(
-                data: MediaQuery.of(
-                  context,
-                ).copyWith(textScaler: const TextScaler.linear(2)),
-                child: child!,
-              ),
-            ),
+            builder: (context, child) =>
+                // ignore: deprecated_member_use
+                MaterialUiCompatibilityBridge(
+                  child: KurumiTheme(
+                    data: KurumiThemeData.fromMaterial(Theme.of(context)),
+                    child: MediaQuery(
+                      data: MediaQuery.of(
+                        context,
+                      ).copyWith(textScaler: const TextScaler.linear(2)),
+                      child: child!,
+                    ),
+                  ),
+                ),
             home: home,
           ),
         ),

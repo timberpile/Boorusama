@@ -21,11 +21,10 @@ import '../../../premiums/providers.dart';
 import '../../../premiums/routes.dart';
 import '../../../premiums/types.dart';
 import '../../../search/search/widgets.dart';
-import '../../../search/subscriptions/providers.dart';
-import '../../../search/subscriptions/widgets.dart';
+import '../../../search/following_topics/providers.dart';
+import '../../../search/following_topics/widgets.dart';
 import '../../../settings/routes.dart';
 import '../../../tags/favorites/widgets.dart';
-import '../../../widgets/widgets.dart';
 import '../../constants.dart';
 import '../controllers/home_page_controller.dart';
 import '../types/custom_home.dart';
@@ -71,24 +70,22 @@ class _HomePageScaffoldState extends ConsumerState<HomePageScaffold> {
       controller: controller,
       child: HomePageSidebarKeyboardListener(
         controller: controller,
-        child: CustomContextMenuOverlay(
-          child: Builder(
-            builder: (context) {
-              final menuWidth = ref.watch(miscDataProvider(kMenuWidthCacheKey));
+        child: Builder(
+          builder: (context) {
+            final menuWidth = ref.watch(miscDataProvider(kMenuWidthCacheKey));
 
-              return BooruScope(
-                controller: controller,
-                menu: HomeSideMenu(
-                  desktopMenuBuilder: widget.desktopMenuBuilder,
-                ),
-                content: HomeContent(
-                  desktopViews: widget.desktopViews,
-                ),
-                mobileMenu: widget.mobileMenu ?? [],
-                menuWidth: double.tryParse(menuWidth),
-              );
-            },
-          ),
+            return BooruScope(
+              controller: controller,
+              menu: HomeSideMenu(
+                desktopMenuBuilder: widget.desktopMenuBuilder,
+              ),
+              content: HomeContent(
+                desktopViews: widget.desktopViews,
+              ),
+              mobileMenu: widget.mobileMenu ?? [],
+              menuWidth: double.tryParse(menuWidth),
+            );
+          },
         ),
       ),
     );
@@ -262,8 +259,7 @@ List<Widget> coreDesktopViewBuilder({
     for (int i = 0; i < totalPlaceholder; i++) const SizedBox.shrink(),
     if (viewKey != null && viewKey.isAlt) const SearchPage(),
     const BookmarkGroupBrowserPage(),
-    const PinnedSearchesPage(),
-    const FollowingFeedsPage(),
+    const FollowingTopicsPage(),
     const BlacklistedTagPage(),
     const FavoriteTagsPage(),
     const BulkDownloadPage(),
@@ -302,46 +298,37 @@ List<Widget> coreDesktopTabBuilder(
     HomeNavigationTile(
       value: _v(3),
       constraints: constraints,
-      selectedIcon: Symbols.push_pin,
-      icon: Symbols.push_pin,
-      title: context.t.pinned_searches.title,
-      badgeLabel: context.t.pinned_searches.new_posts,
+      selectedIcon: Symbols.rss_feed,
+      icon: Symbols.rss_feed,
+      title: context.t.following_topics.page_title,
+      badgeLabel: context.t.following_topics.new_posts,
       showBadge: ref.watch(
-        pinnedSearchHasNewPostsProvider,
+        followingTopicHasNewPostsProvider,
       ),
     ),
     HomeNavigationTile(
       value: _v(4),
-      constraints: constraints,
-      selectedIcon: Symbols.rss_feed,
-      icon: Symbols.rss_feed,
-      title: context.t.pinned_searches.following_feeds,
-      badgeLabel: context.t.pinned_searches.new_posts,
-      showBadge: ref.watch(followingFeedHasNewPostsProvider),
-    ),
-    HomeNavigationTile(
-      value: _v(5),
       constraints: constraints,
       selectedIcon: Symbols.list_alt,
       icon: Symbols.list_alt,
       title: context.t.sideMenu.your_blacklist,
     ),
     HomeNavigationTile(
-      value: _v(6),
+      value: _v(5),
       constraints: constraints,
       selectedIcon: Symbols.tag,
       icon: Symbols.tag,
       title: context.t.favorite_tags.title,
     ),
     HomeNavigationTile(
-      value: _v(7),
+      value: _v(6),
       constraints: constraints,
       selectedIcon: Symbols.sim_card_download,
       icon: Symbols.sim_card_download,
       title: context.t.sideMenu.bulk_download,
     ),
     HomeNavigationTile(
-      value: _v(8),
+      value: _v(7),
       constraints: constraints,
       selectedIcon: Symbols.download,
       icon: Symbols.download,

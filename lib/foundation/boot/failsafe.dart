@@ -4,25 +4,24 @@ import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:foundation/foundation.dart';
 import 'package:i18n/i18n.dart';
-import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 
 // Project imports:
 import '../error_monitor.dart';
-import '../filesystem.dart';
 import '../info/device_info.dart';
-import '../loggers.dart';
-import '../picker.dart';
+import 'crash_report_writer.dart';
+import 'file_system_crash_report_writer.dart';
+import 'runtime_error_widget.dart';
 
 Future<void> failsafe({
   required Object error,
   required StackTrace stackTrace,
-  required AppLogger appLogger,
+  required String logs,
 }) async {
+  initializeRuntimeErrorWidget();
   final deviceInfo = await DeviceInfoService(
     plugin: DeviceInfoPlugin(),
   ).getDeviceInfo();
-  final logs = appLogger.dump();
 
   runApp(
     ProviderScope(
@@ -36,6 +35,7 @@ Future<void> failsafe({
           error: error,
           stackTrace: stackTrace,
           logs: logs,
+          crashReportWriter: const FileSystemCrashReportWriter(),
         ),
       ),
     ),
@@ -47,12 +47,14 @@ class AppFailedToInitialize extends ConsumerWidget {
     required this.error,
     required this.stackTrace,
     required this.logs,
+    required this.crashReportWriter,
     super.key,
   });
 
   final Object error;
   final StackTrace? stackTrace;
   final String logs;
+  final CrashReportWriter crashReportWriter;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -146,7 +148,7 @@ class AppFailedToInitialize extends ConsumerWidget {
                   icon: const Icon(Icons.download),
                   onPressed: () {
                     final data = composeError(errorString, deviceInfo);
-                    _saveTo(context, data);
+                    crashReportWriter.save(context, data);
                   },
                 ),
               ],
@@ -162,24 +164,4 @@ class AppFailedToInitialize extends ConsumerWidget {
 
     return '$errorString\n\n$logs\n\n$data';
   }
-
-  Future<void> _saveTo(
-    BuildContext context,
-    String data,
-  ) => pickDirectoryPathToastOnError(
-    context: context,
-    onPick: (path) async {
-      const fs = IoFileSystem();
-      await fs.writeString('$path/boorusama_crash.txt', data);
-      if (!context.mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          behavior: SnackBarBehavior.floating,
-          content: Text('Copied'),
-          duration: KurumiDurations.shortToast,
-        ),
-      );
-    },
-  );
 }

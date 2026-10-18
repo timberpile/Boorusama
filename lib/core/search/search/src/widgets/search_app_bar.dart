@@ -1,5 +1,6 @@
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -23,6 +24,8 @@ class SearchAppBar extends ConsumerWidget {
     this.onTapOutside,
     this.innerSearchButton,
     this.searchBarBuilder,
+    this.suggestionsFocus,
+    this.listbox,
   });
 
   final TextEditingController controller;
@@ -38,6 +41,8 @@ class SearchAppBar extends ConsumerWidget {
   final double? height;
   final VoidCallback? onTapOutside;
   final Widget Function(BuildContext context, Widget child)? searchBarBuilder;
+  final FocusScopeNode? suggestionsFocus;
+  final KurumiListboxController? listbox;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -46,6 +51,8 @@ class SearchAppBar extends ConsumerWidget {
       autofocus: autofocus ?? false,
       onTapOutside: onTapOutside,
       focus: focusNode,
+      suggestionsFocus: suggestionsFocus,
+      listbox: listbox,
       controller: controller,
       leading: leading,
       trailing: ValueListenableBuilder(

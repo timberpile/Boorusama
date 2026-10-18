@@ -65,8 +65,8 @@ This is a presentation filter over existing local state; it does not add a
 query search against any booru or change feed-owned sources. The current-level
 search boundary is a product decision for this ticket.
 
-- [Pinned-search subsystem](../../pinned_searches.md)
-- [Overview and folder page](../../../lib/core/search/subscriptions/src/pages/pinned_searches_page.dart)
+- [Pinned-search subsystem](../../following_topics.md)
+- [Overview and folder page](../../../lib/core/search/following_topics/src/pages/following_topics_page.dart)
 - [Shared-folder behavior](../done/PS-018-rework-pinned-search-folder-navigation.md)
 - Historical design artifact: `docs/superpowers/mockups/2026-10-03-pinned-search-folder-profile-filter.html`. This file is absent from current local `develop`; recover or recreate it before implementation.
 

@@ -127,7 +127,7 @@ class DanbooruBuilder extends BaseBooruBuilder {
 
   @override
   QuickFavoriteButtonBuilder get quickFavoriteButtonBuilder =>
-      (context, post) => post.danbooruData == null
+      (context, ref, post) => post.danbooruData == null
       ? const SizedBox.shrink()
       : DanbooruQuickFavoriteButton(
           post: post,

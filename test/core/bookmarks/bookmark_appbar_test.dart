@@ -1,5 +1,5 @@
 import 'package:boorusama/core/bookmarks/src/widgets/bookmark_appbar.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';

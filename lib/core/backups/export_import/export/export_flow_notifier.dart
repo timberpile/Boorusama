@@ -10,7 +10,7 @@ import '../../../bookmarks/providers.dart';
 import '../../../bookmarks/types.dart';
 import 'package:i18n/i18n.dart';
 import '../../../configs/manage/providers.dart';
-import '../../../search/subscriptions/providers.dart';
+import '../../../search/following_topics/providers.dart';
 import '../../sources/providers.dart';
 import '../models/export_selection.dart';
 import '../models/export_item_presentation.dart';
@@ -47,13 +47,13 @@ final exportSelectionPresentationProvider =
               : group.name,
         );
       }
-      final searches = ref.watch(searchSubscriptionsProvider).valueOrNull;
+      final searches = ref.watch(followingTopicsProvider).valueOrNull;
       for (final folder in searches?.organization.folders ?? const []) {
         items['folder:${folder.id}'] = ExportItemPresentation(
           label: folder.name,
         );
       }
-      for (final search in searches?.subscriptions ?? const []) {
+      for (final search in searches?.topics ?? const []) {
         items['search:${search.id}'] = ExportItemPresentation(
           label: search.displayName,
           trailingLabel: profileNames[search.profileId],

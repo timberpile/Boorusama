@@ -45,11 +45,11 @@ Refresh persistence records `lastAttemptAt`, `lastSuccessfulCheckAt`, and
 localized error-kind messages unless the product deliberately changes that
 storage model. No dependency on the folder redesign.
 
-- [Info dialog](../../../lib/core/search/subscriptions/src/pages/pinned_searches_page.dart)
-- [Pin card error messages](../../../lib/core/search/subscriptions/src/widgets/pinned_search_card.dart)
-- [Refresh state](../../../lib/core/search/subscriptions/src/types/search_subscription.dart)
+- [Info dialog](../../../lib/core/search/following_topics/src/pages/following_topics_page.dart)
+- [Pin card error messages](../../../lib/core/search/following_topics/src/widgets/following_topic_card.dart)
+- [Refresh state](../../../lib/core/search/following_topics/src/types/following_topic.dart)
 - [Earlier Info task](../done/PS-003-search-item-status-info.md)
-- [Subsystem documentation](../../pinned_searches.md)
+- [Subsystem documentation](../../following_topics.md)
 
 Follow the [development workflow](../../development_workflow.md) when
 implementing. Implementation is complete locally; Android validation remains pending.

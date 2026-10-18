@@ -15,6 +15,7 @@ import 'package:path_provider/path_provider.dart';
 // Project imports:
 import 'app_file_system.dart';
 import 'durable_sync.dart';
+import 'publish_file.dart' as atomic;
 
 const _kAppTemporaryDirectoryName = String.fromEnvironment('APP_NAME');
 
@@ -101,11 +102,34 @@ class IoFileSystem implements AppFileSystem {
   Future<String> readString(String path) => File(path).readAsString();
 
   @override
-  Future<void> writeString(String path, String content) =>
-      File(path).writeAsString(content);
+  Future<String?> readStringIfExists(String path) async {
+    try {
+      return await readString(path);
+    } on FileSystemException catch (error) {
+      if (_isMissing(error)) return null;
+      rethrow;
+    }
+  }
+
+  @override
+  Future<void> writeString(String path, String content, {bool flush = false}) =>
+      File(path).writeAsString(content, flush: flush);
 
   @override
   Future<void> deleteFile(String path) => File(path).delete();
+
+  @override
+  Future<void> deleteFileIfExists(String path) async {
+    try {
+      await deleteFile(path);
+    } on FileSystemException catch (error) {
+      if (!_isMissing(error)) rethrow;
+    }
+  }
+
+  static bool _isMissing(FileSystemException error) =>
+      error.osError?.errorCode == 2 ||
+      (Platform.isWindows && error.osError?.errorCode == 3);
 
   @override
   Future<void> copyFile(String source, String destination) =>
@@ -139,6 +163,10 @@ class IoFileSystem implements AppFileSystem {
   @override
   Future<void> renameFile(String source, String destination) =>
       File(source).rename(destination);
+
+  @override
+  Future<bool> publishFileIfAbsent(String source, String destination) async =>
+      atomic.publishFileIfAbsent(source, destination);
 
   @override
   Future<void> syncFile(String path) async {

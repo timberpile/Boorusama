@@ -11,17 +11,23 @@ class DownloadUrlData extends Equatable {
   const DownloadUrlData({
     required this.url,
     required this.cookie,
+    this.resolvedQuality,
   });
 
   const DownloadUrlData.urlOnly(
-    this.url,
-  ) : cookie = null;
+    this.url, {
+    this.resolvedQuality,
+  }) : cookie = null;
 
   final String url;
   final String? cookie;
 
+  /// The selected media variant, which may differ from the requested quality.
+  /// Null means the extractor did not establish a variant identity.
+  final String? resolvedQuality;
+
   @override
-  List<Object?> get props => [url, cookie];
+  List<Object?> get props => [url, cookie, resolvedQuality];
 }
 
 abstract interface class DownloadFileUrlExtractor {
@@ -45,13 +51,21 @@ abstract interface class DownloadSourceProvider {
 
 class DownloadSource extends Equatable {
   const DownloadSource({
-    required this.url,
+    required String url,
     required this.name,
-  });
+    this.quality,
+  }) : url = url;
 
-  final String url;
+  const DownloadSource.quality({
+    required this.quality,
+    required this.name,
+  }) : url = null;
+
+  /// Null selects the quality resolver; an empty concrete URL is invalid.
+  final String? url;
   final String name;
+  final String? quality;
 
   @override
-  List<Object?> get props => [url, name];
+  List<Object?> get props => [url, name, quality];
 }

@@ -1,4 +1,4 @@
-// Flutter imports:
+// Package imports:
 import 'package:flutter_test/flutter_test.dart';
 
 // Project imports:
@@ -21,7 +21,7 @@ void main() {
         await _enterSetupPin(
           controller,
           '1234',
-          savePin: (pin) async => savedPin = pin,
+          saveTopic: (pin) async => savedPin = pin,
         ),
         PinSetupResult.saved,
       );
@@ -145,11 +145,11 @@ void main() {
 Future<PinSetupResult> _enterSetupPin(
   PinSetupController controller,
   String pin, {
-  Future<void> Function(String pin)? savePin,
+  Future<void> Function(String pin)? saveTopic,
 }) async {
   var result = PinSetupResult.ignored;
   for (final digit in pin.split('')) {
-    result = await controller.enterDigit(digit, savePin ?? (_) async {});
+    result = await controller.enterDigit(digit, saveTopic ?? (_) async {});
   }
   return result;
 }

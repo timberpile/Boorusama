@@ -243,44 +243,47 @@ void main() {
     expect(controller.refreshing, isFalse);
   });
 
-  test('a queued refresh still runs after the active refresh fails', () async {
-    final firstFetch = Completer<PostResult<Post>>();
-    var fetchCount = 0;
-    var blacklistCount = 0;
-    final controller = PostGridController<Post>(
-      fetcher: (_) {
-        fetchCount++;
-        return TaskEither.tryCatch(
-          () => fetchCount == 1
-              ? firstFetch.future
-              : Future.value(
-                  PostResult(posts: [Bookmark.empty.toPost()], total: 1),
-                ),
-          (error, _) => UnknownError(error: error, message: 'failed'),
-        );
-      },
-      blacklistedTagsFetcher: () async => const {},
-      blacklistedUrlsFetcher: () async {
-        blacklistCount++;
-        if (blacklistCount == 1) throw StateError('blacklist read failed');
-        return const {};
-      },
-      mountedChecker: () => true,
-      duplicateTracker: PostDuplicateTracker(),
-      onError: (_) {},
-      debounceDuration: Duration.zero,
-    );
-    addTearDown(controller.dispose);
+  test(
+    'a queued refresh recovers an obsolete failure for every waiter',
+    () async {
+      final firstFetch = Completer<void>();
+      final firstFetchStarted = Completer<void>();
+      var fetchCount = 0;
+      final controller = PostGridController<Post>(
+        fetcher: (_) {
+          fetchCount++;
+          if (fetchCount == 1) firstFetchStarted.complete();
+          return TaskEither(() async {
+            if (fetchCount == 1) {
+              await firstFetch.future;
+              throw StateError('first refresh failed');
+            }
+            return Either.of(
+              PostResult(posts: [Bookmark.empty.toPost()], total: 1),
+            );
+          });
+        },
+        blacklistedTagsFetcher: () async => const {},
+        mountedChecker: () => true,
+        duplicateTracker: PostDuplicateTracker(),
+        onError: (_) {},
+        debounceDuration: Duration.zero,
+      );
+      addTearDown(controller.dispose);
 
-    final active = controller.refresh();
-    await Future<void>.delayed(Duration.zero);
-    final queued = controller.refresh();
-    firstFetch.complete(PostResult.empty());
+      final active = controller.refresh();
+      final activeResult = expectLater(active, completes);
+      await firstFetchStarted.future;
+      final queued = controller.refresh();
+      firstFetch.complete();
 
-    await expectLater(active, throwsStateError);
-    await queued.timeout(const Duration(seconds: 1));
-    expect(fetchCount, 2);
-  });
+      await activeResult;
+      await queued.timeout(const Duration(seconds: 1));
+      expect(fetchCount, 2);
+      expect(controller.errors.value, isNull);
+      expect(controller.items, hasLength(1));
+    },
+  );
 
   test('a queued page reset overrides page preservation', () async {
     final firstFetch = Completer<PostResult<Post>>();

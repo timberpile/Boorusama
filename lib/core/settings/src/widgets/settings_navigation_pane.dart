@@ -18,6 +18,7 @@ class SettingsNavigationPane extends StatelessWidget {
     this.header,
     this.footer,
     this.scrollController,
+    this.storageKey,
   });
 
   final List<SettingEntry> entries;
@@ -26,6 +27,7 @@ class SettingsNavigationPane extends StatelessWidget {
   final Widget? header;
   final Widget? footer;
   final ScrollController? scrollController;
+  final PageStorageKey<String>? storageKey;
 
   @override
   Widget build(BuildContext context) {
@@ -47,6 +49,7 @@ class SettingsNavigationPane extends StatelessWidget {
       header: header,
       footer: footer,
       scrollController: scrollController,
+      storageKey: storageKey,
     );
   }
 }
@@ -63,6 +66,7 @@ class SettingsSearchPane extends StatefulWidget {
     this.header,
     this.footer,
     this.scrollController,
+    this.storageKey,
   });
 
   final bool showSearch;
@@ -74,6 +78,7 @@ class SettingsSearchPane extends StatefulWidget {
   final Widget? header;
   final Widget? footer;
   final ScrollController? scrollController;
+  final PageStorageKey<String>? storageKey;
 
   @override
   State<SettingsSearchPane> createState() => _SettingsSearchPaneState();
@@ -81,9 +86,9 @@ class SettingsSearchPane extends StatefulWidget {
 
 class _SettingsSearchPaneState extends State<SettingsSearchPane> {
   final _controller = TextEditingController();
-  final _focus = FocusNode();
+  late final FocusNode _focus;
   final _fallbackScrollController = ScrollController();
-  String _query = '';
+  var _query = '';
 
   ScrollController get _scrollController =>
       widget.scrollController ?? _fallbackScrollController;
@@ -91,7 +96,21 @@ class _SettingsSearchPaneState extends State<SettingsSearchPane> {
   @override
   void initState() {
     super.initState();
+    _focus = FocusNode(onKeyEvent: _onSearchKeyEvent);
     _controller.addListener(_onQueryChanged);
+  }
+
+  KeyEventResult _onSearchKeyEvent(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent ||
+        event.logicalKey != LogicalKeyboardKey.escape) {
+      return KeyEventResult.ignored;
+    }
+    if (_controller.text.isNotEmpty) {
+      _clear();
+    } else {
+      node.unfocus();
+    }
+    return KeyEventResult.handled;
   }
 
   void _onQueryChanged() {
@@ -159,39 +178,29 @@ class _SettingsSearchPaneState extends State<SettingsSearchPane> {
         if (widget.showSearch)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: CallbackShortcuts(
-              bindings: {
-                const SingleActivator(LogicalKeyboardKey.escape): () {
-                  if (_controller.text.isNotEmpty) {
-                    _clear();
-                  } else {
-                    _focus.unfocus();
-                  }
-                },
+            child: KurumiSearchBar(
+              controller: _controller,
+              focus: _focus,
+              autofocus: true,
+              hintText: widget.labels.hint,
+              leading: const Icon(Icons.search),
+              trailing: _query.isEmpty
+                  ? null
+                  : IconButton(
+                      tooltip: widget.labels.clear,
+                      onPressed: _clear,
+                      icon: const Icon(Icons.clear),
+                    ),
+              onSubmitted: (_) {
+                if (results.isNotEmpty) {
+                  _select(entries[results.first.sectionId]!);
+                }
               },
-              child: KurumiSearchBar(
-                controller: _controller,
-                focus: _focus,
-                autofocus: true,
-                hintText: widget.labels.hint,
-                leading: const Icon(Icons.search),
-                trailing: _query.isEmpty
-                    ? null
-                    : IconButton(
-                        tooltip: widget.labels.clear,
-                        onPressed: _clear,
-                        icon: const Icon(Icons.clear),
-                      ),
-                onSubmitted: (_) {
-                  if (results.isNotEmpty) {
-                    _select(entries[results.first.sectionId]!);
-                  }
-                },
-              ),
             ),
           ),
         Expanded(
           child: SingleChildScrollView(
+            key: widget.storageKey,
             controller: _scrollController,
             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             child: Column(
@@ -217,10 +226,10 @@ class _SettingsSearchPaneState extends State<SettingsSearchPane> {
                         ),
                     ]
                   : [
-                      if (widget.header case final header?) header,
+                      ?widget.header,
                       for (final entry in widget.entries)
                         tile(entry, id: entry.id, title: entry.title),
-                      if (widget.footer case final footer?) footer,
+                      ?widget.footer,
                     ],
             ),
           ),

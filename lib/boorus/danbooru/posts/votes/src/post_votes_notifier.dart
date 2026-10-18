@@ -76,6 +76,14 @@ class PostVotesNotifier
     state = VotesStateHelpers.removeVoteFromState(state, postId);
   }
 
+  void removeLocalUpvote(int postId) {
+    if (state[postId]?.voteState != VoteState.upvoted) return;
+
+    // Cache the acknowledged absence so an older preload cannot restore it.
+    // Unfavoriting does not remove downvotes on Danbooru.
+    state = state.add(postId, null);
+  }
+
   Future<bool> removeVote(
     int postId,
     PostVoteId? voteId,
@@ -127,8 +135,24 @@ class PostVotesNotifier
 
     if (postIdsToFetch.isEmpty) return;
 
-    final fetchedVotes = await repo.getPostVotesFromUser(postIds, user.id);
-    state = VotesStateHelpers.mergeVotesIntoState(state, postIds, fetchedVotes);
+    final votesBeforeFetch = state;
+    final fetchedVotes = await repo.getPostVotesFromUser(
+      postIdsToFetch,
+      user.id,
+    );
+    // A preload may finish after favoriting or a vote mutation. Only apply
+    // results to entries that still have the state this request observed.
+    final unchangedIds = [
+      for (final id in postIdsToFetch)
+        if (state.containsKey(id) == votesBeforeFetch.containsKey(id) &&
+            identical(state[id], votesBeforeFetch[id]))
+          id,
+    ];
+    state = VotesStateHelpers.mergeVotesIntoState(
+      state,
+      unchangedIds,
+      fetchedVotes,
+    );
   }
 }
 

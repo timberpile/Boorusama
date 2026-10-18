@@ -1,5 +1,5 @@
 // Flutter imports:
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -201,16 +201,16 @@ void main() {
     expect(receivedContext?.mounted, isTrue);
   });
 
-  testWidgets('device import continues a feed after a pinned search fails', (
+  testWidgets('device import continues a feed after a followed topic fails', (
     tester,
   ) async {
     var feedWrites = 0;
-    final pin = _TestBackupSource(
+    final topic = _TestBackupSource(
       id: 'pinned_searches',
       priority: 100000,
       onPrepareImport: (_) => ImportPreparation(
         versionCheck: _preparation.versionCheck,
-        executeImport: () async => throw StateError('bad pin import'),
+        executeImport: () async => throw StateError('bad topic import'),
       ),
     );
     final feed = _TestBackupSource(
@@ -221,7 +221,7 @@ void main() {
         executeImport: () async => feedWrites++,
       ),
     );
-    final container = _containerFor([pin, feed]);
+    final container = _containerFor([topic, feed]);
     addTearDown(container.dispose);
     final listener = container.listen(
       importDataProvider('https://example.com'),
@@ -257,7 +257,7 @@ void main() {
         priority: -1,
         onPrepareImport: (_) => throw StateError('bad profiles'),
       );
-      final pin = _TestBackupSource(
+      final topic = _TestBackupSource(
         id: 'pinned_searches',
         priority: 100000,
         onPrepareImport: (_) => _preparation,
@@ -275,7 +275,7 @@ void main() {
           executeImport: () async => otherWrites++,
         ),
       );
-      final container = _containerFor([profiles, pin, feed, other]);
+      final container = _containerFor([profiles, topic, feed, other]);
       addTearDown(container.dispose);
       final listener = container.listen(
         importDataProvider('https://example.com'),

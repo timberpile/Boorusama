@@ -13,8 +13,8 @@ import 'package:boorusama/core/backups/export_import/package/export_package_read
 import 'package:boorusama/core/backups/export_import/package/export_package_writer.dart';
 import 'package:boorusama/core/backups/export_import/sources/export_import_source.dart';
 import 'package:boorusama/core/backups/export_import/sources/export_selection_ids.dart';
-import 'package:boorusama/core/backups/sources/following_feed_backup_data.dart';
-import 'package:boorusama/core/backups/sources/pinned_search_backup_data.dart';
+import 'package:boorusama/core/backups/sources/topic_feed_backup_data.dart';
+import 'package:boorusama/core/backups/sources/following_topic_backup_data.dart';
 import 'package:boorusama/core/backups/sources/search_backup_profile.dart';
 import 'package:boorusama/core/backups/types/backup_registry.dart';
 import 'package:boorusama/foundation/filesystem.dart';
@@ -133,11 +133,11 @@ void main() {
     expect(File(output).existsSync(), isFalse);
   });
 
-  test('explicit pinned search folders include their current children', () {
-    final data = PinnedSearchBackupData(
+  test('explicit followed topic folders include their current children', () {
+    final data = FollowingTopicBackupData(
       records: [_pinned('one'), _pinned('two'), _pinned('three')],
       folders: const [
-        PinnedSearchFolderBackupRecord(
+        FollowingTopicFolderBackupRecord(
           id: 'folder',
           name: 'Folder',
           position: 0,
@@ -147,9 +147,9 @@ void main() {
       homeSearchIds: const ['three'],
     );
 
-    final result = filterPinnedSearchBackupData(
+    final result = filterFollowingTopicBackupData(
       data,
-      PinnedSearchExportScope.selected(
+      FollowingTopicExportScope.selected(
         searchIds: const ['three'],
         folderIds: const ['folder'],
         includeHome: false,
@@ -162,10 +162,10 @@ void main() {
   });
 
   test('selected searches retain only their containing folder structure', () {
-    final data = PinnedSearchBackupData(
+    final data = FollowingTopicBackupData(
       records: [_pinned('one'), _pinned('two'), _pinned('home')],
       folders: const [
-        PinnedSearchFolderBackupRecord(
+        FollowingTopicFolderBackupRecord(
           id: 'folder',
           name: 'Folder',
           position: 0,
@@ -175,9 +175,9 @@ void main() {
       homeSearchIds: const ['home'],
     );
 
-    final result = filterPinnedSearchBackupData(
+    final result = filterFollowingTopicBackupData(
       data,
-      PinnedSearchExportScope.selected(
+      FollowingTopicExportScope.selected(
         searchIds: const ['two'],
         folderIds: const [],
         includeHome: false,
@@ -186,7 +186,7 @@ void main() {
 
     expect(result.records.map((record) => record.id), ['two']);
     expect(result.folders, const [
-      PinnedSearchFolderBackupRecord(
+      FollowingTopicFolderBackupRecord(
         id: 'folder',
         name: 'Folder',
         position: 0,
@@ -199,22 +199,22 @@ void main() {
   test(
     'Home selection follows current members while explicit searches do not',
     () {
-      final data = PinnedSearchBackupData(
+      final data = FollowingTopicBackupData(
         records: [_pinned('one'), _pinned('two'), _pinned('stale-safe')],
         homeSearchIds: const ['one', 'two'],
       );
 
-      final dynamicHome = filterPinnedSearchBackupData(
+      final dynamicHome = filterFollowingTopicBackupData(
         data,
-        PinnedSearchExportScope.selected(
+        FollowingTopicExportScope.selected(
           searchIds: const [],
           folderIds: const [],
           includeHome: true,
         ),
       );
-      final explicitHomeMember = filterPinnedSearchBackupData(
+      final explicitHomeMember = filterFollowingTopicBackupData(
         data,
-        PinnedSearchExportScope.selected(
+        FollowingTopicExportScope.selected(
           searchIds: const ['one', 'missing'],
           folderIds: const ['missing'],
           includeHome: false,
@@ -229,14 +229,14 @@ void main() {
     },
   );
 
-  test('explicit following feed selection excludes every other feed', () {
-    final data = FollowingFeedBackupData(
+  test('explicit topic feed selection excludes every other feed', () {
+    final data = TopicFeedBackupData(
       feeds: [_feed('one'), _feed('two')],
     );
 
-    final result = filterFollowingFeedBackupData(
+    final result = filterTopicFeedBackupData(
       data,
-      FollowingFeedExportScope.selected(const ['two']),
+      TopicFeedExportScope.selected(const ['two']),
     );
 
     expect(result.feeds.map((feed) => feed.id), ['two']);
@@ -250,8 +250,8 @@ void main() {
       'group-id',
     );
     expect(
-      ExportSelectionIds.pinnedSearchFolderId(
-        ExportSelectionIds.pinnedSearchFolder('folder-id'),
+      ExportSelectionIds.followingTopicFolderId(
+        ExportSelectionIds.followingTopicFolder('folder-id'),
       ),
       'folder-id',
     );
@@ -261,7 +261,7 @@ void main() {
       ),
       '00000000-0000-4000-8000-00000000002a',
     );
-    expect(ExportSelectionIds.pinnedSearchHome, 'home');
+    expect(ExportSelectionIds.followingTopicHome, 'home');
     expect(ExportSelectionIds.profileId('search:42'), isNull);
   });
 }
@@ -273,7 +273,7 @@ const _profile = BackupProfileReference(
   name: 'Example',
 );
 
-PinnedSearchBackupRecord _pinned(String id) => PinnedSearchBackupRecord(
+FollowingTopicBackupRecord _pinned(String id) => FollowingTopicBackupRecord(
   id: id,
   name: id,
   query: id,
@@ -281,7 +281,7 @@ PinnedSearchBackupRecord _pinned(String id) => PinnedSearchBackupRecord(
   profile: _profile,
 );
 
-FollowingFeedBackupRecord _feed(String id) => FollowingFeedBackupRecord(
+TopicFeedBackupRecord _feed(String id) => TopicFeedBackupRecord(
   id: id,
   name: id,
   position: 0,

@@ -34,6 +34,7 @@ class AnimePicturesDownloadFileUrlExtractor
       return DownloadUrlData(
         url: data.url,
         cookie: data.cookie,
+        resolvedQuality: 'original',
       );
     },
   );

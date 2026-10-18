@@ -31,8 +31,7 @@ class _ManualBackupPageState extends ConsumerState<ManualBackupPage> {
 
   @override
   Widget build(BuildContext context) {
-    final registry = ref.watch(backupRegistryProvider);
-    final sources = registry.getAllSources();
+    final sources = ref.watch(backupPresentationSourcesProvider);
 
     ref.listen(
       backupProvider,

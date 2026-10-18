@@ -4,8 +4,45 @@ import 'package:flutter_test/flutter_test.dart';
 
 // Package imports:
 import 'package:kurumi/kurumi.dart';
+import 'package:kurumi/src/vendor/flutter/interactive_viewer.dart' as vendor;
 
 void main() {
+  testWidgets('toggling interactions retains a stateful media child', (
+    tester,
+  ) async {
+    Future<void> pump(bool enabled) => tester.pumpWidget(
+      MaterialApp(
+        home: SizedBox(
+          width: 320,
+          height: 180,
+          child: KurumiInteractiveViewer(
+            enable: enabled,
+            onTap: () {},
+            child: const _Media(),
+          ),
+        ),
+      ),
+    );
+    await pump(true);
+    final original = tester.state<_MediaState>(find.byType(_Media));
+    original.position = const Duration(seconds: 17);
+    original.playing = true;
+    await pump(false);
+    expect(tester.state<_MediaState>(find.byType(_Media)), same(original));
+    expect(
+      tester.state<_MediaState>(find.byType(_Media)).position,
+      const Duration(seconds: 17),
+    );
+    expect(tester.state<_MediaState>(find.byType(_Media)).playing, isTrue);
+    await pump(true);
+    expect(tester.state<_MediaState>(find.byType(_Media)), same(original));
+    expect(
+      tester.state<_MediaState>(find.byType(_Media)).position,
+      const Duration(seconds: 17),
+    );
+    expect(tester.state<_MediaState>(find.byType(_Media)).playing, isTrue);
+  });
+
   for (final testCase in [
     (
       name: 'tall images',
@@ -622,15 +659,15 @@ Future<void> _endInteraction(WidgetTester tester) async {
 }
 
 void _endInteractionCallback(WidgetTester tester) {
-  final viewer = tester.widget<InteractiveViewer>(
-    find.byType(InteractiveViewer),
+  final viewer = tester.widget<vendor.InteractiveViewer>(
+    find.byType(vendor.InteractiveViewer),
   );
   viewer.onInteractionEnd!(ScaleEndDetails());
 }
 
 void _startInteraction(WidgetTester tester, {int pointerCount = 2}) {
-  final viewer = tester.widget<InteractiveViewer>(
-    find.byType(InteractiveViewer),
+  final viewer = tester.widget<vendor.InteractiveViewer>(
+    find.byType(vendor.InteractiveViewer),
   );
   viewer.onInteractionStart!(ScaleStartDetails());
   viewer.onInteractionUpdate!(ScaleUpdateDetails(pointerCount: pointerCount));
@@ -644,4 +681,17 @@ void _expectTranslation(
   final translation = controller.value.getTranslation();
   expect(translation.x, closeTo(x, 0.001));
   expect(translation.y, closeTo(y, 0.001));
+}
+
+class _Media extends StatefulWidget {
+  const _Media();
+  @override
+  State<_Media> createState() => _MediaState();
+}
+
+class _MediaState extends State<_Media> {
+  Duration position = Duration.zero;
+  bool playing = false;
+  @override
+  Widget build(BuildContext context) => const SizedBox.expand();
 }

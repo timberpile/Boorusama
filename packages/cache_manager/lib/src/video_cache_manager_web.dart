@@ -105,6 +105,9 @@ class VideoCacheManager implements ImageCacheManager {
     return await getCachedFilePath(cacheKey, maxAge: maxAge);
   }
 
+  Future<VideoCacheLease?> acquireVideo(String url, {Duration? maxAge}) async =>
+      null;
+
   Future<String?> cacheVideo(
     String url, {
     Map<String, String>? headers,
@@ -129,4 +132,12 @@ class VideoCacheManager implements ImageCacheManager {
     _memoryCache.clear();
     _keyCache.clear();
   }
+}
+
+class VideoCacheLease {
+  const VideoCacheLease(this.path);
+
+  final String path;
+
+  Future<void> release() async {}
 }

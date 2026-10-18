@@ -1,5 +1,5 @@
 {
-  "pinned_searches": {
+  "following_topics": {
     "sort_updates_first": "التحديثات أولًا",
     "sort_last_post_oldest": "أقدم المنشورات أولًا"
   },
@@ -30,14 +30,20 @@
       "show_all": "عرض الكل",
       "show_less": "عرض أقل",
       "search": "بحث",
-      "view_all": "عرض جميع العناصر"
+      "view_all": "عرض جميع العناصر",
+      "copy_path": "نسخ المسار"
     },
     "warning": "تحذير",
     "default": "الافتراضي",
     "copied": "تم النسخ",
     "no_content": "لا يوجد محتوى",
     "version": "الإصدار $version",
-    "app_restart_request": "يرجى إعادة تشغيل التطبيق"
+    "app_restart_request": "يرجى إعادة تشغيل التطبيق",
+    "requirement": {
+      "android": {
+        "version_or_later": "مطلوب أندرويد $version أو احدث"
+      }
+    }
   },
   "reminder": {
     "dont_show_again": "عدم الظهور مجدداً"
@@ -138,7 +144,7 @@
       "show_less": "عرض أقل",
       "login_required_notice": "يرجى تسجيل الدخول للمتابعة",
       "open_wiki": "فتح الويكي",
-      "add_to_favorites": "إضافة للمفضلة",
+      "add_to_favorites": "إضافة  إلى المفضلة",
       "copy_and_open_saved_search": "نسخ وفتح البحث المحفوظ",
       "score": {
         "one": "نقطة واحدة",
@@ -189,7 +195,7 @@
     "action": {
       "share": "مشاركة",
       "bookmark": "إضافة علامة مرجعية",
-      "favorite": "إضافة للمفضلة",
+      "favorite": "المفضلة",
       "unfavorite": "إزالة من المفضلة",
       "upvote": "تصويت إيجابي",
       "downvote": "تصويت سلبي",
@@ -474,7 +480,24 @@
       "enable_incognito_keyboard": "تفعيل لوحة المفاتيح المتخفية",
       "enable_incognito_keyboard_notice": "توجيه لوحة المفاتيح لعدم تسجيل الكلمات المقترحة أو سجل الكتابة أثناء البحث.",
       "enable_biometric_lock": "تفعيل القفل الحيوي (بصمة الإصبع/الوجه)",
-      "enable_biometric_lock_notice": "طلب المصادقة الحيوية عند فتح التطبيق لحماية الخصوصية."
+      "enable_biometric_lock_notice": "طلب المصادقة الحيوية عند فتح التطبيق لحماية الخصوصية.",
+      "app_lock": {
+        "title": "قفل التطبيق",
+        "description": "مطلوب التحقق قبل فتح التطبيق.",
+        "off": "إيقاف",
+        "pin": "مفتاح مرور",
+        "biometrics": "بصمة الإصبع",
+        "device_authentication": "المصادقة",
+        "change_pin": "تغيير رمز المرور",
+        "change_pin_description": "حدث رمز المرور.",
+        "lock_after": "قفل بعد مضي",
+        "lock_after_description": "قفل التطبيق عند إزالته من الخلفية.",
+        "timeout_immediately": "فوراً",
+        "timeout_one_minute": "دقيقة واحدة",
+        "hide_app_preview": "حجب معاينة التطبيق",
+        "hide_app_preview_description": "تمويه محتوى التطبيق في شاشة التطبيقات.",
+        "set_pin": "تعين رمز مرور"
+      }
     },
     "performance": {
       "performance": "الأداء",
@@ -500,7 +523,10 @@
         "large": "كبيرة",
         "preview": "معاينة مصغرة"
       },
-      "title": "التنزيل"
+      "title": "التنزيل",
+      "sidecar": {
+        "title": "حفظ البيانات الوصفية"
+      }
     },
     "help_us_translate": "ساعدنا في الترجمة",
     "need_more_questions": "هل لديك أسئلة أخرى؟",
@@ -785,7 +811,31 @@
     "favorites": "الوسوم المفضلة",
     "import_hint": "الصق وسومك هنا مفصولة بسطور جديدة أو بمسافات لاستيرادها دفعة واحدة.",
     "export_notification": "تم تصدير الوسوم المفضلة إلى الحافظة بنجاح",
-    "title": "الوسوم المفضلة"
+    "title": "الوسوم المفضلة",
+    "manage_labels": "إدارة التصنيفات",
+    "add_favorite": "إضافة إلى المفضلة",
+    "duplicate_error": "موجود بي الفعل",
+    "search_hint": "أبحث عن وسم محفوظ",
+    "unlabelled": "غير مصنف",
+    "copy_exact_value": "نسخ القيمة الدقيقة",
+    "deleted": "حُذفت المفضلة",
+    "undo": "تراجع",
+    "raw_badge": "خام",
+    "filtered_empty": "لا توجد وسوم محفوظة تطابق هذه المُرشحات",
+    "empty": "احفظ الوسوم والاستعلامات الخام لإعادة استخدامها هنا",
+    "filter": {
+      "all_types": "جميع الأنواع",
+      "raw": "خام",
+      "any_label": "أي تصنيف",
+      "no_group": "ليست مجموعة",
+      "by_label": "التصنيف",
+      "label_picker_title": "فرز بي التصنيف"
+    },
+    "labels": {
+      "title": "تصنيفات",
+      "all": "كل التصنيفات",
+      "search_hint": "اعثر على تصنيف"
+    }
   },
   "rating": {
     "rate_request": "قيم التطبيق",
@@ -890,8 +940,6 @@
     },
     "listing": {
       "title": "خيارات تصفح القائمة",
-      "thumbnail_button": "عرض الصور المصغرة",
-      "thumbnail_button_description": "إظهار زر مخصص لمعاينة الصورة المصغرة في القائمة لتسهيل التصفح السريع.",
       "tooltip_on_hover_title": "تلميح عند التمرير",
       "tooltip_on_hover_description": "عرض معلومات المنشور الأساسية بمجرد تمرير مؤشر الفأرة فوقه (للأجهزة المدعومة).",
       "enable_profile_specific_settings": "تفعيل إعدادات مخصصة لهذا الحساب",
@@ -1099,7 +1147,6 @@
     "actions": {
       "create": "إنشاء",
       "delete": "حذف",
-      "copy_path": "نسخ المسار",
       "new_download": "تحميل جديد",
       "add_to_queue": "إضافة للقائمة"
     },

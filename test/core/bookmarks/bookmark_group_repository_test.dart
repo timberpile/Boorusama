@@ -1,5 +1,5 @@
 import 'package:boorusama/core/bookmarks/src/types/bookmark_group.dart';
-import '../search/subscriptions/subscription_test_utils.dart';
+import '../search/following_topics/topic_test_utils.dart';
 // Dart imports:
 import 'dart:io';
 

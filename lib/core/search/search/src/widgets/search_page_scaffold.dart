@@ -1,6 +1,5 @@
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -23,12 +22,8 @@ import '../../../selected_tags/providers.dart';
 import '../../../selected_tags/types.dart';
 import '../../../suggestions/providers.dart';
 import '../../../suggestions/widgets.dart';
-import '../../../subscriptions/providers.dart';
-import '../../../subscriptions/types.dart';
-import '../../../subscriptions/widgets.dart';
-import '../../../subscriptions/src/widgets/pin_search_folder_picker.dart';
-import '../../../subscriptions/src/widgets/search_folder_dialog.dart';
-import '../../../subscriptions/src/widgets/feed_follow_control.dart';
+import '../../../following_topics/types.dart';
+import '../../../following_topics/src/widgets/topic_follow_control.dart';
 import '../routes/params.dart';
 import '../types/search_bar_position.dart';
 import '../views/search_landing_view.dart';
@@ -96,7 +91,7 @@ class _SearchPageScaffoldState<T extends Post>
   late final SelectionModeController _searchModeController;
 
   late final ValueNotifier<PostGridController<T>?> _postController;
-  final _pinFeedback = ValueNotifier<String?>(null);
+  final _topicFeedback = ValueNotifier<String?>(null);
 
   @override
   void initState() {
@@ -141,7 +136,7 @@ class _SearchPageScaffoldState<T extends Post>
     _controller.dispose();
     _searchModeController.dispose();
     _postController.dispose();
-    _pinFeedback.dispose();
+    _topicFeedback.dispose();
     super.dispose();
   }
 
@@ -189,6 +184,11 @@ class _SearchPageScaffoldState<T extends Post>
                                 ResultHeaderWithProvider(
                                   selectedTagsString: value,
                                   onRefresh: null,
+                                  fallback: ResultHeaderFromController(
+                                    controller: postController,
+                                    onRefresh: null,
+                                    hasCount: true,
+                                  ),
                                 ),
                               PostCountMethod.search =>
                                 ResultHeaderFromController(
@@ -200,24 +200,26 @@ class _SearchPageScaffoldState<T extends Post>
                                 const SizedBox.shrink(),
                             },
                           ),
-                          _PinSearchAction(
-                            query: value,
-                            queryStructure: _typedQueryStructure(
-                              _tagsController.tags,
-                            ),
-                            onFeedback: (message) =>
-                                _pinFeedback.value = message,
-                          ),
                           ConstrainedBox(
                             constraints: BoxConstraints(
                               maxWidth: constraints.maxWidth * 0.55,
                             ),
-                            child: FeedFollowButton(query: value),
+                            child: FollowTopicButton(
+                              query: value,
+                              queryStructure: _typedQueryStructure(
+                                _tagsController.tags,
+                              ),
+                              originatingTopicId:
+                                  widget.params.originatingTopicId,
+                              compact: true,
+                              onFeedback: (message) =>
+                                  _topicFeedback.value = message,
+                            ),
                           ),
                         ],
                       ),
                       ValueListenableBuilder(
-                        valueListenable: _pinFeedback,
+                        valueListenable: _topicFeedback,
                         builder: (context, error, _) => switch (error) {
                           final message? when value.trim().isNotEmpty =>
                             Padding(
@@ -263,183 +265,6 @@ SearchQueryStructure? _typedQueryStructure(List<TagSearchItem> tags) =>
     tags.isNotEmpty && tags.every((tag) => !tag.isRaw)
     ? SearchQueryStructure.typedTags(tags.map((tag) => tag.toString()))
     : null;
-
-class _PinSearchAction extends ConsumerStatefulWidget {
-  const _PinSearchAction({
-    required this.query,
-    required this.queryStructure,
-    required this.onFeedback,
-  });
-
-  final String query;
-  final SearchQueryStructure? queryStructure;
-  final ValueChanged<String?> onFeedback;
-
-  @override
-  ConsumerState<_PinSearchAction> createState() => _PinSearchActionState();
-}
-
-class _PinSearchActionState extends ConsumerState<_PinSearchAction> {
-  var _busy = false;
-  var _saved = false;
-  ({String profileId, String query})? _pendingPin;
-
-  SearchSubscription? _findPin(
-    List<SearchSubscription> subscriptions,
-    String profileId,
-    String query,
-  ) {
-    final identity = normalizeSearchIdentity(query);
-    for (final pin in subscriptions) {
-      if (pin.profileId == profileId &&
-          normalizeSearchIdentity(pin.query) == identity) {
-        return pin;
-      }
-    }
-    return null;
-  }
-
-  void _feedback(String message) {
-    widget.onFeedback(message);
-  }
-
-  Future<void> _manage(String profileId, SearchSubscription? existing) async {
-    if (!ref.read(pinnedSearchTrackingSupportedProvider(ref.readConfigAuth))) {
-      _feedback(context.t.pinned_searches.profile_unsupported);
-      return;
-    }
-    final query = widget.query;
-    setState(() => _busy = true);
-    widget.onFeedback(null);
-    try {
-      final folders =
-          ref
-              .read(searchSubscriptionsProvider)
-              .valueOrNull
-              ?.organization
-              .folders ??
-          [];
-      var folderId = folders
-          .where(
-            (f) => f.searchIds.contains(existing?.id),
-          )
-          .firstOrNull
-          ?.id;
-      var isNewFolder = false;
-      SearchSubscription? savedNewPin;
-      final notifier = ref.read(searchSubscriptionsProvider.notifier);
-      final name = await showPinSearchDialog(
-        context,
-        query: query,
-        initialName: existing?.name,
-        isPinned: existing != null,
-        extra: PinSearchFolderPicker(
-          initialFolderId: folderId,
-          onSelected: (id, isNew) {
-            folderId = id;
-            isNewFolder = isNew;
-          },
-        ),
-        onSubmit: (dialogContext, name) async {
-          if (!isNewFolder) return true;
-          final folderName = await showSearchFolderNameDialog(dialogContext);
-          if (folderName == null || !mounted) return false;
-          if (existing == null) {
-            _pendingPin = (profileId: profileId, query: query);
-          }
-          try {
-            savedNewPin = await notifier.savePinInNewFolder(
-              profileId: profileId,
-              query: query,
-              name: name,
-              folderName: folderName,
-              existingPinId: existing?.id,
-            );
-            return true;
-          } catch (_) {
-            _pendingPin = null;
-            _saved = false;
-            rethrow;
-          }
-        },
-      );
-      if (!mounted || name == null) return;
-      if (savedNewPin case final pin?) {
-        if (existing == null) {
-          final refresh = await notifier.refresh(pin.id);
-          if (mounted && refresh is SearchRefreshFailed) {
-            _feedback(context.t.pinned_searches.snapshot_failed);
-          }
-        }
-        return;
-      }
-      switch (existing) {
-        case final pin?:
-          await notifier.rename(pin.id, name);
-          await notifier.movePinToSharedFolder(pin.id, folderId);
-
-        case null:
-          _pendingPin = (profileId: profileId, query: query);
-          final result = await notifier.pin(
-            profileId: profileId,
-            query: query,
-            queryStructure: widget.queryStructure,
-            name: name,
-            folderId: folderId,
-          );
-          if (!mounted) return;
-          if (result.refresh case SearchRefreshFailed()) {
-            _feedback(context.t.pinned_searches.snapshot_failed);
-          }
-      }
-    } catch (_) {
-      if (mounted) {
-        _feedback(
-          _saved
-              ? context.t.pinned_searches.snapshot_failed
-              : context.t.pinned_searches.save_failed,
-        );
-      }
-    } finally {
-      _pendingPin = null;
-      _saved = false;
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (widget.query.trim().isEmpty) return const SizedBox.shrink();
-    final profileId = ref.watchConfig.id;
-    final subscriptions = ref.watch(searchSubscriptionsProvider);
-    final existing = _findPin(
-      subscriptions.valueOrNull?.subscriptions ?? const [],
-      profileId,
-      widget.query,
-    );
-    ref.listen(searchSubscriptionsProvider, (_, next) {
-      if (_pendingPin case final pending? when !_saved) {
-        final saved = _findPin(
-          next.valueOrNull?.subscriptions ?? const [],
-          pending.profileId,
-          pending.query,
-        );
-        if (saved != null) {
-          _saved = true;
-        }
-      }
-    });
-    return IconButton(
-      tooltip: existing == null
-          ? context.t.pinned_searches.pin_title
-          : context.t.pinned_searches.manage_title,
-      icon: Icon(Symbols.push_pin, fill: existing == null ? 0 : 1),
-      onPressed: _busy || !subscriptions.hasValue
-          ? null
-          : () => _manage(profileId, existing),
-    );
-  }
-}
 
 class DefaultMobileSearchLandingView extends StatelessWidget {
   const DefaultMobileSearchLandingView({
@@ -608,14 +433,20 @@ class DefaultInnerSearchButton extends StatelessWidget {
 
         return searchOnce
             ? searchButton
-            : AnimatedOpacity(
-                opacity: allowSearch ? 1.0 : 0.0,
-                duration: const Duration(milliseconds: 200),
-                child: AnimatedScale(
-                  scale: allowSearch ? 1.0 : 0.0,
-                  duration: const Duration(milliseconds: 250),
-                  curve: Curves.easeOutBack,
-                  child: searchButton,
+            : ExcludeFocus(
+                excluding: !allowSearch,
+                child: IgnorePointer(
+                  ignoring: !allowSearch,
+                  child: AnimatedOpacity(
+                    opacity: allowSearch ? 1.0 : 0.0,
+                    duration: const Duration(milliseconds: 200),
+                    child: AnimatedScale(
+                      scale: allowSearch ? 1.0 : 0.0,
+                      duration: const Duration(milliseconds: 250),
+                      curve: Curves.easeOutBack,
+                      child: searchButton,
+                    ),
+                  ),
                 ),
               );
       },
@@ -720,7 +551,11 @@ class DefaultSearchSuggestions extends ConsumerWidget {
                                 searchBarPosition == SearchBarPosition.bottom,
                             config: config,
                             tags: suggestionTags,
+                            listbox: controller.suggestionsListbox,
                             currentQuery: query.text,
+                            onItemPick: (tag) {
+                              controller.tapTag(tag.value);
+                            },
                             onItemTap: (tag) {
                               controller.tapTag(tag.value);
                             },

@@ -8,12 +8,17 @@ import 'package:kurumi/cupertino.dart';
 import 'package:kurumi/material.dart';
 
 // Project imports:
+import '../../../foundation/loggers.dart';
 import '../../../foundation/media_scanner.dart';
 import '../../../foundation/path.dart' as path;
 import '../../../foundation/platform.dart';
 import '../../configs/config/providers.dart';
 import '../../ddos/handler/providers.dart';
+import '../../ddos/solver/types.dart';
 import '../../download_manager/providers.dart';
+import '../downloader/types.dart' show DownloaderMetadata;
+import '../sidecar/data.dart';
+import '../sidecar/providers.dart';
 import 'types.dart';
 
 class BackgroundDownloadRuntime extends ConsumerStatefulWidget {
@@ -30,17 +35,57 @@ class BackgroundDownloadRuntime extends ConsumerStatefulWidget {
 
 class _BackgroundDownloadRuntimeState
     extends ConsumerState<BackgroundDownloadRuntime> {
+  final _attempts = <String, ProtectionAttempt>{};
+
   late StreamSubscription<TaskUpdate> downloadUpdates;
 
   Future<void> _update(TaskUpdate update) async {
     if (update case TaskStatusUpdate()) {
+      // Includes undelivered native completion updates replayed after restart.
+      // The headless callback handles completion while the app is not running.
+      try {
+        if (DownloaderMetadata.fromJsonString(update.task.metaData).sidecarId !=
+            null) {
+          final store = await ref.read(sidecarStoreProvider.future);
+          await finishDownloadSidecar(update, store: store);
+        }
+      } catch (error) {
+        ref
+            .read(loggerProvider)
+            .error(
+              'Download',
+              'Metadata finalization failed: ${error.runtimeType}',
+              sensitiveMessage: error.toString(),
+            );
+      }
+      final attempt = _attempts.putIfAbsent(
+        update.task.taskId,
+        () => ref
+            .read(httpDdosProtectionBypassProvider)
+            .beginAttempt(
+              Uri.parse(update.task.url),
+              ProtectionSource.download,
+            ),
+      );
+      attempt.record(
+        DownloadStatusObserved(
+          taskId: update.task.taskId,
+          status: update.status.name,
+          httpStatus: TaskErrorAdapter(update).response.statusCode,
+          errorType: update.exception?.runtimeType.toString(),
+          retries: attempt.retries,
+        ),
+        sensitive: ProtectionRequestDetails(Uri.parse(update.task.url)),
+      );
+      attempt.observeHeaders(update.task.headers);
       if (update.status case TaskStatus.complete) {
         WidgetsBinding.instance.addPostFrameCallback(
           (_) async {
             final path = await update.task.filePath();
-            if (isAndroid()) {
+            final platform = ref.read(appPlatformProvider);
+            if (platform.isAndroid) {
               await MediaScanner.loadMedia(path: path);
-            } else if (isIOS()) {
+            } else if (platform.isIOS) {
               try {
                 final hasAccess = await Gal.hasAccess(toAlbum: true);
                 if (!hasAccess) {
@@ -85,23 +130,43 @@ class _BackgroundDownloadRuntimeState
         }
 
         if (willRetry) return;
-      } else if (update.status case TaskStatus.failed) {
+      } else if (update.status == TaskStatus.failed) {
         final handled = await ref
             .read(httpDdosProtectionBypassProvider)
-            .handleError(TaskErrorAdapter(update));
+            .handleError(TaskErrorAdapter(update), attempt: attempt);
         if (handled) {
-          ref.invalidate(bypassDdosHeadersProvider);
-          final headers = await ref.read(
-            bypassDdosHeadersProvider(update.task.url).future,
-          );
-          await FileDownloader().retryTask(update.task, headers: headers);
-          return;
+          attempt.record(const RetryPreparationStarted());
+          try {
+            ref.invalidate(bypassDdosHeadersProvider);
+            final headers = await ref.read(
+              bypassDdosHeadersProvider(update.task.url).future,
+            );
+            attempt.retries++;
+            attempt.record(RetryDispatched(attempt.retries));
+            final enqueued = await FileDownloader().retryTask(
+              update.task,
+              bypassHeaders: headers,
+              onPrepared: attempt.observeHeaders,
+            );
+            attempt.record(RetryEnqueued(enqueued));
+            if (!enqueued) _attempts.remove(update.task.taskId);
+            return;
+          } catch (error) {
+            attempt.record(
+              ProtectionOperationFailed(
+                ProtectionOperation.enqueueRetry,
+                error.runtimeType.toString(),
+              ),
+            );
+            _attempts.remove(update.task.taskId);
+            rethrow;
+          }
         }
       }
+      if (update.status.isFinalState) _attempts.remove(update.task.taskId);
     }
 
-    ref.read(downloadTaskUpdatesProvider.notifier).addOrUpdate(update);
-    ref.read(downloadTaskStreamControllerProvider).add(update);
+    ref.read(downloadTaskEventIngressProvider).publish(update);
   }
 
   @override
@@ -112,6 +177,9 @@ class _BackgroundDownloadRuntimeState
 
     FileDownloader().addTaskQueue(tq);
 
+    ref
+        .read(loggerProvider)
+        .info('Download', 'backend configured androidCronet=true');
     FileDownloader().configure(
       globalConfig: (
         Config.holdingQueue,
@@ -129,11 +197,23 @@ class _BackgroundDownloadRuntimeState
   void dispose() {
     super.dispose();
     downloadUpdates.cancel();
+    _attempts.clear();
     FileDownloader().resetUpdates();
   }
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(sidecarRecoveryProvider, (_, next) {
+      if (next case AsyncError(:final error)) {
+        ref
+            .read(loggerProvider)
+            .error(
+              'Download',
+              'Metadata recovery failed: ${error.runtimeType}',
+              sensitiveMessage: error.toString(),
+            );
+      }
+    });
     return widget.child;
   }
 }

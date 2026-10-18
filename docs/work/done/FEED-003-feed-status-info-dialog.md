@@ -37,8 +37,8 @@ Move these details into an Info dialog opened through the feed's context menu.
 User requested a work item on 2026-10-06. This records the request; it does not
 expand the currently active implementation assignment.
 
-- [Pinned-search and feed subsystem](../../pinned_searches.md)
-- [Following Feed page](../../../lib/core/search/subscriptions/src/pages/following_feeds_page.dart)
+- [Pinned-search and feed subsystem](../../following_topics.md)
+- [Following Feed page](../../../lib/core/search/following_topics/src/pages/topic_feeds_page.dart)
 
 Dependencies: None. Coordinate with FEED-001/FEED-002 if replaying prepared
 changes to the same page.

@@ -42,30 +42,32 @@
   "search_backup_import": {
     "title": "Skip unmatched records?",
     "message": "No matching profile for {counts}. Those records will be skipped. Continue importing?",
-    "pinned_count": {
-      "one": "$n pinned search",
-      "other": "$n pinned searches"
+    "topic_count": {
+      "one": "$n topic",
+      "other": "$n topics"
     },
     "feed_count": {
-      "one": "$n following feed",
-      "other": "$n following feeds"
+      "one": "$n topic feed",
+      "other": "$n topic feeds"
     },
     "joiner": " and ",
     "skip_and_import": "Skip and import"
   },
-  "following_feeds_backup": {
-    "title": "Following Feeds",
+  "topic_feeds_backup": {
+    "title": "Topic Feeds",
+    "legacy_title": "Legacy Topic Feeds",
     "backup_count": {
-      "one": "$n following feed",
-      "other": "$n following feeds"
+      "one": "$n topic feed",
+      "other": "$n topic feeds"
     },
-    "backup_loading": "Loading following feeds…",
-    "load_failed": "Could not load following feeds.",
-    "backup_export_success": "Exported {count} following feeds",
-    "backup_import_success": "Imported {count} following feeds; {existing} already existed",
-    "backup_import_skipped": "Imported {count} following feeds; {existing} already existed. Skipped {skipped} feeds because their profile was missing or ambiguous."
+    "backup_loading": "Loading topic feeds…",
+    "load_failed": "Could not load topic feeds.",
+    "backup_export_success": "Exported {count} topic feeds",
+    "backup_import_success": "Imported {count} topic feeds; {existing} already existed",
+    "backup_import_skipped": "Imported {count} topic feeds; {existing} already existed. Skipped {skipped} feeds because their profile was missing or ambiguous."
   },
-  "pinned_searches": {
+  "following_topics": {
+    "backup_contents": "Includes folders and feed settings; cached posts and images are not included.",
     "refresh_in": "in $duration",
     "name_line": "Name: $name",
     "last_attempt_succeeded": "Last attempt: $date · Succeeded",
@@ -74,66 +76,75 @@
     "interval_adaptive": "Adaptive · {duration}",
     "interval_fixed": "Fixed · {duration}",
     "interval_days": {
-        "one": "$n day",
-        "other": "$n days"
+      "one": "$n day",
+      "other": "$n days"
     },
     "interval_hours": {
-        "one": "$n hour",
-        "other": "$n hours"
+      "one": "$n hour",
+      "other": "$n hours"
     },
     "interval_minutes": {
-        "one": "$n minute",
-        "other": "$n minutes"
+      "one": "$n minute",
+      "other": "$n minutes"
     },
     "next_scheduled_refresh": "Next refresh: {value}",
     "refresh_due_now": "Due now",
     "refresh_not_scheduled_disabled": "Not scheduled — automatic checks disabled",
-    "refresh_not_scheduled_scope": "Not scheduled — pinned-search checks disabled",
+    "refresh_not_scheduled_scope": "Not scheduled — topic updates disabled",
     "refresh_not_scheduled_unsupported": "Not scheduled — this search cannot be checked automatically",
     "refresh_profile_unavailable": "Not scheduled — profile unavailable",
-    "refresh_search_unavailable": "This pinned search is no longer available.",
+    "refresh_search_unavailable": "This topic is no longer available.",
     "refresh_waiting_rate_limit": "Waiting for the site rate limit.",
-
-    "title": "Pinned Searches",
+    "title": "Topics",
     "backup_count": {
-      "one": "$n pinned search",
-      "other": "$n pinned searches"
+      "one": "$n topic",
+      "other": "$n topics"
     },
-    "backup_loading": "Loading pinned searches…",
-    "backup_export_success": "Exported {count} pinned searches",
-    "backup_import_success": "Imported {count} pinned searches; {existing} already existed",
+    "backup_loading": "Loading topics…",
+    "backup_export_success": "Exported {count} topics",
+    "backup_import_success": "Imported {count} topics; {existing} already existed",
     "backup_missing_profiles_title": "Skip unmatched records?",
-    "backup_missing_profiles_message": "{count} pinned searches or feeds have no matching profile and will be skipped. Continue importing?",
+    "backup_missing_profiles_message": "{count} topics or feeds have no matching profile and will be skipped. Continue importing?",
     "backup_skip_and_import": "Skip and import",
-    "backup_import_skipped": "Imported {count} pinned searches; {existing} already existed. Skipped {skipped} searches because their profile was missing or ambiguous.",
-    "empty": "No pinned searches yet",
-    "load_failed": "Could not load pinned searches.",
-    "operation_failed": "Could not update the pinned search. Try again.",
+    "backup_import_skipped": "Imported {count} topics; {existing} already existed. Skipped {skipped} topics because their profile was missing or ambiguous.",
+    "empty": "No topics yet",
+    "no_matching_topics": "No matching topics",
+    "filter_topics": "Filter topics",
+    "all_profiles": "All profiles",
+    "follow_a_topic": "Follow a topic",
+    "load_failed": "Could not load topics.",
+    "operation_failed": "Could not update the topic. Try again.",
     "mark_read_failed": "Could not mark this search as read. Try again.",
     "refresh": "Refresh",
     "refresh_all": "Refresh All",
+    "mark_read": "Mark read",
+    "selection_scope": "{selected} selected · {topics} topics affected",
+    "remove_selected_title": "Remove selection?",
+    "remove_selected_message": "Selected topics, folders, and everything inside those folders will be removed.",
     "refreshing": "Refreshing…",
     "refreshing_remaining": "Refreshing… {count} left",
     "refreshing_progress": "Refreshing {completed} of {total}",
+    "feed_refresh_progress": "Checked {checked} of {total} · {remaining} remaining",
     "new_badge": "NEW",
     "new_posts": "New posts available",
     "last_checked": "Last checked: {date}",
     "last_refresh": "Last refresh: {date}",
     "never_checked": "Never checked",
     "rename": "Rename",
-    "edit_title": "Edit Pinned Search",
+    "edit_title": "Edit Topic",
     "edit_name": "Name (optional)",
     "edit_name_hint": "Use the query as the name",
     "edit_query": "Exact query",
     "edit_profile": "Profile",
-    "edit_duplicate": "Another pin already uses this query in the selected profile.",
+    "edit_duplicate": "Another topic in this folder already uses this query and profile.",
     "edit_missing_profile": "Choose an available profile before saving.",
     "edit_unsupported": "New-post tracking is unavailable for this profile. The search can still open normally.",
-    "edit_baseline_failed": "Search updated, but its preview could not be loaded. Refresh it later.",
+    "edit_baseline_failed": "Topic updated, but its preview could not be loaded. Refresh it later.",
     "move_up": "Move up",
     "move_down": "Move down",
-    "remove": "Remove",
-    "remove_confirmation": "Remove this pinned search?",
+    "remove": "Unfollow",
+    "remove_selection": "Remove",
+    "remove_confirmation": "Unfollow this topic?",
     "error_network": "Could not connect. Try refreshing again.",
     "error_authentication": "Check this profile’s login details.",
     "error_query": "This query could not be checked.",
@@ -142,25 +153,29 @@
     "error_pagination": "The check was incomplete. Try refreshing again.",
     "error_parsing": "The site returned unreadable post data.",
     "error_unsupported": "New-post tracking is unsupported for this search.",
-    "error_other": "Could not refresh this search. Try again.",
-    "pin_title": "Pin Search",
-    "manage_title": "Manage Pinned Search",
+    "error_other": "Could not refresh this topic. Try again.",
+    "manage_title": "Manage Topic",
     "name": "Name",
     "query_line": "Query: $query",
-    "pin": "Pin",
     "save": "Save",
-    "pinned": "Search pinned",
-    "saved": "Pinned search updated",
-    "save_failed": "Could not save the pinned search. Try again.",
-    "snapshot_failed": "Search pinned, but its preview could not be loaded. Refresh it later.",
-    "info": "Info",
+    "saved": "Topic updated",
+    "save_failed": "Could not save the topic. Try again.",
+    "snapshot_failed": "Topic followed, but its preview could not be loaded. Refresh it later.",
+    "info": "Details",
+    "topic_details": "Details",
+    "feed_info": "Feed details",
+    "open_topic": "Open topic",
+    "add_another_copy": "Add to another folder",
+    "choose_copy": "Choose a topic",
+    "manage_following_semantics": "Manage followed topic",
+    "tracking_unavailable": "Automatic tracking is unavailable. You can still save and open this topic normally.",
     "sort_feed_added_date": "Added Date",
     "sort_feed_newest_first": "Newest first",
     "sort_feed_oldest_first": "Oldest first",
     "sort_feed_last_refresh": "Last refresh (oldest first)",
-    "edit_feed_member": "Edit feed member",
-    "remove_feed_member": "Remove",
-    "shared_member_name": "This name is shared by every feed containing this search.",
+    "edit_feed_member": "Edit Topic",
+    "remove_feed_member": "Unfollow",
+    "shared_member_name": "Changes to this name apply wherever this topic appears.",
     "sort_manual": "Manual order",
     "sort_updates_first": "Updates first",
     "sort_last_post_oldest": "Oldest post first",
@@ -168,51 +183,87 @@
     "last_post_not_checked": "Not checked",
     "last_post_no_posts": "No posts",
     "last_attempt": "Last attempted: {date}",
-    "profile_unsupported": "Pinned searches are not supported for this profile.",
+    "profile_unsupported": "Topics are not supported for this profile.",
     "manage_folders": "Manage folders",
     "folder_item_count": "{count} items",
-    "delete_shared_folder_message": "This will unpin all {count} searches in this folder.",
-    "unpinning_cannot_be_undone": "Unpinning cannot be undone.",
+    "delete_shared_folder_message": "This will remove all {count} topics in this folder.",
+    "unfollowing_cannot_be_undone": "Removal cannot be undone.",
     "create_folder": "Create folder",
     "folder": "Folder",
     "folder_name": "Folder name",
     "move_to_folder": "Move",
-    "home": "[Home]",
-    "new_folder": "[New]",
-    "refresh_folder": "Refresh Folder",
-    "delete_folder_message": "The searches in this folder will move to Unfiled.",
+    "home": "No folder",
+    "no_folder": "No folder",
+    "new_folder": "New folder",
+    "folder_location": "Location",
+    "folder_name_duplicate": "A folder with this name already exists here.",
+    "refresh_folder": "Refresh",
+    "delete_folder_message": "The topics in this folder will move to Unfiled.",
     "refresh_settings": "Refresh settings",
     "automatic_refresh": "Automatic refresh",
     "refresh_interval": "Every {minutes} minutes",
-    "foreground_refresh_description": "Checks overdue searches across profiles while the app is open, using Wi-Fi or Ethernet.",
-    "following_feeds": "Following feeds",
+    "foreground_refresh_description": "Checks overdue topics across profiles while the app is open, using Wi-Fi or Ethernet.",
+    "topic_feeds": "Topic Feeds",
     "follow": "Follow",
     "following": "Following",
     "load_older_posts": "Load older posts",
     "feed_updates_available": "Show updated posts",
-    "feed_posts_empty": "No posts yet. Sources update gradually.",
-    "add_to_feed": "Add to feed",
+    "feed_posts_empty": "No posts yet. Topics update gradually.",
+    "some_topics_unavailable": "Some topics are unavailable",
+    "add_to_feed": "Follow Topic",
     "create_feed": "Create feed",
     "create_and_follow": "Create and follow",
     "create_feed_source": "This feed will follow: $query",
     "feed_operation_failed": "Could not update the feed. Try again.",
     "edit_feed": "Edit feed",
     "feed_name": "Feed name",
-    "bulk_add": "Add searches",
-    "bulk_destination": "Add to {destination}",
+    "bulk_add": "Bulk Follow",
+    "bulk_destination": "Follow in {destination}",
     "bulk_profile": "Profile",
     "bulk_queries": "Search queries",
     "bulk_queries_hint": "Paste one search per line",
-    "bulk_failed": "Could not add these searches. Check them and try again.",
-    "bulk_added": "Added {count} searches",
+    "bulk_failed": "Could not follow these topics. Check their queries and try again.",
+    "bulk_added": "Following {count} topics",
     "feed_queries": "Search queries",
-    "feed_queries_hint": "One search per line. Up to {limit} sources; separate from your pinned searches.",
+    "feed_queries_hint": "One topic query per line. Up to {limit} topics.",
     "delete_feed": "Delete",
     "delete_feed_confirmation": "Delete this feed?",
-    "feeds_empty": "No following feeds yet.",
-    "feed_freshness": "{checked}/{total} sources checked · {failed} errors",
-    "profile_actions": "Manage profile searches",
-    "refresh_profile": "Refresh profile"
+    "feeds_empty": "No topic feeds yet.",
+    "feed_freshness": "{checked}/{total} topics checked · {failed} errors",
+    "profile_actions": "Manage profile topics",
+    "refresh_profile": "Refresh",
+    "open_feed": "Open Feed",
+    "topics_action": "Topics",
+    "feed_settings": "Settings",
+    "clear_feed_cache": "Clear feed cache",
+    "cache_cleared": "Cache cleared",
+    "reload": "Reload",
+    "enable_feed": "Enable feed",
+    "feed_max_posts": "Maximum cached posts",
+    "feed_max_posts_description": "Stored post metadata for this feed; this does not limit normal browsing or save images offline.",
+    "feed_disable_retains_cache": "Disabling the feed keeps its cache and does not change topic auto-update preferences.",
+    "edit_folder": "Settings",
+    "feed_cache_title": "Feed cache",
+    "feed_cache_stats": "Estimated {size} · {posts} posts in {feeds} feeds",
+    "auto_update_topic": "Auto Update",
+    "auto_update_enable": "Enable auto-update",
+    "auto_update_disable": "Disable auto-update",
+    "refresh_not_scheduled_topic": "Not scheduled — auto-update disabled for this topic",
+    "follow_topic_title": "Follow Topic",
+    "next": "Next",
+    "followed": "Topic followed",
+    "unfollowed": "Topic unfollowed",
+    "undo": "Undo",
+    "undo_failed": "Could not restore the topic.",
+    "page_title": "Following Topics",
+    "new_posts_count": {
+      "one": "$n new post",
+      "other": "$n new posts"
+    },
+    "new_posts_at_least": {
+      "one": "At least $n new post",
+      "other": "At least $n new posts"
+    }
   },
   "generic": {
     "done": "Done",
@@ -242,7 +293,8 @@
       "show_all": "Show all",
       "show_less": "Show less",
       "search": "Search",
-      "view_all": "View all"
+      "view_all": "View all",
+      "copy_path": "Copy path"
     },
     "requirement": {
       "android": {
@@ -549,6 +601,10 @@
   },
   "comment": {
     "comments": "Comments",
+    "vote": {
+      "success": "Comment upvoted",
+      "already_voted": "You already voted on this comment"
+    },
     "create": {
       "hint": "Comment"
     },
@@ -616,7 +672,23 @@
     },
     "no_result_notice": "No result",
     "search_in_progress_notice": "Searching...",
-    "raw_query": "Raw query"
+    "raw_query": "Raw query",
+    "options": {
+      "rating": "Rating",
+      "date": "Date",
+      "order": "Sort order",
+      "user": "Uploader",
+      "pool": "Pool",
+      "favorites": "Favorites by user",
+      "safe": "Safe",
+      "questionable": "Questionable",
+      "explicit": "Explicit",
+      "general": "General",
+      "newest": "Newest",
+      "score": "Score",
+      "date_hint": "YYYY-MM-DD or a date range",
+      "sensitive": "Sensitive"
+    }
   },
   "pool": {
     "pool": "Pool",
@@ -647,13 +719,13 @@
   "settings": {
     "settings": "Settings",
     "app_settings": "App Settings",
-    "pinned_searches_and_feeds": {
-      "title": "Pinned Searches & Feeds",
+    "topic_updates": {
+      "title": "Following Topics",
       "automatic_section": "Automatic checks",
       "enabled": "Enable automatic checks",
       "periodic_description": "Adaptive checks start after 24 hours and adjust between 6 hours and 7 days. Each foreground run checks at most six due sources within shared site request limits. Manual refresh remains available.",
-      "pinned_searches": "Pinned searches",
-      "following_feeds": "Following feed sources",
+      "following_topics": "Topics",
+      "topic_feeds": "Following feed sources",
       "interval": "Check interval",
       "adaptive": "Adaptive (starts at 24 hours)",
       "fixed": "Fixed",
@@ -669,9 +741,9 @@
       "status_section": "Status",
       "last_run": "Last automatic run: ${value}",
       "paused": "Paused: ${reason}",
-      "eligible": "Due sources this run: ${count}",
+      "eligible": "Topics ready to check: ${count}",
       "never": "Never",
-      "running": "Checking due sources…",
+      "running": "Checking topics…",
       "ready": "Automatic checks are ready",
       "pause_disabled": "automatic checks disabled",
       "pause_foreground": "app is not in the foreground",
@@ -913,6 +985,16 @@
       "logs_copied": "Logs copied to clipboard"
     },
     "download": {
+      "sidecar": {
+        "title": "Save metadata",
+        "description": "Save tags or post information beside downloaded files.",
+        "off": "Off",
+        "tags": "Tags (.txt)",
+        "json": "Metadata (.json)",
+        "failures_title": "Metadata needs attention",
+        "failures_description": "Some downloads were saved without their metadata. Retry metadata without downloading media again.",
+        "retry_failed_error": "Metadata could not be saved. Check the folder permissions and existing metadata files, then retry."
+      },
       "path": "Download path",
       "select_a_folder": "Select a folder",
       "quality": "Download image quality",
@@ -945,6 +1027,11 @@
       "tag_cache": "Tag cache",
       "image_only_cache": "Image only cache",
       "video_cache": "Video cache",
+      "cache_locations": {
+        "title": "Cache locations",
+        "private_storage": "Private app storage. Unavailable in file managers.",
+        "open_folder": "Open folder"
+      },
       "video_cache_limit": "Video cache limit",
       "video_cache_limit_description": "Maximum size for video cache storage",
       "custom_cache_limit_option": "Custom...",
@@ -995,7 +1082,7 @@
       "backup_data": "Backup data",
       "advanced_export_import": "Advanced export/import",
       "export_import": {
-        "title": "Export & import",
+        "title": "Export and Import",
         "description": "Back up all of your data or share selected collections.",
         "create_export": "Create export",
         "full_export": "Full export",
@@ -1070,11 +1157,11 @@
             "one": "group",
             "other": "groups"
           },
-          "pinned_search": {
+          "following_topic": {
             "one": "search",
             "other": "searches"
           },
-          "pinned_folder": {
+          "topic_folder": {
             "one": "folder",
             "other": "folders"
           },
@@ -1122,8 +1209,8 @@
           "downloads": "Downloads",
           "blacklisted_tags": "Blacklisted tags",
           "bookmarks": "Bookmark groups",
-          "pinned_searches": "Pinned searches",
-          "following_feeds": "Following feeds",
+          "following_topics": "Topics",
+          "topic_feeds": "Topic feeds",
           "ungrouped": "No group"
         },
         "import_category_count": {
@@ -1184,7 +1271,10 @@
           "unresolved_profile_feeds": "{profile}: Choose a target profile or create a new profile for the selected feeds.",
           "unresolved_profile_import": "Choose a valid import action and target for {item}.",
           "incomplete_checks": "Boorusama could not complete all safety checks for {source}.",
-          "unknown_problem": "Boorusama found a problem with {source}."
+          "unknown_problem": "Boorusama found a problem with {source}.",
+          "profile_thumbnail_actions_fallback": "Profile {item}: unsupported thumbnail actions were ignored or reset to supported defaults.",
+          "profile_media_rules_fallback": "Profile {item}: invalid media host rules were ignored. Review the profile network settings.",
+          "profile_media_enabled_fallback": "Profile {item}: an invalid media host switch was reset to its default."
         },
         "preview_count": {
           "one": "${n} change",
@@ -1624,8 +1714,9 @@
     },
     "listing": {
       "title": "Listing",
-      "thumbnail_button": "Thumbnail's button",
-      "thumbnail_button_description": "Change the default button at the right bottom of the thumbnail.",
+      "thumbnail_primary_action": "Primary thumbnail action",
+      "thumbnail_secondary_action": "Secondary thumbnail action",
+      "thumbnail_secondary_action_description": "Hidden when the thumbnail is too small.",
       "tooltip_on_hover_title": "Show tooltip on hover",
       "tooltip_on_hover_description": "Show preview information when hovering over the thumbnail.",
       "enable_profile_specific_settings": "Enable profile's specific settings",
@@ -1657,6 +1748,17 @@
     },
     "network": {
       "title": "Network",
+      "media_hosts": {
+        "title": "Media host overrides",
+        "description": "Replace media hosts for this profile. Only use hosts you trust, file paths and query parameters are sent to them.",
+        "active": "Media override active",
+        "add": "Add override",
+        "from": "Original host",
+        "to": "Replacement host",
+        "invalid_host": "Enter a hostname without a scheme, port or path.",
+        "duplicate_host": "This host already has an override.",
+        "same_host": "Choose a different replacement host."
+      },
       "proxy": {
         "title": "Proxy",
         "select_type": "<Select>",
@@ -1793,7 +1895,7 @@
     "many_added": "{0} bookmarks added",
     "failed_to_add_many": "Failed to add bookmarks",
     "removed": "Bookmark removed",
-    "removal_result": "{removed} removed · {deleted} bookmarks deleted",
+    "removal_result": "{removed} bookmarks removed",
     "undo": "Undo",
     "undo_failed": "Could not undo removal. The bookmark or group may have changed.",
     "failed_to_remove": "Failed to remove bookmark",
@@ -1935,7 +2037,6 @@
     "actions": {
       "create": "Create",
       "delete": "Delete",
-      "copy_path": "Copy path",
       "new_download": "New download",
       "add_to_queue": "Add to List"
     },
@@ -1991,7 +2092,8 @@
   },
   "captcha": {
     "title": "Solve the captcha",
-    "i_have_solved_it": "I have solved it"
+    "i_have_solved_it": "I have solved it",
+    "blocked_by_site": "This site blocked access from your network. Try turning off your VPN or proxy, or switching networks."
   },
   "select": {
     "selected_items": "Select items",
@@ -2147,6 +2249,13 @@
       "failed_to_fetch": "Cannot fetch extension list for this instance"
     }
   },
+  "sankaku": {
+    "errors": {
+      "anonymous_tag_limit": "Sankaku rejected this search because anonymous users can only search with a limited number of tags. Use fewer tags or sign in.",
+      "account_tag_limit": "Sankaku rejected this search because your account can only search with a limited number of tags. Use fewer tags or upgrade your account.",
+      "exclusion_search_restricted": "Sankaku restricts this exclusion search for your account. Try adding a non-excluded tag."
+    }
+  },
   "eshuushuu": {
     "personal_info": {
       "title": "Personal Information",
@@ -2217,7 +2326,7 @@
     "name": "Folder name",
     "delete_title": "Delete \"{name}\"?",
     "delete_bookmarks": "This will permanently delete {folders} folders, {groups} bookmark groups, and {bookmarks} bookmarks that are not in any other group.",
-    "delete_searches": "This will permanently delete {folders} folders and {searches} pinned searches.",
+    "delete_searches": "This will permanently delete {folders} folders and {searches} topics.",
     "select": "Select",
     "selected": "{count} selected",
     "imported_groups": "Imported Groups",

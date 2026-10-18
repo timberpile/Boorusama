@@ -63,6 +63,7 @@ class MixedPostDetailsPage extends StatefulWidget {
     required this.disclaimer,
     this.fallbackUiBuilderDecorator,
     this.postRecoveryBuilder,
+    this.fallbackConfig,
     this.liveSource,
     super.key,
   }) : assert(posts.length > 0, 'Mixed viewer requires at least one post'),
@@ -79,6 +80,7 @@ class MixedPostDetailsPage extends StatefulWidget {
   final PostDetailsUIBuilder Function(PostDetailsUIBuilder, Post)?
   fallbackUiBuilderDecorator;
   final PostRecoveryBuilder? postRecoveryBuilder;
+  final BooruConfig? fallbackConfig;
   final PostDetailsLiveSource? liveSource;
 
   @override
@@ -217,6 +219,7 @@ class _MixedPostDetailsPageState extends State<MixedPostDetailsPage> {
       child: _MixedPostDetailsView(
         fallbackUiBuilderDecorator: widget.fallbackUiBuilderDecorator,
         postRecoveryBuilder: widget.postRecoveryBuilder,
+        fallbackConfig: widget.fallbackConfig,
         nextLoading:
             _searchingForVisiblePost || (widget.liveSource?.loading() ?? false),
         nextFailed:
@@ -236,6 +239,7 @@ class _MixedPostDetailsView extends ConsumerStatefulWidget {
   const _MixedPostDetailsView({
     required this.fallbackUiBuilderDecorator,
     required this.postRecoveryBuilder,
+    required this.fallbackConfig,
     required this.nextLoading,
     required this.nextFailed,
     required this.nextCanLoad,
@@ -247,6 +251,7 @@ class _MixedPostDetailsView extends ConsumerStatefulWidget {
   final PostDetailsUIBuilder Function(PostDetailsUIBuilder, Post)?
   fallbackUiBuilderDecorator;
   final PostRecoveryBuilder? postRecoveryBuilder;
+  final BooruConfig? fallbackConfig;
   final bool nextLoading;
   final bool nextFailed;
   final bool nextCanLoad;
@@ -283,6 +288,7 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
         valueListenable: details.controller.currentPost,
         builder: (context, currentPost, _) => PostPagePresentationScope(
           post: currentPost,
+          fallbackConfig: widget.fallbackConfig,
           builder: (context, ref, currentPresentation) => _buildViewer(
             context,
             ref,
@@ -399,6 +405,7 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
         final post = posts[index];
         return PostPagePresentationScope(
           post: post,
+          fallbackConfig: widget.fallbackConfig,
           builder: (context, ref, pagePresentation) {
             final pageConfig = pagePresentation.effectiveConfig;
             final pageAuth = pageConfig.auth;

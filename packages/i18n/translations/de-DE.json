@@ -39,7 +39,33 @@
     "preparing_preview": "Flüssige Vorschau wird vorbereitet…",
     "native_preview": "Diese Vorschau kann beim Wiederholen kurz stocken."
   },
-  "pinned_searches": {
+  "following_topics": {
+    "backup_contents": "Enthält Ordner und Feed-Einstellungen; zwischengespeicherte Beiträge und Bilder sind nicht enthalten.",
+    "error_other": "Dieses Thema konnte nicht aktualisiert werden. Versuche es erneut.",
+    "edit_baseline_failed": "Thema aktualisiert, aber die Vorschau konnte nicht geladen werden. Aktualisiere es später.",
+    "remove": "Nicht mehr folgen",
+    "remove_selection": "Entfernen",
+    "topic_details": "Details",
+    "feed_info": "Feeddetails",
+    "open_topic": "Thema öffnen",
+    "add_another_copy": "Zu einem anderen Ordner hinzufügen",
+    "choose_copy": "Thema auswählen",
+    "manage_following_semantics": "Gefolgtes Thema verwalten",
+    "tracking_unavailable": "Automatische Aktualisierungen sind nicht verfügbar. Du kannst dieses Thema trotzdem speichern und normal öffnen.",
+    "refresh_profile": "Aktualisieren",
+    "mark_read": "Als gelesen markieren",
+    "selection_scope": "{selected} ausgewählt · {topics} Themen betroffen",
+    "remove_selected_title": "Auswahl entfernen?",
+    "remove_selected_message": "Ausgewählte Themen, Ordner und deren Inhalte werden entfernt.",
+    "profile_actions": "Profilthemen verwalten",
+    "feed_queries_hint": "Eine Themen-Suchanfrage pro Zeile. Bis zu {limit} Themen.",
+    "bulk_failed": "Diesen Themen konnte nicht gefolgt werden. Prüfe die Suchanfragen und versuche es erneut.",
+    "bulk_destination": "Folgen in {destination}",
+    "following": "Gefolgt",
+    "follow": "Folgen",
+    "topic_feeds": "Themen-Feeds",
+    "delete_folder_message": "Die Themen in diesem Ordner werden nach Unsortiert verschoben.",
+    "refresh_folder": "Aktualisieren",
     "last_refresh": "Zuletzt aktualisiert: {date}",
     "sort_feed_last_refresh": "Letzte Aktualisierung (älteste zuerst)",
     "refresh_in": "in $duration",
@@ -53,36 +79,95 @@
     "interval_adaptive": "Adaptiv · {duration}",
     "interval_fixed": "Fest · {duration}",
     "interval_days": {
-        "one": "$n Tag",
-        "other": "$n Tage"
+      "one": "$n Tag",
+      "other": "$n Tage"
     },
     "interval_hours": {
-        "one": "$n Stunde",
-        "other": "$n Stunden"
+      "one": "$n Stunde",
+      "other": "$n Stunden"
     },
     "interval_minutes": {
-        "one": "$n Minute",
-        "other": "$n Minuten"
+      "one": "$n Minute",
+      "other": "$n Minuten"
     },
     "next_scheduled_refresh": "Nächste Aktualisierung: {value}",
     "refresh_due_now": "Jetzt fällig",
     "refresh_not_scheduled_disabled": "Nicht geplant — automatische Aktualisierung deaktiviert",
-    "refresh_not_scheduled_scope": "Nicht geplant — Aktualisierung angehefteter Suchen deaktiviert",
+    "refresh_not_scheduled_scope": "Nicht geplant — Themenaktualisierung deaktiviert",
     "refresh_not_scheduled_unsupported": "Nicht geplant — diese Suche kann nicht automatisch geprüft werden",
     "refresh_profile_unavailable": "Nicht geplant — Profil nicht verfügbar",
-    "refresh_search_unavailable": "Diese angeheftete Suche ist nicht mehr verfügbar.",
+    "refresh_search_unavailable": "Dieses Thema ist nicht mehr verfügbar.",
     "refresh_waiting_rate_limit": "Warten auf das Anfragelimit der Website.",
-
     "refreshing_remaining": "Aktualisieren… {count} verbleibend",
-
     "sort_feed_added_date": "Hinzufügedatum",
     "sort_feed_newest_first": "Neueste zuerst",
     "sort_feed_oldest_first": "Älteste zuerst",
-    "edit_feed_member": "Feed-Eintrag bearbeiten",
-    "remove_feed_member": "Entfernen",
-    "shared_member_name": "Dieser Name gilt für alle Feeds, die diese Suche enthalten.",
+    "edit_feed_member": "Thema bearbeiten",
+    "remove_feed_member": "Nicht mehr folgen",
+    "shared_member_name": "Namensänderungen gelten überall, wo dieses Thema angezeigt wird.",
     "sort_updates_first": "Aktualisierungen zuerst",
-    "sort_last_post_oldest": "Älteste Beiträge zuerst"
+    "sort_last_post_oldest": "Älteste Beiträge zuerst",
+    "open_feed": "Feed öffnen",
+    "topics_action": "Themen",
+    "feed_settings": "Einstellungen",
+    "clear_feed_cache": "Feed-Cache leeren",
+    "cache_cleared": "Cache geleert",
+    "reload": "Neu laden",
+    "enable_feed": "Feed aktivieren",
+    "feed_max_posts": "Maximal gespeicherte Beiträge",
+    "edit_folder": "Einstellungen",
+    "feed_max_posts_description": "Gespeicherte Beitragsmetadaten für diesen Feed; normales Durchsuchen wird nicht begrenzt und Bilder werden nicht offline gespeichert.",
+    "feed_disable_retains_cache": "Beim Deaktivieren bleibt der Cache erhalten; automatische Themenaktualisierungen werden nicht geändert.",
+    "no_folder": "Kein Ordner",
+    "folder_location": "Speicherort",
+    "folder_name_duplicate": "Hier gibt es bereits einen Ordner mit diesem Namen.",
+    "feed_cache_title": "Feed-Cache",
+    "feed_cache_stats": "Geschätzt {size} · {posts} Beiträge in {feeds} Feeds",
+    "auto_update_topic": "Auto-Update",
+    "auto_update_enable": "Automatische Aktualisierung aktivieren",
+    "auto_update_disable": "Automatische Aktualisierung deaktivieren",
+    "refresh_not_scheduled_topic": "Nicht geplant — automatische Aktualisierung für dieses Thema deaktiviert",
+    "title": "Themen",
+    "empty": "Noch keine Themen",
+    "no_matching_topics": "Keine passenden Themen",
+    "filter_topics": "Themen filtern",
+    "all_profiles": "Alle Profile",
+    "follow_a_topic": "Einem Thema folgen",
+    "load_failed": "Themen konnten nicht geladen werden.",
+    "operation_failed": "Das Thema konnte nicht aktualisiert werden. Versuche es erneut.",
+    "remove_confirmation": "Diesem Thema nicht mehr folgen?",
+    "manage_title": "Thema verwalten",
+    "edit_title": "Thema bearbeiten",
+    "saved": "Thema aktualisiert",
+    "save_failed": "Das Thema konnte nicht gespeichert werden. Versuche es erneut.",
+    "snapshot_failed": "Du folgst diesem Thema, aber die Vorschau konnte nicht geladen werden. Aktualisiere es später.",
+    "edit_duplicate": "Ein anderes Thema in diesem Ordner verwendet bereits diese Suche und dieses Profil.",
+    "delete_shared_folder_message": "Alle {count} Themen in diesem Ordner werden entfernt.",
+    "unfollowing_cannot_be_undone": "Das Entfernen kann nicht rückgängig gemacht werden.",
+    "feed_posts_empty": "Noch keine Beiträge. Themen werden nach und nach aktualisiert.",
+    "some_topics_unavailable": "Einige Themen sind nicht verfügbar",
+    "feed_freshness": "{checked}/{total} Themen geprüft · {failed} Fehler",
+    "bulk_add": "Mehreren folgen",
+    "bulk_added": "Du folgst {count} Themen",
+    "backup_count": {
+      "one": "$n Thema",
+      "other": "$n Themen"
+    },
+    "follow_topic_title": "Thema folgen",
+    "next": "Weiter",
+    "followed": "Du folgst diesem Thema",
+    "unfollowed": "Du folgst diesem Thema nicht mehr",
+    "undo": "Rückgängig",
+    "undo_failed": "Das Thema konnte nicht wiederhergestellt werden.",
+    "page_title": "Gefolgte Themen",
+    "new_posts_count": {
+      "one": "$n neuer Beitrag",
+      "other": "$n neue Beiträge"
+    },
+    "new_posts_at_least": {
+      "one": "Mindestens $n neuer Beitrag",
+      "other": "Mindestens $n neue Beiträge"
+    }
   },
   "generic": {
     "done": "Fertig",
@@ -430,13 +515,13 @@
   "settings": {
     "settings": "Einstellungen",
     "app_settings": "App Einstellungen",
-    "pinned_searches_and_feeds": {
-      "title": "Angepinnte Suchen & Feeds",
+    "topic_updates": {
+      "title": "Gefolgte Themen",
       "automatic_section": "Automatische Prüfungen",
       "enabled": "Automatische Prüfungen aktivieren",
       "periodic_description": "Adaptive Prüfungen beginnen nach 24 Stunden und passen sich zwischen 6 Stunden und 7 Tagen an. Jeder Lauf prüft im Vordergrund höchstens sechs fällige Quellen innerhalb gemeinsamer Anfragelimits. Manuelles Aktualisieren bleibt verfügbar.",
-      "pinned_searches": "Angepinnte Suchen",
-      "following_feeds": "Quellen in gefolgten Feeds",
+      "following_topics": "Themen",
+      "topic_feeds": "Quellen in gefolgten Feeds",
       "interval": "Prüfintervall",
       "adaptive": "Adaptiv (anfangs 24 Stunden)",
       "fixed": "Fest",
@@ -452,9 +537,9 @@
       "status_section": "Status",
       "last_run": "Letzter automatischer Lauf: ${value}",
       "paused": "Pausiert: ${reason}",
-      "eligible": "Fällige Quellen für diesen Lauf: ${count}",
+      "eligible": "Zu prüfende Themen: ${count}",
       "never": "Nie",
-      "running": "Fällige Quellen werden geprüft…",
+      "running": "Themen werden geprüft…",
       "ready": "Automatische Prüfungen sind bereit",
       "pause_disabled": "automatische Prüfungen deaktiviert",
       "pause_foreground": "App ist nicht im Vordergrund",
@@ -1091,8 +1176,6 @@
     },
     "listing": {
       "title": "Auflistung",
-      "thumbnail_button": "Schaltfläche für Miniaturansicht",
-      "thumbnail_button_description": "Ändern Sie die Standardschaltfläche unten rechts in der Miniaturansicht.",
       "tooltip_on_hover_title": "Tooltip beim Darüberfahren anzeigen",
       "tooltip_on_hover_description": "Zeige Vorschau-Informationen an, wenn du über die Miniaturansicht fährst.",
       "enable_profile_specific_settings": "Profil-spezifische Einstellungen aktivieren",
@@ -1376,7 +1459,7 @@
     "name": "Ordnername",
     "delete_title": "„{name}“ löschen?",
     "delete_bookmarks": "Dadurch werden {folders} Ordner, {groups} Lesezeichengruppen und {bookmarks} Lesezeichen, die keiner anderen Gruppe angehören, endgültig gelöscht.",
-    "delete_searches": "Dadurch werden {folders} Ordner und {searches} angeheftete Suchen endgültig gelöscht.",
+    "delete_searches": "Dadurch werden {folders} Ordner und {searches} Themen endgültig gelöscht.",
     "select": "Auswählen",
     "selected": "{count} ausgewählt",
     "imported_groups": "Importierte Gruppen",
@@ -1384,5 +1467,11 @@
     "move_up": "Nach oben",
     "move_down": "Nach unten",
     "invalid": "Der Ordnername oder das Ziel ist ungültig."
+  },
+  "search_backup_import": {
+    "topic_count": {
+      "one": "$n Thema",
+      "other": "$n Themen"
+    }
   }
 }

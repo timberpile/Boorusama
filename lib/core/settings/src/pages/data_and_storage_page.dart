@@ -10,12 +10,14 @@ import '../../../../foundation/caching/types.dart';
 import '../../../../foundation/utils/file_utils.dart';
 import '../../../cache/cache_notifier.dart';
 import '../../../cache/providers.dart';
+import '../../../search/following_topics/src/providers/following_topics_notifier.dart';
 import '../../../../foundation/caching/cache_limit_options.dart';
 import '../../../cache/cache_limit_dialog.dart';
 import '../providers/settings_notifier.dart';
 import '../providers/settings_provider.dart';
 import '../types/settings.dart';
 import '../widgets/settings_page_scaffold.dart';
+import '../widgets/cache_locations_section.dart';
 import '../widgets/storage_segment_bar.dart';
 
 final diskSpaceProvider = Provider.autoDispose<CacheSizeInfo>((
@@ -62,6 +64,7 @@ class _DataAndStoragePageState extends ConsumerState<DataAndStoragePage> {
       ),
       children: [
         _buildDiskSpace(),
+        const CacheLocationsSection(),
         _buildCacheSection(settings, notifier),
       ],
     );
@@ -217,6 +220,8 @@ class _DataAndStoragePageState extends ConsumerState<DataAndStoragePage> {
           const Divider(height: 1),
           _buildTagCacheItem(),
           const Divider(height: 1),
+          _buildFeedCacheItem(),
+          const Divider(height: 1),
           _buildAllCacheItem(),
           const Divider(height: 1),
           KurumiSwitchListTile(
@@ -315,6 +320,46 @@ class _DataAndStoragePageState extends ConsumerState<DataAndStoragePage> {
         onPressed: tagCacheAsync.isLoading
             ? null
             : () => ref.read(cacheSizeProvider.notifier).clearAppTagCache(),
+        child: Text(context.t.settings.performance.clear_cache),
+      ),
+    );
+  }
+
+  Widget _buildFeedCacheItem() {
+    final info = ref.watch(feedCacheInfoProvider);
+    final strings = context.t.following_topics;
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+      title: Text(strings.feed_cache_title),
+      subtitle: info.when(
+        data: (stats) => Text(
+          strings.feed_cache_stats
+              .replaceAll('{size}', Filesize.parse(stats.bytes))
+              .replaceAll('{feeds}', '${stats.feeds}')
+              .replaceAll('{posts}', '${stats.posts}'),
+        ),
+        loading: () => Text(context.t.settings.data_and_storage.loading),
+        error: (_, _) => Text(
+          context.t.settings.data_and_storage.error_loading_cache_info,
+        ),
+      ),
+      trailing: FilledButton(
+        onPressed: info.isLoading
+            ? null
+            : () async {
+                try {
+                  await ref
+                      .read(followingTopicsProvider.notifier)
+                      .clearAllFeedCaches();
+                  if (mounted) ref.invalidate(feedCacheInfoProvider);
+                } catch (_) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(strings.operation_failed)),
+                    );
+                  }
+                }
+              },
         child: Text(context.t.settings.performance.clear_cache),
       ),
     );

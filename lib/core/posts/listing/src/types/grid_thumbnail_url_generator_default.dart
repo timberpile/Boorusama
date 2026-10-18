@@ -1,3 +1,6 @@
+// Package imports:
+import 'package:coreutils/coreutils.dart';
+
 // Project imports:
 import '../../../../images/types.dart';
 import '../../../post/types.dart';
@@ -9,15 +12,30 @@ GridThumbnailMedia defaultGridThumbnailMedia(
   Post post,
   GridThumbnailSettings settings,
 ) {
-  final aspectRatio = switch (post.isGif) {
+  final isGif = isOriginalGridGif(post);
+  final sampleUrl = isGif
+      ? gridGifSampleUrl(post, post.sampleImageUrl)
+      : post.sampleImageUrl;
+  final sampleAspectRatio = isGif && sampleUrl == post.originalImageUrl
+      ? post.effectiveOriginalAspectRatio
+      : post.effectiveSampleAspectRatio;
+  if (isGif && !shouldAutoplayGridGif(post, settings)) {
+    return GridThumbnailMedia(
+      url: post.thumbnailImageUrl,
+      aspectRatio: post.effectiveThumbnailAspectRatio,
+      placeholderUrl: post.thumbnailImageUrl,
+      placeholderAspectRatio: post.effectiveThumbnailAspectRatio,
+    );
+  }
+  final aspectRatio = switch (isGif) {
     true => switch (settings.imageQuality) {
       ImageQuality.automatic => switch (settings.animatedPostsDefaultState) {
-        AnimatedPostsDefaultState.autoplay => post.effectiveSampleAspectRatio,
+        AnimatedPostsDefaultState.autoplay => sampleAspectRatio,
         AnimatedPostsDefaultState.static => post.effectiveThumbnailAspectRatio,
       },
       ImageQuality.low => post.effectiveThumbnailAspectRatio,
-      ImageQuality.high => post.effectiveSampleAspectRatio,
-      ImageQuality.highest => post.effectiveSampleAspectRatio,
+      ImageQuality.high => sampleAspectRatio,
+      ImageQuality.highest => sampleAspectRatio,
       ImageQuality.original => post.effectiveOriginalAspectRatio,
     },
     false => switch (settings.resolvedImageQuality) {
@@ -47,15 +65,15 @@ GridThumbnailMedia defaultGridThumbnailMedia(
   };
 
   return GridThumbnailMedia(
-    url: switch (post.isGif) {
+    url: switch (isGif) {
       true => switch (settings.imageQuality) {
         ImageQuality.automatic => switch (settings.animatedPostsDefaultState) {
-          AnimatedPostsDefaultState.autoplay => post.sampleImageUrl,
+          AnimatedPostsDefaultState.autoplay => sampleUrl,
           AnimatedPostsDefaultState.static => post.thumbnailImageUrl,
         },
         ImageQuality.low => post.thumbnailImageUrl,
-        ImageQuality.high => post.sampleImageUrl,
-        ImageQuality.highest => post.sampleImageUrl,
+        ImageQuality.high => sampleUrl,
+        ImageQuality.highest => sampleUrl,
         ImageQuality.original => post.originalImageUrl,
       },
       false => switch (settings.resolvedImageQuality) {
@@ -84,6 +102,33 @@ GridThumbnailMedia defaultGridThumbnailMedia(
     placeholderAspectRatio: aspectRatio,
   );
 }
+
+const maxAutoplayGridGifBytes = 5 * 1024 * 1024;
+
+// The viewer's isGif also inspects videoUrl, which may be a transcoded sample.
+// Grid limits must instead follow the original file whose size the API reports.
+bool isOriginalGridGif(Post post) => switch (post.format.toLowerCase()) {
+  'gif' || '.gif' => true,
+  '' => post.isGif,
+  _ => false,
+};
+
+String gridGifSampleUrl(Post post, String sampleUrl) {
+  final extension = urlExtension(sampleUrl).toLowerCase();
+  // A static JPEG or video transcode cannot animate in an image grid.
+  return sampleUrl.isEmpty ||
+          extension == '.jpg' ||
+          extension == '.jpeg' ||
+          isFormatVideo(extension)
+      ? post.originalImageUrl
+      : sampleUrl;
+}
+
+bool shouldAutoplayGridGif(Post post, GridThumbnailSettings settings) =>
+    isOriginalGridGif(post) &&
+    settings.animatedPostsDefaultState == AnimatedPostsDefaultState.autoplay &&
+    post.fileSize > 0 &&
+    post.fileSize <= maxAutoplayGridGifBytes;
 
 GridThumbnailMedia _thumbnailOnlyGridThumbnailMedia(
   Post post,

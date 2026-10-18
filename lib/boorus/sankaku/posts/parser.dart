@@ -7,8 +7,9 @@ import '../../../core/boorus/booru/types.dart';
 import '../../../core/posts/post/types.dart';
 import '../../../core/posts/rating/types.dart';
 import '../../../core/posts/sources/types.dart';
-import '../../../core/tags/categories/types.dart';
 import '../../../core/tags/tag/types.dart';
+import '../../../core/tags/categories/types.dart';
+import '../tags/categories.dart';
 import 'post_codec.dart';
 import 'types.dart';
 
@@ -20,80 +21,32 @@ Post postDtoToPost(
   final hasParent = e.parentId != null;
   final hasChilren = e.hasChildren ?? false;
   final hasParentOrChildren = hasParent || hasChilren;
-  final artistTags =
-      e.tags
-          ?.where(
-            (e) => TagCategory.fromLegacyId(e.type) == TagCategory.artist(),
-          )
-          .map(
-            (e) => Tag(
-              name: e.tagName ?? '????',
-              category: TagCategory.artist(),
-              postCount: e.postCount ?? 0,
-            ),
-          )
-          .toList() ??
-      [];
-
-  final characterTags =
-      e.tags
-          ?.where(
-            (e) => TagCategory.fromLegacyId(e.type) == TagCategory.character(),
-          )
-          .map(
-            (e) => Tag(
-              name: e.tagName ?? '????',
-              category: TagCategory.character(),
-              postCount: e.postCount ?? 0,
-            ),
-          )
-          .toList() ??
-      [];
-
-  final copyrightTags =
-      e.tags
-          ?.where(
-            (e) => TagCategory.fromLegacyId(e.type) == TagCategory.copyright(),
-          )
-          .map(
-            (e) => Tag(
-              name: e.tagName ?? '????',
-              category: TagCategory.copyright(),
-              postCount: e.postCount ?? 0,
-            ),
-          )
-          .toList() ??
-      [];
-
-  final generalTags =
-      e.tags
-          ?.where(
-            (e) => TagCategory.fromLegacyId(e.type) == TagCategory.general(),
-          )
-          .map(
-            (e) => Tag(
-              name: e.tagName ?? '????',
-              category: TagCategory.general(),
-              postCount: e.postCount ?? 0,
-            ),
-          )
-          .toList() ??
-      [];
-
-  final metaTags =
-      e.tags
-          ?.where(
-            (e) => TagCategory.fromLegacyId(e.type) == TagCategory.meta(),
-          )
-          .map(
-            (e) => Tag(
-              name: e.tagName ?? '????',
-              category: TagCategory.meta(),
-              postCount: e.postCount ?? 0,
-            ),
-          )
-          .toList() ??
-      [];
+  final detailedTags = sankakuTagDtosToTags(e.tags);
+  final artistTags = detailedTags
+      .where(
+        (tag) =>
+            tag.category == TagCategory.artist() ||
+            tag.category == kSankakuStudioTagCategory,
+      )
+      .toList();
+  final characterTags = detailedTags
+      .where((tag) => tag.category == TagCategory.character())
+      .toList();
+  final copyrightTags = detailedTags
+      .where((tag) => tag.category == TagCategory.copyright())
+      .toList();
+  final generalTags = detailedTags
+      .where((tag) => tag.category == TagCategory.general())
+      .toList();
+  final metaTags = detailedTags
+      .where(
+        (tag) =>
+            !artistTags.contains(tag) &&
+            !characterTags.contains(tag) &&
+            !copyrightTags.contains(tag) &&
+            !generalTags.contains(tag),
+      )
+      .toList();
 
   final timestamp = e.createdAt?.s;
 
@@ -153,6 +106,32 @@ Post postDtoToPost(
     record,
     PostOrigin.forBooruType(BooruType.sankaku),
   );
+}
+
+List<Tag> sankakuTagDtosToTags(List<TagDto>? tags) {
+  if (tags == null) return const [];
+
+  final parsed = <Object, Tag>{};
+  for (final dto in tags) {
+    final name = dto.tagName;
+    if (name == null || name.isEmpty) continue;
+
+    final key = switch (dto.id) {
+      final id? => (id: id),
+      null => (name: name, type: dto.type),
+    };
+    final tag = Tag(
+      name: name,
+      category: sankakuTagCategoryFromApiId(dto.type),
+      postCount: dto.postCount ?? dto.count ?? 0,
+    );
+    final existing = parsed[key];
+    if (existing == null || tag.postCount > existing.postCount) {
+      parsed[key] = tag;
+    }
+  }
+
+  return parsed.values.toList(growable: false);
 }
 
 String? extractFileExtension(

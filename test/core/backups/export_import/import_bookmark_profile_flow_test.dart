@@ -32,10 +32,12 @@ import 'package:boorusama/core/backups/export_import/import/import_plan.dart';
 import 'package:boorusama/core/backups/export_import/import/import_preflight.dart';
 import 'package:boorusama/core/backups/export_import/import/import_journal.dart';
 import 'package:boorusama/core/backups/export_import/import/import_transaction.dart';
-import 'package:boorusama/core/search/subscriptions/src/data/providers.dart';
-import 'package:boorusama/core/search/subscriptions/types.dart';
-import '../../search/subscriptions/subscription_test_utils.dart';
+import 'package:boorusama/core/search/following_topics/src/data/providers.dart';
+import 'package:boorusama/core/search/following_topics/types.dart';
+
+import '../../search/following_topics/topic_test_utils.dart';
 import 'import_transaction_test_utils.dart';
+
 import 'package:boorusama/core/backups/export_import/import/profile_dependency_planner.dart';
 import 'package:boorusama/core/backups/export_import/models/export_selection.dart';
 import 'package:boorusama/core/backups/export_import/models/import_action.dart';
@@ -47,7 +49,7 @@ import 'package:boorusama/core/configs/manage/providers.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/boorus/engine/providers.dart';
 import 'package:boorusama/core/boorus/engine/types.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 const firstId = '00000000-0000-4000-8000-000000000001';
 const secondId = '00000000-0000-4000-8000-000000000002';
@@ -184,7 +186,7 @@ void main() {
                 _FileSystem(directory.path),
               ),
               appVersionProvider.overrideWithValue(null),
-              searchSubscriptionRepositoryProvider.overrideWith(
+              followingTopicRepositoryProvider.overrideWith(
                 () => _SearchRepository(searchRepository),
               ),
               settingsNotifierProvider.overrideWith(
@@ -194,8 +196,8 @@ void main() {
                 (ref) => BackupRegistry()
                   ..register(ref.read(bookmarksBackupSourceProvider))
                   ..register(ref.read(booruConfigsBackupSourceProvider))
-                  ..register(ref.read(pinnedSearchesBackupSourceProvider))
-                  ..register(ref.read(followingFeedsBackupSourceProvider)),
+                  ..register(ref.read(followingTopicsBackupSourceProvider))
+                  ..register(ref.read(topicFeedsBackupSourceProvider)),
               ),
               exportImportSourcesProvider.overrideWith(
                 (ref) => [
@@ -210,13 +212,13 @@ void main() {
                   ),
                   if (crossCategories) ...[
                     LegacyJsonSourceAdapter(
-                      source: ref.read(pinnedSearchesBackupSourceProvider),
+                      source: ref.read(followingTopicsBackupSourceProvider),
                       descriptor: const ExportSelectionDescriptor.collection(
                         id: 'pinned_searches',
                       ),
                     ),
                     LegacyJsonSourceAdapter(
-                      source: ref.read(followingFeedsBackupSourceProvider),
+                      source: ref.read(topicFeedsBackupSourceProvider),
                       descriptor: const ExportSelectionDescriptor.collection(
                         id: 'following_feeds',
                       ),
@@ -583,9 +585,9 @@ void main() {
             expect(replaced.bookmarkIds, hasLength(2));
           }
           if (crossCategories) {
-            final pins = await searchRepository.getAll();
+            final topics = await searchRepository.getAll();
             expect(
-              pins.where((p) => p.query == 'cat').map((p) => p.profileId),
+              topics.where((p) => p.query == 'cat').map((p) => p.profileId),
               containsAll([firstId, secondId]),
             );
             final feed = (await searchRepository.getFeeds()).single;
@@ -642,11 +644,11 @@ class _SettingsNotifier extends SettingsNotifier {
   _SettingsNotifier(super.initialSettings);
 }
 
-class _SearchRepository extends SearchSubscriptionRepositoryNotifier {
+class _SearchRepository extends FollowingTopicRepositoryNotifier {
   _SearchRepository(this.repository);
-  final SearchSubscriptionRepository repository;
+  final FollowingTopicRepository repository;
   @override
-  Future<SearchSubscriptionRepository> build() async => repository;
+  Future<FollowingTopicRepository> build() async => repository;
 }
 
 BackupProfileReference _reference(String id) => BackupProfileReference(

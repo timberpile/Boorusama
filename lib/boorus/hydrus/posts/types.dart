@@ -31,7 +31,9 @@ class HydrusPostRecord extends CommonPostRecord {
     required super.uploaderName,
     required super.metadata,
     required this.ownFavorite,
+    this.sourceUrls = const [],
   });
 
   final bool? ownFavorite;
+  final List<String> sourceUrls;
 }

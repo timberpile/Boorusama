@@ -1,5 +1,5 @@
 import 'package:anchor_ui/anchor_ui.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 class KurumiTooltip extends StatelessWidget {
   const KurumiTooltip({
@@ -86,10 +86,6 @@ class KurumiTooltip extends StatelessWidget {
       child: child,
     );
 
-    if (message case final message?) {
-      return Semantics(tooltip: message, child: tooltip);
-    }
-
-    return tooltip;
+    return Semantics(tooltip: message, child: tooltip);
   }
 }

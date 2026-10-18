@@ -69,6 +69,7 @@ class _DownloadPostButtonState extends ConsumerState<DownloadPostButton> {
             onTap: () {
               notifier.download(
                 widget.post,
+                quality: e.quality,
                 overrideUrl: e.url,
               );
             },

@@ -1,5 +1,4 @@
 // Package imports:
-import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Project imports:
@@ -45,18 +44,9 @@ final danbooruFavoriteRepoProvider =
             final success = await client.removeFromFavorites(postId: postId);
 
             if (success) {
-              try {
-                await votesNotifier.removeVote(postId, null);
-              } catch (e, stack) {
-                if (isFavoriteRequestInterruption(e)) {
-                  throw FavoriteCompletedWithInterruption(
-                    e as DioException,
-                    stack,
-                  );
-                }
-                // Favorite removal is already acknowledged. Failed vote cleanup
-                // must not restore a favorite or claim its mutation failed.
-              }
+              // Danbooru removes positive votes as part of deleting a favorite.
+              // Mirror that acknowledgement instead of sending another deletion.
+              votesNotifier.removeLocalUpvote(postId);
             }
 
             return success;

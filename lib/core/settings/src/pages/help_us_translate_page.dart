@@ -101,6 +101,7 @@ class HelpUseTranslatePage extends ConsumerWidget {
                 onPressed: () {
                   launchExternalUrlString(
                     appInfo.translationProjectUrl,
+                    launcher: ref.read(externalUrlLauncherProvider),
                   );
                 },
                 child: Text(

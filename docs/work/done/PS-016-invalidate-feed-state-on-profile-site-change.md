@@ -47,10 +47,10 @@ Backup profile replacement already compares booru type and portable URL; use
 that established identity rule when assessing ordinary profile updates.
 
 - [Profile update](../../../lib/core/configs/manage/src/providers/booru_config_provider.dart)
-- [Feed cache model](../../../lib/core/search/subscriptions/src/types/search_following_feed.dart)
-- [Cached post navigation](../../../lib/core/search/subscriptions/src/pages/following_feeds_page.dart)
+- [Feed cache model](../../../lib/core/search/following_topics/src/types/topic_feed.dart)
+- [Cached post navigation](../../../lib/core/search/following_topics/src/pages/topic_feeds_page.dart)
 - [Backup profile replacement](../../../lib/core/backups/sources/booru_configs_source.dart)
-- [Subsystem documentation](../../pinned_searches.md)
+- [Subsystem documentation](../../following_topics.md)
 
 ## Progress
 

@@ -1,5 +1,5 @@
 import 'package:boorusama/core/posts/details/src/widgets/lazy_post_details_pager.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:i18n/i18n.dart';
 

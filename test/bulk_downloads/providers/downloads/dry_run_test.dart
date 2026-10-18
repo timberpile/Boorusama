@@ -16,6 +16,7 @@ import 'package:boorusama/core/bulk_downloads/src/providers/dry_run_state.dart';
 import 'package:boorusama/core/bulk_downloads/src/types/download_session.dart';
 import 'package:boorusama/core/downloads/filename/types.dart';
 import 'package:boorusama/core/search/selected_tags/types.dart';
+
 import 'common.dart';
 
 void main() {
@@ -37,6 +38,52 @@ void main() {
     db.close();
     container.dispose();
   });
+
+  for (final skip in [true, false]) {
+    test(
+      'same-batch filename conflicts are safe when skipIfExists=$skip',
+      () async {
+        final task = await repository.createTask(
+          DownloadTestConstants.defaultOptions.copyWith(skipIfExists: skip),
+        );
+        final session = await repository.createSession(
+          task,
+          DownloadTestConstants.defaultAuthConfig,
+        );
+        final notifier = container.read(
+          dryRunNotifierProvider(session.id).notifier,
+        );
+        await notifier.start(
+          session,
+          task,
+          CancelToken(),
+          DownloadTestConstants.defaultConfigs.copyWith(
+            fileNameBuilder: DownloadFileNameBuilder(
+              defaultFileNameFormat: 'same.jpg',
+              defaultBulkDownloadFileNameFormat: 'same.jpg',
+              sampleData: [],
+              tokenHandlers: [],
+            ),
+          ),
+          shouldContinue: () async => true,
+          onPageProgress: (_) async {},
+        );
+        final result = await container.read(
+          dryRunNotifierProvider(session.id).future,
+        );
+        if (skip) {
+          expect(result.status, isA<DryRunStatusCompleted>());
+          expect(result.allRecords.map((record) => record.fileName), [
+            'same.jpg',
+          ]);
+        } else {
+          expect(result.status, isA<DryRunStatusFailed>());
+          expect(result.allRecords, isEmpty);
+          expect(result.error, contains('filenames conflict'));
+        }
+      },
+    );
+  }
 
   group('Dry Run - File Discovery', () {
     test('should find files across multiple pages', () async {

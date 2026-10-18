@@ -69,7 +69,7 @@ void main() {
     },
   );
 
-  test('same-key replacement preserves unrelated older generations', () async {
+  test('same-key duplicate preserves unrelated older entries', () async {
     await manager.setMaxBytes(6);
     for (final key in ['A', 'B', 'C']) {
       await save(key);

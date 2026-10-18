@@ -14,9 +14,16 @@ Post postDtoToPost(
   PostDto e,
   PostMetadata? metadata,
 ) {
+  final mediaUrl = _firstNonEmptyUrl([
+    e.full,
+    e.large,
+    e.medium,
+    e.small,
+    e.thumbnail,
+  ]);
   final record = ZerochanPostRecord(
     id: e.id ?? 0,
-    thumbnailImageUrl: e.thumbnail ?? '',
+    thumbnailImageUrl: _firstNonEmptyUrl([e.thumbnail, e.medium, e.small]),
     sampleImageUrl: e.sampleUrl() ?? '',
     originalImageUrl: e.fileUrl() ?? '',
     tags: e.tags?.map((e) => e.toLowerCase()).toSet() ?? {},
@@ -27,8 +34,8 @@ Post postDtoToPost(
     source: PostSource.from(e.source),
     score: 0,
     duration: kNoduration,
-    fileSize: 0,
-    format: path.extension(e.thumbnail ?? ''),
+    fileSize: e.size ?? 0,
+    format: path.extension(mediaUrl),
     hasSound: null,
     height: e.height?.toDouble() ?? 0,
     md5: e.md5 ?? '',
@@ -44,4 +51,11 @@ Post postDtoToPost(
     record,
     PostOrigin.forBooruType(BooruType.zerochan),
   );
+}
+
+String _firstNonEmptyUrl(Iterable<String?> urls) {
+  for (final url in urls) {
+    if (url case final url? when url.isNotEmpty) return url;
+  }
+  return '';
 }

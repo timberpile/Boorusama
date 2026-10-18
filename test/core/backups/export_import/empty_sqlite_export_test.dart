@@ -67,7 +67,7 @@ void main() {
       try {
         expect(db.select('PRAGMA integrity_check').single.values.single, 'ok');
         expect(db.select('SELECT * FROM ${_table(id)}'), isEmpty);
-        if (id == 'downloads') expect(db.userVersion, 1);
+        if (id == 'downloads') expect(db.userVersion, 2);
       } finally {
         db.close();
       }
@@ -263,7 +263,7 @@ void main() {
         mode: OpenMode.readOnly,
       );
       try {
-        expect(db.userVersion, 1);
+        expect(db.userVersion, 2);
         for (final table in _tables('downloads')) {
           expect(db.select('SELECT * FROM $table'), isEmpty);
         }
@@ -308,15 +308,20 @@ void main() {
   });
 
   for (final id in ['search_histories', 'downloads']) {
-    test('unreadable $id fails without replacing source data', () async {
+    test('locked $id fails without replacing source data', () async {
       final source = sources.singleWhere((source) => source.id == id);
       final path = await source.dbPathGetter();
       await Directory('${directory.path}/data').create();
       _populate(path, id);
+      final lock = sqlite3.open(path);
+      expect(
+        lock.select('PRAGMA journal_mode=DELETE').single.values.single,
+        'delete',
+      );
       final before = File(path).readAsBytesSync();
-      expect((await Process.run('chmod', ['000', path])).exitCode, 0);
-      final output = '${directory.path}/unreadable.bsexport';
+      final output = '${directory.path}/locked.bsexport';
       try {
+        lock.execute('BEGIN EXCLUSIVE');
         await expectLater(
           _service([source]).createPackage(
             ExportRequest(
@@ -326,14 +331,24 @@ void main() {
               outputPath: output,
             ),
           ),
-          throwsA(isA<SqliteException>()),
+          throwsA(
+            isA<SqliteException>().having(
+              (e) => e.resultCode,
+              'SQLITE_BUSY',
+              5,
+            ),
+          ),
         );
       } finally {
-        await Process.run('chmod', ['600', path]);
+        try {
+          lock.execute('ROLLBACK');
+        } finally {
+          lock.close();
+        }
       }
       expect(File(path).readAsBytesSync(), before);
       expect(File(output).existsSync(), isFalse);
-    }, skip: !Platform.isLinux);
+    });
   }
 
   test(

@@ -24,23 +24,24 @@ void main() {
   }
 
   test(
-    'multiple pinned generations count until each actual deletion',
+    'duplicate same-key writes share one pinned canonical file',
     () async {
       await save('A', 2);
       final first = (await manager.acquireFile('A'))!;
       await save('A', 3);
       final second = (await manager.acquireFile('A'))!;
       await save('A', 4);
-      await expectStats(9, 3);
-      await manager.setMaxBytes(5);
-      expect(await manager.hasValidCache('A'), isFalse);
-      await expectStats(5, 2);
+      await expectStats(2, 1);
+      await manager.setMaxBytes(1);
+      expect(await manager.hasValidCache('A'), isTrue);
+      await expectStats(2, 1);
       await first.release();
       await first.release();
-      await expectStats(3, 1);
+      await expectStats(2, 1);
       await manager.setMaxBytes(0);
-      await expectStats(3, 1);
+      await expectStats(2, 1);
       await second.release();
+      expect(await manager.hasValidCache('A'), isFalse);
       await expectStats(0, 0);
     },
   );
@@ -50,7 +51,7 @@ void main() {
     () async {
       await save('A', 4);
       await save('A', 6);
-      await expectStats(6, 1);
+      await expectStats(4, 1);
       await File((await manager.getCachedFilePath('A'))!).delete();
       await expectStats(0, 0);
       await save('B', 3);
@@ -94,7 +95,7 @@ void main() {
   );
 
   test(
-    'legacy reconciliation counts only the newest same-key generation',
+    'legacy reconciliation migrates the newest same-key generation',
     () async {
       final directory = Directory('${root.path}/cacheimage');
       await directory.create();
@@ -104,7 +105,11 @@ void main() {
       await File('${directory.path}/A.generation_new').writeAsBytes([3, 4, 5]);
       await expectStats(3, 1);
       expect(await manager.getCachedFileBytes('A'), [3, 4, 5]);
-      expect(await old.exists(), isFalse);
+      expect(await File('${directory.path}/A').exists(), isTrue);
+      expect(
+        await File('${directory.path}/A.generation_new').exists(),
+        isFalse,
+      );
     },
   );
 

@@ -69,6 +69,7 @@ private final class SearchRefreshEnvironmentChannel: NSObject, FlutterStreamHand
   private var searchRefreshEnvironmentChannel: SearchRefreshEnvironmentChannel?
   private var receivedExportChannel: ReceivedExportChannel?
   private var exportClipboardChannel: ExportClipboardChannel?
+  private var webViewCookieChannel: WebViewCookieChannel?
   private var pendingExportURLs: [URL] = []
 
   override func application(
@@ -101,6 +102,8 @@ private final class SearchRefreshEnvironmentChannel: NSObject, FlutterStreamHand
     receivedExportChannel?.register()
     exportClipboardChannel = ExportClipboardChannel(messenger: registrar.messenger())
     exportClipboardChannel?.register()
+    webViewCookieChannel = WebViewCookieChannel(messenger: registrar.messenger())
+    webViewCookieChannel?.register()
     pendingExportURLs.forEach { receivedExportChannel?.receive($0) }
     pendingExportURLs.removeAll()
   }

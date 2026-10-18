@@ -12,6 +12,7 @@ import 'package:boorusama/core/cache/persistent/providers.dart';
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/ddos/handler/providers.dart';
 import 'package:boorusama/core/ddos/handler/types.dart';
+import 'package:boorusama/core/ddos/solver/types.dart';
 import 'package:boorusama/core/http/client/coordination.dart';
 import 'package:boorusama/core/http/client/providers.dart';
 import 'package:boorusama/core/http/client/types.dart';
@@ -22,12 +23,13 @@ import 'package:boorusama/core/posts/favorites/src/data/providers.dart';
 import 'package:boorusama/foundation/info/app_info.dart';
 import 'package:boorusama/foundation/info/package_info.dart';
 import 'package:boorusama/foundation/loggers.dart';
+import 'package:boorusama/foundation/platform.dart';
 import 'package:fake_async/fake_async.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import '../../search/subscriptions/subscription_test_utils.dart';
+import '../../../support/fakes/memory_repositories.dart';
 
 void main() {
   test('unknown active browsing has no assumed minute or second ceiling', () {
@@ -77,13 +79,15 @@ void main() {
             ),
             defaultUserAgentProvider.overrideWithValue('fixture'),
             defaultNetworkProtocolInfoProvider.overrideWith(
-              (ref, auth) =>
-                  NetworkProtocolInfo.generic(cronetAvailable: false),
+              (ref, auth) => NetworkProtocolInfo.generic(
+                appPlatform: AppPlatform.android,
+                cronetAvailable: false,
+              ),
             ),
             httpDdosProtectionBypassProvider.overrideWithValue(_Protection()),
             loggerProvider.overrideWithValue(_Logger()),
-            persistentCacheBoxProvider.overrideWith(
-              (ref) => Future.value(MemoryBox<String>()),
+            persistentCacheStoreProvider.overrideWithValue(
+              MemoryPersistentCacheStore(),
             ),
             if (!cold)
               danbooruCurrentUserProvider(
@@ -234,14 +238,29 @@ class _BrowsingTransport implements HttpClientAdapter {
 
 class _Protection implements HttpProtectionHandler {
   @override
+  ProtectionAttempt beginAttempt(Uri uri, ProtectionSource source) =>
+      ProtectionAttempt(source: source, host: uri.host);
+
+  @override
   Future<Map<String, String>> prepareRequestHeaders(
     Uri uri,
-    Map<String, String> headers,
-  ) async => headers;
+    Map<String, String> headers, {
+    ProtectionAttempt? attempt,
+  }) async => headers;
   @override
-  Future<bool> handleResponse(Object response) async => false;
+  Future<bool> handleResponse(
+    HttpResponse response, {
+    ProtectionAttempt? attempt,
+    Uri? challengeUri,
+  }) async => false;
   @override
-  Future<bool> handleError(Object error) async => false;
+  Future<bool> handleError(
+    HttpError error, {
+    ProtectionAttempt? attempt,
+    Uri? challengeUri,
+  }) async => false;
+  @override
+  void observeSuccess(Uri uri) {}
   @override
   void resetRetryAttempts(Uri uri) {}
   @override

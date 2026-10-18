@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 // Package imports:
 import 'package:cache_manager/cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,6 +11,35 @@ import '../images/providers.dart';
 import '../tags/local/providers.dart';
 import '../videos/cache/providers.dart';
 import 'persistent/providers.dart';
+import '../search/following_topics/src/data/providers.dart';
+import '../search/following_topics/src/providers/following_topics_notifier.dart';
+
+final feedCacheInfoProvider =
+    FutureProvider.autoDispose<({int bytes, int feeds, int posts})>((
+      ref,
+    ) async {
+      final repository = await ref.watch(
+        followingTopicRepositoryProvider.future,
+      );
+      final feeds = await repository.getFeeds();
+      final cached = feeds.where((feed) => feed.posts.isNotEmpty).toList();
+      return (
+        bytes: cached.fold<int>(
+          0,
+          (sum, feed) =>
+              sum +
+              utf8
+                  .encode(
+                    jsonEncode([
+                      for (final post in feed.posts) post.toJson(),
+                    ]),
+                  )
+                  .length,
+        ),
+        feeds: cached.length,
+        posts: cached.fold<int>(0, (sum, feed) => sum + feed.posts.length),
+      );
+    });
 
 final appCacheSizeProvider = FutureProvider.autoDispose<DirectorySizeInfo>((
   ref,
@@ -192,7 +223,9 @@ class CacheSizeNotifier extends AutoDisposeAsyncNotifier<CacheSizeInfo> {
       await clearTagCacheDatabase(ref);
       await clearVideoCache(ref);
       await clearPersistentCache(ref);
+      await ref.read(followingTopicsProvider.notifier).clearAllFeedCaches();
     });
+    ref.invalidate(feedCacheInfoProvider);
     refreshCacheSize();
   }
 
@@ -276,9 +309,9 @@ Future<bool> clearVideoCache(Ref ref) async {
 
 Future<int> _getPersistentCacheSize(Ref ref) async {
   try {
-    final box = await ref.watch(persistentCacheBoxProvider.future);
+    final store = ref.watch(persistentCacheStoreProvider);
     // Hive doesn't provide direct size calculation, so we estimate based on entry count
-    return box.length * 1024;
+    return store.length * 1024;
   } on Exception catch (_) {
     return 0;
   }
@@ -286,8 +319,7 @@ Future<int> _getPersistentCacheSize(Ref ref) async {
 
 Future<bool> clearPersistentCache(Ref ref) async {
   try {
-    final box = await ref.read(persistentCacheBoxProvider.future);
-    await box.clear();
+    await ref.read(persistentCacheStoreProvider).clear();
     return true;
   } on Exception catch (_) {
     return false;

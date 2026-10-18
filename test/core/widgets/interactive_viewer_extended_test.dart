@@ -1,5 +1,5 @@
 // Flutter imports:
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 // Package imports:
@@ -125,8 +125,10 @@ void main() {
           ),
         );
 
-        final viewer = tester.widget<InteractiveViewer>(
-          find.byType(InteractiveViewer),
+        final dynamic viewer = tester.widget(
+          find.byWidgetPredicate(
+            (widget) => widget.runtimeType.toString() == 'InteractiveViewer',
+          ),
         );
         viewer.onInteractionStart!(ScaleStartDetails());
         viewer.onInteractionUpdate!(ScaleUpdateDetails(pointerCount: 2));

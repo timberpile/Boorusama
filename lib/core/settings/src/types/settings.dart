@@ -16,6 +16,7 @@ import '../../../backups/auto/types.dart';
 import '../../../configs/gesture/types.dart';
 import '../../../configs/config/types.dart';
 import '../../../downloads/downloader/types.dart';
+import '../../../downloads/sidecar/types.dart';
 import '../../../haptics/types.dart';
 import '../../../home/types.dart';
 import '../../../images/types.dart';
@@ -27,6 +28,7 @@ import '../../../search/search/types.dart';
 import '../../../themes/configs/types.dart';
 import '../../../videos/engines/types.dart';
 import '../../../videos/player/types.dart';
+import '../../../search/following_topics/src/compatibility/topic_storage_contract.dart';
 
 export 'search_refresh_settings.dart';
 export 'post_quality.dart';
@@ -64,6 +66,7 @@ class Settings extends Equatable {
     required this.downloadFileExistedBehavior,
     required this.downloadNotificationsEnabled,
     required this.downloadNetworkPolicy,
+    this.downloadSidecarFormat = SidecarFormat.off,
     required this.colors,
     required this.volumeKeyViewerNavigation,
     required this.searchBarScrollBehavior,
@@ -73,8 +76,8 @@ class Settings extends Equatable {
     required this.videoCacheMaxSize,
     this.imageCacheMaxSize = CacheSize.oneGigabyte,
     this.searchRefresh = const SearchRefreshSettings(),
-    this.pinnedSearchSort = 'manual',
-    this.followingFeedMemberSort = 'addedDate',
+    this.followingTopicSort = 'manual',
+    this.topicFeedMemberSort = 'addedDate',
   });
 
   Settings.fromJson(Map<String, dynamic> json)
@@ -107,9 +110,9 @@ class Settings extends Equatable {
       enableDynamicColoring = json['enableDynamicColoring'] ?? false,
       clearImageCacheOnStartup = json['clearImageCacheOnStartup'] ?? false,
       appLockType = AppLockType.parse(json['appLockType']),
-      appLockTimeoutSeconds = json['appLockTimeoutSeconds'] ?? 0,
+      appLockTimeoutSeconds = json['appLockTimeoutSeconds'] ?? 30,
       hideAppPreviewWhenBackgrounded =
-          json['hideAppPreviewWhenBackgrounded'] ?? true,
+          json['hideAppPreviewWhenBackgrounded'] ?? false,
       bookmarkFilterType = BookmarkFilterType.parse(json['bookmarkFilterType']),
       activeBookmarkGroupId = switch (json['activeBookmarkGroupId']) {
         final String value => value,
@@ -129,6 +132,9 @@ class Settings extends Equatable {
       ),
       downloadNotificationsEnabled =
           json['downloadNotificationsEnabled'] as bool? ?? true,
+      downloadSidecarFormat = SidecarFormat.parse(
+        json['downloadSidecarFormat'],
+      ),
       downloadNetworkPolicy = DownloadNetworkPolicy.parse(
         json['downloadNetworkPolicy'],
       ),
@@ -150,13 +156,16 @@ class Settings extends Equatable {
           json['swipeAreaToOpenSidebarPercentage'] ?? 5,
       autoBackup = AutoBackupSettings.parse(json['autoBackup']),
       searchRefresh = SearchRefreshSettings.parse(json['searchRefresh']),
-      followingFeedMemberSort = switch (json['followingFeedMemberSort']) {
+      topicFeedMemberSort = switch (json['topicFeedMemberSort'] ??
+          json[legacyTopicFeedMemberSortKey]) {
         'newestFirst' => 'newestFirst',
         'oldestFirst' => 'oldestFirst',
         'lastRefresh' => 'lastRefresh',
         _ => 'addedDate',
       },
-      pinnedSearchSort = switch (json['pinnedSearchSort']) {
+      followingTopicSort = switch (json['followingTopicSort'] ??
+          json[legacyFollowingTopicSortKey]) {
+        'nameAsc' => 'nameAsc',
         'updatesFirst' => 'updatesFirst',
         'lastPostOldest' => 'lastPostOldest',
         _ => 'manual',
@@ -224,8 +233,8 @@ class Settings extends Equatable {
     enableDynamicColoring: false,
     clearImageCacheOnStartup: false,
     appLockType: AppLockType.defaultValue,
-    appLockTimeoutSeconds: 0,
-    hideAppPreviewWhenBackgrounded: true,
+    appLockTimeoutSeconds: 30,
+    hideAppPreviewWhenBackgrounded: false,
     bookmarkFilterType: BookmarkFilterType.defaultValue,
     activeBookmarkGroupId: null,
     booruConfigSelectorPosition: BooruConfigSelectorPosition.defaultValue,
@@ -295,6 +304,7 @@ class Settings extends Equatable {
   final DownloadFileExistedBehavior downloadFileExistedBehavior;
 
   final bool downloadNotificationsEnabled;
+  final SidecarFormat downloadSidecarFormat;
 
   final DownloadNetworkPolicy downloadNetworkPolicy;
 
@@ -310,8 +320,8 @@ class Settings extends Equatable {
 
   final AutoBackupSettings autoBackup;
   final SearchRefreshSettings searchRefresh;
-  final String pinnedSearchSort;
-  final String followingFeedMemberSort;
+  final String followingTopicSort;
+  final String topicFeedMemberSort;
 
   final CacheSize videoCacheMaxSize;
   final CacheSize imageCacheMaxSize;
@@ -345,6 +355,7 @@ class Settings extends Equatable {
     DownloadFileExistedBehavior? downloadFileExistedBehavior,
     bool? downloadNotificationsEnabled,
     DownloadNetworkPolicy? downloadNetworkPolicy,
+    SidecarFormat? downloadSidecarFormat,
     ImageListingSettings? listing,
     ImageViewerSettings? viewer,
     ColorSettings? colors,
@@ -354,8 +365,8 @@ class Settings extends Equatable {
     HapticFeedbackLevel? hapticFeedbackLevel,
     AutoBackupSettings? autoBackup,
     SearchRefreshSettings? searchRefresh,
-    String? pinnedSearchSort,
-    String? followingFeedMemberSort,
+    String? followingTopicSort,
+    String? topicFeedMemberSort,
     CacheSize? videoCacheMaxSize,
     CacheSize? imageCacheMaxSize,
   }) => Settings(
@@ -406,6 +417,7 @@ class Settings extends Equatable {
     downloadNotificationsEnabled:
         downloadNotificationsEnabled ?? this.downloadNotificationsEnabled,
     downloadNetworkPolicy: downloadNetworkPolicy ?? this.downloadNetworkPolicy,
+    downloadSidecarFormat: downloadSidecarFormat ?? this.downloadSidecarFormat,
     colors: colors ?? this.colors,
     volumeKeyViewerNavigation:
         volumeKeyViewerNavigation ?? this.volumeKeyViewerNavigation,
@@ -415,9 +427,8 @@ class Settings extends Equatable {
     hapticFeedbackLevel: hapticFeedbackLevel ?? this.hapticFeedbackLevel,
     autoBackup: autoBackup ?? this.autoBackup,
     searchRefresh: searchRefresh ?? this.searchRefresh,
-    pinnedSearchSort: pinnedSearchSort ?? this.pinnedSearchSort,
-    followingFeedMemberSort:
-        followingFeedMemberSort ?? this.followingFeedMemberSort,
+    followingTopicSort: followingTopicSort ?? this.followingTopicSort,
+    topicFeedMemberSort: topicFeedMemberSort ?? this.topicFeedMemberSort,
     videoCacheMaxSize: videoCacheMaxSize ?? this.videoCacheMaxSize,
     imageCacheMaxSize: imageCacheMaxSize ?? this.imageCacheMaxSize,
   );
@@ -457,6 +468,7 @@ class Settings extends Equatable {
       'downloadFileExistedBehavior': downloadFileExistedBehavior.toData(),
       'downloadNotificationsEnabled': downloadNotificationsEnabled,
       'downloadNetworkPolicy': downloadNetworkPolicy.toData(),
+      'downloadSidecarFormat': downloadSidecarFormat.name,
       'colors': colors?.toJson(),
       'volumeKeyViewerNavigation': volumeKeyViewerNavigation,
       'searchBarScrollBehavior': searchBarScrollBehavior.toData(),
@@ -464,8 +476,8 @@ class Settings extends Equatable {
       'hapticFeedbackLevel': hapticFeedbackLevel.toData(),
       'autoBackup': autoBackup.toJson(),
       'searchRefresh': searchRefresh.toJson(),
-      'pinnedSearchSort': pinnedSearchSort,
-      'followingFeedMemberSort': followingFeedMemberSort,
+      'followingTopicSort': followingTopicSort,
+      'topicFeedMemberSort': topicFeedMemberSort,
       'videoCacheMaxSize': videoCacheMaxSize.displayString(),
       'imageCacheMaxSize': imageCacheMaxSize.displayString(),
     };
@@ -502,6 +514,7 @@ class Settings extends Equatable {
     downloadFileExistedBehavior,
     downloadNotificationsEnabled,
     downloadNetworkPolicy,
+    downloadSidecarFormat,
     colors,
     volumeKeyViewerNavigation,
     searchBarScrollBehavior,
@@ -509,8 +522,8 @@ class Settings extends Equatable {
     hapticFeedbackLevel,
     autoBackup,
     searchRefresh,
-    pinnedSearchSort,
-    followingFeedMemberSort,
+    followingTopicSort,
+    topicFeedMemberSort,
     videoCacheMaxSize,
     imageCacheMaxSize,
   ];

@@ -1,4 +1,5 @@
 import 'package:boorusama/core/backups/export_import/export/export_save_service.dart';
+import 'package:android_file_picker/android_file_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -116,11 +117,16 @@ class _Picker extends FilePickerPlatform {
   @override
   Future<String?> getDirectoryPath({
     String? dialogTitle,
-    bool lockParentWindow = false,
     String? initialDirectory,
-    AndroidSAFOptions? androidSafOptions,
+    AndroidOptions androidOptions = const AndroidOptions(),
+    LinuxOptions linuxOptions = const LinuxOptions(),
+    WebOptions webOptions = const WebOptions(),
+    WindowsOptions windowsOptions = const WindowsOptions(),
   }) async {
-    options = androidSafOptions;
+    options = switch (androidOptions) {
+      FilePickerAndroidOptions(:final safOptions) => safOptions,
+      _ => null,
+    };
     return path;
   }
 }

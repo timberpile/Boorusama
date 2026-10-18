@@ -48,6 +48,8 @@ class RawTagsTile extends StatelessWidget {
         child: RemoveLeftPaddingOnLargeScreen(
           child: DetailsWidgetSeparator(
             child: ExpansionTile(
+              shape: const Border(),
+              collapsedShape: const Border(),
               initiallyExpanded: initiallyExpanded,
               title: title,
               trailing: trailing,

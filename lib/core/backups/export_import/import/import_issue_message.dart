@@ -39,6 +39,12 @@ String importIssueMessage(
       '{item}',
       item,
     ),
+    'profile_thumbnail_actions_fallback' =>
+      strings.profile_thumbnail_actions_fallback.replaceAll('{item}', item),
+    'profile_media_rules_fallback' =>
+      strings.profile_media_rules_fallback.replaceAll('{item}', item),
+    'profile_media_enabled_fallback' =>
+      strings.profile_media_enabled_fallback.replaceAll('{item}', item),
     'credentials_included' => strings.credentials_included,
     'credential_flag_mismatch' => strings.credential_flag_mismatch,
     'unsupported_recommended_action' =>

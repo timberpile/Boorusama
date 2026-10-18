@@ -142,19 +142,33 @@ class DefaultImageCacheManager implements ManagedImageCacheManager {
           .toList();
       if (indexed) {
         for (final entry in _index.entries.values.toList()) {
-          final file = File(p.join(directory.path, entry.filename));
+          var file = File(p.join(directory.path, entry.filename));
           if (await file.exists() && await file.length() == entry.size) {
-            final generation = _Generation(entry, file.path);
-            _current[entry.key] = generation;
-            _generations[entry.filename] = generation;
-            _occupied += entry.size;
-            _use = max(_use, entry.use);
+            var normalizedEntry = entry;
+            if (entry.filename != entry.key) {
+              final target = File(p.join(directory.path, entry.key));
+              if (await target.exists()) await target.delete();
+              file = await file.rename(target.path);
+              normalizedEntry = ImageCacheEntry(
+                key: entry.key,
+                filename: entry.key,
+                size: entry.size,
+                use: entry.use,
+              );
+              _index.entries[entry.key] = normalizedEntry;
+            }
+            final cacheFile = _Generation(normalizedEntry, file.path);
+            _current[entry.key] = cacheFile;
+            _generations[entry.key] = cacheFile;
+            _occupied += normalizedEntry.size;
+            _use = max(_use, normalizedEntry.use);
           } else {
             _index.entries.remove(entry.key);
           }
         }
         for (final file in files) {
-          if (!_generations.containsKey(p.basename(file.path))) {
+          if (await file.exists() &&
+              !_generations.containsKey(p.basename(file.path))) {
             await file.delete();
           }
         }
@@ -198,6 +212,25 @@ class DefaultImageCacheManager implements ManagedImageCacheManager {
           _generations[filename] = generation;
           _occupied += size;
           _index.entries[key] = entry;
+        }
+        for (final value in _current.entries.toList()) {
+          final generation = value.value;
+          if (generation.entry.filename == value.key) continue;
+          final target = File(p.join(directory.path, value.key));
+          if (await target.exists()) await target.delete();
+          final file = await File(generation.path).rename(target.path);
+          final entry = ImageCacheEntry(
+            key: value.key,
+            filename: value.key,
+            size: generation.entry.size,
+            use: generation.entry.use,
+          );
+          final normalized = _Generation(entry, file.path);
+          _current[value.key] = normalized;
+          _generations
+            ..remove(generation.entry.filename)
+            ..[value.key] = normalized;
+          _index.entries[value.key] = entry;
         }
       }
       // Journal key order is not recency order. Rebuild once after loading,
@@ -401,21 +434,31 @@ class DefaultImageCacheManager implements ManagedImageCacheManager {
         size > _maxBytes) {
       return _transient(session);
     }
+    if (await _valid(session.key, null) case final existing?) {
+      // The key identifies the source URL. A concurrent completed download for
+      // the same still-valid key is a duplicate, so keep its canonical file.
+      await staged.delete();
+      session.finished = true;
+      existing.pins++;
+      await _recordUse(existing);
+      return _lease(existing);
+    }
+    // A cleared or stale file can remain readable while an earlier lease owns
+    // it. Do not overwrite that canonical path; this download stays transient.
+    if (_generations.containsKey(session.key)) return _transient(session);
     final needed = _occupied + size - _maxBytes;
     final selection = needed > 0
-        ? _selectVictims(needed, replacing: _current[session.key])
+        ? _selectVictims(needed)
         : (chosen: <_Generation>[], remaining: needed);
     if (selection.remaining > 0) return _transient(session);
-    // Prepare the immutable completed file before any destructive retirement.
-    // A failed final rename must leave every previous generation/index intact.
-    final filename = '${session.key}.generation_${_nonce()}';
+    // Publish under the URL-MD5 key before retiring capacity victims. A failed
+    // rename therefore leaves the existing cache and its index untouched.
+    final filename = session.key;
     final file = await staged.rename(p.join(_directory!.path, filename));
     try {
       for (final victim in selection.chosen) {
         await _retire(victim);
       }
-      // Existing readers own the old immutable generation, even for the same key.
-      if (_current[session.key] case final old?) await _retire(old);
       final entry = ImageCacheEntry(
         key: session.key,
         filename: filename,

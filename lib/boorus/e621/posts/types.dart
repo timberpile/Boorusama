@@ -65,6 +65,7 @@ class E621PostRecord extends Equatable
 
   @override
   final int id;
+
   @override
   Set<String> get tags => {
     ...characterTags,

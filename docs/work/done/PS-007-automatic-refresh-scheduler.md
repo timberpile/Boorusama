@@ -42,7 +42,7 @@ not restore exact counts or exhaustive pagination. Keep the side-menu section
 and desktop tab positions stable. Add localized text through i18n.
 
 Test observable behavior and persistence where relevant. Validate Android UI
-with Maestro. Update [subsystem documentation](../../pinned_searches.md) and
+with Maestro. Update [subsystem documentation](../../following_topics.md) and
 record completion evidence here before moving the task to `done/`.
 
 ## Completion evidence

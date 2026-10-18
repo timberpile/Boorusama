@@ -48,7 +48,7 @@ class PinSetupController extends ChangeNotifier {
 
   Future<PinSetupResult> enterDigit(
     String digit,
-    Future<void> Function(String pin) savePin,
+    Future<void> Function(String pin) saveTopic,
   ) async {
     if (!_isSingleDigit(digit) || _saving || _pin.length >= pinLength) {
       return PinSetupResult.ignored;
@@ -60,7 +60,7 @@ class PinSetupController extends ChangeNotifier {
 
     if (_pin.length < pinLength) return PinSetupResult.digitEntered;
 
-    return _completeStep(savePin);
+    return _completeStep(saveTopic);
   }
 
   PinSetupResult deleteDigit() {
@@ -74,7 +74,7 @@ class PinSetupController extends ChangeNotifier {
   }
 
   Future<PinSetupResult> _completeStep(
-    Future<void> Function(String pin) savePin,
+    Future<void> Function(String pin) saveTopic,
   ) async {
     if (_pin.length < pinMinLength) {
       _error = PinSetupError.tooShort;
@@ -104,7 +104,7 @@ class PinSetupController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await savePin(pin);
+      await saveTopic(pin);
       return PinSetupResult.saved;
     } finally {
       _saving = false;

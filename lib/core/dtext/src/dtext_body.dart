@@ -396,16 +396,21 @@ class _DTextExpandSegment extends _DTextSegment {
 
   @override
   Widget build(_DTextRenderContext context) {
-    return ExpansionTile(
-      tilePadding: EdgeInsets.zero,
-      childrenPadding: EdgeInsets.zero,
-      title: Text(node.title),
-      children: [
-        _DTextNodesView(
-          nodes: node.children,
-          renderContext: context,
-        ),
-      ],
+    return Material(
+      type: MaterialType.transparency,
+      child: ExpansionTile(
+        shape: const Border(),
+        collapsedShape: const Border(),
+        tilePadding: EdgeInsets.zero,
+        childrenPadding: EdgeInsets.zero,
+        title: Text(node.title),
+        children: [
+          _DTextNodesView(
+            nodes: node.children,
+            renderContext: context,
+          ),
+        ],
+      ),
     );
   }
 }

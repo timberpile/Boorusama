@@ -6,6 +6,16 @@ abstract interface class BooruPostData {
   int get schemaVersion;
 }
 
+/// Supplies the genuine identifier assigned by a source when [Post.id] can be
+/// synthetic (for example Sankaku string IDs or Pixiv page IDs).
+abstract interface class SitePostIdData {
+  String? get sitePostId;
+}
+
+abstract interface class PostSourceUrlsData {
+  Iterable<String> get sourceUrls;
+}
+
 abstract interface class StableBookmarkPostKeyData {
   String? get stableBookmarkPostKey;
 }

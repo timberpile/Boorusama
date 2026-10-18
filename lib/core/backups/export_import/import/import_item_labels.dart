@@ -2,8 +2,8 @@ import 'package:i18n/i18n.dart';
 import '../../../configs/config/types.dart';
 import '../../sources/bookmark_backup_data.dart';
 import '../../../groups/folder_tree.dart';
-import '../../sources/following_feed_backup_data.dart';
-import '../../sources/pinned_search_backup_data.dart';
+import '../../sources/topic_feed_backup_data.dart';
+import '../../sources/following_topic_backup_data.dart';
 import '../models/export_item_presentation.dart';
 import '../models/export_selection.dart';
 import '../sources/export_selection_ids.dart';
@@ -42,10 +42,12 @@ ImportItemPresentationResult importItemPresentation(
           id: ExportSelectionIds.ungroupedBookmarks,
         ),
     ],
-    final PinnedSearchBackupData searches => pinnedSearchExportNodes(searches),
-    final FollowingFeedBackupData feeds => [
+    final FollowingTopicBackupData searches => followingTopicExportNodes(
+      searches,
+    ),
+    final TopicFeedBackupData feeds => [
       for (final feed in feeds.feeds)
-        ExportSelectionNode(id: ExportSelectionIds.followingFeed(feed.id)),
+        ExportSelectionNode(id: ExportSelectionIds.topicFeed(feed.id)),
     ],
     _ => const <ExportSelectionNode>[],
   };
@@ -72,13 +74,13 @@ ImportItemPresentationResult importItemPresentation(
           );
         }
       }
-    case final PinnedSearchBackupData searches:
+    case final FollowingTopicBackupData searches:
       for (final folder in searches.folders) {
-        items[ExportSelectionIds.pinnedSearchFolder(folder.id)] =
+        items[ExportSelectionIds.followingTopicFolder(folder.id)] =
             ExportItemPresentation(label: folder.name);
       }
       for (final search in searches.records) {
-        items[ExportSelectionIds.pinnedSearch(
+        items[ExportSelectionIds.followingTopic(
           search.id,
         )] = ExportItemPresentation(
           label: switch (search.name?.trim()) {
@@ -88,9 +90,9 @@ ImportItemPresentationResult importItemPresentation(
           trailingLabel: search.profile.name,
         );
       }
-    case final FollowingFeedBackupData feeds:
+    case final TopicFeedBackupData feeds:
       for (final feed in feeds.feeds) {
-        items[ExportSelectionIds.followingFeed(
+        items[ExportSelectionIds.topicFeed(
           feed.id,
         )] = ExportItemPresentation(
           label: feed.name,
@@ -112,8 +114,8 @@ ImportItemPresentationResult importItemPresentation(
   );
 }
 
-List<ExportSelectionNode> pinnedSearchExportNodes(
-  PinnedSearchBackupData searches,
+List<ExportSelectionNode> followingTopicExportNodes(
+  FollowingTopicBackupData searches,
 ) {
   final recordsById = {
     for (final record in searches.records) record.id: record,
@@ -135,7 +137,7 @@ List<ExportSelectionNode> pinnedSearchExportNodes(
         f.id: [
           for (final id in f.searchIds)
             if (recordsById.containsKey(id))
-              ExportSelectionNode(id: ExportSelectionIds.pinnedSearch(id)),
+              ExportSelectionNode(id: ExportSelectionIds.followingTopic(id)),
         ],
     },
   );
@@ -149,11 +151,11 @@ List<ExportSelectionNode> pinnedSearchExportNodes(
   if (homeIds.isNotEmpty) {
     nodes.add(
       ExportSelectionNode(
-        id: ExportSelectionIds.pinnedSearchHome,
+        id: ExportSelectionIds.followingTopicHome,
         canHaveChildren: true,
         children: [
           for (final id in homeIds)
-            ExportSelectionNode(id: ExportSelectionIds.pinnedSearch(id)),
+            ExportSelectionNode(id: ExportSelectionIds.followingTopic(id)),
         ],
       ),
     );
@@ -162,7 +164,7 @@ List<ExportSelectionNode> pinnedSearchExportNodes(
     for (final record in searches.records)
       if (!organizedIds.contains(record.id))
         ExportSelectionNode(
-          id: ExportSelectionIds.pinnedSearch(record.id),
+          id: ExportSelectionIds.followingTopic(record.id),
         ),
   ]);
   return nodes;

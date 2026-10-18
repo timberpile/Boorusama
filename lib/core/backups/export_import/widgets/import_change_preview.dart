@@ -4,6 +4,7 @@ import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
 
 import '../import/import_change_preview.dart';
+import '../../../search/following_topics/src/compatibility/topic_storage_contract.dart';
 
 class ImportChangePreview extends StatelessWidget {
   const ImportChangePreview({
@@ -21,13 +22,15 @@ class ImportChangePreview extends StatelessWidget {
     final strings = context.t.settings.backup_and_restore.export_import;
     final groups = groupBy(
       rows,
-      (row) =>
-          row.category == 'pinned_folders' ? 'pinned_searches' : row.category,
+      (row) => row.category == 'topic_folders'
+          ? followingTopicsBackupSourceId
+          : row.category,
     );
     String categoryName(String id) => switch (id) {
       'bookmarks' => strings.preview_bookmark_groups,
-      'pinned_folders' || 'pinned_searches' =>
-        sourceNames['pinned_searches'] ?? strings.sources.pinned_searches,
+      'topic_folders' || followingTopicsBackupSourceId =>
+        sourceNames[followingTopicsBackupSourceId] ??
+            strings.sources.following_topics,
       'bookmark_metadata' => strings.preview_bookmark_data,
       _ => sourceNames[id] ?? id,
     };
@@ -212,7 +215,7 @@ class _ChangeRow extends StatelessWidget {
               ? TextStyle(color: _color(context, row.kind))
               : null,
         ),
-        if (row.category == 'pinned_folders' && row.id != 'home')
+        if (row.category == 'topic_folders' && row.id != 'home')
           Text(
             strings.preview_folder,
             style: Theme.of(context).textTheme.bodySmall,
@@ -251,7 +254,7 @@ class _ChangeRow extends StatelessWidget {
         ? Icon(
             row.label == '__home'
                 ? Icons.home_outlined
-                : row.category == 'following_feeds'
+                : row.category == topicFeedsBackupSourceId
                 ? Icons.dynamic_feed_outlined
                 : Icons.folder_outlined,
           )

@@ -3,10 +3,9 @@ import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:flutter/services.dart';
 
 // Package imports:
+import 'package:anchor_ui/anchor_ui.dart';
 import 'package:auto_scrolling/auto_scrolling.dart';
-import 'package:context_menus/context_menus.dart';
 import 'package:equatable/equatable.dart';
-import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:foundation/widgets.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
@@ -29,7 +28,6 @@ import '../types/grid_size.dart';
 import '../types/grid_utils.dart';
 import '../types/page_mode.dart';
 import '../widgets/conditional_value_listenable_builder.dart';
-import '../widgets/post_controller_event_listener.dart';
 import '../widgets/post_grid_controller.dart';
 import 'highres_preview_on_mobile_data_warning_banner.dart';
 import 'swipe_to.dart';
@@ -257,17 +255,6 @@ class _RawPostGridState<T extends Post> extends State<RawPostGrid<T>>
                             },
                           ),
                         ),
-                      SliverToBoxAdapter(
-                        child: PostControllerEventListener(
-                          controller: controller,
-                          onEvent: (event) {
-                            if (event is PostControllerRefreshStarted) {
-                              context.contextMenuOverlay.hide();
-                            }
-                          },
-                          child: const SizedBox.shrink(),
-                        ),
-                      ),
                       ConditionalValueListenableBuilder(
                         valueListenable: refreshing,
                         useFalseChildAsCache: true,
@@ -405,7 +392,7 @@ class _RawPostGridState<T extends Post> extends State<RawPostGrid<T>>
           padding: const EdgeInsets.symmetric(vertical: 20),
           sliver: SliverToBoxAdapter(
             child: Center(
-              child: SpinKitPulse(
+              child: KurumiPulseIndicator(
                 color: colorScheme.onSurface,
               ),
             ),
@@ -646,16 +633,20 @@ class _CustomScrollViewState extends State<_CustomScrollView> {
             child: AutoScroll(
               controller: widget.controller,
               anchorBuilder: (context) => const SingleDirectionAnchor(),
-              child: CustomScrollView(
-                physics: const AlwaysScrollableScrollPhysics(
-                  parent: ClampingScrollPhysics(),
+              child: AnchorHoverGroup(
+                child: CustomScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(
+                    parent: ClampingScrollPhysics(),
+                  ),
+                  controller: widget.controller,
+                  scrollCacheExtent: switch (options.cacheExtent) {
+                    final cacheExtent? => ScrollCacheExtent.pixels(
+                      cacheExtent,
+                    ),
+                    null => null,
+                  },
+                  slivers: widget.slivers,
                 ),
-                controller: widget.controller,
-                scrollCacheExtent: switch (options.cacheExtent) {
-                  final cacheExtent? => ScrollCacheExtent.pixels(cacheExtent),
-                  null => null,
-                },
-                slivers: widget.slivers,
               ),
             ),
           );

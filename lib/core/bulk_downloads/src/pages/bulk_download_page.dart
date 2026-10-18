@@ -9,6 +9,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../../../boorus/booru/types.dart';
 import '../../../configs/config/providers.dart';
 import '../../../widgets/widgets.dart';
+import '../../../downloads/sidecar/widgets.dart';
 import '../providers/bulk_download_notifier.dart';
 import '../providers/saved_download_task_provider.dart';
 import '../routes/internal_routes.dart';
@@ -110,6 +111,7 @@ class BulkDownloadPageInternal extends StatelessWidget {
                   ? Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
+                        const SidecarFailureNotice(),
                         const Expanded(
                           child: BulkDownloadActionSessions(),
                         ),

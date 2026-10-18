@@ -1,4 +1,5 @@
 import 'profile_uuid_utils.dart';
+
 // Dart imports:
 import 'dart:async';
 
@@ -21,15 +22,16 @@ import 'package:boorusama/core/settings/src/providers/settings_notifier.dart';
 import 'package:boorusama/core/settings/src/providers/settings_provider.dart';
 import 'package:boorusama/core/settings/src/types/settings.dart';
 import 'package:boorusama/core/settings/src/types/settings_repository.dart';
-import 'package:boorusama/core/search/subscriptions/providers.dart'
-    show searchSubscriptionsProvider;
-import 'package:boorusama/core/search/subscriptions/src/data/providers.dart';
-import 'package:boorusama/core/search/subscriptions/types.dart';
+import 'package:boorusama/core/search/following_topics/providers.dart'
+    show followingTopicsProvider;
+import 'package:boorusama/core/search/following_topics/src/data/providers.dart';
+import 'package:boorusama/core/search/following_topics/types.dart';
 import 'package:boorusama/core/tracking/providers.dart';
 import 'package:boorusama/core/tracking/types.dart';
 import 'package:boorusama/foundation/loggers.dart';
+
 import 'riverpod_test_utils.dart';
-import 'core/search/subscriptions/subscription_test_utils.dart';
+import 'core/search/following_topics/topic_test_utils.dart';
 
 class InMemoryBooruConfigRepository implements BooruConfigRepository {
   InMemoryBooruConfigRepository({this.removeFailure});
@@ -121,73 +123,72 @@ class MockCallback extends Mock {
   void call();
 }
 
-class RecordingSearchSubscriptionRepository
-    implements SearchSubscriptionRepository {
-  RecordingSearchSubscriptionRepository(
-    List<SearchSubscription> subscriptions, {
-    SearchOrganization? organization,
-    List<SearchFollowingFeed> feeds = const [],
-  }) : _subscriptions = subscriptions.toList(),
+class RecordingFollowingTopicRepository implements FollowingTopicRepository {
+  RecordingFollowingTopicRepository(
+    List<FollowingTopic> topics, {
+    TopicOrganization? organization,
+    List<TopicFeed> feeds = const [],
+  }) : _topics = topics.toList(),
        _feeds = feeds.toList(),
        organization =
            organization ??
-           SearchOrganization(folders: const [], homeSearchIds: const []);
+           TopicOrganization(folders: const [], homeSearchIds: const []);
 
-  final List<SearchSubscription> _subscriptions;
-  final List<SearchFollowingFeed> _feeds;
+  final List<FollowingTopic> _topics;
+  final List<TopicFeed> _feeds;
   final deletedProfileIds = <String>[];
   final restoredProfileIds = <String>[];
-  List<SearchSubscription>? restoredSubscriptions;
+  List<FollowingTopic>? restoredSubscriptions;
   Error? deleteFailure;
   Error? invalidateFailure;
   Completer<void>? invalidationStarted;
   Completer<void>? releaseInvalidation;
   Completer<void>? lookupStarted;
-  SearchOrganization organization;
-  SearchOrganization? restoredOrganization;
+  TopicOrganization organization;
+  TopicOrganization? restoredOrganization;
 
-  List<SearchSubscription> get remaining => _subscriptions.toList();
-  List<SearchFollowingFeed> get remainingFeeds => _feeds.toList();
-
-  @override
-  Future<List<SearchSubscription>> getAll() async => _subscriptions.toList();
+  List<FollowingTopic> get remaining => _topics.toList();
+  List<TopicFeed> get remainingFeeds => _feeds.toList();
 
   @override
-  Future<SearchSubscription?> getById(String id) async {
+  Future<List<FollowingTopic>> getAll() async => _topics.toList();
+
+  @override
+  Future<FollowingTopic?> getById(String id) async {
     lookupStarted?.complete();
-    return _subscriptions.where((item) => item.id == id).firstOrNull;
+    return _topics.where((item) => item.id == id).firstOrNull;
   }
 
   @override
-  Future<List<SearchFollowingFeed>> getFeeds() async => _feeds.toList();
+  Future<List<TopicFeed>> getFeeds() async => _feeds.toList();
   @override
   Future<void> restoreFeeds(
     String profileId,
-    List<SearchFollowingFeed> feeds,
+    List<TopicFeed> feeds,
   ) async {
     _feeds.removeWhere((feed) => feed.profileId == profileId);
     _feeds.addAll(feeds);
   }
 
   @override
-  Future<SearchOrganization> getOrganization() async => organization;
+  Future<TopicOrganization> getOrganization() async => organization;
 
   @override
-  Future<void> replaceOrganization(SearchOrganization value) async {
+  Future<void> replaceOrganization(TopicOrganization value) async {
     organization = value;
     restoredOrganization = value;
   }
 
   @override
-  Future<void> deleteSharedFolderAndPins(String folderId) async {
+  Future<void> deleteSharedFolderAndTopics(String folderId) async {
     final folder = organization.folders
         .where((folder) => folder.id == folderId)
         .firstOrNull;
     if (folder == null) return;
-    _subscriptions.removeWhere(
+    _topics.removeWhere(
       (search) => folder.searchIds.contains(search.id),
     );
-    organization = SearchOrganization(
+    organization = TopicOrganization(
       folders: organization.folders.where((folder) => folder.id != folderId),
       homeSearchIds: organization.homeSearchIds,
     );
@@ -199,17 +200,17 @@ class RecordingSearchSubscriptionRepository
     if (deleteFailure case final error?) {
       throw error;
     }
-    final removedIds = _subscriptions
+    final removedIds = _topics
         .where((subscription) => subscription.profileId == profileId)
         .map((subscription) => subscription.id)
         .toSet();
-    _subscriptions.removeWhere(
+    _topics.removeWhere(
       (subscription) => subscription.profileId == profileId,
     );
-    organization = SearchOrganization(
+    organization = TopicOrganization(
       folders: [
         for (final folder in organization.folders)
-          SharedSearchFolder(
+          TopicFolder(
             id: folder.id,
             name: folder.name,
             searchIds: folder.searchIds.where((id) => !removedIds.contains(id)),
@@ -226,10 +227,10 @@ class RecordingSearchSubscriptionRepository
     if (invalidateFailure case final error?) throw error;
     invalidationStarted?.complete();
     await releaseInvalidation?.future;
-    for (var index = 0; index < _subscriptions.length; index++) {
-      final source = _subscriptions[index];
+    for (var index = 0; index < _topics.length; index++) {
+      final source = _topics[index];
       if (source.profileId != profileId) continue;
-      _subscriptions[index] = SearchSubscription(
+      _topics[index] = FollowingTopic(
         id: source.id,
         profileId: source.profileId,
         query: source.query,
@@ -252,34 +253,34 @@ class RecordingSearchSubscriptionRepository
   @override
   Future<void> restoreForProfile(
     String profileId,
-    List<SearchSubscription> subscriptions,
+    List<FollowingTopic> topics,
   ) async {
     restoredProfileIds.add(profileId);
-    restoredSubscriptions = subscriptions.toList();
-    _subscriptions.removeWhere(
+    restoredSubscriptions = topics.toList();
+    _topics.removeWhere(
       (subscription) => subscription.profileId == profileId,
     );
-    _subscriptions.addAll(subscriptions);
+    _topics.addAll(topics);
   }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-class _SearchSubscriptionRepositoryNotifier
-    extends SearchSubscriptionRepositoryNotifier {
-  _SearchSubscriptionRepositoryNotifier(this.repository);
+class _FollowingTopicRepositoryNotifier
+    extends FollowingTopicRepositoryNotifier {
+  _FollowingTopicRepositoryNotifier(this.repository);
 
-  final SearchSubscriptionRepository repository;
+  final FollowingTopicRepository repository;
 
   @override
-  Future<SearchSubscriptionRepository> build() async => repository;
+  Future<FollowingTopicRepository> build() async => repository;
 }
 
 ProviderContainer createBooruConfigContainer({
   required SettingsRepository settingsRepository,
   BooruConfigRepository? booruConfigRepository,
-  SearchSubscriptionRepository? searchSubscriptionRepository,
+  FollowingTopicRepository? followingTopicRepository,
 }) {
   final mockLogger = MockLogger();
 
@@ -288,10 +289,10 @@ ProviderContainer createBooruConfigContainer({
       booruConfigRepoProvider.overrideWith(
         (ref) => booruConfigRepository ?? InMemoryBooruConfigRepository(),
       ),
-      searchSubscriptionRepositoryProvider.overrideWith(
-        () => _SearchSubscriptionRepositoryNotifier(
-          searchSubscriptionRepository ??
-              RecordingSearchSubscriptionRepository(const []),
+      followingTopicRepositoryProvider.overrideWith(
+        () => _FollowingTopicRepositoryNotifier(
+          followingTopicRepository ??
+              RecordingFollowingTopicRepository(const []),
         ),
       ),
       settingsRepoProvider.overrideWithValue(settingsRepository),
@@ -322,12 +323,12 @@ void main() {
     registerFallbackValue(Settings.defaultSettings);
   });
 
-  SearchSubscription subscriptionFor(
+  FollowingTopic subscriptionFor(
     String id,
     int profileSeed, {
     int position = 0,
   }) {
-    return SearchSubscription.create(
+    return FollowingTopic.create(
       id: id,
       profileId: profileUuid(profileSeed),
       query: 'query-$id',
@@ -463,8 +464,8 @@ void main() {
         url: 'https://site-a.example',
       );
 
-      RecordingSearchSubscriptionRepository repository() {
-        final source = SearchSubscription(
+      RecordingFollowingTopicRepository repository() {
+        final source = FollowingTopic(
           id: 'source',
           profileId: '00000000-0000-4000-8000-000000000001',
           query: 'artist',
@@ -477,7 +478,7 @@ void main() {
           lastSuccessfulCheckAt: checkedAt,
           lastErrorKind: SearchRefreshErrorKind.network,
         );
-        final unrelated = SearchSubscription.create(
+        final unrelated = FollowingTopic.create(
           id: 'unrelated',
           profileId: '00000000-0000-4000-8000-000000000002',
           query: 'cat',
@@ -485,10 +486,10 @@ void main() {
           position: 0,
           createdAt: checkedAt,
         );
-        return RecordingSearchSubscriptionRepository(
+        return RecordingFollowingTopicRepository(
           [source, unrelated],
           feeds: [
-            SearchFollowingFeed(
+            TopicFeed(
               id: 'feed',
               profileId: '00000000-0000-4000-8000-000000000001',
               name: 'Artists',
@@ -507,7 +508,7 @@ void main() {
           final searches = repository();
           final container = createBooruConfigContainer(
             settingsRepository: InMemorySettingsRepository(),
-            searchSubscriptionRepository: searches,
+            followingTopicRepository: searches,
           );
           addTearDown(container.dispose);
           final notifier = container.read(booruConfigProvider.notifier);
@@ -545,7 +546,7 @@ void main() {
           final searches = repository();
           final container = createBooruConfigContainer(
             settingsRepository: InMemorySettingsRepository(),
-            searchSubscriptionRepository: searches,
+            followingTopicRepository: searches,
           );
           addTearDown(container.dispose);
           final notifier = container.read(booruConfigProvider.notifier);
@@ -576,7 +577,7 @@ void main() {
             ..invalidateFailure = StateError('write failed');
           final container = createBooruConfigContainer(
             settingsRepository: InMemorySettingsRepository(),
-            searchSubscriptionRepository: searches,
+            followingTopicRepository: searches,
           );
           addTearDown(container.dispose);
           final notifier = container.read(booruConfigProvider.notifier);
@@ -601,7 +602,7 @@ void main() {
         final container = createBooruConfigContainer(
           settingsRepository: InMemorySettingsRepository(),
           booruConfigRepository: configs,
-          searchSubscriptionRepository: searches,
+          followingTopicRepository: searches,
         );
         addTearDown(container.dispose);
         final notifier = container.read(booruConfigProvider.notifier);
@@ -635,7 +636,7 @@ void main() {
           final container = createBooruConfigContainer(
             settingsRepository: InMemorySettingsRepository(),
             booruConfigRepository: configs,
-            searchSubscriptionRepository: searches,
+            followingTopicRepository: searches,
           );
           addTearDown(container.dispose);
           final notifier = container.read(booruConfigProvider.notifier);
@@ -665,7 +666,7 @@ void main() {
         final container = createBooruConfigContainer(
           settingsRepository: InMemorySettingsRepository(),
           booruConfigRepository: configs,
-          searchSubscriptionRepository: searches,
+          followingTopicRepository: searches,
         );
         addTearDown(container.dispose);
         final notifier = container.read(booruConfigProvider.notifier);
@@ -679,7 +680,7 @@ void main() {
         try {
           expect((await configs.getAll()).single.url, original.url);
           refreshing = container
-              .read(searchSubscriptionsProvider.notifier)
+              .read(followingTopicsProvider.notifier)
               .refresh('source');
           await searches.lookupStarted!.future;
         } finally {
@@ -920,15 +921,15 @@ void main() {
         },
       );
 
-      test('removes pinned searches with the final profile', () async {
+      test('removes followed topics with the final profile', () async {
         final config = BooruConfig.empty.toBooruConfigData();
-        final searchRepository = RecordingSearchSubscriptionRepository([
+        final searchRepository = RecordingFollowingTopicRepository([
           subscriptionFor('final', 1),
           subscriptionFor('other', 2),
         ]);
         final container = createBooruConfigContainer(
           settingsRepository: InMemorySettingsRepository(),
-          searchSubscriptionRepository: searchRepository,
+          followingTopicRepository: searchRepository,
         );
         addTearDown(container.dispose);
         final notifier = container.read(booruConfigProvider.notifier);
@@ -947,17 +948,17 @@ void main() {
         );
       });
 
-      test('removes pinned searches with the current profile', () async {
+      test('removes followed topics with the current profile', () async {
         final config1 = BooruConfig.empty.toBooruConfigData();
         final config2 = BooruConfig.empty.toBooruConfigData();
         final config3 = BooruConfig.empty.toBooruConfigData();
-        final searchRepository = RecordingSearchSubscriptionRepository([
+        final searchRepository = RecordingFollowingTopicRepository([
           subscriptionFor('current', 2),
           subscriptionFor('other', 3),
         ]);
         final container = createBooruConfigContainer(
           settingsRepository: InMemorySettingsRepository(),
-          searchSubscriptionRepository: searchRepository,
+          followingTopicRepository: searchRepository,
         );
         addTearDown(container.dispose);
         final notifier = container.read(booruConfigProvider.notifier);
@@ -978,17 +979,17 @@ void main() {
         );
       });
 
-      test('removes pinned searches with another profile', () async {
+      test('removes followed topics with another profile', () async {
         final config1 = BooruConfig.empty.toBooruConfigData();
         final config2 = BooruConfig.empty.toBooruConfigData();
         final config3 = BooruConfig.empty.toBooruConfigData();
-        final searchRepository = RecordingSearchSubscriptionRepository([
+        final searchRepository = RecordingFollowingTopicRepository([
           subscriptionFor('other', 1),
           subscriptionFor('current', 2),
         ]);
         final container = createBooruConfigContainer(
           settingsRepository: InMemorySettingsRepository(),
-          searchSubscriptionRepository: searchRepository,
+          followingTopicRepository: searchRepository,
         );
         addTearDown(container.dispose);
         final notifier = container.read(booruConfigProvider.notifier);
@@ -1010,23 +1011,23 @@ void main() {
       });
 
       test(
-        'publishes remaining pinned searches after profile deletion',
+        'publishes remaining followed topics after profile deletion',
         () async {
           final config1 = BooruConfig.empty.toBooruConfigData();
           final config2 = BooruConfig.empty.toBooruConfigData();
-          final searchRepository = RecordingSearchSubscriptionRepository([
+          final searchRepository = RecordingFollowingTopicRepository([
             subscriptionFor('deleted', 1),
             subscriptionFor('remaining', 2),
           ]);
           final container = createBooruConfigContainer(
             settingsRepository: InMemorySettingsRepository(),
-            searchSubscriptionRepository: searchRepository,
+            followingTopicRepository: searchRepository,
           );
           addTearDown(container.dispose);
           final notifier = container.read(booruConfigProvider.notifier);
           await notifier.add(data: config1);
           await notifier.add(data: config2);
-          await container.read(searchSubscriptionsProvider.future);
+          await container.read(followingTopicsProvider.future);
 
           await notifier.delete(
             config1.toBooruConfig(id: '00000000-0000-4000-8000-000000000001')!,
@@ -1034,9 +1035,9 @@ void main() {
 
           expect(
             container
-                .read(searchSubscriptionsProvider)
+                .read(followingTopicsProvider)
                 .requireValue
-                .subscriptions
+                .topics
                 .map((subscription) => subscription.id),
             ['remaining'],
           );
@@ -1044,16 +1045,16 @@ void main() {
       );
 
       test(
-        'keeps the profile when pinned-search cleanup fails',
+        'keeps the profile when following-topic cleanup fails',
         () async {
           final config = BooruConfig.empty.toBooruConfigData();
-          final pinnedSearch = subscriptionFor('failed-cleanup', 1);
-          final searchRepository = RecordingSearchSubscriptionRepository([
-            pinnedSearch,
+          final followingTopic = subscriptionFor('failed-cleanup', 1);
+          final searchRepository = RecordingFollowingTopicRepository([
+            followingTopic,
           ])..deleteFailure = StateError('search deletion failed');
           final container = createBooruConfigContainer(
             settingsRepository: InMemorySettingsRepository(),
-            searchSubscriptionRepository: searchRepository,
+            followingTopicRepository: searchRepository,
           );
           addTearDown(container.dispose);
           final notifier = container.read(booruConfigProvider.notifier);
@@ -1069,32 +1070,32 @@ void main() {
             container.read(booruConfigProvider).map((config) => config.id),
             [profileUuid(1)],
           );
-          expect(searchRepository.remaining, [pinnedSearch]);
+          expect(searchRepository.remaining, [followingTopic]);
           expect(failures, ['Bad state: search deletion failed']);
         },
       );
 
       test(
-        'restores exact pinned searches when profile deletion fails',
+        'restores exact followed topics when profile deletion fails',
         () async {
           final config = BooruConfig.empty.toBooruConfigData();
-          final pinnedSearches = [
+          final followingTopics = [
             subscriptionFor('first', 1),
             subscriptionFor('second', 1, position: 1),
           ];
           final unaffectedSearch = subscriptionFor('other', 2);
-          final organization = SearchOrganization(
+          final organization = TopicOrganization(
             folders: [
-              SharedSearchFolder(
+              TopicFolder(
                 id: 'mixed',
                 name: 'Mixed',
-                searchIds: [pinnedSearches.first.id, unaffectedSearch.id],
+                searchIds: [followingTopics.first.id, unaffectedSearch.id],
               ),
             ],
-            homeSearchIds: [pinnedSearches.last.id],
+            homeSearchIds: [followingTopics.last.id],
           );
-          final searchRepository = RecordingSearchSubscriptionRepository([
-            ...pinnedSearches,
+          final searchRepository = RecordingFollowingTopicRepository([
+            ...followingTopics,
             unaffectedSearch,
           ], organization: organization);
           final configRepository = InMemoryBooruConfigRepository(
@@ -1103,15 +1104,15 @@ void main() {
           final container = createBooruConfigContainer(
             settingsRepository: InMemorySettingsRepository(),
             booruConfigRepository: configRepository,
-            searchSubscriptionRepository: searchRepository,
+            followingTopicRepository: searchRepository,
           );
           addTearDown(container.dispose);
           final notifier = container.read(booruConfigProvider.notifier);
           await notifier.add(data: config);
-          await container.read(searchSubscriptionsProvider.future);
+          await container.read(followingTopicsProvider.future);
           var publishedStates = 0;
           final subscription = container.listen(
-            searchSubscriptionsProvider,
+            followingTopicsProvider,
             (_, next) {
               if (next.hasValue) publishedStates++;
             },
@@ -1130,18 +1131,15 @@ void main() {
           );
           expect(searchRepository.deletedProfileIds, [profileUuid(1)]);
           expect(searchRepository.restoredProfileIds, [profileUuid(1)]);
-          expect(searchRepository.restoredSubscriptions, pinnedSearches);
+          expect(searchRepository.restoredSubscriptions, followingTopics);
           expect(searchRepository.restoredOrganization, organization);
           expect(
             searchRepository.remaining,
-            unorderedEquals([...pinnedSearches, unaffectedSearch]),
+            unorderedEquals([...followingTopics, unaffectedSearch]),
           );
           expect(
-            container
-                .read(searchSubscriptionsProvider)
-                .requireValue
-                .subscriptions,
-            unorderedEquals([...pinnedSearches, unaffectedSearch]),
+            container.read(followingTopicsProvider).requireValue.topics,
+            unorderedEquals([...followingTopics, unaffectedSearch]),
           );
           expect(publishedStates, 1);
           expect(failures, ['Bad state: profile deletion failed']);
@@ -1149,18 +1147,18 @@ void main() {
       );
 
       test(
-        'restores pinned searches when current-profile replacement persistence fails',
+        'restores followed topics when current-profile replacement persistence fails',
         () async {
           final config1 = BooruConfig.empty.toBooruConfigData();
           final config2 = BooruConfig.empty.toBooruConfigData();
           final config3 = BooruConfig.empty.toBooruConfigData();
-          final pinnedSearches = [
+          final followingTopics = [
             subscriptionFor('first', 2),
             subscriptionFor('second', 2, position: 1),
           ];
           final unaffectedSearch = subscriptionFor('other', 3);
-          final searchRepository = RecordingSearchSubscriptionRepository([
-            ...pinnedSearches,
+          final searchRepository = RecordingFollowingTopicRepository([
+            ...followingTopics,
             unaffectedSearch,
           ]);
           final configRepository = InMemoryBooruConfigRepository();
@@ -1168,7 +1166,7 @@ void main() {
           final container = createBooruConfigContainer(
             settingsRepository: settingsRepository,
             booruConfigRepository: configRepository,
-            searchSubscriptionRepository: searchRepository,
+            followingTopicRepository: searchRepository,
           );
           addTearDown(container.dispose);
           final notifier = container.read(booruConfigProvider.notifier);
@@ -1188,10 +1186,10 @@ void main() {
             [profileUuid(1), profileUuid(2), profileUuid(3)],
           );
           expect(searchRepository.restoredProfileIds, [profileUuid(2)]);
-          expect(searchRepository.restoredSubscriptions, pinnedSearches);
+          expect(searchRepository.restoredSubscriptions, followingTopics);
           expect(
             searchRepository.remaining,
-            unorderedEquals([...pinnedSearches, unaffectedSearch]),
+            unorderedEquals([...followingTopics, unaffectedSearch]),
           );
           expect(failures, ['Bad state: settings save failed']);
           expect(failures, hasLength(1));

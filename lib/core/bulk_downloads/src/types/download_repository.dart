@@ -122,62 +122,11 @@ abstract class DownloadRepository {
 }
 
 extension DownloadRepositoryX on DownloadRepository {
-  Future<DownloadSessionStats> getActiveSessionStats(String sessionId) async {
-    final records = await getRecordsBySessionId(sessionId);
-    if (records.isEmpty) return DownloadSessionStats.empty;
-
-    final fileSizes = records.map((e) => e.fileSize ?? 0).toList()..sort();
-    final pages = records.map((e) => e.page).toSet().toList();
-    final filesPerPage = pages
-        .map(
-          (p) => records.where((r) => r.page == p).length,
-        )
-        .toList();
-
-    final extensionCounts = <String, int>{};
-    for (final record in records) {
-      if (record.extension != null) {
-        extensionCounts.update(
-          record.extension!,
-          (value) => value + 1,
-          ifAbsent: () => 1,
-        );
-      }
-    }
-
-    final session = await getSession(sessionId);
-    if (session == null) return DownloadSessionStats.empty;
-
-    final duration =
-        session.completedAt?.difference(session.startedAt) ??
-        DateTime.now().difference(session.startedAt);
-
-    final stats = DownloadSessionStats(
-      id: null,
-      sessionId: sessionId,
-      coverUrl: records.firstOrNull?.thumbnailImageUrl,
-      totalItems: records.length,
-      siteUrl: records.firstOrNull?.sourceUrl,
-      totalSize: fileSizes.sum,
-      averageDuration: duration ~/ records.length,
-      averageFileSize: fileSizes.isEmpty
-          ? null
-          : fileSizes.reduce((a, b) => a + b) ~/ fileSizes.length,
-      largestFileSize: fileSizes.isEmpty ? null : fileSizes.last,
-      smallestFileSize: fileSizes.isEmpty ? null : fileSizes.first,
-      medianFileSize: fileSizes.isEmpty
-          ? null
-          : fileSizes[fileSizes.length ~/ 2],
-      avgFilesPerPage: filesPerPage.isEmpty
-          ? null
-          : filesPerPage.reduce((a, b) => a + b) / filesPerPage.length,
-      maxFilesPerPage: filesPerPage.isEmpty ? null : filesPerPage.reduce(max),
-      minFilesPerPage: filesPerPage.isEmpty ? null : filesPerPage.reduce(min),
-      extensionCounts: extensionCounts,
-    );
-
-    return stats;
-  }
+  Future<DownloadSessionStats> getActiveSessionStats(String sessionId) async =>
+      calculateDownloadSessionStats(
+        await getRecordsBySessionId(sessionId),
+        await getSession(sessionId),
+      );
 
   Future<int> getIncompleteDownloadsCount(String sessionId) async {
     final records = await getRecordsBySessionIdAndStatuses(
@@ -187,4 +136,58 @@ extension DownloadRepositoryX on DownloadRepository {
 
     return records.length;
   }
+}
+
+/// Pure aggregation shared by active UI reads and atomic SQLite finalization.
+DownloadSessionStats calculateDownloadSessionStats(
+  List<DownloadRecord> records,
+  DownloadSession? session,
+) {
+  if (records.isEmpty || session == null) return DownloadSessionStats.empty;
+  final fileSizes = records.map((e) => e.fileSize ?? 0).toList()..sort();
+  final pages = records.map((e) => e.page).toSet().toList();
+  final filesPerPage = pages
+      .map(
+        (p) => records.where((r) => r.page == p).length,
+      )
+      .toList();
+
+  final extensionCounts = <String, int>{};
+  for (final record in records) {
+    if (record.extension != null) {
+      extensionCounts.update(
+        record.extension!,
+        (value) => value + 1,
+        ifAbsent: () => 1,
+      );
+    }
+  }
+
+  final duration =
+      session.completedAt?.difference(session.startedAt) ??
+      DateTime.now().difference(session.startedAt);
+
+  final stats = DownloadSessionStats(
+    id: null,
+    sessionId: session.id,
+    coverUrl: records.firstOrNull?.thumbnailImageUrl,
+    totalItems: records.length,
+    siteUrl: records.firstOrNull?.sourceUrl,
+    totalSize: fileSizes.sum,
+    averageDuration: duration ~/ records.length,
+    averageFileSize: fileSizes.isEmpty
+        ? null
+        : fileSizes.reduce((a, b) => a + b) ~/ fileSizes.length,
+    largestFileSize: fileSizes.isEmpty ? null : fileSizes.last,
+    smallestFileSize: fileSizes.isEmpty ? null : fileSizes.first,
+    medianFileSize: fileSizes.isEmpty ? null : fileSizes[fileSizes.length ~/ 2],
+    avgFilesPerPage: filesPerPage.isEmpty
+        ? null
+        : filesPerPage.reduce((a, b) => a + b) / filesPerPage.length,
+    maxFilesPerPage: filesPerPage.isEmpty ? null : filesPerPage.reduce(max),
+    minFilesPerPage: filesPerPage.isEmpty ? null : filesPerPage.reduce(min),
+    extensionCounts: extensionCounts,
+  );
+
+  return stats;
 }

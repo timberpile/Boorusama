@@ -28,14 +28,13 @@ import '../routes/params.dart';
 import '../types/search_bar_position.dart';
 import 'search_controller.dart';
 
-typedef IndexedSelectableSearchWidgetBuilder<T extends Post> =
-    Widget Function(
-      BuildContext context,
-      int index,
-      AutoScrollController autoScrollController,
-      PostGridController<T> controller,
-      bool useHero,
-    );
+typedef IndexedSelectableSearchWidgetBuilder<T extends Post> = Widget Function(
+  BuildContext context,
+  int index,
+  AutoScrollController autoScrollController,
+  PostGridController<T> controller,
+  bool useHero,
+);
 
 const kSearchBarHeight = kToolbarHeight;
 const _kSelectedTagHeight = 48.0;
@@ -109,7 +108,7 @@ class _SearchPageScaffoldState<T extends Post>
   SelectedTagController get _tagsController => widget.tagsController;
   final _scrollController = AutoScrollController();
 
-  final _subscriptions = CompositeSubscription();
+  final _topics = CompositeSubscription();
   SearchPageController get _controller => widget.controller;
 
   late final _searchBarAnimController = AnimationController(
@@ -155,7 +154,7 @@ class _SearchPageScaffoldState<T extends Post>
         .listen((pair) {
           _onQueryChanged(pair.first, pair.last);
         })
-        .addTo(_subscriptions);
+        .addTo(_topics);
 
     _tagsController.addListener(_onSelectedTagChanged);
     _controller.tagString.addListener(_onTagChanged);
@@ -219,7 +218,7 @@ class _SearchPageScaffoldState<T extends Post>
       _onMultiSelectChanged,
     );
 
-    _subscriptions.dispose();
+    _topics.dispose();
     _scrollController.dispose();
     _searchBarAnimController.dispose();
 
@@ -252,16 +251,23 @@ class _SearchPageScaffoldState<T extends Post>
   Widget build(BuildContext context) {
     final colorScheme = Kurumi.themeOf(context).colorScheme;
 
-    return CustomContextMenuOverlay(
-      child: InheritedSearchPageController(
-        controller: _controller,
-        child: ColoredBox(
-          color: colorScheme.surface,
-          child: SafeArea(
-            bottom: false,
-            child: Stack(
-              children: [
-                ValueListenableBuilder(
+    return InheritedSearchPageController(
+      controller: _controller,
+      child: Material(
+        color: colorScheme.surface,
+        child: SafeArea(
+          bottom: false,
+          child: Stack(
+            children: [
+              // Options and suggestions are drawn over what's below, which
+              // keys must not reach while it's covered.
+              ValueListenableBuilder(
+                valueListenable: _controller.state,
+                builder: (context, state, child) => ExcludeFocus(
+                  excluding: state != SearchState.initial,
+                  child: child!,
+                ),
+                child: ValueListenableBuilder(
                   valueListenable: _controller.didSearchOnce,
                   builder: (context, searchOnce, child) {
                     return searchOnce
@@ -272,18 +278,18 @@ class _SearchPageScaffoldState<T extends Post>
                           );
                   },
                 ),
-                _SearchOptionsView(
-                  landingView: widget.landingView,
-                  selectionModeController: _selectionModeController,
-                ),
-                widget.searchSuggestions,
-                _SearchBarPositioned(
-                  selectionModeController: _selectionModeController,
-                  searchBarAnimController: _searchBarAnimController,
-                  child: widget.searchRegion,
-                ),
-              ],
-            ),
+              ),
+              _SearchOptionsView(
+                landingView: widget.landingView,
+                selectionModeController: _selectionModeController,
+              ),
+              widget.searchSuggestions,
+              _SearchBarPositioned(
+                selectionModeController: _selectionModeController,
+                searchBarAnimController: _searchBarAnimController,
+                child: widget.searchRegion,
+              ),
+            ],
           ),
         ),
       ),
@@ -455,7 +461,12 @@ class SearchRegionSafeArea extends ConsumerWidget {
         Expanded(
           child: child,
         ),
-        if (searchBarPosition == SearchBarPosition.bottom) displacement,
+        switch (searchBarPosition) {
+          SearchBarPosition.bottom => displacement,
+          SearchBarPosition.top => SizedBox(
+            height: MediaQuery.viewInsetsOf(context).bottom,
+          ),
+        },
       ],
     );
   }

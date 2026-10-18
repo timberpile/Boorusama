@@ -1,6 +1,7 @@
 import 'package:path/path.dart' as p;
 
 import '../../../../foundation/filesystem.dart';
+import '../../../search/following_topics/src/compatibility/topic_storage_contract.dart';
 
 final class ImportSourceDurability {
   const ImportSourceDurability(this.fs);
@@ -17,13 +18,13 @@ final class ImportSourceDurability {
       'bookmark_groups.hive',
       'bookmark_folders.hive',
     ],
-    'pinned_searches': [
-      'pinned_search_subscriptions.hive',
-      'pinned_search_folders.hive',
+    followingTopicsBackupSourceId: [
+      followingTopicsHiveFileName,
+      topicOrganizationHiveFileName,
     ],
-    'following_feeds': [
-      'pinned_search_subscriptions.hive',
-      'pinned_search_folders.hive',
+    topicFeedsBackupSourceId: [
+      followingTopicsHiveFileName,
+      topicOrganizationHiveFileName,
     ],
   };
 

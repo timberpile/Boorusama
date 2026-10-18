@@ -22,6 +22,7 @@ export 'src/components/adaptive_sheet.dart'
 export 'src/components/action_animation_overlay.dart';
 export 'src/components/animated_cross_fade.dart';
 export 'src/components/anchor.dart';
+export 'src/components/back_handler.dart';
 export 'src/components/bottom_sheet.dart' hide showKurumiModalBottomSheet;
 export 'src/components/bottom_sheet_actions.dart';
 export 'src/components/bottom_sheet_header.dart';
@@ -30,7 +31,6 @@ export 'src/components/chip.dart';
 export 'src/components/circular_icon_button.dart';
 export 'src/components/compact_chip.dart';
 export 'src/components/context_menu.dart';
-export 'src/components/custom_context_menu_overlay.dart';
 export 'src/components/desktop_window.dart';
 export 'src/components/dialog.dart';
 export 'src/components/dialog_content.dart';
@@ -41,6 +41,8 @@ export 'src/components/grayed_out.dart';
 export 'src/components/info_container.dart';
 export 'src/components/info_circle.dart';
 export 'src/components/interactive_viewer.dart';
+export 'src/components/linear_progress_indicator.dart';
+export 'src/components/like_button.dart';
 export 'src/components/no_data.dart';
 export 'src/components/hero.dart' hide kKurumiEnableHeroTransition;
 export 'src/components/hover_aware_container.dart';
@@ -53,7 +55,9 @@ export 'src/components/material_chips.dart';
 export 'src/components/navigation_tile.dart';
 export 'src/components/option_dropdown.dart';
 export 'src/components/option_searchable_sheet.dart';
+export 'src/components/page_indicator.dart';
 export 'src/components/popup_menu.dart';
+export 'src/components/pulse_indicator.dart';
 export 'src/components/scroll_button.dart';
 export 'src/components/scroll_visibility.dart';
 export 'src/components/route_transition.dart'
@@ -61,6 +65,11 @@ export 'src/components/route_transition.dart'
         kurumiParallaxSlideInTransitionBuilder,
         kurumiLeftToRightTransitionBuilder,
         kurumiFadeTransitionBuilder;
+export 'src/components/cross_scope_focus.dart';
+export 'src/components/focus_pane.dart';
+export 'src/components/focus_ring.dart';
+export 'src/components/listbox.dart';
+export 'src/components/radio_group.dart';
 export 'src/components/search_bar.dart';
 export 'src/components/selectable_item.dart';
 export 'src/components/selectable_chip.dart';

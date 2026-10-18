@@ -137,6 +137,7 @@ class AutoBackupSection extends ConsumerWidget {
                         } else {
                           await pickDirectoryPathToastOnError(
                             context: context,
+                            picker: ref.read(appFilePickerProvider),
                             onPick: (path) => _updateSettings(
                               settingsNotifier,
                               settings.copyWith(userSelectedPath: () => path),
@@ -281,7 +282,8 @@ class _StatusTile extends ConsumerWidget {
     final settings = ref.watch(settingsProvider.select((s) => s.autoBackup));
 
     final needsBackup =
-        settings.shouldBackup || ref.watch(autoBackupFailureProvider);
+        settings.shouldBackup(ref.watch(appPlatformProvider)) ||
+        ref.watch(autoBackupFailureProvider);
 
     return Padding(
       padding: const EdgeInsets.all(16),

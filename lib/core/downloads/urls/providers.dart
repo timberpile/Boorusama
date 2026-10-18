@@ -51,16 +51,19 @@ final class DefaultDownloadSource implements DownloadSourceProvider {
       if (post.thumbnailImageUrl.isNotEmpty)
         DownloadSource(
           url: post.thumbnailImageUrl,
+          quality: 'preview',
           name: context.t.settings.download.qualities.preview,
         ),
       if (post.sampleImageUrl.isNotEmpty)
         DownloadSource(
           url: post.sampleImageUrl,
+          quality: 'sample',
           name: context.t.settings.download.qualities.sample,
         ),
       if (post.originalImageUrl.isNotEmpty)
         DownloadSource(
           url: post.originalImageUrl,
+          quality: 'original',
           name: context.t.settings.download.qualities.original,
         ),
     ];
@@ -75,17 +78,35 @@ final class UrlInsidePostExtractor implements DownloadFileUrlExtractor {
     required Post post,
     required String quality,
   }) async {
-    final urls = post.isVideo
-        ? [post.originalImageUrl, post.videoUrl, post.thumbnailImageUrl]
-        : [post.originalImageUrl, post.sampleImageUrl, post.thumbnailImageUrl];
+    final videoQualities = {
+      if (post.videoUrl == post.originalImageUrl) 'original',
+      if (post.videoUrl == post.sampleImageUrl) 'sample',
+      if (post.videoUrl == post.thumbnailImageUrl) 'preview',
+    };
+    final videoQuality = videoQualities.length == 1
+        ? videoQualities.single
+        : 'custom';
+    final urls = [
+      (post.originalImageUrl, 'original'),
+      if (post.isVideo)
+        (post.videoUrl, videoQuality)
+      else
+        (post.sampleImageUrl, 'sample'),
+      (post.thumbnailImageUrl, 'preview'),
+    ];
 
-    final url = switch (quality) {
-      'original' => urls.firstWhereOrNull((e) => e.isNotEmpty),
-      'sample' => urls.skip(1).firstWhereOrNull((e) => e.isNotEmpty),
-      'preview' => post.thumbnailImageUrl,
-      _ => urls.firstWhereOrNull((e) => e.isNotEmpty),
+    final selected = switch (quality) {
+      'original' => urls.firstWhereOrNull((e) => e.$1.isNotEmpty),
+      'sample' => urls.skip(1).firstWhereOrNull((e) => e.$1.isNotEmpty),
+      'preview' => (post.thumbnailImageUrl, 'preview'),
+      _ => urls.firstWhereOrNull((e) => e.$1.isNotEmpty),
     };
 
-    return url != null ? DownloadUrlData.urlOnly(url) : null;
+    return selected != null
+        ? DownloadUrlData.urlOnly(
+            selected.$1,
+            resolvedQuality: selected.$2,
+          )
+        : null;
   }
 }

@@ -1,3 +1,4 @@
+import 'package:android_file_picker/android_file_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -15,12 +16,18 @@ class AndroidExportSaveService {
 
   Future<bool> save(String source, {String? fileName}) async {
     if (fileName != null && normalizedExportFileName(fileName) != fileName) {
-      throw ArgumentError.value(fileName, 'fileName', 'Invalid export file name');
+      throw ArgumentError.value(
+        fileName,
+        'fileName',
+        'Invalid export file name',
+      );
     }
     final directory = await FilePicker.getDirectoryPath(
-      androidSafOptions: const AndroidSAFOptions(
-        accessMode: AndroidSAFAccessMode.readWrite,
-        persistGrant: false,
+      androidOptions: const FilePickerAndroidOptions(
+        safOptions: AndroidSAFOptions(
+          accessMode: AndroidSAFAccessMode.readWrite,
+          persistGrant: false,
+        ),
       ),
     );
     if (directory == null) return false;

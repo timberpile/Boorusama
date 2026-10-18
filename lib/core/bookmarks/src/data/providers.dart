@@ -1,48 +1,48 @@
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:hive_ce/hive.dart';
 
 // Project imports:
 import '../../../boorus/engine/providers.dart';
 import '../types/bookmark_repository.dart';
+import '../types/bookmark_repository_factory.dart';
 import '../types/bookmark_group_repository.dart';
-import 'hive/bookmark_hive_object.dart';
-import 'hive/bookmark_group_hive_object.dart';
-import 'hive/bookmark_group_repository_hive.dart';
-import 'hive/repository.dart';
+import '../types/bookmark_group_repository_factory.dart';
+
+final bookmarkGroupRepositoryFactoryProvider =
+    Provider<BookmarkGroupRepositoryFactory>(
+      (_) => throw UnimplementedError(
+        'bookmarkGroupRepositoryFactoryProvider must be overridden',
+      ),
+    );
 
 final bookmarkGroupRepoProvider = FutureProvider<BookmarkGroupRepository>(
   (ref) async {
-    final groupBox = await Hive.openBox<BookmarkGroupHiveObject>(
-      'bookmark_groups',
-    );
-    final folderBox = await Hive.openBox<dynamic>('bookmark_folders');
-    final repository = BookmarkGroupRepositoryHive(
-      groupBox,
-      organizationBox: folderBox,
-    );
-
-    await repository.initializeFolders();
+    final factory = ref.watch(bookmarkGroupRepositoryFactoryProvider);
+    final repository = await factory.create();
     ref.onDispose(() async {
-      await groupBox.close();
-      await folderBox.close();
+      await factory.dispose(repository);
     });
     return repository;
   },
   name: 'bookmarkGroupRepoProvider',
 );
 
+final bookmarkRepositoryFactoryProvider = Provider<BookmarkRepositoryFactory>(
+  (_) => throw UnimplementedError(
+    'bookmarkRepositoryFactoryProvider must be overridden',
+  ),
+);
+
 final bookmarkRepoProvider = FutureProvider<BookmarkRepository>(
   (ref) async {
-    final bookmarkBox = await Hive.openBox<BookmarkHiveObject>('favorites');
+    final factory = ref.watch(bookmarkRepositoryFactoryProvider);
     final registry = ref.watch(booruEngineRegistryProvider);
-    final bookmarkRepo = BookmarkHiveRepository(
-      bookmarkBox,
+    final bookmarkRepo = await factory.create(
       postDataCodec: (type) => registry.getPostCapability(type)?.codec,
     );
 
     ref.onDispose(() async {
-      await bookmarkBox.close();
+      await factory.dispose(bookmarkRepo);
     });
 
     return bookmarkRepo;

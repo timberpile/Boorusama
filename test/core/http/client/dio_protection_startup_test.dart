@@ -16,6 +16,7 @@ import 'package:boorusama/core/ddos/solver/src/protection_detector.dart';
 import 'package:boorusama/core/ddos/solver/src/protection_orchestrator.dart';
 import 'package:boorusama/core/ddos/solver/src/protection_solver.dart';
 import 'package:boorusama/core/ddos/solver/src/user_agent_provider.dart';
+import 'package:boorusama/core/ddos/solver/types.dart';
 import 'package:boorusama/core/errors/types.dart';
 import 'package:boorusama/core/http/client/src/interceptors/dio_protection_interceptor.dart';
 import 'package:boorusama/core/http/client/coordination.dart';
@@ -144,6 +145,37 @@ void main() {
     expect(fixture.adapter.requestCount, 1);
   });
 
+  for (final mutation in <String, Map<String, dynamic>>{
+    'package marker': {...stateChangingRequestExtra},
+    'legacy marker': {apiMutationRequestKey: true},
+    'explicit context': {
+      apiRequestContextKey: const ApiRequestContext(
+        replaySafety: ApiReplaySafety.mutation,
+      ),
+    },
+  }.entries) {
+    test(
+      'GET mutation with ${mutation.key} never launches challenge recovery',
+      () async {
+        final fixture = _Fixture([
+          const _Response(403, _challengePage),
+          const _Response(200, 'posts'),
+        ]);
+        await expectLater(
+          fixture.dio.get<String>(
+            '/index.php?page=favorites&s=delete&id=17',
+            options: Options(
+              extra: {...mutation.value, apiSafeReadRequestKey: true},
+            ),
+          ),
+          throwsA(isA<DioException>()),
+        );
+        expect(fixture.adapter.requestCount, 1);
+        expect(fixture.solver.solveCount, 0);
+      },
+    );
+  }
+
   test('cancellation during the delay prevents another request', () async {
     final fixture = _Fixture([
       const _Response(403, _challengePage),
@@ -261,7 +293,11 @@ class _ClearanceSolver implements ProtectionSolver {
   Future<void> cancel() async {}
 
   @override
-  Future<bool> solve({required Uri uri, String? userAgent}) async {
+  Future<bool> solve({
+    required Uri uri,
+    String? userAgent,
+    ProtectionSession? diagnostics,
+  }) async {
     solveCount++;
     await jar.saveFromResponse(uri, [Cookie('cf_clearance', 'test')]);
     return true;

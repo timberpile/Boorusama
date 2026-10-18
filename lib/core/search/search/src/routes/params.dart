@@ -16,6 +16,7 @@ class SearchParams extends Equatable {
     this.fromSearchBar,
     this.tagCategories,
     this.order,
+    this.originatingTopicId,
   });
 
   factory SearchParams.fromUri(Uri uri) {
@@ -49,6 +50,19 @@ class SearchParams extends Equatable {
   final bool? fromSearchBar;
   final TagCategoryParam? tagCategories;
   final String? order;
+  final String? originatingTopicId;
+
+  SearchParams withOriginatingTopic(String? topicId) => SearchParams(
+    query: query,
+    tags: tags,
+    page: page,
+    scrollPosition: scrollPosition,
+    queryType: queryType,
+    fromSearchBar: fromSearchBar,
+    tagCategories: tagCategories,
+    order: order,
+    originatingTopicId: topicId,
+  );
 
   Map<String, String> toQueryParams() {
     final categories = TagCategoryParam.fromTagSet(tags);
@@ -75,6 +89,7 @@ class SearchParams extends Equatable {
     fromSearchBar,
     tagCategories,
     order,
+    originatingTopicId,
   ];
 
   static SearchTagSet? _buildTagSetWithCategories(

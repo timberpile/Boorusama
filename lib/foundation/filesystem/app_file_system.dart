@@ -19,15 +19,24 @@ abstract interface class AppFileSystem {
 
   Future<String> readString(String path);
 
-  Future<void> writeString(String path, String content);
+  /// Returns null only when the file is missing. Other errors propagate.
+  Future<String?> readStringIfExists(String path);
+
+  Future<void> writeString(String path, String content, {bool flush = false});
 
   Future<void> deleteFile(String path);
+
+  /// Missing files are already deleted. Other errors propagate.
+  Future<void> deleteFileIfExists(String path);
 
   Future<void> copyFile(String source, String destination);
   Future<bool> copyFileIfAbsent(String source, String destination);
   void copyFileSync(String source, String destination);
 
   Future<void> renameFile(String source, String destination);
+
+  /// Atomically publishes a complete file. Returns false if destination exists.
+  Future<bool> publishFileIfAbsent(String source, String destination);
 
   Future<void> syncFile(String path);
 

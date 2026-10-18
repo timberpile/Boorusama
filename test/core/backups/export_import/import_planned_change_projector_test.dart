@@ -7,13 +7,13 @@ import 'package:boorusama/core/backups/export_import/import/import_preflight.dar
 import 'package:boorusama/core/backups/export_import/import/profile_dependency_planner.dart';
 import 'package:boorusama/core/backups/export_import/models/import_action.dart';
 import 'package:boorusama/core/backups/sources/bookmark_backup_data.dart';
-import 'package:boorusama/core/backups/sources/following_feed_backup_data.dart';
-import 'package:boorusama/core/backups/sources/pinned_search_backup_data.dart';
+import 'package:boorusama/core/backups/sources/topic_feed_backup_data.dart';
+import 'package:boorusama/core/backups/sources/following_topic_backup_data.dart';
 import 'package:boorusama/core/backups/sources/search_backup_profile.dart';
 import 'package:boorusama/core/bookmarks/types.dart';
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/posts/post/types.dart';
-import 'package:boorusama/core/search/subscriptions/types.dart';
+import 'package:boorusama/core/search/following_topics/types.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -661,19 +661,19 @@ void main() {
   });
 
   test(
-    'pinned search projection reuses normalized query and profile identity',
+    'followed topic projection reuses normalized query and profile identity',
     () {
       final localCat = _search(id: 'local-cat', query: 'cat   girl');
-      const incoming = PinnedSearchBackupData(
+      const incoming = FollowingTopicBackupData(
         records: [
-          PinnedSearchBackupRecord(
+          FollowingTopicBackupRecord(
             id: 'remote-cat',
             name: 'Ignored because the row is reused',
             query: 'cat girl',
             position: 0,
             profile: _profileReference,
           ),
-          PinnedSearchBackupRecord(
+          FollowingTopicBackupRecord(
             id: 'dog',
             name: 'Dog',
             query: 'dog',
@@ -682,7 +682,7 @@ void main() {
           ),
         ],
         folders: [
-          PinnedSearchFolderBackupRecord(
+          FollowingTopicFolderBackupRecord(
             id: 'folder',
             name: 'Animals',
             position: 0,
@@ -691,12 +691,12 @@ void main() {
         ],
       );
 
-      final summary = projector.pinnedSearches(
-        local: PinnedSearchImportLocalSnapshot(
+      final summary = projector.followingTopics(
+        local: FollowingTopicImportLocalSnapshot(
           searches: [localCat],
-          organization: SearchOrganization(
+          organization: TopicOrganization(
             folders: [
-              SharedSearchFolder(
+              TopicFolder(
                 id: 'folder',
                 name: 'Animals',
                 searchIds: const ['local-cat'],
@@ -736,19 +736,19 @@ void main() {
     },
   );
 
-  test('pinned search projection waits for unresolved profile mapping', () {
-    final summary = projector.pinnedSearches(
-      local: PinnedSearchImportLocalSnapshot(
+  test('followed topic projection waits for unresolved profile mapping', () {
+    final summary = projector.followingTopics(
+      local: FollowingTopicImportLocalSnapshot(
         searches: const [],
-        organization: SearchOrganization(
+        organization: TopicOrganization(
           folders: const [],
           homeSearchIds: const [],
         ),
         feeds: const [],
       ),
-      incoming: const PinnedSearchBackupData(
+      incoming: const FollowingTopicBackupData(
         records: [
-          PinnedSearchBackupRecord(
+          FollowingTopicBackupRecord(
             id: 'remote-cat',
             name: null,
             query: 'cat',
@@ -774,20 +774,20 @@ void main() {
   });
 
   test(
-    'pinned search projection treats a changed query with the same ID as new',
+    'followed topic projection treats a changed query with the same ID as new',
     () {
-      final summary = projector.pinnedSearches(
-        local: PinnedSearchImportLocalSnapshot(
+      final summary = projector.followingTopics(
+        local: FollowingTopicImportLocalSnapshot(
           searches: [_search(id: 'same-id', query: 'local query')],
-          organization: SearchOrganization(
+          organization: TopicOrganization(
             folders: const [],
             homeSearchIds: const ['same-id'],
           ),
           feeds: const [],
         ),
-        incoming: const PinnedSearchBackupData(
+        incoming: const FollowingTopicBackupData(
           records: [
-            PinnedSearchBackupRecord(
+            FollowingTopicBackupRecord(
               id: 'same-id',
               name: null,
               query: 'remote query',
@@ -818,29 +818,29 @@ void main() {
   );
 
   test(
-    'pinned search projection reports Home membership and order changes',
+    'followed topic projection reports Home membership and order changes',
     () {
       final first = _search(id: 'first', query: 'first');
       final second = _search(id: 'second', query: 'second');
-      final summary = projector.pinnedSearches(
-        local: PinnedSearchImportLocalSnapshot(
+      final summary = projector.followingTopics(
+        local: FollowingTopicImportLocalSnapshot(
           searches: [first, second],
-          organization: SearchOrganization(
+          organization: TopicOrganization(
             folders: const [],
             homeSearchIds: const ['first', 'second'],
           ),
           feeds: const [],
         ),
-        incoming: const PinnedSearchBackupData(
+        incoming: const FollowingTopicBackupData(
           records: [
-            PinnedSearchBackupRecord(
+            FollowingTopicBackupRecord(
               id: 'first',
               name: null,
               query: 'first',
               position: 0,
               profile: _profileReference,
             ),
-            PinnedSearchBackupRecord(
+            FollowingTopicBackupRecord(
               id: 'second',
               name: null,
               query: 'second',
@@ -866,7 +866,7 @@ void main() {
 
       expect(summary?.hasMutations, isFalse);
       expect(summary?.updated, 0);
-      expect(summary?.entitySummaries['pinned-home']?.updated ?? 0, 0);
+      expect(summary?.entitySummaries['topics-home']?.updated ?? 0, 0);
       expect(summary!.previewRows.every((row) => !row.entityChanged), isTrue);
     },
   );
@@ -894,106 +894,109 @@ void main() {
     expect(summary, isNull);
   });
 
-  test('pinned replace reuses semantic matches before deleting extras', () {
-    final summary = projector.pinnedSearches(
-      local: PinnedSearchImportLocalSnapshot(
-        searches: [
-          _search(id: 'local-cat', query: 'cat   girl'),
-          _search(id: 'removed', query: 'removed'),
-        ],
-        organization: SearchOrganization(
-          folders: [
-            SharedSearchFolder(
-              id: 'old-folder',
-              name: 'Old',
-              searchIds: const ['removed'],
+  test(
+    'followedTopic replace reuses semantic matches before deleting extras',
+    () {
+      final summary = projector.followingTopics(
+        local: FollowingTopicImportLocalSnapshot(
+          searches: [
+            _search(id: 'local-cat', query: 'cat   girl'),
+            _search(id: 'removed', query: 'removed'),
+          ],
+          organization: TopicOrganization(
+            folders: [
+              TopicFolder(
+                id: 'old-folder',
+                name: 'Old',
+                searchIds: const ['removed'],
+              ),
+            ],
+            homeSearchIds: const ['local-cat'],
+          ),
+          feeds: const [],
+        ),
+        incoming: const FollowingTopicBackupData(
+          records: [
+            FollowingTopicBackupRecord(
+              id: 'remote-cat',
+              name: null,
+              query: 'cat girl',
+              position: 0,
+              profile: _profileReference,
             ),
           ],
-          homeSearchIds: const ['local-cat'],
+          folders: [
+            FollowingTopicFolderBackupRecord(
+              id: 'new-folder',
+              name: 'New',
+              position: 0,
+              searchIds: ['remote-cat'],
+            ),
+          ],
         ),
-        feeds: const [],
-      ),
-      incoming: const PinnedSearchBackupData(
-        records: [
-          PinnedSearchBackupRecord(
-            id: 'remote-cat',
-            name: null,
-            query: 'cat girl',
-            position: 0,
-            profile: _profileReference,
-          ),
-        ],
-        folders: [
-          PinnedSearchFolderBackupRecord(
-            id: 'new-folder',
-            name: 'New',
-            position: 0,
-            searchIds: ['remote-cat'],
-          ),
-        ],
-      ),
-      profileMappings: {
-        ProfileReferenceKey.fromReference(_profileReference):
-            '00000000-0000-4000-8000-000000000001',
-      },
-      resolution: _source('pinned_searches', ImportAction.replace),
-    );
+        profileMappings: {
+          ProfileReferenceKey.fromReference(_profileReference):
+              '00000000-0000-4000-8000-000000000001',
+        },
+        resolution: _source('pinned_searches', ImportAction.replace),
+      );
 
-    expect(
-      _totals(summary),
-      const PlannedChangeSummary(
-        created: 1,
-        updated: 1,
-        deleted: 2,
-        unchanged: 1,
-      ),
-    );
-    expect(summary!.previewRows.every((row) => row.isContainer), isTrue);
-    final newFolder = summary.previewRows.singleWhere(
-      (row) => row.label == 'New',
-    );
-    final oldFolder = summary.previewRows.singleWhere(
-      (row) => row.label == 'Old',
-    );
-    final home = summary.previewRows.singleWhere(
-      (row) => row.label == '__home',
-    );
-    expect(newFolder.children.single.label, 'cat girl');
-    expect(newFolder.children.single.kind, ImportChangeKind.added);
-    expect(oldFolder.children.single.label, 'removed');
-    expect(oldFolder.children.single.kind, ImportChangeKind.removed);
-    expect(home.children.single.label, 'cat girl');
-    expect(home.children.single.kind, ImportChangeKind.removed);
-    expect(
-      summary.previewRows.fold(
-        const ImportChangeCounts(),
-        (sum, row) => sum + row.counts,
-      ),
-      const ImportChangeCounts(added: 2, removed: 3),
-    );
-  });
+      expect(
+        _totals(summary),
+        const PlannedChangeSummary(
+          created: 1,
+          updated: 1,
+          deleted: 2,
+          unchanged: 1,
+        ),
+      );
+      expect(summary!.previewRows.every((row) => row.isContainer), isTrue);
+      final newFolder = summary.previewRows.singleWhere(
+        (row) => row.label == 'New',
+      );
+      final oldFolder = summary.previewRows.singleWhere(
+        (row) => row.label == 'Old',
+      );
+      final home = summary.previewRows.singleWhere(
+        (row) => row.label == '__home',
+      );
+      expect(newFolder.children.single.label, 'cat girl');
+      expect(newFolder.children.single.kind, ImportChangeKind.added);
+      expect(oldFolder.children.single.label, 'removed');
+      expect(oldFolder.children.single.kind, ImportChangeKind.removed);
+      expect(home.children.single.label, 'cat girl');
+      expect(home.children.single.kind, ImportChangeKind.removed);
+      expect(
+        summary.previewRows.fold(
+          const ImportChangeCounts(),
+          (sum, row) => sum + row.counts,
+        ),
+        const ImportChangeCounts(added: 2, removed: 3),
+      );
+    },
+  );
 
   test('adding a search to Home counts only the search', () {
-    final summary = projector.pinnedSearches(
-      local: PinnedSearchImportLocalSnapshot(
+    final summary = projector.followingTopics(
+      local: FollowingTopicImportLocalSnapshot(
         searches: const [],
-        organization: SearchOrganization(
+        organization: TopicOrganization(
           folders: const [],
           homeSearchIds: const [],
         ),
         feeds: const [],
       ),
-      incoming: const PinnedSearchBackupData(
+      incoming: const FollowingTopicBackupData(
         records: [
-          PinnedSearchBackupRecord(
-            id: 'pin',
+          FollowingTopicBackupRecord(
+            id: 'topic',
             name: null,
             query: 'cat',
             position: 0,
             profile: _profileReference,
           ),
         ],
-        homeSearchIds: ['pin'],
+        homeSearchIds: ['topic'],
       ),
       profileMappings: {
         ProfileReferenceKey.fromReference(_profileReference):
@@ -1014,12 +1017,12 @@ void main() {
           ? 'renaming a folder counts the folder itself'
           : 'adding to an existing folder counts only the added search',
       () {
-        final summary = projector.pinnedSearches(
-          local: PinnedSearchImportLocalSnapshot(
+        final summary = projector.followingTopics(
+          local: FollowingTopicImportLocalSnapshot(
             searches: [_search(id: 'cat', query: 'cat')],
-            organization: SearchOrganization(
+            organization: TopicOrganization(
               folders: [
-                SharedSearchFolder(
+                TopicFolder(
                   id: 'folder',
                   name: 'Animals',
                   searchIds: const ['cat'],
@@ -1029,9 +1032,9 @@ void main() {
             ),
             feeds: const [],
           ),
-          incoming: PinnedSearchBackupData(
+          incoming: FollowingTopicBackupData(
             records: [
-              const PinnedSearchBackupRecord(
+              const FollowingTopicBackupRecord(
                 id: 'cat',
                 name: null,
                 query: 'cat',
@@ -1039,7 +1042,7 @@ void main() {
                 profile: _profileReference,
               ),
               if (!rename)
-                const PinnedSearchBackupRecord(
+                const FollowingTopicBackupRecord(
                   id: 'dog',
                   name: null,
                   query: 'dog',
@@ -1048,7 +1051,7 @@ void main() {
                 ),
             ],
             folders: [
-              PinnedSearchFolderBackupRecord(
+              FollowingTopicFolderBackupRecord(
                 id: 'folder',
                 name: rename ? 'Renamed' : 'Animals',
                 position: 0,
@@ -1075,14 +1078,14 @@ void main() {
     );
   }
 
-  test('legacy pins without organization entries are shown under Home', () {
-    final summary = projector.pinnedSearches(
-      local: PinnedSearchImportLocalSnapshot(
+  test('legacy topics without organization entries are shown under Home', () {
+    final summary = projector.followingTopics(
+      local: FollowingTopicImportLocalSnapshot(
         searches: [_search(id: 'orphan', query: 'cat')],
-        organization: SearchOrganization(folders: [], homeSearchIds: []),
+        organization: TopicOrganization(folders: [], homeSearchIds: []),
         feeds: [],
       ),
-      incoming: const PinnedSearchBackupData(records: [], folders: []),
+      incoming: const FollowingTopicBackupData(records: [], folders: []),
       profileMappings: {},
       resolution: _source('pinned_searches', ImportAction.replace),
     )!;
@@ -1101,12 +1104,12 @@ void main() {
   test(
     'matching query text from different profiles remains separate inside its folder',
     () {
-      final summary = projector.pinnedSearches(
-        local: PinnedSearchImportLocalSnapshot(
+      final summary = projector.followingTopics(
+        local: FollowingTopicImportLocalSnapshot(
           searches: [_search(id: 'old', query: 'cat')],
-          organization: SearchOrganization(
+          organization: TopicOrganization(
             folders: [
-              SharedSearchFolder(
+              TopicFolder(
                 id: 'folder',
                 name: 'Cats',
                 searchIds: ['old'],
@@ -1116,9 +1119,9 @@ void main() {
           ),
           feeds: [],
         ),
-        incoming: const PinnedSearchBackupData(
+        incoming: const FollowingTopicBackupData(
           records: [
-            PinnedSearchBackupRecord(
+            FollowingTopicBackupRecord(
               id: 'new',
               name: 'Cats at work',
               query: 'cat',
@@ -1127,7 +1130,7 @@ void main() {
             ),
           ],
           folders: [
-            PinnedSearchFolderBackupRecord(
+            FollowingTopicFolderBackupRecord(
               id: 'folder',
               name: 'Cats',
               position: 0,
@@ -1162,15 +1165,15 @@ void main() {
   test(
     'folder reorder remains visible without fabricating search additions or removals',
     () {
-      final summary = projector.pinnedSearches(
-        local: PinnedSearchImportLocalSnapshot(
+      final summary = projector.followingTopics(
+        local: FollowingTopicImportLocalSnapshot(
           searches: [
             _search(id: 'cat', query: 'cat'),
             _search(id: 'dog', query: 'dog'),
           ],
-          organization: SearchOrganization(
+          organization: TopicOrganization(
             folders: [
-              SharedSearchFolder(
+              TopicFolder(
                 id: 'folder',
                 name: 'Animals',
                 searchIds: ['cat', 'dog'],
@@ -1180,16 +1183,16 @@ void main() {
           ),
           feeds: [],
         ),
-        incoming: const PinnedSearchBackupData(
+        incoming: const FollowingTopicBackupData(
           records: [
-            PinnedSearchBackupRecord(
+            FollowingTopicBackupRecord(
               id: 'cat',
               name: null,
               query: 'cat',
               position: 0,
               profile: _profileReference,
             ),
-            PinnedSearchBackupRecord(
+            FollowingTopicBackupRecord(
               id: 'dog',
               name: null,
               query: 'dog',
@@ -1198,7 +1201,7 @@ void main() {
             ),
           ],
           folders: [
-            PinnedSearchFolderBackupRecord(
+            FollowingTopicFolderBackupRecord(
               id: 'folder',
               name: 'Animals',
               position: 0,
@@ -1227,21 +1230,21 @@ void main() {
 
   test('folder projection counts all three new searches and the folder', () {
     const records = [
-      PinnedSearchBackupRecord(
+      FollowingTopicBackupRecord(
         id: 'one',
         name: null,
         query: 'one',
         position: 0,
         profile: _profileReference,
       ),
-      PinnedSearchBackupRecord(
+      FollowingTopicBackupRecord(
         id: 'two',
         name: null,
         query: 'two',
         position: 1,
         profile: _profileReference,
       ),
-      PinnedSearchBackupRecord(
+      FollowingTopicBackupRecord(
         id: 'three',
         name: null,
         query: 'three',
@@ -1249,19 +1252,19 @@ void main() {
         profile: _profileReference,
       ),
     ];
-    final summary = projector.pinnedSearches(
-      local: PinnedSearchImportLocalSnapshot(
+    final summary = projector.followingTopics(
+      local: FollowingTopicImportLocalSnapshot(
         searches: const [],
-        organization: SearchOrganization(
+        organization: TopicOrganization(
           folders: const [],
           homeSearchIds: const [],
         ),
         feeds: const [],
       ),
-      incoming: const PinnedSearchBackupData(
+      incoming: const FollowingTopicBackupData(
         records: records,
         folders: [
-          PinnedSearchFolderBackupRecord(
+          FollowingTopicFolderBackupRecord(
             id: 'folder',
             name: 'Three searches',
             position: 0,
@@ -1289,8 +1292,8 @@ void main() {
       summary,
       const PlannedChangeSummary(created: 5, preserved: 1),
     );
-    expect(summary?.entitySummaries['pinned-search']?.created, 3);
-    expect(summary?.entitySummaries['pinned-folder']?.created, 2);
+    expect(summary?.entitySummaries['following-topic']?.created, 3);
+    expect(summary?.entitySummaries['topic-folder']?.created, 2);
     final folder = summary!.previewRows.singleWhere(
       (row) => row.label == 'Three searches',
     );
@@ -1315,13 +1318,13 @@ void main() {
         query: 'cat',
         profileId: '00000000-0000-4000-8000-00000000002a',
       );
-      final first = SearchFollowingFeed(
+      final first = TopicFeed(
         id: 'first',
         profileId: '00000000-0000-4000-8000-00000000002a',
         name: 'First',
         sourceIds: const ['cat-source'],
       );
-      final second = SearchFollowingFeed(
+      final second = TopicFeed(
         id: 'second',
         profileId: '00000000-0000-4000-8000-00000000002a',
         name: 'Second',
@@ -1329,14 +1332,14 @@ void main() {
         position: 1,
       );
 
-      final summary = projector.followingFeeds(
-        local: FollowingFeedImportLocalSnapshot(
+      final summary = projector.topicFeeds(
+        local: TopicFeedImportLocalSnapshot(
           searches: [cat],
           feeds: [first, second],
         ),
-        incoming: FollowingFeedBackupData(
+        incoming: TopicFeedBackupData(
           feeds: [
-            FollowingFeedBackupRecord(
+            TopicFeedBackupRecord(
               id: 'first',
               name: 'First updated',
               position: 0,
@@ -1381,21 +1384,21 @@ void main() {
   );
 
   test('empty library counts each new feed and each of its search entries', () {
-    final summary = projector.followingFeeds(
-      local: FollowingFeedImportLocalSnapshot(
+    final summary = projector.topicFeeds(
+      local: TopicFeedImportLocalSnapshot(
         searches: const [],
         feeds: const [],
       ),
-      incoming: FollowingFeedBackupData(
+      incoming: TopicFeedBackupData(
         feeds: [
-          FollowingFeedBackupRecord(
+          TopicFeedBackupRecord(
             id: 'one',
             name: 'One entry',
             position: 0,
             queries: ['cat'],
             profile: _profileReference,
           ),
-          FollowingFeedBackupRecord(
+          TopicFeedBackupRecord(
             id: 'two',
             name: 'Two entries',
             position: 1,
@@ -1463,14 +1466,14 @@ void main() {
     test(
       'feed entry counts include individual changes for ${scenario.label}',
       () {
-        final summary = projector.followingFeeds(
-          local: FollowingFeedImportLocalSnapshot(
+        final summary = projector.topicFeeds(
+          local: TopicFeedImportLocalSnapshot(
             searches: [
               for (final (index, query) in scenario.before.indexed)
                 _search(id: 'source-$index', query: query),
             ],
             feeds: [
-              SearchFollowingFeed(
+              TopicFeed(
                 id: 'feed',
                 name: 'Feed',
                 profileId: '00000000-0000-4000-8000-000000000001',
@@ -1481,9 +1484,9 @@ void main() {
               ),
             ],
           ),
-          incoming: FollowingFeedBackupData(
+          incoming: TopicFeedBackupData(
             feeds: [
-              FollowingFeedBackupRecord(
+              TopicFeedBackupRecord(
                 id: 'feed',
                 name: scenario.label == 'rename' ? 'Renamed' : 'Feed',
                 position: 0,
@@ -1516,14 +1519,14 @@ void main() {
   }
 
   test('feed projection waits for unresolved profile mapping', () {
-    final summary = projector.followingFeeds(
-      local: FollowingFeedImportLocalSnapshot(
+    final summary = projector.topicFeeds(
+      local: TopicFeedImportLocalSnapshot(
         searches: [],
         feeds: [],
       ),
-      incoming: FollowingFeedBackupData(
+      incoming: TopicFeedBackupData(
         feeds: [
-          FollowingFeedBackupRecord(
+          TopicFeedBackupRecord(
             id: 'feed',
             name: 'Feed',
             position: 0,
@@ -1548,17 +1551,17 @@ void main() {
   test('feed replace retains compatible feeds and removes absent orphans', () {
     final cat = _search(id: 'cat-source', query: 'cat');
     final dog = _search(id: 'dog-source', query: 'dog');
-    final summary = projector.followingFeeds(
-      local: FollowingFeedImportLocalSnapshot(
+    final summary = projector.topicFeeds(
+      local: TopicFeedImportLocalSnapshot(
         searches: [cat, dog],
         feeds: [
-          SearchFollowingFeed(
+          TopicFeed(
             id: 'kept',
             profileId: '00000000-0000-4000-8000-000000000001',
             name: 'Kept',
             sourceIds: const ['cat-source'],
           ),
-          SearchFollowingFeed(
+          TopicFeed(
             id: 'removed',
             profileId: '00000000-0000-4000-8000-000000000001',
             name: 'Removed',
@@ -1567,9 +1570,9 @@ void main() {
           ),
         ],
       ),
-      incoming: FollowingFeedBackupData(
+      incoming: TopicFeedBackupData(
         feeds: [
-          FollowingFeedBackupRecord(
+          TopicFeedBackupRecord(
             id: 'kept',
             name: 'Kept',
             position: 0,
@@ -1669,11 +1672,11 @@ Bookmark _bookmark({required int localId, required int postId}) => Bookmark(
   metadata: const {},
 );
 
-SearchSubscription _search({
+FollowingTopic _search({
   required String id,
   required String query,
   String profileId = '00000000-0000-4000-8000-000000000001',
-}) => SearchSubscription.create(
+}) => FollowingTopic.create(
   id: id,
   profileId: profileId,
   query: query,

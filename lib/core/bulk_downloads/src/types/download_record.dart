@@ -1,6 +1,9 @@
 // Package imports:
 import 'package:equatable/equatable.dart';
 
+// Project imports:
+import '../../../downloads/sidecar/types.dart';
+
 enum DownloadRecordStatus {
   pending,
   downloading,
@@ -33,6 +36,7 @@ class DownloadRecord extends Equatable {
     this.headers,
     this.thumbnailImageUrl,
     this.sourceUrl,
+    this.sidecar,
   });
 
   final String url;
@@ -49,6 +53,7 @@ class DownloadRecord extends Equatable {
   final Map<String, String>? headers;
   final String? thumbnailImageUrl;
   final String? sourceUrl;
+  final SidecarSnapshot? sidecar;
 
   DownloadRecord copyWith({
     String? url,
@@ -81,6 +86,7 @@ class DownloadRecord extends Equatable {
       headers: headers ?? this.headers,
       thumbnailImageUrl: thumbnailImageUrl ?? this.thumbnailImageUrl,
       sourceUrl: sourceUrl ?? this.sourceUrl,
+      sidecar: sidecar,
     );
   }
 
@@ -100,6 +106,7 @@ class DownloadRecord extends Equatable {
     headers,
     thumbnailImageUrl,
     sourceUrl,
+    sidecar,
   ];
 
   @override

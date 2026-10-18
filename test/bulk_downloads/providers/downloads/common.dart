@@ -38,9 +38,13 @@ import 'package:boorusama/core/search/queries/types.dart';
 import 'package:boorusama/core/search/selected_tags/types.dart';
 import 'package:boorusama/core/settings/providers.dart';
 import 'package:boorusama/core/settings/types.dart';
+import 'package:boorusama/foundation/filesystem.dart';
 import 'package:boorusama/foundation/info/device_info.dart';
 import 'package:boorusama/foundation/loggers.dart';
 import 'package:boorusama/foundation/permissions.dart';
+import 'package:boorusama/foundation/platform.dart';
+
+import '../../../support/boorusama_test_runtime.dart';
 import '../../common.dart';
 
 class MockMediaPermissionManager extends Mock
@@ -53,19 +57,23 @@ class DummyLogger implements Logger {
   String getDebugName() => 'Dummy Logger';
 
   @override
-  void error(String serviceName, String message) {}
+  void error(String serviceName, String message, {String? sensitiveMessage}) {}
 
   @override
-  void info(String serviceName, String message) {}
+  void info(String serviceName, String message, {String? sensitiveMessage}) {}
 
   @override
-  void warn(String serviceName, String message) {}
+  void warn(String serviceName, String message, {String? sensitiveMessage}) {}
 
   @override
-  void verbose(String serviceName, String message) {}
+  void verbose(
+    String serviceName,
+    String message, {
+    String? sensitiveMessage,
+  }) {}
 
   @override
-  void debug(String serviceName, String message) {}
+  void debug(String serviceName, String message, {String? sensitiveMessage}) {}
 }
 
 class DownloadTestConstants {
@@ -230,7 +238,7 @@ final dummyDownloadFileNameBuilder = DownloadFileNameBuilder<Post>(
   tokenHandlers: const [],
   sampleData: const [],
   defaultFileNameFormat: 'test-default-format',
-  defaultBulkDownloadFileNameFormat: 'test-default-bulk-format',
+  defaultBulkDownloadFileNameFormat: 'test-default-bulk-format-{index}',
 );
 
 class AlwaysExistsDirectoryExistChecker implements DirectoryExistChecker {
@@ -340,6 +348,8 @@ List<Override> getTestOverrides({
       (_, task) => taskFileSizeResolver?.call(task) ?? Future.value(0),
     ),
     deviceInfoProvider.overrideWithValue(deviceInfo ?? DeviceInfo.empty()),
+    appFileSystemProvider.overrideWithValue(MemoryAppFileSystem()),
+    appPlatformProvider.overrideWithValue(AppPlatform.unknown),
   ];
 }
 

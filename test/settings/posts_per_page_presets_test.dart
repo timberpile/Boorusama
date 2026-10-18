@@ -2,7 +2,6 @@ import 'package:boorusama/core/settings/src/pages/appearance/image_listing_setti
 import 'package:boorusama/core/settings/src/pages/appearance/posts_per_page_dialog.dart';
 import 'package:boorusama/core/settings/src/types/utils.dart';
 import 'package:boorusama/core/settings/types.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:i18n/i18n.dart';

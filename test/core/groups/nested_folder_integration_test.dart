@@ -14,9 +14,9 @@ import 'package:boorusama/core/backups/sources/bookmark_backup_data.dart';
 import 'package:boorusama/core/backups/sources/bookmark_import_planner.dart';
 import 'package:boorusama/core/backups/sources/bookmark_import_service.dart';
 import 'package:boorusama/core/backups/export_import/models/import_action.dart';
-import 'package:boorusama/core/search/subscriptions/types.dart';
-import 'package:boorusama/core/search/subscriptions/src/data/hive/search_subscription_repository_hive.dart';
-import '../search/subscriptions/subscription_test_utils.dart';
+import 'package:boorusama/core/search/following_topics/types.dart';
+import 'package:boorusama/core/search/following_topics/src/data/hive/following_topic_repository_hive.dart';
+import '../search/following_topics/topic_test_utils.dart';
 
 String id(int n) => '00000000-0000-4000-8000-${n.toString().padLeft(12, '0')}';
 
@@ -91,7 +91,7 @@ void main() {
     if (!Hive.isAdapterRegistered(5))
       Hive.registerAdapter(BookmarkGroupHiveObjectAdapter());
     if (!Hive.isAdapterRegistered(6))
-      Hive.registerAdapter(SearchSubscriptionHiveObjectAdapter());
+      Hive.registerAdapter(FollowingTopicHiveObjectAdapter());
     groupBox = await Hive.openBox('groups');
     bookmarkBox = await Hive.openBox('bookmarks');
     folderBox = await Hive.openBox('folders');
@@ -529,7 +529,7 @@ void main() {
     'legacy search organization migrates once without touching runtime records or empty folders',
     () async {
       final box = MemorySubscriptionBox(), organization = MemoryBox<dynamic>();
-      final repository = HiveSearchSubscriptionRepository(
+      final repository = HiveFollowingTopicRepository(
         box: box,
         organizationBox: organization,
       );
@@ -591,10 +591,10 @@ void main() {
         queries: ['birds'],
       );
       await repository.replaceOrganization(
-        SearchOrganization(
+        TopicOrganization(
           folders: [
-            SharedSearchFolder(id: id(10), name: 'Root'),
-            SharedSearchFolder(
+            TopicFolder(id: id(10), name: 'Root'),
+            TopicFolder(
               id: id(11),
               name: 'Child',
               parentId: id(10),
@@ -621,7 +621,7 @@ void main() {
           destination: id(10),
         ),
       );
-      await repository.deleteSharedFolderAndPins(id(10));
+      await repository.deleteSharedFolderAndTopics(id(10));
       expect(await repository.getById(first.id), isNull);
       expect(await repository.getById(outside.id), outside);
       expect(await repository.getFeeds(), [feed]);

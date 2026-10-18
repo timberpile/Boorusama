@@ -51,6 +51,7 @@ class DefaultDanbooruImageGridItem extends StatelessWidget {
               final additions = const DanbooruPostGridPresentation()
                   .buildLegacyGridItemAdditions(
                     context,
+                    ref: ref,
                     post: post,
                     config: config,
                   );

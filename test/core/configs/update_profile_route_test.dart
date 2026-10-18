@@ -7,7 +7,7 @@ import 'package:boorusama/core/configs/create/routes.dart';
 import 'package:boorusama/core/configs/create/create.dart';
 import 'package:boorusama/core/configs/manage/providers.dart';
 import 'package:boorusama/core/router.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kurumi/kurumi.dart';
@@ -68,10 +68,7 @@ void main() {
           container: container,
           child: MaterialApp.router(
             routerConfig: router,
-            builder: (context, child) => KurumiTheme(
-              data: KurumiThemeData.fromMaterial(Theme.of(context)),
-              child: child!,
-            ),
+            builder: _themeBuilder,
           ),
         ),
       );
@@ -114,10 +111,7 @@ void main() {
           container: container,
           child: MaterialApp.router(
             routerConfig: router,
-            builder: (context, child) => KurumiTheme(
-              data: KurumiThemeData.fromMaterial(Theme.of(context)),
-              child: child!,
-            ),
+            builder: _themeBuilder,
           ),
         ),
       );
@@ -127,6 +121,15 @@ void main() {
     });
   }
 }
+
+Widget _themeBuilder(BuildContext context, Widget? child) =>
+    // ignore: deprecated_member_use
+    MaterialUiCompatibilityBridge(
+      child: KurumiTheme(
+        data: KurumiThemeData.fromMaterial(Theme.of(context)),
+        child: child!,
+      ),
+    );
 
 class _EditorBuilder extends BaseBooruBuilder {
   _EditorBuilder(this.onOpen);

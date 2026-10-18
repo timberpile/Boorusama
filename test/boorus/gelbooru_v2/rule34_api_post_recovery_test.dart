@@ -119,6 +119,50 @@ void main() {
     },
   );
 
+  test(
+    'listing uses the live-verified JSON endpoint with profile credentials',
+    () async {
+      responseData = [post];
+      final client = container.read(gelbooruV2ClientProvider(config.auth));
+
+      final listed = await client.getPosts(
+        page: 1,
+        limit: 20,
+        tags: const ['portrait'],
+      );
+      final uri = requests.single.uri;
+      expect(uri.scheme, 'https');
+      expect(uri.host, 'api.rule34.xxx');
+      expect(uri.queryParameters, containsPair('json', '1'));
+      expect(uri.queryParameters, containsPair('pid', '0'));
+      expect(uri.queryParameters, containsPair('limit', '20'));
+      expect(uri.queryParameters, containsPair('tags', 'portrait'));
+      expect(uri.queryParameters, containsPair('user_id', config.login));
+      expect(uri.queryParameters, containsPair('api_key', config.apiKey));
+      expect(listed.posts.single.id, 42);
+
+      requests.clear();
+      responseData = null; // Dio's decoded bodyless JSON response.
+      final empty = await client.getPosts(tags: const ['no-match']);
+      expect(empty.posts, isEmpty);
+    },
+  );
+
+  test('details explain an API authentication error', () async {
+    responseData = jsonEncode('Missing authentication');
+
+    await expectLater(
+      container.read(gelbooruV2ClientProvider(config.auth)).getPost(42),
+      throwsA(
+        isA<FormatException>().having(
+          (error) => error.message,
+          'message',
+          contains('Missing authentication'),
+        ),
+      ),
+    );
+  });
+
   test('accepts JSON text and an empty result for a removed post', () async {
     final client = container.read(gelbooruV2ClientProvider(config.auth));
     responseData = jsonEncode([post]);

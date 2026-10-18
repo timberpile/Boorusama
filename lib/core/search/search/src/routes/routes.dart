@@ -11,27 +11,35 @@ import '../../../../home/types.dart';
 import '../../../../router.dart';
 import '../pages/search_page.dart';
 import 'params.dart';
+import 'route_utils.dart';
 
 GoRoute searchRoutes(Ref ref) => GoRoute(
   path: 'search',
   name: '/search',
   pageBuilder: (context, state) {
     final customHomeViewKey = ref.read(customHomeViewKeyProvider);
-    final params = SearchParams.fromUri(state.uri);
+    final routeContext = switch (state.extra) {
+      final SearchRouteContext value => value,
+      final BooruConfig config => SearchRouteContext(config: config),
+      _ => null,
+    };
+    final params = SearchParams.fromUri(
+      state.uri,
+    ).withOriginatingTopic(routeContext?.originatingTopicId);
 
     final searchPage = InheritedInitialSearchQuery(
       params: params,
       child: const SearchPage(),
     );
-    final page = switch (state.extra) {
-      final BooruConfig config => CurrentBooruConfigScope(
-        config: config,
+    final page = switch (routeContext) {
+      final SearchRouteContext routeContext => CurrentBooruConfigScope(
+        config: routeContext.config,
         child: searchPage,
       ),
       _ => searchPage,
     };
 
-    return switch (isDesktopPlatform()) {
+    return switch (ref.watch(appPlatformProvider).isDesktop) {
       true => CustomTransitionPage(
         key: state.pageKey,
         name: state.name,

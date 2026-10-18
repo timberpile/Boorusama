@@ -12,6 +12,7 @@ import 'package:hive_ce/hive.dart';
 // Project imports:
 import 'package:boorusama/core/changelogs/repo.dart';
 import 'package:boorusama/core/changelogs/types.dart';
+import 'package:boorusama/core/cache/hive_persistent_cache_store.dart';
 
 void main() {
   final binding = TestWidgetsFlutterBinding.ensureInitialized();
@@ -23,7 +24,7 @@ void main() {
   setUp(() async {
     directory = await Directory.systemTemp.createTemp('changelog_test_');
     box = await Hive.openBox<String>('changelog', path: directory.path);
-    repository = ChangelogRepositoryImpl(box);
+    repository = ChangelogRepositoryImpl(HivePersistentCacheStore(box));
     asset = await File('CHANGELOG.md').readAsString();
     rootBundle.clear();
     binding.defaultBinaryMessenger.setMockMessageHandler('flutter/assets', (
@@ -49,26 +50,23 @@ void main() {
   test('loads all subsections of the bundled latest release', () async {
     final data = await repository.loadLatestChangelog();
 
-    expect(data.version.toString(), '4.5.0-timberpile.5');
-    expect(data.content, contains('## Breaking changes\n\n'));
+    expect(data.version.toString(), '4.6.1-timberpile.1');
     expect(data.content, contains('## Features\n\n'));
     expect(data.content, contains('## Fixes and improvements\n\n'));
     expect(
       data.content,
       contains(
-        '- Organize bookmark groups and pinned searches in nested folders.',
+        '- Save tags and post information alongside downloads.',
       ),
     );
-    expect(data.content, isNot(contains('# 4.5.0-timberpile.4')));
-    expect(data.content, isNot(contains('# 4.5.0-timberpile.3')));
-    expect(data.content, isNot(contains('Unlock Boorusama Plus')));
+    expect(data.content, isNot(contains('# 4.5.0-timberpile.5')));
+    expect(data.content, isNot(contains('nested folders')));
   });
 
   final cases = [
     (
       name: 'preserves blank lines and nested headings before the next release',
-      asset:
-          '# 4.6.0\n\n## Changes\n\n- First\n\n### Details\n- Second\n\n# 4.5.0\n- Older\n',
+      asset: '# 4.6.0\n\n## Changes\n\n- First\n\n### Details\n- Second\n\n# 4.5.0\n- Older\n',
       content: '\n## Changes\n\n- First\n\n### Details\n- Second\n\n',
     ),
     (
@@ -111,7 +109,7 @@ void main() {
 
     await box.close();
     box = await Hive.openBox<String>('changelog', path: directory.path);
-    repository = ChangelogRepositoryImpl(box);
+    repository = ChangelogRepositoryImpl(HivePersistentCacheStore(box));
     expect(await repository.shouldShowChangelog(data.version), isFalse);
     expect(
       (await repository.loadLatestChangelog()).previousVersion.toString(),

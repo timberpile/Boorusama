@@ -1,3 +1,67 @@
+# 4.6.1-timberpile.1
+
+## Breaking changes
+
+- New app-lock setups default to a 30-second timeout with app-preview blur off. Existing saved choices are preserved; enable Hide App Preview if you want blurred previews.
+- The `{id}` download filename token now uses the genuine site post ID. Custom Pixiv templates using only `{id}` can collide between pages; keep `{illust_id}_p{page}` for unique filenames.
+
+## Features
+
+- Bring followed searches, artists, and tags together in Following Topics, with folders and combined feeds.
+- Save tags and post information alongside downloads.
+- Customize thumbnails with two quick actions.
+- Bulk-download posts from Anime-Pictures and Zerochan.
+- Use alternate media hosts for each profile.
+- Find posts more easily with improved search options, suggestions, and history.
+- Improve menus, Settings, and keyboard navigation.
+- Add Arabic and Indonesian language support.
+
+## Fixes and improvements
+
+- Support independent copies of Topics, folder filtering and sorting, and actions on selected Topics and folder contents.
+- Keep manually followed Topics usable when their queries cannot be updated automatically.
+- Save optional TXT or JSON download metadata, with per-task options for bulk downloads.
+- Add Danbooru and Sankaku search filters, keyboard-operated tag suggestions, and expanded search history.
+- Improve keyboard and D-pad focus, tab order, and navigation across menus and screens.
+- Add comment upvotes and cursor pagination on supported Gelbooru-based sites, plus newest/oldest comment sorting on Rule34.
+- Keep diagnostic logs with copy/export controls and detailed Cloudflare recovery information.
+- Show cache locations and expose completed Android cache files through a read-only document provider.
+- Improve favorite-tag and label editing on phones and larger screens.
+- Open desktop hover previews from the Info badge instead of the entire thumbnail.
+- Improve the embedded Windows browser and add NixOS packaging and a development shell.
+- Preserve PIN credentials and saved metatags across profile imports and in-app restarts, including intentionally empty metatag lists.
+- Make Topic management consistently target the originating profile and exact Topic copy without changing the active browse profile.
+- Preserve healthy feed sources and cached posts when another source fails; reject stale pages after Topic or profile changes.
+- Improve Topic update status, folder-feed initialization, cache clearing, and backup/import compatibility.
+- Refine bookmark-removal Undo feedback and keep bookmark views synchronized after changes.
+- Improve Cloudflare challenge detection, redirects, recovery dialogs, and secure cookie transfer.
+- Prevent automatic replay of favorites, votes, comments, and other state-changing requests after errors or challenges.
+- Improve request pacing, Retry-After handling, cancellable waits, HTTP/2 transfers, and automatic gzip handling.
+- Use the current Rule34 JSON listing API with authenticated, paginated, and empty-result handling.
+- Fix Sankaku date filters, tag categories, duplicate tags, search-limit messages, and expired-session recovery.
+- Fix Shimmie2 media formats and load optional favorite status without blocking browsing.
+- Correct Nozomi tag counts and byte-range response handling.
+- Resolve fresh Anime-Pictures download links and improve Zerochan/Asiachan API and HTML media resolution.
+- Report unavailable Zerochan originals instead of silently downloading a smaller variant.
+- Preserve genuine source post IDs in links, metadata, and download filenames; avoid missing-ID and duplicate batch filename collisions.
+- Keep download metadata aligned with the actual saved file, selected quality, resolver fallback, and bookmark origin.
+- Retry failed metadata separately without downloading media again; prevent conflicting sidecar overwrites and false failure notices after success.
+- Improve bulk-download finalization, background completion recovery, statistics, and notifications.
+- Keep bookmark downloads and image preloads on the originating profile's media host rules without forwarding unrelated credentials.
+- Preserve profiles with unknown thumbnail actions or invalid optional media-host settings and show import warnings.
+- Include stored favorite tags in full backups even before their editor has been opened.
+- Keep search controls usable above the keyboard and suppress obsolete results and errors during refreshes or profile changes.
+- Unify post and tag menus; close one menu or dialog layer per Back/Escape action and prevent tap-through when switching menus.
+- Prevent badge and score overflow on very short thumbnails while preserving quick-action and favorite-heart animations.
+- Respect thumbnail quality and GIF autoplay settings, keeping oversized or unverified GIF originals static.
+- Add working image Retry controls without interfering with post opening or selection.
+- Keep video posters visible until the first rendered frame and improve cached WebView playback and cleanup.
+- Preserve active video and temporary share files during cache cleanup.
+- Improve zoom, image panning, page swipes, and volume-key post navigation.
+- Keep video time labels readable and ignore media keys while the viewer is locked, hidden, or editing text.
+- Improve AVIF decoding on the web and network image paths.
+- Prevent the What's New dialog from reappearing after it has been dismissed.
+
 # 4.5.0-timberpile.5
 
 ## Breaking changes

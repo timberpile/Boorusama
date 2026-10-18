@@ -13,7 +13,7 @@ import 'package:boorusama/core/posts/media_preload/types.dart';
 import 'package:boorusama/core/posts/details/src/widgets/post_details_image_preloader.dart';
 import 'package:boorusama/core/posts/details_pageview/widgets.dart';
 import 'package:dio/dio.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:boorusama/core/http/client/providers.dart';
 import 'package:boorusama/core/developer_options/providers.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
@@ -42,15 +42,15 @@ void main() {
     final container = _container([first, second]);
     addTearDown(container.dispose);
     expect(
-      (container.read(defaultMediaUrlResolverProvider(first.auth))
-              as DefaultMediaUrlResolver)
-          .postQuality,
+      (container.read(
+        defaultMediaUrlResolverProvider(first.auth),
+      ) as DefaultMediaUrlResolver).postQuality,
       PostQuality.medium,
     );
     expect(
-      (container.read(defaultMediaUrlResolverProvider(second.auth))
-              as DefaultMediaUrlResolver)
-          .postQuality,
+      (container.read(
+        defaultMediaUrlResolverProvider(second.auth),
+      ) as DefaultMediaUrlResolver).postQuality,
       PostQuality.high,
     );
     final missing = _profile(
@@ -59,15 +59,15 @@ void main() {
       PostQuality.medium,
     );
     expect(
-      (container.read(defaultMediaUrlResolverProvider(missing.auth))
-              as DefaultMediaUrlResolver)
-          .postQuality,
+      (container.read(
+        defaultMediaUrlResolverProvider(missing.auth),
+      ) as DefaultMediaUrlResolver).postQuality,
       PostQuality.high,
     );
     expect(
-      (container.read(defaultMediaUrlResolverProvider(first.auth))
-              as DefaultMediaUrlResolver)
-          .postQuality,
+      (container.read(
+        defaultMediaUrlResolverProvider(first.auth),
+      ) as DefaultMediaUrlResolver).postQuality,
       PostQuality.medium,
     );
   });
@@ -82,15 +82,15 @@ void main() {
     ]);
     addTearDown(container.dispose);
     expect(
-      (container.read(defaultMediaUrlResolverProvider(disabled.auth))
-              as DefaultMediaUrlResolver)
-          .postQuality,
+      (container.read(
+        defaultMediaUrlResolverProvider(disabled.auth),
+      ) as DefaultMediaUrlResolver).postQuality,
       PostQuality.high,
     );
     expect(
-      (container.read(defaultMediaUrlResolverProvider(second.auth))
-              as DefaultMediaUrlResolver)
-          .postQuality,
+      (container.read(
+        defaultMediaUrlResolverProvider(second.auth),
+      ) as DefaultMediaUrlResolver).postQuality,
       PostQuality.high,
     );
   });

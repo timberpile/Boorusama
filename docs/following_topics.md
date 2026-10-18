@@ -1,0 +1,740 @@
+# Following Topics
+
+Following Topics is an app-local collection of independent topic queries from all
+existing booru profiles. It is independent of server-owned saved searches. The list and its
+navigation badge read cached state; opening the list or changing profiles does
+not fetch posts. Cached thumbnail loading uses `BooruImage` with the owning
+profile's authentication and image fallback.
+
+The approved requirements are in the [design](superpowers/specs/2026-09-14-pinned-searches-design.md)
+and the task-by-task [implementation plan](superpowers/plans/2026-09-14-pinned-searches.md).
+The later [bounded-refresh decision](work/done/PS-001-bounded-newest-post-refresh.md)
+supersedes their exhaustive scanning and numeric unread-count requirements.
+
+## Current UI and compatibility
+
+The destination is titled **Following Topics**. Enabled folder cards expose an
+RSS feed button immediately before their overflow menu. It opens the folder's
+combined posts directly, including an empty state when there are no Topics yet.
+Disabled folders omit this button; selection mode hides it alongside overflow
+actions. The existing RSS icons remain the approved choice.
+
+A topic's unread badge contains its estimate, for example **7** or **7+**. It
+never repeats NEW beside that number. Legacy unread state without a reliable
+count retains **NEW**; accessible labels announce the known count or lower bound.
+Folder and navigation indicators retain NEW when no independent count exists.
+
+The October 2026 consistency pass uses the same Follow/Following control in
+search results, artist surfaces, and tag menus. Follow saves the local Topic and
+its exact folder placement before any preview request. Following manages the
+originating Topic when its UUID is known; otherwise it presents every matching
+copy with its full folder path. Management offers Open, Edit Topic, Move, Add
+another copy, Topic details, and scoped Unfollow. Valid queries that cannot be
+tracked automatically remain usable as manual-only Topics and never issue an
+unsupported automatic or feed request.
+
+Folder creation and editing share one settings result: name, parent folder,
+feed enablement, and retention. The editor validates sibling names before
+dismissal and preserves entered values after storage or destination races.
+Folder feeds use explicit Topics, Feed settings, and Feed details actions.
+Retention counts cached metadata entries; disabling a feed retains its cache and
+does not change contained Topics' Auto-update preferences.
+
+Collection browsing includes local name/query and optional profile filtering,
+descendant-aware bulk actions, and stable Name, Updates first, Last post oldest,
+and Manual sorting. Selecting folders affects the union of their descendant
+Topic UUIDs; independent copies remain independent. Back or Escape exits
+selection first, failed mutations retain selection, and scoped Unfollow confirms
+the affected Topic count without deleting folders.
+
+Topic searches carry their owning profile and optional originating Topic UUID as
+route context. This keeps authentication, suggestions, management, and viewer
+actions on the exact owner without changing the global browse profile. Feed
+history isolates source failures: healthy sources continue automatically,
+cached results remain visible, and a compact unavailable warning persists until
+the existing bounded refresh path recovers the source. Definition fingerprints
+reject late pages after query, profile, revision, or membership changes.
+
+Clearing all feed caches removes modern folder-feed materializations while
+preserving folders, Topics, settings, and legacy feed definitions. Clearing an
+open folder feed ends that cached session and offers an explicit reload. Topics
+is the current backup/export source and includes folders and feed settings but
+not cached posts or images. The empty legacy Topic Feeds choice is hidden from
+current export/backup presentation while its source ID, registry entry, decoder,
+and import compatibility remain available.
+
+Membership checks read `TopicFeedMetadata` without decoding cached post
+snapshots, and the collection uses lazy keyed rows. A repeated Linux/JIT
+diagnostic with four feeds, 10 sources/feed, 50 tags/post, provenance, and
+1000/2000 posts per feed measured median in-memory full decode at 39,863/71,674
+microseconds versus metadata-only decode at 22/27 microseconds. These figures
+demonstrate avoided work on that host only; they are not an Android capacity or
+latency guarantee. No Android profile/release or live-site measurement was run
+for this pass.
+
+**Name (A–Z)** sorts Topics by display name (query fallback) and child folders by
+name, ignoring letter case. Equal Topic names retain manual order. The selection
+uses the existing global view preference and survives settings reload; it does
+not rewrite manual positions or folder membership.
+
+The runtime domain is `lib/core/search/following_topics/`, with `FollowingTopic`,
+`FollowingTopicsState`, `FollowingTopicsNotifier`, `TopicFolder`, `TopicOrganization`
+and `TopicFeed`. Classes, files, providers, translation namespaces and active
+routes use these terms. Persisted contracts remain centralized in
+[`topic_storage_contract.dart`](../lib/core/search/following_topics/src/compatibility/topic_storage_contract.dart):
+
+- Hive box names, adapter type IDs and binary field layout are unchanged.
+- Backup wire source IDs are unchanged; old ZIP and `.bsexport` files still use
+  their existing codec and transactional import paths.
+- Settings read legacy keys as fallback and write current names. New values
+  take precedence when both forms exist.
+- Active routes use `/following-topics` and `/topic-feeds`. Old deep links redirect
+  to Following Topics; the old refresh-settings destination still resolves.
+- Pixiv's native artist-following stream and AnimeBoxes input schema names describe
+  external features/formats and are distinct from local Topics.
+
+## Unified Following (work item 0035)
+
+Following Topics provides one destination for topic queries and folder feeds on
+mobile and desktop. Topics retain the existing cards, folder browser,
+normal search opening and selection interactions. Artist/tag Follow actions add
+ordinary Topics through the same naming and folder picker components. Matching
+queries in different folders have independent UUIDs, NEW state and Auto-update
+preferences. An explicit folder copy creates independent Topics; ordinary
+reimports retain matching identities and do not move local Topics.
+
+A folder can enable a feed and choose its retained-post limit (default 1000).
+Open Feed includes its descendants and all their Booru profiles. The cache is
+created on demand, belongs to the folder UUID and survives renaming, inactivity
+and disabling feed mode. Provenance associates each cached post with the Topics
+that contributed it. Edits, moves, removals and profile/site changes reconcile
+these associations while retaining other matches. Older snapshots without
+provenance are preserved conservatively until explicit clearing or retention
+replaces them. Settings reports **estimated serialized snapshot size**, rather
+than the Hive file's disk size. Clearing caches leaves Topics, folders,
+preferences and retention settings intact.
+
+Initialization uses the existing bounded refresh queue, foreground lifecycle,
+network/power checks and request coordinator. Previously checked Topics still
+get a full snapshot for a newly opened feed, up to its configured retention.
+Completed Topics persist their initialization state; cancelled requests resume,
+failed Topics cannot starve later entries, and cooldowns defer further requests.
+A failure writing any affected cache rolls back the other cache writes and
+checkpoint. Disabled feeds do not trigger initialization work during normal
+Topic refresh. Opening a feed marks its contained Topics read.
+
+Deduplication uses site/instance and numeric post ID, both in persisted caches
+and the displayed grid/history. Post origins choose thumbnail authentication,
+viewer context and single-post actions. Single-profile selections use that
+profile's native actions. Mixed selections offer shared downloads and bookmarks;
+downloads are grouped by origin and bookmarks retain each post's site identity
+and source link. Profile changes do not change the global browsing profile.
+
+Refresh request caps are restricted to recognized root endpoints:
+
+| Site | Requested cap | Delta strategy |
+| --- | ---: | --- |
+| Official Donmai hosts | 200 | Ascending ID keyset when query ordering fits the term allowance |
+| Gelbooru.com | 100 | Bounded snapshot |
+| Rule34.xxx / API host | 1000 | Bounded snapshot |
+| e621/e926 | 320 | Bounded snapshot |
+| Other/custom instances | 50 | Conservative snapshot |
+
+The caps were checked against [Donmai source](https://github.com/danbooru/danbooru/blob/master/app/logical/post_sets/post.rb),
+[Gelbooru documentation](https://gelbooru.com/index.php?page=help&topic=dapi),
+[Rule34 documentation](https://rule34.xxx/index.php?page=help&topic=dapi), and
+[e621 source](https://github.com/e621ng/e621ng/blob/master/config/danbooru_default_config.rb).
+These references and local transport-contract tests do not establish live
+acceptance against an authenticated account.
+
+A Donmai delta requests page one with `id:>checkpoint order:id_asc`; each next
+request advances the in-memory keyset to the last returned ID. At most 1000
+posts are collected per refresh. The persisted checkpoint advances only through
+that ascending prefix, so a larger backlog remains retrievable after a restart.
+Responses that ignore the filter/order fail without advancing it. Initial feed
+snapshots are fetched separately and cannot jump the tracking checkpoint.
+Donmai's [query implementation](https://github.com/danbooru/danbooru/blob/master/app/logical/post_query_builder.rb)
+can override ordering for date/age or ordered collections, so constrained,
+Boolean and unfamiliar metatag queries keep the snapshot fallback. Donmai
+[exempts some metatags](https://github.com/danbooru/danbooru/blob/master/app/logical/post_query.rb)
+but counts `order:` against its search-term limit (unlike `id:` and `rating:`).
+Queries with two or more counted terms keep their original snapshot query unless
+ordering was already requested. This preserves the basic account allowance;
+higher account limits are not assumed. Snapshot refresh has the existing bounded
+coverage described below, rather than resumable delta catch-up. Optimized
+deltas remain disabled on other engines until their cursor contract is verified.
+
+The existing boolean NEW state remains authoritative. Optional persisted counts
+accumulate IDs discovered above the checkpoint; full bounded pages show a `+`
+lower-bound suffix, overlap is not counted twice, and reading clears the estimate.
+The first baseline creates no NEW state. Snapshot fallbacks retain the existing
+bounded tracking semantics and do not claim exhaustive history coverage.
+
+Legacy feed migration preserves pins, nested folders and safe cached snapshots,
+cloning shared hidden sources into independent Topics with their preferences.
+Old scope switches become per-topic preferences, including disabled settings.
+Modern backups store folder feed options and per-topic Auto-update settings in
+the Topics source. The legacy feed source remains import-compatible; it cannot
+delete visible Topics or overwrite a folder feed through the legacy editor.
+Use an explicit copy when an old feed definition conflicts with an existing
+folder UUID. Import review and execution share Topic identity matching, and
+rollback snapshots include organization, caches, preferences and unread counts.
+
+SQLite migration, automatic eviction, shared Topic references, a second automatic
+folder scheduler and a history-pagination rewrite remain outside this work item.
+The retained implementation details below include legacy feed compatibility;
+this section supersedes their former parallel feed-management UI and fixed
+snapshot-cap assumptions.
+
+## Storage and ownership
+
+`FollowingTopicRepository` is the persistence boundary. Each subscription
+is one record in the `pinned_search_subscriptions` Hive box, including its
+definition, refresh time, highest observed post ID, NEW state, up to four
+previews, and at most 50 recent post identities. A refresh writes that
+aggregate once so these fields cannot be split across separate refresh writes.
+Repository mutations are serialized;
+ordering reads wait for pending mutations.
+
+A subscription belongs to exactly one `BooruConfig.id`. Post IDs are meaningful
+only within that ownership. Duplicate detection collapses surrounding and
+repeated query whitespace within the profile, without changing case or term
+order. The executable query keeps its original content after outer whitespace
+is trimmed. New pins whose selected tags are all specific tags also store
+their ordered tag list separately. This optional structure is presentation
+input only: refresh and duplicate identity continue to use the executable
+query. Raw or mixed searches, legacy records, and missing, malformed, unknown,
+or canonically mismatched structure data reopen as one raw query. Structure
+matching uses the same specific-tag conversion as search execution before
+comparing the existing normalized query identity, so tag order and single-tag
+space-to-underscore normalization retain their normal meaning. Each stored
+atom must also remain one token under the existing query parser after
+supported literal spaces are protected; tabs, newlines, and other query
+separators therefore fall back to the raw canonical query.
+
+Editing a pin can change its optional name, exact query, and owning profile
+while retaining its UUID and shared-folder or Home position. Name-only edits
+and reordering retain runtime state. A query or profile edit advances the
+runtime revision and atomically saves a cleared runtime aggregate before a
+new no-NEW baseline starts; failed baselines retain the edited definition as
+Not checked with a retryable error. A normalized profile/query collision with
+another independent Topic in the same folder blocks the edit without changing
+either record. Only legacy standalone feeds still own hidden source records.
+A profile-only edit retains valid typed-tag presentation; editing the query
+clears that structure so opening the pin uses the exact edited query. Blank
+custom names persist as `null`, so the label follows the stored query.
+
+The legacy Hive `unreadCount` field is retained for compatibility, but positive
+values load as 1 and are displayed as NEW. No exact count is computed. NEW is
+independent of preview and identity retention: dropping cached posts does not
+clear it. Recent identities are limited to the newest 50 within a five-minute
+upload-time window before the next checkpoint.
+
+## Baseline, new, and read
+
+Pinning saves and publishes the definition before attempting its initial
+snapshot. The first successful snapshot caches up to four distinct newest
+posts and sets a checkpoint without NEW. If this attempt fails, the saved pin
+remains; its first later successful explicit refresh establishes that baseline.
+
+A later refresh sets NEW when the fetched snapshot contains a post ID higher
+than the highest ID observed by that search in earlier successful refreshes.
+Upload timestamps do not affect NEW. The highest ID never decreases, including
+after an empty snapshot. Existing searches without a stored ID boundary use
+their next successful refresh to establish one without creating NEW. A search
+card shows NEW; the navigation entry shows a dot if any independent pin owned
+by an existing profile has NEW. Neither reports a total.
+
+Opening a pin awaits an atomic mark-read mutation before passing the unchanged
+query to the normal search route. A failed mark-read keeps the user on the
+management page. A refresh committing afterward may set NEW again. Refresh
+commits reload the current aggregate, preserving a rename, reorder, or mark-read
+performed while the request was in flight.
+
+## Bounded chronological snapshots
+
+`SearchRefreshService` resolves the owning profile's existing `PostRepository`
+and the `SearchRefreshQueryAdapter` exposed by `BooruRepository`. It records its
+UTC start time before planning or fetching. A successful validated snapshot
+updates the last-check time and highest observed post ID; it does not claim
+exhaustive coverage.
+
+`ChronologicalSearchScanner.scanSnapshot` requests only page 1 with a limit of
+50 and inspects at most 50 returned posts, even if the server returns more. It
+does not follow continuation metadata, access caps, totals, or old checkpoints.
+Both the initial baseline and later refreshes use this same budget. Requests,
+post processing, and retained identities stay bounded independently of the
+number of matching uploads; server/network latency is outside that guarantee.
+Raw repository fetches avoid enrichment requests for returned posts.
+The [shared transport policy](http_request_coordination.md) separately counts
+automatic/preload data work against its local 12/minute budget and at most two
+of four physical slots. Manual work has no invented fallback rate window;
+documented site pacing and server cooldown still apply to every relevant
+class. This transport budget does not change the scanner's one-page limit.
+
+The scanner requires an upload timestamp on each post and deduplicates IDs.
+It accepts the site's default post order, including small differences between
+ID order and upload timestamps. A missing upload time produces an unsupported
+result.
+No timestamp is inferred from the device clock or post ID. A successful
+snapshot replaces previews with its newest four posts; an empty snapshot clears
+previews. Failures preserve the previous ID boundary, last-check time,
+previews, and NEW state while recording an attempt/error. No partial snapshot
+commits on failure.
+
+This detects higher post IDs visible in the newest snapshot, rather than counting
+or enumerating every upload since the previous refresh. If more than 50 matching
+posts arrive between checks, NEW still appears when a higher ID is visible,
+but the feed cache may miss some intermediate posts. Tracking assumes IDs rise
+approximately with the site's default newest-first order. The scanner cannot
+prove that the server returned every newest available post.
+
+The current default query adapter preserves ordinary queries and rejects
+`order`, `order_by`, or `sort` metatags using either `:` or `=`. This includes
+explicit chronological ordering tokens: the conservative default does not
+interpret their engine-specific values. An integration may override the adapter
+to safely transform ordering while the stored query remains unchanged. Refresh
+planning passes no uploaded-after filter so current previews remain available
+when there are no new uploads.
+
+Rule34 and Safebooru.org use site-specific XML post-list endpoints because their
+JSON format can omit `created_at`, which previews and feed caches still need.
+The Gelbooru v2 parser preserves the XML upload time, timezone offset, and total
+result count while retaining JSON support for other sites. Totals and upload
+times are not used for NEW detection.
+
+Engine capability adapters and unsupported-profile explanations are tracked
+separately in [PS-005](work/done/PS-005-engine-refresh-adapters.md).
+
+## Manual batch and concurrent operations
+
+The manually declared `FollowingTopicsNotifier` publishes immutable state,
+serializes application mutations, and coalesces concurrent refresh requests for
+one subscription. The network and chronological behavior remain in the refresh
+service. Refresh All selects only the requested profile, starts never-checked
+subscriptions first, then oldest successful checkpoints, with subscription ID
+as the stable tie-breaker. A three-worker queue continues after individual
+failures and publishes per-search outcomes and batch progress. Batch calls are
+serialized; transient progress records its owning profile.
+
+The repository rejects a successful refresh if the subscription was deleted,
+its captured `createdAt` or runtime revision changed, or its expected checkpoint
+no longer matches. Failure recording also checks existence, `createdAt`, and
+runtime revision. This prevents an old request from mutating a newly imported
+definition or an edited definition that reuses the same UUID. Editing detaches
+an old coalesced refresh so the new definition can start its own baseline.
+Runtime deletion compensation preserves the original aggregate and creation
+timestamp; backup import creates a new timestamp.
+
+## Profile deletion and backup
+
+Deleting a profile removes its complete subscription aggregates before removing
+the profile. A failed profile operation compensates by restoring the captured
+subscriptions. Both outcomes reload the subscriptions notifier immediately, so
+lists and badges publish the final deleted or compensated state. Profile
+replacement during restore also removes subscriptions for missing profile IDs
+or IDs reassigned to a different booru type/portable URL; equivalent same-ID
+profiles retain their pins. These cross-repository operations use compensation,
+not a crash-atomic transaction across profile and subscription storage.
+
+The `pinned_searches` and `following_feeds` backup sources run after profiles.
+Each exports a separate JSON format with source-specific `source` and `version: 1`
+headers. Following Topics exports independent pins, shared folders, Home order,
+UUIDs, optional names, immutable queries, relative ordering, and profile
+references. A supported optional typed-tag structure is included when present;
+older source-version-1 backups without it remain valid. Topic Feeds exports
+feed UUIDs, names, order, exact query lists, and profile references. Internal
+searches used by feeds never appear in the Following Topics export.
+Previews, recent IDs, NEW state, checkpoints, attempts, errors, and creation
+timestamps are excluded. Portable profile URLs retain scheme, host, port, and
+path, lowercase the host, remove all terminal slashes, and strip user info,
+query, and fragment to exclude embedded credentials. Export, parsing, mapping,
+and profile replacement share this idempotent identity.
+
+Restore first seeks the same profile ID with matching booru type and portable
+URL, then a unique match by type and URL. Unmapped or ambiguous references are
+skipped and counted. New definitions append after existing pins in imported
+relative order; matching IDs or normalized queries reuse existing definitions,
+making repeated import idempotent. Newly created definitions have no runtime
+state and establish a baseline only on the next explicit refresh. Reused pins
+retain their existing runtime state. Legacy backups without this source remain
+valid.
+
+ZIP restore defers profile-triggered restart until ordered sources and cleanup
+finish. Device transfer retains its final restart prompt. A standalone profile
+import keeps its restart behavior. Restarting inside the profiles source would
+dispose the state needed to map the following following-topic source.
+
+## Organization and navigation
+
+The [shared-folder design](superpowers/specs/2026-09-19-shared-pinned-search-folders-design.md)
+supersedes the original profile-owned folders and profile-grouped list.
+Named folders appear in manual order above Home's cards. Home has no heading;
+`[Home]` identifies that destination in pin and move dialogs. Folder rows show
+`N items`. Each card, including folder members, has an owning-profile footnote:
+name when unique, URL when unnamed, and name plus URL when names are ambiguous.
+Cached browsing does not activate another profile or fetch posts. Opening a
+pin activates its owner before running the stored query and marks only that
+pin read. Unsupported pins retain their per-search explanation.
+
+Each card shows `Last post` on the same metadata row as its owner. The value is
+the upload time of the newest cached preview from the last successful check;
+rendering and sorting never fetch posts. A pin without a successful baseline
+shows `Not checked`, while a successful empty snapshot shows `No posts`.
+Refresh errors keep the prior cached value and remain visible.
+
+The collection offers Manual order, Updates first, and Oldest post first.
+Updates first places cached NEW searches before read searches,
+then sorts each group by its newest cached last-post time. Searches without an
+upload time follow dated searches within their group; manual order breaks equal
+or missing-time ties. The selected view is shared by Home and named folders
+and restored from settings after the app restarts. Folder rows stay in manual
+order, and sorted views disable Move Up and Move Down. Switching back to Manual
+order restores the persisted organization order unchanged. Sorting reads cached
+state only and does not fetch posts or write organization order. Missing or unknown stored
+sort modes resolve to Manual order.
+
+Folder cards provide refresh, rename, manual ordering, and deletion through
+their overflow menus; folder creation is available from the root page overflow.
+There is no separate folder-management page. Each card can show up to four
+cached thumbnails, chosen deterministically as the first preview from each of
+the first four members with previews in folder order. Rendering these previews
+does not refresh searches. Folder names are unique case-insensitively across
+the collection. Move to folder lists Home and all named folders; Create folder
+creates the destination and moves the selected pin only when the operation
+succeeds. Deleting a folder requires confirmation and unpins every member,
+across profiles. Cancel leaves both folder and pins intact. Empty folders also
+require confirmation.
+
+The pin dialog lists `[Home]`, `[New]`, then existing folders. Selecting `[New]`
+only changes the destination. Pin/Save opens Create folder above the still-open
+pin form; Cancel returns to that form with its name and New selection intact.
+Accepting a folder name
+commits the pin and its new folder membership together in one serialized
+repository operation. Duplicate names are checked against current storage at
+confirmation. Ordinary storage failures compensate both writes; cancellation
+never persists the pending folder. Validation/storage failures keep the pin
+form open for retry or a different destination. An initial preview failure keeps the saved
+pin and its folder, just as it does for Home and existing destinations.
+
+One JSON Hive value, `search:organization`, stores ordered folders, each
+folder's ordered independent pin IDs, and ordered Home IDs. Subscription
+aggregates still own profile IDs, queries, and refresh state. Missing IDs are
+pruned on read; independent pins absent from organization append to Home in
+`(createdAt, id)` order. Hidden feed sources cannot join Home or folders.
+Old experimental profile-folder rows are ignored; no migration is required.
+Mutations are serialized. Folder deletion and profile compensation restore
+captured organization and pins after ordinary storage failures; cross-box
+operations are not crash-atomic. Removing a profile removes only its pins and
+memberships, preserving shared folders and other owners' pins.
+
+Folder NEW aggregates member pins. Refresh Folder resolves each member's owner
+and query adapter, uses existing refresh priority and the shared request gate,
+and does not change the active profile. Both the opened-folder action and its
+root card are disabled when the folder is missing or empty, has no supported
+members, or any member is already refreshing. Root Refresh All visits
+supported profiles sequentially. Results remain separate per search.
+
+Supported engines explicitly opt in to timestamp tracking; the repository
+default is unsupported. Refreshes use each engine's default post order without
+adding sorting terms or fetch options. The scanner requires upload timestamps
+but tolerates small ordering differences between IDs and timestamps.
+Nozomi remains unsupported because complete index intersection and per-post
+fetches are not a bounded newest-page query. Unsupported profiles keep the tab
+and pin action visible with a localized explanation. Routine check times are
+available through Info; successful followingOperation is silent and errors remain inline
+in their originating search view.
+
+The search result count shares the Pin Search/Follow header. Its source follows
+the engine's count capability: endpoint counts use the existing count repository,
+while search-response counts use the post controller. Engine-specific extra
+headers must not add another result-count row. Count loading, absence, or failure
+does not change action availability. The row constrains count and Follow widths
+and allows text to wrap so enlarged text can increase its height.
+
+
+Widget tests that seed an AsyncNotifier before mounting the first frame should
+use `tester.runAsync`; directly awaiting its future in the fake async zone can
+wait for scheduled Riverpod work that has not yet been pumped. Text controllers
+belong to dialog State so they survive the route's closing animation.
+
+Automatic refresh is enabled by default with an Adaptive interval starting at
+24 hours, bounded by six hours and seven days. Explicit stored disabled choices
+remain disabled; legacy minute intervals become safe Adaptive settings. The
+settings page also offers fixed six-hour to seven-day intervals and separate
+pin/feed scope controls. Manual refresh remains available while scheduling is
+disabled or automatic environment checks are paused.
+
+Each foreground run selects at most six due source IDs, oldest activity first
+then ID. Shared feed source IDs deduplicate; an independent pin remains its own
+source. Due time follows the latest creation, material edit, attempt, or success.
+Adaptive interval and empty streak persist in the source aggregate: new automatic
+results halve the interval; the first empty result retains it, and the second
+empty result doubles it and clears the streak. Baselines and manual, failed,
+cancelled, or deferred outcomes leave that policy unchanged. A live manual caller
+joining automatic work makes its shared outcome timing-inert at the guarded
+serialized commit. Rename, sorting, and mark-read preserve policy state; query,
+profile, and site changes reset it and advance the material-edit anchor.
+
+Resume, settings/environment changes, and a local minute wake reevaluate daily-scale
+eligibility. The run's 20-second budget limits new physical admission, including
+work waiting in a source or site queue. Already dispatched reads may finish
+after that deadline under lifecycle and source-identity guards; it is not a
+20-second completion guarantee. No OS-background job is installed. Wi-Fi or
+Ethernet is the default, battery saver pauses work, and optional mobile access
+requires a connection reported as unmetered. Unavailable power or network
+signals pause automatic work. Android captures transport and metering together
+from the active network's NetworkCapabilities and uses
+PowerManager power-save signals; iOS uses NWPath expense/constrained state and
+transport together with low-power mode. Independent connectivity observations
+can veto a mismatched or unknown transition, but cannot provide native metering
+proof. These platform classifications are not guarantees about billing.
+Foreground resume reloads these signals and pauses automatic admission until a
+fresh snapshot arrives. Platform references:
+[Android metering](https://developer.android.com/reference/android/net/ConnectivityManager),
+[Android capabilities](https://developer.android.com/reference/android/net/NetworkCapabilities),
+[Android power save](https://developer.android.com/reference/android/os/PowerManager),
+and [Apple path expense](https://developer.apple.com/documentation/network/nwpath/isexpensive).
+
+Source refresh and account authentication retain one physical operation while
+live callers join. A queued manual owner promotes priority immediately and
+survives an automatic owner's pause/cancellation when the source definition is
+still valid. Known cooldown returns retryAt immediately; a late manual owner
+also interrupts an automatic brief cooldown wait without replay. Definition
+changes and deletion still reject admission and guarded persistence. Shared
+site budgets and source identity/session guards are described in
+[request coordination](http_request_coordination.md). First-time feed
+initialization remains separate, using its existing foreground Wi-Fi/Ethernet
+admission and physically-started app-session suppression.
+Disabling either automatic source scope revokes its queued automatic owners
+using current feed membership; live manual owners of the same operation survive.
+
+Topic Feeds is a separate navigation feature. A feed belongs to one profile
+and stores the IDs of the tracked searches that supply it. Search records have
+no feed ownership in the domain model. Hive field 12, the former `feedId`, is
+read only to migrate older feed records to `sourceIds`. An independent pin for
+the same query has its own record and NEW state. One internal search may serve
+more than one feed. Folder membership, pin lists, and pin badges exclude all
+internal searches by looking at feed membership.
+
+A user follows an existing tag, artist, or current search into one or more
+feeds, or creates a named feed from that starting point. There is no empty-feed
+creation or raw query editor. The all-profile feed list shows each owner's
+profile caption. Artist Follow/Following shows how many feeds contain the exact
+artist tag. Feed management shows saved-search-style member cards with optional name and
+exact query, NEW/error status and localized Last post metadata. Last refresh
+appears below Last post, right-aligned, using the last successful check; failed
+attempts retain that time and never-checked sources are labeled explicitly.
+Each member offers Open, Info, Refresh, name-only Edit and Remove. Info reads
+cached state and shows the successful check, last attempt, refresh interval,
+next scheduled refresh and temporary pauses using the Topic Feeds scope.
+A first failed attempt retains the never-checked state; later errors retain the
+prior successful time and previews. A member name belongs to its shared search
+record, so editing it affects every feed containing that record; the dialog explains
+this when shared. Saves recheck current membership, owner and definition
+identity so removed or replaced members cannot be renamed by an old dialog.
+
+Feed overview and member cards show Last post right-aligned on the same row
+as the owning profile caption. The member sort menu includes Last refresh
+(oldest first): never-checked sources first, then the oldest successful checks,
+with membership order breaking ties. This choice persists across restarts and
+does not change membership or NEW/read state. Overview menus offer Refresh, Info, Edit,
+Move up/down and Delete. Ordering persists within each owning profile. Feed Info aggregates
+checked-source counts, failures, rate limits and the oldest successful source
+check; source Info links expose individual adaptive intervals and next refreshes.
+Manual feed Refresh is available in the overview and opened-feed menus. Each tap
+checks at most ten sources belonging to that feed, sequentially, with a twenty
+second deadline. Sources with the oldest attempt/successful-check activity go
+first; failed attempts count as activity so persistent failures do not starve
+other sources on subsequent taps. Shared request coordination and source
+coalescing remain in effect. A site rate-limit/deferred response ends the batch;
+a deferred response shows the existing localized retry time. Only one manual
+feed batch is active at a time: repeat taps share that batch and other feed
+Refresh actions are disabled, without queuing extra batches. Manual refresh
+works independently of the automatic-refresh setting and does not change the
+adaptive interval. Membership is checked before each source/request so a removed
+feed cannot start remaining work.
+
+Opening either dialog starts no refresh and changes no read state. An opened
+feed keeps active refresh progress above its posts, with maintenance status
+available only through its Info menu. Dialogs follow changes to cached state.
+
+Editor previews match up to four member preview IDs to full cached feed
+snapshots and preserve their engine codecs. Thumbnail quality uses the actual
+owner's enabled listing override, otherwise global listing defaults, even
+when another profile is selected. The editor reads only existing shared cache
+bytes and decodes them with normal or native AVIF memory providers. Missing,
+evicted or invalid snapshots/bytes omit previews; rebuilding, sorting and
+opening the editor never refresh posts or download media. Overview first-time
+initialization remains separate, and explicit Refresh uses the existing
+source request path.
+
+Added Date follows the stored member-ID sequence, including shared sources
+added later and members removed and re-added. Newest first and Oldest first
+use cached latest post upload time, with missing dates last and addition order
+breaking ties. Sorting is a display-only copy and changes neither membership
+nor refresh/read state. One persisted editor preference is shared across feeds
+and independent of the Following Topics sort; missing or unknown values use
+Added Date. No folder/move controls or manual drag order appear in the editor.
+
+Feeds use the same chronological scanner as independent pins through explicit
+refresh actions. A feed has NEW if any member search has NEW. Opening it marks
+only its members read; opening a member may also clear its feed's NEW. Adding a
+new member checks that source directly and does not create NEW before that
+search discovers new posts. Following Topics' Refresh All checks independent
+pins only.
+
+Opening the Topic Feeds overview initializes member searches that have
+neither a persisted successful check nor a persisted attempt. A shared member
+is checked once, independently of whether scheduled refresh is enabled.
+Initialization repeats the scheduler's bounded batches with its normal spacing
+until every eligible member has been attempted. It shares the request gate and
+foreground Wi-Fi/Ethernet policy; pausing or losing allowed connectivity stops
+new requests and resuming/recovery continues untouched members while the
+overview remains mounted. Failed and successfully empty searches are not
+initialized again on reopen. The opened feed's oldest successful source check
+uses the registered locale-aware relative-time formatter also used by pinned
+search cards, including singular units and older dates. Feeds without successful
+checks show Never checked.
+Session suppression starts at physical data/auth transport dispatch through
+the origin coordinator. It survives lifecycle recovery for that source identity
+and runtime revision, while changed or replaced sources remain eligible. A queued request discarded while foreground/network policy is paused
+remains eligible after recovery, even during the inter-batch spacing delay.
+Once a check starts, session suppression also prevents a failed persistence
+operation from creating a repeated request loop. Cancellation prevents the
+checkpoint/attempt/cache write; explicit manual Refresh can still recover that
+source.
+
+Changing a profile's engine or normalized site URL retains its feed definitions
+and search queries but clears post caches, previews, NEW/error state, and refresh
+checkpoints and highest observed IDs. The persisted runtime revision rejects
+results from refreshes
+started against the previous site without changing each search's creation time
+or its position in Home. New refreshes for that profile pause while the cache
+is reset and the profile update is saved. The reset is written first, so an
+interrupted update cannot pair the new site with old cached posts. Display-name
+edits and equivalent URLs keep the existing cache. If saving the new profile
+fails, the previous cache is restored only after verifying that the persisted
+site is still the old one. An interrupted update can leave that cache empty;
+the feed rebuilds it through later source refreshes.
+
+Each feed persists a chronological, deduplicated recent snapshot of at most 500
+posts. Successful source snapshots merge into it; failures preserve the cache
+and source status. Opening the feed renders this snapshot without a source
+scan. Approaching the end starts a session-only chronological merge of older
+pages from the member sources. Source pagination buffers and older post IDs are
+discarded when the feed view closes. History loading starts after actual
+scrolling; very short cached lists expose a Load older posts button. An empty
+recent snapshot waits for foreground source refreshes. Older browsing may
+require many network requests for a large feed, while opening its recent cache
+remains immediate. The feed grid uses infinite scrolling regardless of the
+global page mode. When new posts arrive during history browsing, the current
+session stays in place until the user chooses Show updated posts. Failed page
+loads keep their source cursor and offer Retry. Gelbooru OR batching and an OS
+background service are
+separate future work.
+
+Each cached feed row stores the same versioned post snapshot used by bookmarks,
+including common media data, origin identity, and engine-specific data. The
+grid decodes those snapshots into the shared post renderer, and clicking a row
+opens the ordered mixed-post viewer without fetching the posts again or
+changing the globally active profile. Native engine cards and details remain
+available offline when the snapshot and matching engine codec are available;
+unsupported engine data stays in the sequence with cached media and generic
+presentation. Near the end of the loaded posts, the viewer asks the grid to
+load more history. Removing a source clears the recent
+snapshot so posts exclusive to that source do not remain visible. Unchanged
+source checkpoints persist. All explicit refresh entry points share a
+three-operation concurrency gate. Physical data requests also use the
+app-wide [origin request coordinator](http_request_coordination.md); cooldown
+returns a retry deadline without recording a failed check or replaying a manual
+action later.
+
+Backup version 3 stores feed names and source query definitions, excluding
+runtime cache and checkpoints. Restore creates internal source searches and
+maps owners through the existing profile identity rules. Profile removal also
+removes its feeds; failure compensation restores feeds, searches, and shared
+organization. These cross-box writes are compensated on ordinary failures but
+are not crash-atomic. Run `./gen.sh` after Hive adapter generation to restore
+the engine registry and i18n output.
+
+## Shared-folder backup and restore
+
+Current export and import uses `.bsexport`. Folder and feed UUIDs provide
+Update, Merge, Merge into, Copy, and Skip choices. Identical pins are matched
+by resolved profile and normalized query and are reported as already present
+instead of producing a conflict. A sole compatible local profile is selected
+automatically; ambiguous or missing mappings block import before writes.
+
+Backup version 4 stores shared folder definitions and order, folder member
+order, and Home order alongside portable profile references and independent
+pin definitions. Empty folders survive restore. Imported IDs resolve through
+the existing identity rules before memberships are rebuilt. Pin-only backups
+append newly created pins to Home and preserve reused pins' destinations.
+Old experimental profile-folder backups require no folder migration.
+
+Unmatched pin or feed profiles require confirmation before skipping records.
+Standalone restore obtains approval before writing pins, feeds, or folders.
+ZIP and server transfer prepare selected sources and run this preflight before
+any source imports, including profiles. Matching uses the selected backup's
+profiles when present, otherwise current profiles. Cancel or headless import
+with unmatched records aborts before writes. Approval is revalidated against
+the actual profiles before pin execution; changed unmatched records abort.
+
+## Migration package imports
+
+Current AnimeBoxes migration packages use explicit folder/search selection
+with ordered Home membership and require profile UUID mapping before writes. Collection actions remain
+available even when there are no local pins or folders. New-copy imports
+allocate folder names using the repository's case-insensitive uniqueness rule
+with numeric suffixes, and use the same name allocation in change previews and
+application. If a source profile UUID already resolves locally, repeat review
+recognizes existing queries and skips those searches. When a fresh source UUID
+is explicitly mapped to an existing profile, selected queries can reuse pins.
+A reused pin has one organization destination: copying an imported folder moves
+its selected pins into that copy while preserving local-only pins in the old
+folder. Merge retains local-only membership in the chosen folder.
+
+AnimeBoxes queries combine their main text with `extra_tags` before query
+identity reuse. Filter-only queries therefore remain valid, while different
+extra filters remain distinct. Repeated effective queries retain their UUID
+definitions in the package but reuse one local pin per mapped profile; the
+selected Home membership takes precedence, then the first selected imported
+folder retains its membership. The conversion report gives an
+aggregate duplicate count without exposing query values.
+
+Folder refresh progress counts distinct source IDs still awaiting a terminal
+outcome in the current finite passes, including planned queued members and live
+source operations. Root manual Refresh All reserves later-profile members before
+its first profile; automatic passes expose only their bounded candidate slice.
+Pass reservations are transient and independently owned, so an overlapping or
+joined caller cannot double-count a source or clear another pass's reservation.
+A deadline or cancelled pass drops its unstarted reservations while a physically
+running source remains visible until settlement. Counts intersect current full
+folder membership and do not change NEW state, persistence, or portable backups.
+The normal Settings page owns search/feed refresh controls; management overflow
+menus contain collection operations rather than a Settings shortcut.
+
+Pinned-search Info observes the current aggregate by UUID rather than retaining
+the tapped snapshot. Its effective interval is the stored per-source Adaptive
+value or current Fixed setting. The displayed next eligibility time shares the
+planner's latest creation/material-edit/attempt/success anchor and known source
+cooldown; it is not a promised dispatch time. Disabled scope, missing owners,
+unsupported queries and temporary foreground/network/power pauses stay explicit.
+Info watches a passive immutable status snapshot and never initializes the
+scheduler, fetches posts or writes runtime state. Its minute pulse exists only
+while the dialog is open. Next refresh uses the registered locale's relative
+future-time messages; past check and attempt dates retain the local Material
+formatter.
+
+## Testing cached member previews
+
+Widget tests that decode AVIF bytes must create the decoder and wait for its
+first decoded frame within `tester.runAsync`, pumping frames from that real
+async block. libavif shares the first `Avif.warmUp()` future across tests. If
+that future starts in a widget test’s FakeAsync zone, a later test’s decode can
+queue its warm-up continuation in the earlier zone and remain pending. Cover
+corrupt AVIF omission followed by valid AVIF rendering in the same test file;
+assert the decoded `RawImage` and zero media requests, not only the image
+provider type. Keep repository seeding and asynchronous notifier reads in
+`tester.runAsync` as well.

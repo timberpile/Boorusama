@@ -44,6 +44,7 @@ requested work items; one agent may claim and implement directly. Read relevant
 [development workflow](docs/development_workflow.md) sections for integration,
 publication, releases, or upstream synchronization.
 
+- **Repository language:** All code comments, documentation, commit messages, work items, design/merge plans and agent handoffs must be written in **English**. Only user-facing UI localization resources may contain text in their intended target languages. Translate any new non-localization German prose to English before committing.
 - Always use `fvm` for Flutter/Dart.
 - Use manually declared Riverpod `Notifier`/`AsyncNotifier` providers; no provider codegen.
 - Follow nearby architecture/style; keep business logic out of widgets when practical.

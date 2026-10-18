@@ -8,8 +8,8 @@ enum PerfScreen {
   searchGrid,
   bookmarks,
   bookmarkGroups,
-  followingFeeds,
-  followingFeed,
+  topicFeeds,
+  topicFeed,
   postViewer,
   diagnostics,
 }

@@ -21,6 +21,47 @@ abstract class CommentRepository<T extends Comment> {
   Future<bool> createComment(int postId, String body);
   Future<bool> updateComment(int commentId, String body);
   Future<void> deleteComment(int commentId);
+
+  Future<CommentPage<T>> getCommentPage(
+    int postId, {
+    required CommentPageKey pageKey,
+    CommentSortOrder? sortOrder,
+  });
+}
+
+enum CommentSortOrder {
+  newest,
+  oldest,
+}
+
+sealed class CommentPageKey {
+  const CommentPageKey();
+}
+
+final class InitialCommentPageKey extends CommentPageKey {
+  const InitialCommentPageKey();
+}
+
+final class NumberedCommentPageKey extends CommentPageKey {
+  const NumberedCommentPageKey(this.page);
+
+  final int page;
+}
+
+final class CursorCommentPageKey extends CommentPageKey {
+  const CursorCommentPageKey(this.cursor);
+
+  final String cursor;
+}
+
+class CommentPage<T extends Comment> {
+  const CommentPage({
+    required this.items,
+    this.nextPageKey,
+  });
+
+  final List<T> items;
+  final CommentPageKey? nextPageKey;
 }
 
 class CommentRepositoryBuilder<T extends Comment>
@@ -31,12 +72,19 @@ class CommentRepositoryBuilder<T extends Comment>
     required this.create,
     required this.update,
     required this.delete,
+    this.fetchPage,
   });
 
   final Future<List<T>> Function(int postId, {int? page}) fetch;
   final Future<bool> Function(int postId, String body) create;
   final Future<bool> Function(int commentId, String body) update;
   final Future<void> Function(int commentId) delete;
+  final Future<CommentPage<T>> Function(
+    int postId, {
+    required CommentPageKey pageKey,
+    CommentSortOrder? sortOrder,
+  })?
+  fetchPage;
 
   @override
   Future<List<T>> getComments(
@@ -53,6 +101,31 @@ class CommentRepositoryBuilder<T extends Comment>
 
   @override
   Future<void> deleteComment(int commentId) => delete(commentId);
+
+  @override
+  Future<CommentPage<T>> getCommentPage(
+    int postId, {
+    required CommentPageKey pageKey,
+    CommentSortOrder? sortOrder,
+  }) async {
+    if (fetchPage case final fetchPage?) {
+      return fetchPage(
+        postId,
+        pageKey: pageKey,
+        sortOrder: sortOrder,
+      );
+    }
+
+    final page = switch (pageKey) {
+      NumberedCommentPageKey(:final page) => page,
+      _ => 1,
+    };
+    final items = await getComments(postId, page: page);
+    return CommentPage(
+      items: items,
+      nextPageKey: items.isEmpty ? null : NumberedCommentPageKey(page + 1),
+    );
+  }
 
   @override
   int get maxCapacity => 1000;
@@ -103,4 +176,11 @@ class EmptyCommentRepository<T extends Comment>
 
   @override
   Future<void> deleteComment(int commentId) async {}
+
+  @override
+  Future<CommentPage<T>> getCommentPage(
+    int postId, {
+    required CommentPageKey pageKey,
+    CommentSortOrder? sortOrder,
+  }) async => const CommentPage(items: []);
 }

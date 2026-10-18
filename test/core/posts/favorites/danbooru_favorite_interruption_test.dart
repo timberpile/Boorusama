@@ -132,7 +132,7 @@ void main() {
   for (final cancel in [false, true]) {
     for (final firstFails in [false, true]) {
       test(
-        'actual Danbooru ${cancel ? 'cancel' : '429'} ${firstFails ? 'first mutation' : 'vote cleanup'}',
+        'actual Danbooru ${firstFails ? 'favorite deletion rejects' : 'successful unfavorite avoids'} ${cancel ? 'cancelled' : 'rate-limited'} vote transport',
         () async {
           final coordinator = ApiRequestCoordinator();
           addTearDown(coordinator.dispose);
@@ -176,19 +176,16 @@ void main() {
             await expectLater(action, throwsA(isA<DioException>()));
           } else {
             await action;
-            expect(
-              cleanup?.interruption.type,
-              cancel ? DioExceptionType.cancel : DioExceptionType.unknown,
-            );
+            expect(cleanup, isNull);
           }
           expect(transport.mutations, 1);
           expect(callback, firstFails ? 0 : 1);
           expect(container.read(favoritesProvider(config))[1], firstFails);
           expect(
             container.read(danbooruPostVotesProvider(config))[1],
-            priorVote,
+            firstFails ? priorVote : null,
           );
-          expect(voteRepo.removes, firstFails ? 0 : 1);
+          expect(voteRepo.removes, 0);
         },
       );
     }

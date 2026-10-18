@@ -1,8 +1,8 @@
 import '../../../configs/config/types.dart';
 import '../../../groups/folder_tree.dart';
 import '../../sources/bookmark_backup_data.dart';
-import '../../sources/following_feed_backup_data.dart';
-import '../../sources/pinned_search_backup_data.dart';
+import '../../sources/topic_feed_backup_data.dart';
+import '../../sources/following_topic_backup_data.dart';
 import '../models/export_selection.dart';
 import '../models/import_action.dart';
 import 'import_plan.dart';
@@ -35,7 +35,7 @@ final class ImportSourceIntegrityValidator {
         'ungrouped',
         for (final f in data.folders) 'group-folder:${f.id}',
       ],
-      if (data is PinnedSearchBackupData) 'home',
+      if (data is FollowingTopicBackupData) 'home',
     };
     if (selection.kind == ExportNodeSelectionKind.explicit) {
       for (final id in selection.childIds.difference(selectableItemIds)) {
@@ -60,7 +60,7 @@ final class ImportSourceIntegrityValidator {
             if (ids.contains(g.folderId) && g.id != null) 'group:${g.id}',
         ]);
       }
-      if (data case final PinnedSearchBackupData searches) {
+      if (data case final FollowingTopicBackupData searches) {
         final selectedFolderIds = selection.childIds
             .where((id) => id.startsWith('folder:'))
             .map((id) => id.substring(7))
@@ -169,11 +169,11 @@ Set<String> importedItemIds(Object? data) => switch (data) {
     for (final group in bookmarks.groups)
       if (group.id case final id?) 'group:$id',
   },
-  final PinnedSearchBackupData searches => {
+  final FollowingTopicBackupData searches => {
     for (final folder in searches.folders) 'folder:${folder.id}',
     for (final record in searches.records) 'search:${record.id}',
   },
-  final FollowingFeedBackupData feeds => {
+  final TopicFeedBackupData feeds => {
     for (final feed in feeds.feeds) 'feed:${feed.id}',
   },
   _ => const <String>{},

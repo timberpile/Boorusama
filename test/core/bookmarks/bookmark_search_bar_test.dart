@@ -4,7 +4,7 @@ import 'package:boorusama/core/bookmarks/src/widgets/bookmark_search_bar.dart';
 import 'package:boorusama/core/posts/listing/providers.dart';
 import 'package:boorusama/core/search/search/widgets.dart';
 import 'package:boorusama/core/themes/colors/src/colors.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';

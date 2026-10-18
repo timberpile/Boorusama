@@ -1,6 +1,9 @@
 // Dart imports:
 import 'dart:math';
 
+// Flutter imports:
+import 'package:flutter/services.dart';
+
 // Package imports:
 import 'package:anchor_ui/anchor_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,6 +11,8 @@ import 'package:foundation/foundation.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
+import 'package:selection_mode/selection_mode.dart';
 
 // Project imports:
 import '../../../../configs/config/types.dart';
@@ -20,10 +25,17 @@ import '../../../../tags/tag/providers.dart';
 import '../../../../tags/tag/types.dart';
 import '../../../../widgets/widgets.dart';
 import '../../../post/types.dart';
+import '../../../post/widgets.dart';
 import '../../../rating/types.dart';
 import '../../../sources/types.dart';
 
 const _maxSize = Size(400, 120);
+const _previewKey = LogicalKeyboardKey.keyI;
+
+const _iconTrigger = AnchorTriggerMode.hover(
+  waitDuration: Duration(milliseconds: 150),
+  requirePointerMovement: true,
+);
 
 class DefaultTagListPrevewTooltip extends ConsumerWidget {
   const DefaultTagListPrevewTooltip({
@@ -190,7 +202,7 @@ class DefaultPostPreviewHeader extends ConsumerWidget {
   }
 }
 
-class PostListPrevewTooltip extends ConsumerWidget {
+class PostListPrevewTooltip extends ConsumerStatefulWidget {
   const PostListPrevewTooltip({
     super.key,
     required this.overlayChildBuilder,
@@ -206,7 +218,100 @@ class PostListPrevewTooltip extends ConsumerWidget {
   overlayChildBuilder;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<PostListPrevewTooltip> createState() =>
+      _PostListPrevewTooltipState();
+}
+
+class _PostListPrevewTooltipState extends ConsumerState<PostListPrevewTooltip> {
+  final _controller = AnchorController();
+  final _hovered = ValueNotifier(false);
+
+  @override
+  void dispose() {
+    HardwareKeyboard.instance
+      ..removeHandler(_hideOnKey)
+      ..removeHandler(_toggleOnKey);
+    _controller.dispose();
+    _hovered.dispose();
+    super.dispose();
+  }
+
+  // A hover preview is for the mouse. Once keys take over it would only hide
+  // the control they move focus to.
+  bool _hideOnKey(KeyEvent event) {
+    if (event is KeyDownEvent && event.logicalKey != _previewKey) {
+      _controller.hide();
+    }
+    return false;
+  }
+
+  bool _toggleOnKey(KeyEvent event) {
+    final keyboard = HardwareKeyboard.instance;
+    if (event is! KeyDownEvent || event.logicalKey != _previewKey) return false;
+    if (keyboard.isControlPressed ||
+        keyboard.isMetaPressed ||
+        keyboard.isAltPressed) {
+      return false;
+    }
+    if (_isTyping()) return false;
+
+    _controller.toggle();
+    return true;
+  }
+
+  static bool _isTyping() =>
+      FocusManager.instance.primaryFocus?.context
+          ?.findAncestorWidgetOfExactType<EditableText>() !=
+      null;
+
+  void _handleEnter(PointerEnterEvent _) {
+    _hovered.value = true;
+    HardwareKeyboard.instance.addHandler(_toggleOnKey);
+  }
+
+  void _handleExit(PointerExitEvent _) {
+    _hovered.value = false;
+    HardwareKeyboard.instance.removeHandler(_toggleOnKey);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final enableTooltip = ref.watch(
+      currentReadOnlyBooruConfigProvider.select(
+        (value) => value.tooltipDisplayMode?.isEnabled ?? true,
+      ),
+    );
+
+    if (!enableTooltip) return widget.child;
+
+    // Tiles fill the grid, so hovering one says nothing about wanting its
+    // preview. The badge gives that intent a target of its own.
+    // A non-opaque region reports no hit to its ancestors, which would hide
+    // long-press and right-click from the post's context menu.
+    return MouseRegion(
+      hitTestBehavior: HitTestBehavior.deferToChild,
+      onEnter: _handleEnter,
+      onExit: _handleExit,
+      child: Stack(
+        children: [
+          widget.child,
+          Positioned(
+            top: 4,
+            right: 4,
+            child: _InfoBadge(
+              hovered: _hovered,
+              controller: _controller,
+              child: _buildPopover(
+                child: const ImageOverlayIcon(icon: Symbols.info),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPopover({required Widget child}) {
     final colorScheme = Kurumi.themeOf(context).colorScheme;
     final screenWidth = MediaQuery.widthOf(context);
     final adjustedMaxWidth = min(
@@ -214,19 +319,14 @@ class PostListPrevewTooltip extends ConsumerWidget {
       screenWidth - 32,
     );
     final adjustedMaxHeight = _maxSize.height;
-    final enableTooltip = ref.watch(
-      currentReadOnlyBooruConfigProvider.select(
-        (value) => value.tooltipDisplayMode?.isEnabled ?? true,
-      ),
-    );
 
     return AnchorPopover(
-      enabled: enableTooltip,
+      controller: _controller,
+      onShow: () => HardwareKeyboard.instance.addHandler(_hideOnKey),
+      onHide: () => HardwareKeyboard.instance.removeHandler(_hideOnKey),
       overlayHeight: adjustedMaxHeight,
       overlayWidth: adjustedMaxWidth,
-      triggerMode: const AnchorTriggerMode.hover(
-        waitDuration: Duration(milliseconds: 1500),
-      ),
+      triggerMode: _iconTrigger,
       viewPadding: const EdgeInsets.only(
         left: 8,
         right: 8,
@@ -242,12 +342,51 @@ class PostListPrevewTooltip extends ConsumerWidget {
         color: colorScheme.outlineVariant,
         width: 1.5,
       ),
-      overlayBuilder: (context) => overlayChildBuilder(
+      overlayBuilder: (context) => widget.overlayChildBuilder(
         context,
         adjustedMaxWidth,
         adjustedMaxHeight,
       ),
       child: child,
+    );
+  }
+}
+
+class _InfoBadge extends StatelessWidget {
+  const _InfoBadge({
+    required this.hovered,
+    required this.controller,
+    required this.child,
+  });
+
+  final ValueNotifier<bool> hovered;
+  final AnchorController controller;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final selection = SelectionMode.maybeOf(context);
+
+    return ListenableBuilder(
+      listenable: Listenable.merge([hovered, controller, ?selection]),
+      builder: (context, child) {
+        final selecting = selection?.isActive ?? false;
+        final visible = !selecting && (hovered.value || controller.isShowing);
+
+        return IgnorePointer(
+          ignoring: !visible,
+          child: AnimatedOpacity(
+            opacity: visible ? 1 : 0,
+            duration: const Duration(milliseconds: 120),
+            child: child,
+          ),
+        );
+      },
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: controller.toggle,
+        child: child,
+      ),
     );
   }
 }

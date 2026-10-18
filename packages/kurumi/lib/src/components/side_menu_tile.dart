@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 class KurumiSideMenuTile extends StatelessWidget {
   const KurumiSideMenuTile({
@@ -35,7 +35,7 @@ class KurumiSideMenuTile extends StatelessWidget {
                   const SizedBox(width: 8),
                   icon,
                   const SizedBox(width: 12),
-                  title,
+                  Flexible(child: title),
                 ],
               ),
             ),

@@ -1,3 +1,5 @@
+import '../../core/search/search/src/types/search_option.dart';
+
 // Dart imports:
 import 'dart:async';
 
@@ -12,7 +14,7 @@ import 'package:foundation/foundation.dart';
 import 'package:rich_text_controller/rich_text_controller.dart';
 
 // Project imports:
-import '../../core/search/subscriptions/src/refresh/search_refresh_query_adapter.dart';
+import '../../core/search/following_topics/src/refresh/search_refresh_query_adapter.dart';
 import '../../core/blacklists/types.dart';
 import '../../core/boorus/defaults/types.dart';
 import '../../core/boorus/engine/types.dart';
@@ -67,10 +69,39 @@ import 'tags/tag/providers.dart';
 import 'tags/user_metatags/providers.dart';
 import 'text_markup/providers.dart';
 
-class DanbooruRepository extends BooruRepositoryDefault {
+class DanbooruRepository extends BooruRepositoryDefault
+    implements SearchOptionsCapability {
   const DanbooruRepository({
     required this.ref,
   });
+
+  @override
+  List<SearchOption> get searchOptions => const [
+    SearchOption(
+      kind: SearchOptionKind.rating,
+      prefix: 'rating',
+      values: ['g', 's', 'q', 'e'],
+      valueLabels: {
+        'g': SearchOptionValueLabel.general,
+        's': SearchOptionValueLabel.sensitive,
+        'q': SearchOptionValueLabel.questionable,
+        'e': SearchOptionValueLabel.explicit,
+      },
+    ),
+    SearchOption(kind: SearchOptionKind.date, prefix: 'date'),
+    SearchOption(
+      kind: SearchOptionKind.order,
+      prefix: 'order',
+      values: ['id', 'score'],
+      valueLabels: {
+        'id': SearchOptionValueLabel.newest,
+        'score': SearchOptionValueLabel.score,
+      },
+    ),
+    SearchOption(kind: SearchOptionKind.user, prefix: 'user'),
+    SearchOption(kind: SearchOptionKind.pool, prefix: 'pool'),
+    SearchOption(kind: SearchOptionKind.favorites, prefix: 'fav'),
+  ];
 
   @override
   BooruPostDataCodec<DanbooruPostData> get postDataCodec =>
@@ -290,7 +321,10 @@ class DanbooruRepository extends BooruRepositoryDefault {
         ),
         onViewOriginal: () => goToOriginalImagePage(ref, post),
         onOpenSource: () => post.source.whenWeb(
-          (source) => launchExternalUrlString(source.url),
+          (source) => launchExternalUrlString(
+            source.url,
+            launcher: ref.read(externalUrlLauncherProvider),
+          ),
           () => false,
         ),
         onToggleFavorite: () => ref.toggleFavorite(post.id),

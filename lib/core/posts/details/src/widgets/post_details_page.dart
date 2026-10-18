@@ -6,9 +6,11 @@ import 'package:kurumi/material.dart';
 import '../../../../boorus/engine/providers.dart';
 import '../../../../configs/config/providers.dart';
 import '../../../../router.dart';
+import '../../../post/providers.dart';
 import '../../../post/types.dart';
 import '../../routes.dart';
 import 'mixed_post_details_page.dart';
+import 'post_page_presentation_scope.dart';
 
 class CurrentPostDetailsPage<T extends Post> extends ConsumerWidget {
   const CurrentPostDetailsPage({super.key});
@@ -24,6 +26,8 @@ class CurrentPostDetailsPage<T extends Post> extends ConsumerWidget {
         scrollController: payload.scrollController,
         disclaimer: payload.dislclaimer,
         liveSource: payload.liveSource,
+        fallbackConfig: payload.config,
+        postRecoveryBuilder: _postRecoveryBuilder(ref),
       );
     }
     final booruBuilder = ref.watch(booruBuilderProvider(ref.watchConfigAuth));
@@ -51,6 +55,8 @@ class PayloadPostDetailsPage<T extends Post> extends ConsumerWidget {
         scrollController: payload.scrollController,
         disclaimer: payload.dislclaimer,
         liveSource: payload.liveSource,
+        fallbackConfig: payload.config,
+        postRecoveryBuilder: _postRecoveryBuilder(ref),
       );
     }
 
@@ -66,6 +72,33 @@ class PayloadPostDetailsPage<T extends Post> extends ConsumerWidget {
         : const UnimplementedPage();
   }
 }
+
+PostRecoveryBuilder _postRecoveryBuilder(WidgetRef ref) => (post, config) {
+  if (post.id <= 0) return null;
+
+  return () async {
+    try {
+      final result = await ref
+          .read(originAwarePostRepoProvider(config))
+          .getPost(NumericPostId(post.id))
+          .run();
+      return result.fold(
+        (_) => const PostRecoveryFailure(
+          PostPresentationFallbackReason.refreshFailed,
+        ),
+        (post) => post == null
+            ? const PostRecoveryFailure(
+                PostPresentationFallbackReason.removedUpstreamPost,
+              )
+            : PostRecoverySuccess(post),
+      );
+    } catch (_) {
+      return const PostRecoveryFailure(
+        PostPresentationFallbackReason.refreshFailed,
+      );
+    }
+  };
+};
 
 class InheritedDetailsContext<T extends Post> extends InheritedWidget {
   const InheritedDetailsContext({

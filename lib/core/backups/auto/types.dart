@@ -119,12 +119,12 @@ class AutoBackupSettings extends Equatable {
   final String? userSelectedPath;
   final DateTime? lastBackupTime;
 
-  bool get shouldBackup {
+  bool shouldBackup(AppPlatform platform) {
     // Not enabled - no backup
     if (!enabled) return false;
 
     // Android requires user-selected path
-    if (isAndroid() && (userSelectedPath?.isEmpty ?? true)) {
+    if (platform.isAndroid && (userSelectedPath?.isEmpty ?? true)) {
       return false;
     }
 

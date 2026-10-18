@@ -1,8 +1,7 @@
 // Flutter imports:
 import 'dart:async';
 
-import 'package:flutter/material.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:material_ui/material_ui.dart';
 
 // Package imports:
 import 'package:timeago/timeago.dart';
@@ -26,7 +25,7 @@ extension I18nX on BuildContext {
   List<Locale> get supportedLocales => AppLocaleUtils.supportedLocales;
 
   void setLocale(Locale locale) =>
-      LocaleSettings.setLocaleRaw(locale.languageCode);
+      LocaleSettings.setLocaleRaw(locale.toLanguageTag());
 
   void setLocaleLanguage(BooruLanguage? lang) {
     if (lang == null) return;

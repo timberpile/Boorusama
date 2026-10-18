@@ -1,4 +1,5 @@
 import '../../profile_uuid_utils.dart';
+
 import 'package:boorusama/core/backups/sources/search_backup_envelope.dart';
 import 'package:boorusama/core/backups/sources/search_backup_profile.dart';
 import 'package:boorusama/core/backups/types.dart';
@@ -6,7 +7,7 @@ import 'package:boorusama/core/backups/widgets/backup_restore_tile.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:i18n/i18n.dart';
 
 void main() {
@@ -73,17 +74,17 @@ void main() {
         formatBackupImportError(
           capture(wrongSource),
           context,
-          'Following Feeds',
+          'Topic Feeds',
         ),
-        'This file is not a Following Feeds backup.',
+        'This file is not a Topic Feeds backup.',
       );
       expect(
         formatBackupImportError(
           capture(wrongVersion),
           context,
-          'Following Feeds',
+          'Topic Feeds',
         ),
-        'This Following Feeds backup uses an unsupported format version.',
+        'This Topic Feeds backup uses an unsupported format version.',
       );
     },
   );

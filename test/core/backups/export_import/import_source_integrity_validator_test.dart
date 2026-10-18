@@ -4,7 +4,7 @@ import 'package:boorusama/core/backups/export_import/import/import_source_integr
 import 'package:boorusama/core/backups/export_import/models/export_selection.dart';
 import 'package:boorusama/core/backups/export_import/models/import_action.dart';
 import 'package:boorusama/core/backups/sources/bookmark_backup_data.dart';
-import 'package:boorusama/core/backups/sources/pinned_search_backup_data.dart';
+import 'package:boorusama/core/backups/sources/following_topic_backup_data.dart';
 import 'package:boorusama/core/backups/sources/search_backup_profile.dart';
 import 'package:boorusama/core/configs/config/types.dart';
 
@@ -101,9 +101,9 @@ void main() {
   });
 
   test('rejects payload items hidden outside an explicit selection', () {
-    const data = PinnedSearchBackupData(
+    const data = FollowingTopicBackupData(
       records: [
-        PinnedSearchBackupRecord(
+        FollowingTopicBackupRecord(
           id: 'shown',
           name: null,
           query: 'one',
@@ -115,7 +115,7 @@ void main() {
             name: 'Example',
           ),
         ),
-        PinnedSearchBackupRecord(
+        FollowingTopicBackupRecord(
           id: 'hidden',
           name: null,
           query: 'two',
@@ -145,9 +145,9 @@ void main() {
   });
 
   test('allows searches required by an explicitly selected folder', () {
-    const data = PinnedSearchBackupData(
+    const data = FollowingTopicBackupData(
       records: [
-        PinnedSearchBackupRecord(
+        FollowingTopicBackupRecord(
           id: 'member',
           name: null,
           query: 'one',
@@ -161,7 +161,7 @@ void main() {
         ),
       ],
       folders: [
-        PinnedSearchFolderBackupRecord(
+        FollowingTopicFolderBackupRecord(
           id: 'folder',
           name: 'Folder',
           position: 0,
@@ -184,9 +184,9 @@ void main() {
   });
 
   test('allows structural folders for selected searches and Home payloads', () {
-    const data = PinnedSearchBackupData(
+    const data = FollowingTopicBackupData(
       records: [
-        PinnedSearchBackupRecord(
+        FollowingTopicBackupRecord(
           id: 'folder-member',
           name: null,
           query: 'one',
@@ -198,7 +198,7 @@ void main() {
             name: 'Example',
           ),
         ),
-        PinnedSearchBackupRecord(
+        FollowingTopicBackupRecord(
           id: 'home-member',
           name: null,
           query: 'two',
@@ -212,7 +212,7 @@ void main() {
         ),
       ],
       folders: [
-        PinnedSearchFolderBackupRecord(
+        FollowingTopicFolderBackupRecord(
           id: 'folder',
           name: 'Folder',
           position: 0,
@@ -230,9 +230,9 @@ void main() {
         'search:folder-member',
       }),
       itemRecommendations: const {},
-      data: const PinnedSearchBackupData(
+      data: const FollowingTopicBackupData(
         records: [
-          PinnedSearchBackupRecord(
+          FollowingTopicBackupRecord(
             id: 'folder-member',
             name: null,
             query: 'one',
@@ -246,7 +246,7 @@ void main() {
           ),
         ],
         folders: [
-          PinnedSearchFolderBackupRecord(
+          FollowingTopicFolderBackupRecord(
             id: 'folder',
             name: 'Folder',
             position: 0,
@@ -263,7 +263,7 @@ void main() {
         'home',
       }),
       itemRecommendations: const {},
-      data: PinnedSearchBackupData(
+      data: FollowingTopicBackupData(
         records: [data.records.last],
         homeSearchIds: const ['home-member'],
       ),
@@ -288,16 +288,16 @@ void main() {
         'home',
       }),
       itemRecommendations: const {},
-      data: const PinnedSearchBackupData(
+      data: const FollowingTopicBackupData(
         records: [
-          PinnedSearchBackupRecord(
+          FollowingTopicBackupRecord(
             id: 'home-member',
             name: null,
             query: 'one',
             position: 0,
             profile: profile,
           ),
-          PinnedSearchBackupRecord(
+          FollowingTopicBackupRecord(
             id: 'unrelated',
             name: null,
             query: 'two',

@@ -22,33 +22,41 @@ class FavoriteTagLabelSelectorField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Read now: the sheet builds options after this field may be gone, as a
+    // search popover closes once the sheet takes focus.
+    final allLabel = context.t.favorite_tags.labels.all;
+
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Container(
-          margin: const EdgeInsets.all(4),
-          constraints: const BoxConstraints(
-            maxWidth: 160,
-          ),
-          child: OptionSingleSearchableField(
-            backgroundColor: Kurumi.themeOf(
-              context,
-            ).colorScheme.surfaceContainerHigh,
-            sheetTitle: context.t.favorite_tags.labels.title,
-            optionValueBuilder: (option) => option == kSpecialLabelKeyForAll
-                ? context.t.favorite_tags.labels.all
-                : option,
-            value: selected == ''
-                ? context.t.favorite_tags.labels.all
-                : selected,
-            items: [
-              kSpecialLabelKeyForAll,
-              ...labels,
-            ],
-            onSelect: (value) {
-              if (value == null) return;
-              final v = value == kSpecialLabelKeyForAll ? '' : value;
-              onSelect(v);
-            },
+        Flexible(
+          child: Container(
+            margin: const EdgeInsets.all(4),
+            constraints: const BoxConstraints(
+              maxWidth: 160,
+            ),
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerRight,
+              child: OptionSingleSearchableField(
+                backgroundColor: Kurumi.themeOf(
+                  context,
+                ).colorScheme.surfaceContainerHigh,
+                sheetTitle: context.t.favorite_tags.labels.title,
+                optionValueBuilder: (option) =>
+                    option == kSpecialLabelKeyForAll ? allLabel : option,
+                value: selected == '' ? allLabel : selected,
+                items: [
+                  kSpecialLabelKeyForAll,
+                  ...labels,
+                ],
+                onSelect: (value) {
+                  if (value == null) return;
+                  final v = value == kSpecialLabelKeyForAll ? '' : value;
+                  onSelect(v);
+                },
+              ),
+            ),
           ),
         ),
       ],

@@ -1,26 +1,12 @@
-// Package imports:
-import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 
-// Project imports:
-import '../../foundation/display.dart';
-
+/// Compatibility boundary for pages that previously installed a global
+/// context-menu overlay. Kurumi menus manage their own overlay lifecycle.
 class CustomContextMenuOverlay extends StatelessWidget {
-  const CustomContextMenuOverlay({
-    required this.child,
-    super.key,
-    this.backgroundColor,
-  });
+  const CustomContextMenuOverlay({required this.child, super.key});
 
-  final Color? backgroundColor;
   final Widget child;
 
   @override
-  Widget build(BuildContext context) {
-    return KurumiCustomContextMenuOverlay(
-      backgroundColor: backgroundColor,
-      mobileLayout: kPreferredLayout.isMobile,
-      child: child,
-    );
-  }
+  Widget build(BuildContext context) => child;
 }

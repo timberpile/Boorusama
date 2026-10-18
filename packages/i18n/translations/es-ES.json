@@ -1,5 +1,5 @@
 {
-  "pinned_searches": {
+  "following_topics": {
     "sort_updates_first": "Actualizaciones primero",
     "sort_last_post_oldest": "Publicaciones más antiguas primero"
   },
@@ -30,7 +30,8 @@
       "clear": "Limpiar",
       "create": "Crear",
       "view_all": "Ver todo",
-      "reset": "Reiniciar"
+      "reset": "Reiniciar",
+      "copy_path": "Copiar ruta"
     },
     "copied": "Copiado",
     "app_restart_request": "Necesitas reiniciar la app para que los cambios tengan efecto",
@@ -980,9 +981,7 @@
     },
     "listing": {
       "title": "Lista",
-      "thumbnail_button": "Botón de Thumbnail",
       "overridden_notice": "Estas configuraciones se sobrescriben por una lista personalizada. En su lugar, ve a <b><a href=\"booru-profiles\">Profile's Listing</a></b>.",
-      "thumbnail_button_description": "Cambiar el botón predeterminado en la esquina inferior derecha de la miniatura.",
       "tooltip_on_hover_title": "Mostrar la descripción emergente al pasar el cursor",
       "tooltip_on_hover_description": "Mostrar información de vista previa al pasar el cursor sobre la miniatura.",
       "enable_profile_specific_settings": "Habilitar la configuración específica del perfil",
@@ -1156,7 +1155,6 @@
     "actions": {
       "create": "Crear",
       "delete": "Eliminar",
-      "copy_path": "Copiar ruta",
       "new_download": "Nueva descarga",
       "add_to_queue": "Añadir a la lista"
     },

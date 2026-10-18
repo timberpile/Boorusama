@@ -2,8 +2,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:boorusama/core/backups/export_import/import/import_item_labels.dart';
 import 'package:boorusama/core/backups/export_import/sources/export_selection_ids.dart';
-import 'package:boorusama/core/backups/sources/following_feed_backup_data.dart';
-import 'package:boorusama/core/backups/sources/pinned_search_backup_data.dart';
+import 'package:boorusama/core/backups/sources/topic_feed_backup_data.dart';
+import 'package:boorusama/core/backups/sources/following_topic_backup_data.dart';
 import 'package:boorusama/core/backups/sources/search_backup_profile.dart';
 
 void main() {
@@ -15,16 +15,16 @@ void main() {
   );
 
   test('uses imported folder and search names in the review', () {
-    const data = PinnedSearchBackupData(
+    const data = FollowingTopicBackupData(
       records: [
-        PinnedSearchBackupRecord(
+        FollowingTopicBackupRecord(
           id: 'search-id',
           name: 'Landscapes',
           query: 'landscape',
           position: 0,
           profile: profile,
         ),
-        PinnedSearchBackupRecord(
+        FollowingTopicBackupRecord(
           id: 'unnamed-id',
           name: null,
           query: 'blue sky',
@@ -33,7 +33,7 @@ void main() {
         ),
       ],
       folders: [
-        PinnedSearchFolderBackupRecord(
+        FollowingTopicFolderBackupRecord(
           id: 'folder-id',
           name: 'References',
           position: 0,
@@ -57,7 +57,7 @@ void main() {
     );
     expect(
       result.descriptor.rootNodes.last.id,
-      ExportSelectionIds.pinnedSearchHome,
+      ExportSelectionIds.followingTopicHome,
     );
     expect(
       result.presentation.items['search:search-id']?.trailingLabel,
@@ -66,9 +66,9 @@ void main() {
   });
 
   test('uses imported feed names in the review', () {
-    final data = FollowingFeedBackupData(
+    final data = TopicFeedBackupData(
       feeds: [
-        FollowingFeedBackupRecord(
+        TopicFeedBackupRecord(
           id: 'feed-id',
           name: 'Daily art',
           position: 0,

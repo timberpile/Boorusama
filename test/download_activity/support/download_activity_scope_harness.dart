@@ -1,14 +1,12 @@
 // Dart imports:
 import 'dart:async';
 
-// Flutter imports:
-import 'package:flutter/material.dart';
-import 'package:flutter_test/flutter_test.dart';
-
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:oktoast/oktoast.dart';
 
 // Project imports:
@@ -19,26 +17,32 @@ import 'package:boorusama/core/settings/providers.dart';
 import 'package:boorusama/core/settings/types.dart';
 import 'package:boorusama/foundation/loggers.dart';
 import 'package:boorusama/foundation/permissions.dart';
+import 'package:boorusama/foundation/platform.dart';
 
 final _activitiesProvider = StateProvider<List<DownloadActivity>>(
   (ref) => const [],
 );
 
 class DownloadActivityScopeHarness {
-  DownloadActivityScopeHarness()
-    : _notifications = _RecordingDownloadNotifications(),
-      _permissionManager = _RecordingNotificationPermissionManager(),
-      _settingsNotifier = _TestSettingsNotifier(Settings.defaultSettings) {
+  DownloadActivityScopeHarness({
+    bool useRealActivities = false,
+    List<Override> overrides = const [],
+  }) : _notifications = _RecordingDownloadNotifications(),
+       _permissionManager = _RecordingNotificationPermissionManager(),
+       _settingsNotifier = _TestSettingsNotifier(Settings.defaultSettings) {
     _container = ProviderContainer(
       overrides: [
         settingsNotifierProvider.overrideWith(() => _settingsNotifier),
-        downloadActivitiesProvider.overrideWith(
-          (ref) => ref.watch(_activitiesProvider),
-        ),
+        if (!useRealActivities)
+          downloadActivitiesProvider.overrideWith(
+            (ref) => ref.watch(_activitiesProvider),
+          ),
         downloadNotificationsProvider.overrideWithValue(_notifications),
         notificationPermissionManagerProvider.overrideWithValue(
           _permissionManager,
         ),
+        appPlatformProvider.overrideWithValue(AppPlatform.unknown),
+        ...overrides,
       ],
     );
   }
@@ -116,7 +120,8 @@ class _RecordingNotificationPermissionManager
 }
 
 class _RecordingDownloadNotifications extends DownloadNotifications {
-  _RecordingDownloadNotifications() : super.uninitialized();
+  _RecordingDownloadNotifications()
+    : super.uninitialized(platform: AppPlatform.unknown);
 
   final events = <String>[];
   Completer<void>? progressGate;
@@ -185,20 +190,24 @@ class _NoopLogger implements Logger {
   const _NoopLogger();
 
   @override
-  void debug(String serviceName, String message) {}
+  void debug(String serviceName, String message, {String? sensitiveMessage}) {}
 
   @override
-  void error(String serviceName, String message) {}
+  void error(String serviceName, String message, {String? sensitiveMessage}) {}
 
   @override
   String getDebugName() => 'noop';
 
   @override
-  void info(String serviceName, String message) {}
+  void info(String serviceName, String message, {String? sensitiveMessage}) {}
 
   @override
-  void verbose(String serviceName, String message) {}
+  void verbose(
+    String serviceName,
+    String message, {
+    String? sensitiveMessage,
+  }) {}
 
   @override
-  void warn(String serviceName, String message) {}
+  void warn(String serviceName, String message, {String? sensitiveMessage}) {}
 }

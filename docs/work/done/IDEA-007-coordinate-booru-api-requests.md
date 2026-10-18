@@ -33,7 +33,7 @@ Interactive searches/actions start ahead of automatic checks and preloads for th
 
 Feature schedulers decide due work and run budgets; this coordinator admits actual API requests. The item-31 adaptive-refresh work (PS-031) must not execute automatically until this network-safety prerequisite exists. IDEA-010 fetches use it; video/GIF media downloads do not. Validate numerical overrides for known sites before adding them.
 
-- [Pinned Search and Following Feed architecture](../../pinned_searches.md)
+- [Pinned Search and Following Feed architecture](../../following_topics.md)
 
 ## Claim
 

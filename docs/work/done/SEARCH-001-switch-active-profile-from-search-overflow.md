@@ -31,7 +31,7 @@ Normal search is dispatched through an engine-specific `SearchPage` builder. `Se
 - [Selected-tag wiring](../../../lib/core/search/search/src/widgets/selected_tag_list_with_data.dart)
 - [Search page dispatcher](../../../lib/core/search/search/src/pages/search_page.dart)
 - [Search scaffold/controller lifecycle](../../../lib/core/search/search/src/widgets/search_page_scaffold.dart)
-- [Global profile switch reference](../../../lib/core/search/subscriptions/src/pages/pinned_searches_page.dart)
+- [Global profile switch reference](../../../lib/core/search/following_topics/src/pages/following_topics_page.dart)
 
 Dependencies: None.
 

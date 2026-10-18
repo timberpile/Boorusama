@@ -1,0 +1,1549 @@
+import 'package:boorusama/boorus/gelbooru_v2/posts/post_codec.dart';
+import 'package:boorusama/boorus/gelbooru_v2/posts/post_data.dart';
+import 'package:boorusama/core/boorus/booru/types.dart';
+import 'package:boorusama/core/boorus/defaults/widgets.dart';
+import 'package:boorusama/core/boorus/engine/types.dart';
+import 'package:boorusama/core/configs/config/types.dart';
+import 'package:boorusama/core/configs/manage/providers.dart';
+import 'package:boorusama/core/images/booru_image.dart';
+import 'package:boorusama/core/images/types.dart';
+import 'package:boorusama/core/posts/details/routes.dart';
+import 'package:boorusama/core/posts/details_parts/types.dart';
+import 'package:boorusama/core/posts/listing/types.dart';
+import 'package:boorusama/core/posts/listing/widgets.dart';
+import 'package:boorusama/core/posts/post/types.dart';
+import 'package:boorusama/core/posts/post/widgets.dart';
+import 'package:boorusama/core/posts/rating/types.dart';
+import 'package:boorusama/core/posts/sources/types.dart';
+import 'package:boorusama/core/router.dart';
+import 'package:boorusama/core/search/following_topics/providers.dart';
+import 'package:boorusama/core/search/following_topics/types.dart';
+import 'package:boorusama/core/search/following_topics/src/pages/topic_feeds_page.dart';
+import 'package:boorusama/core/search/following_topics/src/pages/topic_feed_management_page.dart';
+import 'package:boorusama/core/search/following_topics/src/pages/following_topics_page.dart';
+import 'package:boorusama/core/search/following_topics/src/widgets/feed_post_thumbnail.dart';
+import 'package:boorusama/core/settings/src/types/settings.dart';
+import 'package:boorusama/core/themes/colors/types.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:kurumi/kurumi.dart';
+import 'package:kurumi/material.dart';
+import 'package:selection_mode/selection_mode.dart';
+
+import 'following_topic_test_utils.dart';
+import 'topic_test_utils.dart';
+
+void main() {
+  late FollowingTopicHarness harness;
+  setUp(() => harness = FollowingTopicHarness());
+  tearDown(() => harness.dispose());
+
+  testWidgets(
+    'mixed-site numeric collisions remain visible and selectable together',
+    (tester) async {
+      final otherSite = _otherFeedConfig.copyWith(
+        url: 'https://other-site.example',
+      );
+      harness.dispose();
+      harness = FollowingTopicHarness(
+        profiles: [testProfile, _feedConfig, otherSite],
+        postCapability: _feedCapability,
+        listingSettings: Settings.defaultSettings.listing.copyWith(
+          showPostListConfigHeader: false,
+        ),
+        booruBuilder: (config) => _FeedMultiSelectionBuilder(config: config),
+      );
+      final feed = await harness.repository.saveFeed(
+        profileId: _feedConfig.id,
+        name: 'Mixed',
+        queries: ['cat'],
+      );
+      final source = (await harness.repository.getById(feed.sourceIds.single))!;
+      await harness.repository.commitRefresh(
+        SearchRefreshCommit(
+          topicId: source.id,
+          expectedCreatedAt: source.createdAt,
+          expectedCheckpoint: null,
+          startedAt: checkedAt,
+          identityRetentionBoundary: checkedAt,
+          baseline: true,
+          discoveredPosts: const [],
+          feedPosts: [
+            for (final profile in [_feedConfig, otherSite])
+              feedPostSnapshotFromPost(
+                _feedPost(42).copyWith(
+                  origin: PostOrigin.fromSource(
+                    booruType: profile.auth.booruType,
+                    booruId: profile.booruId,
+                    source: profile.url,
+                    profileIdHint: profile.id,
+                  ),
+                ),
+                dataCodec: const GelbooruV2PostCodec(),
+              ),
+          ],
+        ),
+      );
+      await harness.container.read(followingTopicsProvider.future);
+      await harness.pump(
+        tester,
+        TopicFeedPage(feedId: feed.id, profileId: _feedConfig.id),
+      );
+      final cards = tester
+          .widgetList<PostGridItem>(find.byType(PostGridItem))
+          .toList();
+      expect(cards, hasLength(2));
+      expect(cards.map((card) => card.post.id), [42, 42]);
+      expect(cards.map((card) => card.config).toSet(), {
+        _feedConfig.auth,
+        otherSite.auth,
+      });
+      final selection = tester
+          .widget<SelectionMode>(find.byType(SelectionMode))
+          .controller!;
+      selection.enable(initialSelected: [0, 1]);
+      await tester.pump();
+      expect(find.text('Download'), findsOneWidget);
+      expect(find.text('Bookmark'), findsOneWidget);
+      expect(find.text('native bulk mutation'), findsNothing);
+      expect(harness.container.read(currentBooruConfigProvider), testProfile);
+    },
+  );
+
+  testWidgets('feed overview has no misplaced settings overflow', (
+    tester,
+  ) async {
+    await harness.pump(tester, const TopicFeedsPage());
+    await settle(tester);
+    expect(
+      find.descendant(
+        of: find.byType(AppBar),
+        matching: find.byWidgetPredicate((widget) => widget is PopupMenuButton),
+      ),
+      findsNothing,
+    );
+    expect(find.text('Topic updates'), findsNothing);
+  });
+
+  test('legacy feeds imported after migration become topic folders', () async {
+    await harness.repository.migrateLegacyTopicFeeds();
+    final feed = await harness.repository.saveFeed(
+      profileId: topicFixture().profileId,
+      name: 'Later import',
+      queries: ['bird'],
+    );
+
+    await harness.repository.migrateLegacyTopicFeeds();
+
+    final organization = await harness.repository.getOrganization();
+    final folder = organization.folders.singleWhere((f) => f.id == feed.id);
+    expect(folder.feedEnabled, isTrue);
+    expect(organization.recursiveIds(feed.id), isNotEmpty);
+    expect(await harness.repository.getFeeds(), hasLength(1));
+  });
+
+  test(
+    'existing feeds migrate to optional topic folders without losing topics',
+    () async {
+      final followedTopic = topicFixture(query: 'cat');
+      await harness.seed([followedTopic]);
+      final feed = await harness.repository.saveFeed(
+        profileId: followedTopic.profileId,
+        name: 'Artists',
+        queries: ['cat', 'dog'],
+      );
+      final before = feed.sourceIds.toList();
+
+      await harness.repository.migrateLegacyTopicFeeds();
+      await harness.repository.migrateLegacyTopicFeeds();
+
+      final organization = await harness.repository.getOrganization();
+      final folder = organization.folders.singleWhere((f) => f.id == feed.id);
+      expect(folder.feedEnabled, isTrue);
+      expect(folder.feedMaxPosts, 1000);
+      expect(organization.recursiveIds(folder.id), before);
+      expect(organization.homeSearchIds, contains(followedTopic.id));
+      expect((await harness.repository.getFeeds()).single.id, folder.id);
+    },
+  );
+
+  test(
+    'migration gives shared legacy feed sources distinct topic placements',
+    () async {
+      final profile = topicFixture(query: 'unrelated').profileId;
+      final first = await harness.repository.saveFeed(
+        profileId: profile,
+        name: 'First',
+        queries: ['same_query'],
+      );
+      final second = await harness.repository.saveFeed(
+        profileId: profile,
+        name: 'Second',
+        queries: ['same_query'],
+      );
+      expect(first.sourceIds, second.sourceIds);
+
+      await harness.repository.migrateLegacyTopicFeeds();
+
+      final folders = await harness.repository.getOrganization();
+      final firstId = folders.recursiveIds(first.id).single;
+      final secondId = folders.recursiveIds(second.id).single;
+      expect(firstId, isNot(secondId));
+      expect((await harness.repository.getById(firstId))!.query, 'same_query');
+      expect((await harness.repository.getById(secondId))!.query, 'same_query');
+    },
+  );
+
+  test(
+    'new folder feed keeps its snapshots when another topic is removed',
+    () async {
+      const profile = '00000000-0000-4000-8000-00000000000c';
+      final cats = await harness.repository.create(
+        profileId: profile,
+        query: 'cat',
+        name: null,
+      );
+      final dogs = await harness.repository.create(
+        profileId: profile,
+        query: 'dog',
+        name: null,
+      );
+      const id = 'animal-topics';
+      final folder = TopicFolder(
+        id: id,
+        name: 'Animals',
+        feedEnabled: true,
+        searchIds: [cats.id, dogs.id],
+      );
+      await harness.repository.replaceOrganization(
+        TopicOrganization(folders: [folder]),
+      );
+      final initial = await harness.repository.ensureFolderFeed(id);
+      expect(initial?.posts, isEmpty);
+
+      final time = DateTime.utc(2026, 10, 15);
+      for (final (index, source) in [cats, dogs].indexed) {
+        await harness.repository.commitRefresh(
+          SearchRefreshCommit(
+            topicId: source.id,
+            expectedCreatedAt: source.createdAt,
+            expectedRevision: source.runtimeRevision,
+            expectedCheckpoint: null,
+            startedAt: time,
+            identityRetentionBoundary: time.subtract(const Duration(days: 1)),
+            baseline: true,
+            discoveredPosts: const [],
+            feedPosts: [
+              feedPostSnapshotFromPost(
+                testSearchPost(index + 1, time.add(Duration(minutes: index))),
+              ),
+            ],
+          ),
+        );
+      }
+      expect((await harness.repository.getFeeds()).single.posts.length, 2);
+      await harness.repository.replaceOrganization(
+        TopicOrganization(
+          folders: [
+            TopicFolder(
+              id: id,
+              name: 'Animals',
+              feedEnabled: true,
+              searchIds: [cats.id],
+            ),
+          ],
+          homeSearchIds: [dogs.id],
+        ),
+      );
+      final retained = (await harness.repository.getFeeds()).single;
+      expect(retained.sourceIds, [cats.id]);
+      expect(retained.posts.map(feedPostId), [1]);
+      expect(retained.initializedSourceIds, [cats.id]);
+    },
+  );
+
+  test(
+    'feeds store member search IDs without changing independent topics',
+    () async {
+      await harness.seed([topicFixture(query: 'cat')]);
+      final feed = await harness.repository.saveFeed(
+        profileId: '00000000-0000-4000-8000-00000000000c',
+        name: 'Animals',
+        queries: ['cat', 'dog'],
+      );
+      final byId = {
+        for (final search in await harness.repository.getAll())
+          search.id: search,
+      };
+
+      expect(feed.sourceIds.length, 2);
+      expect(feed.sourceIds.map((id) => byId[id]!.query), ['cat', 'dog']);
+      expect(feed.sourceIds, isNot(contains('cats')));
+      expect((await harness.repository.getById('cats'))!.hasNewPosts, isTrue);
+    },
+  );
+
+  test(
+    'one internal search can serve two feeds while the user topic stays separate',
+    () async {
+      await harness.seed([topicFixture(query: 'cat')]);
+      final first = await harness.repository.saveFeed(
+        profileId: '00000000-0000-4000-8000-00000000000c',
+        name: 'First',
+        queries: ['cat'],
+      );
+      final second = await harness.repository.saveFeed(
+        profileId: '00000000-0000-4000-8000-00000000000c',
+        name: 'Second',
+        queries: ['cat'],
+      );
+      expect(first.sourceIds, second.sourceIds);
+      expect(first.sourceIds, isNot(contains('cats')));
+
+      await harness.repository.deleteFeed(first.id);
+      expect(
+        await harness.repository.getById(second.sourceIds.single),
+        isNotNull,
+      );
+      await harness.repository.deleteFeed(second.id);
+      expect((await harness.repository.getAll()).map((search) => search.id), [
+        'cats',
+      ]);
+    },
+  );
+
+  test('following and unfollowing changes only the selected feed', () async {
+    final notifier = harness.container.read(
+      followingTopicsProvider.notifier,
+    );
+    await harness.container.read(followingTopicsProvider.future);
+    final first = await notifier.saveFeed(
+      profileId: '00000000-0000-4000-8000-00000000000c',
+      name: 'First',
+      queries: ['cat'],
+    );
+    final second = await notifier.saveFeed(
+      profileId: '00000000-0000-4000-8000-00000000000c',
+      name: 'Second',
+      queries: ['cat'],
+    );
+
+    final expanded = await notifier.setFeedFollowing(
+      feedId: first.id,
+      profileId: '00000000-0000-4000-8000-00000000000c',
+      query: 'dog',
+      following: true,
+    );
+    expect(expanded!.sourceIds.length, 2);
+    expect(expanded.sourceIds.first, second.sourceIds.single);
+    expect((await harness.repository.getFeeds()).last.sourceIds, [
+      second.sourceIds.single,
+    ]);
+
+    final reduced = await notifier.setFeedFollowing(
+      feedId: first.id,
+      profileId: '00000000-0000-4000-8000-00000000000c',
+      query: 'cat',
+      following: false,
+    );
+    expect(reduced!.sourceIds.length, 1);
+    expect(
+      await harness.repository.getById(second.sourceIds.single),
+      isNotNull,
+    );
+    expect((await harness.repository.getFeeds()).length, 2);
+  });
+
+  test(
+    'manual topic order and folders exclude feed-owned topics',
+    () async {
+      final harness = FollowingTopicHarness();
+      addTearDown(harness.dispose);
+      final cats = topicFixture(query: 'cat');
+      final dogs = topicFixture(id: 'dogs', query: 'dog', position: 1);
+      await harness.seed([cats, dogs]);
+      final notifier = harness.container.read(
+        followingTopicsProvider.notifier,
+      );
+      await harness.container.read(followingTopicsProvider.future);
+      final feed = await notifier.saveFeed(
+        profileId: '00000000-0000-4000-8000-00000000000c',
+        name: 'Animals',
+        queries: ['cat', 'dog'],
+      );
+      await notifier.reorderSharedTopics(null, 1, 0);
+      expect(
+        harness.container
+            .read(organizedFollowingTopicsProvider(null))
+            .requireValue
+            .map((s) => s.id),
+        ['dogs', 'cats'],
+      );
+      expect(
+        (await harness.repository.getAll())
+            .where((s) => feed.sourceIds.contains(s.id))
+            .length,
+        2,
+      );
+      final source = (await harness.repository.getAll()).firstWhere(
+        (s) => feed.sourceIds.contains(s.id),
+      );
+      final folder = await notifier.createSharedFolder('Folder');
+      await expectLater(
+        notifier.moveTopicToSharedFolder(source.id, folder.id),
+        throwsStateError,
+      );
+    },
+  );
+
+  test(
+    'shared folders exclude feed-owned sources from the same profile',
+    () async {
+      await harness.seed([topicFixture(query: 'cat')]);
+      final notifier = harness.container.read(
+        followingTopicsProvider.notifier,
+      );
+      await harness.container.read(followingTopicsProvider.future);
+      final feed = await notifier.saveFeed(
+        profileId: '00000000-0000-4000-8000-00000000000c',
+        name: 'Animals',
+        queries: ['dog'],
+      );
+      final source = (await harness.repository.getAll()).singleWhere(
+        (search) => feed.sourceIds.contains(search.id),
+      );
+      final folder = await notifier.createSharedFolder('Pins');
+
+      await expectLater(
+        notifier.moveTopicToSharedFolder(source.id, folder.id),
+        throwsStateError,
+      );
+      expect(
+        harness.container
+            .read(organizedFollowingTopicsProvider(folder.id))
+            .requireValue,
+        isEmpty,
+      );
+    },
+  );
+
+  test(
+    'feed sources are separate from identical user topics and feed reading preserves user NEW',
+    () async {
+      await harness.seed([topicFixture(query: 'cat')]);
+      final notifier = harness.container.read(
+        followingTopicsProvider.notifier,
+      );
+      await harness.container.read(followingTopicsProvider.future);
+      final feed = await notifier.saveFeed(
+        profileId: '00000000-0000-4000-8000-00000000000c',
+        name: 'Animals',
+        queries: ['cat', 'dog', 'cat'],
+      );
+      final state = harness.container
+          .read(followingTopicsProvider)
+          .requireValue;
+      expect(
+        state.topics.where((s) => feed.sourceIds.contains(s.id)).length,
+        2,
+      );
+      expect(
+        harness.container
+            .read(organizedFollowingTopicsProvider(null))
+            .requireValue
+            .map((s) => s.id),
+        ['cats'],
+      );
+      expect(
+        await harness.repository.findByQuery(
+          '00000000-0000-4000-8000-00000000000c',
+          'cat',
+        ),
+        topicFixture(query: 'cat'),
+      );
+      await notifier.markFeedRead(feed.id);
+      expect((await harness.repository.getById('cats'))!.hasNewPosts, true);
+      await notifier.deleteFeed(feed.id);
+      expect(await harness.repository.getAll(), [topicFixture(query: 'cat')]);
+      expect(await harness.repository.getFeeds(), isEmpty);
+    },
+  );
+
+  test(
+    'feed snapshots persist chronological deduplicated results and failures keep the cache',
+    () async {
+      final feed = await harness.repository.saveFeed(
+        profileId: '00000000-0000-4000-8000-00000000000c',
+        name: 'Animals',
+        queries: ['cat', 'dog'],
+      );
+      final sources = (await harness.repository.getAll())
+          .where((s) => feed.sourceIds.contains(s.id))
+          .toList();
+      Future<void> commit(FollowingTopic source, List<int> ids) async {
+        await harness.repository.commitRefresh(
+          SearchRefreshCommit(
+            topicId: source.id,
+            expectedCreatedAt: source.createdAt,
+            expectedCheckpoint: source.lastSuccessfulCheckAt,
+            startedAt: checkedAt,
+            identityRetentionBoundary: checkedAt,
+            baseline: true,
+            discoveredPosts: const [],
+            feedPosts: [
+              for (final id in ids)
+                feedPostSnapshotFromPost(
+                  testSearchPost(id, checkedAt.add(Duration(seconds: id))),
+                ),
+            ],
+          ),
+        );
+      }
+
+      await commit(sources[0], [1, 2]);
+      await commit(sources[1], [2, 3]);
+      expect(
+        (await harness.repository.getFeeds()).single.posts.map(feedPostId),
+        [3, 2, 1],
+      );
+      await harness.repository.recordRefreshFailure(
+        sources[0].id,
+        expectedCreatedAt: sources[0].createdAt,
+        attemptedAt: checkedAt,
+        kind: SearchRefreshErrorKind.network,
+      );
+      expect(
+        (await harness.repository.getFeeds()).single.posts.map(feedPostId),
+        [3, 2, 1],
+      );
+      final restored = TopicFeed.fromJson(
+        (await harness.repository.getFeeds()).single.toJson(),
+      );
+      expect(restored, (await harness.repository.getFeeds()).single);
+      await harness.repository.deleteForProfile(
+        '00000000-0000-4000-8000-00000000000c',
+      );
+      expect(await harness.repository.getFeeds(), isEmpty);
+      expect(await harness.repository.getAll(), isEmpty);
+    },
+  );
+
+  test('cached feed posts preserve media variants through serialization', () {
+    final cached = feedPostSnapshotFromPost(_variantSearchPost(42, checkedAt));
+
+    expect(decodeFeedPost(cached).mediaVariants, _variantMediaVariants);
+    expect(
+      decodeFeedPost(
+        feedPostSnapshotFromJson(feedPostSnapshotToJson(cached)),
+      ).mediaVariants,
+      _variantMediaVariants,
+    );
+  });
+
+  test(
+    'editing feed sources preserves unchanged checkpoints and removes only owned sources',
+    () async {
+      await harness.seed([topicFixture(query: 'cat')]);
+      final feed = await harness.repository.saveFeed(
+        profileId: '00000000-0000-4000-8000-00000000000c',
+        name: 'Animals',
+        queries: ['cat', 'dog'],
+      );
+      final cat = (await harness.repository.getAll()).singleWhere(
+        (s) => feed.sourceIds.contains(s.id) && s.query == 'cat',
+      );
+      await harness.repository.recordRefreshFailure(
+        cat.id,
+        expectedCreatedAt: cat.createdAt,
+        attemptedAt: checkedAt,
+        kind: SearchRefreshErrorKind.network,
+      );
+      final updatedFeed = await harness.repository.saveFeed(
+        profileId: '00000000-0000-4000-8000-00000000000c',
+        name: 'Renamed',
+        queries: ['cat', 'bird'],
+        id: feed.id,
+      );
+      final owned = (await harness.repository.getAll())
+          .where((s) => updatedFeed.sourceIds.contains(s.id))
+          .toList();
+      expect(owned.map((s) => s.query).toSet(), {'cat', 'bird'});
+      expect(
+        owned.singleWhere((s) => s.query == 'cat').lastErrorKind,
+        SearchRefreshErrorKind.network,
+      );
+      expect((await harness.repository.getById('cats'))!.hasNewPosts, true);
+      expect((await harness.repository.getFeeds()).single.name, 'Renamed');
+      await expectLater(
+        harness.repository.saveFeed(
+          profileId: '00000000-0000-4000-8000-000000000063',
+          name: 'Wrong',
+          queries: ['cat'],
+          id: feed.id,
+        ),
+        throwsStateError,
+      );
+    },
+  );
+
+  test(
+    'adding a member preserves cached posts and initialized shared sources',
+    () async {
+      final first = await harness.repository.saveFeed(
+        profileId: '00000000-0000-4000-8000-00000000000c',
+        name: 'First',
+        queries: ['cat'],
+      );
+      final second = await harness.repository.saveFeed(
+        profileId: '00000000-0000-4000-8000-00000000000c',
+        name: 'Second',
+        queries: ['cat'],
+      );
+      final cat = (await harness.repository.getById(first.sourceIds.single))!;
+      await harness.repository.commitRefresh(
+        SearchRefreshCommit(
+          topicId: cat.id,
+          expectedCreatedAt: cat.createdAt,
+          expectedCheckpoint: null,
+          startedAt: checkedAt,
+          identityRetentionBoundary: checkedAt,
+          baseline: true,
+          discoveredPosts: const [],
+          feedPosts: [
+            feedPostSnapshotFromPost(testSearchPost(1, checkedAt)),
+          ],
+        ),
+      );
+      expect((await harness.repository.getFeeds()).first.posts, isNotEmpty);
+
+      final updated = await harness.repository.saveFeed(
+        profileId: '00000000-0000-4000-8000-00000000000c',
+        name: 'First',
+        queries: ['cat', 'dog'],
+        id: first.id,
+      );
+      expect(updated.posts.map(feedPostId), [1]);
+      expect(updated.initializedSourceIds, [cat.id]);
+      expect(updated.sourceIds.first, cat.id);
+      expect(
+        (await harness.repository.getById(cat.id))!.lastSuccessfulCheckAt,
+        isNotNull,
+      );
+      await harness.repository.saveFeed(
+        profileId: '00000000-0000-4000-8000-00000000000c',
+        name: 'First',
+        queries: ['dog'],
+        id: first.id,
+      );
+      expect(
+        (await harness.repository.getFeeds()).last.sourceIds.single,
+        cat.id,
+      );
+      expect(
+        await harness.repository.getById(second.sourceIds.single),
+        isNotNull,
+      );
+    },
+  );
+
+  test(
+    'feed ordering rejects incomplete IDs without changing saved order',
+    () async {
+      final first = await harness.repository.saveFeed(
+        profileId: '00000000-0000-4000-8000-00000000000c',
+        name: 'First',
+        queries: ['cat'],
+      );
+      final second = await harness.repository.saveFeed(
+        profileId: '00000000-0000-4000-8000-00000000000c',
+        name: 'Second',
+        queries: ['dog'],
+      );
+      final third = await harness.repository.saveFeed(
+        profileId: '00000000-0000-4000-8000-00000000000c',
+        name: 'Third',
+        queries: ['bird'],
+      );
+      await harness.repository.setFeedOrder(
+        '00000000-0000-4000-8000-00000000000c',
+        [
+          third.id,
+          first.id,
+          second.id,
+        ],
+      );
+      expect((await harness.repository.getFeeds()).map((feed) => feed.id), [
+        third.id,
+        first.id,
+        second.id,
+      ]);
+      expect(
+        (await harness.repository.getFeeds()).map((feed) => feed.position),
+        [
+          0,
+          1,
+          2,
+        ],
+      );
+      await expectLater(
+        harness.repository.setFeedOrder(
+          '00000000-0000-4000-8000-00000000000c',
+          [first.id, second.id],
+        ),
+        throwsFormatException,
+      );
+      expect((await harness.repository.getFeeds()).map((feed) => feed.id), [
+        third.id,
+        first.id,
+        second.id,
+      ]);
+    },
+  );
+
+  testWidgets(
+    'feed overview lists both profile owners without fetching hidden sources',
+    (tester) async {
+      await tester.runAsync(() async {
+        await harness.seed([topicFixture(query: 'cat')]);
+        await harness.repository.saveFeed(
+          profileId: '00000000-0000-4000-8000-00000000000c',
+          name: 'Animals',
+          queries: ['cat', 'dog'],
+        );
+        await harness.repository.saveFeed(
+          profileId: '00000000-0000-4000-8000-000000000063',
+          name: 'Birds',
+          queries: ['bird'],
+        );
+        await harness.container.read(followingTopicsProvider.future);
+      });
+      await harness.pump(tester, const FollowingTopicsPage());
+      expect(find.text('Cats'), findsOneWidget);
+      expect(find.text('dog'), findsNothing);
+      expect(find.byTooltip('Topic feeds'), findsNothing);
+      await harness.pump(tester, const TopicFeedsPage());
+      expect(find.text('Animals'), findsOneWidget);
+      expect(find.text('Birds'), findsOneWidget);
+      expect(find.text('https://active.example'), findsOneWidget);
+      expect(find.text('https://other.example'), findsOneWidget);
+      expect(find.byType(TopicFeedsPage), findsOneWidget);
+      expect(harness.requests, isEmpty);
+    },
+  );
+
+  testWidgets('feed overview shows four recent thumbnails with its owner', (
+    tester,
+  ) async {
+    await tester.runAsync(() async {
+      final feed = await harness.repository.saveFeed(
+        profileId: '00000000-0000-4000-8000-000000000063',
+        name: 'Animals',
+        queries: ['cat'],
+      );
+      final source = (await harness.repository.getById(feed.sourceIds.single))!;
+      await harness.repository.commitRefresh(
+        SearchRefreshCommit(
+          topicId: source.id,
+          expectedCreatedAt: source.createdAt,
+          expectedCheckpoint: null,
+          startedAt: checkedAt,
+          identityRetentionBoundary: checkedAt,
+          baseline: true,
+          discoveredPosts: const [],
+          feedPosts: [
+            for (var i = 0; i < 6; i++)
+              feedPostSnapshotFromPost(
+                testSearchPost(i, checkedAt.add(Duration(seconds: i))),
+              ),
+          ],
+        ),
+      );
+      await harness.container.read(followingTopicsProvider.future);
+    });
+    await harness.pump(tester, const TopicFeedsPage());
+    expect(
+      find.ancestor(of: find.text('Animals'), matching: find.byType(Card)),
+      findsOneWidget,
+    );
+    final images = tester.widgetList<BooruImage>(find.byType(BooruImage));
+    expect(images.map((image) => image.imageUrl), [
+      'https://example.com/5.jpg',
+      'https://example.com/4.jpg',
+      'https://example.com/3.jpg',
+      'https://example.com/2.jpg',
+    ]);
+    expect(
+      images.every((image) => image.config == otherTestProfile.auth),
+      isTrue,
+    );
+    expect(
+      harness.container.read(currentReadOnlyBooruConfigProvider).id,
+      '00000000-0000-4000-8000-00000000000c',
+    );
+    expect(harness.requests, isEmpty);
+  });
+
+  testWidgets('new feed cards announce new posts and clear NEW when opened', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    late TopicFeed feed;
+    await tester.runAsync(() async {
+      feed = await harness.repository.saveFeed(
+        profileId: '00000000-0000-4000-8000-00000000000c',
+        name: 'Animals',
+        queries: ['cat'],
+      );
+      final source = (await harness.repository.getById(feed.sourceIds.single))!;
+      await harness.seed([
+        topicFixture(id: source.id, query: 'cat', name: null, unreadCount: 1),
+      ]);
+      await harness.container.read(followingTopicsProvider.future);
+    });
+    await harness.pump(tester, const TopicFeedsPage());
+
+    expect(find.text('NEW'), findsOneWidget);
+    expect(
+      find.bySemanticsLabel(RegExp('New posts available')),
+      findsOneWidget,
+    );
+    semantics.dispose();
+    await tester.tap(find.text('Animals'));
+    await tester.pumpAndSettle();
+    await drain(tester);
+
+    expect(find.byType(TopicFeedPage), findsOneWidget);
+    expect(
+      (await harness.repository.getById(feed.sourceIds.single))!.hasNewPosts,
+      isFalse,
+    );
+    expect(harness.requests, isEmpty);
+    await tester.tap(find.byTooltip('Back'));
+    await tester.pumpAndSettle();
+    expect(find.text('NEW'), findsNothing);
+  });
+
+  for (final checked in [false, true]) {
+    testWidgets(
+      '${checked ? 'checked empty' : 'never checked'} feed cards omit previews without fetching posts',
+      (tester) async {
+        await tester.runAsync(() async {
+          final feed = await harness.repository.saveFeed(
+            profileId: '00000000-0000-4000-8000-000000000063',
+            name: 'Birds',
+            queries: ['bird'],
+          );
+          if (checked) {
+            final source = (await harness.repository.getById(
+              feed.sourceIds.single,
+            ))!;
+            await harness.repository.commitRefresh(
+              SearchRefreshCommit(
+                topicId: source.id,
+                expectedCreatedAt: source.createdAt,
+                expectedCheckpoint: null,
+                startedAt: checkedAt,
+                identityRetentionBoundary: checkedAt,
+                baseline: true,
+                discoveredPosts: const [],
+              ),
+            );
+          }
+          await harness.container.read(followingTopicsProvider.future);
+        });
+        await harness.pump(tester, const TopicFeedsPage());
+
+        expect(
+          find.ancestor(of: find.text('Birds'), matching: find.byType(Card)),
+          findsOneWidget,
+        );
+        expect(find.text('https://other.example'), findsOneWidget);
+        expect(find.byType(BooruImage), findsNothing);
+        expect(find.text('NEW'), findsNothing);
+        expect(harness.requests, isEmpty);
+      },
+    );
+  }
+
+  testWidgets('feed card overflow preserves editing and confirmed deletion', (
+    tester,
+  ) async {
+    await tester.runAsync(() async {
+      await harness.repository.saveFeed(
+        profileId: '00000000-0000-4000-8000-00000000000c',
+        name: 'Animals',
+        queries: ['cat'],
+      );
+      await harness.container.read(followingTopicsProvider.future);
+    });
+    await harness.pump(tester, const TopicFeedsPage());
+    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+    expect(find.byType(TopicFeedManagementPage), findsOneWidget);
+    expect(find.text('cat'), findsOneWidget);
+    await tester.tap(find.byTooltip('Back'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(find.text('Animals'), findsOneWidget);
+    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'Delete'));
+    await drain(tester);
+    await tester.pumpAndSettle();
+    expect(find.text('Animals'), findsNothing);
+    expect(await harness.repository.getFeeds(), isEmpty);
+    expect(harness.requests, isEmpty);
+  });
+
+  testWidgets('feed cards fit narrow screens with enlarged text', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(280, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.runAsync(() async {
+      final feed = await harness.repository.saveFeed(
+        profileId: '00000000-0000-4000-8000-00000000000c',
+        name: 'A feed with a very long descriptive title',
+        queries: ['cat'],
+      );
+      final source = (await harness.repository.getById(feed.sourceIds.single))!;
+      await harness.repository.commitRefresh(
+        SearchRefreshCommit(
+          topicId: source.id,
+          expectedCreatedAt: source.createdAt,
+          expectedCheckpoint: null,
+          startedAt: checkedAt,
+          identityRetentionBoundary: checkedAt,
+          baseline: true,
+          discoveredPosts: const [],
+          feedPosts: [
+            for (var i = 0; i < 4; i++)
+              feedPostSnapshotFromPost(testSearchPost(i, checkedAt)),
+          ],
+        ),
+      );
+      await harness.seed([
+        topicFixture(id: source.id, query: 'cat', name: null, unreadCount: 1),
+      ]);
+      await harness.container.read(followingTopicsProvider.future);
+    });
+    await harness.pump(
+      tester,
+      const MediaQuery(
+        data: MediaQueryData(textScaler: TextScaler.linear(2)),
+        child: TopicFeedsPage(),
+      ),
+    );
+    expect(find.byType(Card), findsOneWidget);
+    expect(find.text('NEW'), findsOneWidget);
+    expect(find.byType(BooruImage), findsNWidgets(4));
+    expect(find.byType(PopupMenuButton<String>), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    expect(harness.requests, isEmpty);
+  });
+
+  testWidgets('feed overview uses the configured high-quality images', (
+    tester,
+  ) async {
+    harness.dispose();
+    harness = FollowingTopicHarness(
+      listingSettings: Settings.defaultSettings.listing.copyWith(
+        imageQuality: ImageQuality.high,
+      ),
+    );
+    await tester.runAsync(() async {
+      final feed = await harness.repository.saveFeed(
+        profileId: '00000000-0000-4000-8000-00000000000c',
+        name: 'Animals',
+        queries: ['cat'],
+      );
+      final source = (await harness.repository.getById(feed.sourceIds.single))!;
+      await harness.repository.commitRefresh(
+        SearchRefreshCommit(
+          topicId: source.id,
+          expectedCreatedAt: source.createdAt,
+          expectedCheckpoint: null,
+          startedAt: checkedAt,
+          identityRetentionBoundary: checkedAt,
+          baseline: true,
+          discoveredPosts: const [],
+          feedPosts: [
+            feedPostSnapshotFromPost(testSearchPost(1, checkedAt)),
+          ],
+        ),
+      );
+      await harness.container.read(followingTopicsProvider.future);
+    });
+
+    await harness.pump(tester, const TopicFeedsPage());
+
+    expect(
+      tester.widget<BooruImage>(find.byType(BooruImage)).imageUrl,
+      'https://example.com/1.jpg',
+    );
+  });
+
+  testWidgets(
+    'feed uses native cards and opens mixed snapshots without changing profiles',
+    (tester) async {
+      harness.dispose();
+      const presentation = _FeedPresentation();
+      harness = FollowingTopicHarness(
+        profiles: [_feedConfig],
+        postCapability: const BooruPostCapability<BooruPostData>(
+          booruType: BooruType.gelbooruV2,
+          codec: GelbooruV2PostCodec(),
+          presentation: presentation,
+        ),
+      );
+      final feed = await harness.repository.saveFeed(
+        profileId: _feedConfig.id,
+        name: 'Native feed',
+        queries: ['cat'],
+      );
+      final source = (await harness.repository.getById(feed.sourceIds.single))!;
+      final native = feedPostSnapshotFromPost(
+        _feedPost(42),
+        dataCodec: const GelbooruV2PostCodec(),
+      );
+      final fallbackSource = feedPostSnapshotFromPost(
+        _feedPost(41),
+        dataCodec: const GelbooruV2PostCodec(),
+      );
+      final fallback = feedPostSnapshotFromJson({
+        'snapshotSchemaVersion': 1,
+        'postSnapshot': {
+          ...fallbackSource.toJson(),
+          'codecVersion': 99,
+          'custom': const {'future': true},
+        },
+      });
+      await harness.repository.commitRefresh(
+        SearchRefreshCommit(
+          topicId: source.id,
+          expectedCreatedAt: source.createdAt,
+          expectedCheckpoint: null,
+          startedAt: checkedAt,
+          identityRetentionBoundary: checkedAt,
+          baseline: true,
+          discoveredPosts: const [],
+          feedPosts: [native, fallback],
+        ),
+      );
+      await harness.container.read(followingTopicsProvider.future);
+
+      DetailsRouteContext? opened;
+      harness.router = GoRouter(
+        initialLocation: '/',
+        routes: [
+          GoRoute(
+            path: '/',
+            builder: (_, _) => TopicFeedPage(
+              feedId: feed.id,
+              profileId: _feedConfig.id,
+            ),
+          ),
+          GoRoute(
+            path: '/details',
+            builder: (_, state) {
+              opened = state.extra! as DetailsRouteContext;
+              return const Scaffold(body: Text('mixed feed viewer'));
+            },
+          ),
+        ],
+      );
+      addTearDown(harness.router.dispose);
+      await tester.pumpWidget(
+        harness.wrap(
+          MaterialApp.router(
+            routerConfig: harness.router,
+            theme: Kurumi.themeFrom(
+              KurumiThemeMode.light,
+              colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
+              systemDarkMode: false,
+            ).withBoorusamaColors(),
+            builder: themeBuilder,
+          ),
+        ),
+      );
+      await settle(tester);
+
+      expect(find.text('native feed card'), findsOneWidget);
+      final cards = tester.widgetList<PostGridItem>(find.byType(PostGridItem));
+      expect(cards.length, 2);
+      expect(
+        cards.first.post.booruData,
+        isA<GelbooruV2PostData>(),
+      );
+      expect(
+        cards.last.post.booruData,
+        isA<UnknownPostData>(),
+      );
+      expect(harness.requests, isEmpty);
+
+      await tester.tap(find.byType(ImageGridItem).first);
+      await tester.pumpAndSettle();
+
+      expect(find.text('mixed feed viewer'), findsOneWidget);
+      expect(opened?.useMixedViewer, isTrue);
+      expect(opened?.config, _feedConfig);
+      expect(opened?.posts.length, 2);
+      expect(
+        opened!.posts.last.booruData,
+        isA<UnknownPostData>(),
+      );
+      expect(
+        harness.container.read(currentBooruConfigProvider).url,
+        testProfile.url,
+      );
+      expect(harness.requests, isEmpty);
+    },
+  );
+
+  testWidgets(
+    'feed footer uses its owner profile without changing the global profile',
+    (tester) async {
+      final footerConfigs = <BooruConfigAuth>[];
+      harness.dispose();
+      harness = FollowingTopicHarness(
+        profiles: [testProfile, _feedConfig, _otherFeedConfig],
+        postCapability: _feedCapability,
+        listingSettings: Settings.defaultSettings.listing.copyWith(
+          showPostListConfigHeader: false,
+        ),
+        booruBuilder: (config) => _FeedMultiSelectionBuilder(
+          config: config,
+          onBuild: footerConfigs.add,
+        ),
+      );
+      final feed = await harness.repository.saveFeed(
+        profileId: _feedConfig.id,
+        name: 'Native feed',
+        queries: ['cat'],
+      );
+      final source = (await harness.repository.getById(feed.sourceIds.single))!;
+      await harness.repository.commitRefresh(
+        SearchRefreshCommit(
+          topicId: source.id,
+          expectedCreatedAt: source.createdAt,
+          expectedCheckpoint: null,
+          startedAt: checkedAt,
+          identityRetentionBoundary: checkedAt,
+          baseline: true,
+          discoveredPosts: const [],
+          feedPosts: [
+            feedPostSnapshotFromPost(
+              _feedPost(42),
+              dataCodec: const GelbooruV2PostCodec(),
+            ),
+          ],
+        ),
+      );
+      await harness.container.read(followingTopicsProvider.future);
+
+      await harness.pump(
+        tester,
+        TopicFeedPage(feedId: feed.id, profileId: _feedConfig.id),
+      );
+      final selection = tester
+          .widget<SelectionMode>(find.byType(SelectionMode))
+          .controller!;
+      selection.enable(initialSelected: const [0]);
+      await tester.pump();
+
+      expect(footerConfigs, isNotEmpty);
+      expect(footerConfigs.last, _feedConfig.auth);
+      expect(find.text('native bulk mutation'), findsOneWidget);
+      expect(find.text('Download'), findsOneWidget);
+      expect(find.text('Bookmark'), findsOneWidget);
+      expect(
+        harness.container.read(currentBooruConfigProvider),
+        testProfile,
+      );
+    },
+  );
+
+  testWidgets(
+    'feed selection uses the selected post profile for native bulk actions',
+    (tester) async {
+      harness.dispose();
+      harness = FollowingTopicHarness(
+        profiles: [testProfile, _feedConfig, _otherFeedConfig],
+        postCapability: _feedCapability,
+        listingSettings: Settings.defaultSettings.listing.copyWith(
+          showPostListConfigHeader: false,
+        ),
+        booruBuilder: (config) => _FeedMultiSelectionBuilder(config: config),
+      );
+      final feed = await harness.repository.saveFeed(
+        profileId: _feedConfig.id,
+        name: 'Native feed',
+        queries: ['cat'],
+      );
+      final source = (await harness.repository.getById(feed.sourceIds.single))!;
+      final incompatible = _feedPost(43).copyWith(
+        origin: PostOrigin.fromSource(
+          booruType: BooruType.gelbooruV2,
+          booruId: _feedConfig.booruId,
+          source: _otherFeedConfig.url,
+          profileIdHint: _otherFeedConfig.id,
+        ),
+      );
+      await harness.repository.commitRefresh(
+        SearchRefreshCommit(
+          topicId: source.id,
+          expectedCreatedAt: source.createdAt,
+          expectedCheckpoint: null,
+          startedAt: checkedAt,
+          identityRetentionBoundary: checkedAt,
+          baseline: true,
+          discoveredPosts: const [],
+          feedPosts: [
+            feedPostSnapshotFromPost(
+              incompatible,
+              dataCodec: const GelbooruV2PostCodec(),
+            ),
+          ],
+        ),
+      );
+      await harness.container.read(followingTopicsProvider.future);
+      await harness.pump(
+        tester,
+        TopicFeedPage(feedId: feed.id, profileId: _feedConfig.id),
+      );
+
+      final selection = tester
+          .widget<SelectionMode>(find.byType(SelectionMode))
+          .controller!;
+      selection.enable(initialSelected: const [0]);
+      await tester.pump();
+
+      expect(find.text('native bulk mutation'), findsOneWidget);
+      expect(find.text('Download'), findsOneWidget);
+      expect(find.text('Bookmark'), findsOneWidget);
+      expect(
+        harness.container.read(currentBooruConfigProvider),
+        testProfile,
+      );
+    },
+  );
+
+  testWidgets(
+    'feed exposes no bulk actions for an incompatible owner-profile payload',
+    (tester) async {
+      harness.dispose();
+      harness = FollowingTopicHarness(
+        profiles: [testProfile, _feedConfig],
+        postCapability: _feedCapability,
+        listingSettings: Settings.defaultSettings.listing.copyWith(
+          showPostListConfigHeader: false,
+        ),
+        booruBuilder: (config) => _FeedMultiSelectionBuilder(config: config),
+      );
+      final feed = await harness.repository.saveFeed(
+        profileId: _feedConfig.id,
+        name: 'Native feed',
+        queries: ['cat'],
+      );
+      final source = (await harness.repository.getById(feed.sourceIds.single))!;
+      final incompatible = _feedPost(44).copyWith(
+        booruData: const UnknownPostData(
+          typeKey: 'gelbooru_v2',
+          schemaVersion: 99,
+          custom: {'future': true},
+          reason: UnknownPostDataReason.unsupportedVersion,
+        ),
+      );
+      await harness.repository.commitRefresh(
+        SearchRefreshCommit(
+          topicId: source.id,
+          expectedCreatedAt: source.createdAt,
+          expectedCheckpoint: null,
+          startedAt: checkedAt,
+          identityRetentionBoundary: checkedAt,
+          baseline: true,
+          discoveredPosts: const [],
+          feedPosts: [feedPostSnapshotFromPost(incompatible)],
+        ),
+      );
+      await harness.container.read(followingTopicsProvider.future);
+      await harness.pump(
+        tester,
+        TopicFeedPage(feedId: feed.id, profileId: _feedConfig.id),
+      );
+
+      final selection = tester
+          .widget<SelectionMode>(find.byType(SelectionMode))
+          .controller!;
+      selection.enable(initialSelected: const [0]);
+      await tester.pump();
+
+      expect(find.text('native bulk mutation'), findsNothing);
+      expect(find.text('Download'), findsNothing);
+      expect(find.text('Bookmark'), findsNothing);
+      expect(
+        harness.container.read(currentBooruConfigProvider),
+        testProfile,
+      );
+    },
+  );
+
+  final thumbnailCases = [
+    (
+      quality: ImageQuality.low,
+      expectedUrl: 'https://example.com/1-thumb.jpg',
+    ),
+    (quality: ImageQuality.high, expectedUrl: 'https://example.com/1.jpg'),
+  ];
+  for (final c in thumbnailCases) {
+    testWidgets('feed thumbnails use ${c.quality.name} image quality', (
+      tester,
+    ) async {
+      harness.dispose();
+      harness = FollowingTopicHarness(
+        listingSettings: Settings.defaultSettings.listing.copyWith(
+          imageQuality: c.quality,
+        ),
+      );
+
+      await harness.pump(
+        tester,
+        FeedPostThumbnail(
+          post: decodeFeedPost(
+            feedPostSnapshotFromPost(testSearchPost(1, checkedAt)),
+          ),
+          config: testProfile.auth,
+        ),
+      );
+
+      expect(
+        tester.widget<BooruImage>(find.byType(BooruImage)).imageUrl,
+        c.expectedUrl,
+      );
+    });
+  }
+
+  final automaticThumbnailCases = [
+    (gridSize: GridSize.micro, expectedUrl: 'https://example.com/180.jpg'),
+    (gridSize: GridSize.tiny, expectedUrl: 'https://example.com/180.jpg'),
+    (gridSize: GridSize.normal, expectedUrl: 'https://example.com/720.jpg'),
+  ];
+  for (final c in automaticThumbnailCases) {
+    testWidgets(
+      'cached feed thumbnails use the ${c.gridSize.name} automatic variant',
+      (tester) async {
+        harness.dispose();
+        harness = FollowingTopicHarness(
+          listingSettings: Settings.defaultSettings.listing.copyWith(
+            imageQuality: ImageQuality.automatic,
+            gridSize: c.gridSize,
+          ),
+        );
+        final post = feedPostSnapshotFromJson({
+          'id': 1,
+          'createdAt': checkedAt.toIso8601String(),
+          'thumbnail': 'https://example.com/thumb.jpg',
+          'sample': 'https://example.com/sample.jpg',
+          'original': 'https://example.com/original.jpg',
+          'tags': const <String>[],
+          'rating': 'general',
+          'width': 100,
+          'height': 100,
+          'format': 'jpg',
+          'mediaVariants': const {
+            '180x180': 'https://example.com/180.jpg',
+            '360x360': 'https://example.com/360.jpg',
+            '720x720': 'https://example.com/720.jpg',
+          },
+        });
+
+        await harness.pump(
+          tester,
+          FeedPostThumbnail(
+            post: decodeFeedPost(post),
+            config: testProfile.auth,
+          ),
+        );
+
+        expect(
+          tester.widget<BooruImage>(find.byType(BooruImage)).imageUrl,
+          c.expectedUrl,
+        );
+        expect(
+          post.common['mediaVariants'],
+          {
+            '180x180': 'https://example.com/180.jpg',
+            '360x360': 'https://example.com/360.jpg',
+            '720x720': 'https://example.com/720.jpg',
+          },
+        );
+      },
+    );
+  }
+
+  testWidgets('rate limited source is visible on the feed overview', (
+    tester,
+  ) async {
+    await tester.runAsync(() async {
+      final feed = await harness.repository.saveFeed(
+        profileId: '00000000-0000-4000-8000-00000000000c',
+        name: 'Animals',
+        queries: ['cat'],
+      );
+      final source = (await harness.repository.getById(feed.sourceIds.single))!;
+      await harness.repository.recordRefreshFailure(
+        source.id,
+        expectedCreatedAt: source.createdAt,
+        attemptedAt: checkedAt,
+        kind: SearchRefreshErrorKind.rateLimited,
+      );
+      await harness.container.read(followingTopicsProvider.future);
+    });
+    await harness.pump(tester, const TopicFeedsPage());
+    expect(
+      find.text('Rate limited by the site. Try again later.'),
+      findsOneWidget,
+    );
+  });
+}
+
+const _variantMediaVariants = {
+  '180x180': 'https://example.com/180.jpg',
+  '360x360': 'https://example.com/360.jpg',
+  '720x720': 'https://example.com/720.jpg',
+};
+
+Post _variantSearchPost(int id, DateTime? createdAt) {
+  final post = testSearchPost(id, createdAt);
+  return post.copyWith(
+    core: PostCoreData(
+      id: post.id,
+      createdAt: post.createdAt,
+      thumbnailImageUrl: post.thumbnailImageUrl,
+      sampleImageUrl: post.sampleImageUrl,
+      originalImageUrl: post.originalImageUrl,
+      videoUrl: post.videoUrl,
+      videoThumbnailUrl: post.videoThumbnailUrl,
+      mediaVariants: _variantMediaVariants,
+      width: post.width,
+      height: post.height,
+      format: post.format,
+      md5: post.md5,
+      fileSize: post.fileSize,
+      duration: post.duration,
+      hasSound: post.hasSound,
+      tags: post.tags,
+      rating: post.rating,
+      hasComment: post.hasComment,
+      isTranslated: post.isTranslated,
+      hasParentOrChildren: post.hasParentOrChildren,
+      source: post.source,
+      score: post.score,
+    ),
+  );
+}
+
+final _feedConfig = BooruConfig.fromJson({
+  ...BooruConfig.defaultConfig(
+    booruType: BooruType.gelbooruV2,
+    url: 'https://gelbooru.example',
+    customDownloadFileNameFormat: null,
+  ).toJson(),
+  'id': '00000000-0000-4000-8000-000000000063',
+});
+
+final _otherFeedConfig = BooruConfig.fromJson({
+  ..._feedConfig.toJson(),
+  'id': '00000000-0000-4000-8000-000000000064',
+});
+
+const _feedCapability = BooruPostCapability<BooruPostData>(
+  booruType: BooruType.gelbooruV2,
+  codec: GelbooruV2PostCodec(),
+  presentation: _FeedPresentation(),
+);
+
+Post _feedPost(int id) => Post(
+  origin: PostOrigin.fromSource(
+    booruType: BooruType.gelbooruV2,
+    booruId: _feedConfig.booruId,
+    source: _feedConfig.url,
+    profileIdHint: _feedConfig.id,
+  ),
+  core: PostCoreData(
+    id: id,
+    createdAt: checkedAt.add(Duration(seconds: id)),
+    thumbnailImageUrl: 'https://example.com/$id-thumb.jpg',
+    sampleImageUrl: 'https://example.com/$id.jpg',
+    originalImageUrl: 'https://example.com/$id-original.jpg',
+    videoUrl: '',
+    videoThumbnailUrl: '',
+    width: 100,
+    height: 100,
+    format: 'jpg',
+    md5: '$id',
+    fileSize: 1,
+    duration: 0,
+    tags: const {'cat'},
+    rating: Rating.general,
+    hasComment: false,
+    isTranslated: false,
+    hasParentOrChildren: false,
+    source: PostSource.none(),
+    score: 0,
+  ),
+  booruData: const GelbooruV2PostData(hasNotes: true),
+);
+
+final class _FeedPresentation
+    implements BooruPostPresentation, BooruPostGridPresentation {
+  const _FeedPresentation();
+
+  @override
+  PostDetailsWrapperBuilder? get detailsWrapperBuilder => null;
+
+  @override
+  bool supports(BooruPostData data) => data is GelbooruV2PostData;
+
+  @override
+  PostDetailsUIBuilder detailsBuilder(Post post) =>
+      const PostDetailsUIBuilder();
+
+  @override
+  PostGridItemAdditions buildGridItemAdditions(
+    BuildContext context, {
+    required WidgetRef ref,
+    required Post post,
+    required BooruConfigAuth config,
+  }) => const PostGridItemAdditions(
+    quickActionButton: Text('native feed card'),
+  );
+}
+
+final class _FeedMultiSelectionBuilder extends BaseBooruBuilder {
+  _FeedMultiSelectionBuilder({required this.config, this.onBuild});
+
+  final BooruConfigAuth config;
+  final ValueChanged<BooruConfigAuth>? onBuild;
+
+  @override
+  MultiSelectionActionsBuilder get multiSelectionActionsBuilder =>
+      (context, controller, postController) {
+        onBuild?.call(config);
+        return DefaultMultiSelectionActions(
+          postController: postController,
+          extraActions: (_) => const [Text('native bulk mutation')],
+        );
+      };
+}

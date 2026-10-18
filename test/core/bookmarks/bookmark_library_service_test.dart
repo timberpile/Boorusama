@@ -1,4 +1,4 @@
-import '../search/subscriptions/subscription_test_utils.dart';
+import '../search/following_topics/topic_test_utils.dart';
 import 'dart:typed_data';
 import 'package:cache_manager/cache_manager.dart';
 // Dart imports:

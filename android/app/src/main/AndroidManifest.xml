@@ -116,6 +116,17 @@
             android:value="true" />
 
         <provider
+            android:name=".CacheDocumentsProvider"
+            android:authorities="${applicationId}.cache.documents"
+            android:exported="true"
+            android:grantUriPermissions="true"
+            android:permission="android.permission.MANAGE_DOCUMENTS">
+            <intent-filter>
+                <action android:name="android.content.action.DOCUMENTS_PROVIDER" />
+            </intent-filter>
+        </provider>
+
+        <provider
             android:name=".BoorusamaFileProvider"
             android:authorities="${applicationId}.provider"
             android:exported="false"

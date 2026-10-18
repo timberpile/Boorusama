@@ -1,5 +1,4 @@
 // Flutter imports:
-import 'package:flutter/material.dart';
 
 // Package imports:
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';

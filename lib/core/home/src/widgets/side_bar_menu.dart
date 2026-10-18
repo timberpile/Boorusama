@@ -21,9 +21,8 @@ import '../../../premiums/providers.dart';
 import '../../../premiums/routes.dart';
 import '../../../premiums/types.dart';
 import '../../../search/search/routes.dart';
-import '../../../search/subscriptions/routes.dart';
-import '../../../search/subscriptions/providers.dart';
-import '../../../search/subscriptions/widgets.dart';
+import '../../../search/following_topics/routes.dart';
+import '../../../search/following_topics/widgets.dart';
 import '../../../settings/providers.dart';
 import '../../../settings/routes.dart';
 import '../../../tags/favorites/routes.dart';
@@ -140,21 +139,9 @@ class SideBarMenu extends ConsumerWidget {
                           },
                         ),
                         SideMenuTile(
-                          icon: const PinnedSearchNavigationIcon(),
-                          title: Text(context.t.pinned_searches.title),
-                          onTap: () => goToPinnedSearchesPage(ref),
-                        ),
-                        SideMenuTile(
-                          icon: Badge(
-                            isLabelVisible: ref.watch(
-                              followingFeedHasNewPostsProvider,
-                            ),
-                            child: const Icon(Symbols.rss_feed),
-                          ),
-                          title: Text(
-                            context.t.pinned_searches.following_feeds,
-                          ),
-                          onTap: () => goToFollowingFeedsPage(ref),
+                          icon: const FollowingTopicNavigationIcon(),
+                          title: Text(context.t.following_topics.page_title),
+                          onTap: () => goToFollowingTopicsPage(ref),
                         ),
                         SideMenuTile(
                           icon: const Icon(Symbols.list),

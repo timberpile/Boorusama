@@ -10,7 +10,7 @@ import '../../../../../../core/configs/config/providers.dart';
 import '../../../../../../core/posts/details/types.dart';
 import '../../../../../../core/posts/details_parts/widgets.dart';
 import '../../../../../../core/posts/sources/types.dart';
-import '../../../../../../core/search/subscriptions/src/widgets/feed_follow_control.dart';
+import '../../../../../../core/search/following_topics/src/widgets/topic_follow_control.dart';
 import '../../../../../../core/widgets/booru_visibility_detector.dart';
 import '../../../../artists/commentaries/providers.dart';
 import '../../../../comments/comment/providers.dart';
@@ -132,7 +132,7 @@ class DanbooruArtistInfo extends StatelessWidget {
     artistTags: artistTags,
     source: source,
     inlineAction: artistTags.length == 1
-        ? FeedFollowButton(query: artistTags.single, compact: true)
+        ? FollowTopicButton(query: artistTags.single, compact: true)
         : null,
   );
 }

@@ -48,20 +48,36 @@ existing build/publishing behavior. Reading these files does not authorize
 dispatching the release workflow or using its release commands. Required PR
 validation may run normally, including tests of the existing tooling.
 
-## Establish the candidate and increase the version
+## Establish the candidate and choose the version
 
 - Identify the current version, intended candidate commit, and previous release
   tag. Inspect the actual file changes since that release as well as relevant
   commits. Squash or merge history can repeat already shipped work; commit
   subjects alone do not establish the release contents.
-- Unless the user specifies another target, increase the last numeric component
-  of the current release version by one and the build number by one. Preserve
-  the fork's base version and suffix convention: for example,
-  `4.5.0-timberpile.3+187` becomes `4.5.0-timberpile.4+188`. For a plain `X.Y.Z`
-  version, increment the patch component. Clarify an unfamiliar version scheme
-  rather than silently changing it.
+- Determine the exact upstream `MAJOR.MINOR.PATCH` release integrated by the
+  candidate. The fork version name is
+  `<upstream-MAJOR.MINOR.PATCH>-timberpile.<N>`: use `N = 1` for the first fork
+  release on a new upstream base, then increment `N` for later releases on that
+  same base. Never publish a `.0` Timberpile counter or retain an older upstream
+  base after integrating a newer release.
+- Choose a numeric build number that is strictly greater than every build number
+  already allocated to a fork release, regardless of the upstream base. Check
+  actual origin tags/releases, release records, updater manifests and applicable
+  store history before finalizing it. Android split APKs add ABI-specific offsets,
+  so verify that each selected artifact's effective version code upgrades its
+  corresponding previous artifact. Do not assume that the raw base build number
+  is the installed APK's effective version code.
+- For example, after `4.5.0-timberpile.5+189`, the first release that integrates
+  upstream `4.6.1` is `4.6.1-timberpile.1+190` only if no later build number has
+  already been allocated. Clarify uncertain upstream ancestry or release history
+  rather than silently selecting a version.
 - Set `pubspec.yaml` to the new full version. The top changelog heading is
   `# <version-name>`, without a leading `v` or the `+<build-number>` suffix.
+- Keep the derived `v<version-name>` tag, GitHub updater manifest, PackageInfo,
+  Gradle version name/base code and flavor/ABI-specific codes consistent with
+  that full version. The existing release workflow derives its manifest from the
+  checked-out `pubspec.yaml`; do not hand-edit a generated manifest as a
+  substitute for validating the tagged build.
 - When continuing an already prepared candidate, keep its target version;
   do not increment again merely because the skill is invoked again. Check for
   conflicting existing version sections and known release tags. Resolve

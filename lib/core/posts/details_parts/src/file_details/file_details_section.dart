@@ -128,6 +128,8 @@ class FileDetailsSection extends StatelessWidget {
         ];
 
         return ExpansionTile(
+          shape: const Border(),
+          collapsedShape: const Border(),
           initiallyExpanded: initialExpanded,
           title: Text(
             context.t.post.detail.file_details,

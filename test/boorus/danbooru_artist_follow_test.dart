@@ -4,14 +4,14 @@ import 'package:boorusama/core/artists/types.dart';
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/configs/manage/providers.dart';
 import 'package:boorusama/core/posts/sources/types.dart';
-import 'package:boorusama/core/search/subscriptions/providers.dart';
-import 'package:boorusama/core/search/subscriptions/src/types/search_following_feed.dart';
-import 'package:boorusama/core/search/subscriptions/src/types/search_organization.dart';
-import 'package:boorusama/core/search/subscriptions/src/types/search_subscription.dart';
-import 'package:boorusama/core/search/subscriptions/src/widgets/feed_follow_control.dart';
+import 'package:boorusama/core/search/following_topics/providers.dart';
+import 'package:boorusama/core/search/following_topics/src/types/topic_feed.dart';
+import 'package:boorusama/core/search/following_topics/src/types/topic_organization.dart';
+import 'package:boorusama/core/search/following_topics/src/types/following_topic.dart';
+import 'package:boorusama/core/search/following_topics/src/widgets/topic_follow_control.dart';
 import 'package:boorusama/core/posts/details_parts/src/source_link.dart';
 import 'package:boorusama/boorus/danbooru/posts/details/widgets.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:i18n/i18n.dart';
@@ -56,11 +56,16 @@ void main() {
               currentReadOnlyBooruConfigProvider.overrideWithValue(
                 BooruConfig.empty,
               ),
-              pinnedSearchTrackingSupportedProvider.overrideWith(
+              booruConfigProvider.overrideWith(
+                () => BooruConfigNotifier(
+                  initialConfigs: const [BooruConfig.empty],
+                ),
+              ),
+              followingTopicTrackingSupportedProvider.overrideWith(
                 (ref, config) => true,
               ),
-              searchSubscriptionsProvider.overrideWith(
-                _TestSearchSubscriptionsNotifier.new,
+              followingTopicsProvider.overrideWith(
+                _TestFollowingTopicsNotifier.new,
               ),
             ],
             child: BooruLocalization(
@@ -89,16 +94,16 @@ void main() {
         await tester.pumpAndSettle();
 
         if (testCase.followQuery case final query?) {
-          expect(find.byType(FeedFollowButton), findsOneWidget);
+          expect(find.byType(FollowTopicButton), findsOneWidget);
           expect(find.text('Follow'), findsOneWidget);
           expect(
             find.byWidgetPredicate(
-              (widget) => widget is FeedFollowButton && widget.query == query,
+              (widget) => widget is FollowTopicButton && widget.query == query,
             ),
             findsOneWidget,
           );
         } else {
-          expect(find.byType(FeedFollowButton), findsNothing);
+          expect(find.byType(FollowTopicButton), findsNothing);
           expect(find.text('Follow'), findsNothing);
         }
         if (testCase.artistTags.isNotEmpty) {
@@ -120,14 +125,14 @@ void main() {
     (
       label: 'Following',
       isFollowing: true,
-      background: colors.surfaceContainerHighest,
-      foreground: colors.onSurfaceVariant,
+      background: colorScheme.secondaryContainer,
+      foreground: colorScheme.onSecondaryContainer,
     ),
   ];
 
   for (final testCase in visualCases) {
     testWidgets(
-      'shows an accessible icon-free ${testCase.label} pill using theme colors',
+      'shows an accessible ${testCase.label} pill using theme colors',
       (tester) async {
         final semantics = tester.ensureSemantics();
 
@@ -137,11 +142,16 @@ void main() {
               currentReadOnlyBooruConfigProvider.overrideWithValue(
                 BooruConfig.empty,
               ),
-              pinnedSearchTrackingSupportedProvider.overrideWith(
+              booruConfigProvider.overrideWith(
+                () => BooruConfigNotifier(
+                  initialConfigs: const [BooruConfig.empty],
+                ),
+              ),
+              followingTopicTrackingSupportedProvider.overrideWith(
                 (ref, config) => true,
               ),
-              searchSubscriptionsProvider.overrideWith(
-                () => _TestSearchSubscriptionsNotifier(
+              followingTopicsProvider.overrideWith(
+                () => _TestFollowingTopicsNotifier(
                   following: testCase.isFollowing,
                 ),
               ),
@@ -174,11 +184,17 @@ void main() {
 
         final label = find.text(testCase.label);
         expect(label, findsOneWidget);
-        expect(find.byIcon(Symbols.rss_feed), findsNothing);
-        expect(find.bySemanticsLabel(testCase.label), findsOneWidget);
+        expect(find.byIcon(Symbols.rss_feed), findsOneWidget);
+        final semanticLabel = testCase.isFollowing
+            ? '${testCase.label}, 1'
+            : testCase.label;
+        final semanticsTarget = find.bySemanticsLabel(
+          RegExp(RegExp.escape(semanticLabel)),
+        );
+        expect(semanticsTarget, findsWidgets);
         expect(
           tester
-              .getSemantics(find.bySemanticsLabel(testCase.label))
+              .getSemantics(semanticsTarget.first)
               .getSemanticsData()
               .hasAction(SemanticsAction.tap),
           isTrue,
@@ -203,17 +219,19 @@ void main() {
         semantics.dispose();
 
         await tester.tap(label);
-        await tester.pumpAndSettle();
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 500));
         expect(find.byType(AlertDialog), findsOneWidget);
-        if (testCase.isFollowing) {
-          expect(find.text('Artists'), findsOneWidget);
-          final checkbox = tester.widget<CheckboxListTile>(
-            find.byType(CheckboxListTile),
-          );
-          expect(checkbox.value, isTrue);
-        } else {
-          expect(find.text('No following feeds yet.'), findsOneWidget);
-        }
+        expect(find.text('Follow'), findsWidgets);
+        expect(
+          find.descendant(
+            of: find.byType(AlertDialog),
+            matching: find.text('artist_one'),
+          ),
+          findsOneWidget,
+        );
+        expect(find.byType(Checkbox), findsOneWidget);
+        expect(find.byType(CheckboxListTile), findsNothing);
       },
     );
   }
@@ -233,11 +251,11 @@ void main() {
               currentReadOnlyBooruConfigProvider.overrideWithValue(
                 BooruConfig.empty,
               ),
-              pinnedSearchTrackingSupportedProvider.overrideWith(
+              followingTopicTrackingSupportedProvider.overrideWith(
                 (ref, config) => true,
               ),
-              searchSubscriptionsProvider.overrideWith(
-                _TestSearchSubscriptionsNotifier.new,
+              followingTopicsProvider.overrideWith(
+                _TestFollowingTopicsNotifier.new,
               ),
             ],
             child: BooruLocalization(
@@ -276,10 +294,10 @@ void main() {
         await tester.pumpAndSettle();
 
         final artistTile = tester.getRect(find.byType(SourceLink));
-        final followButton = tester.getRect(find.byType(FeedFollowButton));
+        final followButton = tester.getRect(find.byType(FollowTopicButton));
         expect(artistTile.overlaps(followButton), isTrue);
         expect(find.byIcon(Symbols.keyboard_arrow_down), findsOneWidget);
-        expect(find.byIcon(Symbols.rss_feed), findsNothing);
+        expect(find.byIcon(Symbols.rss_feed), findsOneWidget);
         expect(
           followButton.overlaps(
             tester.getRect(find.byIcon(Symbols.keyboard_arrow_down)),
@@ -293,16 +311,16 @@ void main() {
   }
 }
 
-class _TestSearchSubscriptionsNotifier extends SearchSubscriptionsNotifier {
-  _TestSearchSubscriptionsNotifier({this.following = false});
+class _TestFollowingTopicsNotifier extends FollowingTopicsNotifier {
+  _TestFollowingTopicsNotifier({this.following = false});
 
   final bool following;
 
   @override
-  Future<SearchSubscriptionsState> build() async => SearchSubscriptionsState(
-    subscriptions: following
+  Future<FollowingTopicsState> build() async => FollowingTopicsState(
+    topics: following
         ? [
-            SearchSubscription.create(
+            FollowingTopic.create(
               id: 'artist-search',
               profileId: BooruConfig.empty.id,
               query: 'artist_one',
@@ -314,7 +332,7 @@ class _TestSearchSubscriptionsNotifier extends SearchSubscriptionsNotifier {
         : const [],
     feeds: following
         ? [
-            SearchFollowingFeed(
+            TopicFeed(
               id: 'artist-feed',
               profileId: BooruConfig.empty.id,
               name: 'Artists',
@@ -325,9 +343,9 @@ class _TestSearchSubscriptionsNotifier extends SearchSubscriptionsNotifier {
     refreshingIds: const {},
     batchCompleted: 0,
     batchTotal: 0,
-    organization: SearchOrganization(
+    organization: TopicOrganization(
       folders: const [],
-      homeSearchIds: const [],
+      homeSearchIds: following ? const ['artist-search'] : const [],
     ),
   );
 }

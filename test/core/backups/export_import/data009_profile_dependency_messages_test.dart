@@ -5,7 +5,7 @@ import 'package:boorusama/core/backups/export_import/import/profile_dependency_p
 import 'package:boorusama/core/backups/sources/search_backup_profile.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/configs/config/types.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:i18n/src/gen/strings.g.dart' show TranslationProvider;
 
@@ -74,8 +74,8 @@ void main() {
             ImportReviewValidation(
               preflight: _result(errors: dependencies.errors),
               sourceNames: const {
-                'pinned_searches': 'Pinned searches',
-                'following_feeds': 'Following feeds',
+                'pinned_searches': 'Topics',
+                'following_feeds': 'Topic feeds',
               },
               itemLabels: const {},
               onWarningsAcknowledged: (_) {},
@@ -88,11 +88,11 @@ void main() {
 
       await review([...references, references.first]);
       const searches =
-          'first.example: Select a matching profile for the selected Pinned searches, or skip those items.';
+          'first.example: Select a matching profile for the selected Topics, or skip those items.';
       const feeds =
-          'second.example: Create a profile for this website in profile management, then import again, or skip the selected Following feeds.';
+          'second.example: Create a profile for this website in profile management, then import again, or skip the selected Topic feeds.';
       const both =
-          'third.example: Create a profile for this website in profile management, then import again, or skip the selected Pinned searches, Following feeds.';
+          'third.example: Create a profile for this website in profile management, then import again, or skip the selected Topics, Topic feeds.';
       expect(find.text(searches), findsOneWidget);
       expect(find.text(feeds), findsOneWidget);
       expect(find.text(both), findsOneWidget);

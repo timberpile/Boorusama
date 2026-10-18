@@ -10,7 +10,6 @@ import '../../../core/posts/post/types.dart';
 import '../../../core/posts/rating/types.dart';
 import '../../../core/posts/sources/types.dart';
 import '../../../core/tags/tag/types.dart';
-import 'post_data.dart';
 
 class SankakuPostRecord extends Equatable
     with MediaInfoMixin, TranslatedMixin, ImageInfoMixin, VideoInfoMixin
@@ -160,7 +159,7 @@ class SankakuPostLinkGenerator implements PostLinkGenerator<Post> {
   String getLink(Post post) => _getLink(post);
 
   String _getLink(Post post) {
-    final id = _getId(post);
+    final id = post.sitePostId;
 
     if (id == null) return '';
 
@@ -169,12 +168,5 @@ class SankakuPostLinkGenerator implements PostLinkGenerator<Post> {
         : baseUrl;
 
     return '$url/post/$id';
-  }
-
-  String? _getId(Post post) {
-    if (post.sankakuId != null) return post.sankakuId!.valueString;
-    if (post.id != 0) return post.id.toString();
-
-    return null;
   }
 }

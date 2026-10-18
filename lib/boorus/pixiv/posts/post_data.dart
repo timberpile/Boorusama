@@ -6,7 +6,7 @@ import '../../../core/posts/post/types.dart';
 import 'types.dart';
 
 final class PixivPostData extends Equatable
-    implements BooruPostData, StableBookmarkPostKeyData {
+    implements BooruPostData, StableBookmarkPostKeyData, SitePostIdData {
   const PixivPostData({
     required this.illustId,
     required this.pageIndex,
@@ -24,6 +24,9 @@ final class PixivPostData extends Equatable
   });
 
   final int illustId;
+
+  @override
+  String? get sitePostId => illustId > 0 ? illustId.toString() : null;
   final int pageIndex;
 
   @override

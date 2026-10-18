@@ -38,8 +38,7 @@ void main() {
         expect(
           admissions,
           11,
-          reason:
-              'both the full rolling window and empty token bucket must refund an undispatched reservation',
+          reason: 'both the full rolling window and empty token bucket must refund an undispatched reservation',
         );
         c.acquire(key).then((p) {
           admissions++;
@@ -89,8 +88,7 @@ void main() {
         expect(
           admissions,
           11,
-          reason:
-              'idle refill and the abandoned token must be capped at ten, not permit two new reads after one second',
+          reason: 'idle refill and the abandoned token must be capped at ten, not permit two new reads after one second',
         );
         time.elapse(const Duration(seconds: 1));
         time.flushMicrotasks();
@@ -245,25 +243,28 @@ void main() {
   }
 
   test(
-    'Zerochan enforces a rolling sixty per minute at the actual www origin',
+    'Zerochan spaces starts by 1.2 seconds at the actual www origin',
     () {
       fakeAsync((time) {
         final c = ApiRequestCoordinator(elapsed: () => time.elapsed);
         final key = ApiQuotaKey.fromUri(Uri.parse('https://www.zerochan.net'));
         var starts = 0;
-        for (var i = 0; i < 61; i++) {
+        for (var i = 0; i < 3; i++) {
           c.acquire(key).then((p) {
             starts++;
             p.release();
           });
         }
         time.flushMicrotasks();
-        expect(starts, 60);
-        time.elapse(const Duration(seconds: 59));
-        expect(starts, 60);
-        time.elapse(const Duration(seconds: 1));
+        expect(starts, 1);
+        time.elapse(const Duration(milliseconds: 1199));
+        expect(starts, 1);
+        time.elapse(const Duration(milliseconds: 1));
         time.flushMicrotasks();
-        expect(starts, 61);
+        expect(starts, 2);
+        time.elapse(const Duration(milliseconds: 1200));
+        time.flushMicrotasks();
+        expect(starts, 3);
         c.dispose();
       });
     },

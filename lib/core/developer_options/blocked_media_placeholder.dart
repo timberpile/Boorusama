@@ -1,8 +1,11 @@
+// Dart imports:
 import 'dart:math' as math;
 
-import 'package:flutter/material.dart';
+// Package imports:
 import 'package:i18n/i18n.dart';
+import 'package:material_ui/material_ui.dart';
 
+// Project imports:
 import 'l10n.dart';
 
 class BlockedMediaPlaceholder extends StatelessWidget {

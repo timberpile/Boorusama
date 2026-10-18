@@ -134,7 +134,7 @@ class PostGridController<T extends Post> extends ChangeNotifier {
 
     return result.fold(
       (l) {
-        if (mountedChecker()) {
+        if (!_disposed && mountedChecker() && !_refreshPending) {
           errors.value = l;
         }
 
@@ -294,8 +294,6 @@ class PostGridController<T extends Post> extends ChangeNotifier {
       _queuedRefreshWaiters.add(waiter);
       return waiter.future;
     }
-    Object? firstError;
-    StackTrace? firstStackTrace;
     Object? lastPassError;
     StackTrace? lastPassStackTrace;
     try {
@@ -313,8 +311,6 @@ class PostGridController<T extends Post> extends ChangeNotifier {
           lastPassError = null;
           lastPassStackTrace = null;
         } catch (error, stackTrace) {
-          firstError ??= error;
-          firstStackTrace ??= stackTrace;
           lastPassError = error;
           lastPassStackTrace = stackTrace;
         }
@@ -328,8 +324,8 @@ class PostGridController<T extends Post> extends ChangeNotifier {
           waiter.completeError(lastPassError, lastPassStackTrace);
         }
       }
-      if (firstError != null) {
-        Error.throwWithStackTrace(firstError, firstStackTrace!);
+      if (lastPassError != null) {
+        Error.throwWithStackTrace(lastPassError, lastPassStackTrace!);
       }
     } finally {
       _queuedRefreshWaiters.clear();
@@ -351,11 +347,11 @@ class PostGridController<T extends Post> extends ChangeNotifier {
     try {
       _setRefreshing(true);
       _eventController.add(const PostControllerRefreshStarted());
-      _page = switch (_pageMode) {
+      _setPage(switch (_pageMode) {
         PageMode.infinite => _kFirstPage,
         PageMode.paginated =>
           (maintainPage || forcedPageMode) ? _page : _kFirstPage,
-      };
+      });
       count.value = null;
       maxPage.value = null;
       notifyListeners();
@@ -365,6 +361,7 @@ class PostGridController<T extends Post> extends ChangeNotifier {
           : _fetchPosts(_page));
 
       if (!mountedChecker()) return;
+      if (_refreshPending) return;
 
       _clear();
       await _addAll(newItems.posts);

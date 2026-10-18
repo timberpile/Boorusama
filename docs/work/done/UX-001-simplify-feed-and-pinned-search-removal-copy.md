@@ -24,11 +24,11 @@ Current confirmations expose internal details about hidden searches and cached p
 
 The feed overflow already uses the generic Delete action, but `pinned_searches.delete_feed` and `delete_feed_confirmation` still include redundant/extraneous copy. An individual pin currently uses `PinnedSearchAction.delete`, a generic Delete menu label and `pinned_searches.delete_title` / `delete_message`. Folder deletion also uses `delete_title`; split translation semantics as necessary.
 
-- [Following Feeds page](../../../lib/core/search/subscriptions/src/pages/following_feeds_page.dart)
-- [Individual pin menu](../../../lib/core/search/subscriptions/src/widgets/pinned_search_card.dart)
-- [Pin confirmation and folder deletion](../../../lib/core/search/subscriptions/src/pages/pinned_searches_page.dart)
+- [Following Feeds page](../../../lib/core/search/following_topics/src/pages/topic_feeds_page.dart)
+- [Individual pin menu](../../../lib/core/search/following_topics/src/widgets/following_topic_card.dart)
+- [Pin confirmation and folder deletion](../../../lib/core/search/following_topics/src/pages/following_topics_page.dart)
 - [English translation baseline](../../../packages/i18n/translations/en-US.json)
-- [Pinned-search behavior](../../pinned_searches.md)
+- [Pinned-search behavior](../../following_topics.md)
 
 Dependencies: None. Presentation/copy only; no persistence migration.
 

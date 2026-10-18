@@ -1,7 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
+
+import 'package:coreutils/coreutils.dart';
 import 'package:dio/dio.dart';
+
 import 'api_quota_key.dart';
 import 'api_quota_policy.dart';
 import 'api_request_context.dart';
@@ -21,11 +24,17 @@ void coordinateApiDio(Dio dio, ApiRequestCoordinator coordinator) {
 }
 
 bool isApiSafeRead(RequestOptions options) {
-  if (options.extra[apiMutationRequestKey] == true) return false;
-  if (options.extra[apiSafeReadRequestKey] == true) return true;
   final context = options.extra[apiRequestContextKey] as ApiRequestContext?;
-  if (context?.replaySafety case final safety?) {
-    return safety == ApiReplaySafety.safeRead;
+  // Package clients can mutate through GET. Every mutation designation wins
+  // over method inference and any conflicting safe-read hint.
+  if (options.extra[stateChangingRequestKey] == true ||
+      options.extra[apiMutationRequestKey] == true ||
+      context?.replaySafety == ApiReplaySafety.mutation) {
+    return false;
+  }
+  if (options.extra[apiSafeReadRequestKey] == true ||
+      context?.replaySafety == ApiReplaySafety.safeRead) {
+    return true;
   }
   return options.method.toUpperCase() == 'GET' ||
       options.method.toUpperCase() == 'HEAD';

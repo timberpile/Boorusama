@@ -33,11 +33,19 @@ TaskEither<BooruError, T> tryFetchRemoteData<T>({
     DioException(type: DioExceptionType.cancel) => RequestCancelledError(),
     DioException(:final response?) => ServerError(
       httpStatusCode: response.statusCode,
+      code: switch (response.data) {
+        {'code': final String code} => code,
+        _ => null,
+      },
       message: switch (response.data) {
         final String s => s,
         {'message': final String s} => s,
         final other => '$other',
       },
+    ),
+    AuthenticationFailure(:final message) => ServerError(
+      httpStatusCode: 401,
+      message: message,
     ),
     DioException(:final error?) when _isCertificateException(error) => AppError(
       type: AppErrorType.certificateError,

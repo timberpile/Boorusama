@@ -1,12 +1,13 @@
 import 'package:equatable/equatable.dart';
+import '../../../search/following_topics/src/compatibility/topic_storage_contract.dart';
 
 enum SearchRefreshMode { adaptive, fixed }
 
 class SearchRefreshSettings extends Equatable {
   const SearchRefreshSettings({
     this.enabled = true,
-    this.pinnedSearchesEnabled = true,
-    this.followingFeedsEnabled = true,
+    this.followingTopicsEnabled = true,
+    this.topicFeedsEnabled = true,
     this.mode = SearchRefreshMode.adaptive,
     this.fixedIntervalHours = 24,
     this.wifiEthernetOnly = true,
@@ -37,11 +38,13 @@ class SearchRefreshSettings extends Equatable {
     };
     return SearchRefreshSettings(
       enabled: enabled,
-      pinnedSearchesEnabled: switch (json['pinnedSearchesEnabled']) {
+      followingTopicsEnabled: switch (json['followingTopicsEnabled'] ??
+          json[legacyFollowingTopicsEnabledKey]) {
         final bool value => value,
         _ => true,
       },
-      followingFeedsEnabled: switch (json['followingFeedsEnabled']) {
+      topicFeedsEnabled: switch (json['topicFeedsEnabled'] ??
+          json[legacyTopicFeedsEnabledKey]) {
         final bool value => value,
         _ => true,
       },
@@ -57,8 +60,8 @@ class SearchRefreshSettings extends Equatable {
   }
 
   final bool enabled;
-  final bool pinnedSearchesEnabled;
-  final bool followingFeedsEnabled;
+  final bool followingTopicsEnabled;
+  final bool topicFeedsEnabled;
   final SearchRefreshMode mode;
   final int fixedIntervalHours;
   final bool wifiEthernetOnly;
@@ -69,15 +72,16 @@ class SearchRefreshSettings extends Equatable {
 
   SearchRefreshSettings copyWith({
     bool? enabled,
-    bool? pinnedSearchesEnabled,
-    bool? followingFeedsEnabled,
+    bool? followingTopicsEnabled,
+    bool? topicFeedsEnabled,
     SearchRefreshMode? mode,
     int? fixedIntervalHours,
     bool? wifiEthernetOnly,
   }) => SearchRefreshSettings(
     enabled: enabled ?? this.enabled,
-    pinnedSearchesEnabled: pinnedSearchesEnabled ?? this.pinnedSearchesEnabled,
-    followingFeedsEnabled: followingFeedsEnabled ?? this.followingFeedsEnabled,
+    followingTopicsEnabled:
+        followingTopicsEnabled ?? this.followingTopicsEnabled,
+    topicFeedsEnabled: topicFeedsEnabled ?? this.topicFeedsEnabled,
     mode: mode ?? this.mode,
     fixedIntervalHours: fixedIntervalHours ?? this.fixedIntervalHours,
     wifiEthernetOnly: wifiEthernetOnly ?? this.wifiEthernetOnly,
@@ -86,8 +90,8 @@ class SearchRefreshSettings extends Equatable {
   Map<String, Object> toJson() => {
     'schemaVersion': 2,
     'enabled': enabled,
-    'pinnedSearchesEnabled': pinnedSearchesEnabled,
-    'followingFeedsEnabled': followingFeedsEnabled,
+    'followingTopicsEnabled': followingTopicsEnabled,
+    'topicFeedsEnabled': topicFeedsEnabled,
     'mode': mode.name,
     'fixedIntervalHours': fixedIntervalHours,
     'wifiEthernetOnly': wifiEthernetOnly,
@@ -96,8 +100,8 @@ class SearchRefreshSettings extends Equatable {
   @override
   List<Object?> get props => [
     enabled,
-    pinnedSearchesEnabled,
-    followingFeedsEnabled,
+    followingTopicsEnabled,
+    topicFeedsEnabled,
     mode,
     fixedIntervalHours,
     wifiEthernetOnly,

@@ -2,15 +2,15 @@ import 'package:collection/collection.dart';
 import 'package:equatable/equatable.dart';
 import 'package:i18n/i18n.dart';
 import '../../../groups/folder_tree.dart';
-import '../../sources/pinned_search_import_service.dart';
+import '../../sources/following_topic_import_service.dart';
 import 'collection_import_action.dart';
 
 import '../../../bookmarks/types.dart';
 import '../../../configs/config/types.dart';
-import '../../../search/subscriptions/types.dart';
+import '../../../search/following_topics/types.dart';
 import '../../sources/bookmark_backup_data.dart';
-import '../../sources/following_feed_backup_data.dart';
-import '../../sources/pinned_search_backup_data.dart';
+import '../../sources/topic_feed_backup_data.dart';
+import '../../sources/following_topic_backup_data.dart';
 import '../../sources/search_backup_profile.dart';
 import '../models/import_action.dart';
 import 'import_plan.dart';
@@ -19,6 +19,7 @@ import 'import_change_preview.dart';
 import 'import_preflight.dart';
 import 'profile_dependency_planner.dart';
 import 'profile_import_projection.dart';
+import '../../../search/following_topics/src/compatibility/topic_storage_contract.dart';
 
 final class BookmarkImportLocalSnapshot {
   BookmarkImportLocalSnapshot({
@@ -33,28 +34,28 @@ final class BookmarkImportLocalSnapshot {
   final List<CollectionFolder> folders;
 }
 
-final class PinnedSearchImportLocalSnapshot {
-  PinnedSearchImportLocalSnapshot({
-    required Iterable<SearchSubscription> searches,
+final class FollowingTopicImportLocalSnapshot {
+  FollowingTopicImportLocalSnapshot({
+    required Iterable<FollowingTopic> searches,
     required this.organization,
-    required Iterable<SearchFollowingFeed> feeds,
+    required Iterable<TopicFeed> feeds,
   }) : searches = List.unmodifiable(searches),
        feeds = List.unmodifiable(feeds);
 
-  final List<SearchSubscription> searches;
-  final SearchOrganization organization;
-  final List<SearchFollowingFeed> feeds;
+  final List<FollowingTopic> searches;
+  final TopicOrganization organization;
+  final List<TopicFeed> feeds;
 }
 
-final class FollowingFeedImportLocalSnapshot {
-  FollowingFeedImportLocalSnapshot({
-    required Iterable<SearchSubscription> searches,
-    required Iterable<SearchFollowingFeed> feeds,
+final class TopicFeedImportLocalSnapshot {
+  TopicFeedImportLocalSnapshot({
+    required Iterable<FollowingTopic> searches,
+    required Iterable<TopicFeed> feeds,
   }) : searches = List.unmodifiable(searches),
        feeds = List.unmodifiable(feeds);
 
-  final List<SearchSubscription> searches;
-  final List<SearchFollowingFeed> feeds;
+  final List<FollowingTopic> searches;
+  final List<TopicFeed> feeds;
 }
 
 final class ImportPlannedChangeProjector {
@@ -518,14 +519,18 @@ final class ImportPlannedChangeProjector {
     );
   }
 
-  PlannedChangeSummary? pinnedSearches({
-    required PinnedSearchImportLocalSnapshot local,
-    required PinnedSearchBackupData incoming,
+  PlannedChangeSummary? followingTopics({
+    required FollowingTopicImportLocalSnapshot local,
+    required FollowingTopicBackupData incoming,
     required ResolvedImportSource resolution,
     required Map<ProfileReferenceKey, String> profileMappings,
   }) {
+    final folderIds = local.organization.folders
+        .map((folder) => folder.id)
+        .toSet();
     final internalIds = {
-      for (final feed in local.feeds) ...feed.sourceIds,
+      for (final feed in local.feeds)
+        if (!folderIds.contains(feed.id)) ...feed.sourceIds,
     };
     final localSearches = {
       for (final search in local.searches)
@@ -534,10 +539,10 @@ final class ImportPlannedChangeProjector {
     final localFolders = local.organization.folders;
     final localEntities = <Object, Object?>{
       for (final entry in localSearches.entries)
-        _key('pinned-search', entry.key): _SearchValue.from(entry.value),
+        _key('following-topic', entry.key): _SearchValue.from(entry.value),
       for (final folder in localFolders)
-        _key('pinned-folder', folder.id): _FolderValue.from(folder),
-      _key('pinned-home', 'home'): _HomeValue(
+        _key('topic-folder', folder.id): _FolderValue.from(folder),
+      _key('topics-home', 'home'): _HomeValue(
         local.organization.homeSearchIds,
       ),
     };
@@ -556,7 +561,7 @@ final class ImportPlannedChangeProjector {
     );
     if (requiresUnmappedProfile) return null;
 
-    final searches = <String, SearchSubscription>{
+    final searches = <String, FollowingTopic>{
       for (final search in local.searches) search.id: search,
     };
     var folders = localFolders.toList();
@@ -576,7 +581,7 @@ final class ImportPlannedChangeProjector {
     for (final (_, record) in orderedRecords) {
       if (resolution.action != ImportAction.replace &&
           (items['search:${record.id}']?.action == ImportAction.skip ||
-              pinnedSearchFolderSkipped(incoming, record.id, {
+              followingTopicFolderSkipped(incoming, record.id, {
                 for (final item in resolution.items)
                   if (item.id.startsWith('folder:'))
                     item.id.substring(7): CollectionImportAction(
@@ -587,23 +592,36 @@ final class ImportPlannedChangeProjector {
         continue;
       }
       final profileId = _profileId(record.profile, profileMappings);
-      final normalized = normalizeSearchIdentity(record.query);
-      final byQuery = searches.values.firstWhereOrNull(
-        (search) =>
-            !internalIds.contains(search.id) &&
-            search.profileId == profileId &&
-            normalizeSearchIdentity(search.query) == normalized,
+      final saved = findMatchingTopicForImport(
+        record: record,
+        data: incoming,
+        profileId: profileId,
+        searches: searches.values.where(
+          (search) => !internalIds.contains(search.id),
+        ),
+        organization: local.organization,
+        usedIds: importedByBackupId.values.toSet(),
+        restoreHierarchy: resolution.action == ImportAction.replace,
+        folderActions: {
+          for (final item in resolution.items)
+            if (item.id.startsWith('folder:'))
+              item.id.substring(7): CollectionImportAction(
+                itemId: item.id.substring(7),
+                action: item.action,
+                targetId: _optionalIdWithoutPrefix(item.targetId, 'folder:'),
+              ),
+        },
+        importFolderName: Translations().folders.imported_searches,
       );
-      final saved = byQuery;
       if (saved != null) {
         importedByBackupId[record.id] = saved.id;
-        touched.add(_key('pinned-search', saved.id));
+        touched.add(_key('following-topic', saved.id));
         continue;
       }
       final id = searches.containsKey(record.id)
           ? '__created__pinned-${record.id}'
           : record.id;
-      final created = SearchSubscription.create(
+      final created = FollowingTopic.create(
         id: id,
         profileId: profileId,
         query: record.query,
@@ -620,7 +638,7 @@ final class ImportPlannedChangeProjector {
       searches[id] = created;
       importedByBackupId[record.id] = id;
       createdIds.add(id);
-      touched.add(_key('pinned-search', id));
+      touched.add(_key('following-topic', id));
     }
 
     if (resolution.action == ImportAction.replace) {
@@ -642,12 +660,14 @@ final class ImportPlannedChangeProjector {
         for (final record
             in incoming.folders.toList()
               ..sort((left, right) => left.position.compareTo(right.position)))
-          SharedSearchFolder(
+          TopicFolder(
             id: record.id,
             name: record.name,
             parentId: record.parentId,
             position: record.position,
             searchIds: mapped(record.searchIds),
+            feedEnabled: record.feedEnabled,
+            feedMaxPosts: record.feedMaxPosts,
           ),
       ];
     } else {
@@ -661,7 +681,7 @@ final class ImportPlannedChangeProjector {
             ),
       };
       var nextFolderId = 0;
-      final organization = planPinnedSearchFolderImport(
+      final organization = planFollowingTopicFolderImport(
         current: local.organization,
         data: incoming,
         importedByBackupId: importedByBackupId,
@@ -676,7 +696,7 @@ final class ImportPlannedChangeProjector {
     for (final folder in folders) {
       if (localFolders.any((value) => value.id == folder.id) ||
           incoming.folders.any((value) => value.id == folder.id)) {
-        touched.add(_key('pinned-folder', folder.id));
+        touched.add(_key('topic-folder', folder.id));
       }
     }
     final projectedSearches = {
@@ -687,10 +707,22 @@ final class ImportPlannedChangeProjector {
       local: localEntities,
       projected: {
         for (final entry in projectedSearches.entries)
-          _key('pinned-search', entry.key): _SearchValue.from(entry.value),
+          _key('following-topic', entry.key): _SearchValue.from(
+            entry.value,
+            autoUpdateEnabled:
+                resolution.action == ImportAction.replace ||
+                    createdIds.contains(entry.key)
+                ? incoming.records
+                      .where(
+                        (record) => importedByBackupId[record.id] == entry.key,
+                      )
+                      .firstOrNull
+                      ?.autoUpdateEnabled
+                : null,
+          ),
         for (final folder in folders)
-          _key('pinned-folder', folder.id): _FolderValue.from(folder),
-        _key('pinned-home', 'home'): _HomeValue(home),
+          _key('topic-folder', folder.id): _FolderValue.from(folder),
+        _key('topics-home', 'home'): _HomeValue(home),
       },
       touched: resolution.action == ImportAction.replace
           ? {...localEntities.keys, ...touched}
@@ -698,9 +730,9 @@ final class ImportPlannedChangeProjector {
     );
   }
 
-  PlannedChangeSummary? followingFeeds({
-    required FollowingFeedImportLocalSnapshot local,
-    required FollowingFeedBackupData incoming,
+  PlannedChangeSummary? topicFeeds({
+    required TopicFeedImportLocalSnapshot local,
+    required TopicFeedBackupData incoming,
     required ResolvedImportSource resolution,
     required Map<ProfileReferenceKey, String> profileMappings,
   }) {
@@ -735,7 +767,7 @@ final class ImportPlannedChangeProjector {
     });
     if (requiresUnmappedProfile) return null;
     final desired =
-        <({int index, String profileId, FollowingFeedBackupRecord record})>[];
+        <({int index, String profileId, TopicFeedBackupRecord record})>[];
     for (final (index, record) in incoming.feeds.indexed) {
       if (resolution.action == ImportAction.replace) {
         final profileId = _profileId(record.profile, profileMappings);
@@ -775,7 +807,7 @@ final class ImportPlannedChangeProjector {
       desired.add((
         index: index,
         profileId: profileId,
-        record: FollowingFeedBackupRecord(
+        record: TopicFeedBackupRecord(
           id: targetId,
           name: merge ? existing!.name : record.name,
           position: merge ? existing!.position : record.position,
@@ -876,10 +908,10 @@ final class ImportPlannedChangeProjector {
 }
 
 Set<String> _saveFeed({
-  required FollowingFeedBackupRecord record,
+  required TopicFeedBackupRecord record,
   required String profileId,
-  required Map<String, SearchFollowingFeed> feeds,
-  required Map<String, SearchSubscription> searches,
+  required Map<String, TopicFeed> feeds,
+  required Map<String, FollowingTopic> searches,
 }) {
   final normalized = <String>[];
   final seen = <String>{};
@@ -889,17 +921,17 @@ Set<String> _saveFeed({
   }
   final previous = feeds[record.id];
   final internalIds = {for (final feed in feeds.values) ...feed.sourceIds};
-  final internalByQuery = <String, SearchSubscription>{
+  final internalByQuery = <String, FollowingTopic>{
     for (final search in searches.values)
       if (internalIds.contains(search.id) && search.profileId == profileId)
         normalizeSearchIdentity(search.query): search,
   };
-  final retained = <SearchSubscription>[];
+  final retained = <FollowingTopic>[];
   for (final (position, query) in normalized.indexed) {
     final existing = internalByQuery[query];
     retained.add(
       existing ??
-          SearchSubscription.create(
+          FollowingTopic.create(
             id: '__created__feed-search-$profileId-${record.id}-$position',
             profileId: profileId,
             query: query,
@@ -919,7 +951,7 @@ Set<String> _saveFeed({
       if (feed.id != record.id) ...feed.sourceIds,
   };
   removedIds.difference(otherIds).forEach(searches.remove);
-  feeds[record.id] = SearchFollowingFeed(
+  feeds[record.id] = TopicFeed(
     id: record.id,
     profileId: profileId,
     name: record.name,
@@ -933,8 +965,8 @@ Set<String> _saveFeed({
 
 void _deleteFeed(
   String id, {
-  required Map<String, SearchFollowingFeed> feeds,
-  required Map<String, SearchSubscription> searches,
+  required Map<String, TopicFeed> feeds,
+  required Map<String, FollowingTopic> searches,
 }) {
   final feed = feeds.remove(id);
   if (feed == null) return;
@@ -1064,7 +1096,7 @@ List<ImportChangePreviewRow> _previewRows(
       case final _FeedValue feed:
         rows.add(
           ImportChangePreviewRow(
-            category: 'following_feeds',
+            category: topicFeedsBackupSourceId,
             entityChanged:
                 before is! _FeedValue ||
                 after is! _FeedValue ||
@@ -1227,17 +1259,17 @@ List<ImportChangePreviewRow> _pinnedPreviewRows(
   Map<_EntityKey, List<String>> containers(Map<Object, Object?> values) {
     final folders = <_EntityKey, List<String>>{
       for (final key in values.keys.cast<_EntityKey>())
-        if (key.type == 'pinned-folder')
+        if (key.type == 'topic-folder')
           if (values[key] case final _FolderValue folder) key: folder.searchIds,
     };
     final assigned = folders.values.expand((ids) => ids).toSet();
-    final home = values[_key('pinned-home', 'home')] as _HomeValue?;
-    folders[_key('pinned-home', 'home')] = [
+    final home = values[_key('topics-home', 'home')] as _HomeValue?;
+    folders[_key('topics-home', 'home')] = [
       for (final id in home?.searchIds ?? <String>[])
         if (!assigned.contains(id)) id,
-      // Legacy pins without an organization entry still belong under Home.
+      // Legacy topics without an organization entry still belong under Home.
       for (final key in values.keys.cast<_EntityKey>())
-        if (key.type == 'pinned-search' &&
+        if (key.type == 'following-topic' &&
             !assigned.contains(key.id) &&
             !(home?.searchIds.contains(key.id) ?? false))
           key.id.toString(),
@@ -1249,8 +1281,8 @@ List<ImportChangePreviewRow> _pinnedPreviewRows(
   final newContainers = containers(projected);
   final rows = <ImportChangePreviewRow>[];
   for (final key in {...newContainers.keys, ...oldContainers.keys}) {
-    final id = key.type == 'pinned-home' ? 'home' : 'folder:${key.id}';
-    final isHome = key.type == 'pinned-home';
+    final id = key.type == 'topics-home' ? 'home' : 'folder:${key.id}';
+    final isHome = key.type == 'topics-home';
     final before = local[key];
     final after = projected[key];
     final oldIds = oldContainers[key] ?? [];
@@ -1259,9 +1291,10 @@ List<ImportChangePreviewRow> _pinnedPreviewRows(
     final newCommon = newIds.where(oldIds.contains).toList();
     final children = <ImportChangePreviewRow>[];
     for (final searchId in {...newIds, ...oldIds}) {
-      final oldSearch = local[_key('pinned-search', searchId)] as _SearchValue?;
+      final oldSearch =
+          local[_key('following-topic', searchId)] as _SearchValue?;
       final newSearch =
-          projected[_key('pinned-search', searchId)] as _SearchValue?;
+          projected[_key('following-topic', searchId)] as _SearchValue?;
       final wasHere = oldIds.contains(searchId) && oldSearch != null;
       final isHere = newIds.contains(searchId) && newSearch != null;
       final reordered =
@@ -1280,7 +1313,7 @@ List<ImportChangePreviewRow> _pinnedPreviewRows(
       final search = isHere ? newSearch : oldSearch!;
       children.add(
         ImportChangePreviewRow(
-          category: 'pinned_searches',
+          category: followingTopicsBackupSourceId,
           id: '$id/$searchId',
           kind: kind,
           label: safeImportDisplayValue('query', search.name ?? search.query),
@@ -1334,7 +1367,7 @@ List<ImportChangePreviewRow> _pinnedPreviewRows(
         : ImportChangeKind.changed;
     rows.add(
       ImportChangePreviewRow(
-        category: 'pinned_folders',
+        category: 'topic_folders',
         id: id,
         kind: kind,
         isContainer: true,
@@ -1384,7 +1417,7 @@ List<ImportChangePreviewRow> _pinnedPreviewRows(
 }
 
 String _pinnedQueryLabel(String id, Map<Object, Object?> values) {
-  final search = values[_key('pinned-search', id)] as _SearchValue?;
+  final search = values[_key('following-topic', id)] as _SearchValue?;
   return safeImportDisplayValue('query', search?.name ?? search?.query);
 }
 
@@ -1509,22 +1542,34 @@ final class _SearchValue extends Equatable {
     required this.query,
     required this.name,
     required this.position,
+    required this.autoUpdateEnabled,
   });
 
-  factory _SearchValue.from(SearchSubscription search) => _SearchValue(
+  factory _SearchValue.from(
+    FollowingTopic search, {
+    bool? autoUpdateEnabled,
+  }) => _SearchValue(
     profileId: search.profileId,
     query: normalizeSearchIdentity(search.query),
     name: search.name,
     position: search.position,
+    autoUpdateEnabled: autoUpdateEnabled ?? search.autoUpdateEnabled,
   );
 
   final String profileId;
   final String query;
   final String? name;
   final int position;
+  final bool autoUpdateEnabled;
 
   @override
-  List<Object?> get props => [profileId, query, name, position];
+  List<Object?> get props => [
+    profileId,
+    query,
+    name,
+    position,
+    autoUpdateEnabled,
+  ];
 }
 
 final class _FolderValue extends Equatable {
@@ -1533,22 +1578,35 @@ final class _FolderValue extends Equatable {
     required Iterable<String> searchIds,
     required this.position,
     this.parentId,
+    this.feedEnabled = false,
+    this.feedMaxPosts = topicFeedRetention,
   }) : searchIds = List.unmodifiable(searchIds);
 
-  factory _FolderValue.from(SharedSearchFolder folder) => _FolderValue(
+  factory _FolderValue.from(TopicFolder folder) => _FolderValue(
     name: folder.name,
     searchIds: folder.searchIds,
     parentId: folder.parentId,
     position: folder.position,
+    feedEnabled: folder.feedEnabled,
+    feedMaxPosts: folder.feedMaxPosts,
   );
 
+  final bool feedEnabled;
+  final int feedMaxPosts;
   final String name;
   final List<String> searchIds;
   final int position;
   final String? parentId;
 
   @override
-  List<Object?> get props => [name, searchIds, position, parentId];
+  List<Object?> get props => [
+    name,
+    searchIds,
+    position,
+    parentId,
+    feedEnabled,
+    feedMaxPosts,
+  ];
 }
 
 final class _HomeValue extends Equatable {
@@ -1570,8 +1628,8 @@ final class _FeedValue extends Equatable {
   }) : queries = List.unmodifiable(queries);
 
   factory _FeedValue.from(
-    SearchFollowingFeed feed,
-    Map<String, SearchSubscription> searches,
+    TopicFeed feed,
+    Map<String, FollowingTopic> searches,
   ) => _FeedValue(
     profileId: feed.profileId,
     name: feed.name,

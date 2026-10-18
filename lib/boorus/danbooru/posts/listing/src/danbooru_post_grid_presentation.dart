@@ -1,4 +1,5 @@
 // Package imports:
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
@@ -47,10 +48,12 @@ final class DanbooruPostGridPresentation
   @override
   PostGridItemAdditions buildGridItemAdditions(
     BuildContext context, {
+    required WidgetRef ref,
     required Post post,
     required BooruConfigAuth config,
   }) => _buildAdditions(
     context,
+    ref: ref,
     post: post,
     config: config,
     isBanned: post.status?.matches('banned') ?? false,
@@ -70,10 +73,12 @@ final class DanbooruPostGridPresentation
 
   PostGridItemAdditions buildLegacyGridItemAdditions(
     BuildContext context, {
+    required WidgetRef ref,
     required Post post,
     required BooruConfigAuth config,
   }) => _buildAdditions(
     context,
+    ref: ref,
     post: post,
     config: config,
     isBanned: post.isBanned,
@@ -81,6 +86,7 @@ final class DanbooruPostGridPresentation
 
   PostGridItemAdditions _buildAdditions(
     BuildContext context, {
+    required WidgetRef ref,
     required Post post,
     required BooruConfigAuth config,
     required bool isBanned,
@@ -93,7 +99,7 @@ final class DanbooruPostGridPresentation
         isBanned: isBanned,
       ),
       blockOverlay: isBanned
-          ? _buildBlockOverlayItem(post, artistTags, context)
+          ? _buildBlockOverlayItem(post, artistTags, context, ref)
           : null,
       tooltipBuilder: (child) => DanbooruTagListPrevewTooltip(
         post: post,
@@ -110,6 +116,7 @@ final class DanbooruPostGridPresentation
     Post post,
     List<String> artistTags,
     BuildContext context,
+    WidgetRef ref,
   ) {
     return BlockOverlayItem(
       overlay: SingleChildScrollView(
@@ -192,7 +199,10 @@ final class DanbooruPostGridPresentation
         ),
       ),
       onTap: switch (post.source) {
-        final WebSource source => () => launchExternalUrlString(source.url),
+        final WebSource source => () => launchExternalUrlString(
+          source.url,
+          launcher: ref.read(externalUrlLauncherProvider),
+        ),
         _ => null,
       },
     );

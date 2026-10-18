@@ -4,14 +4,13 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:dio/dio.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:kurumi/kurumi.dart';
-import 'package:like_button/like_button.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import 'package:boorusama/core/boorus/booru/types.dart';
@@ -21,6 +20,7 @@ import 'package:boorusama/core/developer_options/providers.dart';
 import 'package:boorusama/core/http/client/providers.dart';
 import 'package:boorusama/core/images/providers.dart';
 import 'package:boorusama/core/posts/favorites/widgets.dart';
+import 'package:boorusama/core/posts/listing/src/widgets/default_image_quick_actions.dart';
 import 'package:boorusama/core/posts/post/src/widgets/image_overlay_icon.dart';
 import 'package:boorusama/core/posts/post/src/widgets/thumbnail_overlay.dart';
 import 'package:boorusama/core/posts/post/widgets.dart';
@@ -53,18 +53,15 @@ void main() {
     for (final font in [
       (
         family: 'packages/material_symbols_icons/MaterialSymbolsOutlined',
-        asset:
-            'packages/material_symbols_icons/lib/fonts/MaterialSymbolsOutlined.ttf',
+        asset: 'packages/material_symbols_icons/lib/fonts/MaterialSymbolsOutlined.ttf',
       ),
       (
         family: 'packages/material_symbols_icons/MaterialSymbolsRounded',
-        asset:
-            'packages/material_symbols_icons/lib/fonts/MaterialSymbolsRounded.ttf',
+        asset: 'packages/material_symbols_icons/lib/fonts/MaterialSymbolsRounded.ttf',
       ),
       (
         family: 'packages/font_awesome_flutter/FontAwesomeSolid',
-        asset:
-            'packages/font_awesome_flutter/lib/fonts/Font-Awesome-7-Free-Solid-900.otf',
+        asset: 'packages/font_awesome_flutter/lib/fonts/Font-Awesome-7-Free-Solid-900.otf',
       ),
     ]) {
       await (FontLoader(
@@ -121,6 +118,54 @@ void main() {
               .first;
           expect(tester.getSize(ai).height, 20);
         }
+      });
+    }
+  }
+
+  for (final width in [40.0, 80.0]) {
+    for (final height in [1.0, 20.0, 40.0]) {
+      testWidgets('short metadata tile $width x $height at 200% text', (
+        tester,
+      ) async {
+        var actionTaps = 0;
+        final actionFocus = FocusNode();
+        addTearDown(actionFocus.dispose);
+        await tester.pumpWidget(
+          _app(
+            SizedBox(
+              width: width,
+              child: ImageGridItem(
+                image: SizedBox(width: width, height: height),
+                isGif: true,
+                hasComments: true,
+                isTranslated: true,
+                hasParentOrChildren: true,
+                isAI: true,
+                scoreWidget: const ImageScoreWidget(score: 123456),
+                quickActionButton: ThumbnailActionGroup(
+                  children: [
+                    IconButton(
+                      focusNode: actionFocus,
+                      onPressed: () => actionTaps++,
+                      icon: const Icon(Icons.download),
+                    ),
+                    QuickFavoriteButton(
+                      isFaved: false,
+                      onFavToggle: (_) async => actionTaps++,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            scale: 2,
+          ),
+        );
+        expect(tester.takeException(), isNull);
+        expect(find.byType(IconButton), findsNothing);
+        expect(find.byType(QuickFavoriteButton), findsNothing);
+        expect(actionFocus.context, isNull);
+        await tester.tapAt(tester.getCenter(find.byType(ImageGridItem)));
+        expect(actionTaps, 0);
       });
     }
   }
@@ -236,21 +281,21 @@ void main() {
       await tester.pump();
       expect(toggles, [true]);
       expect(
-        tester.state<LikeButtonState>(find.byType(LikeButton)).isLiked,
-        false,
+        tester.widget<Icon>(find.byIcon(Symbols.favorite)).fill,
+        0,
       );
       pending.complete();
       await tester.pumpAndSettle();
       expect(
-        tester.state<LikeButtonState>(find.byType(LikeButton)).isLiked,
-        true,
+        tester.widget<Icon>(find.byIcon(Symbols.favorite)).fill,
+        1,
       );
       await tester.tapAt(rect.bottomRight - const Offset(2, 2));
       await tester.pumpAndSettle();
       expect(toggles, [true, false]);
       expect(
-        tester.state<LikeButtonState>(find.byType(LikeButton)).isLiked,
-        false,
+        tester.widget<Icon>(find.byIcon(Symbols.favorite)).fill,
+        0,
       );
       await tester.tapAt(
         tester.getTopLeft(find.byType(ImageGridItem)) + const Offset(10, 30),
@@ -259,6 +304,79 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  for (final layout in [
+    (name: 'single', size: const Size(33, 33)),
+    (name: 'horizontal', size: const Size(70, 33)),
+    (name: 'vertical', size: const Size(33, 70)),
+  ]) {
+    for (final liked in [false, true]) {
+      testWidgets(
+        'grouped favorite stays centered in ${layout.name} layout (liked: $liked)',
+        (tester) async {
+          final toggles = <bool>[];
+          var neighborTaps = 0;
+          await tester.pumpWidget(
+            _app(
+              SizedBox.fromSize(
+                size: layout.size,
+                child: ThumbnailActionGroup(
+                  children: [
+                    QuickFavoriteButton(
+                      isFaved: liked,
+                      onFavToggle: (value) async => toggles.add(value),
+                    ),
+                    IconButton(
+                      onPressed: () => neighborTaps++,
+                      icon: const Icon(Symbols.bookmark),
+                    ),
+                  ],
+                ),
+              ),
+              scale: 2,
+            ),
+          );
+          final button = find.byType(QuickFavoriteButton);
+          final background = find.descendant(
+            of: button,
+            matching: find.byWidgetPredicate(
+              (widget) =>
+                  widget is Container &&
+                  widget.decoration is BoxDecoration &&
+                  (widget.decoration! as BoxDecoration).shape ==
+                      BoxShape.circle,
+            ),
+          );
+          void expectCentered() {
+            expect(
+              tester.getCenter(find.byIcon(Symbols.favorite)),
+              tester.getCenter(background),
+            );
+            expect(tester.getSize(background), const Size(24, 24));
+            expect(tester.widget<Icon>(find.byIcon(Symbols.favorite)).size, 20);
+          }
+
+          expect(tester.getSize(button), const Size(33, 33));
+          expectCentered();
+          // Padding still belongs to this action, even next to another action.
+          await tester.tapAt(tester.getTopLeft(button) + const Offset(2, 2));
+          await tester.pump();
+          await tester.pump(const Duration(milliseconds: 350));
+          expectCentered();
+          await tester.pumpAndSettle();
+          expectCentered();
+          expect(toggles, [!liked]);
+          expect(neighborTaps, 0);
+          if (layout.name != 'single') {
+            await tester.tap(find.byIcon(Symbols.bookmark));
+            expect(neighborTaps, 1);
+            expect(toggles, [!liked]);
+          }
+          expect(tester.takeException(), isNull);
+        },
+      );
+    }
+  }
 
   testWidgets('an interrupted favorite action keeps its previous state', (
     tester,
@@ -279,8 +397,8 @@ void main() {
     await tester.tap(find.byType(QuickFavoriteButton));
     await tester.pumpAndSettle();
     expect(
-      tester.state<LikeButtonState>(find.byType(LikeButton)).isLiked,
-      true,
+      tester.widget<Icon>(find.byIcon(Symbols.favorite)).fill,
+      1,
     );
     expect(tester.takeException(), isNull);
   });
@@ -351,6 +469,16 @@ void main() {
                       customIconUrl: 'https://icons.test/loading.png',
                     ),
                     favorite: const QuickFavoriteButton(isFaved: true),
+                  ),
+                ),
+                _sample(
+                  'Compact favorite',
+                  _tile(
+                    favorite: const ThumbnailActionGroup(
+                      children: [
+                        QuickFavoriteButton(isFaved: true),
+                      ],
+                    ),
                   ),
                 ),
                 _sample(

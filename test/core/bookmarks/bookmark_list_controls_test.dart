@@ -2,7 +2,7 @@ import 'package:boorusama/core/bookmarks/src/providers/bookmark_shuffle_provider
 import 'package:boorusama/core/bookmarks/src/providers/local_providers.dart';
 import 'package:boorusama/core/bookmarks/src/widgets/bookmark_list_controls.dart';
 import 'package:boorusama/core/themes/colors/src/colors.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:i18n/i18n.dart';

@@ -4,7 +4,8 @@ import 'package:boorusama/core/backups/auto/types.dart';
 import 'package:boorusama/core/backups/auto/widgets.dart';
 import 'package:boorusama/core/settings/providers.dart';
 import 'package:boorusama/core/settings/src/types/settings.dart';
-import 'package:flutter/material.dart';
+import 'package:boorusama/foundation/platform.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -61,6 +62,7 @@ void main() {
           await tester.pumpWidget(
             ProviderScope(
               overrides: [
+                appPlatformProvider.overrideWithValue(AppPlatform.android),
                 settingsNotifierProvider.overrideWith(
                   () => SettingsNotifier(settings),
                 ),

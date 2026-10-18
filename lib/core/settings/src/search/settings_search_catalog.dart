@@ -235,24 +235,23 @@ List<SettingsSearchItem> buildSettingsSearchCatalog(
     keywords: ['filter bookmarks'],
   );
 
-  final refresh = settings.pinned_searches_and_feeds;
+  final refresh = settings.topic_updates;
   add(
-    'pinned_searches_and_feeds',
+    'topic_updates',
     'automatic_refresh',
     refresh.enabled,
-    description: refresh.periodic_description,
     keywords: ['following topics subscriptions updates'],
   );
-  add('pinned_searches_and_feeds', 'pinned_searches', refresh.pinned_searches);
-  add('pinned_searches_and_feeds', 'following_feeds', refresh.following_feeds);
+  add('topic_updates', 'following_topics', refresh.following_topics);
+  add('topic_updates', 'topic_feeds', refresh.topic_feeds);
   add(
-    'pinned_searches_and_feeds',
+    'topic_updates',
     'refresh_interval',
     refresh.interval,
     keywords: [refresh.adaptive, refresh.fixed, refresh.fixed_interval],
   );
   add(
-    'pinned_searches_and_feeds',
+    'topic_updates',
     'wifi_only',
     refresh.wifi_only,
     keywords: ['wi-fi ethernet network'],
@@ -400,8 +399,8 @@ const _categoryAliases = <String, List<String>>{
   'data_and_storage': ['data storage cache'],
   'backup_and_restore': ['backup restore export import'],
   'search': ['search'],
-  'pinned_searches_and_feeds': [
-    'pinned searches following feeds topics subscriptions',
+  'topic_updates': [
+    'topics topic feeds following',
   ],
   'accessibility': ['accessibility'],
   'viewer': ['image viewer video playback slideshow'],

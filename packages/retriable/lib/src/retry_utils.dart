@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:dio/dio.dart';
+import 'package:http_parser/http_parser.dart';
 
 import 'fetch_strategy.dart';
 
@@ -20,7 +21,9 @@ Future<Response<T>?> tryGetResponse<T>(
   }
   final stopwatch = Stopwatch()..start();
   final builder = fetchStrategy ?? _defaultFetchStrategy;
-  final strategy = builder.build();
+  final strategy = builder.build(
+    wait: (delay) => _waitForRetry(delay, cancelToken),
+  );
   var instructions = await strategy(uri, null);
   _debugCheckInstructions(instructions);
   var attemptCount = 0;
@@ -63,6 +66,9 @@ Future<Response<T>?> tryGetResponse<T>(
                   ? error.response?.statusCode
                   : null,
               uri: instructions.uri,
+              retryAfter: error is DioException
+                  ? retryAfterFromHeaders(error.response?.headers)
+                  : null,
             );
       instructions = await strategy(instructions.uri, lastFailure);
       _debugCheckInstructions(instructions);
@@ -74,6 +80,23 @@ Future<Response<T>?> tryGetResponse<T>(
     throw lastFailure;
   } else {
     return null;
+  }
+}
+
+Future<void> _waitForRetry(Duration delay, CancelToken? cancellation) async {
+  if (cancellation == null) return Future<void>.delayed(delay);
+  if (cancellation.isCancelled) throw cancellation.cancelError!;
+  final completed = Completer<void>();
+  final timer = Timer(delay, completed.complete);
+  unawaited(
+    cancellation.whenCancel.then((error) {
+      if (!completed.isCompleted) completed.completeError(error);
+    }),
+  );
+  try {
+    await completed.future;
+  } finally {
+    timer.cancel();
   }
 }
 
@@ -91,4 +114,21 @@ void _debugCheckInstructions(FetchInstructions? instructions) {
     }
     return true;
   }());
+}
+
+/// Parses Retry-After seconds or an HTTP date; invalid or absent values return null.
+Duration? retryAfterFromHeaders(Headers? headers) {
+  final values = headers?['retry-after'];
+  if (values == null || values.length != 1) return null;
+  final value = values.single.trim();
+  if (RegExp(r'^\d+$').hasMatch(value)) {
+    final seconds = int.tryParse(value);
+    return seconds == null ? null : Duration(seconds: seconds);
+  }
+  try {
+    final delay = parseHttpDate(value).difference(DateTime.now().toUtc());
+    return delay.isNegative ? Duration.zero : delay;
+  } on FormatException {
+    return null;
+  }
 }

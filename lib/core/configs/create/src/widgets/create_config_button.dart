@@ -47,8 +47,8 @@ class CreateNewBooruConfigButton extends ConsumerWidget {
     return BooruConfigDataProvider(
       builder: (data) => CreateBooruSubmitButton(
         onSubmit: canSubmit(data) && data.name.isNotEmpty
-            ? () {
-                ref
+            ? () async {
+                await ref
                     .read(booruConfigProvider.notifier)
                     .addOrUpdate(
                       id: editId,
@@ -80,8 +80,8 @@ class UpdateBooruConfigButton extends ConsumerWidget {
     return BooruConfigDataProvider(
       builder: (data) => CreateBooruSubmitButton(
         onSubmit: canSubmit(data)
-            ? () {
-                ref
+            ? () async {
+                await ref
                     .read(booruConfigProvider.notifier)
                     .addOrUpdate(
                       id: editId,

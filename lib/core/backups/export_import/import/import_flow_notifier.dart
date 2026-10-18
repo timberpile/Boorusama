@@ -1,5 +1,7 @@
 import 'dart:async';
+
 import 'package:i18n/i18n.dart';
+
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -17,15 +19,15 @@ import '../../../configs/manage/providers.dart';
 import '../../../bookmarks/providers.dart';
 import '../../../bookmarks/types.dart';
 import '../../../posts/post/types.dart';
-import '../../../search/subscriptions/providers.dart';
+import '../../../search/following_topics/providers.dart';
 import '../../preparation/version_checking.dart';
 import '../../sources/bookmark_backup_data.dart';
 import '../../sources/bookmark_import_planner.dart';
 import '../../sources/bookmark_import_service.dart';
-import '../../sources/following_feed_backup_data.dart';
-import '../../sources/following_feed_import_service.dart';
-import '../../sources/pinned_search_backup_data.dart';
-import '../../sources/pinned_search_import_service.dart';
+import '../../sources/topic_feed_backup_data.dart';
+import '../../sources/topic_feed_import_service.dart';
+import '../../sources/following_topic_backup_data.dart';
+import '../../sources/following_topic_import_service.dart';
 import '../../sources/json_source.dart';
 import '../../sources/providers.dart';
 import '../../sources/search_backup_profile.dart';
@@ -52,6 +54,7 @@ import 'profile_import_projection.dart';
 import 'bookmark_profile_dependency.dart';
 import 'profile_dependency_planner.dart';
 import 'search_runtime_snapshot.dart';
+import '../../../search/following_topics/src/compatibility/topic_storage_contract.dart';
 
 enum ImportFlowStatus { idle, checking, review, importing, complete, error }
 
@@ -291,28 +294,28 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
         }
         final descriptor = descriptors[manifest.id];
         final isCollection = switch (wrapper.preparedData) {
-          BookmarkBackupData() || PinnedSearchBackupData() => true,
+          BookmarkBackupData() || FollowingTopicBackupData() => true,
           _ => descriptor?.isCollection ?? false,
         };
         final localIds = switch (wrapper._localSnapshot) {
           final BookmarkImportLocalSnapshot local => {
             for (final group in local.groups) 'group:${group.id}',
           },
-          final PinnedSearchImportLocalSnapshot local => {
+          final FollowingTopicImportLocalSnapshot local => {
             for (final search in local.searches) 'search:${search.id}',
             for (final folder in local.organization.folders)
               'folder:${folder.id}',
           },
-          final FollowingFeedImportLocalSnapshot local => {
+          final TopicFeedImportLocalSnapshot local => {
             for (final feed in local.feeds) 'feed:${feed.id}',
           },
           _ => descriptor?.childIds ?? const <String>{},
         };
         final incomingIds = _incomingItemIds(wrapper.preparedData, selection);
         final alreadyPresentSearchIds = <String>{};
-        if (wrapper.preparedData case final PinnedSearchBackupData data) {
+        if (wrapper.preparedData case final FollowingTopicBackupData data) {
           final repository = await ref.read(
-            searchSubscriptionRepositoryProvider.future,
+            followingTopicRepositoryProvider.future,
           );
           final profiles = ref.read(booruConfigProvider);
           for (final record in data.records) {
@@ -333,7 +336,7 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
           ),
           _ => [
             for (final itemId in incomingIds)
-              if (!(manifest.id == 'pinned_searches' &&
+              if (!(manifest.id == followingTopicsBackupSourceId &&
                   itemId.startsWith('search:') &&
                   alreadyPresentSearchIds.contains(itemId.substring(7))))
                 ImportItemPlanningInput(
@@ -351,7 +354,7 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
                           (itemId == 'group:$defaultBookmarkGroupId' ||
                               itemId == 'ungrouped')
                       ? const {ImportAction.merge, ImportAction.skip}
-                      : manifest.id == 'pinned_searches' &&
+                      : manifest.id == followingTopicsBackupSourceId &&
                             itemId.startsWith('search:')
                       ? const {ImportAction.copy, ImportAction.skip}
                       : null,
@@ -360,7 +363,7 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
                           (itemId == 'group:$defaultBookmarkGroupId' ||
                               itemId == 'ungrouped')
                       ? ImportAction.merge
-                      : manifest.id == 'pinned_searches' &&
+                      : manifest.id == followingTopicsBackupSourceId &&
                             itemId.startsWith('search:')
                       ? ImportAction.copy
                       : null,
@@ -385,6 +388,16 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
             revisionToken: capturedRevision,
             rollbackBytes: wrapper.preflightRollbackBytes,
             errors: integrityIssues,
+            warnings: [
+              if (wrapper.preparedData case final List<BooruConfig> profiles)
+                for (final profile in profiles)
+                  for (final code in profile.optionWarnings)
+                    ImportPlanIssue(
+                      code: code,
+                      sourceId: 'profiles',
+                      itemId: profile.id,
+                    ),
+            ],
           ),
         );
       }
@@ -644,10 +657,11 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
         addReference(bookmarkProfileReference(bookmark), 'bookmarks');
       }
     }
-    if (resolvedById['pinned_searches']?.action != ImportAction.skip) {
-      switch (_sources['pinned_searches']?.preparedData) {
-        case final PinnedSearchBackupData data:
-          final resolution = resolvedById['pinned_searches']!;
+    if (resolvedById[followingTopicsBackupSourceId]?.action !=
+        ImportAction.skip) {
+      switch (_sources[followingTopicsBackupSourceId]?.preparedData) {
+        case final FollowingTopicBackupData data:
+          final resolution = resolvedById[followingTopicsBackupSourceId]!;
           final selected = data.records
               .where(
                 (record) => _includesDependencyItem(
@@ -657,14 +671,14 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
               )
               .map((record) => record.profile);
           for (final reference in selected) {
-            addReference(reference, 'pinned_searches');
+            addReference(reference, followingTopicsBackupSourceId);
           }
       }
     }
-    if (resolvedById['following_feeds']?.action != ImportAction.skip) {
-      switch (_sources['following_feeds']?.preparedData) {
-        case final FollowingFeedBackupData data:
-          final resolution = resolvedById['following_feeds']!;
+    if (resolvedById[topicFeedsBackupSourceId]?.action != ImportAction.skip) {
+      switch (_sources[topicFeedsBackupSourceId]?.preparedData) {
+        case final TopicFeedBackupData data:
+          final resolution = resolvedById[topicFeedsBackupSourceId]!;
           final selected = data.feeds
               .where(
                 (feed) => _includesDependencyItem(
@@ -674,7 +688,7 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
               )
               .map((feed) => feed.profile);
           for (final reference in selected) {
-            addReference(reference, 'following_feeds');
+            addReference(reference, topicFeedsBackupSourceId);
           }
       }
     }
@@ -893,16 +907,16 @@ final class PackageTransactionSource implements ImportTransactionSource {
           groups: await groupRepository.getGroups(),
           folders: await groupRepository.getFolders(),
         );
-      case 'pinned_searches':
+      case followingTopicsBackupSourceId:
         final snapshot = await _captureSearchRuntimeSnapshot();
-        _localSnapshot = PinnedSearchImportLocalSnapshot(
+        _localSnapshot = FollowingTopicImportLocalSnapshot(
           searches: snapshot.searches,
           organization: snapshot.organization,
           feeds: snapshot.feeds,
         );
-      case 'following_feeds':
+      case topicFeedsBackupSourceId:
         final snapshot = await _captureSearchRuntimeSnapshot();
-        _localSnapshot = FollowingFeedImportLocalSnapshot(
+        _localSnapshot = TopicFeedImportLocalSnapshot(
           searches: snapshot.searches,
           feeds: snapshot.feeds,
         );
@@ -928,7 +942,7 @@ final class PackageTransactionSource implements ImportTransactionSource {
     final existing = _searchRuntimeSnapshot;
     if (existing != null) return existing;
     final repository = await ref.read(
-      searchSubscriptionRepositoryProvider.future,
+      followingTopicRepositoryProvider.future,
     );
     return _searchRuntimeSnapshot = await SearchRuntimeSnapshotService(
       repository,
@@ -969,22 +983,22 @@ final class PackageTransactionSource implements ImportTransactionSource {
           profileMappings: profileMappings,
         ),
       (
-        'pinned_searches',
-        final PinnedSearchImportLocalSnapshot local,
-        final PinnedSearchBackupData data,
+        followingTopicsBackupSourceId,
+        final FollowingTopicImportLocalSnapshot local,
+        final FollowingTopicBackupData data,
       ) =>
-        projector.pinnedSearches(
+        projector.followingTopics(
           local: local,
           incoming: data,
           resolution: resolution,
           profileMappings: profileMappings,
         ),
       (
-        'following_feeds',
-        final FollowingFeedImportLocalSnapshot local,
-        final FollowingFeedBackupData data,
+        topicFeedsBackupSourceId,
+        final TopicFeedImportLocalSnapshot local,
+        final TopicFeedBackupData data,
       ) =>
-        projector.followingFeeds(
+        projector.topicFeeds(
           local: local,
           incoming: data,
           resolution: resolution,
@@ -1044,7 +1058,7 @@ final class PackageTransactionSource implements ImportTransactionSource {
   Future<void> captureRollback(String outputPath) async {
     if (_isSearchRuntimeSource) {
       final repository = await ref.read(
-        searchSubscriptionRepositoryProvider.future,
+        followingTopicRepositoryProvider.future,
       );
       final snapshot = await SearchRuntimeSnapshotService(
         repository,
@@ -1096,12 +1110,13 @@ final class PackageTransactionSource implements ImportTransactionSource {
       await _applyBookmarks(preparedData, plan);
       return;
     }
-    if (id == 'pinned_searches' && preparedData is PinnedSearchBackupData) {
-      await _applyPinnedSearches(preparedData, plan);
+    if (id == followingTopicsBackupSourceId &&
+        preparedData is FollowingTopicBackupData) {
+      await _applyFollowingTopics(preparedData, plan);
       return;
     }
-    if (id == 'following_feeds' && preparedData is FollowingFeedBackupData) {
-      await _applyFollowingFeeds(preparedData, plan);
+    if (id == topicFeedsBackupSourceId && preparedData is TopicFeedBackupData) {
+      await _applyTopicFeeds(preparedData, plan);
       return;
     }
     await _preparation!.executeImport(deferRestart: true);
@@ -1132,29 +1147,29 @@ final class PackageTransactionSource implements ImportTransactionSource {
     await ref.read(booruConfigProvider.notifier).fetch();
   }
 
-  Future<void> _applyPinnedSearches(
-    PinnedSearchBackupData data,
+  Future<void> _applyFollowingTopics(
+    FollowingTopicBackupData data,
     ResolvedImportSource resolution, {
     BackupProfileIdResolver? profileIdResolver,
   }) async {
     if (resolution.action == ImportAction.replace) {
-      await ref
-          .read(searchSubscriptionsProvider.notifier)
-          .runSerializedMutation((repository) async {
-            await PinnedSearchImportService(
-              repository: repository,
-              importFolderName: Translations().folders.imported_searches,
-            ).replace(
-              data,
-              profiles: ref.read(booruConfigProvider),
-              profileIdResolver: profileIdResolver ?? _profileId,
-            );
-          });
+      await ref.read(followingTopicsProvider.notifier).runSerializedMutation((
+        repository,
+      ) async {
+        await FollowingTopicImportService(
+          repository: repository,
+          importFolderName: Translations().folders.imported_searches,
+        ).replace(
+          data,
+          profiles: ref.read(booruConfigProvider),
+          profileIdResolver: profileIdResolver ?? _profileId,
+        );
+      });
       return;
     }
     if (resolution.action == ImportAction.skip) return;
     final repository = await ref.read(
-      searchSubscriptionRepositoryProvider.future,
+      followingTopicRepositoryProvider.future,
     );
     final currentFolderIds = {
       for (final folder in (await repository.getOrganization()).folders)
@@ -1180,10 +1195,10 @@ final class PackageTransactionSource implements ImportTransactionSource {
       );
     }
     await ref
-        .read(searchSubscriptionsProvider.notifier)
+        .read(followingTopicsProvider.notifier)
         .runSerializedMutation(
           (repository) =>
-              PinnedSearchImportService(
+              FollowingTopicImportService(
                 importFolderName: Translations().folders.imported_searches,
                 repository: repository,
               ).apply(
@@ -1196,26 +1211,26 @@ final class PackageTransactionSource implements ImportTransactionSource {
         );
   }
 
-  Future<void> _applyFollowingFeeds(
-    FollowingFeedBackupData data,
+  Future<void> _applyTopicFeeds(
+    TopicFeedBackupData data,
     ResolvedImportSource resolution, {
     BackupProfileIdResolver? profileIdResolver,
   }) async {
     if (resolution.action == ImportAction.replace) {
-      await ref
-          .read(searchSubscriptionsProvider.notifier)
-          .runSerializedMutation((repository) async {
-            await FollowingFeedImportService(repository: repository).replace(
-              data,
-              profiles: ref.read(booruConfigProvider),
-              profileIdResolver: profileIdResolver ?? _profileId,
-            );
-          });
+      await ref.read(followingTopicsProvider.notifier).runSerializedMutation((
+        repository,
+      ) async {
+        await TopicFeedImportService(repository: repository).replace(
+          data,
+          profiles: ref.read(booruConfigProvider),
+          profileIdResolver: profileIdResolver ?? _profileId,
+        );
+      });
       return;
     }
     if (resolution.action == ImportAction.skip) return;
     final repository = await ref.read(
-      searchSubscriptionRepositoryProvider.future,
+      followingTopicRepositoryProvider.future,
     );
     final currentFeedIds = {
       for (final feed in await repository.getFeeds()) feed.id,
@@ -1235,10 +1250,10 @@ final class PackageTransactionSource implements ImportTransactionSource {
       );
     }
     await ref
-        .read(searchSubscriptionsProvider.notifier)
+        .read(followingTopicsProvider.notifier)
         .runSerializedMutation(
           (repository) =>
-              FollowingFeedImportService(
+              TopicFeedImportService(
                 repository: repository,
               ).apply(
                 data,
@@ -1393,7 +1408,7 @@ final class PackageTransactionSource implements ImportTransactionSource {
         await fs.readString(rollbackPath),
       );
       await ref
-          .read(searchSubscriptionsProvider.notifier)
+          .read(followingTopicsProvider.notifier)
           .runSerializedMutation(
             (repository) =>
                 SearchRuntimeSnapshotService(repository).restore(snapshot),
@@ -1414,14 +1429,14 @@ final class PackageTransactionSource implements ImportTransactionSource {
         switch (preparation.preparedData) {
           case final BookmarkBackupData data:
             await _applyBookmarks(data, replace, preserveOrigins: true);
-          case final PinnedSearchBackupData data:
-            await _applyPinnedSearches(
+          case final FollowingTopicBackupData data:
+            await _applyFollowingTopics(
               data,
               replace,
               profileIdResolver: (profile) => profile.id,
             );
-          case final FollowingFeedBackupData data:
-            await _applyFollowingFeeds(
+          case final TopicFeedBackupData data:
+            await _applyTopicFeeds(
               data,
               replace,
               profileIdResolver: (profile) => profile.id,
@@ -1443,7 +1458,7 @@ final class PackageTransactionSource implements ImportTransactionSource {
   }
 
   bool get _isSearchRuntimeSource =>
-      id == 'pinned_searches' || id == 'following_feeds';
+      id == followingTopicsBackupSourceId || id == topicFeedsBackupSourceId;
 
   Future<void> restart() async {
     await _preparation?.restartApp?.call();

@@ -1,4 +1,4 @@
-import '../../search/subscriptions/subscription_test_utils.dart';
+import '../../search/following_topics/topic_test_utils.dart';
 import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';

@@ -13,7 +13,7 @@ import 'package:boorusama/core/search/suggestions/providers.dart';
 import 'package:boorusama/core/tags/metatag/providers.dart';
 import 'package:boorusama/core/tags/metatag/types.dart';
 import 'package:boorusama/core/search/selected_tags/types.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:foundation/foundation.dart';
@@ -21,7 +21,7 @@ import 'package:kurumi/kurumi.dart';
 import 'package:boorusama/foundation/networking.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
-import 'subscriptions/pinned_search_test_utils.dart';
+import 'following_topics/following_topic_test_utils.dart';
 
 BooruConfig profile(String id, String name, BooruType type, String url) =>
     BooruConfig.fromJson({
@@ -51,7 +51,7 @@ void main() {
         final observed = <SearchPageController>[];
         final fetches = <String>[];
         final suggestions = <String>[];
-        final harness = PinnedSearchHarness(
+        final harness = FollowingTopicHarness(
           profiles: [first, next],
           booruBuilder: (_) => _SearchBuilder(observed, fetches),
         );
@@ -155,7 +155,7 @@ void main() {
     (tester) async {
       final observed = <SearchPageController>[];
       final fetches = <String>[];
-      final harness = PinnedSearchHarness(
+      final harness = FollowingTopicHarness(
         profiles: [testProfile],
         booruBuilder: (_) => _SearchBuilder(observed, fetches),
       );
@@ -197,7 +197,7 @@ void main() {
     (tester) async {
       await tester.binding.setSurfaceSize(const Size(320, 800));
       addTearDown(() => tester.binding.setSurfaceSize(null));
-      final harness = PinnedSearchHarness(
+      final harness = FollowingTopicHarness(
         profiles: [first, sameEngine, otherEngine],
         booruBuilder: (_) => _SearchBuilder([], []),
       );

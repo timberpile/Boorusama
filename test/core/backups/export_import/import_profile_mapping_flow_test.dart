@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:boorusama/core/search/subscriptions/src/data/providers.dart';
-import 'package:boorusama/core/search/subscriptions/types.dart';
+import 'package:boorusama/core/search/following_topics/src/data/providers.dart';
+import 'package:boorusama/core/search/following_topics/types.dart';
 import 'package:boorusama/core/backups/export_import/import/import_flow_notifier.dart';
 import 'package:boorusama/core/backups/export_import/import/profile_dependency_planner.dart';
 import 'package:boorusama/core/backups/export_import/models/export_selection.dart';
@@ -17,12 +17,12 @@ import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/configs/manage/providers.dart';
 import 'package:boorusama/foundation/filesystem.dart';
 import 'package:boorusama/foundation/info/package_info.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import '../../search/subscriptions/subscription_test_utils.dart';
+import '../../search/following_topics/topic_test_utils.dart';
 
 const firstId = '00000000-0000-4000-8000-000000000001';
 const secondId = '00000000-0000-4000-8000-000000000002';
@@ -41,7 +41,7 @@ void main() {
     testWidgets(
       stale
           ? 'stale local searches refresh the staged plan and require explicit confirmation'
-          : 'changing a reviewed mapping replans pins and applies final pin and feed ownership without preview writes',
+          : 'changing a reviewed mapping replans topics and applies final topic and feed ownership without preview writes',
       (tester) async {
         final directory = Directory.systemTemp.createTempSync('data007_flow_');
         final fs = _TestFileSystem(directory.path);
@@ -55,25 +55,25 @@ void main() {
               () => BooruConfigNotifier(initialConfigs: profiles),
             ),
             booruConfigRepoProvider.overrideWithValue(_Profiles(profiles)),
-            searchSubscriptionRepositoryProvider.overrideWith(
+            followingTopicRepositoryProvider.overrideWith(
               () => _SearchRepository(repository),
             ),
             backupRegistryProvider.overrideWith(
               (ref) => BackupRegistry()
                 ..register(ref.read(booruConfigsBackupSourceProvider))
-                ..register(ref.read(pinnedSearchesBackupSourceProvider))
-                ..register(ref.read(followingFeedsBackupSourceProvider)),
+                ..register(ref.read(followingTopicsBackupSourceProvider))
+                ..register(ref.read(topicFeedsBackupSourceProvider)),
             ),
             exportImportSourcesProvider.overrideWith(
               (ref) => [
                 LegacyJsonSourceAdapter(
-                  source: ref.read(pinnedSearchesBackupSourceProvider),
+                  source: ref.read(followingTopicsBackupSourceProvider),
                   descriptor: const ExportSelectionDescriptor.collection(
                     id: 'pinned_searches',
                   ),
                 ),
                 LegacyJsonSourceAdapter(
-                  source: ref.read(followingFeedsBackupSourceProvider),
+                  source: ref.read(topicFeedsBackupSourceProvider),
                   descriptor: const ExportSelectionDescriptor.collection(
                     id: 'following_feeds',
                   ),
@@ -228,9 +228,9 @@ void main() {
             ImportFlowStatus.complete,
             reason: '${container.read(importFlowProvider).error}',
           );
-          final pins = await repository.getAll();
+          final topics = await repository.getAll();
           expect(
-            pins
+            topics
                 .where((search) => search.query == 'cat')
                 .map((search) => search.profileId),
             containsAll([firstId, secondId]),
@@ -297,9 +297,9 @@ class _TestFileSystem extends IoFileSystem {
   Future<String> getAppStoragePath() async => root;
 }
 
-class _SearchRepository extends SearchSubscriptionRepositoryNotifier {
+class _SearchRepository extends FollowingTopicRepositoryNotifier {
   _SearchRepository(this.repository);
-  final SearchSubscriptionRepository repository;
+  final FollowingTopicRepository repository;
   @override
-  Future<SearchSubscriptionRepository> build() async => repository;
+  Future<FollowingTopicRepository> build() async => repository;
 }

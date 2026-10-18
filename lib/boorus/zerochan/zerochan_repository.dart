@@ -8,12 +8,14 @@ import '../../core/boorus/defaults/types.dart';
 import '../../core/configs/config/types.dart';
 import '../../core/configs/create/create.dart';
 import '../../core/downloads/filename/types.dart';
+import '../../core/downloads/urls/types.dart';
 import '../../core/posts/post/providers.dart';
 import '../../core/posts/post/types.dart';
 import '../../core/tags/autocompletes/types.dart';
 import '../../core/tags/tag/colors.dart';
 import '../../core/tags/tag/types.dart';
 import 'client_provider.dart';
+import 'downloads/providers.dart';
 import 'posts/post_codec.dart';
 import 'posts/providers.dart';
 import 'tags/color.dart';
@@ -41,6 +43,14 @@ class ZerochanRepository extends BooruRepositoryDefault {
   AutocompleteRepository autocomplete(BooruConfigAuth config) {
     return ref.watch(zerochanAutoCompleteRepoProvider(config));
   }
+
+  @override
+  DownloadFileUrlExtractor downloadFileUrlExtractor(BooruConfigAuth config) =>
+      ref.read(zerochanDownloadFileUrlExtractorProvider(config));
+
+  @override
+  DownloadSourceProvider? downloadSource(BooruConfigAuth config) =>
+      const ZerochanDownloadSource();
 
   @override
   BooruSiteValidator? siteValidator(BooruConfigAuth config) {

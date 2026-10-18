@@ -1,12 +1,14 @@
 import 'dart:async';
 import 'dart:io';
+
 import 'package:cache_manager/cache_manager.dart';
 import 'package:dio/dio.dart';
 import 'package:extended_image/src/image/raw_image.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kurumi/kurumi.dart';
+import 'package:i18n/src/gen/strings.g.dart' show TranslationProvider;
 
 final lowerPng = File('test/fixtures/post_quality/lower.png').readAsBytesSync();
 final targetPng = File(
@@ -20,13 +22,15 @@ final portraitPng = File(
   'test/fixtures/post_quality/portrait.png',
 ).readAsBytesSync();
 
-Widget testApp(Widget child) => MaterialApp(
-  builder: (context, child) => KurumiTheme(
-    data: KurumiThemeData.fromMaterial(Theme.of(context)),
-    child: child!,
-  ),
-  home: Scaffold(
-    body: Center(child: SizedBox(width: 300, height: 300, child: child)),
+Widget testApp(Widget child) => TranslationProvider(
+  child: MaterialApp(
+    builder: (context, child) => KurumiTheme(
+      data: KurumiThemeData.fromMaterial(Theme.of(context)),
+      child: child!,
+    ),
+    home: Scaffold(
+      body: Center(child: SizedBox(width: 300, height: 300, child: child)),
+    ),
   ),
 );
 Future<void> decodePump(WidgetTester tester) async {
@@ -92,6 +96,9 @@ class TestImageCache implements ImageCacheManager {
   Future<void> saveFile(String key, Uint8List data) async {
     bytes[key] = data;
   }
+
+  @override
+  Future<void> clearCache(String key) async => bytes.remove(key);
 
   @override
   FutureOr<String?> getCachedFilePath(String key, {Duration? maxAge}) => null;

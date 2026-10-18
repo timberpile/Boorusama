@@ -13,6 +13,7 @@ import 'import_flow_notifier.dart';
 import 'import_issue_message.dart';
 import 'import_preflight.dart';
 import 'profile_dependency_planner.dart';
+import '../../../search/following_topics/src/compatibility/topic_storage_contract.dart';
 
 class ImportFlowPage extends ConsumerStatefulWidget {
   const ImportFlowPage({
@@ -480,9 +481,9 @@ List<String> plannedSourceChangeLabels(
   for (final entity in const [
     'bookmark',
     'bookmark-group',
-    'pinned-search',
-    'pinned-folder',
-    'pinned-home',
+    'following-topic',
+    'topic-folder',
+    'topics-home',
     'feed',
     'feed-search',
     'profile',
@@ -496,7 +497,7 @@ List<String> plannedSourceChangeLabels(
       (changes.deleted, deletedTemplate),
     ]) {
       if (count == 0) continue;
-      final name = entity == 'pinned-home'
+      final name = entity == 'topics-home'
           ? homeArrangementLabel
           : '$count ${noun?.call(count) ?? entity}';
       labels.add(template.replaceAll('{count}', name));
@@ -543,7 +544,7 @@ ExportSelectionPresentation _localizedImportPresentation(
     'ungrouped': ExportItemPresentation(
       label: context.t.bookmark.groups.default_group,
     ),
-    'home': ExportItemPresentation(label: context.t.pinned_searches.home),
+    'home': ExportItemPresentation(label: context.t.following_topics.home),
   },
 );
 
@@ -568,10 +569,16 @@ String _localizedSourceLabel(BuildContext context, String id) => switch (id) {
         .blacklisted_tags,
   'bookmarks' =>
     context.t.settings.backup_and_restore.export_import.sources.bookmarks,
-  'pinned_searches' =>
-    context.t.settings.backup_and_restore.export_import.sources.pinned_searches,
-  'following_feeds' =>
-    context.t.settings.backup_and_restore.export_import.sources.following_feeds,
+  followingTopicsBackupSourceId =>
+    context
+        .t
+        .settings
+        .backup_and_restore
+        .export_import
+        .sources
+        .following_topics,
+  topicFeedsBackupSourceId =>
+    context.t.settings.backup_and_restore.export_import.sources.topic_feeds,
   _ => id,
 };
 

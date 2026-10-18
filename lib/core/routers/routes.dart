@@ -26,10 +26,9 @@ import '../posts/post/routes.dart';
 import '../premiums/routes.dart';
 import '../router.dart';
 import '../search/search/routes.dart';
-import '../search/subscriptions/routes.dart';
+import '../search/following_topics/routes.dart';
 import '../settings/routes.dart';
 import '../tags/favorites/routes.dart';
-import '../widgets/widgets.dart';
 
 ///
 /// When navigate to a page, must query the booru builders first to get the correct builder.
@@ -58,12 +57,7 @@ class Routes {
       path: state.uri.toString(),
       child: const AppRatingScope(
         child: DownloaderScope(
-          child: CustomContextMenuOverlay(
-            child: Focus(
-              autofocus: true,
-              child: EntryPage(),
-            ),
-          ),
+          child: EntryPage(),
         ),
       ),
     ),
@@ -80,8 +74,9 @@ class Routes {
       settingsRoutes,
       settingsDesktopRoutes,
       bookmarkRoutes,
-      pinnedSearchRoutes,
-      followingFeedRoutes,
+      followingTopicRoutes,
+      topicFeedRoutes,
+      ...legacyFollowingTopicRoutes,
       globalBlacklistedTagsRoutes,
       downloadManagerRoutes,
       bulkDownloadsRoutes,

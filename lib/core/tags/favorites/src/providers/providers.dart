@@ -1,30 +1,29 @@
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:hive_ce/hive.dart';
 
 // Project imports:
 import '../../../../../foundation/data_mutation_coordinator.dart';
 import '../../../../search/selected_tags/types.dart';
-import '../data/favorite_tag_hive_object.dart';
-import '../data/favorite_tag_repository_hive.dart';
 import '../types/favorite_tag.dart';
+import '../types/favorite_tag_repository_factory.dart';
+
+final favoriteTagRepositoryFactoryProvider =
+    Provider<FavoriteTagRepositoryFactory>(
+      (_) => throw UnimplementedError(
+        'favoriteTagRepositoryFactoryProvider must be overridden',
+      ),
+      name: 'favoriteTagRepositoryFactoryProvider',
+    );
 
 final favoriteTagRepoProvider = FutureProvider<FavoriteTagRepository>((
   ref,
 ) async {
-  final favoriteTagsBox = await Hive.openBox<FavoriteTagHiveObject>(
-    'favorite_tags',
-  );
-  final favoriteTagsRepo = FavoriteTagRepositoryHive(
-    favoriteTagsBox,
-  );
-
-  ref.onDispose(() async {
-    await favoriteTagsBox.close();
-  });
+  final factory = ref.watch(favoriteTagRepositoryFactoryProvider);
+  final repository = await factory.create();
+  ref.onDispose(() => factory.dispose(repository));
 
   return _CoordinatedFavoriteTagRepository(
-    favoriteTagsRepo,
+    repository,
     ref.watch(dataMutationCoordinatorProvider),
   );
 });

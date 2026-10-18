@@ -38,11 +38,11 @@ Confirmed by tracing the feed action through the single-post route to both
 null-returning loaders. These engine-specific failures were not reproduced on
 the emulator during review; Android checks covered navigation only.
 
-- [Feed thumbnail action](../../../lib/core/search/subscriptions/src/pages/following_feeds_page.dart)
+- [Feed thumbnail action](../../../lib/core/search/following_topics/src/pages/topic_feeds_page.dart)
 - [Shimmie2 post repository](../../../lib/boorus/shimmie2/posts/providers.dart)
 - [E-shuushuu post repository](../../../lib/boorus/eshuushuu/posts/providers.dart)
 - [Single-post route](../../../lib/core/posts/details/src/routes/routes.dart)
-- [Subsystem documentation](../../pinned_searches.md)
+- [Subsystem documentation](../../following_topics.md)
 
 ## Completion evidence (2026-09-20)
 

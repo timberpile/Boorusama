@@ -1,5 +1,5 @@
 // Flutter imports:
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 // Package imports:
@@ -15,6 +15,7 @@ import 'package:boorusama/core/themes/colors/providers.dart';
 import 'package:boorusama/core/themes/configs/types.dart';
 import 'package:boorusama/core/themes/viewers/src/providers/theme_previewer_notifier.dart';
 import 'package:boorusama/core/themes/viewers/src/widgets/theme_previewer_sheet.dart';
+import 'package:boorusama/foundation/platform.dart';
 
 void main() {
   setUpAll(() async {
@@ -33,6 +34,7 @@ void main() {
       ProviderScope(
         overrides: [
           settingsProvider.overrideWithValue(Settings.defaultSettings),
+          appPlatformProvider.overrideWithValue(AppPlatform.android),
           dynamicColorSupportProvider.overrideWithValue(false),
           themePreviewerProvider.overrideWith(
             () => ThemePreviewerNotifier(

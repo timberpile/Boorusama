@@ -153,13 +153,29 @@ final class ApiQuotaPolicy {
         ],
       );
     }
-    // https://www.zerochan.net/api: 60/min at the actual API origin.
+    // Pace detail/API resolution conservatively without a second interceptor.
     if (key.host == 'www.zerochan.net') {
       return const ApiQuotaPolicy(
         serverRules: [
           ApiRateRule(
             windows: [
-              ApiStartWindow(capacity: 60, duration: Duration(minutes: 1)),
+              ApiStartWindow(
+                capacity: 1,
+                duration: Duration(milliseconds: 1200),
+              ),
+            ],
+          ),
+        ],
+      );
+    }
+    // Conservative app policy for Anime-Pictures, shared across profiles and
+    // download-link resolution through the single request coordinator.
+    if (key.host == 'anime-pictures.net') {
+      return const ApiQuotaPolicy(
+        serverRules: [
+          ApiRateRule(
+            windows: [
+              ApiStartWindow(capacity: 1, duration: Duration(seconds: 1)),
             ],
           ),
         ],

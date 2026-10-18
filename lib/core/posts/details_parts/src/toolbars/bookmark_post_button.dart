@@ -9,7 +9,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
-import 'package:like_button/like_button.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 // Project imports:
@@ -160,7 +159,7 @@ class BookmarkPostLikeButtonButton extends ConsumerWidget {
       post: post,
       builder: (context, showPicker) => GestureDetector(
         onLongPressStart: isLoading ? null : (_) => showPicker(),
-        child: LikeButton(
+        child: KurumiLikeButton(
           isLiked: isBookmarked,
           onTap: isLoading
               ? null
@@ -184,7 +183,7 @@ class BookmarkPostLikeButtonButton extends ConsumerWidget {
                     _ => isLiked,
                   };
                 },
-          likeBuilder: (isLiked) => Badge(
+          builder: (isLiked) => Badge(
             isLabelVisible: showCount,
             label: Text('${presentation?.namedGroupCount ?? 0}'),
             child: Icon(
@@ -204,7 +203,7 @@ class BookmarkPostLikeButtonButton extends ConsumerWidget {
 extension BookmarkPostX on WidgetRef {
   void toggleBookmark(Post post) {
     final booruConfig = readConfigAuth;
-    final context = navigatorKey.currentContext;
+    final context = read(appNavigationProvider).navigatorKey.currentContext;
     if (context != null && context.mounted) {
       unawaited(toggleBookmarkTarget(post, booruConfig, context));
     }

@@ -180,11 +180,13 @@ void main() {
         cache.generateCacheKey(url),
       );
 
-      expect(lease.path, cachedPath);
-      expect(lease.path, contains('/cacheimage/'));
-      await lease.release();
+      expect(lease.path, isNot(cachedPath));
+      expect(lease.path, contains('/boorusama-share/'));
+      expect(await File(lease.path).readAsBytes(), pngBytes);
+      await cache.clearAllCache();
       expect(await File(lease.path).exists(), isTrue);
-      expect(await Directory('${root.path}/boorusama-share').exists(), isFalse);
+      await lease.release();
+      expect(await File(lease.path).exists(), isFalse);
     },
   );
   test(
