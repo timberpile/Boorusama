@@ -1,12 +1,18 @@
-# Repository task queue
+# Legacy repository task queue
 
-These rules apply only when the user explicitly asks to create, update, or work
-through repository work items. Ordinary changes do not require a ticket.
+These rules apply only to existing, unmigrated repository work items. New tracked
+tasks use [GitHub Issues](../issue_workflow.md); ordinary changes still need no
+ticket. Do not create new local ticket numbers or mirror a GitHub issue here.
+This preparation does not migrate, move, or close any existing work item.
+Begun, blocked, and completed tasks stay in this workflow. Migration of genuinely
+unstarted tasks is a separate, explicitly requested operation; check actual work
+and claims across branches/worktrees rather than trusting the `ready/` folder.
+Keep any existing `active/` records until their individual state is reconciled.
 Work items always require a dedicated task branch/worktree; the small-change
 exception in the [development workflow](../development_workflow.md#isolation-and-small-changes)
 does not apply.
 
-Each task or issue has its own Markdown file. Its folder determines its status:
+Each legacy task has its own Markdown file. Its folder determines its status:
 
 | Folder | Meaning |
 | --- | --- |
@@ -16,11 +22,9 @@ Each task or issue has its own Markdown file. Its folder determines its status:
 | [done/](done/) | Acceptance criteria verified, with completion evidence |
 
 List the status folders to discover tasks; there is no separate status index.
-Keep the same filename throughout a task's lifecycle. For new work items,
-use a repository-wide, zero-padded four-digit number and a lowercase kebab-case
-slug, for example `0012-my-change.md`. Pick the next unused number across all
-work-item folders; do not add category prefixes such as `UX-001`.
-Existing work-item filenames may be retained.
+Keep the same filename throughout a legacy task's lifecycle. Legacy numbers are
+not GitHub issue numbers. Preserve existing branches and links; do not rename
+or duplicate running tasks to make them resemble new issues.
 
 When asked to work through the queue, select an eligible task from `ready/`.
 Choose High priority before Normal, then Low; break ties by filename. Resolve
@@ -52,4 +56,5 @@ Follow [AGENTS.md](../../AGENTS.md) for isolation and workflow selection. Read
 the relevant [development workflow](../development_workflow.md) sections only
 for integration, publication, releases, or upstream synchronization.
 Being listed in the queue does not itself authorize an agent to work outside
-the user's request. GitHub issues are not required.
+the user's request. Existing tasks have one source of status: this queue until
+explicitly migrated, never a second GitHub issue in parallel.

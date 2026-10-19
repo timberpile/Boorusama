@@ -2,7 +2,7 @@
 
 ## Isolation and scope
 
-Use an isolated task branch/worktree; work items always require one. Small
+Use an isolated task branch/worktree; GitHub issues and legacy work items always require one. Small
 explicit changes may use local `develop` under the
 [development workflow](docs/development_workflow.md#isolation-and-small-changes).
 When the user specifies an existing task branch, continue that branch instead of
@@ -39,12 +39,15 @@ requested.
 
 Read only relevant code, tests, and docs. Consult
 [engineering guidelines](docs/engineering_guidelines.md) for needed detail.
-Read [queue rules](docs/work/README.md) and related tickets only for explicitly
-requested work items; one agent may claim and implement directly. Read relevant
+Use the [issue workflow](docs/issue_workflow.md) for new tracked tasks and
+explicit issue work. Read [legacy queue rules](docs/work/README.md) only when the
+requested task already exists there. Do not create new local tickets or migrate
+existing work items without an explicit migration request. Ordinary scoped
+changes still need no issue. Read relevant
 [development workflow](docs/development_workflow.md) sections for integration,
 publication, releases, or upstream synchronization.
 
-- **Repository language:** All code comments, documentation, commit messages, work items, design/merge plans and agent handoffs must be written in **English**. Only user-facing UI localization resources may contain text in their intended target languages. Translate any new non-localization German prose to English before committing.
+- **Repository language:** All code comments, documentation, commit messages, issues, legacy work items, design/merge plans and agent handoffs must be written in **English**. Only user-facing UI localization resources may contain text in their intended target languages. Translate any new non-localization German prose to English before committing.
 - Always use `fvm` for Flutter/Dart.
 - Use manually declared Riverpod `Notifier`/`AsyncNotifier` providers; no provider codegen.
 - Follow nearby architecture/style; keep business logic out of widgets when practical.

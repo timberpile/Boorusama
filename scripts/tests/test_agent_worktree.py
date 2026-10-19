@@ -42,9 +42,10 @@ class AgentWorktreeTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         return result.stdout.strip()
 
-    def run_cli(self, command, slug="task-a", cwd=None):
+    def run_cli(self, command, slug="task-a", cwd=None, branch="auto"):
+        options = [] if branch is None else ["--branch", f"feature/{slug}" if branch == "auto" else branch]
         return subprocess.run(
-            [sys.executable, str(CLI), command, slug],
+            [sys.executable, str(CLI), command, slug, *options],
             cwd=cwd or self.root, env=self.env,
             capture_output=True, text=True, timeout=10,
         )
@@ -83,12 +84,12 @@ class AgentWorktreeTests(unittest.TestCase):
         self.git("checkout", "-b", "primary-user-work", previous)
         result = self.success("create", "bookmark-sort-order")
         path = self.task_path("bookmark-sort-order")
-        self.assertEqual(result["branch"], "agent/bookmark-sort-order")
+        self.assertEqual(result["branch"], "feature/bookmark-sort-order")
         self.assertEqual(result["path"], str(path))
         self.assertEqual(result["base"], "develop")
         self.assertEqual(result["base_commit"], local)
         self.assertEqual(self.git("rev-parse", "HEAD", cwd=path), local)
-        self.assertEqual(self.git("symbolic-ref", "HEAD", cwd=path), "refs/heads/agent/bookmark-sort-order")
+        self.assertEqual(self.git("symbolic-ref", "HEAD", cwd=path), "refs/heads/feature/bookmark-sort-order")
         self.assertEqual(self.git("rev-parse", "origin/develop"), previous)
         self.assertEqual(self.git("branch", "--show-current"), "primary-user-work")
 
@@ -121,7 +122,7 @@ class AgentWorktreeTests(unittest.TestCase):
         self.assertEqual(self.git("rev-parse", "HEAD", cwd=self.task_path()), head)
 
     def test_existing_branch_without_worktree_is_not_reused(self):
-        self.git("branch", "agent/task-a")
+        self.git("branch", "feature/task-a")
         result = self.refused("create")
         self.assertIn("already exists without a worktree", result.stderr)
         self.assertFalse(self.task_path().exists())
@@ -131,7 +132,7 @@ class AgentWorktreeTests(unittest.TestCase):
 
     def test_branch_attached_elsewhere_is_reported_and_never_removed(self):
         other = self.root.parent / "elsewhere"
-        self.git("worktree", "add", "-b", "agent/task-a", str(other), "develop")
+        self.git("worktree", "add", "-b", "feature/task-a", str(other), "develop")
         self.assertIn(str(other), self.refused("create").stderr)
         state = json.loads(self.refused("status").stdout)
         self.assertEqual(state["attached_paths"], [str(other)])
@@ -164,7 +165,7 @@ class AgentWorktreeTests(unittest.TestCase):
         self.assertIn("already registered", self.refused("create").stderr)
         state = json.loads(self.refused("status").stdout)
         self.assertEqual(state["actual_branch"], "other-task")
-        self.assertIn("expected agent/task-a", " ".join(state["issues"]))
+        self.assertIn("expected feature/task-a", " ".join(state["issues"]))
         self.refused("remove")
         self.assertTrue(self.task_path().is_dir())
 
@@ -179,7 +180,7 @@ class AgentWorktreeTests(unittest.TestCase):
         registrations = self.git("worktree", "list", "--porcelain")
         state = self.success("status")
         self.assertEqual(state["state"], "ready")
-        self.assertEqual(state["branch"], "agent/task-a")
+        self.assertEqual(state["branch"], "feature/task-a")
         self.assertEqual(state["path"], str(self.task_path()))
         self.assertEqual(state["head"], self.git("rev-parse", "develop"))
         self.assertTrue(state["worktree_exists"])
@@ -231,13 +232,13 @@ class AgentWorktreeTests(unittest.TestCase):
         self.success("create", "task-ab")
         (self.task_path() / "tracked.txt").write_text("completed task\n")
         self.git("commit", "-am", "Task commit", cwd=self.task_path())
-        task_head = self.git("rev-parse", "agent/task-a")
+        task_head = self.git("rev-parse", "feature/task-a")
         (self.root / "tracked.txt").write_text("unrelated primary work\n")
         before = self.primary_state()
         result = self.success("remove")
         self.assertTrue(result["branch_preserved"])
         self.assertFalse(self.task_path().exists())
-        self.assertEqual(self.git("rev-parse", "agent/task-a"), task_head)
+        self.assertEqual(self.git("rev-parse", "feature/task-a"), task_head)
         self.assertEqual(self.success("status", "task-ab")["state"], "ready")
         self.assertEqual(self.primary_state(), before)
         self.assertIn("already exists without a worktree", self.refused("create").stderr)
@@ -266,7 +267,7 @@ class AgentWorktreeTests(unittest.TestCase):
         result = self.refused("create")
         self.assertIn("Local develop is missing", result.stderr)
         self.assertFalse(self.task_path().exists())
-        self.assertEqual(self.git("branch", "--list", "agent/task-a"), "")
+        self.assertEqual(self.git("branch", "--list", "feature/task-a"), "")
 
     def test_symlinked_parent_or_target_never_redirects_operations(self):
         outside = self.root.parent / "unrelated"
@@ -317,7 +318,7 @@ class AgentWorktreeTests(unittest.TestCase):
         moved = self.root.parent / "saved-task"
         self.task_path().rename(moved)
         self.task_path().mkdir()
-        self.git("init", "--initial-branch=agent/task-a", "--template=", cwd=self.task_path())
+        self.git("init", "--initial-branch=feature/task-a", "--template=", cwd=self.task_path())
         state = json.loads(self.refused("status").stdout)
         self.assertIn("does not match", " ".join(state["issues"]))
         self.refused("remove")
@@ -336,6 +337,56 @@ class AgentWorktreeTests(unittest.TestCase):
         self.assertEqual(result["path"], str(self.task_path()))
         self.assertEqual(self.success("status")["state"], "ready")
         self.success("remove")
+
+
+    def test_all_new_branch_types_support_numbered_and_issue_free_lifecycles(self):
+        for kind in ("bug", "feature", "maintenance"):
+            for title in ("42-bookmark-search", "bookmark-search"):
+                with self.subTest(kind=kind, title=title):
+                    slug = f"{kind}-{title}"
+                    branch = f"{kind}/{title}"
+                    for command in ("create", "status", "remove"):
+                        result = self.run_cli(command, slug, branch=branch)
+                        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                        self.assertEqual(json.loads(result.stdout)["branch"], branch)
+                    self.assertEqual(self.git("rev-parse", branch), self.git("rev-parse", "develop"))
+
+    def test_create_requires_an_explicit_new_style_branch_without_changing_state(self):
+        before = self.primary_state()
+        for branch in (None, "agent/task-a", "fix/task-a", "chore/task-a", "develop", "master",
+                       "bug/../escape", "feature/Upper-case", "maintenance/a_b", "bug/a--b", "bug/task\n"):
+            with self.subTest(branch=branch):
+                result = self.run_cli("create", branch=branch)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertNotIn("Traceback", result.stderr)
+        self.assertEqual(self.primary_state(), before)
+        self.assertFalse(self.task_path().exists())
+        self.assertEqual(self.git("branch", "--list", "agent/*", "feature/*", "bug/*", "maintenance/*"), "")
+
+    def test_legacy_agent_worktrees_remain_inspectable_and_removable_without_renaming(self):
+        self.git("worktree", "add", "-b", "agent/task-a", str(self.task_path()), "develop")
+        for command in ("status", "remove"):
+            result = self.run_cli(command, branch=None)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertEqual(json.loads(result.stdout)["branch"], "agent/task-a")
+        self.assertEqual(self.git("rev-parse", "agent/task-a"), self.git("rev-parse", "develop"))
+
+    def test_explicit_legacy_fix_branch_can_be_resumed_but_not_created(self):
+        self.git("worktree", "add", "-b", "fix/task-a", str(self.task_path()), "develop")
+        for command in ("status", "remove"):
+            result = self.run_cli(command, branch="fix/task-a")
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertEqual(json.loads(result.stdout)["branch"], "fix/task-a")
+
+    def test_same_path_with_different_branch_is_never_reused_or_removed(self):
+        self.success("create")
+        before = self.git("worktree", "list", "--porcelain")
+        for command in ("create", "status", "remove"):
+            result = self.run_cli(command, branch="bug/task-a")
+            self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(self.git("worktree", "list", "--porcelain"), before)
+        self.assertEqual(self.git("branch", "--list", "bug/task-a"), "")
+        self.assertTrue(self.task_path().is_dir())
 
 
 if __name__ == "__main__":

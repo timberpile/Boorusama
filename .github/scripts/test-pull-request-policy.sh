@@ -93,6 +93,21 @@ expect_failure 'Dependabot exception requires event metadata' \
 expect_failure 'unconfigured Dependabot ecosystems are rejected' \
   "${dependabot_context[@]}" "$validator" develop dependabot/pub/some-package-2
 
+for kind in bug feature maintenance; do
+  for title in 42-bookmark-search bookmark-search; do
+    expect_success "$kind/$title can target develop" "$validator" develop "$kind/$title"
+    expect_failure "$kind/$title cannot target master" "$validator" master "$kind/$title"
+  done
+done
+
+for branch in agent/task chore/task bug/ feature/UPPER maintenance/has_under_score \
+  bug/a--b bug/../escape bug/a/extra maintenance/-task feature/task-; do
+  expect_failure "invalid task branch $branch is rejected" "$validator" develop "$branch"
+done
+expect_failure 'unexpected base branches are rejected' "$validator" staging feature/task
+expect_failure 'empty source branches are rejected' "$validator" develop ''
+expect_failure 'line breaks in branch names are rejected' "$validator" develop $'bug/task\n'
+
 if ((failures > 0)); then
   echo "$failures pull request policy test(s) failed"
   exit 1

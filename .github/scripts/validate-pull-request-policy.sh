@@ -17,8 +17,9 @@ case "$base_branch" in
           "${PR_BASE_REPOSITORY:-}" == 'timberpile/Boorusama' ]]; then
       exit 0
     fi
-    if [[ ! "$head_branch" =~ ^(feature|fix)/([0-9]+-)?[a-z0-9]+(-[a-z0-9]+)*$ && "$head_branch" != sync/upstream-master ]]; then
-      echo 'Pull requests to develop must use feature/<description>, fix/<description>, sync/upstream-master, or an authenticated Dependabot Actions branch.' >&2
+    # Keep fix/ for existing branches; new task branches use bug/ instead.
+    if [[ ! "$head_branch" =~ ^(bug|feature|maintenance|fix)/([0-9]+-)?[a-z0-9]+(-[a-z0-9]+)*$ && "$head_branch" != sync/upstream-master ]]; then
+      echo 'Pull requests to develop must use bug/<description>, feature/<description>, maintenance/<description>, legacy fix/<description>, sync/upstream-master, or an authenticated Dependabot Actions branch.' >&2
       exit 1
     fi
     ;;

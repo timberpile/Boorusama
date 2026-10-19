@@ -1,0 +1,127 @@
+[
+  {
+    "name": "bug",
+    "color": "d73a4a",
+    "description": "Incorrect behavior or a regression."
+  },
+  {
+    "name": "feature",
+    "color": "a2eeef",
+    "description": "New or improved user-facing behavior."
+  },
+  {
+    "name": "maintenance",
+    "color": "cfd3d7",
+    "description": "Engineering, reliability, dependencies, or project upkeep."
+  },
+  {
+    "name": "priority:high",
+    "color": "b60205",
+    "description": "Handle before normal-priority work when authorized."
+  },
+  {
+    "name": "priority:low",
+    "color": "c5def5",
+    "description": "Lower priority; no priority label means normal."
+  },
+  {
+    "name": "in-progress",
+    "color": "fbca04",
+    "description": "Active implementation or required technical verification."
+  },
+  {
+    "name": "blocked",
+    "color": "d93f0b",
+    "description": "A documented obstacle prevents the next necessary step."
+  },
+  {
+    "name": "review",
+    "color": "5319e7",
+    "description": "Prepared for acceptance or authorized integration; not completed yet."
+  },
+  {
+    "name": "ux",
+    "color": "d4c5f9",
+    "description": "User experience, interaction design, and usability improvements."
+  },
+  {
+    "name": "area:bookmarks",
+    "color": "bfdadc",
+    "description": "Bookmarks, local groups, membership, and bookmark search."
+  },
+  {
+    "name": "area:search",
+    "color": "bfdadc",
+    "description": "Browse queries, filters, suggestions, and pagination."
+  },
+  {
+    "name": "area:following-topics",
+    "color": "bfdadc",
+    "description": "Following topics, their collections, filtering, and refresh behavior."
+  },
+  {
+    "name": "area:viewer",
+    "color": "bfdadc",
+    "description": "Post viewing, navigation, gestures, and viewer preloading."
+  },
+  {
+    "name": "area:media",
+    "color": "bfdadc",
+    "description": "Image and video rendering, media quality, and GIF editing."
+  },
+  {
+    "name": "area:cache",
+    "color": "bfdadc",
+    "description": "Persistent or in-memory media caching, capacity, and eviction."
+  },
+  {
+    "name": "area:downloads",
+    "color": "bfdadc",
+    "description": "Individual and bulk downloads, scheduling, and download history."
+  },
+  {
+    "name": "area:backups",
+    "color": "bfdadc",
+    "description": "Backups, retention, restore, and all data import/export formats and flows."
+  },
+  {
+    "name": "area:profiles",
+    "color": "bfdadc",
+    "description": "Profile setup, account selection, and profile configuration."
+  },
+  {
+    "name": "area:boorus",
+    "color": "bfdadc",
+    "description": "Booru integrations, website capabilities, and engine/API compatibility."
+  },
+  {
+    "name": "area:tags",
+    "color": "bfdadc",
+    "description": "Tag categories, presentation, management, and favorite tags."
+  },
+  {
+    "name": "area:settings",
+    "color": "bfdadc",
+    "description": "General application preferences and settings navigation."
+  },
+  {
+    "name": "area:ui",
+    "color": "bfdadc",
+    "description": "Shared UI components and application-wide navigation or interaction."
+  },
+  {
+    "name": "area:sharing",
+    "color": "bfdadc",
+    "description": "Post links, copying, sharing media, and incoming shared content."
+  },
+  {
+    "name": "area:tooling",
+    "color": "bfdadc",
+    "description": "Developer tools, agent workflows, test infrastructure, and CI."
+  },
+  {
+    "name": "area:release",
+    "color": "bfdadc",
+    "description": "Versioning, release preparation, builds, packaging, and delivery."
+  }
+]

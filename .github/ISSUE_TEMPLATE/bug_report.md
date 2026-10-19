@@ -1,34 +1,19 @@
 ---
 name: Bug report
-about: Create a report to help us improve
+about: Report incorrect behavior or a regression.
 title: ''
-labels: ''
+labels: bug
 assignees: ''
-
 ---
 
-**Describe the bug**
-A clear and concise description of what the bug is.
+## Problem
+<!-- Describe the incorrect behavior and its impact in one or two sentences. -->
 
-**To Reproduce**
-Steps to reproduce the behavior:
-1. Go to '...'
-2. Click on '....'
-3. Scroll down to '....'
-4. See error
+## Reproduction
+<!-- Minimal steps; include app version and platform when relevant. -->
 
-**Expected behavior**
-A clear and concise description of what you expected to happen.
+## Expected behavior
+<!-- State the observable result that should replace the current behavior. -->
 
-**Screenshots**
-If applicable, add screenshots to help explain your problem.
-
-**Desktop (please complete the following information):**
- - OS: [e.g. iOS]
-
-**Smartphone (please complete the following information):**
- - Device: [e.g. iPhone6]
- - OS: [e.g. iOS8.1]
-
-**Additional context**
-Add any other context about the problem here.
+<!-- Optional: a related issue or specification link. Keep necessary constraints,
+     but omit implementation plans, test logs, credentials, and private payloads. -->

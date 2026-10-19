@@ -1,14 +1,8 @@
-## Linked issue (optional)
-
-<!-- Add `Closes #123` when applicable. -->
-
 ## Summary
 
-- 
+<!-- Briefly explain the problem and resulting behavior. No verification logs or development history. -->
 
-## Verification
+## Linked issue (optional)
 
-- [ ] Required generation completed
-- [ ] Static analysis passed
-- [ ] Relevant tests passed
-- [ ] Manual verification completed when applicable
+<!-- Use Refs #123 while acceptance is pending. Use Closes #123 only when all
+     agreed acceptance criteria are met and this merge completes the issue. -->

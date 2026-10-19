@@ -1,20 +1,16 @@
 ---
 name: Feature request
-about: Suggest an idea for this project
+about: Describe a new or improved user-facing behavior.
 title: ''
-labels: ''
+labels: feature
 assignees: ''
-
 ---
 
-**Is your feature request related to a problem? Please describe.**
-A clear and concise description of what the problem is. Ex. I'm always frustrated when [...]
+## Problem
+<!-- What is difficult or missing? One or two sentences are usually enough. -->
 
-**Describe the solution you'd like**
-A clear and concise description of what you want to happen. (optional)
+## Expected behavior
+<!-- A few concrete outcomes, including important limits or compatibility needs. -->
 
-**Describe alternatives you've considered**
-A clear and concise description of any alternative solutions or features you've considered. (optional)
-
-**Additional context**
-Add any other context or screenshots about the feature request here. (optional)
+<!-- Optional: a related issue or specification link. Keep the issue concise;
+     detailed designs and implementation plans belong in repository documentation. -->
