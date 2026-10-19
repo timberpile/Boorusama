@@ -1,0 +1,7 @@
+# Keep application diagnostics, with one style exception for unchanged upstream
+# parameter reassignment. Do not rewrite unrelated vendored router methods.
+include: ../../analysis_options.yaml
+
+analyzer:
+  errors:
+    parameter_assignments: ignore

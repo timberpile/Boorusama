@@ -12,15 +12,13 @@ import '../../../../foundation/info/app_info.dart';
 import '../../../../foundation/info/package_info.dart';
 import '../../../../foundation/url_launcher.dart';
 import '../../../analytics/providers.dart';
-import '../../../boorus/engine/providers.dart';
 import '../../../build_info/providers.dart';
 import '../../../changelogs/routes.dart';
-import '../../../configs/config/providers.dart';
-import '../../../configs/create/routes.dart';
 import '../../../debug/routes.dart';
 import '../../../developer_options/l10n.dart';
 import '../../../developer_options/widgets.dart';
 import '../../../premiums/providers.dart';
+import '../../../navigation/profile_management_page.dart';
 import '../../../premiums/routes.dart';
 import '../../../premiums/types.dart';
 import '../../../search/following_topics/src/compatibility/topic_storage_contract.dart';
@@ -48,6 +46,13 @@ List<SettingEntry> _entries(
   BuildContext context, {
   required bool showDeveloperOptions,
 }) => [
+  SettingEntry(
+    id: 'profiles',
+    name: '/settings/profiles',
+    title: context.t.navigation.profiles,
+    icon: FontAwesomeIcons.users,
+    content: const ProfileManagementPage(showAppBar: false),
+  ),
   SettingEntry(
     id: 'appearance',
     name: '/settings/appearance',
@@ -163,10 +168,14 @@ class SettingsPage extends ConsumerWidget {
     super.key,
     this.scrollTo,
     this.initial,
+    this.initialRequest,
+    this.onCloseHost,
   });
 
   final String? scrollTo;
   final String? initial;
+  final Object? initialRequest;
+  final Future<bool> Function()? onCloseHost;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -195,9 +204,11 @@ class SettingsPage extends ConsumerWidget {
               ),
               sidebarWidth: _sidebarWidthFor(constraints.maxWidth),
               initial: initial,
+              initialRequest: initialRequest,
               entries: entries,
               destinations: destinations,
               scrollTo: scrollTo,
+              onCloseHost: onCloseHost,
             ),
           ),
         ),
@@ -211,17 +222,21 @@ class _SettingsAdaptiveShell extends ConsumerStatefulWidget {
     required this.presentation,
     required this.sidebarWidth,
     required this.initial,
+    required this.initialRequest,
     required this.entries,
     required this.destinations,
     required this.scrollTo,
+    required this.onCloseHost,
   });
 
   final SettingsPresentation presentation;
   final double sidebarWidth;
   final String? initial;
+  final Object? initialRequest;
   final List<SettingEntry> entries;
   final Map<String, SettingEntry> destinations;
   final String? scrollTo;
+  final Future<bool> Function()? onCloseHost;
 
   @override
   ConsumerState<_SettingsAdaptiveShell> createState() =>
@@ -255,6 +270,18 @@ class _SettingsAdaptiveShellState
     );
   }
 
+  @override
+  void didUpdateWidget(_SettingsAdaptiveShell oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initial != null &&
+        (widget.initial != oldWidget.initial ||
+            widget.initialRequest != oldWidget.initialRequest)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _notifier.open(widget.initial!);
+      });
+    }
+  }
+
   SettingsNavigationNotifier get _notifier =>
       ref.read(settingsNavigationProvider(_seed).notifier);
 
@@ -262,8 +289,12 @@ class _SettingsAdaptiveShellState
     if (_closing) return;
     final applicationNavigator = Navigator.of(context);
     setState(() => _closing = true);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) applicationNavigator.maybePop();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      final closed =
+          await (widget.onCloseHost?.call() ?? applicationNavigator.maybePop());
+      if (mounted && (!closed || widget.onCloseHost != null))
+        setState(() => _closing = false);
     });
   }
 
@@ -667,27 +698,10 @@ class SettingsPageOtherSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final appInfo = ref.watch(appInfoProvider);
-    final booruBuilder = ref.watch(booruBuilderProvider(ref.watchConfigAuth));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (booruBuilder != null) ...[
-          const Divider(),
-          _SettingsSection(
-            label: context.t.settings.booru_settings.booru_settings,
-          ),
-          SettingTile(
-            title: context.t.settings.booru_settings.edit_current_profile,
-            leading: const FaIcon(
-              FontAwesomeIcons.gear,
-            ),
-            onTap: () => goToUpdateBooruConfigPage(
-              ref,
-              config: ref.watchConfig,
-            ),
-          ),
-        ],
         const Divider(),
         _SettingsSection(
           label: context.t.settings.other_settings,

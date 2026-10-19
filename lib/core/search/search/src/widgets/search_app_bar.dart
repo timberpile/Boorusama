@@ -6,6 +6,11 @@ import 'package:material_symbols_icons/symbols.dart';
 
 // Project imports:
 import '../types/constants.dart';
+import 'search_context_profile_picker.dart';
+import 'search_profile_session.dart';
+import '../../../../navigation/navigation_profile_picker.dart';
+import '../../../../navigation/destination_profile_scope.dart';
+import '../../../../navigation/destination_id.dart';
 import 'booru_search_bar.dart';
 
 class SearchAppBar extends ConsumerWidget {
@@ -92,6 +97,11 @@ class SearchAppBar extends ConsumerWidget {
                 },
               ),
             ),
+            if (SearchProfileSession.maybeOf(context)?.local ?? false)
+              const SearchContextProfilePicker()
+            else if (DestinationScope.maybeOf(context)?.id.kind ==
+                DestinationKind.browse)
+              const NavigationProfilePicker(favorites: false),
             if (trailingSearchButton != null)
               Padding(
                 padding: const EdgeInsets.only(left: 4),

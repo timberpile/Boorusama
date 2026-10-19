@@ -60,7 +60,10 @@ class SelectedTagListWithData extends ConsumerWidget {
         builder: (context, tags, child) {
           return tags.isNotEmpty
               ? SelectedTagList(
-                  profileMenu: SearchProfileSession.maybeOf(context) == null
+                  profileMenu:
+                      SearchProfileSession.maybeOf(context) == null ||
+                          (SearchProfileSession.maybeOf(context)?.local ??
+                              false)
                       ? null
                       : SearchProfileMenu(
                           onSelected: (profile) =>

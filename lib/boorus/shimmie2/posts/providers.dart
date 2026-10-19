@@ -83,7 +83,8 @@ final shimmie2PostRepoProvider =
             }());
             return result.toResult();
           },
-          getSettings: () async => ref.read(imageListingSettingsProvider),
+          getSettings: () async =>
+              ref.read(listingSettingsForAuthProvider(config.auth)),
         );
       },
     );

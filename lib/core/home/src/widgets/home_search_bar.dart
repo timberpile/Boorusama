@@ -2,11 +2,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
-import 'package:material_symbols_icons/symbols.dart';
 import 'package:sliver_tools/sliver_tools.dart';
 
 // Project imports:
-import '../../../../foundation/app_update/widgets.dart';
 import '../../../configs/config/providers.dart';
 import '../../../configs/config/types.dart';
 import '../../../search/histories/providers.dart';
@@ -15,7 +13,7 @@ import '../../../search/search/widgets.dart';
 import '../../../search/selected_tags/providers.dart';
 import '../../../settings/providers.dart';
 import '../../../tags/metatag/providers.dart';
-import '../controllers/home_page_controller.dart';
+import '../../../navigation/navigation_profile_picker.dart';
 
 class HomeSearchBar extends ConsumerWidget {
   const HomeSearchBar({
@@ -24,18 +22,9 @@ class HomeSearchBar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final homeController = InheritedHomePageController.maybeOf(context);
-
     return BooruSearchBar(
       enabled: false,
-      trailing: const AppUpdateButton(),
-      leading: IconButton(
-        splashRadius: 16,
-        icon: const Icon(Symbols.menu),
-        onPressed: () {
-          homeController?.openMenu();
-        },
-      ),
+      trailing: const NavigationProfilePicker(favorites: false),
       onTap: () => goToSearchPage(ref, fromSearchBar: true),
     );
   }

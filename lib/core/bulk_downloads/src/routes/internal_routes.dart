@@ -4,13 +4,15 @@ import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 
 // Project imports:
-import '../../../configs/config/providers.dart';
 import '../../../downloads/downloader/providers.dart';
 import '../../../router.dart';
+import '../../../navigation/operation_source_picker.dart';
+import '../../../configs/manage/widgets.dart';
+import '../../../configs/config/types.dart';
 import '../pages/create_download_options_sheet.dart';
 
 Future<void> goToBulkDownloadCompletedPage(WidgetRef ref) async {
-  await ref.router.push(
+  await ref.pushRoute(
     Uri(
       pathSegments: [
         '',
@@ -22,7 +24,7 @@ Future<void> goToBulkDownloadCompletedPage(WidgetRef ref) async {
 }
 
 Future<void> goToBulkDownloadSavedTasksPage(WidgetRef ref) async {
-  await ref.router.push(
+  await ref.pushRoute(
     Uri(
       pathSegments: [
         '',
@@ -33,13 +35,15 @@ Future<void> goToBulkDownloadSavedTasksPage(WidgetRef ref) async {
   );
 }
 
-void goToNewBulkDownloadTaskPage(
+Future<void> goToNewBulkDownloadTaskPage(
   WidgetRef ref,
   BuildContext context, {
   required List<String>? initialValue,
   bool showStartNotification = true,
-}) {
-  final config = ref.readConfigAuth;
+}) async {
+  final source = await chooseOperationSource(ref);
+  if (!context.mounted || source == null) return;
+  final config = source.auth;
 
   if (!config.booruType.canDownloadMultipleFiles) {
     showBulkDownloadUnsupportErrorToast(context);
@@ -49,9 +53,12 @@ void goToNewBulkDownloadTaskPage(
   Kurumi.showAppModalBottomSheet(
     context: context,
     routeSettings: const RouteSettings(name: 'bulk_download_create'),
-    builder: (_) => CreateDownloadOptionsSheet(
-      initialValue: initialValue,
-      showStartNotification: showStartNotification,
+    builder: (_) => CurrentBooruConfigScope(
+      config: source,
+      child: CreateDownloadOptionsSheet(
+        initialValue: initialValue,
+        showStartNotification: showStartNotification,
+      ),
     ),
   );
 }

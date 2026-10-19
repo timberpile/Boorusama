@@ -70,6 +70,7 @@ class Settings extends Equatable {
     required this.colors,
     required this.volumeKeyViewerNavigation,
     required this.searchBarScrollBehavior,
+    this.autoHideMainNavigation = true,
     required this.searchBarPosition,
     required this.hapticFeedbackLevel,
     required this.autoBackup,
@@ -141,6 +142,7 @@ class Settings extends Equatable {
       colors = json['colors'] != null
           ? ColorSettings.fromJson(json['colors'])
           : null,
+      autoHideMainNavigation = json['autoHideMainNavigation'] as bool? ?? true,
       searchBarScrollBehavior = SearchBarScrollBehavior.parse(
         json['searchBarScrollBehavior'],
       ),
@@ -313,6 +315,7 @@ class Settings extends Equatable {
   final bool volumeKeyViewerNavigation;
 
   final SearchBarScrollBehavior searchBarScrollBehavior;
+  final bool autoHideMainNavigation;
 
   final SearchBarPosition searchBarPosition;
 
@@ -361,6 +364,7 @@ class Settings extends Equatable {
     ColorSettings? colors,
     bool? volumeKeyViewerNavigation,
     SearchBarScrollBehavior? searchBarScrollBehavior,
+    bool? autoHideMainNavigation,
     SearchBarPosition? searchBarPosition,
     HapticFeedbackLevel? hapticFeedbackLevel,
     AutoBackupSettings? autoBackup,
@@ -421,6 +425,8 @@ class Settings extends Equatable {
     colors: colors ?? this.colors,
     volumeKeyViewerNavigation:
         volumeKeyViewerNavigation ?? this.volumeKeyViewerNavigation,
+    autoHideMainNavigation:
+        autoHideMainNavigation ?? this.autoHideMainNavigation,
     searchBarScrollBehavior:
         searchBarScrollBehavior ?? this.searchBarScrollBehavior,
     searchBarPosition: searchBarPosition ?? this.searchBarPosition,
@@ -471,6 +477,7 @@ class Settings extends Equatable {
       'downloadSidecarFormat': downloadSidecarFormat.name,
       'colors': colors?.toJson(),
       'volumeKeyViewerNavigation': volumeKeyViewerNavigation,
+      'autoHideMainNavigation': autoHideMainNavigation,
       'searchBarScrollBehavior': searchBarScrollBehavior.toData(),
       'searchBarPosition': searchBarPosition.toData(),
       'hapticFeedbackLevel': hapticFeedbackLevel.toData(),
@@ -518,6 +525,7 @@ class Settings extends Equatable {
     colors,
     volumeKeyViewerNavigation,
     searchBarScrollBehavior,
+    autoHideMainNavigation,
     searchBarPosition,
     hapticFeedbackLevel,
     autoBackup,

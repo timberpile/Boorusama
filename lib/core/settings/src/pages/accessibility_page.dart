@@ -6,7 +6,6 @@ import 'package:kurumi/material.dart';
 
 // Project imports:
 import '../../../haptics/types.dart';
-import '../../../home/types.dart';
 import '../providers/settings_notifier.dart';
 import '../providers/settings_provider.dart';
 import '../widgets/settings_page_scaffold.dart';
@@ -29,43 +28,6 @@ class _AccessibilityPageState extends ConsumerState<AccessibilityPage> {
     return SettingsPageScaffold(
       title: Text(context.t.settings.accessibility.accessibility),
       children: [
-        KurumiSwitchListTile(
-          title: Text(
-            context
-                .t
-                .settings
-                .accessibility
-                .reverseBooruConfigSelectorScrollDirection,
-          ),
-          value: settings.booruConfigSelectorScrollDirection.isReversed,
-          onChanged: (value) => notifer.updateWith(
-            (settings) => settings.copyWith(
-              booruConfigSelectorScrollDirection: value
-                  ? BooruConfigScrollDirection.reversed
-                  : BooruConfigScrollDirection.normal,
-            ),
-          ),
-        ),
-        KurumiSettingsTile(
-          title: Text(context.t.settings.accessibility.swipeAreaToOpenSidebar),
-          subtitle: Text(
-            context.t.settings.accessibility.swipeAreaToOpenSidebarDescription,
-            style: TextStyle(
-              color: Kurumi.themeOf(context).colorScheme.hintColor,
-            ),
-          ),
-          selectedOption: settings.swipeAreaToOpenSidebarPercentage,
-          items: getSwipeAreaPossibleValue(),
-          onChanged: (newValue) {
-            notifer.updateWith(
-              (settings) =>
-                  settings.copyWith(swipeAreaToOpenSidebarPercentage: newValue),
-            );
-          },
-          optionBuilder: (value) => Text(
-            '$value%',
-          ),
-        ),
         KurumiSwitchListTile(
           title: Text(context.t.settings.accessibility.reduce_animations),
           subtitle: Text(
@@ -109,5 +71,3 @@ class _AccessibilityPageState extends ConsumerState<AccessibilityPage> {
     );
   }
 }
-
-List<int> getSwipeAreaPossibleValue() => [for (var i = 5; i <= 100; i += 5) i];

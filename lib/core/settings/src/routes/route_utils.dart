@@ -8,7 +8,7 @@ void goToSettingsPage(
   WidgetRef ref, {
   String? scrollTo,
 }) {
-  ref.router.push(
+  ref.pushRoute(
     Uri(
       path: '/settings',
       queryParameters: {
@@ -19,7 +19,7 @@ void goToSettingsPage(
 }
 
 Future<void> openImageViewerSettingsPage(WidgetRef ref) {
-  return ref.router.push(
+  return ref.pushRoute(
     Uri(
       path: '/settings',
       queryParameters: {
@@ -30,7 +30,7 @@ Future<void> openImageViewerSettingsPage(WidgetRef ref) {
 }
 
 Future<void> openDownloadSettingsPage(WidgetRef ref) {
-  return ref.router.push(
+  return ref.pushRoute(
     Uri(
       path: '/settings',
       queryParameters: {
@@ -41,7 +41,7 @@ Future<void> openDownloadSettingsPage(WidgetRef ref) {
 }
 
 Future<void> openAppearancePage(WidgetRef ref) {
-  return ref.router.push(
+  return ref.pushRoute(
     Uri(
       path: '/settings',
       queryParameters: {
@@ -52,7 +52,7 @@ Future<void> openAppearancePage(WidgetRef ref) {
 }
 
 Future<void> openDataAndStoragePage(WidgetRef ref) {
-  return ref.router.push(
+  return ref.pushRoute(
     Uri(
       path: '/settings',
       queryParameters: {
@@ -63,10 +63,16 @@ Future<void> openDataAndStoragePage(WidgetRef ref) {
 }
 
 Future<void> openTopicUpdatesSettingsPage(WidgetRef ref) {
-  return ref.router.push(
+  return ref.pushRoute(
     Uri(
       path: '/settings',
       queryParameters: {'initial': 'topic_updates'},
     ).toString(),
   );
 }
+
+/// Each explicit recovery request also opens the category in retained Settings.
+Future<void> openProfilesSettingsPage(WidgetRef ref) => ref.pushRoute(
+  Uri(path: '/settings', queryParameters: {'initial': 'profiles'}).toString(),
+  extra: Object(),
+);

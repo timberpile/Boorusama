@@ -1,3 +1,4 @@
+import 'package:flutter/widgets.dart';
 // Package imports:
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -20,7 +21,7 @@ void main() {
       if (settingsIcon.evaluate().isNotEmpty) {
         await tester.tap(settingsIcon.last);
       } else {
-        await tester.tap(find.byIcon(Symbols.menu).first);
+        await tester.tap(find.byKey(const Key('nav-menu-toggle')).first);
         await tester.pump();
         await harness.settle(tester);
         await tester.tap(find.text('Settings').last);

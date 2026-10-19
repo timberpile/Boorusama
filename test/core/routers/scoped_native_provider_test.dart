@@ -1,3 +1,4 @@
+import 'package:boorusama/core/configs/manage/providers.dart';
 // Flutter imports:
 import 'package:material_ui/material_ui.dart';
 
@@ -21,6 +22,11 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          booruConfigProvider.overrideWith(
+            () => BooruConfigNotifier(
+              initialConfigs: [_globalConfig, _e621Config, _szurubooruConfig],
+            ),
+          ),
           e621ArtistRepoProvider(_e621Config.auth).overrideWithValue(
             _E621ArtistRepository(),
           ),
@@ -57,6 +63,13 @@ void main() {
   ) async {
     await tester.pumpWidget(
       ProviderScope(
+        overrides: [
+          booruConfigProvider.overrideWith(
+            () => BooruConfigNotifier(
+              initialConfigs: [_globalConfig, _e621Config, _szurubooruConfig],
+            ),
+          ),
+        ],
         child: CurrentBooruConfigScope(
           config: _globalConfig,
           child: CurrentBooruConfigScope(
@@ -87,20 +100,29 @@ class _E621ArtistRepository implements E621ArtistRepository {
   );
 }
 
-final _globalConfig = BooruConfig.defaultConfig(
-  booruType: BooruType.danbooru,
-  url: 'https://global.example',
-  customDownloadFileNameFormat: null,
-);
+final _globalConfig = BooruConfig.fromJson({
+  ...BooruConfig.defaultConfig(
+    booruType: BooruType.danbooru,
+    url: 'https://global.example',
+    customDownloadFileNameFormat: null,
+  ).toJson(),
+  'id': '00000000-0000-4000-8000-000000000001',
+});
 
-final _e621Config = BooruConfig.defaultConfig(
-  booruType: BooruType.e621,
-  url: 'https://e621.example',
-  customDownloadFileNameFormat: null,
-);
+final _e621Config = BooruConfig.fromJson({
+  ...BooruConfig.defaultConfig(
+    booruType: BooruType.e621,
+    url: 'https://e621.example',
+    customDownloadFileNameFormat: null,
+  ).toJson(),
+  'id': '00000000-0000-4000-8000-000000000002',
+});
 
-final _szurubooruConfig = BooruConfig.defaultConfig(
-  booruType: BooruType.szurubooru,
-  url: 'https://szurubooru.example',
-  customDownloadFileNameFormat: null,
-);
+final _szurubooruConfig = BooruConfig.fromJson({
+  ...BooruConfig.defaultConfig(
+    booruType: BooruType.szurubooru,
+    url: 'https://szurubooru.example',
+    customDownloadFileNameFormat: null,
+  ).toJson(),
+  'id': '00000000-0000-4000-8000-000000000003',
+});

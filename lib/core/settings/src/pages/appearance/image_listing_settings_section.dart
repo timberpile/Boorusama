@@ -5,12 +5,9 @@ import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 
 // Project imports:
-import '../../../../home/types.dart';
 import '../../../../images/types.dart';
 import '../../../../posts/listing/types.dart';
 import '../../../../posts/post/types.dart';
-import '../../providers/settings_notifier.dart';
-import '../../providers/settings_provider.dart';
 import '../../types/settings.dart';
 import '../../types/utils.dart';
 import 'posts_per_page_dialog.dart';
@@ -312,46 +309,6 @@ class _ImageListingSettingsSectionState
           padding: EdgeInsets.zero,
         );
       },
-    );
-  }
-}
-
-class LayoutSection extends ConsumerWidget {
-  const LayoutSection({
-    super.key,
-  });
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final settings = ref.watch(settingsProvider);
-    final notifier = ref.watch(settingsNotifierProvider.notifier);
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        KurumiSettingsHeader(
-          label: context.t.settings.appearance.booru_config,
-        ),
-        KurumiSettingsTile(
-          title: Text(context.t.settings.appearance.booru_config_placement),
-          selectedOption: settings.booruConfigSelectorPosition,
-          items: const [...BooruConfigSelectorPosition.values],
-          onChanged: (value) => notifier.updateWith(
-            (settings) => settings.copyWith(booruConfigSelectorPosition: value),
-          ),
-          optionBuilder: (value) => Text(value.localize(context)),
-        ),
-        KurumiSettingsTile(
-          title: Text(context.t.settings.appearance.booru_config_label),
-          selectedOption: settings.booruConfigLabelVisibility,
-          items: const [...BooruConfigLabelVisibility.values],
-          onChanged: (value) => notifier.updateWith(
-            (settings) => settings.copyWith(booruConfigLabelVisibility: value),
-          ),
-          optionBuilder: (value) => Text(value.localize(context)),
-        ),
-      ],
     );
   }
 }

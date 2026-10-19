@@ -32,7 +32,7 @@ void goToLazyPostDetailsPageFromController<T extends Post>({
   required PostGridController<T> controller,
   required BooruConfig config,
 }) {
-  ref.router.push(
+  ref.pushRoute(
     '/post-list-details',
     extra: LazyPostDetailsRouteContext(
       source: LazyPostDetailsSource(
@@ -54,6 +54,7 @@ GoRoute lazyPostDetailsRoutes(Ref ref) => GoRoute(
     if (state.extra case final LazyPostDetailsRouteContext data) {
       return MaterialPage(
         key: state.pageKey,
+        name: state.name,
         child: _LazyPostDetailsPage(data: data),
       );
     }

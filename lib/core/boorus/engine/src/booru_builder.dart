@@ -7,7 +7,6 @@ import 'booru_builder_types.dart';
 abstract class BooruBuilder {
   BooruPostPresentation get postPresentation => const GenericPostPresentation();
 
-  HomePageBuilder get homePageBuilder;
   CreateConfigPageBuilder get createConfigPageBuilder;
   UpdateConfigPageBuilder get updateConfigPageBuilder;
   SearchPageBuilder get searchPageBuilder;

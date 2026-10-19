@@ -6,7 +6,7 @@ import '../../../../../../core/router.dart';
 import '../../../pool/types.dart';
 
 void goToPoolDetailPage(WidgetRef ref, DanbooruPool pool) {
-  ref.router.push(
+  ref.pushRoute(
     Uri(
       pathSegments: [
         '',

@@ -75,9 +75,10 @@ void main() {
         );
         if (c.position == SearchBarPosition.bottom) {
           expect(
-            keyboard.gapAbove(find.byType(SearchAppBar)),
+            tester.getTopLeft(find.byKey(const Key('nav-shortcut-browse'))).dy -
+                tester.getBottomLeft(find.byType(SearchAppBar)).dy,
             moreOrLessEquals(0, epsilon: 0.5),
-            reason: 'the bottom search bar should return to the screen edge',
+            reason: 'the bottom search bar should meet the navigation bar without a gap',
           );
         }
       },

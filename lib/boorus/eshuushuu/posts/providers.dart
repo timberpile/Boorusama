@@ -23,7 +23,8 @@ final eshuushuuPostRepoProvider =
 
         return PostRepositoryBuilder(
           tagComposer: tagComposer,
-          getSettings: () async => ref.read(imageListingSettingsProvider),
+          getSettings: () async =>
+              ref.read(listingSettingsForAuthProvider(config.auth)),
           fetchSingle: (id, {options}) async {
             final numericId = switch (id) {
               NumericPostId(:final value) => value,

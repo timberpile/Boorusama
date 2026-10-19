@@ -4,14 +4,14 @@ import 'package:kurumi/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 // Project imports:
-import '../../../../configs/config/providers.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../router.dart';
+import '../../../../navigation/operation_source_picker.dart';
 import '../../../selected_tags/types.dart';
 import '../views/simple_tag_search_view.dart';
 import 'params.dart';
 
-void goToSearchPage(
+Future<void> goToSearchPage(
   WidgetRef ref, {
   String? tag,
   //FIXME: migrate to SearchTagSet instead of String
@@ -23,8 +23,10 @@ void goToSearchPage(
   String? order,
   BooruConfig? config,
   String? originatingTopicId,
-}) {
-  ref.router.push(
+}) async {
+  final source = config ?? await chooseOperationSource(ref);
+  if (!ref.context.mounted || source == null) return;
+  await ref.pushRoute(
     Uri(
       path: '/search',
       queryParameters: switch (SearchParams(
@@ -41,7 +43,7 @@ void goToSearchPage(
       },
     ).toString(),
     extra: SearchRouteContext(
-      config: config ?? ref.readConfig,
+      config: source,
       originatingTopicId: originatingTopicId,
     ),
   );

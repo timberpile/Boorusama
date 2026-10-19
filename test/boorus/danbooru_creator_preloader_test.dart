@@ -1,3 +1,4 @@
+import 'package:boorusama/core/configs/manage/providers.dart';
 // Flutter imports:
 import 'package:material_ui/material_ui.dart';
 
@@ -29,6 +30,9 @@ void main() {
 
     Widget build(Post post) => ProviderScope(
       overrides: [
+        booruConfigProvider.overrideWith(
+          () => BooruConfigNotifier(initialConfigs: [_config]),
+        ),
         danbooruCreatorRepoProvider.overrideWith(
           (ref, config) => Future.value(repository),
         ),

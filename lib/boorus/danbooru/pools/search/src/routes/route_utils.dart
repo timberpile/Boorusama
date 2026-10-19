@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../../core/router.dart';
 
 void goToPoolSearchPage(WidgetRef ref) {
-  ref.router.push(
+  ref.pushRoute(
     Uri(
       path: '/danbooru/pools/search',
     ).toString(),

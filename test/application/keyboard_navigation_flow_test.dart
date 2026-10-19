@@ -301,7 +301,12 @@ void main() {
       (tester) async {
         final keys = await _mountOnTv(tester);
 
-        await keys.navigateTo(_sidebarTile(Symbols.settings));
+        final menu = find.byKey(const Key('nav-menu-toggle'));
+        if (menu.evaluate().isNotEmpty) {
+          await keys.navigateTo(menu);
+          await keys.select();
+        }
+        await keys.navigateTo(_sidebarTile(km.Icons.settings));
         await keys.select();
         await keys.harness.pumpUntilFound(tester, find.byType(SettingsPage));
 
@@ -422,7 +427,10 @@ void main() {
       await keys.select();
       await keys.harness.pumpUntil(
         tester,
-        () => opener?.isCurrent == false,
+        () {
+          final focused = keys.focusedNode?.context;
+          return focused != null && ModalRoute.of(focused) != opener;
+        },
         description: '${c.name} to open',
       );
       await keys.harness.settle(tester);
@@ -746,13 +754,32 @@ void main() {
     }
   }
 
-  testWidgets('Tab goes through the whole home sidebar before the posts', (
+  testWidgets('Tab goes through the whole wide sidebar before the posts', (
     tester,
   ) async {
-    final keys = await _mountOnTv(tester);
-    final sidebar = find.byType(KurumiNavigationTile);
+    final keys = await _mountOnTv(tester, viewport: kDesktopViewport);
+    final sidebar = find.byWidgetPredicate(
+      (widget) =>
+          widget is km.ListTile &&
+          widget.key is ValueKey<String> &&
+          ((widget.key! as ValueKey<String>).value.startsWith(
+                'nav-destination:',
+              ) ||
+              (widget.key! as ValueKey<String>).value.startsWith(
+                'nav-profile-section:',
+              ) ||
+              (widget.key! as ValueKey<String>).value ==
+                  'nav-shared-favorites'),
+    );
 
-    final cycle = await keys.tabCycle();
+    final stops = await keys.tabCycle();
+    // A retained destination owns initial focus. Verify the complete circular
+    // order from the sidebar instead of assuming focus starts outside it.
+    final start = stops.indexWhere(
+      (stop) => keys.isNodeWithin(stop.node, sidebar),
+    );
+    expect(start, isNonNegative);
+    final cycle = [...stops.skip(start), ...stops.take(start)];
     final inSidebar = [
       for (final (index, stop) in cycle.indexed)
         if (keys.isNodeWithin(stop.node, sidebar)) index,
@@ -1078,7 +1105,7 @@ Future<KeyboardFlowDriver> _mountOnTv(
 
 Finder _sidebarTile(IconData icon) => find.ancestor(
   of: find.byIcon(icon),
-  matching: find.byType(KurumiNavigationTile),
+  matching: find.byType(km.ListTile),
 );
 
 Finder _iconButton(IconData icon) =>

@@ -62,7 +62,9 @@ class KurumiDirectionalFocusAction extends DirectionalFocusAction {
     final landed = primaryFocus;
     final visible = switch (landed) {
       final landed?
-          when hidden.contains(landed) && !_isInListOf(landed, from) =>
+          when (hidden.contains(landed) ||
+                  !_overlapsCrossAxis(from.rect, landed.rect, direction)) &&
+              !_isInListOf(landed, from) =>
         nearestFocusInDirection(
           _candidates(except: from).where((node) => !hidden.contains(node)),
           from: from.rect,
@@ -79,6 +81,19 @@ class KurumiDirectionalFocusAction extends DirectionalFocusAction {
     visible.requestFocus();
     scheduleMicrotask(_revealFocus);
   }
+
+  // A nested route may choose a diagonal control even when another pane has
+  // a visible control directly ahead (for example a bottom navigation bar).
+  static bool _overlapsCrossAxis(
+    Rect from,
+    Rect to,
+    TraversalDirection direction,
+  ) => switch (direction) {
+    TraversalDirection.up ||
+    TraversalDirection.down => from.left < to.right && from.right > to.left,
+    TraversalDirection.left ||
+    TraversalDirection.right => from.top < to.bottom && from.bottom > to.top,
+  };
 
   // The default traversal reverses an arrow by returning to the control the
   // previous arrow left, without checking focus is still where it went.

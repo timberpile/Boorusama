@@ -58,7 +58,8 @@ final animePicturesPostRepoProvider =
                   maxPage: result.appMaxPage,
                 );
           },
-          getSettings: () async => ref.read(imageListingSettingsProvider),
+          getSettings: () async =>
+              ref.read(listingSettingsForAuthProvider(config.auth)),
         );
       },
     );

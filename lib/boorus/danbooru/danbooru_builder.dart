@@ -9,7 +9,6 @@ import '../../core/configs/create/widgets.dart';
 import '../../core/configs/manage/widgets.dart';
 import '../../core/downloads/filename/types.dart';
 import '../../core/home/types.dart';
-import '../../core/home/widgets.dart';
 import '../../core/posts/details/widgets.dart';
 import '../../core/posts/statistics/types.dart';
 import '../../core/posts/statistics/widgets.dart';
@@ -52,10 +51,6 @@ class DanbooruBuilder extends BaseBooruBuilder {
           backgroundColor: backgroundColor,
         ),
       );
-
-  @override
-  HomePageBuilder get homePageBuilder =>
-      (context) => const DanbooruHomePage();
 
   @override
   UpdateConfigPageBuilder get updateConfigPageBuilder =>
@@ -120,9 +115,7 @@ class DanbooruBuilder extends BaseBooruBuilder {
 
   @override
   HomeViewBuilder get homeViewBuilder => (context) {
-    return const UserCustomHomeBuilder(
-      defaultView: LatestView(),
-    );
+    return const LatestView();
   };
 
   @override

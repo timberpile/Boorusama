@@ -11,6 +11,7 @@ import '../../../../configs/config/providers.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../search/search/routes.dart';
 import '../../../../widgets/widgets.dart';
+import '../../../../navigation/navigation_profile_picker.dart';
 import '../../../listing/widgets.dart';
 import '../../../post/providers.dart';
 import '../../../post/types.dart';
@@ -62,6 +63,7 @@ class FavoritesPageScaffold extends ConsumerWidget {
                       );
                     },
                   ),
+                const NavigationProfilePicker(favorites: true),
               ],
             ),
             const SliverSizedBox(height: 5),

@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../../core/router.dart';
 
 void goToExplorePage(WidgetRef ref) {
-  ref.router.push(
+  ref.pushRoute(
     Uri(
       pathSegments: [
         '',
@@ -17,7 +17,7 @@ void goToExplorePage(WidgetRef ref) {
 }
 
 void goToExplorePopularPage(WidgetRef ref) {
-  ref.router.push(
+  ref.pushRoute(
     Uri(
       pathSegments: [
         '',
@@ -31,7 +31,7 @@ void goToExplorePopularPage(WidgetRef ref) {
 }
 
 void goToExploreHotPage(WidgetRef ref) {
-  ref.router.push(
+  ref.pushRoute(
     Uri(
       pathSegments: [
         '',
@@ -46,7 +46,7 @@ void goToExploreHotPage(WidgetRef ref) {
 }
 
 void goToExploreMostViewedPage(WidgetRef ref) {
-  ref.router.push(
+  ref.pushRoute(
     Uri(
       pathSegments: [
         '',

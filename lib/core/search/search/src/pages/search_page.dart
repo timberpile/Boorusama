@@ -11,13 +11,16 @@ import '../../../../configs/config/types.dart';
 import '../../../../configs/manage/providers.dart';
 import '../../../../configs/manage/widgets.dart';
 import '../../../../router.dart';
+import '../../../../navigation/destination_profile_scope.dart';
 import '../../../suggestions/providers.dart';
 import '../routes/params.dart';
 import '../widgets/search_controller.dart';
 import '../widgets/search_profile_session.dart';
 
 class SearchPage extends ConsumerStatefulWidget {
-  const SearchPage({super.key});
+  const SearchPage({this.initialConfig, super.key});
+
+  final BooruConfig? initialConfig;
 
   @override
   ConsumerState<SearchPage> createState() => _SearchPageState();
@@ -26,13 +29,23 @@ class SearchPage extends ConsumerStatefulWidget {
 class _SearchPageState extends ConsumerState<SearchPage> {
   var _followGlobalProfile = false;
   SearchProfileSnapshot? _snapshot;
+  BooruConfig? _localProfile;
 
   void _switchProfile(BooruConfig profile, SearchPageController controller) {
-    if (profile.id ==
-            (_followGlobalProfile
-                ? ref.read(currentBooruConfigProvider).id
-                : ref.readConfig.id) &&
-        profile.id == ref.read(currentBooruConfigProvider).id) {
+    final local = DestinationScope.maybeOf(context) != null;
+    final current = local
+        ? (_localProfile ?? widget.initialConfig ?? ref.readConfig)
+        : (_followGlobalProfile
+              ? ref.read(currentBooruConfigProvider)
+              : ref.readConfig);
+    if (profile.id == current.id &&
+        (local || profile.id == ref.read(currentBooruConfigProvider).id))
+      return;
+    if (local) {
+      setState(() {
+        _snapshot = SearchProfileSnapshot.capture(controller);
+        _localProfile = profile;
+      });
       return;
     }
     ref.invalidate(fallbackSuggestionsProvider);
@@ -45,7 +58,10 @@ class _SearchPageState extends ConsumerState<SearchPage> {
 
   @override
   Widget build(BuildContext context) {
-    final config = _followGlobalProfile
+    final local = DestinationScope.maybeOf(context) != null;
+    final config = local
+        ? (_localProfile ??= widget.initialConfig ?? ref.readConfig)
+        : _followGlobalProfile
         ? ref.watch(currentBooruConfigProvider)
         : ref.watchConfig;
     final builder = ref
@@ -55,23 +71,24 @@ class _SearchPageState extends ConsumerState<SearchPage> {
         InheritedInitialSearchQuery.maybeOf(context)?.params ??
         const SearchParams();
 
+    final page = KeyedSubtree(
+      key: ValueKey((config.id, config.auth)),
+      child: Builder(
+        builder: (context) => builder != null
+            ? builder(
+                context,
+                _snapshot == null ? params : const SearchParams(),
+              )
+            : const UnimplementedPage(),
+      ),
+    );
     return CurrentBooruConfigScope(
       config: config,
       child: SearchProfileSession(
+        local: local,
         snapshot: _snapshot,
         onSwitch: _switchProfile,
-        // Recreate engine widgets, parsers and result controllers together.
-        child: KeyedSubtree(
-          key: ValueKey((config.id, config.auth)),
-          child: Builder(
-            builder: (context) => builder != null
-                ? builder(
-                    context,
-                    _snapshot == null ? params : const SearchParams(),
-                  )
-                : const UnimplementedPage(),
-          ),
-        ),
+        child: page,
       ),
     );
   }

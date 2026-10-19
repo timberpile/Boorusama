@@ -4,7 +4,6 @@ import 'package:boorusama/core/search/following_topics/src/providers/search_refr
 import 'package:boorusama/core/search/following_topics/src/services/conservative_refresh_policy.dart';
 
 import 'package:boorusama/core/analytics/providers.dart';
-import 'package:boorusama/core/home/types.dart';
 import 'package:boorusama/core/settings/providers.dart';
 import 'package:boorusama/core/settings/src/pages/accessibility_page.dart';
 import 'package:boorusama/core/settings/src/pages/appearance/image_listing_settings_section.dart';
@@ -140,10 +139,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(repository.stored?.searchRefresh.followingTopicsEnabled, isFalse);
-      expect(
-        repository.stored?.booruConfigSelectorScrollDirection,
-        BooruConfigScrollDirection.reversed,
-      );
+      expect(repository.stored?.reduceAnimations, isTrue);
     },
   );
 

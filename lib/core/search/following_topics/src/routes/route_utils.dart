@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../router.dart';
 
 Future<void> goToFollowingTopicsPage(WidgetRef ref) =>
-    ref.router.push('/following-topics');
+    ref.pushRoute('/following-topics');
 
-Future<void> goToTopicFeedsPage(WidgetRef ref) =>
-    ref.router.push('/topic-feeds');
+Future<void> goToTopicFeedsPage(WidgetRef ref) => ref.pushRoute('/topic-feeds');

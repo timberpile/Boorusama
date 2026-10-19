@@ -42,6 +42,7 @@ class BoorusamaCoreApp extends ConsumerWidget {
     return OKToast(
       duration: toastDuration,
       child: ThemeBuilder(
+        useProfileAppearance: false,
         builder: (theme, themeMode) {
           return MaterialApp.router(
             shortcuts: {

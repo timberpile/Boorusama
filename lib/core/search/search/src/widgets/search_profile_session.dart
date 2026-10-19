@@ -35,9 +35,11 @@ class SearchProfileSession extends InheritedWidget {
     required this.snapshot,
     required this.onSwitch,
     required super.child,
+    this.local = false,
     super.key,
   });
 
+  final bool local;
   final SearchProfileSnapshot? snapshot;
   final void Function(BooruConfig, SearchPageController) onSwitch;
 

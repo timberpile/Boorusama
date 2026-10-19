@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kurumi/cupertino.dart';
 
 // Project imports:
-import '../../foundation/app_rating/app_rating.dart';
 import '../blacklists/routes.dart';
 import '../bookmarks/routes.dart';
 import '../boorus/engine/providers.dart';
@@ -11,14 +10,11 @@ import '../bulk_downloads/routes.dart';
 import '../changelogs/routes.dart';
 import '../configs/config/providers.dart';
 import '../configs/config/types.dart';
-import '../configs/config/routes.dart';
 import '../configs/manage/widgets.dart';
 import '../configs/create/routes.dart';
 import '../debug/routes.dart';
 import '../donate/routes.dart';
 import '../download_manager/routes.dart';
-import '../downloads/downloader/widgets.dart';
-import '../home/widgets.dart';
 import '../posts/details/routes.dart';
 import '../posts/details_manager/routes.dart';
 import '../posts/favorites/routes.dart';
@@ -51,44 +47,33 @@ const kArtistNameKey = 'name';
 const kCharacterNameKey = 'name';
 
 class Routes {
-  static GoRoute home(Ref ref) => GoRoute(
-    path: '/',
-    builder: (context, state) => BooruConfigDeepLinkResolver(
-      path: state.uri.toString(),
-      child: const AppRatingScope(
-        child: DownloaderScope(
-          child: EntryPage(),
-        ),
-      ),
-    ),
-    routes: [
-      addBooruConfigRoutes(ref),
-      updateBooruConfigRoutes(ref),
-      searchRoutes(ref),
-      postDetailsRoutes(ref),
-      singlePostDetailsRoutes(ref),
-      lazyPostDetailsRoutes(ref),
-      postFavoritesRoutes(ref),
-      artists(ref),
-      characters(ref),
-      settingsRoutes,
-      settingsDesktopRoutes,
-      bookmarkRoutes,
-      followingTopicRoutes,
-      topicFeedRoutes,
-      ...legacyFollowingTopicRoutes,
-      globalBlacklistedTagsRoutes,
-      downloadManagerRoutes,
-      bulkDownloadsRoutes,
-      favoriteTags(),
-      originalImageRoutes,
-      premiumRoutes(ref),
-      donationRoutes(ref),
-      detailsManagerRoutes,
-      changelogRoutes,
-      debuglogRoutes,
-    ],
-  );
+  static List<GoRoute> features(Ref ref) => [
+    addBooruConfigRoutes(ref),
+    updateBooruConfigRoutes(ref),
+    searchRoutes(ref),
+    postDetailsRoutes(ref),
+    singlePostDetailsRoutes(ref),
+    lazyPostDetailsRoutes(ref),
+    postFavoritesRoutes(ref),
+    artists(ref),
+    characters(ref),
+    settingsRoutes,
+    settingsDesktopRoutes,
+    bookmarkRoutes,
+    followingTopicRoutes,
+    topicFeedRoutes,
+    ...legacyFollowingTopicRoutes,
+    globalBlacklistedTagsRoutes,
+    downloadManagerRoutes,
+    bulkDownloadsRoutes,
+    favoriteTags(),
+    originalImageRoutes,
+    premiumRoutes(ref),
+    donationRoutes(ref),
+    detailsManagerRoutes,
+    changelogRoutes,
+    debuglogRoutes,
+  ];
 
   static GoRoute artists(Ref ref) => GoRoute(
     path: 'artists',

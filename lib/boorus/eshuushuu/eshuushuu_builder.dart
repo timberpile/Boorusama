@@ -20,7 +20,6 @@ import '../../core/search/search/widgets.dart';
 import 'comments/widgets.dart';
 import 'configs/widgets.dart';
 import 'favorites/widgets.dart';
-import 'home/widgets.dart';
 import 'posts/types.dart';
 import 'posts/widgets.dart';
 import 'users/routes.dart';
@@ -73,10 +72,6 @@ class EshuushuuBuilder extends BaseBooruBuilder {
           initialTab: initialTab,
         ),
       );
-
-  @override
-  HomePageBuilder get homePageBuilder =>
-      (context) => const EshuushuuHomePage();
 
   @override
   FavoritesPageBuilder? get favoritesPageBuilder =>

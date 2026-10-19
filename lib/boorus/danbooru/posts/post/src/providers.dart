@@ -70,7 +70,8 @@ final danbooruPostRepoProvider =
               ? transformPosts(ref, posts.toResult(), config)
               : posts.toResult();
         },
-        getSettings: () async => ref.read(imageListingSettingsProvider),
+        getSettings: () async =>
+            ref.read(listingSettingsForAuthProvider(config.auth)),
       );
     });
 

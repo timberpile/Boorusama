@@ -19,7 +19,7 @@ void goToOriginalImagePage(WidgetRef ref, Post post) {
     return;
   }
 
-  ref.router.push(
+  ref.pushRoute(
     Uri(
       path: '/original_image_viewer',
     ).toString(),

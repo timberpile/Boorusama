@@ -1,3 +1,6 @@
+import '../../../../navigation/navigation_interaction_scopes.dart';
+import '../../../../navigation/destination_profile_scope.dart';
+import '../../../../router.dart';
 import '../../../../errors/types.dart';
 
 import 'dart:async';
@@ -130,6 +133,41 @@ class _FollowingTopicsPageState extends ConsumerState<FollowingTopicsPage> {
   void _openFolder(String? id) {
     if (id == _folderId) return;
     final navigator = Navigator.of(context);
+    if (DestinationScope.maybeOf(context) != null) {
+      final organization = ref
+          .read(followingTopicsProvider)
+          .valueOrNull
+          ?.organization;
+      final ancestors = <String?>{null};
+      var parent = organization?.folders
+          .where((f) => f.id == _folderId)
+          .firstOrNull
+          ?.parentId;
+      while (parent != null && ancestors.add(parent)) {
+        parent = organization?.folders
+            .where((f) => f.id == parent)
+            .firstOrNull
+            ?.parentId;
+      }
+      if (ancestors.contains(id)) {
+        var found = false;
+        navigator.popUntil((route) {
+          found = id == null
+              ? route.isFirst
+              : route.settings.name == 'following-folder:$id';
+          return found || route.isFirst;
+        });
+        if (found) return;
+      }
+      if (id != null)
+        unawaited(
+          ref.pushNamedRoute<void>(
+            '/following-topics/folder',
+            pathParameters: {'folderId': id},
+          ),
+        );
+      return;
+    }
     final previous = widget._ancestorRoutes[id];
     if (previous != null) {
       navigator.popUntil((route) => route == previous);
@@ -227,166 +265,170 @@ class _FollowingTopicsPageState extends ConsumerState<FollowingTopicsPage> {
     final selectedTopicIds = activity == null
         ? const <String>{}
         : _selectedTopicIds(activity);
-    return PopScope(
-      canPop: !_selecting,
-      onPopInvokedWithResult: (didPop, _) {
-        if (!didPop && _selecting) _clearSelection();
-      },
-      child: Scaffold(
-        appBar: KurumiAppBar(
-          title: Text(
-            _selecting
-                ? context.t.folders.selected.replaceAll(
-                    '{count}',
-                    '${_selectedFolders.length + _selectedSearches.length}',
-                  )
-                : folder?.name ?? strings.page_title,
-          ),
-          actions: [
-            if (_selecting) ...[
-              IconButton(
-                tooltip: context.t.folders.move,
-                icon: const Icon(Icons.drive_file_move_outline),
-                onPressed: () => _moveSelected(),
-              ),
-              IconButton(
-                tooltip: context.t.generic.action.cancel,
-                icon: const Icon(Icons.close),
-                onPressed: _clearSelection,
-              ),
-              if (_selectedFolders.isNotEmpty || selectedTopicIds.isNotEmpty)
-                PopupMenuButton<_FollowingTopicSelectionAction>(
-                  tooltip: context.t.generic.action.more,
-                  icon: const Icon(Symbols.more_vert),
-                  onSelected: (action) => _onSelectionAction(
-                    action,
-                    activity!,
-                    selectedTopicIds,
-                    refreshableProfileIds,
+    return NavigationSelectionBridge(
+      selected: _selecting,
+      child: PopScope(
+        canPop: !_selecting,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop && _selecting) _clearSelection();
+        },
+        child: Scaffold(
+          appBar: KurumiAppBar(
+            title: Text(
+              _selecting
+                  ? context.t.folders.selected.replaceAll(
+                      '{count}',
+                      '${_selectedFolders.length + _selectedSearches.length}',
+                    )
+                  : folder?.name ?? strings.page_title,
+            ),
+            actions: [
+              if (_selecting) ...[
+                IconButton(
+                  tooltip: context.t.folders.move,
+                  icon: const Icon(Icons.drive_file_move_outline),
+                  onPressed: () => _moveSelected(),
+                ),
+                IconButton(
+                  tooltip: context.t.generic.action.cancel,
+                  icon: const Icon(Icons.close),
+                  onPressed: _clearSelection,
+                ),
+                if (_selectedFolders.isNotEmpty || selectedTopicIds.isNotEmpty)
+                  PopupMenuButton<_FollowingTopicSelectionAction>(
+                    tooltip: context.t.generic.action.more,
+                    icon: const Icon(Symbols.more_vert),
+                    onSelected: (action) => _onSelectionAction(
+                      action,
+                      activity!,
+                      selectedTopicIds,
+                      refreshableProfileIds,
+                    ),
+                    itemBuilder: (context) => [
+                      if (selectedTopicIds.isNotEmpty)
+                        PopupMenuItem(
+                          value: _FollowingTopicSelectionAction.refresh,
+                          child: Text(strings.refresh),
+                        ),
+                      if (activity!.topics.any(
+                        (topic) =>
+                            selectedTopicIds.contains(topic.id) &&
+                            topic.hasNewPosts,
+                      ))
+                        PopupMenuItem(
+                          value: _FollowingTopicSelectionAction.markRead,
+                          child: Text(strings.mark_read),
+                        ),
+                      PopupMenuItem(
+                        value: _FollowingTopicSelectionAction.remove,
+                        child: Text(strings.remove_selection),
+                      ),
+                    ],
                   ),
+              ] else ...[
+                IconButton(
+                  tooltip: strings.filter_topics,
+                  icon: const Icon(Symbols.search),
+                  onPressed: () => setState(() {
+                    _filterVisible = !_filterVisible;
+                    if (!_filterVisible) {
+                      _filterQuery = '';
+                      _filterProfileId = null;
+                    }
+                  }),
+                ),
+                if (directFolder?.feedEnabled ?? false)
+                  IconButton(
+                    tooltip: strings.open_feed,
+                    icon: const Icon(Symbols.rss_feed),
+                    onPressed: () => _openFolderFeed(directFolder!.id),
+                  ),
+                PopupMenuButton<FollowingTopicSort>(
+                  tooltip: context.t.sort.sort_by,
+                  icon: const Icon(Symbols.sort),
+                  initialValue: ref.watch(followingTopicSortProvider),
+                  onSelected: (sort) => ref
+                      .read(followingTopicSortProvider.notifier)
+                      .select(sort),
                   itemBuilder: (context) => [
-                    if (selectedTopicIds.isNotEmpty)
-                      PopupMenuItem(
-                        value: _FollowingTopicSelectionAction.refresh,
-                        child: Text(strings.refresh),
-                      ),
-                    if (activity!.topics.any(
-                      (topic) =>
-                          selectedTopicIds.contains(topic.id) &&
-                          topic.hasNewPosts,
-                    ))
-                      PopupMenuItem(
-                        value: _FollowingTopicSelectionAction.markRead,
-                        child: Text(strings.mark_read),
-                      ),
                     PopupMenuItem(
-                      value: _FollowingTopicSelectionAction.remove,
-                      child: Text(strings.remove_selection),
+                      value: FollowingTopicSort.manual,
+                      child: Text(strings.sort_manual),
+                    ),
+                    PopupMenuItem(
+                      value: FollowingTopicSort.nameAsc,
+                      child: Text(context.t.sort.name_asc),
+                    ),
+                    PopupMenuItem(
+                      value: FollowingTopicSort.updatesFirst,
+                      child: Text(strings.sort_updates_first),
+                    ),
+                    PopupMenuItem(
+                      value: FollowingTopicSort.lastPostOldest,
+                      child: Text(strings.sort_last_post_oldest),
                     ),
                   ],
                 ),
-            ] else ...[
-              IconButton(
-                tooltip: strings.filter_topics,
-                icon: const Icon(Symbols.search),
-                onPressed: () => setState(() {
-                  _filterVisible = !_filterVisible;
-                  if (!_filterVisible) {
-                    _filterQuery = '';
-                    _filterProfileId = null;
-                  }
-                }),
-              ),
-              if (directFolder?.feedEnabled ?? false)
-                IconButton(
-                  tooltip: strings.open_feed,
-                  icon: const Icon(Symbols.rss_feed),
-                  onPressed: () => _openFolderFeed(directFolder!.id),
-                ),
-              PopupMenuButton<FollowingTopicSort>(
-                tooltip: context.t.sort.sort_by,
-                icon: const Icon(Symbols.sort),
-                initialValue: ref.watch(followingTopicSortProvider),
-                onSelected: (sort) =>
-                    ref.read(followingTopicSortProvider.notifier).select(sort),
-                itemBuilder: (context) => [
-                  PopupMenuItem(
-                    value: FollowingTopicSort.manual,
-                    child: Text(strings.sort_manual),
+                PopupMenuButton<_FollowingTopicPageAction>(
+                  tooltip: context.t.generic.action.more,
+                  icon: const Icon(Symbols.more_vert),
+                  onSelected: (action) => _onPageAction(
+                    action,
+                    eligibleProfiles: eligibleProfiles,
                   ),
-                  PopupMenuItem(
-                    value: FollowingTopicSort.nameAsc,
-                    child: Text(context.t.sort.name_asc),
-                  ),
-                  PopupMenuItem(
-                    value: FollowingTopicSort.updatesFirst,
-                    child: Text(strings.sort_updates_first),
-                  ),
-                  PopupMenuItem(
-                    value: FollowingTopicSort.lastPostOldest,
-                    child: Text(strings.sort_last_post_oldest),
-                  ),
-                ],
-              ),
-              PopupMenuButton<_FollowingTopicPageAction>(
-                tooltip: context.t.generic.action.more,
-                icon: const Icon(Symbols.more_vert),
-                onSelected: (action) => _onPageAction(
-                  action,
-                  eligibleProfiles: eligibleProfiles,
-                ),
-                itemBuilder: (context) => [
-                  PopupMenuItem(
-                    value: _FollowingTopicPageAction.bulkAdd,
-                    enabled: ref.watch(booruConfigProvider).isNotEmpty,
-                    child: Text(strings.bulk_add),
-                  ),
-                  PopupMenuItem(
-                    value: _FollowingTopicPageAction.createFolder,
-                    child: Text(strings.create_folder),
-                  ),
-                  if (directFolder != null)
+                  itemBuilder: (context) => [
                     PopupMenuItem(
-                      value: _FollowingTopicPageAction.folderSettings,
-                      child: Text(strings.edit_folder),
+                      value: _FollowingTopicPageAction.bulkAdd,
+                      enabled: ref.watch(booruConfigProvider).isNotEmpty,
+                      child: Text(strings.bulk_add),
                     ),
-                  PopupMenuItem(
-                    value: _FollowingTopicPageAction.refresh,
-                    enabled: _folderId == null
-                        ? canRefreshAll
-                        : canRefreshFolder,
-                    child: Text(
-                      _folderId == null
-                          ? strings.refresh_all
-                          : strings.refresh_folder,
+                    PopupMenuItem(
+                      value: _FollowingTopicPageAction.createFolder,
+                      child: Text(strings.create_folder),
                     ),
-                  ),
-                ],
-              ),
+                    if (directFolder != null)
+                      PopupMenuItem(
+                        value: _FollowingTopicPageAction.folderSettings,
+                        child: Text(strings.edit_folder),
+                      ),
+                    PopupMenuItem(
+                      value: _FollowingTopicPageAction.refresh,
+                      enabled: _folderId == null
+                          ? canRefreshAll
+                          : canRefreshFolder,
+                      child: Text(
+                        _folderId == null
+                            ? strings.refresh_all
+                            : strings.refresh_folder,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ],
-          ],
-        ),
-        body: Column(
-          children: [
-            if (_selecting &&
-                selectedTopicIds.length !=
-                    _selectedFolders.length + _selectedSearches.length)
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 4,
+          ),
+          body: Column(
+            children: [
+              if (_selecting &&
+                  selectedTopicIds.length !=
+                      _selectedFolders.length + _selectedSearches.length)
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 4,
+                  ),
+                  child: Text(
+                    strings.selection_scope
+                        .replaceAll(
+                          '{selected}',
+                          '${_selectedFolders.length + _selectedSearches.length}',
+                        )
+                        .replaceAll('{topics}', '${selectedTopicIds.length}'),
+                  ),
                 ),
-                child: Text(
-                  strings.selection_scope
-                      .replaceAll(
-                        '{selected}',
-                        '${_selectedFolders.length + _selectedSearches.length}',
-                      )
-                      .replaceAll('{topics}', '${selectedTopicIds.length}'),
-                ),
-              ),
-            Expanded(child: _allProfilesBody(refreshableProfileIds)),
-          ],
+              Expanded(child: _allProfilesBody(refreshableProfileIds)),
+            ],
+          ),
         ),
       ),
     );
@@ -563,14 +605,22 @@ class _FollowingTopicsPageState extends ConsumerState<FollowingTopicsPage> {
         );
         return;
       }
-      await Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => TopicFeedPage(
-            feedId: feed.id,
-            profileId: feed.profileId,
+      if (DestinationScope.maybeOf(context) != null) {
+        await ref.pushNamedRoute<void>(
+          '/following-topics/feed',
+          pathParameters: {'feedId': feed.id},
+          queryParameters: {'_profile': feed.profileId},
+        );
+      } else {
+        await Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => TopicFeedPage(
+              feedId: feed.id,
+              profileId: feed.profileId,
+            ),
           ),
-        ),
-      );
+        );
+      }
     } catch (_) {
       if (mounted) {
         Kurumi.showErrorToast(

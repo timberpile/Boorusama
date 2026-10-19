@@ -102,18 +102,6 @@ List<SettingsSearchItem> buildSettingsSearchCatalog(
   add('appearance', 'corner_radius', grid.corner_radius);
   add('appearance', 'padding', grid.padding);
   add('appearance', 'aspect_ratio', grid.aspect_ratio);
-  add(
-    'appearance',
-    'booru_config_placement',
-    appearance.booru_config_placement,
-    keywords: ['profile selector position'],
-  );
-  add(
-    'appearance',
-    'booru_config_label',
-    appearance.booru_config_label,
-    keywords: ['profile selector name'],
-  );
 
   final download = settings.download;
   add(
@@ -258,17 +246,6 @@ List<SettingsSearchItem> buildSettingsSearchCatalog(
   );
 
   final accessibility = settings.accessibility;
-  add(
-    'accessibility',
-    'reverse_profile_scroll',
-    accessibility.reverseBooruConfigSelectorScrollDirection,
-  );
-  add(
-    'accessibility',
-    'sidebar_swipe_area',
-    accessibility.swipeAreaToOpenSidebar,
-    description: accessibility.swipeAreaToOpenSidebarDescription,
-  );
   add(
     'accessibility',
     'reduce_animations',

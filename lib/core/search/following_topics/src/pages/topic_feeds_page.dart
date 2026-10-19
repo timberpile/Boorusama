@@ -27,6 +27,8 @@ import '../../../../posts/listing/src/types/page_mode.dart';
 import '../../../../posts/post/types.dart';
 import '../../../../posts/post/providers.dart';
 import '../../../../router.dart';
+import '../../../../navigation/destination_activity.dart';
+import '../../../../navigation/destination_profile_scope.dart';
 import '../refresh/search_refresh_query_adapter.dart';
 import '../services/feed_history_session.dart';
 import '../providers/following_topics_notifier.dart';
@@ -60,7 +62,7 @@ class _TopicFeedsPageState extends ConsumerState<TopicFeedsPage>
   void initState() {
     super.initState();
     _coordinator = ref.read(searchRefreshCoordinatorProvider.notifier);
-    _routeObserver = ref.read(appNavigationProvider).routeObserver;
+    _routeObserver = ref.read(currentDestinationRouteObserverProvider);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _activate();
     });
@@ -71,9 +73,21 @@ class _TopicFeedsPageState extends ConsumerState<TopicFeedsPage>
     super.didChangeDependencies();
     final route = ModalRoute.of(context);
     if (route != null) _routeObserver.subscribe(this, route);
+    final active = NavigationActivity.of(context);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (active && (ModalRoute.of(context)?.isCurrent ?? true)) {
+        _activate();
+      } else {
+        _deactivate();
+      }
+    });
   }
 
   void _activate() {
+    if (!NavigationActivity.of(context) ||
+        !(ModalRoute.of(context)?.isCurrent ?? true))
+      return;
     _feedInterest ??= _coordinator.acquireFeedInitializationInterest();
   }
 
@@ -199,6 +213,16 @@ class _TopicFeedsPageState extends ConsumerState<TopicFeedsPage>
                                 return;
                               }
                               if (action == 'edit') {
+                                if (DestinationScope.maybeOf(context) != null) {
+                                  await ref.pushNamedRoute<void>(
+                                    '/following-topics/feed/edit',
+                                    pathParameters: {'feedId': feed.id},
+                                    queryParameters: {
+                                      '_profile': feed.profileId,
+                                    },
+                                  );
+                                  return;
+                                }
                                 await Navigator.of(context).push(
                                   MaterialPageRoute<void>(
                                     builder: (_) => TopicFeedManagementPage(
@@ -278,6 +302,16 @@ class _TopicFeedsPageState extends ConsumerState<TopicFeedsPage>
                             clipBehavior: Clip.antiAlias,
                             child: InkWell(
                               onTap: () => _feedAction(context, () async {
+                                if (DestinationScope.maybeOf(context) != null) {
+                                  await ref.pushNamedRoute<void>(
+                                    '/following-topics/feed',
+                                    pathParameters: {'feedId': feed.id},
+                                    queryParameters: {
+                                      '_profile': feed.profileId,
+                                    },
+                                  );
+                                  return;
+                                }
                                 await Navigator.of(context).push(
                                   MaterialPageRoute<void>(
                                     builder: (_) => TopicFeedPage(
@@ -433,7 +467,7 @@ class _TopicFeedPageState extends ConsumerState<TopicFeedPage> with RouteAware {
   void initState() {
     super.initState();
     _coordinator = ref.read(searchRefreshCoordinatorProvider.notifier);
-    _routeObserver = ref.read(appNavigationProvider).routeObserver;
+    _routeObserver = ref.read(currentDestinationRouteObserverProvider);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _activate();
@@ -448,9 +482,21 @@ class _TopicFeedPageState extends ConsumerState<TopicFeedPage> with RouteAware {
     super.didChangeDependencies();
     final route = ModalRoute.of(context);
     if (route != null) _routeObserver.subscribe(this, route);
+    final active = NavigationActivity.of(context);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (active && (ModalRoute.of(context)?.isCurrent ?? true)) {
+        _activate();
+      } else {
+        _deactivate();
+      }
+    });
   }
 
   void _activate() {
+    if (!NavigationActivity.of(context) ||
+        !(ModalRoute.of(context)?.isCurrent ?? true))
+      return;
     _feedInterest ??= _coordinator.acquireFeedInitializationInterest(
       feedId: widget.feedId,
     );

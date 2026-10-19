@@ -13,7 +13,6 @@ import 'artists/widgets.dart';
 import 'configs/widgets.dart';
 import 'favorites/widgets.dart';
 import 'home/types.dart';
-import 'home/widgets.dart';
 import 'posts/widgets.dart';
 import 'restoration/widgets.dart';
 import 'search/widgets.dart';
@@ -44,10 +43,6 @@ class GelbooruBuilder extends BaseBooruBuilder {
           backgroundColor: backgroundColor,
         ),
       );
-
-  @override
-  HomePageBuilder get homePageBuilder =>
-      (context) => const GelbooruHomePage();
 
   @override
   UpdateConfigPageBuilder get updateConfigPageBuilder =>

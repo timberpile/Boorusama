@@ -8,15 +8,19 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../providers/following_topic_selectors.dart';
 
 class FollowingTopicNavigationIcon extends ConsumerWidget {
-  const FollowingTopicNavigationIcon({super.key});
+  const FollowingTopicNavigationIcon({this.hasNewPosts, super.key});
+
+  final bool? hasNewPosts;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final hasNewPosts = ref.watch(
-      followingTopicHasNewPostsProvider,
-    );
+    final bool showBadge =
+        hasNewPosts ??
+        ref.watch<bool>(
+          followingTopicHasNewPostsProvider,
+        );
     const icon = Icon(Symbols.rss_feed);
-    return hasNewPosts
+    return showBadge
         ? Semantics(
             label: context.t.following_topics.new_posts,
             child: const Badge(child: icon),

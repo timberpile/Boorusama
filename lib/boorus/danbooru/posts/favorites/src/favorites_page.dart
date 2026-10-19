@@ -8,6 +8,7 @@ import 'package:material_symbols_icons/symbols.dart';
 // Project imports:
 import '../../../../../core/configs/auth/widgets.dart';
 import '../../../../../core/configs/config/providers.dart';
+import '../../../../../core/navigation/navigation_profile_picker.dart';
 import '../../../../../core/posts/listing/widgets.dart';
 import '../../../../../core/posts/post/providers.dart';
 import '../../../../../core/search/search/routes.dart';
@@ -74,6 +75,7 @@ class DanbooruFavoritesPageInternal extends ConsumerWidget {
                     );
                   },
                 ),
+                const NavigationProfilePicker(favorites: true),
               ],
             ),
             const SliverSizedBox(height: 5),

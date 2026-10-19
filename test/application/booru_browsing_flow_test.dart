@@ -113,7 +113,8 @@ void main() {
 
       expect(find.byType(PostDetailsPageScaffold), findsOneWidget);
 
-      await tester.tap(find.byIcon(Symbols.home).last);
+      expect(find.byIcon(Symbols.home), findsNothing);
+      await tester.tap(find.byIcon(Symbols.arrow_back_ios).last);
       await tester.pump();
       await harness.pumpUntilFound(
         tester,

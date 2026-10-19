@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../../core/router.dart';
 
 void goToUserFeedbackPage(WidgetRef ref, int userId) {
-  ref.router.push(
+  ref.pushRoute(
     Uri(
       pathSegments: [
         '',

@@ -8,12 +8,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'providers.dart';
 
 class AnalyticsObserver implements NavigatorObserver {
-  AnalyticsObserver(this.ref);
+  AnalyticsObserver(this.ref, {this.isActive});
+
+  final bool Function()? isActive;
 
   final Ref Function() ref;
 
   Future<NavigatorObserver?> withObserver() async {
+    if (!(isActive?.call() ?? true)) return null;
     final analytics = await ref().read(analyticsProvider.future);
+    if (!(isActive?.call() ?? true)) return null;
     return analytics?.getAnalyticsObserver();
   }
 

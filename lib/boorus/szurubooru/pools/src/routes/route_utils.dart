@@ -7,15 +7,15 @@ import '../../../../../core/router.dart';
 import '../../types.dart';
 
 void goToSzurubooruPoolPage(WidgetRef ref) {
-  ref.router.push('/szurubooru/pools');
+  ref.pushRoute('/szurubooru/pools');
 }
 
 void goToSzurubooruPoolSearchPage(WidgetRef ref) {
-  ref.router.push('/szurubooru/pools/search');
+  ref.pushRoute('/szurubooru/pools/search');
 }
 
 void goToSzurubooruPoolDetailPage(WidgetRef ref, SzurubooruPool pool) {
-  ref.router.push(
+  ref.pushRoute(
     Uri(
       pathSegments: [
         '',

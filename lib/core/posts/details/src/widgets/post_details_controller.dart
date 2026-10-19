@@ -84,6 +84,8 @@ class PostDetailsController<T extends Post> extends ChangeNotifier {
     }
   }
 
+  void setNavigationActive(bool active) => _playback.setActive(active);
+
   void onExit() {
     // https://github.com/quire-io/scroll-to-index/issues/44
     // skip scrolling if reduceAnimations is enabled due to a limitation in the package

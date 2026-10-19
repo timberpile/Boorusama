@@ -9,7 +9,7 @@ void goToForumPostsPage(
   WidgetRef ref, {
   required DanbooruForumTopic topic,
 }) {
-  ref.router.push(
+  ref.pushRoute(
     Uri(
       pathSegments: [
         '',

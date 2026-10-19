@@ -6,6 +6,7 @@ import 'package:kurumi/material.dart';
 import 'package:selection_mode/selection_mode.dart';
 
 // Project imports:
+import '../../navigation/navigation_interaction_scopes.dart';
 import '../../widgets/default_selection_bar.dart';
 import '../sources/providers.dart';
 import '../types/backup_data_source.dart';
@@ -50,77 +51,89 @@ class _ManualBackupPageState extends ConsumerState<ManualBackupPage> {
       options: const SelectionOptions(
         behavior: SelectionBehavior.manual,
       ),
-      child: Scaffold(
-        appBar: DefaultSelectionAppBar(
-          itemsCount: sources.length,
-        ),
-        body: Stack(
-          children: [
-            Positioned.fill(
-              child: SelectionCanvas(
-                child: ListView.separated(
-                  controller: _scrollController,
-                  padding: const EdgeInsets.all(12),
-                  itemCount: sources.length,
-                  separatorBuilder: (context, index) =>
-                      const SizedBox(height: 8),
-                  itemBuilder: (context, index) {
-                    final source = sources[index];
-                    return SelectableBuilder(
-                      key: ValueKey(source.id),
-                      index: index,
-                      builder: (context, isSelected) => _SelectableBackupTile(
-                        source: source,
-                        index: index,
-                        isSelected: isSelected,
-                        isSelectionMode: _selectionController.isActive,
-                      ),
-                    );
-                  },
+      child: SelectionConsumer(
+        builder: (context, controller, _) => NavigationSelectionBridge(
+          selected: controller.isActive,
+          child: Scaffold(
+            appBar: DefaultSelectionAppBar(
+              itemsCount: sources.length,
+            ),
+            body: Stack(
+              children: [
+                Positioned.fill(
+                  child: SelectionCanvas(
+                    child: ListView.separated(
+                      controller: _scrollController,
+                      padding: const EdgeInsets.all(12),
+                      itemCount: sources.length,
+                      separatorBuilder: (context, index) =>
+                          const SizedBox(height: 8),
+                      itemBuilder: (context, index) {
+                        final source = sources[index];
+                        return SelectableBuilder(
+                          key: ValueKey(source.id),
+                          index: index,
+                          builder: (context, isSelected) =>
+                              _SelectableBackupTile(
+                                source: source,
+                                index: index,
+                                isSelected: isSelected,
+                                isSelectionMode: _selectionController.isActive,
+                              ),
+                        );
+                      },
+                    ),
+                  ),
                 ),
-              ),
-            ),
-            Positioned(
-              bottom: 16,
-              left: 0,
-              right: 0,
-              child: SelectionConsumer(
-                builder: (context, controller, _) {
-                  final isSelectionMode = controller.isActive;
-                  final backupState = ref.watch(backupProvider);
-                  final isLoading = backupState.isActive;
+                Positioned(
+                  bottom: 16 + MediaQuery.paddingOf(context).bottom,
+                  left: 0,
+                  right: 0,
+                  child: SelectionConsumer(
+                    builder: (context, controller, _) {
+                      final isSelectionMode = controller.isActive;
+                      final backupState = ref.watch(backupProvider);
+                      final isLoading = backupState.isActive;
 
-                  if (!isSelectionMode) {
-                    return const SizedBox.shrink();
-                  }
+                      if (!isSelectionMode) {
+                        return const SizedBox.shrink();
+                      }
 
-                  return KurumiButton(
-                    onPressed: isLoading
-                        ? null
-                        : () => _performBulkBackup(context, sources),
-                    child: isLoading
-                        ? Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
+                      return KurumiButton(
+                        onPressed: isLoading
+                            ? null
+                            : () => _performBulkBackup(context, sources),
+                        child: isLoading
+                            ? Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    context
+                                        .t
+                                        .settings
+                                        .backup_and_restore
+                                        .exporting,
+                                  ),
+                                ],
+                              )
+                            : Text(
+                                context.t.settings.backup_and_restore.export,
                               ),
-                              const SizedBox(width: 8),
-                              Text(
-                                context.t.settings.backup_and_restore.exporting,
-                              ),
-                            ],
-                          )
-                        : Text(context.t.settings.backup_and_restore.export),
-                  );
-                },
-              ),
+                      );
+                    },
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );

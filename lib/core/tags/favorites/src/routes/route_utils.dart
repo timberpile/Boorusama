@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../router.dart';
 
 void goToFavoriteTagsPage(WidgetRef ref) {
-  ref.router.push(
+  ref.pushRoute(
     Uri(
       path: '/favorite_tags',
     ).toString(),

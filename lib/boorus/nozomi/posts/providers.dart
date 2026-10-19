@@ -87,7 +87,8 @@ PostRepository<Post> _createNozomiPostRepository({
           .toList()
           .toResult(total: result.total);
     },
-    getSettings: () async => ref.read(imageListingSettingsProvider),
+    getSettings: () async =>
+        ref.read(listingSettingsForAuthProvider(config.auth)),
   );
 }
 

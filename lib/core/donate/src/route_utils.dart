@@ -6,7 +6,7 @@ import '../../router.dart';
 import 'donation_page.dart';
 
 Future<void> goToDonationPage(WidgetRef ref) {
-  return ref.router.pushNamed(
+  return ref.pushNamedRoute(
     '/donate',
     extra: const DonationPage(),
   );

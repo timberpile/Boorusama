@@ -9,7 +9,7 @@ void goToFavoriteGroupDetailsPage(
   WidgetRef ref,
   DanbooruFavoriteGroup group,
 ) {
-  ref.router.push(
+  ref.pushRoute(
     Uri(
       pathSegments: [
         '',

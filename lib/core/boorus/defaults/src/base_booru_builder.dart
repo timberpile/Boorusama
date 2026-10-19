@@ -108,9 +108,7 @@ class BaseBooruBuilder implements BooruBuilder {
 
   @override
   HomeViewBuilder get homeViewBuilder =>
-      (context) => const UserCustomHomeBuilder(
-        defaultView: MobileHomePageScaffold(),
-      );
+      (context) => const MobileHomePageScaffold();
 
   @override
   final Map<CustomHomeViewKey, CustomHomeDataBuilder> customHomeViewBuilders =
@@ -126,10 +124,6 @@ class BaseBooruBuilder implements BooruBuilder {
 
   @override
   VideoQualitySelectionBuilder? get videoQualitySelectionBuilder => null;
-
-  @override
-  HomePageBuilder get homePageBuilder =>
-      (context) => const HomePageScaffold();
 
   @override
   SearchPageBuilder get searchPageBuilder =>

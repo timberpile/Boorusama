@@ -29,10 +29,10 @@ void main() {
       addTearDown(() => harness.teardown(tester));
 
       await harness.pump(tester);
-      await tester.tap(find.byIcon(Symbols.menu).first);
+      await tester.tap(find.byKey(const Key('nav-menu-toggle')).first);
       await tester.pump();
       await harness.settle(tester);
-      await tester.tap(find.byIcon(Symbols.tag).last);
+      await tester.tap(find.text('Favorite Tags'));
       await tester.pump();
       await harness.pumpUntilFound(tester, find.byType(FavoriteTagsPage));
       await harness.settle(tester);

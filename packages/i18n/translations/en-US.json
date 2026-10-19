@@ -1549,7 +1549,7 @@
     "favorites": "Favorites",
     "import_hint": "Enter your tag string here. Space delimited.",
     "export_notification": "Tag string copied to clipboard",
-    "title": "Favorite tags",
+    "title": "Favorite Tags",
     "manage_labels": "Manage labels",
     "add_favorite": "Add favorite",
     "duplicate_error": "This favorite already exists",
@@ -1613,9 +1613,9 @@
     "home": "Home",
     "settings": "Settings",
     "your_bookmarks": "Your bookmarks",
-    "your_blacklist": "Your blacklist",
-    "bulk_download": "Bulk download",
-    "download_manager": "Download manager",
+    "your_blacklist": "Blacklist",
+    "bulk_download": "Bulk Download",
+    "download_manager": "Download Manager",
     "get_support": "Get support"
   },
   "dateRange": {
@@ -2334,5 +2334,17 @@
     "move_up": "Move up",
     "move_down": "Move down",
     "invalid": "The folder name or destination is invalid."
+  },
+  "navigation": {
+    "browse": "Browse",
+    "following": "Following",
+    "bookmarks": "Bookmarks",
+    "menu": "Menu",
+    "profiles": "Profiles",
+    "backups": "Backups",
+    "support": "Get support",
+    "choose_profile": "Choose a profile",
+    "unavailable_profile": "This profile is unavailable. Choose a profile to continue.",
+    "auto_hide": "Hide navigation while scrolling"
   }
 }

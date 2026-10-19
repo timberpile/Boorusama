@@ -76,7 +76,7 @@ class _AppearancePageState extends ConsumerState<AppearancePage> {
           ),
         ),
         const Divider(thickness: 1),
-        const LayoutSection(),
+
         if (ref.watch(showPremiumFeatsProvider))
           const BooruConfigMoreSettingsRedirectCard.appearance(),
       ],

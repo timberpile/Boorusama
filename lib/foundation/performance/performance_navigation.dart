@@ -4,9 +4,12 @@ import 'package:foundation/performance.dart';
 /// Registration uses enum labels, not RouteSettings.name or route arguments.
 /// Unknown/nested navigators remain explicitly 'other' rather than leaking a URL.
 class PerformanceNavigationObserver extends NavigatorObserver {
-  PerformanceNavigationObserver({PerformanceRecorder? recorder})
+  PerformanceNavigationObserver({PerformanceRecorder? recorder, this.isActive})
     : recorder = recorder ?? performanceRecorder;
   final PerformanceRecorder recorder;
+  final bool Function()? isActive;
+
+  void refresh() => _publish();
   final _screens = <Route<dynamic>, Map<Object, (PerfScreen, int)>>{};
   final _routes = <Route<dynamic>>[];
 
@@ -64,6 +67,7 @@ class PerformanceNavigationObserver extends NavigatorObserver {
   }
 
   void _publish() {
+    if (!(isActive?.call() ?? true)) return;
     final top = _routes.isEmpty ? null : _routes.last;
     var label = top is PopupRoute ? PerfScreen.dialog : PerfScreen.other;
     var priority = -1;

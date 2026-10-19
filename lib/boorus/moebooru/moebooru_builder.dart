@@ -12,7 +12,6 @@ import 'artists/widgets.dart';
 import 'configs/widgets.dart';
 import 'favorites/widgets.dart';
 import 'home/types.dart';
-import 'home/widgets.dart';
 import 'post_details/widgets.dart';
 import 'post_details/src/favorite_loader.dart';
 import 'posts/post_data.dart';
@@ -46,10 +45,6 @@ class MoebooruBuilder extends BaseBooruBuilder {
           backgroundColor: backgroundColor,
         ),
       );
-
-  @override
-  HomePageBuilder get homePageBuilder =>
-      (context) => const MoebooruHomePage();
 
   @override
   UpdateConfigPageBuilder get updateConfigPageBuilder =>

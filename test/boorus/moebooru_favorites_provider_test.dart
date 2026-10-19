@@ -1,3 +1,4 @@
+import 'package:boorusama/core/configs/manage/providers.dart';
 // Flutter imports:
 import 'package:material_ui/material_ui.dart';
 
@@ -20,6 +21,11 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
+        overrides: [
+          booruConfigProvider.overrideWith(
+            () => BooruConfigNotifier(initialConfigs: _configs),
+          ),
+        ],
         child: MaterialApp(
           home: Column(
             children: [
@@ -51,14 +57,20 @@ void main() {
 }
 
 final _configs = [
-  BooruConfig.defaultConfig(
-    booruType: BooruType.moebooru,
-    url: 'https://first.example',
-    customDownloadFileNameFormat: null,
-  ),
-  BooruConfig.defaultConfig(
-    booruType: BooruType.moebooru,
-    url: 'https://second.example',
-    customDownloadFileNameFormat: null,
-  ),
+  BooruConfig.fromJson({
+    ...BooruConfig.defaultConfig(
+      booruType: BooruType.moebooru,
+      url: 'https://first.example',
+      customDownloadFileNameFormat: null,
+    ).toJson(),
+    'id': '00000000-0000-4000-8000-000000000001',
+  }),
+  BooruConfig.fromJson({
+    ...BooruConfig.defaultConfig(
+      booruType: BooruType.moebooru,
+      url: 'https://second.example',
+      customDownloadFileNameFormat: null,
+    ).toJson(),
+    'id': '00000000-0000-4000-8000-000000000002',
+  }),
 ];

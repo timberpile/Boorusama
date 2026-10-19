@@ -21,7 +21,7 @@ GoRouterPageBuilder largeScreenCompatPageBuilderWithExtra<T>({
   String? errorScreenMessage,
   bool fullScreen = false,
 }) => (context, state) {
-  final extra = state.extra as T?;
+  final extra = state.extra is T ? state.extra as T : null;
 
   if (extra == null) {
     return largeScreenAwarePageBuilder(

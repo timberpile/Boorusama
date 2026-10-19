@@ -34,7 +34,8 @@ final gelbooruPostRepoProvider =
                 ? gelbooruPostDtoToGelbooruPost(post, null)
                 : null;
           },
-          getSettings: () async => ref.read(imageListingSettingsProvider),
+          getSettings: () async =>
+              ref.read(listingSettingsForAuthProvider(config.auth)),
         );
       },
     );

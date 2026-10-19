@@ -1,0 +1,27 @@
+--- a/lib/src/configuration.dart
++++ b/lib/src/configuration.dart
+@@ -343,9 +343,10 @@
+-    for (final ImperativeRouteMatch imperativeMatch
+-        in matchList.matches.whereType<ImperativeRouteMatch>()) {
+-      final match = ImperativeRouteMatch(
+-        pageKey: imperativeMatch.pageKey,
+-        matches: findMatch(imperativeMatch.matches.uri, extra: imperativeMatch.matches.extra),
+-        completer: imperativeMatch.completer,
+-      );
+-      result = result.push(match);
+-    }
++    matchList.visitRouteMatches((RouteMatchBase match) {
++      if (match is ImperativeRouteMatch) {
++        result = result.push(ImperativeRouteMatch(
++          pageKey: match.pageKey,
++          matches: findMatch(match.matches.uri, extra: match.matches.extra),
++          completer: match.completer,
++        ));
++      }
++      return true;
++    });
+--- a/lib/src/route.dart
++++ b/lib/src/route.dart
+@@ -1477 +1477 @@
+-      _router.restore(matchList);
++      _router.restore(_router.configuration.reparse(matchList));

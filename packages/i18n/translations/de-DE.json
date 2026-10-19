@@ -1473,5 +1473,17 @@
       "one": "$n Thema",
       "other": "$n Themen"
     }
+  },
+  "navigation": {
+    "browse": "Entdecken",
+    "following": "Abonniert",
+    "bookmarks": "Lesezeichen",
+    "menu": "Menü",
+    "profiles": "Profile",
+    "backups": "Sicherungen",
+    "support": "Hilfe erhalten",
+    "choose_profile": "Profil auswählen",
+    "unavailable_profile": "Dieses Profil ist nicht verfügbar. Wähle ein Profil, um fortzufahren.",
+    "auto_hide": "Navigation beim Scrollen ausblenden"
   }
 }

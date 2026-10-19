@@ -12,7 +12,7 @@ import 'package:boorusama/core/configs/create/src/widgets/create_booru_config_na
 import 'package:boorusama/core/configs/create/src/widgets/create_booru_submit_button.dart';
 import 'package:boorusama/core/configs/create/src/widgets/unknown_booru_submit_button.dart';
 import 'package:boorusama/core/configs/manage/src/pages/remove_booru_alert_dialog.dart';
-import 'package:boorusama/core/home/src/pages/empty_booru_config_home_page.dart';
+import 'package:boorusama/core/navigation/navigation_destination_pages.dart';
 import 'package:boorusama/core/posts/listing/widgets.dart';
 
 import 'support/app_flow_driver.dart';
@@ -221,13 +221,12 @@ void main() {
             store.settings.currentBooruConfigId == backend.config.id,
         description: 'deleting active profile B to select profile A',
       );
-      await flow.harness.pumpUntil(
-        tester,
-        () => flow.postRequests
-            .skip(requestsBeforeConfirm)
-            .any((request) => request.siteUrl == backend.config.url),
-        description: 'fallback profile A listing request to start',
+      expect(
+        flow.postRequests.length,
+        requestsBeforeConfirm,
+        reason: 'profile management does not start requests in a hidden Browse branch',
       );
+      await flow.driver.selectProfile(backend.config);
       expect(store.configs.single.id, backend.config.id);
 
       final remounted = await flow.remount();
@@ -266,8 +265,8 @@ void main() {
       BooruConfig.empty,
     );
     expect(store.configs, isEmpty);
-    expect(find.byType(EmptyBooruConfigHomePage), findsOneWidget);
-    expect(find.text(appStrings(tester).booru.add_profile), findsOneWidget);
+    expect(find.byType(NavigationRecoveryPage), findsOneWidget);
+    expect(find.text(appStrings(tester).generic.action.add), findsOneWidget);
   });
 
   testWidgets(

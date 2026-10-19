@@ -168,7 +168,7 @@ void main() {
       await tester.tap(find.byIcon(Icons.more_vert));
       await _settle(tester);
       expect(find.text('Remove all selected tags'), findsOneWidget);
-      expect(find.text('Bulk download'), findsOneWidget);
+      expect(find.text('Bulk Download'), findsOneWidget);
       await tester.tap(
         find
             .ancestor(
@@ -205,13 +205,16 @@ void main() {
       // Use the real selected-tag overflow inside the search page.
       await harness.pump(
         tester,
-        const MediaQuery(
-          data: MediaQueryData(
+        MediaQuery(
+          data: const MediaQueryData(
             size: Size(320, 800),
             textScaler: TextScaler.linear(2),
             viewInsets: EdgeInsets.only(bottom: 300),
           ),
-          child: Scaffold(body: SearchPage()),
+          child: CurrentBooruConfigScope(
+            config: first,
+            child: const Scaffold(body: SearchPage()),
+          ),
         ),
       );
       final region = tester.widget<DefaultSearchRegion>(

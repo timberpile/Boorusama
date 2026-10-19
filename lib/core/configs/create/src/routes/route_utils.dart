@@ -11,7 +11,7 @@ void goToUpdateBooruConfigPage(
   required BooruConfig config,
   String? initialTab,
 }) {
-  ref.router.push(
+  ref.pushRoute(
     Uri(
       path: '/boorus/${config.id}/update',
       queryParameters: {
@@ -25,7 +25,7 @@ void goToAddBooruConfigPage(
   WidgetRef ref, {
   EditBooruConfigId? initialConfigId,
 }) {
-  ref.router.push(
+  ref.pushRoute(
     Uri(
       path: '/boorus/add',
       queryParameters: {

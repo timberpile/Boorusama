@@ -15,5 +15,5 @@ final shimmie2ExtensionsRoutes = GoRoute(
 );
 
 void goToShimmie2ExtensionsPage(WidgetRef ref) {
-  ref.router.push('/shimmie2/ext_doc');
+  ref.pushRoute('/shimmie2/ext_doc');
 }

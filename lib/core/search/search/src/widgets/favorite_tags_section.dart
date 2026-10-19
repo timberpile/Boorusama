@@ -140,7 +140,7 @@ class OptionTagsArenaNoEdit extends ConsumerWidget {
                       context,
                     ).colorScheme.surfaceContainerHighest,
                   ),
-                  onPressed: () => ref.router.push('/favorite_tags'),
+                  onPressed: () => ref.pushRoute('/favorite_tags'),
                   child: Icon(
                     Symbols.settings,
                     size: 16,

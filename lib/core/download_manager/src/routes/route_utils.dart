@@ -7,7 +7,7 @@ import '../../../router.dart';
 void goToDownloadManagerPage(
   WidgetRef ref,
 ) {
-  ref.router.push(
+  ref.pushRoute(
     Uri(
       path: '/download_manager',
     ).toString(),

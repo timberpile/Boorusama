@@ -44,7 +44,8 @@ final gelbooruV2FavoritesPostRepoProvider =
           fetchSingle: (id, {options}) => client.getPost(id),
           imageUrlResolver: imageUrlResolver,
           tagComposer: tagComposer,
-          getSettings: () async => ref.read(imageListingSettingsProvider),
+          getSettings: () async =>
+              ref.read(listingSettingsForAuthProvider(config.auth)),
         );
       },
     );

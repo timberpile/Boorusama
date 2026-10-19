@@ -12,7 +12,6 @@ import 'artists/widgets.dart';
 import 'configs/widgets.dart';
 import 'favorites/widgets.dart';
 import 'favorites/providers.dart';
-import 'home/widgets.dart';
 import 'posts/post_data.dart';
 import 'posts/types.dart';
 import 'posts/widgets.dart';
@@ -58,10 +57,6 @@ class SankakuBuilder extends BaseBooruBuilder {
           initialTab: initialTab,
         ),
       );
-
-  @override
-  HomePageBuilder get homePageBuilder =>
-      (context) => const SankakuHomePage();
 
   @override
   PostDetailsPageBuilder get postDetailsPageBuilder =>

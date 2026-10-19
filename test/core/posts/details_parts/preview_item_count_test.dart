@@ -1,3 +1,5 @@
+import 'package:boorusama/core/configs/manage/providers.dart';
+
 import 'dart:async';
 
 import 'package:flutter/semantics.dart';
@@ -359,6 +361,9 @@ class _PreviewHarness {
        ) {
     container = ProviderContainer(
       overrides: [
+        booruConfigProvider.overrideWith(
+          () => BooruConfigNotifier(initialConfigs: [config]),
+        ),
         settingsProvider.overrideWithValue(Settings.defaultSettings),
         colorSchemeProvider.overrideWithValue(
           ColorScheme.fromSeed(seedColor: Colors.blue),

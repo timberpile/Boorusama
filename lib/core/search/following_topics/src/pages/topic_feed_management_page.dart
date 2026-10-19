@@ -1,3 +1,4 @@
+import '../../../../navigation/destination_profile_scope.dart';
 import '../types/search_refresh.dart';
 import '../../../../errors/types.dart';
 
@@ -132,8 +133,17 @@ class TopicFeedManagementPage extends ConsumerWidget {
           !ref.read(booruConfigProvider).any((p) => p.id == owner.id)) {
         return;
       }
-      await ref.read(currentBooruConfigProvider.notifier).update(owner);
-      if (context.mounted) goToSearchPage(ref, tag: source.query);
+      if (DestinationScope.maybeOf(context) == null) {
+        await ref.read(currentBooruConfigProvider.notifier).update(owner);
+      }
+      if (context.mounted) {
+        goToSearchPage(
+          ref,
+          tag: source.query,
+          config: owner,
+          originatingTopicId: source.id,
+        );
+      }
     } catch (_) {
       if (context.mounted) _showFailure(context);
     }

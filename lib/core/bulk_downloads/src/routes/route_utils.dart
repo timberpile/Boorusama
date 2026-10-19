@@ -38,6 +38,6 @@ Future<void> goToBulkDownloadManagerPage(
   if (go) {
     ref.router.go(uri);
   } else {
-    await ref.router.push(uri);
+    await ref.pushRoute(uri);
   }
 }
