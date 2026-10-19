@@ -3,7 +3,9 @@
 These rules apply only to existing, unmigrated repository work items. New tracked
 tasks use [GitHub Issues](../issue_workflow.md); ordinary changes still need no
 ticket. Do not create new local ticket numbers or mirror a GitHub issue here.
-This preparation does not migrate, move, or close any existing work item.
+Only tasks still present under this queue belong to the legacy workflow.
+Previously unstarted tasks explicitly migrated to GitHub are tracked by their
+GitHub issue numbers, with any detailed specifications under docs/designs/.
 Begun, blocked, and completed tasks stay in this workflow. Migration of genuinely
 unstarted tasks is a separate, explicitly requested operation; check actual work
 and claims across branches/worktrees rather than trusting the `ready/` folder.
