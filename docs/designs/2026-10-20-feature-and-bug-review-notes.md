@@ -20,12 +20,12 @@
 |---|---|---|---|
 | 1 | App-wide action labels, icons, and Title Case | M | Style principles agreed; UI audit still needed |
 | 2 | Smooth existing viewer-to-details transition | M | Provisional direction agreed; revisit later |
-| 3 | Editable target URL while duplicating a profile | S–M | Existing instant duplication path identified |
+| 3 | Editable target URL while duplicating a profile | S–M | Danbooru/Safebooru use case clarified; authentication exception |
 | 4 | Local custom profile icons and export | M | Deprioritized; PNG sufficient |
-| 5 | Bookmark pools/series and mixed timeline entries | L | Product model unresolved |
+| 5 | Bookmark pools/series and mixed timeline entries | L | Explicitly deferred to larger-issue discussion |
 | 6 | Pretty, category-colored pinned-query display | S–M | Raw query display confirmed |
-| 7 | Pinned searches on Realbooru | S–M | Needs reproduction |
-| 8 | Video badge on Realbooru | S | Likely classification issue |
+| 7 | Pinned searches on Realbooru | S–M | Manual following supported; automatic tracking blocked |
+| 8 | Video badge on Realbooru | S | HTML preview video marker already recorded, not shown in grid |
 | 9 | Viewer media and metadata prefetch | M | Media prefetch already exists |
 | 10 | Find Pixiv post via Android Share | M | Share target already registered |
 | 11 | Replace suitable confirmations with Undo | M | Undo exists for some bookmarks |
@@ -123,6 +123,11 @@
 
 **Question to resolve if needed:** Should cross-host duplication always start unauthenticated (recommended), or is preserving credentials across hosts ever explicitly desired?
 
+**Clarified motivating use case (user, 2026-10-20).** Duplicate a **Danbooru** profile to a **Safebooru** profile, retaining its familiar appearance/search/viewer preferences and **the same account credentials**, but using the safe-domain endpoint and/or different default filters. This is not an arbitrary cross-service migration. Official Danbooru configuration lists `safebooru.donmai.us` as a safe-mode hostname, i.e. a host of the same service: https://github.com/danbooru/danbooru/blob/master/config/danbooru_default_config.rb . Danbooru documents its API-key login at https://safebooru.donmai.us/wiki_pages/help%3Aapi . If only different application-level filters are desired while keeping exactly the same endpoint, the existing immediate `Duplicate` operation can already create a separate copy whose filters can then be edited; changing to the safe-mode hostname is the missing URL editing step.
+
+**Revised credentials rule.** **Do not automatically wipe authentication solely because the host string changes.** Preserve credentials for an explicitly trusted, verified same-service pair such as `danbooru.donmai.us` ↔ `safebooru.donmai.us`, subject to verifying login against the target before sending any credentials. For unknown or unrelated endpoints, do not silently send secrets: clear credentials by default or obtain explicit informed consent that identifies the destination. Do not infer account/credential equivalence merely from matching engine type or a similar hostname. The requested duplication flow should feel like editing the copy *before creation*, not editing/migrating the original.
+
+
 ## 4. Select local custom profile icon; include it in exports
 
 **Original request.** Choose own icon, resize to small dimensions, save as JXL if possible, and include it in exports.
@@ -148,6 +153,8 @@
 
 Mixed `Post` / `Pool` / `Series` feed entries could be a general display abstraction without making them interchangeable storage objects. Define count semantics, selection/actions, navigation, filters, ordering, and partial visibility. **Effort L, architecture/product discussion required.**
 
+**Scheduling note (user, 2026-10-20).** Explicitly **skip #5 for now**; return to it with the other larger architecture/UX issues after the smaller items have been discussed. No pool-bookmark design has been approved.
+
 ## 6. Pretty, colored query when used as pinned-search title
 
 **Original request.** Query-as-name should replace underscores with readable spaces.
@@ -158,6 +165,8 @@ Mixed `Post` / `Pool` / `Series` feed entries could be a general display abstrac
 
 **Proposal.** Build a view-only token/chip representation from the structured query when available, with fallback parsing for old raw queries. Replace underscores **only in display text**, preserve the canonical stored query and any operators/metatags/negations. Unknown categories use neutral styling. Respect tight card widths, text scaling, overflow, and no unnecessary metadata/network lookup per card. User-defined custom names remain user-defined names. **Effort S–M; likely best coordinated with query-editor work #16 and tag-color consistency Issue #48.**
 
+**Implementation detail from source.** `lib/core/search/search/src/widgets/selected_tag_chip.dart` already formats ordinary search chips using a rich label with colored operator/metatag spans and underscores rendered as spaces. Rendering this widget unmodified may unexpectedly open a tag-edit dialog on tap; a **dedicated read-only / inert presentation wrapper** or a view-only mode is preferable for Following Topic cards. Category colors require category data: `SearchQueryStructure.typedTags` saves strings, not category IDs, so use cached/available type metadata with a neutral fallback. Long title wrapping/truncation and named-topic query subtitles require design review.
+
 ## 7. Are pinned searches unavailable on Realbooru?
 
 **Original request.** Investigate why following/pinning appears unavailable for Realbooru.
@@ -166,11 +175,15 @@ Mixed `Post` / `Pool` / `Series` feed entries could be a general display abstrac
 
 **Assessment.** Cannot yet confirm the exact symptom. Reproduce from the actual Realbooru profile screen: absent action, disabled action, failed creation, or only warning about new-post tracking? Realbooru may use a Gelbooru-like engine with different API capabilities. Avoid conflating #7 with #22; one is entry/availability, one is preview behavior after following. **Effort S–M pending reproduction.**
 
+**Stronger code finding.** `packages/booru_clients/boorus.yaml` explicitly configures **Realbooru** under `gelbooru_v2`, with HTML/thumbnail-only post listings and offset pagination (not Gelbooru V1). `GelbooruV2Repository.searchRefreshQueryAdapter` maps `thumbnailOnly: true` to `UnsupportedSearchRefreshQueryAdapter`, so **automatic new-post tracking is intentionally disabled** on Realbooru. However, the `FollowTopicButton` still permits local/manual Following even if tracking is unavailable, as covered by `test/core/search/following_topics/search_page_follow_action_test.dart`. Verify the user's exact UI route if the pin button truly disappears; avoid presenting automatic tracking as a prerequisite for pinning. This overlaps #22, which should provide a preview independently.
+
 ## 8. Show video badge for Realbooru videos
 
 **Observed in source.** Shared `ImageGridItem` already supports a play icon when `isAnimated` is true, including unknown duration. In the inspected Gelbooru V1 parser, `format` is derived from the file URL; exact Realbooru parsing/classification needs verification (`lib/boorus/gelbooru_v1/posts/parser.dart`).
 
 **Assessment.** Check a real video post through the post DTO → mapped media type / `isAnimated` → grid overlay pipeline. Reuse the shared badge, not a Realbooru-only badge component. Test GIF versus true video, missing duration, audio indicators, and unavailable preview URLs. **Effort likely S; root cause not reproduced.**
+
+**Stronger code finding.** The Realbooru HTML parser `packages/booru_clients/lib/src/gelbooru_v2/parsers/rb_parsers.dart` recognizes the exact word `video` in thumbnail title/tags and sets `PostV2Dto.isVideoPreview`. That flag survives into `GelbooruV2PostData.isVideoPreview` and powers the Realbooru **static poster/thumbnail selection**, covered by `test/boorus/gelbooru_v2/realbooru_video_thumbnail_test.dart`. But HTML preview rows are currently mapped to image-like `Post` values (`post.isVideo == false` is asserted by the test); the grid's general video badge checks `post.isAnimated`, computed from `format`. Thus **the stored preview marker is not used to render the play badge**. Add a video overlay for `isVideoPreview` through a Gelbooru V2/Realbooru-aware grid addition, or a properly typed presentation flag, without falsely marking the static poster as a playable original video. Distinguish `video` from `video_game`. A full post may later resolve to actual video format. **Effort S; high confidence in missing mapping.**
 
 ## 9. Prefetch up to three next posts and reverse-direction posts
 
@@ -292,7 +305,8 @@ Mixed `Post` / `Pool` / `Series` feed entries could be a general display abstrac
 
 ## Existing related work and proposed discussion order
 
-- Follow **#1 → #23** in the original order. **Conversation workflow agreed 2026-10-20:** continue directly into the next issue after covering the current one; do not wait for permission merely to advance. Discuss smaller neighboring issues together where useful. Spend dedicated time on major issues (especially #2 post viewer). A design decision does **not** authorize creating a GitHub issue; an issue still requires an explicit instruction. Keep decisions separate from working hypotheses.
+- **Updated discussion priority (user, 2026-10-20):** cover all **small, bounded issues first**, combining related issues when helpful; leave the larger UX/architecture issues until the end. #2 is on hold, #5 is explicitly skipped for now, and #4 remains deprioritized. This overrides discussion *order* but not the original numbering of 23 items. No auto-created GitHub issues.
+- Within each chosen group, proceed automatically from one item to the next. **Conversation workflow agreed 2026-10-20:** continue directly into the next issue after covering the current one; do not wait for permission merely to advance. Discuss smaller neighboring issues together where useful. Spend dedicated time on major issues (especially #2 post viewer). A design decision does **not** authorize creating a GitHub issue; an issue still requires an explicit instruction. Keep decisions separate from working hypotheses.
 - Relevant tracked issue: [#49 — Find post in another profile](https://github.com/timberpile/Boorusama/issues/49), related to but narrower/different from external Pixiv Share (#10).
 - Relevant **unmerged** feature branch: [`feature/group-neighboring-series`](https://github.com/timberpile/Boorusama/tree/feature/group-neighboring-series), including a provisional grouping specification. Any future pool/series-bookmark design (#5) must reconcile with it rather than accidentally treating an earlier preference as a final decision.
 - Potential shared work: **#1** touches general UI copy; **#6 + #16** involve query presentation/editing; **#7 + #22** cover tracking versus previews; **#9 + #13** cover image fetching; **#18 + #19** cover download infrastructure; **#12 + #14 + #23** cover topic feed history and progress.
