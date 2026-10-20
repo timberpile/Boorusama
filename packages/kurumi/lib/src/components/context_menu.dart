@@ -43,6 +43,24 @@ class _KurumiContextMenuPageScope extends InheritedWidget {
       controller != oldWidget.controller;
 }
 
+/// Suppresses touch long press while keeping pointer and keyboard entry points.
+class KurumiContextMenuPolicy extends InheritedWidget {
+  const KurumiContextMenuPolicy({
+    required this.touchLongPress,
+    required super.child,
+    super.key,
+  });
+  final bool touchLongPress;
+  static bool touchLongPressOf(BuildContext context) =>
+      context
+          .dependOnInheritedWidgetOfExactType<KurumiContextMenuPolicy>()
+          ?.touchLongPress ??
+      true;
+  @override
+  bool updateShouldNotify(KurumiContextMenuPolicy oldWidget) =>
+      touchLongPress != oldWidget.touchLongPress;
+}
+
 class KurumiContextMenu extends StatefulWidget {
   const KurumiContextMenu({
     required this.child,
@@ -50,6 +68,7 @@ class KurumiContextMenu extends StatefulWidget {
     super.key,
     this.controller,
     this.triggers = true,
+    this.touchLongPress,
   });
 
   static const keyboardTriggers = [
@@ -61,6 +80,7 @@ class KurumiContextMenu extends StatefulWidget {
   final List<Widget> Function(BuildContext context) menuItemsBuilder;
   final KurumiContextMenuController? controller;
   final bool triggers;
+  final bool? touchLongPress;
 
   @override
   State<KurumiContextMenu> createState() => _KurumiContextMenuState();
@@ -74,6 +94,8 @@ class _KurumiContextMenuState extends State<KurumiContextMenu> {
   final _controller = AnchorContextMenuController();
   final _menuScope = FocusScopeNode(debugLabel: 'KurumiContextMenu');
   final _pageController = KurumiContextMenuPageController();
+  LocalHistoryEntry? _historyEntry;
+  ModalRoute<dynamic>? _historyRoute;
   FocusNode? _returnFocus;
   var _openedByKeyboard = false;
 
@@ -97,6 +119,7 @@ class _KurumiContextMenuState extends State<KurumiContextMenu> {
     if (widget.controller?._menu == this) widget.controller?._menu = null;
     _mounted.remove(this);
     if (_open == this) _open = null;
+    _releaseHistory();
     _controller.dispose();
     _menuScope.dispose();
     _pageController.dispose();
@@ -140,6 +163,26 @@ class _KurumiContextMenuState extends State<KurumiContextMenu> {
   }
 
   void _handleShow() {
+    // Android must know a root route can handle Back before dispatching it
+    // to Dart. A Router BackButtonListener alone does not advertise that.
+    final route = ModalRoute.of(context);
+    if (_historyEntry == null && route != null && route.isCurrent) {
+      late final LocalHistoryEntry entry;
+      entry = LocalHistoryEntry(
+        impliesAppBarDismissal: false,
+        onRemove: () {
+          if (_historyEntry != entry) return;
+          _historyEntry = null;
+          _historyRoute = null;
+          _notifyHistoryChanged(route);
+          if (mounted) _controller.hide();
+        },
+      );
+      _historyEntry = entry;
+      _historyRoute = route;
+      route.addLocalHistoryEntry(entry);
+      _notifyHistoryChanged(route);
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_controller.isShowing) return;
       final first = _menuScope.traversalDescendants.firstOrNull;
@@ -152,10 +195,34 @@ class _KurumiContextMenuState extends State<KurumiContextMenu> {
   }
 
   void _handleDismiss() {
+    _releaseHistory();
     _pageController.reset();
     if (_open == this) _open = null;
     if (_menuScope.hasFocus) _returnFocus?.requestFocus();
     _returnFocus = null;
+  }
+
+  void _releaseHistory() {
+    final entry = _historyEntry;
+    final route = _historyRoute;
+    _historyEntry = null;
+    _historyRoute = null;
+    entry?.remove();
+    if (route != null) _notifyHistoryChanged(route);
+  }
+
+  void _notifyHistoryChanged(ModalRoute<dynamic> route) {
+    // The pinned SDK does not publish NavigationNotification for local history
+    // changes. Advertise complete route capability, including after row disposal.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final context = route.subtreeContext;
+      if (context == null || !context.mounted || !route.isCurrent) return;
+      NavigationNotification(
+        canHandlePop:
+            route.canPop ||
+            route.popDisposition == RoutePopDisposition.doNotPop,
+      ).dispatch(context);
+    });
   }
 
   @override
@@ -231,6 +298,9 @@ class _KurumiContextMenuState extends State<KurumiContextMenu> {
               key: _triggerKey,
               behavior: HitTestBehavior.opaque,
               child: KurumiAdaptiveContextMenuGestureTrigger(
+                touchLongPress:
+                    widget.touchLongPress ??
+                    KurumiContextMenuPolicy.touchLongPressOf(context),
                 onShow: (position) => _show(position, byKeyboard: false),
                 child: widget.child,
               ),
@@ -269,10 +339,12 @@ class KurumiAdaptiveContextMenuGestureTrigger extends StatelessWidget {
     required this.child,
     super.key,
     this.onShow,
+    this.touchLongPress = true,
   });
 
   final Widget child;
   final ValueChanged<Offset>? onShow;
+  final bool touchLongPress;
 
   @override
   Widget build(BuildContext context) {
@@ -281,9 +353,11 @@ class KurumiAdaptiveContextMenuGestureTrigger extends StatelessWidget {
       // Convertible devices and desktop-class Android builds can use touch and
       // a mouse in the same session. Keep both established entry points active
       // instead of selecting one from the target platform at build time.
-      onLongPressStart: (details) {
-        (onShow ?? context.showMenu)(details.globalPosition);
-      },
+      onLongPressStart: touchLongPress
+          ? (details) {
+              (onShow ?? context.showMenu)(details.globalPosition);
+            }
+          : null,
       onSecondaryTapDown: (details) {
         (onShow ?? context.showMenu)(details.globalPosition);
       },

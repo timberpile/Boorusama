@@ -280,6 +280,11 @@ class DestinationRouteObserver extends RouteObserver<ModalRoute<dynamic>> {
 
   List<Route<dynamic>> get routes => List.unmodifiable(_routes);
   Route<dynamic>? get top => _routes.lastOrNull;
+  bool hasOnlyPopupsAbove(Route<dynamic> route) {
+    final index = _routes.indexOf(route);
+    return index >= 0 && _routes.skip(index + 1).every((r) => r is PopupRoute);
+  }
+
   @override
   void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
     _routes.add(route);

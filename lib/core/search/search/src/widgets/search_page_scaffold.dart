@@ -1,3 +1,5 @@
+import '../../../../selection/ordered_selection_controller.dart';
+
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kurumi/kurumi.dart';
@@ -99,7 +101,7 @@ class _SearchPageScaffoldState<T extends Post>
   void initState() {
     super.initState();
 
-    _searchModeController = SelectionModeController();
+    _searchModeController = OrderedSelectionController<Object>();
     final extractor = ref.read(
       metatagExtractorProvider(ref.readConfigAuth),
     );
@@ -176,8 +178,10 @@ class _SearchPageScaffoldState<T extends Post>
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Expanded(
+                            flex: 2,
                             child: switch (ref
                                 .watchConfigAuth
                                 .booruType
@@ -202,35 +206,46 @@ class _SearchPageScaffoldState<T extends Post>
                                 const SizedBox.shrink(),
                             },
                           ),
-                          SearchLinkShareMenu(
-                            profileName: ref.watchConfig.name,
-                            link: switch (_typedQueryStructure(
-                              _tagsController.tags,
-                            )) {
-                              final structure? => BoorusamaSearchLink.fromTags(
-                                auth: ref.watchConfigAuth,
-                                tags: structure.typedTags,
-                              ),
-                              null => BoorusamaSearchLink.fromRaw(
-                                auth: ref.watchConfigAuth,
-                                query: value,
-                              ),
-                            },
-                          ),
-                          ConstrainedBox(
-                            constraints: BoxConstraints(
-                              maxWidth: constraints.maxWidth * 0.55,
-                            ),
-                            child: FollowTopicButton(
-                              query: value,
-                              queryStructure: _typedQueryStructure(
-                                _tagsController.tags,
-                              ),
-                              originatingTopicId:
-                                  widget.params.originatingTopicId,
-                              compact: true,
-                              onFeedback: (message) =>
-                                  _topicFeedback.value = message,
+                          Flexible(
+                            flex: 3,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                SearchLinkShareMenu(
+                                  profileName: ref.watchConfig.name,
+                                  link: switch (_typedQueryStructure(
+                                    _tagsController.tags,
+                                  )) {
+                                    final structure? =>
+                                      BoorusamaSearchLink.fromTags(
+                                        auth: ref.watchConfigAuth,
+                                        tags: structure.typedTags,
+                                      ),
+                                    null => BoorusamaSearchLink.fromRaw(
+                                      auth: ref.watchConfigAuth,
+                                      query: value,
+                                    ),
+                                  },
+                                ),
+                                Flexible(
+                                  child: ConstrainedBox(
+                                    constraints: BoxConstraints(
+                                      maxWidth: constraints.maxWidth * 0.55,
+                                    ),
+                                    child: FollowTopicButton(
+                                      query: value,
+                                      queryStructure: _typedQueryStructure(
+                                        _tagsController.tags,
+                                      ),
+                                      originatingTopicId:
+                                          widget.params.originatingTopicId,
+                                      compact: true,
+                                      onFeedback: (message) =>
+                                          _topicFeedback.value = message,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],

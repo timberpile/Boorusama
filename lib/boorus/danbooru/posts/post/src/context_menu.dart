@@ -1,3 +1,10 @@
+import '../../../configs/providers.dart';
+import '../../../../../core/configs/config/types.dart';
+import '../../../../../core/configs/manage/providers.dart';
+import '../../../../../core/posts/listing/src/types/post_action_snapshot.dart';
+import '../../../../../core/posts/listing/src/widgets/post_actions.dart';
+import '../../../../../core/widgets/multi_select_button.dart';
+
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
@@ -8,13 +15,6 @@ import 'package:selection_mode/selection_mode.dart';
 // Project imports:
 import '../../../../../core/bookmarks/widgets.dart';
 import '../../../../../core/configs/config/providers.dart';
-import '../../../../../core/downloads/downloader/providers.dart';
-import '../../../../../core/posts/favorites/widgets.dart';
-import '../../../../../core/posts/post/providers.dart';
-import '../../../../../core/router.dart';
-import '../../../../../core/tags/show/routes.dart';
-import '../../../../../foundation/url_launcher.dart';
-import '../../../configs/providers.dart';
 import '../../../favgroups/favgroups/routes.dart';
 import '../../../versions/routes.dart';
 import '../../listing/providers.dart';
@@ -34,96 +34,18 @@ class DanbooruPostContextMenu extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final profile = ref.watchConfig;
     final booruConfig = ref.watchConfigAuth;
-    final loginDetails = ref.watch(danbooruLoginDetailsProvider(booruConfig));
-    final hasAccount = loginDetails.hasLogin();
-    final postLinkGenerator = ref.watch(postLinkGeneratorProvider(booruConfig));
+    final snapshot = PostActionSnapshot([post], ref.watch(booruConfigProvider));
     final selectionModeController = SelectionMode.maybeOf(context);
-    final feedbackContext = Navigator.of(context, rootNavigator: true).context;
 
     return KurumiContextMenu(
       menuItemsBuilder: (context) => [
-        KurumiContextMenuTile(
-          title: context.t.download.download,
-          onTap: () {
-            ref
-                .read(
-                  downloadNotifierProvider(
-                    ref.read(
-                      downloadNotifierParamsProvider((
-                        booruConfig,
-                        ref.readConfigDownload,
-                      )),
-                    ),
-                  ).notifier,
-                )
-                .download(post);
-          },
-        ),
+        PostContextMenuActions(snapshot: snapshot),
         BookmarkContextMenuSection(
           post: post,
           config: booruConfig,
         ),
-        if (hasAccount)
-          FavoriteContextMenuTile(
-            post: post,
-            feedbackContext: feedbackContext,
-          ),
-        if (hasAccount)
-          KurumiContextMenuTile(
-            title: context.t.post.action.add_to_favorite_group,
-            onTap: () {
-              goToAddToFavoriteGroupSelectionPage(
-                context,
-                [post],
-                profile,
-              );
-            },
-          ),
-        const KurumiContextMenuDivider(),
-        if (post.hasComment)
-          KurumiContextMenuTile(
-            title: context.t.post.action.view_comments,
-            onTap: () {
-              goToCommentPage(context, ref, post);
-            },
-          ),
-        if (!loginDetails.hasStrictSFW)
-          KurumiContextMenuTile(
-            title: context.t.post.action.view_in_browser,
-            onTap: () {
-              launchExternalUrlString(
-                postLinkGenerator.getLink(post),
-                launcher: ref.read(externalUrlLauncherProvider),
-              );
-            },
-          ),
-        if (post.tags.isNotEmpty)
-          KurumiContextMenuTile(
-            title: context.t.post.action.view_tags,
-            onTap: () {
-              goToShowTaglistPage(
-                ref,
-                post,
-                config: profile,
-              );
-            },
-          ),
-        KurumiContextMenuTile(
-          title: context.t.post.action.view_tag_history,
-          onTap: () {
-            goToPostVersionPage(ref, post);
-          },
-        ),
-        const KurumiContextMenuDivider(),
-        if (hasAccount)
-          KurumiContextMenuTile(
-            title: context.t.generic.action.edit,
-            onTap: () {
-              ref.danbooruEdit(post);
-            },
-          ),
+        ...buildDanbooruSinglePostActions(context, ref: ref, post: post),
         if (selectionModeController case final controller?)
           KurumiContextMenuTile(
             title: context.t.generic.action.select,
@@ -137,4 +59,55 @@ class DanbooruPostContextMenu extends ConsumerWidget {
       child: child,
     );
   }
+}
+
+List<Widget> buildDanbooruSinglePostActions(
+  BuildContext context, {
+  required WidgetRef ref,
+  required Post post,
+  bool popup = false,
+  bool selection = false,
+  bool includeFavoriteGroup = true,
+}) {
+  final profile = ref.watchConfig;
+  final login = ref.watch(danbooruLoginDetailsProvider(profile.auth));
+  final snapshot = PostActionSnapshot([post], ref.watch(booruConfigProvider));
+  void execute(VoidCallback action) {
+    if (!snapshot.accountsMatch(ref.read(booruConfigProvider))) {
+      Kurumi.showErrorToast(context, context.t.post.action.operation_failed);
+      return;
+    }
+    action();
+  }
+
+  Widget tile(String title, VoidCallback onTap) => selection
+      ? MultiSelectButton(
+          name: title,
+          icon: const Icon(Icons.more_horiz),
+          menuOnly: true,
+          onPressed: () => execute(onTap),
+        )
+      : popup
+      ? KurumiPopupMenuItem(title: Text(title), onTap: () => execute(onTap))
+      : KurumiContextMenuTile(title: title, onTap: () => execute(onTap));
+  return [
+    if (login.hasLogin() && includeFavoriteGroup)
+      tile(
+        context.t.post.action.add_to_favorite_group,
+        () => goToAddToFavoriteGroupSelectionPage(
+          context,
+          List.unmodifiable([post]),
+          profile,
+        ),
+      ),
+    tile(
+      context.t.post.action.view_tag_history,
+      () => goToPostVersionPage(ref, post),
+    ),
+    if (login.hasLogin())
+      tile(
+        context.t.generic.action.edit,
+        () => ref.danbooruEdit(post),
+      ),
+  ];
 }

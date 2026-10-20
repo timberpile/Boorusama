@@ -1,3 +1,11 @@
+import 'package:boorusama/core/boorus/booru/types.dart';
+import 'package:boorusama/core/configs/config/providers.dart';
+import 'package:boorusama/core/posts/favorites/providers.dart';
+import 'package:boorusama/core/boorus/engine/providers.dart';
+import 'package:boorusama/core/widgets/multi_selection_action_bar.dart';
+import 'package:boorusama/boorus/danbooru/posts/listing/src/danbooru_post_grid_presentation.dart';
+import 'package:boorusama/boorus/danbooru/posts/post/types.dart';
+
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,9 +20,11 @@ import 'package:boorusama/boorus/danbooru/posts/listing/src/danbooru_multi_selec
 import 'package:boorusama/core/analytics/providers.dart';
 import 'package:boorusama/core/analytics/download.dart';
 import 'package:boorusama/core/bookmarks/src/data/bookmark_convert.dart';
-import 'package:boorusama/core/bookmarks/src/types/bookmark.dart';
+import 'package:boorusama/core/bookmarks/src/providers/bookmark_provider.dart';
+import 'package:boorusama/core/bookmarks/types.dart';
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/configs/manage/providers.dart';
+import 'package:boorusama/core/configs/manage/widgets.dart';
 import 'package:boorusama/core/downloads/downloader/providers.dart';
 import 'package:boorusama/core/downloads/downloader/types.dart';
 import 'package:boorusama/core/downloads/filename/providers.dart';
@@ -34,55 +44,76 @@ import 'package:boorusama/boorus/danbooru/users/user/providers.dart';
 import 'package:boorusama/boorus/danbooru/users/user/types.dart';
 
 void main() {
+  testWidgets('rating sheet retains the selected source profile', (
+    tester,
+  ) async {
+    final selectedProfile = BooruConfig.fromJson({
+      ...BooruConfig.defaultConfig(
+        booruType: BooruType.danbooru,
+        url: 'https://other.danbooru.test',
+        customDownloadFileNameFormat: null,
+      ).toJson(),
+      'id': '00000000-0000-4000-8000-000000000044',
+      'url': 'https://other.danbooru.test',
+      'login': 'source-account',
+      'apiKey': 'source-key',
+    });
+    await _pumpActions(
+      tester,
+      isDevEnvironment: true,
+      currentUser: UserSelf.placeholder().copyWith(
+        level: UserLevel.contributor,
+      ),
+      selectedCount: 1,
+      width: 620,
+      actionProfile: selectedProfile,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Edit Rating'));
+    await tester.pumpAndSettle();
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(MassEditRatingSheet)),
+    );
+    expect(
+      container.read(currentReadOnlyBooruConfigAuthProvider),
+      selectedProfile.auth,
+    );
+  });
+
+  for (final width in [210.0, 360.0]) {
+    testWidgets('empty selection omits all post actions at $width', (
+      tester,
+    ) async {
+      await _pumpActions(
+        tester,
+        isDevEnvironment: false,
+        currentUser: UserSelf.placeholder(),
+        width: width,
+        selectedCount: 0,
+      );
+      expect(find.byType(MultiSelectionActionBar), findsNothing);
+      expect(find.text('Download'), findsNothing);
+      expect(find.text('Bookmark'), findsNothing);
+      expect(find.text('Add to account favorite group'), findsNothing);
+    });
+  }
+
   testWidgets(
-    'keeps the account favorite-group action disabled with no selection',
+    'single native post has one overflow and one favorite-group action',
     (tester) async {
       await _pumpActions(
         tester,
         isDevEnvironment: false,
         currentUser: UserSelf.placeholder(),
         width: 360,
+        selectedCount: 1,
+        nativeSingleActions: true,
       );
-
-      final action = tester.widget<Semantics>(
-        find.byWidgetPredicate(
-          (widget) =>
-              widget is Semantics &&
-              widget.properties.label == 'Add to account favorite group',
-        ),
-      );
-      expect(action.properties.button, isTrue);
-      expect(action.properties.enabled, isFalse);
-      expect(action.properties.onTap, isNull);
-
-      await tester.tap(find.text('Add to account favorite group'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Add to account favorite group'), findsOneWidget);
-    },
-  );
-
-  testWidgets(
-    'keeps the account favorite-group overflow action disabled with no selection',
-    (tester) async {
-      await _pumpActions(
-        tester,
-        isDevEnvironment: false,
-        currentUser: UserSelf.placeholder(),
-      );
-
+      expect(find.text('Download').hitTestable(), findsOneWidget);
+      expect(find.byIcon(Icons.more_horiz), findsOneWidget);
       await tester.tap(find.byIcon(Icons.more_horiz));
       await tester.pumpAndSettle();
-
-      final action = tester.widget<Semantics>(
-        find.byWidgetPredicate(
-          (widget) =>
-              widget is Semantics &&
-              widget.properties.label == 'Add to account favorite group',
-        ),
-      );
-      expect(action.properties.button, isTrue);
-      expect(action.properties.enabled, isFalse);
+      expect(find.text('Add to account favorite group'), findsOneWidget);
     },
   );
 
@@ -98,7 +129,7 @@ void main() {
       );
 
       expect(find.text('Add to account favorite group'), findsNothing);
-      await tester.tap(find.byIcon(Icons.more_horiz));
+      await tester.tap(find.byIcon(Icons.more_horiz).last);
       await tester.pumpAndSettle();
 
       expect(find.text('Add to account favorite group'), findsOneWidget);
@@ -114,7 +145,7 @@ void main() {
         currentUser: UserSelf.placeholder(),
       );
 
-      await tester.tap(find.byIcon(Icons.more_horiz));
+      await tester.tap(find.byIcon(Icons.more_horiz).last);
       await tester.pumpAndSettle();
 
       expect(find.text('Add to account favorite group'), findsOneWidget);
@@ -156,7 +187,7 @@ void main() {
           currentUserLoader: unavailable.loadUser,
         );
 
-        await tester.tap(find.byIcon(Icons.more_horiz));
+        await tester.tap(find.byIcon(Icons.more_horiz).last);
         await tester.pumpAndSettle();
 
         expect(find.text('Download'), findsOneWidget);
@@ -212,7 +243,8 @@ void main() {
         locale: 'fr-FR',
       );
 
-      await tester.tap(find.byIcon(Icons.more_horiz));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(Icons.more_horiz).last);
       await tester.pumpAndSettle();
 
       expect(
@@ -247,7 +279,7 @@ void main() {
           width: 620,
         );
 
-        await tester.tap(find.byIcon(Icons.more_horiz));
+        await tester.tap(find.byIcon(Icons.more_horiz).last);
         await tester.pumpAndSettle();
         await tester.tap(find.text('Add to account favorite group'));
 
@@ -308,25 +340,55 @@ Future<void> _pumpActions(
   Future<UserSelf?> Function()? currentUserLoader,
   bool loggedIn = true,
   String locale = 'en-US',
-  int selectedCount = 0,
+  int selectedCount = 1,
+  bool nativeSingleActions = false,
   _RecordingNavigatorObserver? navigator,
   double width = 210,
+  BooruConfig? actionProfile,
 }) async {
   await tester.runAsync(() => LocaleSettings.setLocaleRaw(locale));
   addTearDown(
     () => tester.runAsync(() => LocaleSettings.setLocaleRaw('en-US')),
   );
 
-  final config = BooruConfig.empty.copyWith(
-    url: 'https://danbooru.donmai.us',
-    login: loggedIn ? 'test-account' : '',
-    apiKey: loggedIn ? 'test-api-key' : '',
-  );
-  final posts = List.generate(
+  final config =
+      BooruConfig.defaultConfig(
+        booruType: BooruType.danbooru,
+        url: 'https://danbooru.donmai.us',
+        customDownloadFileNameFormat: null,
+      ).copyWith(
+        login: loggedIn ? 'test-account' : '',
+        apiKey: loggedIn ? 'test-api-key' : '',
+      );
+  final targetConfig = actionProfile ?? config;
+  final posts = List<Post>.generate(
     selectedCount,
-    (index) => Bookmark.empty
-        .copyWith(postId: () => index + 1, width: 100, height: 100)
-        .toPost(),
+    (index) => Post(
+      origin: PostOrigin.fromSource(
+        booruType: targetConfig.auth.booruType,
+        booruId: targetConfig.booruId,
+        source: targetConfig.url,
+        profileIdHint: targetConfig.id,
+      ),
+      core: Bookmark.empty
+          .copyWith(postId: () => index + 1, width: 100, height: 100)
+          .toPost()
+          .core,
+      booruData: nativeSingleActions
+          ? const DanbooruPostData(
+              lastCommentAt: null,
+              upScore: 0,
+              downScore: 0,
+              favCount: 0,
+              approverId: null,
+              generalTags: {},
+              metaTags: {},
+              hasChildren: false,
+              hasLarge: false,
+              pixelHash: '',
+            )
+          : const EmptyPostData(typeKey: 'test'),
+    ),
   );
   final postController = PostGridController<Post>(
     fetcher: (_) => TaskEither.right(
@@ -351,6 +413,23 @@ Future<void> _pumpActions(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        booruConfigProvider.overrideWith(
+          () => BooruConfigNotifier(initialConfigs: [config, ?actionProfile]),
+        ),
+        bookmarkProvider.overrideWith(_EmptyBookmarks.new),
+        canFavoriteProvider.overrideWith((ref, auth) => false),
+        booruLoginDetailsProvider.overrideWith(
+          (ref, auth) => DefaultBooruLoginDetails(
+            login: auth.login,
+            apiKey: auth.apiKey,
+            url: auth.url,
+          ),
+        ),
+        booruPostPresentationProvider.overrideWith(
+          (ref, request) => nativeSingleActions
+              ? const DanbooruPostGridPresentation()
+              : const GenericPostPresentation(),
+        ),
         currentReadOnlyBooruConfigProvider.overrideWithValue(config),
         currentReadOnlyBooruConfigAuthProvider.overrideWithValue(config.auth),
         currentReadOnlyBooruConfigDownloadProvider.overrideWithValue(
@@ -399,9 +478,16 @@ Future<void> _pumpActions(
             home: Scaffold(
               body: SizedBox(
                 width: width,
-                child: DanbooruMultiSelectionActions(
-                  postController: postController,
-                ),
+                child: actionProfile == null
+                    ? DanbooruMultiSelectionActions(
+                        postController: postController,
+                      )
+                    : CurrentBooruConfigScope(
+                        config: actionProfile,
+                        child: DanbooruMultiSelectionActions(
+                          postController: postController,
+                        ),
+                      ),
               ),
             ),
           ),
@@ -419,6 +505,15 @@ class _RecordingNavigatorObserver extends NavigatorObserver {
     pushedRouteNames.add(route.settings.name);
     super.didPush(route, previousRoute);
   }
+}
+
+class _EmptyBookmarks extends BookmarkLibraryNotifier {
+  @override
+  BookmarkLibraryState build() => BookmarkLibraryState(
+    bookmarks: const [],
+    groups: const [],
+    activeTarget: const BookmarkTarget.defaultGroup(),
+  );
 }
 
 class _UnusedDownloadService implements DownloadService {

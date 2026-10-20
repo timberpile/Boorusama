@@ -118,22 +118,137 @@ void main() {
       );
       final chrome = scope.read(navigationChromeProvider.notifier);
       final owner = Object();
+      if (width < 1000) {
+        final slide = find.ancestor(
+          of: find.byKey(const Key('nav-shortcut-browse')),
+          matching: find.byType(AnimatedSlide),
+        );
+        double offset() => tester
+            .widget<FractionalTranslation>(
+              find.descendant(
+                of: slide,
+                matching: find.byType(FractionalTranslation),
+              ),
+            )
+            .translation
+            .dy;
+        final contents = find
+            .ancestor(
+              of: find.byKey(const Key('nav-shortcut-browse')),
+              matching: find.byType(Material),
+            )
+            .first;
+        final originalContents = tester.widget(contents);
+        chrome.userScroll(
+          delta: 22,
+          pixels: 100,
+          outOfRange: false,
+          extent: 88,
+        );
+        await tester.pump();
+        expect(offset(), 0.25);
+        expect(tester.widget(contents), same(originalContents));
+        await tester.pump(const Duration(milliseconds: 80));
+        expect(offset(), 0.25);
+        chrome.userScroll(
+          delta: -11,
+          pixels: 89,
+          outOfRange: false,
+          extent: 88,
+        );
+        await tester.pump();
+        expect(offset(), 0.125);
+        chrome.endScroll(pixels: 89);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 80));
+        expect(offset(), allOf(greaterThan(0), lessThan(0.125)));
+        await tester.pumpAndSettle();
+        expect(offset(), 0);
+      }
       for (final hiddenByScroll in [false, true]) {
         chrome.show();
         if (hiddenByScroll)
-          chrome.userScroll(delta: 30, pixels: 100, outOfRange: false);
+          chrome.userScroll(delta: 100, pixels: 100, outOfRange: false);
         await tester.pumpAndSettle();
+        final bar = find.ancestor(
+          of: find.byKey(const Key('nav-shortcut-browse')),
+          matching: find.byType(AnimatedSlide),
+        );
+        final barState = width < 1000 ? tester.state(bar) : null;
         chrome.setViewerFor(owner, active: true, immersive: false);
         await tester.pumpAndSettle();
         expect(find.byKey(const Key('nav-shortcut-browse')), findsNothing);
         final pageContext = tester.element(find.text(following.toStorageKey()));
         expect(MediaQuery.paddingOf(pageContext).bottom, 24);
         expect(MediaQuery.viewPaddingOf(pageContext).bottom, 24);
+        chrome.setViewerFor(
+          owner,
+          active: true,
+          immersive: false,
+          closing: true,
+        );
+        await tester.pump();
+        if (width < 1000) {
+          expect(tester.state(bar), same(barState));
+          Offset translation() => tester
+              .widget<FractionalTranslation>(
+                find.descendant(
+                  of: bar,
+                  matching: find.byType(FractionalTranslation),
+                ),
+              )
+              .translation;
+          expect(
+            translation(),
+            hiddenByScroll ? const Offset(0, 1) : Offset.zero,
+          );
+        }
+        // The viewer still owns layout clearance during its reverse transition.
+        expect(scope.read(navigationChromeProvider).viewerOpen, isTrue);
+        expect(MediaQuery.paddingOf(pageContext).bottom, 24);
+        chrome.setViewerFor(owner, active: true, immersive: false);
+        await tester.pump();
+        expect(find.byKey(const Key('nav-shortcut-browse')), findsNothing);
         chrome.setViewerFor(owner, active: false, immersive: false);
+        await tester.pump();
         await tester.pumpAndSettle();
+        if (width < 1000) {
+          expect(
+            tester.getTopLeft(find.byKey(const Key('nav-shortcut-browse'))).dy,
+            hiddenByScroll ? greaterThanOrEqualTo(800) : lessThan(800),
+          );
+        }
         expect(
           MediaQuery.paddingOf(pageContext).bottom,
           width < 1000 ? 88 : 24,
+        );
+      }
+      if (width < 1000) {
+        chrome.show();
+        chrome.setViewerFor(owner, active: true, immersive: false);
+        await tester.pumpAndSettle();
+        tester.platformDispatcher.accessibilityFeaturesTestValue =
+            const FakeAccessibilityFeatures(disableAnimations: true);
+        addTearDown(
+          tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+        );
+        await tester.pump();
+        chrome.setViewerFor(owner, active: false, immersive: false);
+        await tester.pump();
+        final slide = find.ancestor(
+          of: find.byKey(const Key('nav-shortcut-browse')),
+          matching: find.byType(AnimatedSlide),
+        );
+        expect(
+          tester
+              .widget<FractionalTranslation>(
+                find.descendant(
+                  of: slide,
+                  matching: find.byType(FractionalTranslation),
+                ),
+              )
+              .translation,
+          Offset.zero,
         );
       }
       expect(tester.takeException(), isNull);

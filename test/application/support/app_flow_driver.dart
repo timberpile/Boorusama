@@ -24,7 +24,7 @@ import 'headless_app_harness.dart';
 
 /// Ways a user opens the context menu of a post in the grid.
 enum PostMenuOpener {
-  longPress('long press'),
+  longPress('long press selection then right click'),
   rightClick('right click');
 
   const PostMenuOpener(this.label);
@@ -87,6 +87,12 @@ final class AppFlowDriver {
     switch (via) {
       case PostMenuOpener.longPress:
         await tester.longPress(tile);
+        await tester.pump();
+        await tester.tap(
+          tile,
+          buttons: kSecondaryMouseButton,
+          kind: PointerDeviceKind.mouse,
+        );
       case PostMenuOpener.rightClick:
         await tester.tap(
           tile,

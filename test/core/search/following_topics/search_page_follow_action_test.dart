@@ -12,6 +12,7 @@ import 'package:boorusama/core/posts/count/providers.dart';
 import 'package:boorusama/core/posts/count/src/post_count_repository.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 import 'package:boorusama/core/posts/listing/providers.dart';
+import 'package:boorusama/core/posts/links/share_search_link_button.dart';
 import 'package:boorusama/core/search/search/src/routes/params.dart';
 import 'package:boorusama/core/search/search/src/widgets/search_controller.dart';
 import 'package:boorusama/core/search/search/src/widgets/search_page_scaffold.dart';
@@ -221,12 +222,18 @@ void main() {
           await tester.pump();
           final count = find.text('12345 Results');
           final topic = find.byTooltip('Follow');
+          final share = find.byType(SearchLinkShareMenu);
           expect(count, findsOneWidget);
           expect(topic, findsOneWidget);
+          expect(share, findsOneWidget);
           final countBounds = tester.getRect(count);
           final pinBounds = tester.getRect(topic);
+          final shareBounds = tester.getRect(share);
           expect(countBounds.center.dy, closeTo(pinBounds.center.dy, 1));
           expect(countBounds.right, lessThanOrEqualTo(pinBounds.left));
+          expect(countBounds.right, lessThanOrEqualTo(shareBounds.left));
+          expect(shareBounds.right, lessThanOrEqualTo(pinBounds.left));
+          expect(shareBounds.center.dy, closeTo(pinBounds.center.dy, 1));
           expect(pinBounds.right, lessThanOrEqualTo(layout.width));
           expect(tester.takeException(), isNull);
         },

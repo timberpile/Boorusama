@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:boorusama/core/bookmarks/types.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -50,6 +51,54 @@ void main() {
       'group:$defaultBookmarkGroupId': ImportAction.merge,
     });
   });
+
+  testWidgets(
+    'leaf sibling drag retains explicit membership and cascading parent semantics',
+    (tester) async {
+      const tree = ExportSelectionDescriptor.collection(
+        id: 'bookmarks',
+        childIds: {'one', 'two', 'three'},
+      );
+      var ids = <String>{'one'};
+      await tester.pumpWidget(
+        _app(
+          StatefulBuilder(
+            builder: (context, setState) => ExportSelectionTree(
+              descriptors: const [tree],
+              selections: {
+                'bookmarks': ExportNodeSelection.explicit('bookmarks', ids),
+              },
+              onToggleSource: (_) =>
+                  fail('leaf drag toggled a cascading parent'),
+              onToggleNode: (_, node) => setState(() {
+                if (!ids.add(node.id)) ids.remove(node.id);
+              }),
+              sourceLabel: (_) => 'Bookmarks',
+              presentation: const ExportSelectionPresentation(items: {}),
+            ),
+          ),
+        ),
+      );
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.text('two')),
+      );
+      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 10));
+      await gesture.moveTo(tester.getCenter(find.text('three')));
+      await tester.pump();
+      expect(ids, {'one', 'two', 'three'});
+      expect(find.text('All current'), findsOneWidget);
+      expect(find.text('All, including future items'), findsNothing);
+      await gesture.moveTo(tester.getCenter(find.text('two')));
+      await tester.pump();
+      expect(ids, {'one', 'two'});
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<Checkbox>(find.byType(Checkbox).first).value,
+        isNull,
+      );
+    },
+  );
 
   testWidgets('partially selected collections show an indeterminate parent', (
     tester,

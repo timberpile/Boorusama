@@ -26,6 +26,8 @@ const kEditAction = 'edit';
 const kViewArtistAction = 'viewArtist';
 
 const kDefaultAction = 'default';
+const kSelectAction = 'select';
+const kDisabledAction = 'disabled';
 
 const kDefaultGestureActions = {
   null,

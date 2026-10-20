@@ -46,6 +46,7 @@ class _PostDetailsLayoutSwitcherState<T extends Post>
   late final PostDetailsController<T> _controller;
   late final PostDetailsPageViewController _pageViewController;
   NavigationChromeController? _navigationChrome;
+  Animation<double>? _routeAnimation;
 
   @override
   void initState() {
@@ -102,13 +103,22 @@ class _PostDetailsLayoutSwitcherState<T extends Post>
         this,
         active: DestinationScope.maybeOf(context)?.active ?? false,
         immersive: !_pageViewController.overlay.value,
+        closing: _routeAnimation?.status == AnimationStatus.reverse,
       );
     });
   }
 
+  void _onRouteAnimationStatus(AnimationStatus _) => _syncNavigationChrome();
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    final animation = ModalRoute.of(context)?.animation;
+    if (_routeAnimation != animation) {
+      _routeAnimation?.removeStatusListener(_onRouteAnimationStatus);
+      _routeAnimation = animation;
+      animation?.addStatusListener(_onRouteAnimationStatus);
+    }
     if (DestinationScope.maybeOf(context) != null &&
         _navigationChrome == null) {
       _navigationChrome = ref.read(navigationChromeProvider.notifier);
@@ -122,6 +132,7 @@ class _PostDetailsLayoutSwitcherState<T extends Post>
 
   @override
   void dispose() {
+    _routeAnimation?.removeStatusListener(_onRouteAnimationStatus);
     final chrome = _navigationChrome;
     if (chrome != null)
       WidgetsBinding.instance.addPostFrameCallback(

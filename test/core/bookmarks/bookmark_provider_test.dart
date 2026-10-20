@@ -107,45 +107,50 @@ void main() {
     return container;
   }
 
-  test(
-    'mixed bulk bookmarks keep distinct site identities and source links',
-    () async {
-      final profiles = [
-        for (var i = 1; i <= 2; i++)
-          BooruConfig.fromJson({
-            ...BooruConfig.empty.toJson(),
-            'id': '00000000-0000-4000-8000-00000000000$i',
-            'url': 'https://site$i.example',
-          }),
-      ];
-      final container = createContainer(profiles: profiles);
-      final notifier = container.read(bookmarkProvider.notifier);
-      await notifier.future;
-      final posts = [
-        for (final profile in profiles)
-          testSearchPost(42, DateTime.utc(2026)).copyWith(
-            origin: PostOrigin.fromSource(
-              booruType: profile.auth.booruType,
-              booruId: profile.booruId,
-              source: profile.url,
-              profileIdHint: profile.id,
+  for (final withHint in [true, false]) {
+    test(
+      'mixed bulk bookmarks keep distinct identities and links (profile hint: $withHint)',
+      () async {
+        final profiles = [
+          for (var i = 1; i <= 2; i++)
+            BooruConfig.fromJson({
+              ...BooruConfig.empty.toJson(),
+              'id': '00000000-0000-4000-8000-00000000000$i',
+              'url': 'https://site$i.example',
+            }),
+        ];
+        final container = createContainer(profiles: profiles);
+        final notifier = container.read(bookmarkProvider.notifier);
+        await notifier.future;
+        final posts = [
+          for (final profile in profiles)
+            testSearchPost(42, DateTime.utc(2026)).copyWith(
+              origin: PostOrigin.fromSource(
+                booruType: profile.auth.booruType,
+                booruId: profile.booruId,
+                source: profile.url,
+                profileIdHint: withHint ? profile.id : null,
+              ),
             ),
-          ),
-      ];
-      expect(
-        await notifier.addPostsToGroup(profiles.first.auth, posts, null),
-        2,
-      );
-      final saved = await bookmarkRepository.getAllBookmarksOrThrow(
-        imageUrlResolver: (_) => const DefaultImageUrlResolver(),
-      );
-      expect(saved.map((bookmark) => bookmark.sourceUrl).toSet(), {
-        'https://site1.example/posts/42',
-        'https://site2.example/posts/42',
-      });
-      expect(saved.map((bookmark) => bookmark.uniqueId).toSet(), hasLength(2));
-    },
-  );
+        ];
+        expect(
+          await notifier.addPostsToGroup(profiles.first.auth, posts, null),
+          2,
+        );
+        final saved = await bookmarkRepository.getAllBookmarksOrThrow(
+          imageUrlResolver: (_) => const DefaultImageUrlResolver(),
+        );
+        expect(saved.map((bookmark) => bookmark.sourceUrl).toSet(), {
+          'https://site1.example/posts/42',
+          'https://site2.example/posts/42',
+        });
+        expect(
+          saved.map((bookmark) => bookmark.uniqueId).toSet(),
+          hasLength(2),
+        );
+      },
+    );
+  }
 
   for (final (count, failUndo) in [(1, false), (2, false), (1, true)]) {
     testWidgets(
@@ -404,6 +409,26 @@ void main() {
       expect(container.read(settingsProvider).activeBookmarkGroupId, isNull);
     },
   );
+  test(
+    'deleting a selected active group clears the active target once',
+    () async {
+      final container = createContainer();
+      final notifier = container.read(bookmarkProvider.notifier);
+      await notifier.future;
+      final a = await notifier.createGroup('Selected A', activate: true);
+      final b = await notifier.createGroup('Selected B');
+      final preview = await notifier.previewDeleteSelection(
+        folderIds: {},
+        groupIds: {a.id, b.id},
+      );
+      await notifier.deleteSelection(preview);
+      final after = await notifier.future;
+      expect(after.groups.where((g) => !g.isDefault), isEmpty);
+      expect(after.activeTarget.groupId, defaultBookmarkGroupId);
+      expect(container.read(settingsProvider).activeBookmarkGroupId, isNull);
+    },
+  );
+
   test(
     'a post without upstream identity cannot be added as a bookmark',
     () async {

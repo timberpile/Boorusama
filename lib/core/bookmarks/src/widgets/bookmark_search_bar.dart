@@ -1,3 +1,5 @@
+import 'package:selection_mode/selection_mode.dart';
+
 // Dart imports:
 import 'dart:math';
 
@@ -71,6 +73,7 @@ class _BookmarkSearchBarState extends ConsumerState<BookmarkSearchBar> {
     final index = ref.read(bookmarkTagIndexProvider(widget.view)).valueOrNull;
     _search.submit(knownTags: index?.byName.keys.toSet() ?? const {});
     _focusNode.unfocus();
+    SelectionMode.maybeOf(context)?.disable();
     widget.postController.refresh();
   }
 
@@ -159,6 +162,7 @@ class _BookmarkSearchBarState extends ConsumerState<BookmarkSearchBar> {
                               knownTags: index?.byName.keys.toSet() ?? const {},
                             );
                             _focusNode.unfocus();
+                            SelectionMode.maybeOf(context)?.disable();
                             widget.postController.refresh();
                           },
                         ),
@@ -182,6 +186,7 @@ class _BookmarkSearchBarState extends ConsumerState<BookmarkSearchBar> {
                                 onPressed: () {
                                   _search.clear();
                                   _focusNode.unfocus();
+                                  SelectionMode.maybeOf(context)?.disable();
                                   widget.postController.refresh();
                                 },
                               )
@@ -228,6 +233,7 @@ class _BookmarkSearchBarState extends ConsumerState<BookmarkSearchBar> {
                                     },
                                     onDeleted: () {
                                       _search.remove(tag);
+                                      SelectionMode.maybeOf(context)?.disable();
                                       widget.postController.refresh();
                                     },
                                   ),

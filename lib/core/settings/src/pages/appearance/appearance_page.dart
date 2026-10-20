@@ -75,6 +75,12 @@ class _AppearancePageState extends ConsumerState<AppearancePage> {
             ),
           ),
         ),
+        PostLongPressContextMenuSetting(
+          value: settings.postLongPressContextMenu,
+          onChanged: (value) => notifier.updateWith(
+            (settings) => settings.copyWith(postLongPressContextMenu: value),
+          ),
+        ),
         const Divider(thickness: 1),
 
         if (ref.watch(showPremiumFeatsProvider))

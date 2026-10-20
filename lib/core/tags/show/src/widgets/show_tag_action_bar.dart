@@ -1,3 +1,5 @@
+import '../../../../selection/ordered_selection_controller.dart';
+
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
@@ -36,7 +38,11 @@ class ShowTagActionBar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return SelectionConsumer(
       builder: (context, controller, _) {
-        final tags = controller.selectedFrom(originalItems).toList();
+        final tags = controller is OrderedSelectionController<String>
+            ? originalItems
+                  .where((tag) => controller.selectedKeys.contains(tag.rawName))
+                  .toList()
+            : controller.selectedFrom(originalItems).toList();
 
         return SelectionModeAnimatedFooter(
           child: Column(

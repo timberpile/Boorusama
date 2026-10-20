@@ -1,3 +1,4 @@
+import 'package:selection_mode/selection_mode.dart';
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:foundation/foundation.dart';
@@ -64,15 +65,17 @@ class SimpleDownloadTile extends ConsumerWidget {
         final TaskProgressUpdate p =>
           p.hasTimeRemaining ? p.timeRemaining : null,
       },
-      onLongPress: () {
-        Kurumi.showModalBottomSheet(
-          context: context,
-          builder: (_) => _ModalOptions(
-            task: task,
-            launcher: ref.read(externalUrlLauncherProvider),
-          ),
-        );
-      },
+      onLongPress: SelectionMode.maybeOf(context)?.isActive == true
+          ? null
+          : () {
+              Kurumi.showModalBottomSheet(
+                context: context,
+                builder: (_) => _ModalOptions(
+                  task: task,
+                  launcher: ref.read(externalUrlLauncherProvider),
+                ),
+              );
+            },
       onTap: onTap,
       onCancel: task.canCancel ? onCancel : null,
       builder: (_) => RawDownloadTile(

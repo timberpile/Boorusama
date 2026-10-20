@@ -1,3 +1,11 @@
+import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:boorusama/core/widgets/multi_select_button.dart';
+import 'package:boorusama/core/configs/config/providers.dart';
+import 'package:boorusama/core/developer_options/providers.dart';
+import 'package:boorusama/core/settings/types.dart';
+import 'package:foundation/performance.dart';
+import 'package:boorusama/core/settings/providers.dart';
+import 'package:selection_mode/selection_mode.dart';
 import 'package:boorusama/core/bookmarks/src/services/bookmark_library_service.dart';
 
 import 'dart:async';
@@ -11,6 +19,7 @@ import 'package:boorusama/core/bookmarks/src/pages/bookmark_group_browser_page.d
 import 'package:boorusama/core/bookmarks/src/providers/bookmark_provider.dart';
 import 'package:boorusama/core/bookmarks/types.dart';
 import 'package:boorusama/core/bookmarks/src/widgets/bookmark_collection_order.dart';
+import 'package:boorusama/core/bookmarks/src/widgets/bookmark_collection_deletion_summary.dart';
 import 'package:boorusama/core/bookmarks/src/widgets/bookmark_context_menu_section.dart';
 import 'package:boorusama/core/bookmarks/src/widgets/bookmark_folder_picker_contents.dart';
 import 'package:boorusama/core/bookmarks/src/widgets/bookmark_group_picker.dart';
@@ -34,6 +43,219 @@ import '../../application/support/fake_image_dio.dart';
 import '../posts/details/progressive_image_test_utils.dart';
 
 void main() {
+  for (final count in [1, 2]) {
+    testWidgets(
+      'duplicates $count selected groups immediately and closes selection',
+      (tester) async {
+        final originals = [
+          for (var i = 0; i < count; i++)
+            _group('g$i', 'Saved $i', bookmarks: {1}),
+        ];
+        final library = _Library(
+          _state(groups: originals, bookmarks: [_bookmark]),
+        );
+        await _pump(tester, library, size: const Size(320, 700), textScale: 2);
+        await tester.longPress(find.text('Saved 0'));
+        for (var i = 1; i < count; i++) {
+          await tester.tap(find.text('Saved $i'));
+        }
+        await tester.pumpAndSettle();
+        await tester.tap(find.widgetWithText(MultiSelectButton, 'Duplicate'));
+        await tester.pumpAndSettle();
+        expect(_alertDialogs(), findsNothing);
+        expect(find.byTooltip('Close'), findsNothing);
+        expect(library.library.groups.take(count), originals);
+        expect(library.library.groups.skip(count).map((g) => g.name), [
+          for (var i = 0; i < count; i++) 'Saved $i Copy',
+        ]);
+        expect(
+          library.library.groups
+              .skip(count)
+              .every((g) => g.bookmarkIds.contains(1)),
+          isTrue,
+        );
+      },
+    );
+  }
+
+  testWidgets('the ordinary group menu duplicates without a naming dialog', (
+    tester,
+  ) async {
+    final library = _Library(_state(groups: [_group('g', 'Saved')]));
+    await _pump(tester, library);
+    await _menu(tester, 'Saved');
+    await tester.tap(find.text('Duplicate'));
+    await tester.pumpAndSettle();
+    expect(_alertDialogs(), findsNothing);
+    expect(library.library.groups.map((g) => g.name), ['Saved', 'Saved Copy']);
+  });
+
+  testWidgets('failed duplication retains selection without naming dialogs', (
+    tester,
+  ) async {
+    final library = _Library(_state(groups: [_group('g', 'Saved')]))
+      ..failDuplicates = true;
+    await _pump(tester, library);
+    await tester.longPress(find.text('Saved'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(MultiSelectButton, 'Duplicate'));
+    await tester.pumpAndSettle();
+    expect(find.text('1 item selected'), findsOneWidget);
+    expect(_alertDialogs(), findsNothing);
+    expect(library.library.groups, hasLength(1));
+    await tester.pump(const Duration(seconds: 5));
+  });
+
+  for (final folder in [false, true]) {
+    testWidgets(
+      'successful ${folder ? 'folder' : 'group'} rename closes selection, cancellation retains it',
+      (tester) async {
+        final library = _Library(
+          _state(
+            groups: folder ? [] : [_group('g', 'Saved')],
+            folders: folder
+                ? [const CollectionFolder(id: 'f', name: 'Saved')]
+                : [],
+          ),
+        );
+        await _pump(tester, library);
+        await tester.longPress(find.text('Saved'));
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.widgetWithText(
+            MultiSelectButton,
+            folder ? 'Rename folder' : 'Rename',
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Cancel'));
+        await tester.pumpAndSettle();
+        expect(find.text('1 item selected'), findsOneWidget);
+        await tester.tap(
+          find.widgetWithText(
+            MultiSelectButton,
+            folder ? 'Rename folder' : 'Rename',
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.enterText(find.byType(legacy.TextField), 'Renamed');
+        await tester.tap(find.text('Save'));
+        await tester.pumpAndSettle();
+        expect(find.text('Renamed'), findsOneWidget);
+        expect(find.text('1 item selected'), findsNothing);
+      },
+    );
+  }
+
+  for (final sample in [
+    (folders: 0, groups: 2, unique: 0, expected: '• 2 bookmark groups'),
+    (
+      folders: 1,
+      groups: 2,
+      unique: 3,
+      expected: '• 1 folder\n• 2 bookmark groups\n• 3 unique bookmarks',
+    ),
+    (folders: 0, groups: 0, unique: 1, expected: '• 1 unique bookmark'),
+  ]) {
+    testWidgets('deletion summary omits zeros for $sample', (tester) async {
+      await _pump(
+        tester,
+        _Library(_state()),
+        size: const Size(320, 700),
+        textScale: 2,
+        home: legacy.Scaffold(
+          body: legacy.AlertDialog(
+            scrollable: true,
+            content: BookmarkCollectionDeletionSummary(
+              folders: sample.folders,
+              groups: sample.groups,
+              uniqueBookmarks: sample.unique,
+            ),
+          ),
+        ),
+      );
+      tester.view.viewInsets = const FakeViewPadding(bottom: 240);
+      addTearDown(tester.view.resetViewInsets);
+      await tester.pumpAndSettle();
+      expect(
+        find.text('This will permanently delete:\n${sample.expected}'),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets('a failed collection move retains its selected targets', (
+    tester,
+  ) async {
+    final library = _Library(
+      _state(
+        groups: [_group('selected', 'Saved')],
+        folders: [
+          const CollectionFolder(id: 'destination', name: 'Destination'),
+        ],
+      ),
+    )..failMoves = true;
+    await _pump(tester, library);
+    await tester.longPress(find.text('Saved'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(MultiSelectButton, 'Move'));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.descendant(of: _alertDialogs(), matching: find.text('Destination')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Move here'));
+    await tester.pumpAndSettle();
+    expect(find.text('1 item selected'), findsOneWidget);
+    expect(library.library.groups.single.folderId, isNull);
+    dismissAllToast();
+    await tester.pump(const Duration(seconds: 4));
+  });
+
+  testWidgets(
+    'selection reuses bookmark previews instead of re-sorting the library',
+    (tester) async {
+      final bookmarks = [
+        for (var i = 1; i <= 3000; i++)
+          _bookmark.copyWith(id: i, postId: () => i),
+      ];
+      await _pump(
+        tester,
+        _Library(
+          _state(
+            bookmarks: bookmarks,
+            groups: [
+              for (var i = 0; i < 20; i++)
+                _group(
+                  '$i',
+                  'Group $i',
+                  bookmarks: {for (var id = 1; id <= 3000; id++) id},
+                ),
+            ],
+          ),
+        ),
+      );
+      performanceRecorder.start();
+      addTearDown(performanceRecorder.clear);
+      final elapsed = Stopwatch()..start();
+      await tester.longPress(find.text('Group 0'));
+      await tester.pump();
+      await tester.tap(find.text('Group 0'));
+      await tester.pump();
+      elapsed.stop();
+      performanceRecorder.stop();
+      final summary = performanceRecorder.snapshot()['summary']! as Map;
+      final operations = (summary['operations'] as List)
+          .where((op) => (op as Map)['op'] == 'bookmarkSelect')
+          .toList();
+      debugPrint(
+        'Bookmark selection sample: ${elapsed.elapsedMilliseconds}ms, operations=$operations',
+      );
+      expect(operations, isEmpty);
+    },
+  );
+
   for (final (width, scale) in [
     (320.0, 1.0),
     (320.0, 2.0),
@@ -379,10 +601,10 @@ void main() {
         await tester.tap(find.text(label));
         await tester.pumpAndSettle();
         expect(router.routeInformationProvider.value.uri.path, '/');
-        expect(find.text('1 selected'), findsOneWidget);
+        expect(find.text('1 item selected'), findsOneWidget);
       }
       expect(library.targets, isEmpty);
-      await tester.tap(find.byTooltip('Cancel'));
+      await tester.tap(find.byTooltip('Close'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('All'));
       await tester.pumpAndSettle();
@@ -539,8 +761,8 @@ void main() {
       await tester.longPress(find.text('Saved'));
       await tester.tap(find.text('Child'));
       await tester.pumpAndSettle();
-      expect(find.text('2 selected'), findsOneWidget);
-      await tester.tap(find.byTooltip('Move'));
+      expect(find.text('2 items selected'), findsOneWidget);
+      await tester.tap(find.widgetWithText(MultiSelectButton, 'Move'));
       await tester.pumpAndSettle();
       expect(_moveButton(tester).onPressed, isNull);
       await tester.tap(
@@ -1235,6 +1457,18 @@ Future<GoRouter> _pump(
     ProviderScope(
       overrides: [
         bookmarkProvider.overrideWith(() => library),
+        firstMatchingConfigByBooruTypeProvider.overrideWith(
+          (ref, _) => BooruConfig.empty,
+        ),
+        settingsProvider.overrideWithValue(Settings.defaultSettings),
+        automaticMediaLoadingEnabledProvider.overrideWithValue(false),
+        selectionOptionsProvider.overrideWithValue(
+          const SelectionOptions(
+            behavior: SelectionBehavior.manual,
+            dragSelection: DragSelectionOptions(),
+            haptics: null,
+          ),
+        ),
         routerProvider.overrideWithValue(router),
         deterministicFaviconDioOverride(),
         defaultImageCacheManagerProvider.overrideWithValue(TestImageCache({})),
@@ -1332,6 +1566,8 @@ class _Launcher extends ConsumerWidget {
 class _Library extends BookmarkLibraryNotifier {
   _Library(this.library);
   BookmarkLibraryState library;
+  var failMoves = false;
+  var failDuplicates = false;
   final targets = <BookmarkTarget>[];
   final toggles = <BookmarkTarget>[];
   final legacyGroups = <String>[];
@@ -1391,11 +1627,42 @@ class _Library extends BookmarkLibraryNotifier {
   }
 
   @override
+  Future<void> renameFolder(String id, String name) async {
+    publish(
+      folders: [
+        for (final folder in library.folders)
+          folder.id == id ? folder.copyWith(name: name) : folder,
+      ],
+    );
+  }
+
+  @override
+  Future<List<BookmarkGroup>> duplicateGroups(
+    Map<String, String> names, {
+    required List<BookmarkGroup> expectedGroups,
+  }) async {
+    if (failDuplicates) throw StateError('Duplicate rejected');
+    final copies = [
+      for (final group in expectedGroups)
+        BookmarkGroup(
+          id: _id('copy-${group.id}'),
+          name: names[group.id]!,
+          bookmarkIds: group.bookmarkIds,
+          folderId: group.folderId,
+          position: group.position,
+        ),
+    ];
+    publish(groups: [...library.groups, ...copies]);
+    return copies;
+  }
+
+  @override
   Future<void> moveFolderItems({
     Set<String> folderIds = const {},
     Set<String> groupIds = const {},
     required String? destination,
   }) async {
+    if (failMoves) throw StateError('Move rejected');
     moves.add((
       folderIds: Set.of(folderIds),
       groupIds: Set.of(groupIds),

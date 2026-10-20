@@ -140,6 +140,7 @@ class FollowingTopicHarness {
     this.repositoryReady,
     this.loadImages = false,
     this.supported = true,
+    bool Function(BooruConfigAuth)? trackingSupported,
     Settings? settings,
     ImageListingSettings? listingSettings,
     ImageCacheManager? imageCacheManager,
@@ -220,7 +221,7 @@ class FollowingTopicHarness {
         canFavoriteProvider.overrideWith((ref, config) => false),
         downloadServiceProvider.overrideWithValue(_TestDownloadService()),
         followingTopicTrackingSupportedProvider.overrideWith(
-          (ref, config) => supported,
+          (ref, config) => trackingSupported?.call(config) ?? supported,
         ),
         currentReadOnlyBooruConfigProvider.overrideWith(
           (ref) => ref.watch(selectedTestProfileProvider),
@@ -259,8 +260,10 @@ class FollowingTopicHarness {
                   return Either.of(const PostResult(posts: <Post>[], total: 0));
                 },
               ),
-              resolveQueryAdapter: (_) =>
-                  const DefaultSearchRefreshQueryAdapter(),
+              resolveQueryAdapter: (config) =>
+                  trackingSupported?.call(config) == false
+                  ? const UnsupportedSearchRefreshQueryAdapter()
+                  : const DefaultSearchRefreshQueryAdapter(),
               scanner: ChronologicalSearchScanner(),
             ),
           ),

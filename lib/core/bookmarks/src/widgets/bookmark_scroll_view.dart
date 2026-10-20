@@ -1,3 +1,5 @@
+import '../../../selection/ordered_selection_controller.dart';
+
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:foundation/foundation.dart';
@@ -6,7 +8,6 @@ import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:scroll_to_index/scroll_to_index.dart';
-import 'package:selection_mode/selection_mode.dart';
 import 'package:sliver_tools/sliver_tools.dart';
 
 // Project imports:
@@ -21,7 +22,6 @@ import '../../../posts/post/types.dart';
 import '../../../widgets/widgets.dart';
 import '../../types.dart';
 import '../data/bookmark_convert.dart';
-import '../data/bookmark_selection.dart';
 import '../data/bookmark_view_refresh_gate.dart';
 import '../providers/bookmark_details_mutation_notifier.dart';
 import '../providers/bookmark_provider.dart';
@@ -53,30 +53,36 @@ class BookmarkScrollView extends ConsumerStatefulWidget {
 }
 
 class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
-  final _selectionModeController = SelectionModeController();
+  final _selectionModeController = OrderedSelectionController<Object>();
   final _refreshGate = BookmarkViewRefreshGate();
 
+  late String _selectionQuery = widget.searchController.text;
+  @override
+  void initState() {
+    super.initState();
+    widget.searchController.addListener(_onCommittedQueryChanged);
+  }
+
+  void _onCommittedQueryChanged() {
+    final query = widget.searchController.text;
+    if (query == _selectionQuery) return;
+    _selectionQuery = query;
+    _selectionModeController.disable();
+  }
+
+  @override
+  void didUpdateWidget(BookmarkScrollView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.searchController != widget.searchController) {
+      oldWidget.searchController.removeListener(_onCommittedQueryChanged);
+      widget.searchController.addListener(_onCommittedQueryChanged);
+      _onCommittedQueryChanged();
+    }
+  }
+
   void _scheduleRefresh(PostGridController<Post> controller) {
-    final selected = selectedBookmarkIdentities(
-      controller.items.toList(),
-      _selectionModeController.selection,
-    );
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await controller.refresh(preserveSelection: true);
-      if (!mounted || selected.isEmpty) return;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        final indices = bookmarkSelectionIndices(
-          controller.items.toList(),
-          selected,
-        );
-        _selectionModeController.deselectAll();
-        if (indices.isEmpty) {
-          _selectionModeController.disable();
-        } else {
-          _selectionModeController.enable(initialSelected: indices);
-        }
-      });
+      if (mounted) await controller.refresh(preserveSelection: true);
     });
   }
 
@@ -93,6 +99,7 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
 
   @override
   void dispose() {
+    widget.searchController.removeListener(_onCommittedQueryChanged);
     _selectionModeController.dispose();
 
     super.dispose();
@@ -133,6 +140,7 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
         builder: (context, ref, child) {
           ref
             ..listen(selectedBooruUrlProvider, (_, _) {
+              _selectionModeController.disable();
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 controller.refresh();
               });
@@ -168,6 +176,7 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
 
           return PostGrid(
             selectionModeController: _selectionModeController,
+            selectionScope: widget.view,
             scrollController: widget.scrollController,
             controller: controller,
             enablePullToRefresh: true,
@@ -176,15 +185,19 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
               bookmark: false,
               onBulkDownload: (selectedPosts) {
                 final library = ref.read(bookmarkProvider).valueOrNull;
-                ref
+                final bookmarks = selectedPosts
+                    .map((post) => library?.bookmarkForPost(post))
+                    .nonNulls
+                    .toList();
+                if (bookmarks.length != selectedPosts.length) {
+                  throw StateError('Selected bookmark disappeared');
+                }
+                return ref
                     .read(bookmarkProvider.notifier)
                     .downloadBookmarks(
                       auth,
                       download,
-                      selectedPosts
-                          .map((post) => library?.bookmarkForPost(post))
-                          .nonNulls
-                          .toList(),
+                      bookmarks,
                     );
               },
               extraActions: (selectedPosts) => [

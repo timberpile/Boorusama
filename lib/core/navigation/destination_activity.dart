@@ -49,6 +49,7 @@ class NavigationCoverageObserver extends DestinationRouteObserver {
     if (oldRoute == _top) _update(top);
   }
 
+  @override
   void dispose() {
     _disposed = true;
     uncovered.dispose();
@@ -95,23 +96,45 @@ class _DestinationActivityHostState extends State<DestinationActivityHost>
   }
 
   @override
-  Widget build(BuildContext context) => ValueListenableBuilder<bool>(
-    valueListenable: widget.coverage.uncovered,
-    builder: (_, uncovered, child) {
-      final active = widget.selected && _foreground && uncovered;
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: Listenable.merge([
+      widget.coverage.uncovered,
+      widget.coverage.topRoute,
+    ]),
+    builder: (_, child) {
+      final active =
+          widget.selected && _foreground && widget.coverage.uncovered.value;
+      final shell = widget.coverage.routes
+          .where((r) => r.settings.name == 'navigation-shell')
+          .firstOrNull;
+      final ownsChrome =
+          widget.selected &&
+          _foreground &&
+          shell != null &&
+          widget.coverage.hasOnlyPopupsAbove(shell);
       widget.onActivityChanged?.call(active);
-      return _BranchActivity(active: active, child: child!);
+      return _BranchActivity(
+        active: active,
+        selectionChromeActive: ownsChrome,
+        child: child!,
+      );
     },
     child: widget.child,
   );
 }
 
 class _BranchActivity extends InheritedWidget {
-  const _BranchActivity({required this.active, required super.child});
+  const _BranchActivity({
+    required this.active,
+    required this.selectionChromeActive,
+    required super.child,
+  });
   final bool active;
+  final bool selectionChromeActive;
   @override
   bool updateShouldNotify(_BranchActivity oldWidget) =>
-      active != oldWidget.active;
+      active != oldWidget.active ||
+      selectionChromeActive != oldWidget.selectionChromeActive;
 }
 
 /// Route-local signal: selected destination AND foreground AND no covering
@@ -119,10 +142,18 @@ class _BranchActivity extends InheritedWidget {
 class NavigationActivity extends InheritedWidget {
   const NavigationActivity({
     required this.active,
+    this.selectionChromeActive,
     required super.child,
     super.key,
   });
   final bool active;
+  final bool? selectionChromeActive;
+  static bool selectionChromeOf(BuildContext context) {
+    final activity = context
+        .dependOnInheritedWidgetOfExactType<NavigationActivity>();
+    return activity?.selectionChromeActive ?? activity?.active ?? true;
+  }
+
   static bool of(BuildContext context) =>
       context
           .dependOnInheritedWidgetOfExactType<NavigationActivity>()
@@ -130,7 +161,8 @@ class NavigationActivity extends InheritedWidget {
       true;
   @override
   bool updateShouldNotify(NavigationActivity oldWidget) =>
-      active != oldWidget.active;
+      active != oldWidget.active ||
+      selectionChromeActive != oldWidget.selectionChromeActive;
 }
 
 class DestinationPageActivity extends ConsumerStatefulWidget {
@@ -183,14 +215,32 @@ class _DestinationPageActivityState
     super.dispose();
   }
 
+  Widget _activity(Widget child) {
+    final branch = context
+        .dependOnInheritedWidgetOfExactType<_BranchActivity>();
+    final observer = _observer;
+    return NavigationActivity(
+      active: _current && (branch?.active ?? true),
+      // Dialogs suspend input, but retain the underlying page's selection chrome.
+      selectionChromeActive:
+          (_route == null ||
+              (observer is DestinationRouteObserver
+                  ? observer.hasOnlyPopupsAbove(_route!)
+                  : _current)) &&
+          (branch?.selectionChromeActive ?? true),
+      child: child,
+    );
+  }
+
   @override
-  Widget build(BuildContext context) => NavigationActivity(
-    active:
-        _current &&
-        (context
-                .dependOnInheritedWidgetOfExactType<_BranchActivity>()
-                ?.active ??
-            true),
-    child: widget.child,
-  );
+  Widget build(BuildContext context) {
+    final observer = _observer;
+    return observer is DestinationRouteObserver
+        ? ListenableBuilder(
+            listenable: observer.topRoute,
+            builder: (_, child) => _activity(child!),
+            child: widget.child,
+          )
+        : _activity(widget.child);
+  }
 }

@@ -1,3 +1,8 @@
+import '../../../../selection/ordered_selection_canvas.dart';
+import '../../../tag/types.dart';
+import '../../../../selection/ordered_selection_controller.dart';
+import '../../../../selection/selection_input.dart';
+
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
@@ -45,7 +50,7 @@ class _ShowTagListPageScaffoldState
   void initState() {
     super.initState();
 
-    _selectionModeController = SelectionModeController(
+    _selectionModeController = OrderedSelectionController<String>(
       initialEnabled: widget.initiallyMultiSelectEnabled,
     );
   }
@@ -60,59 +65,77 @@ class _ShowTagListPageScaffoldState
   @override
   Widget build(BuildContext context) {
     final params = (widget.auth, widget.post);
+    final tags = ref.watch(showTagsProvider(params)).valueOrNull;
+    final query = ref.watch(selectedViewTagQueryProvider);
+    final visible = tags?.where((tag) => tag.rawName.contains(query)).toList();
+    if (visible != null) {
+      (_selectionModeController as OrderedSelectionController<String>)
+          .reconcileDuringBuild(
+            [for (final tag in visible) tag.rawName],
+            scope: (widget.auth, widget.post, query),
+          );
+    }
 
     return CustomContextMenuOverlay(
       child: SelectionMode(
         scrollController: widget.scrollController,
         controller: _selectionModeController,
         options: ref.watch(selectionOptionsProvider),
-        child: Scaffold(
-          appBar: DefaultSelectionAppBar(
-            itemsCount: ref.watch(showTagsProvider(params)).valueOrNull?.length,
-            appBar: KurumiAppBar(
-              title: Text(context.t.tags.title),
-              centerTitle: false,
-              actions: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  child: KurumiPopupMenuButton(
-                    items: [
-                      KurumiPopupMenuItem(
-                        title: Text(context.t.generic.action.select),
-                        icon: const Icon(Icons.select_all),
-                        onTap: () {
-                          _selectionModeController.enable();
-                        },
+        child: SelectionInput(
+          controller: _selectionModeController,
+          itemCount: visible?.length ?? 0,
+          child: KurumiContextMenuPolicy(
+            touchLongPress: !_selectionModeController.isActive,
+            child: Scaffold(
+              appBar: DefaultSelectionAppBar(
+                itemsCount: visible?.length,
+                appBar: KurumiAppBar(
+                  title: Text(context.t.tags.title),
+                  centerTitle: false,
+                  actions: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      child: KurumiPopupMenuButton(
+                        items: [
+                          KurumiPopupMenuItem(
+                            title: Text(context.t.generic.action.select),
+                            icon: const Icon(Icons.select_all),
+                            onTap: () {
+                              _selectionModeController.enable();
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              body: Stack(
+                children: [
+                  Column(
+                    children: [
+                      _buildSearchBar(),
+                      const SizedBox(height: 4),
+                      Expanded(
+                        child: OrderedSelectionCanvas(
+                          controller: _selectionModeController,
+                          child: widget.list,
+                        ),
                       ),
                     ],
                   ),
-                ),
-              ],
-            ),
-          ),
-          body: Stack(
-            children: [
-              Column(
-                children: [
-                  _buildSearchBar(),
-                  const SizedBox(height: 4),
-                  Expanded(
-                    child: SelectionCanvas(
-                      child: widget.list,
+                  ListenableBuilder(
+                    listenable: _selectionModeController,
+                    builder: (context, _) => Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      child: widget.actionBar,
                     ),
                   ),
                 ],
               ),
-              ListenableBuilder(
-                listenable: _selectionModeController,
-                builder: (context, _) => Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  child: widget.actionBar,
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),
@@ -128,8 +151,10 @@ class _ShowTagListPageScaffoldState
       child: BooruSearchBar(
         dense: true,
         hintText: context.t.tags.filter_hint,
-        onChanged: (value) =>
-            ref.read(selectedViewTagQueryProvider.notifier).state = value,
+        onChanged: (value) {
+          _selectionModeController.disable();
+          ref.read(selectedViewTagQueryProvider.notifier).state = value;
+        },
       ),
     );
   }

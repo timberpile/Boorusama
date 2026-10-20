@@ -182,7 +182,7 @@ void main() {
     (tester) async {
       final (harness, ref) = await _mount(tester);
       final chrome = ref.read(navigationChromeProvider.notifier);
-      chrome.userScroll(delta: 30, pixels: 200, outOfRange: false);
+      chrome.userScroll(delta: 100, pixels: 200, outOfRange: false);
       await harness.settle(tester);
       expect(ref.read(navigationChromeProvider).barVisible, isFalse);
       await _open(tester, harness);

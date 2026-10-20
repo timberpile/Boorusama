@@ -14,6 +14,7 @@ import 'destination_id.dart';
 import 'destination_definition.dart';
 import 'navigation_catalog.dart';
 import 'navigation_chrome_controller.dart';
+import 'navigation_interaction_scopes.dart';
 
 /// The shell owns chrome only; GoRouter owns every supplied Navigator.
 class AppNavigationShell extends ConsumerWidget {
@@ -43,7 +44,17 @@ class AppNavigationShell extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final chrome = ref.watch(navigationChromeProvider);
+    final chrome = ref.watch(
+      navigationChromeProvider.select(
+        (s) => (
+          menuOpen: s.menuOpen,
+          selectionActive: s.selectionActive,
+          viewerOpen: s.viewerOpen,
+          viewerClosing: s.viewerClosing,
+          barVisible: s.barVisible,
+        ),
+      ),
+    );
     final controller = ref.read(navigationChromeProvider.notifier);
     final keyboard = MediaQuery.viewInsetsOf(context).bottom > 0;
     Future<void> select(DestinationId id) async {
@@ -70,7 +81,8 @@ class AppNavigationShell extends ConsumerWidget {
             final wide = constraints.maxWidth >= 1000;
             final bottomExtent = wide
                 ? 0.0
-                : 64.0 + MediaQuery.viewPaddingOf(context).bottom;
+                : kNavigationBarHeight +
+                      MediaQuery.viewPaddingOf(context).bottom;
             const managementDestinations = {
               AppDestination.settings,
               AppDestination.support,
@@ -215,11 +227,12 @@ class AppNavigationShell extends ConsumerWidget {
                 ),
               ),
             );
-            final barShown =
+            final barPositionVisible =
                 !keyboard &&
                 !chrome.selectionActive &&
-                !chrome.viewerOpen &&
                 (chrome.menuOpen || chrome.barVisible);
+            final viewerCoversBar = chrome.viewerOpen && !chrome.viewerClosing;
+            final barShown = barPositionVisible && !viewerCoversBar;
             return PopScope(
               canPop: !chrome.menuOpen && active == browse,
               onPopInvokedWithResult: (didPop, _) {
@@ -270,7 +283,10 @@ class AppNavigationShell extends ConsumerWidget {
                                 excluding: !wide && chrome.menuOpen,
                                 child: ExcludeSemantics(
                                   excluding: !wide && chrome.menuOpen,
-                                  child: navigationShell,
+                                  child: NavigationBarScrollScope(
+                                    extent: bottomExtent,
+                                    child: navigationShell,
+                                  ),
                                 ),
                               ),
                             ),
@@ -304,94 +320,96 @@ class AppNavigationShell extends ConsumerWidget {
                                 ),
                               ),
                             ),
-                            if (!wide && !chrome.viewerOpen)
+                            if (!wide)
                               Positioned(
                                 bottom: 0,
                                 left: 0,
                                 right: 0,
                                 height: bottomExtent,
-                                child: IgnorePointer(
-                                  ignoring: !barShown,
-                                  child: ExcludeFocus(
-                                    excluding: !barShown,
-                                    child: AnimatedSlide(
-                                      offset: barShown
-                                          ? Offset.zero
-                                          : const Offset(0, 1),
-                                      duration:
-                                          MediaQuery.disableAnimationsOf(
-                                            context,
-                                          )
-                                          ? Duration.zero
-                                          : const Duration(milliseconds: 160),
-                                      child: Material(
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .surfaceContainer,
-                                        child: SafeArea(
-                                          top: false,
-                                          child: _NavigationBarFocusScope(
-                                            child: Row(
-                                              children: [
-                                                _shortcut(
-                                                  'browse',
-                                                  context.t.navigation.browse,
-                                                  Icons.grid_view,
-                                                  active.kind ==
-                                                          DestinationKind
-                                                              .browse ||
-                                                      active.appDestination ==
-                                                          AppDestination
-                                                              .browseRecovery,
-                                                  () =>
-                                                      unawaited(select(browse)),
-                                                ),
-                                                _shortcut(
-                                                  'following',
-                                                  context
-                                                      .t
-                                                      .navigation
-                                                      .following,
-                                                  Icons.rss_feed,
-                                                  active.appDestination ==
-                                                      AppDestination.following,
-                                                  () => unawaited(
-                                                    select(
-                                                      const DestinationId.app(
+                                // Keep the timeline position ready as soon as
+                                // the viewer starts revealing it again.
+                                child: Visibility(
+                                  visible: !viewerCoversBar,
+                                  maintainState: true,
+                                  child: IgnorePointer(
+                                    ignoring: !barShown || chrome.viewerOpen,
+                                    child: ExcludeFocus(
+                                      excluding: !barShown || chrome.viewerOpen,
+                                      child: _NavigationBarSlide(
+                                        keyboard: keyboard,
+                                        child: Material(
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .surfaceContainer,
+                                          child: SafeArea(
+                                            top: false,
+                                            child: _NavigationBarFocusScope(
+                                              child: Row(
+                                                children: [
+                                                  _shortcut(
+                                                    'browse',
+                                                    context.t.navigation.browse,
+                                                    Icons.grid_view,
+                                                    active.kind ==
+                                                            DestinationKind
+                                                                .browse ||
+                                                        active.appDestination ==
+                                                            AppDestination
+                                                                .browseRecovery,
+                                                    () => unawaited(
+                                                      select(browse),
+                                                    ),
+                                                  ),
+                                                  _shortcut(
+                                                    'following',
+                                                    context
+                                                        .t
+                                                        .navigation
+                                                        .following,
+                                                    Icons.rss_feed,
+                                                    active.appDestination ==
                                                         AppDestination
                                                             .following,
+                                                    () => unawaited(
+                                                      select(
+                                                        const DestinationId.app(
+                                                          AppDestination
+                                                              .following,
+                                                        ),
                                                       ),
                                                     ),
                                                   ),
-                                                ),
-                                                _shortcut(
-                                                  'bookmarks',
-                                                  context
-                                                      .t
-                                                      .navigation
-                                                      .bookmarks,
-                                                  Icons.bookmark,
-                                                  active.appDestination ==
-                                                      AppDestination.bookmarks,
-                                                  () => unawaited(
-                                                    select(
-                                                      const DestinationId.app(
+                                                  _shortcut(
+                                                    'bookmarks',
+                                                    context
+                                                        .t
+                                                        .navigation
+                                                        .bookmarks,
+                                                    Icons.bookmark,
+                                                    active.appDestination ==
                                                         AppDestination
                                                             .bookmarks,
+                                                    () => unawaited(
+                                                      select(
+                                                        const DestinationId.app(
+                                                          AppDestination
+                                                              .bookmarks,
+                                                        ),
                                                       ),
                                                     ),
                                                   ),
-                                                ),
-                                                _shortcut(
-                                                  'menu',
-                                                  context.t.navigation.menu,
-                                                  Icons.menu,
-                                                  chrome.menuOpen,
-                                                  () => controller.setMenuOpen(
-                                                    !chrome.menuOpen,
+                                                  _shortcut(
+                                                    'menu',
+                                                    context.t.navigation.menu,
+                                                    Icons.menu,
+                                                    chrome.menuOpen,
+                                                    () =>
+                                                        controller.setMenuOpen(
+                                                          !chrome.menuOpen,
+                                                        ),
                                                   ),
-                                                ),
-                                              ],
+                                                ],
+                                              ),
                                             ),
                                           ),
                                         ),
@@ -468,6 +486,37 @@ class AppNavigationShell extends ConsumerWidget {
       ),
     ),
   );
+}
+
+/// Only the bar's translation rebuilds for each scroll update.
+class _NavigationBarSlide extends ConsumerWidget {
+  const _NavigationBarSlide({required this.keyboard, required this.child});
+
+  final bool keyboard;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final chrome = ref.watch(navigationChromeProvider);
+    return AnimatedSlide(
+      offset: Offset(
+        0,
+        keyboard || chrome.selectionActive
+            ? 1
+            : chrome.menuOpen
+            ? 0
+            : chrome.barHiddenFraction,
+      ),
+      duration:
+          chrome.selectionActive ||
+              chrome.viewerOpen ||
+              chrome.barScrollActive ||
+              MediaQuery.disableAnimationsOf(context)
+          ? Duration.zero
+          : const Duration(milliseconds: 160),
+      child: child,
+    );
+  }
 }
 
 /// Arrows stay within the shortcut row; Tab can leave for the destination.

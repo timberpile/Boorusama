@@ -1,3 +1,5 @@
+import '../../selection/checkbox_range_selection.dart';
+
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
@@ -89,17 +91,26 @@ class _ZipPreviewDialogState extends ConsumerState<ZipPreviewDialog> {
   Widget _buildSources(List<BackupDataSource> availableSources) {
     return Container(
       constraints: const BoxConstraints(maxHeight: 300),
-      child: SingleChildScrollView(
-        child: Column(
-          children: availableSources.map((source) {
-            final isSelected = selectedSourceIds.contains(source.id);
-            return CheckboxListTile(
-              title: Text(source.displayName),
-              value: isSelected,
-              onChanged: (value) => _toggleSource(source.id, value ?? false),
-              contentPadding: EdgeInsets.zero,
-            );
-          }).toList(),
+      child: CheckboxRangeSelection<String>(
+        entries: [for (final source in availableSources) source.id],
+        selected: selectedSourceIds,
+        onChanged: (selected) => setState(() => selectedSourceIds = selected),
+        child: SingleChildScrollView(
+          child: Column(
+            children: availableSources.map((source) {
+              final isSelected = selectedSourceIds.contains(source.id);
+              return CheckboxRangeItem(
+                value: source.id,
+                child: CheckboxListTile(
+                  title: Text(source.displayName),
+                  value: isSelected,
+                  onChanged: (value) =>
+                      _toggleSource(source.id, value ?? false),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              );
+            }).toList(),
+          ),
         ),
       ),
     );

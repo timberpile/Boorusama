@@ -1,3 +1,5 @@
+import '../../../selection/checkbox_range_selection.dart';
+
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
 
@@ -24,18 +26,37 @@ class ExportSelectionTree extends StatelessWidget {
   final ExportSelectionPresentation presentation;
 
   @override
-  Widget build(BuildContext context) => Column(
-    children: [
+  Widget build(BuildContext context) => CheckboxRangeSelection<String>(
+    entries: [
       for (final descriptor in descriptors)
-        _SourceTile(
-          descriptor: descriptor,
-          selection: selections[descriptor.id],
-          onToggleSource: onToggleSource,
-          onToggleNode: onToggleNode,
-          sourceLabel: sourceLabel(descriptor.id),
-          presentation: presentation,
-        ),
+        if (!descriptor.isCollection) descriptor.id,
     ],
+    selected: {
+      for (final descriptor in descriptors)
+        if (!descriptor.isCollection && selections[descriptor.id] != null)
+          descriptor.id,
+    },
+    onChanged: (selected) {
+      for (final descriptor in descriptors) {
+        if (!descriptor.isCollection &&
+            selected.contains(descriptor.id) !=
+                (selections[descriptor.id] != null))
+          onToggleSource(descriptor);
+      }
+    },
+    child: Column(
+      children: [
+        for (final descriptor in descriptors)
+          _SourceTile(
+            descriptor: descriptor,
+            selection: selections[descriptor.id],
+            onToggleSource: onToggleSource,
+            onToggleNode: onToggleNode,
+            sourceLabel: sourceLabel(descriptor.id),
+            presentation: presentation,
+          ),
+      ],
+    ),
   );
 }
 
@@ -60,18 +81,20 @@ class _SourceTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (!descriptor.isCollection) {
-      return CheckboxListTile(
-        key: ValueKey(descriptor.id),
-        contentPadding: _treeTilePadding(0),
-        value: selection != null,
-        onChanged: (_) => onToggleSource(descriptor),
-        title: Text(sourceLabel),
-        controlAffinity: ListTileControlAffinity.leading,
+      return CheckboxRangeItem(
+        value: descriptor.id,
+        child: CheckboxListTile(
+          key: ValueKey(descriptor.id),
+          contentPadding: _treeTilePadding(0),
+          value: selection != null,
+          onChanged: (_) => onToggleSource(descriptor),
+          title: Text(sourceLabel),
+          controlAffinity: ListTileControlAffinity.leading,
+        ),
       );
     }
 
     final effectiveIds = selection?.resolve(descriptor) ?? const <String>{};
-    final rawIds = selection?.childIds ?? const <String>{};
     final leafIds = {
       for (final node in descriptor.rootNodes) ..._leafIds(node),
     };
@@ -116,17 +139,14 @@ class _SourceTile extends StatelessWidget {
       title: Text(sourceLabel),
       subtitle: subtitle == null ? null : Text(subtitle),
       children: [
-        for (final node in descriptor.rootNodes)
-          _SelectionNodeTile(
-            descriptor: descriptor,
-            node: node,
-            selection: selection,
-            effectiveIds: effectiveIds,
-            rawIds: rawIds,
-            presentation: presentation,
-            depth: 1,
-            onToggle: onToggleNode,
-          ),
+        _SelectionNodeList(
+          descriptor: descriptor,
+          nodes: descriptor.rootNodes,
+          selection: selection,
+          presentation: presentation,
+          depth: 1,
+          onToggle: onToggleNode,
+        ),
       ],
     );
   }
@@ -161,13 +181,16 @@ class _SelectionNodeTile extends StatelessWidget {
       trailingLabel: item?.trailingLabel,
     );
     if (!node.isCollection) {
-      return CheckboxListTile(
-        key: ValueKey('${descriptor.id}:${node.id}'),
-        contentPadding: _treeTilePadding(depth),
-        value: effectiveIds.contains(node.id),
-        onChanged: (_) => onToggle(descriptor, node),
-        title: title,
-        controlAffinity: ListTileControlAffinity.leading,
+      return CheckboxRangeItem(
+        value: (descriptor.id, node.id),
+        child: CheckboxListTile(
+          key: ValueKey('${descriptor.id}:${node.id}'),
+          contentPadding: _treeTilePadding(depth),
+          value: effectiveIds.contains(node.id),
+          onChanged: (_) => onToggle(descriptor, node),
+          title: title,
+          controlAffinity: ListTileControlAffinity.leading,
+        ),
       );
     }
 
@@ -213,18 +236,68 @@ class _SelectionNodeTile extends StatelessWidget {
       title: title,
       subtitle: subtitle == null ? null : Text(subtitle),
       children: [
-        for (final child in node.children)
-          _SelectionNodeTile(
-            descriptor: descriptor,
-            node: child,
-            selection: selection,
-            effectiveIds: effectiveIds,
-            rawIds: rawIds,
-            presentation: presentation,
-            depth: depth + 1,
-            onToggle: onToggle,
-          ),
+        _SelectionNodeList(
+          descriptor: descriptor,
+          nodes: node.children,
+          selection: selection,
+          presentation: presentation,
+          depth: depth + 1,
+          onToggle: onToggle,
+        ),
       ],
+    );
+  }
+}
+
+/// Only independent leaf siblings share a range. Dynamic parent/tri-state
+/// controls retain their cascading and "including future" semantics.
+class _SelectionNodeList extends StatelessWidget {
+  const _SelectionNodeList({
+    required this.descriptor,
+    required this.nodes,
+    required this.selection,
+    required this.presentation,
+    required this.depth,
+    required this.onToggle,
+  });
+  final ExportSelectionDescriptor descriptor;
+  final List<ExportSelectionNode> nodes;
+  final ExportNodeSelection? selection;
+  final ExportSelectionPresentation presentation;
+  final int depth;
+  final void Function(ExportSelectionDescriptor, ExportSelectionNode) onToggle;
+  @override
+  Widget build(BuildContext context) {
+    final effectiveIds = selection?.resolve(descriptor) ?? const <String>{};
+    final leaves = nodes.where((node) => !node.isCollection).toList();
+    return CheckboxRangeSelection<(String, String)>(
+      entries: [for (final node in leaves) (descriptor.id, node.id)],
+      selected: {
+        for (final node in leaves)
+          if (effectiveIds.contains(node.id)) (descriptor.id, node.id),
+      },
+      onChanged: (selected) {
+        for (final node in leaves) {
+          if (selected.contains((descriptor.id, node.id)) !=
+              effectiveIds.contains(node.id))
+            onToggle(descriptor, node);
+        }
+      },
+      child: Column(
+        children: [
+          for (final node in nodes)
+            _SelectionNodeTile(
+              descriptor: descriptor,
+              node: node,
+              selection: selection,
+              effectiveIds: effectiveIds,
+              rawIds: selection?.childIds ?? const {},
+              presentation: presentation,
+              depth: depth,
+              onToggle: onToggle,
+            ),
+        ],
+      ),
     );
   }
 }

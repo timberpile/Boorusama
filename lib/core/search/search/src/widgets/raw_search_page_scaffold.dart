@@ -38,7 +38,6 @@ typedef IndexedSelectableSearchWidgetBuilder<T extends Post> = Widget Function(
 
 const kSearchBarHeight = kToolbarHeight;
 const _kSelectedTagHeight = 48.0;
-const _kMultiSelectTopHeight = kToolbarHeight;
 
 double _calcBaseSearchHeight(List<TagSearchItem> tags) {
   return kSearchBarHeight + (tags.isNotEmpty ? _kSelectedTagHeight : 0);
@@ -158,37 +157,12 @@ class _SearchPageScaffoldState<T extends Post>
 
     _tagsController.addListener(_onSelectedTagChanged);
     _controller.tagString.addListener(_onTagChanged);
-
-    _previousMultiSelectState = _selectionModeController.isActive;
-    _selectionModeController.addListener(
-      _onMultiSelectChanged,
-    );
-  }
-
-  void _onMultiSelectChanged() {
-    final currentSelected = _selectionModeController.isActive;
-
-    if (_previousMultiSelectState != currentSelected) {
-      final currentOffset = _scrollController.offset;
-      final offsetSearchHeight = _calcSearchRegionHeight(_tagsController.value);
-      final sign = currentSelected ? -1 : 1;
-      final jumpTo =
-          (currentOffset + sign * (offsetSearchHeight + _kMultiSelectTopHeight))
-              .clamp(0, double.infinity)
-              .toDouble();
-
-      // Scroll backward to compensate for the change in height
-      _scrollController.jumpTo(jumpTo);
-
-      _previousMultiSelectState = currentSelected;
-    }
   }
 
   var _searchBarOffset = 0.0;
 
-  late bool? _previousMultiSelectState;
-
   void _onTagChanged() {
+    _selectionModeController.disable();
     // check if scroll controller is attached
     if (_scrollController.hasClients) {
       // scroll to top when tag is added
@@ -214,9 +188,6 @@ class _SearchPageScaffoldState<T extends Post>
   void dispose() {
     _tagsController.removeListener(_onSelectedTagChanged);
     _controller.tagString.removeListener(_onTagChanged);
-    _selectionModeController.removeListener(
-      _onMultiSelectChanged,
-    );
 
     _topics.dispose();
     _scrollController.dispose();
@@ -388,6 +359,10 @@ class _SearchPageScaffoldState<T extends Post>
           selectionModeController: _selectionModeController,
           scrollController: _scrollController,
           controller: controller,
+          bottomInset: searchBarPosition == SearchBarPosition.bottom
+              ? _calcSearchRegionHeight(_tagsController.value) +
+                    MediaQuery.viewPaddingOf(context).bottom
+              : 0,
           itemBuilder: widget.itemBuilder != null
               ? (context, index, scrollController, useHero) {
                   return widget.itemBuilder!(
@@ -514,8 +489,8 @@ class __ScrollToTopButtonPaddingState
     return ListenableBuilder(
       listenable: widget.selectionModeController,
       builder: (_, _) {
-        final multiSelect = widget.selectionModeController.isActive;
-        if (multiSelect || searchBarPosition == SearchBarPosition.top) {
+        if (widget.selectionModeController.isActive ||
+            searchBarPosition == SearchBarPosition.top) {
           return widget.builder(context, 1);
         }
 
@@ -584,12 +559,11 @@ class __SearchBarPositionedState extends ConsumerState<_SearchBarPositioned> {
           child: ListenableBuilder(
             listenable: widget.selectionModeController,
             builder: (context, _) {
-              final multiSelect = widget.selectionModeController.isActive;
               return AnimatedBuilder(
                 animation: _searchBarCurve,
                 builder: (context, _) {
-                  final padding = multiSelect
-                      ? -searchRegionHeight
+                  final padding = widget.selectionModeController.isActive
+                      ? 0.0
                       : searchOnce
                       ? state == SearchState.suggestions
                             ? 0.0
@@ -637,11 +611,6 @@ class _Displacement extends ConsumerWidget {
         third: controller.didSearchOnce,
 
         builder: (_, value, state, searchOnce) {
-          final multiSelect = selectionModeController.isActive;
-          if (multiSelect) {
-            return const SizedBox.shrink();
-          }
-
           final viewInsets = MediaQuery.viewInsetsOf(context).bottom;
           final viewPadding = MediaQuery.viewPaddingOf(context).bottom;
           final padding = max(viewInsets, viewPadding);

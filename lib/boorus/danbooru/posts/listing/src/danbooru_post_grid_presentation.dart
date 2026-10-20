@@ -28,7 +28,8 @@ final class DanbooruPostGridPresentation
     implements
         BooruPostPresentation,
         BooruPostGridPresentation,
-        BooruPostGridContextMenuPresentation {
+        BooruPostGridContextMenuPresentation,
+        BooruPostSingleActionsPresentation {
   const DanbooruPostGridPresentation();
 
   @override
@@ -69,6 +70,19 @@ final class DanbooruPostGridPresentation
     post: post,
     index: index,
     child: child,
+  );
+
+  @override
+  List<Widget> buildSingleSelectionActions(
+    BuildContext context, {
+    required WidgetRef ref,
+    required Post post,
+  }) => buildDanbooruSinglePostActions(
+    context,
+    ref: ref,
+    post: post,
+    selection: true,
+    includeFavoriteGroup: false,
   );
 
   PostGridItemAdditions buildLegacyGridItemAdditions(

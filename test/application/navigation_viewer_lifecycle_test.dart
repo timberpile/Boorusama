@@ -23,6 +23,61 @@ import 'support/fake_booru_backend.dart';
 import 'support/headless_app_harness.dart';
 
 void main() {
+  testWidgets('viewer Back reveals the original navigation bar immediately', (
+    tester,
+  ) async {
+    final harness = await HeadlessAppHarness.mount(
+      tester,
+      viewportSize: kMobileViewport,
+    );
+    await harness.pumpUntilFound(tester, find.byType(PostGrid));
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(AppNavigationShell)),
+    );
+    final bar = find.ancestor(
+      of: find.byKey(const Key('nav-shortcut-browse')),
+      matching: find.byType(AnimatedSlide),
+    );
+    final originalBar = tester.state(bar);
+    final originalPosition = tester.getRect(
+      find.byKey(const Key('nav-shortcut-browse')),
+    );
+    await tester.tap(find.byType(SliverPostGridImageGridItem).first);
+    await harness.pumpUntilFound(tester, find.byType(PostDetailsPageScaffold));
+    await harness.settle(tester);
+    expect(find.byKey(const Key('nav-shortcut-browse')), findsNothing);
+
+    await tester.binding.handlePopRoute();
+    await harness.pumpUntil(
+      tester,
+      () => container.read(navigationChromeProvider).viewerClosing,
+    );
+    await tester.pump();
+    expect(find.byType(PostDetailsPageScaffold), findsOneWidget);
+    expect(container.read(navigationChromeProvider).viewerOpen, isTrue);
+    expect(tester.state(bar), same(originalBar));
+    final translation = find.descendant(
+      of: bar,
+      matching: find.byType(FractionalTranslation),
+    );
+    expect(
+      tester.widget<FractionalTranslation>(translation).translation,
+      Offset.zero,
+    );
+    expect(
+      tester.getRect(find.byKey(const Key('nav-shortcut-browse'))),
+      originalPosition,
+    );
+    await harness.settle(tester);
+    expect(find.byType(PostDetailsPageScaffold), findsNothing);
+    expect(container.read(navigationChromeProvider).viewerClosing, isFalse);
+    expect(
+      tester.widget<FractionalTranslation>(translation).translation,
+      Offset.zero,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('a completed Browse viewer cannot return from a cached branch', (
     tester,
   ) async {

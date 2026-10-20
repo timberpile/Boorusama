@@ -591,6 +591,60 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
         }
       });
 
+  Future<List<BookmarkGroup>> duplicateGroups(
+    Map<String, String> names, {
+    required List<BookmarkGroup> expectedGroups,
+  }) => runSerializedMutation(
+    () async =>
+        (await _service).duplicateGroups(names, expectedGroups: expectedGroups),
+  );
+
+  Future<BookmarkCollectionDeletionPreview> previewDeleteSelection({
+    required Set<String> folderIds,
+    required Set<String> groupIds,
+  }) => _serialize(
+    () async => (await _service).previewDeleteSelection(
+      folderIds: folderIds,
+      groupIds: groupIds,
+    ),
+  );
+
+  Future<void> deleteSelection(
+    BookmarkCollectionDeletionPreview expected,
+  ) => runSerializedMutation(() async {
+    final service = await _service;
+    final current = await service.previewDeleteSelection(
+      folderIds: expected.selectedFolderIds,
+      groupIds: expected.selectedGroupIds,
+    );
+    if (current != expected) throw BookmarkCollectionChangedException(current);
+    final active = ref.read(settingsProvider).activeBookmarkGroupId;
+    final clear = active != null && current.groupIds.contains(active);
+    if (clear &&
+        !await ref
+            .read(settingsNotifierProvider.notifier)
+            .updateWith((s) => s.copyWith(activeBookmarkGroupId: null))) {
+      throw StateError('Failed to clear active target');
+    }
+    try {
+      await service.deleteSelection(expected);
+      for (final id in current.orphanBookmarkIds) {
+        _removals.remove(current.snapshot.bookmarksById[id]?.uniqueId);
+      }
+    } catch (error, stack) {
+      if (clear &&
+          !await ref
+              .read(settingsNotifierProvider.notifier)
+              .updateWith((s) => s.copyWith(activeBookmarkGroupId: active))) {
+        throw BookmarkGroupDeletionRollbackException(
+          deletionError: error,
+          rollbackErrors: [StateError('Failed to restore active target')],
+        );
+      }
+      Error.throwWithStackTrace(error, stack);
+    }
+  });
+
   Future<void> renameGroup(String groupId, String name) => _serialize(() async {
     await (await ref.read(
       bookmarkGroupRepoProvider.future,
@@ -1154,15 +1208,17 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     final identity = BookmarkIdentity.fromPost(post);
     // Mixed selections carry independent origins. Generate each source link
     // with that post's profile instead of the grid's surrounding profile.
-    final sourceConfig = post.origin.profileIdHint == null
-        ? config
-        : switch (const PostOriginResolver().resolve(
-            post.origin,
-            ref.read(booruConfigProvider),
-          )) {
-            ResolvedPostOrigin(:final config) => config.auth,
-            _ => config,
-          };
+    final sourceConfig = switch (const PostOriginResolver().resolve(
+      post.origin,
+      ref.read(booruConfigProvider),
+    )) {
+      ResolvedPostOrigin(:final config) => config.auth,
+      _
+          when config.booruType == post.origin.booruType &&
+              normalizePostSourceHost(config.url) == post.origin.sourceHost =>
+        config,
+      _ => null,
+    };
     final repository = await bookmarkRepository;
 
     Future<Bookmark?> findStored() async {
@@ -1178,12 +1234,13 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
 
     try {
       return await repository.addBookmark(
-        sourceConfig.booruIdHint,
+        post.origin.booruId,
         post,
         imageUrlResolver: (booruId) =>
             ref.read(bookmarkUrlResolverProvider(booruId)),
-        postLinkGenerator: (_) =>
-            ref.read(postLinkGeneratorProvider(sourceConfig)),
+        postLinkGenerator: (_) => sourceConfig == null
+            ? const NoLinkPostLinkGenerator()
+            : ref.read(postLinkGeneratorProvider(sourceConfig)),
       );
     } catch (error, stackTrace) {
       try {

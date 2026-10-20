@@ -1,6 +1,13 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
+import 'package:boorusama/core/configs/gesture/types.dart';
+import 'package:boorusama/core/boorus/engine/types.dart';
+import 'package:boorusama/core/selection/ordered_selection_controller.dart';
+import 'package:boorusama/core/selection/selection_input.dart';
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/gestures.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 import 'package:selection_mode/selection_mode.dart';
@@ -27,6 +34,242 @@ import 'package:boorusama/core/settings/types.dart';
 import 'package:boorusama/core/themes/colors/types.dart';
 
 void main() {
+  testWidgets(
+    'active post cards retain hold-drag reversal and normal scrolling',
+    (tester) async {
+      final selection = SelectionModeController();
+      final scroll = ScrollController();
+      await tester.pumpWidget(
+        _TestApp(
+          selection: selection,
+          scroll: scroll,
+          child: SelectionCanvas(
+            child: GridView.builder(
+              controller: scroll,
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 3,
+              ),
+              itemCount: 30,
+              itemBuilder: (context, index) => PostGridItem(
+                post: _post(id: index + 1),
+                index: index,
+                useHero: false,
+                multiSelectEnabled: true,
+                config: _config.auth,
+                onTap: (_) => fail('drag navigated'),
+                presentation: const GenericPostPresentation(),
+                imageBuilder: (_) =>
+                    SizedBox.expand(key: ValueKey('image-$index')),
+              ),
+            ),
+          ),
+        ),
+      );
+      selection.enable(initialSelected: [0]);
+      await tester.pump();
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.byKey(const ValueKey('image-1'))),
+      );
+      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 10));
+      await gesture.moveTo(
+        tester.getCenter(find.byKey(const ValueKey('image-5'))),
+      );
+      await tester.pump();
+      expect(selection.selection, containsAll([0, 1, 2, 3, 4, 5]));
+      await gesture.moveTo(
+        tester.getCenter(find.byKey(const ValueKey('image-2'))),
+      );
+      await tester.pump();
+      expect(selection.selection, {0, 1, 2});
+      await gesture.up();
+      await tester.pump();
+      await tester.drag(find.byType(GridView), const Offset(0, -200));
+      await tester.pumpAndSettle();
+      expect(scroll.offset, greaterThan(0));
+      await tester.pumpWidget(const SizedBox());
+      selection.dispose();
+      scroll.dispose();
+    },
+  );
+
+  for (final action in <String?>[
+    null,
+    kSelectAction,
+    kDisabledAction,
+    kDownloadAction,
+    kUpvoteAction,
+  ]) {
+    for (final contextMenuOnLongPress in [false, true]) {
+      testWidgets(
+        'grid long press dispatches ${action ?? 'default'} with context menu $contextMenuOnLongPress exactly once and active drag owns it',
+        (tester) async {
+          final selection = OrderedSelectionController<int>()
+            ..setEntries([0, 1, 2]);
+          final repository = _GestureRepository();
+          await tester.pumpWidget(
+            _TestApp(
+              selection: selection,
+              longPress: action,
+              contextMenuOnLongPress: contextMenuOnLongPress,
+              repository: repository,
+              child: SelectionCanvas(
+                child: GridView.count(
+                  crossAxisCount: 3,
+                  children: [
+                    for (var index = 0; index < 3; index++)
+                      ListenableBuilder(
+                        listenable: selection,
+                        builder: (context, _) => KurumiContextMenuPolicy(
+                          touchLongPress:
+                              contextMenuOnLongPress &&
+                              action == null &&
+                              !selection.isActive,
+                          child: KurumiContextMenu(
+                            menuItemsBuilder: (_) => [
+                              KurumiContextMenuTile(
+                                title: 'Select fixture',
+                                onTap: () =>
+                                    selection.enable(initialSelected: [0]),
+                              ),
+                            ],
+                            child: PostGridItem(
+                              post: _post(id: index + 1),
+                              index: index,
+                              useHero: false,
+                              multiSelectEnabled: selection.isActive,
+                              config: _config.auth,
+                              onTap: (_) => fail('selection navigated'),
+                              presentation: const GenericPostPresentation(),
+                              quickActionButton: const SizedBox.shrink(),
+                              imageBuilder: (_) => SizedBox.expand(
+                                key: ValueKey('dispatch-$index'),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          );
+          await tester.longPress(find.byKey(const ValueKey('dispatch-0')));
+          await tester.pump();
+          final selects =
+              action == kSelectAction ||
+              (action == null && !contextMenuOnLongPress);
+          expect(selection.selection, selects ? {0} : isEmpty);
+          expect(
+            repository.calls,
+            action == kDownloadAction || action == kUpvoteAction
+                ? [action]
+                : isEmpty,
+          );
+          if (contextMenuOnLongPress && action == null) {
+            await tester.pumpAndSettle();
+            await tester.tap(find.text('Select fixture'));
+            await tester.pumpAndSettle();
+          }
+          selection.enable(initialSelected: [0]);
+          await tester.pump();
+          final gesture = await tester.startGesture(
+            tester.getCenter(find.byKey(const ValueKey('dispatch-1'))),
+          );
+          await tester.pump(
+            kLongPressTimeout + const Duration(milliseconds: 10),
+          );
+          await gesture.moveTo(
+            tester.getCenter(find.byKey(const ValueKey('dispatch-2'))),
+          );
+          await tester.pump();
+          expect(selection.selection, {0, 1, 2});
+          await gesture.up();
+          expect(
+            repository.calls.length,
+            action == kDownloadAction || action == kUpvoteAction ? 1 : 0,
+          );
+          await tester.pumpWidget(const SizedBox());
+          selection.dispose();
+        },
+      );
+    }
+  }
+
+  for (final platform in [TargetPlatform.linux, TargetPlatform.macOS]) {
+    testWidgets(
+      '$platform dispatches modifier clicks through actual post taps',
+      (tester) async {
+        debugDefaultTargetPlatformOverride = platform;
+        addTearDown(() => debugDefaultTargetPlatformOverride = null);
+        final selection = OrderedSelectionController<int>()
+          ..setEntries([0, 1, 2, 3, 4, 5]);
+        var opened = 0;
+        await tester.pumpWidget(
+          _TestApp(
+            selection: selection,
+            child: SelectionCanvas(
+              child: GridView.count(
+                crossAxisCount: 3,
+                children: [
+                  for (var index = 0; index < 6; index++)
+                    ListenableBuilder(
+                      listenable: selection,
+                      builder: (context, _) => Focus(
+                        autofocus: index == 0,
+                        child: PostGridItem(
+                          post: _post(id: index + 1),
+                          index: index,
+                          useHero: false,
+                          multiSelectEnabled: selection.isActive,
+                          config: _config.auth,
+                          onTap: (_) => opened++,
+                          presentation: const GenericPostPresentation(),
+                          imageBuilder: (_) =>
+                              SizedBox.expand(key: ValueKey('modifier-$index')),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        );
+        final modifier = platform == TargetPlatform.macOS
+            ? LogicalKeyboardKey.metaLeft
+            : LogicalKeyboardKey.controlLeft;
+        await tester.sendKeyDownEvent(modifier);
+        await tester.tap(find.byKey(const ValueKey('modifier-1')));
+        await tester.sendKeyUpEvent(modifier);
+        await tester.pump();
+        expect(selection.selection, {1});
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+        await tester.tap(find.byKey(const ValueKey('modifier-5')));
+        await tester.pump();
+        expect(selection.selection, {1, 2, 3, 4, 5});
+        await tester.tap(find.byKey(const ValueKey('modifier-2')));
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+        await tester.pump();
+        expect(selection.selection, {1, 2});
+        await tester.sendKeyDownEvent(modifier);
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+        await tester.tap(find.byKey(const ValueKey('modifier-0')));
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+        await tester.sendKeyUpEvent(modifier);
+        await tester.pump();
+        expect(selection.selection, {0, 1, 2});
+        expect(opened, 0);
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+        await tester.pump();
+        expect(selection.isActive, isFalse);
+        await tester.tap(find.byKey(const ValueKey('modifier-0')));
+        expect(opened, 1);
+        debugDefaultTargetPlatformOverride = null;
+        await tester.pumpWidget(const SizedBox());
+        selection.dispose();
+      },
+    );
+  }
+
   const sources = ['search', 'favorites', 'bookmarks', 'feed'];
 
   for (final source in sources) {
@@ -151,6 +394,7 @@ final _config = BooruConfig.defaultConfig(
 );
 
 Post _post({
+  int id = 42,
   BooruPostData data = const EmptyPostData(typeKey: 'test'),
   String? status,
 }) => Post(
@@ -160,7 +404,7 @@ Post _post({
     source: _config.url,
   ),
   core: PostCoreData(
-    id: 42,
+    id: id,
     thumbnailImageUrl: 'thumb',
     sampleImageUrl: 'sample',
     originalImageUrl: 'original',
@@ -200,7 +444,21 @@ const _danbooruData = DanbooruPostData(
 );
 
 class _TestApp extends StatelessWidget {
-  const _TestApp({required this.child});
+  const _TestApp({
+    required this.child,
+    this.selection,
+    this.scroll,
+    this.longPress,
+    this.contextMenuOnLongPress = false,
+    this.repository,
+  });
+
+  final String? longPress;
+  final bool contextMenuOnLongPress;
+  final BooruRepository? repository;
+
+  final SelectionModeController? selection;
+  final ScrollController? scroll;
 
   final Widget child;
 
@@ -208,6 +466,11 @@ class _TestApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return ProviderScope(
       overrides: [
+        settingsProvider.overrideWithValue(
+          Settings.defaultSettings.copyWith(
+            postLongPressContextMenu: contextMenuOnLongPress,
+          ),
+        ),
         currentReadOnlyBooruConfigProvider.overrideWithValue(_config),
         currentReadOnlyBooruConfigAuthProvider.overrideWithValue(_config.auth),
         imageListingSettingsProvider.overrideWithValue(
@@ -216,13 +479,21 @@ class _TestApp extends StatelessWidget {
         gridThumbnailUrlGeneratorProvider.overrideWith(
           (ref, config) => const _ProbeGenerator(),
         ),
-        currentReadOnlyBooruConfigGestureProvider.overrideWithValue(null),
-        booruRepoProvider.overrideWith((ref, config) => null),
+        currentReadOnlyBooruConfigGestureProvider.overrideWithValue(
+          PostGestureConfig.undefined().withPreviewLongPress(longPress),
+        ),
+        booruRepoProvider.overrideWith((ref, config) => repository),
         booruBuilderProvider.overrideWith((ref, config) => null),
         canFavoriteProvider.overrideWith((ref, config) => false),
         automaticMediaLoadingEnabledProvider.overrideWithValue(false),
       ],
       child: SelectionMode(
+        controller: selection,
+        scrollController: scroll,
+        options: const SelectionOptions(
+          behavior: SelectionBehavior.manual,
+          dragSelection: DragSelectionOptions(),
+        ),
         child: MaterialApp(
           theme: Kurumi.themeFrom(
             KurumiThemeMode.light,
@@ -233,7 +504,15 @@ class _TestApp extends StatelessWidget {
             data: KurumiThemeData.fromMaterial(Theme.of(context)),
             child: child!,
           ),
-          home: Scaffold(body: child),
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => SelectionInput(
+                controller: SelectionMode.of(context),
+                itemCount: 30,
+                child: child,
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -248,4 +527,16 @@ final class _ProbeGenerator implements GridThumbnailUrlGenerator {
     Post post, {
     required GridThumbnailSettings settings,
   }) => const GridThumbnailMedia(url: 'quality-url', aspectRatio: 1.5);
+}
+
+class _GestureRepository implements BooruRepository {
+  final calls = <String?>[];
+  @override
+  bool handlePostGesture(WidgetRef ref, String? action, Post post) {
+    calls.add(action);
+    return true;
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

@@ -71,6 +71,7 @@ class Settings extends Equatable {
     required this.volumeKeyViewerNavigation,
     required this.searchBarScrollBehavior,
     this.autoHideMainNavigation = true,
+    this.postLongPressContextMenu = false,
     required this.searchBarPosition,
     required this.hapticFeedbackLevel,
     required this.autoBackup,
@@ -145,6 +146,7 @@ class Settings extends Equatable {
           ? ColorSettings.fromJson(json['colors'])
           : null,
       autoHideMainNavigation = json['autoHideMainNavigation'] as bool? ?? true,
+      postLongPressContextMenu = json['postLongPressContextMenu'] == true,
       searchBarScrollBehavior = SearchBarScrollBehavior.parse(
         json['searchBarScrollBehavior'],
       ),
@@ -319,6 +321,7 @@ class Settings extends Equatable {
 
   final SearchBarScrollBehavior searchBarScrollBehavior;
   final bool autoHideMainNavigation;
+  final bool postLongPressContextMenu;
 
   final SearchBarPosition searchBarPosition;
 
@@ -369,6 +372,7 @@ class Settings extends Equatable {
     bool? volumeKeyViewerNavigation,
     SearchBarScrollBehavior? searchBarScrollBehavior,
     bool? autoHideMainNavigation,
+    bool? postLongPressContextMenu,
     SearchBarPosition? searchBarPosition,
     HapticFeedbackLevel? hapticFeedbackLevel,
     AutoBackupSettings? autoBackup,
@@ -432,6 +436,8 @@ class Settings extends Equatable {
         volumeKeyViewerNavigation ?? this.volumeKeyViewerNavigation,
     autoHideMainNavigation:
         autoHideMainNavigation ?? this.autoHideMainNavigation,
+    postLongPressContextMenu:
+        postLongPressContextMenu ?? this.postLongPressContextMenu,
     searchBarScrollBehavior:
         searchBarScrollBehavior ?? this.searchBarScrollBehavior,
     searchBarPosition: searchBarPosition ?? this.searchBarPosition,
@@ -484,6 +490,7 @@ class Settings extends Equatable {
       'colors': colors?.toJson(),
       'volumeKeyViewerNavigation': volumeKeyViewerNavigation,
       'autoHideMainNavigation': autoHideMainNavigation,
+      'postLongPressContextMenu': postLongPressContextMenu,
       'searchBarScrollBehavior': searchBarScrollBehavior.toData(),
       'searchBarPosition': searchBarPosition.toData(),
       'hapticFeedbackLevel': hapticFeedbackLevel.toData(),
@@ -533,6 +540,7 @@ class Settings extends Equatable {
     volumeKeyViewerNavigation,
     searchBarScrollBehavior,
     autoHideMainNavigation,
+    postLongPressContextMenu,
     searchBarPosition,
     hapticFeedbackLevel,
     autoBackup,

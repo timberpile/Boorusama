@@ -15,6 +15,27 @@ import 'posts_per_page_dialog.dart';
 // No valid page count is zero; it represents the custom option in the picker.
 const _customPostsPerPageOption = 0;
 
+class PostLongPressContextMenuSetting extends StatelessWidget {
+  const PostLongPressContextMenuSetting({
+    required this.value,
+    required this.onChanged,
+    super.key,
+  });
+
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) => KurumiSwitchListTile(
+    title: Text(context.t.settings.image_grid.long_press_context_menu),
+    subtitle: Text(
+      context.t.settings.image_grid.long_press_context_menu_description,
+    ),
+    value: value,
+    onChanged: onChanged,
+  );
+}
+
 class ImageListingSettingsSection extends ConsumerStatefulWidget {
   const ImageListingSettingsSection({
     required this.listing,

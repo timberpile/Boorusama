@@ -1,3 +1,7 @@
+import '../../../../configs/manage/providers.dart';
+import '../types/post_action_snapshot.dart';
+import 'post_actions.dart';
+
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
@@ -6,15 +10,8 @@ import 'package:kurumi/material.dart';
 import 'package:selection_mode/selection_mode.dart';
 
 // Project imports:
-import '../../../../../foundation/url_launcher.dart';
 import '../../../../bookmarks/widgets.dart';
-import '../../../../boorus/engine/providers.dart';
 import '../../../../configs/config/providers.dart';
-import '../../../../downloads/downloader/providers.dart';
-import '../../../../router.dart';
-import '../../../../tags/show/routes.dart';
-import '../../../favorites/widgets.dart';
-import '../../../post/providers.dart';
 import '../../../post/types.dart';
 import 'post_grid_controller.dart';
 
@@ -34,72 +31,22 @@ class GeneralPostContextMenu extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final booruConfig = ref.watchConfigAuth;
-    final loginDetails = ref.watch(booruLoginDetailsProvider(booruConfig));
-    final commentPageBuilder = ref
-        .watch(booruBuilderProvider(booruConfig))
-        ?.commentPageBuilder;
-    final postLinkGenerator = ref.watch(postLinkGeneratorProvider(booruConfig));
     final selectionModeController = SelectionMode.maybeOf(context);
-    final feedbackContext = Navigator.of(context, rootNavigator: true).context;
-
-    final downloadNotifier = ref.watch(
-      downloadNotifierProvider(
-        ref.watch(
-          downloadNotifierParamsProvider((
-            booruConfig,
-            ref.watchConfigDownload,
-          )),
-        ),
-      ).notifier,
-    );
 
     return ValueListenableBuilder(
       valueListenable: controller.itemsNotifier,
       builder: (context, posts, _) {
+        if (index >= posts.length) return child;
         final post = posts[index];
+        final snapshot = PostActionSnapshot([
+          post,
+        ], ref.watch(booruConfigProvider));
         return KurumiContextMenu(
           menuItemsBuilder: (context) => [
-            KurumiContextMenuTile(
-              title: context.t.download.download,
-              onTap: () {
-                downloadNotifier.download(post);
-              },
-            ),
+            PostContextMenuActions(snapshot: snapshot),
             BookmarkContextMenuSection(
               post: post,
               config: booruConfig,
-            ),
-            FavoriteContextMenuTile(
-              post: post,
-              feedbackContext: feedbackContext,
-            ),
-            const KurumiContextMenuDivider(),
-            if (commentPageBuilder != null && post.hasComment)
-              KurumiContextMenuTile(
-                title: context.t.post.action.view_comments,
-                onTap: () {
-                  goToCommentPage(context, ref, post);
-                },
-              ),
-            if (!loginDetails.hasStrictSFW)
-              KurumiContextMenuTile(
-                title: context.t.post.action.view_in_browser,
-                onTap: () {
-                  launchExternalUrlString(
-                    postLinkGenerator.getLink(post),
-                    launcher: ref.read(externalUrlLauncherProvider),
-                  );
-                },
-              ),
-            KurumiContextMenuTile(
-              title: context.t.post.action.view_tags,
-              onTap: () {
-                goToShowTaglistPage(
-                  ref,
-                  post,
-                  config: ref.readConfig,
-                );
-              },
             ),
             const KurumiContextMenuDivider(),
             if (selectionModeController case final controller?)

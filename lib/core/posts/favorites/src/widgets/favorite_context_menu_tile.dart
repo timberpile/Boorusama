@@ -20,10 +20,14 @@ class FavoriteContextMenuTile extends ConsumerWidget {
   const FavoriteContextMenuTile({
     required this.post,
     this.feedbackContext,
+    this.popup = false,
+    this.canExecute,
     super.key,
   });
 
   final Post post;
+  final bool popup;
+  final bool Function()? canExecute;
   final BuildContext? feedbackContext;
 
   @override
@@ -42,24 +46,40 @@ class FavoriteContextMenuTile extends ConsumerWidget {
     final isFavorited = isFaved ?? false;
     ref.watch(favoriteStatusLoaderProvider(params));
 
-    return KurumiContextMenuTile(
-      title: isFavorited
-          ? context.t.post.action.unfavorite
-          : context.t.post.action.favorite,
-      enabled: isFaved != null,
-      onTap: isFaved != null
-          ? () {
-              unawaited(
-                _toggleFavorite(
-                  feedbackContext ?? context,
-                  notifier,
-                  isFavorited: isFavorited,
-                  postId: post.id,
-                ),
-              );
-            }
-          : null,
-    );
+    final title = isFavorited
+        ? context.t.post.action.unfavorite
+        : context.t.post.action.favorite;
+    void toggle() {
+      if (isFaved == null) return;
+      if (canExecute?.call() == false) {
+        final feedback = feedbackContext ?? context;
+        Kurumi.showErrorToast(
+          feedback,
+          feedback.t.post.action.operation_failed,
+        );
+        return;
+      }
+      unawaited(
+        _toggleFavorite(
+          feedbackContext ?? context,
+          notifier,
+          isFavorited: isFavorited,
+          postId: post.id,
+        ),
+      );
+    }
+
+    if (popup && isFaved == null) return const SizedBox.shrink();
+    return popup
+        ? KurumiPopupMenuItem(
+            title: Text(title),
+            onTap: toggle,
+          )
+        : KurumiContextMenuTile(
+            title: title,
+            enabled: isFaved != null,
+            onTap: toggle,
+          );
   }
 
   Future<void> _toggleFavorite(

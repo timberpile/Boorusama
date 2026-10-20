@@ -329,6 +329,7 @@
       "show_less": "Zeige weniger"
     },
     "action": {
+      "operation_failed": "Die Beitragsaktion konnte nicht abgeschlossen werden. Versuche es erneut.",
       "boorusama_link": "Boorusama Link File",
       "gif": "GIF",
       "create_gif": "GIF erstellen",
@@ -648,7 +649,9 @@
       "spacing": "Abstand",
       "corner_radius": "Eckradius",
       "aspect_ratio": "Seitenverhältnis",
-      "padding": "Randabstand"
+      "padding": "Randabstand",
+      "long_press_context_menu": "Beitragsmenü durch langes Drücken öffnen",
+      "long_press_context_menu_description": "Starte die Auswahl über „Auswählen“ im Menü. Benutzerdefinierte Gesten für langes Drücken gelten weiterhin."
     },
     "image_viewer": {
       "image_viewer": "Bildbetrachter",
@@ -1146,7 +1149,10 @@
       }
     },
     "gestures": {
-      "title": "Gesten"
+      "grid_long_press_default": "Standard (Auswählen)",
+      "disabled": "Deaktiviert",
+      "title": "Gesten",
+      "grid_long_press_context_menu_default": "Standard (Beitragsmenü)"
     },
     "downloads": {
       "title": "Herunterladen"
@@ -1244,7 +1250,8 @@
       "folder_memberships": {
         "one": "1 Gruppe enthält dieses Lesezeichen",
         "other": "$n Gruppen enthalten dieses Lesezeichen"
-      }
+      },
+      "copy_name": "{name} Kopie"
     },
     "added": "Lesezeichen hinzugefügt",
     "failed_to_add": "Lesezeichen konnte nicht hinzugefügt werden",
@@ -1510,7 +1517,22 @@
     "imported_searches": "Importierte Suchen",
     "move_up": "Nach oben",
     "move_down": "Nach unten",
-    "invalid": "Der Ordnername oder das Ziel ist ungültig."
+    "invalid": "Der Ordnername oder das Ziel ist ungültig.",
+    "delete_bookmark_items": "Dadurch wird Folgendes endgültig gelöscht:",
+    "delete_counts": {
+      "folders": {
+        "one": "$n Ordner",
+        "other": "$n Ordner"
+      },
+      "groups": {
+        "one": "$n Lesezeichengruppe",
+        "other": "$n Lesezeichengruppen"
+      },
+      "unique_bookmarks": {
+        "one": "$n eindeutiges Lesezeichen",
+        "other": "$n eindeutige Lesezeichen"
+      }
+    }
   },
   "search_backup_import": {
     "topic_count": {

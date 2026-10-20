@@ -1,3 +1,10 @@
+import '../../../../boorus/engine/providers.dart';
+import '../../../../configs/manage/widgets.dart';
+import 'post_grid_item.dart';
+import '../../../../configs/manage/providers.dart';
+import '../types/post_action_snapshot.dart';
+import 'post_actions.dart';
+
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
@@ -9,7 +16,6 @@ import 'package:selection_mode/selection_mode.dart';
 import '../../../../../../core/widgets/widgets.dart';
 import '../../../../bookmarks/widgets.dart';
 import '../../../../configs/config/providers.dart';
-import '../../../../downloads/downloader/providers.dart';
 import '../../../post/types.dart';
 import 'post_grid_controller.dart';
 
@@ -24,65 +30,119 @@ class DefaultMultiSelectionActions<T extends Post> extends ConsumerWidget {
 
   final PostGridController<T> postController;
   final bool bookmark;
-  final void Function(List<T> selectedPosts)? onBulkDownload;
+  final Future<void> Function(List<T> selectedPosts)? onBulkDownload;
   final List<Widget> Function(List<T> selectedPosts)? extraActions;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final controller = SelectionMode.of(context);
-    final booruConfig = ref.watchConfigAuth;
-    final notifier = ref.watch(
-      downloadNotifierProvider(
-        ref.watch(
-          downloadNotifierParamsProvider((
-            booruConfig,
-            ref.watchConfigDownload,
-          )),
-        ),
-      ).notifier,
-    );
-
     return ListenableBuilder(
-      listenable: controller,
+      listenable: Listenable.merge([controller, postController]),
       builder: (context, _) {
-        final selectedPosts = controller
-            .selectedFrom(postController.items.toList())
-            .toList();
-
-        return MultiSelectionActionBar(
-          children: [
-            MultiSelectButton(
-              onPressed: selectedPosts.isNotEmpty
-                  ? () {
-                      if (onBulkDownload != null) {
-                        onBulkDownload!(selectedPosts);
-                      } else {
-                        notifier.bulkDownload(selectedPosts);
-                      }
-
-                      controller.disable();
-                    }
-                  : null,
-              icon: const Icon(Symbols.download),
-              name: context.t.download.download,
-            ),
-            if (bookmark)
-              MultiSelectPopupButton(
-                name: context.t.post.action.bookmark,
-                enabled: selectedPosts.isNotEmpty,
-                icon: const Icon(Symbols.bookmark_add),
-                items: [
-                  BookmarkMultiSelectionMenu(
-                    posts: selectedPosts,
-                    config: booruConfig,
-                    onCompleted: () async {},
-                  ),
-                ],
-              ),
-            if (extraActions != null) ...extraActions!(selectedPosts),
-          ],
+        final selectedPosts = List<T>.unmodifiable(
+          postController.refreshing
+              ? <T>[]
+              : controller.selectedFrom(postController.items.toList()).toList(),
         );
+        if (selectedPosts.isEmpty) return const SizedBox.shrink();
+        final snapshot = PostActionSnapshot(
+          selectedPosts,
+          ref.watch(booruConfigProvider),
+        );
+        final actions = _PostActionsBar(
+          snapshot: snapshot,
+          bookmark: bookmark,
+          onBulkDownload: onBulkDownload == null
+              ? null
+              : () => onBulkDownload!(selectedPosts),
+          extraActions: extraActions?.call(selectedPosts) ?? const [],
+        );
+        final config = snapshot.commonConfig;
+        return config == null
+            ? actions
+            : CurrentBooruConfigScope(config: config, child: actions);
       },
+    );
+  }
+}
+
+class _PostActionsBar extends ConsumerWidget {
+  const _PostActionsBar({
+    required this.snapshot,
+    required this.bookmark,
+    required this.extraActions,
+    this.onBulkDownload,
+  });
+  final PostActionSnapshot snapshot;
+  final bool bookmark;
+  final List<Widget> extraActions;
+  final Future<void> Function()? onBulkDownload;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final actions = postActionDefinitions(
+      context,
+      ref,
+      snapshot,
+      downloadOverride: onBulkDownload,
+    );
+    final singlePost = snapshot.isSingle ? snapshot.posts.single : null;
+    final presentation = singlePost == null
+        ? null
+        : ref.watch(
+            booruPostPresentationProvider(
+              PostPresentationRequest(
+                origin: singlePost.origin,
+                data: singlePost.booruData,
+              ),
+            ),
+          );
+    return MultiSelectionActionBar(
+      children: [
+        for (final action in actions.where(
+          (a) =>
+              a.id == PostActionId.download ||
+              a.id == PostActionId.favorite ||
+              a.id == PostActionId.unfavorite,
+        ))
+          MultiSelectButton(
+            primary: true,
+            name: action.label,
+            icon: Icon(action.icon),
+            onPressed: action.enabled ? () => action.execute() : null,
+          ),
+        if (bookmark && snapshot.canBookmark)
+          MultiSelectPopupButton(
+            name: context.t.post.action.bookmark,
+            enabled: true,
+            icon: const Icon(Symbols.bookmark_add),
+            items: [
+              BookmarkMultiSelectionMenu(
+                posts: snapshot.posts,
+                config: ref.watchConfigAuth,
+                onCompleted: () async {},
+              ),
+            ],
+          ),
+        for (final action in actions.where(
+          (a) =>
+              a.id != PostActionId.download &&
+              a.id != PostActionId.favorite &&
+              a.id != PostActionId.unfavorite,
+        ))
+          MultiSelectButton(
+            menuOnly: true,
+            name: action.label,
+            icon: Icon(action.icon),
+            onPressed: action.enabled ? () => action.execute() : null,
+          ),
+        ...extraActions,
+        if (singlePost != null &&
+            presentation is BooruPostSingleActionsPresentation &&
+            presentation!.supports(singlePost.booruData))
+          ...(presentation as BooruPostSingleActionsPresentation)
+              .buildSingleSelectionActions(context, ref: ref, post: singlePost),
+      ],
     );
   }
 }

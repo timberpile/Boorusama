@@ -366,6 +366,10 @@ void main() {
       await tester.tap(find.byIcon(Symbols.select_all));
       await pumpHeader();
       expect(selection.selection.length, expectedCount);
+      await controller.refresh(preserveSelection: true);
+      await pumpHeader();
+      expect(selection.isActive, isTrue);
+      expect(selection.selection.length, expectedCount);
       final download = tester.widget<MultiSelectButton>(
         find.byWidgetPredicate(
           (widget) => widget is MultiSelectButton && widget.name == 'Download',

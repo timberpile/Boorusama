@@ -31,6 +31,14 @@ abstract interface class BooruPostGridPresentation {
   });
 }
 
+abstract interface class BooruPostSingleActionsPresentation {
+  List<Widget> buildSingleSelectionActions(
+    BuildContext context, {
+    required WidgetRef ref,
+    required Post post,
+  });
+}
+
 abstract interface class BooruPostGridContextMenuPresentation {
   Widget buildGridContextMenu(
     BuildContext context, {

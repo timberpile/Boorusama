@@ -1,10 +1,33 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/scheduler.dart';
+import 'package:selection_mode/selection_mode.dart';
 import 'package:kurumi/material.dart';
 
 import '../settings/providers.dart';
 import 'destination_activity.dart';
 import 'destination_profile_scope.dart';
 import 'navigation_chrome_controller.dart';
+
+/// Supplies the actual bar travel, including its system bottom inset.
+class NavigationBarScrollScope extends InheritedWidget {
+  const NavigationBarScrollScope({
+    required this.extent,
+    required super.child,
+    super.key,
+  });
+
+  final double extent;
+
+  static double of(BuildContext context) =>
+      context
+          .dependOnInheritedWidgetOfExactType<NavigationBarScrollScope>()
+          ?.extent ??
+      kNavigationBarHeight;
+
+  @override
+  bool updateShouldNotify(NavigationBarScrollScope oldWidget) =>
+      extent != oldWidget.extent;
+}
 
 /// Only direct, vertical post-list gestures control chrome. Programmatic
 /// jumps, nested horizontal scrolling and overscroll cannot hide the bar.
@@ -23,6 +46,7 @@ class _NavigationScrollBoundaryState
   Widget build(BuildContext context) {
     if (DestinationScope.maybeOf(context) == null) return widget.child;
     final active = NavigationActivity.of(context);
+    final extent = NavigationBarScrollScope.of(context);
     final autoHide = ref.watch(
       settingsProvider.select((s) => s.autoHideMainNavigation),
     );
@@ -30,12 +54,17 @@ class _NavigationScrollBoundaryState
       onNotification: (event) {
         if (!active ||
             !autoHide ||
+            extent <= 0 ||
             event.depth != 0 ||
             event.metrics.axis != Axis.vertical) {
+          if (!active || !autoHide || extent <= 0) _userScroll = false;
           return false;
         }
         if (event is ScrollStartNotification) {
           _userScroll = event.dragDetails != null;
+        }
+        if (event is ScrollUpdateNotification && event.dragDetails != null) {
+          _userScroll = true;
         }
         if (event is ScrollUpdateNotification && _userScroll) {
           ref
@@ -44,9 +73,15 @@ class _NavigationScrollBoundaryState
                 delta: event.scrollDelta ?? 0,
                 pixels: event.metrics.pixels,
                 outOfRange: event.metrics.outOfRange,
+                extent: extent,
               );
         }
-        if (event is ScrollEndNotification) _userScroll = false;
+        if (event is ScrollEndNotification && _userScroll) {
+          ref
+              .read(navigationChromeProvider.notifier)
+              .endScroll(pixels: event.metrics.pixels);
+          _userScroll = false;
+        }
         return false;
       },
       child: widget.child,
@@ -58,8 +93,10 @@ class NavigationSelectionBridge extends ConsumerStatefulWidget {
   const NavigationSelectionBridge({
     required this.selected,
     required this.child,
+    this.controller,
     super.key,
   });
+  final SelectionModeController? controller;
   final bool selected;
   final Widget child;
   @override
@@ -72,6 +109,12 @@ class _NavigationSelectionBridgeState
   NavigationChromeController? _chrome;
   var _last = false;
   @override
+  void initState() {
+    super.initState();
+    widget.controller?.addListener(_sync);
+  }
+
+  @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     _sync();
@@ -80,22 +123,36 @@ class _NavigationSelectionBridgeState
   @override
   void didUpdateWidget(NavigationSelectionBridge oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (widget.controller != oldWidget.controller) {
+      oldWidget.controller?.removeListener(_sync);
+      widget.controller?.addListener(_sync);
+    }
     _sync();
   }
 
   void _sync() {
     if (DestinationScope.maybeOf(context) == null) return;
     _chrome ??= ref.read(navigationChromeProvider.notifier);
-    final selected = widget.selected && NavigationActivity.of(context);
+    final selected =
+        (widget.controller?.isActive ?? widget.selected) &&
+        NavigationActivity.selectionChromeOf(context);
     if (_last == selected) return;
     _last = selected;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    void apply() {
       if (mounted) _chrome?.setSelectionFor(this, _last);
-    });
+    }
+
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => apply());
+    } else {
+      apply();
+    }
   }
 
   @override
   void dispose() {
+    widget.controller?.removeListener(_sync);
     final chrome = _chrome;
     if (_last) {
       WidgetsBinding.instance.addPostFrameCallback(

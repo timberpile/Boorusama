@@ -62,30 +62,61 @@ void main() {
       expect(player.isPlaying, isTrue);
     },
   );
-  test('scroll hysteresis ignores bounce/noise and selection', () {
-    final container = ProviderContainer();
-    addTearDown(container.dispose);
-    final chrome = container.read(navigationChromeProvider.notifier);
-    void scroll(double delta, {double pixels = 100, bool outOfRange = false}) =>
-        chrome.userScroll(delta: delta, pixels: pixels, outOfRange: outOfRange);
-    scroll(23);
-    expect(container.read(navigationChromeProvider).barVisible, isTrue);
-    scroll(1);
-    expect(container.read(navigationChromeProvider).barVisible, isFalse);
-    scroll(-11);
-    expect(container.read(navigationChromeProvider).barVisible, isFalse);
-    scroll(-1);
-    expect(container.read(navigationChromeProvider).barVisible, isTrue);
-    scroll(100, outOfRange: true);
-    expect(container.read(navigationChromeProvider).barVisible, isTrue);
-    chrome.setSelection(true);
-    scroll(100);
-    expect(container.read(navigationChromeProvider).barVisible, isTrue);
-    chrome.setSelection(false);
-    scroll(100);
-    scroll(-2, pixels: 8);
-    expect(container.read(navigationChromeProvider).barVisible, isTrue);
-  });
+  test(
+    'scroll follows distance, then snaps at half travel and ignores bounce',
+    () {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      final chrome = container.read(navigationChromeProvider.notifier);
+      void scroll(
+        double delta, {
+        double pixels = 100,
+        bool outOfRange = false,
+      }) => chrome.userScroll(
+        delta: delta,
+        pixels: pixels,
+        outOfRange: outOfRange,
+        extent: 100,
+      );
+      double hidden() =>
+          container.read(navigationChromeProvider).barHiddenFraction;
+      scroll(25);
+      expect(hidden(), 0.25);
+      scroll(-10);
+      expect(hidden(), closeTo(0.15, 0.000001));
+      chrome.endScroll(pixels: 100);
+      expect(hidden(), 0);
+      scroll(50);
+      chrome.endScroll(pixels: 100);
+      expect(hidden(), 0);
+      scroll(50.1);
+      chrome.endScroll(pixels: 100);
+      expect(hidden(), 1);
+      scroll(-25);
+      expect(hidden(), 0.75);
+      scroll(-75);
+      expect(hidden(), 0);
+      scroll(100, outOfRange: true);
+      expect(hidden(), 0);
+      chrome.setSelection(true);
+      scroll(100);
+      expect(container.read(navigationChromeProvider).barVisible, isTrue);
+      chrome.setSelection(false);
+      scroll(100);
+      scroll(-2, pixels: 8);
+      expect(container.read(navigationChromeProvider).barVisible, isTrue);
+      expect(hidden(), 0);
+      chrome.endScroll(pixels: 8);
+      final viewer = Object();
+      chrome.setViewerFor(viewer, active: true, immersive: false);
+      scroll(100);
+      expect(hidden(), 0);
+      chrome.setViewerFor(viewer, active: false, immersive: false);
+      chrome.setMenuOpen(true);
+      scroll(100);
+      expect(hidden(), 0);
+    },
+  );
   test('suspended native player cannot honor late pending playback', () async {
     final manager = VideoPlaybackManager();
     addTearDown(manager.dispose);

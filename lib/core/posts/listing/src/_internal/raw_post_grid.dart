@@ -1,3 +1,11 @@
+import 'package:flutter/foundation.dart' show mapEquals;
+
+import 'dart:math' as math;
+
+import '../../../../selection/ordered_selection_canvas.dart';
+import '../../../../selection/ordered_selection_controller.dart';
+import '../../../../selection/selection_input.dart';
+import '../types/post_selection_identity.dart';
 import '../../../../navigation/navigation_interaction_scopes.dart';
 
 // Flutter imports:
@@ -11,6 +19,7 @@ import 'package:equatable/equatable.dart';
 import 'package:foundation/widgets.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kurumi/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:oktoast/oktoast.dart';
@@ -22,8 +31,8 @@ import 'package:sliver_tools/sliver_tools.dart';
 import '../../../../../foundation/display.dart';
 import '../../../../../foundation/keyboard.dart';
 import '../../../../haptics/types.dart';
-import '../../../../widgets/animated_footer.dart';
-import '../../../../widgets/default_selection_bar.dart';
+import '../../../../settings/providers.dart';
+import '../widgets/post_selection_controls.dart';
 import '../../../../widgets/widgets.dart';
 import '../../../post/types.dart';
 import '../types/grid_size.dart';
@@ -51,6 +60,8 @@ class RawPostGrid<T extends Post> extends StatefulWidget {
     this.sliverHeaders,
     this.scrollController,
     this.footer,
+    this.bottomInset = 0,
+    this.selectionScope,
     this.blacklistedIdString,
     this.refreshAtStart = true,
     this.enablePullToRefresh = true,
@@ -68,6 +79,8 @@ class RawPostGrid<T extends Post> extends StatefulWidget {
   final bool safeArea;
 
   final Widget? footer;
+  final double bottomInset;
+  final Object? selectionScope;
   final Widget body;
   final Widget gridHeader;
   final Widget topPageIndicator;
@@ -99,6 +112,8 @@ class _RawPostGridState<T extends Post> extends State<RawPostGrid<T>>
   final loading = ValueNotifier(false);
   final refreshing = ValueNotifier(false);
   var items = <T>[];
+  final _identities = PostSelectionIdentity();
+  var _filterScope = <String, bool>{};
   late var pageMode = controller.pageMode;
 
   @override
@@ -108,6 +123,10 @@ class _RawPostGridState<T extends Post> extends State<RawPostGrid<T>>
     _selectionModeController = widget.selectionModeController;
 
     controller.addListener(_onControllerChange);
+    controller.activeFilters.addListener(_onFilterChanged);
+    items = controller.items.toList();
+    _filterScope = Map.of(controller.activeFilters.value);
+    _syncSelection(duringBuild: true);
     if (widget.refreshAtStart) {
       controller.refresh();
     }
@@ -122,6 +141,19 @@ class _RawPostGridState<T extends Post> extends State<RawPostGrid<T>>
   void didUpdateWidget(RawPostGrid<T> oldWidget) {
     super.didUpdateWidget(oldWidget);
 
+    if (widget.selectionScope != oldWidget.selectionScope) {
+      if (_selectionModeController
+          case final OrderedSelectionController<Object> selection) {
+        selection.reconcileDuringBuild(
+          _identities.resolve(controller.items.toList()),
+          scope: widget.selectionScope,
+        );
+      } else {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _selectionModeController.disable();
+        });
+      }
+    }
     if (widget.selectionOptions != oldWidget.selectionOptions) {
       setState(() {
         _selectionOptions = widget.selectionOptions;
@@ -152,6 +184,7 @@ class _RawPostGridState<T extends Post> extends State<RawPostGrid<T>>
     }
 
     widget.controller.removeListener(_onControllerChange);
+    controller.activeFilters.removeListener(_onFilterChanged);
 
     super.dispose();
   }
@@ -163,10 +196,8 @@ class _RawPostGridState<T extends Post> extends State<RawPostGrid<T>>
     if (controller.refreshing) {
       refreshing.value = true;
 
-      // reset multi select if something is selected
-      if (_selectionModeController.selection.isNotEmpty &&
-          !controller.preserveSelectionOnRefresh) {
-        _selectionModeController.deselectAll();
+      if (_selectionModeController is OrderedSelectionController) {
+        _selectionModeController.cancelDrag();
       }
 
       return;
@@ -178,6 +209,8 @@ class _RawPostGridState<T extends Post> extends State<RawPostGrid<T>>
       return;
     }
 
+    _syncFilterScope();
+    _syncSelection();
     setState(() {
       items = controller.items.toList();
       hasMore = controller.hasMore;
@@ -185,6 +218,30 @@ class _RawPostGridState<T extends Post> extends State<RawPostGrid<T>>
       refreshing.value = controller.refreshing;
       pageMode = controller.pageMode;
     });
+  }
+
+  void _onFilterChanged() {
+    // Refresh temporarily clears/rebuilds this map; those are not user filter
+    // changes. Compare its final value before reconciling the refreshed posts.
+    if (!controller.refreshing) _syncFilterScope();
+  }
+
+  void _syncFilterScope() {
+    final filters = controller.activeFilters.value;
+    if (!mapEquals(_filterScope, filters)) _selectionModeController.disable();
+    _filterScope = Map.of(filters);
+  }
+
+  void _syncSelection({bool duringBuild = false}) {
+    if (_selectionModeController
+        case final OrderedSelectionController<Object> selection) {
+      final keys = _identities.resolve(controller.items.toList());
+      if (duringBuild) {
+        selection.reconcileDuringBuild(keys, scope: widget.selectionScope);
+      } else {
+        selection.setEntries(keys, scope: widget.selectionScope);
+      }
+    }
   }
 
   @override
@@ -195,6 +252,7 @@ class _RawPostGridState<T extends Post> extends State<RawPostGrid<T>>
       child: ListenableBuilder(
         listenable: _selectionModeController,
         builder: (_, child) => NavigationSelectionBridge(
+          controller: _selectionModeController,
           selected: _selectionModeController.isActive,
           child: child!,
         ),
@@ -212,10 +270,8 @@ class _RawPostGridState<T extends Post> extends State<RawPostGrid<T>>
               selectionModeController: _selectionModeController,
               selectionOptions: _selectionOptions,
               autoScrollController: _autoScrollController,
-              header: DefaultSelectionBar(
-                itemsCount: items.length,
-                appBar: const SizedBox.shrink(),
-              ),
+              itemCount: items.length,
+              bottomInset: widget.bottomInset,
               child: _Scaffold(
                 body: ConditionalParentWidget(
                   condition: kPreferredLayout.isMobile,
@@ -226,7 +282,6 @@ class _RawPostGridState<T extends Post> extends State<RawPostGrid<T>>
                         ? (_) => true
                         : (_) => false,
                     onRefresh: () async {
-                      _selectionModeController.deselectAll();
                       await controller.refresh(
                         maintainPage: true,
                       );
@@ -249,21 +304,7 @@ class _RawPostGridState<T extends Post> extends State<RawPostGrid<T>>
                       child: _CustomScrollView(
                         controller: _autoScrollController,
                         slivers: [
-                          if (widget.sliverHeaders != null)
-                            ...widget.sliverHeaders!.map(
-                              (e) => ListenableBuilder(
-                                listenable: _selectionModeController,
-                                builder: (_, _) {
-                                  final multiSelect =
-                                      _selectionModeController.isActive;
-
-                                  return SliverOffstage(
-                                    offstage: multiSelect,
-                                    sliver: e,
-                                  );
-                                },
-                              ),
-                            ),
+                          ...?widget.sliverHeaders,
                           ConditionalValueListenableBuilder(
                             valueListenable: refreshing,
                             useFalseChildAsCache: true,
@@ -561,51 +602,135 @@ class PostGridOptionsProvider extends InheritedWidget {
   }
 }
 
-class _SelectionMode extends StatelessWidget {
+class _SelectionMode extends ConsumerWidget {
   const _SelectionMode({
     required this.selectionModeController,
     required this.selectionOptions,
     required this.child,
+    required this.itemCount,
+    required this.bottomInset,
     this.footer,
-    this.header,
     this.autoScrollController,
   });
-
   final Widget? footer;
-  final Widget? header;
   final Widget child;
+  final int itemCount;
+  final double bottomInset;
   final SelectionModeController selectionModeController;
   final AutoScrollController? autoScrollController;
   final SelectionOptions? selectionOptions;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final longPressOpensMenu = ref.watch(postGridLongPressOpensMenuProvider);
     return SelectionMode(
       controller: selectionModeController,
       options: selectionOptions,
       scrollController: autoScrollController,
-      child: Stack(
-        children: [
-          Column(
-            children: [
-              if (header case final Widget header) header,
-              Expanded(
-                child: SelectionCanvas(
-                  child: child,
+      child: SelectionInput(
+        controller: selectionModeController,
+        itemCount: itemCount,
+        child: ListenableBuilder(
+          listenable: selectionModeController,
+          builder: (context, _) => KurumiContextMenuPolicy(
+            touchLongPress:
+                longPressOpensMenu && !selectionModeController.isActive,
+            child: _SelectionKeyboardInset(
+              enabled: selectionModeController.isActive,
+              child: LayoutBuilder(
+                builder: (context, available) => Column(
+                  children: [
+                    Expanded(
+                      child: OrderedSelectionCanvas(
+                        controller: selectionModeController,
+                        child: child,
+                      ),
+                    ),
+                    if (selectionModeController.isActive) ...[
+                      ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxHeight: math.max(
+                            0,
+                            math.min(
+                              available.maxHeight - bottomInset,
+                              MediaQuery.sizeOf(context).height * .45,
+                            ),
+                          ),
+                        ),
+                        child: SingleChildScrollView(
+                          child: Material(
+                            color: Kurumi.themeOf(context).colorScheme.surface,
+                            child: SafeArea(
+                              top: false,
+                              bottom: bottomInset == 0,
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  PostSelectionControls(
+                                    controller: selectionModeController,
+                                    itemCount: itemCount,
+                                  ),
+                                  if (footer case final footer?) footer,
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      if (bottomInset > 0)
+                        SizedBox(
+                          height: math.min(bottomInset, available.maxHeight),
+                        ),
+                    ],
+                  ],
                 ),
               ),
-            ],
-          ),
-          if (footer case final Widget footer)
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: SelectionModeAnimatedFooter(
-                child: footer,
-              ),
             ),
-        ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Measure after layout: route transitions may have ancestors whose paint
+/// transforms require their final size. Avoid querying them during layout.
+class _SelectionKeyboardInset extends StatefulWidget {
+  const _SelectionKeyboardInset({required this.enabled, required this.child});
+  final bool enabled;
+  final Widget child;
+  @override
+  State<_SelectionKeyboardInset> createState() =>
+      _SelectionKeyboardInsetState();
+}
+
+class _SelectionKeyboardInsetState extends State<_SelectionKeyboardInset> {
+  final _bounds = GlobalKey();
+  var _overlap = 0.0;
+  var _pending = false;
+  @override
+  Widget build(BuildContext context) {
+    final inset = MediaQuery.viewInsetsOf(context).bottom;
+    final keyboardTop = MediaQuery.sizeOf(context).height - inset;
+    if (!widget.enabled || inset == 0) {
+      _overlap = 0;
+    } else if (!_pending) {
+      _pending = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _pending = false;
+        if (!mounted || !widget.enabled) return;
+        final box = _bounds.currentContext?.findRenderObject();
+        if (box is! RenderBox || !box.hasSize) return;
+        final bottom = box.localToGlobal(Offset(0, box.size.height)).dy;
+        final overlap = (bottom - keyboardTop).clamp(0.0, box.size.height);
+        if ((overlap - _overlap).abs() > .1) setState(() => _overlap = overlap);
+      });
+    }
+    return SizedBox(
+      key: _bounds,
+      child: Padding(
+        padding: EdgeInsets.only(bottom: _overlap),
+        child: widget.child,
       ),
     );
   }
@@ -680,18 +805,8 @@ class _SliverBottomGridPadding extends StatelessWidget {
   Widget build(BuildContext context) {
     final bottomPadding = MediaQuery.viewPaddingOf(context).bottom;
 
-    return ListenableBuilder(
-      listenable: selectionModeController,
-      builder: (_, _) {
-        final multiSelect = selectionModeController.isActive;
-        return SliverSizedBox(
-          height: switch (pageMode) {
-            PageMode.infinite =>
-              multiSelect ? bottomPadding + 72 : bottomPadding,
-            PageMode.paginated => multiSelect ? 36 : 0,
-          },
-        );
-      },
+    return SliverSizedBox(
+      height: pageMode == PageMode.infinite ? bottomPadding : 0,
     );
   }
 }

@@ -481,6 +481,7 @@
       }
     },
     "action": {
+      "operation_failed": "Could not complete the post action. Try again.",
       "boorusama_link": "Boorusama Link File",
       "gif": "GIF",
       "create_gif": "Create GIF",
@@ -853,7 +854,9 @@
       "spacing": "Spacing",
       "corner_radius": "Corner radius",
       "padding": "Padding",
-      "aspect_ratio": "Aspect ratio"
+      "aspect_ratio": "Aspect ratio",
+      "long_press_context_menu": "Open post menu on long press",
+      "long_press_context_menu_description": "Choose Select in the menu to start selection. Custom long-press gestures still apply."
     },
     "image_viewer": {
       "post_quality": "Post quality",
@@ -1822,8 +1825,11 @@
       "overridden_notice": "These settings are overridden by custom viewer. Go to <b><a href=\"booru-profiles\">Profile's Viewer</a></b> page instead."
     },
     "gestures": {
+      "grid_long_press_default": "Default (Select)",
+      "disabled": "Disabled",
       "title": "Gestures",
-      "override_notice": "Override the default gestures for this profile, select \"None\" to keep the original behavior."
+      "override_notice": "Override the default gestures for this profile, select \"None\" to keep the original behavior.",
+      "grid_long_press_context_menu_default": "Default (Post menu)"
     },
     "downloads": {
       "title": "Download",
@@ -1959,7 +1965,8 @@
       "add_to": "Add to $name",
       "remove_from": "Remove from $name",
       "failed_to_add_to_group": "Failed to add to group",
-      "failed_to_remove_from_group": "Failed to remove from group"
+      "failed_to_remove_from_group": "Failed to remove from group",
+      "copy_name": "{name} Copy"
     },
     "bulk": {
       "title": "Bookmarks",
@@ -2377,7 +2384,22 @@
     "imported_searches": "Imported Searches",
     "move_up": "Move up",
     "move_down": "Move down",
-    "invalid": "The folder name or destination is invalid."
+    "invalid": "The folder name or destination is invalid.",
+    "delete_bookmark_items": "This will permanently delete:",
+    "delete_counts": {
+      "folders": {
+        "one": "$n folder",
+        "other": "$n folders"
+      },
+      "groups": {
+        "one": "$n bookmark group",
+        "other": "$n bookmark groups"
+      },
+      "unique_bookmarks": {
+        "one": "$n unique bookmark",
+        "other": "$n unique bookmarks"
+      }
+    }
   },
   "navigation": {
     "browse": "Browse",

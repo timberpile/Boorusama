@@ -14,7 +14,6 @@ import 'package:scroll_to_index/scroll_to_index.dart';
 import 'package:selection_mode/selection_mode.dart';
 
 import '../../../../configs/config/types.dart';
-import '../../../../downloads/downloader/providers.dart';
 import '../../../../configs/manage/providers.dart';
 import '../../../../configs/manage/widgets.dart';
 import '../../../../boorus/engine/providers.dart';
@@ -1038,64 +1037,9 @@ class _FeedSelectionActions extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final selection = SelectionMode.of(context);
-    final profiles = ref.watch(booruConfigProvider);
-    return ListenableBuilder(
-      listenable: selection,
-      builder: (context, _) {
-        final selected = selection
-            .selectedFrom(controller.items.toList())
-            .toList();
-        final groups = <BooruConfig, List<Post>>{};
-        for (final post in selected) {
-          final config = switch (const PostOriginResolver().resolve(
-            post.origin,
-            profiles,
-          )) {
-            ResolvedPostOrigin(:final config) => config,
-            _ => null,
-          };
-          // Unavailable origins and future payload versions remain viewable;
-          // authenticated mutations require a resolved, supported payload.
-          if (config == null || post.booruData is UnknownPostData) {
-            return const SizedBox.shrink();
-          }
-          groups.putIfAbsent(config, () => []).add(post);
-        }
-        if (groups.isEmpty) return const SizedBox.shrink();
-        if (groups.length == 1) {
-          return CurrentBooruConfigScope(
-            config: groups.keys.single,
-            child: Consumer(
-              builder: (context, ref, _) {
-                final builder = ref
-                    .watch(booruBuilderProvider(groups.keys.single.auth))
-                    ?.multiSelectionActionsBuilder;
-                return builder?.call(context, selection, controller) ??
-                    DefaultMultiSelectionActions(postController: controller);
-              },
-            ),
-          );
-        }
-        return DefaultMultiSelectionActions<Post>(
-          postController: controller,
-          onBulkDownload: (_) => unawaited(
-            _feedAction(context, () async {
-              for (final entry in groups.entries) {
-                final params = ref.read(
-                  downloadNotifierParamsProvider((
-                    entry.key.auth,
-                    entry.key.download,
-                  )),
-                );
-                await ref
-                    .read(downloadNotifierProvider(params).notifier)
-                    .bulkDownload(entry.value);
-              }
-            }),
-          ),
-        );
-      },
+    return PostSelectionActions(
+      selectionModeController: SelectionMode.of(context),
+      postController: controller,
     );
   }
 }
