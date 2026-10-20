@@ -1,0 +1,18 @@
+appId: com.timberpile.boorusama.dev
+---
+# Checks navigation only, NOT successful media loading from the live site.
+- runFlow: common/launch.yaml
+- runFlow: common/open-settings.yaml
+- takeScreenshot: settings
+- tapOn: 'Browse'
+- assertVisible: 'Search\.\.\.'
+- tapOn: 'Bookmarks'
+- runFlow:
+    when:
+      visible: 'Bookmark Groups'
+    commands:
+      - tapOn: 'All'
+- assertVisible: 'No bookmarks'
+- takeScreenshot: bookmarks-empty
+- tapOn: 'Browse'
+- assertVisible: 'Search\.\.\.'

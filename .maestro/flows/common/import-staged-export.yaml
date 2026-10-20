@@ -1,0 +1,32 @@
+appId: com.timberpile.boorusama.dev
+---
+# Precondition: prepare has cleared app data and pushed the credential-free file.
+- runFlow: open-settings.yaml
+- tapOn: 'Export and Import'
+- tapOn: 'Import file'
+# AOSP/Google DocumentsUI, English. Qualify these selectors on the local AVD.
+- tapOn: 'Show roots'
+- tapOn: 'Downloads'
+- tapOn: 'boorusama-ui-test\.bsexport'
+- extendedWaitUntil:
+    visible: 'Review import'
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      text: 'All checks passed'
+    direction: DOWN
+    timeout: 30000
+# Never silently acknowledge warnings or import only part of a scenario.
+- assertVisible: 'All checks passed'
+- scrollUntilVisible:
+    element:
+      text: 'Import'
+    direction: DOWN
+    timeout: 15000
+- tapOn: 'Import'
+- extendedWaitUntil:
+    visible: 'Import complete'
+    timeout: 60000
+- tapOn: 'Done'
+# Start a fresh app process after import; no reset and no second import.
+- runFlow: launch.yaml

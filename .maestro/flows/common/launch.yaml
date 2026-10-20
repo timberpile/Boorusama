@@ -1,0 +1,20 @@
+appId: com.timberpile.boorusama.dev
+---
+# Reset is the runner's job, not an implicit side effect of launch/restart.
+# Smoke tests grant permissions; these flows do NOT test permission prompts.
+- launchApp:
+    clearState: false
+    permissions:
+      all: allow
+- extendedWaitUntil:
+    visible: '(?i)(Menu|What.s new.*)'
+    timeout: 60000
+- runFlow:
+    when:
+      visible: '(?i)What.s new.*'
+    commands:
+      - back
+- extendedWaitUntil:
+    visible: 'Menu'
+    timeout: 30000
+- assertVisible: 'Browse'

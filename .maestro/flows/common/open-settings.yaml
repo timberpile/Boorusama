@@ -1,0 +1,17 @@
+appId: com.timberpile.boorusama.dev
+---
+# Precondition: main navigation visible, menu closed; English phone layout.
+- assertVisible: 'Menu'
+- tapOn: 'Menu'
+- scrollUntilVisible:
+    element:
+      text: 'Settings'
+    direction: DOWN
+    timeout: 15000
+- tapOn: 'Settings'
+- scrollUntilVisible:
+    element:
+      text: 'Export and Import'
+    direction: DOWN
+    timeout: 15000
+- assertVisible: 'Export and Import'

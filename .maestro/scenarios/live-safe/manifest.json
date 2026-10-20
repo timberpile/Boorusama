@@ -1,0 +1,23 @@
+{
+  "format": "boorusama-export",
+  "formatVersion": 1,
+  "exportId": "4b009dbc-825b-427c-acbb-5a06320e609d",
+  "createdAt": "2026-10-20T00:00:00Z",
+  "appVersion": "4.6.1-timberpile.1",
+  "preset": "custom",
+  "containsCredentials": false,
+  "sources": [
+    {
+      "id": "profiles",
+      "schemaVersion": 1,
+      "recommendedAction": "replace",
+      "parts": [
+        {
+          "path": "data/profiles.json",
+          "sha256": "35891162eda5f9a2bdb5b1d6bac38ddb4c3008bc1c23c4d58d08dc71977c565a",
+          "byteLength": 367
+        }
+      ]
+    }
+  ]
+}
