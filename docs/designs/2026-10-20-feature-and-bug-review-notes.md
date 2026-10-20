@@ -26,7 +26,7 @@
 | 6 | Pretty, category-colored pinned-query display | S–M | UX direction accepted; not implemented |
 | 7 | Pinned searches on Realbooru | — | No bug: following works; tracking deliberately unsupported |
 | 8 | Video badge on Realbooru | S | Proposed fix accepted; not implemented |
-| 9 | Viewer media and metadata prefetch | S–M | Investigation accepted; video-start buffering feasibility open |
+| 9 | Viewer media and metadata prefetch | S–M | Image behavior investigation accepted; video prebuffer deferred |
 | 10 | Find Pixiv post via Android Share | M | Share target already registered |
 | 11 | Replace suitable confirmations with Undo | M | App-wide reversible-action audit accepted; not implemented |
 | 12 | Bookmark-style filtering in topic feeds | M | Snapshot-only scope proposed |
@@ -35,8 +35,8 @@
 | 15 | Mark Pixiv engine experimental | S–M | Proposed scope accepted; not implemented |
 | 16 | Reuse full query editor for topics | M | Current dialog uses raw text |
 | 17 | Android 11+ custom download directories | M–L | SAF possible; needs URI-aware pipeline |
-| 18 | One cancellable bulk-download notification | M | Partial notification infrastructure exists |
-| 19 | Bookmark download quality/naming/duplicates | M | Inconsistent code paths confirmed |
+| 18 | One cancellable bulk-download notification | M | Proposed aggregate notification accepted; not implemented |
+| 19 | Bookmark download quality/naming/duplicates | M | Proposed unified download behavior accepted; not implemented |
 | 20 | Scroll-to-top button remains visible at top | S | Proposed fix accepted; not implemented |
 | 21 | Artist page information architecture | M | Current Danbooru composition inspected |
 | 22 | Four previews without new-post tracking | S–M | Proposed decoupling accepted; not implemented |
@@ -227,6 +227,8 @@ Mixed `Post` / `Pool` / `Series` feed entries could be a general display abstrac
 - **Important Realbooru caveat:** its HTML listing has a static poster and often no playable video URL until `GelbooruV2FullPostLoader` fetches the full post on entering it. That resolution would need to happen *before* video prebuffering, and that should not be done for many posts without strict limits.
 - **Effort/risk:** an incremental engine-specific warm player (one upcoming video) might be moderate; a seamless unified cross-engine seconds-based preloader with reusable partial bytes is larger. First measure `time-to-first-frame` across engines/sites and prove actual reuse and startup improvement. This is a **candidate subfeature of #9**, not an authorized separate ticket.
 
+**Latest user decision (2026-10-20): DEFER VIDEO PREBUFFERING.** A first-few-seconds startup buffer is feasible in principle, but do **not** plan, implement, or open an issue for it unless real startup latency later justifies the complexity. Preserve only the image-prefetch verification/quality-limit scope of #9. The feasibility research above remains archival information rather than a commitment.
+
 ## 10. Pixiv Share → find the artwork on configured Booru profiles
 
 **Original request.** User has an artwork in Pixiv and wants to find it inside Boorusama.
@@ -309,11 +311,15 @@ Mixed `Post` / `Pool` / `Series` feed entries could be a general display abstrac
 
 **Proposal.** Give every bulk session an ID and one continuously updated summary notification (completed / total, bytes if reliable, failures, cancellation). Expose Cancel for **that operation**, not necessarily every download in the app. Suppress noisy per-file notifications during the session; summarize failures and final completion. Ensure cached/skipped tasks count correctly, and handle app restart, simultaneous sessions, and Android notification permission. **Effort M; related to #19.**
 
+**Discussion outcome (user, 2026-10-20): accepted direction.** One cumulative/cancellable notification per bulk session. No issue created or code changed.
+
 ## 19. Bookmark downloads use different names/quality; duplicate detection inconsistent
 
 **Observed in source — directly confirmed.** Bookmark download path in `lib/core/bookmarks/src/providers/bookmark_provider.dart` uses `bookmark.originalUrl`, labels metadata quality as `original`, and calls `fallbackFileNameBuilder`. Normal search/viewer download in `lib/core/downloads/downloader/src/providers/download_notifier.dart` computes effective download quality from settings and uses a configured filename generator. This explains reported differences. Actual duplicate behavior still needs reproducing.
 
 **Proposal.** Refactor bookmark and regular post download entry points to a shared policy for resolved originating profile, desired quality, URL selection, generated filename, and existing-file identity. Preserve credential isolation for mixed-profile bookmarks. Distinguish deliberate variant downloads from duplicate same-file downloads; ensure sidecars match the actual quality. Add tests for profile-specific filename patterns, settings, equal origins, cache/skips, and destination-path behavior. **Effort M; high-confidence/high-value fix.**
+
+**Discussion outcome (user, 2026-10-20): accepted direction.** Unify bookmark/search download quality, path/filename generation, and meaningful duplicate handling via shared policy. No issue created or code changed.
 
 ## 20. Scroll-to-top button does not disappear at top after manual scroll
 
