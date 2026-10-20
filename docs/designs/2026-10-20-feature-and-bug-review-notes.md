@@ -248,6 +248,8 @@ Mixed `Post` / `Pool` / `Series` feed entries could be a general display abstrac
 
 **Effort.** **S–M for Danbooru-only proof of concept**, **M for solid multi-profile asynchronous discovery** with supported-engine adapters and handling of actual Android shared payloads. No deep architecture rewrite required. This is a proposal/feasibility finding, **not an implementation or authorization to create GitHub issues**.
 
+**New UX coordination decision (2026-10-20).** The user explicitly wants **one shared result presentation** for external Pixiv Share lookups (#10) and the in-progress [GitHub #49](https://github.com/timberpile/Boorusama/issues/49) MD5 lookup. The existing branch `feature/49-find-in-another-profile` was inspected: it adds the exact-MD5 domain/service and tests only, **not** an integrated picker/results UI. Preserve the match-type distinction: #49 = exact original-file hash with user-chosen target; #10 = source-artwork ID with automatically searched verified compatible configured profiles. Modify the existing #49 issue in its *review draft* instead of creating a duplicate. Issue previews are being reviewed before any live GitHub issue creation/edit.
+
 ## 11. Replace safe, frequent removal confirmations with Undo
 
 **Observed in source.** Bookmark removal already has an Undo toast mechanism (`lib/core/bookmarks/src/providers/bookmark_provider.dart`, `showRemovalUndo`).
@@ -365,6 +367,8 @@ Mixed `Post` / `Pool` / `Series` feed entries could be a general display abstrac
 
 **Proposal.** Introduce recognizable sections: artist identity/aliases, primary external/social links with platform icons, direct wiki link and summary/availability, related tags, and posts. Keep high-frequency navigation/actions easy to reach and preserve existing Follow Topic support. Check API availability for wiki and social link metadata before selecting UI. **Effort M; start with Danbooru rather than over-generalizing.**
 
+**Artist Page UX direction refined (user, 2026-10-20).** A standalone, interactive **single-file HTML mockup** is requested before choosing an implementation issue. Change the main action label from **Follow Topic** to **Follow**; do **not** add a redundant **Browse Posts** button since the post grid is directly beneath the artist details. A full global Search bar embedded in Artist View is not desirable; prototype a **compact post-scoped filtering interface** instead. The mockup produced in the conversation includes three clickable versions: quick filter chips; a minimal filter button with a bottom sheet (recommended first comparison); and a small inline tag field. Artist tag must stay implicitly scoped. Existing Newest/Popular sort and social/wiki visibility remain. UX not yet approved; keep #21 out of the creation-ready issue queue until the HTML review is complete.
+
 ## 22. Populate four previews even when tracking is unsupported
 
 **Original request.** “New-post tracking is unsupported for this search.” should not prevent four search thumbnail previews.
@@ -408,6 +412,8 @@ The user requested that the remaining *discussion topics* be reviewed together, 
 - **#17 Android SAF custom download locations:** backlog after detailed feasibility study.
 
 Other bounded items (#1, #6, #8, #11–#16, #18–#20, #22, #23) have accepted directions but are **not yet implementation tickets**. #3 was rejected as unnecessary and #7 was not a Follow bug; do not resurrect those without new evidence. Do not conflate conceptual approval with implementation or issue creation.
+
+**Issue preview handoff status (2026-10-20).** Following the user's request, 16 compact English **new issue drafts** plus a revision preview for existing GitHub #49 were assembled as a downloadable Markdown review artifact in this conversation (not committed to the repository). They follow `docs/issue_workflow.md`, using concise `Problem` / `Expected behavior` and short titles. No GitHub issues have been created or edited. Excluded from new-issue creation: #2, #3, #4, #5, #7, #17, #21; #17 is explicitly on backlog. Check user feedback on these previews before publishing.
 
 ## Existing related work and proposed discussion order
 
