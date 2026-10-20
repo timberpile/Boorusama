@@ -18,7 +18,7 @@
 
 | # | Topic | Estimated effort | Present confidence / status |
 |---|---|---|---|
-| 1 | App-wide action labels, icons, and Title Case | M | Expanded UX audit proposed |
+| 1 | App-wide action labels, icons, and Title Case | M | Style principles agreed; UI audit still needed |
 | 2 | Pixiv-inspired scrollable post viewer | L | Needs interaction design |
 | 3 | Customize URL/engine when duplicating a profile | M | Scope narrowed by user |
 | 4 | Local custom profile icons and export | M | Deprioritized; PNG sufficient |
@@ -46,7 +46,7 @@
 
 **Original request.** Prefer concise labels that use meaningful icons instead of redundant verbs: “Add to global blacklist” → “+ Global blacklist”; “Add to account favorite group” → “+ Account favorite group”; “+ Create new group” → “+ Group”.
 
-**Updated user direction (provisional).** Widen this to an **app-wide audit** of headings, buttons, menu labels, and other short UI copy. Prefer English **Title Case** (also called headline-style capitalization), where important words begin with capitals.
+**Agreed direction (2026-10-20).** Widen this to an **app-wide audit** of headings, buttons, menu labels, and other short UI copy. Use English **Title Case** (also called headline-style capitalization) for short interface labels, with important words capitalized. This is the agreed style direction, not approval of every individual rewrite.
 
 **Interpretation/examples.**
 
@@ -59,11 +59,11 @@
 | Find in another profile | Find in Another Profile |
 | Recently viewed posts | Recently Viewed Posts |
 
-Suggested rule, **not yet approved**: Title Case for short English headings, labels, buttons, and menu actions; sentence case for explanations, notifications, error sentences, and body text. Apply locale-specific grammar outside English; do not mechanically Title-Case German. Distinguish add, remove-from-list, and permanent delete. Icon buttons still need semantic labels/tooltips. Favor actual icon widgets rather than embedding `+`/`-` characters in localized strings.
+**Agreed capitalization rule:** Title Case for short English headings, labels, buttons, and menu actions; sentence case for explanations, notifications, error sentences, and body text. Apply locale-specific grammar outside English; do not mechanically Title-Case German. Distinguish add, remove-from-list, and permanent delete. Icon buttons still need semantic labels/tooltips. Favor actual icon widgets rather than embedding `+`/`-` characters in localized strings.
 
-**Terminology in full sentences (user follow-up, provisional).** Capitalize the official names of app features consistently **even inside otherwise sentence-case prose**: e.g. "The post is hidden by your Global Blacklist." and "Open Topics to manage your saved searches." Apply this only when referring to a named UI feature or destination, not to generic words ("This feed has no posts"). Maintain a small canonical glossary for names such as "Global Blacklist", "Topics", and "Feeds"; verify the final names against real navigation labels. In localized languages follow natural grammar, while preserving intentionally named features. The user also wants to **experiment with bold emphasis** for feature names in select explanatory texts, but **has not decided** whether this improves readability. Compare unobtrusive plain Title Case to selective bold; avoid bolding every occurrence, especially in dense menus or frequent notifications, and investigate accessibility/localization implications before introducing rich-text translations.
+**Agreed terminology rule:** Capitalize the official names of app features consistently **even inside otherwise sentence-case prose**: e.g. "The post is hidden by your Global Blacklist." and "Open Topics to manage your saved searches." Apply this only when referring to a named UI feature or destination, not to generic words ("This feed has no posts"). Maintain a small canonical glossary for names such as "Global Blacklist", "Topics", and "Feeds"; verify the final names against real navigation labels. In localized languages follow natural grammar, while preserving intentionally named features. **Agreed emphasis principle:** Plain Title Case is the default. Use **bold feature names selectively** when it improves comprehension in explanatory text, hints, or dialogs; do **not** bold every mention or routinely bold labels, dense menus, and notifications. The exact placement remains subject to UI review and examples; validate readability, accessibility, and localization before adopting rich-text resources widely.
 
-**Assessment.** A coherent microcopy/style pass is useful but larger than the initial examples. Audit all existing screens, avoid changing actions or accessibility, and compare consistent Kurumi components. **Effort M; UX value high.** Open: capitalization style guide, boundaries for labels versus prose, and any labels that must remain explicit.
+**Assessment.** A coherent microcopy/style pass is useful but larger than the initial examples. Audit all existing screens, avoid changing actions or accessibility, and compare consistent Kurumi components. **Effort M; UX value high.** Style direction agreed; remaining implementation decisions include the canonical feature-name glossary, the exact UI copy inventory, icon semantics, exceptions for clarity, and which explanatory passages benefit from selective bold. No GitHub issue or implementation is authorized yet.
 
 ## 2. Hybrid of current post viewer and Pixiv-style attached details
 
