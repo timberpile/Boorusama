@@ -20,6 +20,8 @@ The standalone interactive HTML mockup is delivered with the design review as
   scrolling, and pagination.
 - [ ] Add the localized preference and Kurumi series-tile actions.
 - [ ] Verify real Danbooru responses, filtering, accessibility, and device behavior.
+- [ ] Follow-up: reuse confirmed-series grouping for existing bookmark-group
+  timelines and add idempotent whole-series-to-post-bookmarks action (below).
 
 ## UX decision
 
@@ -141,10 +143,145 @@ entries or scroll anchors. At integration, memoize by source-list/metadata
 revision and update the append seam, not every tile build. No decoding, metadata
 lookups, sorting, or thumbnail preloading inside tile builders.
 
+## Bookmark Browser follow-up: decisions preserved from prior chats
+
+**Provenance:** The *Series Posts Grouping* discussion developed the older
+*Series Posts Grouping Old* idea of grouping individually saved posts. This
+section records those product requirements separately from implementation
+suggestions. These are requirements for the **future bookmark integration**,
+not a claim that the current feed branch implements them.
+
+### Agreed product model (do not replace with a series bookmark entity)
+
+- Extend the **same adjacent-series grouping experience** from Browse/Search
+  to the posts shown inside an existing **Bookmark Group** timeline/browser.
+  This is a follow-up to the initial feed integration, not a new bookmark type.
+- Do **not** add a `Series` category to the Bookmark Browser, a dedicated
+  series-bookmark repository, a `SeriesBookmark` record, or a separate saved
+  series collection. Keep the existing post bookmarks and group memberships.
+- A series entry in a bookmark timeline should look and behave like a normal
+  bookmark-grid tile, with the subtle series/count affordance from the browse
+  design. Tapping it opens the corresponding **series**, rather than treating
+  it as a newly stored, synthetic bookmark. Preserve the source profile.
+- Bookmark grouping is a **display-only projection** of the existing
+  individually bookmarked posts. A user bookmarking a whole series is really
+  bookmarking **every individual post in that series**; the viewer merely
+  groups neighboring bookmarks automatically when displaying them.
+- Apply grouping **after** the current bookmark target/group, site, search
+  filters, blacklist/visibility rules and sort/shuffle have produced the
+  displayed post order. Only adjacent qualifying posts in that exact order
+  can merge. Never regroup by pool across intervening bookmarks, silently
+  reorder bookmark results, create phantom posts, or store group positions.
+- One saved series member is a normal bookmark tile. Two or more neighboring
+  members of the same confirmed series form one tile. Count only **visible
+  bookmarked posts in this run** (for example, `5 bookmarked posts`), not
+  the entire pool's size. A series can legitimately appear in multiple runs.
+- An individual bookmark stays individually removable, movable between
+  existing groups, searchable, exportable, and selectable. Expanding the tile
+  reveals the existing member bookmarks. Grid selection and bulk operations
+  refer to these member bookmarks, never all remote series posts by accident.
+
+### Whole-series bookmark action (existing records, not a new object)
+
+- Expose a clear **Bookmark all posts in series** action from the series page
+  or applicable series menu. It obtains the remote series members through the
+  existing booru/profile identity and persists each eligible post as a normal
+  bookmark in the selected/current bookmark group.
+- This action targets the **whole series**, not merely the contiguous subset
+  represented by a feed tile or the current search/filter results. Show the
+  complete vs eligible/available count explicitly if they differ. Do not
+  assume unavailable, inaccessible or unbookmarkable posts were saved.
+- It must be **idempotent**, even if the series was partly bookmarked:
+  existing bookmarks keep their stable identity, existing group memberships
+  and any locally edited metadata; add only missing bookmark records and
+  missing memberships in the requested target group. Never duplicate a post
+  or overwrite its existing saved representation merely to add membership.
+- A post already in the library but **not in the target Bookmark Group** is
+  still missing from that group: add membership, not a duplicate bookmark.
+  A post already in that group is a no-op. Bookmarks in unrelated groups
+  remain untouched. Never infer completion from library-global counts alone.
+- Reusing the existing bulk group-aware mutation code is preferred over a
+  custom series persistence path. `BookmarkLibraryNotifier.addPostsToGroup`
+  and `_addPostsToGroup` already distinguish existing post identities from
+  newly created bookmarks and account for target-group membership. The
+  convenience `addBookmarks` method skips globally saved posts and therefore
+  is **not** sufficient for filling missing target-group memberships.
+- Do not make a grouped tile's normal tap act as a bulk bookmark toggle.
+  Tapping navigates; explicitly labeled actions mutate bookmarks. Avoid an
+  ambiguous `Unbookmark series` toggle that could silently erase individual
+  bookmarks a user saved before they chose the whole-series action.
+
+### Partially bookmarked series: unresolved question and proposed UX
+
+The older discussion explicitly raised the case where **some series posts
+are already bookmarked** but did not settle the final UX. Preserve that as
+an open decision, rather than presenting the proposal below as approved.
+
+**Proposed default:** In the series view show per-target progress such as
+`7/20 posts in this group`, with **Add 13 missing posts** as the primary
+action. If all 20 are already in the target group, show **All 20 bookmarked**
+without an additional write. If some are saved globally but not in this
+group, include those as missing memberships, not as new bookmark records.
+Recompute membership at commit time to tolerate concurrent changes.
+
+Series bulk operations should report the number added, already present,
+skipped, and failed. Where the existing rollback path can restore the
+pre-operation state, reuse it; on error never remove bookmarks or memberships
+that predated the action. Offer retry for missing items rather than blindly
+replaying or reversing the entire series. If adding all may be expensive,
+show the count before confirmation and use bounded fetching/progress.
+
+**Still to settle during UX review:** whether the series view should later
+offer a separately named **Remove this whole series from this group** action;
+how offline/unresolvable series navigation should degrade (individual saved
+posts must remain accessible); and how inaccessible, blacklisted or filtered
+remote series members are counted and described during `Bookmark all`.
+None of these questions justify a synthetic series bookmark entity.
+
+### Integration points and acceptance criteria
+
+- `lib/core/bookmarks/src/widgets/bookmark_scroll_view.dart` currently
+  transforms selected bookmarks into `Post`s, feeds them to `PostGrid`, and
+  uses original post indices for details. Introduce the shared display-entry
+  adapter there and maintain exact source indices when opening individual
+  bookmarks or choosing/selecting/expanding a grouped tile.
+- `lib/core/bookmarks/src/providers/bookmark_group_selectors.dart` defines
+  the selected target, tag/site filtering and upload/bookmark-time/random
+  sort. Group only *after* this projection; different sorts, searches and
+  shuffled orders may produce different (or zero) grouped runs.
+- `lib/core/bookmarks/src/types/bookmark.dart` already holds a saved post
+  snapshot, and `bookmark_identity.dart` uses a normalized host plus stable
+  post key. Reuse existing identities and `BookmarkGroup.bookmarkIds`;
+  do not introduce another identity or a persistent series membership list.
+- Reuse the feed's **confirmed series-only metadata resolver/cache** for
+  saved post snapshots where an originating site/profile can be resolved.
+  An old/offline bookmark whose source or membership is unavailable remains
+  a normal bookmark tile; do not guess from tags or cross-site matches.
+- Preserve auth/profile boundaries when looking up the series and opening
+  its page. Never merge ambiguous origins, different sites, or similarly
+  numbered series IDs from different sites. If profile resolution fails,
+  keep the individual bookmark usable instead of presenting a broken group.
+- Preserve existing bookmark view selection, range gestures, detail routing,
+  undo/removal, group membership, export/import, and pagination behavior.
+  No bookmark database migration is required merely to render groups.
+- Add tests for: none/one/two/all series members saved; unrelated bookmark
+  between members; filtered/sorted/shuffled results; two series with an
+  overlapping member; partial membership in the active group vs global
+  library; idempotent repeated Add missing; failure/rollback; removing one
+  member without removing others; source/profile collisions; missing
+  metadata/offline snapshots; selection/count/source-index stability;
+  and opening the series then returning to the bookmark scroll position.
+
+**Delivery order:** integrate Browse/Search first, then share its projection
+and metadata resolver with Bookmark Group timelines and the explicit bulk
+bookmark action. The bookmark behavior is part of the overall feature
+requirements, but **not implemented by this initial commit**.
 ## Scope and verification
 
-First integration: ordinary Danbooru browse/search. Bookmarks, mixed Following
-feeds, other engines, and persistent pool membership are follow-ups requiring
+First integration: ordinary Danbooru browse/search. The agreed Bookmark Group
+follow-up is specified above: **no separate series bookmark records/repository**;
+individual post bookmarks remain the persistence model. Mixed Following feeds,
+other engines, and persistent pool metadata are other follow-ups requiring
 explicit origin and storage support. No database or bookmark migration is part
 of this initial patch.
 
