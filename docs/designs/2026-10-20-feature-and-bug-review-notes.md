@@ -27,14 +27,14 @@
 | 7 | Pinned searches on Realbooru | — | No bug: following works; tracking deliberately unsupported |
 | 8 | Video badge on Realbooru | S | Proposed fix accepted; not implemented |
 | 9 | Viewer media and metadata prefetch | S–M | Image behavior investigation accepted; video prebuffer deferred |
-| 10 | Find Pixiv post via Android Share | M | Share target already registered |
+| 10 | Find Pixiv post via Android Share | S–M / M | First-page cross-profile discovery feasible; UX direction favored |
 | 11 | Replace suitable confirmations with Undo | M | App-wide reversible-action audit accepted; not implemented |
 | 12 | Bookmark-style filtering in topic feeds | M | Snapshot-only local filtering accepted; not implemented |
 | 13 | Progressive loading up to Original quality | M | Original viewer quality accepted; prefetch capped at High |
 | 14 | Recognize/persist the historical end of topics | M | Persist true exhaustion per source accepted; not implemented |
 | 15 | Mark Pixiv engine experimental | S–M | Proposed scope accepted; not implemented |
 | 16 | Reuse full query editor for topics | S–M | Existing editor reuse accepted; not implemented |
-| 17 | Android 11+ custom download directories | M–L | Feasibility reviewed; bundled downloader already supports URI tasks |
+| 17 | Android 11+ custom download directories | M–L | Backlog; feasible but disproportionate current effort |
 | 18 | One cancellable bulk-download notification | M | Proposed aggregate notification accepted; not implemented |
 | 19 | Bookmark download quality/naming/duplicates | M | Proposed unified download behavior accepted; not implemented |
 | 20 | Scroll-to-top button remains visible at top | S | Proposed fix accepted; not implemented |
@@ -229,19 +229,24 @@ Mixed `Post` / `Pool` / `Series` feed entries could be a general display abstrac
 
 **Latest user decision (2026-10-20): DEFER VIDEO PREBUFFERING.** A first-few-seconds startup buffer is feasible in principle, but do **not** plan, implement, or open an issue for it unless real startup latency later justifies the complexity. Preserve only the image-prefetch verification/quality-limit scope of #9. The feasibility research above remains archival information rather than a commitment.
 
-## 10. Pixiv Share → find the artwork on configured Booru profiles
+## 10. Pixiv Share → live results from compatible configured Booru profiles
 
-**Original request.** User has an artwork in Pixiv and wants to find it inside Boorusama.
+**Original request.** From a Pixiv artwork in the Android Pixiv app, share its URL to Boorusama and quickly locate matching uploads on currently configured booru profiles.
 
-**Observed in source.** Android's main `AndroidManifest.xml` already declares an `ACTION_SEND` intent-filter for `text/*`, i.e. a text-sharing entry point. The actual Pixiv share payload/receiving flow must be tested. Existing **Issue #49 — Find post in another profile** uses exact original MD5 from a Boorusama post and does **not** fully cover starting from an external Pixiv link.
+**User preference (2026-10-20).** Search **all supported configured profiles in the background**, exposing **results incrementally**, with each profile's match count and preferably **small thumbnail previews**. No need to load a full search result grid for each site. The user believes this should be a small/medium feature and requests a feasibility assessment.
 
-**Updated user direction (provisional).** Share from Pixiv to **Boorusama**, open the app, and either:
-- choose one eligible destination profile, then search; or
-- automatically search **every configured profile that can support the appropriate Pixiv-source filter**, group results by profile, and choose the result to open.
+**Verified feasibility on `develop` at `fd7ae8e63b9ecd1472167e6b9f95542f22efe170`.**
+- Per-profile `PostRepository<Post>.getPosts(query, page, limit)` and `OriginAwarePostRepository.fromConfig` already exist. `PostResult<Post>` exposes `posts`, optional `total`, `hasMore`, and thumbnail URLs. **One bounded page per eligible profile** is sufficient to obtain useful preview cards. `postCountProvider` also exists but an additional count request is not necessary or guaranteed supported.
+- Danbooru documents the targeted `pixiv:ARTWORK_ID` metatag as a preferred, fast alternative to source URL lookup: https://safebooru.donmai.us/wiki_pages/help%3Acheatsheet . An artwork URL `https://www.pixiv.net/en/artworks/123456789` can be parsed to a numeric artwork ID without accessing Pixiv's authenticated API. Validate URL/host and handle legacy Pixiv links (`member_illust.php?illust_id=...`), query parameters, and possible title text in the Android text share payload.
+- Gelbooru.com documents `source:` searches and a post API: https://gelbooru.com/index.php?id=25921&page=wiki&s=view . **Do not claim exact cross-site Pixiv-ID lookup support** solely from this: source wildcard behavior varies; a fallback must be verified on real results, match the original source artwork ID in returned metadata where available, and avoid confusing Pixiv artist IDs with artwork IDs. Restrict v1 to verified adapters/hosts (Danbooru guaranteed by docs, others opt in on evidence). Realbooru's HTML listings may not provide reliable source/full-post fields until opening a post; do not silently include unsupported profiles.
+- Android `AndroidManifest.xml` already declares a `text/*` `ACTION_SEND` for `MainActivity`, and `share_handler` is in `pubspec.yaml`. However, the inspected `MainActivity` currently forwards incoming intents to `ReceivedExportChannel` (for backup/link payloads). **Do not assume Pixiv text URLs are already routed end-to-end**: verify/implement text share consumption for cold start, warm start and resume, test the exact payload emitted by the installed Pixiv app.
+- Open GitHub issue [#49 — Find post in another profile](https://github.com/timberpile/Boorusama/issues/49) covers **MD5-exact matching** from an existing Boorusama post after manually choosing a target profile. It can share a dispatcher/profile-result state and navigation with this feature, but the lookup type is different. A Pixiv **source-reference** match is not equivalent to an identical file hash or visually identical image.
 
-**Feasibility / proposed flow.** Extract and normalize Pixiv illustration URL/ID (including common share-link variations); derive profile-specific query only when that engine/site supports a verified lookup syntax (for instance Danbooru's Pixiv-ID metatag); launch scoped requests with each profile's own credentials, restrictions, and rate-limit handling. Parallelism must be bounded; support cancellation, explicit unsupported-profile/no-match states, multiple matches, and no silently inferred exact image identity. Do not depend on the experimental Pixiv engine for basic external-link lookup.
+**Recommended first UX.** Open a lightweight results screen/sheet titled `Find Pixiv Post`, showing parsed artwork ID/URL and one row/card for **each eligible configured profile**. Run 2–4 bounded concurrent first-page searches, keeping profile-specific credentials and blacklist/rating behavior, updating cards independently as responses arrive. Each card can show `Searching…`, exact count when `total` is trustworthy, `N+ results` or `N previews` otherwise, 2–4 thumbnail previews, a no-results state, or a distinct network/auth failure. Tap a thumbnail to open that result with its source profile; tapping the profile card can open its full result query when applicable. Unsupported profiles can be omitted or shown as `Lookup unsupported` in a secondary section. Do not represent a pending or failing request as zero matches.
 
-**Key UX question.** Default to **Search All Supported Profiles** for convenience, or require a chooser to avoid unexpected requests and potentially exposing the artwork ID to every configured host? Both are technically feasible. Also check what Pixiv actually shares on Android. **Effort M.**
+**Scope and cautions.** Use a small capability adapter `pixivArtworkId → engine-specific query + optional verification`. Avoid requests to arbitrary hosts without the user's configured profile; bound parallelism, rate limits, cancellation, memory and image bandwidth. Cancel work on navigation dismissal; isolate auth per profile; deduplicate identical endpoint/query/auth requests but preserve separate UI cards when settings differ. In multi-page Pixiv artworks, the matching unit is initially **artwork** not individual Pixiv page. Keep the search independent of the experimental Pixiv Booru engine, which is not needed for the basic lookup.
+
+**Effort.** **S–M for Danbooru-only proof of concept**, **M for solid multi-profile asynchronous discovery** with supported-engine adapters and handling of actual Android shared payloads. No deep architecture rewrite required. This is a proposal/feasibility finding, **not an implementation or authorization to create GitHub issues**.
 
 ## 11. Replace safe, frequent removal confirmations with Undo
 
@@ -326,6 +331,8 @@ Mixed `Post` / `Pool` / `Series` feed entries could be a general display abstrac
 
 **Effort/risk.** Basic picker + direct SAF `UriDownloadTask` transfer alone is **S–M**. Robust support across ordinary/bulk downloads, sidecars, skipping, cached-media reuse, file actions, old profiles, error/retry paths and permission lifecycle is **M–L**, with the largest cost in URI/path assumptions, not native downloading. The work could be staged behind an explicit SAF target type and proven end-to-end in Android emulator/device tests before exposing it broadly. Test at least Android 11+, internal directory, removable SD, canceled/revoked grants, app restart, simple/bulk, duplicate filename, sidecars, retry/resume, and default downloads. **Do not remove the existing scoped-storage warning yet.** No GitHub issue or implementation requested.
 
+**Latest prioritization (user, 2026-10-20): BACKLOG.** A complete URI-aware Android download pipeline is not worth its present cost. Preserve the feasibility study for later; do not start implementation, alter download path policy, or raise this as an active work item. Reconsider only if real user need justifies the changes to sidecars, bulk downloads, file management and permission handling.
+
 ## 18. One notification per bulk download operation, with total progress and Cancel
 
 **Observed in source.** There is a bulk-progress notification abstraction (`lib/core/downloads/background/notification.dart`) as well as native individual task notifications. The paths may emit too many visible notifications during mass downloads.
@@ -387,6 +394,20 @@ Mixed `Post` / `Pool` / `Series` feed entries could be a general display abstrac
 **Scope.** **S–M** for the Danbooru-first post-relative command and reusable menu framework; defer additional query modifications until useful. No database cursor, issue, PR, code changes or merges authorized.
 
 ---
+
+## Remaining large/deferred review topics — consolidated 2026-10-20
+
+The user requested that the remaining *discussion topics* be reviewed together, not sequentially. This does not by itself constitute authorization to file GitHub issues. Remaining large/unspecified product questions:
+
+- **#2 Viewer:** defer implementation; minimal two-rest-state transition/snap smoothness prototype preferred, with media scale stable and shortened wide-image animation; no fullscreen redesign.
+- **#4 Local profile icon and export:** low-priority backlog; PNG import/crop/resize and portable backup/restore, JXL unnecessary.
+- **#5 Pool/series bookmarks and mixed feeds:** explicit deferral; reconcile `feature/group-neighboring-series` display-only grouping & whole-series-to-existing-post-bookmarks preference against potential saved-pool-reference model. Do not silently add a `SeriesBookmark` entity. Requires larger coherent UX/data model review.
+- **#21 Danbooru Artist page:** medium-size UI improvement; propose identity+aliases, social/source links with recognizable icons, wiki/summary, related tags and posts while preserving Follow Topic.
+- **#9 Image prefetch:** technical verification accepted (per site/quality; prefetch max High), startup video prebuffering deferred.
+- **#10 Pixiv Share source lookup:** implementation appears moderate and is being reviewed now; existing #49 has different MD5 exact-match semantics.
+- **#17 Android SAF custom download locations:** backlog after detailed feasibility study.
+
+Other bounded items (#1, #6, #8, #11–#16, #18–#20, #22, #23) have accepted directions but are **not yet implementation tickets**. #3 was rejected as unnecessary and #7 was not a Follow bug; do not resurrect those without new evidence. Do not conflate conceptual approval with implementation or issue creation.
 
 ## Existing related work and proposed discussion order
 
