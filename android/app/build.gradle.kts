@@ -1,3 +1,4 @@
+import java.util.Base64
 import java.util.Properties
 
 plugins {
@@ -47,6 +48,19 @@ val appMinSdk = providers.gradleProperty("boorusama.android.minSdk").get().toInt
 val androidBuildToolsVersion = providers.gradleProperty("boorusama.android.buildTools").get()
 val ndkVersionName = providers.gradleProperty("boorusama.android.ndk").get()
 
+// Flutter passes base64-encoded dart-defines as a Gradle property. The GitHub
+// APK can request user-approved installation, but Play builds must never carry
+// REQUEST_INSTALL_PACKAGES in their merged manifest.
+val releaseDartDefines = (project.findProperty("dart-defines") as? String)
+    ?.split(",")
+    ?.mapNotNull { encoded ->
+        runCatching {
+            String(Base64.getDecoder().decode(encoded), Charsets.UTF_8)
+        }.getOrNull()
+    }
+    ?: emptyList()
+val canRequestGithubInstall = "RELEASE_CHANNEL=github" in releaseDartDefines
+
 android {
     namespace = "com.timberpile.boorusama"
     compileSdk = appCompileSdk
@@ -72,6 +86,8 @@ android {
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         multiDexEnabled = true
+        // Reuse an already requested permission for Play and development builds.
+        manifestPlaceholders["updateInstallPermission"] = "android.permission.INTERNET"
     }
 
     signingConfigs {
@@ -112,6 +128,10 @@ android {
         create("prod") {
             dimension = "boorusama"
             resValue("string", "app_name", "Boorusama Timber")
+            if (canRequestGithubInstall) {
+                manifestPlaceholders["updateInstallPermission"] =
+                    "android.permission.REQUEST_INSTALL_PACKAGES"
+            }
         }
     }
 }

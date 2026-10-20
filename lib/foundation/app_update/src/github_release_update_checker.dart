@@ -7,6 +7,9 @@ import 'package:http/http.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 // Project imports:
+import '../../platform.dart';
+import 'android_github_apk_installer.dart';
+import 'github_apk_artifact.dart';
 import 'types/app_update_checker.dart';
 import 'types/update_status.dart';
 
@@ -15,16 +18,25 @@ class GitHubReleaseUpdateChecker implements AppUpdateChecker {
     required this.packageInfo,
     required this.manifestUrl,
     Client? client,
-  }) : _client = client ?? Client();
+    bool? compareAndroidBuildNumbers,
+    Future<List<String>> Function()? supportedAbis,
+  }) : _client = client ?? Client(),
+       _supportedAbis =
+           supportedAbis ?? const AndroidGitHubApkInstaller().supportedAbis,
+       compareAndroidBuildNumbers = compareAndroidBuildNumbers ?? isAndroid();
 
   final PackageInfo packageInfo;
   final String manifestUrl;
   final Client _client;
+  final bool compareAndroidBuildNumbers;
+  final Future<List<String>> Function() _supportedAbis;
 
   @override
   Future<UpdateStatus> checkForUpdate() async {
     try {
-      final response = await _client.get(Uri.parse(manifestUrl));
+      final response = await _client
+          .get(Uri.parse(manifestUrl))
+          .timeout(const Duration(seconds: 20));
       if (response.statusCode < 200 || response.statusCode >= 300) {
         return UpdateError(
           'GitHub update manifest check failed: ${response.statusCode}',
@@ -47,12 +59,36 @@ class GitHubReleaseUpdateChecker implements AppUpdateChecker {
         return const UpdateError('Failed to parse update version');
       }
 
-      if (currentVersion < latestVersion) {
+      final latestBuild = manifest.buildNumber;
+      final currentBuild = int.tryParse(packageInfo.buildNumber);
+      final artifact =
+          compareAndroidBuildNumbers &&
+              latestBuild != null &&
+              currentBuild != null &&
+              manifest.apkArtifacts.isNotEmpty
+          ? GitHubApkArtifact.selectForAbis(
+              manifest.apkArtifacts,
+              await _supportedAbis(),
+            )
+          : null;
+      final latestAndroidCode = latestBuild == null
+          ? null
+          : artifact?.androidVersionCode(latestBuild) ?? latestBuild;
+      final newer =
+          compareAndroidBuildNumbers &&
+              latestAndroidCode != null &&
+              currentBuild != null
+          ? latestAndroidCode > currentBuild
+          : currentVersion < latestVersion;
+
+      if (newer) {
         return UpdateAvailable(
           storeVersion: latestVersion.toString(),
           currentVersion: currentVersion.toString(),
           releaseNotes: manifest.notes,
           storeUrl: manifest.releaseUrl,
+          githubBuildNumber: latestBuild,
+          githubApks: manifest.apkArtifacts,
         );
       }
 
@@ -68,11 +104,15 @@ class GitHubUpdateManifest {
     required this.version,
     required this.releaseUrl,
     required this.notes,
+    required this.buildNumber,
+    required this.apkArtifacts,
   });
 
   final String version;
   final String releaseUrl;
   final String notes;
+  final int? buildNumber;
+  final List<GitHubApkArtifact> apkArtifacts;
 
   static GitHubUpdateManifest? tryParse(Map<String, dynamic> json) {
     final version = json['version'];
@@ -82,10 +122,25 @@ class GitHubUpdateManifest {
     if (version is! String || version.isEmpty) return null;
     if (releaseUrl is! String || releaseUrl.isEmpty) return null;
 
+    final rawBuild = json['buildNumber'];
+    final parsedBuild = switch (rawBuild) {
+      final int n when n > 0 => n,
+      final String n => int.tryParse(n),
+      _ => null,
+    };
+    final buildNumber = parsedBuild != null && parsedBuild > 0
+        ? parsedBuild
+        : null;
+
     return GitHubUpdateManifest(
       version: version,
       releaseUrl: releaseUrl,
       notes: notes is String ? notes : '',
+      buildNumber: buildNumber,
+      apkArtifacts: GitHubApkArtifact.parseAssets(
+        json['artifacts'],
+        releaseUrl: releaseUrl,
+      ),
     );
   }
 }

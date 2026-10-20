@@ -79,6 +79,7 @@ class Settings extends Equatable {
     this.searchRefresh = const SearchRefreshSettings(),
     this.followingTopicSort = 'manual',
     this.topicFeedMemberSort = 'addedDate',
+    this.automaticUpdateChecks = true,
   });
 
   Settings.fromJson(Map<String, dynamic> json)
@@ -136,6 +137,7 @@ class Settings extends Equatable {
       downloadSidecarFormat = SidecarFormat.parse(
         json['downloadSidecarFormat'],
       ),
+      automaticUpdateChecks = json['automaticUpdateChecks'] as bool? ?? true,
       downloadNetworkPolicy = DownloadNetworkPolicy.parse(
         json['downloadNetworkPolicy'],
       ),
@@ -307,6 +309,7 @@ class Settings extends Equatable {
 
   final bool downloadNotificationsEnabled;
   final SidecarFormat downloadSidecarFormat;
+  final bool automaticUpdateChecks;
 
   final DownloadNetworkPolicy downloadNetworkPolicy;
 
@@ -357,6 +360,7 @@ class Settings extends Equatable {
     bool? reduceAnimations,
     DownloadFileExistedBehavior? downloadFileExistedBehavior,
     bool? downloadNotificationsEnabled,
+    bool? automaticUpdateChecks,
     DownloadNetworkPolicy? downloadNetworkPolicy,
     SidecarFormat? downloadSidecarFormat,
     ImageListingSettings? listing,
@@ -420,6 +424,7 @@ class Settings extends Equatable {
         downloadFileExistedBehavior ?? this.downloadFileExistedBehavior,
     downloadNotificationsEnabled:
         downloadNotificationsEnabled ?? this.downloadNotificationsEnabled,
+    automaticUpdateChecks: automaticUpdateChecks ?? this.automaticUpdateChecks,
     downloadNetworkPolicy: downloadNetworkPolicy ?? this.downloadNetworkPolicy,
     downloadSidecarFormat: downloadSidecarFormat ?? this.downloadSidecarFormat,
     colors: colors ?? this.colors,
@@ -473,6 +478,7 @@ class Settings extends Equatable {
       'reduceAnimations': reduceAnimations,
       'downloadFileExistedBehavior': downloadFileExistedBehavior.toData(),
       'downloadNotificationsEnabled': downloadNotificationsEnabled,
+      'automaticUpdateChecks': automaticUpdateChecks,
       'downloadNetworkPolicy': downloadNetworkPolicy.toData(),
       'downloadSidecarFormat': downloadSidecarFormat.name,
       'colors': colors?.toJson(),
@@ -520,6 +526,7 @@ class Settings extends Equatable {
     reduceAnimations,
     downloadFileExistedBehavior,
     downloadNotificationsEnabled,
+    automaticUpdateChecks,
     downloadNetworkPolicy,
     downloadSidecarFormat,
     colors,
