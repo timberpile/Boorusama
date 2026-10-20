@@ -20,26 +20,26 @@
 |---|---|---|---|
 | 1 | App-wide action labels, icons, and Title Case | M | Style principles agreed; UI audit still needed |
 | 2 | Smooth existing viewer-to-details transition | M | Provisional direction agreed; revisit later |
-| 3 | Editable target URL while duplicating a profile | S–M | Danbooru/Safebooru use case clarified; authentication exception |
+| 3 | Editable target URL while duplicating a profile | — | Not planned; existing duplication + filter editing sufficient |
 | 4 | Local custom profile icons and export | M | Deprioritized; PNG sufficient |
 | 5 | Bookmark pools/series and mixed timeline entries | L | Explicitly deferred to larger-issue discussion |
-| 6 | Pretty, category-colored pinned-query display | S–M | Raw query display confirmed |
-| 7 | Pinned searches on Realbooru | S–M | Manual following supported; automatic tracking blocked |
-| 8 | Video badge on Realbooru | S | HTML preview video marker already recorded, not shown in grid |
-| 9 | Viewer media and metadata prefetch | M | Media prefetch already exists |
+| 6 | Pretty, category-colored pinned-query display | S–M | UX direction accepted; not implemented |
+| 7 | Pinned searches on Realbooru | — | No bug: following works; tracking deliberately unsupported |
+| 8 | Video badge on Realbooru | S | Proposed fix accepted; not implemented |
+| 9 | Viewer media and metadata prefetch | S–M | Investigate quality differences by site/quality; not a new system |
 | 10 | Find Pixiv post via Android Share | M | Share target already registered |
 | 11 | Replace suitable confirmations with Undo | M | Undo exists for some bookmarks |
 | 12 | Bookmark-style filtering in topic feeds | M | Snapshot-only scope proposed |
 | 13 | Progressive loading up to Original quality | M | Original enum already exists |
 | 14 | Recognize/persist the historical end of topics | M | Per-session `hasMore` exists |
-| 15 | Mark Pixiv engine experimental | S–M | Supported as a code/UI policy |
+| 15 | Mark Pixiv engine experimental | S–M | Proposed scope accepted; not implemented |
 | 16 | Reuse full query editor for topics | M | Current dialog uses raw text |
 | 17 | Android 11+ custom download directories | M–L | SAF possible; needs URI-aware pipeline |
 | 18 | One cancellable bulk-download notification | M | Partial notification infrastructure exists |
 | 19 | Bookmark download quality/naming/duplicates | M | Inconsistent code paths confirmed |
-| 20 | Scroll-to-top button remains visible at top | S | Plausible shared-component defect |
+| 20 | Scroll-to-top button remains visible at top | S | Proposed fix accepted; not implemented |
 | 21 | Artist page information architecture | M | Current Danbooru composition inspected |
-| 22 | Four previews without new-post tracking | S–M | Tracking/preview coupling confirmed |
+| 22 | Four previews without new-post tracking | S–M | Proposed decoupling accepted; not implemented |
 | 23 | Resume a pinned topic from a chosen position | M | Needs separate reading cursor |
 
 ## 1. Audit action wording, icons, and capitalization throughout the app
@@ -128,6 +128,8 @@
 **Revised credentials rule.** **Do not automatically wipe authentication solely because the host string changes.** Preserve credentials for an explicitly trusted, verified same-service pair such as `danbooru.donmai.us` ↔ `safebooru.donmai.us`, subject to verifying login against the target before sending any credentials. For unknown or unrelated endpoints, do not silently send secrets: clear credentials by default or obtain explicit informed consent that identifies the destination. Do not infer account/credential equivalence merely from matching engine type or a similar hostname. The requested duplication flow should feel like editing the copy *before creation*, not editing/migrating the original.
 
 
+**Latest disposition (user, 2026-10-20): NOT PLANNED.** After reconsidering the actual use case, the user concluded that a new function or specialized duplication editor is probably **not worth introducing**. Existing Duplicate + editing independent default filters covers the core need. Keep the Danbooru/Safebooru host/credentials findings above for reference only. **Do not file an issue or implement the proposed URL-editing workflow unless requested again.**
+
 ## 4. Select local custom profile icon; include it in exports
 
 **Original request.** Choose own icon, resize to small dimensions, save as JXL if possible, and include it in exports.
@@ -167,15 +169,19 @@ Mixed `Post` / `Pool` / `Series` feed entries could be a general display abstrac
 
 **Implementation detail from source.** `lib/core/search/search/src/widgets/selected_tag_chip.dart` already formats ordinary search chips using a rich label with colored operator/metatag spans and underscores rendered as spaces. Rendering this widget unmodified may unexpectedly open a tag-edit dialog on tap; a **dedicated read-only / inert presentation wrapper** or a view-only mode is preferable for Following Topic cards. Category colors require category data: `SearchQueryStructure.typedTags` saves strings, not category IDs, so use cached/available type metadata with a neutral fallback. Long title wrapping/truncation and named-topic query subtitles require design review.
 
+**Discussion outcome (user, 2026-10-20): proposal accepted.** Use compact readable, search-style **colored tag presentation** for query-based Topic titles. No issue has been filed, and implementation details such as read-only chips still need development-level review.
+
 ## 7. Are pinned searches unavailable on Realbooru?
 
 **Original request.** Investigate why following/pinning appears unavailable for Realbooru.
 
 **Observed in source.** `FollowTopicButton` is not intrinsically dependent on a supported new-post refresh adapter; the shared UI can display a follow action for a nonblank query. Tracking support and storing a following topic are distinct concepts (`topic_follow_control.dart`, `search_refresh_query_adapter.dart`).
 
-**Assessment.** Cannot yet confirm the exact symptom. Reproduce from the actual Realbooru profile screen: absent action, disabled action, failed creation, or only warning about new-post tracking? Realbooru may use a Gelbooru-like engine with different API capabilities. Avoid conflating #7 with #22; one is entry/availability, one is preview behavior after following. **Effort S–M pending reproduction.**
+**User clarification (2026-10-20).** The Follow/Pin functionality **does work**. The initial impression was caused by the lack of **automatic new-post tracking**, which the repository intentionally disables on Realbooru. There is **no confirmed defect to fix in following itself**. Keep #22 separate for the independent four-thumbnail preview request.
 
 **Stronger code finding.** `packages/booru_clients/boorus.yaml` explicitly configures **Realbooru** under `gelbooru_v2`, with HTML/thumbnail-only post listings and offset pagination (not Gelbooru V1). `GelbooruV2Repository.searchRefreshQueryAdapter` maps `thumbnailOnly: true` to `UnsupportedSearchRefreshQueryAdapter`, so **automatic new-post tracking is intentionally disabled** on Realbooru. However, the `FollowTopicButton` still permits local/manual Following even if tracking is unavailable, as covered by `test/core/search/following_topics/search_page_follow_action_test.dart`. Verify the user's exact UI route if the pin button truly disappears; avoid presenting automatic tracking as a prerequisite for pinning. This overlaps #22, which should provide a preview independently.
+
+**Feasibility assessment.** A heuristic poll of Realbooru's first HTML search page and a set of recent post IDs might detect *some* new matching posts. However, HTML listings use offset pagination and omit reliable per-post creation timestamps; many intervening posts, search/tag changes, deletions, and reordering can make this incomplete. The current tracker explicitly requires a stable baseline/verified ordered results. A third-party Dart Realbooru client also states that Realbooru's official API is disabled and HTML scraping is required (https://pub.dev/documentation/realbooru/latest/); this is not independent proof of the server's current configuration. **Recommendation: do not enable unreliable automatic new-post notifications as if they were authoritative.** Manual following and #22 previews remain useful. No new tracking issue proposed.
 
 ## 8. Show video badge for Realbooru videos
 
@@ -184,6 +190,8 @@ Mixed `Post` / `Pool` / `Series` feed entries could be a general display abstrac
 **Assessment.** Reuse the existing shared badge for Gelbooru V2 `isVideoPreview` rows, without changing the actual media type of a static poster. Test exact `video` tag detection, false positives, metadata-less entries, and the normal post media mapping. **Effort S; missing renderer bridge confirmed in source, device symptom not independently reproduced.**
 
 **Stronger code finding.** The Realbooru HTML parser `packages/booru_clients/lib/src/gelbooru_v2/parsers/rb_parsers.dart` recognizes the exact word `video` in thumbnail title/tags and sets `PostV2Dto.isVideoPreview`. That flag survives into `GelbooruV2PostData.isVideoPreview` and powers the Realbooru **static poster/thumbnail selection**, covered by `test/boorus/gelbooru_v2/realbooru_video_thumbnail_test.dart`. But HTML preview rows are currently mapped to image-like `Post` values (`post.isVideo == false` is asserted by the test); the grid's general video badge checks `post.isAnimated`, computed from `format`. Thus **the stored preview marker is not used to render the play badge**. Add a video overlay for `isVideoPreview` through a Gelbooru V2/Realbooru-aware grid addition, or a properly typed presentation flag, without falsely marking the static poster as a playable original video. Distinguish `video` from `video_game`. A full post may later resolve to actual video format. **Effort S; high confidence in missing mapping.**
+
+**Discussion outcome (user, 2026-10-20): proposal accepted.** Existing `isVideoPreview` detection should drive a Play overlay without changing the underlying static preview's media type. No issue created or code changed yet.
 
 ## 9. Prefetch up to three next posts and reverse-direction posts
 
@@ -194,6 +202,15 @@ Mixed `Post` / `Pool` / `Series` feed entries could be a general display abstrac
 **Assessment.** First instrument/verify actual behavior rather than reimplementing it. Separate thumbnail, display-quality media, original quality, and **full post details**; the last category may still need prefetch. Bound concurrency/memory/data usage, cancel stale tasks, honor profile credentials, and prioritize visible media. Avoid eagerly prefetching three originals (see #13). **Effort M for extending/validating; potentially S for a focused fix.**
 
 **Review priority note.** Preloading is substantially implemented; count this primarily as a **focused verification/improvement** until a concrete user-visible gap is found. The existing strategy can extend media offsets to three in the navigation direction; full details of neighboring posts are a separate resource category. It can be briefly checked with the smaller issues, while any broad metadata pipeline work belongs to the larger group.
+
+**Further source investigation / user question (2026-10-20).** The user may have assumed prefetching was missing because it **feels different across Boorus**. Confirmed code-path differences:
+- The same `DirectionBasedPreloadStrategy` is used in both `MixedPostDetailsImagePreloader` and `PostDetailsImagePreloader<T>` (`lib/core/posts/details/src/widgets/post_details_image_preloader.dart`). Mixed-source posts are grouped by their resolved origin/auth for the download manager; unresolved origin yields no prefetch item.
+- At initial entry (`EntryPattern.direct`, no page movements recorded), the strategy **prefetches thumbnails only**. The default base distance is one; consistently moving in one direction can build confidence and extend that direction to three adjacent posts. Moving backwards is symmetric; the three-post range is **not guaranteed immediately**.
+- **When the configured viewer resolution URL equals the original image URL**, the preloader currently creates `ImageMedia.fromUrl(thumbnail)` rather than fetching the original. Thus high/original-only configurations can look as if image prefetching is absent. Otherwise it queues thumbnail and resolved display-quality URL, subject to available links.
+- **Videos currently preload only video thumbnail URLs, never video bytes.** A comment in the typed path explicitly notes that actual video preloading is future work.
+- **Realbooru** is `thumbnailOnly`: its list parser returns thumbnail/poster metadata, then `GelbooruV2FullPostLoader` fetches richer single-post data **only on visiting that post**. This can produce delayed metadata/actual image even when thumbnails are cached.
+- The manager's `DownloadConfiguration` defaults to **two concurrent media requests**. The feature also respects `automaticMediaLoadingEnabledProvider` and cancels tasks when viewer navigation becomes inactive.
+**Current recommendation.** Preserve the common preloader and investigate per-engine **measured hit/miss behavior**, with test examples (a normal Danbooru query, Realbooru HTML results, a video, sample-quality setting, original-quality setting, mixed-profile bookmarks). A small regression/fix or separate bounded metadata prefetch might follow only if tests show value. User has not requested an issue or a rewrite of this mechanism.
 
 ## 10. Pixiv Share → find the artwork on configured Booru profiles
 
@@ -249,6 +266,8 @@ Mixed `Post` / `Pool` / `Series` feed entries could be a general display abstrac
 
 **Bounded implementation preference.** Add a consistent `Experimental` indicator to the Pixiv profile setup and other relevant profile information, plus a concise limitation note in its engine package and developer documentation. Avoid introducing an all-engine experimental flag unless existing UI/design needs reuse. Keep Pixiv engine registration intact so existing profiles still work.
 
+**Discussion outcome (user, 2026-10-20): proposal accepted.** Keep the Experimental marking small, visible and documented. No issue or implementation yet.
+
 ## 16. Rich query editing with suggestions for topics
 
 **Original request.** Topic query editor should use real tags/suggestions rather than raw text; ideally reuse full search query editor.
@@ -285,6 +304,8 @@ Mixed `Post` / `Pool` / `Series` feed entries could be a general display abstrac
 
 **High-confidence specific defect.** `KurumiScrollToTop._onScroll()` updates `_isOnTop` **only on user scroll direction changes**, not every offset/boundary change; long uninterrupted upward scrolls can therefore reach the top without hiding the button. Its `isTop` extension also checks `offset == 0` exactly. Fix with offset/boundary-aware visibility and tolerances, while keeping show-on-upscroll semantics if desired. Regression widget tests should cover drag-to-top without changing direction, ballistic finish, and scroll-to-top button tap. Source: `packages/kurumi/lib/src/components/scroll_visibility.dart`.
 
+**Discussion outcome (user, 2026-10-20): proposed bugfix accepted.** Fix offset-aware top detection in the shared Kurumi component, with regression coverage. No issue or implementation yet.
+
 ## 21. Overhaul the artist page
 
 **Observed in source.** Danbooru artist page is built by combining tag details, alternative names, URL chips, and an artist tag cloud (`lib/boorus/danbooru/artists/artist/src/pages/artist_page.dart`). The distinction between primary social links, related tags, and wiki material is not very explicit.
@@ -300,6 +321,8 @@ Mixed `Post` / `Pool` / `Series` feed entries could be a general display abstrac
 **Proposal.** Decouple “fetch up to four preview posts” from “calculate trustworthy new-post changes.” Fetch a bounded first page when the query is executable; preserve a distinct **tracking unsupported** status, without committing false new-post checkpoints. Do not repeatedly fetch on every repaint; respect cancellation, authentication, and network limits. **Effort S–M; closely connected to #7.**
 
 **Additional source finding.** For Realbooru (configured `thumbnailOnly: true`), the *following action itself* skips refresh/preview fetching because `followingTopicTrackingSupportedProvider` is false (`topic_follow_control.dart`). If refresh is invoked later, `SearchRefreshService` rejects `UnsupportedSearchRefreshQueryPlan` before fetching any posts. Therefore #22 must implement a **separate, bounded snapshot/thumbnail fetch on save and/or as needed**, not merely bypass one error return inside the tracking scanner. Its preview data model also currently assumes `postCreatedAt`, which is often absent from HTML-only rows; permit preview-only identity/thumbnail information without manufacturing tracking timestamps. Cache four results with appropriate error states and never change the tracking unsupported status.
+
+**Discussion outcome (user, 2026-10-20): proposal accepted.** Load four previews independently of the tracking scanner, including on manually followed/Realbooru topics. No issue or implementation yet.
 
 ## 23. Resume a pinned topic from a selected post/position (oldest → newest)
 
