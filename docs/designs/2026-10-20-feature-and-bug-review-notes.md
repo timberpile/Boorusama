@@ -115,13 +115,13 @@
 - Site URL: existing URL (editable with normalization and inline validation; validate engine compatibility before saving).
 - Engine: copied from source, initially displayed as a read-only engine label; consider advanced editing only if there is a concrete use case and compatible supported multi-site engines.
 - Configuration: retain ordinary appearance, filters, gesture, viewer, and download preferences.
-- Credentials: when the normalized **host/endpoint changes**, do not silently copy API key, session/token, login, password hash, or host-specific authentication state. Propose clearing site-bound credentials and displaying a short explanation. For the exact same endpoint, keeping the existing duplicate behavior is reasonable.
+- Credentials: **retain them for recognized same-service URL pairs** (notably Danbooru and its `safebooru.donmai.us` safe-mode host), subject to verifying the destination. On arbitrary unknown host changes, clear site-bound secrets or require explicit informed approval for the destination; do not rely on matching booru engine alone.
 - Do **not** duplicate bookmarks, topics, feed checkpoints, or post identities; the current `duplicate` operation only clones configuration data. Keep the source profile unchanged and use the existing add path so a new ID is created only on confirmation.
 - **Cancel** should not leave a partial duplicate. Avoid surprising side effects such as changing the active profile; show validation failures without creating the profile.
 
 **Scope/effort.** Narrow implementation; probably **S–M**, rather than a broader URL/engine migration. Add targeted tests for menu → prefilled editor → save/cancel, modified target URL, incompatible engine/URL, a new profile ID, unchanged source profile, inherited settings and cleared credentials on host change. No implementation or GitHub issue authorized.
 
-**Question to resolve if needed:** Should cross-host duplication always start unauthenticated (recommended), or is preserving credentials across hosts ever explicitly desired?
+**Remaining implementation question:** Decide an explicit allowlist/identity check for same-service hosts and exact credential-copy wording, without inventing generic cross-domain trust. The motivating Danbooru→Safebooru case should preserve credentials.
 
 **Clarified motivating use case (user, 2026-10-20).** Duplicate a **Danbooru** profile to a **Safebooru** profile, retaining its familiar appearance/search/viewer preferences and **the same account credentials**, but using the safe-domain endpoint and/or different default filters. This is not an arbitrary cross-service migration. Official Danbooru configuration lists `safebooru.donmai.us` as a safe-mode hostname, i.e. a host of the same service: https://github.com/danbooru/danbooru/blob/master/config/danbooru_default_config.rb . Danbooru documents its API-key login at https://safebooru.donmai.us/wiki_pages/help%3Aapi . If only different application-level filters are desired while keeping exactly the same endpoint, the existing immediate `Duplicate` operation can already create a separate copy whose filters can then be edited; changing to the safe-mode hostname is the missing URL editing step.
 
@@ -179,9 +179,9 @@ Mixed `Post` / `Pool` / `Series` feed entries could be a general display abstrac
 
 ## 8. Show video badge for Realbooru videos
 
-**Observed in source.** Shared `ImageGridItem` already supports a play icon when `isAnimated` is true, including unknown duration. In the inspected Gelbooru V1 parser, `format` is derived from the file URL; exact Realbooru parsing/classification needs verification (`lib/boorus/gelbooru_v1/posts/parser.dart`).
+**Observed in source.** Shared `ImageGridItem` already supports a play icon when `isAnimated` is true, including unknown duration. Realbooru is configured under **Gelbooru V2**, not Gelbooru V1, and its HTML listing parser stores an independent `isVideoPreview` flag. See the newer confirmed mapping findings below.
 
-**Assessment.** Check a real video post through the post DTO → mapped media type / `isAnimated` → grid overlay pipeline. Reuse the shared badge, not a Realbooru-only badge component. Test GIF versus true video, missing duration, audio indicators, and unavailable preview URLs. **Effort likely S; root cause not reproduced.**
+**Assessment.** Reuse the existing shared badge for Gelbooru V2 `isVideoPreview` rows, without changing the actual media type of a static poster. Test exact `video` tag detection, false positives, metadata-less entries, and the normal post media mapping. **Effort S; missing renderer bridge confirmed in source, device symptom not independently reproduced.**
 
 **Stronger code finding.** The Realbooru HTML parser `packages/booru_clients/lib/src/gelbooru_v2/parsers/rb_parsers.dart` recognizes the exact word `video` in thumbnail title/tags and sets `PostV2Dto.isVideoPreview`. That flag survives into `GelbooruV2PostData.isVideoPreview` and powers the Realbooru **static poster/thumbnail selection**, covered by `test/boorus/gelbooru_v2/realbooru_video_thumbnail_test.dart`. But HTML preview rows are currently mapped to image-like `Post` values (`post.isVideo == false` is asserted by the test); the grid's general video badge checks `post.isAnimated`, computed from `format`. Thus **the stored preview marker is not used to render the play badge**. Add a video overlay for `isVideoPreview` through a Gelbooru V2/Realbooru-aware grid addition, or a properly typed presentation flag, without falsely marking the static poster as a playable original video. Distinguish `video` from `video_game`. A full post may later resolve to actual video format. **Effort S; high confidence in missing mapping.**
 
@@ -192,6 +192,8 @@ Mixed `Post` / `Pool` / `Series` feed entries could be a general display abstrac
 **Observed in source.** Direction-based **media preloading already exists** under `lib/core/posts/media_preload/src/`, notably `preload_strategy.dart`. It begins conservatively, adjusts offsets based on direction/confidence, can extend to three posts in the active direction, and treats direct entry specially (thumbnails only). Backward direction is already modeled.
 
 **Assessment.** First instrument/verify actual behavior rather than reimplementing it. Separate thumbnail, display-quality media, original quality, and **full post details**; the last category may still need prefetch. Bound concurrency/memory/data usage, cancel stale tasks, honor profile credentials, and prioritize visible media. Avoid eagerly prefetching three originals (see #13). **Effort M for extending/validating; potentially S for a focused fix.**
+
+**Review priority note.** Preloading is substantially implemented; count this primarily as a **focused verification/improvement** until a concrete user-visible gap is found. The existing strategy can extend media offsets to three in the navigation direction; full details of neighboring posts are a separate resource category. It can be briefly checked with the smaller issues, while any broad metadata pipeline work belongs to the larger group.
 
 ## 10. Pixiv Share → find the artwork on configured Booru profiles
 
@@ -245,6 +247,8 @@ Mixed `Post` / `Pool` / `Series` feed entries could be a general display abstrac
 
 **Proposal.** Add an Experimental indicator with limitations in profile creation and settings; document intentionally unsupported behaviors, provide user-facing explanation, avoid speculative generic abstractions solely to accommodate Pixiv. This does **not** waive security, correctness, or data-integrity requirements. **Effort S–M.**
 
+**Bounded implementation preference.** Add a consistent `Experimental` indicator to the Pixiv profile setup and other relevant profile information, plus a concise limitation note in its engine package and developer documentation. Avoid introducing an all-engine experimental flag unless existing UI/design needs reuse. Keep Pixiv engine registration intact so existing profiles still work.
+
 ## 16. Rich query editing with suggestions for topics
 
 **Original request.** Topic query editor should use real tags/suggestions rather than raw text; ideally reuse full search query editor.
@@ -279,6 +283,8 @@ Mixed `Post` / `Pool` / `Series` feed entries could be a general display abstrac
 
 **Proposal.** Update visibility on position/boundary changes, not only direction changes; use a sensible epsilon/extent guard rather than exact floating-point equality. Cover manual dragging, ballistic scrolling, content resizing, programmatic jump, controller replacement, and accessibility animations. **Effort S; runtime reproduction still necessary.**
 
+**High-confidence specific defect.** `KurumiScrollToTop._onScroll()` updates `_isOnTop` **only on user scroll direction changes**, not every offset/boundary change; long uninterrupted upward scrolls can therefore reach the top without hiding the button. Its `isTop` extension also checks `offset == 0` exactly. Fix with offset/boundary-aware visibility and tolerances, while keeping show-on-upscroll semantics if desired. Regression widget tests should cover drag-to-top without changing direction, ballistic finish, and scroll-to-top button tap. Source: `packages/kurumi/lib/src/components/scroll_visibility.dart`.
+
 ## 21. Overhaul the artist page
 
 **Observed in source.** Danbooru artist page is built by combining tag details, alternative names, URL chips, and an artist tag cloud (`lib/boorus/danbooru/artists/artist/src/pages/artist_page.dart`). The distinction between primary social links, related tags, and wiki material is not very explicit.
@@ -292,6 +298,8 @@ Mixed `Post` / `Pool` / `Series` feed entries could be a general display abstrac
 **Observed in source.** `SearchRefreshService.refresh` handles `UnsupportedSearchRefreshQueryPlan` before its normal fetch, and the snapshot processing ties previews to post creation timestamps. That coupling is unnecessary for simply displaying recent matching thumbnails.
 
 **Proposal.** Decouple “fetch up to four preview posts” from “calculate trustworthy new-post changes.” Fetch a bounded first page when the query is executable; preserve a distinct **tracking unsupported** status, without committing false new-post checkpoints. Do not repeatedly fetch on every repaint; respect cancellation, authentication, and network limits. **Effort S–M; closely connected to #7.**
+
+**Additional source finding.** For Realbooru (configured `thumbnailOnly: true`), the *following action itself* skips refresh/preview fetching because `followingTopicTrackingSupportedProvider` is false (`topic_follow_control.dart`). If refresh is invoked later, `SearchRefreshService` rejects `UnsupportedSearchRefreshQueryPlan` before fetching any posts. Therefore #22 must implement a **separate, bounded snapshot/thumbnail fetch on save and/or as needed**, not merely bypass one error return inside the tracking scanner. Its preview data model also currently assumes `postCreatedAt`, which is often absent from HTML-only rows; permit preview-only identity/thumbnail information without manufacturing tracking timestamps. Cache four results with appropriate error states and never change the tracking unsupported status.
 
 ## 23. Resume a pinned topic from a selected post/position (oldest → newest)
 
