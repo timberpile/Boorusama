@@ -14,6 +14,8 @@ import '../../../../configs/config/types.dart';
 import '../../../../posts/count/widgets.dart';
 import '../../../../posts/listing/providers.dart';
 import '../../../../posts/post/types.dart';
+import '../../../../posts/links/boorusama_search_link.dart';
+import '../../../../posts/links/share_search_link_button.dart';
 import '../../../../settings/providers.dart';
 import '../../../../tags/metatag/providers.dart';
 import '../../../../widgets/widgets.dart';
@@ -198,6 +200,21 @@ class _SearchPageScaffoldState<T extends Post>
                                 ),
                               PostCountMethod.notSupported =>
                                 const SizedBox.shrink(),
+                            },
+                          ),
+                          SearchLinkShareMenu(
+                            profileName: ref.watchConfig.name,
+                            link: switch (_typedQueryStructure(
+                              _tagsController.tags,
+                            )) {
+                              final structure? => BoorusamaSearchLink.fromTags(
+                                auth: ref.watchConfigAuth,
+                                tags: structure.typedTags,
+                              ),
+                              null => BoorusamaSearchLink.fromRaw(
+                                auth: ref.watchConfigAuth,
+                                query: value,
+                              ),
                             },
                           ),
                           ConstrainedBox(

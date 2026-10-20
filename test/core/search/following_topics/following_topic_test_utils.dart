@@ -160,6 +160,7 @@ class FollowingTopicHarness {
     BooruConfigRepository? profileRepository,
     BooruPostCapability<BooruPostData>? postCapability,
     BooruBuilder? Function(BooruConfigAuth config)? booruBuilder,
+    List<Override> overrides = const [],
   }) {
     final initialSettings = settings ?? Settings.defaultSettings;
     repository = HiveFollowingTopicRepository(
@@ -295,6 +296,7 @@ class FollowingTopicHarness {
         ),
         httpHeadersProvider.overrideWith((ref, config) => {}),
         routerProvider.overrideWith((_) => router),
+        ...overrides,
       ],
     );
     container

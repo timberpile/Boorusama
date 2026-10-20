@@ -10,6 +10,7 @@ import '../../../configs/config/types.dart';
 import '../../../configs/manage/providers.dart';
 import '../../../downloads/filename/types.dart';
 import '../../post/types.dart';
+import '../../links/boorusama_post_link.dart';
 import 'unified_post_share_sheet.dart';
 
 final shareProvider = Provider.autoDispose((ref) => ShareService(ref));
@@ -22,6 +23,32 @@ String? profileIconUrlForAuth(
     if (profile.auth == auth) return profile.profileIcon?.url;
   }
   return null;
+}
+
+/// Resolve the source profile, not an unrelated active mixed-viewer profile.
+String postShareProfileName(
+  Iterable<BooruConfig> profiles,
+  Post post,
+  BooruConfigAuth auth,
+) {
+  final matches =
+      BoorusamaPostLink.fromPost(
+        post,
+        auth: auth,
+      )?.matchingProfiles(profiles) ??
+      const <BooruConfig>[];
+  if (matches.isEmpty) return post.origin.sourceHost;
+
+  // A source hint may distinguish accounts on the same site, but it is never
+  // included in the shared document.
+  final hinted = matches
+      .where((profile) => profile.id == post.origin.profileIdHint)
+      .firstOrNull;
+  final owner =
+      hinted ??
+      matches.where((profile) => profile.auth == auth).firstOrNull ??
+      matches.first;
+  return owner.name;
 }
 
 class ShareService {
@@ -38,14 +65,14 @@ class ShareService {
     required DownloadFilenameGenerator? filenameBuilder,
     required ImageCacheManager imageCacheManager,
   }) {
-    final profileIconUrl = profileIconUrlForAuth(
-      ref.read(booruConfigProvider),
-      config,
-    );
+    final profiles = ref.read(booruConfigProvider);
+    final profileIconUrl = profileIconUrlForAuth(profiles, config);
+    final profileName = postShareProfileName(profiles, post, config);
     final modal = UnifiedPostShareSheet(
       post: post,
       auth: config,
       profileIconUrl: profileIconUrl,
+      profileName: profileName,
       viewer: configViewer,
       imageCacheManager: imageCacheManager,
     );

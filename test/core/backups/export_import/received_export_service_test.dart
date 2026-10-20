@@ -17,6 +17,55 @@ void main() {
 
   tearDown(() => directory.delete(recursive: true));
 
+  test(
+    'link deliveries remain distinct from backups, including generic filenames',
+    () async {
+      final source = File('${directory.path}/transient/link')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('a tiny document');
+      final service = ReceivedExportService(
+        platform: _FakeReceivedExportPlatform(
+          pending: [
+            {
+              'id': 'link-open',
+              'path': source.path,
+              'displayName': 'attachment.bin',
+              'kind': 'link',
+            },
+          ],
+        ),
+        stagingDirectoryPath: '${directory.path}/private',
+      );
+      final received = await service.exports.first;
+      expect(received.isLink, isTrue);
+      expect(received.invalidDelivery, isFalse);
+      expect(received.path, endsWith('.bslink'));
+      expect(received.displayName, 'attachment.bin');
+      expect(source.existsSync(), isFalse);
+    },
+  );
+
+  test('oversized and unreadable links emit errors rather than entering the backup importer', () async {
+    final source = File('${directory.path}/transient/too-large')
+      ..createSync(recursive: true)
+      ..writeAsBytesSync(List.filled(16385, 0));
+    final service = ReceivedExportService(
+      platform: _FakeReceivedExportPlatform(
+        pending: [
+          {'id': 'oversized', 'path': source.path, 'kind': 'link'},
+          {'id': 'revoked', 'kind': 'link', 'error': 'unreadable'},
+        ],
+      ),
+      stagingDirectoryPath: '${directory.path}/private',
+    );
+    final received = await service.exports.take(2).toList();
+    expect(
+      received.every((event) => event.isLink && event.invalidDelivery),
+      isTrue,
+    );
+    expect(source.existsSync(), isFalse);
+  });
+
   test('emits a private copy before deleting the transient source', () async {
     final source = File('${directory.path}/transient/input')
       ..createSync(recursive: true)

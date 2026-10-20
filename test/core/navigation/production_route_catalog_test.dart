@@ -1,3 +1,4 @@
+import 'package:go_router/go_router.dart';
 import 'package:boorusama/core/home/types.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/configs/config/types.dart';
@@ -53,6 +54,16 @@ void main() {
     addTearDown(container.dispose);
     final router = container.read(provider);
     expect(router.namedLocation('/search'), '/search');
+    for (final link in [
+      'boorusama://post/open?v=1&engine=danbooru&site=https%3A%2F%2Fsite.test&key=id%3A42',
+      'boorusama://search/open?v=1&engine=danbooru&site=https%3A%2F%2Fsite.test&mode=raw&q=cat',
+    ]) {
+      final match = router.configuration.findMatch(Uri.parse(link));
+      expect(match.isError, isFalse);
+      final route = match.matches.last.route as GoRoute;
+      expect(route.redirect, isNull);
+      expect(route.builder, isNotNull);
+    }
     expect(router.namedLocation('/bookmarks/group'), '/bookmarks/group');
     final browse = DestinationId.browse(_config.id);
     expect(

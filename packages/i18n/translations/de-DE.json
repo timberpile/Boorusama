@@ -267,6 +267,20 @@
     }
   },
   "post": {
+    "app_link": {
+      "share_post_caption": "Post {id} auf {profile}",
+      "share_post_artist_caption": "Post {id} von {artist} auf {profile}",
+      "image_unavailable": "Für diesen Link ist kein Bild zum Teilen verfügbar. Du kannst den Link weiterhin kopieren.",
+      "open": "In Boorusama öffnen",
+      "copy": "Boorusama-Link kopieren",
+      "share": "Bild und Boorusama-Link teilen",
+      "invalid": "Dieser Link ist ungültig oder wird von dieser Boorusama-Version nicht unterstützt.",
+      "missing_profile": "Füge ein Profil für diese Website hinzu, um den Post zu öffnen.",
+      "select_profile": "Profil zum Öffnen dieses Posts auswählen",
+      "not_found": "Dieser Post ist nicht verfügbar. Er wurde möglicherweise entfernt oder erfordert ein anderes Konto.",
+      "load_failed": "Der Post konnte nicht geladen werden. Prüfe deine Verbindung und versuche es erneut.",
+      "change_profile": "Anderes Profil auswählen"
+    },
     "detail": {
       "file_details": "Datei-Infos",
       "size": "Größe",
@@ -315,6 +329,7 @@
       "show_less": "Zeige weniger"
     },
     "action": {
+      "boorusama_link": "Boorusama Link File",
       "gif": "GIF",
       "create_gif": "GIF erstellen",
       "creating_gif": "GIF wird erstellt…",
@@ -455,6 +470,17 @@
     "random": "Zufällig"
   },
   "search": {
+    "app_link": {
+      "share_search_caption": "Suche '{query}' auf {profile}",
+      "menu": "Suche teilen",
+      "open": "Suche in Boorusama öffnen",
+      "copy": "Boorusama-Suchlink kopieren",
+      "share": "Boorusama-Suchlink teilen",
+      "invalid": "Dieser Suchlink ist ungültig oder wird von dieser Boorusama-Version nicht unterstützt.",
+      "missing_profile": "Füge ein Profil für diese Website hinzu, um die Suche zu öffnen.",
+      "select_profile": "Profil zum Öffnen dieser Suche auswählen",
+      "share_failed": "Der Suchlink konnte nicht geteilt werden."
+    },
     "errors": {
       "tag_limit": "Maximales Tag-Limit erreicht. Upgrade dein Konto, um nach mehr Tags auf einmal zu suchen.",
       "database_timeout": "Die Ausführung deiner Suche hat zu lange gedauert und wurde abgebrochen.",

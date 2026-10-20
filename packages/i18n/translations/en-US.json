@@ -385,6 +385,20 @@
     }
   },
   "post": {
+    "app_link": {
+      "share_post_caption": "Post {id} on {profile}",
+      "share_post_artist_caption": "Post {id} by {artist} on {profile}",
+      "image_unavailable": "No image is available to share with this link. You can still copy the link.",
+      "open": "Open in Boorusama",
+      "copy": "Copy Boorusama link",
+      "share": "Share image and Boorusama link",
+      "invalid": "This link is invalid or is not supported by this version of Boorusama.",
+      "missing_profile": "Add a profile for this site to open the post.",
+      "select_profile": "Choose a profile to open this post",
+      "not_found": "This post is unavailable. It may have been removed or may require another account.",
+      "load_failed": "The post could not be loaded. Check your connection and try again.",
+      "change_profile": "Choose another profile"
+    },
     "detail": {
       "file_details": "File details",
       "size": "Size",
@@ -467,6 +481,7 @@
       }
     },
     "action": {
+      "boorusama_link": "Boorusama Link File",
       "gif": "GIF",
       "create_gif": "Create GIF",
       "creating_gif": "Creating GIF…",
@@ -639,6 +654,17 @@
     "ordered": "Ordered"
   },
   "search": {
+    "app_link": {
+      "share_search_caption": "Search '{query}' on {profile}",
+      "menu": "Share search",
+      "open": "Open search in Boorusama",
+      "copy": "Copy Boorusama search link",
+      "share": "Share Boorusama search link",
+      "invalid": "This search link is invalid or is not supported by this version of Boorusama.",
+      "missing_profile": "Add a profile for this site to open the search.",
+      "select_profile": "Choose a profile to open this search",
+      "share_failed": "Could not share the search link."
+    },
     "errors": {
       "cannot_reach_server": "Cannot reach server, please check your connection",
       "failed_to_load_data": "Failed to load data from server, please try again later",

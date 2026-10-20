@@ -35,15 +35,37 @@ void main() {
     );
 
     expect(payloads.links.map((p) => p.id), [
+      SharePayloadId.boorusamaLink,
       SharePayloadId.booruLink,
       SharePayloadId.sourceLink,
       SharePayloadId.imageLink,
       SharePayloadId.postId,
     ]);
-    expect(payloads.links.take(3).every((p) => !p.available), isTrue);
+    expect(payloads.links.take(4).every((p) => !p.available), isTrue);
     expect(payloads.media.first.available, isFalse);
     expect(payloads.media[1].available, isFalse);
   });
+
+  test(
+    'Boorusama references are shareable only as a file, never copyable text',
+    () {
+      final payloads = PostSharePayloads.build(
+        isVideo: false,
+        viewerImageUrl: '',
+        originalUrl: '',
+        booruLink: 'https://site.test/posts/42',
+        sourceLink: null,
+        postId: 42,
+        boorusamaLink: 'boorusama://post/open?v=1',
+      );
+      final link = payloads.links.first;
+      expect(link.id, SharePayloadId.boorusamaLink);
+      expect(link.canCopy, isFalse);
+      expect(link.canShare, isTrue);
+      expect(link.sharesMedia, isTrue);
+      expect(link.available, isTrue);
+    },
+  );
 
   test('image link matches the viewer variant chosen for Image', () {
     final payloads = PostSharePayloads.build(
@@ -56,7 +78,10 @@ void main() {
     );
 
     expect(payloads.media.first.value, 'https://site.test/sample.png');
-    expect(payloads.links[2].value, 'https://site.test/sample.png');
+    expect(
+      payloads.links.singleWhere((p) => p.id == SharePayloadId.imageLink).value,
+      'https://site.test/sample.png',
+    );
     expect(payloads.media[1].value, 'https://site.test/full.jpg');
   });
 

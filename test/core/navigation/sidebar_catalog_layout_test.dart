@@ -1,6 +1,7 @@
 import 'package:boorusama/core/navigation/destination_definition.dart';
 import 'package:boorusama/core/navigation/destination_id.dart';
 import 'package:boorusama/core/navigation/navigation_catalog_provider.dart';
+import 'package:boorusama/core/posts/links/open_link_file.dart';
 import 'package:boorusama/core/settings/src/pages/settings_page.dart';
 import 'package:boorusama/foundation/boot/providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -111,6 +112,7 @@ void main() {
         for (final row in ordered) {
           await tester.scrollUntilVisible(row, 100, scrollable: scrollable);
           await harness.settle(tester);
+          expect(find.byType(OpenLinkFileTile), findsNothing);
           final top = tester.getTopLeft(row).dy + position.pixels;
           expect(top, greaterThan(previous));
           previous = top;

@@ -5,6 +5,7 @@ import 'package:kurumi/material.dart';
 
 import '../../../../foundation/filesystem.dart';
 import '../../../router.dart';
+import '../../../posts/links/open_link_file.dart';
 import '../import/import_flow_page.dart';
 import 'received_export_service.dart';
 
@@ -56,6 +57,18 @@ class _ReceivedExportListenerState
         }
         final navigator = navigatorKey.currentState;
         if (!mounted || navigator == null) break;
+        if (export.isLink) {
+          try {
+            await openBoorusamaLinkFile(
+              ref,
+              export.path,
+              invalidDelivery: export.invalidDelivery,
+            );
+          } finally {
+            if (export.path.isNotEmpty) await _deleteReceivedFile(export.path);
+          }
+          continue;
+        }
         await navigator.push<void>(
           MaterialPageRoute(
             builder: (_) => ImportFlowPage(
@@ -72,7 +85,7 @@ class _ReceivedExportListenerState
 
   Future<void> _deleteReceivedFile(String path) async {
     final fs = ref.read(appFileSystemProvider);
-    if (await fs.fileExists(path)) await fs.deleteFile(path);
+    if (path.isNotEmpty && await fs.fileExists(path)) await fs.deleteFile(path);
   }
 
   @override

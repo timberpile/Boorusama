@@ -1,3 +1,4 @@
+import '../../../../../foundation/filesystem.dart';
 import '../../../../navigation/destination_profile_scope.dart';
 import '../types/search_refresh.dart';
 import '../../../../errors/types.dart';
@@ -8,7 +9,10 @@ import 'package:kurumi/material.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
+import '../../../../configs/config/types.dart';
 import '../../../../configs/manage/providers.dart';
+import '../../../../posts/links/boorusama_search_link.dart';
+import '../../../../posts/links/share_search_link_button.dart';
 import '../../../search/routes.dart';
 import '../providers/following_topics_notifier.dart';
 import '../types/topic_feed.dart';
@@ -211,6 +215,40 @@ class TopicFeedManagementPage extends ConsumerWidget {
             ),
           );
           return;
+        case FollowingTopicAction.shareLink:
+          final profile = ref
+              .read(booruConfigProvider)
+              .where(
+                (candidate) =>
+                    candidate.id == source.profileId &&
+                    candidate.id == feed.profileId,
+              )
+              .firstOrNull;
+          if (profile == null) return;
+          final link = switch (source.queryStructure) {
+            final structure? => BoorusamaSearchLink.fromTags(
+              auth: profile.auth,
+              tags: structure.typedTags,
+            ),
+            null => BoorusamaSearchLink.fromRaw(
+              auth: profile.auth,
+              query: source.query,
+            ),
+          };
+          if (link == null) {
+            if (context.mounted) {
+              Kurumi.showErrorToast(context, context.t.search.app_link.invalid);
+            }
+            return;
+          }
+          if (!context.mounted) return;
+          await shareSearchLinkFile(
+            context,
+            link: link,
+            fs: ref.read(appFileSystemProvider),
+            shareAdapter: ref.read(searchLinkShareAdapterProvider),
+            profileName: profile.name,
+          );
         case FollowingTopicAction.rename:
         case FollowingTopicAction.moveUp:
         case FollowingTopicAction.moveDown:

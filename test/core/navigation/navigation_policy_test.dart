@@ -166,5 +166,11 @@ void main() {
       '~cat order:score',
     );
     expect(resolve('/boorus/add'), '/boorus/add');
+    const postLink =
+        'boorusama://post/open?v=1&engine=danbooru&site=https%3A%2F%2Fsite.test&key=id%3A42';
+    expect(resolve(postLink), postLink);
+    const searchLink =
+        'boorusama://search/open?v=1&engine=danbooru&site=https%3A%2F%2Fsite.test&mode=raw&q=cat';
+    expect(resolve(searchLink), searchLink);
   });
 }

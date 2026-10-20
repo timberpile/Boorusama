@@ -7,6 +7,7 @@ import 'package:timeago/timeago.dart' as timeago;
 
 // Project imports:
 import '../../../../configs/config/types.dart';
+import '../../../../posts/links/link_file_labels.dart';
 import '../../../../images/booru_image.dart';
 import '../../../../widgets/time_pulse.dart';
 import '../types/following_topic.dart';
@@ -17,6 +18,7 @@ import 'topic_new_posts_badge.dart';
 enum FollowingTopicAction {
   info,
   refresh,
+  shareLink,
   rename,
   edit,
   moveUp,
@@ -216,6 +218,10 @@ class FollowingTopicCard extends StatelessWidget {
                               PopupMenuItem(
                                 value: FollowingTopicAction.edit,
                                 child: Text(context.t.generic.action.edit),
+                              ),
+                              PopupMenuItem(
+                                value: FollowingTopicAction.shareLink,
+                                child: Text(context.linkFileLabel),
                               ),
                               if (showMoveActions)
                                 PopupMenuItem(

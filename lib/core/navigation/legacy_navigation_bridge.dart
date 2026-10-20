@@ -4,6 +4,7 @@ import 'destination_id.dart';
 
 bool isNavigationRootTask(Uri uri) =>
     uri.path.startsWith('/boorus/') ||
+    uri.path == '/open' ||
     uri.path == '/changelog' ||
     uri.path == '/debug_logs';
 

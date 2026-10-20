@@ -290,3 +290,60 @@ stay hidden. Opening the sheet does not request additional metadata.
 
 Future item 07 coordination must classify Share preparation as media transfer,
 not API metadata traffic; this flow defines no new request rate policy.
+
+### Portable Boorusama post links
+
+`BoorusamaPostLink` is a versioned public address, not a serialized profile or
+bookmark. Version 1 uses
+`boorusama://post/open?v=1&engine=<yaml-name>&site=<encoded-base-url>&key=<encoded-key>`.
+Numeric engines use `id:<id>`; Sankaku keeps its real string server ID, and
+Pixiv uses `work-page:<work-id>:<zero-based-page>`. Reject duplicate/unknown
+parameters, unsupported versions/engines, unsafe site URLs and noncanonical or
+out-of-range identifiers. Never include credentials, profile IDs or snapshots.
+The source comes from the post, not an unrelated active profile in a mixed feed.
+
+The `/open` route uses Flutter/GoRouter's existing Android and iOS custom-scheme
+registration. It chooses exactly one matching local engine/site profile,
+requires a choice for multiple matches, or offers the normal profile editor
+without changing the current browsing profile. The pending address survives
+that editor and resolves only after it closes. Fetch through the selected
+profile's origin-aware repository and verify the returned stable identity before
+displaying it. Profile shortcuts and export/import receivers remain separate.
+Desktop OS protocol registration and hosted HTTPS links are not part of V1.
+
+The current [link-file MVP](bslink-mvp.md) shares one bounded `.bslink` document
+containing this validated URI, plus a readable caption. It does not acquire an
+image or video, expose raw-URI Copy/Share controls, or mix media with the
+document. This avoids relying on messengers to recognize custom URI schemes or
+retain mixed attachments. Recipient profile resolution and post identity checks
+remain the same after decoding the document. Ordinary media sharing continues
+to use its existing image preparation and native URI ownership lifecycle.
+
+### Portable Boorusama search links
+
+Version 1 uses
+`boorusama://search/open?v=1&engine=<yaml-name>&site=<encoded-base-url>&mode=raw|tags&q=<encoded-query>`.
+The engine is intentional: an arbitrary/self-hosted site cannot reliably be
+identified by its hostname alone. The receiver must also be able to create
+the correct engine profile when no match exists. Existing post links retain
+their established v1 format.
+
+`raw` represents one booru query as entered; `tags` represents a JSON array
+of typed search tags in their original order. Neither refers to a locally
+saved Following Topic, a local profile ID, unread state, search cache, nor a
+sender-specific authentication credential. Reject malformed/oversized queries,
+unsupported versions, unknown or repeated URI parameters, unsafe source URLs,
+empty tag lists and unknown engines.
+
+Both post and search addresses use the existing `/open` route, dispatched
+by the `boorusama://` URI authority (`post` or `search`). The search page
+uses the same engine/site recipient matching as post links; a single matching
+profile opens the search, multiple matches require selection, and zero matches
+offer the standard profile editor before resuming the exact pending query.
+Rendering uses `SearchParams` and `CurrentBooruConfigScope` without changing
+the active browsing profile or creating a saved/followed search.
+
+The current search result header, saved Following Topic cards and feed-member
+menus share one `.bslink` document with a readable caption, without a thumbnail
+or raw-URI controls. Position, page, locally chosen sorting, cache and
+read/follow state are intentionally not portable.

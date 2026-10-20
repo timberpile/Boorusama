@@ -56,35 +56,49 @@ class ReceivedExportChannel(
     }
 
     fun receive(intent: Intent?) {
-        val uri = intent?.exportUri() ?: return
-        if (intent.type != EXPORT_MIME_TYPE || uri.scheme != ContentResolver.SCHEME_CONTENT) return
-
+        if (intent == null) return
+        val isLink = intent.type == LINK_MIME_TYPE || intent.getBooleanExtra(LINK_DELIVERY, false)
+        if (!isLink && intent.type != EXPORT_MIME_TYPE) return
+        val uris = if (isLink) linkFileUris(intent) else listOfNotNull(intent.exportUri())
         executor.execute {
-            val event = stage(uri)
-            if (event == null) return@execute
-            mainHandler.post { publish(event) }
+            for (uri in uris) {
+                if (uri.scheme != ContentResolver.SCHEME_CONTENT) continue
+                // In a mixed image/document share, ignore the preview attachment.
+                if (isLink && intent.action == Intent.ACTION_SEND_MULTIPLE && !linkCandidate(uri)) continue
+                val event = stage(uri, isLink) ?: continue
+                mainHandler.post { publish(event) }
+            }
         }
+    }
+
+    private fun linkCandidate(uri: Uri): Boolean {
+        if (displayName(uri)?.endsWith(".bslink", ignoreCase = true) == true) return true
+        val mime = try { context.contentResolver.getType(uri) } catch (_: Exception) { null }
+        return mime == LINK_MIME_TYPE || mime == "application/octet-stream" || mime == "application/json"
     }
 
     fun close() {
         executor.shutdown()
     }
 
-    private fun stage(uri: Uri): Map<String, String>? {
+    private fun stage(uri: Uri, isLink: Boolean = false): Map<String, String>? {
         return try {
-            val input = context.contentResolver.openInputStream(uri) ?: return null
+            val input = context.contentResolver.openInputStream(uri)
+                ?: throw java.io.IOException("Document unavailable")
             val delivery = ReceivedExportStaging.stage(
                 input,
                 File(context.cacheDir, "received_exports"),
-                MAX_EXPORT_BYTES,
+                if (isLink) MAX_LINK_BYTES else MAX_EXPORT_BYTES,
             )
             mapOf(
                 "id" to delivery.id,
                 "path" to delivery.file.absolutePath,
-                "displayName" to (displayName(uri) ?: "received.bsexport"),
+                "displayName" to (displayName(uri) ?: if (isLink) "received.bslink" else "received.bsexport"),
+                "kind" to if (isLink) "link" else "export",
             )
         } catch (_: Exception) {
-            null
+            if (isLink) mapOf("id" to java.util.UUID.randomUUID().toString(),
+                "kind" to "link", "error" to "unreadable") else null
         }
     }
 
@@ -125,6 +139,9 @@ class ReceivedExportChannel(
         }
 
     companion object {
+        const val LINK_MIME_TYPE = "application/vnd.boorusama.link"
+        const val LINK_DELIVERY = "com.timberpile.boorusama.link_delivery"
+        private const val MAX_LINK_BYTES = 16L * 1024
         const val EXPORT_MIME_TYPE = "application/vnd.boorusama.export"
         private const val MAX_EXPORT_BYTES = 512L * 1024 * 1024
         private const val EVENT_CHANNEL_NAME = "com.timberpile.boorusama/received_exports"

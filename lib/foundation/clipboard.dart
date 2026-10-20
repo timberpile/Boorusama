@@ -6,6 +6,7 @@ import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 import 'package:oktoast/oktoast.dart';
 import 'package:pasteboard/pasteboard.dart';
+
 import 'platform.dart';
 
 // Project imports:
@@ -34,11 +35,15 @@ abstract class AppClipboard {
     }
   }
 
-  static Future<void> shareImageFile(String path, String mimeType) =>
-      _imageFileChannel.invokeMethod<void>('shareImageFile', {
-        'path': path,
-        'mimeType': mimeType,
-      });
+  static Future<void> shareImageFile(
+    String path,
+    String mimeType, {
+    String? text,
+  }) => _imageFileChannel.invokeMethod<void>('shareImageFile', {
+    'path': path,
+    'mimeType': mimeType,
+    'text': ?text,
+  });
 
   static Future<String?> paste(String format) async {
     final data = await Clipboard.getData(format);

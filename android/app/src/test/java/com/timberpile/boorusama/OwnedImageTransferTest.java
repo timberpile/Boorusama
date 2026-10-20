@@ -51,6 +51,27 @@ public final class OwnedImageTransferTest {
         assertTrue(source.delete());
         assertArrayEquals(bytes, Files.readAllBytes(owned.toPath()));
     }
+    @Test public void preparedImagesSurviveSourceCleanupAfterHandoff() throws Exception {
+        String[][] cases = {
+            {"jpg", "image/jpeg"}, {"png", "image/png"}, {"gif", "image/gif"},
+            {"webp", "image/webp"}, {"avif", "image/avif"}, {"bmp", "image/bmp"},
+        };
+        for (String[] image : cases) {
+            File source = source("boorusama-share", "boorusama_share_prepared." + image[0]);
+            File owned = transfer.copy(source, image[1]);
+            assertTrue(owned.getName().endsWith("." + image[0]));
+            assertTrue(source.delete());
+            assertArrayEquals(bytes, Files.readAllBytes(owned.toPath()));
+        }
+    }
+    @Test public void preparedImagesRejectUnrelatedPartialAndMismatchedFiles() throws Exception {
+        for (String name : new String[] {"unrelated.jpg", "boorusama_share_video.mp4", "boorusama_share_prepared.jpg.partial"}) {
+            File source = source("boorusama-share", name);
+            assertThrows(IllegalArgumentException.class, () -> transfer.copy(source, "image/jpeg"));
+        }
+        File source = source("boorusama-share", "boorusama_share_prepared.png");
+        assertThrows(IllegalArgumentException.class, () -> transfer.copy(source, "image/jpeg"));
+    }
     @Test public void gifHandoffDoesNotAcceptUnrelatedShareFilesOrOtherMedia() throws Exception {
         for (String name : new String[] {"unrelated.gif", "boorusama_share_video.mp4", "boorusama_share_conversion.gif.partial"}) {
             File source = source("boorusama-share", name);

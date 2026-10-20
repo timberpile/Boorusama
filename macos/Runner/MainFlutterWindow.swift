@@ -134,17 +134,23 @@ private final class ReceivedExportChannel: NSObject, FlutterStreamHandler {
   }
 
   private func stage(_ source: URL) -> [String: String]? {
+    let isLink = source.pathExtension.lowercased() == "bslink"
+    let fileExtension = isLink ? "bslink" : "bsexport"
+    let maxBytes: Int64 = isLink ? 16 * 1024 : Self.maxExportBytes
+    func failedDelivery() -> [String: String]? {
+      isLink ? ["id": UUID().uuidString, "kind": "link", "error": "unreadable"] : nil
+    }
     let accessed = source.startAccessingSecurityScopedResource()
     defer { if accessed { source.stopAccessingSecurityScopedResource() } }
     let manager = FileManager.default
     guard let cache = manager.urls(for: .cachesDirectory, in: .userDomainMask).first else {
-      return nil
+      return failedDelivery()
     }
     let directory = cache.appendingPathComponent("received_exports", isDirectory: true)
     try? manager.createDirectory(at: directory, withIntermediateDirectories: true)
     let pendingURL = directory.appendingPathComponent(UUID().uuidString).appendingPathExtension("part")
     guard let input = InputStream(url: source),
-          let output = OutputStream(url: pendingURL, append: false) else { return nil }
+          let output = OutputStream(url: pendingURL, append: false) else { return failedDelivery() }
     input.open()
     output.open()
     defer {
@@ -158,22 +164,23 @@ private final class ReceivedExportChannel: NSObject, FlutterStreamHandler {
     var buffer = [UInt8](repeating: 0, count: 64 * 1024)
     while input.hasBytesAvailable {
       let count = input.read(&buffer, maxLength: buffer.count)
-      if count < 0 { return nil }
+      if count < 0 { return failedDelivery() }
       if count == 0 { break }
       total += Int64(count)
-      if total > Self.maxExportBytes { return nil }
+      if total > maxBytes { return failedDelivery() }
       hasher.update(data: Data(buffer[0..<count]))
-      if output.write(buffer, maxLength: count) != count { return nil }
+      if output.write(buffer, maxLength: count) != count { return failedDelivery() }
     }
-    let id = hasher.finalize().map { String(format: "%02x", $0) }.joined()
-    let completed = directory.appendingPathComponent(id).appendingPathExtension("bsexport")
+    let id = isLink ? UUID().uuidString : hasher.finalize().map { String(format: "%02x", $0) }.joined()
+    let completed = directory.appendingPathComponent(id).appendingPathExtension(fileExtension)
     if !manager.fileExists(atPath: completed.path) {
-      do { try manager.moveItem(at: pendingURL, to: completed) } catch { return nil }
+      do { try manager.moveItem(at: pendingURL, to: completed) } catch { return failedDelivery() }
     }
     return [
       "id": id,
       "path": completed.path,
-      "displayName": source.lastPathComponent.isEmpty ? "received.bsexport" : source.lastPathComponent,
+      "displayName": source.lastPathComponent.isEmpty ? "received.\(fileExtension)" : source.lastPathComponent,
+      "kind": isLink ? "link" : "export",
     ]
   }
 
