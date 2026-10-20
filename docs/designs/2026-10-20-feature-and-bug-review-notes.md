@@ -19,8 +19,8 @@
 | # | Topic | Estimated effort | Present confidence / status |
 |---|---|---|---|
 | 1 | App-wide action labels, icons, and Title Case | M | Style principles agreed; UI audit still needed |
-| 2 | Non-shrinking image-to-details scrolling in existing viewer | M | Focused dock/scroll idea under review |
-| 3 | Customize URL/engine when duplicating a profile | M | Scope narrowed by user |
+| 2 | Smooth existing viewer-to-details transition | M | Provisional direction agreed; revisit later |
+| 3 | Editable target URL while duplicating a profile | S–M | Existing instant duplication path identified |
 | 4 | Local custom profile icons and export | M | Deprioritized; PNG sufficient |
 | 5 | Bookmark pools/series and mixed timeline entries | L | Product model unresolved |
 | 6 | Pretty, category-colored pinned-query display | S–M | Raw query display confirmed |
@@ -98,17 +98,30 @@
 - When closing from the top of the details area, reverse the same transition rather than instantly resetting to a centered image. Preserve the existing background/overlay conventions, gesture configuration, zoom, and horizontal paging.
 - **Decision still open:** whether smooth two-state sheet transition alone feels right, or whether continuous scrolling past dock is necessary. Prototype the smaller transition first and compare the exact perceived result to current behavior before committing to scroll-controller refactoring.
 
+**Decision to carry forward (user confirmation, 2026-10-20).** Keep the **smaller transition/snap experiment** above as the provisional implementation direction; do **not** commit to the larger continuous-layout redesign. Defer the viewer topic for later discussion and possible prototype. Stable image size, no abrupt transition, sensible snap and wide-image behavior are the current priorities. This is a direction to retain in these notes, **not** an instruction to create an issue or implement it.
+
 **Assessment.** This is **smaller in architectural scope** than a new continuous document viewer, but it is not just an animation constant: displacement geometry, `DraggableScrollableSheet` snap policy, nested scroll handoff, and zoom gestures interact. Treat as a **focused existing-viewer UX modification**, probably **M** rather than L after a targeted prototype. No implementation, GitHub issue, or final design approval yet.
 
-## 3. Change profile URL/engine during *duplication*, not in place
+## 3. Allow Editing the Target URL While Duplicating a Profile
 
-**Original request.** Change existing profile URL/engine and consider dangerous side effects.
+**Original request.** Consider changing profile URL/engine. **Clarified desired scope:** The user primarily wants to duplicate an existing known profile while entering a **different site URL during duplication**. In-place editing of an existing profile URL or engine is **not** required. Switching the engine while duplicating is optional/unsettled, not an initial requirement.
 
-**Updated user direction (provisional and important scope reduction).** Primary need: **duplicate an existing known profile and edit the URL while duplicating it**. Editing URL or engine on an already-created profile is **not required**. Allowing an alternative engine when creating the duplicate is a possible extension, still to confirm.
+**Observed in source (2026-10-20 `develop`).** The **Duplicate** action already exists in the profile management context menu (`lib/core/navigation/profile_management_page.dart`, around lines 53–61), but it **immediately invokes** `booruConfigProvider.notifier.duplicate(config: profile)` without opening an editor. `lib/core/configs/manage/src/providers/booru_config_provider.dart` (around lines 66–77) copies the entire profile with the default name `<name> copy`, passes its data straight into the add operation, and flags `isCopy: true`. The persistent repository already assigns a **fresh canonical profile ID** when `add` is called (`lib/core/configs/config/src/data/booru_config_repository_hive.dart`, around lines 38–46). Thus **the primary missing feature is an editing step before creating the duplicate**, rather than migration of existing identities.
 
-**Assessment.** This avoids the main data-migration hazard of rewriting existing profile identity. New duplicate must receive a **new profile ID**, preserve the original unchanged, validate new URL/engine compatibility, and avoid silently copying secrets to a different host. Review which settings to copy (display prefs, filters, credentials, server-specific capabilities, pinned searches) and which to reset. Do not reuse source-profile tracking checkpoints or imply that post IDs identify the same database across hosts.
+**Relevant existing UI architecture.** The shared profile-creation scaffold already has a name field, configuration sections, a URL data field and add/save operations. `CreateBooruSiteUrlField` supports editable text when given an `onChanged` callback; the generic new-profile URL flow validates/normalizes HTTP(S) URLs. However, `EditBooruConfigNotifier.build` initializes *new* profiles from defaults based on `EditBooruConfigId`, so simply navigating to the add route **will not** preserve source profile settings: introduce a duplicate-specific initial-data path. Known-engine create pages currently use an engine-specific builder; a changed endpoint should be verified compatible with the inherited engine. Generic engine selection is already available for *unknown-site setup* but does not imply safe arbitrary engine changes in duplicate mode. Some engines are single-site and should not offer misleading URL customization.
 
-**Code boundary.** Profile create/manage/config data live under `lib/core/configs/`. **Effort M**, notably safer than retroactive URL mutation. Open: should engine selection be enabled, what is copied, and whether authentication defaults to cleared on changed host.
+**Recommended compact UX (not yet approved).** From **Profiles → long-press or context menu → Duplicate**, open a **Duplicate Profile** editor, seeded with a copy of the selected profile and:
+- Profile Name: `<name> Copy` (editable).
+- Site URL: existing URL (editable with normalization and inline validation; validate engine compatibility before saving).
+- Engine: copied from source, initially displayed as a read-only engine label; consider advanced editing only if there is a concrete use case and compatible supported multi-site engines.
+- Configuration: retain ordinary appearance, filters, gesture, viewer, and download preferences.
+- Credentials: when the normalized **host/endpoint changes**, do not silently copy API key, session/token, login, password hash, or host-specific authentication state. Propose clearing site-bound credentials and displaying a short explanation. For the exact same endpoint, keeping the existing duplicate behavior is reasonable.
+- Do **not** duplicate bookmarks, topics, feed checkpoints, or post identities; the current `duplicate` operation only clones configuration data. Keep the source profile unchanged and use the existing add path so a new ID is created only on confirmation.
+- **Cancel** should not leave a partial duplicate. Avoid surprising side effects such as changing the active profile; show validation failures without creating the profile.
+
+**Scope/effort.** Narrow implementation; probably **S–M**, rather than a broader URL/engine migration. Add targeted tests for menu → prefilled editor → save/cancel, modified target URL, incompatible engine/URL, a new profile ID, unchanged source profile, inherited settings and cleared credentials on host change. No implementation or GitHub issue authorized.
+
+**Question to resolve if needed:** Should cross-host duplication always start unauthenticated (recommended), or is preserving credentials across hosts ever explicitly desired?
 
 ## 4. Select local custom profile icon; include it in exports
 
