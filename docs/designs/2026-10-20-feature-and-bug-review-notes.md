@@ -33,14 +33,14 @@
 | 13 | Progressive loading up to Original quality | M | Original viewer quality accepted; prefetch capped at High |
 | 14 | Recognize/persist the historical end of topics | M | Per-session `hasMore` exists |
 | 15 | Mark Pixiv engine experimental | S–M | Proposed scope accepted; not implemented |
-| 16 | Reuse full query editor for topics | M | Current dialog uses raw text |
+| 16 | Reuse full query editor for topics | S–M | Existing editor reuse accepted; not implemented |
 | 17 | Android 11+ custom download directories | M–L | SAF possible; needs URI-aware pipeline |
 | 18 | One cancellable bulk-download notification | M | Proposed aggregate notification accepted; not implemented |
 | 19 | Bookmark download quality/naming/duplicates | M | Proposed unified download behavior accepted; not implemented |
 | 20 | Scroll-to-top button remains visible at top | S | Proposed fix accepted; not implemented |
 | 21 | Artist page information architecture | M | Current Danbooru composition inspected |
 | 22 | Four previews without new-post tracking | S–M | Proposed decoupling accepted; not implemented |
-| 23 | Resume a pinned topic from a chosen position | M | Needs separate reading cursor |
+| 23 | Add an ID-boundary search from selected post | S–M | Simple filter chosen; context-menu UX proposed |
 
 ## 1. Audit action wording, icons, and capitalization throughout the app
 
@@ -295,7 +295,7 @@ Mixed `Post` / `Pool` / `Series` feed entries could be a general display abstrac
 
 **Observed in source.** `edit_following_topic_dialog.dart` has a plain `TextField` for query. `SearchQueryStructure` can already represent typed tags and validates correspondence to the canonical query.
 
-**Proposal.** Integrate a shared query-editor component with colored tags, operators, site-specific suggestions, and raw-syntax editing. Use the edited topic's chosen profile to resolve capabilities. Do **not** accidentally execute/commit a remote refresh on each keypress within the edit dialog; save/validate atomically, preserving unsupported syntax losslessly. Coordinate with #6 and the separate search filtering UX work. **Effort M.**
+**Accepted proposal (user, 2026-10-20).** **Reuse the current search editor immediately**, without waiting for the larger search UX overhaul. Build a compact embedded form out of existing `SelectedTagController`, `SearchTagSet`, `SelectedTagChip`, `TagSuggestionItems`, suggestions providers and input state, rather than implementing an unrelated second query editor. Replace the raw query text field in the edit dialog; initialize from the topic's canonical query and/or matching `SearchQueryStructure`. Suggestions must use the **dialog-selected profile**, not a global default. Preserve nonstandard/raw syntax losslessly, including operators/metatags. **Save/Cancel** must govern persistence; do not trigger real search execution/history or tracking refresh on each keystroke. Update the saved `SearchQueryStructure` when changing the query: currently the repository edit path clears the structure on material changes. Maintain unchanged source identity unless Save succeeds. Coordinate presentation with #6. **Effort S–M**, dependent on modest component extraction, not a new full search page. No issue or implementation yet.
 
 ## 17. Android 11+ download targets outside public directories
 
@@ -349,13 +349,19 @@ Mixed `Post` / `Pool` / `Series` feed entries could be a general display abstrac
 
 **Discussion outcome (user, 2026-10-20): proposal accepted.** Load four previews independently of the tracking scanner, including on manually followed/Realbooru topics. No issue or implementation yet.
 
-## 23. Resume a pinned topic from a selected post/position (oldest → newest)
+## 23. Build an ID-Filtered Search from the Selected Post
 
-**Original request.** Progressively work through a pinned query such as `my_tag order:id` from old posts toward new posts; select a post and continue “from here.”
+**Original motivation.** While browsing a followed Topic such as `my_tag order:id`, choose a post and continue browsing posts at or beyond its ID. The user also expects this simple mechanism to be useful **outside Topics**.
 
-**Observed in source.** Current high-water checkpoint serves new-post refresh, not user's reading/workthrough progress.
+**User decision (2026-10-20).** **Do not build or persist a separate reading-progress cursor.** Instead add a **post-ID boundary metatag** to the current search query and open the resulting search. This is the chosen minimal feature direction; exact UI placement remains a proposal, not yet explicitly accepted.
 
-**Proposal.** Add “Start / Resume from Here” on a post, persist a **separate browsing cursor** scoped to topic/profile/query/sort order, and provide a clear way to resume or reset. For Danbooru-like engines that support ID order and ID-range filters, compose a verified query (e.g. `order:id` with an ID bound) without silently overwriting the original followed query. Handle removed posts, updated search filters, and sites without stable ID ordering. Distinguish “read up to this post” from “start at this post” inclusive/exclusive semantics. **Effort M; depends partly on topic/history design.**
+**Recommended mobile UI to evaluate.** Use the existing **post context/overflow menu** on the open viewer and, where appropriate, post-grid context menu. Avoid a permanently visible toolbar button. Label the action **Search From Here…** (Title Case per #1). Show a small submenu or bottom sheet with **Newer Posts** and **Older Posts**; the first includes post IDs `>=` the selected ID, and the second `<=` that ID. Show a concise explanatory line with the chosen ID for technical clarity. Inclusive boundaries mean the selected post remains eligible in results. A one-tap context-aware continuation shortcut may be considered later if usage warrants it.
+
+**Danbooru syntax verified (official cheatsheet).** With source post ID `123456` and source query `my_tag order:id`, **Newer Posts** yields `my_tag order:id id:>=123456`; **Older Posts** yields `my_tag order:id id:<=123456`. Danbooru documents numeric `id:` ranges and ascending `order:id`: https://safebooru.donmai.us/wiki_pages/help%3Acheatsheet . Do not silently change the existing sort order: a filter narrows results, it does **not** itself establish chronological order. Avoid duplicate/conflicting `id:` qualifiers; replace or correctly compose with an existing boundary.
+
+**Context and safety.** When starting inside a followed Topic, use its query and profile to build a **temporary new search**; do not quietly edit the saved Topic or its new-post-tracking checkpoint. Elsewhere, use the active search query where available. For multi-profile Feeds, Post IDs from different sites are not comparable: operate against the selected post's **origin profile and source query**, or require the source to be selected, not a global mixed-feed query. Expose this action only on engines whose ID-range search support is confirmed by their capabilities/adapters; never assume Danbooru syntax works on Pixiv or arbitrary Booru implementations. Keep ordinary Back navigation to the unfiltered source.
+
+**Assessment.** **S–M** UX/code scope. Mostly query composition, capability checking, and context-aware menu navigation. No reading-cursor database migrations needed. No GitHub issue, PR or code changes authorized.
 
 ---
 
