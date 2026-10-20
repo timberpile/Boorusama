@@ -1,0 +1,266 @@
+# Feature and Bug Review — Working Notes (2026-10-20)
+
+> **Status: discussion archive / provisional research, NOT an approved design or implementation plan.**
+>
+> This file is deliberately kept on the isolated branch `maintenance/feature-review-notes-2026-10-20`. Do **not** merge it into `develop` or create GitHub issues from it automatically. Work through the 23 items with the user in the original order; create an issue for an item **only after explicit user instruction**. The user's follow-up observations below are tentative, not final product decisions.
+
+## Provenance and reading guide
+
+- Source: the 23-item feature/bug list discussed on 2026-10-20 and the subsequent review and user clarifications.
+- Inspected repository baseline: `develop` at commit `7d58c7d86786fe3f891cb2810f615fc9adef07d5` (2026-10-20). Some related changes may exist only on feature branches.
+- Confidence varies: **Observed in source** means directly supported by inspected code; **suspected** means plausible but not reproduced; **proposal** is a design candidate rather than an agreement.
+- No device-level reproduction, profiling, or complete runtime test suite was performed for these notes. Effort estimates (S/M/L) are only rough relative sizes.
+- The user calls pinned searches/topics and topic feeds by several names; the implementation currently uses `following_topics`/`FollowingTopic` in several places.
+- The final wording, interaction behavior, priorities, and ticket boundaries are to be decided in the individual discussions.
+- Repository convention: issue descriptions, design notes, and implementation documentation must be in English.
+
+## Quick index
+
+| # | Topic | Estimated effort | Present confidence / status |
+|---|---|---|---|
+| 1 | App-wide action labels, icons, and Title Case | M | Expanded UX audit proposed |
+| 2 | Pixiv-inspired scrollable post viewer | L | Needs interaction design |
+| 3 | Customize URL/engine when duplicating a profile | M | Scope narrowed by user |
+| 4 | Local custom profile icons and export | M | Deprioritized; PNG sufficient |
+| 5 | Bookmark pools/series and mixed timeline entries | L | Product model unresolved |
+| 6 | Pretty, category-colored pinned-query display | S–M | Raw query display confirmed |
+| 7 | Pinned searches on Realbooru | S–M | Needs reproduction |
+| 8 | Video badge on Realbooru | S | Likely classification issue |
+| 9 | Viewer media and metadata prefetch | M | Media prefetch already exists |
+| 10 | Find Pixiv post via Android Share | M | Share target already registered |
+| 11 | Replace suitable confirmations with Undo | M | Undo exists for some bookmarks |
+| 12 | Bookmark-style filtering in topic feeds | M | Snapshot-only scope proposed |
+| 13 | Progressive loading up to Original quality | M | Original enum already exists |
+| 14 | Recognize/persist the historical end of topics | M | Per-session `hasMore` exists |
+| 15 | Mark Pixiv engine experimental | S–M | Supported as a code/UI policy |
+| 16 | Reuse full query editor for topics | M | Current dialog uses raw text |
+| 17 | Android 11+ custom download directories | M–L | SAF possible; needs URI-aware pipeline |
+| 18 | One cancellable bulk-download notification | M | Partial notification infrastructure exists |
+| 19 | Bookmark download quality/naming/duplicates | M | Inconsistent code paths confirmed |
+| 20 | Scroll-to-top button remains visible at top | S | Plausible shared-component defect |
+| 21 | Artist page information architecture | M | Current Danbooru composition inspected |
+| 22 | Four previews without new-post tracking | S–M | Tracking/preview coupling confirmed |
+| 23 | Resume a pinned topic from a chosen position | M | Needs separate reading cursor |
+
+## 1. Audit action wording, icons, and capitalization throughout the app
+
+**Original request.** Prefer concise labels that use meaningful icons instead of redundant verbs: “Add to global blacklist” → “+ Global blacklist”; “Add to account favorite group” → “+ Account favorite group”; “+ Create new group” → “+ Group”.
+
+**Updated user direction (provisional).** Widen this to an **app-wide audit** of headings, buttons, menu labels, and other short UI copy. Prefer English **Title Case** (also called headline-style capitalization), where important words begin with capitals.
+
+**Interpretation/examples.**
+
+| Sentence case / verbose | Possible new presentation |
+|---|---|
+| Add to global blacklist | `[plus icon] Global Blacklist` |
+| Add to account favorite group | `[plus icon] Account Favorite Group` |
+| Create new group | `[plus icon] Group` |
+| Download settings | Download Settings |
+| Find in another profile | Find in Another Profile |
+| Recently viewed posts | Recently Viewed Posts |
+
+Suggested rule, **not yet approved**: Title Case for short English headings, labels, buttons, and menu actions; sentence case for explanations, notifications, error sentences, and body text. Apply locale-specific grammar outside English; do not mechanically Title-Case German. Distinguish add, remove-from-list, and permanent delete. Icon buttons still need semantic labels/tooltips. Favor actual icon widgets rather than embedding `+`/`-` characters in localized strings.
+
+**Assessment.** A coherent microcopy/style pass is useful but larger than the initial examples. Audit all existing screens, avoid changing actions or accessibility, and compare consistent Kurumi components. **Effort M; UX value high.** Open: capitalization style guide, boundaries for labels versus prose, and any labels that must remain explicit.
+
+## 2. Hybrid of current post viewer and Pixiv-style attached details
+
+**Original request.** Scroll naturally down from the image into its details and back, with sensible zoom/pan, unusual aspect ratios, lazy loading, and an answer to whether the media should always occupy the whole screen.
+
+**Observed in source.** `lib/core/posts/details_pageview/src/post_details_page_view.dart` implements a dedicated viewer with a details sheet/overlay and interacting drag/swipe/page-navigation states. This is a gesture/architecture change, not just a cosmetic one.
+
+**Updated user direction (provisional).**
+- Keep the good parts of the existing full-screen viewer; seek a hybrid rather than a wholesale Pixiv imitation.
+- **Wide/short images:** render at their natural fitted height (within available width), allowing some details to appear below immediately; do not force a full-height media frame.
+- **Extremely tall images:** initially fit within at most one viewport height, instead of rendering their full long height into the page. Scrolling down should directly continue into the details.
+- The Pixiv-like requirement to tap an image to enter a separate interactive/zoom viewer is **not preferred**. Resolve gesture conflicts without imposing that mode switch if possible.
+
+**Candidate interaction experiment.** At base zoom (`scale == 1`), vertical drags scroll the shared image-plus-details page; pinch or double tap zooms directly in place; while zoomed, the image consumes pan gestures and hands scrolling back to the page after returning to base scale (or after a carefully designed edge hand-off). Retain horizontal post navigation when it does not conflict with panning. Consider an optional explicit full-screen affordance, but do not require tapping to enter basic zoom. Investigate images, video, keyboard/mouse, scroll anchoring, dismissal gesture, orientation, and very large image memory cost. Defer comments/expensive details until needed without layout jumps.
+
+**Assessment.** Potentially a major UX improvement, but the current design is already serviceable and regressions could be costly. Prototype gesture arbitration and sizing before committing to an implementation. **Effort L; design unresolved.**
+
+## 3. Change profile URL/engine during *duplication*, not in place
+
+**Original request.** Change existing profile URL/engine and consider dangerous side effects.
+
+**Updated user direction (provisional and important scope reduction).** Primary need: **duplicate an existing known profile and edit the URL while duplicating it**. Editing URL or engine on an already-created profile is **not required**. Allowing an alternative engine when creating the duplicate is a possible extension, still to confirm.
+
+**Assessment.** This avoids the main data-migration hazard of rewriting existing profile identity. New duplicate must receive a **new profile ID**, preserve the original unchanged, validate new URL/engine compatibility, and avoid silently copying secrets to a different host. Review which settings to copy (display prefs, filters, credentials, server-specific capabilities, pinned searches) and which to reset. Do not reuse source-profile tracking checkpoints or imply that post IDs identify the same database across hosts.
+
+**Code boundary.** Profile create/manage/config data live under `lib/core/configs/`. **Effort M**, notably safer than retroactive URL mutation. Open: should engine selection be enabled, what is copied, and whether authentication defaults to cleared on changed host.
+
+## 4. Select local custom profile icon; include it in exports
+
+**Original request.** Choose own icon, resize to small dimensions, save as JXL if possible, and include it in exports.
+
+**Observed in source.** An **icon URL field** and `ProfileIconConfigs.url` already exist (`lib/core/configs/appearance/src/widgets/profile_icon_url_field.dart`; `lib/core/configs/config/src/types/profile_icon_configs.dart`). This is not yet equivalent to importing a local binary icon.
+
+**Updated user direction (provisional).** **Low priority / leave for later.** JXL is only a format experiment / nice-to-have; **PNG is fully acceptable**.
+
+**Proposal.** File picker; decode/crop/resize to a small bounded square; store a local managed icon asset; include binary data with portable manifest/reference in backup/export; restore without relying on old device paths; permit removing/replacing the icon. Start with PNG; evaluate JXL only after verified encoding/decoding support across supported platforms. **Effort M, deferred.**
+
+## 5. Bookmark whole pools or series; possibly use mixed timeline entries
+
+**Original request.** Bookmark pools (including Danbooru series pools); possibly let pool/series entries appear alongside ordinary posts in one feed or bookmark timeline.
+
+**Related ongoing work.** Branch `feature/group-neighboring-series` has a design/initial pure grouping primitive but is **not yet integrated**. That document explicitly prefers ordinary post bookmarks and display-only adjacency grouping; it **rejects** a separate `SeriesBookmark` entity. Relevant branch design: `docs/designs/2026-10-11-neighboring-series.md` on that feature branch, not on `develop`.
+
+**Updated user direction (provisional).** **Revisit that design carefully**, rather than accepting an incomplete/half-functional pool solution. Nothing is finalized.
+
+**Unresolved product models.**
+1. **Save all members as individual bookmarks** (existing proposed model): existing data behavior, stable offline post list; updates to the remote series are not automatically tracked.
+2. **Save a reference to a pool**: a compact durable entity that resolves potentially changing membership; requires cross-site identity, caching, offline behavior, deleted/renamed pools, and export rules.
+3. **Both**: explicitly distinguish “Bookmark Pool” from “Bookmark All Posts”; complexity rises but semantics are clearer.
+
+Mixed `Post` / `Pool` / `Series` feed entries could be a general display abstraction without making them interchangeable storage objects. Define count semantics, selection/actions, navigation, filters, ordering, and partial visibility. **Effort L, architecture/product discussion required.**
+
+## 6. Pretty, colored query when used as pinned-search title
+
+**Original request.** Query-as-name should replace underscores with readable spaces.
+
+**Observed in source.** `FollowingTopic.displayName` falls back to the raw `query` when `name` is null (`lib/core/search/following_topics/src/types/following_topic.dart`).
+
+**Updated user direction (provisional).** **Not just plain white text.** Show the default query title in the same colored/tag-style presentation used for ordinary search terms, with category colors and readable names.
+
+**Proposal.** Build a view-only token/chip representation from the structured query when available, with fallback parsing for old raw queries. Replace underscores **only in display text**, preserve the canonical stored query and any operators/metatags/negations. Unknown categories use neutral styling. Respect tight card widths, text scaling, overflow, and no unnecessary metadata/network lookup per card. User-defined custom names remain user-defined names. **Effort S–M; likely best coordinated with query-editor work #16 and tag-color consistency Issue #48.**
+
+## 7. Are pinned searches unavailable on Realbooru?
+
+**Original request.** Investigate why following/pinning appears unavailable for Realbooru.
+
+**Observed in source.** `FollowTopicButton` is not intrinsically dependent on a supported new-post refresh adapter; the shared UI can display a follow action for a nonblank query. Tracking support and storing a following topic are distinct concepts (`topic_follow_control.dart`, `search_refresh_query_adapter.dart`).
+
+**Assessment.** Cannot yet confirm the exact symptom. Reproduce from the actual Realbooru profile screen: absent action, disabled action, failed creation, or only warning about new-post tracking? Realbooru may use a Gelbooru-like engine with different API capabilities. Avoid conflating #7 with #22; one is entry/availability, one is preview behavior after following. **Effort S–M pending reproduction.**
+
+## 8. Show video badge for Realbooru videos
+
+**Observed in source.** Shared `ImageGridItem` already supports a play icon when `isAnimated` is true, including unknown duration. In the inspected Gelbooru V1 parser, `format` is derived from the file URL; exact Realbooru parsing/classification needs verification (`lib/boorus/gelbooru_v1/posts/parser.dart`).
+
+**Assessment.** Check a real video post through the post DTO → mapped media type / `isAnimated` → grid overlay pipeline. Reuse the shared badge, not a Realbooru-only badge component. Test GIF versus true video, missing duration, audio indicators, and unavailable preview URLs. **Effort likely S; root cause not reproduced.**
+
+## 9. Prefetch up to three next posts and reverse-direction posts
+
+**Original request.** Prefetch the next approximately three posts' media **and metadata**, and preceding posts when moving back.
+
+**Observed in source.** Direction-based **media preloading already exists** under `lib/core/posts/media_preload/src/`, notably `preload_strategy.dart`. It begins conservatively, adjusts offsets based on direction/confidence, can extend to three posts in the active direction, and treats direct entry specially (thumbnails only). Backward direction is already modeled.
+
+**Assessment.** First instrument/verify actual behavior rather than reimplementing it. Separate thumbnail, display-quality media, original quality, and **full post details**; the last category may still need prefetch. Bound concurrency/memory/data usage, cancel stale tasks, honor profile credentials, and prioritize visible media. Avoid eagerly prefetching three originals (see #13). **Effort M for extending/validating; potentially S for a focused fix.**
+
+## 10. Pixiv Share → find the artwork on configured Booru profiles
+
+**Original request.** User has an artwork in Pixiv and wants to find it inside Boorusama.
+
+**Observed in source.** Android's main `AndroidManifest.xml` already declares an `ACTION_SEND` intent-filter for `text/*`, i.e. a text-sharing entry point. The actual Pixiv share payload/receiving flow must be tested. Existing **Issue #49 — Find post in another profile** uses exact original MD5 from a Boorusama post and does **not** fully cover starting from an external Pixiv link.
+
+**Updated user direction (provisional).** Share from Pixiv to **Boorusama**, open the app, and either:
+- choose one eligible destination profile, then search; or
+- automatically search **every configured profile that can support the appropriate Pixiv-source filter**, group results by profile, and choose the result to open.
+
+**Feasibility / proposed flow.** Extract and normalize Pixiv illustration URL/ID (including common share-link variations); derive profile-specific query only when that engine/site supports a verified lookup syntax (for instance Danbooru's Pixiv-ID metatag); launch scoped requests with each profile's own credentials, restrictions, and rate-limit handling. Parallelism must be bounded; support cancellation, explicit unsupported-profile/no-match states, multiple matches, and no silently inferred exact image identity. Do not depend on the experimental Pixiv engine for basic external-link lookup.
+
+**Key UX question.** Default to **Search All Supported Profiles** for convenience, or require a chooser to avoid unexpected requests and potentially exposing the artwork ID to every configured host? Both are technically feasible. Also check what Pixiv actually shares on Android. **Effort M.**
+
+## 11. Replace safe, frequent removal confirmations with Undo
+
+**Observed in source.** Bookmark removal already has an Undo toast mechanism (`lib/core/bookmarks/src/providers/bookmark_provider.dart`, `showRemovalUndo`).
+
+**Proposal.** Audit existing confirmation dialogs across the app and classify actions by frequency, reversibility, server-side impact, and data loss. Use immediate action + Undo for reversible local removals; keep confirmation for permanent file deletion, destructive reset, broad cleanup, or actions that cannot reliably be reversed. Preserve group membership, order, and other state on undo. Handle failures and concurrent undo requests. **Effort M; audit scope needs inventory.**
+
+## 12. Bookmark-style filtering inside topic feeds — cached snapshots only
+
+**Original request.** Apply the same filter controls as bookmarks to topics feed.
+
+**Observed in source.** Bookmark selectors support tag inclusion/exclusion, originating site selection, and sorting in the in-memory library (`lib/core/bookmarks/src/providers/bookmark_group_selectors.dart`). Topic feeds have a separate snapshot/history architecture.
+
+**Updated user direction (provisional).** **Search/filter only the already stored snapshots**. While filtering is active, disable historical pagination / loading older remote posts. Resume normal history pagination when the filter is cleared. Avoid background-fetching arbitrary older pages to satisfy local filters; performance should remain bounded.
+
+**Proposal.** Reuse the recognizable bookmark filtering UI, apply predicates only to cached feed post snapshots, clearly communicate “Filtering saved posts” and empty-match states, preserve the original feed query and data. Account for incomplete cache coverage and deterministic ordering. No network calls from the filter action. **Effort M; substantially more bounded than a remote cross-topic search.**
+
+## 13. Progressive image loading ending in Original quality
+
+**Original request.** Add “Original post quality” while still displaying/loading intermediate qualities first.
+
+**Observed in source.** `ImageQuality.original` already exists (`lib/core/images/image_quality.dart`), and the details toolbar has a manual Load Original action in supported contexts. The unresolved requirement is **automatic progressive media display**.
+
+**Proposal.** Resolve only actual distinct URLs, show thumbnail → sample/high-quality → original in order with seamless visual replacement and appropriate fallbacks. If a stage fails, do not block another valid stage. Avoid downloading redundant byte-identical variants and respect device memory, network policy, and viewer prefetch limits. Decide whether this is a separate viewer option rather than changing the existing explicit Original action. **Effort M.**
+
+## 14. Recognize when a topic/feed has reached its oldest post
+
+**Observed in source.** `FeedHistorySession` has per-source pagination cursors and session-local `hasMore` state. The persisted `FollowingTopic` has a highest-seen ID/checkpoint for **new-post tracking**, not an explicit durable oldest-post/exhausted boundary.
+
+**Proposal.** On a reliable end-of-history response, persist a per-source historical-end marker and avoid unnecessary retries. Distinguish true exhaustion from API caps, failures, zero visible results caused by filtering, and temporarily unavailable sources. Invalidate/re-evaluate markers for query/profile changes and other relevant events. Expose an intelligible end-of-topic/end-of-feed state. **Effort M.**
+
+## 15. Make Pixiv engine explicitly experimental
+
+**Original request and direction.** Label Pixiv as experimental in UI **and code/docs**, and avoid letting it determine core booru abstraction decisions. It is a limited curiosity rather than a priority full-featured engine.
+
+**Observed in source.** Pixiv has its own booru adapter, routes, and navigation code under `lib/boorus/pixiv/`.
+
+**Proposal.** Add an Experimental indicator with limitations in profile creation and settings; document intentionally unsupported behaviors, provide user-facing explanation, avoid speculative generic abstractions solely to accommodate Pixiv. This does **not** waive security, correctness, or data-integrity requirements. **Effort S–M.**
+
+## 16. Rich query editing with suggestions for topics
+
+**Original request.** Topic query editor should use real tags/suggestions rather than raw text; ideally reuse full search query editor.
+
+**Observed in source.** `edit_following_topic_dialog.dart` has a plain `TextField` for query. `SearchQueryStructure` can already represent typed tags and validates correspondence to the canonical query.
+
+**Proposal.** Integrate a shared query-editor component with colored tags, operators, site-specific suggestions, and raw-syntax editing. Use the edited topic's chosen profile to resolve capabilities. Do **not** accidentally execute/commit a remote refresh on each keypress within the edit dialog; save/validate atomically, preserving unsupported syntax losslessly. Coordinate with #6 and the separate search filtering UX work. **Effort M.**
+
+## 17. Android 11+ download targets outside public directories
+
+**Original request.** Check whether the warning that downloads must be in public directories is truly unavoidable.
+
+**Observed in source.** `lib/core/downloads/background/downloader.dart` rejects Android paths lacking a recognized public directory on newer SDKs. That is a **current application/transport policy**, not proof that Android exposes no alternatives.
+
+**Assessment.** Android's Storage Access Framework (SAF) can grant persistent user-picked URI access to supported folders, subject to Android restrictions. Merely disabling the guard will not make arbitrary paths writeable. A robust alternative needs a URI-aware file-writing implementation, persisted grants, handling of provider/SD-card disconnection, correct background task integration, duplicate detection, and sidecar files. Some restricted roots remain inaccessible. Relevant platform documentation: https://developer.android.com/training/data-storage/shared/documents-files . **Effort M–L; requires architecture/transport verification.**
+
+## 18. One notification per bulk download operation, with total progress and Cancel
+
+**Observed in source.** There is a bulk-progress notification abstraction (`lib/core/downloads/background/notification.dart`) as well as native individual task notifications. The paths may emit too many visible notifications during mass downloads.
+
+**Proposal.** Give every bulk session an ID and one continuously updated summary notification (completed / total, bytes if reliable, failures, cancellation). Expose Cancel for **that operation**, not necessarily every download in the app. Suppress noisy per-file notifications during the session; summarize failures and final completion. Ensure cached/skipped tasks count correctly, and handle app restart, simultaneous sessions, and Android notification permission. **Effort M; related to #19.**
+
+## 19. Bookmark downloads use different names/quality; duplicate detection inconsistent
+
+**Observed in source — directly confirmed.** Bookmark download path in `lib/core/bookmarks/src/providers/bookmark_provider.dart` uses `bookmark.originalUrl`, labels metadata quality as `original`, and calls `fallbackFileNameBuilder`. Normal search/viewer download in `lib/core/downloads/downloader/src/providers/download_notifier.dart` computes effective download quality from settings and uses a configured filename generator. This explains reported differences. Actual duplicate behavior still needs reproducing.
+
+**Proposal.** Refactor bookmark and regular post download entry points to a shared policy for resolved originating profile, desired quality, URL selection, generated filename, and existing-file identity. Preserve credential isolation for mixed-profile bookmarks. Distinguish deliberate variant downloads from duplicate same-file downloads; ensure sidecars match the actual quality. Add tests for profile-specific filename patterns, settings, equal origins, cache/skips, and destination-path behavior. **Effort M; high-confidence/high-value fix.**
+
+## 20. Scroll-to-top button does not disappear at top after manual scroll
+
+**Observed in source — plausible root cause.** `packages/kurumi/lib/src/components/scroll_visibility.dart` updates top-state within the scroll-direction-change branch and tests exact `offset == 0`. If the user continues scrolling in one direction until reaching the boundary, the component may not re-evaluate visibility at the moment it reaches the top.
+
+**Proposal.** Update visibility on position/boundary changes, not only direction changes; use a sensible epsilon/extent guard rather than exact floating-point equality. Cover manual dragging, ballistic scrolling, content resizing, programmatic jump, controller replacement, and accessibility animations. **Effort S; runtime reproduction still necessary.**
+
+## 21. Overhaul the artist page
+
+**Observed in source.** Danbooru artist page is built by combining tag details, alternative names, URL chips, and an artist tag cloud (`lib/boorus/danbooru/artists/artist/src/pages/artist_page.dart`). The distinction between primary social links, related tags, and wiki material is not very explicit.
+
+**Proposal.** Introduce recognizable sections: artist identity/aliases, primary external/social links with platform icons, direct wiki link and summary/availability, related tags, and posts. Keep high-frequency navigation/actions easy to reach and preserve existing Follow Topic support. Check API availability for wiki and social link metadata before selecting UI. **Effort M; start with Danbooru rather than over-generalizing.**
+
+## 22. Populate four previews even when tracking is unsupported
+
+**Original request.** “New-post tracking is unsupported for this search.” should not prevent four search thumbnail previews.
+
+**Observed in source.** `SearchRefreshService.refresh` handles `UnsupportedSearchRefreshQueryPlan` before its normal fetch, and the snapshot processing ties previews to post creation timestamps. That coupling is unnecessary for simply displaying recent matching thumbnails.
+
+**Proposal.** Decouple “fetch up to four preview posts” from “calculate trustworthy new-post changes.” Fetch a bounded first page when the query is executable; preserve a distinct **tracking unsupported** status, without committing false new-post checkpoints. Do not repeatedly fetch on every repaint; respect cancellation, authentication, and network limits. **Effort S–M; closely connected to #7.**
+
+## 23. Resume a pinned topic from a selected post/position (oldest → newest)
+
+**Original request.** Progressively work through a pinned query such as `my_tag order:id` from old posts toward new posts; select a post and continue “from here.”
+
+**Observed in source.** Current high-water checkpoint serves new-post refresh, not user's reading/workthrough progress.
+
+**Proposal.** Add “Start / Resume from Here” on a post, persist a **separate browsing cursor** scoped to topic/profile/query/sort order, and provide a clear way to resume or reset. For Danbooru-like engines that support ID order and ID-range filters, compose a verified query (e.g. `order:id` with an ID bound) without silently overwriting the original followed query. Handle removed posts, updated search filters, and sites without stable ID ordering. Distinguish “read up to this post” from “start at this post” inclusive/exclusive semantics. **Effort M; depends partly on topic/history design.**
+
+---
+
+## Existing related work and proposed discussion order
+
+- Follow **#1 → #23** in the original order, with decisions made individually and kept separate from these working hypotheses.
+- Relevant tracked issue: [#49 — Find post in another profile](https://github.com/timberpile/Boorusama/issues/49), related to but narrower/different from external Pixiv Share (#10).
+- Relevant **unmerged** feature branch: [`feature/group-neighboring-series`](https://github.com/timberpile/Boorusama/tree/feature/group-neighboring-series), including a provisional grouping specification. Any future pool/series-bookmark design (#5) must reconcile with it rather than accidentally treating an earlier preference as a final decision.
+- Potential shared work: **#1** touches general UI copy; **#6 + #16** involve query presentation/editing; **#7 + #22** cover tracking versus previews; **#9 + #13** cover image fetching; **#18 + #19** cover download infrastructure; **#12 + #14 + #23** cover topic feed history and progress.
+- Higher-confidence potential fixes: **#19**, **#20**, **#22**. Larger UX/architecture questions: **#2**, **#5**, and (if expanded) **#17**.
+- **No new GitHub issues, PRs, code changes, or merges are authorized by this file.** Amend these notes or file issues only when requested in later discussion.
