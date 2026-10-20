@@ -26,11 +26,11 @@
 | 6 | Pretty, category-colored pinned-query display | S–M | UX direction accepted; not implemented |
 | 7 | Pinned searches on Realbooru | — | No bug: following works; tracking deliberately unsupported |
 | 8 | Video badge on Realbooru | S | Proposed fix accepted; not implemented |
-| 9 | Viewer media and metadata prefetch | S–M | Investigate quality differences by site/quality; not a new system |
+| 9 | Viewer media and metadata prefetch | S–M | Investigation accepted; video-start buffering feasibility open |
 | 10 | Find Pixiv post via Android Share | M | Share target already registered |
-| 11 | Replace suitable confirmations with Undo | M | Undo exists for some bookmarks |
+| 11 | Replace suitable confirmations with Undo | M | App-wide reversible-action audit accepted; not implemented |
 | 12 | Bookmark-style filtering in topic feeds | M | Snapshot-only scope proposed |
-| 13 | Progressive loading up to Original quality | M | Original enum already exists |
+| 13 | Progressive loading up to Original quality | M | Original viewer quality accepted; prefetch capped at High |
 | 14 | Recognize/persist the historical end of topics | M | Per-session `hasMore` exists |
 | 15 | Mark Pixiv engine experimental | S–M | Proposed scope accepted; not implemented |
 | 16 | Reuse full query editor for topics | M | Current dialog uses raw text |
@@ -130,6 +130,8 @@
 
 **Latest disposition (user, 2026-10-20): NOT PLANNED.** After reconsidering the actual use case, the user concluded that a new function or specialized duplication editor is probably **not worth introducing**. Existing Duplicate + editing independent default filters covers the core need. Keep the Danbooru/Safebooru host/credentials findings above for reference only. **Do not file an issue or implement the proposed URL-editing workflow unless requested again.**
 
+**User confirmation (2026-10-20).** Agreed not to add a specialized profile-duplication function. Maintain disposition: not planned.
+
 ## 4. Select local custom profile icon; include it in exports
 
 **Original request.** Choose own icon, resize to small dimensions, save as JXL if possible, and include it in exports.
@@ -183,6 +185,8 @@ Mixed `Post` / `Pool` / `Series` feed entries could be a general display abstrac
 
 **Feasibility assessment.** A heuristic poll of Realbooru's first HTML search page and a set of recent post IDs might detect *some* new matching posts. However, HTML listings use offset pagination and omit reliable per-post creation timestamps; many intervening posts, search/tag changes, deletions, and reordering can make this incomplete. The current tracker explicitly requires a stable baseline/verified ordered results. A third-party Dart Realbooru client also states that Realbooru's official API is disabled and HTML scraping is required (https://pub.dev/documentation/realbooru/latest/); this is not independent proof of the server's current configuration. **Recommendation: do not enable unreliable automatic new-post notifications as if they were authoritative.** Manual following and #22 previews remain useful. No new tracking issue proposed.
 
+**User confirmation (2026-10-20).** Agreed to keep Realbooru's manual Following without unreliable automatic tracking. #22 independent previews are still desired; no standalone Issue #7.
+
 ## 8. Show video badge for Realbooru videos
 
 **Observed in source.** Shared `ImageGridItem` already supports a play icon when `isAnimated` is true, including unknown duration. Realbooru is configured under **Gelbooru V2**, not Gelbooru V1, and its HTML listing parser stores an independent `isVideoPreview` flag. See the newer confirmed mapping findings below.
@@ -212,6 +216,17 @@ Mixed `Post` / `Pool` / `Series` feed entries could be a general display abstrac
 - The manager's `DownloadConfiguration` defaults to **two concurrent media requests**. The feature also respects `automaticMediaLoadingEnabledProvider` and cancels tasks when viewer navigation becomes inactive.
 **Current recommendation.** Preserve the common preloader and investigate per-engine **measured hit/miss behavior**, with test examples (a normal Danbooru query, Realbooru HTML results, a video, sample-quality setting, original-quality setting, mixed-profile bookmarks). A small regression/fix or separate bounded metadata prefetch might follow only if tests show value. User has not requested an issue or a rewrite of this mechanism.
 
+**User confirmation / additional question (2026-10-20).** Preserve the existing direction-aware image prefetcher and investigate site-specific/quality-specific behavior; no new system by default. The user asks if we can preload **only the first few seconds of nearby videos** so playback starts without delay.
+
+**Video startup prebuffering feasibility — technical research, not yet approved:**
+- **Yes, streaming permits it** when source/server and player support incremental delivery. Android Media3's `DefaultPreloadManager` supports prebuffering a selected number of seconds from the next media item, with examples for three seconds ahead and one second behind (https://developer.android.com/media/media3/exoplayer/preloading-media/preloadmanager/create). This is an implementation pattern, **not** a plug-and-play solution across all Boorusama engines.
+- MP4/WebM progressive HTTP delivery is generally based on **byte ranges**, not a fixed clock-time slice. MP4 startability depends on container index/`moov` access (faststart vs tail), server range/seek support, and enough initial decodable frames/keyframes. HLS/DASH streams can preload initialization data and initial segments. A naive `Range: bytes=0-N` download might be useless, or re-downloaded, unless the actual player can consume that cached range.
+- **Existing Boorusama architecture:** `lib/core/posts/details/src/widgets/post_details_image_preloader.dart` preloads only video thumbnails, never video bytes. `BooruPlayer` wraps multiple engines (video_player/FVP/MDK, media_kit/mpv, WebView). `lib/core/videos/player/src/widgets/video_player.dart` initializes a player when viewing the video and sources from either a **fully cached file** or the original streaming URL. Current `VideoCacheManager` is used for **background whole-file caching after playback has begun**; it does not expose a shared partial prebuffer to all backends. Initializing a paused player may prepare media, but it must be validated whether it actually buffers usable seconds for each engine.
+- To avoid duplicate transfers, implement startup buffering in the **player's own buffering/caching stack**, or explicitly share a partial cache/media source with the subsequent playback instance. Do **not** prefetch arbitrary byte ranges through the image cache and then let the video engine fetch the same bytes again.
+- **Candidate UX/policy:** priorize the next probable video (optionally one behind after reverse navigation); aim for ~2–3 seconds of first playable data, subject to a **small byte cap and time/network budget**. No pre-play/audio; cancel stale work; do not compete with the visible post; optionally disable on metered mobile networks. Reuse correctly scoped headers, URL and original-profile auth.
+- **Important Realbooru caveat:** its HTML listing has a static poster and often no playable video URL until `GelbooruV2FullPostLoader` fetches the full post on entering it. That resolution would need to happen *before* video prebuffering, and that should not be done for many posts without strict limits.
+- **Effort/risk:** an incremental engine-specific warm player (one upcoming video) might be moderate; a seamless unified cross-engine seconds-based preloader with reusable partial bytes is larger. First measure `time-to-first-frame` across engines/sites and prove actual reuse and startup improvement. This is a **candidate subfeature of #9**, not an authorized separate ticket.
+
 ## 10. Pixiv Share → find the artwork on configured Booru profiles
 
 **Original request.** User has an artwork in Pixiv and wants to find it inside Boorusama.
@@ -232,6 +247,8 @@ Mixed `Post` / `Pool` / `Series` feed entries could be a general display abstrac
 
 **Proposal.** Audit existing confirmation dialogs across the app and classify actions by frequency, reversibility, server-side impact, and data loss. Use immediate action + Undo for reversible local removals; keep confirmation for permanent file deletion, destructive reset, broad cleanup, or actions that cannot reliably be reversed. Preserve group membership, order, and other state on undo. Handle failures and concurrent undo requests. **Effort M; audit scope needs inventory.**
 
+**Discussion outcome (user, 2026-10-20): accepted direction.** Perform a scoped app-wide audit, replace confirmation dialogs for reversible local removals with real Undo, preserve confirmations for irreversible/permanent and remote destructive actions. Implement only after explicit request/issue authorization.
+
 ## 12. Bookmark-style filtering inside topic feeds — cached snapshots only
 
 **Original request.** Apply the same filter controls as bookmarks to topics feed.
@@ -249,6 +266,8 @@ Mixed `Post` / `Pool` / `Series` feed entries could be a general display abstrac
 **Observed in source.** `ImageQuality.original` already exists (`lib/core/images/image_quality.dart`), and the details toolbar has a manual Load Original action in supported contexts. The unresolved requirement is **automatic progressive media display**.
 
 **Proposal.** Resolve only actual distinct URLs, show thumbnail → sample/high-quality → original in order with seamless visual replacement and appropriate fallbacks. If a stage fails, do not block another valid stage. Avoid downloading redundant byte-identical variants and respect device memory, network policy, and viewer prefetch limits. Decide whether this is a separate viewer option rather than changing the existing explicit Original action. **Effort M.**
+
+**Agreed constraint (user, 2026-10-20).** Allow **Original** as a viewer quality, with progressive on-screen transition from smaller preview through available higher quality to original. **Neighbor-media prefetch must stop at High, never proactively download Original files**, even when the user has chosen Original for the currently viewed post. The original for the current visible post may load normally. The existing global `PostQuality` selector exposes only `Medium`/`High` (`lib/core/settings/src/types/post_quality.dart`), while per-profile `GeneralPostQualityType` already includes `original` (`lib/core/posts/post/src/types/post_quality.dart`); ensure correct terminology and backward-compatible settings migration. `ProgressivePostImage` already loads a lower representation and target concurrently but may not be a strict three-stage thumbnail→sample→original pipeline: inspect whether an actual intermediate sample must be independently requested. Also fix the existing preloader's branch that maps `originalImageUrl == resolvedViewerUrl` to thumbnail-only so the proposed High cap can be honored using a resolvable intermediate/safe substitute. Respect site capability limits and unknown sample URLs.
 
 ## 14. Recognize when a topic/feed has reached its oldest post
 
