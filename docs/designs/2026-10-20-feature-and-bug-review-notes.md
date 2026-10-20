@@ -29,18 +29,18 @@
 | 9 | Viewer media and metadata prefetch | S–M | Image behavior investigation accepted; video prebuffer deferred |
 | 10 | Find Pixiv post via Android Share | M | Share target already registered |
 | 11 | Replace suitable confirmations with Undo | M | App-wide reversible-action audit accepted; not implemented |
-| 12 | Bookmark-style filtering in topic feeds | M | Snapshot-only scope proposed |
+| 12 | Bookmark-style filtering in topic feeds | M | Snapshot-only local filtering accepted; not implemented |
 | 13 | Progressive loading up to Original quality | M | Original viewer quality accepted; prefetch capped at High |
-| 14 | Recognize/persist the historical end of topics | M | Per-session `hasMore` exists |
+| 14 | Recognize/persist the historical end of topics | M | Persist true exhaustion per source accepted; not implemented |
 | 15 | Mark Pixiv engine experimental | S–M | Proposed scope accepted; not implemented |
 | 16 | Reuse full query editor for topics | S–M | Existing editor reuse accepted; not implemented |
-| 17 | Android 11+ custom download directories | M–L | SAF possible; needs URI-aware pipeline |
+| 17 | Android 11+ custom download directories | M–L | Feasibility reviewed; bundled downloader already supports URI tasks |
 | 18 | One cancellable bulk-download notification | M | Proposed aggregate notification accepted; not implemented |
 | 19 | Bookmark download quality/naming/duplicates | M | Proposed unified download behavior accepted; not implemented |
 | 20 | Scroll-to-top button remains visible at top | S | Proposed fix accepted; not implemented |
 | 21 | Artist page information architecture | M | Current Danbooru composition inspected |
 | 22 | Four previews without new-post tracking | S–M | Proposed decoupling accepted; not implemented |
-| 23 | Add an ID-boundary search from selected post | S–M | Simple filter chosen; context-menu UX proposed |
+| 23 | Modify Search from post context | S–M | Active-query modification accepted; general submenu direction |
 
 ## 1. Audit action wording, icons, and capitalization throughout the app
 
@@ -261,6 +261,8 @@ Mixed `Post` / `Pool` / `Series` feed entries could be a general display abstrac
 
 **Proposal.** Reuse the recognizable bookmark filtering UI, apply predicates only to cached feed post snapshots, clearly communicate “Filtering saved posts” and empty-match states, preserve the original feed query and data. Account for incomplete cache coverage and deterministic ordering. No network calls from the filter action. **Effort M; substantially more bounded than a remote cross-topic search.**
 
+**Discussion outcome (user, 2026-10-20): accepted.** Apply the familiar Bookmark-style filter solely to **already cached feed post snapshots**, never issue network queries or load older history while filtering; on clear, restore standard feed pagination. No GitHub issue or implementation yet.
+
 ## 13. Progressive image loading ending in Original quality
 
 **Original request.** Add “Original post quality” while still displaying/loading intermediate qualities first.
@@ -276,6 +278,8 @@ Mixed `Post` / `Pool` / `Series` feed entries could be a general display abstrac
 **Observed in source.** `FeedHistorySession` has per-source pagination cursors and session-local `hasMore` state. The persisted `FollowingTopic` has a highest-seen ID/checkpoint for **new-post tracking**, not an explicit durable oldest-post/exhausted boundary.
 
 **Proposal.** On a reliable end-of-history response, persist a per-source historical-end marker and avoid unnecessary retries. Distinguish true exhaustion from API caps, failures, zero visible results caused by filtering, and temporarily unavailable sources. Invalidate/re-evaluate markers for query/profile changes and other relevant events. Expose an intelligible end-of-topic/end-of-feed state. **Effort M.**
+
+**Discussion outcome (user, 2026-10-20): accepted.** Persist reliably verified historical exhaustion per source, not the currently available session-only `hasMore`. Failures, filters, site limits, and temporary source unavailability must not be mistaken for genuine exhaustion; invalidate for material query/profile changes. No GitHub issue or implementation yet.
 
 ## 15. Make Pixiv engine explicitly experimental
 
@@ -304,6 +308,23 @@ Mixed `Post` / `Pool` / `Series` feed entries could be a general display abstrac
 **Observed in source.** `lib/core/downloads/background/downloader.dart` rejects Android paths lacking a recognized public directory on newer SDKs. That is a **current application/transport policy**, not proof that Android exposes no alternatives.
 
 **Assessment.** Android's Storage Access Framework (SAF) can grant persistent user-picked URI access to supported folders, subject to Android restrictions. Merely disabling the guard will not make arbitrary paths writeable. A robust alternative needs a URI-aware file-writing implementation, persisted grants, handling of provider/SD-card disconnection, correct background task integration, duplicate detection, and sidecar files. Some restricted roots remain inaccessible. Relevant platform documentation: https://developer.android.com/training/data-storage/shared/documents-files . **Effort M–L; requires architecture/transport verification.**
+
+**Focused feasibility investigation (2026-10-20) — user approved assessment, not implementation.**
+
+**Android platform constraints.** `ACTION_OPEN_DOCUMENT_TREE` offers user-consented access to supported document-provider directories through persisted `content://` URI grants; cannot select internal/SD volume roots or the main `Download` folder on Android 11+; `Android/data` and `Android/obb` are also restricted. Keep current **default public Download** path behavior and other public-directory handling; SAF is an additional target type, not a replacement for the system Downloads root. Official docs: https://developer.android.com/training/data-storage/shared/documents-files and https://developer.android.com/about/versions/11/privacy/storage .
+
+**Important reduction in transport work.** Repo's `pubspec.lock` pins the existing `khoadng/background_downloader` fork to commit `fd67fff9ee4ad4cdf415dc3285289cad9289cefe`, package version `9.6.1`. Its source **already implements** `UriDownloadTask` and `FileDownloader().uri.pickDirectory(persistedUriPermission: true)`, plus `createDirectory`, copy/move/delete helpers; on Android `UriDownloadTask` can write directly to a granted destination (rather than requiring Boorusama to build an Android download worker from scratch). This is confirmed against the **pinned fork commit**, not assumed from current pub.dev docs. Plugin source: https://github.com/khoadng/background_downloader/tree/fd67fff9ee4ad4cdf415dc3285289cad9289cefe/lib/src/uri .
+
+**Application integration impact (nontrivial).**
+1. `DownloadFolderSelectorSection` calls `AppFilePicker.pickDirectory` → `PluginAppFilePicker` → `FilePicker.getDirectoryPath`. It stores a filesystem path and warns when `AndroidPathInfo.requiresPublicDirectory`; SAF needs its **own persisted URI target** and user-readable name, not pretending the content URI is a path.
+2. `DownloadOptions.fromSettings` currently combines path and subfolder with `path.join`; `BackgroundDownloader.download` makes a conventional `DownloadTask(directory: path)`. Introduce a **typed destination model** (local path vs Android document tree) and construct `UriDownloadTask` in the latter case; do not run URI strings through `path.join`.
+3. `FileDownloaderX.enqueueIfNeeded` uses `task.filePath()` and `AppFileSystem.fileExistsSync` for `skipIfExists`. The pinned plugin's `UriDownloadTask` specifically documents `filePath()` as **undefined** for content URIs. Replace checks and result identifiers for this path with URI-aware APIs. Avoid duplicate downloads and filename collisions without scanning enormous folder trees.
+4. Sidecar metadata is the largest integration risk: `SidecarWriter` creates and atomically publishes `.json`/`.txt` files using normal local `AppFileSystem` paths. `onBackgroundSidecarFinished` is a headless callback which currently calls `update.task.filePath()` and assumes an ordinary file. SAF sidecars need document-provider-compatible writing and persisted, recoverable associations to the downloaded document; avoid lost/conflicting sidecars or partial writes.
+5. `BulkDownloadNotifier`, saved download sessions and their `DownloadOptions.valid`, `DirectoryExistChecker`, `DownloadExistChecker` are path-based, including resumption and custom subfolders. A scoped destination must work across restarts, and permission revocation/SD unplug/cloud provider failure must be explicit. Never silently write to an unrelated fallback folder.
+6. `DownloadManager` file-size and share helpers call `task.filePath()`, `XFile(path)`, and `SharePlus` using local paths; these need content-URI-aware or temporarily materialized handling. Cached-video-to-target copy currently assumes `fs.copyFile(localPath, targetPath)`; route that through plugin URI copy/move as supported. Native task notifications/groups and retries should continue working, but need tests.
+7. Preserve iOS/desktop path-based flows and currently saved Android paths; use a compatible destination migration/codec and only enable SAF targets where the full lifecycle (including configured sidecar format and bulk task handling) is supported.
+
+**Effort/risk.** Basic picker + direct SAF `UriDownloadTask` transfer alone is **S–M**. Robust support across ordinary/bulk downloads, sidecars, skipping, cached-media reuse, file actions, old profiles, error/retry paths and permission lifecycle is **M–L**, with the largest cost in URI/path assumptions, not native downloading. The work could be staged behind an explicit SAF target type and proven end-to-end in Android emulator/device tests before exposing it broadly. Test at least Android 11+, internal directory, removable SD, canceled/revoked grants, app restart, simple/bulk, duplicate filename, sidecars, retry/resume, and default downloads. **Do not remove the existing scoped-storage warning yet.** No GitHub issue or implementation requested.
 
 ## 18. One notification per bulk download operation, with total progress and Cancel
 
@@ -349,19 +370,21 @@ Mixed `Post` / `Pool` / `Series` feed entries could be a general display abstrac
 
 **Discussion outcome (user, 2026-10-20): proposal accepted.** Load four previews independently of the tracking scanner, including on manually followed/Realbooru topics. No issue or implementation yet.
 
-## 23. Build an ID-Filtered Search from the Selected Post
+## 23. Modify the Active Search from a Post's Context Menu
 
-**Original motivation.** While browsing a followed Topic such as `my_tag order:id`, choose a post and continue browsing posts at or beyond its ID. The user also expects this simple mechanism to be useful **outside Topics**.
+**Original motivation.** Continue browsing a followed or ordinary search at a selected post-ID boundary, e.g. a search including `order:id`. Other useful post-relative query edits may be added later.
 
-**User decision (2026-10-20).** **Do not build or persist a separate reading-progress cursor.** Instead add a **post-ID boundary metatag** to the current search query and open the resulting search. This is the chosen minimal feature direction; exact UI placement remains a proposal, not yet explicitly accepted.
+**Agreed design (user, 2026-10-20).** **Modify the CURRENT active search in place**; the original followed/saved Topic's persisted query is unchanged. No separate `Start From Here` flow, no new search route as the default, no persistent reading cursor and no custom Topic-only settings. The user suggests a **generic `Modify Search ›`** entry with an **expandable submenu** of contextually valid query modifications, rather than naming the parent action after ID boundaries only.
 
-**Recommended mobile UI to evaluate.** Use the existing **post context/overflow menu** on the open viewer and, where appropriate, post-grid context menu. Avoid a permanently visible toolbar button. Label the action **Search From Here…** (Title Case per #1). Show a small submenu or bottom sheet with **Newer Posts** and **Older Posts**; the first includes post IDs `>=` the selected ID, and the second `<=` that ID. Show a concise explanatory line with the chosen ID for technical clarity. Inclusive boundaries mean the selected post remains eligible in results. A one-tap context-aware continuation shortcut may be considered later if usage warrants it.
+**Recommended first submenu.** `Posts From Here` (include the selected post and IDs greater than or equal to its ID) and `Posts Until Here` (include the selected post and IDs less than or equal to its ID), or short equivalent `Newer Posts` / `Older Posts`. Further actions (e.g. a supported post-relative exclusion or a tag-based refinement) can be added later without multiplying top-level menu entries. Do not promise unsupported options just to fill the menu. On desktop use a cascading submenu; on mobile a nested context panel or compact bottom sheet, consistent with existing Kurumi context menus.
 
-**Danbooru syntax verified (official cheatsheet).** With source post ID `123456` and source query `my_tag order:id`, **Newer Posts** yields `my_tag order:id id:>=123456`; **Older Posts** yields `my_tag order:id id:<=123456`. Danbooru documents numeric `id:` ranges and ascending `order:id`: https://safebooru.donmai.us/wiki_pages/help%3Acheatsheet . Do not silently change the existing sort order: a filter narrows results, it does **not** itself establish chronological order. Avoid duplicate/conflicting `id:` qualifiers; replace or correctly compose with an existing boundary.
+**Behavior.** If active query is `my_tag order:id` and selected Danbooru post ID is `123456`, the updated active search becomes `my_tag order:id id:>=123456` or `my_tag order:id id:<=123456`. Inclusive boundaries keep the selected post eligible. Preserve explicit sort order, other operators and metatags. If an ID boundary is already present, update/replace or compose it correctly instead of generating contradictory duplicates. Trigger the ordinary active search update and refresh its results. **Do not write changes to the saved Topic, its new-post checkpoint, or its original stored query.** Confirm that active search state is separate from saved Topic state.
 
-**Context and safety.** When starting inside a followed Topic, use its query and profile to build a **temporary new search**; do not quietly edit the saved Topic or its new-post-tracking checkpoint. Elsewhere, use the active search query where available. For multi-profile Feeds, Post IDs from different sites are not comparable: operate against the selected post's **origin profile and source query**, or require the source to be selected, not a global mixed-feed query. Expose this action only on engines whose ID-range search support is confirmed by their capabilities/adapters; never assume Danbooru syntax works on Pixiv or arbitrary Booru implementations. Keep ordinary Back navigation to the unfiltered source.
+**Code integration finding (2026-10-20 `develop`).** `SearchPageScaffold` creates a `SearchPageController` and `SelectedTagController`; `SearchPageController.search()` recomputes `tagString` from `tagsController.rawTagsString` and executes the active search. Post-grid menu hierarchy includes `GeneralPostContextMenu`, `DanbooruPostContextMenu`, and shared `PostContextMenuActions`; the viewer uses `CommonPostPopupMenu` through toolbar/fallback controls. Build a capability-aware `Modify Search` action where there is an **active search context**, and propagate a query-mutation callback from that search into the viewer when the post viewer is pushed on a separate route. A generic global state mutation would risk affecting a different profile/search. If no active search context exists (e.g. a bookmarked post viewed outside Search), hide/disable the submenu or explicitly offer a separate search entry point rather than pretending there is an active query.
 
-**Assessment.** **S–M** UX/code scope. Mostly query composition, capability checking, and context-aware menu navigation. No reading-cursor database migrations needed. No GitHub issue, PR or code changes authorized.
+**Engine/scope restriction.** Confirm each supported engine's ID-range operator before offering the respective command. Danbooru documents `id:` ranges and ascending `order:id`: https://safebooru.donmai.us/wiki_pages/help%3Acheatsheet . In a multi-profile feed, posts from distinct sites do not share an ID namespace; never apply source A's selected post ID to an unrelated profile B query. Use the active source/profile or withhold action where ambiguous.
+
+**Scope.** **S–M** for the Danbooru-first post-relative command and reusable menu framework; defer additional query modifications until useful. No database cursor, issue, PR, code changes or merges authorized.
 
 ---
 
