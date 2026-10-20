@@ -27,6 +27,7 @@ Use the applicable `.agents/skills/<name>/SKILL.md`:
 | [design-change](.agents/skills/design-change/SKILL.md) | Significant architecture, data/migration, subsystem, or UX/state decisions; requested design |
 | [execute-plan](.agents/skills/execute-plan/SKILL.md) | Implement an existing plan or detailed design |
 | [verify-change](.agents/skills/verify-change/SKILL.md) | Requested review or justified additional validation of a large change |
+| [test-android](.agents/skills/test-android/SKILL.md) | Android emulator verification with Maestro and disposable live-data scenarios |
 | [prepare-release](.agents/skills/prepare-release/SKILL.md) | Next release version and changelog; explicitly requested delivery through a GitHub draft |
 
 Default: inspect → implement → scope-appropriate verification → review → report.
@@ -102,8 +103,11 @@ prefer targeted widget tests when they cover this efficiently.
 
 Use an emulator only for necessary device/UI integration. Before any operation,
 read and follow the [exclusive lease procedure](docs/android_emulator.md).
-Use Maestro MCP for UI control. Test accounts are already signed in; read only
-needed entries from ignored `.test_credentials` and never commit or expose them
-in logs, screenshots, issues, responses, or fixtures.
+Use Maestro MCP for interactive UI control. Saved pilot YAML may also run through
+`scripts/android_ui_test.py` under the same lease procedure. Full dev-app resets
+require an explicitly disposable environment and `--confirm-reset`; see the
+[Android UI testing guide](docs/android_ui_testing.md). Preserve other signed-in
+test environments. Read only needed entries from ignored `.test_credentials` and
+never commit or expose them in logs, screenshots, issues, responses, or fixtures.
 
 Report changes, significant decisions, checks actually performed, and limitations.

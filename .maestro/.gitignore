@@ -1,0 +1,7 @@
+# Runtime evidence and locally captured exports are not repository fixtures.
+/screenshots/
+/tests/
+/reports/
+/artifacts/
+/local/
+*.bsexport

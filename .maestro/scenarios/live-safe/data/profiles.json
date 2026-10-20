@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "exportVersion": "4.6.1-timberpile.1",
+  "date": "2026-10-20T00:00:00Z",
+  "data": [
+    {
+      "id": "dcfce94e-433a-4b8d-bd76-70411b82ff61",
+      "booruId": 20,
+      "booruIdHint": 20,
+      "name": "Maestro Live Safe",
+      "url": "https://safebooru.donmai.us/",
+      "apiKey": null,
+      "login": null,
+      "passHash": null
+    }
+  ]
+}

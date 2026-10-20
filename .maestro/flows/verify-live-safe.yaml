@@ -1,0 +1,8 @@
+appId: com.timberpile.boorusama.dev
+---
+# Precondition: live-safe imported, main navigation visible and menu closed.
+- tapOn: 'Menu'
+- assertVisible: 'Maestro Live Safe'
+- assertNotVisible: 'Default profile'
+- back
+- assertVisible: 'Browse'

@@ -1,0 +1,9 @@
+appId: com.timberpile.boorusama.dev
+---
+# Run after prepare --scenario live-safe. Do NOT prepare between these restarts.
+- runFlow: common/launch.yaml
+- runFlow: verify-live-safe.yaml
+- stopApp
+- runFlow: common/launch.yaml
+- runFlow: verify-live-safe.yaml
+- takeScreenshot: imported-profile-after-restart
