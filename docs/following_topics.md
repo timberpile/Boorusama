@@ -8,7 +8,7 @@ profile's authentication and image fallback.
 
 The approved requirements are in the [design](superpowers/specs/2026-09-14-pinned-searches-design.md)
 and the task-by-task [implementation plan](superpowers/plans/2026-09-14-pinned-searches.md).
-The later [bounded-refresh decision](work/done/PS-001-bounded-newest-post-refresh.md)
+The [bounded chronological snapshot behavior](#bounded-chronological-snapshots)
 supersedes their exhaustive scanning and numeric unread-count requirements.
 
 ## Current UI and compatibility
@@ -93,7 +93,7 @@ routes use these terms. Persisted contracts remain centralized in
 - Pixiv's native artist-following stream and AnimeBoxes input schema names describe
   external features/formats and are distinct from local Topics.
 
-## Unified Following (work item 0035)
+## Unified Following
 
 Following Topics provides one destination for topic queries and folder feeds on
 mobile and desktop. Topics retain the existing cards, folder browser,
@@ -304,7 +304,7 @@ result count while retaining JSON support for other sites. Totals and upload
 times are not used for NEW detection.
 
 Engine capability adapters and unsupported-profile explanations are tracked
-separately in [PS-005](work/done/PS-005-engine-refresh-adapters.md).
+separately in the engine-specific query adapters described in this section.
 
 ## Manual batch and concurrent operations
 

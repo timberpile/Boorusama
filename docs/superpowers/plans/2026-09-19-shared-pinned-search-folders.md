@@ -1,5 +1,10 @@
 # Shared Pinned-Search Folders Implementation Plan
 
+> **Historical implementation plan (completed).** Do not execute these steps
+> as a new task. Use the current subsystem docs and GitHub Issues for future
+> work. Retired local-ticket procedures below are not applicable.
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Show one pinned-search collection with shared folders and Home, while every search keeps its owning profile for navigation and refresh.
@@ -24,7 +29,7 @@
 - Before restoring a backup with unmatched profile references, obtain confirmation before any selected ZIP or server-transfer source imports. Match against backup profiles when that source is selected, or current profiles otherwise. Cancel aborts the entire restore; headless import with unmatched references aborts.
 - Keep user-facing copy in `packages/i18n/translations/en-US.json` and use `context.t`; run `./gen.sh` after changing translations.
 - Use manually declared Riverpod providers, `Equatable` where value equality matters, and `fvm` for all Flutter/Dart commands.
-- Claim PS-018 before implementation and follow `docs/development_workflow.md` for branch and delivery steps. The completed task record is `docs/work/done/PS-018-rework-pinned-search-folder-navigation.md`.
+- PS-018 was completed under the former local queue. Use the current [Following Topics](../../following_topics.md) and GitHub issue workflow for future work.
 
 ## Review Focus
 
@@ -49,7 +54,7 @@
 - `lib/core/backups/widgets/pinned_search_missing_profiles_dialog.dart` (new): localized accept/cancel warning.
 - `lib/core/configs/manage/src/providers/booru_config_provider.dart` and `lib/core/backups/sources/booru_configs_source.dart`: compensate profile deletion/import using shared organization snapshots.
 - `packages/i18n/translations/en-US.json` and generated i18n files: `[Home]`, Manage folders, owner and deletion copy, and restore warning.
-- `docs/pinned_searches.md` and `docs/work/PS-018` at its current queue location: update architectural behavior and record verification.
+- `docs/following_topics.md`: record architectural behavior; evidence belongs in the task handoff.
 
 Do not expand the existing page with repository mutation logic. Keep storage invariants in the repository and use the notifier for commands. Keep the backup profile preflight outside the import mutation and before multi-source execution, so cancel cannot leave a partial restore. Add shared APIs alongside the old profile-folder APIs through Task 6; delete the latter only in Task 7 after every caller has moved.
 
@@ -564,8 +569,8 @@ if (choice.createName case final name?) {
 ### Task 8: Integration verification and documentation
 
 **Files:**
-- Modify: `docs/pinned_searches.md`
-- Modify: the claimed PS-018 task record (now `docs/work/done/PS-018-rework-pinned-search-folder-navigation.md` after verified completion)
+- Modify: `docs/following_topics.md`
+- Historical completion evidence remains in Git history, not a task Markdown file.
 - Test: focused files listed in Tasks 1–7 plus the full Flutter suite
 
 **Interfaces:**
@@ -574,5 +579,5 @@ if (choice.createName case final name?) {
 
 - [ ] **Step 1: Run static and automated checks.** Run `fvm dart format` on changed Dart files, `fvm flutter analyze`, and `fvm flutter test`. Record counts and any remaining failures; fix only failures caused by this feature, rerunning the focused test first.
 - [ ] **Step 2: Validate Android flows with Maestro MCP.** On the available emulator, verify Home-only display, mixed-profile folder contents and footnotes, Create folder from Move to folder, owner-aware opening, folder refresh, and confirmed/canceled destructive deletion. Record observed results separately from automated checks.
-- [ ] **Step 3: Update documentation and the task file.** Replace the old profile-owned folder description in `docs/pinned_searches.md`. Record verification and handover in PS-018. Move it to `docs/work/done/` only if every acceptance criterion is verified; otherwise document the remaining blocker in its queue file.
+- [ ] **Step 3 (historical): Update subsystem documentation.** Record accepted behavior in `docs/following_topics.md` and verification/limitations in the normal task handoff; do not recreate the local queue.
 - [ ] **Step 4: Check the final diff and commit.** Run `git diff --check`, inspect staged paths, and commit only related documentation or final fixes with conventional summaries. Follow the repository PR workflow for delivery; do not merge without explicit user approval.

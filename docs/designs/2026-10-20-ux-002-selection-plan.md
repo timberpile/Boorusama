@@ -1,5 +1,11 @@
 # UX-002: revised selection and action implementation plan
 
+> **Historical, completed design plan.** Selection reached `develop` in `fd7ae8e`.
+> The execution steps and former ticket paths below document the 2026-10-20
+> implementation, not the present work queue. Use the
+> [post architecture](../post_architecture.md#selection-and-bounded-mixed-origin-preloading)
+> for current behavior and [GitHub Issues](../issue_workflow.md) for new tasks.
+
 Date: 2026-10-20
 
 Repository: `timberpile/Boorusama`
@@ -12,7 +18,7 @@ Status: implementation-ready planning revision; no runtime changes or execution 
 
 Implement the existing **UX-002 — Unified Post Selection and Action System**, including the user's subsequent decision to reuse working **Long Press + Drag** wherever existing multi-selection is offered. The user tested the current gesture and approved it. Do not replace it with two separate long presses or build a new drag-selection engine.
 
-Read the existing `docs/work/ready/UX-002-unified-post-selection-and-actions.md` together with this revision. The original single/multiple-post action requirements remain in scope; this is not merely a drag wrapper task. This revision supersedes outdated dependency, source-location, gesture, and lifecycle assumptions, not the rest of the approved UX-002 behavior.
+The original UX-002 ticket is preserved in [Git history](https://github.com/timberpile/Boorusama/blob/3bf372bb01ba475659059b459ed3949b39d3cea1/docs/work/ready/UX-002-unified-post-selection-and-actions.md) together with this historical revision. The original single/multiple-post action requirements remain in scope; this is not merely a drag wrapper task. This revision supersedes outdated dependency, source-location, gesture, and lifecycle assumptions, not the rest of the approved UX-002 behavior.
 
 The earlier documentation branch `docs/ux-002-existing-drag-selection-20261011` is historical context, not the current implementation base. At the reviewed develop commit, UX-002 still has blob `9ad25be1144571de124527ec530c8eed7a90b0a8`, without that branch's drag-selection extension. Some other tasks have migrated to issues, but UX-002 remains a legacy work item. Do not recreate or migrate it merely because the repository now prefers issues for new tasks.
 
@@ -22,7 +28,7 @@ Deliver one coherent implementation in an isolated task worktree. Preserve exist
 
 | Reviewed fact | Consequence for implementation |
 | --- | --- |
-| BM-008 is under `docs/work/done/`; bookmark actions already implement group-specific removal and Undo. | Treat BM-008 as an integrated dependency. Reuse its services and protect their semantics; do not rebuild its migration or reintroduce global deletion. |
+| BM-008 was completed; bookmark actions already implement group-specific removal and Undo. | Treat BM-008 as an integrated dependency. Reuse its services and protect their semantics; do not rebuild its migration or reintroduce global deletion. |
 | Following Topics now supplies the former pinned-search/following workflows. Its collection selection uses separate folder/topic ID sets. | Target `lib/core/search/following_topics/`, not obsolete Pinned Search/subscription page assumptions. Preserve recursive folder actions and independent duplicate Topics. |
 | Post grids and Following Topics report active selection through `NavigationSelectionBridge`; destination activity/profile scoping now matters. | Retain the bridge and its active-owner semantics, and prevent offstage destinations from handling shortcuts or changing navigation chrome. |
 | Kurumi context menus now support touch and mouse concurrently, keyboard opening, focus restoration, and Back handling. | Suppress only the conflicting touch-long-press entry point. Do not disable all menu triggers and inadvertently remove right-click or keyboard access. |
@@ -144,7 +150,7 @@ Reserve the actual footer height rather than retaining the old 72/36-pixel assum
 
 ## 8. Implementation sequence
 
-1. **Baseline and inventory.** Re-read current HEAD, work-item claims, repository instructions, and resolved dependency code. Record the actual selectable surfaces and characterize the working drag behavior before editing it.
+1. **Baseline and inventory.** Re-read current HEAD, existing issue claims, repository instructions, and resolved dependency code. Record the actual selectable surfaces and characterize the working drag behavior before editing it.
 2. **Stable state bridge.** Implement the smallest ordered identity/index adapter and tests for mixed origins, typed collection keys, offscreen items, scope changes, and mutation reconciliation. Establish one authoritative selection state.
 3. **One real post-grid slice.** Wire touch, modifiers, and menu precedence through actual grid widgets; preserve existing custom gestures and desktop/keyboard menus. Validate the slice before spreading it to every caller.
 4. **Post action and layout integration.** Share single/bulk action execution, retain BM-008 services, remove header/scroll compensation, and add the responsive measured bottom controls. Preserve navigation ownership.

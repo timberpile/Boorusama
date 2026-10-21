@@ -1,9 +1,9 @@
 # GitHub issue workflow
 
-GitHub Issues are the source of task identity and status for new tracked work in
-`timberpile/Boorusama`. Ordinary scoped changes still need no issue, and PRs remain
-explicitly requested, not mandatory. Existing unmigrated work items continue under
-[legacy queue rules](work/README.md). A task has one tracker, never two mirrors.
+GitHub Issues are the sole source of task identity and status for tracked work in
+`timberpile/Boorusama`. Ordinary scoped changes still need no issue, and PRs
+remain explicitly requested, not mandatory. Do not mirror tasks in repository
+Markdown files or allocate local ticket numbers.
 
 ## Issue writing
 
@@ -80,8 +80,8 @@ issue-migration automation is required.
 
 ## Starting and coordinating work
 
-Search open and closed GitHub issues and related legacy work before creating a
-new issue. Reuse the actual GitHub number; never allocate one locally. Creating
+Search open and closed GitHub issues, relevant subsystem documentation and
+existing task branches before creating a new issue. Reuse the actual GitHub number; never allocate one locally. Creating
 an issue records a task, not permission to implement it. Follow the user's scope.
 
 For authorized issue work, read its current description, linked requirements,
@@ -174,15 +174,17 @@ knowledge into appropriate documentation. Do not commit raw logs simply to keep
 them alive, but do not delete the only copy of information needed to continue.
 Existing automatic cleanup and authorization rules still apply.
 
-## Transition
+## Retired local task queue
 
-This foundation does not migrate, close, or relabel existing tasks. Unmigrated
-legacy tasks remain workable in their current tracker and branch. A later,
-explicit migration may move only genuinely unstarted tasks after checking actual
-implementation and claims, not just their directory. Begun and completed tasks
-stay legacy. Keep that migration small and manual; no new tracking database or
-synchronization service is needed. When integrating old branches, do not restore
-new local-ticket allocation rules or duplicate a task already migrated to GitHub.
+The previous repository-local work-item queue is retired. GitHub Issues now
+track every future queued task, while durable requirements and engineering
+decisions live in relevant subsystem documentation or `docs/designs/`.
+Historical completion evidence is accessible in the repository's Git
+history (the final pre-removal tree is
+[`1d2cc36`](https://github.com/timberpile/Boorusama/tree/1d2cc367a5e5691c7005cf9d438930f3c6c5ed8b/docs/work)).
+This history is not a live queue. Do not restore old folders, local
+status transitions, ticket allocation, or a second issue mirror.
 
-Templates become visible in GitHub's issue chooser when their files reach the
-default branch. Preparing labels alone does not activate branch-local templates.
+Templates become visible in GitHub's issue chooser when their files reach
+the default branch. Preparing labels alone does not activate branch-local
+templates.

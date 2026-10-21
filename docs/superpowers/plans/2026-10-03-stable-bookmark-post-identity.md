@@ -1,5 +1,10 @@
 # Stable Bookmark Post Identity Implementation Plan
 
+> **Historical implementation plan (completed).** Do not execute these steps
+> as a new task. Use the current subsystem docs and GitHub Issues for future
+> work. Retired local-ticket procedures below are not applicable.
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Identify bookmarks by installation and stable upstream post key across profiles and engine metadata changes.
@@ -8,7 +13,7 @@
 
 **Tech Stack:** Dart, Flutter, Hive, `.bsexport` source codecs.
 
-**Spec:** `docs/work/done/IDEA-004-stable-bookmark-post-identity.md`
+**Durable specification:** [Bookmark identity and backup compatibility](../../bookmark_groups.md#backup-compatibility).
 
 ## Global Constraints
 

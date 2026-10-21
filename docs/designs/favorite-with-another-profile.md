@@ -24,4 +24,4 @@ Two configured profiles of the same remote account are not separate server-side 
 
 ## Boundaries
 
-No bulk fetch, automatic server Favorite sync, or changes to local bookmark membership are part of this feature. See [Post architecture](../post_architecture.md), [existing profile-scoped favorite handling](../work/done/POST-007-key-moebooru-favorites-by-profile.md), and the separate [server-favorites import design](server-favorites-bookmark-groups.md).
+No bulk fetch, automatic server Favorite sync, or changes to local bookmark membership are part of this feature. See [Post architecture](../post_architecture.md), existing profile-scoped favorite handling, and the separate [server-favorites import design](server-favorites-bookmark-groups.md).

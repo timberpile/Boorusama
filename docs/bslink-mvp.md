@@ -107,8 +107,9 @@ The initial editing environment had no Flutter/FVM SDK. Local integration on
 2026-10-20 subsequently regenerated the merged translations, formatted the Dart
 changes, passed focused analysis, completed the full application/package/CLI/
 tooling gate, and built the combined Android dev APK. The integration combines
-feature tip `7bb59ee85` with develop base `7d58c7d867`; its commands, results and
-test corrections are recorded in the [POST-009 task](work/done/POST-009-share-links-that-open-posts-in-boorusama.md).
+feature tip `7bb59ee85` with develop base `7d58c7d867`; the source/test evidence is retained in Git history. The current contract
+is documented in [Post architecture](post_architecture.md#portable-boorusama-post-links)
+and this MVP document.
 No patch files, standalone test scripts, or CI workflows are included. The
 reported messenger limitations above and outstanding Apple/device acceptance
 remain documented; integration does not claim those checks were repeated.

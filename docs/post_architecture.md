@@ -205,6 +205,37 @@ returning to the page.
 Container-owned state stays outside the post presentation. Examples are a
 feed's `NEW` marker and bookmark-group actions.
 
+## Selection and bounded mixed-origin preloading
+
+Post grids and other existing multi-select collections use stable,
+origin-aware identities rather than raw upstream numeric IDs or visual list
+indices. Mobile Long Press enters selection by default when no custom gesture
+is configured; explicit overrides remain respected. In active selection mode,
+taps toggle entries and hold-and-drag can select loaded ranges. Desktop
+Ctrl/Cmd+Click and Shift-modified range operations share the same selection
+model. Page navigation, headers, filters and sorting remain available, with
+selection controls and supported post actions in the bottom action area.
+Filtering or changing the query reconciles/clears selection so hidden items
+cannot receive unintended actions. Do not create new selection modes in
+single-choice controls.
+
+Single-post and multi-post actions use shared dispatch and origin-specific
+capability checks. Common actions may span compatible mixed-engine bookmarks,
+while unavailable engine-specific actions do not silently affect a supported
+subset. Each post uses its originating profile's credentials and media rules;
+no bulk action switches the global browsing profile. Bookmark membership and
+Undo continue using the shared bookmark library semantics.
+
+Mixed-profile preloading resolves only the strategy's nearby index window,
+then groups media requests by the owning profile. It does not build a
+full-collection URL index at each page boundary. Cancellation inspects active
+requests against the desired nearby URLs, and a late cancelled request cannot
+clear a newer request for the same URL. The preload completion history is
+consulted without copying the full set on every swipe; detached page listeners
+must not accumulate after controller replacement. This keeps planning work
+bounded for large mixed-origin collections, independently of any claimed
+physical-device frame-time improvement.
+
 ## Shared image cache
 
 Ordinary posts, bookmark grids, group previews, viewers and preloading use the

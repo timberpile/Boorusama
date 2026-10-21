@@ -30,4 +30,4 @@ Record which areas were actually inspected and any remaining gaps, without claim
 
 This is a diagnostic-quality improvement, not a wholesale logging framework, blanket network-payload logging, or universal debug switch. Reuse existing facilities wherever practical.
 
-See [post architecture](../post_architecture.md), [export/import privacy design](../superpowers/specs/2026-10-01-unified-export-import-design.md), and [existing bookmark recovery](../work/done/POST-008-silently-recover-incomplete-bookmarks-on-open.md).
+See [post architecture](../post_architecture.md), [export/import privacy design](../superpowers/specs/2026-10-01-unified-export-import-design.md), including the bookmark-recovery behavior documented there.

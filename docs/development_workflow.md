@@ -7,12 +7,12 @@ file covers isolation, authorization, integration, publication, and branch histo
 
 By default, create or reuse an isolated task branch/worktree before changing
 repository files. Exception: an explicitly requested small, predictable change
-that is not a work item and for which no review is requested or warranted may be
+that is not tracked by a GitHub Issue and for which no review is requested or warranted may be
 implemented and verified directly on clean local `develop`, in one scoped commit,
 without further approval. This permits direct edits and a local commit only,
 not merging or integrating a task branch. If uncertainty arises or scope grows
 beyond this exception, move the change into a task worktree before continuing.
-GitHub issues and legacy work items always require their own task branch/worktree. The full regression
+GitHub Issues always require their own task branch/worktree. The full regression
 gate for develop also applies to direct local develop commits; qualification of
 the unchanged runtime candidate can be reused for documentation-only updates.
 
@@ -207,10 +207,10 @@ A release PR behind `master` needs this synchronization before its checks rerun.
 ## Issue descriptions
 
 Follow the [issue workflow](issue_workflow.md) for concise descriptions, labels,
-claims, completion, and documentation. New tracked tasks use GitHub Issues;
-existing unmigrated tasks retain the [legacy queue](work/README.md). Issues and
-PRs are not mandatory for ordinary scoped changes. Do not mirror task status
-between the two systems or migrate legacy work during normal implementation.
+claims, completion, and documentation. GitHub Issues are the only tracker for new tasks. Issues and PRs are not
+mandatory for ordinary scoped changes. Historical repository work-item files
+are available in Git history only; never recreate that queue or mirror issue
+status in local Markdown tickets.
 
 ## Exclusive Android emulator procedure
 

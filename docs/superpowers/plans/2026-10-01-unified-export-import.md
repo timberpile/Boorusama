@@ -1,5 +1,10 @@
 # Unified Export and Import Implementation Plan
 
+> **Historical implementation plan (completed).** Do not execute these steps
+> as a new task. Use the current subsystem docs and GitHub Issues for future
+> work. Retired local-ticket procedures below are not applicable.
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Replace Boorusama's overlapping backup and sharing paths with one safe `.bsexport` workflow for complete personal backups and partial collection sharing.
@@ -265,7 +270,7 @@
 - Modify: `lib/core/backups/zip/backup_notifier.dart`
 - Modify: `docs/bookmark_groups.md`
 - Modify: `docs/pinned_searches.md`
-- Modify: `docs/work/in-progress/DATA-001-unified-export-import.md`
+- Historical task status files have been retired; keep durable backup details in subsystem docs.
 - Test: existing and new tests under `test/core/backups/`
 
 **Interfaces:**
@@ -278,5 +283,5 @@
 - [ ] **Step 4: Remove old user-facing source file/clipboard and bulk ZIP output actions after all callers have migrated.** Preserve source codecs and legacy import tests.
 - [ ] **Step 5: Run `./gen.sh`, `fvm dart format` on changed Dart files, focused backup tests, `fvm flutter test`, `fvm flutter analyze`, and `git diff --check`.** Expected: all exit 0.
 - [ ] **Step 6: Build/install the development Android app and use Maestro to verify Full export, custom group export, template reuse, file-picker import, applicable Update/Merge choices, preflight, and a safe confirmed import.** Record screenshots/results without credentials.
-- [ ] **Step 7: Update subsystem docs and the work item with exact evidence; move the work item to `docs/work/done/` only when every acceptance criterion is verified.**
+- [ ] **Step 7 (historical): Update subsystem docs and the task handoff with exact evidence; use GitHub issue status for any tracked follow-up.**
 - [ ] **Step 8: Commit.** `feat(backups): complete unified export import migration`

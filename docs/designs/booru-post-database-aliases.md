@@ -23,4 +23,4 @@ The same verified database identity can later determine which alternative profil
 
 Confirm whether the Donmai safe and primary hosts truly expose shared stable post IDs; establish the migration/conflict rules before writing user-data changes.
 
-Related architecture: [Bookmarks](../bookmark_groups.md), [Posts](../post_architecture.md), [existing stable bookmark identity](../work/done/IDEA-004-stable-bookmark-post-identity.md), and [alternative-profile favorite design](favorite-with-another-profile.md).
+Related architecture: [Bookmarks](../bookmark_groups.md), [Posts](../post_architecture.md), [stable bookmark identity](../bookmark_groups.md#backup-compatibility), and [alternative-profile favorite design](favorite-with-another-profile.md).

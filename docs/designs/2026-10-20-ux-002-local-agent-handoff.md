@@ -1,5 +1,11 @@
 # Local-agent handoff: implement UX-002 with existing drag selection
 
+> **Historical, completed handoff.** Unified selection is integrated on `develop`
+> as `fd7ae8e`. Instructions below describe the original agent assignment;
+> do not execute them or recreate repository-local work items. See
+> [current post architecture](../post_architecture.md#selection-and-bounded-mixed-origin-preloading)
+> and [GitHub issue workflow](../issue_workflow.md).
+
 Date: 2026-10-20
 
 Repository: `timberpile/Boorusama`
@@ -20,12 +26,12 @@ The revised plan resolves current-code differences and lifecycle rules. Read it 
 
 At the planning baseline:
 
-- UX-002 is still `docs/work/ready/UX-002-unified-post-selection-and-actions.md`.
-- BM-008 is already integrated and documented in `docs/work/done/`.
+- At planning time, UX-002 was a local ticket. Its historical contents are [in Git](https://github.com/timberpile/Boorusama/blob/3bf372bb01ba475659059b459ed3949b39d3cea1/docs/work/ready/UX-002-unified-post-selection-and-actions.md).
+- The completed bookmark membership semantics are documented in [bookmark groups](../bookmark_groups.md).
 - The old `docs/ux-002-existing-drag-selection-20261011` branch contains an earlier planning amendment, not the current implementation base. Do not blindly cherry-pick its old ticket over newer work.
 - This planning session made no remote repository changes and performed no build, application tests, or device acceptance runs.
 
-Read current `AGENTS.md`, `.agents/skills/execute-plan/SKILL.md`, `docs/development_workflow.md`, `docs/work/README.md`, and the relevant engineering and emulator instructions. Repository-local workflow takes precedence over stale workflow text in older plans. Do not automatically invoke Superpowers or create a PR.
+Read current `AGENTS.md`, `.agents/skills/execute-plan/SKILL.md`, `docs/development_workflow.md`, `docs/issue_workflow.md`, and the relevant engineering and emulator instructions. Repository-local workflow takes precedence over stale workflow text in older plans. Do not automatically invoke Superpowers or create a PR.
 
 Inspect the current checkout, worktrees, branch claims, and remote head before changing files:
 
@@ -128,7 +134,8 @@ A complete suite pass can be reused only for the same runtime candidate; documen
 
 ## 5. Completion report
 
-Commit task changes locally in coherent increments. Keep work-item status truthful; do not move to done until its criteria are verified. A blocked task should retain exact remaining scope and evidence, not be marked complete.
+Commit task changes locally in coherent increments. This historical plan originally tracked acceptance in a local ticket. New work
+must use a GitHub Issue and report verification in its ordinary task handoff.
 
 Report the checked commit/base, changed behavior, surface coverage, significant design decisions, exact commands and outcomes, package/application/full-suite results, device coverage, and remaining limitations. Distinguish local task completion from integration readiness and publication authorization.
 

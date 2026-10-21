@@ -1,10 +1,15 @@
 # Compact import change preview implementation plan
 
+> **Historical implementation plan (completed).** Do not execute these steps
+> as a new task. Use the current subsystem docs and GitHub Issues for future
+> work. Retired local-ticket procedures below are not applicable.
+
+
 **Goal:** Implement the approved DATA-015 mockup as a compact, accurate review of the resolved import before writes.
 
 **Architecture:** Keep existing executor-aware local/projected collection maps and validation summaries; attach immutable display rows to those summaries. Display counts derive from those rows rather than storage entities, so memberships and group entities count consistently and feed internal searches do not duplicate feed changes. Generic sources use their current executor semantics: settings and global tag lists replace, SQLite gets an explicit opaque database-replacement limitation.
 
-**Spec:** [DATA-015](../../work/in-progress/DATA-015-compact-import-change-preview.md) and [approved mockup](../mockups/2026-10-05-compact-import-change-preview.html).
+**Current context:** [Bookmark import/merge compatibility](../../bookmark_groups.md#backup-compatibility). The originally approved mockup was a temporary artifact and is not a supported current implementation reference.
 
 **Constraints:** Same ticket/worktree; fvm; localize user-facing text; all secret display values masked in projection; no mutation before confirmation; existing transaction/revision protection preserved; no commit/integration/publication/device use without coordinator allocation.
 

@@ -1,10 +1,11 @@
-# GIF Trim editor — local manual-review handoff
+# GIF Trim editor
 
-This follow-up implements the approved Variant A interaction on
-`feature/guided-gif-loop-refinement`, based on
-`6605c630974517b4b7f46459dc87819516d89288`. It is not a redesign of the matcher.
-The current branch's 500-ms refinement cap, thresholds, autoplay/held-position
-resume, transient controls, and background-intent behavior are retained.
+The integrated editor uses the approved overview/detail Trim dialog. Guided
+loop refinement, preview-only decoded-frame looping, resume behavior and
+background intent are part of the current implementation. The matcher has a
+500-ms maximum boundary search radius; preview speed is separate from encoded
+GIF speed. Historical development and device acceptance notes remain available
+in Git history.
 
 ## Interaction
 
@@ -38,6 +39,19 @@ not continually auto-fit the selection while a handle is being dragged.
 Initial and regional thumbnail requests are removed from this editor path. The
 legacy thumbnail backend/data types remain for compatibility; this is not an
 unrelated deletion of every thumbnail utility or existing test.
+
+## Guided refinement behavior
+
+**Refine Loop** is available for a shortened source selection and runs only on
+request. The service examines source-frame timestamps near the selected start
+and end, with a conservative radius (25% of the chosen duration, capped at
+500 ms per boundary). It preserves presentation timestamps, rejects static
+or visually uninformative matches, distinguishes verified repetitions from
+plausible but unverified seams, and leaves the selection untouched when no
+reliable candidate exists. Decoding and matching are bounded; cancellation,
+source changes and newer trim edits invalidate outstanding results. Applied
+refinements adjust only start/end and can be undone without changing export
+settings. Native decoding constraints impose no new GIF export limits.
 
 ## Preview seam mechanism
 
@@ -182,4 +196,6 @@ English/German, and scrolling to Original without a second line.
 The requester will assess refinement accuracy, touch interaction and displayed
 loop continuity with their own videos. No Danbooru corpus, downloads of real
 samples or additional manual sample-verification campaign is required here.
-Keep work item 0033 in progress until the remaining acceptance is satisfied.
+This implementation has reached `develop`. The protocol above remains useful
+for manual regression checks; newly discovered defects belong in GitHub Issues,
+not in a restored local work-item queue.

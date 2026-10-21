@@ -97,6 +97,17 @@ therefore preserves the local name while replacing membership and removing
 newly orphaned bookmarks. All conflict choices are collected before storage is
 changed, so cancelling a conflict dialog cancels the whole import.
 
+## Automatic backup retention
+
+Automatic backup retention is **count-based**, not age-based. The settings UI
+supports keeping 2, 3, 4, 5, 7, 14, 30, 60 or 90 backup files. New settings and
+records without a saved choice default to **30**; existing explicitly saved
+positive limits are preserved. Cleanup occurs after a successful automatic
+backup, using the existing retention service. Keeping 30 backups represents
+roughly 30 days only if one backup actually succeeds each day, and can increase
+local storage usage. This setting does not change `.bsexport` format or group
+membership behavior.
+
 ## Name dialog lifecycle
 
 Create, rename, duplicate, and create-and-add share the name dialog. Its widget
