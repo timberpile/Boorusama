@@ -1,5 +1,7 @@
 # Clarify pinned-search Info and the last refresh outcome
 
+> **Archive disposition (2026-10-20): Completed on `develop`.** The implementation is integrated. Earlier claims, status text, outstanding manual checks and verification notes below are historical, not an active local task.
+
 Priority: Normal
 Affected feature: Pinned-search Info dialog
 

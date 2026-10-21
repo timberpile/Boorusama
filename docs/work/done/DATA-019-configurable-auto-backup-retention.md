@@ -1,8 +1,10 @@
 # Allow longer automatic backup retention
 
+> **Archive disposition (2026-10-20): Completed on `develop`.** The implementation is integrated. Earlier claims, status text, outstanding manual checks and verification notes below are historical, not an active local task.
+
 Priority: Normal
 Affected feature: Automatic backup settings and retention
-Status: In progress
+Status: Done (implemented on develop)
 Agent/session: ChatGPT (GitHub connector, 2026-10-09)
 Branch: `feature/extended-auto-backup-retention`
 Worktree: Not available in the connector environment; changes are isolated on this branch.

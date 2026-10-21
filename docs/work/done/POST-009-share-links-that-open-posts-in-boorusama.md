@@ -1,5 +1,7 @@
 # Posts über „Boorusama link“ direkt in der App öffnen
 
+> **Archive disposition (2026-10-20): Completed on `develop`.** Portable Boorusama post/search link files were integrated in `9be0d3e` (`feat(links): add portable post and search link files`). Earlier in-progress status and manual acceptance notes below document historical branch work, not a pending repository work item.
+
 Priority: Normal
 Affected feature: Post-Sharing, URI-Empfang und Profilauflösung
 Claimed by: ChatGPT, 2026-10-16

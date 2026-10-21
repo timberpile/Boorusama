@@ -1,5 +1,8 @@
 # Show available artist profile images in post information
 
+> **Legacy disposition (2026-10-21).** Migrated to [GitHub issue #69](https://github.com/timberpile/Boorusama/issues/69), the only current tracker. Original design and implementation questions below are historical. This file is read-only history, not a separate task tracker.
+
+
 Priority: Normal
 Affected feature: Artist identity and post information
 Status: Frozen at user request on 2026-10-08; design unresolved.

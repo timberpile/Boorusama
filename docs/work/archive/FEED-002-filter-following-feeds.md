@@ -1,5 +1,8 @@
 # Filter Following Feeds by name and profile
 
+> **Legacy disposition (2026-10-21).** Superseded. The unified Following Topics collection has local name/query and profile filtering; the separate legacy feed overview and all old UI-specific rules were not implemented. No new issue is planned. This file is read-only history, not a separate task tracker.
+
+
 Priority: Normal
 Affected feature: Following Feeds overview
 

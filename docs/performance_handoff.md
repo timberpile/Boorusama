@@ -16,7 +16,7 @@ acceptance. Keep populated-cache A/B measurement separate from local test eviden
 
 
 This branch now incorporates develop at `a46521eced78ae2f31a5c2517a43fc2e4e4a6072` and the checkpoint
-worker follow-up. Start with `docs/work/in-progress/0001-background-image-cache-checkpoints.md`
+worker follow-up. Start with `docs/work/done/0001-background-image-cache-checkpoints.md`
 (or the same filename under `blocked/` after verification). Earlier preparation
 notes below describe the historical diagnostics-only baseline, not the current
 cache algorithm. See `docs/checkpoint_verification.json` when present for actual

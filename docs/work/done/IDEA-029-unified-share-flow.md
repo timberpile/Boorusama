@@ -1,5 +1,7 @@
 # IDEA-029 — Unified Share and Copy flow
 
+> **Archive disposition (2026-10-20): Completed on `develop`.** The implementation is integrated. Earlier claims, status text, outstanding manual checks and verification notes below are historical, not an active local task.
+
 - Priority: High
 - Feature: post detail and viewer sharing on `feature/29-unified-share-flow`
 - Claimed by: `/root/implement_29_unified_share`, 2026-10-02; UX follow-up by `/root/fix_29_share_sheet_consistency`, 2026-10-03

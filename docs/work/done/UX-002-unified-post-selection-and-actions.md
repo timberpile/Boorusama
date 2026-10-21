@@ -1,5 +1,8 @@
 # UX-002 — Unified Post Selection and Action System
 
+> **Archive disposition (2026-10-21): Completed on `develop`.** Unified post and collection selection was integrated by commit [`fd7ae8e`](https://github.com/timberpile/Boorusama/commit/fd7ae8e63b9ecd1472167e6b9f95542f22efe170). The pending integration, worktree, and manual validation notes below are historical, not a live task status.
+
+
 Priority: Normal
 
 Affected features: Post Grid, Post Context Menus, multi-selection, Bookmark actions, Downloads, Booru-specific actions, gestures, desktop input, navigation

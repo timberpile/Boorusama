@@ -1,5 +1,7 @@
 # Prepare 4.5.0-timberpile.3 release metadata and notes
 
+> **Archive disposition (2026-10-20): Completed historical release preparation.** The 4.5.0-timberpile.3 version and changelog are part of the subsequent release history. Old statements about pending review/integration below are historical, not current task status.
+
 Priority: High
 Affected feature: Local develop release preparation
 

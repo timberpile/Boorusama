@@ -1,11 +1,13 @@
 # 0001 - Bound post viewer swipe work
 
+> **Archive disposition (2026-10-20): Completed on `develop`.** The implementation is integrated. Earlier claims, status text, outstanding manual checks and verification notes below are historical, not an active local task.
+
 - Priority: High
 - Feature: Search and bookmark post viewers, including mixed-engine collections
 - Base: `develop` at `f4972eb54119fce98360c4c2303bbce375b8e722`
 - Branch: `fix/post-viewer-swipe-performance`
 - Agent/session: Codex local continuation, 2026-10-10
-- Status: Local corrections implemented; physical-device acceptance remains open. Full-suite evidence and final-repeat logs are recorded below.
+- Status: Done (implemented on develop; historic device verification notes below)
 - Worktree: `/home/timber/code/Boorusama/.worktrees/post-viewer-swipe-performance` (full checkout on the existing task branch).
 
 ## Problem

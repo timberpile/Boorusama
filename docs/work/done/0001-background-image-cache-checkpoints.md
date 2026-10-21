@@ -1,5 +1,7 @@
 # Move image-cache checkpoint preparation off the UI isolate
 
+> **Archive disposition (2026-10-20): Completed on `develop`.** The implementation is integrated. Earlier claims, status text, outstanding manual checks and verification notes below are historical, not an active local task.
+
 - **Priority:** High
 - **Feature:** Native image cache; performance diagnostics
 - **Branch:** `fix/cache-performance-diagnostics`

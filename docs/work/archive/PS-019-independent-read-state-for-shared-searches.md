@@ -1,5 +1,8 @@
 # Consider independent read state across feeds sharing an internal search
 
+> **Legacy disposition (2026-10-21).** Accepted existing shared read-state behavior. See [Following Topics](../../following_topics.md); no independent per-feed read-state change is planned. This file is read-only history, not a separate task tracker.
+
+
 Priority: Low
 Affected feature: Following feeds
 

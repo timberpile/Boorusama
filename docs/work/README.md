@@ -1,62 +1,41 @@
-# Legacy repository task queue
+# Legacy work-item archive
 
-These rules apply only to existing, unmigrated repository work items. New tracked
-tasks use [GitHub Issues](../issue_workflow.md); ordinary changes still need no
-ticket. Do not create new local ticket numbers or mirror a GitHub issue here.
-Only tasks still present under this queue belong to the legacy workflow.
-Previously unstarted tasks explicitly migrated to GitHub are tracked by their
-GitHub issue numbers, with any detailed specifications under docs/designs/.
-Begun, blocked, and completed tasks stay in this workflow. Migration of genuinely
-unstarted tasks is a separate, explicitly requested operation; check actual work
-and claims across branches/worktrees rather than trusting the `ready/` folder.
-Keep any existing `active/` records until their individual state is reconciled.
-Work items always require a dedicated task branch/worktree; the small-change
-exception in the [development workflow](../development_workflow.md#isolation-and-small-changes)
-does not apply.
+**Historical records reconciled on 2026-10-21.** GitHub Issues are the only
+tracker for new work. Do not claim, reopen or allocate tasks from these files.
+A separately authorized later change will consolidate remaining material and
+remove the old `docs/work/` structure.
 
-Each legacy task has its own Markdown file. Its folder determines its status:
+- [`done/`](done/) holds **125** completed, integrated work items. Unchecked
+  historical acceptance notes are not evidence of active work.
+- [`archive/`](archive/) holds **seven historical dispositions**: two moved to
+  GitHub Issues, two superseded by the unified Topics interface and three
+  retained as documentation or accepted decisions. None is an active ticket.
+- `ready/` and `in-progress/` intentionally contain only `.gitkeep`.
+  `active/` and `blocked/` have no live legacy items.
 
-| Folder | Meaning |
-| --- | --- |
-| [ready/](ready/) | Available, unclaimed work |
-| [in-progress/](in-progress/) | Claimed work being handled by an agent |
-| [blocked/](blocked/) | Work waiting for a documented blocker to be resolved |
-| [done/](done/) | Acceptance criteria verified, with completion evidence |
+**UX-002 (Unified post selection and actions)** is [done](done/UX-002-unified-post-selection-and-actions.md)
+following integration at `fd7ae8e`. **POST-009 (Portable Boorusama post and
+search links)** is [done](done/POST-009-share-links-that-open-posts-in-boorusama.md).
+The duplicate GIF-001 and obsolete Rule34/Safebooru handoff were retired in
+the preceding reconciliation; their relevant implementation history is in
+[guided GIF refinement](done/0033-guided-loop-refinement.md),
+[bounded refresh](done/PS-001-bounded-newest-post-refresh.md) and
+[engine refresh adapters](done/PS-005-engine-refresh-adapters.md).
 
-List the status folders to discover tasks; there is no separate status index.
-Keep the same filename throughout a legacy task's lifecycle. Legacy numbers are
-not GitHub issue numbers. Preserve existing branches and links; do not rename
-or duplicate running tasks to make them resemble new issues.
+## Archive dispositions
 
-When asked to work through the queue, select an eligible task from `ready/`.
-Choose High priority before Normal, then Low; break ties by filename. Resolve
-dependencies first. If a legacy document lacks priority, treat it as Normal.
-Before implementation, move the file to `in-progress/` in the task's isolated
-worktree and record the agent/session, branch, and worktree. One agent may claim
-and implement the ticket directly; delegation and separate reviewer agents are
-optional. Check related tickets and existing claims across active worktrees
-before claiming: a claim in one checkout is not automatically visible in another.
-Coordinate conflicting claims; do not take over someone else's claim without
-coordination. Keep the implementation within the requested ticket's scope.
+| Legacy item | Subject | Outcome |
+| --- | --- | --- |
+| [ART-001](archive/ART-001-artist-profile-icons.md) | Artist profile images in post details | Moved to [#69](https://github.com/timberpile/Boorusama/issues/69) |
+| [PS-020](archive/PS-020-os-background-search-refresh.md) | OS-scheduled Following Topics refresh | Moved to [#70](https://github.com/timberpile/Boorusama/issues/70) |
+| [FEED-002](archive/FEED-002-filter-following-feeds.md) | Filter Following Feeds by name and profile | Superseded by unified Following Topics UI |
+| [PS-032](archive/PS-032-filter-pinned-searches-and-folders.md) | Filter Pinned Searches and folders | Superseded by unified Following Topics UI |
+| [PS-012](archive/PS-012-nozomi-bounded-refresh.md) | Bounded Nozomi automatic refresh | Documented feasibility constraint; no issue |
+| [PS-019](archive/PS-019-independent-read-state-for-shared-searches.md) | Independent read state for shared feed sources | Existing shared behavior accepted; no issue |
+| [PS-022](archive/PS-022-gelbooru-or-batched-feed-fetching.md) | Gelbooru OR/batched feed fetching | Conditional idea documented; no issue |
 
-Record progress and verification in the task file. For blocked work, explain
-what must change before it can resume. Recheck historical blockers rather than
-assuming an earlier environment limitation still applies. Move completed work
-to `done/` only after verifying all acceptance criteria, and update incoming links.
-
-Task files should contain:
-
-- Priority and affected feature or branch.
-- Problem and reproduction steps, where applicable.
-- Expected behavior and observable acceptance criteria.
-- Relevant documentation, constraints, and dependencies.
-- Agent/session and work branch when claimed.
-- Dedicated worktree, plus implementer/session if delegated.
-- Progress, blockers, and completion evidence as applicable.
-
-Follow [AGENTS.md](../../AGENTS.md) for isolation and workflow selection. Read
-the relevant [development workflow](../development_workflow.md) sections only
-for integration, publication, releases, or upstream synchronization.
-Being listed in the queue does not itself authorize an agent to work outside
-the user's request. Existing tasks have one source of status: this queue until
-explicitly migrated, never a second GitHub issue in parallel.
+Nozomi, shared read state, Gelbooru OR and the scope of implemented filters
+are recorded in [Following Topics](../following_topics.md).
+This branch is a historical documentation/queue reconciliation only; it does
+not change runtime code, existing issues or unrelated feature branches.
+The entire legacy structure will be removed in a **separate future change**.

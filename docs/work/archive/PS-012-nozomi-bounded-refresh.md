@@ -1,5 +1,8 @@
 # Investigate bounded Nozomi refresh support
 
+> **Legacy disposition (2026-10-21).** Documented technical limitation only. See [Following Topics](../../following_topics.md); no task is scheduled. This file is read-only history, not a separate task tracker.
+
+
 Priority: Low
 Affected feature: Pinned-search engine support
 

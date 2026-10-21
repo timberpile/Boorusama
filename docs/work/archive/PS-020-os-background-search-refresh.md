@@ -1,5 +1,8 @@
 # Refresh pinned searches and feeds outside the foreground
 
+> **Legacy disposition (2026-10-21).** Migrated to [GitHub issue #70](https://github.com/timberpile/Boorusama/issues/70), the only current tracker. The earlier proposal below is historical. This file is read-only history, not a separate task tracker.
+
+
 Priority: Low
 Affected feature: Pinned searches and following feeds
 

@@ -1,9 +1,11 @@
 # 0033 — Guided Loop Refinement and Seamless GIF Preview
 
+> **Archive disposition (2026-10-20): Completed on `develop`.** The implementation is integrated. Earlier claims, status text, outstanding manual checks and verification notes below are historical, not an active local task.
+
 Priority: Normal
 Affected feature: Android GIF Editor / Video-to-GIF Export
 Dependencies: IDEA-028 (Video-to-GIF, completed)
-Status: In progress
+Status: Done (implemented on develop; historical follow-ups preserved)
 
 ## Trim-dialog follow-up
 

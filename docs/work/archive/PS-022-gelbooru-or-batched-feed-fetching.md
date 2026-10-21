@@ -1,5 +1,8 @@
 # Evaluate a single Gelbooru OR search for followed tags
 
+> **Legacy disposition (2026-10-21).** Documented potential optimization only. The combined Gelbooru query remains unverified; see [Following Topics](../../following_topics.md). This file is read-only history, not a separate task tracker.
+
+
 Priority: Low
 Affected feature: Following-feed source fetching; Gelbooru integration
 

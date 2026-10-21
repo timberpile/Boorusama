@@ -1,5 +1,8 @@
 # Filter pinned searches and folders on the current level
 
+> **Legacy disposition (2026-10-21).** Superseded by unified Following Topics filtering. Additional historical folder-card requirements were not implemented or approved as follow-up work. This file is read-only history, not a separate task tracker.
+
+
 Priority: Normal
 Affected feature: Pinned Searches overview and folder pages
 
