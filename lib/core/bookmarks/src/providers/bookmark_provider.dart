@@ -890,9 +890,37 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     String? groupId,
   ) => _serialize(() async {
     final result = await _addPostsToGroup(config, posts, groupId);
-    await _publishCommittedMutation();
+    await _publishAddedGroupMembers(result.createdBookmarks, groupId);
     return result.changedCount;
   });
+
+  Future<void> _publishAddedGroupMembers(
+    List<Bookmark> createdBookmarks,
+    String? groupId,
+  ) async {
+    try {
+      final repository = await ref.read(bookmarkGroupRepoProvider.future);
+      final group = await repository.getGroup(
+        groupId ?? defaultBookmarkGroupId,
+      );
+      if (group == null) {
+        throw StateError('The bookmark group no longer exists.');
+      }
+      final current = await future;
+      state = AsyncValue.data(
+        current.withAddedGroupMembers(
+          createdBookmarks: createdBookmarks,
+          group: group,
+          requestedTarget: BookmarkTarget.fromGroupId(
+            ref.read(settingsProvider).activeBookmarkGroupId,
+          ),
+        ),
+      );
+    } catch (_) {
+      // A committed write stays successful even if publishing needs recovery.
+      await _publishCommittedMutation();
+    }
+  }
 
   Future<({BookmarkGroup group, int addedCount})> createGroupWithPosts(
     String name,

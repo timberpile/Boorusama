@@ -58,8 +58,12 @@ class SzurubooruPostActionToolbar extends ConsumerWidget {
                   widget: FavoritePostButton(
                     isFaved: isFaved,
                     isAuthorized: loginDetails.hasLogin(),
-                    addFavorite: () => favNotifier.add(post.id),
-                    removeFavorite: () => favNotifier.remove(post.id),
+                    addFavorite: () =>
+                        favNotifier.add(post.id, profileId: ref.readConfig.id),
+                    removeFavorite: () => favNotifier.remove(
+                      post.id,
+                      profileId: ref.readConfig.id,
+                    ),
                   ),
                   title: context.t.post.action.favorite,
                 ),

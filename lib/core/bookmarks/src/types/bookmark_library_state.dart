@@ -39,6 +39,18 @@ class BookmarkLibraryState extends Equatable {
          _buildMemberships(bookmarks, groups),
        );
 
+  const BookmarkLibraryState._({
+    required this.folders,
+    required this.items,
+    required this.bookmarks,
+    required this.groups,
+    required this.activeTarget,
+    required this.bookmarksById,
+    required this.bookmarksByUniqueId,
+    required this.groupsById,
+    required this.membershipsByBookmark,
+  });
+
   final List<CollectionFolder> folders;
   final List<Bookmark> items;
   final ISet<BookmarkUniqueId> bookmarks;
@@ -48,6 +60,76 @@ class BookmarkLibraryState extends Equatable {
   final Map<BookmarkUniqueId, Bookmark> bookmarksByUniqueId;
   final Map<String, BookmarkGroup> groupsById;
   final Map<BookmarkUniqueId, Set<String>> membershipsByBookmark;
+
+  /// Publish a successful serialized addition without decoding existing rows or
+  /// recomputing their identities. Recovery and other mutations still reload.
+  BookmarkLibraryState withAddedGroupMembers({
+    required List<Bookmark> createdBookmarks,
+    required BookmarkGroup group,
+    required BookmarkTarget requestedTarget,
+  }) {
+    final previousGroup = groupsById[group.id];
+    if (previousGroup == null ||
+        group.copyWith(bookmarkIds: previousGroup.bookmarkIds) !=
+            previousGroup ||
+        !group.bookmarkIds.containsAll(previousGroup.bookmarkIds)) {
+      throw StateError(
+        'Expected only bookmark additions to an existing group.',
+      );
+    }
+    final target = _effectiveTarget(groups, requestedTarget);
+    if (createdBookmarks.isEmpty &&
+        group == previousGroup &&
+        target == activeTarget) {
+      return this;
+    }
+
+    final byId = createdBookmarks.isEmpty
+        ? bookmarksById
+        : <int, Bookmark>{...bookmarksById};
+    final byIdentity = createdBookmarks.isEmpty
+        ? bookmarksByUniqueId
+        : <BookmarkUniqueId, Bookmark>{...bookmarksByUniqueId};
+    var identities = bookmarks;
+    for (final bookmark in createdBookmarks) {
+      final identity = bookmark.uniqueId;
+      if (identity is! BookmarkIdentity || byId.containsKey(bookmark.id)) {
+        throw StateError('Expected a new bookmark with a stable identity.');
+      }
+      byId[bookmark.id] = bookmark;
+      byIdentity[identity] = bookmark;
+      identities = identities.add(identity);
+    }
+    final memberships = {...membershipsByBookmark};
+    for (final id in group.bookmarkIds.difference(previousGroup.bookmarkIds)) {
+      final bookmark = byId[id];
+      if (bookmark == null) {
+        throw StateError('The group contains an unknown bookmark.');
+      }
+      final identity = bookmark.uniqueId;
+      memberships[identity] = Set.unmodifiable({
+        ...?memberships[identity],
+        group.id,
+      });
+    }
+    return BookmarkLibraryState._(
+      folders: folders,
+      items: createdBookmarks.isEmpty
+          ? items
+          : List.unmodifiable([...items, ...createdBookmarks]),
+      bookmarks: identities,
+      groups: List.unmodifiable([
+        for (final old in groups) old.id == group.id ? group : old,
+      ]),
+      activeTarget: target,
+      bookmarksById: createdBookmarks.isEmpty ? byId : Map.unmodifiable(byId),
+      bookmarksByUniqueId: createdBookmarks.isEmpty
+          ? byIdentity
+          : Map.unmodifiable(byIdentity),
+      groupsById: Map.unmodifiable({...groupsById, group.id: group}),
+      membershipsByBookmark: Map.unmodifiable(memberships),
+    );
+  }
 
   Set<String> membershipsFor(BookmarkUniqueId bookmarkId) =>
       membershipsByBookmark[bookmarkId] ?? const {};

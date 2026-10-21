@@ -90,13 +90,13 @@ class FavoritesNotifier
     state = cache.lock;
   }
 
-  Future<AddFavoriteStatus> add(int postId) async {
+  Future<AddFavoriteStatus> add(int postId, {String? profileId}) async {
     if (state[postId] ?? false) return AddFavoriteStatus.alreadyExists;
     final operation = _mutations.start(postId, state[postId], true);
     state = state.add(postId, true);
     var acknowledged = false;
     try {
-      final status = await repo.addToFavorites(postId);
+      final status = await _mutationRepo(profileId).addToFavorites(postId);
       acknowledged =
           status == AddFavoriteStatus.success ||
           status == AddFavoriteStatus.alreadyExists;
@@ -106,13 +106,14 @@ class FavoritesNotifier
     }
   }
 
-  Future<bool> remove(int postId) async {
+  Future<bool> remove(int postId, {String? profileId}) async {
     if (state[postId] == false) return true;
     final operation = _mutations.start(postId, state[postId], false);
     state = state.add(postId, false);
     var acknowledged = false;
     try {
-      return acknowledged = await repo.removeFromFavorites(postId);
+      return acknowledged = await _mutationRepo(profileId)
+          .removeFromFavorites(postId);
     } on FavoriteCompletedWithInterruption catch (error) {
       acknowledged = true;
       if (reportCompletedFavoriteInterruption(error)) return true;
@@ -121,6 +122,10 @@ class FavoritesNotifier
       _finish(postId, operation, acknowledged: acknowledged);
     }
   }
+
+  FavoriteRepository _mutationRepo(String? profileId) => profileId == null
+      ? repo
+      : ref.read(profileFavoriteRepoProvider((arg, profileId)));
 
   void _finish(int postId, int operation, {required bool acknowledged}) {
     final result = _mutations.finish(

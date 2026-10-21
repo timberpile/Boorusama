@@ -97,8 +97,8 @@ List<Bookmark> filterBookmarks({
         b,
         newestFirst: false,
       ),
-      BookmarkSortType.newest => b.createdAt.compareTo(a.createdAt),
-      BookmarkSortType.oldest => a.createdAt.compareTo(b.createdAt),
+      BookmarkSortType.newest => _compareBookmarkDate(b, a),
+      BookmarkSortType.oldest => _compareBookmarkDate(a, b),
       BookmarkSortType.random => 0,
     },
   );
@@ -108,6 +108,13 @@ List<Bookmark> filterBookmarks({
       ? shuffleState!
       : const BookmarkShuffleState().withNewShuffle();
   return activeShuffleState.applyShuffleToList(sorted);
+}
+
+int _compareBookmarkDate(Bookmark a, Bookmark b) {
+  final byDate = a.createdAt.compareTo(b.createdAt);
+  // Several imported bookmarks can share the clock/storage's time precision.
+  // Local IDs retain their insertion order without inventing creation times.
+  return byDate != 0 ? byDate : a.id.compareTo(b.id);
 }
 
 // Known upload dates always precede missing dates in both directions. A

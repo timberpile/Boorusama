@@ -75,8 +75,9 @@ class HydrusFavoritePostButton extends ConsumerWidget {
     return FavoritePostButton(
       isFaved: isFaved,
       isAuthorized: config.apiKey?.isNotEmpty ?? false,
-      addFavorite: () => favNotifier.add(post.id),
-      removeFavorite: () => favNotifier.remove(post.id),
+      addFavorite: () => favNotifier.add(post.id, profileId: ref.readConfig.id),
+      removeFavorite: () =>
+          favNotifier.remove(post.id, profileId: ref.readConfig.id),
     );
   }
 }
@@ -102,9 +103,12 @@ class HydrusQuickFavoriteButton extends ConsumerWidget {
                   isFaved: ref.watch(favoriteProvider((config, post.id))),
                   onFavToggle: (isFaved) async {
                     if (isFaved) {
-                      await notifier.add(post.id);
+                      await notifier.add(post.id, profileId: ref.readConfig.id);
                     } else {
-                      await notifier.remove(post.id);
+                      await notifier.remove(
+                        post.id,
+                        profileId: ref.readConfig.id,
+                      );
                     }
                   },
                 )

@@ -8,7 +8,7 @@ import '../../../../../core/posts/details/types.dart';
 import '../../../../../core/posts/details_parts/widgets.dart';
 import '../../../../../core/posts/favorites/widgets.dart';
 import '../../../../../core/posts/post/types.dart';
-import '../../../client_provider.dart';
+import '../../../../../core/posts/favorites/types.dart';
 import '../../../configs/providers.dart';
 import '../../../favorites/providers.dart';
 import '../../../moebooru.dart';
@@ -49,14 +49,18 @@ class _Toolbar<T extends Post> extends ConsumerWidget {
         ?.contains(config.login);
     final forceHideFav = !loginDetails.hasLogin();
     final isAuthorized = loginDetails.hasLogin();
-    final client = ref.watch(moebooruClientProvider(config));
+    final repository = ref.watch(
+      moebooruConfirmedFavoriteRepoProvider(ref.watchConfig),
+    );
     Future<void> addFavorite() =>
-        client.favoritePost(postId: post.id).then((value) {
-          notifier.clear();
+        repository.addToFavorites(post.id).then((value) {
+          if (value == AddFavoriteStatus.success ||
+              value == AddFavoriteStatus.alreadyExists)
+            notifier.clear();
         });
     Future<void> removeFavorite() =>
-        client.unfavoritePost(postId: post.id).then((value) {
-          notifier.clear();
+        repository.removeFromFavorites(post.id).then((value) {
+          if (value) notifier.clear();
         });
 
     return SimplePostActionToolbar(

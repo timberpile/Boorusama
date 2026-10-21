@@ -65,6 +65,7 @@ class FavoriteContextMenuTile extends ConsumerWidget {
           notifier,
           isFavorited: isFavorited,
           postId: post.id,
+          profileId: ref.readConfig.id,
         ),
       );
     }
@@ -87,12 +88,13 @@ class FavoriteContextMenuTile extends ConsumerWidget {
     FavoritesNotifier notifier, {
     required bool isFavorited,
     required int postId,
+    required String profileId,
   }) async {
     final result = await runFavoriteAction(
       context,
       () async => isFavorited
-          ? await notifier.remove(postId)
-          : switch (await notifier.add(postId)) {
+          ? await notifier.remove(postId, profileId: profileId)
+          : switch (await notifier.add(postId, profileId: profileId)) {
               AddFavoriteStatus.success ||
               AddFavoriteStatus.alreadyExists => true,
               _ => false,

@@ -15,6 +15,9 @@ import 'package:boorusama/core/navigation/navigation_chrome_controller.dart';
 import 'package:boorusama/core/navigation/navigation_controller.dart';
 import 'package:boorusama/core/navigation/profile_context_menu.dart';
 import 'package:boorusama/core/posts/listing/widgets.dart';
+import 'package:boorusama/core/bookmarks/src/server_favorites/dialog.dart';
+import 'package:boorusama/core/bookmarks/src/widgets/bookmark_folder_picker_contents.dart';
+import 'package:boorusama/core/posts/favorites/widgets.dart';
 import 'package:boorusama/core/router.dart';
 import 'package:boorusama/core/search/search/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -128,6 +131,26 @@ void main() {
           ref.read(navigationControllerProvider).lastFavoritesProfileId,
           backend.configB.id,
         );
+        expect(find.byType(FavoritesPageMenu), findsOneWidget);
+        await tester.tap(find.byKey(const ValueKey('favorites-page-menu')));
+        await harness.settle(tester);
+        await tester.tap(find.text('Favorites Sync'));
+        await harness.settle(tester);
+        expect(find.byType(ServerFavoritesDialog), findsOneWidget);
+        expect(find.text(backend.configB.name), findsOneWidget);
+        expect(find.text(backend.config.name), findsOneWidget);
+        final groupSelector = find.byKey(
+          const ValueKey('server-favorites-global'),
+        );
+        await tester.ensureVisible(groupSelector);
+        await tester.tap(groupSelector);
+        await harness.settle(tester);
+        expect(find.byType(BookmarkFolderPickerContents), findsOneWidget);
+        expect(find.text('Default'), findsOneWidget);
+        await tester.tap(find.text('Cancel'));
+        await harness.settle(tester);
+        await tester.tap(find.text('Close'));
+        await harness.settle(tester);
         await tester.tap(find.byIcon(Symbols.search));
         await harness.pumpUntilFound(tester, find.byType(SearchPage));
         await harness.settle(tester);

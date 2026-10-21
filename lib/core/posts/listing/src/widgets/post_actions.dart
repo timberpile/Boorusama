@@ -234,6 +234,7 @@ List<PostActionDefinition> postActionDefinitions(
             for (final target in snapshot.targets)
               (
                 postId: target.post.id,
+                profileId: target.config!.id,
                 notifier: ref.read(
                   favoritesProvider(target.config!.auth).notifier,
                 ),
@@ -242,8 +243,14 @@ List<PostActionDefinition> postActionDefinitions(
           final result = await runFavoriteAction(feedback, () async {
             for (final operation in operations) {
               final success = removeFavorites
-                  ? await operation.notifier.remove(operation.postId)
-                  : switch (await operation.notifier.add(operation.postId)) {
+                  ? await operation.notifier.remove(
+                      operation.postId,
+                      profileId: operation.profileId,
+                    )
+                  : switch (await operation.notifier.add(
+                      operation.postId,
+                      profileId: operation.profileId,
+                    )) {
                       AddFavoriteStatus.success ||
                       AddFavoriteStatus.alreadyExists => true,
                       _ => false,

@@ -4,6 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Project imports:
 import '../../../core/configs/config/providers.dart';
+import '../../../core/posts/favorites/src/data/providers.dart';
+import '../../../core/posts/favorites/providers.dart';
+import '../../../core/posts/favorites/types.dart';
+import '../../../core/posts/post/types.dart';
 import '../../../core/configs/config/types.dart';
 import '../../../core/configs/manage/providers.dart';
 import '../client_provider.dart';
@@ -55,3 +59,27 @@ class MoebooruFavoritesNotifier extends FamilyNotifier<Set<String>?, int> {
     }
   }
 }
+
+/// Moebooru's vote-based toolbar bypasses the general favorites notifier, but
+/// uses the same confirmed-result projection and originating profile contract.
+final moebooruConfirmedFavoriteRepoProvider =
+    Provider.family<FavoriteRepository, BooruConfig>((ref, profile) {
+      final client = ref.watch(moebooruClientProvider(profile.auth));
+      return createConfirmedFavoriteRepository(
+        ref,
+        profile.auth,
+        FavoriteRepositoryBuilder<Post>(
+          add: (id) async {
+            await client.favoritePost(postId: id);
+            return AddFavoriteStatus.success;
+          },
+          remove: (id) async {
+            await client.unfavoritePost(postId: id);
+            return true;
+          },
+          isFavorited: (_) => false,
+          canFavorite: () => true,
+        ),
+        profileId: profile.id,
+      );
+    });

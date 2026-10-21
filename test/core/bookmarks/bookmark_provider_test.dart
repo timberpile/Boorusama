@@ -1462,6 +1462,35 @@ void main() {
   );
 
   test(
+    'a committed group addition recovers when incremental publishing fails',
+    () async {
+      final groups = _FailingPublicationGroupRepository(groupBox);
+      final container = createContainer(groupRepositoryOverride: groups);
+      final notifier = container.read(bookmarkProvider.notifier);
+      await notifier.future;
+      final post = _validBookmark.toPost();
+      final config = BooruConfigAuth.fromConfig(BooruConfig.empty);
+
+      expect(await notifier.addPostsToGroup(config, [post], null), 1);
+
+      expect(groups.failedReads, 1);
+      final after = await notifier.snapshotForExport();
+      expect(after.items, hasLength(1));
+      final bookmark = after.items.single;
+      expect(after.groupsById[defaultBookmarkGroupId]!.bookmarkIds, {
+        bookmark.id,
+      });
+      expect(after.membershipsFor(bookmark.uniqueId), {defaultBookmarkGroupId});
+      expect(
+        await bookmarkRepository.getAllBookmarksOrThrow(
+          imageUrlResolver: (_) => const DefaultImageUrlResolver(),
+        ),
+        after.items,
+      );
+    },
+  );
+
+  test(
     'a committed serialized mutation is returned when publishing fails',
     () async {
       final container = createContainer(
@@ -1614,6 +1643,30 @@ class _CommitsThenThrowsAddGroupRepository extends BookmarkGroupRepositoryHive {
   Future<BookmarkGroup> addBookmarks(String id, Set<int> bookmarkIds) async {
     await super.addBookmarks(id, bookmarkIds);
     throw StateError('membership addition reported failure after committing');
+  }
+}
+
+class _FailingPublicationGroupRepository extends BookmarkGroupRepositoryHive {
+  _FailingPublicationGroupRepository(super._box);
+
+  var failNextRead = false;
+  var failedReads = 0;
+
+  @override
+  Future<BookmarkGroup> addBookmarks(String id, Set<int> bookmarkIds) async {
+    final group = await super.addBookmarks(id, bookmarkIds);
+    failNextRead = true;
+    return group;
+  }
+
+  @override
+  Future<BookmarkGroup?> getGroup(String id) {
+    if (failNextRead) {
+      failNextRead = false;
+      failedReads++;
+      throw StateError('group read failed after the membership committed');
+    }
+    return super.getGroup(id);
   }
 }
 

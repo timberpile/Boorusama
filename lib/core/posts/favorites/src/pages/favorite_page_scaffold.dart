@@ -15,6 +15,7 @@ import '../../../../navigation/navigation_profile_picker.dart';
 import '../../../listing/widgets.dart';
 import '../../../post/providers.dart';
 import '../../../post/types.dart';
+import '../widgets/favorites_page_menu.dart';
 
 class FavoritesPageScaffold extends ConsumerWidget {
   const FavoritesPageScaffold({
@@ -64,6 +65,7 @@ class FavoritesPageScaffold extends ConsumerWidget {
                     },
                   ),
                 const NavigationProfilePicker(favorites: true),
+                const FavoritesPageMenu(),
               ],
             ),
             const SliverSizedBox(height: 5),

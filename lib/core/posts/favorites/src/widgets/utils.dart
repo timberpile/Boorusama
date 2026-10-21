@@ -16,7 +16,7 @@ extension FavX on WidgetRef {
       if (isFaved) {
         final result = await runFavoriteAction(
           context,
-          () => notifier.remove(postId),
+          () => notifier.remove(postId, profileId: readConfig.id),
         );
         if (result == null || result.cleanupInterrupted) return;
         if (context.mounted) {
@@ -28,7 +28,7 @@ extension FavX on WidgetRef {
       } else {
         final result = await runFavoriteAction(
           context,
-          () => notifier.add(postId),
+          () => notifier.add(postId, profileId: readConfig.id),
         );
         if (result == null || result.cleanupInterrupted) return;
         if (context.mounted) {

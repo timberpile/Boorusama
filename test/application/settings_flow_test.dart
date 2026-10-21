@@ -29,6 +29,8 @@ void main() {
       await tester.pump();
       await harness.settle(tester);
 
+      expect(find.text('Server favorites'), findsNothing);
+      expect(find.text('Favorites Sync'), findsNothing);
       final accessibility = find.text('Accessibility');
       await tester.ensureVisible(accessibility);
       await tester.tap(accessibility);

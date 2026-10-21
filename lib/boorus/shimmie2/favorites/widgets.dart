@@ -22,6 +22,7 @@ class Shimmie2FavoritesPage extends ConsumerWidget {
     final usename = loginDetails.username;
 
     return BooruConfigAuthFailsafe(
+      unauthorizedBuilder: (_) => const FavoritesUnavailablePage(),
       hasLogin: loginDetails.hasLogin() && usename != null,
       builder: (_) => Shimmie2FavoritesPageContent(
         username: usename ?? '',

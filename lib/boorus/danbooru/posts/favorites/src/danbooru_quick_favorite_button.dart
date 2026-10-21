@@ -34,9 +34,9 @@ class DanbooruQuickFavoriteButton extends ConsumerWidget {
       isFaved: isFaved,
       onFavToggle: (isFaved) async {
         if (!isFaved) {
-          await notifier.remove(post.id);
+          await notifier.remove(post.id, profileId: ref.readConfig.id);
         } else {
-          await notifier.add(post.id);
+          await notifier.add(post.id, profileId: ref.readConfig.id);
         }
       },
     );

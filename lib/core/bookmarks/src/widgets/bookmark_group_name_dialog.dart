@@ -12,7 +12,7 @@ Future<String?> showBookmarkGroupNameDialog(
 }) async {
   final result = await showDialog<String>(
     context: context,
-    builder: (_) => _BookmarkGroupNameDialog(
+    builder: (_) => BookmarkGroupNameDialog(
       title: title,
       initialName: initialName,
       hint: hint,
@@ -24,9 +24,11 @@ Future<String?> showBookmarkGroupNameDialog(
   };
 }
 
-class _BookmarkGroupNameDialog extends StatefulWidget {
-  const _BookmarkGroupNameDialog({
+/// Reusable content for legacy and standalone Material dialog routes.
+class BookmarkGroupNameDialog extends StatefulWidget {
+  const BookmarkGroupNameDialog({
     required this.title,
+    super.key,
     this.initialName,
     this.hint,
   });
@@ -36,11 +38,11 @@ class _BookmarkGroupNameDialog extends StatefulWidget {
   final String? hint;
 
   @override
-  State<_BookmarkGroupNameDialog> createState() =>
+  State<BookmarkGroupNameDialog> createState() =>
       _BookmarkGroupNameDialogState();
 }
 
-class _BookmarkGroupNameDialogState extends State<_BookmarkGroupNameDialog> {
+class _BookmarkGroupNameDialogState extends State<BookmarkGroupNameDialog> {
   late final _controller = TextEditingController(text: widget.initialName);
 
   @override
@@ -51,6 +53,7 @@ class _BookmarkGroupNameDialogState extends State<_BookmarkGroupNameDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
+    scrollable: true,
     title: Text(widget.title),
     content: TextField(
       controller: _controller,

@@ -20,6 +20,17 @@ void main() {
           ),
         ),
       );
+      final removed = buildSettingsSearchCatalog(
+        translations,
+        sections: {
+          'server_favorites': translations.bookmark.server_favorites.title,
+        },
+        isMobile: false,
+      );
+      expect(
+        removed.any((item) => item.id == 'server_favorites.global'),
+        isFalse,
+      );
       final sections = {
         'viewer': translations.settings.image_viewer.image_viewer,
         'download': translations.settings.download.title,

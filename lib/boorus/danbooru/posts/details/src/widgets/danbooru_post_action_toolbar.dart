@@ -82,8 +82,10 @@ class DanbooruPostActionToolbar extends ConsumerWidget {
                   widget: FavoritePostButton(
                     isFaved: isFaved,
                     isAuthorized: loginDetails.hasLogin(),
-                    addFavorite: () => notifier.add(post.id),
-                    removeFavorite: () => notifier.remove(post.id),
+                    addFavorite: () =>
+                        notifier.add(post.id, profileId: ref.readConfig.id),
+                    removeFavorite: () =>
+                        notifier.remove(post.id, profileId: ref.readConfig.id),
                   ),
                   title: context.t.post.action.favorite,
                 ),
