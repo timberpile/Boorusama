@@ -32,7 +32,7 @@
   {
     "name": "blocked",
     "color": "d93f0b",
-    "description": "A documented obstacle prevents the next necessary step."
+    "description": "A concrete obstacle prevents the next necessary step."
   },
   {
     "name": "review",
@@ -43,6 +43,11 @@
     "name": "ux",
     "color": "d4c5f9",
     "description": "User experience, interaction design, and usability improvements."
+  },
+  {
+    "name": "performance",
+    "color": "ededed",
+    "description": "Latency, resource use, cache efficiency, and avoided redundant requests."
   },
   {
     "name": "area:bookmarks",
