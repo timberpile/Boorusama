@@ -8,8 +8,9 @@ required. The HTTPS/webserver work is paused; this feature is not released.
 
 - **Post > Share > Links > Boorusama Link File** sends one document.
   It does not download an image or video and works without a preview image.
-- The current search's Share button sends a `.bslink` directly. Saved searches
-  and feed-member menus expose the same file-only action.
+- **Current search-results header > Share** sends one `.bslink` document.
+  Following Topic and feed-member menus do not share `.bslink` files because
+  those files represent post or search references, not local saved state.
 - Raw `boorusama://` Copy/Share controls and image-plus-document sharing are
   removed. The validated URI remains an internal field of the document, not
   a separately shared or copyable URL. Ordinary website/source/image links,
@@ -37,18 +38,17 @@ Search 'one_piece -rating:safe' on My Danbooru
 
 The source profile is selected by post-origin hint and matching site/engine,
 rather than an unrelated account selected in a mixed viewer. Search-result
-sharing uses the current search profile; saved search and feed-member sharing
-use their owning profile. Profile names are displayed only in the caption,
-not persisted to the portable document. If the source profile is not
-available, the source host is a fallback.
+sharing uses the current search profile. Profile names are displayed only in
+the caption, not persisted to the portable document. If the source profile is
+not available, the source host is a fallback.
 
 Posts show the genuine site ID, not synthetic Pixiv page IDs. One known artist
 may be shown when existing post metadata provides it; unknown-artist/request
 tags are ignored, and nothing is fetched solely to build the caption. Searches
-use the actual raw query or readable typed tags, regardless of saved-search
-title. Displayed terms are bounded, but the attachment always contains the
-complete query. External artist, profile and search text is sanitized to
-prevent line-break or bidi-control injection. German UI uses localized grammar.
+use the actual raw query or readable typed tags. Displayed terms are bounded,
+but the attachment always contains the complete query. External artist,
+profile and search text is sanitized to prevent line-break or bidi-control
+injection. German UI uses localized grammar.
 
 ## Opening
 
@@ -96,10 +96,10 @@ import. A `.bslink` suffix alone does not validate a document.
 
 Regression sources cover single-file handoffs, absence of raw/mixed controls,
 post sharing without image acquisition, readable and bounded captions, exact
-Pixiv/Sankaku identity, search terms and saved-search ownership, disabled and
-re-entrant sharing, developer-only manual opening and picker cancellation, and
-absence of the opener from the main menu/sidebar at narrow/desktop widths and
-large text.
+Pixiv/Sankaku identity, current search sharing, absence of link-file actions
+from Following Topic and feed-member menus, disabled and re-entrant sharing,
+developer-only manual opening and picker cancellation, and absence of the
+opener from the main menu/sidebar at narrow/desktop widths and large text.
 The obsolete raw-URI tests are replaced by file-based behavior tests; unrelated
 following-topic tests are preserved unchanged.
 

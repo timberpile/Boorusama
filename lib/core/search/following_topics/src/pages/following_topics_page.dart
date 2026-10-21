@@ -9,7 +9,6 @@ import 'package:flutter/services.dart';
 import '../../../../selection/collection_selection.dart';
 import '../../../../selection/ordered_selection_controller.dart';
 import '../../../../selection/selection_input.dart';
-import '../../../../../foundation/filesystem.dart';
 import '../../../../navigation/navigation_interaction_scopes.dart';
 import '../../../../navigation/destination_profile_scope.dart';
 import '../../../../router.dart';
@@ -31,8 +30,6 @@ import '../../../../configs/manage/providers.dart';
 import '../../../../groups/folder_tree.dart';
 import '../../../search/routes.dart';
 import '../../../search/src/widgets/booru_search_bar.dart';
-import '../../../../posts/links/boorusama_search_link.dart';
-import '../../../../posts/links/share_search_link_button.dart';
 import '../../../selected_tags/types.dart';
 import '../data/providers.dart';
 import '../providers/following_topic_selectors.dart';
@@ -1319,7 +1316,7 @@ class _FollowingTopicsPageState extends ConsumerState<FollowingTopicsPage> {
         await _deleteFolder(folder);
       case FollowingTopicAction.moveFolder:
         await _moveSelected(folderIds: {folder.id}, searchIds: {});
-      case FollowingTopicAction.info || FollowingTopicAction.shareLink:
+      case FollowingTopicAction.info:
         return;
     }
   }
@@ -1452,33 +1449,6 @@ class _FollowingTopicsPageState extends ConsumerState<FollowingTopicsPage> {
     switch (action) {
       case FollowingTopicAction.rename:
         return;
-      case FollowingTopicAction.shareLink:
-        final owner = ref
-            .read(booruConfigProvider)
-            .where((profile) => profile.id == topic.profileId)
-            .firstOrNull;
-        if (owner == null) return;
-        final link = switch (topic.queryStructure) {
-          final structure? => BoorusamaSearchLink.fromTags(
-            auth: owner.auth,
-            tags: structure.typedTags,
-          ),
-          null => BoorusamaSearchLink.fromRaw(
-            auth: owner.auth,
-            query: topic.query,
-          ),
-        };
-        if (link == null) {
-          Kurumi.showErrorToast(context, context.t.search.app_link.invalid);
-          return;
-        }
-        await shareSearchLinkFile(
-          context,
-          link: link,
-          fs: ref.read(appFileSystemProvider),
-          shareAdapter: ref.read(searchLinkShareAdapterProvider),
-          profileName: owner.name,
-        );
       case FollowingTopicAction.info:
         await showDialog<void>(
           context: context,

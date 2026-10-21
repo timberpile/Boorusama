@@ -343,7 +343,8 @@ offer the standard profile editor before resuming the exact pending query.
 Rendering uses `SearchParams` and `CurrentBooruConfigScope` without changing
 the active browsing profile or creating a saved/followed search.
 
-The current search result header, saved Following Topic cards and feed-member
-menus share one `.bslink` document with a readable caption, without a thumbnail
-or raw-URI controls. Position, page, locally chosen sorting, cache and
-read/follow state are intentionally not portable.
+The current search result header shares one `.bslink` document with a readable
+caption, without a thumbnail or raw-URI controls. Following Topic cards and
+feed-member menus do not expose this action: a `.bslink` represents a post or
+search reference, not local following or feed state. Position, page, locally
+chosen sorting, cache and read/follow state are not portable.

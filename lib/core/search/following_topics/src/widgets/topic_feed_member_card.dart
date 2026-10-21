@@ -4,7 +4,6 @@ import 'package:kurumi/material.dart';
 
 import '../../../../configs/manage/providers.dart';
 import '../../../../configs/config/types.dart';
-import '../../../../posts/links/link_file_labels.dart';
 import '../providers/feed_member_preview_provider.dart';
 import '../types/topic_feed.dart';
 import '../types/following_topic.dart';
@@ -63,11 +62,6 @@ class TopicFeedMemberCard extends ConsumerWidget {
           value: FollowingTopicAction.edit,
           enabled: owner != null,
           child: Text(context.t.generic.action.edit),
-        ),
-        PopupMenuItem(
-          value: FollowingTopicAction.shareLink,
-          enabled: owner != null,
-          child: Text(context.linkFileLabel),
         ),
         PopupMenuItem(
           value: FollowingTopicAction.delete,

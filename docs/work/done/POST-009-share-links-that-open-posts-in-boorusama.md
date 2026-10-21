@@ -85,8 +85,10 @@ hostname, and the receiver needs it to create a matching profile.
 
 - `boorusama://search/open?v=1&engine=...&site=...&mode=raw|tags&q=...`
   opens the shared search on the receiver's device.
-- Share a search from the search-results header or a saved/followed search's
-  menu.
+- At the time, search sharing was available from the search-results header and
+  saved/followed search menus. The latter placement was removed in a
+  2026-10-21 follow-up because `.bslink` does not represent local Following
+  Topic or feed configuration; see the current behavior below.
 - Copy copies only the complete URI. Share sends plain text with a readable
   label, an optional search name and the complete URI. Dynamic searches do not
   attach an image or thumbnail.
