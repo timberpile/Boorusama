@@ -16,6 +16,13 @@ for checkout setup, authorization, integration, and cleanup.
 Commit all task changes before reporting completion, unless the user explicitly
 asks to leave them uncommitted. Stage only changes belonging to the task.
 
+Approval to merge a task branch (including “can be merged”) authorizes completing
+the workflow: integrate and push the approved change to `origin/develop`, close
+the associated issue after verifying publication, and delete the completed remote
+task branch as well as its local branch/worktree. Do not ask again for these
+steps. Honor explicit narrower limits such as “local only” or “keep the branch”;
+required verification and protection of unrelated work still apply.
+
 ## Workflow selection
 
 Use the applicable `.agents/skills/<name>/SKILL.md`:

@@ -131,8 +131,13 @@ step briefly. Required failing or unrun task checks are not a ready handoff.
 For implementation tasks, close as completed only when agreed acceptance criteria
 are satisfied and the solution is available in shared `origin/develop`. A release
 is not required. Work that is only prepared or integrated locally remains open;
-note that publication is pending without automatically pushing it. Non-code tasks
-may close when their agreed outcome is complete and accessible. Cancelled or
+note that publication is pending when it is not authorized. Approval to merge a
+task branch includes publication, issue closure, and completed remote-branch
+cleanup under the [development workflow](development_workflow.md#integration).
+Carry those steps through without asking again, unless the user explicitly limits
+the scope. Verify the result is in `origin/develop` before closing the issue and
+remove obsolete workflow-status labels. Non-code tasks may close when their agreed
+outcome is complete and accessible. Cancelled or
 superseded work uses the appropriate not-planned/duplicate reason, not completion.
 
 Use `Refs #123` in a PR or commit while required acceptance remains outstanding.

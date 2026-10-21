@@ -56,11 +56,18 @@ part of the requested task; no separate approval is needed unless the user says
 otherwise.
 
 Merging or integrating a task branch always requires explicit user authorization.
+Approval such as “this branch can be merged” authorizes the complete task workflow:
+verified integration, publication of the approved change to `origin/develop`,
+closure of the associated issue after verifying publication, and deletion of the
+completed remote task branch and local branch/worktree. Complete these steps
+without requesting permission again. Explicit narrower limits (for example,
+“local only”, “do not push”, or “keep the branch”) take precedence. This approval
+does not cover unrelated outgoing changes, releases, or creation of a PR.
 Modifying `develop` or any other branch/worktree outside the permissions above
 requires explicit user authorization.
-Code publication, merges, releases, and unrelated remote changes still require
-explicit authorization. An explicit issue-creation or issue-work request also
-authorizes the scoped issue metadata updates in the [issue workflow](issue_workflow.md),
+Outside that approved task workflow, code publication, merges, releases, and
+unrelated remote changes still require explicit authorization. An explicit
+issue-creation or issue-work request also authorizes the scoped issue metadata updates in the [issue workflow](issue_workflow.md),
 not a code push or merge. Use `gh` or the connected GitHub tools and explicitly
 target `timberpile/Boorusama`; provide manual instructions for other repositories.
 
@@ -77,7 +84,7 @@ checked commit/state and commands in the normal task report.
 
 | Change | Destination | Integration method |
 | --- | --- | --- |
-| Ordinary feature/fix or other task | Local `develop` | One descriptive Conventional Commit using squash or equivalent replay |
+| Ordinary feature/fix or other task | `develop`, then `origin/develop` under merge approval | One descriptive Conventional Commit using squash or equivalent replay |
 | Explicitly requested task PR | Remote `develop` | Manual squash merge with a descriptive Conventional Commit title |
 | `upstream/master` synchronization | `develop` | Real merge preserving upstream ancestry |
 | Release promotion from `develop` | `master` | Real merge titled `Merge branch 'develop'` |
@@ -90,8 +97,8 @@ commit title. Do not rebase or squash shared upstream/release history.
 ## Pull requests and publication
 
 - Use a PR only when the user explicitly requests one, regardless of change
-  size. Otherwise prepare the result for approved local integration, unless the
-  small-change exception above permits a direct local `develop` commit.
+  size. Otherwise prepare the result for approved integration and publication,
+  unless the small-change exception above permits a direct local `develop` commit.
 - Before authorized publication, fetch current references and reconcile the
   task branch with latest `origin/develop`. After a rebase, reread current
   `AGENTS.md` and this workflow.
@@ -167,8 +174,9 @@ A release PR behind `master` needs this synchronization before its checks rerun.
 
 ## Protected branches and cleanup
 
-- Pushing `develop` needs explicit authorization. Force pushes and deletion
-  are prohibited. Before pushing, inspect outgoing merges with
+- Pushing `develop` needs explicit authorization; task merge approval includes
+  publication of that approved task as described above. Force pushes and deletion
+  of `develop` are prohibited. Before pushing, inspect outgoing merges with
   `git rev-list --min-parents=2 origin/develop..develop`; only approved upstream
   merges and release-history merges are allowed.
 - Direct commits/pushes, force pushes, and deletion of `master` are prohibited,
@@ -187,8 +195,14 @@ A release PR behind `master` needs this synchronization before its checks rerun.
   registered path. Delete the exact local
   branch with `git branch -d`. Squash merging does not make task commits ancestors
   of `develop`; if normal deletion refuses, force-delete only after verifying
-  patch/tree equivalence and that no unintegrated commits remain. Remote branch
-  deletion and other cleanup still require explicit authorization.
+  patch/tree equivalence and that no unintegrated commits remain.
+- Under task merge approval, delete the completed remote task branch only after
+  verifying the approved result is in `origin/develop` and that the remote branch
+  contains no unintegrated work. Refresh and check the exact remote tip; use an
+  expected-tip lease when deleting it so concurrent updates are preserved. Close
+  the associated issue and remove workflow-status labels after publication.
+  Remote deletion outside this approved task and other cleanup still require
+  explicit authorization.
 
 ## Issue descriptions
 
