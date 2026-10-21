@@ -7,12 +7,26 @@ explicitly requested, not mandatory. Existing unmigrated work items continue und
 
 ## Issue writing
 
-Write in English. Use a short, meaningful title without ticket numbers or `FEAT:`
-and `BUG:` prefixes. A concise imperative or clear problem statement is suitable.
-The body normally contains **Problem** (one or two sentences) and **Expected
-behavior** (a few observable outcomes). Bugs include minimal reproduction steps
-and the relevant app version/platform. Add a dependency or specification link only
-when useful. Roughly 80-180 words is a guideline, not a hard limit.
+Write in English. Use a short, specific task label, not a narrative sentence.
+Prefer a compact action plus its subject, or a clear problem name; roughly
+3-7 words usually suffice. Omit ticket numbers, `FEAT:` / `BUG:` prefixes,
+introductory filler, and a trailing period. Name the actual scope rather than
+implying that an existing feature is entirely missing. For example:
+**Fix Realbooru Image Prefetch**, **Add Post Original Quality**, or
+**Fix Scroll-to-Top Button Visibility**.
+
+The body normally contains **Problem** (one or two short sentences) and
+**Expected behavior** (a few concrete, observable outcomes). Prefer 3-5 short
+bullets with one main outcome each. Keep necessary exceptions beside the behavior
+they qualify; avoid long sentences that combine several unrelated requirements.
+Roughly 80-180 words is a guideline, not a target to fill. A smaller issue may
+need less; essential scope and safety matter more than a word count.
+
+Bugs include minimal reproduction steps and the relevant app version/platform
+when known. Distinguish user-confirmed behavior, source findings, and a suspected
+cause. Do not invent a build number or claim a device reproduction that was not
+performed. Add a dependency or specification link only when useful. Describe
+observable results rather than a file-by-file implementation plan.
 
 Keep essential scope, compatibility, safety, and data-loss constraints visible.
 Do not paste implementation instructions, blanket test requirements, logs, or agent
@@ -22,15 +36,15 @@ Move detailed designs and plans to repository documentation rather than simply
 moving an implementation diary into issue comments. Never publish credentials,
 private payloads, or machine-local paths as supposed shared documentation.
 
-Example title: **Add search to bookmark group overview**
+Example title: **Filter Bookmark Groups**
 
 > **Problem**
 >
-> Finding a specific bookmark group becomes difficult when many groups exist.
+> Finding a Bookmark Group becomes difficult when many groups exist.
 >
 > **Expected behavior**
 >
-> - Filter the overview by group name, ignoring case.
+> - Filter groups by name, ignoring case.
 > - Show a clear no-match state with an easy way to clear the filter.
 > - Keep group creation and existing group actions available.
 
@@ -41,6 +55,14 @@ and descriptions. Use exactly one type: `bug`, `feature`, or `maintenance`.
 Use `priority:high` or `priority:low` only when appropriate; no priority label
 means normal. Usually choose one area, and a second only for a meaningful boundary.
 Areas are optional; do not add speculative labels or label every UI task `area:ui`.
+
+Choose the type from the intended outcome: `bug` corrects incorrect behavior;
+`feature` includes improvements to existing user-facing behavior, wording, and UX,
+not only entirely new functions; `maintenance` covers primarily internal
+engineering or upkeep without a user-facing behavior change. Choose the branch
+prefix from that classification, not the classification to justify a branch name.
+Related identifier cleanup can remain in a user-facing issue when needed to keep
+its wording and code consistent; it does not require a second tracker.
 
 `ux` is an optional cross-cutting label for user experience, interaction design,
 and usability improvements. It may accompany any issue type or area. Unlike
