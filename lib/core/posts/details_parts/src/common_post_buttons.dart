@@ -15,6 +15,7 @@ import '../../../widgets/adaptive_button_row.dart';
 import '../../details_manager/routes.dart';
 import '../../post/providers.dart';
 import '../../post/types.dart';
+import '../../cross_profile_lookup/page.dart';
 
 class CommonPostButtonsBuilder extends ConsumerWidget {
   const CommonPostButtonsBuilder({
@@ -56,6 +57,12 @@ class CommonPostButtonsBuilder extends ConsumerWidget {
     );
 
     final commonButtons = [
+      SimpleButtonData(
+        icon: Icons.travel_explore,
+        title: context.t.post.cross_profile.action,
+        placement: ButtonPlacement.menuOnly,
+        onPressed: () => findOnOtherProfiles(ref, post),
+      ),
       if (postLinkGenerator != null && config != null)
         if (!hasStrictSFW)
           SimpleButtonData(

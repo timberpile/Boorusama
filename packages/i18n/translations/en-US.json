@@ -385,6 +385,23 @@
     }
   },
   "post": {
+    "cross_profile": {
+      "action": "Find on Other Profiles",
+      "exact_file": "Exact File Match",
+      "source_match": "Source URL Match",
+      "pixiv_match": "Pixiv Artwork Match",
+      "unsupported_profiles": "Unsupported profiles",
+      "select_profile": "Waiting to search…",
+      "loading": "Searching…",
+      "no_match": "No visible matches",
+      "unsupported": "Lookup is not supported",
+      "missing_hash": "No usable file hash or supported source reference",
+      "failed": "Lookup failed. Tap the profile to retry.",
+      "no_profiles": "No other profiles configured",
+      "result_count": "Results: $count",
+      "results_so_far": "Results loaded: $count — more may be available",
+      "load_more": "Load more"
+    },
     "app_link": {
       "share_post_caption": "Post {id} on {profile}",
       "share_post_artist_caption": "Post {id} by {artist} on {profile}",

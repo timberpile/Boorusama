@@ -1,3 +1,4 @@
+import '../../../cross_profile_lookup/page.dart';
 import '../../../favorites/providers.dart';
 import '../../../favorites/src/types/types.dart';
 import '../../../favorites/src/widgets/favorite_action.dart';
@@ -32,6 +33,7 @@ enum PostActionId {
   browser,
   tags,
   comments,
+  findOnOtherProfiles,
 }
 
 class PostActionDefinition {
@@ -161,6 +163,13 @@ List<PostActionDefinition> postActionDefinitions(
       ? null
       : ref.watch(booruLoginDetailsProvider(config.auth));
   return [
+    if (post != null)
+      PostActionDefinition(
+        id: PostActionId.findOnOtherProfiles,
+        label: context.t.post.cross_profile.action,
+        icon: Icons.travel_explore,
+        execute: () => run(() async => findOnOtherProfiles(ref, post)),
+      ),
     if (snapshot.hasTargets &&
         (downloadOverride != null ||
             canDownloadResolved ||

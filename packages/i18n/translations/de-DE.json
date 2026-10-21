@@ -267,6 +267,23 @@
     }
   },
   "post": {
+    "cross_profile": {
+      "action": "In anderen Profilen finden",
+      "exact_file": "Identische Datei",
+      "source_match": "Gleiche Quell-URL",
+      "pixiv_match": "Gleiches Pixiv-Werk",
+      "unsupported_profiles": "Nicht unterstützte Profile",
+      "select_profile": "Warten auf Suche…",
+      "loading": "Suche…",
+      "no_match": "Keine sichtbaren Treffer",
+      "unsupported": "Die Suche wird nicht unterstützt",
+      "missing_hash": "Kein verwendbarer Datei-Hash oder unterstützter Quellenverweis",
+      "failed": "Suche fehlgeschlagen. Zum Wiederholen auf das Profil tippen.",
+      "no_profiles": "Keine weiteren Profile eingerichtet",
+      "result_count": "$count Treffer",
+      "results_so_far": "$count Treffer geladen – weitere sind möglicherweise verfügbar",
+      "load_more": "Mehr laden"
+    },
     "app_link": {
       "share_post_caption": "Post {id} auf {profile}",
       "share_post_artist_caption": "Post {id} von {artist} auf {profile}",
