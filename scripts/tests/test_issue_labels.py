@@ -80,10 +80,11 @@ path.write_text(json.dumps(state))
     def test_catalog_and_templates_use_the_agreed_types_and_areas(self):
         catalog = json.loads(CATALOG.read_text())
         names = {label["name"] for label in catalog}
-        self.assertEqual(len(catalog), 25)
+        self.assertEqual(len(catalog), 26)
         self.assertEqual(len(names), len(catalog))
         self.assertTrue({"bug", "feature", "maintenance", "in-progress", "blocked", "review",
-                         "priority:high", "priority:low", "area:backups", "area:following-topics", "ux"} <= names)
+                         "priority:high", "priority:low", "area:backups", "area:following-topics",
+                         "ux", "performance"} <= names)
         self.assertFalse({"area:sites", "area:data", "area:import-export", "area:storage",
                           "area:pinned-searches", "area:feeds", "done", "ready", "priority:normal"} & names)
         for kind, filename in (("bug", "bug_report.md"), ("feature", "feature_request.md"),

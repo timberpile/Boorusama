@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>Boorusama · Artist Page — Search Handoff</title>
+<style>
+  :root { color-scheme: dark; --lab-bg:#0b1019; --lab-border:#303b4c; --lab-text:#e6ecf7; --lab-muted:#94a4b9; --lab-accent:#a9c4ff; font-family: Roboto, "Segoe UI", system-ui, -apple-system, sans-serif; }
+  * { box-sizing:border-box; } body { margin:0; min-height:100vh; background:radial-gradient(circle at 15% 5%,#182940 0%,transparent 36%),var(--lab-bg); color:var(--lab-text); }
+  button,input,select { font:inherit; } button { cursor:pointer; } button:focus-visible,input:focus-visible,select:focus-visible { outline:2px solid #8ebaff; outline-offset:2px; }
+  .icon { width:20px; height:20px; stroke:currentColor; fill:none; stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round; flex-shrink:0; }
+  .icon.sm {width:16px;height:16px}.icon.lg {width:23px;height:23px}
+  .studio { max-width:1550px; margin:0 auto; padding:25px 24px 60px; }
+  .studio-head { display:flex; align-items:flex-start; justify-content:space-between; gap:24px; flex-wrap:wrap; margin-bottom:24px; }
+  .lab-kicker { font-size:10px; letter-spacing:2.5px; font-weight:800; color:#8fb0e4; text-transform:uppercase; }
+  h1.studio-title {font-size:24px;letter-spacing:-.9px;font-weight:650;margin:8px 0 6px;}
+  .studio-sub {color:var(--lab-muted);font-size:13px;margin:0;line-height:1.55;max-width:650px;}
+  .studio-actions {display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+  .lab-segment { display:flex;gap:3px;padding:4px;background:#192333;border:1px solid #314056;border-radius:12px; }
+  .lab-segment button {background:transparent;border:0;color:#aec0d5;border-radius:9px;padding:8px 11px;font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px;}
+  .lab-segment button.active {color:#101d34;background:#b9d0fa;box-shadow:0 2px 8px #01081740;}
+  .lab-segment .icon {width:15px;height:15px}
+  .workbench {display:grid;grid-template-columns:minmax(380px, 1fr) 322px;gap:22px;align-items:start;}
+  .stage {min-height:780px;background:linear-gradient(135deg,#121c2c,#0d1420);border:1px solid var(--lab-border);border-radius:22px;display:grid;place-items:start center;padding:30px 20px 35px;overflow:hidden;}
+  .device { --bg:#0e1117; --surface:#171b24; --surface2:#212631; --surface3:#2b313d; --line:#323847; --text:#e8eaf3; --muted:#a6adba; --primary:#b7cbff; --primary-on:#172b53; --chip:#222b3b; --nav:#0e1117; --tag:#9ac8fc; width:396px;height:755px;background:var(--bg);color:var(--text);display:flex;flex-direction:column;position:relative;border-radius:31px;box-shadow:0 30px 65px #0009,0 0 0 7px #323c4d,0 0 0 8px #617187;overflow:hidden;transition:width .25s,height .25s,border-radius .25s; }
+  .device.light { --bg:#f7f9ff; --surface:#ffffff; --surface2:#e7ebf5; --surface3:#dce3f2; --line:#dae0ea; --text:#202936; --muted:#606e80; --primary:#315eaa; --primary-on:#ffffff; --chip:#e4ebf7; --nav:#f7f9ff; --tag:#1e65bd; }
+  .device.desktop {width:min(100%,960px);height:735px;border-radius:14px;}
+  .statusbar {height:25px;padding:7px 24px 0;display:flex;align-items:center;justify-content:space-between;color:var(--text);font-size:10px;font-weight:700;flex-shrink:0;}
+  .status-right {display:flex;align-items:center;gap:5px;}
+  .status-right .icon{width:12px;height:12px}
+  .device.desktop .statusbar,.device.desktop .system-nav {display:none}
+  .appbar {height:55px;flex-shrink:0;padding:4px 10px;display:flex;align-items:center;gap:8px;background:var(--bg);border-bottom:1px solid transparent;}
+  .appbar .appbar-title {font-size:17px;font-weight:550;flex:1;margin-left:7px;}
+  .icon-btn {appearance:none;border:0;display:grid;place-items:center;background:transparent;color:var(--text);min-width:40px;height:40px;border-radius:50%;}
+  .icon-btn:hover {background:var(--surface2)}
+  .viewport {flex:1;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--surface3) transparent; overscroll-behavior:contain;}
+  .app-layout {display:block;min-height:100%;}
+  .device.desktop .viewport {overflow:hidden;}
+  .device.desktop .app-layout {height:100%;display:grid;grid-template-columns:308px minmax(0,1fr);}
+  .device.desktop .artist-panel {overflow-y:auto;border-right:1px solid var(--line);padding-top:13px;}
+  .device.desktop .posts-pane {overflow-y:auto;padding-top:22px;}
+  .system-nav {height:22px;flex-shrink:0;display:grid;place-items:center;background:var(--nav);}
+  .system-nav:after {content:"";width:109px;height:4px;background:var(--text);border-radius:8px;opacity:.78;}
+  .artist-panel {padding:13px 18px 17px;}
+  .artist-avatar {width:65px;height:65px;border-radius:20px;background:linear-gradient(135deg,#394d76,#947aaa);display:grid;place-items:center;color:#f0eafa;box-shadow:inset 0 1px 1px #fff3;}
+  .artist-head {display:flex;align-items:center;gap:14px;}
+  .artist-eyebrow {font-size:10px;text-transform:uppercase;letter-spacing:1.4px;color:var(--muted);font-weight:700;margin-bottom:4px;}
+  .artist-name {font-size:22px;font-weight:650;letter-spacing:-.7px;overflow-wrap:anywhere;margin:0;line-height:1.18;}
+  .artist-sub {color:var(--muted);font-size:12px;margin-top:4px;}
+  .alias-line {font-size:11px;color:var(--muted);margin:13px 0 0;line-height:1.5;}
+  .alias-line strong {font-weight:600;color:var(--text);}
+  .artist-actions {display:flex;gap:8px;margin:17px 0 17px;}
+  .primary-btn {border:0;background:var(--primary);color:var(--primary-on);padding:0 16px;height:37px;border-radius:50px;display:flex;align-items:center;justify-content:center;gap:7px;font-size:12px;font-weight:700;}
+  .primary-btn.following {background:var(--surface2);color:var(--text);border:1px solid var(--line);}
+  .secondary-btn {border:1px solid var(--line);background:var(--surface);color:var(--text);height:37px;padding:0 13px;border-radius:20px;display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;}
+  .block-title {font-size:12px;font-weight:700;margin:0 0 10px;letter-spacing:.1px;}
+  .socials {display:flex;flex-wrap:wrap;gap:7px;}
+  .social-link {border:1px solid var(--line);background:var(--surface);color:var(--text);border-radius:11px;min-height:32px;display:flex;align-items:center;gap:7px;padding:6px 9px;font-size:11px;}
+  .social-link .favicon {width:17px;height:17px;border-radius:5px;background:#5386d5;color:#fff;font-size:10px;font-weight:900;display:grid;place-items:center;}
+  .social-link .favicon.x{background:#292d38}.social-link .favicon.site{background:#778bb6}
+  .section-rule {height:1px;background:var(--line);margin:19px 0 15px;}
+  .wiki-heading {display:flex;align-items:center;justify-content:space-between;gap:8px;}
+  .mini-link {border:0;background:transparent;color:var(--primary);font-size:11px;padding:5px;font-weight:650;}
+  .wiki-copy {color:var(--muted);font-size:11px;line-height:1.65;margin:1px 0 0;}
+  .wiki-more {display:none;margin-top:9px;}.wiki-more.show {display:block}
+  .related-row {display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;}
+  .rel-tag {font-size:10px;padding:6px 8px;border:0;background:var(--chip);color:var(--tag);border-radius:7px;}
+  .posts-pane {padding:1px 10px 20px;min-width:0;}
+  .posts-heading {display:flex;align-items:center;justify-content:space-between;padding:8px 7px 7px;gap:8px;}
+  .posts-heading h2 {font-size:16px;font-weight:650;letter-spacing:-.4px;margin:0;display:flex;align-items:baseline;gap:7px;}
+  .posts-heading .count {font-weight:500;font-size:11px;color:var(--muted);letter-spacing:0;}
+  .posts-toolbar {display:flex;gap:7px;align-items:center;justify-content:space-between;min-width:0;}
+  .pill {height:33px;background:var(--surface2);color:var(--text);border:1px solid var(--line);border-radius:20px;padding:0 11px;display:flex;align-items:center;gap:5px;font-size:11px;font-weight:570;white-space:nowrap;}
+  .pill.selected{background:var(--chip);border-color:var(--primary);color:var(--primary)}
+  .filter-action {width:34px;height:34px;display:grid;place-items:center;border-radius:12px;background:var(--surface2);border:1px solid var(--line);color:var(--text);position:relative;}
+  .filter-action.has-filter {background:var(--chip);border-color:var(--primary);color:var(--primary)}
+  .filter-dot {position:absolute;right:2px;top:2px;width:7px;height:7px;border-radius:50%;background:var(--primary);display:none}.has-filter .filter-dot{display:block}
+  .ab-controls {display:flex;flex-direction:column;gap:7px;margin:0 7px 8px;}
+  .quick-row {display:flex;align-items:center;gap:7px;flex-wrap:wrap;}
+  .quick-row .pill{height:31px;padding:0 11px}
+  .split-group {display:flex;padding:3px;background:var(--surface2);border-radius:24px;border:1px solid var(--line);}
+  .split-group button {border:0;background:transparent;color:var(--muted);padding:5px 11px;border-radius:16px;font-size:11px;font-weight:600;}
+  .split-group button.active{color:var(--primary-on);background:var(--primary)}
+  .compact-input {position:relative;margin:0 7px 9px;}
+  .compact-input .icon{position:absolute;top:10px;left:12px;color:var(--muted);width:17px;height:17px}
+  .compact-input input{width:100%;height:38px;border:1px solid var(--line);background:var(--surface2);border-radius:12px;padding:0 38px 0 36px;color:var(--text);font-size:12px;outline:0;}
+  .compact-input button{position:absolute;right:3px;top:3px;width:32px;height:32px;border:0;background:transparent;color:var(--muted);border-radius:9px;}
+  .active-filters {display:none;gap:5px;flex-wrap:wrap;padding:0 7px 9px;}
+  .active-filters.visible {display:flex;}
+  .active-token {border:1px solid var(--line);background:var(--chip);color:var(--primary);border-radius:7px;padding:6px 7px;font-size:10px;display:flex;align-items:center;gap:5px;}
+  .active-token svg{width:12px;height:12px}
+  .grid {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin:0 0 2px;}
+  .device.desktop .grid {grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;}
+  .art-card {border:0;background:var(--surface2);padding:0;position:relative;overflow:hidden;border-radius:4px;aspect-ratio:.77;box-shadow:inset 0 0 0 1px #ffffff14;}
+  .art-card:focus-visible{outline-offset:-2px;z-index:2}.art-card img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .2s;}.art-card:hover img{transform:scale(1.06)}
+  .art-card .post-id {position:absolute;bottom:0;right:0;background:#07102099;color:#fff;font-size:9px;padding:3px 5px;border-top-left-radius:4px;}
+  .empty-msg {display:none;text-align:center;color:var(--muted);padding:35px 12px 45px;font-size:12px;}
+  .grid-foot {padding:12px 7px;color:var(--muted);font-size:10px;display:flex;align-items:center;justify-content:center;gap:6px}
+  .mode-note {font-size:10px;color:var(--muted);padding:0 7px 8px;}
+  .sheet-layer,.post-layer,.pop-layer{position:absolute;inset:0;z-index:10;background:#06080dab;display:none;align-items:flex-end;}
+  .sheet-layer.open,.post-layer.open,.pop-layer.open{display:flex;}
+  .sheet {background:var(--surface);color:var(--text);width:100%;max-height:88%;overflow-y:auto;border-radius:23px 23px 0 0;padding:10px 18px 21px;box-shadow:0 -12px 30px #0004;scrollbar-width:thin;}
+  .sheet-handle {width:34px;height:4px;background:var(--muted);opacity:.6;border-radius:8px;margin:0 auto 13px;}
+  .sheet-title {display:flex;align-items:center;justify-content:space-between;gap:12px;}
+  .sheet-title h3 {margin:0;font-size:17px;font-weight:650;}
+  .sheet-note{font-size:11px;color:var(--muted);line-height:1.5;margin:8px 0 12px;}
+  .fixed-scope {display:flex;align-items:center;gap:6px;font-size:11px;background:var(--surface2);color:var(--muted);padding:10px;border-radius:10px;margin-bottom:16px;}
+  .field-caption {font-size:11px;font-weight:700;color:var(--text);margin:11px 0 7px;}
+  .field-input {background:var(--surface2);border:1px solid var(--line);border-radius:10px;width:100%;height:38px;padding:0 12px;color:var(--text);font-size:12px;outline:0;}
+  .suggestion-chips {display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 1px;}
+  .suggestion-chips button {font-size:10px;background:var(--chip);border:0;color:var(--primary);border-radius:7px;padding:6px 8px;}
+  .draft-tags {display:flex;gap:6px;flex-wrap:wrap;margin:9px 0 3px;}
+  .draft-tags button {font-size:10px;color:var(--text);border:1px solid var(--line);background:var(--surface3);padding:5px 8px;border-radius:8px;display:flex;align-items:center;gap:5px;}
+  .sheet-select {display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .sheet-select label {display:block;min-width:0;}
+  .sheet-select select {height:38px;background:var(--surface2);border:1px solid var(--line);border-radius:10px;color:var(--text);width:100%;padding:0 8px;font-size:12px;}
+  .sheet-footer {display:flex;gap:9px;margin-top:18px;}
+  .sheet-footer button {height:39px;border-radius:30px;font-weight:650;font-size:12px;}
+  .sheet-reset {background:transparent;border:1px solid var(--line);color:var(--text);padding:0 14px;}
+  .sheet-apply {background:var(--primary);color:var(--primary-on);border:0;flex:1;}
+  .post-layer{align-items:center;justify-content:center;z-index:20;}
+  .post-dialog {width:calc(100% - 30px);max-height:88%;overflow-y:auto;background:var(--surface);padding:12px;border-radius:20px;box-shadow:0 15px 40px #0006;}
+  .post-dialog .post-large {width:100%;height:245px;object-fit:cover;border-radius:12px;display:block;margin:8px 0;}
+  .post-dialog p {font-size:11px;color:var(--muted);line-height:1.5;}
+  .post-dialog .post-meta {display:flex;justify-content:space-between;align-items:center;font-size:12px;margin-top:11px;}
+  .pop-layer{align-items:flex-start;justify-content:flex-end;background:#06080d60;padding:55px 12px 0;}
+  .popover-menu{background:var(--surface2);color:var(--text);border:1px solid var(--line);box-shadow:0 12px 25px #0007;border-radius:12px;padding:6px;width:190px;}
+  .popover-menu button{width:100%;border:0;background:transparent;color:inherit;padding:10px;text-align:left;border-radius:7px;font-size:12px;}
+  .popover-menu button:hover{background:var(--surface3)}
+  .toast {position:absolute;left:50%;transform:translateX(-50%);bottom:32px;z-index:25;color:#fff;background:#303b4a;padding:10px 14px;border-radius:10px;font-size:11px;max-width:90%;text-align:center;box-shadow:0 8px 26px #0008;display:none;}
+  .toast.show{display:block;}
+  .notes {border-radius:20px;background:#141d2a;border:1px solid var(--lab-border);padding:21px;position:sticky;top:20px;}
+  .notes-eyebrow {font-size:10px;color:#97b5e3;letter-spacing:1.7px;text-transform:uppercase;font-weight:750;}
+  .notes h2{margin:8px 0 10px;font-size:19px;letter-spacing:-.5px;}
+  .notes p,.notes li{font-size:12px;color:#bac8d9;line-height:1.66;}
+  .notes p{margin:10px 0;}.notes ul{padding-left:18px;margin:10px 0 18px;}
+  .notes .recommend {display:inline-flex;align-items:center;font-size:10px;color:#bad4ff;background:#243a58;padding:6px 9px;border-radius:8px;margin-top:3px;font-weight:650;}
+  .notes .divider {height:1px;background:#304055;margin:17px 0}
+  .compare-mini {border:1px solid #324055;background:#1b283a;border-radius:12px;padding:12px;display:grid;gap:6px;}
+  .compare-mini label {font-size:10px;color:#92aac4;text-transform:uppercase;letter-spacing:1.1px;}
+  .compare-mini strong{font-size:13px;}
+  .compare-mini span{font-size:11px;color:#b7c8dc;line-height:1.55;}
+  .legend-line{font-size:11px;color:#91a3bc;line-height:1.6;margin-top:13px;}
+  .legend-line strong{color:#e3edfb}
+  .footer-note {margin-top:17px;font-size:11px;color:#7e91aa;text-align:center}
+  .device.desktop .artist-panel .artist-head {flex-direction:column;text-align:center;margin-top:8px;}
+  .device.desktop .artist-panel .artist-actions{justify-content:center}
+  .device.desktop .artist-panel .socials{justify-content:center}
+  .device.desktop .artist-panel .alias-line{text-align:center}
+  .device.desktop .artist-panel .block-title,.device.desktop .artist-panel .wiki-copy{text-align:left}
+  .device.desktop .artist-panel .artist-sub{text-align:center}
+  .device.desktop .posts-pane .posts-heading{padding:0 10px 12px}
+  .device.desktop .posts-pane .grid{margin:0 8px 7px}
+  .device.desktop .posts-pane .ab-controls {margin:0 9px 12px}
+  .device.desktop .sheet-layer {justify-content:flex-end;align-items:flex-start;padding:65px 18px 0}
+  .device.desktop .sheet {border-radius:17px;max-width:350px;max-height:580px;padding:12px 19px 20px;}
+  .device.desktop .sheet-handle {display:none}
+  .device.desktop .post-dialog {max-width:430px}
+  @media (max-width:1110px) {.workbench{grid-template-columns:1fr}.notes{position:static;max-width:720px;width:100%;margin:auto}.stage{min-height:780px}}
+  @media (max-width:600px) {.studio{padding:12px 8px 36px}.studio-title{font-size:19px!important}.studio-actions{gap:7px}.studio-head{padding:9px 7px 0}.lab-segment button{font-size:11px;padding:8px}.stage{padding:26px 10px 30px;min-height:710px;border-radius:14px}.device:not(.desktop){width:min(100%,385px);height:690px}.device.desktop{height:650px}.workbench{gap:16px}.notes{padding:18px}.studio-sub{font-size:12px}}
+
+  [hidden] { display:none !important; }
+  .posts-heading { flex-wrap:wrap; row-gap:10px; }
+  .posts-toolbar { flex-wrap:wrap; max-width:100%; justify-content:flex-end; }
+  .search-shortcut { min-height:34px; padding:0 10px; color:var(--primary); border-color:var(--line); background:var(--surface); }
+  .posts-heading .count { display:inline-block; }
+  .search-page { position:absolute; inset:25px 0 22px; z-index:12; background:var(--bg); color:var(--text); display:flex; flex-direction:column; }
+  .device.desktop .search-page { inset:0; }
+  .search-page-bar { display:flex; align-items:center; gap:10px; min-height:55px; padding:5px 10px; border-bottom:1px solid var(--line); }
+  .search-page-bar h2 { flex:1; font-size:17px; font-weight:600; margin:0; }
+  .profile-label { color:var(--primary); background:var(--chip); font-size:11px; border:1px solid var(--line); padding:7px 10px; border-radius:9px; }
+  .search-page-content { overflow:auto; flex:1; padding:16px 13px 24px; scrollbar-width:thin; }
+  .search-input-wrap { border:1px solid var(--line); border-radius:13px; background:var(--surface2); display:flex; align-items:center; padding:0 6px 0 12px; gap:9px; }
+  .search-input-wrap input { min-width:0; width:100%; height:42px; background:transparent; border:0; color:var(--text); font-size:13px; }
+  .search-input-wrap>svg { color:var(--muted); }
+  .search-tags { display:flex; flex-wrap:wrap; gap:6px; margin:11px 0; }
+  .search-tags button { background:var(--chip); border:1px solid var(--line); color:var(--tag); font-size:12px; padding:7px 9px; border-radius:8px; display:flex; align-items:center; gap:7px; }
+  .search-tags button.artist-token { color:#ed9b94; }
+  .device.light .search-tags button.artist-token { color:#a82b3d; }
+  .search-suggestions { display:flex; flex-direction:column; gap:3px; margin:7px 0; }
+  .search-suggestions button { text-align:left; border:0; background:var(--surface); color:var(--tag); padding:9px 11px; border-radius:8px; font-size:12px; }
+  .search-suggestions button:hover { background:var(--surface2); }
+  .search-context { display:flex; justify-content:space-between; align-items:center; padding:4px 0 8px; font-size:12px; color:var(--muted); }
+  .search-handoff-note { font-size:10px; line-height:1.6; color:var(--muted); margin:0 0 12px; }
+  .search-page .empty-msg { display:block; }
+  .search-page .grid { margin:0; }
+  .device.desktop .search-page-content { padding:22px; }
+  @media (max-width:430px) { .posts-heading h2 { font-size:15px; } .split-group button { padding:5px 8px; } .search-shortcut { padding:0 8px; } .artist-panel { padding-inline:15px; } }
+</style>
+</head>
+<body>
+<svg style="position:absolute;width:0;height:0;overflow:hidden" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>
+<symbol id="arrow" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6" /></symbol>
+<symbol id="more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></symbol>
+<symbol id="sliders" viewBox="0 0 24 24"><path d="M4 7h10m4 0h2M4 17h2m4 0h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></symbol>
+<symbol id="chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+<symbol id="check" viewBox="0 0 24 24"><path d="m4 12 5 5L20 6"/></symbol>
+<symbol id="plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></symbol>
+<symbol id="close" viewBox="0 0 24 24"><path d="M5 5 19 19M19 5 5 19"/></symbol>
+<symbol id="search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4" /></symbol>
+<symbol id="brush" viewBox="0 0 24 24"><path d="M14 4 20 10 11 19c-2.1 2.1-5 1.8-7-1 3 .2 3.5-2.2 4.2-4.2L14 4Z"/><path d="m12 6 6 6"/></symbol>
+<symbol id="world" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c-6 5-6 13 0 18m0-18c6 5 6 13 0 18"/></symbol>
+<symbol id="link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l2-2a5 5 0 0 0-7-7l-1.8 1.8M14 11a5 5 0 0 0-7.5-.5l-2 2a5 5 0 0 0 7 7l1.8-1.8"/></symbol>
+<symbol id="heart" viewBox="0 0 24 24"><path d="M20.8 4.9a5.6 5.6 0 0 0-7.9 0L12 5.8l-.9-.9a5.6 5.6 0 0 0-7.9 7.9L12 21l8.8-8.2a5.6 5.6 0 0 0 0-7.9Z"/></symbol>
+<symbol id="copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></symbol>
+<symbol id="info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v.2"/></symbol>
+<symbol id="download" viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M4 18v3h16v-3"/></symbol>
+<symbol id="sort" viewBox="0 0 24 24"><path d="M6 4v16m-3-3 3 3 3-3M18 20V4m-3 3 3-3 3 3"/></symbol>
+</defs></svg>
+<div class="studio">
+ <header class="studio-head">
+   <div><div class="lab-kicker">Boorusama / Design Review / #21</div><h1 class="studio-title">Artist Page · Search Shortcut</h1><p class="studio-sub">Revised direction B: a focused Artist Page with a Search shortcut. Open an independent normal search with the artist tag prefilled. All sample content is fictional.</p></div>
+   <div class="studio-actions">
+     <div class="lab-segment" aria-label="Design direction"><button class="active" type="button" disabled>B · Search Shortcut</button></div>
+     <div class="lab-segment" aria-label="Viewport"><button class="active" data-layout="mobile"><svg class="icon"><use href="#info" /></svg>Mobile</button><button data-layout="desktop">Desktop</button></div>
+     <div class="lab-segment" aria-label="Theme"><button class="active" data-theme="dark">Dark</button><button data-theme="light">Light</button></div>
+   </div>
+ </header>
+ <main class="workbench">
+   <section class="stage" aria-label="Interactive application preview">
+      <div id="device" class="device">
+        <div class="statusbar"><span>9:41</span><span class="status-right">●●● <svg class="icon"><use href="#world"/></svg> ▰</span></div>
+        <div class="appbar"><button id="backBtn" class="icon-btn" title="Back"><svg class="icon"><use href="#arrow"/></svg></button><span class="appbar-title">Artist</span><button class="icon-btn" id="appMore" title="More options"><svg class="icon"><use href="#more"/></svg></button></div>
+        <div class="viewport" id="viewport"><div class="app-layout">
+           <section class="artist-panel" aria-label="Artist details">
+             <div class="artist-head"><div class="artist-avatar"><svg class="icon lg" style="width:30px;height:30px"><use href="#brush" /></svg></div><div><div class="artist-eyebrow">Danbooru · Artist</div><h1 class="artist-name">asano_mio</h1><div class="artist-sub">Artist profile</div></div></div>
+             <p class="alias-line"><strong>Also known as</strong> mio_asano · asano_m</p>
+             <div class="artist-actions"><button class="primary-btn" id="followBtn"><svg class="icon sm"><use href="#plus"/></svg><span>Follow</span></button><button class="secondary-btn" id="copyArtist"><svg class="icon sm"><use href="#copy"/></svg>Copy Tag</button></div>
+             <h3 class="block-title">Links</h3><div class="socials">
+               <button class="social-link" data-url="Pixiv"><span class="favicon">P</span>Pixiv</button>
+               <button class="social-link" data-url="X / Twitter"><span class="favicon x">X</span>X</button>
+               <button class="social-link" data-url="Website"><span class="favicon site"><svg class="icon sm"><use href="#world" /></svg></span>Website</button>
+             </div>
+             <div class="section-rule"></div><div class="wiki-heading"><h3 class="block-title" style="margin:0">About</h3><button class="mini-link" id="wikiToggle">Wiki &nbsp;↗</button></div>
+             <p class="wiki-copy">Artist information and source links from Danbooru. A compact summary keeps the posts easy to reach.</p>
+             <div id="wikiMore" class="wiki-more"><p class="wiki-copy">Longer wiki text, alternative names, and related tags appear here when available. This is placeholder content; it is not a real artist entry.</p><div class="related-row"><button class="rel-tag" data-tag="illustration">illustration</button><button class="rel-tag" data-tag="scenery">scenery</button><button class="rel-tag" data-tag="flowers">flowers</button></div></div>
+           </section>
+           <section class="posts-pane" aria-label="Artist posts">
+             <div class="posts-heading"><h2>Posts <span id="countText" class="count">1,284</span></h2><div class="posts-toolbar" id="headingControls"></div></div>
+
+
+             <div id="grid" class="grid"></div>
+
+             <div class="grid-foot"><svg class="icon sm"><use href="#info"/></svg>Illustrative preview · 12 sample posts</div>
+           </section>
+        </div></div>
+        <div class="system-nav"></div>
+        <section id="searchPage" class="search-page" aria-label="Normal Search preview" hidden>
+          <div class="search-page-bar"><button id="searchBack" class="icon-btn" title="Back to Artist" aria-label="Back to Artist"><svg class="icon"><use href="#arrow"/></svg></button><h2>Search</h2><span class="profile-label">Danbooru</span></div>
+          <div class="search-page-content" id="searchContent">
+            <div class="search-input-wrap"><svg class="icon"><use href="#search"/></svg><input id="searchInput" placeholder="Add a tag…" aria-label="Add a search tag" autocomplete="off"/><button id="searchAdd" class="icon-btn" title="Add Tag" aria-label="Add Tag"><svg class="icon"><use href="#plus"/></svg></button></div>
+            <div id="searchTags" class="search-tags" aria-label="Selected search tags"></div>
+            <div id="searchSuggestions" class="search-suggestions" aria-label="Tag suggestions"></div>
+            <div class="search-context"><span id="searchCount" aria-live="polite">12 Demo Results</span><button id="searchSort" class="pill" type="button">Newest</button></div>
+            <div class="search-handoff-note">Independent Search · changing tags here does not change the Artist Page or its Follow query.</div>
+            <div id="searchGrid" class="grid"></div><p id="searchEmpty" class="empty-msg" hidden>No matching demo posts. Remove a tag to broaden this search.</p>
+            <div class="grid-foot">Prototype only · the sample dataset contains 12 posts by asano_mio.</div>
+          </div>
+        </section>
+        <div id="postLayer" class="post-layer" role="presentation"><section class="post-dialog" role="dialog" aria-label="Post preview"><div class="sheet-title"><h3 id="postTitle" style="margin:0;font-size:14px">Post</h3><button class="icon-btn" id="closePost" title="Close"><svg class="icon"><use href="#close"/></svg></button></div><img id="largePost" class="post-large" alt="Stylized art placeholder" /><div class="post-meta"><strong id="postRating">General</strong><span id="postScore">Score 0</span></div><p id="postTags"></p><button class="secondary-btn" id="searchWithTag"><svg class="icon sm"><use href="#search"/></svg>Search This Tag</button></section></div>
+        <div id="popoverLayer" class="pop-layer"><div class="popover-menu"><button id="openWikiAction">Open Artist Wiki</button><button id="copyNameAction">Copy Artist Tag</button><button id="moreSearchAction">Search Artist Posts</button></div></div>
+        <div id="toast" class="toast" role="status" aria-live="polite"></div>
+      </div>
+   </section>
+   <aside class="notes" aria-label="Design review notes"><div class="notes-eyebrow">Revised Direction</div><h2>B · Search Shortcut</h2><span class="recommend">Based on your feedback</span><p>Artist information stays compact. <strong>Search</strong> opens the regular search in a separate app view with <code>asano_mio</code> prefilled.</p><div class="divider"></div><div class="compare-mini"><label>No duplicate filter UI</label><strong>Artist → Normal Search → Back</strong><span>Artist sorting and scroll position stay intact. Searching uses the same profile, but its query is independent.</span></div><div class="divider"></div><div class="notes-eyebrow">Kept on Artist Page</div><ul><li><strong>Follow</strong>, not “Follow Topic”.</li><li><strong>Newest / Popular</strong> beside the Posts heading.</li><li>A labeled <strong>Search</strong> shortcut, not a settings/filter icon.</li><li>No extra search field, filter sheet, or Browse Posts action.</li><li>Links, aliases, and wiki access remain above the posts.</li></ul><div class="legend-line"><strong>Try it:</strong> select Popular, scroll, open Search, add <code>scenery</code> or <code>-comic</code>, then use Back. The artist view stays as you left it. Switch between mobile/desktop and light/dark.</div><div class="divider"></div><p><strong>Note:</strong> this is an interaction mockup, not production UI. Search and wiki content are illustrative; no live requests are made.</p></aside>
+ </main>
+ <p class="footer-note">Design mockup only · No network calls, real profile data, or Boorusama source-code changes · Self-contained HTML</p>
+</div>
+<script>
+(() => {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const icon = (name,cls='sm') => `<svg class="icon ${cls}" aria-hidden="true"><use href="#${name}"/></svg>`;
+  const device=$('device'),viewport=$('viewport');
+  const palettes=[
+    ['#7498b2','#eee2d1','#435b93','#efd4b7','#334960'],['#dfaf98','#efdbdd','#905f79','#ead0b2','#75546c'],['#84a9ad','#f3ddbb','#4d787c','#edd2b5','#324a60'],
+    ['#8e8cc0','#d7d1f2','#353f7d','#edd0bc','#3b3c78'],['#d8bd7f','#ede7dc','#85694f','#edc9ae','#51486f'],['#8db6c7','#c6dce3','#496d93','#f0c8b1','#344c63'],
+    ['#c5a1bb','#efe6ef','#885a86','#eac4a9','#514b70'],['#a6c2a1','#e5eecb','#617e58','#f0c9b4','#486454'],['#dd9ba2','#f7d7bf','#aa6174','#eed3b8','#604260'],
+    ['#8a9fce','#e2e9f6','#4a5c93','#f1d1b5','#435178'],['#9fbda9','#f3e4cd','#52756d','#f0cfb5','#385e5f'],['#cba9bf','#f3dce9','#755c92','#f1ceb8','#584567']
+  ];
+  const data=[
+    ['scenery','blue_hair','outdoors'],['portrait','flowers','pink_hair'],['scenery','sky','water'],['portrait','winter_clothes','blue_hair'],['comic','cityscape','uniform'],['scenery','sunset','flowers'],
+    ['portrait','long_hair','pink_hair'],['scenery','water','outdoors'],['comic','portrait','uniform'],['portrait','flowers','sky'],['scenery','cityscape','blue_hair'],['portrait','winter_clothes','flowers']
+  ];
+  const ratings=['general','general','general','sensitive','questionable','general','sensitive','general','explicit','general','questionable','general'];
+  const posters=data.map((tags,i)=>({id:8201550-i*16,score:[95,73,109,64,117,55,81,50,144,88,41,66][i],tags,rating:ratings[i],index:i}));
+  const makeSVG=i=>{
+    const [bg,sky,hair,skin,coat]=palettes[i];const skyColor=i%3===0?'#cadbea':sky;const shift=(i%4-1.5)*9;const p=210+shift;const eyes=(i%3===1)?'#2e4d70':'#3d4665';
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 535"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="${skyColor}"/><stop offset="1" stop-color="${bg}"/></linearGradient><linearGradient id="c" x1="0" y1="0" x2="0.7" y2="1"><stop stop-color="${hair}"/><stop offset="1" stop-color="${coat}"/></linearGradient></defs><rect width="400" height="535" fill="url(#g)"/><circle cx="${70+i*17%270}" cy="${90+i*11%75}" r="100" fill="#ffffff24"/><path d="M-20 435 Q100 325 206 406T430 383V535H-20Z" fill="${bg}" opacity=".6"/><path d="M0 489 Q120 410 225 462T450 427V535H0Z" fill="${hair}" opacity=".3"/><g opacity=".5" stroke="#fff" stroke-width="2" fill="none"><path d="M20 80Q100 22 178 100M300 25Q270 75 380 130"/><path d="M10 235Q70 200 105 220M325 228Q370 209 395 230"/></g><path d="M${p-130} 535 Q${p-105} 372 ${p-35} 368L${p+30} 367Q${p+126} 376 ${p+149} 535Z" fill="${coat}"/><path d="M${p-44} 403L${p} 471 ${p+43} 402" fill="${skin}"/><path d="M${p-85} 270Q${p-98} 151 ${p-12} 147Q${p+98} 138 ${p+101} 265L${p+103} 414Q${p+21} 434 ${p-98} 399Z" fill="url(#c)"/><ellipse cx="${p+1}" cy="272" rx="63" ry="87" fill="${skin}"/><path d="M${p-64} 260Q${p-84} 150 ${p+11} 149Q${p+92} 150 ${p+76} 258L${p+46} 197Q${p+3} 224 ${p-70} 224Z" fill="${hair}"/><path d="M${p-57} 237Q${p-81} 298 ${p-73} 352" fill="none" stroke="${hair}" stroke-width="16" stroke-linecap="round"/><path d="M${p+62} 231Q${p+84} 296 ${p+74} 357" fill="none" stroke="${hair}" stroke-width="19" stroke-linecap="round"/><ellipse cx="${p-22}" cy="272" rx="7" ry="4.2" fill="${eyes}"/><ellipse cx="${p+24}" cy="272" rx="7" ry="4.2" fill="${eyes}"/><path d="M${p-9} 314Q${p+1} 318 ${p+12} 312" stroke="#b67e7b" stroke-width="3" fill="none" stroke-linecap="round"/><ellipse cx="${p-45}" cy="299" rx="12" ry="5" fill="#ef9a9a" opacity=".45"/><ellipse cx="${p+47}" cy="299" rx="12" ry="5" fill="#ef9a9a" opacity=".45"/><g fill="#fff" opacity=".5"><circle cx="47" cy="312" r="4"/><circle cx="349" cy="201" r="3"/><circle cx="31" cy="370" r="2"/><circle cx="351" cy="395" r="5"/></g></svg>`;
+  };
+  const assets=posters.map((_,i)=>'data:image/svg+xml;charset=UTF-8,'+encodeURIComponent(makeSVG(i)));
+  const state={theme:'dark',layout:'mobile',artistSort:'newest',searchSort:'newest',searchTags:['asano_mio'],follow:false,openedPost:null,route:'artist'};
+  const tagOptions=['asano_mio','scenery','portrait','flowers','blue_hair','water','comic','uniform','cityscape','outdoors','winter_clothes','sunset','sky'];
+  let toastTimer=null;
+  function showToast(msg){const el=$('toast');el.textContent=msg;el.classList.add('show');if(toastTimer)clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('show'),2300)}
+  function escapeHTML(s){return String(s).replace(/[&<>"']/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x]));}
+  function cardMarkup(p){return `<button class="art-card" data-post="${p.index}" title="Open sample post ${p.id}"><img src="${assets[p.index]}" alt="Fictional artist post sample ${p.index+1}" draggable="false"/><span class="post-id">#${p.id}</span></button>`;}
+  function bindCards(grid){grid.querySelectorAll('[data-post]').forEach(b=>b.onclick=()=>openPost(Number(b.dataset.post)));}
+  function renderArtist(){
+    $('headingControls').innerHTML=`<div class="split-group" aria-label="Artist post order"><button type="button" data-sort="newest" class="${state.artistSort==='newest'?'active':''}" aria-pressed="${state.artistSort==='newest'}">Newest</button><button type="button" data-sort="popular" class="${state.artistSort==='popular'?'active':''}" aria-pressed="${state.artistSort==='popular'}">Popular</button></div><button type="button" id="artistSearch" class="pill search-shortcut" title="Open Search with this artist">${icon('search')}<span>Search</span></button>`;
+    $('headingControls').querySelectorAll('[data-sort]').forEach(b=>b.onclick=()=>{state.artistSort=b.dataset.sort;renderArtist();});
+    $('artistSearch').onclick=()=>openSearch();
+    const items=state.artistSort==='popular'?[...posters].sort((a,b)=>b.score-a.score):posters;
+    $('grid').innerHTML=items.map(cardMarkup).join('');bindCards($('grid'));
+    $('countText').textContent='1,284';
+  }
+  function openSearch(extra){
+    // A new search session never changes the Artist Page's query or sort.
+    state.route='search';state.searchTags=['asano_mio'];if(extra&&extra!=='asano_mio')state.searchTags.push(extra);
+    state.searchSort='newest';$('searchInput').value='';$('searchPage').hidden=false;
+    document.querySelector('.appbar').inert=true;viewport.inert=true;
+    renderSearch();$('searchContent').scrollTo(0,0);$('searchBack').focus();
+  }
+  function closeSearch(){
+    state.route='artist';$('searchPage').hidden=true;viewport.inert=false;document.querySelector('.appbar').inert=false;
+    $('artistSearch')?.focus({preventScroll:true});
+  }
+  function filteredSearch(){
+    let items=posters.filter(p=>state.searchTags.every(raw=>{
+      const neg=raw.startsWith('-'),t=neg?raw.slice(1):raw;
+      const present=t==='asano_mio'||p.tags.includes(t);
+      return neg?!present:present;
+    }));
+    if(state.searchSort==='popular')items=[...items].sort((a,b)=>b.score-a.score);
+    return items;
+  }
+  function renderSuggestions(){
+    const raw=$('searchInput').value.trim().toLowerCase(),negative=raw.startsWith('-'),q=(negative?raw.slice(1):raw).replaceAll(' ','_');
+    const matches=q?tagOptions.filter(t=>t.includes(q)&&!state.searchTags.includes((negative?'-':'')+t)).slice(0,6):[];
+    $('searchSuggestions').innerHTML=matches.map(t=>`<button type="button" data-suggest="${escapeHTML((negative?'-':'')+t)}">${escapeHTML(t.replaceAll('_',' '))}</button>`).join('');
+    $('searchSuggestions').querySelectorAll('[data-suggest]').forEach(b=>b.onclick=()=>addSearchTag(b.dataset.suggest));
+  }
+  function addSearchTag(text){
+    const tag=String(text).trim().toLowerCase().replaceAll(' ','_');if(!tag)return;
+    if(!state.searchTags.includes(tag))state.searchTags.push(tag);$('searchInput').value='';renderSearch();$('searchInput').focus();
+  }
+  function renderSearch(){
+    $('searchTags').innerHTML=state.searchTags.map((tag,i)=>`<button type="button" class="${tag==='asano_mio'?'artist-token':''}" data-remove="${i}" aria-label="Remove ${escapeHTML(tag)}">${escapeHTML(tag.replaceAll('_',' '))}${icon('close')}</button>`).join('');
+    $('searchTags').querySelectorAll('[data-remove]').forEach(b=>b.onclick=()=>{state.searchTags.splice(Number(b.dataset.remove),1);renderSearch();});
+    const posts=filteredSearch();$('searchGrid').innerHTML=posts.map(cardMarkup).join('');bindCards($('searchGrid'));
+    $('searchCount').textContent=`${posts.length} Demo Result${posts.length===1?'':'s'}`;$('searchEmpty').hidden=posts.length>0;
+    $('searchSort').textContent=state.searchSort==='newest'?'Newest':'Popular';renderSuggestions();
+  }
+  function openPost(idx){const p=posters[idx];state.openedPost=p;$('postTitle').textContent=`Post #${p.id}`;$('largePost').src=assets[idx];$('postRating').textContent=p.rating.charAt(0).toUpperCase()+p.rating.slice(1);$('postScore').textContent=`Score ${p.score}`;$('postTags').textContent=p.tags.map(t=>t.replaceAll('_',' ')).join(' · ');$('postLayer').classList.add('open');$('closePost').focus();}
+  function closePost(){$('postLayer').classList.remove('open');}
+  $('searchWithTag').onclick=()=>{const p=state.openedPost;if(!p)return;closePost();openSearch(p.tags[0]);};
+  $('searchBack').onclick=closeSearch;
+  $('searchInput').addEventListener('input',renderSuggestions);
+  $('searchInput').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addSearchTag(e.currentTarget.value);}});
+  $('searchAdd').onclick=()=>addSearchTag($('searchInput').value);
+  $('searchSort').onclick=()=>{state.searchSort=state.searchSort==='newest'?'popular':'newest';renderSearch();};
+  $('followBtn').onclick=()=>{state.follow=!state.follow;const b=$('followBtn');b.classList.toggle('following',state.follow);b.innerHTML=state.follow?`${icon('check')}<span>Following</span>`:`${icon('plus')}<span>Follow</span>`;showToast(state.follow?'Artist followed (prototype)':'Artist unfollowed (prototype)');};
+  $('copyArtist').onclick=()=>{if(navigator.clipboard?.writeText)navigator.clipboard.writeText('asano_mio').catch(()=>{});showToast('Artist tag: asano_mio');};
+  $('wikiToggle').onclick=()=>{$('wikiMore').classList.toggle('show');$('wikiToggle').textContent=$('wikiMore').classList.contains('show')?'Less ↑':'Wiki ↗';};
+  document.querySelectorAll('[data-url]').forEach(b=>b.onclick=()=>showToast(`Prototype link: ${b.dataset.url}`));
+  document.querySelectorAll('.rel-tag').forEach(b=>b.onclick=()=>openSearch(b.dataset.tag));
+  $('backBtn').onclick=()=>showToast('Back to previous app screen (prototype)');
+  $('appMore').onclick=()=>$('popoverLayer').classList.add('open');
+  $('popoverLayer').onclick=e=>{if(e.target===$('popoverLayer'))$('popoverLayer').classList.remove('open');};
+  $('openWikiAction').onclick=()=>{$('popoverLayer').classList.remove('open');$('wikiMore').classList.add('show');$('wikiToggle').textContent='Less ↑';showToast('Showing artist wiki summary');};
+  $('copyNameAction').onclick=()=>{$('popoverLayer').classList.remove('open');$('copyArtist').click();};
+  $('moreSearchAction').onclick=()=>{$('popoverLayer').classList.remove('open');openSearch();};
+  $('closePost').onclick=closePost;$('postLayer').onclick=e=>{if(e.target===$('postLayer'))closePost();};
+  window.addEventListener('keydown',e=>{if(e.key!=='Escape')return;if($('postLayer').classList.contains('open'))closePost();else if($('popoverLayer').classList.contains('open'))$('popoverLayer').classList.remove('open');else if(state.route==='search')closeSearch();});
+  document.querySelectorAll('[data-layout]').forEach(b=>b.onclick=()=>{state.layout=b.dataset.layout;device.classList.toggle('desktop',state.layout==='desktop');document.querySelectorAll('[data-layout]').forEach(n=>n.classList.toggle('active',n===b));viewport.scrollTo(0,0);});
+  document.querySelectorAll('[data-theme]').forEach(b=>b.onclick=()=>{state.theme=b.dataset.theme;device.classList.toggle('light',state.theme==='light');document.querySelectorAll('[data-theme]').forEach(n=>n.classList.toggle('active',n===b));});
+  renderArtist();
+})();
+</script>
+</body>
+</html>
