@@ -32,7 +32,7 @@
   {
     "name": "blocked",
     "color": "d93f0b",
-    "description": "A concrete obstacle prevents the next necessary step."
+    "description": "A documented obstacle prevents the next necessary step."
   },
   {
     "name": "review",
