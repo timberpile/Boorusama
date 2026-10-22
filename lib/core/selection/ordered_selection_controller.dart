@@ -12,7 +12,12 @@ import 'package:selection_mode/src/core/selection_item_info.dart';
 /// Selection lives in the package controller; no second selected-ID set exists.
 class OrderedSelectionController<K extends Object>
     extends SelectionModeController {
-  OrderedSelectionController({super.initialEnabled});
+  OrderedSelectionController({
+    super.initialEnabled,
+    this.exitWhenSelectionRemoved = false,
+  });
+
+  final bool exitWhenSelectionRemoved;
 
   List<K> _entries = const [];
   Map<K, int> _indices = const {};
@@ -108,6 +113,11 @@ class OrderedSelectionController<K extends Object>
         super.selectAll([
           for (final key in selected) ?_indices[key],
         ]);
+        if (exitWhenSelectionRemoved &&
+            selected.isNotEmpty &&
+            selection.isEmpty) {
+          disable();
+        }
       }
     } finally {
       _batching = false;

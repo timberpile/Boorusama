@@ -28,6 +28,16 @@ abstract class BookmarkRepository<T extends Post> {
   });
 }
 
+/// Optional capability for repositories with an authoritative identity index.
+/// Standalone services and older repository implementations retain the full-read
+/// fallback; a serialized mutation can resolve only the affected identities.
+abstract interface class BookmarkIdentityLookup {
+  Future<Map<BookmarkUniqueId, Bookmark>> lookupBookmarks(
+    Set<BookmarkUniqueId> identities, {
+    required ImageUrlResolver Function(int? booruId) imageUrlResolver,
+  });
+}
+
 class BookmarkRepositoryReadException implements Exception {
   const BookmarkRepositoryReadException(this.error);
 
@@ -35,6 +45,27 @@ class BookmarkRepositoryReadException implements Exception {
 }
 
 extension BookmarkRepositoryExtensions on BookmarkRepository {
+  Future<Map<BookmarkUniqueId, Bookmark>> getBookmarksByIdentityOrThrow(
+    Iterable<BookmarkUniqueId> identities, {
+    required ImageUrlResolver Function(int? booruId) imageUrlResolver,
+  }) async {
+    final selected = identities.toSet();
+    if (selected.isEmpty) return {};
+    final repository = this;
+    if (repository is BookmarkIdentityLookup) {
+      return (repository as BookmarkIdentityLookup).lookupBookmarks(
+        selected,
+        imageUrlResolver: imageUrlResolver,
+      );
+    }
+    return {
+      for (final bookmark in await getAllBookmarksOrThrow(
+        imageUrlResolver: imageUrlResolver,
+      ))
+        if (selected.contains(bookmark.uniqueId)) bookmark.uniqueId: bookmark,
+    };
+  }
+
   Future<List<Bookmark>> getAllBookmarksOrThrow({
     required ImageUrlResolver Function(int? booruId) imageUrlResolver,
   }) async {

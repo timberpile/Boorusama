@@ -14,6 +14,8 @@ class KurumiLikeButton extends StatefulWidget {
     this.size = 30,
     this.padding,
     this.animationDuration = const Duration(milliseconds: 1000),
+    this.controlled = false,
+    this.enabled = true,
   });
 
   final bool isLiked;
@@ -22,6 +24,13 @@ class KurumiLikeButton extends StatefulWidget {
   final double size;
   final EdgeInsetsGeometry? padding;
   final Duration animationDuration;
+
+  /// In controlled mode [isLiked] is the sole source of truth. Every enabled
+  /// tap is forwarded, including during animation or a pending callback. The
+  /// owner must serialize mutations; callback results cannot overwrite newer
+  /// external state. The default mode retains its existing interaction locks.
+  final bool controlled;
+  final bool enabled;
 
   @override
   State<KurumiLikeButton> createState() => _KurumiLikeButtonState();
@@ -48,10 +57,15 @@ class _KurumiLikeButtonState extends State<KurumiLikeButton>
     super.didUpdateWidget(oldWidget);
     _controller.duration = widget.animationDuration;
 
-    if (widget.isLiked != oldWidget.isLiked && widget.isLiked != _isLiked) {
+    if ((widget.controlled || widget.isLiked != oldWidget.isLiked) &&
+        widget.isLiked != _isLiked) {
       final animate = widget.isLiked;
       _isLiked = widget.isLiked;
-      if (animate) _playAnimation();
+      if (animate) {
+        _playAnimation();
+      } else if (widget.controlled) {
+        _controller.reset();
+      }
     }
   }
 
@@ -62,6 +76,12 @@ class _KurumiLikeButtonState extends State<KurumiLikeButton>
   }
 
   Future<void> _handleTap() async {
+    if (!widget.enabled) return;
+    if (widget.controlled) {
+      final onTap = widget.onTap;
+      if (onTap != null) await onTap(widget.isLiked);
+      return;
+    }
     if (_handlingTap || _controller.isAnimating) return;
 
     _handlingTap = true;
@@ -69,7 +89,9 @@ class _KurumiLikeButtonState extends State<KurumiLikeButton>
       final next =
           await (widget.onTap?.call(_isLiked) ??
               Future<bool?>.value(!_isLiked));
-      if (!mounted || next == null || next == _isLiked) return;
+      if (!mounted || widget.controlled || next == null || next == _isLiked) {
+        return;
+      }
 
       setState(() => _isLiked = next);
       if (next) _playAnimation();
@@ -123,9 +145,13 @@ class _KurumiLikeButtonState extends State<KurumiLikeButton>
 
     return Semantics(
       button: true,
+      enabled: widget.enabled,
       toggled: _isLiked,
       child: FocusableActionDetector(
-        mouseCursor: SystemMouseCursors.click,
+        enabled: widget.enabled,
+        mouseCursor: widget.enabled
+            ? SystemMouseCursors.click
+            : SystemMouseCursors.basic,
         actions: {
           ActivateIntent: CallbackAction<ActivateIntent>(
             onInvoke: (_) => _handleTap(),
@@ -133,7 +159,7 @@ class _KurumiLikeButtonState extends State<KurumiLikeButton>
         },
         child: GestureDetector(
           behavior: HitTestBehavior.translucent,
-          onTap: _handleTap,
+          onTap: widget.enabled ? _handleTap : null,
           child: result,
         ),
       ),

@@ -15,8 +15,8 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../../../../bookmarks/providers.dart';
 import '../../../../bookmarks/src/types/bookmark_view.dart';
 import '../../../../bookmarks/src/data/bookmark_convert.dart';
+import '../../../../bookmarks/src/providers/bookmark_button_state_provider.dart';
 import '../../../../bookmarks/src/providers/bookmark_details_mutation_notifier.dart';
-import '../../../../bookmarks/src/widgets/bookmark_group_label.dart';
 import '../../../../bookmarks/widgets.dart';
 import '../../../../configs/config/providers.dart';
 import '../../../../configs/config/types.dart';
@@ -39,23 +39,15 @@ class BookmarkPostButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bookmarkStateAsync = ref.watch(bookmarkProvider);
-    final library = bookmarkStateAsync.valueOrNull;
     final uniqueId = bookmarkIdentityForPost(post, config.booruIdHint);
-    final presentation = library == null
-        ? null
-        : ref
-              .watch(bookmarkDetailsMutationProvider)
-              .presentationFor(library, uniqueId);
-    final activeGroupId = library?.activeTarget.groupId;
+    final buttonState = ref.watch(
+      bookmarkButtonStateProvider(uniqueId).select((state) => state),
+    );
+    final presentation = buttonState.presentation;
     final isBookmarked = presentation?.isInActiveTarget ?? false;
-    final groupLabels = library == null
-        ? const <String, String>{}
-        : {for (final g in library.groups) g.id: g.displayName(context)};
-    final activeLabel = activeGroupId == null
-        ? context.t.bookmark.groups.default_group
-        : groupLabels[activeGroupId] ?? context.t.bookmark.groups.default_group;
-    final isLoading = bookmarkStateAsync.isLoading;
+    final activeLabel =
+        buttonState.activeGroupName ?? context.t.bookmark.groups.default_group;
+    final isLoading = buttonState.isLoading;
     final actionLabel = isBookmarked
         ? context.t.bookmark.groups.remove_from(name: activeLabel)
         : context.t.bookmark.groups.add_to(name: activeLabel);
@@ -142,17 +134,14 @@ class BookmarkPostLikeButtonButton extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final booruConfig = ref.watchConfigAuth;
-    final bookmarkStateAsync = ref.watch(bookmarkProvider);
-    final library = bookmarkStateAsync.valueOrNull;
     final uniqueId = bookmarkIdentityForPost(post, booruConfig.booruIdHint);
-    final presentation = library == null
-        ? null
-        : ref
-              .watch(bookmarkDetailsMutationProvider)
-              .presentationFor(library, uniqueId);
+    final buttonState = ref.watch(
+      bookmarkButtonStateProvider(uniqueId).select((state) => state),
+    );
+    final presentation = buttonState.presentation;
     final isBookmarked = presentation?.isInActiveTarget ?? false;
     final showCount = presentation?.showNamedGroupCount ?? false;
-    final isLoading = bookmarkStateAsync.isLoading;
+    final isLoading = buttonState.isLoading;
 
     return BookmarkGroupPickerAnchor(
       config: booruConfig,
@@ -161,27 +150,15 @@ class BookmarkPostLikeButtonButton extends ConsumerWidget {
         onLongPressStart: isLoading ? null : (_) => showPicker(),
         child: KurumiLikeButton(
           isLiked: isBookmarked,
+          controlled: true,
+          enabled: !isLoading,
           onTap: isLoading
               ? null
-              : (isLiked) async {
-                  final outcome = await ref.toggleBookmarkTarget(
-                    post,
-                    booruConfig,
-                    context,
-                  );
-                  return switch (outcome) {
-                    BookmarkToggleOutcome.added => true,
-                    BookmarkToggleOutcome.removed => false,
-                    BookmarkToggleOutcome.unavailable =>
-                      ref
-                          .read(bookmarkDetailsMutationProvider)
-                          .presentationFor(
-                            ref.read(bookmarkProvider).requireValue,
-                            uniqueId,
-                          )
-                          .isInActiveTarget,
-                    _ => isLiked,
-                  };
+              : (_) async {
+                  await ref.toggleBookmarkTarget(post, booruConfig, context);
+                  // Only the committed provider state drives the icon. A late
+                  // callback must not replace the result of a more recent tap.
+                  return null;
                 },
           builder: (isLiked) => Badge(
             isLabelVisible: showCount,

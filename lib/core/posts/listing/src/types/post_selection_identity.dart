@@ -3,6 +3,7 @@ import '../../../post/types.dart';
 
 /// Unknown identities are unique per row and survive only a proven append.
 class PostSelectionIdentity {
+  final _identities = Expando<BookmarkIdentity>();
   List<Post> _posts = const [];
   List<Object> _keys = const [];
 
@@ -16,7 +17,11 @@ class PostSelectionIdentity {
     final occurrences = <Object, int>{};
     final keys = <Object>[];
     for (var i = 0; i < posts.length; i++) {
-      final identity = BookmarkIdentity.tryFromPost(posts[i]);
+      // Post snapshots are immutable. Weak keys avoid retaining removed posts
+      // while reusing their normalized identities across grid refreshes.
+      final identity = _identities[posts[i]] ??= BookmarkIdentity.tryFromPost(
+        posts[i],
+      );
       final key =
           identity ?? (append && i < _keys.length ? _keys[i] : Object());
       final occurrence = occurrences.update(

@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 // Project imports:
 import 'package:boorusama/core/bookmarks/src/providers/bookmark_group_selectors.dart';
+import 'package:boorusama/core/bookmarks/src/providers/bookmark_shuffle_provider.dart';
 import 'package:boorusama/core/bookmarks/src/data/bookmark_convert.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_group.dart';
@@ -83,6 +84,60 @@ void main() {
     expect(state.isBookmarked(invalid.post, invalid.booruId), isFalse);
     expect(state.bookmarksByUniqueId, isEmpty);
     expect(state.membershipsFor(invalid.uniqueId), isEmpty);
+    expect(
+      selectBookmarks(
+        state: state,
+        view: BookmarkView.group(firstGroupId),
+        selectedTags: const [],
+        sortType: BookmarkSortType.oldest,
+      ),
+      isEmpty,
+    );
+  });
+
+  test('storage-ID group filtering preserves sort, source, tags and seeded shuffle', () {
+    final state = BookmarkLibraryState(
+      bookmarks: bookmarks.reversed.toList(),
+      groups: [
+        groups.first,
+        groups[1].copyWith(bookmarkIds: {3, 1}),
+      ],
+      activeTarget: BookmarkTarget.group(firstGroupId),
+    );
+    final reference = state.items
+        .where(
+          (bookmark) =>
+              state.membershipsFor(bookmark.uniqueId).contains(firstGroupId),
+        )
+        .toList();
+    const shuffle = BookmarkShuffleState(seed: 42);
+    for (final sort in BookmarkSortType.values) {
+      for (final source in [null, 'one.example', 'two.example']) {
+        for (final tags in [
+          <String>[],
+          ['red'],
+          ['-blue'],
+        ]) {
+          expect(
+            selectBookmarks(
+              state: state,
+              view: BookmarkView.group(firstGroupId),
+              selectedTags: tags,
+              sortType: sort,
+              selectedBooruUrl: source,
+              shuffleState: shuffle,
+            ),
+            filterBookmarks(
+              bookmarks: reference,
+              selectedTags: tags,
+              sortType: sort,
+              selectedBooruUrl: source,
+              shuffleState: shuffle,
+            ),
+          );
+        }
+      }
+    }
   });
 
   final viewCases = [

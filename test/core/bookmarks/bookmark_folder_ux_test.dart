@@ -43,6 +43,51 @@ import '../../application/support/fake_image_dio.dart';
 import '../posts/details/progressive_image_test_utils.dart';
 
 void main() {
+  testWidgets(
+    'covered browsers defer preview filtering and show current groups when revealed',
+    (tester) async {
+      final visible = ValueNotifier(true);
+      addTearDown(visible.dispose);
+      addTearDown(performanceRecorder.clear);
+      final library = _Library(_state(groups: [_group('g', 'Before')]));
+      await _pump(
+        tester,
+        library,
+        home: ValueListenableBuilder<bool>(
+          valueListenable: visible,
+          builder: (_, enabled, child) =>
+              TickerMode(enabled: enabled, child: child!),
+          child: const BookmarkGroupBrowserPage(),
+        ),
+      );
+      visible.value = false;
+      await tester.pumpAndSettle();
+      performanceRecorder.start();
+      library.publish(groups: [_group('g', 'After')]);
+      await tester.pumpAndSettle();
+      final summary = performanceRecorder.snapshot()['summary'] as Map;
+      expect(
+        (summary['operations'] as List).where(
+          (dynamic op) => op['op'] == 'bookmarkSelect',
+        ),
+        isEmpty,
+      );
+      expect(find.text('Before'), findsOneWidget);
+      expect(find.text('After'), findsNothing);
+      visible.value = true;
+      await tester.pumpAndSettle();
+      expect(find.text('After'), findsOneWidget);
+      expect(find.text('Before'), findsNothing);
+      final revealed = performanceRecorder.snapshot()['summary'] as Map;
+      expect(
+        (revealed['operations'] as List).where(
+          (dynamic op) => op['op'] == 'bookmarkSelect',
+        ),
+        isNotEmpty,
+      );
+    },
+  );
+
   for (final count in [1, 2]) {
     testWidgets(
       'duplicates $count selected groups immediately and closes selection',

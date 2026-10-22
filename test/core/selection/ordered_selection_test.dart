@@ -81,6 +81,47 @@ void main() {
     expect(selection.selectedKeys, {'a'});
   });
 
+  test(
+    'bookmark reconciliation exits only after its last selected row disappears',
+    () {
+      final selection = OrderedSelectionController<String>(
+        exitWhenSelectionRemoved: true,
+      );
+      addTearDown(selection.dispose);
+      selection.initializeOptions(
+        const SelectionOptions(
+          behavior: SelectionBehavior.manual,
+          haptics: null,
+        ),
+      );
+      selection.setEntries(['a', 'b', 'c']);
+      selection.enable(initialSelected: [0, 1]);
+      selection.setEntries(['b', 'c']);
+      expect(selection.isActive, isTrue);
+      expect(selection.selectedKeys, {'b'});
+      selection.setEntries(['c']);
+      expect(selection.isActive, isFalse);
+      expect(selection.anchor, isNull);
+      expect(selection.selection, isEmpty);
+      selection.setEntries(['a', 'b', 'c']);
+      expect(
+        selection.isActive,
+        isFalse,
+        reason: 'Undo must not reopen selection',
+      );
+      selection.enable();
+      selection.setEntries(['b', 'c']);
+      expect(
+        selection.isActive,
+        isTrue,
+        reason: 'An explicitly empty mode is retained',
+      );
+      selection.selectAll([0, 1]);
+      selection.setEntries([]);
+      expect(selection.isActive, isFalse);
+    },
+  );
+
   testWidgets(
     'row replacement keeps current geometry and unmount only drops dead bounds',
     (tester) async {
@@ -201,6 +242,48 @@ void main() {
     expect(before[0], isNot(before[1]));
     expect(identities.resolve([second, first]), before.reversed);
   });
+
+  test(
+    'grid refresh reuses snapshot identities but resolves replacement posts',
+    () {
+      final origin = PostOrigin.fromSource(
+        booruType: BooruType.danbooru,
+        booruId: BooruType.danbooru.id,
+        source: 'https://one.test',
+      );
+      final first = TestPost(id: 1, origin: origin);
+      final second = TestPost(id: 2, origin: origin);
+      final identities = PostSelectionIdentity();
+      final before = identities.resolve([first, second]);
+      final refreshed = identities.resolve([second]);
+      expect(refreshed.single, before.last);
+      expect(
+        identical(
+          (refreshed.single as (Object, int)).$1,
+          (before.last as (Object, int)).$1,
+        ),
+        isTrue,
+      );
+      final replacement = identities.resolve([TestPost(id: 2, origin: origin)]);
+      expect(replacement.single, before.last);
+      expect(
+        identical(
+          (replacement.single as (Object, int)).$1,
+          (before.last as (Object, int)).$1,
+        ),
+        isFalse,
+      );
+      final restored = identities.resolve([first, second]);
+      expect(restored, before);
+      expect(
+        identical(
+          (restored.first as (Object, int)).$1,
+          (before.first as (Object, int)).$1,
+        ),
+        isTrue,
+      );
+    },
+  );
 
   test('action snapshots retain their targets and reject changed account resolution', () {
     final profile = BooruConfig.defaultConfig(

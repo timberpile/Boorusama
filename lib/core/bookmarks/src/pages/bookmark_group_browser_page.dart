@@ -68,6 +68,7 @@ class _BookmarkGroupBrowserPageState
   (BookmarkLibraryState, BookmarkSortType, BookmarkShuffleState)?
   _previewInputs;
   final _previews = <BookmarkView, List<Bookmark>>{};
+  AsyncValue<BookmarkLibraryState>? _visibleLibrary;
   Set<String> get _selectedGroups => {
     for (final (kind, id) in _selection.selectedKeys)
       if (kind == CollectionSelectionKind.group) id,
@@ -132,7 +133,13 @@ class _BookmarkGroupBrowserPageState
 
   @override
   Widget build(BuildContext context) {
-    final library = ref.watch(bookmarkProvider);
+    final visible = TickerMode.of(context);
+    final AsyncValue<BookmarkLibraryState> library = visible
+        ? ref.watch(bookmarkProvider)
+        : _visibleLibrary ?? ref.read(bookmarkProvider);
+    // Covered routes retain their previews until visible again. Refiltering
+    // every group here would otherwise run during grid and viewer mutations.
+    if (visible || _visibleLibrary == null) _visibleLibrary = library;
     if (library.valueOrNull case final state?) {
       final folders = bookmarkFoldersByName(
         FolderTree(state.folders).children(_folderId),
@@ -210,7 +217,11 @@ class _BookmarkGroupBrowserPageState
                     ),
                   );
                   final inputs = (state, sort, shuffle);
-                  if (_previewInputs != inputs) {
+                  final previous = _previewInputs;
+                  if (previous == null ||
+                      !identical(previous.$1, state) ||
+                      previous.$2 != sort ||
+                      previous.$3 != shuffle) {
                     _previewInputs = inputs;
                     _previews.clear();
                   }

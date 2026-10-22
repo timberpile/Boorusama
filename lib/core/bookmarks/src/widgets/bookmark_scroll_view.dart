@@ -53,8 +53,11 @@ class BookmarkScrollView extends ConsumerStatefulWidget {
 }
 
 class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
-  final _selectionModeController = OrderedSelectionController<Object>();
+  final _selectionModeController = OrderedSelectionController<Object>(
+    exitWhenSelectionRemoved: true,
+  );
   final _refreshGate = BookmarkViewRefreshGate();
+  var _refreshScheduled = false;
 
   late String _selectionQuery = widget.searchController.text;
   @override
@@ -81,7 +84,10 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
   }
 
   void _scheduleRefresh(PostGridController<Post> controller) {
+    if (_refreshScheduled) return;
+    _refreshScheduled = true;
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      _refreshScheduled = false;
       if (mounted) await controller.refresh(preserveSelection: true);
     });
   }
@@ -165,7 +171,13 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                 }
               },
             )
-            ..listen(bookmarkProvider, (_, _) {
+            ..listen(bookmarkProvider, (previous, next) {
+              if (!bookmarkViewContentsChanged(
+                previous?.valueOrNull,
+                next.valueOrNull,
+                widget.view,
+              ))
+                return;
               if (_refreshGate.onLibraryChanged()) {
                 _scheduleRefresh(controller);
               }

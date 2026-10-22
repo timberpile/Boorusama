@@ -22,14 +22,17 @@ List<Bookmark> selectBookmarks({
   BookmarkShuffleState? shuffleState,
 }) {
   return performanceRecorder.measureSync(PerfOperation.bookmarkSelect, () {
+    final groupIds = state.groupsById[view.groupId]?.bookmarkIds;
     final inView = switch (view.kind) {
       BookmarkViewKind.all => state.items,
       BookmarkViewKind.group =>
         state.items
             .where(
-              (bookmark) => state
-                  .membershipsFor(bookmark.uniqueId)
-                  .contains(view.groupId),
+              // Keep library order (including seeded shuffle input) without
+              // normalizing every post's already indexed bookmark identity.
+              (bookmark) =>
+                  (groupIds?.contains(bookmark.id) ?? false) &&
+                  state.bookmarksById.containsKey(bookmark.id),
             )
             .toList(),
     };

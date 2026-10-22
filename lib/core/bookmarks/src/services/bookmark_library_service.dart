@@ -52,11 +52,19 @@ class BookmarkLibraryService {
     required this.bookmarkRepository,
     required this.groupRepository,
     required this.imageUrlResolver,
+    this.readMutationSnapshot,
   });
 
   final BookmarkRepository bookmarkRepository;
   final BookmarkGroupRepository groupRepository;
   final ImageUrlResolver Function(int? booruId) imageUrlResolver;
+
+  /// Supplied only inside the notifier's exclusive mutation boundary. Standalone
+  /// services continue to load and repair before destructive collection edits.
+  final Future<BookmarkLibraryState> Function()? readMutationSnapshot;
+
+  Future<BookmarkLibraryState> _snapshotForMutation() =>
+      readMutationSnapshot?.call() ?? load(const BookmarkTarget.defaultGroup());
 
   Future<BookmarkLibraryState> load(BookmarkTarget activeTarget) async {
     final performanceSpan = performanceRecorder.begin(
@@ -187,7 +195,7 @@ class BookmarkLibraryService {
   }
 
   Future<BookmarkFolderDeletionPreview> previewDeleteFolder(String id) async {
-    final snapshot = await load(const BookmarkTarget.defaultGroup());
+    final snapshot = await _snapshotForMutation();
     return BookmarkFolderDeletionPreview.from(snapshot, id);
   }
 
@@ -206,7 +214,7 @@ class BookmarkLibraryService {
     required Set<String> folderIds,
     required Set<String> groupIds,
   }) async => BookmarkCollectionDeletionPreview.from(
-    await load(const BookmarkTarget.defaultGroup()),
+    await _snapshotForMutation(),
     folderIds: folderIds,
     groupIds: groupIds,
   );
@@ -267,7 +275,7 @@ class BookmarkLibraryService {
     Map<String, String> names, {
     required List<BookmarkGroup> expectedGroups,
   }) async {
-    final snapshot = await load(const BookmarkTarget.defaultGroup());
+    final snapshot = await _snapshotForMutation();
     if (names.isEmpty ||
         names.length != expectedGroups.length ||
         !expectedGroups.every(
@@ -389,16 +397,15 @@ class BookmarkLibraryService {
     if (group == null) {
       throw StateError('Bookmark group $groupId does not exist.');
     }
-    final stored = {
-      for (final b in await bookmarkRepository.getAllBookmarksOrThrow(
-        imageUrlResolver: imageUrlResolver,
-      ))
-        b.uniqueId: b,
-    };
+    final selected = bookmarks.toList();
+    final stored = await bookmarkRepository.getBookmarksByIdentityOrThrow(
+      selected.map((b) => b.uniqueId),
+      imageUrlResolver: imageUrlResolver,
+    );
     final created = <Bookmark>[];
     try {
       final ids = <int>{};
-      for (final snapshot in bookmarks) {
+      for (final snapshot in selected) {
         final existing = stored[snapshot.uniqueId];
         if (existing != null) {
           ids.add(existing.id);
@@ -452,12 +459,12 @@ class BookmarkLibraryService {
     if (target == null) {
       throw StateError('Bookmark group $groupId does not exist.');
     }
-    final selected = bookmarks.map((b) => b.uniqueId).toSet();
+    final selected = await bookmarkRepository.getBookmarksByIdentityOrThrow(
+      bookmarks.map((b) => b.uniqueId),
+      imageUrlResolver: imageUrlResolver,
+    );
     final selectedById = {
-      for (final bookmark in await bookmarkRepository.getAllBookmarksOrThrow(
-        imageUrlResolver: imageUrlResolver,
-      ))
-        if (selected.contains(bookmark.uniqueId)) bookmark.id: bookmark,
+      for (final bookmark in selected.values) bookmark.id: bookmark,
     };
     final affectedIds = target.bookmarkIds.intersection(
       selectedById.keys.toSet(),
@@ -509,10 +516,10 @@ class BookmarkLibraryService {
     if (groupId == null || removal.removedCount == 0) return;
     final target = await groupRepository.getGroup(groupId);
     if (target == null) throw StateError('The source group no longer exists.');
-    final current = await bookmarkRepository.getAllBookmarksOrThrow(
+    final byIdentity = await bookmarkRepository.getBookmarksByIdentityOrThrow(
+      removal.removedBookmarks.map((b) => b.uniqueId),
       imageUrlResolver: imageUrlResolver,
     );
-    final byIdentity = {for (final b in current) b.uniqueId: b};
     final deleted = removal.deletedBookmarks.map((b) => b.uniqueId).toSet();
     final created = <Bookmark>[];
     final members = <int>{};
@@ -529,10 +536,12 @@ class BookmarkLibraryService {
             ])).single,
           );
           if (restored.created) created.add(restored.bookmark);
+          byIdentity[old.uniqueId] = restored.bookmark;
           members.add(restored.bookmark.id);
         }
       }
-      await groupRepository.addBookmarks(groupId, members);
+      final added = members.difference(target.bookmarkIds);
+      if (added.isNotEmpty) await groupRepository.addBookmarks(groupId, added);
     } catch (error, stack) {
       final errors = await _restoreMemberships([target]);
       try {
@@ -545,7 +554,11 @@ class BookmarkLibraryService {
   }
 
   Future<void> deleteBookmarks(Iterable<Bookmark> bookmarks) async {
-    final bookmarkList = bookmarks.toList();
+    final stored = await bookmarkRepository.getBookmarksByIdentityOrThrow(
+      bookmarks.map((b) => b.uniqueId),
+      imageUrlResolver: imageUrlResolver,
+    );
+    final bookmarkList = stored.values.toList();
     if (bookmarkList.isEmpty) return;
     final groups = await groupRepository.getGroups();
     final ids = bookmarkList.map((bookmark) => bookmark.id).toSet();
@@ -575,7 +588,7 @@ class BookmarkLibraryService {
   }
 
   Future<BookmarkGroupDeletionPreview> deleteGroup(String groupId) async {
-    final state = await load(const BookmarkTarget.defaultGroup());
+    final state = await _snapshotForMutation();
     final preview = await groupRepository.previewDeleteGroup(groupId);
     try {
       await groupRepository.deleteGroup(groupId);
@@ -685,9 +698,10 @@ class BookmarkLibraryService {
   }
 
   Future<Bookmark?> _findBookmark(BookmarkUniqueId identity) async =>
-      (await bookmarkRepository.getAllBookmarksOrThrow(
+      (await bookmarkRepository.getBookmarksByIdentityOrThrow(
+        [identity],
         imageUrlResolver: imageUrlResolver,
-      )).where((bookmark) => bookmark.uniqueId == identity).firstOrNull;
+      ))[identity];
 }
 
 Never _throwWithRollback(

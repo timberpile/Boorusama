@@ -1515,6 +1515,16 @@ void main() {
       expect(live.requestedPages, [2]);
 
       pending.complete(PostResult(posts: [_liveInitial[1]], total: 3));
+      // A duplicate-only page schedules a cooldown without requesting frames.
+      // Advance the controlled clock until the next request, since settling
+      // frames alone can finish before that timer fires.
+      for (
+        var frame = 0;
+        live.requestedPages.length < 2 && frame < 100;
+        frame++
+      ) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
       await tester.pumpAndSettle();
 
       expect(live.requestedPages, [2, 3]);
