@@ -23,6 +23,16 @@ task branch as well as its local branch/worktree. Do not ask again for these
 steps. Honor explicit narrower limits such as “local only” or “keep the branch”;
 required verification and protection of unrelated work still apply.
 
+When integrating an issue-linked task into `develop`, include its GitHub issue ID
+in the resulting Conventional Commit subject, for example
+`fix: hide scroll-to-top button at the top (#63)`. This applies to squash commits,
+equivalent replay, and explicitly requested PR squash merges; preserve the issue
+ID even when intermediate commits are discarded. Include every completed issue
+ID when an explicitly approved integration covers multiple issues. Issue-free
+changes do not require an invented issue ID. Use `Refs #<issue-id>` while
+acceptance is pending and `Closes #<issue-id>` only when the issue workflow's
+completion criteria are met.
+
 ## Workflow selection
 
 Use the applicable `.agents/skills/<name>/SKILL.md`:
