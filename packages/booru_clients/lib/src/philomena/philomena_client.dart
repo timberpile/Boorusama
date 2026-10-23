@@ -8,30 +8,20 @@ import 'types/types.dart';
 typedef PhilomenaImages = ({List<ImageDto> images, int? count});
 
 extension ListToPhilomenaImages on List<ImageDto> {
-  PhilomenaImages toPhilomenaImages({int? count}) => (
-    images: this,
-    count: count,
-  );
+  PhilomenaImages toPhilomenaImages({int? count}) =>
+      (images: this, count: count);
 }
 
 class PhilomenaClient {
-  PhilomenaClient({
-    Dio? dio,
-    required String baseUrl,
-    this.apiKey,
-  }) : _dio =
-           dio ??
-           Dio(
-             BaseOptions(
-               baseUrl: baseUrl,
-             ),
-           );
+  PhilomenaClient({Dio? dio, required String baseUrl, this.apiKey})
+    : _dio = dio ?? Dio(BaseOptions(baseUrl: baseUrl));
 
   final Dio _dio;
   final String? apiKey;
 
   Future<PhilomenaImages> getImages({
     List<String>? tags,
+    String? nativeQuery,
     int? page,
     int? perPage,
     String? sortField,
@@ -40,7 +30,9 @@ class PhilomenaClient {
     final response = await _dio.get(
       '$kAPISearchPath/images',
       queryParameters: {
-        if (tags != null)
+        if (nativeQuery != null)
+          'q': nativeQuery
+        else if (tags != null)
           'q': tags.map((e) => e.replaceAll('_', ' ')).join(','),
         if (page != null && page > 1) 'page': page,
         'per_page': ?perPage,
@@ -49,10 +41,8 @@ class PhilomenaClient {
         if (apiKey != null) 'key': apiKey,
       },
     );
-
     final data = response.data['images'];
     final count = response.data['total'];
-
     return (data as List)
         .map((e) => ImageDto.fromJson(e))
         .toList()
@@ -66,11 +56,8 @@ class PhilomenaClient {
         if (apiKey != null) 'key': apiKey,
       },
     );
-
     final image = response.data['image'];
-
     if (image == null) return null;
-
     return ImageDto.fromJson(image);
   }
 
@@ -88,9 +75,7 @@ class PhilomenaClient {
         if (apiKey != null) 'key': apiKey,
       },
     );
-
     final data = response.data['tags'];
-
     return (data as List).map((e) => TagDto.fromJson(e)).toList();
   }
 }

@@ -241,6 +241,10 @@ void main() {
           tester.widget<TopicFollowPill>(find.byType(TopicFollowPill)).count,
           0,
         );
+        // The draft now always has a raw suggestion. Dismiss that editor before
+        // interacting with the covered result header.
+        observed.last.closeEditor();
+        await tester.pump();
         await tester.tap(find.byType(FollowTopicButton));
         await _until(
           tester,

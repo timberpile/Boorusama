@@ -8,12 +8,13 @@ import 'search_controller.dart';
 class SearchProfileSnapshot {
   SearchProfileSnapshot.capture(SearchPageController controller)
     : tags = List.of(controller.tagsController.tags),
-      text = controller.textController.value,
+      inputDraft = controller.inputDraft,
       didSearch = controller.didSearchOnce.value,
       state = controller.state.value;
 
   final List<TagSearchItem> tags;
-  final TextEditingValue text;
+  final SearchInputDraft inputDraft;
+  TextEditingValue get text => inputDraft.text;
   final bool didSearch;
   final SearchState state;
 
@@ -30,7 +31,7 @@ class SearchProfileSnapshot {
             extractor: controller.metatagExtractor,
           ),
     ]);
-    controller.textController.value = text;
+    controller.restoreInputDraft(inputDraft);
     controller.allowSearch.value = tags.isNotEmpty;
     controller.didSearchOnce.value = didSearch;
     controller.tagString.value = controller.tagsController.rawTagsString;

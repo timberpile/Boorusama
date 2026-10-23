@@ -13,8 +13,16 @@ class SortableTagType extends Equatable {
 
   static bool isValidSortMetatag(
     String query,
-    Set<SortableTagType> sortableTypes,
-  ) => switch (query.split(':')) {
+    Set<SortableTagType> sortableTypes, {
+    bool allowRandomSort = false,
+    bool allowSeededRandomSort = false,
+  }) => switch (query.split(':')) {
+    ['sort', 'random'] => allowRandomSort,
+    ['sort', 'random', final seed]
+        when allowSeededRandomSort &&
+            RegExp(r'^(?:0|[1-9][0-9]{0,4})$').hasMatch(seed) &&
+            int.parse(seed) <= 10000 =>
+      true,
     ['sort', final type, final order]
         when sortableTypes.any((t) => t.name == type) &&
             SortType.isValid(order) =>
@@ -47,21 +55,32 @@ enum SortType {
 String buildMetatagRegexPattern({
   required List<String> metatags,
   required List<String> sortableTypes,
+  bool allowRandomSort = false,
+  bool allowSeededRandomSort = false,
 }) {
   final regularMetatags = metatags.where((e) => e != 'sort').join('|');
-  final sortablePattern = sortableTypes.join('|');
+  final sortParts = [
+    if (sortableTypes.isNotEmpty)
+      '(?:${sortableTypes.join('|')})(?::(?:asc|desc)?)?',
+    if (allowRandomSort)
+      allowSeededRandomSort ? 'random(?::[0-9]{0,5})?' : 'random',
+  ];
 
-  return 'sort:(?:(?:$sortablePattern)(?::(?:asc|desc)?)?)?|(?:$regularMetatags):';
+  return 'sort:(?:(?:${sortParts.join('|')}))?|(?:$regularMetatags):';
 }
 
 String? extractMetatagMatch(
   String input,
   List<String> metatags,
-  List<String> sortableTypes,
-) {
+  List<String> sortableTypes, {
+  bool allowRandomSort = false,
+  bool allowSeededRandomSort = false,
+}) {
   final pattern = buildMetatagRegexPattern(
     metatags: metatags,
     sortableTypes: sortableTypes,
+    allowRandomSort: allowRandomSort,
+    allowSeededRandomSort: allowSeededRandomSort,
   );
   final regex = RegExp(pattern, caseSensitive: false);
   final match = regex.firstMatch(input);

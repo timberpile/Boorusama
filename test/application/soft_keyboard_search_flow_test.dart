@@ -1,11 +1,12 @@
 import 'package:flutter/widgets.dart';
+import 'package:boorusama/core/posts/listing/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:boorusama/core/home/src/widgets/home_search_bar.dart';
 import 'package:boorusama/core/search/search/src/types/search_bar_position.dart';
 import 'package:boorusama/core/search/search/src/widgets/desktop_search_bar.dart';
 import 'package:boorusama/core/search/search/src/widgets/search_app_bar.dart';
-import 'package:boorusama/core/search/search/src/widgets/search_button.dart';
+import 'package:boorusama/core/search/options/search_suggestion_panel.dart';
 import 'package:boorusama/core/search/search/src/widgets/selected_tag_chip.dart';
 import 'package:boorusama/core/search/suggestions/tag_suggestion_items.dart';
 import 'package:boorusama/core/settings/types.dart';
@@ -15,6 +16,47 @@ import 'support/fake_booru_backend.dart';
 import 'support/headless_app_harness.dart';
 
 void main() {
+  for (final position in SearchBarPosition.values) {
+    testWidgets(
+      'hiding the empty search keyboard returns to interactive Browse at ${position.name}',
+      (tester) async {
+        final harness = await _mountSearch(
+          tester,
+          TestPhone.portrait,
+          position,
+        );
+        expect(harness.keyboard.isShown, isTrue);
+        tester.testTextInput.hide();
+        await harness.settle(tester);
+        expect(find.byType(SearchAppBar), findsNothing);
+        expect(postTile(101).hitTestable(), findsOneWidget);
+        await tester.tap(postTile(101));
+        await harness.pumpUntilFound(tester, postDetailsScaffold());
+      },
+    );
+
+    testWidgets(
+      'opening advanced options keeps the fresh search route at ${position.name}',
+      (tester) async {
+        final harness = await _mountSearch(
+          tester,
+          TestPhone.portrait,
+          position,
+        );
+        await tester.tap(
+          find.byTooltip(appStrings(tester).search_options.title),
+        );
+        await harness.settle(tester);
+        expect(harness.keyboard.isShown, isFalse);
+        expect(find.byType(SearchAppBar), findsOneWidget);
+        expect(
+          find.text(appStrings(tester).search_options.title),
+          findsOneWidget,
+        );
+      },
+    );
+  }
+
   final cases = [
     for (final phone in [
       TestPhone.smallPortrait,
@@ -33,7 +75,19 @@ void main() {
         final harness = await _mountSearch(tester, c.phone, c.position);
         final keyboard = harness.keyboard;
 
-        await _focusSearchField(tester, harness);
+        expect(
+          find.byWidgetPredicate(
+            (widget) =>
+                widget is SliverPostGridImageGridItem && widget.post.id == 101,
+          ),
+          findsOneWidget,
+          reason: 'the source timeline remains painted before submitting',
+        );
+        expect(
+          keyboard.isShown,
+          isTrue,
+          reason: 'opening Search focuses input',
+        );
         await tester.enterText(_searchField, 'ca');
         await harness.pumpUntilFound(tester, _suggestion('cat'));
         await harness.settle(tester);
@@ -42,7 +96,7 @@ void main() {
           keyboard.coveredTargets({
             'the search field': _searchField,
             'the first suggestion': _suggestion('cat'),
-            'the suggestion list': find.byType(TagSuggestionItems),
+            'the suggestion list': _suggestionList,
           }),
           isEmpty,
           reason: 'while typing',
@@ -55,13 +109,12 @@ void main() {
           keyboard.coveredTargets({
             'the search field': _searchField,
             'the selected tag': find.byType(SelectedTagChip),
-            'the search button': find.byType(SearchButton2),
           }),
           isEmpty,
           reason: 'after picking a suggestion',
         );
 
-        await tester.tap(find.byType(SearchButton2));
+        expect(keyboard.isShown, isFalse);
         await harness.pumpUntilFound(tester, postTile(101));
         await harness.settle(tester);
         expect(keyboard.isShown, isFalse);
@@ -107,7 +160,7 @@ void main() {
         keyboard.coveredTargets({
           'the search field': field,
           'the first suggestion': _suggestion('cat'),
-          'the suggestion list': find.byType(TagSuggestionItems),
+          'the suggestion list': _suggestionList,
         }),
         isEmpty,
         reason: 'while typing',
@@ -155,7 +208,7 @@ void main() {
           expect(
             keyboard.coveredTargets({
               'the search field': _searchField,
-              'the suggestion list': find.byType(TagSuggestionItems),
+              'the suggestion list': _suggestionList,
             }),
             isEmpty,
             reason: 'after rotating to a $phone',
@@ -178,8 +231,12 @@ final _searchField = find.descendant(
   matching: find.byType(EditableText),
 );
 
+final _suggestionList = find.byWidgetPredicate(
+  (widget) => widget is TagSuggestionItems || widget is SearchSuggestionPanel,
+);
+
 Finder _suggestion(String tag) => find.descendant(
-  of: find.byType(TagSuggestionItems),
+  of: _suggestionList,
   matching: find.text(tag),
 );
 
@@ -214,6 +271,7 @@ Future<HeadlessAppHarness> _mountHome(
     runtime: backend.createRuntime(
       settings: Settings.defaultSettings.copyWith(
         searchBarPosition: position,
+        autoFocusSearchBar: false,
       ),
     ),
   );

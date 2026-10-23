@@ -9,6 +9,7 @@ import '../../../core/tags/local/providers.dart';
 import '../../../core/tags/tag/types.dart';
 import '../../../foundation/riverpod/riverpod.dart';
 import '../../gelbooru/tags/providers.dart';
+import '../../gelbooru/tags/site_search_options.dart';
 import '../../gelbooru/tags/types.dart';
 import '../client_provider.dart';
 import 'parser.dart';
@@ -78,9 +79,12 @@ final gelbooruV2MetatagRegexProvider = Provider.family<RegExp, BooruConfigAuth>(
         .map((e) => e.name)
         .toList();
 
+    final site = gelbooruSiteSearchOptions(config.url, legacy: true);
     final pattern = buildMetatagRegexPattern(
       metatags: metatags,
       sortableTypes: sortableTypes,
+      allowRandomSort: site.randomSort,
+      allowSeededRandomSort: site.seededRandomSort,
     );
 
     return RegExp(pattern, caseSensitive: false);

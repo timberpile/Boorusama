@@ -34,7 +34,7 @@ Post gelbooruV2PostDtoToGelbooruPost(
   // Query strings and fragments are not part of the file extension. An
   // extensionless or malformed external URL must not throw substring errors.
   final format = path
-      .extension(Uri.tryParse(dto.fileUrl ?? 'foo.png')?.path ?? '')
+      .extension(Uri.tryParse(dto.fileUrl ?? '')?.path ?? '')
       .replaceFirst('.', '')
       .toLowerCase();
 

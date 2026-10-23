@@ -12,29 +12,28 @@ import '../../../core/tags/categories/providers.dart';
 import '../../../core/tags/local/providers.dart';
 import '../client_provider.dart';
 import 'parser.dart';
+import 'search_request.dart';
 
 final nozomiPostRepoProvider =
-    Provider.family<PostRepository<Post>, BooruConfigSearch>(
-      (ref, config) {
-        return _createNozomiPostRepository(
-          ref: ref,
-          config: config,
-          order: NozomiPostOrder.date,
-        );
-      },
-    );
+    Provider.family<PostRepository<Post>, BooruConfigSearch>((ref, config) {
+      return _createNozomiPostRepository(
+        ref: ref,
+        config: config,
+        order: NozomiPostOrder.date,
+      );
+    });
 
 final nozomiPostRepoWithOrderProvider =
     Provider.family<
       PostRepository<Post>,
       ({BooruConfigSearch config, NozomiPostOrder order})
-    >((ref, params) {
-      return _createNozomiPostRepository(
+    >(
+      (ref, params) => _createNozomiPostRepository(
         ref: ref,
         config: params.config,
         order: params.order,
-      );
-    });
+      ),
+    );
 
 PostRepository<Post> _createNozomiPostRepository({
   required Ref ref,
@@ -43,36 +42,26 @@ PostRepository<Post> _createNozomiPostRepository({
 }) {
   final client = ref.watch(nozomiClientProvider(config.auth));
   final tagComposer = ref.watch(defaultTagQueryComposerProvider(config));
-
   return PostRepositoryBuilder<Post>(
     tagComposer: tagComposer,
     fetchSingle: (id, {options}) async {
       final numericId = id as NumericPostId?;
-
       if (numericId == null) return Future.value();
-
       final post = await client.getPost(id: numericId.value);
-
       if (post != null) {
-        await _saveNozomiTagCategories(
-          ref,
-          config.auth.url,
-          [post],
-        );
+        await _saveNozomiTagCategories(ref, config.auth.url, [post]);
       }
-
       return post != null ? postDtoToPost(post, null) : null;
     },
     fetch: (tags, page, {limit, options}) async {
+      final request = NozomiSearchRequest.fromTags(tags, fallbackOrder: order);
       final result = await client.getPostsWithTotal(
-        tags: tags,
+        tags: request.tags,
         page: page,
         limit: limit,
-        order: order,
+        order: request.order,
       );
-
       await _saveNozomiTagCategories(ref, config.auth.url, result.posts);
-
       return result.posts
           .map(
             (e) => postDtoToPost(
@@ -103,9 +92,7 @@ Future<void> _saveNozomiTagCategories(
     ))
       tagInfo.tagName: tagInfo,
   }.values.toList();
-
   if (tagInfos.isEmpty) return;
-
   final tagCache = await ref.read(tagCacheRepositoryProvider.future);
   final resolved = await tagCache.resolveTags(
     siteHost,
@@ -115,9 +102,7 @@ Future<void> _saveNozomiTagCategories(
   final missingTagInfos = tagInfos
       .where((tagInfo) => missingTags.contains(tagInfo.tagName))
       .toList();
-
   if (missingTagInfos.isEmpty) return;
-
   final tagTypeStore = await ref.read(booruTagTypeStoreProvider.future);
   await tagTypeStore.saveOrUpdateTagsBatch(missingTagInfos);
 }

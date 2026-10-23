@@ -1,3 +1,6 @@
+import 'package:boorusama/core/tags/configs/providers.dart';
+import 'package:boorusama/core/tags/configs/src/tag_info.dart';
+
 import 'dart:async';
 
 import 'package:boorusama/core/analytics/providers.dart';
@@ -82,6 +85,9 @@ void main() {
     snapshotCalls = 0;
     container = ProviderContainer(
       overrides: [
+        tagInfoProvider.overrideWithValue(
+          const TagInfo(metatags: {}, defaultBlacklistedTags: {}, r18Tags: {}),
+        ),
         followingTopicTrackingSupportedProvider.overrideWith(
           (ref, config) => supported,
         ),
@@ -449,11 +455,9 @@ void main() {
       final navigator = Navigator.of(
         tester.element(find.byType(SearchPageScaffold<Post>)),
       );
-      unawaited(
-        navigator.push<void>(
-          MaterialPageRoute(
-            builder: (_) => const Scaffold(body: Text('Opened post')),
-          ),
+      navigator.push<void>(
+        MaterialPageRoute(
+          builder: (_) => const Scaffold(body: Text('Opened post')),
         ),
       );
       await pumpTransitions(tester);

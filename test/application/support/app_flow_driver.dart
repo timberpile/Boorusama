@@ -15,7 +15,6 @@ import 'package:boorusama/core/home/src/widgets/home_search_bar.dart';
 import 'package:boorusama/core/posts/details/widgets.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 import 'package:boorusama/core/search/search/src/widgets/search_app_bar.dart';
-import 'package:boorusama/core/search/search/src/widgets/search_button.dart';
 import 'package:boorusama/core/search/search/widgets.dart';
 
 import 'app_flow_finders.dart';
@@ -134,11 +133,6 @@ final class AppFlowDriver {
     await tester.tap(field);
     await tester.testTextInput.receiveAction(TextInputAction.done);
     await harness.settle(tester);
-    await tester.pump(const Duration(milliseconds: 300));
-    final searchButton = find.byType(SearchButton2);
-    await tester.ensureVisible(searchButton);
-    await tester.tap(searchButton);
-    await tester.pump();
     if (waitForRequest) {
       await harness.pumpUntil(
         tester,
@@ -149,7 +143,10 @@ final class AppFlowDriver {
   }
 
   Future<void> clearSelectedSearchTags() async {
-    final close = find.byIcon(Symbols.close);
+    final close = find.descendant(
+      of: find.byType(SelectedTagChip),
+      matching: find.byIcon(Symbols.close),
+    );
     if (close.evaluate().isNotEmpty) {
       await tester.tap(close.last);
       await tester.pump();

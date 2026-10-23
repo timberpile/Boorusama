@@ -29,6 +29,7 @@ import 'package:boorusama/core/tags/favorites/src/widgets/favorite_tag_label_sel
 import 'package:boorusama/core/search/search/src/views/search_landing_view.dart';
 import 'package:boorusama/core/search/search/src/widgets/desktop_search_bar.dart';
 import 'package:boorusama/core/search/suggestions/tag_suggestion_items.dart';
+import 'package:boorusama/core/search/options/search_suggestion_panel.dart';
 import 'package:boorusama/core/search/suggestions/tag_suggestion_item.dart';
 import 'package:boorusama/core/search/search/src/widgets/selected_tag_chip.dart';
 import 'package:boorusama/core/search/search/src/widgets/search_app_bar.dart';
@@ -847,7 +848,9 @@ final _searchField = find.descendant(
   matching: find.byType(EditableText),
 );
 
-Finder get _tagSuggestions => find.byType(TagSuggestionItems);
+Finder get _tagSuggestions => find.byWidgetPredicate(
+  (widget) => widget is TagSuggestionItems || widget is SearchSuggestionPanel,
+);
 
 String? _highlightedSuggestion(WidgetTester tester) => tester
     .widgetList<KurumiListboxItem>(find.byType(KurumiListboxItem))

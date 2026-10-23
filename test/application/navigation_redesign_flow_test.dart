@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:i18n/i18n.dart';
+
 import 'package:boorusama/core/download_manager/src/pages/download_manager_page.dart';
 
 import 'package:boorusama/core/search/search/src/widgets/search_context_profile_picker.dart';
@@ -66,7 +68,7 @@ void main() {
       await harness.settle(tester);
       expect(
         router.routeInformationProvider.value.uri.path,
-        DestinationId.app(AppDestination.following).location,
+        (const DestinationId.app(AppDestination.following)).location,
       );
       await controller.selectBrowseProfile(backend.config.id);
       await harness.settle(tester);
@@ -254,6 +256,15 @@ void main() {
         ) as WidgetRef).readConfig.id,
         backend.config.id,
       );
+      await tester.tap(
+        find.byTooltip(
+          tester.element(find.byType(SearchPage)).t.search_options.title,
+        ),
+      );
+      await harness.settle(tester);
+      await tester.binding.handlePopRoute();
+      await harness.settle(tester);
+      expect(find.byType(SearchContextProfilePicker), findsOneWidget);
       await tester.binding.handlePopRoute();
       await harness.settle(tester);
       expect(find.byType(FollowingTopicsPage), findsOneWidget);
@@ -307,7 +318,7 @@ void main() {
       expect(downloads.filter, 'failed');
       expect(downloads.group, 'review');
       final router = container.read(routerProvider);
-      final following = const DestinationId.app(AppDestination.following);
+      const following = DestinationId.app(AppDestination.following);
       router.go('${following.location}/search?_profile=missing-profile');
       await harness.settle(tester);
       expect(find.byType(SearchPage), findsNothing);

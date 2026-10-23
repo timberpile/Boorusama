@@ -11,17 +11,24 @@ import 'package:boorusama/core/posts/post/types.dart';
 Translations appStrings(WidgetTester tester) =>
     tester.element(find.byType(Navigator).first).t;
 
-Finder postGrid() => find.byType(PostGrid<Post>);
+Finder postGrid() => find.byElementPredicate(
+  (element) =>
+      element.widget is PostGrid<Post> &&
+      (ModalRoute.of(element)?.isCurrent ?? true),
+);
 
 Finder postGridScrollable() => find
     .descendant(
-      of: find.byType(PostGrid).first,
+      of: postGrid().first,
       matching: find.byType(Scrollable),
     )
     .first;
 
-Finder postTile(int id) => find.byWidgetPredicate(
-  (widget) => widget is SliverPostGridImageGridItem && widget.post.id == id,
+Finder postTile(int id) => find.byElementPredicate(
+  (element) =>
+      element.widget is SliverPostGridImageGridItem &&
+      (element.widget as SliverPostGridImageGridItem).post.id == id &&
+      (ModalRoute.of(element)?.isCurrent ?? true),
   description: 'post tile with ID $id',
 );
 

@@ -56,6 +56,18 @@ GoRoute searchRoutes(Ref ref) => GoRoute(
             _ => searchPage,
           };
 
+    // A fresh editor overlays its source timeline until a query is applied.
+    // Keep that route painted instead of replacing it with an empty surface.
+    if (params.query == null && params.tags == null && params.page == null) {
+      return CustomTransitionPage(
+        key: state.pageKey,
+        name: state.name,
+        opaque: false,
+        child: page,
+        transitionsBuilder: Kurumi.fadeTransitionBuilder(),
+      );
+    }
+
     return switch (ref.watch(appPlatformProvider).isDesktop) {
       true => CustomTransitionPage(
         key: state.pageKey,

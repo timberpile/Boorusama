@@ -360,13 +360,13 @@ class PostGridController<T extends Post> extends ChangeNotifier {
           ? _refreshPosts()
           : _fetchPosts(_page));
 
-      if (!mountedChecker()) return;
+      if (_disposed || !mountedChecker()) return;
       if (_refreshPending) return;
 
       _clear();
       await _addAll(newItems.posts);
 
-      if (!mountedChecker()) return;
+      if (_disposed || !mountedChecker()) return;
 
       _hasMore = newItems.posts.isNotEmpty;
       count.value = newItems.total;
@@ -382,6 +382,7 @@ class PostGridController<T extends Post> extends ChangeNotifier {
   Future<void> fetchMore({
     VoidCallback? onNoMoreData,
   }) {
+    if (_disposed) return Future.value();
     if (_pendingFetchMore case final pending?) return pending.future;
     if (_loading || !_hasMore) return Future.value();
 
@@ -396,6 +397,7 @@ class PostGridController<T extends Post> extends ChangeNotifier {
 
       try {
         final newItems = await _fetchPosts(_page);
+        if (_disposed || !mountedChecker()) return;
         if (errors.value != null) {
           if (_pageMode == PageMode.infinite) _setPage(_page - 1);
           return;
@@ -406,6 +408,7 @@ class PostGridController<T extends Post> extends ChangeNotifier {
         } else {
           onNoMoreData?.call();
         }
+        if (_disposed || !mountedChecker()) return;
         count.value = newItems.total;
         maxPage.value = newItems.maxPage;
       } catch (error) {
@@ -437,10 +440,12 @@ class PostGridController<T extends Post> extends ChangeNotifier {
     notifyListeners();
 
     final newItems = await _fetchPosts(_page);
+    if (_disposed || !mountedChecker()) return;
     _hasMore = newItems.posts.isNotEmpty;
     if (_hasMore) {
       await _addAll(newItems.posts);
     }
+    if (_disposed || !mountedChecker()) return;
     _setRefreshing(false);
     count.value = newItems.total;
     maxPage.value = newItems.maxPage;

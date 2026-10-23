@@ -3,6 +3,10 @@ import 'dart:async';
 import 'package:clock/clock.dart';
 import 'package:boorusama/boorus/danbooru/danbooru_repository.dart';
 import 'package:boorusama/core/blacklists/providers.dart';
+import 'package:boorusama/core/tags/configs/providers.dart';
+import 'package:boorusama/core/tags/configs/src/tag_info.dart';
+import 'package:boorusama/core/search/histories/providers.dart';
+import 'package:boorusama/core/search/histories/src/data/repo_empty.dart';
 import 'package:boorusama/core/boorus/engine/providers.dart';
 import 'package:boorusama/core/boorus/engine/types.dart';
 import 'package:boorusama/core/search/following_topics/src/providers/search_refresh_coordinator.dart';
@@ -173,6 +177,16 @@ class FollowingTopicHarness {
       overrides: [
         // Metadata presentation has dedicated repository/cache coverage.
         topicQueryTagCategoriesProvider.overrideWith((ref, key) async => {}),
+        searchHistoryRepoProvider.overrideWith(
+          (_) => Future.value(EmptySearchHistoryRepository()),
+        ),
+        tagInfoProvider.overrideWithValue(
+          const TagInfo(
+            metatags: {},
+            defaultBlacklistedTags: {},
+            r18Tags: {},
+          ),
+        ),
         loggerProvider.overrideWithValue(
           ConsoleLogger(options: const ConsoleLoggerOptions.defaults()),
         ),
@@ -337,6 +351,7 @@ class FollowingTopicHarness {
       wrap(
         MaterialApp(
           home: child,
+          theme: ThemeData(extensions: const [KurumiExtendedColorScheme()]),
           builder: themeBuilder,
         ),
       ),

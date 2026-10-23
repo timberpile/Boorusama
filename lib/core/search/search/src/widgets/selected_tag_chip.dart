@@ -14,6 +14,7 @@ import '../../../../themes/colors/providers.dart';
 import '../../../queries/types.dart';
 import '../../../selected_tags/types.dart';
 import '../pages/selected_tag_edit_dialog.dart';
+import 'search_controller.dart';
 
 class SelectedTagChip extends StatelessWidget {
   const SelectedTagChip({
@@ -48,7 +49,6 @@ class SelectedTagChip extends StatelessWidget {
     final hasOperator = tagSearchItem.operator != FilterOperator.none;
     final hasMeta = tagSearchItem.metatag != null;
     final isRaw = tagSearchItem.isRaw;
-
     final colorScheme = Kurumi.themeOf(context).colorScheme;
     final tagColors = TagColors.fromBrightness(colorScheme.brightness);
 
@@ -56,21 +56,25 @@ class SelectedTagChip extends StatelessWidget {
       onTap:
           onTap ??
           () {
+            final search = InheritedSearchPageController.maybeOf(context);
+            if (search != null) {
+              search.editTag(tagSearchItem);
+              return;
+            }
+            // Other consumers keep their explicit-confirmation editor semantics.
             showDialog(
               context: context,
               routeSettings: const RouteSettings(name: 'selected_tag_edit'),
-              builder: (c) {
-                return SelectedTagEditDialog(
-                  tag: tagSearchItem,
-                  onUpdated: (tag) {
-                    if (tag.isNotEmpty) {
-                      onUpdated?.call(tag);
-                    } else {
-                      onDeleted?.call();
-                    }
-                  },
-                );
-              },
+              builder: (c) => SelectedTagEditDialog(
+                tag: tagSearchItem,
+                onUpdated: (tag) {
+                  if (tag.isNotEmpty) {
+                    onUpdated?.call(tag);
+                  } else {
+                    onDeleted?.call();
+                  }
+                },
+              ),
             );
           },
       child: KurumiMaterialChip(
@@ -100,7 +104,7 @@ class SelectedTagChip extends StatelessWidget {
               fontWeight: FontWeight.w600,
             ),
             children: [
-              if (isRaw) ...[
+              if (isRaw)
                 TextSpan(
                   text: 'RAW   ',
                   style: TextStyle(
@@ -109,17 +113,15 @@ class SelectedTagChip extends StatelessWidget {
                     letterSpacing: -1,
                     fontSize: 13,
                   ),
-                ),
-              ] else if (hasOperator)
+                )
+              else if (hasOperator)
                 TextSpan(
                   text: switch (tagSearchItem.operator) {
                     FilterOperator.none => '',
                     FilterOperator.not => '—',
                     FilterOperator.or => '⁓',
                   },
-                  style: TextStyle(
-                    color: tagColors.copyright,
-                  ),
+                  style: TextStyle(color: tagColors.copyright),
                 ),
               if (hasMeta)
                 TextSpan(
@@ -140,9 +142,7 @@ class SelectedTagChip extends StatelessWidget {
                       colors?.foregroundColor ?? colorScheme.onSurfaceVariant,
                 ),
               ),
-              const TextSpan(
-                text: ' ',
-              ),
+              const TextSpan(text: ' '),
             ],
           ),
         ),

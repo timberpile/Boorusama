@@ -11,18 +11,13 @@ import '../../../../../core/search/search/routes.dart';
 import '../../../../../core/search/search/widgets.dart';
 import '../../../../../core/search/selected_tags/types.dart';
 import '../../../../../core/tags/metatag/widgets.dart';
-import '../../../../../foundation/utils/flutter_utils.dart';
 import '../../../tags/user_metatags/providers.dart';
 import 'widgets/danbooru_metatags_section.dart';
 import 'widgets/related_tag_section.dart';
 import 'widgets/trending_section.dart';
 
 class DanbooruSearchPage extends ConsumerStatefulWidget {
-  const DanbooruSearchPage({
-    required this.params,
-    super.key,
-  });
-
+  const DanbooruSearchPage({required this.params, super.key});
   final SearchParams params;
 
   @override
@@ -35,130 +30,58 @@ class _DanbooruSearchPageState extends ConsumerState<DanbooruSearchPage> {
     final config = ref.watchConfig;
     final postRepo = ref.watch(originAwarePostRepoProvider(config));
     final metatags = ref.watch(metatagsProvider).map((e) => e.name).join('|');
-    final metatagExtractor = ref.watch(
-      danbooruMetatagExtractorProvider(config.auth),
-    );
-
+    final extractor = ref.watch(danbooruMetatagExtractorProvider(config.auth));
     return SearchPageScaffold(
       fetcher: (page, controller) =>
           postRepo.getPostsFromController(controller.tagSet, page),
       params: widget.params,
       textMatchers: [
         RegexMatcher(
-          pattern: RegExp(
-            '($metatags)+:',
-            caseSensitive: false,
-          ),
+          pattern: RegExp('($metatags)+:', caseSensitive: false),
           spanBuilder: (match) => WidgetSpan(
             alignment: PlaceholderAlignment.middle,
-            child: MetatagContainer(
-              tag: match.text,
-            ),
+            child: MetatagContainer(tag: match.text),
           ),
         ),
       ],
       landingViewBuilder: (controller) =>
           DanbooruSearchLandingView(controller: controller),
-      extraHeaders:
-          (
-            context,
-            postController,
-          ) {
-            final searchController = InheritedSearchPageController.of(context);
-            final selectedTagController = searchController.tagsController;
-            final selectedTagString = searchController.tagString;
-
-            return [
-              SliverToBoxAdapter(
-                child: ValueListenableBuilder(
-                  valueListenable: selectedTagString,
-                  builder: (context, selectedTags, _) => RelatedTagSection(
-                    query: selectedTags,
-                    onAdded: (tag) {
-                      selectedTagController.addTag(
-                        TagSearchItem.fromString(
-                          tag.tag,
-                          extractor: metatagExtractor,
-                        ),
-                      );
-                      postController.refresh();
-                      searchController.search();
-                    },
-                    onNegated: (tag) {
-                      selectedTagController.addTag(
-                        TagSearchItem.fromString(
-                          '-${tag.tag}',
-                          extractor: metatagExtractor,
-                        ),
-                      );
-                      postController.refresh();
-                      searchController.search();
-                    },
-                  ),
+      extraHeaders: (context, postController) {
+        final controller = InheritedSearchPageController.of(context);
+        return [
+          SliverToBoxAdapter(
+            child: ValueListenableBuilder(
+              valueListenable: controller.tagString,
+              builder: (context, tags, _) => RelatedTagSection(
+                query: tags,
+                onAdded: (tag) => controller.tagsController.addTag(
+                  TagSearchItem.fromString(tag.tag, extractor: extractor),
+                ),
+                onNegated: (tag) => controller.tagsController.addTag(
+                  TagSearchItem.fromString('-${tag.tag}', extractor: extractor),
                 ),
               ),
-            ];
-          },
+            ),
+          ),
+        ];
+      },
     );
   }
 }
 
 class DanbooruSearchLandingView extends StatelessWidget {
-  const DanbooruSearchLandingView({
-    super.key,
-    required this.controller,
-  });
-
+  const DanbooruSearchLandingView({required this.controller, super.key});
   final SearchPageController controller;
 
   @override
-  Widget build(BuildContext context) {
-    return SearchLandingView(
-      child: DefaultSearchLandingChildren(
-        children: [
-          DefaultMobileQueryActionSection(controller: controller),
-          _Metatags(controller),
-          DefaultMobileFavoriteTagsSection(controller: controller),
-          _Trending(controller),
-          DefaultMobileSearchHistorySection(controller: controller),
-        ],
-      ),
-    );
-  }
-}
-
-class _Trending extends StatelessWidget {
-  const _Trending(
-    this.controller,
+  Widget build(BuildContext context) => SearchLandingView(
+    child: DefaultSearchLandingChildren(
+      children: [
+        DanbooruMetatagsSection(onOptionTap: controller.tapRawMetaTag),
+        DefaultMobileFavoriteTagsSection(controller: controller),
+        TrendingSection(onTagTap: controller.tapTag),
+        DefaultMobileSearchHistorySection(controller: controller),
+      ],
+    ),
   );
-
-  final SearchPageController controller;
-
-  @override
-  Widget build(BuildContext context) {
-    return TrendingSection(
-      onTagTap: (value) {
-        controller.tapTag(value);
-      },
-    );
-  }
-}
-
-class _Metatags extends StatelessWidget {
-  const _Metatags(
-    this.controller,
-  );
-
-  final SearchPageController controller;
-
-  @override
-  Widget build(BuildContext context) {
-    return DanbooruMetatagsSection(
-      onOptionTap: (value) {
-        controller.tapRawMetaTag(value);
-        controller.focus.requestFocus();
-        controller.textController.setTextAndCollapseSelection('$value:');
-      },
-    );
-  }
 }

@@ -118,7 +118,36 @@ class _SearchPageScaffoldState<T extends Post>
   SelectionModeController get _selectionModeController =>
       widget.selectionModeController;
 
+  var _keyboardWasVisible = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final visible = MediaQuery.viewInsetsOf(context).bottom > 0;
+    final hidden = _keyboardWasVisible && !visible;
+    _keyboardWasVisible = visible;
+    if (!hidden) return;
+    // An unused transparent editor must not leave a modal barrier over Browse
+    // after Android dismisses only the IME. Advanced UI owns its own dismissal.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || MediaQuery.viewInsetsOf(context).bottom > 0) return;
+      if (_controller.didSearchOnce.value ||
+          _controller.state.value != SearchState.initial ||
+          _controller.textController.text.isNotEmpty ||
+          _tagsController.tags.isNotEmpty ||
+          _controller.editingTag.value != null) {
+        return;
+      }
+      final route = ModalRoute.of(context);
+      if (route != null && route.isCurrent && route.impliesAppBarDismissal) {
+        Navigator.of(context).pop();
+      }
+    });
+  }
+
   var _hasScrolledToInitialPosition = false;
+  late final String _restoredQuery;
+  var _useRoutePosition = true;
 
   @override
   void initState() {
@@ -146,6 +175,7 @@ class _SearchPageScaffoldState<T extends Post>
           .read(searchHistoryProvider.notifier)
           .addHistoryFromController(_tagsController, ref.readConfigAuth);
     }
+    _restoredQuery = _controller.tagString.value;
 
     _controller.textController
         .textAsStream()
@@ -162,6 +192,9 @@ class _SearchPageScaffoldState<T extends Post>
   var _searchBarOffset = 0.0;
 
   void _onTagChanged() {
+    if (_controller.tagString.value != _restoredQuery) {
+      _useRoutePosition = false;
+    }
     _selectionModeController.disable();
     // check if scroll controller is attached
     if (_scrollController.hasClients) {
@@ -200,17 +233,19 @@ class _SearchPageScaffoldState<T extends Post>
 
   void _setupPostControllerListener(PostGridController<T> controller) {
     if (_postController != controller) {
-      if (widget.initialScrollPosition != null) {
-        controller.events.listen((event) {
-          if (event is PostControllerRefreshCompleted &&
-              !_hasScrolledToInitialPosition &&
-              widget.initialScrollPosition != null) {
-            _scrollController.scrollToIndex(
-              widget.initialScrollPosition!,
-            );
-            _hasScrolledToInitialPosition = true;
-          }
-        });
+      if (_useRoutePosition && widget.initialScrollPosition != null) {
+        controller.events.takeWhile((_) => _useRoutePosition && mounted).listen(
+          (event) {
+            if (event is PostControllerRefreshCompleted &&
+                !_hasScrolledToInitialPosition &&
+                widget.initialScrollPosition != null) {
+              _scrollController.scrollToIndex(
+                widget.initialScrollPosition!,
+              );
+              _hasScrolledToInitialPosition = true;
+            }
+          },
+        );
       }
 
       _postController = controller;
@@ -220,12 +255,10 @@ class _SearchPageScaffoldState<T extends Post>
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Kurumi.themeOf(context).colorScheme;
-
     return InheritedSearchPageController(
       controller: _controller,
       child: Material(
-        color: colorScheme.surface,
+        type: MaterialType.transparency,
         child: SafeArea(
           bottom: false,
           child: Stack(
@@ -234,19 +267,19 @@ class _SearchPageScaffoldState<T extends Post>
               // keys must not reach while it's covered.
               ValueListenableBuilder(
                 valueListenable: _controller.state,
-                builder: (context, state, child) => ExcludeFocus(
+                builder: (context, state, child) => ExcludeSemantics(
                   excluding: state != SearchState.initial,
-                  child: child!,
+                  child: ExcludeFocus(
+                    excluding: state != SearchState.initial,
+                    child: child!,
+                  ),
                 ),
                 child: ValueListenableBuilder(
                   valueListenable: _controller.didSearchOnce,
                   builder: (context, searchOnce, child) {
                     return searchOnce
                         ? _buildResult()
-                        : _Landing(
-                            landingView: widget.landingView,
-                            selectionModeController: _selectionModeController,
-                          );
+                        : const SizedBox.shrink();
                   },
                 ),
               ),
@@ -326,21 +359,29 @@ class _SearchPageScaffoldState<T extends Post>
 
         return true;
       },
-      child: PostScope(
-        fetcher: (page) => widget.fetcher(
-          page,
-          _controller.tagsController,
+      child: ValueListenableBuilder(
+        valueListenable: _controller.tagString,
+        builder: (context, query, _) => PostScope(
+          // Each applied query owns its requests and pagination. Replacing this
+          // scope logically cancels old work without waiting for the server.
+          key: ValueKey(query),
+          fetcher: (page) => widget.fetcher(
+            page,
+            _controller.tagsController,
+          ),
+          pageMode: _useRoutePosition && widget.initialPage != null
+              ? PageMode.paginated
+              : null,
+          initialPage: _useRoutePosition ? widget.initialPage : null,
+          builder: (context, controller) {
+            // Hacky way to get the controller
+            _setupPostControllerListener(controller);
+            return _buildDefaultSearchResults(
+              context,
+              controller,
+            );
+          },
         ),
-        pageMode: widget.initialPage != null ? PageMode.paginated : null,
-        initialPage: widget.initialPage,
-        builder: (context, controller) {
-          // Hacky way to get the controller
-          _setupPostControllerListener(controller);
-          return _buildDefaultSearchResults(
-            context,
-            controller,
-          );
-        },
       ),
     );
   }
@@ -439,7 +480,10 @@ class SearchRegionSafeArea extends ConsumerWidget {
         switch (searchBarPosition) {
           SearchBarPosition.bottom => displacement,
           SearchBarPosition.top => SizedBox(
-            height: MediaQuery.viewInsetsOf(context).bottom,
+            height: max(
+              MediaQuery.viewInsetsOf(context).bottom,
+              MediaQuery.viewPaddingOf(context).bottom,
+            ),
           ),
         },
       ],
@@ -634,24 +678,6 @@ class _Displacement extends ConsumerWidget {
   }
 }
 
-class _Landing extends ConsumerWidget {
-  const _Landing({
-    required this.landingView,
-    required this.selectionModeController,
-  });
-
-  final Widget landingView;
-  final SelectionModeController selectionModeController;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return SearchRegionSafeArea(
-      selectionModeController: selectionModeController,
-      child: landingView,
-    );
-  }
-}
-
 class _SearchOptionsView extends ConsumerWidget {
   const _SearchOptionsView({
     required this.landingView,
@@ -668,33 +694,35 @@ class _SearchOptionsView extends ConsumerWidget {
 
     return SearchRegionSafeArea(
       selectionModeController: selectionModeController,
-      child: ValueListenableBuilder(
-        valueListenable: controller.state,
-        builder: (context, state, child) => state == SearchState.options
-            ? ColoredBox(
-                color: colorScheme.surface,
-                child: Column(
-                  children: [
-                    ref
-                        .watch(analyticsProvider)
-                        .maybeWhen(
-                          data: (analytics) => SearchViewAnalyticsAnchor(
-                            routeName: '/search_options',
-                            previousRoute: const RouteSettings(
-                              name: '/search_result',
+      child: FocusTraversalGroup(
+        child: MultiValueListenableBuilder2(
+          first: controller.state,
+          second: controller.didSearchOnce,
+          builder: (context, state, searched) => state == SearchState.options
+              ? ColoredBox(
+                  color: colorScheme.surface,
+                  child: Column(
+                    children: [
+                      ref
+                          .watch(analyticsProvider)
+                          .maybeWhen(
+                            data: (analytics) => SearchViewAnalyticsAnchor(
+                              routeName: '/search_options',
+                              previousRoute: const RouteSettings(
+                                name: '/search_result',
+                              ),
+                              analytics: analytics,
                             ),
-                            analytics: analytics,
+                            orElse: () => const SizedBox.shrink(),
                           ),
-                          orElse: () => const SizedBox.shrink(),
-                        ),
-                    Expanded(
-                      child: child!,
-                    ),
-                  ],
-                ),
-              )
-            : const SizedBox.shrink(),
-        child: landingView,
+                      Expanded(
+                        child: landingView,
+                      ),
+                    ],
+                  ),
+                )
+              : const SizedBox.shrink(),
+        ),
       ),
     );
   }

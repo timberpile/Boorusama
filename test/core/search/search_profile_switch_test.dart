@@ -224,7 +224,7 @@ void main() {
       await tester.tap(find.text(testProfile.url));
       await _settle(tester);
       expect(identical(observed.last, controller), isTrue);
-      expect(fetches, isEmpty);
+      expect(fetches, ['${testProfile.url}|cat|1']);
       await tester.tap(find.byIcon(Icons.more_vert));
       await _settle(tester);
       await tester.tap(find.text('Remove all selected tags'));
