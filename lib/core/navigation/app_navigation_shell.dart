@@ -15,6 +15,7 @@ import 'destination_definition.dart';
 import 'navigation_catalog.dart';
 import 'navigation_chrome_controller.dart';
 import 'navigation_interaction_scopes.dart';
+import 'navigation_overlay_insets.dart';
 
 /// The shell owns chrome only; GoRouter owns every supplied Navigator.
 class AppNavigationShell extends ConsumerWidget {
@@ -256,36 +257,42 @@ class AppNavigationShell extends ConsumerWidget {
                         child: Stack(
                           fit: StackFit.expand,
                           children: [
-                            MediaQuery(
-                              data: MediaQuery.of(context).copyWith(
-                                padding: MediaQuery.paddingOf(context).copyWith(
-                                  bottom:
-                                      wide ||
-                                          keyboard ||
-                                          chrome.selectionActive ||
-                                          chrome.viewerOpen
-                                      ? MediaQuery.paddingOf(context).bottom
-                                      : bottomExtent,
+                            NavigationOverlayInsetsScope(
+                              systemMediaQuery: MediaQuery.of(context),
+                              extent: bottomExtent,
+                              child: MediaQuery(
+                                data: MediaQuery.of(context).copyWith(
+                                  padding: MediaQuery.paddingOf(context)
+                                      .copyWith(
+                                        bottom:
+                                            wide ||
+                                                keyboard ||
+                                                chrome.selectionActive ||
+                                                chrome.viewerOpen
+                                            ? MediaQuery.paddingOf(context)
+                                                  .bottom
+                                            : bottomExtent,
+                                      ),
+                                  viewPadding: MediaQuery.viewPaddingOf(context)
+                                      .copyWith(
+                                        bottom:
+                                            wide ||
+                                                keyboard ||
+                                                chrome.selectionActive ||
+                                                chrome.viewerOpen
+                                            ? MediaQuery.viewPaddingOf(context)
+                                                  .bottom
+                                            : bottomExtent,
+                                      ),
                                 ),
-                                viewPadding: MediaQuery.viewPaddingOf(context)
-                                    .copyWith(
-                                      bottom:
-                                          wide ||
-                                              keyboard ||
-                                              chrome.selectionActive ||
-                                              chrome.viewerOpen
-                                          ? MediaQuery.viewPaddingOf(context)
-                                                .bottom
-                                          : bottomExtent,
-                                    ),
-                              ),
-                              child: ExcludeFocus(
-                                excluding: !wide && chrome.menuOpen,
-                                child: ExcludeSemantics(
+                                child: ExcludeFocus(
                                   excluding: !wide && chrome.menuOpen,
-                                  child: NavigationBarScrollScope(
-                                    extent: bottomExtent,
-                                    child: navigationShell,
+                                  child: ExcludeSemantics(
+                                    excluding: !wide && chrome.menuOpen,
+                                    child: NavigationBarScrollScope(
+                                      extent: bottomExtent,
+                                      child: navigationShell,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -498,22 +505,14 @@ class _NavigationBarSlide extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final chrome = ref.watch(navigationChromeProvider);
+    final transition = navigationBarTransition(
+      chrome: chrome,
+      keyboard: keyboard,
+      disableAnimations: MediaQuery.disableAnimationsOf(context),
+    );
     return AnimatedSlide(
-      offset: Offset(
-        0,
-        keyboard || chrome.selectionActive
-            ? 1
-            : chrome.menuOpen
-            ? 0
-            : chrome.barHiddenFraction,
-      ),
-      duration:
-          chrome.selectionActive ||
-              chrome.viewerOpen ||
-              chrome.barScrollActive ||
-              MediaQuery.disableAnimationsOf(context)
-          ? Duration.zero
-          : const Duration(milliseconds: 160),
+      offset: Offset(0, transition.hiddenFraction),
+      duration: transition.duration,
       child: child,
     );
   }

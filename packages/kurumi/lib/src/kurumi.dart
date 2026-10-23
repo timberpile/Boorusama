@@ -7,6 +7,7 @@ import 'package:dynamic_color/dynamic_color.dart';
 import 'components/adaptive_sheet.dart' as adaptive_sheet;
 import 'components/bottom_sheet.dart' as bottom_sheet;
 import 'components/hero.dart' as hero;
+import 'components/media_query.dart';
 import 'components/route_transition.dart' as route_transition;
 import 'components/segmented_button.dart' as segmented_button;
 import 'components/toast.dart' as toast;
@@ -128,9 +129,9 @@ abstract final class Kurumi {
 
   static const bool enableHeroTransition = hero.kKurumiEnableHeroTransition;
 
-  /// Shows Flutter's Material modal bottom sheet without adding an app-level
-  /// wrapper. This keeps direct Material call sites behavior-compatible while
-  /// still routing the API through Kurumi.
+  /// Shows a Material modal sheet with its standard presentation options.
+  /// In a navigation shell, content uses the live overlay obstruction rather
+  /// than the stable padding reserved for the page behind it.
   static Future<T?> showModalBottomSheet<T>({
     required BuildContext context,
     required WidgetBuilder builder,
@@ -155,7 +156,7 @@ abstract final class Kurumi {
     bool? requestFocus,
   }) => material.showModalBottomSheet<T>(
     context: context,
-    builder: builder,
+    builder: (context) => KurumiOverlayMediaQuery(builder: builder),
     backgroundColor: backgroundColor,
     barrierLabel: barrierLabel,
     elevation: elevation,

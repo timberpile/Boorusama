@@ -4,6 +4,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:modal_bottom_sheet/modal_bottom_sheet.dart';
 
 import '../foundation/screen.dart';
+import 'media_query.dart';
 
 Future<T?> kurumiShowAdaptiveSheet<T>(
   BuildContext context, {
@@ -20,17 +21,19 @@ Future<T?> kurumiShowAdaptiveSheet<T>(
       context: context,
       backgroundColor: backgroundColor,
       isScrollControlled: expand,
-      builder: builder,
+      builder: (context) => KurumiOverlayMediaQuery(builder: builder),
     );
   } else {
     return kurumiShowSideSheetFromRight<T>(
       settings: settings,
       width: width ?? 320,
-      body: MediaQuery.removePadding(
-        context: context,
-        removeLeft: true,
-        removeRight: true,
-        child: builder(context),
+      body: Builder(
+        builder: (context) => MediaQuery.removePadding(
+          context: context,
+          removeLeft: true,
+          removeRight: true,
+          child: Builder(builder: builder),
+        ),
       ),
       context: context,
     );
@@ -49,22 +52,24 @@ Future<T?> kurumiShowAdaptiveBottomSheet<T>(
       ? showDialog<T>(
           context: context,
           routeSettings: settings,
-          builder: (context) => Dialog(
-            backgroundColor: backgroundColor,
-            insetPadding: const EdgeInsets.symmetric(
-              horizontal: 28,
-              vertical: 24,
-            ),
-            child: Container(
-              constraints: const BoxConstraints(
-                maxHeight: 400,
-                maxWidth: 500,
+          builder: (context) => KurumiOverlayMediaQuery(
+            builder: (context) => Dialog(
+              backgroundColor: backgroundColor,
+              insetPadding: const EdgeInsets.symmetric(
+                horizontal: 28,
+                vertical: 24,
               ),
-              margin: const EdgeInsets.symmetric(
-                horizontal: 4,
-                vertical: 4,
+              child: Container(
+                constraints: const BoxConstraints(
+                  maxHeight: 400,
+                  maxWidth: 500,
+                ),
+                margin: const EdgeInsets.symmetric(
+                  horizontal: 4,
+                  vertical: 4,
+                ),
+                child: builder(context),
               ),
-              child: builder(context),
             ),
           ),
         )
@@ -107,7 +112,7 @@ Future<T?> kurumiShowAppModalBarBottomSheet<T>({
   animationCurve: animationCurve,
   useRootNavigator: useRootNavigator,
   isDismissible: isDismissible,
-  builder: builder,
+  builder: (context) => KurumiOverlayMediaQuery(builder: builder),
 );
 
 Future<T?> kurumiShowSideSheetFromLeft<T>({
@@ -169,8 +174,8 @@ Future<T?> _kurumiShowSheetSide<T>({
   transitionDuration: transitionDuration,
   context: context,
   routeSettings: settings,
-  pageBuilder: (context, animation1, animation2) {
-    return Align(
+  pageBuilder: (context, animation1, animation2) => KurumiOverlayMediaQuery(
+    builder: (context) => Align(
       alignment: rightSide ? Alignment.centerRight : Alignment.centerLeft,
       child: Material(
         shadowColor: Colors.transparent,
@@ -182,8 +187,8 @@ Future<T?> _kurumiShowSheetSide<T>({
           child: body,
         ),
       ),
-    );
-  },
+    ),
+  ),
   transitionBuilder: (context, animation1, animation2, child) {
     return SlideTransition(
       position: Tween(

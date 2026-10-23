@@ -1,6 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 
 import 'drag_line.dart';
+import 'media_query.dart';
 
 class KurumiBottomSheet extends StatelessWidget {
   const KurumiBottomSheet({
@@ -103,13 +104,15 @@ Future<T?> showKurumiModalBottomSheet<T>({
     enableDrag: enableDrag,
     routeSettings: routeSettings,
     scrollControlDisabledMaxHeightRatio: 0.9,
-    builder: (context) => _ResizeToAvoidBottomInset(
-      resizeToAvoidBottomInset: resizeToAvoidBottomInset,
-      child: KurumiBottomSheet(
-        backgroundColor: backgroundColor,
-        showDragHandle: showDragHandle,
-        useSafeArea: useSafeArea,
-        child: builder(context),
+    builder: (context) => KurumiOverlayMediaQuery(
+      builder: (context) => _ResizeToAvoidBottomInset(
+        resizeToAvoidBottomInset: resizeToAvoidBottomInset,
+        child: KurumiBottomSheet(
+          backgroundColor: backgroundColor,
+          showDragHandle: showDragHandle,
+          useSafeArea: useSafeArea,
+          child: builder(context),
+        ),
       ),
     ),
   );
