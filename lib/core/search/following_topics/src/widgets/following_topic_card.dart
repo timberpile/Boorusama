@@ -11,6 +11,7 @@ import '../../../../images/booru_image.dart';
 import '../../../../widgets/time_pulse.dart';
 import '../types/following_topic.dart';
 import '../types/following_topic_sort.dart';
+import 'following_topic_query_text.dart';
 import 'search_refresh_error_text.dart';
 import 'topic_new_posts_badge.dart';
 
@@ -182,10 +183,18 @@ class FollowingTopicCard extends StatelessWidget {
                 Row(
                   children: [
                     Expanded(
-                      child: Text(
-                        topic.displayName,
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
+                      child: topic.name == null
+                          ? FollowingTopicQueryText(
+                              query: topic.query,
+                              auth: config,
+                              style: Theme.of(context).textTheme.titleMedium,
+                            )
+                          : Text(
+                              topic.name!,
+                              style: Theme.of(context).textTheme.titleMedium,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                     ),
                     if (topic.hasNewPosts)
                       TopicNewPostsBadge(
@@ -237,7 +246,8 @@ class FollowingTopicCard extends StatelessWidget {
                       ),
                   ],
                 ),
-                if (topic.displayName != topic.query) Text(topic.query),
+                if (topic.name != null && topic.name != topic.query)
+                  FollowingTopicQueryText(query: topic.query, auth: config),
                 if (preview != null)
                   preview!
                 else if (topic.previews.isNotEmpty && config != null)

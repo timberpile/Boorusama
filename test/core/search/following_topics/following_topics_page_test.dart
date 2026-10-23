@@ -1584,7 +1584,14 @@ void main() {
     ]);
     await pump(tester);
     expect(find.text('Cats'), findsOneWidget);
-    expect(find.text('cat  rating:safe order:score'), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is Semantics &&
+            widget.properties.label == 'cat  rating:safe order:score',
+      ),
+      findsOneWidget,
+    );
     expect(find.text('dog'), findsOneWidget);
     expect(find.text('Other profile'), findsOneWidget);
     expect(find.text('NEW'), findsNWidgets(2));
@@ -1824,7 +1831,14 @@ void main() {
       await drain(tester);
       await settle(tester);
       expect(find.text('Cats'), findsNothing);
-      expect(find.text('cat  rating:safe order:score'), findsOneWidget);
+      expect(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is Semantics &&
+              widget.properties.label == 'cat  rating:safe order:score',
+        ),
+        findsOneWidget,
+      );
       expect((await harness.repository.getById('cats'))!.unreadCount, 1);
       expect(harness.requests, isEmpty);
     },

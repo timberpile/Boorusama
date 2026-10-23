@@ -6,6 +6,7 @@ import 'package:boorusama/core/blacklists/providers.dart';
 import 'package:boorusama/core/boorus/engine/providers.dart';
 import 'package:boorusama/core/boorus/engine/types.dart';
 import 'package:boorusama/core/search/following_topics/src/providers/search_refresh_coordinator.dart';
+import 'package:boorusama/core/search/following_topics/src/providers/topic_query_tag_categories_provider.dart';
 import 'package:boorusama/core/search/following_topics/src/services/search_refresh_scheduler.dart';
 
 import 'dart:typed_data';
@@ -170,6 +171,8 @@ class FollowingTopicHarness {
     );
     container = ProviderContainer(
       overrides: [
+        // Metadata presentation has dedicated repository/cache coverage.
+        topicQueryTagCategoriesProvider.overrideWith((ref, key) async => {}),
         loggerProvider.overrideWithValue(
           ConsoleLogger(options: const ConsoleLoggerOptions.defaults()),
         ),
