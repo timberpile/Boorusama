@@ -3,8 +3,68 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kurumi/material.dart';
+import 'package:dio/dio.dart';
+import 'package:i18n/i18n.dart';
+import 'package:boorusama/core/developer_options/providers.dart';
+import 'package:boorusama/core/http/client/providers.dart';
+import 'package:boorusama/core/images/providers.dart';
+
+import '../posts/details/progressive_image_test_utils.dart' as images;
 
 void main() {
+  testWidgets('duplicate profile names stay unchanged and still select by ID', (
+    tester,
+  ) async {
+    String? selected;
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          automaticMediaLoadingEnabledProvider.overrideWithValue(false),
+          faviconDioProvider.overrideWithValue(Dio()),
+          defaultImageCacheManagerProvider.overrideWithValue(
+            images.TestImageCache({}),
+          ),
+        ],
+        child: BooruLocalization(
+          child: MaterialApp(
+            home: Scaffold(
+              body: ProfileContextMenuButton(
+                entries: const [
+                  ProfileMenuEntry(
+                    id: 'one',
+                    caption: 'Safebooru',
+                    url: 'https://safebooru.donmai.us/',
+                  ),
+                  ProfileMenuEntry(
+                    id: 'two',
+                    caption: 'Safebooru',
+                    url: 'https://safebooru.org/',
+                  ),
+                  ProfileMenuEntry(
+                    id: 'three',
+                    caption: 'Safebooru',
+                    url: 'https://safebooru.org/',
+                  ),
+                ],
+                selectedProfileId: 'one',
+                tooltip: 'Profiles',
+                onSelected: (id) => selected = id,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.byTooltip('Profiles'));
+    await tester.pumpAndSettle();
+    expect(find.text('Safebooru'), findsNWidgets(3));
+    expect(find.textContaining('safebooru.'), findsNothing);
+    await tester.tap(find.text('Safebooru').at(1));
+    await tester.pumpAndSettle();
+    expect(selected, 'two');
+    expect(tester.takeException(), isNull);
+  });
+
   for (final width in [320.0, 1280.0]) {
     testWidgets(
       'profile popup keyboard selection with twelve profiles at $width',

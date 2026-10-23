@@ -49,17 +49,7 @@ class _ProfileContextMenuButtonState extends State<ProfileContextMenuButton> {
   String _caption(ProfileMenuEntry entry) {
     final host = Uri.tryParse(entry.url)?.host ?? '';
     final name = entry.caption.trim();
-    final duplicates = widget.entries
-        .where((e) => e.caption.trim() == name)
-        .toList();
-    if (duplicates.length < 2) return name.isEmpty ? host : name;
-    final caption = name.isEmpty ? host : '$name ($host)';
-    final sameHost = duplicates
-        .where((e) => Uri.tryParse(e.url)?.host == host)
-        .toList();
-    return sameHost.length < 2
-        ? caption
-        : '$caption · ${sameHost.indexOf(entry) + 1}';
+    return name.isEmpty ? host : name;
   }
 
   @override

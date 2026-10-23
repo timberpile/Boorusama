@@ -17,6 +17,9 @@
       - url: https://safebooru.donmai.us/
         ai-tag: true
         censored-tags-banned: true
+        quick-profile:
+          name: Safebooru (Danbooru)
+          authentication: optional
       - url: https://aibooru.online/
         ai-tag: true
         quick-profile:
