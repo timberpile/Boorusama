@@ -2380,6 +2380,10 @@
     }
   },
   "pixiv": {
+    "experimental": {
+      "label": "Experimental",
+      "description": "Pixiv support is limited and may change. Not all website features are available."
+    },
     "auth": {
       "login_title": "Log in to Pixiv",
       "login_failed": "Could not finish logging in to Pixiv. Please try again.",

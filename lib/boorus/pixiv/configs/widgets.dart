@@ -10,6 +10,7 @@ import '../../../core/configs/auth/widgets.dart';
 import '../../../core/configs/create/providers.dart';
 import '../../../core/configs/create/widgets.dart';
 import '../auth/login_page.dart';
+import 'experimental_notice.dart';
 import 'extra_data.dart';
 
 class CreatePixivConfigPage extends ConsumerWidget {
@@ -52,6 +53,8 @@ class PixivAuthConfigView extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const SizedBox(height: 24),
+          const PixivExperimentalNotice(),
+          const SizedBox(height: 16),
           if (isLoggedIn) ...[
             _LoggedInStatus(extraData: extraData),
             const SizedBox(height: 16),

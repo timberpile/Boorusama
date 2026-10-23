@@ -158,31 +158,33 @@ final class FakeBooruDetailsRequest {
 }
 
 final class FakeBooruBackend {
-  FakeBooruBackend({this.strictPostScripts = false})
-    : config = BooruConfig.fromJson({
-        ...BooruConfig.defaultConfig(
-          booruType: BooruType.danbooru,
-          url: siteUrl,
-          customDownloadFileNameFormat: null,
-        ).toJson(),
-        'id': '00000000-0000-4000-8000-000000000001',
-        'name': 'Headless Booru',
-      }),
-      posts = [
-        TestPost(
-          id: 101,
-          tags: const {'cat', 'blue_hair'},
-          source: RawWebSource(
-            faviconUrl: null,
-            url: 'https://source.booru.test/101',
-            uri: Uri.parse('https://source.booru.test/101'),
-          ),
-        ),
-        TestPost(
-          id: 102,
-          tags: const {'landscape'},
-        ),
-      ] {
+  FakeBooruBackend({
+    this.strictPostScripts = false,
+    this.additionalBoorus = const {},
+  }) : config = BooruConfig.fromJson({
+         ...BooruConfig.defaultConfig(
+           booruType: BooruType.danbooru,
+           url: siteUrl,
+           customDownloadFileNameFormat: null,
+         ).toJson(),
+         'id': '00000000-0000-4000-8000-000000000001',
+         'name': 'Headless Booru',
+       }),
+       posts = [
+         TestPost(
+           id: 101,
+           tags: const {'cat', 'blue_hair'},
+           source: RawWebSource(
+             faviconUrl: null,
+             url: 'https://source.booru.test/101',
+             uri: Uri.parse('https://source.booru.test/101'),
+           ),
+         ),
+         TestPost(
+           id: 102,
+           tags: const {'landscape'},
+         ),
+       ] {
     configB = BooruConfig.fromJson({
       ...config.toJson(),
       'id': '00000000-0000-4000-8000-000000000002',
@@ -238,9 +240,11 @@ final class FakeBooruBackend {
   final Map<_PostRequestKey, Queue<FakeBooruPostResponse>> _postScripts = {};
   var _nextRequestId = 1;
   final registry = BooruRegistry();
+  final Map<BooruType, Booru> additionalBoorus;
 
   BooruDb get booruDb => BooruDb(
     boorus: {
+      ...additionalBoorus,
       // Core widgets look up Danbooru-only data for this type, as in the app.
       BooruType.danbooru: const Danbooru(
         config: _testDanbooruYaml,
