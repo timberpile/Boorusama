@@ -89,6 +89,56 @@ void main() {
   }
 
   testWidgets(
+    'root bookmark filter updates each IME edit in the navigation shell',
+    (
+      tester,
+    ) async {
+      final harness = await HeadlessAppHarness.mount(tester);
+      await harness.pumpUntilFound(tester, postTile(101));
+      final notifier = ProviderScope.containerOf(
+        tester.element(postTile(101)),
+        listen: false,
+      ).read(bookmarkProvider.notifier);
+      await notifier.future;
+      await notifier.createGroup('Alpha');
+      await notifier.createGroup('Beta');
+      await tester.tap(find.byKey(const Key('nav-shortcut-bookmarks')));
+      await harness.pumpUntilFound(
+        tester,
+        find.byType(BookmarkGroupBrowserPage),
+      );
+      await harness.settle(tester);
+      final field = find.byKey(const Key('bookmark-group-name-filter'));
+      await tester.tap(find.byKey(const Key('bookmark-group-filter-toggle')));
+      await harness.settle(tester);
+      expect(tester.testTextInput.isVisible, isTrue);
+      final editable = find.descendant(
+        of: field,
+        matching: find.byType(EditableText),
+      );
+      expect(tester.widget<EditableText>(editable).focusNode.hasFocus, isTrue);
+      for (final query in ['a', 'al', 'alpha', 'b', '']) {
+        tester.testTextInput.updateEditingValue(
+          TextEditingValue(
+            text: query,
+            selection: TextSelection.collapsed(offset: query.length),
+            composing: TextRange(start: 0, end: query.length),
+          ),
+        );
+        await tester.pump();
+        for (final name in ['Alpha', 'Beta']) {
+          expect(
+            find.text(name),
+            name.toLowerCase().contains(query) ? findsOneWidget : findsNothing,
+          );
+        }
+        expect(tester.testTextInput.isVisible, isTrue);
+      }
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
     'bookmark folder/group drag skips system cards and Back exits the active selection',
     (tester) async {
       final harness = await HeadlessAppHarness.mount(tester);

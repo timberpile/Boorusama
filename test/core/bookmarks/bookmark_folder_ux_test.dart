@@ -88,6 +88,287 @@ void main() {
     },
   );
 
+  for (final folderId in [null, 'folder']) {
+    testWidgets('name filtering updates during composing edits in $folderId', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        _Library(
+          _state(
+            folders: const [CollectionFolder(id: 'folder', name: 'Folder')],
+            groups: [
+              _group('alpha', 'Alpha', folder: folderId),
+              _group('alpine', 'Alpine', folder: folderId),
+              _group('beta', 'Beta', folder: folderId),
+            ],
+          ),
+        ),
+        home: BookmarkGroupBrowserPage(folderId: folderId),
+      );
+      final field = find.byKey(const Key('bookmark-group-name-filter'));
+      await tester.tap(find.byKey(const Key('bookmark-group-filter-toggle')));
+      await tester.pumpAndSettle();
+      await tester.tap(field);
+      await tester.pumpAndSettle();
+      for (final query in ['a', 'al', 'alp', 'alpha', 'b', '']) {
+        tester.testTextInput.updateEditingValue(
+          TextEditingValue(
+            text: query,
+            selection: TextSelection.collapsed(offset: query.length),
+            composing: TextRange(start: 0, end: query.length),
+          ),
+        );
+        await tester.pump();
+        for (final name in ['Alpha', 'Alpine', 'Beta']) {
+          expect(
+            find.text(name),
+            name.toLowerCase().contains(query) ? findsOneWidget : findsNothing,
+          );
+        }
+        expect(tester.testTextInput.isVisible, isTrue);
+      }
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets(
+      'showing the name filter focuses it and opens keyboard in $folderId',
+      (
+        tester,
+      ) async {
+        await _pump(
+          tester,
+          _Library(
+            _state(
+              folders: const [CollectionFolder(id: 'folder', name: 'Folder')],
+            ),
+          ),
+          home: BookmarkGroupBrowserPage(folderId: folderId),
+          size: const Size(320, 700),
+          textScale: 2,
+        );
+        final toggle = find.byKey(const Key('bookmark-group-filter-toggle'));
+        final field = find.byKey(const Key('bookmark-group-name-filter'));
+        for (var attempt = 0; attempt < 2; attempt++) {
+          await tester.tap(toggle);
+          await tester.pumpAndSettle();
+          final editable = tester.widget<EditableText>(
+            find.descendant(of: field, matching: find.byType(EditableText)),
+          );
+          expect(editable.focusNode.hasFocus, isTrue);
+          expect(tester.testTextInput.isVisible, isTrue);
+          await tester.tap(toggle);
+          await tester.pumpAndSettle();
+          expect(field, findsNothing);
+          expect(tester.testTextInput.isVisible, isFalse);
+        }
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  testWidgets(
+    'search is opt-in and keeps ancestors of matching nested groups visible',
+    (tester) async {
+      final library = _Library(
+        _state(
+          folders: const [
+            CollectionFolder(id: 'parent', name: 'Parent'),
+            CollectionFolder(id: 'child', name: 'Child', parentId: 'parent'),
+            CollectionFolder(id: 'other', name: 'Other folder'),
+          ],
+          groups: [_group('deep', 'Deep group', folder: 'child')],
+        ),
+      );
+      final router = await _pump(tester, library);
+      final field = find.byKey(const Key('bookmark-group-name-filter'));
+      final toggle = find.byKey(const Key('bookmark-group-filter-toggle'));
+      expect(field, findsNothing);
+      await tester.tap(toggle);
+      await tester.pumpAndSettle();
+      await tester.enterText(field, ' DEEP ');
+      await tester.pumpAndSettle();
+      expect(find.text('Parent'), findsOneWidget);
+      expect(find.text('Other folder'), findsNothing);
+      await tester.tap(find.text('Parent'));
+      await tester.pumpAndSettle();
+      expect(field, findsNothing);
+      await tester.tap(toggle);
+      await tester.pumpAndSettle();
+      await tester.enterText(field, 'deep');
+      await tester.pumpAndSettle();
+      expect(find.text('Child'), findsOneWidget);
+      await tester.tap(find.text('Child'));
+      await tester.pumpAndSettle();
+      expect(find.text('Deep group'), findsOneWidget);
+      router.pop();
+      await tester.pumpAndSettle();
+      router.pop();
+      await tester.pumpAndSettle();
+      expect(tester.widget<TextField>(field).controller!.text, ' DEEP ');
+      await tester.tap(toggle);
+      await tester.pumpAndSettle();
+      expect(field, findsNothing);
+      expect(find.text('Other folder'), findsOneWidget);
+      await tester.tap(toggle);
+      await tester.pumpAndSettle();
+      expect(tester.widget<TextField>(field).controller!.text, isEmpty);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'group creation remains available while filtered with a keyboard',
+    (tester) async {
+      final library = _Library(_state(groups: [_group('old', 'Other')]));
+      await _pump(tester, library, size: const Size(320, 700), textScale: 2);
+      await tester.tap(find.byKey(const Key('bookmark-group-filter-toggle')));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('bookmark-group-name-filter')),
+        ' New ',
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.descendant(
+          of: find.byType(AppBar),
+          matching: find.byType(PopupMenuButton<String>),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Add group'));
+      await tester.pumpAndSettle();
+      tester.view.viewInsets = const FakeViewPadding(bottom: 240);
+      addTearDown(tester.view.resetViewInsets);
+      await tester.enterText(find.byType(legacy.TextField), 'New group');
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+      expect(library.library.groups.map((g) => g.name), ['Other', 'New group']);
+      expect(find.text('New group'), findsOneWidget);
+      expect(find.text('Other'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('name filter matches real cards and reconciles live updates', (
+    tester,
+  ) async {
+    final library = _Library(
+      _state(
+        groups: [
+          BookmarkGroup(
+            id: defaultBookmarkGroupId,
+            name: '',
+            bookmarkIds: const {},
+          ),
+          _group('a', 'Same'),
+          _group('b', 'Same'),
+          _group('c', 'Other'),
+        ],
+      ),
+    );
+    await _pump(tester, library);
+    final filter = find.byKey(const Key('bookmark-group-name-filter'));
+    expect(filter, findsNothing);
+    await tester.tap(find.byKey(const Key('bookmark-group-filter-toggle')));
+    await tester.pumpAndSettle();
+    expect(find.text('All'), findsOneWidget);
+    expect(find.text('Default'), findsOneWidget);
+    for (final query in ['', '   ']) {
+      await tester.enterText(filter, query);
+      await tester.pumpAndSettle();
+      expect(find.text('Same'), findsNWidgets(2));
+      expect(find.text('Other'), findsOneWidget);
+    }
+    await tester.enterText(filter, ' aLL ');
+    await tester.pumpAndSettle();
+    expect(find.text('All'), findsOneWidget);
+    expect(find.text('Same'), findsNothing);
+    await tester.enterText(filter, 'DEFAULT');
+    await tester.pumpAndSettle();
+    expect(find.text('Default'), findsOneWidget);
+    expect(find.text('All'), findsNothing);
+    await tester.enterText(filter, ' sAmE ');
+    await tester.pumpAndSettle();
+    expect(find.text('Same'), findsNWidgets(2));
+    library.publish(
+      groups: [
+        _group('a', 'Renamed'),
+        _group('b', 'Same'),
+        _group('c', 'Same'),
+      ],
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Same'), findsNWidgets(2));
+    expect(find.text('Renamed'), findsNothing);
+    await tester.longPress(find.text('Same').first);
+    await tester.pumpAndSettle();
+    expect(find.text('1 item selected'), findsOneWidget);
+    library.publish(groups: [_group('c', 'Other')]);
+    await tester.pumpAndSettle();
+    expect(find.text('1 item selected'), findsNothing);
+    expect(find.byIcon(Icons.search_off), findsOneWidget);
+    await tester.tap(find.widgetWithText(TextButton, 'Clear'));
+    await tester.pumpAndSettle();
+    expect(find.text('Other'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'filtered actions keep stable IDs and folder filters survive back',
+    (tester) async {
+      final library = _Library(
+        _state(
+          groups: [
+            _group('a', 'Same'),
+            _group('b', 'Same'),
+            _group('nested', 'Nested', folder: 'f'),
+          ],
+          folders: [const CollectionFolder(id: 'f', name: 'Same folder')],
+        ),
+      );
+      final router = await _pump(tester, library);
+      final filter = find.byKey(const Key('bookmark-group-name-filter'));
+      await tester.tap(find.byKey(const Key('bookmark-group-filter-toggle')));
+      await tester.pumpAndSettle();
+      await tester.enterText(filter, ' Same ');
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Same folder'));
+      await tester.pumpAndSettle();
+      expect(filter, findsNothing);
+      await tester.tap(find.byKey(const Key('bookmark-group-filter-toggle')));
+      await tester.pumpAndSettle();
+      expect(tester.widget<TextField>(filter).controller!.text, isEmpty);
+      expect(find.text('Nested'), findsOneWidget);
+      await tester.enterText(filter, 'absent');
+      await tester.pumpAndSettle();
+      expect(find.byIcon(Icons.search_off), findsNWidgets(2));
+      router.pop();
+      await tester.pumpAndSettle();
+      expect(tester.widget<TextField>(filter).controller!.text, ' Same ');
+      expect(find.text('Same'), findsNWidgets(2));
+      final card = find.byKey(ValueKey(('group', _id('b'))));
+      await tester.tap(
+        find.descendant(
+          of: card,
+          matching: find.byType(PopupMenuButton<String>),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Duplicate'));
+      await tester.pumpAndSettle();
+      expect(
+        library.library.groups.where((g) => g.name == 'Same Copy').single.id,
+        _id('copy-${_id('b')}'),
+      );
+      await tester.tap(find.text('Same').first);
+      await tester.pumpAndSettle();
+      expect(find.text('opened group'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   for (final count in [1, 2]) {
     testWidgets(
       'duplicates $count selected groups immediately and closes selection',

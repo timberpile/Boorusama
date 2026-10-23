@@ -21,6 +21,8 @@ import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 
 // Project imports:
+import '../data/bookmark_group_name_filter.dart';
+import '../widgets/bookmark_overview_filter.dart';
 import '../widgets/bookmark_group_label.dart';
 import '../widgets/bookmark_collection_deletion_summary.dart';
 import '../../../configs/config/providers.dart';
@@ -65,6 +67,27 @@ class _BookmarkGroupBrowserPageState
 
   final _selection = OrderedSelectionController<CollectionSelectionKey>();
   final _scroll = ScrollController();
+  final _filter = TextEditingController();
+  var _filterVisible = false;
+  String _lastFilter = '';
+  bool _matches(String name) => bookmarkGroupNameMatches(name, _filter.text);
+  Set<String> _matchingFolders(BookmarkLibraryState state) =>
+      bookmarkMatchingFolderIds(
+        folders: state.folders,
+        matchingGroupFolderIds: state.groups
+            .where((group) => _matches(group.displayName(context)))
+            .map((group) => group.folderId),
+        query: _filter.text,
+      );
+
+  void _toggleFilter() {
+    setState(() => _filterVisible = !_filterVisible);
+    if (!_filterVisible) {
+      _filter.clear();
+      FocusScope.of(context).unfocus();
+    }
+  }
+
   (BookmarkLibraryState, BookmarkSortType, BookmarkShuffleState)?
   _previewInputs;
   final _previews = <BookmarkView, List<Bookmark>>{};
@@ -82,6 +105,16 @@ class _BookmarkGroupBrowserPageState
   void initState() {
     super.initState();
     _selection.addListener(_selectionChanged);
+    _filter.addListener(_filterChanged);
+  }
+
+  void _filterChanged() {
+    if (_lastFilter == _filter.text) return;
+    _lastFilter = _filter.text;
+    // Hidden cards must never remain selected for a destructive bulk action.
+    _selection.disable();
+    setState(() {});
+    if (_scroll.hasClients) _scroll.jumpTo(0);
   }
 
   void _selectionChanged() {
@@ -90,6 +123,8 @@ class _BookmarkGroupBrowserPageState
 
   @override
   void dispose() {
+    _filter.removeListener(_filterChanged);
+    _filter.dispose();
     _selection.removeListener(_selectionChanged);
     _selection.dispose();
     _scroll.dispose();
@@ -141,11 +176,21 @@ class _BookmarkGroupBrowserPageState
     // every group here would otherwise run during grid and viewer mutations.
     if (visible || _visibleLibrary == null) _visibleLibrary = library;
     if (library.valueOrNull case final state?) {
+      final matchingFolders = _matchingFolders(state);
       final folders = bookmarkFoldersByName(
-        FolderTree(state.folders).children(_folderId),
+        FolderTree(state.folders)
+            .children(_folderId)
+            .where(
+              (folder) => matchingFolders.contains(folder.id),
+            ),
       );
       final groups = bookmarkGroupsByName(
-        state.groups.where((g) => !g.isDefault && g.folderId == _folderId),
+        state.groups.where(
+          (g) =>
+              !g.isDefault &&
+              g.folderId == _folderId &&
+              _matches(g.displayName(context)),
+        ),
       );
       _selection.reconcileDuringBuild([
         for (final folder in folders)
@@ -172,6 +217,17 @@ class _BookmarkGroupBrowserPageState
                     context.t.bookmark.groups.selector,
               ),
               actions: [
+                if (!_selecting)
+                  IconButton(
+                    key: const Key('bookmark-group-filter-toggle'),
+                    tooltip: _filterVisible
+                        ? context.t.generic.action.cancel
+                        : context.t.generic.action.search,
+                    onPressed: _toggleFilter,
+                    icon: Icon(
+                      _filterVisible ? Icons.search_off : Icons.search,
+                    ),
+                  ),
                 if (!_selecting)
                   PopupMenuButton<String>(
                     icon: const Icon(Icons.more_vert),
@@ -208,12 +264,20 @@ class _BookmarkGroupBrowserPageState
                   final sort = ref.watch(selectedBookmarkSortTypeProvider);
                   final shuffle = ref.watch(bookmarkShuffleProvider);
                   final tree = FolderTree(state.folders);
+                  final matchingFolders = _matchingFolders(state);
                   final folders = bookmarkFoldersByName(
-                    tree.children(_folderId),
+                    tree
+                        .children(_folderId)
+                        .where(
+                          (folder) => matchingFolders.contains(folder.id),
+                        ),
                   );
                   final groups = bookmarkGroupsByName(
                     state.groups.where(
-                      (g) => !g.isDefault && g.folderId == _folderId,
+                      (g) =>
+                          !g.isDefault &&
+                          g.folderId == _folderId &&
+                          _matches(g.displayName(context)),
                     ),
                   );
                   final inputs = (state, sort, shuffle);
@@ -250,8 +314,32 @@ class _BookmarkGroupBrowserPageState
                     onDuplicate: null,
                     onDelete: null,
                   );
+                  final defaultGroup = state.groupsById[defaultBookmarkGroupId];
+                  final specialCards = <Widget>[
+                    if (_folderId == null) ...[
+                      if (_matches(context.t.bookmark.groups.all))
+                        specialView(
+                          context.t.bookmark.groups.all,
+                          const BookmarkView.all(),
+                        ),
+                      if (defaultGroup != null &&
+                          _matches(defaultGroup.displayName(context)))
+                        specialView(
+                          defaultGroup.displayName(context),
+                          const BookmarkView.defaultGroup(),
+                          group: defaultGroup,
+                        ),
+                    ],
+                  ];
+                  final noMatches =
+                      _filter.text.trim().isNotEmpty &&
+                      specialCards.isEmpty &&
+                      folders.isEmpty &&
+                      groups.isEmpty;
                   return Column(
                     children: [
+                      if (_filterVisible)
+                        BookmarkOverviewFilter(controller: _filter),
                       if (_folderId != null)
                         FolderBreadcrumbs(
                           tree: tree,
@@ -276,26 +364,24 @@ class _BookmarkGroupBrowserPageState
                               controller: _selection,
                               child: CustomScrollView(
                                 controller: _scroll,
+                                keyboardDismissBehavior:
+                                    ScrollViewKeyboardDismissBehavior.onDrag,
                                 slivers: [
-                                  if (_folderId == null) ...[
+                                  if (noMatches)
+                                    SliverFillRemaining(
+                                      hasScrollBody: false,
+                                      child: BookmarkOverviewNoMatches(
+                                        onClear: _filter.clear,
+                                      ),
+                                    ),
+                                  if (specialCards.isNotEmpty) ...[
                                     SliverPadding(
                                       padding: const EdgeInsets.all(12),
                                       sliver: SliverGrid(
                                         gridDelegate: delegate,
-                                        delegate: SliverChildListDelegate([
-                                          specialView(
-                                            context.t.bookmark.groups.all,
-                                            const BookmarkView.all(),
-                                          ),
-                                          if (state
-                                                  .groupsById[defaultBookmarkGroupId]
-                                              case final defaultGroup?)
-                                            specialView(
-                                              defaultGroup.displayName(context),
-                                              const BookmarkView.defaultGroup(),
-                                              group: defaultGroup,
-                                            ),
-                                        ]),
+                                        delegate: SliverChildListDelegate(
+                                          specialCards,
+                                        ),
                                       ),
                                     ),
                                     const SliverToBoxAdapter(
@@ -306,143 +392,162 @@ class _BookmarkGroupBrowserPageState
                                       ),
                                     ),
                                   ],
-                                  SliverPadding(
-                                    padding: const EdgeInsets.all(12),
-                                    sliver: SliverGrid(
-                                      gridDelegate: delegate,
-                                      delegate: SliverChildBuilderDelegate(
-                                        (context, index) {
-                                          if (index < folders.length) {
-                                            final folder = folders[index];
-                                            final descendants = tree.subtree(
-                                              folder.id,
-                                            );
-                                            final descendantsGroups =
-                                                bookmarkGroupsByName(
-                                                  state.groups.where(
-                                                    (g) => descendants.contains(
-                                                      g.folderId,
+                                  if (!noMatches)
+                                    SliverPadding(
+                                      padding: const EdgeInsets.all(12),
+                                      sliver: SliverGrid(
+                                        gridDelegate: delegate,
+                                        delegate: SliverChildBuilderDelegate(
+                                          (context, index) {
+                                            if (index < folders.length) {
+                                              final folder = folders[index];
+                                              final descendants = tree.subtree(
+                                                folder.id,
+                                              );
+                                              final descendantsGroups =
+                                                  bookmarkGroupsByName(
+                                                    state.groups.where(
+                                                      (g) =>
+                                                          descendants.contains(
+                                                            g.folderId,
+                                                          ),
                                                     ),
+                                                  );
+                                              return CollectionSelectable(
+                                                key: ValueKey((
+                                                  'folder',
+                                                  folder.id,
+                                                )),
+                                                controller: _selection,
+                                                itemKey: (
+                                                  CollectionSelectionKind
+                                                      .folder,
+                                                  folder.id,
+                                                ),
+                                                child: _GroupCard(
+                                                  title: folder.name,
+                                                  previews: [
+                                                    for (final group
+                                                        in descendantsGroups
+                                                            .take(
+                                                              4,
+                                                            ))
+                                                      ...previews(
+                                                        BookmarkView.group(
+                                                          group.id,
+                                                        ),
+                                                      ).take(1),
+                                                  ],
+                                                  group: null,
+                                                  isFolder: true,
+                                                  selected: _selectedFolders
+                                                      .contains(
+                                                        folder.id,
+                                                      ),
+                                                  onSelect: _selecting
+                                                      ? null
+                                                      : () => _select(
+                                                          folder.id,
+                                                          folder: true,
+                                                        ),
+                                                  onTap: () =>
+                                                      (_selecting ||
+                                                          selectionModifierPressed)
+                                                      ? _select(
+                                                          folder.id,
+                                                          folder: true,
+                                                        )
+                                                      : _openFolder(folder.id),
+                                                  onRename: () =>
+                                                      _renameFolder(folder),
+                                                  onDuplicate: null,
+                                                  onDelete: () =>
+                                                      _deleteFolder(folder),
+                                                  onMove: () => _move(
+                                                    folderIds: {folder.id},
                                                   ),
-                                                );
+                                                ),
+                                              );
+                                            }
+                                            final group =
+                                                groups[index - folders.length];
                                             return CollectionSelectable(
+                                              key: ValueKey((
+                                                'group',
+                                                group.id,
+                                              )),
                                               controller: _selection,
                                               itemKey: (
-                                                CollectionSelectionKind.folder,
-                                                folder.id,
+                                                CollectionSelectionKind.group,
+                                                group.id,
                                               ),
                                               child: _GroupCard(
-                                                title: folder.name,
-                                                previews: [
-                                                  for (final group
-                                                      in descendantsGroups.take(
-                                                        4,
-                                                      ))
-                                                    ...previews(
-                                                      BookmarkView.group(
-                                                        group.id,
-                                                      ),
-                                                    ).take(1),
-                                                ],
-                                                group: null,
-                                                isFolder: true,
-                                                selected: _selectedFolders
+                                                title: group.displayName(
+                                                  context,
+                                                ),
+                                                previews: previews(
+                                                  BookmarkView.group(group.id),
+                                                ),
+                                                group: group,
+                                                selected: _selectedGroups
                                                     .contains(
-                                                      folder.id,
+                                                      group.id,
                                                     ),
-                                                onSelect: _selecting
+                                                onSelect:
+                                                    group.isDefault ||
+                                                        _selecting
                                                     ? null
-                                                    : () => _select(
-                                                        folder.id,
-                                                        folder: true,
+                                                    : () => _select(group.id),
+                                                onMove: group.isDefault
+                                                    ? null
+                                                    : () => _move(
+                                                        groupIds: {group.id},
                                                       ),
-                                                onTap: () =>
+                                                onTap:
                                                     (_selecting ||
                                                         selectionModifierPressed)
-                                                    ? _select(
-                                                        folder.id,
-                                                        folder: true,
-                                                      )
-                                                    : _openFolder(folder.id),
-                                                onRename: () =>
-                                                    _renameFolder(folder),
-                                                onDuplicate: null,
-                                                onDelete: () =>
-                                                    _deleteFolder(folder),
-                                                onMove: () => _move(
-                                                  folderIds: {folder.id},
-                                                ),
+                                                    ? (group.isDefault
+                                                          ? null
+                                                          : () => _select(
+                                                              group.id,
+                                                            ))
+                                                    : () =>
+                                                          goToBookmarkGroupPage(
+                                                            ref,
+                                                            BookmarkView.group(
+                                                              group.id,
+                                                            ),
+                                                            title: group
+                                                                .displayName(
+                                                                  context,
+                                                                ),
+                                                          ),
+                                                onRename:
+                                                    group.isDefault ||
+                                                        _selecting
+                                                    ? null
+                                                    : () => _rename(
+                                                        context,
+                                                        ref,
+                                                        group,
+                                                      ),
+                                                onDuplicate: () =>
+                                                    _duplicateSelected([group]),
+                                                onDelete: group.isDefault
+                                                    ? null
+                                                    : () => _delete(
+                                                        context,
+                                                        ref,
+                                                        group,
+                                                      ),
                                               ),
                                             );
-                                          }
-                                          final group =
-                                              groups[index - folders.length];
-                                          return CollectionSelectable(
-                                            controller: _selection,
-                                            itemKey: (
-                                              CollectionSelectionKind.group,
-                                              group.id,
-                                            ),
-                                            child: _GroupCard(
-                                              title: group.displayName(context),
-                                              previews: previews(
-                                                BookmarkView.group(group.id),
-                                              ),
-                                              group: group,
-                                              selected: _selectedGroups
-                                                  .contains(
-                                                    group.id,
-                                                  ),
-                                              onSelect:
-                                                  group.isDefault || _selecting
-                                                  ? null
-                                                  : () => _select(group.id),
-                                              onMove: group.isDefault
-                                                  ? null
-                                                  : () => _move(
-                                                      groupIds: {group.id},
-                                                    ),
-                                              onTap:
-                                                  (_selecting ||
-                                                      selectionModifierPressed)
-                                                  ? (group.isDefault
-                                                        ? null
-                                                        : () =>
-                                                              _select(group.id))
-                                                  : () => goToBookmarkGroupPage(
-                                                      ref,
-                                                      BookmarkView.group(
-                                                        group.id,
-                                                      ),
-                                                      title: group.displayName(
-                                                        context,
-                                                      ),
-                                                    ),
-                                              onRename:
-                                                  group.isDefault || _selecting
-                                                  ? null
-                                                  : () => _rename(
-                                                      context,
-                                                      ref,
-                                                      group,
-                                                    ),
-                                              onDuplicate: () =>
-                                                  _duplicateSelected([group]),
-                                              onDelete: group.isDefault
-                                                  ? null
-                                                  : () => _delete(
-                                                      context,
-                                                      ref,
-                                                      group,
-                                                    ),
-                                            ),
-                                          );
-                                        },
-                                        childCount:
-                                            folders.length + groups.length,
+                                          },
+                                          childCount:
+                                              folders.length + groups.length,
+                                        ),
                                       ),
                                     ),
-                                  ),
                                 ],
                               ),
                             );
