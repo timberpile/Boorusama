@@ -50,17 +50,17 @@ void main() {
   test('loads all subsections of the bundled latest release', () async {
     final data = await repository.loadLatestChangelog();
 
-    expect(data.version.toString(), '4.6.1-timberpile.1');
+    expect(data.version.toString(), '4.6.1-timberpile.2');
     expect(data.content, contains('## Features\n\n'));
     expect(data.content, contains('## Fixes and improvements\n\n'));
     expect(
       data.content,
       contains(
-        '- Save tags and post information alongside downloads.',
+        '- Save favorites from multiple profiles into local bookmark groups.',
       ),
     );
-    expect(data.content, isNot(contains('# 4.5.0-timberpile.5')));
-    expect(data.content, isNot(contains('nested folders')));
+    expect(data.content, isNot(contains('# 4.6.1-timberpile.1')));
+    expect(data.content, isNot(contains('Save tags and post information')));
   });
 
   final cases = [
