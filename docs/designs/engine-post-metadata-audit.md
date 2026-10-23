@@ -372,6 +372,12 @@ Suggested existing coverage to extend (all paths relative to repository root):
 **Success:** A post's Details shows exactly the available meaningful baseline fields for its **originating** source; missing values are omitted; known zero counts are retained; no invented classifications or reused unrelated metrics; website-specific behavior and current data remain intact; fetching stays bounded; additional metadata has documented explicit decisions rather than surprise UI additions.
 
 
+## Approved implementation direction (2026-10-23)
+
+The user approved **Option B** in Section 9 for Issue #77: preserve the existing non-null operational `Post` getters and introduce a small nullable, source-verified metadata contract for the Details experience. A missing value must remain unknown; a confirmed zero remains visible. Original file metadata must not be inferred from thumbnails or samples.
+
+This approval selects the **architectural strategy**, not an arbitrary class layout or a full-repository nullability refactor. The implementing agent should choose between the compatible Option B subvariants after examining conversion and snapshot contracts, avoid redundant state where possible, and keep existing persisted data and runtime behavior intact. **Option A** is out of scope unless separately approved. No additional engine-specific metadata fields are implicitly approved.
+
 ## 9. Nullable Model Migration: Impact and Cost
 
 **Status:** Additional static architectural assessment for #77; effort estimates are *rough engineering-day ranges*, **not** measured implementation durations. No compiler, test suite or dependency-wide automated reference count was run for this estimate. Effort below addresses nullable model/data/presentation work **separately** from external website investigation, account setup, site-specific HTML scraping and #76.
@@ -436,7 +442,7 @@ Disadvantages:
 - Older snapshots and \`PostRecord\` fixtures must remain valid; user-generated filenames/filters can behave differently.
 - \`hasComment\`, \`id\`, tags and rating require different semantics; **"make everything nullable" is not a sound objective**.
 
-**Option B — Canonical nullable source facts, backward-compatible operational getters (recommended)**
+**Option B — Canonical nullable source facts, backward-compatible operational getters (approved for #77)**
 
 Make a **small, explicit, source-verified nullable metadata contract** accessible on the common \`Post\`/detail presentation while retaining the current non-null operational accessors. There are two implementable subvariants; choose one after inspecting all conversion points:
 
@@ -488,4 +494,4 @@ These are **not** promises, person-hour measurements, or a full #77 estimate. Wo
 6. Check downstream gameplay/behavior explicitly: note overlay geometry, aspect ratio/progressive upgrade, video/GIF detection, preload budgeting, existing score/tag filters and grid badges, downloads/filename tokens and share metadata.
 7. Consider wider public nullable type changes only after #77 has stabilized and a **separate scoped refactor** demonstrates a concrete benefit. Do not use this issue as a repository-wide type cleanup.
 
-**Recommendation for #77:** Implement **Option B**. It meets the user-visible requirement (truthful availability + known zero + original-only metadata) with materially lower risk. Do **not** make all public \`Post\` getters nullable merely to render a sparse Details section. Record any discovered need for full public nullable conversion as an explicitly evaluated follow-up rather than an implicit prerequisite.
+**Approved decision for #77:** Implement **Option B**. It meets the user-visible requirement (truthful availability + known zero + original-only metadata) with materially lower risk. Do **not** make all public \`Post\` getters nullable merely to render a sparse Details section. Record any discovered need for full public nullable conversion as an explicitly evaluated follow-up rather than an implicit prerequisite.
