@@ -113,8 +113,10 @@ class BookmarkLibraryState extends Equatable {
             original,
         ...remaining.values,
       ]);
-      nextById = Map.unmodifiable(byId);
-      nextByIdentity = Map.unmodifiable(byIdentity);
+      // These local maps have no remaining writers. As with memberships,
+      // publish read-only views rather than copying the full indexes again.
+      nextById = UnmodifiableMapView(byId);
+      nextByIdentity = UnmodifiableMapView(byIdentity);
     }
 
     final nextGroups =
@@ -267,10 +269,12 @@ class BookmarkLibraryState extends Equatable {
         for (final old in groups) old.id == group.id ? group : old,
       ]),
       activeTarget: target,
-      bookmarksById: createdBookmarks.isEmpty ? byId : Map.unmodifiable(byId),
+      bookmarksById: createdBookmarks.isEmpty
+          ? byId
+          : UnmodifiableMapView(byId),
       bookmarksByUniqueId: createdBookmarks.isEmpty
           ? byIdentity
-          : Map.unmodifiable(byIdentity),
+          : UnmodifiableMapView(byIdentity),
       groupsById: Map.unmodifiable({...groupsById, group.id: group}),
       membershipsByBookmark: UnmodifiableMapView(memberships),
     );

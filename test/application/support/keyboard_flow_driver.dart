@@ -279,6 +279,9 @@ final class KeyboardFlowDriver {
       FocusManager.instance.highlightStrategy = strategy;
       if (start != null) await _jumpTo(start);
     }
+    // Pixel reads let native cache I/O queue zero-delay Dio callbacks in the
+    // fake clock. Flush those callbacks before testWidgets checks its timers.
+    await tester.pump(Duration.zero);
     return problems;
   }
 

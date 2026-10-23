@@ -126,6 +126,13 @@ void main() {
             .isNotEmpty,
         reason: 'The failed native share must report unsupported media',
       );
+      // Error UI is published before the operation's finally releases its file.
+      // Wait for that release before teardown removes the containing directory.
+      await pumpUntilShareCondition(
+        tester,
+        () => Directory('${root.path}/boorusama-share').listSync().isEmpty,
+        reason: 'The failed native share must release its temporary file',
+      );
     });
     await tester.pumpAndSettle();
 

@@ -478,8 +478,18 @@ void main() {
                 imageDio: dio,
               ),
             );
-            for (var i = 0; i < 10; i++) {
-              await Future<void>.delayed(const Duration(milliseconds: 60));
+            final deadline = DateTime.now().add(const Duration(seconds: 10));
+            while (!tester
+                .widgetList<ExtendedRawImage>(
+                  find.byType(ExtendedRawImage),
+                )
+                .any((image) => image.image != null)) {
+              if (DateTime.now().isAfter(deadline)) {
+                fail(
+                  '${home?.runtimeType ?? "BookmarkDetailsPage"} did not decode cached pixels',
+                );
+              }
+              await Future<void>.delayed(const Duration(milliseconds: 10));
               await tester.pump();
             }
             final decoded = tester
