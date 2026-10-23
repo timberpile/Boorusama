@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:boorusama/core/bookmarks/src/types/bookmark.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_tag_index.dart';
 import 'package:boorusama/core/posts/post/types.dart';
@@ -6,6 +8,118 @@ import 'package:boorusama/core/posts/sources/types.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('cooperative publication matches cold counts and ordering across merge boundaries', () async {
+    for (final size in [0, 1, 255, 256, 257, 512, 513, 1025, 3000]) {
+      final rows = [
+        for (var id = 0; id < size; id++)
+          _row(
+            id,
+            'https://a.test',
+            {'shared', 'tag_$id'},
+            artist: {'tag_$id'},
+          ),
+      ];
+      var yields = 0;
+      final builder = BookmarkTagIndexBuilder();
+      final index = await builder.updateAsync(
+        rows,
+        isCurrent: () => true,
+        yieldControl: () async {
+          yields++;
+        },
+      );
+      expect(
+        index!.entries,
+        BookmarkTagIndex.fromBookmarks(rows).entries,
+        reason: 'size=$size',
+      );
+      expect(index.byName, BookmarkTagIndex.fromBookmarks(rows).byName);
+      if (size > 0) expect(yields, greaterThan(0));
+      expect(() => index.entries.clear(), throwsUnsupportedError);
+      expect(() => index.byName.clear(), throwsUnsupportedError);
+    }
+  });
+
+  for (final cancelAt in [1, 5, 40, 60]) {
+    test(
+      'superseding a build at yield $cancelAt cannot corrupt the next generation',
+      () async {
+        final builder = BookmarkTagIndexBuilder();
+        final rows = [
+          for (var id = 1; id <= 1200; id++)
+            _row(id, 'https://a.test', {'shared', 'tag_$id'}),
+        ];
+        final before = builder.update(rows.take(2));
+        final entered = Completer<void>();
+        final resume = Completer<void>();
+        var current = true;
+        var yields = 0;
+        final old = builder.updateAsync(
+          rows,
+          isCurrent: () => current,
+          yieldControl: () async {
+            if (++yields == cancelAt) {
+              entered.complete();
+              await resume.future;
+            }
+          },
+        );
+        await entered.future;
+        current = false;
+        final replacement = cancelAt == 5
+            ? <Bookmark>[]
+            : [
+                _row(900, 'https://b.test', {'replacement'}),
+              ];
+        final next = builder.updateAsync(
+          replacement,
+          isCurrent: () => true,
+          yieldControl: () async {},
+        );
+        resume.complete();
+        expect(await old, isNull);
+        expect(
+          (await next)!.entries,
+          BookmarkTagIndex.fromBookmarks(replacement).entries,
+        );
+        expect(before.byName['shared']!.count, 2);
+      },
+    );
+  }
+
+  test(
+    'failed cooperative work does not poison the serialized builder',
+    () async {
+      var fail = true;
+      final builder = BookmarkTagIndexBuilder(
+        siteUrl: (row) {
+          if (fail) throw StateError('controlled resolution failure');
+          return row.sourceUrl;
+        },
+      );
+      final rows = [
+        _row(1, 'https://a.test', {'a'}),
+      ];
+      await expectLater(
+        builder.updateAsync(
+          rows,
+          isCurrent: () => true,
+          yieldControl: () async {},
+        ),
+        throwsStateError,
+      );
+      fail = false;
+      expect(
+        (await builder.updateAsync(
+          rows,
+          isCurrent: () => true,
+          yieldControl: () async {},
+        ))!.entries,
+        BookmarkTagIndex.fromBookmarks(rows).entries,
+      );
+    },
+  );
+
   test(
     '20,000-row updates process only changed snapshots and retain old results',
     () {

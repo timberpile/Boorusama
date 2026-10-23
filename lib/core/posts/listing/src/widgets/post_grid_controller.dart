@@ -496,13 +496,30 @@ class PostGridController<T extends Post> extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> _addAll(List<T> newItems) async {
-    for (final item in newItems) {
-      if (!_duplicateTracker.isDuplicate(item)) {
-        _items.add(item);
-        _duplicateTracker.trackItem(item);
+  Future<void> _addAll(List<T> newItems) => performanceRecorder.measureAsync(
+    PerfOperation.gridIngest,
+    () => _ingest(newItems),
+    items: newItems.length,
+  );
+
+  Future<void> _ingest(List<T> newItems) async {
+    final before = _items.length;
+    performanceRecorder.measureSync(PerfOperation.gridDeduplicate, () {
+      for (final item in newItems) {
+        if (!_duplicateTracker.isDuplicate(item)) {
+          _items.add(item);
+          _duplicateTracker.trackItem(item);
+        }
       }
-    }
+    }, items: newItems.length);
+    performanceRecorder.count(
+      PerfCounter.gridIngestCandidates,
+      newItems.length,
+    );
+    performanceRecorder.count(
+      PerfCounter.gridIngestAccepted,
+      _items.length - before,
+    );
 
     _total = _items.length;
 
@@ -549,8 +566,10 @@ class PostGridController<T extends Post> extends ChangeNotifier {
   }
 
   void _setFilteringItems(List<T> items) {
-    _filteredItems = items;
-    itemsNotifier.value = items;
+    performanceRecorder.measureSync(PerfOperation.gridPublish, () {
+      _filteredItems = items;
+      itemsNotifier.value = items;
+    }, items: items.length);
   }
 
   @override

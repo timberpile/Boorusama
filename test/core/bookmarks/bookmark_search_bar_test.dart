@@ -27,13 +27,17 @@ Widget _app(
   PostGridController posts, {
   double scale = 1,
   BookmarkTagIndex? index,
+  VoidCallback? onIndexRequested,
 }) {
   final theme = ThemeData(
     extensions: const [KurumiExtendedColorScheme()],
   ).withBoorusamaColors();
   return ProviderScope(
     overrides: [
-      bookmarkTagIndexProvider.overrideWith((ref, view) => index ?? _index),
+      bookmarkTagIndexProvider.overrideWith((ref, view) {
+        onIndexRequested?.call();
+        return index ?? _index;
+      }),
       bookmarkTagColorProvider.overrideWith((ref, request) => Colors.purple),
       booruChipColorsProvider.overrideWithValue(
         BooruChipColors.colorScheme(theme.colorScheme),
@@ -69,6 +73,29 @@ void main() {
     when(() => posts.refresh()).thenAnswer((_) async {});
   });
   tearDown(() => query.dispose());
+
+  testWidgets(
+    'diagnostic suppression affects only the idle index subscription',
+    (tester) async {
+      query.clear();
+      var requested = 0;
+      await tester.pumpWidget(
+        _app(query, posts, onIndexRequested: () => requested++),
+      );
+      await tester.pumpAndSettle();
+      const suppressed = bool.fromEnvironment(
+        'BOORUSAMA_PERF_SKIP_IDLE_BOOKMARK_INDEX',
+      );
+      expect(requested, suppressed ? 0 : 1);
+      await tester.tap(find.byType(TextField));
+      await tester.pumpAndSettle();
+      expect(requested, 1);
+      expect(
+        find.byKey(const ValueKey('bookmark-suggestion-blue_hair')),
+        findsOneWidget,
+      );
+    },
+  );
 
   for (final scale in [1.0, 2.0]) {
     testWidgets(

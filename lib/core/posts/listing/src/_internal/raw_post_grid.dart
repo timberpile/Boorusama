@@ -17,6 +17,7 @@ import 'package:anchor_ui/anchor_ui.dart';
 import 'package:auto_scrolling/auto_scrolling.dart';
 import 'package:equatable/equatable.dart';
 import 'package:foundation/widgets.dart';
+import 'package:foundation/performance.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -232,7 +233,14 @@ class _RawPostGridState<T extends Post> extends State<RawPostGrid<T>>
     _filterScope = Map.of(filters);
   }
 
-  void _syncSelection({bool duringBuild = false}) {
+  void _syncSelection({bool duringBuild = false}) =>
+      performanceRecorder.measureSync(
+        PerfOperation.gridSelectionSync,
+        () => _synchronizeSelection(duringBuild: duringBuild),
+        items: controller.items.length,
+      );
+
+  void _synchronizeSelection({required bool duringBuild}) {
     if (_selectionModeController
         case final OrderedSelectionController<Object> selection) {
       final keys = _identities.resolve(controller.items.toList());

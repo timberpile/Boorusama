@@ -3,6 +3,7 @@ import '../../../selection/ordered_selection_controller.dart';
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:foundation/foundation.dart';
+import 'package:foundation/performance.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
@@ -114,33 +115,41 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
   @override
   Widget build(BuildContext context) {
     return RawPostScope<Post>(
+      duplicateIdentity: BookmarkIdentity.tryFromPost,
       onError: (message) {
         ref.read(loggerProvider).error('Bookmark Listing', message);
       },
       fetcher: (page) => TaskEither.Do(
-        ($) async {
-          final searchTags = _parseTagsFromText(widget.searchController.text);
-          final sortType = ref.read(selectedBookmarkSortTypeProvider);
-          final selectedBooruUrl = ref.read(selectedBooruUrlProvider);
-          final shuffleState = ref.read(bookmarkShuffleProvider);
-          final library = await ref.read(bookmarkProvider.future);
-          final bookmarks = selectBookmarks(
-            state: library,
-            view: widget.view,
-            selectedTags: searchTags,
-            sortType: sortType,
-            selectedBooruUrl: selectedBooruUrl,
-            shuffleState: shuffleState,
-          );
-          final posts = bookmarks.map((bookmark) => bookmark.toPost()).toList();
+        ($) => performanceRecorder.measureAsync(
+          PerfOperation.bookmarkFetch,
+          () async {
+            final searchTags = _parseTagsFromText(widget.searchController.text);
+            final sortType = ref.read(selectedBookmarkSortTypeProvider);
+            final selectedBooruUrl = ref.read(selectedBooruUrlProvider);
+            final shuffleState = ref.read(bookmarkShuffleProvider);
+            final library = await ref.read(bookmarkProvider.future);
+            final bookmarks = selectBookmarks(
+              state: library,
+              view: widget.view,
+              selectedTags: searchTags,
+              sortType: sortType,
+              selectedBooruUrl: selectedBooruUrl,
+              shuffleState: shuffleState,
+            );
+            final posts = performanceRecorder.measureSync(
+              PerfOperation.bookmarkProject,
+              () => bookmarks.map((bookmark) => bookmark.toPost()).toList(),
+              items: bookmarks.length,
+            );
 
-          return page == 1
-              ? PostResult(
-                  posts: posts,
-                  total: posts.length,
-                )
-              : PostResult.empty();
-        },
+            return page == 1
+                ? PostResult(
+                    posts: posts,
+                    total: posts.length,
+                  )
+                : PostResult.empty();
+          },
+        ),
       ),
       builder: (context, controller) => Consumer(
         builder: (context, ref, child) {

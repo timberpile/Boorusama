@@ -7,6 +7,7 @@ import 'package:flutter/painting.dart';
 // Package imports:
 import 'package:dynamic_color/dynamic_color.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:foundation/performance.dart';
 
 // Project imports:
 import '../../../boorus/engine/providers.dart';
@@ -25,19 +26,46 @@ import 'bookmark_details_mutation_notifier.dart';
 import 'bookmark_provider.dart';
 import 'local_providers.dart';
 
+// One library-wide builder survives route disposal. Profile replacement destroys
+// it, so cached source/category contributions cannot outlive their resolution.
+final _allBookmarkTagIndexBuilderProvider = Provider<BookmarkTagIndexBuilder>((
+  ref,
+) {
+  final configs = ref.watch(booruConfigProvider);
+  ref.onDispose(
+    () => performanceRecorder.count(PerfCounter.bookmarkTagBuilderDisposed, 1),
+  );
+  return _tagBuilder(configs);
+});
+
+// Group/source-specific builders stay route-owned; never retain a full index for
+// every possible combination. They cannot overwrite the unfiltered All cache.
 final _bookmarkTagIndexBuilderProvider = Provider.autoDispose
     .family<BookmarkTagIndexBuilder, BookmarkView>((ref, view) {
+      final source = ref.watch(selectedBooruUrlProvider);
+      if (view.kind == BookmarkViewKind.all && source == null) {
+        return ref.watch(_allBookmarkTagIndexBuilderProvider);
+      }
       final configs = ref.watch(booruConfigProvider);
-      return BookmarkTagIndexBuilder(
-        siteUrl: (bookmark) => switch (const PostOriginResolver().resolve(
-          bookmark.post.origin,
-          configs,
-        )) {
-          ResolvedPostOrigin(:final config) => config.auth.url,
-          _ => bookmark.sourceUrl,
-        },
+      ref.onDispose(
+        () => performanceRecorder.count(
+          PerfCounter.bookmarkTagBuilderDisposed,
+          1,
+        ),
       );
+      return _tagBuilder(configs);
     });
+
+BookmarkTagIndexBuilder _tagBuilder(List<BooruConfig> configs) =>
+    BookmarkTagIndexBuilder(
+      siteUrl: (bookmark) => switch (const PostOriginResolver().resolve(
+        bookmark.post.origin,
+        configs,
+      )) {
+        ResolvedPostOrigin(:final config) => config.auth.url,
+        _ => bookmark.sourceUrl,
+      },
+    );
 
 final bookmarkTagIndexProvider = FutureProvider.autoDispose
     .family<BookmarkTagIndex, BookmarkView>((ref, view) async {
@@ -67,13 +95,18 @@ final bookmarkTagIndexProvider = FutureProvider.autoDispose
             ?library.bookmarksById[id],
         ],
       };
-      return builder.update(
-        source == null
-            ? bookmarks
-            : bookmarks.where(
-                (bookmark) => bookmark.sourceUrl.contains(source),
-              ),
-      );
+      return await builder.updateAsync(
+            source == null
+                ? bookmarks
+                : bookmarks.where(
+                    (bookmark) => bookmark.sourceUrl.contains(source),
+                  ),
+            isCurrent: () => !obsolete,
+            revision: view.kind == BookmarkViewKind.all && source == null
+                ? library.items
+                : null,
+          ) ??
+          BookmarkTagIndex(const []);
     });
 
 // The draft and selected query are part of the key. A previous asynchronous

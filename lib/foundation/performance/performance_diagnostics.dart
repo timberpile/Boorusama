@@ -115,8 +115,11 @@ class PerformanceDiagnostics extends ChangeNotifier
   Map<String, Object?> report() => {
     ...recorder.snapshot(),
     'diagnostic_tool': 'viewerSwipeV1',
-    'diagnostic_features': ['viewerSwipeV1', 'cacheV1'],
+    'diagnostic_features': ['viewerSwipeV1', 'cacheV1', 'bookmarkOpeningV1'],
     'environment': {
+      'bookmark_idle_index_suppressed': const bool.fromEnvironment(
+        'BOORUSAMA_PERF_SKIP_IDLE_BOOKMARK_INDEX',
+      ),
       'build_mode': performanceDiagnosticsBuildMode,
       'platform': defaultTargetPlatform.name,
       'flavor': kEnvironment,
