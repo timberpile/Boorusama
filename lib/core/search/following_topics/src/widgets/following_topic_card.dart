@@ -7,11 +7,11 @@ import 'package:timeago/timeago.dart' as timeago;
 
 // Project imports:
 import '../../../../configs/config/types.dart';
-import '../../../../images/booru_image.dart';
 import '../../../../widgets/time_pulse.dart';
 import '../types/following_topic.dart';
 import '../types/following_topic_sort.dart';
 import 'following_topic_query_text.dart';
+import 'following_topic_preview.dart';
 import 'search_refresh_error_text.dart';
 import 'topic_new_posts_badge.dart';
 
@@ -248,29 +248,14 @@ class FollowingTopicCard extends StatelessWidget {
                 ),
                 if (topic.name != null && topic.name != topic.query)
                   FollowingTopicQueryText(query: topic.query, auth: config),
-                if (preview != null)
-                  preview!
-                else if (topic.previews.isNotEmpty && config != null)
-                  Padding(
-                    padding: followingTopicCardPreviewPadding,
-                    child: Row(
-                      children: [
-                        for (final preview in topic.previews.take(4))
-                          Expanded(
-                            child: Padding(
-                              padding: followingTopicCardThumbnailPadding,
-                              child: BooruImage(
-                                imageUrl: preview.thumbnailUrl,
-                                config: config!,
-                                fit: BoxFit.cover,
-                              ),
-                            ),
-                          ),
-                        for (var i = topic.previews.length; i < 4; i++)
-                          const Spacer(),
-                      ],
-                    ),
-                  ),
+                if (config != null)
+                  FollowingTopicPreview(
+                    topic: topic,
+                    auth: config!,
+                    fallback: preview,
+                  )
+                else if (preview != null)
+                  preview!,
                 metadata ??
                     FollowingTopicCardMetadata(
                       leading: ownerCaption,

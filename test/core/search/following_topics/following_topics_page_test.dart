@@ -1565,7 +1565,11 @@ void main() {
   ) async {
     initialize();
     await harness.seed([
-      topicFixture(previewCount: 6, error: SearchRefreshErrorKind.network),
+      topicFixture(
+        query: 'cat  rating:safe order:id',
+        previewCount: 6,
+        error: SearchRefreshErrorKind.network,
+      ),
       topicFixture(
         id: 'dogs',
         query: 'dog',
@@ -1588,7 +1592,7 @@ void main() {
       find.byWidgetPredicate(
         (widget) =>
             widget is Semantics &&
-            widget.properties.label == 'cat  rating:safe order:score',
+            widget.properties.label == 'cat  rating:safe order:id',
       ),
       findsOneWidget,
     );
@@ -1667,7 +1671,7 @@ void main() {
     tester,
   ) async {
     initialize(loadImages: true);
-    await harness.seed([topicFixture(previewCount: 1)]);
+    await harness.seed([topicFixture(query: 'cat', previewCount: 1)]);
     await pump(tester);
     for (
       var i = 0;

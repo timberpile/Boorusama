@@ -154,6 +154,7 @@
     "error_parsing": "The site returned unreadable post data.",
     "error_unsupported": "New-post tracking is unsupported for this search.",
     "error_other": "Could not refresh this topic. Try again.",
+    "preview_error": "Could not load previews. Try refreshing this topic.",
     "manage_title": "Manage Topic",
     "name": "Name",
     "query_line": "Query: $query",
