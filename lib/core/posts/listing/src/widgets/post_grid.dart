@@ -423,6 +423,7 @@ class PostGridScrollToTopButton extends StatelessWidget {
               },
               child: KurumiScrollToTop(
                 scrollController: autoScrollController,
+                layoutChanges: controller.itemsNotifier,
                 child: KurumiScrollToTopButton(
                   onPressed: () {
                     autoScrollController.jumpTo(0);
