@@ -20,6 +20,95 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   testWidgets(
+    'an unresolved thumbnail target cannot replace the cached larger grid image',
+    (tester) async {
+      final fixture = _Fixture();
+      fixture.cache.bytes[_lower] = targetPng;
+      fixture.cache.bytes[_target] = lowerPng;
+      await tester.pumpWidget(
+        fixture.build(fallback: _target, placeholder: _target),
+      );
+      await tester.runAsync(() => waitForPixel(tester, [0, 0, 255, 255]));
+      expect(fixture.adapter.requests, isEmpty);
+      await fixture.finish(tester);
+    },
+  );
+
+  testWidgets(
+    'a missing grid image can still fall back to the unresolved thumbnail',
+    (tester) async {
+      final fixture = _Fixture(cached: false);
+      fixture.cache.bytes[_target] = lowerPng;
+      await tester.pumpWidget(fixture.build(fallback: _target));
+      await tester.runAsync(() async {
+        await pumpUntil(
+          tester,
+          () => fixture.adapter.pending.containsKey(_lower),
+          reason: 'larger grid request',
+        );
+        fixture.adapter.complete(_lower, Uint8List(0), status: 404);
+        await waitForPixel(tester, [255, 0, 0, 255]);
+      });
+      expect(
+        fixture.adapter.requests.map((request) => request.uri.toString()),
+        [_lower],
+      );
+      await tester.pumpWidget(
+        fixture.build(target: _second, fallback: _target),
+      );
+      await tester.runAsync(() async {
+        await pumpUntil(
+          tester,
+          () => fixture.adapter.pending.containsKey(_second),
+          reason: 'resolved original request',
+        );
+        fixture.adapter.complete(_second, targetPng);
+        await waitForPixel(tester, [0, 0, 255, 255]);
+      });
+      await fixture.finish(tester);
+    },
+  );
+
+  testWidgets(
+    'failed larger image and unresolved thumbnail expose a working retry',
+    (tester) async {
+      final fixture = _Fixture(cached: false);
+      await tester.pumpWidget(fixture.build(fallback: _target));
+      await tester.runAsync(() async {
+        for (final url in [_lower, _target]) {
+          await pumpUntil(
+            tester,
+            () => fixture.adapter.pending.containsKey(url),
+            reason: 'candidate $url',
+          );
+          fixture.adapter.complete(url, Uint8List(0), status: 404);
+        }
+        await pumpUntil(
+          tester,
+          () => find.byType(ErrorPlaceholder).evaluate().isNotEmpty,
+          reason: 'retry after all candidates fail',
+        );
+      });
+      fixture.adapter.pending.remove(_lower);
+      await tester.tap(find.text('Retry'));
+      await tester.runAsync(() async {
+        await pumpUntil(
+          tester,
+          () => fixture.adapter.pending.containsKey(_lower),
+          reason: 'explicit larger image retry',
+        );
+        fixture.adapter.complete(_lower, targetPng);
+        await waitForPixel(tester, [0, 0, 255, 255]);
+      });
+      expect(
+        fixture.adapter.requests.map((request) => request.uri.toString()),
+        [_lower, _target, _lower],
+      );
+      await fixture.finish(tester);
+    },
+  );
+
+  testWidgets(
     'decoded lower pixels remain through pending target and invalid target bytes',
     (tester) async {
       final adapter = ControlledImageAdapter();
@@ -243,23 +332,31 @@ void main() {
       await fixture.finish(tester);
     },
   );
-  testWidgets(
-    'configured lower fallback decodes while target remains pending',
-    (tester) async {
-      final fixture = _Fixture(cached: false);
-      await tester.pumpWidget(fixture.build(fallback: _second));
-      await decodePump(tester);
-      fixture.adapter.complete(_lower, Uint8List.fromList([1, 2, 3]));
-      await decodePump(tester);
-      fixture.adapter.complete(_second, lowerPng);
-      await decodePump(tester);
-      expect(await paintedPixel(tester), [255, 0, 0, 255]);
-      await fixture.finish(tester);
-      fixture.adapter.complete(_target, targetPng);
-      await decodePump(tester);
-      expect(tester.takeException(), isNull);
-    },
-  );
+  for (final alternate in [false, true]) {
+    testWidgets(
+      'configured lower fallback decodes while target remains pending (alternate=$alternate)',
+      (tester) async {
+        final fixture = _Fixture(cached: false);
+        await tester.pumpWidget(
+          fixture.build(
+            fallback: alternate ? _third : _second,
+            fallbackUrls: alternate ? [_second] : [],
+          ),
+        );
+        await decodePump(tester);
+        fixture.adapter.complete(_lower, Uint8List.fromList([1, 2, 3]));
+        await decodePump(tester);
+        fixture.adapter.complete(_second, lowerPng);
+        await decodePump(tester);
+        expect(await paintedPixel(tester), [255, 0, 0, 255]);
+        expect(fixture.adapter.pending, isNot(contains(_third)));
+        await fixture.finish(tester);
+        fixture.adapter.complete(_target, targetPng);
+        await decodePump(tester);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
 
   testWidgets(
     'decoded lower geometry cannot inherit incompatible stored dimensions',
@@ -509,6 +606,7 @@ class _Fixture {
     String target = _target,
     String lower = _lower,
     String? fallback,
+    List<String> fallbackUrls = const [],
     String? placeholder,
     double? Function()? geometry,
     String key = 'same-post',
@@ -525,6 +623,7 @@ class _Fixture {
             url: lower,
             aspectRatio: 1,
             fallbackUrl: fallback,
+            fallbackUrls: fallbackUrls,
             placeholderUrl: placeholder,
           ),
           aspectRatio: aspectRatio,

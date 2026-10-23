@@ -29,6 +29,7 @@ class BooruImage extends ConsumerWidget {
     super.key,
     this.placeholderUrl,
     this.fallbackUrl,
+    this.fallbackUrls = const [],
     this.placeholderAspectRatio,
     this.placeholderFit,
     this.borderRadius,
@@ -49,6 +50,9 @@ class BooruImage extends ConsumerWidget {
   final String imageUrl;
   final String? placeholderUrl;
   final String? fallbackUrl;
+
+  /// Alternate images tried in order before [fallbackUrl].
+  final List<String> fallbackUrls;
   final double? placeholderAspectRatio;
   final BoxFit? placeholderFit;
   final BorderRadius? borderRadius;
@@ -101,6 +105,10 @@ class BooruImage extends ConsumerWidget {
     final fallbackCacheManager = ref.watch(
       defaultImageCacheManagerProvider,
     );
+    final alternates = fallbackUrls
+        .where((url) => url.isNotEmpty && url != imageUrl)
+        .toSet()
+        .toList();
 
     return BooruRawImage(
       dio: imageRequest.overridden
@@ -117,6 +125,28 @@ class BooruImage extends ConsumerWidget {
           ? ref.watch(mediaOverrideDioProvider(config))
           : dio,
       fallbackHeaders: fallbackRequest.headers,
+      fallbackWidget: alternates.isEmpty
+          ? null
+          : BooruImage(
+              config: config,
+              imageUrl: alternates.first,
+              fallbackUrls: alternates.skip(1).toList(),
+              fallbackUrl: fallbackUrl,
+              placeholderUrl: placeholderUrl,
+              placeholderAspectRatio: placeholderAspectRatio,
+              placeholderFit: placeholderFit,
+              borderRadius: borderRadius,
+              fit: fit,
+              aspectRatio: aspectRatio,
+              imageWidth: imageWidth,
+              imageHeight: imageHeight,
+              forceCover: forceCover,
+              forceFill: forceFill,
+              forceLoadPlaceholder: forceLoadPlaceholder,
+              hideMismatchedPlaceholder: hideMismatchedPlaceholder,
+              placeholderWidget: placeholderWidget,
+              imageCacheManager: imageCacheManager,
+            ),
       placeholderAspectRatio: placeholderAspectRatio,
       placeholderFit: placeholderFit,
       borderRadius: borderRadius,
@@ -149,6 +179,7 @@ class BooruRawImage extends StatelessWidget {
     this.fallbackUrl,
     this.fallbackDio,
     this.fallbackHeaders,
+    this.fallbackWidget,
     this.placeholderAspectRatio,
     this.placeholderFit,
     this.borderRadius,
@@ -177,6 +208,9 @@ class BooruRawImage extends StatelessWidget {
   final String? fallbackUrl;
   final Dio? fallbackDio;
   final Map<String, String>? fallbackHeaders;
+
+  /// Displayed on failure before considering [fallbackUrl].
+  final Widget? fallbackWidget;
   final double? placeholderAspectRatio;
   final BoxFit? placeholderFit;
   final BorderRadius? borderRadius;
@@ -294,40 +328,43 @@ class BooruRawImage extends StatelessWidget {
                             },
                           ),
                         ),
-                    errorWidget: switch (fallbackUrl) {
-                      final String url when url.isNotEmpty && url != imageUrl =>
-                        _ImageRetryControllerScope(
-                          beforeRetry: () async {
-                            await imageCacheManager?.clearCache(
-                              imageCacheManager!.generateCacheKey(url),
-                            );
-                          },
-                          builder: (fallbackController, retryFallback) =>
-                              ExtendedImage.network(
-                                url,
-                                dio: fallbackDio ?? dio,
-                                controller: fallbackController,
-                                headers: fallbackHeaders ?? headers,
-                                borderRadius: borderRadius,
-                                width: width,
-                                height: height,
-                                fit: fit,
-                                fetchStrategy: _fetchStrategy,
-                                platform: Kurumi.themeOf(context).platform,
-                                androidVersion: androidVersion,
-                                cacheManager: imageCacheManager,
-                                placeholderWidget: imagePlaceHolder,
-                                errorWidget: ErrorPlaceholder(
-                                  borderRadius: borderRadius,
-                                  onRetry: retryFallback,
-                                ),
-                              ),
-                        ),
-                      _ => ErrorPlaceholder(
-                        onRetry: retry,
-                        borderRadius: borderRadius,
-                      ),
-                    },
+                    errorWidget:
+                        fallbackWidget ??
+                        switch (fallbackUrl) {
+                          final String url
+                              when url.isNotEmpty && url != imageUrl =>
+                            _ImageRetryControllerScope(
+                              beforeRetry: () async {
+                                await imageCacheManager?.clearCache(
+                                  imageCacheManager!.generateCacheKey(url),
+                                );
+                              },
+                              builder: (fallbackController, retryFallback) =>
+                                  ExtendedImage.network(
+                                    url,
+                                    dio: fallbackDio ?? dio,
+                                    controller: fallbackController,
+                                    headers: fallbackHeaders ?? headers,
+                                    borderRadius: borderRadius,
+                                    width: width,
+                                    height: height,
+                                    fit: fit,
+                                    fetchStrategy: _fetchStrategy,
+                                    platform: Kurumi.themeOf(context).platform,
+                                    androidVersion: androidVersion,
+                                    cacheManager: imageCacheManager,
+                                    placeholderWidget: imagePlaceHolder,
+                                    errorWidget: ErrorPlaceholder(
+                                      borderRadius: borderRadius,
+                                      onRetry: retryFallback,
+                                    ),
+                                  ),
+                            ),
+                          _ => ErrorPlaceholder(
+                            onRetry: retry,
+                            borderRadius: borderRadius,
+                          ),
+                        },
                   )
                 : imagePlaceHolder;
           },

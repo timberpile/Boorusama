@@ -268,12 +268,34 @@ GelbooruV2Posts parseRbPostsHtml(
             .replaceFirst('thumbnail_', '');
 
         final tags = imageElement.attributes['title'];
+        // Comma-separated titles can contain display tags with spaces. Do not
+        // mistake a phrase such as "video with sound" for the exact video tag.
+        final previewTags = tags == null
+            ? const <String>[]
+            : tags.contains(',')
+            ? tags.split(',')
+            : tags.split(RegExp(r'\s+'));
+        // Realbooru marks video thumbnails with a blue border, including posts
+        // whose title does not contain the optional video tag.
         final isVideoPreview =
-            tags
-                ?.split(',')
-                .map((tag) => tag.trim().toLowerCase())
-                .contains('video') ??
-            false;
+            _hasRbVideoBorder(imageElement) ||
+            previewTags.any((tag) => tag.trim().toLowerCase() == 'video');
+        // GIFs retain their original extension even though the listing serves
+        // a static JPEG thumbnail. A video marker wins on posts tagged both.
+        final isGif =
+            !isVideoPreview &&
+            previewTags.any((tag) => tag.trim().toLowerCase() == 'gif');
+        final posterUri = Uri.parse(posterUrl);
+        final gifUrl = isGif
+            ? posterUri
+                  .replace(
+                    path: posterUri.path.replaceFirst(
+                      RegExp(r'\.[^/.]+$'),
+                      '.gif',
+                    ),
+                  )
+                  .toString()
+            : null;
         final md5 = RegExp(
           r'thumbnail_([a-f0-9]{32})\.',
         ).firstMatch(Uri.parse(thumbUrl).path)?.group(1);
@@ -299,7 +321,7 @@ GelbooruV2Posts parseRbPostsHtml(
 
         return PostV2Dto(
           id: id,
-          fileUrl: isVideoPreview ? posterUrl : thumbUrl,
+          fileUrl: isVideoPreview ? posterUrl : gifUrl ?? thumbUrl,
           sampleUrl: isVideoPreview ? posterUrl : thumbUrl,
           previewUrl: thumbUrl,
           tags: cleanTags,
@@ -328,6 +350,26 @@ GelbooruV2Posts parseRbPostsHtml(
     posts: posts,
     count: estimatedCount ?? posts.length,
   );
+}
+
+bool _hasRbVideoBorder(Element image) {
+  String? border;
+  for (final declaration in (image.attributes['style'] ?? '').split(';')) {
+    final colon = declaration.indexOf(':');
+    if (colon < 0) continue;
+    if (declaration.substring(0, colon).trim().toLowerCase() == 'border') {
+      border = declaration.substring(colon + 1).trim().toLowerCase();
+    }
+  }
+  if (border == null) return false;
+
+  final parts = border
+      .replaceAll(RegExp(r'rgb\(\s*0\s*,\s*0\s*,\s*255\s*\)'), '#0000ff')
+      .replaceAll(RegExp(r'\s*!important\s*$'), '')
+      .split(RegExp(r'\s+'));
+  return parts.contains('solid') &&
+      parts.any(const {'#0000ff', '#00f', 'blue'}.contains) &&
+      !parts.any(RegExp(r'^0(?:\.0+)?(?:[a-z%]+)?$').hasMatch);
 }
 
 String? _resolveRbMediaUrl(String? value, String baseUrl) {

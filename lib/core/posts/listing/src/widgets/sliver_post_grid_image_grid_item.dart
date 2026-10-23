@@ -123,7 +123,7 @@ class SliverPostGridImageGridItem<T extends Post> extends ConsumerWidget {
               }
             },
             image: image,
-            isAnimated: post.isAnimated,
+            isAnimated: post.showsAnimatedBadge,
             isTranslated: post.isTranslated,
             hasComments: post.hasComment,
             hasParentOrChildren: post.hasParentOrChildren,

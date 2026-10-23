@@ -4,13 +4,15 @@ import 'package:equatable/equatable.dart';
 // Project imports:
 import '../../../core/posts/post/types.dart';
 
-final class GelbooruV2PostData extends Equatable implements BooruPostData {
+final class GelbooruV2PostData extends Equatable
+    implements BooruPostData, VideoPreviewPostData {
   const GelbooruV2PostData({
     required this.hasNotes,
     this.isVideoPreview = false,
   });
 
   final bool hasNotes;
+  @override
   final bool isVideoPreview;
 
   @override

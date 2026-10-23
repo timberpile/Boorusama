@@ -139,6 +139,28 @@ class _RawProgressivePostImageState extends State<RawProgressivePostImage> {
   final _failedUrls = <String>{};
   _DecodedCandidate? _target;
 
+  // An unresolved listing can still call its small thumbnail the original.
+  // Keep it as a final fallback instead of letting it replace the grid image.
+  bool get _targetIsFallback =>
+      widget.lowerMedia.url.isNotEmpty &&
+      widget.lowerMedia.url != widget.imageUrl &&
+      (widget.lowerMedia.fallbackUrl == widget.imageUrl ||
+          widget.lowerMedia.placeholderUrl == widget.imageUrl);
+
+  List<String> _lowerCandidates() =>
+      [
+            widget.lowerMedia.url,
+            ...widget.lowerMedia.fallbackUrls,
+            widget.lowerMedia.fallbackUrl,
+            widget.lowerMedia.placeholderUrl,
+          ].nonNulls
+          .where(
+            (url) =>
+                url.isNotEmpty && (url != widget.imageUrl || _targetIsFallback),
+          )
+          .toSet()
+          .toList();
+
   @override
   void initState() {
     super.initState();
@@ -151,12 +173,7 @@ class _RawProgressivePostImageState extends State<RawProgressivePostImage> {
     super.didChangeDependencies();
     if (_initialized) return;
     _initialized = true;
-    final lower = widget.lowerMedia;
-    final candidates = [lower.url, lower.fallbackUrl, lower.placeholderUrl]
-        .nonNulls
-        .where((url) => url.isNotEmpty && url != widget.imageUrl)
-        .toSet()
-        .toList();
+    final candidates = _lowerCandidates();
     if (candidates.isNotEmpty) {
       _loadLower(candidates);
     } else {
@@ -181,7 +198,10 @@ class _RawProgressivePostImageState extends State<RawProgressivePostImage> {
   }
 
   void _loadLower(List<String> candidates, [int start = 0]) {
-    final index = candidates.indexWhere((url) => url != widget.imageUrl, start);
+    final index = candidates.indexWhere(
+      (url) => url != widget.imageUrl || _targetIsFallback,
+      start,
+    );
     if (index < 0) {
       setState(() => _lowerFailed = true);
       return;
@@ -207,7 +227,9 @@ class _RawProgressivePostImageState extends State<RawProgressivePostImage> {
   void _loadTarget() {
     _target?.dispose();
     final generation = ++_targetGeneration;
+    _targetSucceeded = false;
     _targetFailed = false;
+    if (_targetIsFallback) return;
     if (widget.imageUrl.isEmpty) {
       _targetFailed = true;
       return;
@@ -314,7 +336,7 @@ class _RawProgressivePostImageState extends State<RawProgressivePostImage> {
   Widget build(BuildContext context) {
     final displayed = _displayed;
     if (displayed == null) {
-      return _targetFailed && _lowerFailed
+      return (_targetFailed || _targetIsFallback) && _lowerFailed
           ? ErrorPlaceholder(
               borderRadius: BorderRadius.zero,
               onRetry: _retryFailed,
@@ -383,13 +405,7 @@ class _RawProgressivePostImageState extends State<RawProgressivePostImage> {
         if (_targetFailed) _loadTarget();
         if (_lowerFailed && _displayed == null) {
           _lowerFailed = false;
-          final lower = widget.lowerMedia;
-          _loadLower(
-            [lower.url, lower.fallbackUrl, lower.placeholderUrl].nonNulls
-                .where((url) => url.isNotEmpty && url != widget.imageUrl)
-                .toSet()
-                .toList(),
-          );
+          _loadLower(_lowerCandidates());
         }
       });
     } finally {

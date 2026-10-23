@@ -14,6 +14,10 @@ import 'package:material_ui/material_ui.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import 'package:boorusama/core/boorus/booru/types.dart';
+import 'package:booru_clients/src/gelbooru_v2/parsers/rb_parsers.dart';
+import 'package:boorusama/boorus/gelbooru_v2/posts/parser.dart';
+import 'package:boorusama/boorus/gelbooru_v2/posts/types.dart';
+import 'package:boorusama/core/posts/post/types.dart';
 import 'package:boorusama/core/config_widgets/website_logo.dart';
 import 'package:boorusama/core/haptics/types.dart';
 import 'package:boorusama/core/developer_options/providers.dart';
@@ -21,7 +25,6 @@ import 'package:boorusama/core/http/client/providers.dart';
 import 'package:boorusama/core/images/providers.dart';
 import 'package:boorusama/core/posts/favorites/widgets.dart';
 import 'package:boorusama/core/posts/listing/src/widgets/default_image_quick_actions.dart';
-import 'package:boorusama/core/posts/post/src/widgets/image_overlay_icon.dart';
 import 'package:boorusama/core/posts/post/src/widgets/thumbnail_overlay.dart';
 import 'package:boorusama/core/posts/post/widgets.dart';
 import 'package:boorusama/core/settings/providers.dart';
@@ -32,6 +35,57 @@ import 'package:boorusama/core/widgets/website_logo.dart';
 import '../details/progressive_image_test_utils.dart' as images;
 
 void main() {
+  testWidgets(
+    'Realbooru HTML renders one matching GIF or Play badge on static previews',
+    (tester) async {
+      for (final c in [
+        (title: 'scenery', video: false, gif: false),
+        (title: 'scenery', video: true, gif: false),
+        (title: 'scenery, gif', video: false, gif: true),
+        (title: 'scenery, gif', video: true, gif: false),
+      ]) {
+        final post = gelbooruV2PostDtoToGelbooruPostNoMetadata(
+          parseRbPostsHtml(
+            Response<String>(
+              requestOptions: RequestOptions(path: '/index.php'),
+              data:
+                  '<span class="thumb"><a id="p52"><img '
+                  'src="https://realbooru.test/thumbnails/thumbnail_poster.jpg" '
+                  'title="${c.title}" '
+                  '${c.video ? 'style="border: 3px solid #0000ff;"' : ''}'
+                  '></a></span>',
+            ),
+            const {},
+          ).posts.single,
+          const GelbooruV2ImageUrlResolver(),
+        );
+        await tester.pumpWidget(
+          _app(
+            SizedBox(
+              width: 80,
+              height: 120,
+              child: ImageGridItem(
+                image: const ColoredBox(color: Colors.grey),
+                isGif: post.isGif,
+                isAnimated: post.showsAnimatedBadge,
+                duration: post.duration,
+              ),
+            ),
+            scale: 2,
+          ),
+        );
+        expect(post.isVideo, isFalse);
+        expect(
+          find.byIcon(Symbols.play_circle),
+          c.video ? findsOneWidget : findsNothing,
+        );
+        expect(find.byIcon(Symbols.gif), c.gif ? findsOneWidget : findsNothing);
+        expect(post.isGif, c.gif);
+        expect(tester.takeException(), isNull);
+      }
+    },
+  );
+
   setUpAll(() async {
     final configFile = File('.dart_tool/package_config.json');
     final config =
