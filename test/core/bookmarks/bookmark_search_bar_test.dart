@@ -4,6 +4,8 @@ import 'package:boorusama/core/bookmarks/src/widgets/bookmark_search_bar.dart';
 import 'package:boorusama/core/posts/listing/providers.dart';
 import 'package:boorusama/core/search/search/widgets.dart';
 import 'package:boorusama/core/themes/colors/src/colors.dart';
+import 'package:boorusama/core/themes/colors/providers.dart';
+import 'package:boorusama/core/themes/colors/types.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -26,16 +28,20 @@ Widget _app(
   double scale = 1,
   BookmarkTagIndex? index,
 }) {
+  final theme = ThemeData(
+    extensions: const [KurumiExtendedColorScheme()],
+  ).withBoorusamaColors();
   return ProviderScope(
     overrides: [
       bookmarkTagIndexProvider.overrideWith((ref, view) => index ?? _index),
       bookmarkTagColorProvider.overrideWith((ref, request) => Colors.purple),
+      booruChipColorsProvider.overrideWithValue(
+        BooruChipColors.colorScheme(theme.colorScheme),
+      ),
     ],
     child: BooruLocalization(
       child: MaterialApp(
-        theme: ThemeData(
-          extensions: const [KurumiExtendedColorScheme()],
-        ).withBoorusamaColors(),
+        theme: theme,
         builder: (context, child) => KurumiTheme(
           data: KurumiThemeData.fromMaterial(Theme.of(context)),
           child: MediaQuery(
@@ -150,7 +156,12 @@ void main() {
               .firstWhere((span) => span.text == 'one piece')
               .style!
               .color,
-          Colors.purple,
+          ProviderScope.containerOf(
+                tester.element(find.byType(SelectedTagChip).first),
+              )
+              .read(booruChipColorsProvider)
+              .fromColor(Colors.purple)!
+              .foregroundColor,
         );
         verify(() => posts.refresh()).called(1);
         expect(tester.takeException(), isNull);

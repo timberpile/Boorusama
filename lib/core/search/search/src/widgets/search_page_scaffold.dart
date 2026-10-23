@@ -586,10 +586,16 @@ class DefaultSearchSuggestions extends ConsumerWidget {
                             listbox: controller.suggestionsListbox,
                             currentQuery: query.text,
                             onItemPick: (tag) {
-                              controller.tapTag(tag.value);
+                              controller.tapTag(
+                                tag.value,
+                                category: tag.category,
+                              );
                             },
                             onItemTap: (tag) {
-                              controller.tapTag(tag.value);
+                              controller.tapTag(
+                                tag.value,
+                                category: tag.category,
+                              );
                             },
                             emptyBuilder: () => Center(
                               child: ColoredBox(

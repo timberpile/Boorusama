@@ -20,7 +20,15 @@ class SearchProfileSnapshot {
   void restore(SearchPageController controller) {
     controller.tagsController.addTags([
       for (final tag in tags)
-        tag.withQuery(tag.originalTag, extractor: controller.metatagExtractor),
+        // Autocomplete categories belong to the source profile. Resolve them
+        // from the destination's local cache after transferring search intent.
+        if (tag.isRaw)
+          TagSearchItem.raw(tag: tag.originalTag)
+        else
+          TagSearchItem.fromString(
+            tag.originalTag,
+            extractor: controller.metatagExtractor,
+          ),
     ]);
     controller.textController.value = text;
     controller.allowSearch.value = tags.isNotEmpty;

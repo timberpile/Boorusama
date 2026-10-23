@@ -110,6 +110,7 @@ class SliverCharacterPostList extends ConsumerWidget {
                     label: Text(
                       tag.replaceAll('_', ' '),
                       textAlign: TextAlign.center,
+                      style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
                   ),
                 )

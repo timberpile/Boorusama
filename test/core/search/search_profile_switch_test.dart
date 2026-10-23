@@ -1,3 +1,8 @@
+import 'package:boorusama/core/search/search/src/widgets/selected_tag_chip.dart';
+import 'package:boorusama/core/tags/categories/providers.dart';
+import 'package:boorusama/core/tags/tag/providers.dart';
+import 'package:boorusama/core/themes/colors/providers.dart';
+import 'package:boorusama/core/themes/colors/types.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/boorus/engine/types.dart';
 import 'package:boorusama/core/boorus/defaults/src/base_booru_builder.dart';
@@ -45,109 +50,146 @@ void main() {
   final otherEngine = profile('c', '', BooruType.gelbooru, 'https://c.example');
 
   for (final next in [sameEngine, otherEngine]) {
-    testWidgets(
-      'switching results to ${next.url} retains search intent globally',
-      (tester) async {
-        final observed = <SearchPageController>[];
-        final fetches = <String>[];
-        final suggestions = <String>[];
-        final harness = FollowingTopicHarness(
-          profiles: [first, next],
-          booruBuilder: (_) => _SearchBuilder(observed, fetches),
-        );
-        addTearDown(harness.dispose);
-        await harness.pump(
-          tester,
-          ProviderScope(
-            overrides: [
-              networkStateProvider.overrideWithValue(
-                NetworkDisconnectedState(),
+    for (final destinationCategory in ['character', null]) {
+      testWidgets(
+        'switching results to ${next.url} resolves local category $destinationCategory and retains intent',
+        (tester) async {
+          final observed = <SearchPageController>[];
+          final fetches = <String>[];
+          final suggestions = <String>[];
+          final lookups = <(BooruConfigAuth, String)>[];
+          final harness = FollowingTopicHarness(
+            profiles: [first, next],
+            booruBuilder: (_) => _SearchBuilder(observed, fetches),
+          );
+          addTearDown(harness.dispose);
+          await harness.pump(
+            tester,
+            ProviderScope(
+              overrides: [
+                booruTagTypeProvider.overrideWith((ref, key) async {
+                  lookups.add(key);
+                  return key.$1 == next.auth ? destinationCategory : null;
+                }),
+                tagColorProvider.overrideWith(
+                  (ref, key) => key.$2 == 'artist' ? Colors.red : Colors.green,
+                ),
+                booruChipColorsProvider.overrideWithValue(
+                  BooruChipColors.colorScheme(
+                    ColorScheme.fromSeed(seedColor: Colors.blue),
+                  ),
+                ),
+                networkStateProvider.overrideWithValue(
+                  NetworkDisconnectedState(),
+                ),
+                metatagExtractorProvider.overrideWith(
+                  (ref, config) => _Extractor(config.url),
+                ),
+                suggestionsNotifierProvider.overrideWith(
+                  () => _Suggestions(suggestions),
+                ),
+              ],
+              child: CurrentBooruConfigScope(
+                config: first,
+                child: const Scaffold(body: SearchPage()),
               ),
-              metatagExtractorProvider.overrideWith(
-                (ref, config) => _Extractor(config.url),
-              ),
-              suggestionsNotifierProvider.overrideWith(
-                () => _Suggestions(suggestions),
-              ),
-            ],
-            child: CurrentBooruConfigScope(
-              config: first,
-              child: const Scaffold(body: SearchPage()),
             ),
-          ),
-        );
-        var controller = observed.last;
-        controller.tagsController.addTags([
-          TagSearchItem.fromString('-cat'),
-          const TagSearchItem.raw(tag: '(dog ~ bird) rating:safe'),
-        ]);
-        controller.didSearchOnce.value = true;
-        controller.tagString.value = controller.tagsController.rawTagsString;
-        await _settle(tester);
-        controller.textController.value = const TextEditingValue(
-          text: '  pending:term ',
-          selection: TextSelection.collapsed(offset: 7),
-        );
-        await _settle(tester);
-        final previous = controller;
-        final terms = controller.tagsController.rawTagsString;
-        await tester.tap(find.byIcon(Icons.more_vert));
-        await _settle(tester);
-        await tester.tap(
-          find
-              .ancestor(
-                of: find.text('Switch Profile'),
-                matching: find.byType(KurumiPopupMenuButton),
-              )
-              .first,
-        );
-        await _settle(tester);
-        expect(
-          find.text('Shared (${first.url})'),
-          next.name.isEmpty ? findsNothing : findsOneWidget,
-        );
-        await tester.tap(
-          find.text(next.name.isEmpty ? next.url : 'Shared (${next.url})'),
-        );
-        await _settle(tester);
-        controller = observed.last;
-        expect(identical(previous, controller), isFalse);
-        expect(harness.container.read(currentBooruConfigProvider).id, next.id);
-        expect(controller.tagsController.rawTagsString, terms);
-        expect(controller.textController.value.text, '  pending:term ');
-        expect(controller.textController.selection.baseOffset, 7);
-        expect(controller.didSearchOnce.value, isTrue);
-        expect((controller.metatagExtractor! as _Extractor).url, next.url);
-        expect(
-          identical(controller.metatagExtractor, previous.metatagExtractor),
-          isFalse,
-        );
-        expect(fetches.any((e) => e.startsWith('${next.url}|$terms')), isTrue);
-        expect(suggestions.last, '${next.url}|  pending:term ');
-        expect(find.text('Results ${first.url}'), findsNothing);
-        expect(find.text('Results ${next.url}'), findsOneWidget);
-        expect(find.byType(SearchPage), findsOneWidget);
-        final requestCount = fetches.length;
-        await tester.tap(find.byIcon(Icons.more_vert));
-        await _settle(tester);
-        await tester.tap(
-          find
-              .ancestor(
-                of: find.text('Switch Profile'),
-                matching: find.byType(KurumiPopupMenuButton),
-              )
-              .first,
-        );
-        await _settle(tester);
-        expect(find.byIcon(Symbols.check), findsOneWidget);
-        await tester.tap(
-          find.text(next.name.isEmpty ? next.url : 'Shared (${next.url})'),
-        );
-        await _settle(tester);
-        expect(identical(observed.last, controller), isTrue);
-        expect(fetches.length, requestCount);
-      },
-    );
+          );
+          var controller = observed.last;
+          controller.tagsController.addTags([
+            TagSearchItem.fromString('-cat', category: 'artist'),
+            const TagSearchItem.raw(tag: '(dog ~ bird) rating:safe'),
+          ]);
+          controller.didSearchOnce.value = true;
+          controller.tagString.value = controller.tagsController.rawTagsString;
+          await _settle(tester);
+          controller.textController.value = const TextEditingValue(
+            text: '  pending:term ',
+            selection: TextSelection.collapsed(offset: 7),
+          );
+          await _settle(tester);
+          expect(
+            tester
+                .widget<SelectedTagChip>(find.byType(SelectedTagChip).first)
+                .tagColor,
+            Colors.red,
+          );
+          expect(lookups, isEmpty);
+          final previous = controller;
+          final terms = controller.tagsController.rawTagsString;
+          await tester.tap(find.byIcon(Icons.more_vert));
+          await _settle(tester);
+          await tester.tap(
+            find
+                .ancestor(
+                  of: find.text('Switch Profile'),
+                  matching: find.byType(KurumiPopupMenuButton),
+                )
+                .first,
+          );
+          await _settle(tester);
+          expect(
+            find.text('Shared'),
+            next.name.isEmpty ? findsOneWidget : findsNWidgets(2),
+          );
+          await tester.tap(
+            next.name.isEmpty ? find.text(next.url) : find.text('Shared').last,
+          );
+          await _settle(tester);
+          controller = observed.last;
+          expect(identical(previous, controller), isFalse);
+          expect(
+            harness.container.read(currentBooruConfigProvider).id,
+            next.id,
+          );
+          expect(controller.tagsController.rawTagsString, terms);
+          expect(controller.tagsController.tags.first.category, isNull);
+          expect(controller.tagsController.tags.last.isRaw, isTrue);
+          expect(lookups, [(next.auth, 'cat')]);
+          expect(
+            tester
+                .widget<SelectedTagChip>(find.byType(SelectedTagChip).first)
+                .tagColor,
+            destinationCategory == null ? null : Colors.green,
+          );
+          expect(controller.textController.value.text, '  pending:term ');
+          expect(controller.textController.selection.baseOffset, 7);
+          expect(controller.didSearchOnce.value, isTrue);
+          expect((controller.metatagExtractor! as _Extractor).url, next.url);
+          expect(
+            identical(controller.metatagExtractor, previous.metatagExtractor),
+            isFalse,
+          );
+          expect(
+            fetches.any((e) => e.startsWith('${next.url}|$terms')),
+            isTrue,
+          );
+          expect(suggestions.last, '${next.url}|  pending:term ');
+          expect(find.text('Results ${first.url}'), findsNothing);
+          expect(find.text('Results ${next.url}'), findsOneWidget);
+          expect(find.byType(SearchPage), findsOneWidget);
+          final requestCount = fetches.length;
+          await tester.tap(find.byIcon(Icons.more_vert));
+          await _settle(tester);
+          await tester.tap(
+            find
+                .ancestor(
+                  of: find.text('Switch Profile'),
+                  matching: find.byType(KurumiPopupMenuButton),
+                )
+                .first,
+          );
+          await _settle(tester);
+          expect(find.byIcon(Symbols.check), findsOneWidget);
+          await tester.tap(
+            next.name.isEmpty ? find.text(next.url) : find.text('Shared').last,
+          );
+          await _settle(tester);
+          expect(identical(observed.last, controller), isTrue);
+          expect(fetches.length, requestCount);
+        },
+      );
+    }
   }
 
   testWidgets(
@@ -233,8 +275,8 @@ void main() {
             .first,
       );
       await _settle(tester);
-      expect(find.text('Shared (${first.url})'), findsOneWidget);
-      expect(find.text('Shared (${sameEngine.url})'), findsOneWidget);
+      expect(find.text('Shared'), findsNWidgets(2));
+      expect(find.textContaining('Shared ('), findsNothing);
       expect(find.text(otherEngine.url), findsOneWidget);
       expect(tester.takeException(), isNull);
     },

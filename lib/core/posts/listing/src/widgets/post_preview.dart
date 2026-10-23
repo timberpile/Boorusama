@@ -534,6 +534,7 @@ class TagPreviewChip extends ConsumerWidget {
             tag.name,
             style: TextStyle(
               color: color,
+              fontWeight: FontWeight.w600,
               fontSize: 12,
             ),
           ),

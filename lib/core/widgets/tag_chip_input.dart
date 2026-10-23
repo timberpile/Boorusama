@@ -39,6 +39,7 @@ class TagChipInput extends StatelessWidget {
               backgroundColor: colorScheme.surfaceContainerHighest,
               label: Text(
                 displayValue?.call(value) ?? value.replaceAll('_', ' '),
+                style: const TextStyle(fontWeight: FontWeight.w600),
               ),
               deleteIcon: Icon(
                 Symbols.close,

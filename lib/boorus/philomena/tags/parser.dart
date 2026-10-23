@@ -28,7 +28,10 @@ AutocompleteData parsePhilomenaTagToAutocompleteData(TagDto e) {
           ),
         ),
     antecedent: e.aliasedTag,
-    category: e.category ?? '',
+    category: switch (e.category) {
+      null || '' => 'general',
+      final category => category,
+    },
     postCount: e.images,
   );
 }

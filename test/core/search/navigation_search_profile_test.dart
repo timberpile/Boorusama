@@ -164,6 +164,13 @@ void main() {
           () => find.byType(FollowTopicButton).evaluate().isNotEmpty,
         );
         final oldController = observed.last;
+        oldController.tagsController
+          ..clear()
+          ..addTags([
+            TagSearchItem.fromString('-cat', category: 'artist'),
+            const TagSearchItem.raw(tag: '(dog ~ bird) rating:safe'),
+          ]);
+        expect(oldController.tagsController.tags.first.category, 'artist');
         expect(
           tester
               .widget<FollowTopicButton>(find.byType(FollowTopicButton))
@@ -193,6 +200,7 @@ void main() {
         );
         expect(observed.last, isNot(same(oldController)));
         expect(observed.last.tagsController.rawTagsString, query);
+        expect(observed.last.tagsController.tags.first.category, isNull);
         expect(observed.last.textController.value.text, 'pending');
         expect(observed.last.textController.selection.baseOffset, 3);
         expect(owners.last.id, next.id);

@@ -187,6 +187,7 @@ final class DanbooruPostGridPresentation
                           tag.replaceAll('_', ' '),
                           maxLines: 1,
                           style: TextStyle(
+                            fontWeight: FontWeight.w600,
                             color: Kurumi.themeOf(
                               context,
                             ).colorScheme.onErrorContainer,

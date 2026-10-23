@@ -229,6 +229,7 @@ final class FakeBooruBackend {
 
   /// Tags offered as search suggestions when they start with the typed text.
   final autocompleteTags = <String>[];
+  final autocompleteCategories = <String, String>{};
 
   /// Comments shown on the comments page, by post ID.
   final comments = <int, List<Comment>>{};
@@ -604,7 +605,11 @@ final class _FakeBooruRepository extends BooruRepositoryDefault {
         autocomplete: (query) async => [
           for (final tag in backend.autocompleteTags)
             if (tag.startsWith(query.text))
-              AutocompleteData(label: tag, value: tag),
+              AutocompleteData(
+                label: tag,
+                value: tag,
+                category: backend.autocompleteCategories[tag],
+              ),
         ],
       );
 

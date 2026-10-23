@@ -142,6 +142,7 @@ class _DesktopSearchbarState extends ConsumerState<DesktopSearchbar> {
     selectedTagController.addTag(
       TagSearchItem.fromString(
         '$operator${tag.value}',
+        category: tag.category,
         extractor: ref.read(metatagExtractorProvider(ref.readConfigAuth)),
       ),
     );

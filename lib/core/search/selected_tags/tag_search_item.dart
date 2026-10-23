@@ -63,17 +63,27 @@ class TagSearchItem extends Equatable {
   TagSearchItem withQuery(
     String query, {
     MetatagExtractor? extractor,
-  }) => isRaw
-      ? TagSearchItem.raw(tag: query)
-      : TagSearchItem.fromString(
-          query,
-          extractor: extractor,
-          category: category,
-        );
+  }) {
+    if (isRaw) return TagSearchItem.raw(tag: query);
+    final updated = TagSearchItem.fromString(query, extractor: extractor);
+    return TagSearchItem._(
+      tag: updated.tag,
+      operator: updated.operator,
+      originalTag: updated.originalTag,
+      isRaw: false,
+      metatag: updated.metatag,
+      // Changing an operator does not change a tag's category; renaming the
+      // tag does. Do not carry autocomplete metadata onto an unrelated tag.
+      category: updated.rawTag == rawTag && updated.metatag == metatag
+          ? category
+          : null,
+    );
+  }
 
   // This assume no whitespace in the tag, which is true for most boorus
   String get rawTag => tag.replaceAll(' ', '_');
 
+  // Category metadata does not affect search-term identity.
   @override
   List<Object?> get props => [
     tag,
@@ -81,7 +91,6 @@ class TagSearchItem extends Equatable {
     metatag,
     isRaw,
     originalTag,
-    category,
   ];
 
   @override

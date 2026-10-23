@@ -80,6 +80,7 @@ class FavoriteTagsSection extends ConsumerWidget {
             tag.name,
             style: TextStyle(
               color: colors?.foregroundColor,
+              fontWeight: FontWeight.w600,
             ),
           ),
           backgroundColor: colors?.backgroundColor,

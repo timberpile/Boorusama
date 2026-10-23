@@ -167,7 +167,7 @@ class _RelatedTagChips extends ConsumerWidget {
                   color: selected
                       ? colors?.foregroundColor
                       : Kurumi.themeOf(context).colorScheme.onSurfaceVariant,
-                  fontWeight: FontWeight.w500,
+                  fontWeight: FontWeight.w600,
                 ),
                 children: [
                   TextSpan(

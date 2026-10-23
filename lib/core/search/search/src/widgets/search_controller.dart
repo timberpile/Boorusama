@@ -38,12 +38,13 @@ class SearchPageController extends ChangeNotifier {
 
   SearchState? _previousState;
 
-  void tapTag(String tag) {
+  void tapTag(String tag, {String? category}) {
     final operatorPrefix = filterOperator.toString();
     tagsController.addTag(
       TagSearchItem.fromString(
         '$operatorPrefix$tag',
         extractor: metatagExtractor,
+        category: category,
       ),
     );
 

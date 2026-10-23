@@ -93,11 +93,20 @@ class SearchTagSet extends Equatable {
   }
 
   void addTag(TagSearchItem tag) {
-    _tags.add(tag);
+    final existing = _tags.lookup(tag);
+    if (existing != null &&
+        tag.category != null &&
+        tag.category != existing.category) {
+      updateTag(existing, tag);
+    } else {
+      _tags.add(tag);
+    }
   }
 
   void addTags(List<TagSearchItem> tags) {
-    _tags.addAll(tags);
+    for (final tag in tags) {
+      addTag(tag);
+    }
   }
 
   void removeTag(TagSearchItem tag) {

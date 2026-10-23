@@ -147,7 +147,12 @@ class PreviewHome extends StatelessWidget {
                             horizontal: 2,
                           ),
                           child: BooruChip(
-                            label: Text(_kRandomTags[index]),
+                            label: Text(
+                              _kRandomTags[index],
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
                             onPressed: () {},
                             chipColors: booruChipColors.fromColor(color),
                           ),

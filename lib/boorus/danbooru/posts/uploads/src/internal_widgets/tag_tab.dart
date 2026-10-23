@@ -120,6 +120,9 @@ class TagEditUploadTag extends ConsumerWidget {
                                         showBorder: tags.contains(tag.name),
                                         label: Text(
                                           tag.name.replaceAll('_', ' '),
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                          ),
                                         ),
                                         contentPadding:
                                             const EdgeInsets.symmetric(
@@ -216,6 +219,7 @@ class _RelatedExpansionTileState extends ConsumerState<_RelatedExpansionTile> {
                       onPressed: () {},
                       label: Text(
                         selectedTag,
+                        style: const TextStyle(fontWeight: FontWeight.w600),
                       ),
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 8,

@@ -1,11 +1,16 @@
 // Package imports:
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 // Project imports:
 import '../../../../../foundation/utils/flutter_utils.dart';
+import '../../../../configs/config/types.dart';
+import '../../../../tags/categories/providers.dart';
 import '../../../../tags/tag/colors.dart';
+import '../../../../tags/tag/providers.dart';
+import '../../../../themes/colors/providers.dart';
 import '../../../queries/types.dart';
 import '../../../selected_tags/types.dart';
 import '../pages/selected_tag_edit_dialog.dart';
@@ -30,6 +35,16 @@ class SelectedTagChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (tagColor == null) return _buildChip(context, null);
+    return Consumer(
+      builder: (context, ref, _) => _buildChip(
+        context,
+        ref.watch(booruChipColorsProvider).fromColor(tagColor),
+      ),
+    );
+  }
+
+  Widget _buildChip(BuildContext context, KurumiChipColors? colors) {
     final hasOperator = tagSearchItem.operator != FilterOperator.none;
     final hasMeta = tagSearchItem.metatag != null;
     final isRaw = tagSearchItem.isRaw;
@@ -63,10 +78,14 @@ class SelectedTagChip extends StatelessWidget {
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.all(Radius.circular(8)),
         ),
-        backgroundColor: colorScheme.secondaryContainer,
+        backgroundColor:
+            colors?.backgroundColor ?? colorScheme.surfaceContainerHighest,
+        side: BorderSide(
+          color: colors?.borderColor ?? colorScheme.outlineVariant,
+        ),
         deleteIcon: Icon(
           Symbols.close,
-          color: colorScheme.error,
+          color: colors?.foregroundColor ?? colorScheme.error,
           size: 18,
           weight: 600,
         ),
@@ -78,7 +97,7 @@ class SelectedTagChip extends StatelessWidget {
           textScaler: textScaler ?? TextScaler.noScaling,
           text: TextSpan(
             style: const TextStyle(
-              fontWeight: FontWeight.w500,
+              fontWeight: FontWeight.w600,
             ),
             children: [
               if (isRaw) ...[
@@ -117,7 +136,8 @@ class SelectedTagChip extends StatelessWidget {
                     ? tagSearchItem.tag
                     : tagSearchItem.tag.replaceAll('_', ' '),
                 style: TextStyle(
-                  color: tagColor ?? colorScheme.onSecondaryContainer,
+                  color:
+                      colors?.foregroundColor ?? colorScheme.onSurfaceVariant,
                 ),
               ),
               const TextSpan(
@@ -127,6 +147,49 @@ class SelectedTagChip extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Uses supplied metadata or the local category cache for this exact profile.
+/// Raw syntax and metatag values are not ordinary tags and remain neutral.
+class CategoryAwareSelectedTagChip extends ConsumerWidget {
+  const CategoryAwareSelectedTagChip({
+    required this.auth,
+    required this.tagSearchItem,
+    this.onDeleted,
+    this.onUpdated,
+    this.onTap,
+    this.textScaler,
+    super.key,
+  });
+
+  final BooruConfigAuth auth;
+  final TagSearchItem tagSearchItem;
+  final VoidCallback? onDeleted;
+  final void Function(String tag)? onUpdated;
+  final VoidCallback? onTap;
+  final TextScaler? textScaler;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final ordinary = !tagSearchItem.isRaw && tagSearchItem.metatag == null;
+    final category = !ordinary
+        ? null
+        : tagSearchItem.category ??
+              ref
+                  .watch(booruTagTypeProvider((auth, tagSearchItem.rawTag)))
+                  .valueOrNull;
+    final color = category == null
+        ? null
+        : ref.watch(tagColorProvider((auth, category)));
+    return SelectedTagChip(
+      tagSearchItem: tagSearchItem,
+      tagColor: color,
+      textScaler: textScaler,
+      onDeleted: onDeleted,
+      onUpdated: onUpdated,
+      onTap: onTap,
     );
   }
 }

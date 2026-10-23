@@ -5,6 +5,7 @@ import 'dart:ui' show Brightness;
 import 'package:flutter/painting.dart';
 
 // Package imports:
+import 'package:dynamic_color/dynamic_color.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Project imports:
@@ -14,6 +15,9 @@ import '../../../configs/manage/providers.dart';
 import '../../../posts/post/types.dart';
 import '../../../tags/categories/providers.dart';
 import '../../../tags/tag/colors.dart';
+import '../../../themes/colors/providers.dart';
+import '../../../themes/configs/providers.dart';
+import '../../../themes/configs/types.dart';
 import '../data/bookmark_tag_color.dart';
 import '../types/bookmark_tag_index.dart';
 import '../types/bookmark_view.dart';
@@ -90,26 +94,46 @@ final bookmarkTagSuggestionsProvider = Provider.autoDispose
     );
 
 final bookmarkTagColorProvider = FutureProvider.autoDispose
-    .family<Color?, (BookmarkView, String, Brightness)>((ref, request) {
-      final (view, tag, brightness) = request;
-      final index = ref.watch(bookmarkTagIndexProvider(view));
-      final entry = index.valueOrNull?.byName[tag];
-      if (entry == null) return null;
-      final needsCache = entry.sources.values.any(
-        (categories) => categories.isEmpty,
-      );
-      final storeFuture = needsCache
-          ? ref.watch(booruTagTypeStoreProvider.future)
-          : null;
-      final engine = needsCache ? ref.watch(booruEngineRegistryProvider) : null;
-      return resolveBookmarkTagColor(
-        entry,
-        colors: TagColors.fromBrightness(brightness),
-        categoryLookup: (site, name) async {
-          final store = await storeFuture;
-          return store?.getTagCategory(site, name);
-        },
-        colorGenerator: (type) =>
-            engine?.getRepository(type)?.tagColorGenerator(),
-      );
-    });
+    .family<Color?, (BookmarkView, String, Brightness)>(
+      (ref, request) {
+        final (view, tag, brightness) = request;
+        final index = ref.watch(bookmarkTagIndexProvider(view));
+        final entry = index.valueOrNull?.byName[tag];
+        if (entry == null) return null;
+        final needsCache = entry.sources.values.any(
+          (categories) => categories.isEmpty,
+        );
+        final storeFuture = needsCache
+            ? ref.watch(booruTagTypeStoreProvider.future)
+            : null;
+        final engine = ref.watch(booruEngineRegistryProvider);
+        final customColors = ref.watch(customColorsProvider);
+        final scheme = ref.watch(colorSchemeProvider);
+        final dynamicColors = ref.watch(enableDynamicColoringProvider);
+        return resolveBookmarkTagColor(
+          entry,
+          colors: TagColors.fromBrightness(brightness),
+          colorsForType: (type) => customColors != null
+              ? getTagColorsFromColorSettings(customColors)
+              : engine
+                    .getRepository(type)
+                    ?.tagColorGenerator()
+                    .generateColors(
+                      TagColorsOptions(brightness: brightness),
+                    ),
+          transformColor: (color) =>
+              dynamicColors ? color.harmonizeWith(scheme.primary) : color,
+          categoryLookup: (site, name) async {
+            final store = await storeFuture;
+            return store?.getTagCategory(site, name);
+          },
+          colorGenerator: (type) =>
+              engine.getRepository(type)?.tagColorGenerator(),
+        );
+      },
+      dependencies: [
+        customColorsProvider,
+        colorSchemeProvider,
+        enableDynamicColoringProvider,
+      ],
+    );
