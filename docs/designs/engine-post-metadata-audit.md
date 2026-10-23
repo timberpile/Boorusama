@@ -370,3 +370,122 @@ Suggested existing coverage to extend (all paths relative to repository root):
 - Local first-party implementation source: the pinned `develop` commit and `packages/booru_clients/boorus.yaml`.
 
 **Success:** A post's Details shows exactly the available meaningful baseline fields for its **originating** source; missing values are omitted; known zero counts are retained; no invented classifications or reused unrelated metrics; website-specific behavior and current data remain intact; fetching stays bounded; additional metadata has documented explicit decisions rather than surprise UI additions.
+
+
+## 9. Nullable Model Migration: Impact and Cost
+
+**Status:** Additional static architectural assessment for #77; effort estimates are *rough engineering-day ranges*, **not** measured implementation durations. No compiler, test suite or dependency-wide automated reference count was run for this estimate. Effort below addresses nullable model/data/presentation work **separately** from external website investigation, account setup, site-specific HTML scraping and #76.
+
+### 9.1 What is actually non-nullable today?
+
+\`PostCoreData\`, \`PostRecord\`, \`Post\` and the shared mixins have a non-null legacy/operational API. This is a different problem from the nullable raw HTTP DTOs:
+
+| Property / current contract | What "unknown" looks like today | Should the canonical source value be nullable? | Impact of changing the *public* \`Post\` getter |
+| --- | --- | --- | --- |
+| \`fileSize: int\` | API null becomes 0 in numerous parsers | **Yes** for proven original bytes; an explicit valid source 0 must not be confused with missing | **Medium.** Viewer preload estimates, media metadata/preview, share descriptions and details tiles expect numbers |
+| \`score: int\` | API null becomes 0, sometimes metrics are wrongly substituted | **Yes**; 0 is an ordinary valid score | **Medium.** Grid overlays, tag filters (\`TagFilterData.score\`), sort/metrics and statistics consumers |
+| \`width/height: double\` | 0 or even artificial 1; may describe artwork rather than actual selected original rendition | **Yes** for *verified original* dimensions; preserve separate **usable display geometry** | **High.** \`ImageInfoMixin.aspectRatio/mpixels\`, viewer \`Size(post.width, post.height)\`, note coordinate adjustment, progressive images and media aspect ratios |
+| \`format: String\` | Empty string, artificial \`jpg\`, or an extension inferred from the wrong rendition | **Yes** for *verified original format* | **High.** \`MediaInfoMixin.isVideo/isAnimated\`, \`VideoInfoMixin\`, grid media, download filename extension tokens and sharing policy |
+| \`duration: double\` | Often \`kNoduration = -1.0\`, sometimes 0 | Arguably yes, **outside the eleven baseline fields**; existing sentinel is intentional compatibility behavior | **Medium.** Animation/video controls and record interfaces; defer until separately justified |
+| \`hasComment: bool\` | Absence becomes \`false\` | Arguably tri-state (\`bool?\`) when the backend exposes only presence, **not a count** | **Medium.** Existing comment badge/availability logic; do not change to solve \`commentCount\` |
+| \`hasParentOrChildren\`, \`isTranslated: bool\` | \`false\` also means not supplied | Potentially, but not needed for #77 | **Medium.** Features use these as operational capabilities; changing them affects behavior |
+| \`md5: String\`, media URLs and \`tags: Set<String>\` | \`''\` or an empty collection | Conceptually optional source facts, but actively used as media/identity/navigation inputs | **High/risky.** Avoid a blanket nullable migration under #77 |
+| \`id: int\` | 0 placeholder or synthetic numeric application ID | **Do not** make the runtime ID nullable; \`post.sitePostId: String?\` already expresses a genuine source ID | **Very high.** Equality, pagination, grid keys, bookmarks, links and caching rely on a stable ID |
+| \`rating: Rating\` | Enum has \`Rating.unknown\` | **No**: existing explicit unknown state is sufficient | **Low** if the rendering/parsers are corrected; a nullable enum adds a redundant absence state |
+| \`createdAt: DateTime?\`, \`uploaderName: String?\`, \`uploaderId: int?\`, \`hasSound: bool?\` | Already nullable | **No structural migration required** | Existing UI/parser fixes only |
+| \`favoriteCount\`, \`commentCount\`, \`description\` | Not in common \`PostCoreData\`; some values exist as required fields inside typed engine payloads with \`?? 0\` or \`?? ''\` | **Yes** as an optional normalized details contract, preserving per-engine meaning | **Low-to-medium** if the new getters are added rather than changing all existing consumers |
+
+**Important source distinction:** Existing \`post.width/height\`, \`post.format\` and \`post.fileSize\` are also used to manage/play/render media. Even making them nullable would **not** prove they refer to the **original file**. A missing original size must not turn a known preview size into an original size. The source fact's *provenance* is as important as its nullability.
+
+### 9.2 Confirmed coupling: concrete code points
+
+| Current code | Current assumption and nullable consequence |
+| --- | --- |
+| \`lib/core/posts/post/src/mixins/image_info_mixin.dart\` | \`width <= 0\`, \`height <= 0\`, \`width / height\`, \`width * height\` are defined on non-null doubles; a direct \`double?\` migration requires changes to both public mixin API and every arithmetic caller |
+| \`lib/core/posts/details/src/widgets/post_details_page_scaffold.dart\` | \`Size(post.width, post.height)\` feeds Auto Comic/viewer geometry; accepting null directly is impossible and selecting a fallback needs validation |
+| \`lib/core/posts/details/src/widgets/post_details_image.dart\` | Note-coordinate adjustment reads width and height; wrong/unknown geometry must not silently misplace annotations |
+| \`lib/core/posts/post/src/mixins/{media_info_mixin.dart,video_info_mixin.dart}\` | Media/video/GIF classification assumes a non-null operational format (though low-level \`isFormatVideo\` accepts null) |
+| \`lib/core/downloads/filename/types/generator_impl.dart\` | \`post.format.startsWith\`, file extension fallback, width/height filename tokens; changing types may affect persisted user filename rules and download outcomes |
+| \`lib/core/posts/details/src/widgets/post_details_image_preloader.dart\` | \`estimatedSizeBytes: post.fileSize\` is passed into prefetch planning; a nullable public size requires an explicit estimation fallback |
+| \`lib/core/posts/details/src/widgets/post_media.dart\` | Video/media component uses \`post.fileSize > 0 ? post.fileSize : null\` |
+| \`lib/core/posts/listing/src/widgets/post_grid_item.dart\` | Grid score overlay uses \`post.score\` |
+| \`lib/core/posts/filter/src/types/score_type.dart\` and \`.../filter/src/tag_filter_data.dart\` | Score is a required int for filter evaluation; making unknown scores fail or pass a comparison is a **behavior decision**, not a mechanical type change |
+| \`lib/core/posts/shares/src/share_media_description.dart\` | Original media description uses numeric dimensions/size and string format operations; a nullable source-only value is preferable to breaking the operational model |
+| \`lib/core/posts/details_parts/src/file_details/file_details_section.dart\` | Existing \`> 0\` and \`format\`/rating/ID rows hide valid zeros or show fabricated unknowns; the collapsed subtitle needs the same verified-presence handling |
+| \`lib/core/posts/details_parts/src/simple_post_stats_tile.dart\` | Three required integers render three rows unconditionally; introduce nullable metric inputs and omit unavailable metrics/empty container |
+| \`lib/core/posts/post/src/data/stored_post_codec.dart\` | \`commonSchemaVersion = 1\`; decoder requires non-null \`width\`, \`height\`, \`format\`, \`fileSize\` and \`score\`; a type-only schema edit breaks persisted posts |
+| \`lib/core/posts/post/src/types/post_record.dart\` | Engine record interface requires non-null width/height/format/fileSize/score; directly changing it affects all **17** engine families and record constructors/codecs |
+
+**Tests directly connected to this contract:** \`test/core/posts/post/stored_post_codec_test.dart\`, \`test/boorus/posts/{rich_post_codec_contract_test.dart,low_variance_post_codec_contract_test.dart,interaction_post_codec_contract_test.dart}\`, \`test/core/posts/details/file_details_upload_date_test.dart\`, \`test/core/posts/details/mixed_post_details_page_test.dart\`, \`test/core/posts/details/post_presentation_context_test.dart\`, and \`test/core/posts/shares/share_sheet_media_description_test.dart\`. The test fixtures construct \`PostCoreData\` with required numeric/format defaults; update tests to check real missing values rather than blindly replacing all zeros.
+
+### 9.3 Three implementation strategies
+
+**Option A — Full direct nullable migration (not recommended for this issue)**
+
+Change \`PostCoreData\`, \`PostRecord\`, all engine record classes, \`Post\` getters and affected mixins to \`int?\`/\`double?\`/\`String?\` for all unknown-capable fields, then fix every call site. Version snapshots and engine codecs, introduce per-feature fallbacks, and review changed sorting, metadata, downloads, note positioning and video detection. This is a broad refactor cutting across the 17 parsers, both common and engine-specific persistence, tests and additional unrelated consumers.
+
+Advantages:
+- Clear, single source of truth for absent values throughout the *public* API.
+- Type system forces consumers to explicitly handle uncertainty; fewer hidden sentinels and fewer duplicate fields.
+- Easier future extension of arbitrary metadata if the entire system adopts nullable semantics.
+
+Disadvantages:
+- Broad compile-time churn, large regression footprint and higher integration risk relative to the user-visible benefit.
+- Replaces intentional fallback/operational values with optional values even where a usable default is necessary (geometry, grid sorting, video classification, filenames).
+- No automatic guarantee of original-media provenance: a nullable \`width\` can still be a preview width.
+- Older snapshots and \`PostRecord\` fixtures must remain valid; user-generated filenames/filters can behave differently.
+- \`hasComment\`, \`id\`, tags and rating require different semantics; **"make everything nullable" is not a sound objective**.
+
+**Option B — Canonical nullable source facts, backward-compatible operational getters (recommended)**
+
+Make a **small, explicit, source-verified nullable metadata contract** accessible on the common \`Post\`/detail presentation while retaining the current non-null operational accessors. There are two implementable subvariants; choose one after inspecting all conversion points:
+
+1. **Preferred when practical:** Store nullable canonical facts for existing common source attributes (e.g. known score/size) internally in \`PostCoreData\`. Keep compatibility getters such as \`Post.score => core.knownScore ?? 0\` and \`Post.fileSize => core.originalByteSize ?? 0\`, with separately named nullable detail accessors. Do **not** change \`PostRecord\` and the media mixins en masse. Propagate original DTO nullability through an explicit optional record capability or \`PostCoreData.fromPost\` conversion overrides. **Do not** call \`PostCoreData.fromPost(record)\` and silently treat its legacy zero defaults as known values.
+2. **Lower-churn fallback:** Add one immutable optional \`PostDetailFacts\` value object to \`PostCoreData\`, with nullable original byte length/dimensions/format, score, count fields and description. Continue using the existing \`PostCoreData.width/height/format/fileSize/score\` as operational compatibility values. The decoder keeps old snapshots usable. Ensure the fact object is populated **from raw source responses**, not reconstructed from legacy fallback getters. Avoid duplicating known uploader/date/rating/ID values without a reason, and test that vote/detail refresh updates do not leave duplicated values inconsistent.
+
+The design may combine these: retain existing operational geometry and media-format getter semantics, while storing **separate verified original-file geometry/format**; promote scalar nullable score/size internally only where that avoids unnecessary duplication.
+
+Advantages:
+- Accurately models missing vs zero **in UI and snapshots** without disrupting geometry, notes, preloader, filenames, grid filters or other runtime code.
+- Smaller blast radius, incremental per-engine rollout, fewer incidental behavior changes; existing mixed-profile and offline behavior remains intact.
+- Allows valid count 0, unknown field suppression, and original-vs-sample distinctions.
+- Does not require fetching new metadata to initialize every grid item; \`null\` can stay unknown until optional detail resolution.
+
+Disadvantages:
+- More concepts in the codebase: source facts vs operational fallback getters. Names/docs must clearly communicate which is authoritative.
+- Risk of duplicated score/size/format fields drifting apart when posts are replaced or a vote changes; avoid redundancy where possible and test update/recovery paths.
+- A persisted old zero cannot be disambiguated automatically; old snapshots should conservatively mark the corresponding source fact *unknown* until valid refresh.
+- Reviewers must verify all new parser mappings use raw DTO presence, not \`?? 0\` values from legacy \`PostRecord\`.
+
+**Option C — UI-only sentinel checks (not acceptable as the final #77 fix)**
+
+Continue using existing \`> 0\`, empty string and \`Rating.unknown\` checks, and patch individual engine-specific UI cases without any source-presence model. This can hide obviously invalid values quickly, but **cannot** distinguish a genuine zero score/favorite/comment count from a missing one, or verify that original metadata describes the original rendition. Use only for independent visual bugs, never as the acceptance strategy for all eleven fields.
+
+### 9.4 Relative engineering cost (estimates, not measurements)
+
+Assume one developer/agent familiar with the architecture, no unrelated refactors, already accessible test tooling, and source DTOs from the current code. The following estimates **exclude** site-by-site live verification, metadata discovery beyond current DTOs, #76, and complete release QA. Parallelism between phases and uncertain host behavior can change elapsed time.
+
+| Workstream | Compatible nullable facts (Option B) | Full public nullable migration (Option A) |
+| --- | --- | --- |
+| Data contract and parser/record transport | ~1–3 engineering days | ~3–6 days across interfaces, mixins and engine records |
+| Common snapshot versioning / legacy decoding | ~1–2 days | ~2–4 days with strict v1 compatibility |
+| UI: file tiles, summary, independent stats, descriptions | ~1–2 days | ~1–3 days (plus extra consumers of now-null getters) |
+| Mapping raw availability into existing engine converters | ~2–4 days | ~3–6 days (plus broad call-site adjustments) |
+| Focused regression tests and review | ~2–4 days | ~5–9 days (geometry, filters, filenames, viewer, persisted state) |
+| **Total, non-additive estimate** | **~6–12 developer-days (about 1–2.5 weeks)** | **~15–28 developer-days (about 3–6 weeks)** |
+
+These are **not** promises, person-hour measurements, or a full #77 estimate. Workstreams overlap (e.g. parser mapping is already part of #77), so do not mechanically add the rows, and do not add the Option B total to the full issue estimate as if it were separate work. A broad \`flutter analyze\` may surface additional downstream callers not captured by static inspection.
+
+**Specific risk/effort ranking if a full migration is considered separately:** \`score\` and \`fileSize\` are **medium**; \`format\` and particularly \`width/height\` are **high**; \`duration\` and \`hasComment\` are **medium but lower priority**; \`id\` and \`rating\` **should not migrate**. The image geometry group is the most behavior-sensitive because of zoom/pan, Auto Comic, notes and representation replacement.
+
+### 9.5 Migration rules and verification gates
+
+1. Define stable, precise semantics: **source-known = non-null**; invalid/ambiguous input = null; missing JSON key = null; source-confirmed count **0** remains 0. Original dimensions must be >0 to qualify; explicit byte count 0 remains distinguishable if the source genuinely provides it.
+2. Keep **operational getters and site identities stable** during #77. \`Post.id\` stays internal and numeric; use \`Post.sitePostId\` for display and copy. \`Rating.unknown\` remains the absence value.
+3. Introduce a versioned/backward-readable snapshot representation. The new decoder must read all supported old snapshots; old unknown zeros must **not** become falsely known. An engine codec upgrade is needed **only** when its encoded custom payload schema actually changes.
+4. Preserve original-vs-thumbnail/sample meaning in every conversion and detail hydration. Keep page-specific Pixiv dimensions nullable until verified. No additional N+1 API calls.
+5. Test pairs for **raw absent vs 0 vs positive**, **complete details vs listing**, malformed numbers/negative dimensions, old v1 snapshots, engine typed payloads, mixed origins, bookmark/following reopen, and on-demand detail replacement.
+6. Check downstream gameplay/behavior explicitly: note overlay geometry, aspect ratio/progressive upgrade, video/GIF detection, preload budgeting, existing score/tag filters and grid badges, downloads/filename tokens and share metadata.
+7. Consider wider public nullable type changes only after #77 has stabilized and a **separate scoped refactor** demonstrates a concrete benefit. Do not use this issue as a repository-wide type cleanup.
+
+**Recommendation for #77:** Implement **Option B**. It meets the user-visible requirement (truthful availability + known zero + original-only metadata) with materially lower risk. Do **not** make all public \`Post\` getters nullable merely to render a sparse Details section. Record any discovered need for full public nullable conversion as an explicitly evaluated follow-up rather than an implicit prerequisite.
