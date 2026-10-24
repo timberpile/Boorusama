@@ -34,11 +34,9 @@ void main() {
 
     Widget host(Route<dynamic> route) => UncontrolledProviderScope(
       container: container,
-      child: MaterialApp(
-        home: NavigationChromeRouteSync(
-          route: route,
-          child: const SizedBox(),
-        ),
+      child: NavigationChromeRouteSync(
+        route: route,
+        child: const SizedBox(),
       ),
     );
     void hide() => chrome.userScroll(
