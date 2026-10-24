@@ -18,6 +18,7 @@ class PreloadMetadataQueue<K, V extends Object> {
   List<PreloadMetadataRequest<K, V>> _pending = [];
   Future<void>? _draining;
   var _disposed = false;
+  var _generation = 0;
 
   V? peek(K key) => _cache[key];
 
@@ -41,6 +42,7 @@ class PreloadMetadataQueue<K, V extends Object> {
         if (_cache.containsKey(request.key) || !_attempted.add(request.key)) {
           continue;
         }
+        final generation = _generation;
         V? value;
         try {
           value = await request.load();
@@ -48,7 +50,12 @@ class PreloadMetadataQueue<K, V extends Object> {
           // Speculative failures leave the visible loader's normal error path
           // intact. Do not spin on one unavailable post while it stays nearby.
         }
-        if (_disposed || !_wanted.contains(request.key) || value == null) continue;
+        if (_disposed ||
+            generation != _generation ||
+            !_wanted.contains(request.key) ||
+            value == null) {
+          continue;
+        }
         _cache[request.key] = value;
         onResolved();
       }
@@ -63,6 +70,9 @@ class PreloadMetadataQueue<K, V extends Object> {
   }
 
   void cancel() {
+    // The same key may be admitted again before its old shared future finishes.
+    // A result belongs to the admission lifetime, not merely to a wanted key.
+    _generation++;
     _wanted = {};
     _pending = [];
     _cache.clear();

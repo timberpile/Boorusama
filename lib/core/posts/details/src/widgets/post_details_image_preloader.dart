@@ -214,11 +214,10 @@ class _MixedPostDetailsImagePreloaderState
           final resolver = ref.read(mediaUrlResolverProvider(auth));
           final imageUrl = resolver.resolveMediaUrl(post, config.viewer);
           if (needsMetadata) {
-            final media = resolved == null
-                ? (post.thumbnailImageUrl.isEmpty
-                    ? null
-                    : ImageMedia.fromUrl(post.thumbnailImageUrl))
-                : thumbnailOnlyViewerPreloadMedia(post, displayUrl: imageUrl);
+            final media = thumbnailOnlyViewerPreloadMedia(
+              post,
+              displayUrl: resolved == null ? null : imageUrl,
+            );
             return media == null ? null : (group: auth, media: media);
           }
           final thumbnail = ref

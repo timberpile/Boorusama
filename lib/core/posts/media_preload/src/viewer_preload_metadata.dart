@@ -13,14 +13,18 @@ abstract interface class ViewerPreloadMetadataResolver {
 
 /// Only a known non-original rendition can be fetched speculatively. Do not
 /// use guessed larger listing URLs as if they were known static thumbnails.
+/// A null display URL means metadata is unresolved: only a safe thumbnail is used.
 ImageMedia? thumbnailOnlyViewerPreloadMedia(
   Post post, {
-  required String displayUrl,
+  required String? displayUrl,
 }) {
   final original = post.originalImageUrl;
   final thumbnail = post.thumbnailImageUrl == original
       ? ''
       : post.thumbnailImageUrl;
+  if (displayUrl == null) {
+    return thumbnail.isEmpty ? null : ImageMedia.fromUrl(thumbnail);
+  }
   final candidate = displayUrl == original ? post.sampleImageUrl : displayUrl;
   final safe = original.isNotEmpty &&
       candidate.isNotEmpty &&
