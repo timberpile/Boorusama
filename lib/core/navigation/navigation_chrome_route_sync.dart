@@ -28,25 +28,22 @@ class _NavigationChromeRouteSyncState
   @override
   void initState() {
     super.initState();
-    if (widget.route is! PopupRoute) _lastPageRoute = widget.route;
+    final initial = widget.route;
+    if (initial != null && initial is! PopupRoute && !isPostViewerRoute(initial)) {
+      _lastPageRoute = initial;
+    }
   }
 
   @override
   void didUpdateWidget(covariant NavigationChromeRouteSync oldWidget) {
     super.didUpdateWidget(oldWidget);
     final next = widget.route;
-    // Popups leave the underlying page (and its scroll position) unchanged.
-    if (next == null || next is PopupRoute) return;
+    // Remember the page beneath transient routes, not the viewer itself.
+    // Only returning to that same page preserves its scroll-driven chrome.
+    if (next == null || next is PopupRoute || isPostViewerRoute(next)) return;
 
-    final previous = _lastPageRoute;
-    if (identical(previous, next)) return;
+    if (identical(_lastPageRoute, next)) return;
     _lastPageRoute = next;
-
-    // Viewer entry/exit deliberately preserves the feed's hidden-bar state.
-    if (isPostViewerRoute(next) ||
-        (previous != null && isPostViewerRoute(previous))) {
-      return;
-    }
 
     // Route observers can notify during a Navigator build.
     WidgetsBinding.instance.addPostFrameCallback((_) {
